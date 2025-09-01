@@ -1,7 +1,7 @@
 ---
-argument-hint: [template] [context...]
-description: Load and execute a prompt template
-allowed-tools: all
+argument-hint: "[template] [context...]"
+description: "Load and execute a prompt template"
+allowed-tools: "all"
 ---
 
 <prompt-template-name>
