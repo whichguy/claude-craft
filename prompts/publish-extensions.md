@@ -43,7 +43,12 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
    # Check for uncommitted changes that could interfere
    git -C "$REPO_PATH" status --porcelain
    CHANGES=$(git -C "$REPO_PATH" status --porcelain | wc -l)
-   [ $CHANGES -gt 0 ] && echo "⚠️ Warning: $CHANGES uncommitted changes in repository"
+   if [ $CHANGES -gt 0 ]; then
+       echo "⚠️ Warning: $CHANGES uncommitted changes in repository"
+       echo "Uncommitted files:"
+       git -C "$REPO_PATH" status --short | head -5
+       echo "This is normal during development. Publishing will add to these changes."
+   fi
    ```
 
 3. **Permission Validation**:
@@ -102,6 +107,7 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 **C. Extension Source Discovery**:
 - Use `ls`, `find`, and `readlink` commands to examine file structure
 - Check for both local and global `.claude` directories
+- Validate extension content and detect duplicates between locations
 
 #### Step 2: Comprehensive Search
 ```bash
@@ -116,12 +122,23 @@ For each discovered file:
 - Compare with repository version: `cmp -s file1 file2`
 - Determine location context (local vs global)
 - Categorize by extension type
+- **Extract metadata and content preview**:
+  ```bash
+  # Show extension metadata and purpose
+  head -20 "$file" | grep -E "(name:|description:|model:|color:|---)"
+  wc -c "$file" | awk '{print "Size: " $1 " bytes"}'
+  wc -l "$file" | awk '{print "Lines: " $1}'
+  # For agents and commands, extract frontmatter description
+  sed -n '/^---$/,/^---$/p' "$file" | grep -E "(name:|description:)" | head -2
+  ```
 
-#### Step 4: TODO List Generation
-Create actionable TODO items in this format:
-```
-- Publish [filename] (from [type]/ - [location])
-```
+#### Step 4: User Presentation and Decision
+Present discovered extensions with rich context:
+- Extension name and type (agent, command, hook)  
+- File size and line count for scope understanding
+- Brief description extracted from frontmatter or content
+- Location context (local project vs global profile)
+- Current status (symlink, standalone file, or conflict)
 
 ### Publishing Workflow
 
@@ -196,14 +213,16 @@ For each extension the user chooses to publish:
 #### Publishing Decision Framework
 
 **Streamlined Choice**: Present clear, action-oriented options:
-- **[P]** Publish now (recommended for most users)
-- **[R]** Review content first, then decide
-- **[T]** Add to TODO list for later action
+- **[P]** Publish all now (recommended - handles everything automatically)
+- **[S]** Select individual extensions to publish (for granular control)
+- **[R]** Review extension content first, then decide
 - **[C]** Cancel without changes
 
 **Why This Approach**:
 - Most users want immediate action when they discover unpublished extensions
-- Reduces decision fatigue while maintaining control
+- Batch publishing reduces repetitive operations
+- Individual selection provides granular control when needed
+- Content review ensures users understand what they're publishing
 - Clear next steps for each choice
 
 ### Output Format
@@ -215,28 +234,31 @@ Present findings as a structured report with actionable choices:
 
 📍 **Context**: [Local Project / Global Profile / Both]
 📂 **Repository Target**: [path from config]
-🔗 **Repository Status**: [git status, branch info]
+🔗 **Repository Status**: [clean/dirty - X uncommitted files]
 
 🏠 **Local Extensions** (.claude in current project):
-   1. [filename1] (commands/ - ready to publish)
-   2. [filename2] (agents/ - ready to publish)
+   1. **[filename1]** (agents/ - [size] bytes, [lines] lines) - [name/description from frontmatter]
+   2. **[filename2]** (commands/ - [size] bytes, [lines] lines) - [description from frontmatter]
 
 🌐 **Global Extensions** (~/.claude profile):  
-   3. [filename3] (hooks/ - ready to publish)
-   4. [filename4] (agents/ - ready to publish)
+   3. **[filename3]** (hooks/ - [size] bytes, [lines] lines) - [brief description from content]
+   4. **[filename4]** (agents/ - [size] bytes, [lines] lines) - [name/description from frontmatter]
 
-📋 **Publishing Options**:
-   [P] Publish now (copies to repo, creates symlinks, commits & pushes)
-   [R] Review content first, then decide
-   [T] Add to TODO list for later action  
+📋 **Quick Actions**:
+   [P] Publish all now (recommended - copies to repo, creates symlinks, commits & pushes)
+   [S] Select individual extensions to publish  
+   [R] Review extension content before deciding
    [C] Cancel without changes
 
-💡 **After Publishing**:
-   - ✅ Extensions copied to repository with git tracking
-   - ✅ Local files replaced with functional symlinks  
-   - ✅ Changes committed and pushed automatically
-   - ✅ Comprehensive verification confirms success
-   - 🔄 Run `/prompt publish-extensions` again to verify no unpublished extensions remain
+⚠️  **Repository Context**: [X uncommitted changes - this is normal during development]
+
+💡 **Publishing Process**:
+   - 📁 Copy extensions to repository with proper directory structure
+   - 🔗 Replace original files with functional symlinks for continued use
+   - 📝 Commit changes with descriptive messages
+   - 🚀 Push to remote repository automatically
+   - ✅ Comprehensive verification of all operations
+   - 🔄 Run `/prompt publish-extensions` again to confirm no unpublished extensions remain
 ```
 
 ### Decision Logic
