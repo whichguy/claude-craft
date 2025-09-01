@@ -1,18 +1,22 @@
 ---
-description: Manage claude-craft repository and Claude Code configuration
+description: Manage claude-craft repository and Claude Code configuration with smart local/global mode detection, extension publishing, and automatic synchronization
 allowed-tools: Bash, Read, Write
-argument-hint: [action]
+argument-hint: [sync|setup|publish|push|status|clean|scan|auto-sync] [--local|--global]
 ---
 
 # Craft Command
 
-Manage your claude-craft repository and Claude Code configuration.
+Comprehensive Claude Code configuration management with smart local/global detection, extension discovery and publishing, and seamless synchronization workflows.
 
 ## Usage
 
 ```
-/craft [action]
+/craft [action] [flags]
 ```
+
+**Smart Mode Detection**: Automatically detects local vs global mode based on current directory structure.
+**Extension Publishing**: Discover and publish unpublished Claude Code extensions to repository.
+**Flexible Workflows**: Support both project-specific (local) and centralized (global) configurations.
 
 ## Actions
 
