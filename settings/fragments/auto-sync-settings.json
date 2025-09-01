@@ -1,0 +1,53 @@
+{
+  "autoSync": {
+    "enabled": false,
+    "triggers": {
+      "sessionStart": {
+        "enabled": false,
+        "action": "pull",
+        "silent": true,
+        "timeout": 30
+      },
+      "sessionEnd": {
+        "enabled": false,
+        "action": "push",
+        "silent": false,
+        "commitMessage": "Auto-sync: Session end",
+        "timeout": 60
+      },
+      "userPrompt": {
+        "enabled": true,
+        "probability": 27,
+        "action": "sync",
+        "silent": true,
+        "debounceMs": 5000,
+        "timeout": 30
+      }
+    },
+    "repository": {
+      "path": "$HOME/src5/subagent-sync/claude-craft",
+      "remote": "origin",
+      "branch": "main"
+    },
+    "state": {
+      "lastSync": null,
+      "lastPromptCheck": 0,
+      "syncInProgress": false,
+      "lockFile": "$HOME/.claude/auto-sync.lock"
+    },
+    "statistics": {
+      "totalSyncs": 0,
+      "sessionStartSyncs": 0,
+      "sessionEndSyncs": 0,
+      "promptSyncs": 0,
+      "failedSyncs": 0,
+      "conflicts": 0
+    },
+    "logging": {
+      "enabled": true,
+      "file": "$HOME/.claude/auto-sync.log",
+      "maxSize": "10MB",
+      "verbose": false
+    }
+  }
+}

@@ -1,3 +1,9 @@
+---
+description: Access and apply prompt templates from claude-craft repository
+allowed-tools: Read, WebFetch
+argument-hint: [template-name] [args...]
+---
+
 # Prompts Command
 
 Quickly access and apply prompt templates from the claude-craft repository.

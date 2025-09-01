@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "userPromptSubmit": {
+      "command": "~/.claude/hooks/log-prompts.sh",
+      "description": "Log user prompts for analysis"
+    },
+    "preToolUse": [
+      {
+        "toolMatch": "Bash.*",
+        "command": "~/.claude/hooks/validate-bash.sh",
+        "description": "Validate bash commands before execution"
+      }
+    ]
+  }
+}

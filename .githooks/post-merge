@@ -1,0 +1,80 @@
+#!/bin/bash
+
+# Post-merge hook for security scanning
+# Runs after successful git pull to check for security threats
+
+# Colors
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}🔒 Running post-merge security scan...${NC}"
+
+# Get the repository root
+REPO_ROOT=$(git rev-parse --show-toplevel)
+SECURITY_SCANNER="$REPO_ROOT/tools/security-scan.sh"
+
+# Check if security scanner exists
+if [ ! -x "$SECURITY_SCANNER" ]; then
+    echo -e "${YELLOW}⚠️  Security scanner not found, skipping scan${NC}"
+    exit 0
+fi
+
+# Get changed files from the merge
+CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD)
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo -e "${GREEN}✅ No files changed in merge${NC}"
+    exit 0
+fi
+
+echo -e "${BLUE}📁 Files changed in merge:${NC}"
+echo "$CHANGED_FILES" | sed 's/^/  /'
+
+# Check for executable files and scripts in the changed files
+EXEC_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(sh|py|js|pl|rb|exe)$|^[^.]*$' | grep -v -E '/(docs|prompts|examples|templates)/' || true)
+
+if [ -z "$EXEC_FILES" ]; then
+    echo -e "${GREEN}✅ No executable files changed${NC}"
+    exit 0
+fi
+
+echo -e "${BLUE}🔍 Scanning executable files for threats...${NC}"
+echo "$EXEC_FILES" | sed 's/^/  /'
+
+# Create temporary file list for scanning
+TEMP_FILE=$(mktemp)
+echo "$EXEC_FILES" > "$TEMP_FILE"
+
+# Run security scan on changed executable files
+SCAN_FAILED=false
+while IFS= read -r file; do
+    if [ -f "$file" ]; then
+        echo -e "${BLUE}🔍 Scanning: $file${NC}"
+        if ! "$SECURITY_SCANNER" "$file" malicious false; then
+            SCAN_FAILED=true
+            echo -e "${RED}❌ Security threats detected in: $file${NC}"
+        fi
+    fi
+done < "$TEMP_FILE"
+
+# Clean up
+rm -f "$TEMP_FILE"
+
+if [ "$SCAN_FAILED" = "true" ]; then
+    echo -e "${RED}🚨 SECURITY ALERT: Threats detected in pulled changes!${NC}"
+    echo -e "${YELLOW}💡 Review the files above and consider:${NC}"
+    echo -e "${YELLOW}   - Reverting the merge: git reset --hard ORIG_HEAD${NC}"
+    echo -e "${YELLOW}   - Checking security log: ~/.git-security.log${NC}"
+    echo -e "${YELLOW}   - Manually reviewing suspicious files${NC}"
+    
+    # Log the security event
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - POST-MERGE: Security threats detected in merged files" >> ~/.git-security.log
+    exit 1
+else
+    echo -e "${GREEN}✅ Post-merge security scan completed - no threats detected${NC}"
+fi
+
+exit 0
