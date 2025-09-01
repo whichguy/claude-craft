@@ -9,7 +9,9 @@ $1
 </prompt-template-name>
 
 <prompt-context>
-!`shift; echo "$*"`
+!`shift; cat << 'EOF'
+$*
+EOF`
 </prompt-context>
 
 !`# Load template with precedence: current → project → user-claude → user-home
