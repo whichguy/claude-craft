@@ -594,6 +594,31 @@ echo "  🤖 $AGENT_COUNT agents"
 echo "  🪝 $HOOK_COUNT hooks"
 echo ""
 
+# Show lightweight status of repository agent types
+echo "📦 Repository Contents:"
+if [ -d "$REPO_PATH/agents" ]; then
+  REPO_AGENTS=$(find "$REPO_PATH/agents" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+  AGENT_NAMES=$(find "$REPO_PATH/agents" -name "*.md" -maxdepth 1 2>/dev/null | xargs -I {} basename {} .md | sort | tr '\n' ', ' | sed 's/, $//')
+  [ "$REPO_AGENTS" -gt 0 ] && echo "  🤖 $REPO_AGENTS agents: $AGENT_NAMES"
+fi
+
+if [ -d "$REPO_PATH/commands" ]; then
+  REPO_COMMANDS=$(find "$REPO_PATH/commands" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+  COMMAND_NAMES=$(find "$REPO_PATH/commands" -name "*.md" -maxdepth 1 2>/dev/null | xargs -I {} basename {} .md | sort | tr '\n' ', ' | sed 's/, $//')
+  [ "$REPO_COMMANDS" -gt 0 ] && echo "  ⚡ $REPO_COMMANDS commands: $COMMAND_NAMES"
+fi
+
+if [ -d "$REPO_PATH/hooks" ]; then
+  REPO_HOOKS=$(find "$REPO_PATH/hooks" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+  [ "$REPO_HOOKS" -gt 0 ] && echo "  🪝 $REPO_HOOKS hooks"
+fi
+
+if [ -d "$REPO_PATH/prompts" ]; then
+  REPO_PROMPTS=$(find "$REPO_PATH/prompts" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
+  [ "$REPO_PROMPTS" -gt 0 ] && echo "  📝 $REPO_PROMPTS prompts"
+fi
+echo ""
+
 # Quick check for unpublished items
 UNPUB_COUNT=0
 for dir in commands agents hooks; do
