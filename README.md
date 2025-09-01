@@ -71,8 +71,12 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 | Command | Description |
 |---------|-------------|
-| `/craft` | Sync latest changes (default action) |
-| `/craft setup` | Initial setup (same as install script) |
+| `/craft` | Smart sync: auto-detects local/global mode (default action) |
+| `/craft sync --local` | Force local-only sync (no git operations, current directory) |
+| `/craft sync --global` | Force global sync (from ~/claude-craft repository) |
+| `/craft setup` | Smart setup: auto-detects local/global mode |
+| `/craft setup --local` | Force local setup: create symlinks from current directory (no clone) |
+| `/craft setup --global` | Force global setup: clone repository and create symlinks |
 | `/craft push` | Commit and push your changes |
 | `/craft status` | Show git status and active symlinks |
 | `/craft clean` | Clean and refresh all symlinks |
@@ -81,6 +85,30 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 | `/craft auto-sync status` | Show auto-sync configuration |
 | `/craft scan` | Run security scan on memory files |
 | `/prompts` | Access prompt templates |
+
+### Local vs Global Modes
+
+Claude Craft intelligently detects whether to operate in local or global mode:
+
+**🔍 Auto-Detection**
+- **Local Mode**: Automatically used when current directory contains `commands/`, `agents/`, `memory/`, or `settings/` folders
+- **Global Mode**: Used when no local claude-craft structure is detected (uses `~/claude-craft`)
+
+**🏠 Local Mode**
+- Syncs symlinks from current working directory to `~/.claude/`
+- No git operations (pull/push/clone) - purely local file linking
+- Perfect for project-specific claude-craft configurations
+- Use when you have a local claude-craft folder in your project
+
+**🌐 Global Mode**  
+- Syncs from `~/claude-craft` repository to `~/.claude/`
+- Includes git operations (pull from remote, push changes)
+- Standard workflow for most users
+- Requires cloned repository at `~/claude-craft`
+
+**Manual Override**
+- Add `--local` flag to force local mode: `/craft sync --local`
+- Add `--global` flag to force global mode: `/craft sync --global`
 
 ### Git Security Commands (installed automatically)
 

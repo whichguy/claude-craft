@@ -16,8 +16,12 @@ Manage your claude-craft repository and Claude Code configuration.
 
 ## Actions
 
-- `/craft` or `/craft sync` - Sync latest changes from repository (default action)
-- `/craft setup` - Initial setup: clone repository and create all symlinks  
+- `/craft` or `/craft sync` - Smart sync: auto-detects local/global mode (default action)
+- `/craft sync --local` - Force local-only sync (no git operations, current directory)
+- `/craft sync --global` - Force global sync (from ~/claude-craft repository)
+- `/craft setup` - Smart setup: auto-detects local/global mode
+- `/craft setup --local` - Force local setup: create symlinks from current directory (no clone)
+- `/craft setup --global` - Force global setup: clone repository and create symlinks
 - `/craft push` - Add, commit, and push local changes to repository (includes security scan)
 - `/craft status` - Show git status and symlink health
 - `/craft clean` - Remove broken symlinks and recreate them
@@ -27,14 +31,26 @@ Manage your claude-craft repository and Claude Code configuration.
 ## Examples
 
 ```bash
-# Default sync - pull latest changes
+# Smart sync - auto-detects local/global mode
 /craft
 
-# Explicit sync command
+# Explicit smart sync command
 /craft sync
 
-# Initial setup on new machine
+# Force local-only sync (no git operations)
+/craft sync --local
+
+# Force global sync from ~/claude-craft
+/craft sync --global
+
+# Smart setup - auto-detects local/global mode
 /craft setup
+
+# Force local setup from current directory (no clone)
+/craft setup --local
+
+# Force global setup (clone repository)
+/craft setup --global
 
 # Commit and push your changes
 /craft push "Added new security prompts"
@@ -49,9 +65,37 @@ Manage your claude-craft repository and Claude Code configuration.
 #!/bin/bash
 set -e
 
-REPO_DIR="$HOME/claude-craft"
-CLAUDE_DIR="$HOME/.claude"
+# Parse arguments
 ACTION="${1:-sync}"
+LOCAL_FLAG=false
+
+# Check for --local or --global flags in sync or setup command
+if [ "$2" = "--local" ]; then
+    LOCAL_FLAG=true
+elif [ "$2" = "--global" ]; then
+    LOCAL_FLAG=false
+    echo -e "${YELLOW}🌐 Forcing global mode as requested${NC}"
+fi
+
+# Auto-detect local vs global mode if not explicitly specified
+if [ "$LOCAL_FLAG" = false ] && [ "$2" != "--global" ]; then
+    # Check for local claude-craft settings/structure
+    if [ -d "$(pwd)/commands" ] || [ -d "$(pwd)/agents" ] || [ -d "$(pwd)/memory" ] || [ -d "$(pwd)/settings" ]; then
+        LOCAL_FLAG=true
+        echo -e "${YELLOW}🔍 Detected local claude-craft structure - using local mode${NC}"
+    fi
+fi
+
+# Set repository directory based on local flag
+if [ "$LOCAL_FLAG" = true ]; then
+    REPO_DIR="$(pwd)"
+    echo -e "${YELLOW}🏠 Using local directory: $REPO_DIR${NC}"
+else
+    REPO_DIR="$HOME/claude-craft"
+    echo -e "${YELLOW}🌐 Using global directory: $REPO_DIR${NC}"
+fi
+
+CLAUDE_DIR="$HOME/.claude"
 CHANGES_DETECTED=false
 
 # Colors for output  
@@ -63,12 +107,18 @@ NC='\033[0m'
 # Error handling
 check_repo_exists() {
     if [ ! -d "$REPO_DIR" ]; then
-        echo -e "${RED}❌ Error: claude-craft repository not found at $REPO_DIR${NC}"
-        echo -e "${YELLOW}💡 Run: curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash${NC}"
+        if [ "$LOCAL_FLAG" = true ]; then
+            echo -e "${RED}❌ Error: Local directory $REPO_DIR not found${NC}"
+            echo -e "${YELLOW}💡 Run from a directory containing claude-craft files${NC}"
+        else
+            echo -e "${RED}❌ Error: claude-craft repository not found at $REPO_DIR${NC}"
+            echo -e "${YELLOW}💡 Run: curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash${NC}"
+        fi
         exit 1
     fi
     
-    if [ ! -d "$REPO_DIR/.git" ]; then
+    # Only check for git repo in global mode
+    if [ "$LOCAL_FLAG" = false ] && [ ! -d "$REPO_DIR/.git" ]; then
         echo -e "${RED}❌ Error: $REPO_DIR exists but is not a git repository${NC}"
         echo -e "${YELLOW}💡 Delete $REPO_DIR and run the install command${NC}"
         exit 1
@@ -156,25 +206,30 @@ safe_merge_configs() {
 
 case "$ACTION" in
     "setup")
-        echo -e "${YELLOW}🚀 Setting up claude-craft...${NC}"
-        
-        # Clone if needed
-        if [ ! -d "$REPO_DIR" ]; then
-            echo -e "${YELLOW}📥 Cloning repository...${NC}"
-            if ! git clone https://github.com/whichguy/claude-craft.git "$REPO_DIR"; then
-                echo -e "${RED}❌ Failed to clone repository${NC}"
-                exit 1
-            fi
+        if [ "$LOCAL_FLAG" = true ]; then
+            echo -e "${YELLOW}🚀 Setting up local claude-craft from current directory...${NC}"
+            check_repo_exists
+        else
+            echo -e "${YELLOW}🚀 Setting up global claude-craft...${NC}"
             
-            # Make tools executable
-            if [ -d "$REPO_DIR/tools" ]; then
-                chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
-            fi
-            
-            # Install git hooks for security
-            if [ -x "$REPO_DIR/tools/install-git-hooks.sh" ]; then
-                echo -e "${BLUE}🪝 Installing security git hooks...${NC}"
-                (cd "$REPO_DIR" && "$REPO_DIR/tools/install-git-hooks.sh")
+            # Clone if needed
+            if [ ! -d "$REPO_DIR" ]; then
+                echo -e "${YELLOW}📥 Cloning repository...${NC}"
+                if ! git clone https://github.com/whichguy/claude-craft.git "$REPO_DIR"; then
+                    echo -e "${RED}❌ Failed to clone repository${NC}"
+                    exit 1
+                fi
+                
+                # Make tools executable
+                if [ -d "$REPO_DIR/tools" ]; then
+                    chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
+                fi
+                
+                # Install git hooks for security
+                if [ -x "$REPO_DIR/tools/install-git-hooks.sh" ]; then
+                    echo -e "${BLUE}🪝 Installing security git hooks...${NC}"
+                    (cd "$REPO_DIR" && "$REPO_DIR/tools/install-git-hooks.sh")
+                fi
             fi
         fi
         
@@ -185,28 +240,36 @@ case "$ACTION" in
         # Safe merge of single-file configurations
         safe_merge_configs
         
-        echo -e "${GREEN}✅ Setup complete!${NC}"
+        if [ "$LOCAL_FLAG" = true ]; then
+            echo -e "${GREEN}✅ Local setup complete!${NC}"
+        else
+            echo -e "${GREEN}✅ Global setup complete!${NC}"
+        fi
         echo -e "${YELLOW}⚠️  IMPORTANT: Restart Claude Code to load new commands/agents/hooks${NC}"
         ;;
         
     "sync")
         check_repo_exists
         
-        echo -e "${YELLOW}📥 Syncing claude-craft...${NC}"
-        
-        # Use secure git if available
-        if [ -f "$REPO_DIR/tools/secure-git.sh" ]; then
-            echo -e "${BLUE}🔒 Using secure git pull with threat analysis...${NC}"
-            if ! (cd "$REPO_DIR" && "$REPO_DIR/tools/secure-git.sh" pull origin main); then
-                echo -e "${RED}❌ Failed to sync repository${NC}"
-                echo -e "${YELLOW}💡 Security threats may have been detected, check ~/.git-security.log${NC}"
-                exit 1
-            fi
+        if [ "$LOCAL_FLAG" = true ]; then
+            echo -e "${YELLOW}📥 Syncing local claude-craft...${NC}"
         else
-            if ! (cd "$REPO_DIR" && git pull); then
-                echo -e "${RED}❌ Failed to sync repository${NC}"
-                echo -e "${YELLOW}💡 Check your internet connection or run: /craft clean${NC}"
-                exit 1
+            echo -e "${YELLOW}📥 Syncing global claude-craft...${NC}"
+            
+            # Use secure git if available (only for global sync)
+            if [ -f "$REPO_DIR/tools/secure-git.sh" ]; then
+                echo -e "${BLUE}🔒 Using secure git pull with threat analysis...${NC}"
+                if ! (cd "$REPO_DIR" && "$REPO_DIR/tools/secure-git.sh" pull origin main); then
+                    echo -e "${RED}❌ Failed to sync repository${NC}"
+                    echo -e "${YELLOW}💡 Security threats may have been detected, check ~/.git-security.log${NC}"
+                    exit 1
+                fi
+            else
+                if ! (cd "$REPO_DIR" && git pull); then
+                    echo -e "${RED}❌ Failed to sync repository${NC}"
+                    echo -e "${YELLOW}💡 Check your internet connection or run: /craft clean${NC}"
+                    exit 1
+                fi
             fi
         fi
         
