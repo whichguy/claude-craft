@@ -78,7 +78,7 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 | `/craft setup --local` | Force local setup: create symlinks from current directory (no clone) |
 | `/craft setup --global` | Force global setup: clone repository and create symlinks |
 | `/craft push` | Commit and push your changes |
-| `/craft publish` | Discover and publish unpublished Claude Code extensions |
+| `/craft publish` | Discover unpublished extensions with TODO list integration and publishing options |
 | `/craft status` | Show git status and active symlinks |
 | `/craft clean` | Clean and refresh all symlinks |
 | `/craft auto-sync enable` | Enable automatic probabilistic sync |
@@ -113,7 +113,7 @@ Claude Craft intelligently detects whether to operate in local or global mode:
 
 ### Publishing Extensions
 
-The `/craft publish` command discovers and publishes your unpublished Claude Code extensions to the repository:
+The `/craft publish` command provides a prompt-based workflow for discovering and managing unpublished Claude Code extensions:
 
 **🔍 Discovery Process**
 - Scans `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/hooks/` for non-symlinked files
@@ -121,24 +121,29 @@ The `/craft publish` command discovers and publishes your unpublished Claude Cod
 - Compares settings.json and CLAUDE.md with repository versions
 - Identifies files that differ from published versions
 
-**📤 Interactive Publishing**
-- Prompts user to select which files to publish
-- Copies selected files to appropriate repository folders
-- Handles settings fragments and memory includes properly
-- Commits and pushes changes with descriptive messages
+**📋 Workflow Options**
+- **Option 1**: Execute publishing immediately (traditional workflow)
+- **Option 2**: Add discovered items to TODO list for project management
+- **Option 3**: Interactive file selection with immediate publishing
+- **Cancel**: Exit without taking action
 
-**✨ Smart Detection**
-- Skips symlinks already pointing to the repository
-- Ignores identical files (no changes to publish)
-- Preserves file organization and naming conventions
-- Updates existing files or creates new ones as needed
+**✨ TODO List Integration**
+- Displays suggested TODO items in organized format
+- Allows deferring publication decisions to project management workflow
+- Provides clear guidance for revisiting publishing tasks
+- Maintains flexibility between immediate and planned actions
 
 ```bash
-# Discover and publish your custom extensions
+# Discover unpublished extensions with workflow choices
 /craft publish
 
-# Process: discovers → prompts → copies → commits → pushes
-# Then run sync to update symlinks
+# Options presented:
+# 1) Execute publishing now → immediate git workflow
+# 2) Add to TODO list → defer for project management
+# 3) Select individual files → curated immediate publishing
+# q) Cancel → exit without action
+
+# After publishing, sync to update symlinks
 /craft sync
 ```
 

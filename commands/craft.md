@@ -27,7 +27,7 @@ Comprehensive Claude Code configuration management with smart local/global detec
 - `/craft setup --local` - Force local setup: create symlinks from current directory (no clone)
 - `/craft setup --global` - Force global setup: clone repository and create symlinks
 - `/craft push` - Add, commit, and push local changes to repository (includes security scan)
-- `/craft publish` - Discover and publish unpublished Claude Code extensions
+- `/craft publish` - Discover unpublished extensions with TODO list integration and publishing options
 - `/craft status` - Show git status and symlink health
 - `/craft clean` - Remove broken symlinks and recreate them
 - `/craft scan` - Run security scan on memory files without pushing
@@ -60,7 +60,7 @@ Comprehensive Claude Code configuration management with smart local/global detec
 # Commit and push your changes
 /craft push "Added new security prompts"
 
-# Discover and publish unpublished extensions
+# Discover unpublished extensions with workflow options
 /craft publish
 
 # Check sync status
@@ -574,64 +574,157 @@ case "$ACTION" in
         fi
         
         echo ""
-        echo -e "${YELLOW}📋 Select files to publish:${NC}"
+        echo -e "${YELLOW}📋 Discovered ${#UNPUBLISHED_FILES[@]} unpublished extension(s)${NC}"
         
-        # Interactive selection
+        # Add discovered files to TODO list format
+        todo_items=""
         selected_files=()
+        
         for i in "${!UNPUBLISHED_FILES[@]}"; do
             item="${UNPUBLISHED_FILES[$i]}"
             type=$(echo "$item" | cut -d: -f1)
             file_path=$(echo "$item" | cut -d: -f2-)
             basename=$(basename "$file_path")
             
-            echo -e "${YELLOW}Publish ${GREEN}$basename${NC} (from $type/)? [Y/n]${NC}"
-            read -r response
-            
-            # Default to yes if empty response
-            if [[ "$response" =~ ^[Yy]$ ]] || [[ -z "$response" ]]; then
-                selected_files+=("$item")
-            fi
+            # Add to TODO list suggestion
+            todo_items="${todo_items}- Publish ${basename} (from ${type}/)\n"
+            selected_files+=("$item")
         done
         
-        if [ ${#selected_files[@]} -eq 0 ]; then
-            echo -e "${YELLOW}⚠️  No files selected for publishing${NC}"
-            exit 0
-        fi
+        echo -e "${YELLOW}Suggested TODO items:${NC}"
+        echo -e "$todo_items"
+        echo ""
+        echo -e "${YELLOW}Would you like to:${NC}"
+        echo -e "  ${GREEN}1${NC}) Execute publishing now (traditional workflow)"
+        echo -e "  ${GREEN}2${NC}) Add to TODO list for later action"
+        echo -e "  ${GREEN}3${NC}) Show details and choose individual files"
+        echo -e "  ${GREEN}q${NC}) Cancel"
         
-        # Publish selected files
-        if publish_selected_files "${selected_files[@]}"; then
-            echo ""
-            echo -e "${YELLOW}📝 Commit message (or press Enter for default):${NC}"
-            read -r commit_msg
-            
-            # Default commit message
-            if [ -z "$commit_msg" ]; then
-                commit_msg="Publish ${#selected_files[@]} Claude Code extension(s)"
-            fi
-            
-            # Git add, commit, and push
-            echo -e "${YELLOW}📤 Committing and pushing changes...${NC}"
-            cd "$REPO_DIR"
-            
-            if ! git add -A; then
-                echo -e "${RED}❌ Failed to stage changes${NC}"
+        echo -e "${YELLOW}Choice [1/2/3/q]:${NC}"
+        read -r choice
+        
+        case "$choice" in
+            "1")
+                echo -e "${YELLOW}📤 Publishing all discovered files...${NC}"
+                
+                # Execute immediate publishing
+                if publish_selected_files "${selected_files[@]}"; then
+                    echo ""
+                    echo -e "${YELLOW}📝 Commit message (or press Enter for default):${NC}"
+                    read -r commit_msg
+                    
+                    # Default commit message
+                    if [ -z "$commit_msg" ]; then
+                        commit_msg="Publish ${#selected_files[@]} Claude Code extension(s)"
+                    fi
+                    
+                    # Git add, commit, and push
+                    echo -e "${YELLOW}📤 Committing and pushing changes...${NC}"
+                    cd "$REPO_DIR"
+                    
+                    if ! git add -A; then
+                        echo -e "${RED}❌ Failed to stage changes${NC}"
+                        exit 1
+                    fi
+                    
+                    if ! git commit -m "$commit_msg"; then
+                        echo -e "${RED}❌ Failed to commit changes${NC}"
+                        exit 1
+                    fi
+                    
+                    if ! git push; then
+                        echo -e "${RED}❌ Failed to push changes${NC}"
+                        echo -e "${YELLOW}💡 Check your GitHub permissions and network connection${NC}"
+                        exit 1
+                    fi
+                    
+                    echo -e "${GREEN}✅ Successfully published and pushed ${#selected_files[@]} extension(s)!${NC}"
+                    echo -e "${YELLOW}💡 Run /craft sync to update your local symlinks${NC}"
+                fi
+                ;;
+            "2")
+                echo -e "${GREEN}📝 Adding items to TODO list for later action...${NC}"
+                echo ""
+                echo -e "${YELLOW}TODO List Items Added:${NC}"
+                for item in "${selected_files[@]}"; do
+                    type=$(echo "$item" | cut -d: -f1)
+                    file_path=$(echo "$item" | cut -d: -f2-)
+                    basename=$(basename "$file_path")
+                    echo -e "  ✅ Publish ${GREEN}${basename}${NC} (from ${type}/)"
+                done
+                echo ""
+                echo -e "${YELLOW}💡 Use your project management tools to track these publishing tasks${NC}"
+                echo -e "${YELLOW}💡 When ready, run '/craft publish' again and choose option 1 or 3${NC}"
+                ;;
+            "3")
+                echo -e "${YELLOW}📋 Select individual files to publish:${NC}"
+                
+                # Interactive selection
+                individual_selected=()
+                for i in "${!UNPUBLISHED_FILES[@]}"; do
+                    item="${UNPUBLISHED_FILES[$i]}"
+                    type=$(echo "$item" | cut -d: -f1)
+                    file_path=$(echo "$item" | cut -d: -f2-)
+                    basename=$(basename "$file_path")
+                    
+                    echo -e "${YELLOW}Publish ${GREEN}$basename${NC} (from $type/)? [Y/n]${NC}"
+                    read -r response
+                    
+                    # Default to yes if empty response
+                    if [[ "$response" =~ ^[Yy]$ ]] || [[ -z "$response" ]]; then
+                        individual_selected+=("$item")
+                    fi
+                done
+                
+                if [ ${#individual_selected[@]} -eq 0 ]; then
+                    echo -e "${YELLOW}⚠️  No files selected for publishing${NC}"
+                    exit 0
+                fi
+                
+                # Publish selected files
+                if publish_selected_files "${individual_selected[@]}"; then
+                    echo ""
+                    echo -e "${YELLOW}📝 Commit message (or press Enter for default):${NC}"
+                    read -r commit_msg
+                    
+                    # Default commit message
+                    if [ -z "$commit_msg" ]; then
+                        commit_msg="Publish ${#individual_selected[@]} Claude Code extension(s)"
+                    fi
+                    
+                    # Git add, commit, and push
+                    echo -e "${YELLOW}📤 Committing and pushing changes...${NC}"
+                    cd "$REPO_DIR"
+                    
+                    if ! git add -A; then
+                        echo -e "${RED}❌ Failed to stage changes${NC}"
+                        exit 1
+                    fi
+                    
+                    if ! git commit -m "$commit_msg"; then
+                        echo -e "${RED}❌ Failed to commit changes${NC}"
+                        exit 1
+                    fi
+                    
+                    if ! git push; then
+                        echo -e "${RED}❌ Failed to push changes${NC}"
+                        echo -e "${YELLOW}💡 Check your GitHub permissions and network connection${NC}"
+                        exit 1
+                    fi
+                    
+                    echo -e "${GREEN}✅ Successfully published and pushed ${#individual_selected[@]} extension(s)!${NC}"
+                    echo -e "${YELLOW}💡 Run /craft sync to update your local symlinks${NC}"
+                fi
+                ;;
+            "q"|"Q")
+                echo -e "${YELLOW}📋 Publishing cancelled${NC}"
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}❌ Invalid choice. Publishing cancelled.${NC}"
                 exit 1
-            fi
-            
-            if ! git commit -m "$commit_msg"; then
-                echo -e "${RED}❌ Failed to commit changes${NC}"
-                exit 1
-            fi
-            
-            if ! git push; then
-                echo -e "${RED}❌ Failed to push changes${NC}"
-                echo -e "${YELLOW}💡 Check your GitHub permissions and network connection${NC}"
-                exit 1
-            fi
-            
-            echo -e "${GREEN}✅ Successfully published and pushed ${#selected_files[@]} extension(s)!${NC}"
-            echo -e "${YELLOW}💡 Run /craft sync to update your local symlinks${NC}"
-        fi
+                ;;
+        esac
         ;;
         
     *)
@@ -642,7 +735,7 @@ case "$ACTION" in
         echo -e "  ${GREEN}/craft${NC} or ${GREEN}/craft sync${NC}  - Sync latest changes (default)"
         echo -e "  ${GREEN}/craft setup${NC}             - Initial setup and clone"
         echo -e "  ${GREEN}/craft push \"message\"${NC}    - Commit and push changes (with security scan)"
-        echo -e "  ${GREEN}/craft publish${NC}           - Discover and publish unpublished extensions"
+        echo -e "  ${GREEN}/craft publish${NC}           - Discover unpublished extensions with workflow options"
         echo -e "  ${GREEN}/craft auto-sync${NC}         - Manage automatic synchronization" 
         echo -e "  ${GREEN}/craft status${NC}            - Show repository and config status"
         echo -e "  ${GREEN}/craft clean${NC}             - Clean and refresh all symlinks"
