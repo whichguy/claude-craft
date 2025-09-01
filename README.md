@@ -78,6 +78,7 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 | `/craft setup --local` | Force local setup: create symlinks from current directory (no clone) |
 | `/craft setup --global` | Force global setup: clone repository and create symlinks |
 | `/craft push` | Commit and push your changes |
+| `/craft publish` | Discover and publish unpublished Claude Code extensions |
 | `/craft status` | Show git status and active symlinks |
 | `/craft clean` | Clean and refresh all symlinks |
 | `/craft auto-sync enable` | Enable automatic probabilistic sync |
@@ -109,6 +110,37 @@ Claude Craft intelligently detects whether to operate in local or global mode:
 **Manual Override**
 - Add `--local` flag to force local mode: `/craft sync --local`
 - Add `--global` flag to force global mode: `/craft sync --global`
+
+### Publishing Extensions
+
+The `/craft publish` command discovers and publishes your unpublished Claude Code extensions to the repository:
+
+**🔍 Discovery Process**
+- Scans `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/hooks/` for non-symlinked files
+- Detects locally created or modified extensions not yet in the repository
+- Compares settings.json and CLAUDE.md with repository versions
+- Identifies files that differ from published versions
+
+**📤 Interactive Publishing**
+- Prompts user to select which files to publish
+- Copies selected files to appropriate repository folders
+- Handles settings fragments and memory includes properly
+- Commits and pushes changes with descriptive messages
+
+**✨ Smart Detection**
+- Skips symlinks already pointing to the repository
+- Ignores identical files (no changes to publish)
+- Preserves file organization and naming conventions
+- Updates existing files or creates new ones as needed
+
+```bash
+# Discover and publish your custom extensions
+/craft publish
+
+# Process: discovers → prompts → copies → commits → pushes
+# Then run sync to update symlinks
+/craft sync
+```
 
 ### Git Security Commands (installed automatically)
 

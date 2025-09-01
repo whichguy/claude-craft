@@ -23,6 +23,7 @@ Manage your claude-craft repository and Claude Code configuration.
 - `/craft setup --local` - Force local setup: create symlinks from current directory (no clone)
 - `/craft setup --global` - Force global setup: clone repository and create symlinks
 - `/craft push` - Add, commit, and push local changes to repository (includes security scan)
+- `/craft publish` - Discover and publish unpublished Claude Code extensions
 - `/craft status` - Show git status and symlink health
 - `/craft clean` - Remove broken symlinks and recreate them
 - `/craft scan` - Run security scan on memory files without pushing
@@ -54,6 +55,9 @@ Manage your claude-craft repository and Claude Code configuration.
 
 # Commit and push your changes
 /craft push "Added new security prompts"
+
+# Discover and publish unpublished extensions
+/craft publish
 
 # Check sync status
 /craft status
@@ -201,6 +205,115 @@ safe_merge_configs() {
     # Track config changes for restart reminder
     if [ "$config_changes" = true ]; then
         CHANGES_DETECTED=true
+    fi
+}
+
+discover_unpublished() {
+    local unpublished_files=()
+    local file_types=("commands" "agents" "hooks")
+    
+    echo -e "${YELLOW}🔍 Discovering unpublished Claude Code extensions...${NC}"
+    
+    for type in "${file_types[@]}"; do
+        local claude_dir="$CLAUDE_DIR/$type"
+        local repo_dir="$REPO_DIR/$type"
+        
+        if [ ! -d "$claude_dir" ]; then
+            continue
+        fi
+        
+        echo -e "${YELLOW}Checking $type...${NC}"
+        
+        # Find files that are not symlinks (locally created) or symlinks not pointing to our repo
+        while IFS= read -r -d '' file; do
+            local basename=$(basename "$file")
+            local repo_file="$repo_dir/$basename"
+            
+            # Skip if it's a symlink pointing to our repo
+            if [ -L "$file" ] && readlink "$file" | grep -q "^$REPO_DIR"; then
+                continue
+            fi
+            
+            # Check if file exists in repo with same content
+            if [ -f "$repo_file" ] && cmp -s "$file" "$repo_file"; then
+                continue
+            fi
+            
+            unpublished_files+=("$type:$file")
+            echo -e "  📄 Found: ${GREEN}$basename${NC} (in $type/)"
+        done < <(find "$claude_dir" -maxdepth 1 -type f -name "*.md" -o -name "*.json" -o -name "*.sh" -print0 2>/dev/null)
+    done
+    
+    # Check settings and memory for unpublished changes
+    echo -e "${YELLOW}Checking settings and memory...${NC}"
+    
+    # Check for modified settings.json
+    if [ -f "$CLAUDE_DIR/settings.json" ] && [ -f "$REPO_DIR/settings/settings.base.json" ]; then
+        if ! cmp -s "$CLAUDE_DIR/settings.json" "$REPO_DIR/settings/settings.base.json"; then
+            unpublished_files+=("settings:$CLAUDE_DIR/settings.json")
+            echo -e "  ⚙️  Found: ${GREEN}settings.json${NC} (modified)"
+        fi
+    fi
+    
+    # Check CLAUDE.md
+    if [ -f "$CLAUDE_DIR/CLAUDE.md" ] && [ -f "$REPO_DIR/memory/CLAUDE.base.md" ]; then
+        if ! cmp -s "$CLAUDE_DIR/CLAUDE.md" "$REPO_DIR/memory/CLAUDE.base.md"; then
+            unpublished_files+=("memory:$CLAUDE_DIR/CLAUDE.md")
+            echo -e "  📝 Found: ${GREEN}CLAUDE.md${NC} (modified)"
+        fi
+    fi
+    
+    # Return the array (using a global for simplicity in bash)
+    UNPUBLISHED_FILES=("${unpublished_files[@]}")
+    
+    if [ ${#unpublished_files[@]} -eq 0 ]; then
+        echo -e "${GREEN}✅ No unpublished extensions found${NC}"
+        return 1
+    else
+        echo -e "${YELLOW}Found ${#unpublished_files[@]} unpublished extension(s)${NC}"
+        return 0
+    fi
+}
+
+publish_selected_files() {
+    local selected_files=("$@")
+    local published_count=0
+    
+    echo -e "${YELLOW}📤 Publishing selected files...${NC}"
+    
+    for item in "${selected_files[@]}"; do
+        local type=$(echo "$item" | cut -d: -f1)
+        local file_path=$(echo "$item" | cut -d: -f2-)
+        local basename=$(basename "$file_path")
+        
+        case "$type" in
+            "commands"|"agents"|"hooks")
+                local target_dir="$REPO_DIR/$type"
+                mkdir -p "$target_dir"
+                cp "$file_path" "$target_dir/$basename"
+                echo -e "  ✅ Published ${GREEN}$basename${NC} to $type/"
+                ;;
+            "settings")
+                mkdir -p "$REPO_DIR/settings/fragments"
+                cp "$file_path" "$REPO_DIR/settings/fragments/published-$(date +%Y%m%d).json"
+                echo -e "  ✅ Published ${GREEN}settings.json${NC} to settings/fragments/"
+                ;;
+            "memory")
+                mkdir -p "$REPO_DIR/memory/fragments"
+                cp "$file_path" "$REPO_DIR/memory/fragments/published-CLAUDE-$(date +%Y%m%d).md"
+                echo -e "  ✅ Published ${GREEN}CLAUDE.md${NC} to memory/fragments/"
+                ;;
+        esac
+        
+        ((published_count++))
+    done
+    
+    if [ $published_count -gt 0 ]; then
+        echo -e "${GREEN}✅ Published $published_count file(s) to repository${NC}"
+        return 0
+    else
+        echo -e "${YELLOW}⚠️  No files were published${NC}"
+        return 1
     fi
 }
 
@@ -448,14 +561,84 @@ case "$ACTION" in
         fi
         ;;
         
+    "publish")
+        check_repo_exists
+        
+        # Discover unpublished files
+        if ! discover_unpublished; then
+            exit 0
+        fi
+        
+        echo ""
+        echo -e "${YELLOW}📋 Select files to publish:${NC}"
+        
+        # Interactive selection
+        selected_files=()
+        for i in "${!UNPUBLISHED_FILES[@]}"; do
+            item="${UNPUBLISHED_FILES[$i]}"
+            type=$(echo "$item" | cut -d: -f1)
+            file_path=$(echo "$item" | cut -d: -f2-)
+            basename=$(basename "$file_path")
+            
+            echo -e "${YELLOW}Publish ${GREEN}$basename${NC} (from $type/)? [Y/n]${NC}"
+            read -r response
+            
+            # Default to yes if empty response
+            if [[ "$response" =~ ^[Yy]$ ]] || [[ -z "$response" ]]; then
+                selected_files+=("$item")
+            fi
+        done
+        
+        if [ ${#selected_files[@]} -eq 0 ]; then
+            echo -e "${YELLOW}⚠️  No files selected for publishing${NC}"
+            exit 0
+        fi
+        
+        # Publish selected files
+        if publish_selected_files "${selected_files[@]}"; then
+            echo ""
+            echo -e "${YELLOW}📝 Commit message (or press Enter for default):${NC}"
+            read -r commit_msg
+            
+            # Default commit message
+            if [ -z "$commit_msg" ]; then
+                commit_msg="Publish ${#selected_files[@]} Claude Code extension(s)"
+            fi
+            
+            # Git add, commit, and push
+            echo -e "${YELLOW}📤 Committing and pushing changes...${NC}"
+            cd "$REPO_DIR"
+            
+            if ! git add -A; then
+                echo -e "${RED}❌ Failed to stage changes${NC}"
+                exit 1
+            fi
+            
+            if ! git commit -m "$commit_msg"; then
+                echo -e "${RED}❌ Failed to commit changes${NC}"
+                exit 1
+            fi
+            
+            if ! git push; then
+                echo -e "${RED}❌ Failed to push changes${NC}"
+                echo -e "${YELLOW}💡 Check your GitHub permissions and network connection${NC}"
+                exit 1
+            fi
+            
+            echo -e "${GREEN}✅ Successfully published and pushed ${#selected_files[@]} extension(s)!${NC}"
+            echo -e "${YELLOW}💡 Run /craft sync to update your local symlinks${NC}"
+        fi
+        ;;
+        
     *)
         echo -e "${RED}❌ Unknown action: $ACTION${NC}"
-        echo -e "${YELLOW}Usage: /craft [setup|sync|push|status|clean|scan|auto-sync]${NC}"
+        echo -e "${YELLOW}Usage: /craft [setup|sync|push|status|clean|scan|publish|auto-sync]${NC}"
         echo ""
         echo -e "${YELLOW}Available commands:${NC}"
         echo -e "  ${GREEN}/craft${NC} or ${GREEN}/craft sync${NC}  - Sync latest changes (default)"
         echo -e "  ${GREEN}/craft setup${NC}             - Initial setup and clone"
         echo -e "  ${GREEN}/craft push \"message\"${NC}    - Commit and push changes (with security scan)"
+        echo -e "  ${GREEN}/craft publish${NC}           - Discover and publish unpublished extensions"
         echo -e "  ${GREEN}/craft auto-sync${NC}         - Manage automatic synchronization" 
         echo -e "  ${GREEN}/craft status${NC}            - Show repository and config status"
         echo -e "  ${GREEN}/craft clean${NC}             - Clean and refresh all symlinks"
