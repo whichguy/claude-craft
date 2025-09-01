@@ -128,8 +128,15 @@ For each discovered file:
   head -20 "$file" | grep -E "(name:|description:|model:|color:|---)"
   wc -c "$file" | awk '{print "Size: " $1 " bytes"}'
   wc -l "$file" | awk '{print "Lines: " $1}'
-  # For agents and commands, extract frontmatter description
+  # For agents and commands, extract frontmatter description (truncate to 80 chars)
   sed -n '/^---$/,/^---$/p' "$file" | grep -E "(name:|description:)" | head -2
+  # Truncate long descriptions for readability
+  description=$(sed -n '/^description:/p' "$file" | cut -d: -f2- | sed 's/^ *//')
+  if [ ${#description} -gt 80 ]; then
+    echo "${description:0:77}..."
+  else
+    echo "$description"
+  fi
   ```
 
 #### Step 4: User Presentation and Decision
@@ -237,12 +244,12 @@ Present findings as a structured report with actionable choices:
 🔗 **Repository Status**: [clean/dirty - X uncommitted files]
 
 🏠 **Local Extensions** (.claude in current project):
-   1. **[filename1]** (agents/ - [size] bytes, [lines] lines) - [name/description from frontmatter]
-   2. **[filename2]** (commands/ - [size] bytes, [lines] lines) - [description from frontmatter]
+   1. **[filename1]** (agents/ - [size] bytes, [lines] lines) - [truncated description max 80 chars...]
+   2. **[filename2]** (commands/ - [size] bytes, [lines] lines) - [truncated description max 80 chars...]
 
 🌐 **Global Extensions** (~/.claude profile):  
-   3. **[filename3]** (hooks/ - [size] bytes, [lines] lines) - [brief description from content]
-   4. **[filename4]** (agents/ - [size] bytes, [lines] lines) - [name/description from frontmatter]
+   3. **[filename3]** (hooks/ - [size] bytes, [lines] lines) - [truncated description max 80 chars...]
+   4. **[filename4]** (agents/ - [size] bytes, [lines] lines) - [truncated description max 80 chars...]
 
 📋 **Quick Actions**:
    [P] Publish all now (recommended - copies to repo, creates symlinks, commits & pushes)
@@ -250,7 +257,9 @@ Present findings as a structured report with actionable choices:
    [R] Review extension content before deciding
    [C] Cancel without changes
 
-⚠️  **Repository Context**: [X uncommitted changes - this is normal during development]
+⚠️  **Repository Context**: [X uncommitted changes (file types) - this is normal during development]
+
+📋 **Discovery Summary**: [Brief count and types of extensions found, key insights]
 
 💡 **Publishing Process**:
    - 📁 Copy extensions to repository with proper directory structure
