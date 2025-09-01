@@ -4,33 +4,41 @@ description: "Load and execute a prompt template"
 allowed-tools: "all"
 ---
 
-<prompt-template-name>
-$1
-</prompt-template-name>
+# Prompt Template Executor
 
-<prompt-context>
-!`shift; cat << 'EOF'
-$*
-EOF`
-</prompt-context>
+**Template**: $1  
+**Context**: $2 $3 $4 $5 $6 $7 $8 $9
 
-!`# Load template with precedence: current → project → user-claude → user-home
-TEMPLATE="$1"
-if [ -f "./${TEMPLATE}.md" ]; then
-  cat "./${TEMPLATE}.md"
-elif [ -f "./prompts/${TEMPLATE}.md" ]; then
-  cat "./prompts/${TEMPLATE}.md"
-elif [ -f "$HOME/.claude/prompts/${TEMPLATE}.md" ]; then
-  cat "$HOME/.claude/prompts/${TEMPLATE}.md"
-elif [ -f "$HOME/prompts/${TEMPLATE}.md" ]; then
-  cat "$HOME/prompts/${TEMPLATE}.md"
-else
-  echo "ERROR: Template '${TEMPLATE}.md' not found in any search location:" >&2
-  echo "  - ./${TEMPLATE}.md" >&2
-  echo "  - ./prompts/${TEMPLATE}.md" >&2
-  echo "  - $HOME/.claude/prompts/${TEMPLATE}.md" >&2
-  echo "  - $HOME/prompts/${TEMPLATE}.md" >&2
-  exit 1
-fi`
+## Execution Flow
 
-**Apply the template above to the context in `<prompt-context>` tags and template name in `<prompt-template-name>` tags.**
+### If $1 is "--list":
+List all available templates from these locations:
+- Current directory (./*.md)
+- Project prompts (./prompts/*.md)
+- User Claude config (~/.claude/prompts/*.md)
+- User home prompts (~/prompts/*.md)
+
+Format as grouped list with location headers.
+
+### Otherwise, load template "$1":
+
+**Search order** (use first found):
+1. ./$1.md
+2. ./prompts/$1.md
+3. ~/.claude/prompts/$1.md
+4. ~/prompts/$1.md
+
+**Processing steps**:
+1. Read the template file content
+2. Replace `<prompt-context>` with provided context
+3. Execute the template as a prompt instruction
+4. Return ONLY the execution result
+
+**If not found**:
+Show error with all searched locations and suggest using `--list` to see available templates.
+
+## Output Requirements
+- Direct execution result only
+- No preamble like "The template was executed..."
+- No meta-commentary about what happened
+- Just the actual output from running the template
