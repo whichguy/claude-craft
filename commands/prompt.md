@@ -33,4 +33,4 @@ else
   exit 1
 fi`
 
-**Apply the template above to the context in \`<prompt-context>\` tags and template name in \`<prompt-template-name>\` tags.**
+**Apply the template above to the context in `<prompt-context>` tags and template name in `<prompt-template-name>` tags.**
