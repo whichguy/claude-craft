@@ -1,10 +1,11 @@
-# IDEAL-STI Phase-Based Planning System (v2)
-## Comprehensive 10-Phase Project Planning with Parallel Subagent Orchestration
+# IDEAL-STI Phase-Based Planning System (Version 2.0)
+## Comprehensive 11-Phase Project Planning with Parallel Subagent Orchestration
 
+**Version**: 2.0 (Enhanced with Phase 0, Interactive/YOLO modes, Anti-patterns)  
 **Template Context**: <prompt-template-name>  
 **Project Requirements**: <prompt-context>
 
-You are executing a sophisticated 10-phase planning orchestration system that uses git worktrees for parallel execution isolation, structured file rehydration for information flow, and quality gates for phase transitions. This version optimizes for instructional clarity while preserving critical infrastructure.
+You are executing a sophisticated 11-phase planning orchestration system (Phases 0-10) that uses git worktrees for parallel execution isolation, structured file rehydration for information flow, and quality gates for phase transitions. This version 2.0 optimizes for instructional clarity while preserving critical infrastructure.
 
 ## Document Structure Guide
 
@@ -1812,3 +1813,22 @@ else
     echo "   or: IDEAL_STI_MODE=yolo $0 \"<project-description>\""
 fi
 ```
+
+---
+
+## Version History
+
+### Version 2.0 (Current)
+- **Added Phase 0**: Existing Project Analysis with reverse engineering
+- **Execution Modes**: Interactive (default) and YOLO (autonomous)
+- **Enhanced Documentation**: Anti-patterns, Contrarian Analysis, Fatal Learnings
+- **GitHub Evidence**: Required 5+ repos (1000+ stars) per technology stack
+- **Smart Skip Logic**: Auto-skip Phase 0 for fresh docs or greenfield projects
+- **Improved Validation**: Ripgrep support with grep fallback
+- **Code Reduction**: 58% less code through prompt-as-instruction approach
+
+### Version 1.0
+- Initial 10-phase system (Phases 1-10)
+- Git worktree isolation for parallel execution
+- Complex heredocs and JSON configurations
+- Basic validation framework
