@@ -1,40 +1,34 @@
 ---
-description: Access and apply individual prompt templates from claude-craft repository
-allowed-tools: Read, WebFetch
-argument-hint: [template-name] [args...]
+argument-hint: [template] [context...]
+description: Load and execute a prompt template
+allowed-tools: all
 ---
 
-# Prompt Command
+<prompt-template-name>
+$1
+</prompt-template-name>
 
-Quickly access and apply prompt templates from the claude-craft repository.
+<prompt-context>
+!`shift; echo "$*"`
+</prompt-context>
 
-## Usage
+!`# Load template with precedence: current → project → user-claude → user-home
+TEMPLATE="$1"
+if [ -f "./${TEMPLATE}.md" ]; then
+  cat "./${TEMPLATE}.md"
+elif [ -f "./prompts/${TEMPLATE}.md" ]; then
+  cat "./prompts/${TEMPLATE}.md"
+elif [ -f "$HOME/.claude/prompts/${TEMPLATE}.md" ]; then
+  cat "$HOME/.claude/prompts/${TEMPLATE}.md"
+elif [ -f "$HOME/prompts/${TEMPLATE}.md" ]; then
+  cat "$HOME/prompts/${TEMPLATE}.md"
+else
+  echo "ERROR: Template '${TEMPLATE}.md' not found in any search location:" >&2
+  echo "  - ./${TEMPLATE}.md" >&2
+  echo "  - ./prompts/${TEMPLATE}.md" >&2
+  echo "  - $HOME/.claude/prompts/${TEMPLATE}.md" >&2
+  echo "  - $HOME/prompts/${TEMPLATE}.md" >&2
+  exit 1
+fi`
 
-```
-/prompt [template-name] [args...]
-```
-
-## Available Templates
-
-- `/prompt list` - Show all available prompt templates
-- `/prompt security` - Apply security analysis prompt template
-- `/prompt review` - Apply code review prompt template  
-- `/prompt test` - Apply test generation prompt template
-- `/prompt refactor` - Apply refactoring guidance prompt template
-
-## Examples
-
-```bash
-# List all available prompts
-/prompt list
-
-# Apply security analysis to current file
-/prompt security
-
-# Apply code review with specific focus
-/prompt review --focus=performance
-```
-
-## Template Location
-
-Templates are stored in `~/claude-craft/prompts/` and automatically synced with your local Claude Code configuration.
+**Apply the template above to the context in \`<prompt-context>\` tags and template name in \`<prompt-template-name>\` tags.**
