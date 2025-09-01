@@ -82,7 +82,7 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 
 4. **Smart Repository Discovery**:
    ```bash
-   # Example repository detection logic to implement:
+   # Repository detection logic to implement:
    if [ -f "$(pwd)/claude-craft.json" ]; then
        REPO_PATH=$(jq -r '.repository.path' "$(pwd)/claude-craft.json")
    elif [ -f "$(pwd)/.claude/claude-craft.json" ]; then
@@ -111,9 +111,13 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 
 #### Step 2: Comprehensive Search
 ```bash
-# Example search commands to use:
-find ~/.claude -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \) -not -path "*/backups/*"
-find $(pwd)/.claude -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \) 2>/dev/null || true
+# Search for extensions in both global and local contexts
+find ~/.claude -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \) -not -path "*/backups/*" -not -path "*/journal/*"
+
+# Search local project .claude directory if it exists
+if [ -d "$(pwd)/.claude" ]; then
+    find "$(pwd)/.claude" -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \)
+fi
 ```
 
 #### Step 3: Classification Analysis
@@ -128,12 +132,12 @@ For each discovered file:
   head -20 "$file" | grep -E "(name:|description:|model:|color:|---)"
   wc -c "$file" | awk '{print "Size: " $1 " bytes"}'
   wc -l "$file" | awk '{print "Lines: " $1}'
-  # For agents and commands, extract frontmatter description (truncate to 80 chars)
-  sed -n '/^---$/,/^---$/p' "$file" | grep -E "(name:|description:)" | head -2
-  # Truncate long descriptions for readability
+  
+  # Extract and truncate description for readability
   description=$(sed -n '/^description:/p' "$file" | cut -d: -f2- | sed 's/^ *//')
-  if [ ${#description} -gt 80 ]; then
-    echo "${description:0:77}..."
+  desc_len=$(echo "$description" | wc -c)
+  if [ "$desc_len" -gt 80 ]; then
+    echo "$description" | cut -c1-77 | sed 's/$/.../'
   else
     echo "$description"
   fi
