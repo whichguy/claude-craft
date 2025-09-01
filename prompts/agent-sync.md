@@ -157,29 +157,115 @@ Map natural language to actions using keywords and context:
 
 ### 3. PUBLISH  
 **Triggers**: publish, discover, find, unpublished, check
-**Function**: Discover local extensions not yet in repository
+**Function**: Discover and publish local extensions not yet in repository
 
 **Execution Steps**:
-1. Use ripgrep to find all non-symlink files in ~/.claude/* and ./.claude/*
-2. Filter out files that are symlinks to $REPO_PATH
-3. Group findings by type (agents, commands, hooks)
-4. Present as numbered list for easy selection
-5. Provide simple instructions to publish
 
-Output format:
-```
-📦 Found X unpublished items:
+1. **Discovery Phase** - Find unpublished extensions:
+   ```bash
+   # Check both local project and global locations
+   LOCAL_CLAUDE="$PWD/.claude"
+   GLOBAL_CLAUDE="$HOME/.claude"
+   
+   # Find non-symlink extensions (not pointing to $REPO_PATH)
+   # Commands
+   if command -v rg >/dev/null 2>&1; then
+     rg --files "$GLOBAL_CLAUDE/commands" "$LOCAL_CLAUDE/commands" --glob "*.md" 2>/dev/null
+   else
+     find "$GLOBAL_CLAUDE/commands" "$LOCAL_CLAUDE/commands" -name "*.md" -type f 2>/dev/null
+   fi | while IFS= read -r f; do
+     [ -f "$f" ] && [ ! -L "$f" ] && echo "$f"
+   done
+   
+   # Similar for agents (*.md, *.json) and hooks (*.sh)
+   ```
 
-🤖 Agents:
-[1] agent-name.md (2.3K)
-    Brief description from file
+2. **Repository Status Check**:
+   ```bash
+   # Check for uncommitted changes in extension directories
+   MODIFIED=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | \
+              grep -E "^( M|MM| D)..(agents|commands|hooks|prompts)/" || true)
+   CHANGES=$(echo "$MODIFIED" | grep -c . || echo 0)
+   ```
 
-⚡ Commands:  
-[2] command-name.md (1.5K)
-    Brief description from file
+3. **Interactive Presentation**:
+   ```
+   📦 Claude Code Publishing Status
+   Repository: $REPO_PATH ($CHANGES uncommitted changes)
+   
+   🔄 Modified Items (in repository):
+   [Show actual git status for modified files]
+   
+   🤖 Unpublished Agents (X total):
+   📍 Local Project:
+   [1] agent-name.md (8.0K)
+       Description from file (wrapped to 70 chars)
+   
+   🌐 Global Profile:
+   [2] other-agent.md (4.2K)
+       Description continues on second line
+   
+   ⚡ Unpublished Commands (Y total):
+   [3] command.md (2.1K)
+       Command description properly wrapped
+   
+   🪝 Unpublished Hooks (Z total):
+   [4] hook.sh (1.5K)
+       Hook script description
+   
+   🎯 Actions:
+   [A] ✅ Publish all items
+   [S] 📝 Select specific items (e.g., "1,3" or "1-4")
+   [R] 👁️ Review content first
+   [C] ❌ Cancel
+   
+   What would you like to do?
+   ```
 
-Ready to publish? Copy files to $REPO_PATH/[type]/ and run sync.
-```
+4. **Publishing Workflow** (after user selection):
+   ```bash
+   # For each selected extension:
+   for file in $SELECTED_FILES; do
+     type=$(basename "$(dirname "$file")")  # agents, commands, or hooks
+     name=$(basename "$file")
+     
+     # Copy to repository
+     mkdir -p "$REPO_PATH/$type"
+     cp "$file" "$REPO_PATH/$type/$name"
+     
+     # Stage immediately
+     git -C "$REPO_PATH" add "$type/$name"
+     
+     # Replace with symlink
+     rm "$file"
+     ln -sf "$REPO_PATH/$type/$name" "$file"
+     
+     echo "✅ Published $name to $type/"
+   done
+   
+   # Commit changes
+   if [ -n "$SELECTED_FILES" ]; then
+     count=$(echo "$SELECTED_FILES" | wc -w)
+     git -C "$REPO_PATH" commit -m "Publish $count extensions via agent-sync
+   
+   Published:
+   $(echo "$SELECTED_FILES" | xargs -n1 basename | sed 's/^/- /')"
+   fi
+   
+   # Verification
+   echo "✅ All extensions published and symlinked successfully"
+   echo "📝 Remember to push changes: git -C \"$REPO_PATH\" push"
+   ```
+
+5. **Verification Steps**:
+   ```bash
+   # Verify symlinks point to repository
+   for file in $PUBLISHED_FILES; do
+     if [ -L "$file" ] && readlink "$file" | grep -q "$REPO_PATH"; then
+       echo "✅ $(basename "$file") → repository"
+     fi
+   done
+   ```
 
 ### 4. STATUS
 **Triggers**: status, check, info, what
