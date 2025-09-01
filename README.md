@@ -94,29 +94,58 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 ```
 claude-craft/
-├── commands/              # Slash commands (.md) → ~/.claude/commands/
-├── memory/                # Memory management
-│   ├── fragments/         # Reusable memory fragments
-│   ├── templates/         # Complete CLAUDE.md templates  
-│   └── includes/          # Import-ready snippets
-├── hooks/                 # Hook system
-│   ├── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/
-│   └── settings/          # Hook settings fragments
 ├── .githooks/             # Local git hooks (installed automatically)
 │   ├── post-merge         # Security scan after git pull
 │   └── pre-commit         # Secret detection before commit
-├── settings/              # Settings management
-│   ├── fragments/         # JSON fragments to merge safely
-│   └── templates/         # Complete settings examples
-├── agents/                # Agent definitions
+├── agents/                # Agent definitions (.md) → ~/.claude/agents/
+│   └── code-refactor.md   # Code refactoring agent
+├── commands/              # Slash commands (.md) → ~/.claude/commands/
+│   ├── craft.md           # Main repository management command
+│   ├── prompts.md         # Prompt template access
+│   ├── code-security.md   # Security analysis commands
+│   ├── git-security.md    # Git security utilities
+│   ├── performance.md     # Performance analysis tools
+│   └── [8+ more commands] # Testing, review, knowledge management
+├── docs/                  # Documentation
+│   ├── auto-sync-proposal.md
+│   └── auto-sync-setup.md
+├── hooks/                 # Hook system
+│   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/
+│       ├── prompt-sync-check.sh
+│       ├── pre-execution-security.sh
+│       └── [2+ more hooks]
+├── memory/                # Memory management
+│   └── fragments/         # Memory fragments → CLAUDE.md imports
+│       ├── development-principles.md
+│       ├── knowledge-discovery.md
+│       └── [2+ more fragments]
 ├── prompts/               # Prompt templates and examples
-├── workflows/             # End-to-end workflow examples
-├── configs/               # Configuration samples
-└── tools/                 # Management utilities
-    ├── merge-settings.sh  # Safe JSON merger
-    ├── add-memory.sh      # Memory fragment manager
-    ├── install-git-hooks.sh # Git security hook installer
-    └── backup.sh          # Backup and restore utility
+│   ├── api-design.md      # API design prompts
+│   ├── debugging.md       # Debugging assistance
+│   ├── security-scan.md   # Security analysis prompts
+│   └── git-security-threat.md
+├── settings/              # Settings management
+│   └── fragments/         # JSON fragments to merge safely
+│       ├── auto-sync-settings.json
+│       ├── development-settings.json
+│       └── example-hooks.json
+├── test/                  # Testing framework
+│   ├── fixtures/          # Test data and examples
+│   ├── *.test.js          # Mocha test suites
+│   └── mocha.opts         # Test configuration
+├── tools/                 # Management utilities
+│   ├── install-git-hooks.sh    # Git security hook installer
+│   ├── simple-secrets-scan.sh  # Lightweight secrets scanner
+│   ├── security-scan.sh        # Comprehensive security scanner
+│   ├── merge-settings.sh       # Safe JSON merger
+│   ├── add-memory.sh           # Memory fragment manager
+│   ├── backup.sh               # Backup and restore utility
+│   ├── auto-sync.sh            # Auto-synchronization system
+│   └── [5+ more tools]         # Additional management utilities
+└── workflows/             # End-to-end workflow examples
+    ├── git-security-workflow.md
+    ├── security-workflow.md
+    └── [2+ more workflows]
 ```
 
 ## How It Works
@@ -282,4 +311,15 @@ vim ~/claude-craft/settings/fragments/my-settings.json
 
 ---
 
-**Made for Claude Code developers who want their extensions organized and always in sync** ⚡
+## Summary
+
+**Claude Craft** is a complete development toolkit for Claude Code that provides:
+
+🚀 **Instant Setup**: One-command installation with intelligent configuration merging  
+🔐 **Built-in Security**: Automatic git hooks prevent credential leaks and detect threats  
+🔄 **Smart Sync**: Probabilistic auto-sync keeps your tools current without interruption  
+📦 **Comprehensive Suite**: 10+ commands, agents, hooks, memory fragments, and workflows  
+🛡️ **Zero Risk**: Automatic backups and rollback capability protect your configuration  
+⚡ **Always Current**: Symlink-based architecture means updates are instant  
+
+**Perfect for developers who want professional-grade Claude Code extensions that stay organized and always in sync.**
