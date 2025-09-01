@@ -288,7 +288,7 @@ else
     
     echo "Choose Action:"
     echo "[P] Publish all $((LOCAL_COUNT + GLOBAL_COUNT)) extensions"
-    echo "[S] Select specific extensions"
+    echo "[S] Select specific extensions"  
     echo "[R] Review content first"
     echo "[C] Cancel"
     echo ""
