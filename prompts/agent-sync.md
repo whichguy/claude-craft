@@ -69,47 +69,82 @@ Map natural language to actions using keywords and context:
      echo "⚠️ Could not pull latest changes (network issue?). Using local cache."
    }
    ```
-2. Refresh all symlinks:
+2. Intelligent Symlink Management (handles file lifecycle):
    ```bash
    # Ensure target directories exist
    mkdir -p "$HOME/.claude/commands" "$HOME/.claude/agents" "$HOME/.claude/hooks"
    
-   # Remove ALL symlinks (including broken ones) and create new ones
-   find "$HOME/.claude/commands" -maxdepth 1 \( -type l -o -xtype l \) -delete 2>/dev/null || true
+   # Step 1: Clean up broken/obsolete symlinks (files deleted from repo)
+   echo "🧹 Cleaning obsolete symlinks..."
+   for dir in commands agents hooks; do
+     find "$HOME/.claude/$dir" -maxdepth 1 -type l 2>/dev/null | while IFS= read -r link; do
+       # Check if symlink target exists and is in our repo
+       target=$(readlink "$link")
+       if [ ! -e "$target" ] || ! echo "$target" | grep -q "$REPO_PATH"; then
+         echo "  Removing broken/external symlink: $(basename "$link")"
+         rm -f "$link"
+       fi
+     done
+   done
    
-   # Use ripgrep if available, otherwise fall back to find
+   # Step 2: Create/update symlinks for all repo files
+   echo "🔗 Creating/updating symlinks..."
+   
+   # Commands (.md files)
    if command -v rg >/dev/null 2>&1; then
      [ -d "$REPO_PATH/commands" ] && rg --files "$REPO_PATH/commands" --glob "*.md" 2>/dev/null
    else
      [ -d "$REPO_PATH/commands" ] && find "$REPO_PATH/commands" -name "*.md" -type f 2>/dev/null
    fi | while IFS= read -r f; do
      base=$(basename "$f")
-     # Remove existing file/symlink before creating new one
-     rm -f "$HOME/.claude/commands/$base" 2>/dev/null || true
-     ln -sf "$f" "$HOME/.claude/commands/$base"
+     target="$HOME/.claude/commands/$base"
+     
+     # Only create symlink if no local file exists (preserve local work)
+     if [ ! -e "$target" ] || [ -L "$target" ]; then
+       ln -sf "$f" "$target"
+       echo "  ✓ commands/$base"
+     else
+       echo "  ⚠️ Skipping commands/$base (local file exists)"
+     fi
    done
    
-   find "$HOME/.claude/agents" -maxdepth 1 \( -type l -o -xtype l \) -delete 2>/dev/null || true
+   # Agents (.md and .json files)
    if command -v rg >/dev/null 2>&1; then
      [ -d "$REPO_PATH/agents" ] && rg --files "$REPO_PATH/agents" --glob "*.md" --glob "*.json" 2>/dev/null
    else
      [ -d "$REPO_PATH/agents" ] && find "$REPO_PATH/agents" \( -name "*.md" -o -name "*.json" \) -type f 2>/dev/null
    fi | while IFS= read -r f; do
      base=$(basename "$f")
-     rm -f "$HOME/.claude/agents/$base" 2>/dev/null || true
-     ln -sf "$f" "$HOME/.claude/agents/$base"
+     target="$HOME/.claude/agents/$base"
+     
+     if [ ! -e "$target" ] || [ -L "$target" ]; then
+       ln -sf "$f" "$target"
+       echo "  ✓ agents/$base"
+     else
+       echo "  ⚠️ Skipping agents/$base (local file exists)"
+     fi
    done
    
-   find "$HOME/.claude/hooks" -maxdepth 1 \( -type l -o -xtype l \) -delete 2>/dev/null || true
+   # Hooks (.sh files)
    if command -v rg >/dev/null 2>&1; then
      [ -d "$REPO_PATH/hooks/scripts" ] && rg --files "$REPO_PATH/hooks/scripts" --glob "*.sh" 2>/dev/null
    else
      [ -d "$REPO_PATH/hooks/scripts" ] && find "$REPO_PATH/hooks/scripts" -name "*.sh" -type f 2>/dev/null
    fi | while IFS= read -r f; do
      base=$(basename "$f")
-     rm -f "$HOME/.claude/hooks/$base" 2>/dev/null || true
-     ln -sf "$f" "$HOME/.claude/hooks/$base"
+     target="$HOME/.claude/hooks/$base"
+     
+     if [ ! -e "$target" ] || [ -L "$target" ]; then
+       ln -sf "$f" "$target"
+       echo "  ✓ hooks/$base"
+     else
+       echo "  ⚠️ Skipping hooks/$base (local file exists)"
+     fi
    done
+   
+   # Step 3: Report any conflicts that need resolution
+   CONFLICTS=$(find "$HOME/.claude/"{commands,agents,hooks} -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+   [ "$CONFLICTS" -gt 0 ] && echo "⚠️ Found $CONFLICTS local files that may need publishing"
    ```
 3. Count and report results: "✅ Synced X commands, Y agents, Z hooks"
 4. Alert if changes detected: "⚠️ Restart Claude Code to load changes"
@@ -161,31 +196,99 @@ Map natural language to actions using keywords and context:
 
 **Execution Steps**:
 
-1. **Discovery Phase** - Find unpublished extensions:
+1. **Pre-Flight Validation**:
    ```bash
-   # Check both local project and global locations
-   LOCAL_CLAUDE="$PWD/.claude"
-   GLOBAL_CLAUDE="$HOME/.claude"
+   # Verify repository exists and is valid
+   [ ! -d "$REPO_PATH/.git" ] && {
+     echo "❌ Invalid repository at $REPO_PATH"
+     echo "Run 'setup' first to initialize repository"
+     exit 1
+   }
    
-   # Find non-symlink extensions (not pointing to $REPO_PATH)
-   # Commands
-   if command -v rg >/dev/null 2>&1; then
-     rg --files "$GLOBAL_CLAUDE/commands" "$LOCAL_CLAUDE/commands" --glob "*.md" 2>/dev/null
-   else
-     find "$GLOBAL_CLAUDE/commands" "$LOCAL_CLAUDE/commands" -name "*.md" -type f 2>/dev/null
-   fi | while IFS= read -r f; do
-     [ -f "$f" ] && [ ! -L "$f" ] && echo "$f"
-   done
-   
-   # Similar for agents (*.md, *.json) and hooks (*.sh)
+   # Count uncommitted changes for context
+   CHANGES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+   [ "$CHANGES" -gt 0 ] && echo "⚠️ Repository has $CHANGES uncommitted changes"
    ```
 
-2. **Repository Status Check**:
+2. **Smart Discovery Process**:
    ```bash
-   # Check for uncommitted changes in extension directories
-   MODIFIED=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | \
-              grep -E "^( M|MM| D)..(agents|commands|hooks|prompts)/" || true)
-   CHANGES=$(echo "$MODIFIED" | grep -c . || echo 0)
+   # Initialize counters and arrays
+   LOCAL_CLAUDE="$PWD/.claude"
+   GLOBAL_CLAUDE="$HOME/.claude"
+   declare -a UNPUBLISHED_FILES=()
+   
+   # Discovery function to check if file is unpublished
+   is_unpublished() {
+     local file="$1"
+     # Not a symlink AND (not exists OR doesn't point to repo)
+     if [ -f "$file" ] && [ ! -L "$file" ]; then
+       return 0  # Is unpublished
+     elif [ -L "$file" ]; then
+       # Check if symlink points to repository
+       readlink "$file" | grep -q "$REPO_PATH" || return 0
+     fi
+     return 1  # Is published
+   }
+   
+   # Scan for unpublished extensions using ripgrep for speed
+   echo "🔍 Scanning for unpublished extensions..."
+   
+   # Commands (.md files)
+   for dir in "$LOCAL_CLAUDE/commands" "$GLOBAL_CLAUDE/commands"; do
+     [ -d "$dir" ] && {
+       if command -v rg >/dev/null 2>&1; then
+         rg --files "$dir" --glob "*.md" 2>/dev/null
+       else
+         find "$dir" -name "*.md" -type f 2>/dev/null
+       fi | while IFS= read -r f; do
+         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
+       done
+     }
+   done
+   
+   # Agents (.md and .json files)
+   for dir in "$LOCAL_CLAUDE/agents" "$GLOBAL_CLAUDE/agents"; do
+     [ -d "$dir" ] && {
+       if command -v rg >/dev/null 2>&1; then
+         rg --files "$dir" --glob "*.{md,json}" 2>/dev/null
+       else
+         find "$dir" \( -name "*.md" -o -name "*.json" \) -type f 2>/dev/null
+       fi | while IFS= read -r f; do
+         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
+       done
+     }
+   done
+   
+   # Hooks (.sh files)
+   for dir in "$LOCAL_CLAUDE/hooks" "$GLOBAL_CLAUDE/hooks"; do
+     [ -d "$dir" ] && {
+       if command -v rg >/dev/null 2>&1; then
+         rg --files "$dir" --glob "*.sh" 2>/dev/null
+       else
+         find "$dir" -name "*.sh" -type f 2>/dev/null
+       fi | while IFS= read -r f; do
+         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
+       done
+     }
+   done
+   ```
+
+3. **Repository Status Assessment**:
+   ```bash
+   # Get modified files in extension directories (excluding untracked)
+   MODIFIED_FILES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | \
+                    rg "^( M|MM| D)..(agents|commands|hooks|prompts)/" 2>/dev/null || true)
+   
+   # Extract metadata for each unpublished file
+   for file in "${UNPUBLISHED_FILES[@]}"; do
+     # Get file size in human-readable format
+     SIZE=$(ls -lh "$file" 2>/dev/null | awk '{print $5}')
+     
+     # Extract description from file
+     DESC=$(sed -n '/^description:/p' "$file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//' | \
+            fold -s -w 70 | head -2)
+     [ -z "$DESC" ] && DESC=$(head -5 "$file" 2>/dev/null | grep -v "^#" | head -1 | fold -s -w 70 | head -2)
+   done
    ```
 
 3. **Interactive Presentation**:
