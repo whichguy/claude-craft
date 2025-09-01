@@ -35,14 +35,15 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 
 1. **Repository Health Check**:
    ```bash
-   # Verify repository exists and is valid git repo
+   # Get repository path from configuration
    REPO_PATH=$(jq -r '.repository.path' ~/.claude/claude-craft.json 2>/dev/null)
+   # Verify repository exists and is valid git repo
    [ -d "$REPO_PATH/.git" ] || echo "⚠️ Invalid repository path"
    ```
 
 2. **Git Status Assessment**:
    ```bash
-   # Silently count uncommitted changes
+   # Count uncommitted changes silently for context
    CHANGES=$(git -C "$REPO_PATH" status --porcelain | wc -l | tr -d ' ')
    ```
 
@@ -53,14 +54,15 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 **A. Claude-Craft Repository Detection**:
 1. **Check Local Project Configuration**:
    ```bash
-   # Look for project-level claude-craft config
+   # Search current project for claude-craft config files
    find $(pwd) -name "claude-craft.json" -o -name ".claude-craft.json"
+   # Check for config in local .claude directory  
    find $(pwd)/.claude -name "claude-craft.json" 2>/dev/null
    ```
 
 2. **Check Global Profile Configuration**:
    ```bash
-   # Check global claude-craft configuration
+   # Extract repository path from global claude-craft configuration
    cat ~/.claude/claude-craft.json 2>/dev/null | jq '.repository.path' 2>/dev/null
    ```
 
@@ -72,13 +74,16 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 
 4. **Smart Repository Discovery**:
    ```bash
-   # Repository detection logic to implement:
+   # Try local project config first
    if [ -f "$(pwd)/claude-craft.json" ]; then
        REPO_PATH=$(jq -r '.repository.path' "$(pwd)/claude-craft.json")
+   # Try local .claude config
    elif [ -f "$(pwd)/.claude/claude-craft.json" ]; then
        REPO_PATH=$(jq -r '.repository.path' "$(pwd)/.claude/claude-craft.json")
+   # Fall back to global config
    elif [ -f ~/.claude/claude-craft.json ]; then
        REPO_PATH=$(jq -r '.repository.path' ~/.claude/claude-craft.json)
+   # Check for common directory locations
    elif [ -d ~/claude-craft ]; then
        REPO_PATH="$HOME/claude-craft"
    elif [ -d ./claude-craft ]; then
@@ -101,11 +106,12 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 
 #### Step 2: Comprehensive Search
 ```bash
-# Search for extensions in both global and local contexts
+# Search global .claude directory for extension files (exclude journals/backups)
 find ~/.claude -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \) -not -path "*/backups/*" -not -path "*/journal/*"
 
 # Search local project .claude directory if it exists
 if [ -d "$(pwd)/.claude" ]; then
+    # Find all extension files in local .claude directory
     find "$(pwd)/.claude" -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \)
 fi
 ```
@@ -118,14 +124,17 @@ For each discovered file:
 - Categorize by extension type
 - **Extract metadata and content preview**:
   ```bash
-  # Show extension metadata and purpose
+  # Extract frontmatter metadata from extension file
   head -20 "$file" | grep -E "(name:|description:|model:|color:|---)"
+  # Get file size in bytes
   wc -c "$file" | awk '{print "Size: " $1 " bytes"}'
+  # Count total lines
   wc -l "$file" | awk '{print "Lines: " $1}'
   
-  # Extract and truncate description for readability
+  # Extract description and truncate for display
   description=$(sed -n '/^description:/p' "$file" | cut -d: -f2- | sed 's/^ *//')
   desc_len=$(echo "$description" | wc -c)
+  # Truncate long descriptions to 77 characters for readability
   if [ "$desc_len" -gt 80 ]; then
     echo "$description" | cut -c1-77 | sed 's/$/.../'
   else
@@ -149,16 +158,17 @@ For each extension the user chooses to publish:
 
 1. **Copy to Repository**:
    ```bash
-   # Copy the extension file to appropriate repository folder using full paths
-   cp "/full/path/to/.claude/[type]/[filename]" "$REPO_PATH/[type]/[filename]"
-   # Ensure target directory exists
+   # Create target directory in repository if it doesn't exist
    mkdir -p "$REPO_PATH/[type]"
+   # Copy the extension file from .claude to repository
+   cp "/full/path/to/.claude/[type]/[filename]" "$REPO_PATH/[type]/[filename]"
    ```
 
 2. **Create Symlink** (RECOMMENDED):
    ```bash
-   # Replace original with symlink to maintain functionality using full paths
+   # Remove original file from .claude directory
    rm "/full/path/to/.claude/[type]/[filename]"
+   # Create symlink pointing from .claude to repository copy
    ln -sf "$REPO_PATH/[type]/[filename]" "/full/path/to/.claude/[type]/[filename]"
    ```
 
@@ -171,10 +181,12 @@ For each extension the user chooses to publish:
 
 3. **Git Operations**:
    ```bash
-   # Use git -C flag to specify repository directory without changing process directory
+   # Stage the new extension file in git
    git -C "$REPO_PATH" add [type]/[filename]
+   # Commit with descriptive message
    git -C "$REPO_PATH" commit -m "Add [filename] [type] extension"
-   git -C "$REPO_PATH" push origin main  # or configured branch from config
+   # Push changes to remote repository (use configured branch)
+   git -C "$REPO_PATH" push origin main
    ```
 
 #### Step 5: Mandatory Verification (CRITICAL)
@@ -183,8 +195,9 @@ For each extension the user chooses to publish:
 
 1. **Symlink Verification**:
    ```bash
-   # Verify symlink exists and points to repository
+   # Check that symlink was created successfully
    [ -L "/path/to/.claude/[type]/[filename]" ] && echo "✅ Symlink created"
+   # Verify symlink points to repository location
    readlink "/path/to/.claude/[type]/[filename]" | grep -q "$REPO_PATH" && echo "✅ Points to repository"
    ```
 
