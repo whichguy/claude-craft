@@ -588,38 +588,13 @@ if [ -d "$HOME/.claude/hooks" ]; then
   done | wc -l | tr -d ' ')
 fi
 
-echo "🔗 Linked Extensions:"
+echo "🔗 Currently Linked:"
 echo "  ⚡ $CMD_COUNT commands"
 echo "  🤖 $AGENT_COUNT agents"
 echo "  🪝 $HOOK_COUNT hooks"
 echo ""
 
-# Show lightweight status of repository agent types
-echo "📦 Repository Contents:"
-if [ -d "$REPO_PATH/agents" ]; then
-  REPO_AGENTS=$(find "$REPO_PATH/agents" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
-  AGENT_NAMES=$(find "$REPO_PATH/agents" -name "*.md" -maxdepth 1 2>/dev/null | xargs -I {} basename {} .md | sort | tr '\n' ', ' | sed 's/, $//')
-  [ "$REPO_AGENTS" -gt 0 ] && echo "  🤖 $REPO_AGENTS agents: $AGENT_NAMES"
-fi
-
-if [ -d "$REPO_PATH/commands" ]; then
-  REPO_COMMANDS=$(find "$REPO_PATH/commands" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
-  COMMAND_NAMES=$(find "$REPO_PATH/commands" -name "*.md" -maxdepth 1 2>/dev/null | xargs -I {} basename {} .md | sort | tr '\n' ', ' | sed 's/, $//')
-  [ "$REPO_COMMANDS" -gt 0 ] && echo "  ⚡ $REPO_COMMANDS commands: $COMMAND_NAMES"
-fi
-
-if [ -d "$REPO_PATH/hooks" ]; then
-  REPO_HOOKS=$(find "$REPO_PATH/hooks" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
-  [ "$REPO_HOOKS" -gt 0 ] && echo "  🪝 $REPO_HOOKS hooks"
-fi
-
-if [ -d "$REPO_PATH/prompts" ]; then
-  REPO_PROMPTS=$(find "$REPO_PATH/prompts" -name "*.md" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
-  [ "$REPO_PROMPTS" -gt 0 ] && echo "  📝 $REPO_PROMPTS prompts"
-fi
-echo ""
-
-# Quick check for unpublished items
+# Quick check for unpublished items first
 UNPUB_COUNT=0
 for dir in commands agents hooks; do
   [ -d "$HOME/.claude/$dir" ] && {
@@ -630,7 +605,68 @@ for dir in commands agents hooks; do
   }
 done
 
-[ "$UNPUB_COUNT" -gt 0 ] && echo "📝 $UNPUB_COUNT unpublished items found (run 'publish' to review)"
+[ "$UNPUB_COUNT" -gt 0 ] && echo "📝 $UNPUB_COUNT unpublished items found (run 'publish' to review)" && echo ""
+
+# Analyze what needs to be synced (unsynced items)
+UNSYNCED_ITEMS=()
+ITEM_NUM=1
+
+echo "⏱️ Available to Sync:"
+
+# Check agents that need syncing
+if [ -d "$REPO_PATH/agents" ]; then
+  for agent_file in "$REPO_PATH/agents"/*.md; do
+    [ -f "$agent_file" ] || continue
+    agent_name=$(basename "$agent_file" .md)
+    link_path="$HOME/.claude/agents/$agent_name.md"
+    if [ ! -L "$link_path" ] || ! readlink "$link_path" | grep -q "$REPO_PATH"; then
+      printf "%2d. 🤖 %s (agent)\n" "$ITEM_NUM" "$agent_name"
+      UNSYNCED_ITEMS+=("agent:$agent_name")
+      ITEM_NUM=$((ITEM_NUM + 1))
+    fi
+  done
+fi
+
+# Check commands that need syncing  
+if [ -d "$REPO_PATH/commands" ]; then
+  for cmd_file in "$REPO_PATH/commands"/*.md; do
+    [ -f "$cmd_file" ] || continue
+    cmd_name=$(basename "$cmd_file" .md)
+    link_path="$HOME/.claude/commands/$cmd_name.md"
+    if [ ! -L "$link_path" ] || ! readlink "$link_path" | grep -q "$REPO_PATH"; then
+      printf "%2d. ⚡ %s (command)\n" "$ITEM_NUM" "$cmd_name"
+      UNSYNCED_ITEMS+=("command:$cmd_name")
+      ITEM_NUM=$((ITEM_NUM + 1))
+    fi
+  done
+fi
+
+# Check hooks that need syncing
+if [ -d "$REPO_PATH/hooks" ]; then
+  for hook_file in "$REPO_PATH/hooks"/*.md; do
+    [ -f "$hook_file" ] || continue
+    hook_name=$(basename "$hook_file" .md)
+    link_path="$HOME/.claude/hooks/$hook_name.md"
+    if [ ! -L "$link_path" ] || ! readlink "$link_path" | grep -q "$REPO_PATH"; then
+      printf "%2d. 🪝 %s (hook)\n" "$ITEM_NUM" "$hook_name"
+      UNSYNCED_ITEMS+=("hook:$hook_name")
+      ITEM_NUM=$((ITEM_NUM + 1))
+    fi
+  done
+fi
+
+# Show sync options if there are unsynced items
+if [ ${#UNSYNCED_ITEMS[@]} -gt 0 ]; then
+  echo ""
+  echo "📋 Sync Options:"
+  echo "  💫 Sync all: /prompt agent-sync"
+  echo "  🎯 Sync range: /prompt agent-sync sync 1-5"
+  echo "  🔢 Sync specific: /prompt agent-sync sync 1,3,7"
+  echo "  📊 View details: /prompt agent-sync publish"
+else
+  echo ""
+  echo "✅ All repository extensions are already synced!"
+fi
 ```
 
 ### 5. AUTO-SYNC
