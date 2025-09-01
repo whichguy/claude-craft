@@ -3,11 +3,17 @@
 **Purpose**: Manage Claude Code extensions (agents, commands, hooks) through natural language commands. This prompt-as-code template synchronizes your local Claude configuration with the claude-craft repository, discovers unpublished extensions, and maintains your development environment.
 
 **Core Functionality**:
-- Synchronize repository changes to local Claude configuration
-- Discover and publish local extensions to the shared repository
-- Manage automatic synchronization schedules
-- Provide status overview of linked extensions
-- Initial setup for new users
+- **Sync**: Pull repository updates and refresh all symlinks (default action)
+- **Setup**: First-time repository cloning and configuration  
+- **Publish**: Discover and publish local extensions to repository
+- **Status**: Display current synchronization state and counts
+- **Auto-sync**: Configure automatic synchronization hooks
+
+**Quick Start**: 
+- First time: `/prompt agent-sync setup` 
+- Regular use: `/prompt agent-sync` (syncs by default)
+- Check status: `/prompt agent-sync status`
+- Find unpublished: `/prompt agent-sync publish`
 
 ## Repository Detection
 
@@ -66,11 +72,22 @@ fi
 
 Parse user intent from: `<prompt-context>`
 
+**Intent Detection Strategy**:
+1. **Empty input** → SYNC (most common action)
+2. **Keyword matching** → Look for action triggers in context
+3. **Context clues** → Consider surrounding words for intent
+4. **Default fallback** → SYNC if ambiguous
+
 Map natural language to actions using keywords and context:
 
 ### 1. SYNC (default action)
 **Triggers**: sync, update, pull, refresh, or empty input
 **Function**: Pull repository updates and refresh all symlinks
+**Usage Examples**: 
+- `""` (empty) → Default sync
+- `"sync"` → Explicit sync request  
+- `"update everything"` → Natural language sync
+- `"pull latest changes"` → Git-style language
 
 **Execution Steps**:
 1. Pull latest from repository with timeout and error handling:
@@ -215,6 +232,12 @@ Map natural language to actions using keywords and context:
 ### 2. SETUP
 **Triggers**: setup, install, init, initialize, clone
 **Function**: First-time repository setup and configuration
+**Usage Examples**:
+- `"setup"` → Initialize repository
+- `"install claude-craft"` → Setup request
+- `"first time setup"` → Natural language
+- `"clone and configure"` → Git-style language
+**Prerequisites**: None - handles everything automatically
 
 **Execution Steps**:
 1. Prompt for repository location (suggest: `$HOME/repos/claude-craft`)
@@ -256,6 +279,12 @@ Map natural language to actions using keywords and context:
 ### 3. PUBLISH  
 **Triggers**: publish, discover, find, unpublished, check
 **Function**: Discover and publish local extensions not yet in repository
+**Usage Examples**:
+- `"publish"` → Find and publish extensions
+- `"what's unpublished?"` → Discovery request
+- `"find new extensions"` → Natural language
+- `"discover local changes"` → Discovery focus
+**Interactive**: Presents numbered list for selection
 
 **Execution Steps**:
 
@@ -337,8 +366,23 @@ Map natural language to actions using keywords and context:
 
 3. **Repository Status Assessment**:
    ```bash
+   # Check for uncommitted changes in repository
+   REPO_STATUS=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null)
+   UNCOMMITTED_COUNT=$(echo "$REPO_STATUS" | grep -v "^$" | wc -l | tr -d ' ')
+   
+   # Show repository status prominently
+   if [ "$UNCOMMITTED_COUNT" -gt 0 ]; then
+     echo "⚠️ Repository has $UNCOMMITTED_COUNT uncommitted changes:"
+     echo "$REPO_STATUS" | head -10 | sed 's/^/    /'
+     [ "$UNCOMMITTED_COUNT" -gt 10 ] && echo "    ... and $((UNCOMMITTED_COUNT - 10)) more"
+     echo ""
+   else
+     echo "✅ Repository is clean (no uncommitted changes)"
+     echo ""
+   fi
+   
    # Get modified files in extension directories (excluding untracked)
-   MODIFIED_FILES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | \
+   MODIFIED_FILES=$(echo "$REPO_STATUS" | \
                     grep "^[ M]M\|^[ M]D" | grep -E "(agents|commands|hooks|prompts)/" || true)
    ```
 
@@ -491,6 +535,12 @@ Map natural language to actions using keywords and context:
 ### 4. STATUS
 **Triggers**: status, check, info, what
 **Function**: Display current synchronization state
+**Usage Examples**:
+- `"status"` → Current sync state
+- `"what is ready to sync"` → Status with sync context  
+- `"check everything"` → Natural language status
+- `"show me what's linked"` → Focus on connections
+**Output**: Counts, git status, unpublished summary
 
 **Execution Steps**:
 ```bash
@@ -498,12 +548,17 @@ Map natural language to actions using keywords and context:
 echo "📊 Claude Craft Status"
 echo "📁 Repository: $REPO_PATH"
 
-# Check git status
-if git -C "$REPO_PATH" diff --quiet HEAD 2>/dev/null; then
-  echo "✅ Repository: clean"
+# Check git status with porcelain format
+REPO_STATUS=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null)
+CHANGES=$(echo "$REPO_STATUS" | grep -v "^$" | wc -l | tr -d ' ')
+
+if [ "$CHANGES" -eq 0 ]; then
+  echo "✅ Repository: clean (no uncommitted changes)"
 else
-  CHANGES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
   echo "⚠️ Repository: $CHANGES uncommitted changes"
+  # Show first few changes for context
+  echo "$REPO_STATUS" | head -5 | sed 's/^/    /'
+  [ "$CHANGES" -gt 5 ] && echo "    ... and $((CHANGES - 5)) more"
 fi
 echo ""
 
@@ -556,8 +611,13 @@ done
 ### 5. AUTO-SYNC
 **Triggers**: auto-sync, automatic, schedule, hook
 **Function**: Configure automatic synchronization via Claude Code hooks
+**Usage Examples**:
+- `"auto-sync enable"` → Enable automatic sync
+- `"turn on automatic updates"` → Natural language enable
+- `"auto-sync status"` → Check if enabled
+- `"disable automatic sync"` → Natural language disable
 
-Sub-commands:
+**Sub-commands**:
 - `enable` → Create/enable auto-sync hook in ~/.claude/hooks/
 - `disable` → Remove/disable auto-sync hook
 - `status` → Check if auto-sync hook is enabled
@@ -589,13 +649,22 @@ Sub-commands:
 
 ## Command Resolution Logic
 
-Match `<prompt-context>` to actions:
-- Empty input or contains "sync" → Execute SYNC
-- Contains "setup" or "install" → Execute SETUP
-- Contains "publish" or "unpublished" → Execute PUBLISH  
-- Contains "status" or "check" → Execute STATUS
-- Contains "auto-sync" + modifier → Execute AUTO-SYNC with detected sub-command
-- Ambiguous input → Infer most likely action based on context, confirm if uncertain
+**Pattern Matching Strategy**: Use case-insensitive matching on `<prompt-context>`
+
+**Resolution Order** (first match wins):
+1. **Empty input** → Execute SYNC (most common use case)
+2. **Setup keywords**: setup, install, init, initialize, clone → Execute SETUP
+3. **Auto-sync keywords**: auto-sync, automatic, schedule + enable/disable/status → Execute AUTO-SYNC 
+4. **Publish keywords**: publish, discover, find, unpublished → Execute PUBLISH
+5. **Status keywords**: status, check, info, what + (ready|linked|have) → Execute STATUS
+6. **Sync keywords**: sync, update, pull, refresh → Execute SYNC
+7. **Default fallback** → Execute SYNC with confirmation
+
+**Context Clues**:
+- Question words (what, how, which) often indicate STATUS
+- Action words (find, discover, check) often indicate PUBLISH  
+- Setup words (first time, install, clone) indicate SETUP
+- Automatic words (schedule, hook, enable) indicate AUTO-SYNC
 
 ## Simplified Workflow
 
@@ -607,26 +676,43 @@ Removed complexity:
 
 Just 5 focused actions that cover real use cases.
 
-## Error Handling
+## Error Handling & Troubleshooting
 
-Keep it simple:
-- If repo doesn't exist at $REPO_PATH → Clone it during sync
-- If symlinks broken → Fix them during sync
-- If permission issues → Explain clearly
-- If network issues → Suggest retry
+**Common Issues & Solutions**:
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Repository not found` | Missing repo config | Run `setup` action to configure |
+| `Permission denied` | Insufficient file permissions | Check ~/.claude directory permissions |
+| `Git pull failed` | Network/auth issues | Check internet connection, retry |
+| `Broken symlinks` | Repository moved/deleted | Run `sync` to refresh all symlinks |
+| `Extensions not loading` | Missing restart | Restart Claude Code after changes |
+| `jq command not found` | Missing dependency | Install jq or use manual config |
+
+**Recovery Strategy**:
+- Always provide helpful next steps in error messages
+- Offer automatic fixes when possible (e.g., clone missing repo)
+- Fall back gracefully when dependencies missing (jq → grep/sed)
+- Log errors with context for debugging
 
 ## Example Interpretations
 
-| User Input | Resolved Action |
-|------------|-----------------|
-| ` ` (empty) | SYNC - default action |
-| `sync` | SYNC - explicit request |
-| `setup` | SETUP - initialize repository |
-| `publish` | PUBLISH - find unpublished items |
-| `what do I have?` | STATUS - query for overview |
-| `check unpublished` | PUBLISH - discovery request |
-| `auto-sync enable` | AUTO-SYNC enable - schedule setup |
-| `turn on automatic updates` | AUTO-SYNC enable - natural language |
+| User Input | Resolved Action | Reasoning |
+|------------|-----------------|-----------|
+| ` ` (empty) | SYNC | Default action, most common use |
+| `"sync"` | SYNC | Direct keyword match |
+| `"update everything"` | SYNC | 'update' keyword + context |
+| `"setup"` | SETUP | Setup keyword match |
+| `"first time install"` | SETUP | Setup context clues |
+| `"publish"` | PUBLISH | Direct keyword match |
+| `"what's unpublished?"` | PUBLISH | Question + unpublished keyword |
+| `"find new extensions"` | PUBLISH | Action words + discovery intent |
+| `"status"` | STATUS | Direct keyword match |
+| `"what is ready to sync"` | STATUS | Question + status context |
+| `"show me what's linked"` | STATUS | Question + linked context |
+| `"auto-sync enable"` | AUTO-SYNC enable | Compound command |
+| `"turn on automatic updates"` | AUTO-SYNC enable | Natural language |
+| `"disable auto sync"` | AUTO-SYNC disable | Natural disable command |
 
 ## File Conventions & Structure
 
