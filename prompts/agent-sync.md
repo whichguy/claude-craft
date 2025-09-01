@@ -29,17 +29,35 @@ if [ -f "$HOME/.claude/settings.json" ]; then
   fi
 fi
 
+# Expand tilde in path if present
+[ -n "$REPO_PATH" ] && REPO_PATH="${REPO_PATH/#\~/$HOME}"
+
 # If not configured, require user to specify or run setup
 if [ -z "$REPO_PATH" ]; then
   echo "❌ Repository path not configured in ~/.claude/settings.json"
-  echo "Please run 'setup' first or add 'claude-craft.repo' to your settings"
+  echo ""
+  echo "To fix this, run: /prompt agent-sync setup"
+  echo "Or manually add to settings.json:"
+  echo '  "claude-craft.repo": "/path/to/claude-craft"'
   exit 1
 fi
 
 # Verify repository exists
 if [ ! -d "$REPO_PATH" ]; then
   echo "❌ Repository not found at: $REPO_PATH"
-  echo "Please run 'setup' to clone the repository"
+  echo ""
+  echo "To fix this, run: /prompt agent-sync setup"
+  echo "This will clone the repository to the configured location"
+  exit 1
+fi
+
+# Verify it's a git repository
+if [ ! -d "$REPO_PATH/.git" ]; then
+  echo "❌ Directory exists but is not a git repository: $REPO_PATH"
+  echo ""
+  echo "To fix this, either:"
+  echo "  1. Remove the directory and run: /prompt agent-sync setup"
+  echo "  2. Initialize git in the directory: git -C \"$REPO_PATH\" init"
   exit 1
 fi
 ```
@@ -90,57 +108,102 @@ Map natural language to actions using keywords and context:
    # Step 2: Create/update symlinks for all repo files
    echo "🔗 Creating/updating symlinks..."
    
-   # Commands (.md files)
+   # Optimize file discovery based on available tools
    if command -v rg >/dev/null 2>&1; then
-     [ -d "$REPO_PATH/commands" ] && rg --files "$REPO_PATH/commands" --glob "*.md" 2>/dev/null
-   else
-     [ -d "$REPO_PATH/commands" ] && find "$REPO_PATH/commands" -name "*.md" -type f 2>/dev/null
-   fi | while IFS= read -r f; do
-     base=$(basename "$f")
-     target="$HOME/.claude/commands/$base"
+     # Use ripgrep for fast file discovery
      
-     # Only create symlink if no local file exists (preserve local work)
-     if [ ! -e "$target" ] || [ -L "$target" ]; then
-       ln -sf "$f" "$target"
-       echo "  ✓ commands/$base"
-     else
-       echo "  ⚠️ Skipping commands/$base (local file exists)"
-     fi
-   done
-   
-   # Agents (.md and .json files)
-   if command -v rg >/dev/null 2>&1; then
-     [ -d "$REPO_PATH/agents" ] && rg --files "$REPO_PATH/agents" --glob "*.md" --glob "*.json" 2>/dev/null
-   else
-     [ -d "$REPO_PATH/agents" ] && find "$REPO_PATH/agents" \( -name "*.md" -o -name "*.json" \) -type f 2>/dev/null
-   fi | while IFS= read -r f; do
-     base=$(basename "$f")
-     target="$HOME/.claude/agents/$base"
+     # Commands (.md files)
+     [ -d "$REPO_PATH/commands" ] && {
+       rg --files "$REPO_PATH/commands" --glob "*.md" 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/commands/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ commands/$base"
+         else
+           echo "  ⚠️ Skipping commands/$base (local file exists)"
+         fi
+       done
+     }
      
-     if [ ! -e "$target" ] || [ -L "$target" ]; then
-       ln -sf "$f" "$target"
-       echo "  ✓ agents/$base"
-     else
-       echo "  ⚠️ Skipping agents/$base (local file exists)"
-     fi
-   done
-   
-   # Hooks (.sh files)
-   if command -v rg >/dev/null 2>&1; then
-     [ -d "$REPO_PATH/hooks/scripts" ] && rg --files "$REPO_PATH/hooks/scripts" --glob "*.sh" 2>/dev/null
-   else
-     [ -d "$REPO_PATH/hooks/scripts" ] && find "$REPO_PATH/hooks/scripts" -name "*.sh" -type f 2>/dev/null
-   fi | while IFS= read -r f; do
-     base=$(basename "$f")
-     target="$HOME/.claude/hooks/$base"
+     # Agents (.md and .json files)
+     [ -d "$REPO_PATH/agents" ] && {
+       rg --files "$REPO_PATH/agents" --glob "*.{md,json}" 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/agents/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ agents/$base"
+         else
+           echo "  ⚠️ Skipping agents/$base (local file exists)"
+         fi
+       done
+     }
      
-     if [ ! -e "$target" ] || [ -L "$target" ]; then
-       ln -sf "$f" "$target"
-       echo "  ✓ hooks/$base"
-     else
-       echo "  ⚠️ Skipping hooks/$base (local file exists)"
-     fi
-   done
+     # Hooks (.sh files)
+     [ -d "$REPO_PATH/hooks/scripts" ] && {
+       rg --files "$REPO_PATH/hooks/scripts" --glob "*.sh" 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/hooks/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ hooks/$base"
+         else
+           echo "  ⚠️ Skipping hooks/$base (local file exists)"
+         fi
+       done
+     }
+   else
+     # Fallback to find for compatibility
+     
+     # Commands
+     [ -d "$REPO_PATH/commands" ] && {
+       find "$REPO_PATH/commands" -maxdepth 1 -name "*.md" -type f 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/commands/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ commands/$base"
+         else
+           echo "  ⚠️ Skipping commands/$base (local file exists)"
+         fi
+       done
+     }
+     
+     # Agents
+     [ -d "$REPO_PATH/agents" ] && {
+       find "$REPO_PATH/agents" -maxdepth 1 \( -name "*.md" -o -name "*.json" \) -type f 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/agents/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ agents/$base"
+         else
+           echo "  ⚠️ Skipping agents/$base (local file exists)"
+         fi
+       done
+     }
+     
+     # Hooks
+     [ -d "$REPO_PATH/hooks/scripts" ] && {
+       find "$REPO_PATH/hooks/scripts" -maxdepth 1 -name "*.sh" -type f 2>/dev/null | while IFS= read -r f; do
+         base=$(basename "$f")
+         target="$HOME/.claude/hooks/$base"
+         
+         if [ ! -e "$target" ] || [ -L "$target" ]; then
+           ln -sf "$f" "$target"
+           echo "  ✓ hooks/$base"
+         else
+           echo "  ⚠️ Skipping hooks/$base (local file exists)"
+         fi
+       done
+     }
+   fi
    
    # Step 3: Report any conflicts that need resolution
    CONFLICTS=$(find "$HOME/.claude/"{commands,agents,hooks} -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -212,64 +275,63 @@ Map natural language to actions using keywords and context:
 
 2. **Smart Discovery Process**:
    ```bash
-   # Initialize counters and arrays
+   # Initialize discovery variables
    LOCAL_CLAUDE="$PWD/.claude"
    GLOBAL_CLAUDE="$HOME/.claude"
-   declare -a UNPUBLISHED_FILES=()
+   UNPUBLISHED_COMMANDS=""
+   UNPUBLISHED_AGENTS=""
+   UNPUBLISHED_HOOKS=""
    
    # Discovery function to check if file is unpublished
    is_unpublished() {
      local file="$1"
-     # Not a symlink AND (not exists OR doesn't point to repo)
-     if [ -f "$file" ] && [ ! -L "$file" ]; then
-       return 0  # Is unpublished
-     elif [ -L "$file" ]; then
-       # Check if symlink points to repository
-       readlink "$file" | grep -q "$REPO_PATH" || return 0
+     # Skip if file doesn't exist
+     [ ! -e "$file" ] && return 1
+     # Not a symlink = unpublished
+     [ ! -L "$file" ] && return 0
+     # Symlink but not to our repo = unpublished
+     if [ -L "$file" ]; then
+       target=$(readlink "$file")
+       echo "$target" | grep -q "$REPO_PATH" || return 0
      fi
-     return 1  # Is published
+     return 1  # Is published (symlink to our repo)
    }
    
-   # Scan for unpublished extensions using ripgrep for speed
+   # Scan for unpublished extensions
    echo "🔍 Scanning for unpublished extensions..."
    
    # Commands (.md files)
    for dir in "$LOCAL_CLAUDE/commands" "$GLOBAL_CLAUDE/commands"; do
-     [ -d "$dir" ] && {
-       if command -v rg >/dev/null 2>&1; then
-         rg --files "$dir" --glob "*.md" 2>/dev/null
-       else
-         find "$dir" -name "*.md" -type f 2>/dev/null
-       fi | while IFS= read -r f; do
-         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
-       done
-     }
+     [ -d "$dir" ] || continue
+     # Use find to get all .md files in the directory
+     find "$dir" -maxdepth 1 -name "*.md" -type f -o -type l 2>/dev/null | while IFS= read -r f; do
+       if is_unpublished "$f"; then
+         location=$(echo "$f" | grep -q "^$LOCAL_CLAUDE" && echo "local" || echo "global")
+         UNPUBLISHED_COMMANDS="${UNPUBLISHED_COMMANDS}${f}:${location}\n"
+       fi
+     done
    done
    
    # Agents (.md and .json files)
    for dir in "$LOCAL_CLAUDE/agents" "$GLOBAL_CLAUDE/agents"; do
-     [ -d "$dir" ] && {
-       if command -v rg >/dev/null 2>&1; then
-         rg --files "$dir" --glob "*.{md,json}" 2>/dev/null
-       else
-         find "$dir" \( -name "*.md" -o -name "*.json" \) -type f 2>/dev/null
-       fi | while IFS= read -r f; do
-         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
-       done
-     }
+     [ -d "$dir" ] || continue
+     find "$dir" -maxdepth 1 \( -name "*.md" -o -name "*.json" \) \( -type f -o -type l \) 2>/dev/null | while IFS= read -r f; do
+       if is_unpublished "$f"; then
+         location=$(echo "$f" | grep -q "^$LOCAL_CLAUDE" && echo "local" || echo "global")
+         UNPUBLISHED_AGENTS="${UNPUBLISHED_AGENTS}${f}:${location}\n"
+       fi
+     done
    done
    
    # Hooks (.sh files)
    for dir in "$LOCAL_CLAUDE/hooks" "$GLOBAL_CLAUDE/hooks"; do
-     [ -d "$dir" ] && {
-       if command -v rg >/dev/null 2>&1; then
-         rg --files "$dir" --glob "*.sh" 2>/dev/null
-       else
-         find "$dir" -name "*.sh" -type f 2>/dev/null
-       fi | while IFS= read -r f; do
-         is_unpublished "$f" && UNPUBLISHED_FILES+=("$f")
-       done
-     }
+     [ -d "$dir" ] || continue
+     find "$dir" -maxdepth 1 -name "*.sh" \( -type f -o -type l \) 2>/dev/null | while IFS= read -r f; do
+       if is_unpublished "$f"; then
+         location=$(echo "$f" | grep -q "^$LOCAL_CLAUDE" && echo "local" || echo "global")
+         UNPUBLISHED_HOOKS="${UNPUBLISHED_HOOKS}${f}:${location}\n"
+       fi
+     done
    done
    ```
 
@@ -277,90 +339,146 @@ Map natural language to actions using keywords and context:
    ```bash
    # Get modified files in extension directories (excluding untracked)
    MODIFIED_FILES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | \
-                    rg "^( M|MM| D)..(agents|commands|hooks|prompts)/" 2>/dev/null || true)
-   
-   # Extract metadata for each unpublished file
-   for file in "${UNPUBLISHED_FILES[@]}"; do
-     # Get file size in human-readable format
-     SIZE=$(ls -lh "$file" 2>/dev/null | awk '{print $5}')
-     
-     # Extract description from file
-     DESC=$(sed -n '/^description:/p' "$file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//' | \
-            fold -s -w 70 | head -2)
-     [ -z "$DESC" ] && DESC=$(head -5 "$file" 2>/dev/null | grep -v "^#" | head -1 | fold -s -w 70 | head -2)
-   done
+                    grep "^[ M]M\|^[ M]D" | grep -E "(agents|commands|hooks|prompts)/" || true)
    ```
 
-3. **Interactive Presentation**:
-   ```
-   📦 Claude Code Publishing Status
-   Repository: $REPO_PATH ($CHANGES uncommitted changes)
-   
-   🔄 Modified Items (in repository):
-   [Show actual git status for modified files]
-   
-   🤖 Unpublished Agents (X total):
-   📍 Local Project:
-   [1] agent-name.md (8.0K)
-       Description from file (wrapped to 70 chars)
-   
-   🌐 Global Profile:
-   [2] other-agent.md (4.2K)
-       Description continues on second line
-   
-   ⚡ Unpublished Commands (Y total):
-   [3] command.md (2.1K)
-       Command description properly wrapped
-   
-   🪝 Unpublished Hooks (Z total):
-   [4] hook.sh (1.5K)
-       Hook script description
-   
-   🎯 Actions:
-   [A] ✅ Publish all items
-   [S] 📝 Select specific items (e.g., "1,3" or "1-4")
-   [R] 👁️ Review content first
-   [C] ❌ Cancel
-   
-   What would you like to do?
-   ```
-
-4. **Publishing Workflow** (after user selection):
+4. **Interactive Presentation**:
    ```bash
-   # For each selected extension:
-   for file in $SELECTED_FILES; do
-     type=$(basename "$(dirname "$file")")  # agents, commands, or hooks
-     name=$(basename "$file")
-     
-     # Copy to repository
-     mkdir -p "$REPO_PATH/$type"
-     cp "$file" "$REPO_PATH/$type/$name"
-     
-     # Stage immediately
-     git -C "$REPO_PATH" add "$type/$name"
-     
-     # Replace with symlink
-     rm "$file"
-     ln -sf "$REPO_PATH/$type/$name" "$file"
-     
-     echo "✅ Published $name to $type/"
-   done
+   # Process and display discovered files
+   echo "📦 Claude Code Publishing Status"
+   echo "📁 Repository: $REPO_PATH ($CHANGES uncommitted changes)"
+   echo ""
    
-   # Commit changes
-   if [ -n "$SELECTED_FILES" ]; then
-     count=$(echo "$SELECTED_FILES" | wc -w)
-     git -C "$REPO_PATH" commit -m "Publish $count extensions via agent-sync
-   
-   Published:
-   $(echo "$SELECTED_FILES" | xargs -n1 basename | sed 's/^/- /')"
+   # Show modified files in repository
+   if [ -n "$MODIFIED_FILES" ]; then
+     echo "🔄 Modified Items (in repository):"
+     echo "$MODIFIED_FILES" | while IFS= read -r line; do
+       echo "  $line"
+     done
+     echo ""
    fi
    
-   # Verification
-   echo "✅ All extensions published and symlinked successfully"
-   echo "📝 Remember to push changes: git -C \"$REPO_PATH\" push"
+   # Counter for numbering items
+   ITEM_NUM=1
+   
+   # Display unpublished agents
+   if [ -n "$UNPUBLISHED_AGENTS" ]; then
+     echo "🤖 Unpublished Agents:"
+     echo ""
+     
+     # Process local agents first
+     echo -e "$UNPUBLISHED_AGENTS" | grep ":local$" | while IFS=: read -r file location; do
+       [ -z "$file" ] && continue
+       echo "📍 Local Project:"
+       name=$(basename "$file")
+       size=$(ls -lh "$file" 2>/dev/null | awk '{print $5}')
+       desc=$(grep -m1 "^description:" "$file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+       [ -z "$desc" ] && desc=$(head -5 "$file" 2>/dev/null | grep -v "^#" | head -1)
+       
+       echo "[$ITEM_NUM] $name ($size)"
+       echo "$desc" | fold -s -w 70 | head -2 | sed 's/^/    /'
+       echo ""
+       ITEM_NUM=$((ITEM_NUM + 1))
+     done
+     
+     # Process global agents
+     echo -e "$UNPUBLISHED_AGENTS" | grep ":global$" | while IFS=: read -r file location; do
+       [ -z "$file" ] && continue
+       echo "🌐 Global Profile:"
+       name=$(basename "$file")
+       size=$(ls -lh "$file" 2>/dev/null | awk '{print $5}')
+       desc=$(grep -m1 "^description:" "$file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+       [ -z "$desc" ] && desc=$(head -5 "$file" 2>/dev/null | grep -v "^#" | head -1)
+       
+       echo "[$ITEM_NUM] $name ($size)"
+       echo "$desc" | fold -s -w 70 | head -2 | sed 's/^/    /'
+       echo ""
+       ITEM_NUM=$((ITEM_NUM + 1))
+     done
+   fi
+   
+   # Display unpublished commands (similar pattern)
+   if [ -n "$UNPUBLISHED_COMMANDS" ]; then
+     echo "⚡ Unpublished Commands:"
+     echo ""
+     # Similar processing as agents...
+   fi
+   
+   # Display unpublished hooks (similar pattern)
+   if [ -n "$UNPUBLISHED_HOOKS" ]; then
+     echo "🪝 Unpublished Hooks:"
+     echo ""
+     # Similar processing as agents...
+   fi
+   
+   # Show actions menu
+   echo "🎯 Actions:"
+   echo "[A] ✅ Publish all items"
+   echo "[S] 📝 Select specific items (e.g., \"1,3\" or \"1-4\")"
+   echo "[R] 👁️ Review content first"
+   echo "[C] ❌ Cancel"
+   echo ""
+   echo "What would you like to do?"
    ```
 
-5. **Verification Steps**:
+5. **Publishing Workflow** (after user selection):
+   ```bash
+   # Process user selection and publish files
+   publish_files() {
+     local files="$1"
+     
+     # For each selected extension
+     echo "$files" | while IFS= read -r file; do
+       [ -z "$file" ] && continue
+       
+       # Determine type from path
+       if echo "$file" | grep -q "/commands/"; then
+         type="commands"
+       elif echo "$file" | grep -q "/agents/"; then
+         type="agents"
+       elif echo "$file" | grep -q "/hooks/"; then
+         type="hooks"
+       else
+         echo "⚠️ Unknown type for $file, skipping"
+         continue
+       fi
+       
+       name=$(basename "$file")
+       
+       # Create target directory
+       mkdir -p "$REPO_PATH/$type"
+       
+       # Copy to repository
+       cp "$file" "$REPO_PATH/$type/$name"
+       
+       # Stage immediately
+       git -C "$REPO_PATH" add "$type/$name"
+       
+       # Replace original with symlink
+       rm -f "$file"
+       ln -sf "$REPO_PATH/$type/$name" "$file"
+       
+       echo "✅ Published $name to $type/"
+     done
+     
+     # Commit if files were published
+     if [ -n "$files" ]; then
+       count=$(echo "$files" | grep -c .)
+       git -C "$REPO_PATH" commit -m "Publish $count extensions via agent-sync
+   
+   Published:
+   $(echo "$files" | xargs -n1 basename | sed 's/^/- /')" 2>/dev/null || {
+         echo "⚠️ Nothing to commit (files may already be staged)"
+       }
+     fi
+     
+     echo ""
+     echo "✅ All extensions published and symlinked"
+     echo "📝 Remember to push: git -C \"$REPO_PATH\" push"
+   }
+   ```
+
+6. **Verification Steps**:
    ```bash
    # Verify symlinks point to repository
    for file in $PUBLISHED_FILES; do
@@ -375,22 +493,64 @@ Map natural language to actions using keywords and context:
 **Function**: Display current synchronization state
 
 **Execution Steps**:
-1. Show repository location: `echo "$REPO_PATH"`
-2. Count active symlinks by type using ripgrep:
-   - Commands: `[ -d "$REPO_PATH/commands" ] && rg --files "$REPO_PATH/commands" --glob "*.md" 2>/dev/null | wc -l || echo 0`
-   - Agents: `[ -d "$REPO_PATH/agents" ] && rg --files "$REPO_PATH/agents" --glob "*.md" --glob "*.json" 2>/dev/null | wc -l || echo 0`
-   - Hooks: `[ -d "$REPO_PATH/hooks/scripts" ] && rg --files "$REPO_PATH/hooks/scripts" --glob "*.sh" 2>/dev/null | wc -l || echo 0`
-3. Check for unpublished items (quick count)
-4. Git status: `git -C "$REPO_PATH" status --short`
+```bash
+# Get repository info
+echo "📊 Claude Craft Status"
+echo "📁 Repository: $REPO_PATH"
 
-Output format:
-```
-📊 Claude Craft Status
-Repository: $REPO_PATH (clean)
-✅ 15 commands linked
-✅ 8 agents linked  
-✅ 3 hooks linked
-📝 2 unpublished items found (run 'publish' to see)
+# Check git status
+if git -C "$REPO_PATH" diff --quiet HEAD 2>/dev/null; then
+  echo "✅ Repository: clean"
+else
+  CHANGES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  echo "⚠️ Repository: $CHANGES uncommitted changes"
+fi
+echo ""
+
+# Count linked extensions (symlinks pointing to our repo)
+CMD_COUNT=0
+AGENT_COUNT=0
+HOOK_COUNT=0
+
+# Count command symlinks
+if [ -d "$HOME/.claude/commands" ]; then
+  CMD_COUNT=$(find "$HOME/.claude/commands" -maxdepth 1 -type l 2>/dev/null | while read -r link; do
+    readlink "$link" | grep -q "$REPO_PATH" && echo "x"
+  done | wc -l | tr -d ' ')
+fi
+
+# Count agent symlinks
+if [ -d "$HOME/.claude/agents" ]; then
+  AGENT_COUNT=$(find "$HOME/.claude/agents" -maxdepth 1 -type l 2>/dev/null | while read -r link; do
+    readlink "$link" | grep -q "$REPO_PATH" && echo "x"
+  done | wc -l | tr -d ' ')
+fi
+
+# Count hook symlinks
+if [ -d "$HOME/.claude/hooks" ]; then
+  HOOK_COUNT=$(find "$HOME/.claude/hooks" -maxdepth 1 -type l 2>/dev/null | while read -r link; do
+    readlink "$link" | grep -q "$REPO_PATH" && echo "x"
+  done | wc -l | tr -d ' ')
+fi
+
+echo "🔗 Linked Extensions:"
+echo "  ⚡ $CMD_COUNT commands"
+echo "  🤖 $AGENT_COUNT agents"
+echo "  🪝 $HOOK_COUNT hooks"
+echo ""
+
+# Quick check for unpublished items
+UNPUB_COUNT=0
+for dir in commands agents hooks; do
+  [ -d "$HOME/.claude/$dir" ] && {
+    UNPUB_COUNT=$((UNPUB_COUNT + $(find "$HOME/.claude/$dir" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')))
+  }
+  [ -d "$PWD/.claude/$dir" ] && {
+    UNPUB_COUNT=$((UNPUB_COUNT + $(find "$PWD/.claude/$dir" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')))
+  }
+done
+
+[ "$UNPUB_COUNT" -gt 0 ] && echo "📝 $UNPUB_COUNT unpublished items found (run 'publish' to review)"
 ```
 
 ### 5. AUTO-SYNC
