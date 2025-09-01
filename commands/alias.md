@@ -22,28 +22,22 @@ Given arguments: $1, $2, $3, $4, $5, $6, $7, $8, $9
 1. If $1 is "--list", go to LIST MODE
 2. Otherwise, continue to CREATE MODE
 
-### LIST MODE
+### LIST MODE (Optimized with Ripgrep)
 
-1. Use Glob tool with pattern `.claude/commands/*.md` to find local commands (may return no results if directory doesn't exist)
-2. If no files found or error, skip to step 4
-3. For each file found:
-   - Extract filename without .md extension as COMMAND_NAME  
-   - Use Read tool to read the file
-   - Search for "alias-generated: true" in the file content
-   - If found, extract the value after "alias-command:" (trim quotes and spaces)
-   - Store as LOCAL_ALIAS with command
+1. **Find local aliases**: Use Grep tool with pattern "alias-generated: true", glob "*.md", path ".claude/commands", output_mode "files_with_matches"
+2. If local alias files found:
+   - Use Grep tool with pattern "alias-command:", same glob/path, output_mode "content", -n true to get filenames and commands
+   - Parse each result line: extract filename (remove path and .md extension) and command value (after colon, trim quotes/spaces)
+   - Store as LOCAL_ALIAS entries
 
-4. Use Glob tool with pattern `~/.claude/commands/*.md` to find global commands
-5. If no files found or error, skip to step 7
-6. For each file found:
-   - Extract filename without .md extension as COMMAND_NAME
-   - Skip if COMMAND_NAME already in LOCAL_ALIAS list
-   - Use Read tool to read the file
-   - Search for "alias-generated: true" in the file content
-   - If found, extract the value after "alias-command:" (trim quotes and spaces)
-   - Store as GLOBAL_ALIAS with command
+3. **Find global aliases**: Use Grep tool with pattern "alias-generated: true", glob "*.md", path "~/.claude/commands", output_mode "files_with_matches"  
+4. If global alias files found:
+   - Use Grep tool with pattern "alias-command:", same glob/path, output_mode "content", -n true to get filenames and commands
+   - Parse each result line: extract filename (remove path and .md extension) and command value (after colon, trim quotes/spaces)
+   - Skip if filename already exists in LOCAL_ALIAS list (local overrides global)
+   - Store remaining as GLOBAL_ALIAS entries
 
-7. Display results:
+5. **Display results**:
    - Show "**Local Aliases:**" header if any LOCAL_ALIAS entries
    - For each LOCAL_ALIAS: Show `/name → command`
    - Show "**Global Aliases:**" header if any GLOBAL_ALIAS entries  
