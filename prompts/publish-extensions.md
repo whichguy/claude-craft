@@ -104,16 +104,25 @@ You are a Claude Code extension publishing specialist. Your task is to discover 
 - Check for both local and global `.claude` directories
 - Validate extension content and detect duplicates between locations
 
-#### Step 2: Comprehensive Search
+#### Step 2: Simple Discovery Process
 ```bash
-# Search global .claude directory for extension files (exclude journals/backups)
-find ~/.claude -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \) -not -path "*/backups/*" -not -path "*/journal/*"
+# Get repository configuration
+REPO_PATH=$(jq -r '.repository.path' ~/.claude/claude-craft.json 2>/dev/null || echo "")
+CHANGES=$(git -C "$REPO_PATH" status --porcelain 2>/dev/null | wc -l)
 
-# Search local project .claude directory if it exists
-if [ -d "$(pwd)/.claude" ]; then
-    # Find all extension files in local .claude directory
-    find "$(pwd)/.claude" -type f \( -name "*.md" -o -name "*.json" -o -name "*.sh" \)
+# Count local unpublished extensions (simple approach)
+LOCAL_COUNT=0
+if [ -d ./.claude ]; then
+    LOCAL_COUNT=$(find ./.claude -name "*.md" -type f ! -type l 2>/dev/null | wc -l)
 fi
+
+# Count global unpublished extensions
+GLOBAL_COUNT=0
+for dir in ~/.claude/agents ~/.claude/commands ~/.claude/hooks; do
+    if [ -d "$dir" ]; then
+        GLOBAL_COUNT=$((GLOBAL_COUNT + $(find "$dir" -name "*.md" -type f ! -type l 2>/dev/null | wc -l)))
+    fi
+done
 ```
 
 #### Step 3: Classification Analysis
@@ -241,29 +250,50 @@ For each extension the user chooses to publish:
 
 ### Output Format
 
-Present findings concisely with clear choices:
+Present findings with simple bash commands:
 
-```
-📦 **Extensions Ready for Publishing**
-
-[If no unpublished extensions found:]
-✅ All extensions published! No action needed.
-
-[If unpublished extensions found:]
-**Local Unpublished** (X extensions):
-• filename1 (agent, 5KB) - Brief description...
-• filename2 (command, 2KB) - Brief description...
-
-**Global Unpublished** (Y extensions):  
-• filename3 (hook, 1KB) - Brief description...
-
-**Choose Action:**
-[P] Publish all X extensions now
-[S] Select specific extensions  
-[R] Review content first
-[C] Cancel
-
-Repository: /path/to/repo (X uncommitted changes - normal)
+```bash
+# Check if any extensions need publishing
+if [ "$LOCAL_COUNT" -eq 0 ] && [ "$GLOBAL_COUNT" -eq 0 ]; then
+    echo "✅ All extensions published! No action needed."
+else
+    echo "📦 Extensions Ready for Publishing"
+    echo ""
+    
+    # List local extensions if any
+    if [ "$LOCAL_COUNT" -gt 0 ]; then
+        echo "Local Unpublished ($LOCAL_COUNT extensions):"
+        find ./.claude -name "*.md" -type f ! -type l 2>/dev/null | while read file; do
+            name=$(basename "$file" .md)
+            type=$(basename $(dirname "$file"))
+            size=$(du -h "$file" | cut -f1)
+            echo "• $name ($type, $size)"
+        done
+        echo ""
+    fi
+    
+    # List global extensions if any
+    if [ "$GLOBAL_COUNT" -gt 0 ]; then
+        echo "Global Unpublished ($GLOBAL_COUNT extensions):"
+        for dir in ~/.claude/agents ~/.claude/commands ~/.claude/hooks; do
+            find "$dir" -name "*.md" -type f ! -type l 2>/dev/null | while read file; do
+                name=$(basename "$file" .md)
+                type=$(basename $(dirname "$file"))
+                size=$(du -h "$file" | cut -f1)
+                echo "• $name ($type, $size)"
+            done
+        done
+        echo ""
+    fi
+    
+    echo "Choose Action:"
+    echo "[P] Publish all $((LOCAL_COUNT + GLOBAL_COUNT)) extensions"
+    echo "[S] Select specific extensions"
+    echo "[R] Review content first"
+    echo "[C] Cancel"
+    echo ""
+    echo "Repository: $REPO_PATH ($CHANGES uncommitted changes)"
+fi
 ```
 
 ### Decision Logic
