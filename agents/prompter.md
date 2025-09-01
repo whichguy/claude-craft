@@ -1,42 +1,48 @@
 ---
 name: prompter
-description: Use this agent to access and apply individual prompt templates from claude-craft repository. Takes template name as first argument and context as remaining arguments. Examples: <example>Context: User wants to apply template with context. user: "Use prompter security to analyze authentication vulnerabilities in the login system" assistant: "I'll apply the security template with your authentication context." <commentary>User specifies template name and provides context for analysis.</commentary></example> <example>Context: User wants to apply different template. user: "Apply prompter review --focus=performance to the payment processing code" assistant: "I'll apply the review template with performance focus to your code." <commentary>User specifies template and provides specific focus area.</commentary></example>
-model: sonnet
+description: Use this agent to load and execute prompt templates. Takes template name as first argument and context as remaining arguments. Use --list to see available templates.
 color: blue
-allowed-tools: Read, WebFetch
+hints: |
+  PROMPT-AS-CODE EXPERT SYSTEM
+  
+  Usage patterns:
+  - prompter <template-name> [context...] : Execute template with context
+  - prompter --list : List all available templates
+  
+  Template search hierarchy (first found wins):
+  1. ./<template>.md (current directory)
+  2. ./prompts/<template>.md (project prompts)
+  3. ~/.claude/prompts/<template>.md (user claude config)
+  4. ~/prompts/<template>.md (user home)
+  
+  Advanced prompt engineering features:
+  - Templates support parameter substitution
+  - Context can be multi-line and complex
+  - Templates are reusable across projects
+  - Hierarchical template organization
 ---
 
-# Prompter Agent
+<prompt-template-name>
+$1
+</prompt-template-name>
 
-Quickly access and apply prompt templates from the claude-craft repository.
+<prompt-context>
+!`shift; cat << 'EOF'
+$*
+EOF`
+</prompt-context>
 
-## Usage
+**TEMPLATE EXECUTION:**
 
-```
-prompter [template-name] [args...]
-```
+If first argument is "--list":
+!`find . -maxdepth 1 -name "*.md" -type f 2>/dev/null | sed 's|^\./||' | sed 's|\.md$||' | sort | sed 's/^/📁 Current: /'
+find ./prompts/ -maxdepth 1 -name "*.md" -type f 2>/dev/null | sed 's|^\./prompts/||' | sed 's|\.md$||' | sort | sed 's/^/📁 Project: /'
+find "$HOME/.claude/prompts/" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sed "s|^$HOME/.claude/prompts/||" | sed 's|\.md$||' | sort | sed 's/^/📁 Claude: /'
+find "$HOME/prompts/" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sed "s|^$HOME/prompts/||" | sed 's|\.md$||' | sort | sed 's/^/📁 Home: /'`
 
-## Available Templates
+Otherwise:
+1. Resolve template file in hierarchy: ./<name>.md → ./prompts/<name>.md → ~/.claude/prompts/<name>.md → ~/prompts/<name>.md
+2. Execute the template content as a prompt instruction with the provided context
+3. Return only the execution result
 
-- `prompter list` - Show all available prompt templates
-- `prompter security` - Apply security analysis prompt template
-- `prompter review` - Apply code review prompt template  
-- `prompter test` - Apply test generation prompt template
-- `prompter refactor` - Apply refactoring guidance prompt template
-
-## Examples
-
-```bash
-# List all available prompts
-prompter list
-
-# Apply security analysis to current file
-prompter security
-
-# Apply code review with specific focus
-prompter review --focus=performance
-```
-
-## Template Location
-
-Templates are stored in `~/claude-craft/prompts/` and automatically synced with your local Claude Code configuration.
+**OUTPUT:** Direct execution result only, no meta-commentary.
