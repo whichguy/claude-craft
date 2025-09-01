@@ -153,6 +153,42 @@ main() {
             echo -e "${YELLOW}⚠️  Could not install git hooks (non-critical)${NC}"
     fi
 
+    # Create default global aliases
+    echo -e "${YELLOW}🔗 Setting up default aliases...${NC}"
+    if [ -f "$CLAUDE_DIR/commands/alias.md" ]; then
+        # Create global agent-sync alias pointing to the agent-sync prompt
+        mkdir -p "$CLAUDE_DIR/commands"
+        local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        cat > "$CLAUDE_DIR/commands/agent-sync.md" << EOF
+---
+argument-hint: "[additional-args...]"
+description: "Alias: /prompt agent-sync"
+allowed-tools: "all"
+alias-generated: true
+alias-type: "global"
+alias-created: "$timestamp"
+alias-command: "/prompt agent-sync"
+---
+
+# Alias: agent-sync
+
+**This is an auto-generated alias**
+**Type**: global
+**Executes**: /prompt agent-sync \$@
+
+## Execute Command
+
+Execute: /prompt agent-sync \$@
+
+## Output Requirements
+- Direct execution result only
+- No preamble about executing the alias
+- No meta-commentary about what happened
+- Just the actual output from running the command
+EOF
+        echo -e "${GREEN}✅ Created global alias: /agent-sync${NC}"
+    fi
+
     echo ""
     echo -e "${GREEN}✅ Claude Craft installation complete!${NC}"
     echo ""
