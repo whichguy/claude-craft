@@ -85,9 +85,44 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 | `/agent-sync auto-sync disable` | Disable automatic sync |
 | `/agent-sync auto-sync status` | Show auto-sync configuration |
 | `/agent-sync scan` | Run security scan on memory files |
-| `/prompts` | Access prompt templates |
+| `/prompts` | List available prompt templates |
+| `/prompt template-name` | Execute a prompt template with prompt-as-code |
 | `/alias name command...` | Create command aliases (local or global) |
 | `/unalias name` | Remove command aliases with confirmation |
+
+### Prompt-as-Code Philosophy
+
+The `/prompt` command leverages Claude Code's **prompt-as-code** pattern - a powerful paradigm where prompts become executable, composable units of AI-driven functionality:
+
+**Why Prompt-as-Code?**
+- **Dynamic Reasoning**: Unlike static scripts, prompts leverage AI's reasoning capabilities to adapt to context
+- **Natural Language Logic**: Express complex workflows in prose rather than brittle code
+- **Composable**: Chain prompts together, pass results between them, build complex orchestrations
+- **Self-Documenting**: The prompt IS the documentation - readable by humans and AI alike
+- **Flexible Execution**: Same prompt can behave differently based on project context
+
+**How It Works:**
+```bash
+# Execute a prompt template
+/prompt api-design
+
+# The prompt template (prompts/api-design.md) contains:
+# - Natural language instructions for the AI
+# - Conditional logic expressed as "if this, then that"
+# - Tool invocations described in prose
+# - Dynamic adaptation based on file content
+
+# Compare to traditional scripting:
+# Script: Fixed logic, fails on edge cases, requires maintenance
+# Prompt: Adaptive reasoning, handles unknowns, self-improving
+```
+
+**Examples:**
+- `/prompt debugging` - AI analyzes context and chooses appropriate debugging strategy
+- `/prompt security-scan` - Intelligently scans based on file types and patterns found
+- `/prompt git-security-threat` - Adaptive threat analysis based on repository state
+
+This approach treats prompts as **executable specifications** rather than code, enabling more flexible and intelligent automation.
 
 ### Local vs Global Modes
 
@@ -209,10 +244,6 @@ claude-craft/
 │   ├── backup.sh               # Backup and restore utility
 │   ├── auto-sync.sh            # Auto-synchronization system
 │   └── [5+ more tools]         # Additional management utilities
-└── workflows/             # End-to-end workflow examples
-    ├── git-security-workflow.md
-    ├── security-workflow.md
-    └── [2+ more workflows]
 ```
 
 ## How It Works
