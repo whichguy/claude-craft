@@ -62,10 +62,16 @@ sync_directory() {
     # Remove existing claude-craft symlinks
     find "$claude_path" -type l -lname "$repo_path/*" -delete 2>/dev/null || true
     
-    # Create symlinks for current files
+    # Create symlinks for current files (skip global commands)
     if [ -d "$repo_path" ]; then
         find "$repo_path" -name "$file_pattern" -type f | while read -r file; do
             local basename=$(basename "$file")
+            
+            # Skip global commands that were copied separately
+            if [[ "$basename" == "alias.md" ]] || [[ "$basename" == "unalias.md" ]] || [[ "$basename" == "agent-sync.md" ]]; then
+                continue
+            fi
+            
             ln -sf "$file" "$claude_path/$basename"
         done
     fi
@@ -137,10 +143,28 @@ main() {
         rm -rf "$REPO_DIR.backup"
     fi
 
-    # Create symlinks for standalone files
+    # Create symlinks for most commands, but copy core commands globally
     echo -e "${YELLOW}🔗 Creating symlinks...${NC}"
+    
+    # Create directory first
+    mkdir -p "$CLAUDE_DIR/commands"
+    
+    # Copy core commands as global (not symlinked)
+    echo -e "${YELLOW}📋 Installing core global commands...${NC}"
+    if [ -f "$REPO_DIR/commands/alias.md" ]; then
+        cp "$REPO_DIR/commands/alias.md" "$CLAUDE_DIR/commands/alias.md"
+        echo -e "${GREEN}✅ Installed global command: /alias${NC}"
+    fi
+    
+    if [ -f "$REPO_DIR/commands/unalias.md" ]; then
+        cp "$REPO_DIR/commands/unalias.md" "$CLAUDE_DIR/commands/unalias.md"
+        echo -e "${GREEN}✅ Installed global command: /unalias${NC}"
+    fi
+    
+    # Create symlinks for other commands and agents
+    echo -e "${YELLOW}🔗 Linking repository commands...${NC}"
     sync_directory "commands" "commands" "*.md"
-    sync_directory "agents" "agents" "*.json"  
+    sync_directory "agents" "agents" "*.md"  
 
     # Safe merge of single-file configurations
     safe_merge_configs
@@ -153,11 +177,10 @@ main() {
             echo -e "${YELLOW}⚠️  Could not install git hooks (non-critical)${NC}"
     fi
 
-    # Create default global aliases
-    echo -e "${YELLOW}🔗 Setting up default aliases...${NC}"
+    # Create agent-sync global alias
+    echo -e "${YELLOW}🚀 Creating agent-sync alias...${NC}"
     if [ -f "$CLAUDE_DIR/commands/alias.md" ]; then
         # Create global agent-sync alias pointing to the agent-sync prompt
-        mkdir -p "$CLAUDE_DIR/commands"
         local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         cat > "$CLAUDE_DIR/commands/agent-sync.md" << EOF
 ---
@@ -195,11 +218,17 @@ EOF
     echo -e "${YELLOW}📁 Repository location:${NC} $REPO_DIR"
     echo -e "${YELLOW}🔗 Claude Config:${NC} $CLAUDE_DIR"
     echo ""
+    echo -e "${YELLOW}Global Commands Installed:${NC}"
+    echo "  • /alias - Create command shortcuts"
+    echo "  • /unalias - Remove command shortcuts"  
+    echo "  • /agent-sync - Repository sync and management"
+    echo ""
     echo -e "${YELLOW}Next steps:${NC}"
     echo "  1. Restart Claude Code to load new extensions"
-    echo "  2. Use /agent-sync to sync updates"
-    echo "  3. Use /prompts to access templates"
-    echo "  4. Check ~/.claude/backups/ if you need to restore anything"
+    echo "  2. Try /agent-sync to test installation"
+    echo "  3. Use /alias --list to see available aliases"
+    echo "  4. Use /prompts to access templates"
+    echo "  5. Check ~/.claude/backups/ if you need to restore anything"
     echo ""
     echo -e "${RED}⚠️  IMPORTANT: Restart Claude Code now!${NC}"
 }
