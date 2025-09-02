@@ -85,8 +85,12 @@ If intent is status-related:
 6. **Show items available to add** (Repository → Claude Code):
    
    For each type (agents, commands, hooks, prompts):
+   - FIRST check if repository directory exists
+   - If directory doesn't exist, show "Directory not found: [path]"
+   - If directory exists but is empty, show "No [type] found"
    - Check if symlink exists in ANY `.claude/` directory up the chain
    - If no symlink found, item is available to add
+   - Handle file access errors gracefully
    
    Display with details:
    ```
@@ -99,7 +103,7 @@ If intent is status-related:
       Main purpose and key functionality
       📍 Suggested location: [Project/User level]
    
-   [continue for all items]
+   [continue for all items, or show "No items found" if directories missing]
    ```
 
 7. **Show quick actions with location options**:
@@ -205,8 +209,19 @@ done
 
 - Check if in git repository before using git commands
 - Handle case where no git repository exists
+- Check directory and file existence before operations
+- Handle cases where repository or directories don't exist
 - Verify symlink creation success
-- Provide clear error messages
+- Provide clear error messages with fallback behavior
 - Fall back to defaults when settings missing
+
+### Implementation Notes
+
+When checking for available items:
+1. Always verify directory exists before scanning
+2. Handle empty directories gracefully
+3. Provide meaningful error messages for missing paths
+4. Use proper file existence checks before operations
+5. Display "No items found" rather than failing silently
 
 Execute the appropriate action based on the user's intent in "<prompt-context>".
