@@ -124,6 +124,67 @@ The `/prompt` command leverages Claude Code's **prompt-as-code** pattern - a pow
 
 This approach treats prompts as **executable specifications** rather than code, enabling more flexible and intelligent automation.
 
+### Command Examples
+
+**Alias Management:**
+```bash
+# Create a local alias for frequently used commands
+/alias deploy /prompt api-design && npm test && npm run deploy
+
+# Create a global alias (available in all projects)
+/alias --global whatis ls -la
+
+# List all aliases
+/alias --list
+
+# Remove an alias with confirmation
+/unalias deploy
+
+# Force removal without confirmation
+/unalias whatis --force
+```
+
+**Agent-Sync Operations:**
+```bash
+# Basic sync (auto-detects local/global)
+/agent-sync
+
+# Push changes with commit message
+/agent-sync push "Added new security templates"
+
+# Check status and see what's available
+/agent-sync status
+
+# Publish local changes to repository
+/agent-sync publish
+
+# Enable automatic background sync
+/agent-sync auto-sync enable
+
+# Run security scan
+/agent-sync scan
+```
+
+**Prompt Templates:**
+```bash
+# Execute a prompt template
+/prompt api-design
+
+# Use prompts for dynamic workflows
+/prompt debugging          # AI chooses debugging strategy
+/prompt security-scan       # Intelligent security analysis
+/prompt git-security-threat # Adaptive threat detection
+```
+
+**Combining Commands:**
+```bash
+# Create an alias for a complex workflow
+/alias test-and-deploy /prompt qa-analyst && /agent-sync push "Tests passed" && /prompt api-design
+
+# Chain operations with aliases
+/alias morning-sync /agent-sync status && /agent-sync sync && /alias --list
+```
+
 ### Local vs Global Modes
 
 Claude Craft intelligently detects whether to operate in local or global mode:
