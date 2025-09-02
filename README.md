@@ -14,8 +14,8 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 ## What You Get
 
-- **`/agent-sync`** - Simple repository sync command (default: sync latest changes)
-- **`/agent-sync auto-sync`** - Intelligent auto-sync with probabilistic triggers
+- **`/agent-sync`** - Comprehensive repository sync and management (replaces /craft)
+- **`/alias` & `/unalias`** - Create and manage slash command shortcuts
 - **`/prompts`** - Quick access to prompt templates  
 - **Safe configuration merging** - Never overwrites your existing settings
 - **Automatic backups** - All changes backed up before applying
@@ -86,6 +86,8 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 | `/agent-sync auto-sync status` | Show auto-sync configuration |
 | `/agent-sync scan` | Run security scan on memory files |
 | `/prompts` | Access prompt templates |
+| `/alias name command...` | Create command aliases (local or global) |
+| `/unalias name` | Remove command aliases with confirmation |
 
 ### Local vs Global Modes
 
@@ -165,8 +167,8 @@ claude-craft/
 ├── agents/                # Agent definitions (.md) → ~/.claude/agents/
 │   └── code-refactor.md   # Code refactoring agent
 ├── commands/              # Slash commands (.md) → ~/.claude/commands/
-│   ├── craft.md           # Main repository management command
-│   ├── prompts.md         # Prompt template access
+│   ├── alias.md           # Alias management command
+│   ├── unalias.md         # Alias removal command
 │   ├── code-security.md   # Security analysis commands
 │   ├── git-security.md    # Git security utilities
 │   ├── performance.md     # Performance analysis tools
