@@ -16,7 +16,7 @@ You are managing Claude Code synchronization between repository and Claude Code 
    - Verify repository exists at the path
 
 2. **Detect git repository root and project context**:
-   - Run `git rev-parse --show-toplevel` to find git repository root
+   - Run `git rev-parse --show-toplevel` to find git repository root (this command works from current directory)
    - This determines the "project" boundary for Claude Code
    - Agents in `[git-root]/.claude/agents/` are "Project agents"
    - Agents in parent directories' `.claude/agents/` are "User agents"
@@ -33,7 +33,7 @@ You are managing Claude Code synchronization between repository and Claude Code 
 
 If intent is status-related:
 
-1. **Update repository**: Run `git pull origin main` with 30-second timeout
+1. **Update repository**: Run `git -C [repository-path] pull origin main` with 30-second timeout
 
 2. **Detect current context**:
    ```bash
@@ -223,5 +223,12 @@ When checking for available items:
 3. Provide meaningful error messages for missing paths
 4. Use proper file existence checks before operations
 5. Display "No items found" rather than failing silently
+
+**Critical Git Command Usage:**
+- ALWAYS use `git -C [directory]` when operating on different repositories
+- Example: `git -C "$REPO_PATH" pull origin main`
+- Example: `git -C "$REPO_PATH" status --porcelain`
+- NEVER use `cd` followed by git commands in prompts
+- This ensures operations work on the correct repository regardless of current working directory
 
 Execute the appropriate action based on the user's intent in "<prompt-context>".
