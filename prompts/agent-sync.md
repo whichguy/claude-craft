@@ -111,12 +111,12 @@ If intent is status-related:
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    📋 Quick Actions
    
-   [P] Add All to Project  → /prompt agent-sync add all project
-   [U] Add All to User     → /prompt agent-sync add all user
-   [S] Add Specific        → /prompt agent-sync add 1,3,5
-   [C] Choose Location     → /prompt agent-sync add 1 user
-   [R] Refresh Status      → /prompt agent-sync status
-   [H] Auto-Sync Setup     → /prompt agent-sync auto
+   [P] Add All to Project  → ask prompter to run agent-sync "add all project"
+   [U] Add All to User     → ask prompter to run agent-sync "add all user"
+   [S] Add Specific        → ask prompter to run agent-sync "add 1,3,5"
+   [C] Choose Location     → ask prompter to run agent-sync "add 1 user"
+   [R] Refresh Status      → ask prompter to run agent-sync "status"
+   [H] Auto-Sync Setup     → ask prompter to run agent-sync "auto"
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ```
 
@@ -151,7 +151,7 @@ If intent is to add items:
 4. **Report results**:
    - List successfully linked items with their locations
    - Show which level (Project/User) they were added to
-   - Suggest checking `/agents` command to verify
+   - Suggest checking available agents to verify sync status
 
 ## Implementation Details
 
