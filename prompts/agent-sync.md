@@ -29,42 +29,65 @@ If intent is status-related:
 
 1. **Update repository**: Run `git pull origin main` with 30-second timeout
 
-2. **Show repository status**:
+2. **Show sync summary at the top**:
+   ```
+   📊 Claude Craft Sync Status
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📁 Repository: [path]
+   🔗 Already Synced: X agents, Y commands, Z hooks, W prompts
+   ✨ Available to Sync: A agents, B commands, C hooks, D prompts
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
+
+3. **Show repository status**:
    - Run `git status --porcelain` to check for uncommitted changes
    - Report clean or number of changes
 
-3. **Show currently linked items**:
-   For each directory (~/.claude/agents, commands, hooks, prompts):
-   - Count symlinks pointing to repository
-   - Group by type, then by profile vs local location
-   - Display with appropriate emoji (🤖 Agents, ⚡ Commands, 🪝 Hooks, 📝 Prompts)
-
-4. **Show unpublished items**:
-   Check for files that are:
-   - Modified in git (from `git status --porcelain`)
-   - Missing symlinks to ~/.claude
-   Display with file size, date, and description
-
-5. **Show items available to publish** (Profile → Repository):
-   Find files in ~/.claude/* that:
-   - Don't exist in repository
-   - Are newer than repository version
-   - Have different content (use `cmp -s`)
-
-6. **Show items available to add** (Repository → Profile):
-   Find repository files without symlinks in ~/.claude
-   For each, calculate time since modified:
-   - Use `stat -f %m` (macOS) or `stat -c %Y` (Linux)
-   - Format as: "just now" (<60s), "[n]m ago" (<1h), "[n]h ago" (<1d), "[n]d ago" (<1w), "[n]w ago"
+4. **Show items available to add** (Repository → Profile):
    
-   Number each item and show:
-   - Item number, name, time since modified
-   - Description from file header
+   Display with spacing and details:
+   ```
+   🔗 Available to Add
    
-7. **Show quick actions** if items available:
-   - Add all: `/prompt agent-sync add all`
-   - Add specific: `/prompt agent-sync add 1-5` or `add 1,3,7`
-   - Publish: `/prompt agent-sync publish`
+   🤖 Agents (X available)
+   
+   1. agent-name (2.3KB, 3h ago)
+      Brief description of what this agent does
+      Main purpose and key functionality
+   
+   2. another-agent (1.5KB, 1d ago)
+      Description line one
+      Description line two
+   
+   ⚡ Commands (Y available)
+   
+   3. command-name (4.1KB, 2d ago)
+      What this command does
+      Primary use case
+   
+   [continue pattern for hooks and prompts]
+   ```
+
+   For each item show:
+   - Item number and name
+   - File size (use `ls -lh` for human-readable format)
+   - Time since modified (format as: "just now", "[n]m ago", "[n]h ago", "[n]d ago", "[n]w ago")
+   - Two-line description:
+     * Line 1: From `description:` field or first comment
+     * Line 2: Additional context or main function (truncate at 60 chars)
+
+5. **Show quick actions with labels**:
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📋 Quick Actions
+   
+   [A] Add All Items     → /prompt agent-sync add all
+   [S] Add Specific      → /prompt agent-sync add 1,3,5
+   [P] Publish Changes   → /prompt agent-sync publish
+   [R] Refresh Status    → /prompt agent-sync status
+   [H] Auto-Sync Setup   → /prompt agent-sync auto
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ```
 
 ## Action: Publish Changes
 
@@ -135,10 +158,20 @@ If intent is auto-sync related:
 - Calculate seconds since modification
 - Return formatted string: "just now", "[n]m ago", "[n]h ago", "[n]d ago", "[n]w ago"
 
-**is_unpublished(file, link_path)**:
-- Check if file appears in `git status --porcelain` output
-- Check if symlink exists and points to repository
-- Return true if modified or unlinked
+**get_file_description(file)**:
+- First line: Extract from `description:` field using grep
+- If not found, use first comment line (# or //)
+- Second line: Look for additional context, purpose, or functionality
+- Truncate each line at 60 characters with "..."
+
+**get_file_size(file)**:
+- Use `ls -lh` to get human-readable size (e.g., 2.3KB, 15MB)
+- Extract just the size field from ls output
+
+**count_synced_items()**:
+- For each type (agents, commands, hooks, prompts):
+  - Count symlinks in ~/.claude/* pointing to repository
+  - Return counts by type
 
 **create_symlink(source, target_dir)**:
 - Create target directory with `mkdir -p`
@@ -146,20 +179,21 @@ If intent is auto-sync related:
 - Create new symlink with `ln -s`
 - Verify creation and report result
 
-**display_linked_by_type(type, emoji, extension, dir)**:
-- Scan directory for symlinks
-- Check each symlink target with `readlink`
-- Group by profile vs local based on path containing ".claude/"
-- Display grouped results with counts
+### Display Formatting
+
+- Use double line spacing between major sections
+- Use single line spacing between items within a section
+- Include horizontal dividers (━━━) for visual separation
+- Show emoji icons consistently for each type
+- Align action labels in brackets [A], [S], [P], etc.
+- Keep descriptions to exactly 2 lines, truncating if needed
 
 ### Status Display Order
 
-1. Repository information and git status
-2. Currently linked items (grouped by type then location)
-3. Unpublished items needing commit
-4. Items available to publish from profile
-5. Items available to add from repository (numbered)
-6. Quick action suggestions
+1. Sync summary box at top
+2. Repository git status
+3. Items available to add (with full details)
+4. Quick actions box at bottom
 
 ### Error Handling
 
