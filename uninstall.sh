@@ -124,7 +124,11 @@ check_installation() {
         found_items=$((found_items + 1))
     fi
     
-    local symlink_count=$(find "$CLAUDE_DIR" -type l 2>/dev/null | grep -c "$REPO_DIR" || true)
+    # Find claude-craft symlinks (flexible path matching)
+    local symlink_count=0
+    if [ -d "$CLAUDE_DIR" ]; then
+        symlink_count=$(find "$CLAUDE_DIR" -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || true)
+    fi
     if [ "$symlink_count" -gt 0 ]; then
         echo "  🔗 Found $symlink_count claude-craft symlinks"
         found_items=$((found_items + 1))
@@ -180,7 +184,10 @@ show_removal_plan() {
     
     if [ "$REMOVE_SYMLINKS" = true ]; then
         echo -e "${RED}🔗 Symlink removal:${NC}"
-        local symlink_count=$(find "$CLAUDE_DIR" -type l 2>/dev/null | grep -c "$REPO_DIR" || echo "0")
+        local symlink_count=0
+        if [ -d "$CLAUDE_DIR" ]; then
+            symlink_count=$(find "$CLAUDE_DIR" -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+        fi
         echo "  • Remove $symlink_count claude-craft symlinks from ~/.claude/"
         echo ""
     fi
@@ -343,20 +350,24 @@ remove_symlinks() {
     
     local removed_count=0
     
-    # Find and remove claude-craft symlinks
+    # Find and remove claude-craft symlinks (flexible path matching)
     if [ -d "$CLAUDE_DIR" ]; then
-        while IFS= read -r -d '' symlink; do
-            if [ "$DRY_RUN" = false ]; then
-                rm -f "$symlink" || {
-                    log_action "remove symlink" "$(basename "$symlink")" "failed"
-                    continue
-                }
+        while IFS= read -r symlink; do
+            # Check if symlink target contains "claude-craft"
+            local target
+            target=$(readlink "$symlink" 2>/dev/null || true)
+            if [[ "$target" == *"claude-craft"* ]]; then
+                if [ "$DRY_RUN" = false ]; then
+                    rm -f "$symlink" || {
+                        log_action "remove symlink" "$(basename "$symlink")" "failed"
+                        continue
+                    }
+                fi
+                
+                log_action "remove symlink" "$(basename "$symlink")" "success"
+                removed_count=$((removed_count + 1))
             fi
-            
-            log_action "remove symlink" "$(basename "$symlink")" "success"
-            removed_count=$((removed_count + 1))
-            
-        done < <(find "$CLAUDE_DIR" -type l -lname "$REPO_DIR/*" -print0 2>/dev/null || true)
+        done < <(find "$CLAUDE_DIR" -type l 2>/dev/null || true)
     fi
     
     if [ "$removed_count" -eq 0 ]; then
