@@ -197,7 +197,7 @@ EOF
     echo ""
     echo -e "${YELLOW}Next steps:${NC}"
     echo "  1. Restart Claude Code to load new extensions"
-    echo "  2. Use /craft to sync updates"
+    echo "  2. Use /agent-sync to sync updates"
     echo "  3. Use /prompts to access templates"
     echo "  4. Check ~/.claude/backups/ if you need to restore anything"
     echo ""

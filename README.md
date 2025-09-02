@@ -14,8 +14,8 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 ## What You Get
 
-- **`/craft`** - Simple repository sync command (default: sync latest changes)
-- **`/craft auto-sync`** - Intelligent auto-sync with probabilistic triggers
+- **`/agent-sync`** - Simple repository sync command (default: sync latest changes)
+- **`/agent-sync auto-sync`** - Intelligent auto-sync with probabilistic triggers
 - **`/prompts`** - Quick access to prompt templates  
 - **Safe configuration merging** - Never overwrites your existing settings
 - **Automatic backups** - All changes backed up before applying
@@ -29,19 +29,19 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 ### Daily Workflow
 ```bash
 # Sync latest changes (dead simple!)
-/craft
+/agent-sync
 
 # Add new content, then push
-/craft push "Added security templates"
+/agent-sync push "Added security templates"
 
 # Check what's linked
-/craft status
+/agent-sync status
 
 # Enable automatic sync (runs ~3.7% of prompts)
-/craft auto-sync enable
+/agent-sync auto-sync enable
 
 # Check auto-sync status
-/craft auto-sync status
+/agent-sync auto-sync status
 ```
 
 ### Auto-Sync Features
@@ -55,36 +55,36 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 ```bash
 # Enable auto-sync
-/craft auto-sync enable
+/agent-sync auto-sync enable
 
 # Check configuration and statistics  
-/craft auto-sync status
+/agent-sync auto-sync status
 
 # Force immediate sync
-/craft auto-sync force
+/agent-sync auto-sync force
 
 # Disable when not needed
-/craft auto-sync disable
+/agent-sync auto-sync disable
 ```
 
 ### Commands Available
 
 | Command | Description |
 |---------|-------------|
-| `/craft` | Smart sync: auto-detects local/global mode (default action) |
-| `/craft sync --local` | Force local-only sync (no git operations, current directory) |
-| `/craft sync --global` | Force global sync (from ~/claude-craft repository) |
-| `/craft setup` | Smart setup: auto-detects local/global mode |
-| `/craft setup --local` | Force local setup: create symlinks from current directory (no clone) |
-| `/craft setup --global` | Force global setup: clone repository and create symlinks |
-| `/craft push` | Commit and push your changes |
-| `/craft publish` | Discover unpublished extensions with TODO list integration and publishing options |
-| `/craft status` | Show git status and active symlinks |
-| `/craft clean` | Clean and refresh all symlinks |
-| `/craft auto-sync enable` | Enable automatic probabilistic sync |
-| `/craft auto-sync disable` | Disable automatic sync |
-| `/craft auto-sync status` | Show auto-sync configuration |
-| `/craft scan` | Run security scan on memory files |
+| `/agent-sync` | Smart sync: auto-detects local/global mode (default action) |
+| `/agent-sync sync --local` | Force local-only sync (no git operations, current directory) |
+| `/agent-sync sync --global` | Force global sync (from ~/claude-craft repository) |
+| `/agent-sync setup` | Smart setup: auto-detects local/global mode |
+| `/agent-sync setup --local` | Force local setup: create symlinks from current directory (no clone) |
+| `/agent-sync setup --global` | Force global setup: clone repository and create symlinks |
+| `/agent-sync push` | Commit and push your changes |
+| `/agent-sync publish` | Discover unpublished extensions with TODO list integration and publishing options |
+| `/agent-sync status` | Show git status and active symlinks |
+| `/agent-sync clean` | Clean and refresh all symlinks |
+| `/agent-sync auto-sync enable` | Enable automatic probabilistic sync |
+| `/agent-sync auto-sync disable` | Disable automatic sync |
+| `/agent-sync auto-sync status` | Show auto-sync configuration |
+| `/agent-sync scan` | Run security scan on memory files |
 | `/prompts` | Access prompt templates |
 
 ### Local vs Global Modes
@@ -108,12 +108,12 @@ Claude Craft intelligently detects whether to operate in local or global mode:
 - Requires cloned repository at `~/claude-craft`
 
 **Manual Override**
-- Add `--local` flag to force local mode: `/craft sync --local`
-- Add `--global` flag to force global mode: `/craft sync --global`
+- Add `--local` flag to force local mode: `/agent-sync sync --local`
+- Add `--global` flag to force global mode: `/agent-sync sync --global`
 
 ### Publishing Extensions
 
-The `/craft publish` command provides a prompt-based workflow for discovering and managing unpublished Claude Code extensions:
+The `/agent-sync publish` command provides a prompt-based workflow for discovering and managing unpublished Claude Code extensions:
 
 **🔍 Discovery Process**
 - Scans `~/.claude/commands/`, `~/.claude/agents/`, `~/.claude/hooks/` for non-symlinked files
@@ -135,7 +135,7 @@ The `/craft publish` command provides a prompt-based workflow for discovering an
 
 ```bash
 # Discover unpublished extensions with workflow choices
-/craft publish
+/agent-sync publish
 
 # Options presented:
 # 1) Execute publishing now → immediate git workflow
@@ -144,7 +144,7 @@ The `/craft publish` command provides a prompt-based workflow for discovering an
 # q) Cancel → exit without action
 
 # After publishing, sync to update symlinks
-/craft sync
+/agent-sync sync
 ```
 
 ### Git Security Commands (installed automatically)
@@ -217,7 +217,7 @@ claude-craft/
 
 ### Complete Setup Lifecycle
 
-1. **Installation** (`/craft setup` or install script):
+1. **Installation** (`/agent-sync setup` or install script):
    - Clones repository to `~/claude-craft` (or existing location)
    - Makes tools executable (`chmod +x tools/*.sh`)
    - **Installs local git hooks for security**
@@ -225,7 +225,7 @@ claude-craft/
    - Safe-merges configuration fragments
    - Creates backup of existing settings
 
-2. **Daily Sync** (`/craft` or `/craft sync`):
+2. **Daily Sync** (`/agent-sync` or `/agent-sync sync`):
    - Secure git pull with threat analysis
    - Re-syncs command/agent symlinks (handles new/removed files)
    - Safe-merges any new configuration fragments
@@ -298,7 +298,7 @@ Claude Craft automatically installs local git hooks during setup that protect yo
 
 ```bash
 # Run security scan on memory files
-/craft scan
+/agent-sync scan
 
 # Install/reinstall git hooks
 ~/claude-craft/tools/install-git-hooks.sh

@@ -150,10 +150,10 @@ function shouldSyncOnPrompt(config) {
 
 ### Manual Override
 ```bash
-/craft auto-sync enable
-/craft auto-sync disable
-/craft auto-sync status
-/craft auto-sync force
+/agent-sync auto-sync enable
+/agent-sync auto-sync disable
+/agent-sync auto-sync status
+/agent-sync auto-sync force
 ```
 
 ## Performance Considerations

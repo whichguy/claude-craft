@@ -19,7 +19,7 @@ vim ~/claude-craft/memory/fragments/auth-requirements.md
 /prompts api-design
 
 # Create API specification
-/craft push "Add API specification for auth endpoints"
+/agent-sync push "Add API specification for auth endpoints"
 ```
 
 ### 3. Security Review
@@ -28,7 +28,7 @@ vim ~/claude-craft/memory/fragments/auth-requirements.md
 /security auth-design.md
 
 # Document security considerations
-/craft push "Add security requirements for auth system"
+/agent-sync push "Add security requirements for auth system"
 ```
 
 ## Phase 2: Implementation
@@ -48,7 +48,7 @@ npm test
 ### 2. Incremental Development
 ```bash
 # Implement feature incrementally
-/craft push "Implement basic auth service"
+/agent-sync push "Implement basic auth service"
 
 # Code review after each major component
 /review 
@@ -113,7 +113,7 @@ npm run test:security
 ### 2. Deployment Process
 ```bash
 # Final commit
-/craft push "Complete authentication feature implementation"
+/agent-sync push "Complete authentication feature implementation"
 
 # Create deployment branch
 git checkout -b deploy/auth-feature
@@ -134,13 +134,13 @@ git checkout -b deploy/auth-feature
 vim ~/claude-craft/memory/fragments/auth-lessons-learned.md
 
 # Archive workflow documentation
-/craft push "Archive auth feature workflow"
+/agent-sync push "Archive auth feature workflow"
 ```
 
 ## Integration with claude-craft
 
 Throughout this workflow, claude-craft provides:
-- **Consistent tooling** via `/craft` commands
+- **Consistent tooling** via `/agent-sync` commands
 - **Reusable templates** via `/prompts`
 - **Project memory** for context preservation
 - **Custom commands** for domain-specific operations

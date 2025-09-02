@@ -70,7 +70,7 @@ claude-craft/
 
 ### Essential Core Files
 - **install.sh** - Required for one-liner installation
-- **commands/craft.md** - Main command for syncing and management
+- **commands/agent-sync.md** - Main command for syncing and management
 - **tools/*.sh** - Core functionality scripts
 - **README.md** - User documentation
 

@@ -4,7 +4,7 @@
 
 1. **Enable Auto-Sync**
    ```bash
-   /craft auto-sync enable
+   /agent-sync auto-sync enable
    ```
    This will automatically:
    - Install hook script to `~/.claude/hooks/`
@@ -19,7 +19,7 @@
 
 3. **Verify Setup**
    ```bash
-   /craft auto-sync status
+   /agent-sync auto-sync status
    ```
 
 ## Manual Installation Steps
@@ -156,22 +156,22 @@ The `probability` value determines how often sync occurs:
 ### Enable/Disable
 ```bash
 # Enable auto-sync
-/craft auto-sync enable
+/agent-sync auto-sync enable
 
 # Disable auto-sync
-/craft auto-sync disable
+/agent-sync auto-sync disable
 ```
 
 ### Check Status
 ```bash
 # View current configuration and statistics
-/craft auto-sync status
+/agent-sync auto-sync status
 ```
 
 ### Force Sync
 ```bash
 # Manually trigger a sync
-/craft auto-sync force
+/agent-sync auto-sync force
 ```
 
 ## Monitoring
@@ -185,7 +185,7 @@ tail -f ~/.claude/auto-sync.log
 ### Check Statistics
 ```bash
 # View sync statistics
-/craft auto-sync status
+/agent-sync auto-sync status
 ```
 
 Statistics include:
@@ -201,7 +201,7 @@ Statistics include:
 
 1. **Check if enabled**:
    ```bash
-   /craft auto-sync status
+   /agent-sync auto-sync status
    ```
 
 2. **Verify hooks are installed**:
@@ -252,7 +252,7 @@ If you encounter merge conflicts:
 
 3. **Reset auto-sync**:
    ```bash
-   /craft auto-sync force
+   /agent-sync auto-sync force
    ```
 
 ### Performance Issues
@@ -300,9 +300,9 @@ When available, uses `secure-git.sh` for:
 
 1. **Keep probability reasonable**: Default of 27 (3.7%) is recommended
 2. **Enable silent mode**: For prompt syncs to avoid disruption
-3. **Regular manual syncs**: Use `/craft sync` for important changes
+3. **Regular manual syncs**: Use `/agent-sync sync` for important changes
 4. **Monitor logs**: Check logs weekly for issues
-5. **Backup before major changes**: Use `/craft backup` manually
+5. **Backup before major changes**: Use `/agent-sync backup` manually
 
 ## Uninstalling Auto-Sync
 
@@ -310,7 +310,7 @@ To completely remove auto-sync:
 
 1. **Disable auto-sync**:
    ```bash
-   /craft auto-sync disable
+   /agent-sync auto-sync disable
    ```
 
 2. **Remove hook**:

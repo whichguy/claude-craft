@@ -41,13 +41,13 @@ Comprehensive analysis with context and recommendations:
 
 **Best for**: Thorough review, understanding context, getting recommendations
 
-### Option 3: Integrated Workflow (`/craft push`)
+### Option 3: Integrated Workflow (`/agent-sync push`)
 
 Automatic security scanning before git operations:
 
 ```bash
 # Automatically runs security scan before push
-/craft push "Added new memory fragments"
+/agent-sync push "Added new memory fragments"
 ```
 
 **Best for**: Standard workflow, prevents accidental commits of sensitive data
@@ -99,7 +99,7 @@ Before committing memory files to version control:
 
 ### 1. Automated Scan
 ```bash
-/craft scan
+/agent-sync scan
 ```
 - [ ] No critical security issues detected
 - [ ] Review any PII warnings
@@ -121,7 +121,7 @@ Before committing memory files to version control:
 
 ### 4. Safe Commit
 ```bash
-/craft push "Description of changes"
+/agent-sync push "Description of changes"
 ```
 - [ ] Security scan passes automatically
 - [ ] Changes committed safely
@@ -185,8 +185,8 @@ phone: xxx-xxx-xxxx
 
 The security workflow integrates seamlessly with git operations:
 
-1. **Pre-commit**: Automatic security scan via `/craft push`
-2. **Manual scan**: On-demand via `/craft scan` or `/security-scan`
+1. **Pre-commit**: Automatic security scan via `/agent-sync push`
+2. **Manual scan**: On-demand via `/agent-sync scan` or `/security-scan`
 3. **Deep analysis**: Interactive via `/prompt security-scan`
 4. **Failure handling**: Push blocked if critical issues found
 
