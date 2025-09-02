@@ -133,9 +133,14 @@ main() {
         exit 1
     fi
     
-    # Make tools executable
+    # Make tools and scripts executable
     if [ -d "$REPO_DIR/tools" ]; then
         chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
+    fi
+    
+    # Make uninstall script executable
+    if [ -f "$REPO_DIR/uninstall.sh" ]; then
+        chmod +x "$REPO_DIR/uninstall.sh"
     fi
     
     # Remove backup on success
@@ -229,6 +234,8 @@ EOF
     echo "  3. Use /alias --list to see available aliases"
     echo "  4. Use /prompts to access templates"
     echo "  5. Check ~/.claude/backups/ if you need to restore anything"
+    echo ""
+    echo -e "${YELLOW}💡 Uninstall anytime with:${NC} $REPO_DIR/uninstall.sh --dry-run"
     echo ""
     echo -e "${RED}⚠️  IMPORTANT: Restart Claude Code now!${NC}"
 }

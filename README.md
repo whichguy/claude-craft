@@ -273,6 +273,50 @@ chmod +x install.sh
 ./install.sh
 ```
 
+## Uninstallation
+
+Claude Craft includes a comprehensive uninstaller that safely removes all components:
+
+```bash
+# Preview what will be removed (recommended first step)
+~/claude-craft/uninstall.sh --dry-run
+
+# Interactive uninstall with confirmations
+~/claude-craft/uninstall.sh
+
+# Silent uninstall without prompts
+~/claude-craft/uninstall.sh --yes
+
+# Full removal including git hooks and backups
+~/claude-craft/uninstall.sh --yes --remove-hooks --clean-backups
+
+# Restore from backup before uninstalling
+~/claude-craft/uninstall.sh --restore-backup --yes
+```
+
+### Uninstall Options
+
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Preview what would be removed without making changes |
+| `--yes, -y` | Skip confirmation prompts for automated removal |
+| `--keep-repo` | Don't remove ~/claude-craft repository |
+| `--keep-commands` | Don't remove global commands (/alias, /unalias, /agent-sync) |
+| `--remove-hooks` | Also remove git security hooks |
+| `--restore-backup` | Restore from latest backup before uninstalling |
+| `--clean-backups` | Remove claude-craft backup files |
+
+**What gets removed:**
+- ~/claude-craft repository directory
+- Global commands (/alias, /unalias, /agent-sync)
+- All claude-craft symlinks from ~/.claude/
+- Optionally: git security hooks and backup files
+
+**What stays untouched:**
+- Your original ~/.claude/settings.json
+- Your original ~/.claude/CLAUDE.md  
+- Manually created commands or configurations
+
 ## Security Features
 
 ### Automatic Git Hook Protection
