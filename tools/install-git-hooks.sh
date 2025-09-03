@@ -2,6 +2,7 @@
 
 # Install local git hooks for claude-craft repository
 # Sets up security scanning on pull and secret detection on push
+# Usage: install-git-hooks.sh [repository-path]
 
 # Colors
 GREEN='\033[0;32m'
@@ -10,11 +11,20 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Get repository root
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-if [ -z "$REPO_ROOT" ]; then
-    echo -e "${RED}❌ Not in a git repository${NC}"
-    exit 1
+# Get repository root - use provided path or detect from current directory
+if [ -n "$1" ]; then
+    REPO_ROOT="$1"
+    # Verify it's a git repository
+    if ! git -C "$REPO_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
+        echo -e "${RED}❌ Not a git repository: $REPO_ROOT${NC}"
+        exit 1
+    fi
+else
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [ -z "$REPO_ROOT" ]; then
+        echo -e "${RED}❌ Not in a git repository${NC}"
+        exit 1
+    fi
 fi
 
 HOOKS_DIR="$REPO_ROOT/.git/hooks"
