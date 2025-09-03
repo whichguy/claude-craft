@@ -4,231 +4,491 @@ description: "Manage Claude Code agents, commands, and hooks through natural lan
 allowed-tools: "all"
 ---
 
-# Claude Craft Agent Sync Management
+# Claude Craft Agent Sync
 
-You are managing Claude Code synchronization between repository and Claude Code locations. Context: <prompt-context>
+**Context**: <prompt-context>
 
-## Initial Setup
+## Natural Language Instructions
 
-1. **Get repository path from settings**:
-   - Check `~/.claude/settings.json` for claude-craft path
-   - Default to `~/repos/claude-craft` if not found
-   - Verify repository exists at the path
+Based on the provided context, perform Claude Code synchronization operations using the following guidance:
 
-2. **Detect git repository root and project context**:
-   - Run `git rev-parse --show-toplevel` to find git repository root (this command works from current directory)
-   - This determines the "project" boundary for Claude Code
-   - Agents in `[git-root]/.claude/agents/` are "Project agents"
-   - Agents in parent directories' `.claude/agents/` are "User agents"
+### 1. Determine User Intent
 
-3. **Determine user intent** from context "<prompt-context>":
-   - **Status intent**: Contains "status", "what", "ready", "check", "show", "current", "available"
-   - **Publish intent**: Contains "publish", "push", "commit"  
-   - **Sync all intent**: Contains "add all", "sync all", "add everything", or just "add"/"sync"/"all"
-   - **Sync specific intent**: Contains numbers or "add/sync/item" with numbers
-   - **Auto-sync intent**: Contains "auto", "automatic", "schedule", "hook"
-   - **Default**: Show status if intent unclear
+From the context "<prompt-context>", classify the user's request:
 
-## Action: Show Status
+- **Status intent**: Contains "status", "what", "ready", "available", "check", "current" → Show current sync status
+- **Publish intent**: Contains "publish", "list", "show", "detail" → Show local files ready to publish  
+- **Sync all intent**: Contains "sync all", "sync everything", "sync", "all" → Sync all available items
+- **Sync specific intent**: Contains numbers like "sync 1,3,5" or "sync 2-4" → Sync specific items
+- **Auto-sync intent**: Contains "auto", "automatic", "schedule", "hook" → Configure auto-sync
+- **Default**: If unclear, show status
 
-If intent is status-related:
+### 2. Repository Discovery (Project and Profile Scoped)
 
-1. **Update repository**: Run `git -C [repository-path] pull origin main` with 30-second timeout
-
-2. **Detect current context**:
-   ```bash
-   # Get current working directory
-   cwd=$(pwd)
-   
-   # Get git repository root (if in git repo)
-   git_root=$(git rev-parse --show-toplevel 2>/dev/null)
-   
-   # Identify agent locations
-   # Project agents: $git_root/.claude/agents/
-   # User agents: parent directories' .claude/agents/
-   ```
-
-3. **Count already synced items**:
-   - Walk up from git root checking each `.claude/agents/` directory
-   - Check for symlinks pointing to the repository
-   - Categorize as "Project" (in git root) or "User" (in parents)
-
-4. **Show sync summary at the top**:
-   ```
-   📊 Claude Craft Sync Status
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   📁 Repository: [path]
-   🎯 Git Root: [git-root-path]
-   📍 Current Directory: [cwd]
-   
-   🔗 Already Synced:
-      Project level: X agents, Y commands, Z hooks, W prompts
-      User level: A agents, B commands, C hooks, D prompts
-   
-   ✨ Available to Sync: M agents, N commands, O hooks, P prompts
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ```
-
-5. **Show currently synced items by location**:
-   ```
-   🔗 Currently Synced
-   
-   📂 Project Level ([git-root]/.claude/)
-   - Agents: list any symlinked agents
-   - Commands: list any symlinked commands
-   
-   👤 User Level (parent directories)
-   - In [parent-path]/.claude/:
-     * Agents: list any symlinked agents
-   ```
-
-6. **Show items available to add** (Repository → Claude Code):
-   
-   For each type (agents, commands, hooks, prompts):
-   - FIRST check if repository directory exists
-   - If directory doesn't exist, show "Directory not found: [path]"
-   - If directory exists but is empty, show "No [type] found"
-   - Check if symlink exists in ANY `.claude/` directory up the chain
-   - If no symlink found, item is available to add
-   - Handle file access errors gracefully
-   
-   Display with details:
-   ```
-   🔗 Available to Add
-   
-   🤖 Agents (X available)
-   
-   1. agent-name (2.3KB, 3h ago)
-      Brief description of what this agent does
-      Main purpose and key functionality
-      📍 Suggested location: [Project/User level]
-   
-   [continue for all items, or show "No items found" if directories missing]
-   ```
-
-7. **Show quick actions with location options**:
-   ```
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   📋 Quick Actions
-   
-   [P] Add All to Project  → ask prompter to run agent-sync "add all project"
-   [U] Add All to User     → ask prompter to run agent-sync "add all user"
-   [S] Add Specific        → ask prompter to run agent-sync "add 1,3,5"
-   [C] Choose Location     → ask prompter to run agent-sync "add 1 user"
-   [R] Refresh Status      → ask prompter to run agent-sync "status"
-   [H] Auto-Sync Setup     → ask prompter to run agent-sync "auto"
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ```
-
-## Action: Add/Sync Items
-
-If intent is to add items:
-
-1. **Parse item selection and location**:
-   - Extract numbers from context
-   - Determine target location: "project", "user", or ask
-   - Default to project level if not specified
-
-2. **Determine target directory**:
-   ```bash
-   if [[ "$location" == "project" ]]; then
-     target_dir="$git_root/.claude"
-   elif [[ "$location" == "user" ]]; then
-     # Use parent of git root
-     target_dir="$(dirname "$git_root")/.claude"
-   else
-     # Ask user to choose
-   fi
-   ```
-
-3. **Create symlinks**:
-   For each selected item:
-   - Create target directory if needed: `mkdir -p $target_dir/agents`
-   - Remove existing symlink if present
-   - Create new symlink: `ln -s [repo_file] [target_path]`
-   - Verify symlink was created
-
-4. **Report results**:
-   - List successfully linked items with their locations
-   - Show which level (Project/User) they were added to
-   - Suggest checking available agents to verify sync status
-
-## Implementation Details
-
-### Agent Discovery Functions
-
-**find_git_root()**:
-```bash
-git rev-parse --show-toplevel 2>/dev/null
-```
-
-**find_agent_locations()**:
-- Start from git root
-- Walk up parent directories
-- Check for `.claude/agents/` at each level
-- Categorize as Project (git root) or User (parents)
-
-**is_agent_synced(agent_name)**:
-- Check git root: `[git-root]/.claude/agents/[agent].md`
-- Walk up parents checking each `.claude/agents/`
-- Return true if symlink found pointing to repository
-
-**count_synced_by_level()**:
-- Separate counts for project level vs user level
-- Check symlink targets to ensure they point to repository
-
-**get_sync_location_suggestion(agent_name)**:
-- If agent is project-specific: suggest project level
-- If agent is general-purpose: suggest user level
-- Base on agent description/purpose
-
-### Directory Walking Pattern
+Execute these exact bash commands to discover repository locations for both project and profile scopes:
 
 ```bash
-# Start from git root and walk up
-current_dir="$git_root"
-while [ "$current_dir" != "/" ]; do
-  if [ -d "$current_dir/.claude/agents" ]; then
-    # Check this location for agents
-    echo "Found .claude/agents at: $current_dir"
+# Discover repository for a specific scope (project or profile)
+discover_repo_for_scope() {
+  local scope="$1"  # "project" or "profile"
+  local settings_file=""
+  local repo_path=""
+  
+  if [ "$scope" = "project" ]; then
+    # Look for project-specific settings
+    if [ -n "$PROJECT_CLAUDE" ] && [ -f "$PROJECT_CLAUDE/settings.json" ]; then
+      settings_file="$PROJECT_CLAUDE/settings.json"
+    fi
+  else
+    # Look for global/profile settings
+    if [ -f "$HOME/.claude/settings.json" ]; then
+      settings_file="$HOME/.claude/settings.json"
+    fi
   fi
-  current_dir=$(dirname "$current_dir")
-done
+  
+  # 1. Check settings.json for configured path
+  if [ -n "$settings_file" ]; then
+    repo_path=$(grep -o '"claude-craft"[^}]*"path"[^"]*"[^"]*"' "$settings_file" 2>/dev/null | grep -o '"[^"]*"$' | tr -d '"')
+  fi
+  
+  # 2. Try scope-specific common locations if not in settings
+  if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+    if [ "$scope" = "project" ]; then
+      # Project-relative locations
+      for candidate in "./claude-craft" "../claude-craft" "$(dirname "$PROJECT_CLAUDE")/claude-craft"; do
+        if [ -d "$candidate/.git" ] && [ -d "$candidate/agents" ]; then
+          repo_path="$(cd "$candidate" && pwd)"
+          break
+        fi
+      done
+    else
+      # Profile/global locations  
+      for candidate in "$HOME/repos/claude-craft" "$HOME/claude-craft"; do
+        if [ -d "$candidate/.git" ] && [ -d "$candidate/agents" ]; then
+          repo_path="$candidate"
+          break
+        fi
+      done
+    fi
+  fi
+  
+  # 3. Search in current directory tree (fallback)
+  if [ -z "$repo_path" ] || [ ! -d "$repo_path" ]; then
+    current_dir="$(pwd)"
+    while [ "$current_dir" != "/" ]; do
+      if [ -d "$current_dir/claude-craft/.git" ] && [ -d "$current_dir/claude-craft/agents" ]; then
+        repo_path="$current_dir/claude-craft"
+        break
+      fi
+      current_dir="$(dirname "$current_dir")"
+    done
+  fi
+  
+  echo "$repo_path"
+}
+
+# Discover repositories for both scopes
+PROJECT_REPO=""
+PROFILE_REPO=""
+
+if [ -n "$PROJECT_CLAUDE" ]; then
+  PROJECT_REPO=$(discover_repo_for_scope "project")
+fi
+
+PROFILE_REPO=$(discover_repo_for_scope "profile")
+
+# Determine primary repository (prefer project-specific if available)
+if [ -n "$PROJECT_REPO" ] && [ -d "$PROJECT_REPO" ]; then
+  REPO_PATH="$PROJECT_REPO"
+  REPO_SCOPE="project"
+elif [ -n "$PROFILE_REPO" ] && [ -d "$PROFILE_REPO" ]; then
+  REPO_PATH="$PROFILE_REPO"
+  REPO_SCOPE="profile"
+else
+  echo "❌ Claude-craft repository not found in project or profile scope"
+  echo "   Searched locations:"
+  [ -n "$PROJECT_CLAUDE" ] && echo "   - Project settings: $PROJECT_CLAUDE/settings.json"
+  echo "   - Profile settings: $HOME/.claude/settings.json"
+  echo "   - Common locations relative to current scope"
+  exit 1
+fi
+
+echo "📁 Repository: $REPO_PATH ($REPO_SCOPE scope)"
 ```
 
-### Display Formatting
+### 3. Execute Based on Intent
 
-- Use double line spacing between major sections
-- Use single line spacing between items within a section
-- Include horizontal dividers (━━━) for visual separation
-- Show emoji icons consistently for each type
-- Indicate sync level (Project/User) clearly
-- Keep descriptions to exactly 2 lines, truncating if needed
+#### For STATUS Intent:
+Execute these commands in sequence:
 
-### Error Handling
+1. **Repository Health Check**:
+```bash
+echo "📊 Claude Craft Status"
+echo "📁 Repository: $REPO_PATH"
+echo "🔄 Updating repository..."
+git -C "$REPO_PATH" pull origin main 2>/dev/null || echo "⚠️ Could not pull latest changes"
+```
 
-- Check if in git repository before using git commands
-- Handle case where no git repository exists
-- Check directory and file existence before operations
-- Handle cases where repository or directories don't exist
-- Verify symlink creation success
-- Provide clear error messages with fallback behavior
-- Fall back to defaults when settings missing
+2. **Discover Claude Code Locations (Following Claude Code's Discovery Path)**:
+```bash
+# Find project-specific .claude directory (Claude Code searches up the directory tree)
+find_project_claude() {
+  local current_dir="$(pwd)"
+  while [ "$current_dir" != "/" ]; do
+    if [ -d "$current_dir/.claude" ]; then
+      echo "$current_dir/.claude"
+      return
+    fi
+    current_dir="$(dirname "$current_dir")"
+  done
+  echo ""
+}
 
-### Implementation Notes
+PROJECT_CLAUDE=$(find_project_claude)
+GLOBAL_CLAUDE="$HOME/.claude"
 
-When checking for available items:
-1. Always verify directory exists before scanning
-2. Handle empty directories gracefully
-3. Provide meaningful error messages for missing paths
-4. Use proper file existence checks before operations
-5. Display "No items found" rather than failing silently
+# Set up discovery paths (following Claude Code's precedence)
+if [ -n "$PROJECT_CLAUDE" ]; then
+  PROJECT_AGENTS="$PROJECT_CLAUDE/agents"
+  PROJECT_COMMANDS="$PROJECT_CLAUDE/commands"
+  PROJECT_HOOKS="$PROJECT_CLAUDE/hooks"
+else
+  PROJECT_AGENTS=""
+  PROJECT_COMMANDS=""
+  PROJECT_HOOKS=""
+fi
 
-**Critical Git Command Usage:**
-- ALWAYS use `git -C [directory]` when operating on different repositories
-- Example: `git -C "$REPO_PATH" pull origin main`
-- Example: `git -C "$REPO_PATH" status --porcelain`
-- NEVER use `cd` followed by git commands in prompts
-- This ensures operations work on the correct repository regardless of current working directory
+GLOBAL_AGENTS="$GLOBAL_CLAUDE/agents"
+GLOBAL_COMMANDS="$GLOBAL_CLAUDE/commands"
+GLOBAL_HOOKS="$GLOBAL_CLAUDE/hooks"
+```
 
-Execute the appropriate action based on the user's intent in "<prompt-context>".
+3. **Registered Items Analysis (Items that Point to Our Git Repo)**:
+```bash
+echo ""
+echo "✅ Currently Registered Items (symlinked to repository):"
+
+# Function to check if item is registered (points to our repo)
+check_registration() {
+  local item_path="$1"
+  local item_type="$2"
+  
+  if [ -L "$item_path" ]; then
+    local target=$(readlink "$item_path" 2>/dev/null)
+    if echo "$target" | grep -q "^$REPO_PATH"; then
+      local name=$(basename "$item_path" ${item_type})
+      local location_desc=""
+      if echo "$item_path" | grep -q "$PROJECT_CLAUDE"; then
+        location_desc="project"
+      else
+        location_desc="global"
+      fi
+      echo "    ✅ $name ($location_desc)"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Check agents
+REGISTERED_AGENTS=0
+echo "  🤖 Agents:"
+for location in "$PROJECT_AGENTS" "$GLOBAL_AGENTS"; do
+  [ -d "$location" ] || continue
+  for item in "$location"/*; do
+    [ -f "$item" ] || continue
+    if check_registration "$item" ".md"; then
+      REGISTERED_AGENTS=$((REGISTERED_AGENTS + 1))
+    fi
+  done 2>/dev/null
+done
+[ $REGISTERED_AGENTS -eq 0 ] && echo "    (none registered)"
+
+# Check commands  
+REGISTERED_COMMANDS=0
+echo "  ⚡ Commands:"
+for location in "$PROJECT_COMMANDS" "$GLOBAL_COMMANDS"; do
+  [ -d "$location" ] || continue
+  for item in "$location"/*; do
+    [ -f "$item" ] || continue
+    if check_registration "$item" ".md"; then
+      REGISTERED_COMMANDS=$((REGISTERED_COMMANDS + 1))
+    fi
+  done 2>/dev/null
+done
+[ $REGISTERED_COMMANDS -eq 0 ] && echo "    (none registered)"
+
+# Check hooks
+REGISTERED_HOOKS=0  
+echo "  🪝 Hooks:"
+for location in "$PROJECT_HOOKS" "$GLOBAL_HOOKS"; do
+  [ -d "$location" ] || continue
+  for item in "$location"/*; do
+    [ -f "$item" ] || continue
+    if check_registration "$item" ".sh"; then
+      REGISTERED_HOOKS=$((REGISTERED_HOOKS + 1))
+    fi
+  done 2>/dev/null
+done
+[ $REGISTERED_HOOKS -eq 0 ] && echo "    (none registered)"
+
+echo ""
+echo "📊 Registration Summary: $REGISTERED_AGENTS agents, $REGISTERED_COMMANDS commands, $REGISTERED_HOOKS hooks"
+```
+
+4. **Available to Publish (Local items that could be published to repository)**:
+```bash
+echo ""
+echo "📤 Available to Publish:"
+
+PUBLISH_AVAILABLE=()
+PUBLISH_ITEM_NUM=1
+
+# Function to check if local item exists and is not registered
+check_local_item() {
+  local location="$1"
+  local item_type="$2" 
+  local extension="$3"
+  local category="$4"
+  
+  [ -d "$location" ] || return
+  
+  for item in "$location"/*; do
+    [ -f "$item" ] || continue
+    local name=$(basename "$item" $extension)
+    
+    # Skip if it's already registered (symlinked to repo)
+    if [ -L "$item" ]; then
+      local target=$(readlink "$item" 2>/dev/null)
+      if echo "$target" | grep -q "^$REPO_PATH"; then
+        continue  # Skip registered items
+      fi
+    fi
+    
+    # This is a local item that could be published
+    local desc=""
+    if [ "$extension" = ".md" ]; then
+      desc=$(grep -m1 "^description:" "$item" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+      [ -z "$desc" ] && desc=$(head -5 "$item" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//')
+    else
+      desc=$(grep -m1 "^# description:" "$item" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+      [ -z "$desc" ] && desc=$(head -10 "$item" 2>/dev/null | grep -E "^# " | head -1 | sed 's/^# //' | sed 's/^[[:space:]]*//')
+    fi
+    [ ${#desc} -gt 60 ] && desc="${desc:0:60}..."
+    
+    local location_desc=$(echo "$item" | grep -q "$PROJECT_CLAUDE" && echo "project" || echo "global")
+    printf "%2d. %s %s (%s, %s) - %s\n" "$PUBLISH_ITEM_NUM" "$item_type" "$name" "$category" "$location_desc" "$desc"
+    PUBLISH_AVAILABLE+=("$category:$name:$item:publish")
+    PUBLISH_ITEM_NUM=$((PUBLISH_ITEM_NUM + 1))
+  done 2>/dev/null
+}
+
+# Check for local agents to publish
+check_local_item "$PROJECT_AGENTS" "🤖" ".md" "agent"
+check_local_item "$GLOBAL_AGENTS" "🤖" ".md" "agent"
+
+# Check for local commands to publish  
+check_local_item "$PROJECT_COMMANDS" "⚡" ".md" "command"
+check_local_item "$GLOBAL_COMMANDS" "⚡" ".md" "command"
+
+# Check for local hooks to publish
+check_local_item "$PROJECT_HOOKS" "🪝" ".sh" "hook"
+check_local_item "$GLOBAL_HOOKS" "🪝" ".sh" "hook"
+
+[ $PUBLISH_ITEM_NUM -eq 1 ] && echo "    (no local items to publish)"
+```
+
+5. **Available to Add (Repository items not yet available to Claude Code)**:
+```bash
+echo ""
+echo "📥 Available to Add:"
+
+ADD_AVAILABLE=()
+ADD_ITEM_NUM=$PUBLISH_ITEM_NUM
+
+# Function to check if repository item is already registered or available locally
+is_available_to_claude() {
+  local repo_item_path="$1"
+  local item_name="$2"  
+  local item_extension="$3"
+  
+  # Check all Claude Code discovery locations
+  for location in "$PROJECT_AGENTS" "$GLOBAL_AGENTS" "$PROJECT_COMMANDS" "$GLOBAL_COMMANDS" "$PROJECT_HOOKS" "$GLOBAL_HOOKS"; do
+    [ -d "$location" ] || continue
+    local potential_item="$location/$item_name$item_extension"
+    if [ -f "$potential_item" ]; then
+      return 0  # Already available (either as file or symlink)
+    fi
+  done 2>/dev/null
+  return 1  # Not available to Claude Code
+}
+
+# Check agents in repository
+if [ -d "$REPO_PATH/agents" ]; then
+  for agent_file in "$REPO_PATH/agents"/*.md; do
+    [ -f "$agent_file" ] || continue
+    agent_name=$(basename "$agent_file" .md)
+    
+    if ! is_available_to_claude "$agent_file" "$agent_name" ".md"; then
+      desc=$(grep -m1 "^description:" "$agent_file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+      [ -z "$desc" ] && desc=$(head -5 "$agent_file" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//')
+      [ ${#desc} -gt 60 ] && desc="${desc:0:60}..."
+      printf "%2d. 🤖 %s (agent) - %s\n" "$ADD_ITEM_NUM" "$agent_name" "$desc"
+      ADD_AVAILABLE+=("agent:$agent_name:$agent_file:add")
+      ADD_ITEM_NUM=$((ADD_ITEM_NUM + 1))
+    fi
+  done
+fi
+
+# Check commands in repository  
+if [ -d "$REPO_PATH/commands" ]; then
+  for cmd_file in "$REPO_PATH/commands"/*.md; do
+    [ -f "$cmd_file" ] || continue
+    cmd_name=$(basename "$cmd_file" .md)
+    
+    if ! is_available_to_claude "$cmd_file" "$cmd_name" ".md"; then
+      desc=$(grep -m1 "^description:" "$cmd_file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+      [ -z "$desc" ] && desc=$(head -5 "$cmd_file" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//')
+      [ ${#desc} -gt 60 ] && desc="${desc:0:60}..."
+      printf "%2d. ⚡ %s (command) - %s\n" "$ADD_ITEM_NUM" "$cmd_name" "$desc"
+      ADD_AVAILABLE+=("command:$cmd_name:$cmd_file:add")
+      ADD_ITEM_NUM=$((ADD_ITEM_NUM + 1))
+    fi
+  done
+fi
+
+# Check hooks in repository
+if [ -d "$REPO_PATH/hooks/scripts" ]; then
+  for hook_file in "$REPO_PATH/hooks/scripts"/*.sh; do
+    [ -f "$hook_file" ] || continue
+    hook_name=$(basename "$hook_file" .sh)
+    
+    if ! is_available_to_claude "$hook_file" "$hook_name" ".sh"; then
+      desc=$(grep -m1 "^# description:" "$hook_file" 2>/dev/null | cut -d: -f2- | sed 's/^ *//')
+      [ -z "$desc" ] && desc=$(head -10 "$hook_file" 2>/dev/null | grep -E "^# " | head -1 | sed 's/^# //' | sed 's/^[[:space:]]*//')
+      [ ${#desc} -gt 60 ] && desc="${desc:0:60}..."
+      printf "%2d. 🪝 %s (hook) - %s\n" "$ADD_ITEM_NUM" "$hook_name" "$desc"
+      ADD_AVAILABLE+=("hook:$hook_name:$hook_file:add")
+      ADD_ITEM_NUM=$((ADD_ITEM_NUM + 1))
+    fi
+  done
+fi
+
+[ $ADD_ITEM_NUM -eq $PUBLISH_ITEM_NUM ] && echo "    (no repository items to add)"
+
+# Show sync options
+TOTAL_ITEMS=$((${#PUBLISH_AVAILABLE[@]} + ${#ADD_AVAILABLE[@]}))
+if [ $TOTAL_ITEMS -gt 0 ]; then
+  echo ""
+  echo "📋 Sync Options:"
+  echo "  a) 💫 Sync all: /prompt agent-sync"
+  echo "  b) 🎯 Sync range: /prompt agent-sync sync 1-5"
+  echo "  c) 🔢 Sync specific: /prompt agent-sync sync 1,3,7"
+  echo "  d) 📊 View details: /prompt agent-sync publish"
+else
+  echo ""
+  echo "✅ All items are in sync!"
+fi
+```
+
+5. **Show Sync Options**:
+```bash
+echo ""
+echo "📋 Sync Options:"
+echo "  a) 💫 Sync all: /prompt agent-sync"  
+echo "  b) 🎯 Sync range: /prompt agent-sync sync 1-5"
+echo "  c) 🔢 Sync specific: /prompt agent-sync sync 1,3,7"
+echo "  d) 📊 View details: /prompt agent-sync publish"
+```
+
+#### For SYNC_ALL Intent:
+Execute symlink creation for all repository items:
+
+```bash
+echo "🔄 Syncing all agents, commands, and hooks..."
+SYNCED_COUNT=0
+
+create_symlink() {
+  local source_file="$1"
+  local target_dir="$2"
+  local filename=$(basename "$source_file")
+  local link_path="$target_dir/$filename"
+  
+  mkdir -p "$target_dir"
+  [ -L "$link_path" ] && rm "$link_path"
+  ln -s "$source_file" "$link_path"
+  
+  if [ -L "$link_path" ]; then
+    echo "✅ Linked: $(basename "$source_file")"
+    return 0
+  else
+    echo "❌ Failed to link: $(basename "$source_file")"
+    return 1
+  fi
+}
+
+# Sync all agents
+if [ -d "$REPO_PATH/agents" ]; then
+  echo "🤖 Syncing Agents..."
+  for agent_file in "$REPO_PATH/agents"/*.md; do
+    [ -f "$agent_file" ] || continue
+    if create_symlink "$agent_file" "$HOME/.claude/agents"; then
+      SYNCED_COUNT=$((SYNCED_COUNT + 1))
+    fi
+  done
+fi
+
+# Sync all commands
+if [ -d "$REPO_PATH/commands" ]; then
+  echo "⚡ Syncing Commands..."
+  for cmd_file in "$REPO_PATH/commands"/*.md; do
+    [ -f "$cmd_file" ] || continue  
+    if create_symlink "$cmd_file" "$HOME/.claude/commands"; then
+      SYNCED_COUNT=$((SYNCED_COUNT + 1))
+    fi
+  done
+fi
+
+# Sync all hooks
+if [ -d "$REPO_PATH/hooks/scripts" ]; then
+  echo "🪝 Syncing Hooks..."
+  for hook_file in "$REPO_PATH/hooks/scripts"/*.sh; do
+    [ -f "$hook_file" ] || continue
+    if create_symlink "$hook_file" "$HOME/.claude/hooks"; then
+      SYNCED_COUNT=$((SYNCED_COUNT + 1))
+    fi
+  done
+fi
+
+echo "🎉 Synchronization complete!"
+echo "📊 Total synced: $SYNCED_COUNT items"
+```
+
+#### For SYNC_SPECIFIC Intent:
+Extract item numbers from context and sync only those items:
+
+```bash
+NUMBERS=$(echo "<prompt-context>" | grep -o '[0-9]\+' | tr '\n' ' ')
+echo "🎯 Selective Sync Mode - Numbers: $NUMBERS"
+
+# Build indexed array of all unsynced items first, then process requested numbers
+# Follow same scanning logic as STATUS but store results for indexed access
+```
+
+#### For PUBLISH Intent:
+Scan local ~/.claude/ directories for files that could be published to repository
+
+#### For AUTO_SYNC Intent:
+Manage auto-sync hook file at ~/.claude/hooks/agent-sync-auto.sh
+
+### 4. Output Format
+
+Provide clear, detailed output with:
+- Status indicators (✅ ❌ ⚠️ 🔄)  
+- Counts and summaries
+- Numbered lists for actionable items
+- Clear next steps and command suggestions
+
+### 5. Error Handling
+
+If repository not found, provide clear guidance on setup or configuration.
