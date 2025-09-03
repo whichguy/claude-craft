@@ -38,10 +38,27 @@ npm run security:scan
 # Install Claude Craft to system
 ./install.sh
 
+# Install from remote (one-liner)
+curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash
+
 # Uninstall with options
 ./uninstall.sh --dry-run    # Preview what will be removed
 ./uninstall.sh --yes         # Skip confirmations
 ./uninstall.sh --keep-repo  # Keep repository, remove symlinks only
+
+# Install git hooks for security
+./tools/install-git-hooks.sh [repository-path]
+```
+
+### Web Server Development
+```bash
+# Start the web interface
+cd server && npm start
+
+# Development mode with auto-reload
+cd server && npm run dev
+
+# Server runs on http://localhost:3456 by default
 ```
 
 ## Architecture & Core Concepts
@@ -135,6 +152,25 @@ The alias system (`commands/alias.md`, `commands/unalias.md`) creates new comman
 - Maintains backward compatibility
 - Enables A/B testing of configurations
 
+## Critical Implementation Notes
+
+### Git Operations
+- **ALWAYS** use `git -C "<directory>"` for all git operations to avoid directory context issues
+- Never use `cd` followed by git commands in scripts
+- Handle getcwd errors gracefully when directories are moved during operations
+
+### Directory Structure Awareness
+- Repository location: `~/claude-craft/`
+- Claude config location: `~/.claude/`
+- Backups stored in: `~/.claude/backups/`
+- Git hooks in: `.githooks/` (symlinked to `.git/hooks/`)
+
+### File Type Handling
+- **Commands & Agents**: Markdown files with YAML frontmatter
+- **Settings**: JSON fragments for merging
+- **Memory**: Markdown fragments with special import markers
+- **Prompts**: Markdown with `<prompt-context>` placeholders
+
 ## Repository-Specific Patterns
 
 ### Testing Approach
@@ -154,3 +190,42 @@ Tests use Mocha/Chai with fixture-based validation:
 - Debounced to prevent rapid firing
 - Stash/pop for handling uncommitted changes
 - Silent operation in background
+
+## Common Development Tasks
+
+### Adding a New Command
+1. Create file in `commands/` with proper frontmatter:
+   ```yaml
+   ---
+   argument-hint: "[args...]"
+   description: "Command description"
+   allowed-tools: "all"
+   ---
+   ```
+2. Test locally: `ln -s $(pwd)/commands/new-cmd.md ~/.claude/commands/`
+3. Run `/new-cmd` in Claude Code to test
+4. Commit and push when ready
+
+### Adding a New Prompt Template
+1. Create file in `prompts/` directory
+2. Use `<prompt-context>` for dynamic injection
+3. Test with `/prompt template-name [context]`
+4. Focus on natural language instructions over code
+
+### Debugging Installation Issues
+- Check symlinks: `ls -la ~/.claude/commands/ | grep claude-craft`
+- Verify git hooks: `ls -la .git/hooks/`
+- Review logs: `~/.git-security.log`
+- Check backups: `ls -la ~/.claude/backups/`
+
+### Security Testing
+```bash
+# Test security scanner on fixtures
+./tools/security-scan.sh test/fixtures secrets false
+
+# Run pre-commit hook manually
+./.githooks/pre-commit
+
+# Check for secrets in staged files
+./tools/simple-secrets-scan.sh
+```
