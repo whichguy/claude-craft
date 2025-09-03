@@ -354,6 +354,18 @@ claude-craft/
 - **💾 Always Backed Up**: All existing files before any changes
 - **🛡️ Security Scanned**: All operations include pre/post security analysis
 
+## Troubleshooting
+
+### Cursor Terminal Keybinding Conflict
+
+If you see a warning about "Found existing Cursor terminal Shift+Enter key binding" when running `/terminal-setup`:
+
+**DO NOT remove the keybinding** - this is your existing Cursor configuration that you want to keep.
+
+The warning comes from Claude Code's built-in `/terminal-setup` command that detects potential conflicts. The Shift+Enter keybinding in Cursor is commonly used for line continuation in terminals and should be preserved.
+
+**Solution**: Simply ignore the warning. Claude Craft works fine with existing Cursor keybindings and doesn't require their removal.
+
 ## Manual Installation
 
 If you prefer not to use the curl script:
