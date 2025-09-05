@@ -17,12 +17,14 @@ Execute this bash script to find and load the template:
 #!/bin/bash
 set -euo pipefail
 
-TEMPLATE="$1"
+FIRST_ARG="$1"
 shift || true
 CONTEXT="$*"
 
-# Handle --list option with sync management
-if [ "$TEMPLATE" = "--list" ]; then
+# Domain-driven command routing
+case "$FIRST_ARG" in
+    "list"|"--list"|"status")
+        # SYNC MANAGEMENT DOMAIN - Show available items and sync status
     echo "## Claude Craft Sync Status & Available Items"
     
     # Helper functions
@@ -226,6 +228,12 @@ if [ "$TEMPLATE" = "--list" ]; then
                         commands|agents)
                             desc=$(awk '/^---$/,/^---$/ { if (/^description:/) { gsub(/^description: *"?/, ""); gsub(/"$/, ""); print; exit } }' "$REPO_DIR/$item_type/$name" 2>/dev/null || echo "")
                             ;;
+                        prompts)
+                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//' || echo "")
+                            ;;
+                        hooks)
+                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep "^#" | head -1 | sed 's/^#[[:space:]]*//' || echo "")
+                            ;;
                     esac
                     
                     if [ -n "$desc" ]; then
@@ -268,6 +276,12 @@ if [ "$TEMPLATE" = "--list" ]; then
                         commands|agents)
                             desc=$(awk '/^---$/,/^---$/ { if (/^description:/) { gsub(/^description: *"?/, ""); gsub(/"$/, ""); print; exit } }' "$REPO_DIR/$item_type/$name" 2>/dev/null || echo "")
                             ;;
+                        prompts)
+                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//' || echo "")
+                            ;;
+                        hooks)
+                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep "^#" | head -1 | sed 's/^#[[:space:]]*//' || echo "")
+                            ;;
                     esac
                     
                     if [ -n "$desc" ]; then
@@ -291,7 +305,43 @@ if [ "$TEMPLATE" = "--list" ]; then
     # Cleanup
     rm -f /tmp/claude_available_items.tmp /tmp/claude_synced_items.tmp /tmp/claude_synced_display.tmp /tmp/claude_available_display.tmp
     exit 0
-fi
+    ;;
+
+    "sync"|"add"|"link"|"install") 
+        # SYNC EXECUTION DOMAIN - Natural language sync operations
+        echo "## Claude Craft Sync Execution"
+        echo
+        echo "**User Request**: \"$CONTEXT\""
+        echo
+        echo "---"
+        echo
+        echo "**Instructions for AI:**"
+        echo
+        echo "1. **Parse the sync request** above to understand user intent"
+        echo "2. **Run \`/prompt list\` first** to get the current sync status and item numbers"
+        echo "3. **Identify target items** from the user request:"
+        echo "   - Numbers (e.g., \"3, 7, 12\") → match against numbered list items"
+        echo "   - Names (e.g., \"code-security\") → match by exact or partial name"
+        echo "   - Patterns (e.g., \"security tools\", \"all commands\") → match by category/type"
+        echo "   - Bulk operations (e.g., \"everything\", \"all available\") → include all available items"
+        echo "4. **Determine sync level** from context:"
+        echo "   - \"project\", \"local\", \"this repo\" → project-level sync"
+        echo "   - \"profile\", \"global\", \"everywhere\" → profile-level sync"
+        echo "   - If unclear → ask user or use intelligent defaults"
+        echo "5. **Execute sync operations** by creating appropriate symlinks"
+        echo "6. **Confirm completion** with natural language summary"
+        echo
+        echo "**Example interpretations:**"
+        echo "- \"items 3 and 7 to project\" → Sync items #3, #7 at project level"
+        echo "- \"all security commands globally\" → Sync all security-related commands to profile"
+        echo "- \"code-security and memory-security\" → Sync those specific commands"
+        echo "- \"everything available\" → Sync all items in 'Available to Sync' section"
+        exit 0
+        ;;
+
+    *)
+        # TEMPLATE EXECUTION DOMAIN - Load and execute prompt templates
+        TEMPLATE="$FIRST_ARG"
 
 # Find git parent prompts directory
 # Git is run from CWD, then we look in the parent of whatever git root is found
@@ -396,6 +446,8 @@ fi
 
 # Output the processed template for execution
 echo "$TEMPLATE_CONTENT"
+        ;;
+esac
 ```
 
 ## After Template Discovery
