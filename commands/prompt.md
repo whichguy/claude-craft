@@ -241,7 +241,8 @@ if [ "$TEMPLATE" = "--list" ]; then
     
     # Show Available to Sync section
     if [ -s /tmp/claude_available_display.tmp ]; then
-        echo -e "\n\n## 📋 Available to Sync"
+        echo -e "\n\n═══════════════════════════════════════════════════════════════════════════════"
+        echo -e "\n## 📋 Available to Sync"
         
         # Group by type: commands, agents, prompts, hooks
         for item_type in commands agents prompts hooks; do

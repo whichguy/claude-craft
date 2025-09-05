@@ -61,6 +61,37 @@ cd server && npm run dev
 # Server runs on http://localhost:3456 by default
 ```
 
+### Web Server Architecture
+The `server/` directory provides a local development interface:
+- **Express.js + WebSocket**: Real-time project management
+- **Security**: Helmet.js headers, rate limiting
+- **File Watching**: Live updates via Chokidar
+- **Default Port**: http://localhost:3456
+- **Features**: Project browsing, real-time collaboration tools
+
+### Key Tools Available
+Core management scripts in `tools/` directory:
+```bash
+# Security and validation
+./tools/security-scan.sh [directory] [type] [verbose]     # Comprehensive security scanner
+./tools/simple-secrets-scan.sh                           # Lightweight credential detection
+./tools/install-git-hooks.sh [repository-path]          # Git security hook installer
+
+# Configuration management  
+./tools/merge-settings.sh                               # Safe JSON configuration merger
+./tools/claude-craft-config.sh                         # Configuration file generator
+./tools/add-memory.sh                                   # Memory fragment manager
+
+# Backup and sync
+./tools/backup.sh [list|backup|restore]                 # Backup management utility
+./tools/auto-sync.sh                                    # Auto-synchronization system
+./tools/knowledge-sync.sh                               # Knowledge discovery sync
+
+# Development utilities
+./tools/setup-web-server.sh                            # Web server setup and configuration
+./tools/secure-git.sh                                  # Git operation security wrapper
+```
+
 ## Architecture & Core Concepts
 
 ### Extension System Architecture
@@ -124,6 +155,15 @@ Commands follow this execution flow:
 4. Markdown body contains prompt-as-code instructions
 5. AI interprets instructions with context and executes tools
 
+### Prompt Template Discovery
+Search precedence for `/prompt` command:
+1. **Explicit file paths** (highest priority)
+2. **Git repo parent prompts** (`$(dirname $(git rev-parse --show-toplevel))/prompts`)
+3. **Profile prompts** (`~/.claude/prompts`)
+4. **Current directory** (fallback)
+
+Templates use `<prompt-context>` placeholders for dynamic content injection.
+
 ### Alias System Implementation
 
 The alias system (`commands/alias.md`, `commands/unalias.md`) creates new command files dynamically:
@@ -159,6 +199,14 @@ The alias system (`commands/alias.md`, `commands/unalias.md`) creates new comman
 - Never use `cd` followed by git commands in scripts
 - Handle getcwd errors gracefully when directories are moved during operations
 
+### Shell Command Best Practices
+- **Prefer `!` syntax** for negation: `! [ -z "$VAR" ]` over `[ -n "$VAR" ]`
+- **Use robust conditionals**: `! [ ! -d "$DIR" ]` for directory checks
+- **Implement proper cleanup** with trap handlers for error conditions
+- **Use `&&` with negation** for cleaner conditional execution
+- **Always use absolute paths** or `git -C` for directory-independent execution
+- **Run git from CWD**: `git rev-parse --show-toplevel` then look in parent directories for project config
+
 ### Directory Structure Awareness
 - Repository location: `~/claude-craft/`
 - Claude config location: `~/.claude/`
@@ -190,6 +238,21 @@ Tests use Mocha/Chai with fixture-based validation:
 - Debounced to prevent rapid firing
 - Stash/pop for handling uncommitted changes
 - Silent operation in background
+
+### Auto-Sync Configuration
+Auto-sync behavior controlled via `settings/fragments/auto-sync-settings.json`:
+- **Probability**: 1/27 chance (~3.7%) per user prompt
+- **Debounce**: 5-second minimum intervals
+- **Conflict Handling**: Automatic stash/merge/restore workflow
+- **Triggers**: Configurable per event type (userPrompt, etc.)
+
+### Prompt Command Enhancements
+The `/prompt --list` command provides comprehensive sync management:
+- **Two-section interface**: "Already Synced" vs "Available to Sync"
+- **Level detection**: 📁 project vs 👤 profile scope indicators
+- **Contiguous numbering**: Sequential numbering (1, 2, 3...) across all sections
+- **Enhanced formatting**: Bold item names, wrapped descriptions, proper spacing
+- **Configuration discovery**: Uses claude-craft.json for repository path resolution
 
 ## Common Development Tasks
 
