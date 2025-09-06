@@ -19,9 +19,15 @@ Execute this bash script to find and load the template:
 #!/bin/bash
 set -euo pipefail
 
-FIRST_ARG="$1"
-shift || true
-CONTEXT="$*"
+# Handle arguments properly - they come from the command execution context
+if [ $# -gt 0 ]; then
+    FIRST_ARG="$1"
+    shift || true
+    CONTEXT="$*"
+else
+    FIRST_ARG=""
+    CONTEXT=""
+fi
 
 # Domain-driven command routing
 case "$FIRST_ARG" in
