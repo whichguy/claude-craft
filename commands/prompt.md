@@ -1,10 +1,12 @@
 ---
-argument-hint: "[template] [context...]"
-description: "Load and execute a prompt template"
+argument-hint: "[list|sync|publish|template] [context...]"
+description: "Manage and execute Claude Code extensions (agents, commands, prompts, hooks)"
 allowed-tools: "all"
 ---
 
 # Prompt Template Executor
+
+*Unified Claude Code Extension Manager - Discovers and executes agents, commands, prompts, and hooks*
 
 **Template**: $1  
 **Context**: $2 $3 $4 $5 $6 $7 $8 $9
@@ -24,18 +26,14 @@ CONTEXT="$*"
 # Domain-driven command routing
 case "$FIRST_ARG" in
     "list"|"--list"|"status")
-        # PROMPT TEMPLATE DISCOVERY DOMAIN - Show available prompt templates
-        echo "## 📋 Available Prompt Templates"
+        # COMPREHENSIVE EXTENSION DISCOVERY DOMAIN - Show all Claude Code extensions
+        echo "## 🧩 Claude Code Extensions"
         echo
         
-        # Get git root for parent prompts discovery
+        # Get git root and repository path for comprehensive extension discovery
         GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-        GIT_PARENT_PROMPTS=""
-        if [ -n "$GIT_ROOT" ]; then
-            GIT_PARENT_PROMPTS="$(dirname "$GIT_ROOT")/prompts"
-        fi
         
-        # Get repository path for claude-craft prompts
+        # Repository discovery function
         get_repo_path() {
             local repo_path=""
             local config_file=""
@@ -57,8 +55,8 @@ case "$FIRST_ARG" in
             if [ -n "$repo_path" ]; then
                 # Handle $HOME expansion
                 repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g")
-                # Verify path exists and has prompts directory
-                if [ -d "$repo_path/prompts" ]; then
+                # Verify path exists and has extension directories
+                if [ -d "$repo_path" ] && ([ -d "$repo_path/prompts" ] || [ -d "$repo_path/agents" ] || [ -d "$repo_path/commands" ] || [ -d "$repo_path/hooks" ]); then
                     echo "$repo_path"
                     return
                 fi
@@ -66,111 +64,251 @@ case "$FIRST_ARG" in
             
             # 4. Final fallback - current directory if it looks like claude-craft
             local current_dir="$(pwd)"
-            if [ -d "$current_dir/prompts" ]; then
+            if [ -d "$current_dir" ] && ([ -d "$current_dir/prompts" ] || [ -d "$current_dir/agents" ] || [ -d "$current_dir/commands" ] || [ -d "$current_dir/hooks" ]); then
                 echo "$current_dir"
             fi
         }
         
         REPO_DIR=$(get_repo_path)
         
-        # Counter for numbering across all sections
-        GLOBAL_COUNTER=1
-        
-        # Show Already Available Templates section
-        echo "### 📁 Already Available"
-        echo
-        
-        # Check current directory
-        if ls ./*.md 2>/dev/null >/dev/null; then
-            echo "#### 📁 **Current Directory (.)**"
-            echo
-            for file in ./*.md; do
-                if [ -f "$file" ]; then
-                    name=$(basename "$file" .md)
-                    desc=$(head -1 "$file" 2>/dev/null | sed 's/^[[:space:]]*//' || echo "No description")
-                    if [ ${#desc} -gt 70 ]; then
-                        desc="$(echo "$desc" | cut -c1-67)..."
-                    fi
-                    echo "$GLOBAL_COUNTER. **$name** - $desc"
-                    GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
-                fi
-            done
+        # Auto-pull latest changes from repository
+        if [ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/.git" ]; then
+            echo "*Fetching latest extensions from repository...*"
+            git -C "$REPO_DIR" pull --quiet >/dev/null 2>&1 || true
             echo
         fi
         
-        # Check user Claude prompts
-        if [ -d "$HOME/.claude/prompts" ]; then
-            echo "#### 👤 **Profile Prompts (~/.claude/prompts)**"
-            echo
-            for file in "$HOME/.claude/prompts"/*.md; do
-                if [ -f "$file" ]; then
+        # Function to get extension description
+        get_description() {
+            local file="$1"
+            local description=""
+            
+            # Try YAML frontmatter first
+            if grep -q "^---" "$file" 2>/dev/null; then
+                description=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^description:" | sed 's/description:[[:space:]]*//' | tr -d '"' 2>/dev/null || true)
+            fi
+            
+            # Fallback to first non-empty, non-comment line
+            if [ -z "$description" ]; then
+                description=$(grep -v "^#\|^---\|^$\|^<!--" "$file" | head -1 | sed 's/^[[:space:]]*//' 2>/dev/null || echo "No description")
+            fi
+            
+            # Truncate if too long
+            if [ ${#description} -gt 60 ]; then
+                description="$(echo "$description" | cut -c1-57)..."
+            fi
+            
+            echo "$description"
+        }
+        
+        # Function to check if extension is synced
+        is_extension_synced() {
+            local type="$1"
+            local name="$2"
+            local target_file="$HOME/.claude/$type/$name.md"
+            
+            # Check if file exists and is a symlink
+            [ -L "$target_file" ] && return 0
+            return 1
+        }
+        
+        # Counter for numbering across all sections
+        GLOBAL_COUNTER=1
+        
+        # Function to check if extension exists in repository
+        is_in_repository() {
+            local type="$1"
+            local name="$2"
+            local repo_file="$REPO_DIR/$type/$name.md"
+            [ -f "$repo_file" ]
+        }
+        
+        echo "### 🔗 Installed Extensions (Published & Symlinked)"
+        echo
+        
+        # Show symlinked extensions (published and installed)
+        for type in agents commands prompts hooks; do
+            type_dir="$HOME/.claude/$type"
+            icon=""
+            type_name=""
+            
+            case "$type" in
+                agents)   icon="🤖"; type_name="Agents" ;;
+                commands) icon="⚡"; type_name="Commands" ;;
+                prompts)  icon="📝"; type_name="Prompts" ;;
+                hooks)    icon="🪝"; type_name="Hooks" ;;
+            esac
+            
+            type_has_symlinks=false
+            
+            if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                for file in "$type_dir"/*.md; do
+                    [ -f "$file" ] || continue
                     name=$(basename "$file" .md)
-                    desc=$(head -1 "$file" 2>/dev/null | sed 's/^[[:space:]]*//' || echo "No description")
-                    if [ ${#desc} -gt 70 ]; then
-                        desc="$(echo "$desc" | cut -c1-67)..."
+                    
+                    # Only show symlinked items (published extensions)
+                    if [ -L "$file" ]; then
+                        # Show header only when we find the first symlinked item
+                        if [ "$type_has_symlinks" = "false" ]; then
+                            echo "#### $icon **$type_name** (Published & Installed)"
+                            echo
+                            type_has_symlinks=true
+                        fi
+                        
+                        description=$(get_description "$file")
+                        echo "$GLOBAL_COUNTER. **$name** 🔗"
+                        echo "    $description"
+                        echo
+                        GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
                     fi
-                    echo "$GLOBAL_COUNTER. **$name** - $desc"
-                    GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+                done
+                
+                # Add spacing after section if any items were shown
+                if [ "$type_has_symlinks" = "true" ]; then
+                    echo
                 fi
-            done
+            fi
+        done
+        
+        echo "═══════════════════════════════════════════════════════════════════════════════"
+        echo
+        
+        echo "### 📝 Local Only Extensions (Unpublished)"
+        echo
+        
+        # Show local-only extensions (not symlinked, available to publish)
+        local_extensions_found=false
+        for type in agents commands prompts hooks; do
+            type_dir="$HOME/.claude/$type"
+            icon=""
+            type_name=""
+            
+            case "$type" in
+                agents)   icon="🤖"; type_name="Agents" ;;
+                commands) icon="⚡"; type_name="Commands" ;;
+                prompts)  icon="📝"; type_name="Prompts" ;;
+                hooks)    icon="🪝"; type_name="Hooks" ;;
+            esac
+            
+            type_has_local=false
+            
+            if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                for file in "$type_dir"/*.md; do
+                    [ -f "$file" ] || continue
+                    name=$(basename "$file" .md)
+                    
+                    # Only show non-symlinked items (local-only extensions)
+                    if [ ! -L "$file" ]; then
+                        # Show header only when we find the first local item
+                        if [ "$type_has_local" = "false" ]; then
+                            echo "#### $icon **$type_name** (Ready to Publish)"
+                            echo
+                            type_has_local=true
+                            local_extensions_found=true
+                        fi
+                        
+                        description=$(get_description "$file")
+                        echo "$GLOBAL_COUNTER. **$name** 📤"
+                        echo "    $description"
+                        echo
+                        GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+                    fi
+                done
+                
+                # Add spacing after section if any items were shown
+                if [ "$type_has_local" = "true" ]; then
+                    echo
+                fi
+            fi
+        done
+        
+        if [ "$local_extensions_found" = "false" ]; then
+            echo "*No unpublished local extensions found.*"
             echo
         fi
         
         echo "═══════════════════════════════════════════════════════════════════════════════"
         echo
         
-        # Show Available to Sync Templates section
-        echo "### 📦 Available to Sync (Repository)"
+        echo "### 📦 Available from Repository (Not Installed)"
         echo
         
-        # Check repository prompts - these can be synced
-        if [ -d "$REPO_DIR/prompts" ]; then
-            synced_prompts=""
-            if [ -d "$HOME/.claude/prompts" ]; then
-                synced_prompts=$(find "$HOME/.claude/prompts" -name "*.md" -type l 2>/dev/null | xargs -I {} basename {} .md 2>/dev/null | sort || echo "")
-            fi
-            
-            echo "#### 📝 **Repository Prompts** (can be synced):"
-            echo
-            
-            for file in "$REPO_DIR/prompts"/*.md; do
-                [ -f "$file" ] || continue
-                name=$(basename "$file" .md)
+        # Show repository extensions that are NOT locally installed
+        if [ -n "$REPO_DIR" ]; then
+            available_extensions_found=false
+            for type in agents commands prompts hooks; do
+                type_dir="$REPO_DIR/$type"
+                icon=""
+                type_name=""
                 
-                # Check if already synced
-                is_synced=false
-                if echo "$synced_prompts" | grep -q "^$name$" 2>/dev/null; then
-                    is_synced=true
+                case "$type" in
+                    agents)   icon="🤖"; type_name="Agents" ;;
+                    commands) icon="⚡"; type_name="Commands" ;;
+                    prompts)  icon="📝"; type_name="Prompts" ;;
+                    hooks)    icon="🪝"; type_name="Hooks" ;;
+                esac
+                
+                if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                    type_has_available=false
+                    
+                    for file in "$type_dir"/*.md; do
+                        [ -f "$file" ] || continue
+                        name=$(basename "$file" .md)
+                        description=$(get_description "$file")
+                        
+                        # Only show if NOT locally installed (no symlink exists)
+                        local_file="$HOME/.claude/$type/$name.md"
+                        if [ ! -f "$local_file" ]; then
+                            # Show header only when we find the first available item
+                            if [ "$type_has_available" = "false" ]; then
+                                echo "#### $icon **Repository $type_name** (Ready to Install)"
+                                echo
+                                type_has_available=true
+                                available_extensions_found=true
+                            fi
+                            
+                            echo "$GLOBAL_COUNTER. **$name** 📥"
+                            echo "    $description"
+                            echo
+                            GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+                        fi
+                    done
+                    
+                    # Add spacing after section if any items were shown
+                    if [ "$type_has_available" = "true" ]; then
+                        echo
+                    fi
                 fi
-                
-                description=""
-                if grep -q "^---" "$file" 2>/dev/null; then
-                    description=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^description:" | sed 's/description:[[:space:]]*//' | tr -d '"' 2>/dev/null || true)
-                fi
-                
-                if [ -z "$description" ]; then
-                    description=$(grep -v "^#\|^---\|^$" "$file" | head -1 | sed 's/^[[:space:]]*//' 2>/dev/null || echo "No description")
-                fi
-                
-                if [ ${#description} -gt 60 ]; then
-                    description="$(echo "$description" | cut -c1-57)..."
-                fi
-                
-                status_indicator=""
-                if [ "$is_synced" = "true" ]; then
-                    status_indicator=" ✓"
-                fi
-                
-                echo "$GLOBAL_COUNTER. **$name**$status_indicator - $description"
-                GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
             done
+            
+            if [ "$available_extensions_found" = "false" ]; then
+                echo "*All repository extensions are already installed.*"
+                echo
+            fi
+        else
+            echo "*No repository configured. Set up claude-craft.json to see available extensions.*"
             echo
         fi
         
         echo "**Usage:**"
-        echo "- Execute template: \`/prompt template-name [context]\`"  
-        echo "- Sync prompts: \`/prompt sync [numbers or names]\`"
-        echo "- Full path: \`/prompt /path/to/template.md [context]\`"
+        echo "- Execute prompt: \`/prompt template-name [context]\`"
+        echo "- List extensions: \`/prompt list\` (auto-pulls latest from repository)"
+        echo "- Install extensions: \`/prompt sync [numbers or names]\`"
+        echo "- Publish extensions: \`/prompt publish [numbers or names]\`"
+        echo "- Direct file: \`/prompt /path/to/file.md [context]\`"
+        echo
+        echo "**Extension States:**"
+        echo "- 🔗 = Published & Installed (symlinked to repository)"
+        echo "- 📤 = Local Only (ready to publish to repository)"
+        echo "- 📥 = Available (in repository, ready to install locally)"
+        echo
+        echo "**Publishing Workflow:**"
+        echo "1. Copy local extension to repository directory"
+        echo "2. Replace local file with symlink to repository"
+        echo "3. Git add, commit, and push changes to repository"
+        echo "4. Extension becomes published and shareable"
+        echo
+        echo "**Symbols:** 🤖 = AI Agents  ⚡ = Commands  📝 = Prompts  🪝 = Hooks"
         exit 0
         ;;
 
@@ -212,62 +350,131 @@ case "$FIRST_ARG" in
         # TEMPLATE EXECUTION DOMAIN - Load and execute prompt templates
         TEMPLATE="$FIRST_ARG"
 
-# Find git parent prompts directory
-# Git is run from CWD, then we look in the parent of whatever git root is found
+# Get git context for discovery
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-GIT_PARENT_PROMPTS=""
-if [ -n "$GIT_ROOT" ]; then
-    GIT_PARENT_PROMPTS="$(dirname "$GIT_ROOT")/prompts"
-fi
 
-# Template discovery with ripgrep
+# Repository discovery function (reuse from --list logic)
+get_repo_path() {
+    local repo_path=""
+    local config_file=""
+    
+    # 1. Try project config first (git parent/.claude/claude-craft.json)
+    if [ -n "$GIT_ROOT" ]; then
+        config_file="$(dirname "$GIT_ROOT")/.claude/claude-craft.json"
+        if [ -f "$config_file" ]; then
+            repo_path=$(jq -r '.repository.path // empty' "$config_file" 2>/dev/null)
+        fi
+    fi
+    
+    # 2. Try profile config (fallback)
+    if [ -z "$repo_path" ] && [ -f "$HOME/.claude/claude-craft.json" ]; then
+        repo_path=$(jq -r '.repository.path // empty' "$HOME/.claude/claude-craft.json" 2>/dev/null)
+    fi
+    
+    # 3. Expand environment variables and validate path
+    if [ -n "$repo_path" ]; then
+        # Handle $HOME expansion
+        repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g")
+        # Verify path exists and has prompts directory
+        if [ -d "$repo_path/prompts" ]; then
+            echo "$repo_path"
+            return
+        fi
+    fi
+    
+    # 4. Final fallback - current directory if it looks like claude-craft
+    local current_dir="$(pwd)"
+    if [ -d "$current_dir/prompts" ]; then
+        echo "$current_dir"
+    fi
+}
+
+REPO_DIR=$(get_repo_path)
+
+# Template discovery with improved hierarchy
 TEMPLATE_FILE=""
 
-# 1. Check if explicit path provided (highest priority)
+# Priority 1: Explicit file paths (absolute, relative, with/without .md)
 if [[ "$TEMPLATE" == *"/"* ]] || [[ "$TEMPLATE" == *".md" ]]; then
-    # Remove .md extension if provided
+    # Handle various explicit path formats
     TEMPLATE_PATH="${TEMPLATE%.md}"
-    # Check with and without .md
-    if [ -f "$TEMPLATE_PATH" ]; then
-        TEMPLATE_FILE="$TEMPLATE_PATH"
-    elif [ -f "${TEMPLATE_PATH}.md" ]; then
-        TEMPLATE_FILE="${TEMPLATE_PATH}.md"
-    fi
-else
-    # 2. Search in precedence order: current dir -> ~/.claude/prompts -> git parent
-    SEARCH_DIRS=(
-        "$(pwd)"
-        "$HOME/.claude/prompts"
-    )
-    [ -d "$GIT_PARENT_PROMPTS" ] && SEARCH_DIRS+=("$GIT_PARENT_PROMPTS")
     
-    # Try exact match first (case-insensitive)
+    # Check absolute and relative paths
+    for path in "$TEMPLATE_PATH" "${TEMPLATE_PATH}.md" "$TEMPLATE" ; do
+        if [ -f "$path" ]; then
+            TEMPLATE_FILE="$path"
+            break
+        fi
+    done
+else
+    # Priority 2-4: Search in improved precedence order
+    # Project-first, then profile, then fallback
+    SEARCH_DIRS=()
+    
+    # Priority 2a: Git root prompts (<project>/prompts)
+    if [ -n "$GIT_ROOT" ] && [ -d "$GIT_ROOT/prompts" ]; then
+        SEARCH_DIRS+=("$GIT_ROOT/prompts")
+    fi
+    
+    # Priority 2b: Git parent prompts (parent project prompts)
+    if [ -n "$GIT_ROOT" ]; then
+        GIT_PARENT_PROMPTS="$(dirname "$GIT_ROOT")/prompts"
+        [ -d "$GIT_PARENT_PROMPTS" ] && SEARCH_DIRS+=("$GIT_PARENT_PROMPTS")
+    fi
+    
+    # Priority 2c: Repository prompts (claude-craft configured)
+    if [ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/prompts" ]; then
+        SEARCH_DIRS+=("$REPO_DIR/prompts")
+    fi
+    
+    # Priority 3a: Profile prompts (<profile>/prompts)
+    if [ -d "$HOME/.claude/prompts" ]; then
+        SEARCH_DIRS+=("$HOME/.claude/prompts")
+    fi
+    
+    # Priority 3b: Project-scoped profile prompts
+    if [ -n "$GIT_ROOT" ]; then
+        PROJECT_NAME=$(basename "$GIT_ROOT")
+        PROJECT_PROFILE_PROMPTS="$HOME/.claude/prompts/$PROJECT_NAME"
+        [ -d "$PROJECT_PROFILE_PROMPTS" ] && SEARCH_DIRS+=("$PROJECT_PROFILE_PROMPTS")
+    fi
+    
+    # Priority 4: Current directory fallback
+    SEARCH_DIRS+=("$(pwd)")
+    
+    # Search for exact match first (case-insensitive)
     for dir in "${SEARCH_DIRS[@]}"; do
         if [ -d "$dir" ]; then
-            # Use rg with null-separated output for safety
-            FOUND=$(rg --files-with-matches --null --glob "*.md" "^" "$dir" 2>/dev/null | \
-                    xargs -0 basename -a 2>/dev/null | \
-                    rg -ix "${TEMPLATE}\.md" | head -1 || true)
-            if [ -n "$FOUND" ]; then
-                TEMPLATE_FILE="$dir/${FOUND}"
-                break
+            # Direct file check (most efficient)
+            for candidate in "$dir/${TEMPLATE}.md" "$dir/$TEMPLATE"; do
+                if [ -f "$candidate" ]; then
+                    TEMPLATE_FILE="$candidate"
+                    break 2
+                fi
+            done
+            
+            # Case-insensitive search if no direct match
+            if [ -z "$TEMPLATE_FILE" ]; then
+                FOUND=$(find "$dir" -maxdepth 1 -iname "${TEMPLATE}.md" -type f | head -1 2>/dev/null || true)
+                if [ -n "$FOUND" ]; then
+                    TEMPLATE_FILE="$FOUND"
+                    break
+                fi
             fi
         fi
     done
     
-    # 3. If no exact match, try fuzzy matching
+    # Fuzzy matching as last resort
     if [ -z "$TEMPLATE_FILE" ]; then
-        # Collect all potential matches
         MATCHES=""
         for dir in "${SEARCH_DIRS[@]}"; do
             if [ -d "$dir" ]; then
-                DIR_MATCHES=$(rg --files --glob "*.md" "$dir" 2>/dev/null | \
-                              rg -i "$TEMPLATE" || true)
+                DIR_MATCHES=$(find "$dir" -maxdepth 1 -name "*.md" -type f 2>/dev/null | \
+                              grep -i "$TEMPLATE" || true)
                 [ -n "$DIR_MATCHES" ] && MATCHES="${MATCHES}${DIR_MATCHES}"$'\n'
             fi
         done
         
-        # Remove empty lines and count
         MATCHES=$(echo "$MATCHES" | grep -v '^$' || true)
         MATCH_COUNT=$(echo "$MATCHES" | grep -c . 2>/dev/null || echo 0)
         
@@ -287,21 +494,47 @@ fi
 # Check if template was found
 if [ -z "$TEMPLATE_FILE" ] || [ ! -f "$TEMPLATE_FILE" ]; then
     echo "Template '$TEMPLATE' not found."
-    echo -e "\nSearched in:"
-    echo "  - Current directory (./*.md)"
-    echo "  - User Claude prompts (~/.claude/prompts/*.md)"
-    [ -n "$GIT_PARENT_PROMPTS" ] && echo "  - Git parent prompts ($GIT_PARENT_PROMPTS/*.md)"
-    echo -e "\nUse '--list' to see available templates."
+    echo -e "\nSearched in priority order:"
+    
+    # Show search locations with project/profile indicators
+    if [ -n "$GIT_ROOT" ] && [ -d "$GIT_ROOT/prompts" ]; then
+        echo "  📁 Project: $GIT_ROOT/prompts/*.md"
+    fi
+    if [ -n "$GIT_ROOT" ]; then
+        GIT_PARENT_PROMPTS="$(dirname "$GIT_ROOT")/prompts"
+        [ -d "$GIT_PARENT_PROMPTS" ] && echo "  📁 Parent: $GIT_PARENT_PROMPTS/*.md"
+    fi
+    if [ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/prompts" ]; then
+        echo "  📦 Repository: $REPO_DIR/prompts/*.md"
+    fi
+    if [ -d "$HOME/.claude/prompts" ]; then
+        echo "  👤 Profile: ~/.claude/prompts/*.md"
+    fi
+    if [ -n "$GIT_ROOT" ]; then
+        PROJECT_NAME=$(basename "$GIT_ROOT")
+        PROJECT_PROFILE_PROMPTS="$HOME/.claude/prompts/$PROJECT_NAME"
+        [ -d "$PROJECT_PROFILE_PROMPTS" ] && echo "  👤 Project Profile: ~/.claude/prompts/$PROJECT_NAME/*.md"
+    fi
+    echo "  📄 Current: $(pwd)/*.md"
+    
+    echo -e "\nUse '/prompt --list' to see available templates."
     
     # Suggest similar templates
     echo -e "\nSimilar templates:"
+    SUGGESTIONS_FOUND=false
     for dir in "${SEARCH_DIRS[@]}"; do
         if [ -d "$dir" ]; then
-            rg --files --glob "*.md" "$dir" 2>/dev/null | while read -r f; do
-                basename "$f" .md
-            done
+            SIMILAR=$(find "$dir" -maxdepth 1 -name "*.md" -type f 2>/dev/null | \
+                      xargs basename -a 2>/dev/null | \
+                      sed 's/\.md$//' | \
+                      grep -i "$TEMPLATE" | head -3 || true)
+            if [ -n "$SIMILAR" ]; then
+                echo "$SIMILAR" | sed 's/^/  - /'
+                SUGGESTIONS_FOUND=true
+            fi
         fi
-    done | rg -i "$TEMPLATE" | head -5 | sed 's/^/  - /' || echo "  (none found)"
+    done
+    [ "$SUGGESTIONS_FOUND" = "false" ] && echo "  (none found)"
     exit 1
 fi
 
