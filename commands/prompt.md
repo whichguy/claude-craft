@@ -566,3 +566,6 @@ Once the bash script above finds and outputs the template content:
 - No preamble like "The template was executed..."
 - No meta-commentary about what happened
 - Just the actual output from running the template
+
+## Display Instructions
+**IMPORTANT**: Always display the complete output without collapsing. Do not truncate or summarize the results. Show all extension listings, numbers, descriptions, and usage information in full detail.
