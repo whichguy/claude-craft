@@ -1,0 +1,1 @@
+echo <prompt-content>

@@ -24,318 +24,187 @@ CONTEXT="$*"
 # Domain-driven command routing
 case "$FIRST_ARG" in
     "list"|"--list"|"status")
-        # SYNC MANAGEMENT DOMAIN - Show available items and sync status
-    echo "## Claude Craft Sync Status & Available Items"
-    
-    # Helper functions
-    is_synced() {
-        local item_type="$1"
-        local item_name="$2"
-        case "$item_type" in
-            commands|agents|prompts)
-                ! [ ! -L "$HOME/.claude/$item_type/$item_name" ]
-                ;;
-            hooks)
-                local git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-                ! [ ! -L "$git_root/.git/hooks/${item_name%.sh}" ]
-                ;;
-        esac
-    }
-    
-    # Helper function to detect sync level (project vs profile)
-    detect_sync_level() {
-        local item_type="$1"
-        local item_name="$2"
+        # PROMPT TEMPLATE DISCOVERY DOMAIN - Show available prompt templates
+        echo "## 📋 Available Prompt Templates"
+        echo
         
-        case "$item_type" in
-            commands|agents|prompts)
-                if [ -L "$HOME/.claude/$item_type/$item_name" ]; then
-                    local target=$(readlink "$HOME/.claude/$item_type/$item_name")
-                    # Check if target contains project path vs profile path patterns
-                    if [[ "$target" == *"/pub/"* ]] || [[ "$target" == *"/src/"* ]] || [[ "$target" == *"/workspace/"* ]]; then
-                        echo "project"
-                    else
-                        echo "profile"
+        # Get git root for parent prompts discovery
+        GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+        GIT_PARENT_PROMPTS=""
+        if [ -n "$GIT_ROOT" ]; then
+            GIT_PARENT_PROMPTS="$(dirname "$GIT_ROOT")/prompts"
+        fi
+        
+        # Get repository path for claude-craft prompts
+        get_repo_path() {
+            local repo_path=""
+            local config_file=""
+            
+            # 1. Try project config first (git parent/.claude/claude-craft.json)
+            if [ -n "$GIT_ROOT" ]; then
+                config_file="$(dirname "$GIT_ROOT")/.claude/claude-craft.json"
+                if [ -f "$config_file" ]; then
+                    repo_path=$(jq -r '.repository.path // empty' "$config_file" 2>/dev/null)
+                fi
+            fi
+            
+            # 2. Try profile config (fallback)
+            if [ -z "$repo_path" ] && [ -f "$HOME/.claude/claude-craft.json" ]; then
+                repo_path=$(jq -r '.repository.path // empty' "$HOME/.claude/claude-craft.json" 2>/dev/null)
+            fi
+            
+            # 3. Expand environment variables and validate path
+            if [ -n "$repo_path" ]; then
+                # Handle $HOME expansion
+                repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g")
+                # Verify path exists and has prompts directory
+                if [ -d "$repo_path/prompts" ]; then
+                    echo "$repo_path"
+                    return
+                fi
+            fi
+            
+            # 4. Final fallback - current directory if it looks like claude-craft
+            local current_dir="$(pwd)"
+            if [ -d "$current_dir/prompts" ]; then
+                echo "$current_dir"
+            fi
+        }
+        
+        REPO_DIR=$(get_repo_path)
+        
+        # Counter for numbering across all sections
+        GLOBAL_COUNTER=1
+        
+        # Show Already Available Templates section
+        echo "### 📁 Already Available"
+        echo
+        
+        # Check current directory
+        if ls ./*.md 2>/dev/null >/dev/null; then
+            echo "#### 📁 **Current Directory (.)**"
+            echo
+            for file in ./*.md; do
+                if [ -f "$file" ]; then
+                    name=$(basename "$file" .md)
+                    desc=$(head -1 "$file" 2>/dev/null | sed 's/^[[:space:]]*//' || echo "No description")
+                    if [ ${#desc} -gt 70 ]; then
+                        desc="$(echo "$desc" | cut -c1-67)..."
                     fi
+                    echo "$GLOBAL_COUNTER. **$name** - $desc"
+                    GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
                 fi
-                ;;
-            hooks)
-                local git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-                if [ -n "$git_root" ] && [ -L "$git_root/.git/hooks/${item_name%.sh}" ]; then
-                    echo "project"  # Git hooks are always project-level
+            done
+            echo
+        fi
+        
+        # Check user Claude prompts
+        if [ -d "$HOME/.claude/prompts" ]; then
+            echo "#### 👤 **Profile Prompts (~/.claude/prompts)**"
+            echo
+            for file in "$HOME/.claude/prompts"/*.md; do
+                if [ -f "$file" ]; then
+                    name=$(basename "$file" .md)
+                    desc=$(head -1 "$file" 2>/dev/null | sed 's/^[[:space:]]*//' || echo "No description")
+                    if [ ${#desc} -gt 70 ]; then
+                        desc="$(echo "$desc" | cut -c1-67)..."
+                    fi
+                    echo "$GLOBAL_COUNTER. **$name** - $desc"
+                    GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
                 fi
-                ;;
-        esac
-    }
-    
-    collect_items() {
-        local item_type="$1"
-        local repo_dir="$2"
+            done
+            echo
+        fi
         
-        ! [ ! -d "$repo_dir" ] || return 0
+        echo "═══════════════════════════════════════════════════════════════════════════════"
+        echo
         
-        # Get emoji for item type
-        local emoji=""
-        case "$item_type" in
-            commands) emoji="⚡" ;;
-            agents) emoji="🤖" ;;
-            prompts) emoji="📝" ;;
-            hooks) emoji="🪝" ;;
-        esac
+        # Show Available to Sync Templates section
+        echo "### 📦 Available to Sync (Repository)"
+        echo
         
-        # Check items in repo - process files without subshell
-        if [ -d "$repo_dir" ]; then
-            # Determine file pattern based on item type
-            local file_pattern="*.md"
-            [ "$item_type" = "hooks" ] && file_pattern="*.sh"
+        # Check repository prompts - these can be synced
+        if [ -d "$REPO_DIR/prompts" ]; then
+            synced_prompts=""
+            if [ -d "$HOME/.claude/prompts" ]; then
+                synced_prompts=$(find "$HOME/.claude/prompts" -name "*.md" -type l 2>/dev/null | xargs -I {} basename {} .md 2>/dev/null | sort || echo "")
+            fi
             
-            # Create temporary file for this item type
-            local temp_files="/tmp/claude_${item_type}_files.tmp"
-            rg --files --glob "$file_pattern" "$repo_dir" 2>/dev/null | sort > "$temp_files"
+            echo "#### 📝 **Repository Prompts** (can be synced):"
+            echo
             
-            # Process each file without subshell to preserve GLOBAL_COUNT
-            while IFS= read -r file; do
-                [ -n "$file" ] || continue
-                local item_name=$(basename "$file")
-                GLOBAL_COUNT=$((GLOBAL_COUNT + 1))
+            for file in "$REPO_DIR/prompts"/*.md; do
+                [ -f "$file" ] || continue
+                name=$(basename "$file" .md)
                 
-                if is_synced "$item_type" "$item_name"; then
-                    local sync_level=$(detect_sync_level "$item_type" "$item_name")
-                    printf "%d:%s:%s:%s:synced:%s\n" "$GLOBAL_COUNT" "$item_name" "$item_type" "$emoji" "$sync_level" >> /tmp/claude_synced_items.tmp
-                else
-                    printf "%d:%s:%s:%s:available:\n" "$GLOBAL_COUNT" "$item_name" "$item_type" "$emoji" >> /tmp/claude_available_items.tmp
+                # Check if already synced
+                is_synced=false
+                if echo "$synced_prompts" | grep -q "^$name$" 2>/dev/null; then
+                    is_synced=true
                 fi
-            done < "$temp_files"
-            
-            rm -f "$temp_files"
-        fi
-    }"
-    
-    # Initialize temp files and global counter
-    rm -f /tmp/claude_available_items.tmp /tmp/claude_synced_items.tmp
-    touch /tmp/claude_available_items.tmp /tmp/claude_synced_items.tmp
-    GLOBAL_COUNT=0
-    
-    # Get repository location from single claude-craft.json configuration
-    get_repo_path() {
-        local repo_path=""
-        local config_file=""
-        
-        # 1. Try project config first (git parent/.claude/claude-craft.json)
-        # Git is run from CWD, then we look in the parent of whatever git root is found
-        local git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-        if [ -n "$git_root" ]; then
-            config_file="$(dirname "$git_root")/.claude/claude-craft.json"
-            if [ -f "$config_file" ]; then
-                repo_path=$(jq -r '.repository.path // empty' "$config_file" 2>/dev/null)
-            fi
-        fi
-        
-        # 2. Try profile config (fallback)
-        if [ -z "$repo_path" ] && [ -f "$HOME/.claude/claude-craft.json" ]; then
-            repo_path=$(jq -r '.repository.path // empty' "$HOME/.claude/claude-craft.json" 2>/dev/null)
+                
+                description=""
+                if grep -q "^---" "$file" 2>/dev/null; then
+                    description=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^description:" | sed 's/description:[[:space:]]*//' | tr -d '"' 2>/dev/null || true)
+                fi
+                
+                if [ -z "$description" ]; then
+                    description=$(grep -v "^#\|^---\|^$" "$file" | head -1 | sed 's/^[[:space:]]*//' 2>/dev/null || echo "No description")
+                fi
+                
+                if [ ${#description} -gt 60 ]; then
+                    description="$(echo "$description" | cut -c1-57)..."
+                fi
+                
+                status_indicator=""
+                if [ "$is_synced" = "true" ]; then
+                    status_indicator=" ✓"
+                fi
+                
+                echo "$GLOBAL_COUNTER. **$name**$status_indicator - $description"
+                GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+            done
+            echo
         fi
         
-        # 3. Expand environment variables and validate path
-        if [ -n "$repo_path" ]; then
-            # Handle $HOME expansion
-            repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g")
-            # Verify path exists and has expected structure
-            if [ -d "$repo_path/commands" ] && [ -d "$repo_path/agents" ]; then
-                echo "$repo_path"
-                return
-            fi
-        fi
-        
-        # 4. Final fallback - current directory if it looks like claude-craft
-        local current_dir="$(pwd)"
-        if [ -d "$current_dir/commands" ] && [ -d "$current_dir/agents" ]; then
-            echo "$current_dir"
-        fi
-    }
-    
-    REPO_DIR=$(get_repo_path)
-    
-    # Collect all items
-    collect_items "commands" "$REPO_DIR/commands"
-    collect_items "agents" "$REPO_DIR/agents" 
-    collect_items "prompts" "$REPO_DIR/prompts"
-    collect_items "hooks" "$REPO_DIR/hooks/scripts"
-    
-    # Renumber all items contiguously
-    rm -f /tmp/claude_synced_display.tmp /tmp/claude_available_display.tmp
-    touch /tmp/claude_synced_display.tmp /tmp/claude_available_display.tmp
-    
-    # Renumber synced items
-    if [ -s /tmp/claude_synced_items.tmp ]; then
-        local display_counter=1
-        sort -t: -k1,1n /tmp/claude_synced_items.tmp > /tmp/claude_synced_sorted.tmp
-        
-        while IFS=':' read -r num name type emoji sync_status level; do
-            echo "$display_counter:$name:$type:$emoji:$sync_status:$level" >> /tmp/claude_synced_display.tmp
-            display_counter=$((display_counter + 1))
-        done < /tmp/claude_synced_sorted.tmp
-        
-        rm -f /tmp/claude_synced_sorted.tmp
-    fi
-    
-    # Continue numbering for available items
-    if [ -s /tmp/claude_available_items.tmp ]; then
-        local synced_count=$(wc -l < /tmp/claude_synced_items.tmp 2>/dev/null || echo 0)
-        local display_counter=$((synced_count + 1))
-        
-        sort -t: -k1,1n /tmp/claude_available_items.tmp > /tmp/claude_available_sorted.tmp
-        
-        while IFS=':' read -r num name type emoji sync_status; do
-            echo "$display_counter:$name:$type:$emoji:$sync_status" >> /tmp/claude_available_display.tmp
-            display_counter=$((display_counter + 1))
-        done < /tmp/claude_available_sorted.tmp
-        
-        rm -f /tmp/claude_available_sorted.tmp
-    fi
-    
-    # Show Already Synced section
-    if [ -s /tmp/claude_synced_display.tmp ]; then
-        echo -e "\n\n## ✓ Already Synced"
-        
-        # Group by type: commands, agents, prompts, hooks
-        for item_type in commands agents prompts hooks; do
-            local emoji=""
-            local capitalized=""
-            case "$item_type" in
-                commands) emoji="⚡" capitalized="Commands" ;;
-                agents) emoji="🤖" capitalized="Agents" ;;
-                prompts) emoji="📝" capitalized="Prompts" ;;
-                hooks) emoji="🪝" capitalized="Hooks" ;;
-            esac
-            
-            local type_items=$(grep ":$item_type:.*:synced:" /tmp/claude_synced_display.tmp)
-            if [ -n "$type_items" ]; then
-                echo -e "\n### $emoji **$capitalized:**"
-                echo
-                echo "$type_items" | while IFS=':' read -r num name type emoji_unused sync_status level; do
-                    local level_indicator=""
-                    case "$level" in
-                        project) level_indicator="📁" ;;
-                        profile) level_indicator="👤" ;;
-                        *) level_indicator="❓" ;;
-                    esac
-                    echo "  [$num] **$name** $level_indicator"
-                    
-                    # Get description and wrap it
-                    local desc=""
-                    case "$item_type" in
-                        commands|agents)
-                            desc=$(awk '/^---$/,/^---$/ { if (/^description:/) { gsub(/^description: *"?/, ""); gsub(/"$/, ""); print; exit } }' "$REPO_DIR/$item_type/$name" 2>/dev/null || echo "")
-                            ;;
-                        prompts)
-                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//' || echo "")
-                            ;;
-                        hooks)
-                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep "^#" | head -1 | sed 's/^#[[:space:]]*//' || echo "")
-                            ;;
-                    esac
-                    
-                    if [ -n "$desc" ]; then
-                        echo "      $desc" | fold -w 80 -s | sed 's/^/      /'
-                    fi
-                    echo
-                done
-            fi
-        done
-        
-        echo -e "\n📁 = Project level   👤 = Profile level"
-    fi
-    
-    # Show Available to Sync section
-    if [ -s /tmp/claude_available_display.tmp ]; then
-        echo -e "\n\n═══════════════════════════════════════════════════════════════════════════════"
-        echo -e "\n## 📋 Available to Sync"
-        
-        # Group by type: commands, agents, prompts, hooks
-        for item_type in commands agents prompts hooks; do
-            local emoji=""
-            local capitalized=""
-            case "$item_type" in
-                commands) emoji="⚡" capitalized="Commands" ;;
-                agents) emoji="🤖" capitalized="Agents" ;;
-                prompts) emoji="📝" capitalized="Prompts" ;;
-                hooks) emoji="🪝" capitalized="Hooks" ;;
-            esac
-            
-            local type_items=$(grep ":$item_type:.*:available:" /tmp/claude_available_display.tmp | head -10)
-            if [ -n "$type_items" ]; then
-                echo -e "\n### $emoji **$capitalized:**"
-                echo
-                echo "$type_items" | while IFS=':' read -r num name type emoji_unused sync_status; do
-                    echo "  [$num] **$name**"
-                    
-                    # Get description and wrap it
-                    local desc=""
-                    case "$item_type" in
-                        commands|agents)
-                            desc=$(awk '/^---$/,/^---$/ { if (/^description:/) { gsub(/^description: *"?/, ""); gsub(/"$/, ""); print; exit } }' "$REPO_DIR/$item_type/$name" 2>/dev/null || echo "")
-                            ;;
-                        prompts)
-                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep -v "^#" | head -1 | sed 's/^[[:space:]]*//' || echo "")
-                            ;;
-                        hooks)
-                            desc=$(head -5 "$REPO_DIR/$item_type/$name" 2>/dev/null | grep "^#" | head -1 | sed 's/^#[[:space:]]*//' || echo "")
-                            ;;
-                    esac
-                    
-                    if [ -n "$desc" ]; then
-                        echo "      $desc" | fold -w 80 -s | sed 's/^/      /'
-                    fi
-                    echo
-                done
-            fi
-        done
-        
-        echo -e "\n\nTo sync items:"
-        echo "  1. Choose item numbers: /prompt --sync 3,7,12"
-        echo "  2. Sync all available: /prompt --sync-all"
-        echo "  3. Items will be linked at appropriate level (project/profile)"
-    else
-        if [ ! -s /tmp/claude_synced_display.tmp ]; then
-            echo -e "\n📋 No items found to sync."
-        fi
-    fi
-    
-    # Cleanup
-    rm -f /tmp/claude_available_items.tmp /tmp/claude_synced_items.tmp /tmp/claude_synced_display.tmp /tmp/claude_available_display.tmp
-    exit 0
-    ;;
+        echo "**Usage:**"
+        echo "- Execute template: \`/prompt template-name [context]\`"  
+        echo "- Sync prompts: \`/prompt sync [numbers or names]\`"
+        echo "- Full path: \`/prompt /path/to/template.md [context]\`"
+        exit 0
+        ;;
 
     "sync"|"add"|"link"|"install") 
-        # SYNC EXECUTION DOMAIN - Natural language sync operations
-        echo "## Claude Craft Sync Execution"
+        # SYNC EXECUTION DOMAIN - For prompt templates only
+        echo "## 📦 Prompt Template Sync"
         echo
-        echo "**User Request**: \"$CONTEXT\""
+        echo "**Sync Request**: \"$CONTEXT\""
         echo
         echo "---"
         echo
         echo "**Instructions for AI:**"
         echo
-        echo "1. **Parse the sync request** above to understand user intent"
-        echo "2. **Run \`/prompt list\` first** to get the current sync status and item numbers"
-        echo "3. **Identify target items** from the user request:"
-        echo "   - Numbers (e.g., \"3, 7, 12\") → match against numbered list items"
-        echo "   - Names (e.g., \"code-security\") → match by exact or partial name"
-        echo "   - Patterns (e.g., \"security tools\", \"all commands\") → match by category/type"
-        echo "   - Bulk operations (e.g., \"everything\", \"all available\") → include all available items"
-        echo "4. **Determine sync level** from context:"
-        echo "   - \"project\", \"local\", \"this repo\" → project-level sync"
-        echo "   - \"profile\", \"global\", \"everywhere\" → profile-level sync"
-        echo "   - If unclear → ask user or use intelligent defaults"
-        echo "5. **Execute sync operations** by creating appropriate symlinks"
-        echo "6. **Confirm completion** with natural language summary"
+        echo "1. **Parse the sync request** to identify which prompt templates to sync"
+        echo "2. **Run \`/prompt list\` first** to see available templates and their numbers"
+        echo "3. **For each template to sync:**"
+        echo "   - Get repository path from claude-craft.json configuration"
+        echo "   - Determine sync level (ask user if unclear):"
+        echo "     - **Project**: Link to git parent's .claude/prompts/"
+        echo "     - **Profile**: Link to ~/.claude/prompts/"
+        echo "   - Create symlink: \`ln -sf \$REPO_DIR/prompts/template.md \$TARGET_DIR/template.md\`"
+        echo "4. **Ask user about sync level if unclear:**"
+        echo "   - \"Do you want to sync to project level (this repo only) or profile level (globally)?\""
+        echo "5. **Confirm completion** with list of synced templates"
         echo
-        echo "**Example interpretations:**"
-        echo "- \"items 3 and 7 to project\" → Sync items #3, #7 at project level"
-        echo "- \"all security commands globally\" → Sync all security-related commands to profile"
-        echo "- \"code-security and memory-security\" → Sync those specific commands"
-        echo "- \"everything available\" → Sync all items in 'Available to Sync' section"
+        echo "**Sync level determination:**"
+        echo "- **Project keywords**: \"project\", \"local\", \"this repo\", \"here\""
+        echo "- **Profile keywords**: \"profile\", \"global\", \"everywhere\", \"all projects\""
+        echo "- **Default behavior**: Ask user to choose if not specified"
+        echo
+        echo "**Example sync operations:**"
+        echo "- Numbers: \"19, 25\" → sync templates #19 and #25"
+        echo "- Names: \"echo, weather\" → sync echo.md and weather.md templates"
+        echo "- All: \"all available\" → sync all unsynced repository templates"
         exit 0
         ;;
 
