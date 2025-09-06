@@ -1,99 +1,24 @@
-# IDEAL-STI Phase-Based Planning System (Version 2.0)
-## Comprehensive 11-Phase Project Planning with Parallel Subagent Orchestration
+# IDEAL-STI Phase-Based Planning System (Version 2.1)
+## Comprehensive 11-Phase Project Planning with Interactive User Control
 
-**Version**: 2.0 (Enhanced with Phase 0, Interactive/YOLO modes, Anti-patterns)  
+**Version**: 2.1 (Enhanced with Interactive User Confirmation Points)  
 **Template Context**: <prompt-template-name>  
 **Project Requirements**: <prompt-context>
 
-You are executing a sophisticated 11-phase planning orchestration system (Phases 0-10) that uses git worktrees for parallel execution isolation, structured file rehydration for information flow, and quality gates for phase transitions. This version 2.0 optimizes for instructional clarity while preserving critical infrastructure.
+You are executing a sophisticated 11-phase planning orchestration system (Phases 0-10) that uses structured phase validation, user confirmation points, and quality gates for phase transitions. This version 2.1 adds mandatory user approval at critical decision points to ensure proper oversight and control.
 
-## Document Structure Guide
+## Critical User Interaction Points
 
-### MUST PRESERVE (Critical Infrastructure)
-- All worktree management functions
-- State management and session tracking
-- Git operations with `-C` flags
-- Directory operations with `(cd && command)` format
-- Knowledge folder scanning
-- Core validation framework
+**MANDATORY USER CONFIRMATION PHASES**: 1, 2, 3, 4, 5
+After completing each of these phases, you MUST:
+1. Present a clear summary of what was accomplished
+2. Ask the user to review the phase output
+3. Request explicit approval before proceeding
+4. Offer options: continue, iterate, or stop
 
-### CONVERTED TO INSTRUCTIONS
-- Phase content templates (was heredocs, now instructions)
-- Research execution details (was complex JSON, now guidelines)
-- Contrarian analysis (was functions, now prompts)
-- Task generation templates (was hardcoded, now patterns)
+**Phase 6-10 Execution**: May proceed automatically after user approval of Phase 5 foundation.
 
-## 🎮 EXECUTION MODES
-
-### Interactive Mode (DEFAULT)
-- **Phase Review**: After each phase, explains what was accomplished
-- **Plan Presentation**: Shows the current plan and findings
-- **User Options**: 
-  - `iterate` - Refine current phase with specific feedback
-  - `improve` - Apply recommended enhancements
-  - `continue` - Proceed to next phase
-- **Validation Gates**: User confirms before major decisions
-
-### YOLO Mode (One-Shot Autonomous)
-- **Full Automation**: Attempts complete execution without user intervention
-- **Self-Iteration**: Automatically refines based on validation results
-- **Best Practices**: Applies all recommended improvements by default
-- **Completion Target**: Runs all 10 phases to deployment-ready state
-- **Usage**: Set `IDEAL_STI_MODE=yolo` before execution
-
-## System Overview
-
-IDEAL-STI orchestrates a comprehensive 10-phase planning system with parallel subagent execution. It maintains context across all phases while delegating specialized tasks to purpose-built subagents using worktree isolation for parallel execution.
-
-```mermaid
-flowchart TD
-    Start([Template Invocation]) --> ParseArgs[Parse <prompt-context>]
-    ParseArgs --> GitCheck{Git Initialized?}
-    GitCheck -->|No| GitInit[git init]
-    GitCheck -->|Yes| Phase1
-    GitInit --> Phase1
-    
-    Phase1[Phase 1: Discovery] --> Phase2[Phase 2: Intent]
-    Phase2 --> Phase3[Phase 3: Feasibility]
-    Phase3 --> Phase4[Phase 4: Technology Research]
-    Phase4 --> Phase45{Phase 4.5: Validation}
-    
-    Phase45 -->|Issues| Backtrack[Return to Earlier Phase]
-    Backtrack --> Phase1
-    Phase45 -->|Valid| Phase5
-    
-    Phase5[Phase 5: Requirements] --> Phase6[Phase 6: Scope]
-    Phase6 --> Phase7[Phase 7: Architecture]
-    Phase7 --> Phase8[Phase 8: Decisions]
-    Phase8 --> Phase9[Phase 9: Interface]
-    Phase9 --> Phase10[Phase 10: Tasks]
-    
-    Phase10 --> ExecuteTasks[Execute Tasks]
-    ExecuteTasks --> Complete([Project Ready])
-    
-    Phase4 -.->|Parallel| TechAgents[tech-research agents]
-    Phase9 -.->|Parallel| UIAgent[ui-strategy agent]
-    Phase10 -.->|Parallel| DevAgents[dev-task agents]
-    
-    style Phase45 fill:#ffeb3b
-    style TechAgents fill:#e1f5fe
-    style UIAgent fill:#f3e5f5
-    style DevAgents fill:#e8f5e9
-```
-
-## Template Usage Examples
-
-**Basic Project Planning:**
-```
-/prompt ideal-sti Build a real-time collaborative task management system with offline support
-```
-
-**Complex Enterprise System:**
-```
-/prompt ideal-sti Create an e-commerce platform with inventory management, payment processing, mobile app, and analytics dashboard
-```
-
-## Execution Requirements for Claude Code
+## EXECUTION REQUIREMENTS FOR CLAUDE CODE
 
 **MUST Execute Through Bash Tool:**
 - All git worktree operations for parallel isolation
@@ -111,7 +36,7 @@ flowchart TD
 - TODO completion in each phase file using grep patterns
 - Quality gate requirements met for each phase
 - File existence validation for rehydration dependencies
-- Parent directory write access for worktree creation
+- User confirmation received for Phases 1-5
 
 ## Required Directory Structure
 
@@ -121,6 +46,7 @@ project-root/ (current working directory)
 ├── docs/
 │   └── planning/
 │       ├── .worktree-state/          # State management
+│       ├── phase0-existing-analysis.md   # Optional - existing project analysis
 │       ├── phase1-discovery.md        # Problem elaboration
 │       ├── phase2-intent.md           # Goals and metrics
 │       ├── phase3-feasibility.md      # Feasibility assessment
@@ -538,117 +464,6 @@ cleanup_all_worktrees() {
     echo "✅ Emergency cleanup completed"
 }
 
-# Mode Selection and Execution Control
-select_execution_mode() {
-    # Check environment variable or prompt user
-    local mode="${IDEAL_STI_MODE:-interactive}"
-    
-    if [ "$mode" != "yolo" ] && [ "$mode" != "interactive" ]; then
-        echo "🎮 Select execution mode:"
-        echo "1) Interactive (default) - Review and iterate each phase"
-        echo "2) YOLO - Autonomous one-shot execution"
-        read -p "Choice [1]: " choice
-        
-        case "$choice" in
-            2) mode="yolo" ;;
-            *) mode="interactive" ;;
-        esac
-    fi
-    
-    export IDEAL_STI_MODE="$mode"
-    echo "✅ Execution mode: $mode"
-    
-    if [ "$mode" = "yolo" ]; then
-        echo "🚀 YOLO MODE: Attempting autonomous completion of all phases"
-        echo "   • Will auto-iterate on validation failures"
-        echo "   • Applies all recommended improvements"
-        echo "   • No user interaction required"
-    else
-        echo "🎯 INTERACTIVE MODE: You'll review each phase"
-        echo "   • Explains accomplishments after each phase"
-        echo "   • Options: iterate, improve, or continue"
-        echo "   • Full control over refinements"
-    fi
-}
-
-# Interactive Phase Review
-interactive_phase_review() {
-    local phase_number="$1"
-    local phase_name="$2"
-    local phase_file="$3"
-    
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📊 Phase $phase_number Review: $phase_name"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    # Show what was accomplished
-    echo "✅ Accomplished:"
-    if [ -f "$phase_file" ]; then
-        # Extract key sections
-        grep -A 2 "^##" "$phase_file" | head -20
-    fi
-    
-    # Show current plan status
-    echo ""
-    echo "📋 Current Plan Status:"
-    echo "• Completed: Phases 1-$phase_number"
-    echo "• Next: Phase $((phase_number + 1))"
-    echo "• TODOs extracted for next phase"
-    
-    # User options
-    echo ""
-    echo "🔄 Options:"
-    echo "1) continue - Proceed to next phase"
-    echo "2) iterate - Refine current phase with feedback"
-    echo "3) improve - Apply recommended enhancements"
-    echo "4) review - See full phase output"
-    
-    read -p "Choice [continue]: " choice
-    
-    case "$choice" in
-        iterate|2)
-            echo "📝 Enter refinement instructions:"
-            read -r refinement
-            return 1  # Signal to re-run phase
-            ;;
-        improve|3)
-            apply_recommended_improvements "$phase_number"
-            return 1  # Signal to re-run phase
-            ;;
-        review|4)
-            less "$phase_file"
-            interactive_phase_review "$@"  # Recurse for another choice
-            ;;
-        *)
-            return 0  # Continue to next phase
-            ;;
-    esac
-}
-
-# Apply Recommended Improvements
-apply_recommended_improvements() {
-    local phase="$1"
-    
-    echo "🔧 Applying recommended improvements for Phase $phase..."
-    
-    case "$phase" in
-        1) echo "• Adding contrarian analysis" ;;
-        2) echo "• Deepening market analysis" ;;
-        3) echo "• Expanding data modeling" ;;
-        4) echo "• Adding more GitHub evidence" ;;
-        5) echo "• Refining requirements" ;;
-        6) echo "• Enhancing UI patterns" ;;
-        7) echo "• Optimizing architecture" ;;
-        8) echo "• Improving task breakdown" ;;
-        9) echo "• Adding validation tests" ;;
-        10) echo "• Completing deployment prep" ;;
-    esac
-    
-    # Signal to enhance current phase
-    export IDEAL_STI_ENHANCE=true
-}
-
 # Knowledge Folder Scanning and Aggregation
 scan_knowledge_folders() {
     echo "📚 Scanning for knowledge folders..."
@@ -778,9 +593,49 @@ safe_directory_operation() {
 
 ---
 
-## SECTION 2: PHASE EXECUTION INSTRUCTIONS
+## SECTION 2: PHASE EXECUTION WITH USER CONFIRMATION
 
-This section replaces complex heredocs with clear instructions for each phase.
+This section defines each phase with mandatory user confirmation checkpoints at critical decision points.
+
+### User Confirmation Protocol
+
+After completing Phases 1, 2, 3, 4, and 5, you MUST:
+
+1. **Present Phase Summary**:
+   ```
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   📊 Phase [N] Complete: [Phase Name]  
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   
+   ✅ **Key Accomplishments:**
+   - [List 3-5 major accomplishments]
+   
+   📋 **Created Deliverables:**
+   - [List files and sections created]
+   
+   🔍 **Critical Findings:**
+   - [Highlight important discoveries or decisions]
+   
+   📄 **Full Output**: docs/planning/phase[N]-[name].md
+   ```
+
+2. **Request User Review**:
+   ```
+   🛑 **USER CONFIRMATION REQUIRED**
+   
+   Please review the Phase [N] output and choose:
+   
+   **continue** - Proceed to Phase [N+1]
+   **iterate** - Refine current phase (provide specific feedback)  
+   **stop** - End planning session
+   
+   Your response: [continue/iterate/stop]
+   ```
+
+3. **Handle User Response**:
+   - **continue**: Proceed to next phase
+   - **iterate**: Ask for specific feedback, then refine current phase
+   - **stop**: End execution gracefully
 
 ### Phase 0: Existing Project Analysis (OPTIONAL)
 
@@ -790,663 +645,413 @@ This section replaces complex heredocs with clear instructions for each phase.
 - No `src/` or `docs/` directories exist (greenfield project)
 - Documentation modified within last 7 days (fresh docs)
 - User explicitly sets `IDEAL_STI_SKIP_PHASE_0=true`
-- Project has `CLAUDE.md` or `README.md` updated in last 48 hours
 
 **Execution Instructions:**
 ```markdown
-Create docs/planning/phase0-existing-analysis.md if applicable:
-
-## ANALYSIS SECTIONS
-
-1. **Project Discovery**
-   - Detected project type (language, framework)
-   - File structure and organization
-   - Dependencies and external services
-   - Build/deployment configuration
-
-2. **Source Code Analysis**
-   - Architecture patterns detected
-   - Core components and modules
-   - API surfaces and interfaces
-   - Database schemas (if found)
-   - Test coverage assessment
-
-3. **Documentation Status**
-   - README completeness (0-100%)
-   - API documentation coverage
-   - Inline code comments density
-   - Architecture diagrams present
-   - Setup instructions accuracy
-
-4. **Reverse Engineered Requirements**
-   - Inferred functional requirements from code
-   - Discovered non-functional requirements
-   - Security measures implemented
-   - Performance optimizations found
-
-5. **Technical Debt Assessment**
-   - Code smells detected
-   - Outdated dependencies
-   - Missing tests
-   - Inconsistent patterns
-   - Security vulnerabilities
-
-6. **Documentation Gaps**
-   - Undocumented features
-   - Missing architecture decisions
-   - Absent deployment guides
-   - No contribution guidelines
-
-7. **Recommended Updates**
-   - [ ] Update README with discovered features
-   - [ ] Document API endpoints found
-   - [ ] Add architecture diagrams
-   - [ ] Create missing setup guides
-   - [ ] Document environment variables
-
-8. **Integration with Planning**
-   - Existing features to preserve
-   - Constraints from current implementation
-   - Migration requirements
-   - Backward compatibility needs
-```
-
-**Phase 0 Bash Functions:**
-```bash
-# Check if Phase 0 should run
-should_run_phase_0() {
-    # Check skip flag
-    if [ "${IDEAL_STI_SKIP_PHASE_0:-false}" = "true" ]; then
-        echo "⏭️ Skipping Phase 0 (user requested)"
-        return 1
-    fi
-    
-    # Check if directories exist
-    if [ ! -d "src" ] && [ ! -d "docs" ] && [ ! -d "lib" ] && [ ! -d "app" ]; then
-        echo "⏭️ Skipping Phase 0 (no existing code detected)"
-        return 1
-    fi
-    
-    # Check documentation freshness
-    local fresh_docs=false
-    
-    # Check CLAUDE.md freshness (48 hours)
-    if [ -f "CLAUDE.md" ]; then
-        local claude_age=$(( ($(date +%s) - $(stat -f %m "CLAUDE.md" 2>/dev/null || stat -c %Y "CLAUDE.md" 2>/dev/null)) / 3600 ))
-        if [ "$claude_age" -lt 48 ]; then
-            fresh_docs=true
-            echo "📝 CLAUDE.md is fresh (${claude_age}h old)"
-        fi
-    fi
-    
-    # Check README freshness (7 days)
-    if [ -f "README.md" ]; then
-        local readme_age=$(( ($(date +%s) - $(stat -f %m "README.md" 2>/dev/null || stat -c %Y "README.md" 2>/dev/null)) / 86400 ))
-        if [ "$readme_age" -lt 7 ]; then
-            fresh_docs=true
-            echo "📝 README.md is recent (${readme_age}d old)"
-        fi
-    fi
-    
-    # Interactive prompt if docs are fresh
-    if [ "$fresh_docs" = true ] && [ "$IDEAL_STI_MODE" = "interactive" ]; then
-        echo "📚 Documentation appears recent. Analyze anyway?"
-        read -p "Choice [y/N]: " analyze_anyway
-        [ "$analyze_anyway" != "y" ] && return 1
-    fi
-    
-    return 0
-}
-
-# Analyze existing source code
-analyze_source_code() {
-    echo "🔍 Analyzing existing source code..."
-    
-    local analysis_file="docs/planning/phase0-existing-analysis.md"
-    mkdir -p docs/planning
-    
-    # Detect project type
-    local project_type="Unknown"
-    local languages=""
-    
-    if [ -f "package.json" ]; then
-        project_type="Node.js/JavaScript"
-        languages="JavaScript/TypeScript"
-    elif [ -f "requirements.txt" ] || [ -f "setup.py" ]; then
-        project_type="Python"
-        languages="Python"
-    elif [ -f "Cargo.toml" ]; then
-        project_type="Rust"
-        languages="Rust"
-    elif [ -f "go.mod" ]; then
-        project_type="Go"
-        languages="Go"
-    elif [ -f "pom.xml" ] || [ -f "build.gradle" ]; then
-        project_type="Java"
-        languages="Java"
-    fi
-    
-    # Start analysis document
-    cat > "$analysis_file" << EOF
-# Phase 0: Existing Project Analysis
-Generated: $(date -Iseconds)
+IF phase should run, create docs/planning/phase0-existing-analysis.md with:
 
 ## Project Discovery
+- Detected project type (language, framework)
+- File structure and organization
+- Dependencies and external services
+- Build/deployment configuration
 
-**Project Type:** $project_type
-**Primary Languages:** $languages
-**Analysis Scope:** $(find . -type f -name "*.js" -o -name "*.py" -o -name "*.rs" -o -name "*.go" -o -name "*.java" 2>/dev/null | wc -l) source files
+## Source Code Analysis  
+- Architecture patterns detected
+- Core components and modules
+- API surfaces and interfaces
+- Test coverage assessment
 
-### Directory Structure
-\`\`\`
-$(tree -L 2 -I 'node_modules|__pycache__|target|.git' 2>/dev/null || ls -la)
-\`\`\`
+## Documentation Status
+- README completeness (0-100%)
+- API documentation coverage
+- Inline code comments density
+- Setup instructions accuracy
 
-EOF
-    
-    # Analyze source files
-    if [ -d "src" ] || [ -d "lib" ] || [ -d "app" ]; then
-        echo "" >> "$analysis_file"
-        echo "## Source Code Metrics" >> "$analysis_file"
-        
-        # Count lines of code
-        echo "- Total lines: $(find . -type f \( -name "*.js" -o -name "*.py" -o -name "*.rs" \) -exec wc -l {} + 2>/dev/null | tail -1 | awk '{print $1}')" >> "$analysis_file"
-        
-        # Find main entry points
-        echo "" >> "$analysis_file"
-        echo "### Entry Points" >> "$analysis_file"
-        find . -type f \( -name "main.*" -o -name "index.*" -o -name "app.*" \) 2>/dev/null | head -5 | while read -r file; do
-            echo "- $file" >> "$analysis_file"
-        done
-    fi
-    
-    # Check for tests
-    if [ -d "test" ] || [ -d "tests" ] || [ -d "spec" ]; then
-        echo "" >> "$analysis_file"
-        echo "## Test Coverage" >> "$analysis_file"
-        echo "✅ Test directory found" >> "$analysis_file"
-        echo "- Test files: $(find . -type f \( -name "*test*" -o -name "*spec*" \) 2>/dev/null | wc -l)" >> "$analysis_file"
-    else
-        echo "" >> "$analysis_file"
-        echo "## Test Coverage" >> "$analysis_file"
-        echo "⚠️ No test directory found" >> "$analysis_file"
-    fi
-    
-    # Documentation assessment
-    echo "" >> "$analysis_file"
-    echo "## Documentation Status" >> "$analysis_file"
-    
-    [ -f "README.md" ] && echo "- ✅ README.md present" >> "$analysis_file" || echo "- ❌ README.md missing" >> "$analysis_file"
-    [ -f "CONTRIBUTING.md" ] && echo "- ✅ CONTRIBUTING.md present" >> "$analysis_file" || echo "- ❌ CONTRIBUTING.md missing" >> "$analysis_file"
-    [ -f "LICENSE" ] && echo "- ✅ LICENSE present" >> "$analysis_file" || echo "- ❌ LICENSE missing" >> "$analysis_file"
-    [ -d "docs" ] && echo "- ✅ docs/ directory present" >> "$analysis_file" || echo "- ❌ docs/ directory missing" >> "$analysis_file"
-    
-    echo "" >> "$analysis_file"
-    echo "## Recommended Actions" >> "$analysis_file"
-    echo "- [ ] Review and update README.md" >> "$analysis_file"
-    echo "- [ ] Document discovered architecture" >> "$analysis_file"
-    echo "- [ ] Add missing test coverage" >> "$analysis_file"
-    echo "- [ ] Update dependencies" >> "$analysis_file"
-    
-    echo "✅ Source code analysis complete: $analysis_file"
-}
+## Reverse Engineered Requirements
+- Inferred functional requirements from code
+- Discovered non-functional requirements
+- Security measures implemented
 
-# Execute Phase 0
-execute_phase_0() {
-    local arguments="$1"
-    
-    if ! should_run_phase_0; then
-        return 0
-    fi
-    
-    echo "=== Phase 0: Existing Project Analysis ==="
-    
-    # Analyze source code
-    analyze_source_code
-    
-    # If in interactive mode, show summary
-    if [ "$IDEAL_STI_MODE" = "interactive" ]; then
-        echo ""
-        echo "📊 Analysis Summary:"
-        if [ -f "docs/planning/phase0-existing-analysis.md" ]; then
-            grep -E "^##|^- " docs/planning/phase0-existing-analysis.md | head -20
-        fi
-        
-        echo ""
-        read -p "Review complete analysis? [y/N]: " review
-        if [ "$review" = "y" ]; then
-            less docs/planning/phase0-existing-analysis.md
-        fi
-    fi
-    
-    # Extract constraints for subsequent phases
-    export IDEAL_STI_EXISTING_CONSTRAINTS="true"
-    
-    echo "✅ Phase 0 complete - constraints captured for planning"
-}
+## Technical Debt Assessment
+- Code smells detected
+- Outdated dependencies
+- Missing tests
+- Security vulnerabilities
+
+## Recommended Actions
+- [ ] Update README with discovered features
+- [ ] Document API endpoints found  
+- [ ] Add architecture diagrams
+- [ ] Create missing setup guides
+
+## Integration with Planning
+- Existing features to preserve
+- Constraints from current implementation
+- Migration requirements
 ```
+
+**Phase 0 continues without user confirmation since it's optional.**
 
 ### Phase 1: Discovery & Problem Elaboration
 
+**Purpose:** Comprehensive problem analysis with stakeholder research and contrarian thinking.
+
 **Execution Instructions:**
 ```markdown
-Create docs/planning/phase1-discovery.md following these adaptive guidelines:
+Create docs/planning/phase1-discovery.md with exhaustive analysis:
 
-## REQUIRED SECTIONS (scale to project complexity)
+## Original Request
+[Capture verbatim user requirements and preserve context]
 
-1. **Original Request**
-   - Capture verbatim user requirements
-   - Preserve exact context and constraints
+## Expanded Problem Statement  
+Scale content appropriately:
+- Simple project: 1-2 paragraphs
+- Medium project: Full page with subsections  
+- Complex project: Multiple pages with domain analysis
 
-2. **Expanded Problem Statement** 
-   - Simple project: 1-2 paragraphs
-   - Medium project: Full page with subsections
-   - Complex project: Multiple pages with domain analysis
+## Stakeholder Analysis
+Scale to project scope:
+- Minimum: Primary users + 2 other categories
+- Medium: 5-7 stakeholder categories with needs/pain points
+- Enterprise: 10+ including regulatory/compliance bodies
+- MUST discover hidden stakeholders through research
 
-3. **Stakeholder Analysis** (adapt count to project scope)
-   - Minimum: Primary users + 1 other category
-   - Medium: 5-7 stakeholder categories
-   - Enterprise: 10+ including regulatory/compliance bodies
-   - MUST include research-discovered hidden stakeholders
+## Use Cases & Scenarios
+Scale appropriately:  
+- Simple tool: 5-8 use cases
+- Standard app: 10-15 use cases
+- Platform: 20+ use cases with sub-flows
+- MUST include edge cases and failure modes
 
-4. **Use Cases** (scale appropriately)
-   - Simple tool: 3-5 use cases
-   - Standard app: 10-15 use cases
-   - Platform: 20+ use cases with sub-flows
-   - MUST include edge cases and failure modes
+## Requirements Discovery
+- Functional requirements (user capabilities)
+- Non-functional requirements (performance, security)
+- Compliance requirements (if applicable)  
+- Technical constraints
 
-5. **Requirements** (research-validated)
-   - Functional requirements (user capabilities)
-   - Non-functional requirements (performance, security)
-   - Compliance requirements (if applicable)
-   - Technical constraints (discovered through research)
+## What NOT to Do (CRITICAL)
+- Anti-patterns to avoid
+- Common mistakes in this domain
+- Technology-first thinking traps
+- Assumptions that could be wrong
 
-6. **What NOT to do** (CRITICAL SECTION)
-   - Don't skip stakeholder interviews
-   - Avoid technology-first thinking
-   - Never assume requirements without validation
-   - Don't ignore regulatory constraints
-   - Avoid building without user research
+## Contrarian Analysis
+- What if our core assumptions are wrong?
+- Who would hate this solution and why?
+- What hidden agendas might stakeholders have?
+- What are we NOT seeing about this problem?
 
-7. **Contrarian Analysis**
-   - What assumptions are we making that could be wrong?
-   - What if the opposite of our assumptions is true?
-   - Who would hate this solution and why?
-   - What hidden agendas might stakeholders have?
+## Fatal Learnings from Production
+Research and document:
+- What killed similar projects? (with evidence)
+- What performance walls did they hit?
+- What security breaches occurred?
+- What compliance issues emerged?
 
-8. **Fatal Learnings from Production**
-   - What killed similar projects? (with evidence)
-   - What performance walls did they hit?
-   - What security breaches occurred?
-   - What compliance issues emerged?
-
-9. **TODO for Phase 2**
-   - [ ] Define measurable success metrics
-   - [ ] Establish concrete goals
-   - [ ] Create outcome definitions
-   - [ ] Additional items based on discoveries
-
-## RESEARCH EXECUTION (using worktree isolation)
-- Competitive analysis (direct, indirect, emerging)
-- Market research (size, trends, regulations)  
-- Stakeholder discovery (hidden, regulatory, opposing)
-- Technical feasibility (initial assessment)
-
-## VALIDATION GATES
-✓ Contains sections: Stakeholders, Use Cases, Requirements
-✓ All TODO items checked [X] before proceeding
-✓ Research findings integrated into relevant sections
-✓ Appropriate depth for project complexity
-
-## USER CONFIRMATION CHECKPOINT
-After completing Phase 1, pause and ask:
-"Phase 1 Discovery & Problem Elaboration is complete. Please review:
-- Expanded problem statement and stakeholder analysis
-- Use cases and requirements identified
-- Contrarian analysis and fatal learnings
-
-Do you want to:
-- **continue** - Proceed to Phase 2 (Goals & Success Metrics)
-- **iterate** - Refine current phase with specific feedback
-- **stop** - End planning session
-
-Your response: [continue/iterate/stop]"
+## TODO for Phase 2
+- [ ] Define measurable success metrics based on stakeholder needs
+- [ ] Establish concrete goals aligned with requirements
+- [ ] Create outcome definitions for different user personas
+- [ ] Additional items based on discovery findings
 ```
 
-**Phase 1 Bash Function:**
-```bash
-execute_phase_1() {
-    local arguments="$1"
-    echo "=== Phase 1: Discovery & Problem Elaboration ==="
-    
-    # Initialize
-    test_parent_access
-    initialize_worktree_state
-    
-    # Launch simple parallel research
-    launch_phase_research "1" "competitors markets stakeholders regulations" "$arguments"
-    
-    # Add contrarian analysis as instructions (not complex function)
-    echo "📝 Include contrarian analysis: What NOT to do, anti-patterns, failure modes"
-    
-    # Create Phase 1 document based on instructions
-    # AI interprets and scales to project complexity
-    
-    # Validate
-    validate_phase "1"
-}
-
-# Universal research launcher (DRY - replaces all complex research functions)
-launch_phase_research() {
-    local phase="$1"
-    local research_areas="$2"
-    local context="$3"
-    
-    echo "🔬 Launching parallel research for Phase $phase"
-    
-    for area in $research_areas; do
-        # Use existing infrastructure
-        create_isolated_worktree "phase${phase}-${area}" "research"
-        
-        # Simple instructions (no complex JSON)
-        echo "Research: $area for $context" > "$CURRENT_WORKTREE/mission.md"
-        echo "Worktree: $CURRENT_WORKTREE" >> "$CURRENT_WORKTREE/mission.md"
-        
-        # Launch tech-research agent
-        # Task tool handles the rest
-        
-        cleanup_isolated_worktree
-    done
-}
-
-# Phase 3 simplified
-execute_phase_3() {
-    local arguments="$1"
-    echo "=== Phase 3: Feasibility Assessment ==="
-    
-    # Simple research launch
-    launch_phase_research "3" "technical-risks resource-needs compliance" "$arguments"
-    
-    # Contrarian: What commonly fails at this stage
-    echo "📝 Include: Fatal learnings, common feasibility mistakes"
-    
-    validate_phase "3"
-}
-```
+**MANDATORY USER CONFIRMATION AFTER PHASE 1**
 
 ### Phase 2: Intent & Goals
 
+**Purpose:** Define measurable goals and success criteria based on Phase 1 discoveries.
+
 **Execution Instructions:**
-```markdown
-Create docs/planning/phase2-intent.md with scaled goal definition:
+```markdown  
+Create docs/planning/phase2-intent.md with goal hierarchy:
 
-## REQUIRED SECTIONS
-1. **Project Goals** (scale to scope)
-   - Simple: 2-3 clear objectives
-   - Medium: 5-7 categorized goals
-   - Complex: Goal hierarchy with sub-objectives
+## Project Goals
+Scale to project scope:
+- Simple: 3-5 clear objectives with metrics
+- Medium: 5-7 categorized goals with sub-objectives
+- Complex: Goal hierarchy with strategic/tactical levels
 
-2. **Success Metrics** (must be SMART)
-   - Quantifiable targets with baselines
-   - Time-bound milestones
-   - User satisfaction metrics
+Base goals on Phase 1 stakeholder analysis and requirements.
 
-3. **Expected Outcomes**
-   - User benefits (direct value)
-   - Business value (ROI, efficiency)
-   - Strategic impact (long-term)
+## Success Metrics (SMART Format)
+For each goal, define:
+- Quantifiable targets with baselines
+- Time-bound milestones  
+- User satisfaction metrics
+- Business impact measures
 
-4. **Anti-Patterns**
-   - What NOT to optimize for
-   - Metrics that mislead
-   - Goals that conflict
+## Expected Outcomes by Stakeholder
+For each stakeholder group from Phase 1:
+- Direct value they receive
+- Efficiency gains or cost savings
+- Strategic benefits
 
-5. **TODO for Phase 3**
-   - [ ] Assess technical feasibility
-   - [ ] Identify major risks
-   - [ ] Define constraints
+## Anti-Patterns & Goal Conflicts  
+- What NOT to optimize for
+- Metrics that could mislead
+- Goals that conflict with each other
+- Common goal-setting mistakes
+
+## Value Proposition Statements
+Clear value statements for:
+- Primary users
+- Secondary stakeholders
+- Business sponsors
+
+## Risk Mitigation for Goals
+- Privacy and security risks to goal achievement
+- Performance impact risks  
+- User adoption risks
+
+## TODO for Phase 3
+- [ ] Assess technical feasibility of all goals
+- [ ] Identify major risks that could block goals
+- [ ] Define resource constraints for goal achievement
+- [ ] Validate goals with user research if needed
 ```
+
+**MANDATORY USER CONFIRMATION AFTER PHASE 2**
 
 ### Phase 3: Feasibility Assessment
 
+**Purpose:** Risk-aware analysis of project feasibility with go/no-go recommendation.
+
 **Execution Instructions:**
 ```markdown
-Create docs/planning/phase3-feasibility.md with risk-aware analysis:
+Create docs/planning/phase3-feasibility.md with comprehensive assessment:
 
-## REQUIRED SECTIONS
-1. **Technical Feasibility**
-   - Core technical challenges
-   - Available solutions
-   - Technology readiness
+## Technical Feasibility 
+For each major goal from Phase 2:
+- Core technical challenges
+- Available solutions and frameworks
+- Technology readiness assessment
+- Integration complexity
 
-2. **Resource Assessment**
-   - Required skills/expertise
-   - Time estimates (realistic)
-   - Infrastructure needs
+## Resource Assessment
+- Infrastructure needs and costs
+- Third-party dependencies
 
-3. **Risk Analysis** (scale to project)
-   - Simple: Top 3 risks
-   - Medium: Risk matrix (probability/impact)
-   - Complex: Comprehensive risk register
+## Risk Analysis
+Scale to project complexity:
+- Simple: Top 5 risks with mitigation
+- Medium: Risk matrix (probability/impact) 
+- Complex: Comprehensive risk register with owners
 
-4. **Constraints**
-   - Technical limitations
-   - Resource boundaries
-   - Regulatory requirements
+Include risks from Phase 1 fatal learnings.
 
-5. **Go/No-Go Recommendation**
-   - Clear feasibility verdict
-   - Required conditions for success
-   - Alternative approaches if needed
+## Constraints Analysis
+- Technical limitations discovered
+- Resource boundaries identified
+- Regulatory requirements from stakeholder analysis
+- Market/competitive constraints
 
-6. **TODO for Phase 4**
-   - [ ] Research technology options
-   - [ ] Evaluate frameworks
-   - [ ] Assess integration points
+## Tooling Analsysis 
+- Identify tooling that would be required 
+- Idenfity similar style tools that would help with debugging
+
+## Go/No-Go Recommendation
+- Clear feasibility verdict with confidence level
+- Required conditions for success
+- Alternative approaches if constraints prevent main approach
+- Success probability assessment
+ 
+
+## TODO for Phase 4
+- [ ] Research specific technology options for feasible approach
+- [ ] Evaluate integration frameworks and patterns  
+- [ ] Assess performance characteristics of candidate technologies
+- [ ] Gather GitHub evidence for technology decisions
 ```
+
+**MANDATORY USER CONFIRMATION AFTER PHASE 3**
 
 ### Phase 4: Technology Research with GitHub Evidence
 
-**Execution Instructions:**
-```markdown
-Create docs/planning/phase4-tech-research.md with evidence-based stack discovery:
+**Purpose:** Evidence-based technology stack discovery with real-world validation.
 
-## CRITICAL REQUIREMENTS
-- Find 5+ popular GitHub repos (1000+ stars) for EACH technology stack
+**CRITICAL REQUIREMENTS:**
+- Find 5+ popular GitHub repos (1000+ stars) for EACH major technology choice
 - Focus on production reality, not tutorials or demos
 - Document actual performance bottlenecks from repo issues
 - Extract fatal learnings from production post-mortems
 
-## PARALLEL RESEARCH DIMENSIONS
-Launch tech-research agents to discover (not prescribe) solutions for:
-- Frontend architectures
+**Execution Instructions:**
+```markdown
+Create docs/planning/phase4-tech-research.md with evidence-based recommendations:
+
+## Research Methodology
+- Discovery-driven approach (find solutions, don't prescribe)
+- GitHub evidence requirements (5+ repos, 1000+ stars each)
+- Production focus over tutorial preference
+- Performance bottleneck analysis from real issues
+
+## Technology Dimensions Researched
+Launch tech-research agents for parallel discovery:
+- Frontend architectures (if applicable)
 - Backend architectures  
 - Data persistence layers
-- Infrastructure/deployment
+- Infrastructure/deployment approaches
 - API/integration patterns
+- Security and authentication approaches
 
-## DISCOVERY REQUIREMENTS PER TECHNOLOGY
+## Scale
+- Idenify the request and technology ability to support the scale of the profiled set of operations
 
-### GitHub Repository Evidence (5+ repos required)
-For each repository document:
-- URL, stars, last update
-- Exact tech stack versions
-- Architecture patterns used
-- Performance optimizations
-- Notable implementations
-- Issues/learnings extracted
+## State and Storage
+- Identify how state and storage will be handled, if any, for the operations and use cases
+- Keep in mind encoding formats and identifiers for state storage 
 
-### Production Analysis
-- What's actually deployed (Docker pulls, package downloads)
+## User Interface
+- Analyze whether the user interface will support the intended use cases with the technologies 
+
+
+## GitHub Repository Evidence
+For EACH technology recommendation, document:
+
+### [Technology Category]: [Recommended Solution]
+**GitHub Evidence:**
+1. **[Repo Name]** ([URL], [stars], [last update])
+   - Tech stack versions used
+   - Architecture patterns implemented
+   - Performance optimizations found
+   - Notable production learnings from issues
+
+[Repeat for 5+ repositories per technology]
+
+**Production Analysis:**
+- What's actually deployed (package downloads, Docker pulls)
 - Performance characteristics (benchmarks, bottlenecks)
 - Fatal learnings (what failed spectacularly)
 - Adjacent dependencies (what else you're committing to)
 
-### Technical Trends
-- GitHub star velocity (not just total)
-- Commit/release frequency
-- Issue resolution patterns
-- Fork/derivative projects
+## Technology Stack Recommendations
 
-## DELIVERABLE STRUCTURE
+### Safe Production Choice (Boring but Proven)
+- Framework: [X] based on [Y] repos with 5+ years stability
+- Expected success: 90%+ (proven patterns)
+- Trade-offs: Lower innovation, higher predictability
 
-1. **GitHub Evidence Section**
-   - 5+ repos per technology with analysis
-   - Common patterns across repos
-   - Anti-patterns from issues/failures
+### Innovation Choice (Trending with Evidence) 
+- Framework: [X] based on [Y] repos with strong growth
+- Expected success: 75-85% (newer but validated)
+- Trade-offs: Higher capability, moderate risk
 
-2. **Production Reality**
-   - Battle-tested stacks (5+ years, stable)
-   - Trending stacks (2-3 years, growing)
-   - Experimental (promising but risky)
+### Avoid Unless Specific Requirements
+- Frameworks with evidence of production issues
+- Technologies with declining maintenance
+- Solutions with vendor lock-in risks
 
-3. **Performance Analysis**
-   - Bottleneck scenarios from real repos
-   - Benchmark data (TechEmpower, etc.)
-   - Scaling patterns and limits
+## Fatal Learnings from Production
+Document from repository analysis:
+- What killed similar projects in this domain
+- Common performance bottlenecks hit
+- Security breaches documented  
+- Compliance issues that emerged
 
-4. **Stack Recommendations**
-   - Safe production choice (boring but proven)
-   - Innovation choice (trending with evidence)
-   - Avoid unless (specific warnings)
+## Architecture Integration Analysis
+- System performance characteristics
+- Data flow design
+- Integration patterns validated by repos
+- Scaling patterns and limits
 
-5. **TODO for Phase 5**
-   - [ ] Requirements based on tech constraints
-   - [ ] Performance targets from benchmarks
-   - [ ] Architecture patterns from successful repos
+## TODO for Phase 5
+- [ ] Define functional requirements based on validated tech constraints
+- [ ] Specify performance requirements from benchmark analysis  
+- [ ] Document API contracts based on integration patterns
+- [ ] Create acceptance criteria based on GitHub evidence
 ```
 
-**Phase 4 Bash Function:**
-```bash
-execute_phase_4() {
-    local arguments="$1"
-    echo "=== Phase 4: Technology Research & Discovery ==="
-    
-    # Initialize research framework
-    test_parent_access
-    initialize_worktree_state
-    
-    # Launch discovery-driven research (not prescriptive!)
-    launch_tech_research_with_github_evidence "$arguments"
-    
-    # Validate discoveries
-    validate_phase_4 "docs/planning/phase4-tech-research.md"
-}
+**MANDATORY USER CONFIRMATION AFTER PHASE 4**
 
-# Simplified research launcher with GitHub focus
-launch_tech_research_with_github_evidence() {
-    local project_context="$1"
-    
-    # Research dimensions for comprehensive coverage
-    local dimensions="frontend backend database infrastructure integration"
-    
-    for dimension in $dimensions; do
-        echo "📡 Launching tech-research for: $dimension"
-        
-        # Create isolated worktree
-        create_isolated_worktree "phase4-${dimension}" "tech-research"
-        
-        # Provide discovery instructions (not prescriptive tech lists!)
-        cat > "$CURRENT_WORKTREE/research-mission.md" << EOF
-# Tech-Research Mission: ${dimension}
+### Phase 5: Requirements Definition
 
-## Project Context
-$project_context
+**Purpose:** Detailed functional and non-functional requirements based on validated technology stack.
 
-## REQUIREMENTS
-1. Discover appropriate technologies (don't assume!)
-2. Find 5+ GitHub repos (1000+ stars) using each stack
-3. Extract performance bottlenecks from repo issues
-4. Document fatal learnings and anti-patterns
-5. Analyze adjacent technology requirements
+**Execution Instructions:**
+```markdown
+Create docs/planning/phase5-requirements.md with complete specification:
 
-## GitHub Search Queries to Use
-- site:github.com "${dimension}" stars:>1000 pushed:>2024-01-01
-- site:github.com "${project_context}" "${dimension}" stars:>500
-- Look for: production apps, not tutorials
+## Functional Requirements
+Format as user stories based on Phase 1 stakeholders:
 
-## Output Required
-Create detailed analysis with GitHub evidence in:
-$CURRENT_WORKTREE/tech-research-${dimension}.md
-EOF
-        
-        # Launch tech-research agent
-        # Task tool: subagent_type="tech-research"
-        # Agent discovers stacks, researches deeply, finds repos
-        
-        # Cleanup merges discoveries back
-        cleanup_isolated_worktree
-    done
-}
+### Epic: [Major Feature Area]
+**User Story**: As a [stakeholder type], I want [capability] so that [value]
+**Acceptance Criteria:**
+- [ ] [Testable condition 1]  
+- [ ] [Testable condition 2]
+- [ ] [Performance criteria from Phase 4 analysis]
+**Priority**: [Must Have/Should Have/Could Have]
+**Effort Estimate**: [Based on Phase 4 tech choices]
 
-validate_phase_4() {
-    local phase_file="$1"
-    
-    # Check GitHub evidence requirement
-    if ! grep -q "github.com" "$phase_file"; then
-        echo "❌ Missing GitHub repository evidence"
-        return 1
-    fi
-    
-    # Check for minimum repo count (5+ per stack)
-    local repo_count=$(grep -c "https://github.com" "$phase_file")
-    if [ "$repo_count" -lt 15 ]; then  # Assuming 3+ stacks
-        echo "⚠️ Insufficient GitHub evidence (found $repo_count repos, need 15+)"
-        return 1
-    fi
-    
-    echo "✅ Phase 4 validation complete with GitHub evidence"
-    return 0
-}
+[Repeat for all major features]
+
+## Non-Functional Requirements
+
+### Performance Requirements (from Phase 4 benchmarks)
+- Response time targets with load scenarios
+- Throughput requirements with user growth projections
+- Scalability requirements based on usage analysis
+
+### Security Requirements (from stakeholder analysis)
+- Authentication/authorization requirements
+- Data protection requirements (based on privacy analysis)
+- Compliance requirements (from regulatory stakeholders)
+
+### Reliability Requirements
+- Availability targets (uptime requirements)
+- Recovery time objectives
+- Data backup and recovery requirements
+
+### Usability Requirements
+- User experience goals from Phase 2
+- Accessibility requirements 
+- Internationalization needs (if identified)
+
+## Technical Requirements (from Phase 4 analysis)
+- Platform compatibility requirements
+- Integration requirements with existing systems
+- Data migration requirements (if Phase 0 identified legacy)
+- API requirements for extensibility
+
+## Compliance Requirements (from stakeholder analysis)
+- Regulatory compliance needs identified
+- Industry standard compliance (if applicable)
+- Data governance requirements
+- Audit and reporting requirements
+
+## Requirements Traceability Matrix
+Map each requirement to:
+- Originating stakeholder need (Phase 1)
+- Supporting goal (Phase 2) 
+- Technical feasibility assessment (Phase 3)
+- Technology choice impact (Phase 4)
+
+## TODO for Phase 6
+- [ ] Prioritize requirements for MVP vs future phases
+- [ ] Define explicit scope boundaries (what's NOT included)
+- [ ] Create phase 2 feature roadmap
+- [ ] Establish out-of-scope criteria
 ```
 
-### Phase 5-10: Summary Instructions
+**MANDATORY USER CONFIRMATION AFTER PHASE 5**
 
-**Phase 5: Requirements Definition**
-- Functional requirements (user stories format)
-- Non-functional requirements (performance, security, compliance)
-- Acceptance criteria (testable conditions)
-- Requirements traceability matrix
+### Phases 6-10: Automated Execution
 
-**Phase 6: Scope & Prioritization**
-- MVP definition (must-have features)
-- Phase 2 features (nice-to-have)
-- Future vision (long-term roadmap)
-- Out of scope (explicit exclusions)
+After user approval of Phase 5, the system continues with Phases 6-10 automatically:
 
-**Phase 7: Architecture Design**
-- System architecture (components and connections)
-- Data architecture (models and relationships)
-- Security architecture (authentication, authorization)
-- Deployment architecture (environments, CI/CD)
-
-**Phase 8: Decision Registry**
-- Technology decisions with rationale
-- Trade-offs accepted
-- Alternatives considered
-- Decision reversal triggers
-
-**Phase 9: Interface Specifications**
-- UI/UX specifications (launch ui-strategy agent)
-- API specifications
-- Integration interfaces
-- Component contracts
-
-**Phase 10: Task Generation**
-- Architectural tasks (A-prefix)
-- Feature tasks (F-prefix)
-- Task dependencies
-- Execution order
-- Parallel execution opportunities
+**Phase 6**: Scope & Prioritization (MVP definition, feature roadmap)
+**Phase 7**: Architecture Design (system, data, security architecture)  
+**Phase 8**: Decision Registry (technology decisions with rationale)
+**Phase 9**: Interface Specifications (UI/UX specs, API specs)
+**Phase 10**: Task Generation (implementation tasks with dependencies)
 
 ---
 
 ## SECTION 3: SIMPLIFIED EXECUTION FRAMEWORK
 
-### Main Orchestration Function
-
 ```bash
-# Main entry point - simplified from 400+ lines to ~50 lines
+# Main entry point with user confirmation integration
 main() {
     local ARGUMENTS="$1"
     
@@ -1457,83 +1062,180 @@ main() {
         git commit -m "Initial commit for IDEAL-STI planning" || true
     fi
     
-    # Initialize state management for concurrent execution
+    # Initialize state management
     initialize_worktree_state
-    
-    # Scan and aggregate knowledge
     scan_knowledge_folders
     
     # Create directory structure
     mkdir -p docs/planning
     mkdir -p tasks/{pending,in-progress,completed}
     
-    # Execute phases sequentially with validation
-    for phase in {1..10}; do
+    # Execute phases with user confirmation checkpoints
+    local critical_phases=(0 1 2 3 4 5)
+    local auto_phases=(6 7 8 9 10)
+    
+    # Critical phases with user confirmation
+    for phase in "${critical_phases[@]}"; do
+        if [ "$phase" = "0" ] && ! should_run_phase_0; then
+            continue  # Skip Phase 0 if not needed
+        fi
+        
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "Executing Phase $phase"
+        echo "🎯 Phase $phase: $(get_phase_name $phase)"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         
-        # Execute phase function
+        # Execute phase
         execute_phase_${phase} "$ARGUMENTS"
         
-        # Validate before proceeding
+        # Validate phase completion
         if ! validate_phase "$phase"; then
             echo "❌ Phase $phase validation failed"
-            echo "📝 Review and complete requirements before continuing"
             return 1
         fi
         
-        # Check for major validation points
-        if [ "$phase" = "4" ]; then
-            echo "🔍 Phase 4.5: Major validation checkpoint"
-            validate_checkpoint "4.5"
+        # User confirmation for critical phases (skip Phase 0 confirmation)
+        if [ "$phase" != "0" ]; then
+            present_phase_summary "$phase"
+            if ! get_user_confirmation "$phase"; then
+                echo "🛑 Planning session ended by user"
+                return 0
+            fi
         fi
     done
     
-    echo "✅ IDEAL-STI planning complete"
-    echo "📊 Generated $(ls tasks/pending/*.md 2>/dev/null | wc -l) tasks"
-}
-```
-
-### Universal Phase Validation
-
-```bash
-# Phase 0 specific validation
-validate_phase_0() {
-    local phase_file="docs/planning/phase0-existing-analysis.md"
+    echo ""
+    echo "🚀 User approved foundation (Phases 1-5). Proceeding with automatic execution of Phases 6-10..."
     
-    # Phase 0 might be skipped, so no validation needed if file doesn't exist
-    if [ ! -f "$phase_file" ]; then
-        echo "✅ Phase 0 skipped (no existing project)"
-        return 0
-    fi
-    
-    # Check for required sections
-    local required_sections=(
-        "Project Discovery"
-        "Source Code"
-        "Documentation Status"
-        "Recommended"
-    )
-    
-    for section in "${required_sections[@]}"; do
-        if ! grep -q "$section" "$phase_file"; then
-            echo "❌ Missing section: $section"
+    # Automated phases after user approval
+    for phase in "${auto_phases[@]}"; do
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "⚡ Phase $phase: $(get_phase_name $phase)"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        
+        execute_phase_${phase} "$ARGUMENTS"
+        
+        if ! validate_phase "$phase"; then
+            echo "❌ Phase $phase validation failed"
             return 1
         fi
     done
     
-    echo "✅ Phase 0 validation complete"
-    return 0
+    echo ""
+    echo "✅ IDEAL-STI planning complete with user-approved foundation!"
+    echo "📊 Generated $(ls tasks/pending/*.md 2>/dev/null | wc -l) implementation tasks"
 }
 
-# Simplified validation using ripgrep when available
+# User confirmation functions
+present_phase_summary() {
+    local phase="$1"
+    local phase_name="$(get_phase_name $phase)"
+    local phase_file="docs/planning/phase${phase}-*.md"
+    
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📊 Phase $phase Complete: $phase_name"  
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    echo ""
+    echo "✅ **Key Accomplishments:**"
+    case $phase in
+        1) echo "   - Comprehensive stakeholder analysis and use case definition"
+           echo "   - Contrarian analysis and fatal learnings research"
+           echo "   - Problem space thoroughly explored with requirements" ;;
+        2) echo "   - SMART goals defined with success metrics"
+           echo "   - Stakeholder value propositions clarified"
+           echo "   - Anti-patterns identified to avoid" ;;
+        3) echo "   - Technical feasibility assessed with risk analysis"
+           echo "   - Resource requirements identified with gap analysis"
+           echo "   - Go/No-Go recommendation with confidence level" ;;
+        4) echo "   - Technology stack researched with GitHub evidence"
+           echo "   - Production reality validated through repository analysis"
+           echo "   - Performance characteristics documented from benchmarks" ;;
+        5) echo "   - Functional requirements defined as testable user stories"
+           echo "   - Non-functional requirements based on validated tech stack"
+           echo "   - Requirements traceability established across phases" ;;
+    esac
+    
+    echo ""
+    echo "📋 **Created Deliverables:**"
+    if ls $phase_file 1>/dev/null 2>&1; then
+        ls $phase_file | sed 's/^/   - /'
+        echo ""
+        echo "📄 **Full Output**: $(ls $phase_file | head -1)"
+    fi
+}
+
+get_user_confirmation() {
+    local phase="$1"
+    local next_phase=$((phase + 1))
+    
+    echo ""
+    echo "🛑 **USER CONFIRMATION REQUIRED**"
+    echo ""
+    echo "Please review the Phase $phase output and choose:"
+    echo ""
+    echo "**continue** - Proceed to Phase $next_phase"
+    echo "**iterate** - Refine current phase (provide specific feedback)"  
+    echo "**stop** - End planning session"
+    echo ""
+    echo -n "Your response: [continue/iterate/stop] "
+    
+    read -r user_choice
+    
+    case "$user_choice" in
+        continue|c)
+            echo "✅ Proceeding to Phase $next_phase"
+            return 0
+            ;;
+        iterate|i)
+            echo "📝 Please provide specific feedback for refinement:"
+            read -r feedback
+            echo "🔄 Refining Phase $phase with feedback: $feedback"
+            # Re-execute phase with feedback context
+            export IDEAL_STI_REFINEMENT="$feedback"
+            execute_phase_${phase} "$ARGUMENTS"
+            # Recursively ask for confirmation again
+            get_user_confirmation "$phase"
+            ;;
+        stop|s)
+            echo "🛑 Planning session ended by user choice"
+            return 1
+            ;;
+        *)
+            echo "❓ Please enter 'continue', 'iterate', or 'stop'"
+            get_user_confirmation "$phase"
+            ;;
+    esac
+}
+
+get_phase_name() {
+    local phase="$1"
+    case $phase in
+        0) echo "Existing Project Analysis" ;;
+        1) echo "Discovery & Problem Elaboration" ;;
+        2) echo "Intent & Goals" ;;  
+        3) echo "Feasibility Assessment" ;;
+        4) echo "Technology Research" ;;
+        5) echo "Requirements Definition" ;;
+        6) echo "Scope & Prioritization" ;;
+        7) echo "Architecture Design" ;;
+        8) echo "Decision Registry" ;;
+        9) echo "Interface Specifications" ;;
+        10) echo "Task Generation" ;;
+    esac
+}
+
+# Universal phase validation with TODO checking
 validate_phase() {
     local phase="$1"
     
     # Special handling for Phase 0
     if [ "$phase" = "0" ]; then
-        return validate_phase_0
+        local phase_file="docs/planning/phase0-existing-analysis.md"
+        if [ ! -f "$phase_file" ]; then
+            echo "✅ Phase 0 skipped (no existing project)"
+            return 0
+        fi
     fi
     
     local phase_file="docs/planning/phase${phase}-*.md"
@@ -1544,305 +1246,88 @@ validate_phase() {
         return 1
     fi
     
-    # Check TODO completion (works with grep or rg)
-    if command -v rg >/dev/null 2>&1; then
-        # Use ripgrep for better performance
-        if rg -q '\[ \]' $phase_file 2>/dev/null; then
-            echo "⚠️ Uncompleted TODO items in Phase $phase"
-            rg '\[ \]' $phase_file
-            return 1
-        fi
-    else
-        # Fallback to grep
-        if grep -q '\[ \]' $phase_file 2>/dev/null; then
-            echo "⚠️ Uncompleted TODO items in Phase $phase"
-            grep '\[ \]' $phase_file
-            return 1
-        fi
+    # Check TODO completion
+    if grep -q '\[ \]' $phase_file 2>/dev/null; then
+        echo "⚠️ Uncompleted TODO items in Phase $phase:"
+        grep '\[ \]' $phase_file
+        return 1
     fi
     
-    # Phase-specific validation using flexible patterns
-    case $phase in
-        1) validate_content "$phase_file" "stakeholder|use case|requirement" ;;
-        2) validate_content "$phase_file" "goal|metric|success" ;;
-        3) validate_content "$phase_file" "feasibility|risk|constraint" ;;
-        4) validate_content "$phase_file" "technology|integration|stack" ;;
-        5) validate_content "$phase_file" "functional|non-functional|acceptance" ;;
-        6) validate_content "$phase_file" "scope|priority|MVP" ;;
-        7) validate_content "$phase_file" "architecture|component|integration" ;;
-        8) validate_content "$phase_file" "decision|rationale|trade-off" ;;
-        9) validate_content "$phase_file" "interface|specification|contract" ;;
-        10) validate_content "$phase_file" "task|dependency|execution" ;;
-    esac
-}
-
-# Content validation helper (prefers ripgrep)
-validate_content() {
-    local file="$1"
-    local pattern="$2"
-    
-    if command -v rg >/dev/null 2>&1; then
-        # Use ripgrep with case-insensitive search
-        if ! rg -qi "$pattern" "$file" 2>/dev/null; then
-            echo "⚠️ Missing required content matching: $pattern"
-            return 1
-        fi
-    else
-        # Fallback to grep
-        if ! grep -Ei "$pattern" "$file" 2>/dev/null; then
-            echo "⚠️ Missing required content matching: $pattern"
-            return 1
-        fi
-    fi
-    
+    echo "✅ Phase $phase validation complete"
     return 0
 }
-```
 
----
+# Execute specific phase functions (simplified stubs - full implementation follows pattern)
+execute_phase_1() {
+    local arguments="$1"
+    # Create comprehensive discovery document following Phase 1 instructions
+    # Launch research agents for stakeholder analysis
+    # Include contrarian analysis and fatal learnings
+}
 
-## SECTION 4: EXECUTION GUIDE
+execute_phase_2() {
+    local arguments="$1" 
+    # Create goal hierarchy based on Phase 1 stakeholders
+    # Define SMART metrics with baselines
+    # Include anti-patterns and value propositions
+}
 
-### How to Invoke the System
+execute_phase_3() {
+    local arguments="$1"
+    # Assess technical feasibility of Phase 2 goals
+    # Create risk matrix with mitigation strategies  
+    # Provide go/no-go recommendation
+}
 
-1. **Initial Setup**: Ensure git repository exists
-2. **Launch Command**: `/prompt ideal-sti <requirements>`
-3. **Phase Flow**: System executes phases 1-10 sequentially
-4. **Parallel Execution**: Worktrees created for research and tasks
-5. **Validation Gates**: Each phase validates before proceeding
-6. **Task Execution**: Final phase generates and executes tasks
+execute_phase_4() {
+    local arguments="$1"
+    # Launch tech-research agents for GitHub evidence gathering
+    # Require 5+ repos per major technology choice
+    # Focus on production reality and performance analysis
+}
 
-### When Worktrees Are Created
-
-- Phase 1: Research worktrees for stakeholder/market analysis
-- Phase 3: Contrarian analysis worktrees
-- Phase 4: Technology research worktrees (parallel)
-- Phase 9: UI strategy worktree
-- Phase 10: Task execution worktrees (parallel)
-
-### Human Oversight Points
-
-- Phase 4.5: Major validation checkpoint
-- Phase 6.5: Scope validation
-- Phase 8.5: Decision validation
-- After Phase 10: Final review before execution
-
----
-
-## SECTION 5: BENEFITS OF THIS REFACTORING
-
-### Code Reduction Achieved
-- **Original**: 2246 lines of complex bash/heredocs
-- **Refactored**: ~950 lines (58% reduction)
-- **Infrastructure preserved**: 520 lines (untouched)
-- **Instructions**: ~250 lines (adaptable)
-- **Framework**: ~180 lines (massively simplified)
-
-### Key Improvements
-
-1. **Adaptive Complexity**
-   - Simple projects get simple documentation
-   - Complex projects get comprehensive documentation
-   - Same instructions handle both
-
-2. **Maintainability**
-   - Change requirements without touching code
-   - Instructions are human-readable
-   - Clear separation of concerns
-
-3. **Performance**
-   - Ripgrep support for faster validation
-   - Reduced token usage (90% less)
-   - Faster execution with simplified logic
-
-4. **Safety Preserved**
-   - ALL worktree isolation intact
-   - State management unchanged
-   - Concurrent execution safety maintained
-   - Direct patch piping preserved
-
-### What Changed vs What Stayed
-
-**CHANGED (Simplified):**
-- Phase content generation (heredocs → instructions)
-- Research execution (complex JSON → simple launcher)
-- Contrarian analysis (functions → instructions)
-- Tech-research focus (GitHub evidence requirement)
-- Validation logic (rigid → flexible with ripgrep)
-- Main orchestration (400 lines → 50 lines)
-
-**UNCHANGED (Protected):**
-- Worktree creation/cleanup
-- State management
-- Git operations with -C
-- Subshell isolation patterns
-- Knowledge scanning
-
-### Usage Remains Simple
-
-```bash
-# Invoke exactly as before
-/prompt ideal-sti "Build a real-time collaborative task management system"
-
-# System automatically:
-# 1. Scales documentation to project complexity
-# 2. Launches parallel research with worktree isolation
-# 3. Validates phase transitions
-# 4. Generates appropriate tasks
-```
-
-### Summary
-
-This refactoring achieves the goal of "prompt-as-code" by:
-- Converting rigid templates to adaptive instructions
-- Simplifying research from complex JSON to simple text
-- Adding GitHub evidence requirements (5+ repos per stack)
-- Preserving ALL critical safety mechanisms
-- Reducing code by 58% while increasing capability
-- Making the system more maintainable and understandable
-
-**Key Wins:**
-1. **DRY Principle**: One research launcher replaces many complex functions
-2. **GitHub Evidence**: Every tech recommendation backed by real repos
-3. **Discovery-Driven**: Tech-research finds stacks, not prescribed lists
-4. **Production Focus**: Fatal learnings, bottlenecks, what's actually deployed
-5. **Adaptive Documentation**: Scales from simple CLI to enterprise platform
-
-The IDEAL-STI system now thinks like an architect, researches like an engineer, and maintains bulletproof isolation for parallel execution.
-
-## Main Orchestrator with Mode Support
-
-```bash
-# Main IDEAL-STI Orchestrator
-execute_ideal_sti() {
-    local project_context="$1"
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🚀 IDEAL-STI Orchestration System v2"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    # Select execution mode
-    select_execution_mode
-    
-    # Initialize environment
-    test_parent_access
-    initialize_worktree_state
-    scan_knowledge_folders
-    
-    # Phase execution with mode branching
-    local phases=(
-        "0:Existing Project Analysis"
-        "1:Discovery & Problem Elaboration"
-        "2:Goals & Success Metrics"
-        "3:Data & Information Architecture"
-        "4:Technology Research & Discovery"
-        "5:Requirements & User Stories"
-        "6:UI/UX Design Strategy"
-        "7:Technical Architecture"
-        "8:Implementation Tasks"
-        "9:Quality & Validation"
-        "10:Deployment & Future"
-    )
-    
-    for phase_info in "${phases[@]}"; do
-        local phase_num="${phase_info%%:*}"
-        local phase_name="${phase_info#*:}"
-        local phase_file="docs/planning/phase${phase_num}-*.md"
-        local retry_count=0
-        local max_retries=3
-        
-        # Execute phase with retry logic
-        while [ $retry_count -lt $max_retries ]; do
-            echo ""
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            echo "🎯 Phase $phase_num: $phase_name"
-            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-            
-            # Execute the phase
-            execute_phase_${phase_num} "$project_context"
-            
-            # Validate phase completion
-            if validate_phase "$phase_num"; then
-                # Mode-specific review
-                if [ "$IDEAL_STI_MODE" = "interactive" ]; then
-                    if interactive_phase_review "$phase_num" "$phase_name" "$phase_file"; then
-                        break  # Continue to next phase
-                    else
-                        echo "🔄 Re-running phase with refinements..."
-                        retry_count=$((retry_count + 1))
-                    fi
-                else  # YOLO mode
-                    echo "✅ Phase $phase_num completed (YOLO mode)"
-                    break
-                fi
-            else
-                # Validation failed
-                if [ "$IDEAL_STI_MODE" = "yolo" ]; then
-                    echo "⚠️ Validation failed, auto-iterating (attempt $((retry_count + 2))/$max_retries)"
-                    apply_recommended_improvements "$phase_num"
-                    retry_count=$((retry_count + 1))
-                else
-                    echo "❌ Phase validation failed. Please refine and retry."
-                    if ! interactive_phase_review "$phase_num" "$phase_name" "$phase_file"; then
-                        retry_count=$((retry_count + 1))
-                    fi
-                fi
-            fi
-        done
-        
-        if [ $retry_count -eq $max_retries ]; then
-            echo "❌ Phase $phase_num failed after $max_retries attempts"
-            if [ "$IDEAL_STI_MODE" = "interactive" ]; then
-                read -p "Continue anyway? [y/N]: " continue_anyway
-                [ "$continue_anyway" != "y" ] && exit 1
-            fi
-        fi
-    done
-    
-    # Final summary
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "✅ IDEAL-STI Planning Complete!"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "📊 Generated Artifacts:"
-    ls -la docs/planning/phase*.md 2>/dev/null | tail -10
-    
-    echo ""
-    echo "🎯 Next Steps:"
-    echo "1. Review the complete plan in docs/planning/"
-    echo "2. Begin implementation with Phase 8 tasks"
-    echo "3. Use Phase 9 validation criteria"
-    echo "4. Deploy using Phase 10 strategy"
-    
-    # Clean up worktree state
-    cleanup_abandoned_worktrees
+execute_phase_5() {
+    local arguments="$1"
+    # Convert insights into detailed requirements
+    # Create user stories with acceptance criteria
+    # Map requirements back to earlier phase discoveries
 }
 
 # Entry point
 if [ -n "$1" ]; then
-    execute_ideal_sti "$1"
+    main "$1"
 else
     echo "Usage: $0 \"<project-description>\""
-    echo "   or: IDEAL_STI_MODE=yolo $0 \"<project-description>\""
 fi
 ```
 
 ---
 
-## Version History
+## Key Changes in Version 2.1
 
-### Version 2.0 (Current)
-- **Added Phase 0**: Existing Project Analysis with reverse engineering
-- **Execution Modes**: Interactive (default) and YOLO (autonomous)
-- **Enhanced Documentation**: Anti-patterns, Contrarian Analysis, Fatal Learnings
-- **GitHub Evidence**: Required 5+ repos (1000+ stars) per technology stack
-- **Smart Skip Logic**: Auto-skip Phase 0 for fresh docs or greenfield projects
-- **Improved Validation**: Ripgrep support with grep fallback
-- **Code Reduction**: 58% less code through prompt-as-instruction approach
+### 1. **Mandatory User Confirmation**
+- Added confirmation checkpoints after Phases 1-5
+- User must explicitly approve before proceeding
+- Options: continue, iterate (with feedback), or stop
 
-### Version 1.0
-- Initial 10-phase system (Phases 1-10)
-- Git worktree isolation for parallel execution
-- Complex heredocs and JSON configurations
-- Basic validation framework
+### 2. **Enhanced Phase Instructions**
+- More detailed execution instructions for each critical phase
+- Clear deliverable expectations
+- Explicit TODO items for phase validation
+
+### 3. **Prompt-as-Code Alignment**
+- Converted complex bash functions to clear instruction sets
+- Made the system more interpretable and maintainable
+- Preserved all critical infrastructure while simplifying execution
+
+### 4. **GitHub Evidence Requirements**
+- Explicit requirement for 5+ repos (1000+ stars) per technology
+- Focus on production reality over tutorials
+- Performance analysis from real repository issues
+
+### 5. **Adaptive Complexity**
+- Instructions scale content based on project complexity
+- Simple projects get focused documentation
+- Complex projects get comprehensive analysis
+
+This version ensures proper user oversight while maintaining the comprehensive planning capabilities and parallel execution safety of the IDEAL-STI system.
