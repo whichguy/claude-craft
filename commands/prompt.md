@@ -546,26 +546,18 @@ if [ -n "$CONTEXT" ]; then
     TEMPLATE_CONTENT="${TEMPLATE_CONTENT//<prompt-context>/$CONTEXT}"
 fi
 
-# Output the processed template for execution
+# Output the processed template as executable instructions
+echo "<prompt-instructions>"
 echo "$TEMPLATE_CONTENT"
+echo "</prompt-instructions>"
         ;;
 esac
 ```
 
-## After Template Discovery
+## Template Execution Instructions
 
-Once the bash script above finds and outputs the template content:
+**Process**: Extract content from `<prompt-instructions>` tags and execute as natural language instructions.
 
-1. **Read the template file content** that was output by the script
-2. **Replace `<prompt-context>`** placeholders with the provided context arguments
-3. **Execute the template as prompt instructions** - interpret the template content as natural language instructions to follow
-4. **Return ONLY the execution result** - no meta-commentary about loading or executing
+**Output**: Direct execution result only - no meta-commentary about loading or executing templates.
 
-## Output Requirements
-- Direct execution result only
-- No preamble like "The template was executed..."
-- No meta-commentary about what happened
-- Just the actual output from running the template
-
-## Display Instructions
-**IMPORTANT**: Always display the complete output without collapsing. Do not truncate or summarize the results. Show all extension listings, numbers, descriptions, and usage information in full detail.
+**Display**: Always show complete output without collapsing. Do not truncate or summarize results.
