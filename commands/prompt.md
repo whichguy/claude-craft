@@ -481,8 +481,16 @@ else
             fi
         done
         
-        MATCHES=$(echo "$MATCHES" | grep -v '^$' || true)
-        MATCH_COUNT=$(echo "$MATCHES" | grep -c . 2>/dev/null || echo 0)
+        MATCHES=$(echo "$MATCHES" | grep -v '^$' | grep . || true)
+        if [ -z "$MATCHES" ]; then
+            MATCH_COUNT=0
+        else
+            MATCH_COUNT=$(echo "$MATCHES" | wc -l | tr -d ' ')
+            # Ensure MATCH_COUNT is a valid number
+            if ! [[ "$MATCH_COUNT" =~ ^[0-9]+$ ]]; then
+                MATCH_COUNT=0
+            fi
+        fi
         
         if [ "$MATCH_COUNT" -eq 1 ]; then
             TEMPLATE_FILE=$(echo "$MATCHES" | head -1)
