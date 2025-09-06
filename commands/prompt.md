@@ -564,6 +564,14 @@ esac
 
 **Process**: Extract content from `<prompt-instructions>` tags and execute as natural language instructions.
 
+**Execution Mode**: Silent - suppress all bash command echoing and intermediate output.
+
 **Output**: Direct execution result only - no meta-commentary about loading or executing templates.
 
 **Display**: Always show complete output without collapsing. Do not truncate or summarize results.
+
+**Silent Execution Guidelines**:
+- Do not show the bash script execution details
+- Do not echo commands being run  
+- Only display the final result of executing the template instructions
+- Suppress tool call summaries and intermediate processing steps
