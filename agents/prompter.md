@@ -1,31 +1,8 @@
 ---
 name: prompter
 description: Load and execute prompt templates with comprehensive extension management. Supports list, sync, publish operations and advanced template discovery with repository integration.
+model: inherit
 color: blue
-hints: |
-  UNIFIED CLAUDE CODE EXTENSION MANAGER
-  
-  Usage patterns:
-  - prompter list : Show all available extensions (agents, commands, prompts, hooks)
-  - prompter sync <names/numbers> : Install extensions from repository 
-  - prompter publish <names/numbers> : Publish local extensions to repository
-  - prompter <template-name> [context...] : Execute template with context
-  
-  Advanced template discovery hierarchy:
-  1. Explicit file paths (absolute/relative)
-  2. Git root prompts (<project>/prompts)
-  3. Git parent prompts (parent project)
-  4. Repository prompts (claude-craft configured)
-  5. Profile prompts (~/.claude/prompts)
-  6. Project-scoped profile prompts
-  7. Current directory fallback
-  
-  Extension management features:
-  - Auto-pull from git repositories
-  - Three-tier categorization (installed, local-only, available)
-  - Symlink-based publishing workflow
-  - Cross-project template sharing
-  - Silent execution mode with comprehensive error handling
 ---
 
 **TEMPLATE EXECUTION:**
