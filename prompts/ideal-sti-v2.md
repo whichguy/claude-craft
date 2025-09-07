@@ -29,6 +29,7 @@ After completing each of these phases, you MUST:
 
 **MUST Use Task Tool For Parallel Subagents:**
 - tech-research agents during Phase 4 (parallel technology investigation)
+- **system-architect agent during Phase 7 (architecture design and foundation implementation)**
 - ui-strategy agent during Phase 9 (interface design)
 - dev-task agents during Phase 10 (task generation)
 - qa-analyst agents during Phase 10 (test specification)
@@ -126,9 +127,9 @@ cleanup_abandoned_worktrees() {
                 echo "🧹 Found abandoned worktree: $worktree_path"
                 
                 # Try to commit any work before cleanup
-                if (cd "$worktree_path" && git status --porcelain | grep -q .); then
+                if git -C "$worktree_path" status --porcelain | grep -q .; then
                     echo "💾 Committing abandoned work in $worktree_path"
-                    (cd "$worktree_path" && git add -A && git commit -m "Abandoned work recovery from session $session_id" || true)
+                    git -C "$worktree_path" add -A && git -C "$worktree_path" commit -m "Abandoned work recovery from session $session_id" || true
                 fi
                 
                 # Clean up the worktree
@@ -195,7 +196,7 @@ create_isolated_worktree() {
         fi
         
         # Check 2: Not in git worktree list (using subshell format)
-        if (cd "$main_dir" && git worktree list | grep -q "$WORKTREE"); then
+        if git -C "$main_dir" worktree list | grep -q "$WORKTREE"; then
             location_available=false
         fi
         
@@ -205,7 +206,7 @@ create_isolated_worktree() {
         fi
         
         # Check 4: No conflicting directories in parent (using subshell format)
-        if (cd .. && [ -d "$(basename "$WORKTREE")" ]); then
+        if [ -d "../$(basename "$WORKTREE")" ]; then
             location_available=false
         fi
         
@@ -490,8 +491,8 @@ scan_knowledge_folders() {
             echo "📁 Found knowledge folder: $knowledge_path"
             knowledge_found=true
             
-            # Aggregate all markdown files from this knowledge folder (using subshell format)
-            local md_files=$(cd "$knowledge_path" && find . -name "*.md" -type f | sort)
+            # Aggregate all markdown files from this knowledge folder (using subshell to avoid cd)
+            local md_files=$(find "$knowledge_path" -name "*.md" -type f | sort)
             
             if [ -n "$md_files" ]; then
                 knowledge_content="$knowledge_content\n\n## Knowledge from $knowledge_path\n"
@@ -525,7 +526,7 @@ This file contains knowledge aggregated from various knowledge folders to provid
 ## Sources Scanned
 $(for path in "${search_paths[@]}"; do
     if [ -d "$path/knowledge" ]; then
-        echo "- $path/knowledge ($(cd "$path/knowledge" && find . -name "*.md" -type f | wc -l) files)"
+        echo "- $path/knowledge ($(find "$path/knowledge" -name "*.md" -type f | wc -l) files)"
     fi
 done)
 
@@ -571,7 +572,7 @@ EOF
         fi
         
         echo "✅ Knowledge aggregation completed"
-        echo "📊 Total knowledge files processed: $(cd "$project_knowledge_path" && grep -c "^### " . || echo 0)"
+        echo "📊 Total knowledge files processed: $(grep -c "^### " "$project_knowledge_path"/* 2>/dev/null || echo 0)"
     else
         echo "📝 No knowledge folders found in search paths"
         echo "💡 To add project knowledge, create a 'knowledge' folder with .md files"
@@ -1354,6 +1355,125 @@ execute_phase_5() {
     # Convert insights into detailed requirements
     # Create user stories with acceptance criteria
     # Map requirements back to earlier phase discoveries
+}
+
+# Execute Phase 6: Scope & Prioritization (stub - implement if needed)
+execute_phase_6() {
+    local arguments="$1"
+    # MVP definition and feature roadmap
+    # Prioritize requirements from Phase 5
+    # Create scope boundaries and phase 2 roadmap
+}
+
+# Execute Phase 7: Architecture Design using system-architect subagent
+execute_phase_7() {
+    local arguments="$1"
+    local main_dir="$(pwd)"
+    
+    echo "🏗️ Phase 7: Architecture Design using system-architect subagent"
+    echo "📍 Working Directory: $main_dir"
+    
+    # Prepare context for system-architect subagent
+    local epic_id="ideal-sti-phase7-$(date +%s)"
+    local architecture_context=""
+    
+    # Gather context from previous phases
+    if [ -f "$main_dir/docs/planning/phase1-discovery.md" ]; then
+        architecture_context="$architecture_context\n\n## Phase 1 Discovery Context:\n$(cat "$main_dir/docs/planning/phase1-discovery.md")"
+    fi
+    
+    if [ -f "$main_dir/docs/planning/phase2-intent.md" ]; then
+        architecture_context="$architecture_context\n\n## Phase 2 Goals Context:\n$(cat "$main_dir/docs/planning/phase2-intent.md")"
+    fi
+    
+    if [ -f "$main_dir/docs/planning/phase3-feasibility.md" ]; then
+        architecture_context="$architecture_context\n\n## Phase 3 Feasibility Context:\n$(cat "$main_dir/docs/planning/phase3-feasibility.md")"
+    fi
+    
+    if [ -f "$main_dir/docs/planning/phase4-tech-research.md" ]; then
+        architecture_context="$architecture_context\n\n## Phase 4 Technology Research Context:\n$(cat "$main_dir/docs/planning/phase4-tech-research.md")"
+    fi
+    
+    if [ -f "$main_dir/docs/planning/phase5-requirements.md" ]; then
+        architecture_context="$architecture_context\n\n## Phase 5 Requirements Context:\n$(cat "$main_dir/docs/planning/phase5-requirements.md")"
+    fi
+    
+    # Create comprehensive prompt for system-architect
+    local system_architect_prompt="IDEAL-STI Phase 7: Architecture Design
+    
+## CRITICAL WORKING DIRECTORY REQUIREMENTS
+**WORKING DIRECTORY**: $main_dir
+**NEVER USE**: cd, pushd, popd commands
+**ALWAYS USE**: Full file paths relative to working directory: $main_dir/
+**FOR GIT OPERATIONS**: Use git -C \"$main_dir\" [command]
+**FOR FILE OPERATIONS**: Use absolute paths like $main_dir/docs/architecture-specification.md
+
+## Architecture Task Context
+Create comprehensive architecture specification following the enhanced system-architect agent patterns:
+
+1. **REFERENCE CONSOLIDATED ARCHITECTURE SPEC**: Update/populate $main_dir/docs/architecture-specification.md
+2. **ENVIRONMENT DISCOVERY**: Analyze existing technology in $main_dir/
+3. **TECHNOLOGY DECISION MATRIX**: Make runtime decisions based on KISS/YAGNI principles
+4. **PERSONA-DRIVEN VALIDATION**: Validate against end user, developer, admin needs
+5. **TEST FRAMEWORK SPECIFICATION**: Define Playwright MCP + Mocha/Chai testing approach
+6. **FOUNDATIONAL IMPLEMENTATION**: Set up core frameworks before feature development
+7. **IMPLEMENTATION PATTERNS**: Create concrete patterns for feature-developer, ui-designer, qa-analyst
+
+## Predetermined Context from Previous Phases:
+$architecture_context
+
+## Expected Deliverables:
+- Updated $main_dir/docs/architecture-specification.md (consolidated single source of truth)
+- $main_dir/docs/planning/phase7-architecture.md (IDEAL-STI phase documentation)
+- Foundation implementation completed and validated
+- Agent reference patterns ready for Phase 11+ implementation
+
+## Success Criteria:
+- All architectural decisions documented in consolidated specification
+- Test frameworks established (Playwright MCP, Mocha+Chai, Supertest)
+- Foundation infrastructure implemented and validated
+- Ready for feature-developer agents in Phase 11+"
+    
+    # Invoke system-architect subagent with comprehensive context
+    echo "🤖 Invoking system-architect subagent..."
+    echo "📋 Context: $(echo "$architecture_context" | wc -l) lines from previous phases"
+    
+    # Use Task tool to invoke system-architect subagent
+    ask subagent system-architect "$epic_id" "false" "$system_architect_prompt"
+    
+    # Validate architecture phase completion
+    if [ -f "$main_dir/docs/architecture-specification.md" ] && [ -f "$main_dir/docs/planning/phase7-architecture.md" ]; then
+        echo "✅ Phase 7 Architecture Design completed successfully"
+        echo "📄 Architecture specification: $main_dir/docs/architecture-specification.md"
+        echo "📄 Phase documentation: $main_dir/docs/planning/phase7-architecture.md"
+    else
+        echo "❌ Phase 7 Architecture Design incomplete - missing required deliverables"
+        return 1
+    fi
+}
+
+# Execute Phase 8: Decision Registry (stub - implement if needed)
+execute_phase_8() {
+    local arguments="$1"
+    # Technology decisions with rationale
+    # Document final architecture decisions
+    # Create decision registry for future reference
+}
+
+# Execute Phase 9: Interface Specifications (stub - implement if needed)
+execute_phase_9() {
+    local arguments="$1"
+    # UI/UX specs and API specs
+    # Interface design specifications
+    # Integration with architecture decisions
+}
+
+# Execute Phase 10: Task Generation (stub - implement if needed)
+execute_phase_10() {
+    local arguments="$1"
+    # Implementation tasks with dependencies
+    # Task generation for feature implementation
+    # Preparation for Phase 11+ continuous implementation
 }
 
 # Phase 11+ Implementation Loop

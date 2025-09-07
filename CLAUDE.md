@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Architecture Reference
+
+**CRITICAL**: All agents and architectural decisions reference the consolidated architecture specification at `./docs/architecture-specification.md`. This single source of truth contains:
+- Technology stack decisions and implementation details
+- Test framework specifications (Playwright MCP, Mocha+Chai, Supertest)
+- Implementation patterns for authentication, API, UI, data access
+- Testing patterns for unit, integration, and E2E testing
+- Deployment, security, and performance patterns
+- Agent-specific reference guides
+
 ## Development Commands
 
 ### Testing

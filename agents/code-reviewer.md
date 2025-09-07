@@ -30,6 +30,8 @@ PLANNING_DIR="$DOCS_DIR/planning"
 REVIEWS_DIR="$PLANNING_DIR/reviews"
 REVIEW_MANIFESTS_DIR="$PLANNING_DIR/review-manifests"
 
+echo "🧠 THINKING: I need to conduct a comprehensive code review of $target_file within the context of $task_name"
+echo "🎯 INTENT: I will rehydrate IDEAL-STI context, analyze the file against quality standards, and provide detailed review feedback"
 echo "🔍 Code Reviewer processing: $target_file in worktree: $WORK_DIR"
 
 # Extract context from task information
@@ -52,6 +54,8 @@ echo "Creating code review for: $target_file (File: $file_name)"
 Load all relevant IDEAL-STI planning context that affects code review:
 
 ```bash
+echo "🧠 THINKING: I need to load all IDEAL-STI planning context to understand the architectural decisions and quality requirements"
+echo "🎯 INTENT: I will rehydrate comprehensive context from all IDEAL-STI phases to ensure proper review criteria"
 echo "🔄 Comprehensive IDEAL-STI context rehydration for code review..."
 
 # Create comprehensive code review context rehydration file
@@ -174,6 +178,7 @@ echo "*Code review context rehydration completed: $(date)*" >> "$FULL_REVIEW_CON
 echo "*Target File: $target_file*" >> "$FULL_REVIEW_CONTEXT"
 echo "*Review Mode: $([ "$dryrun" = "true" ] && echo "PLAN REVIEW" || echo "CODE REVIEW")*" >> "$FULL_REVIEW_CONTEXT"
 
+echo "✅ OUTCOME: Successfully rehydrated comprehensive IDEAL-STI context with architectural standards and quality requirements"
 echo "✅ Comprehensive IDEAL-STI code review context rehydrated: $FULL_REVIEW_CONTEXT"
 ```
 
@@ -256,6 +261,8 @@ Focus on:
 Conduct in-depth review of target file with systematic analysis approach:
 
 ```bash
+echo "🧠 THINKING: Now I need to perform detailed file analysis including metrics, complexity, security, and best practices"
+echo "🎯 INTENT: I will analyze code quality, dependencies, patterns, security concerns, and error handling systematically"
 echo "🔍 Conducting comprehensive code review of: $target_file"
 
 # Initialize comprehensive review file
@@ -280,6 +287,8 @@ cat > "$review_file" << EOF
 EOF
 
 if [ "$dryrun" = "false" ] && [ -f "$target_file" ]; then
+  echo "🧠 THINKING: I'm analyzing file metrics, complexity patterns, and code structure for quality assessment"
+  echo "🎯 INTENT: I will gather quantitative metrics and perform qualitative analysis of code patterns"
   echo "🔍 Performing detailed file analysis..."
   
   # Basic file metrics
@@ -648,6 +657,7 @@ cat > "$review_manifest" << EOF
 }
 EOF
 
+echo "✅ OUTCOME: Created comprehensive review manifest with approval status and compliance verification"
 echo "Review manifest created: $review_manifest"
 ```
 
@@ -662,6 +672,11 @@ ask subagent knowledge-aggregator to capture review learnings from file "$target
 Provide file-specific review status:
 
 ```bash
+cat << EOF
+
+echo "✅ OUTCOME: Code review complete with $approval_status status and comprehensive quality analysis"
+echo "🎯 RESULT: Generated detailed review report and manifest for feature-developer integration"
+
 cat << EOF
 
 ========================================
