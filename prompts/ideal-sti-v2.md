@@ -1091,88 +1091,87 @@ assess_complexity_and_select_mode() {
     local user_input="<prompt-context>"
     local assessment_output="$main_dir/docs/planning/1-complexity-assessment.md"
     
-    echo "🧠 Phase 1: Assessing project complexity and selecting execution mode..."
+    echo "🧠 Phase 1: Intelligent complexity assessment and execution mode selection..."
     
-    # Analyze input for complexity indicators
-    local requirements_count=0
-    local tech_complexity=0
-    local integration_complexity=0
+    # Intelligent Complexity Assessment using prompt-as-code
+    complexity_assessment_prompt="## Smart Project Complexity Analysis
+
+**Task**: Evaluate project complexity through contextual reasoning and intelligent analysis.
+
+**Project Request**: <prompt-context>
+
+**INTELLIGENT ASSESSMENT FRAMEWORK:**
+
+### 1. **Technical Architecture Complexity**
+Evaluate the architectural sophistication required:
+- **HIGH COMPLEXITY**: Distributed systems, microservices, real-time processing, event streaming, complex data pipelines, enterprise integration patterns, multi-tenant architecture
+- **MEDIUM COMPLEXITY**: Traditional client-server, standard APIs, database integration, authentication systems, moderate data processing, third-party integrations
+- **LOW COMPLEXITY**: Simple CRUD operations, basic web applications, single-database systems, straightforward user interfaces, minimal external dependencies
+
+### 2. **Business Logic Sophistication** 
+Assess the business domain complexity:
+- **HIGH COMPLEXITY**: Complex workflows, regulatory compliance, multi-role permissions, financial calculations, audit trails, complex business rules, industry-specific requirements
+- **MEDIUM COMPLEXITY**: Standard business processes, moderate user roles, basic reporting, standard e-commerce, content management, user management
+- **LOW COMPLEXITY**: Simple data entry, basic CRUD operations, straightforward user flows, minimal business logic, prototype/MVP functionality
+
+### 3. **Implementation Risk Factors**
+Consider development and delivery risks:
+- **HIGH RISK**: New/bleeding-edge technology, complex integration requirements, performance-critical systems, high availability needs, security-critical applications, large team coordination
+- **MEDIUM RISK**: Established but newer technologies, moderate performance requirements, standard security needs, small team development, well-defined scope
+- **LOW RISK**: Familiar technology stack, simple deployment, low performance requirements, solo/pair development, clear and simple requirements
+
+### 4. **Project Context Factors**
+Evaluate situational complexity:
+- **HIGH CONTEXT**: Enterprise environment, multiple stakeholders, existing system constraints, regulatory requirements, migration from legacy systems
+- **MEDIUM CONTEXT**: Standard business environment, moderate stakeholder involvement, some existing system integration, normal compliance needs
+- **LOW CONTEXT**: Greenfield development, minimal stakeholders, standalone system, flexible requirements, prototype/experimental nature
+
+**EXECUTION MODE SELECTION:**
+
+Based on your analysis, select the optimal mode:
+
+- **SPEED MODE (5-8 min)**: For simple, well-understood projects with low complexity across all dimensions. Suitable for prototypes, simple tools, basic CRUD applications, or proof-of-concepts.
+
+- **STANDARD MODE (15-25 min)**: For moderate complexity projects with some unknowns. Suitable for standard business applications, moderate integrations, established patterns with some customization.
+
+- **DEEP MODE (30-45 min)**: For high complexity or high-risk projects requiring thorough analysis. Suitable for enterprise systems, complex architectures, critical business systems, or projects with significant unknowns.
+
+**Required Output Format:**
+Generate comprehensive analysis in @docs/planning/1-complexity-assessment.md including:
+1. **Complexity Analysis**: Detailed reasoning for each dimension
+2. **Execution Mode**: Selected mode with clear justification  
+3. **Risk Factors**: Key risks and mitigation considerations
+4. **Planning Approach**: How the selected mode addresses project needs
+5. **Confidence Level**: Assessment confidence (HIGH/MEDIUM/LOW) and reasoning
+
+**Decision Criteria**: Use intelligent reasoning rather than keyword counting. Consider the full context, not just surface indicators."
+
+    echo "🤖 Task: Use system-architect subagent for intelligent complexity assessment: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/1-complexity-assessment.md"
+    echo "📄 Output Format: Structured analysis with mode selection and detailed reasoning"
+    
+    # Wait for intelligent assessment to complete and read the selected mode
+    echo "⏳ Waiting for intelligent complexity assessment to complete..."
+    
+    # Read the selected execution mode from the assessment file
     local execution_mode=""
-    
-    # Count requirements indicators
-    requirements_count=$(echo "$user_input" | grep -c -i -E "(need|want|should|require|must|feature|functionality)")
-    
-    # Assess technology complexity
-    if echo "$user_input" | grep -q -i -E "(real-time|websocket|microservice|distributed|cloud|scaling|performance|security|enterprise)"; then
-        tech_complexity=2
-    elif echo "$user_input" | grep -q -i -E "(database|api|authentication|integration)"; then
-        tech_complexity=1
-    fi
-    
-    # Assess integration complexity  
-    if echo "$user_input" | grep -q -i -E "(integrate with|existing|legacy|migration|sso|compliance|audit)"; then
-        integration_complexity=2
-    elif echo "$user_input" | grep -q -i -E "(connect to|sync|import|export)"; then
-        integration_complexity=1
-    fi
-    
-    # Calculate total complexity score
-    local total_complexity=$((requirements_count + tech_complexity + integration_complexity))
-    
-    # Select execution mode based on complexity
-    if [ $total_complexity -le 5 ]; then
-        execution_mode="SPEED"
-    elif [ $total_complexity -le 15 ]; then
-        execution_mode="STANDARD"  
+    if [ -f "$assessment_output" ]; then
+        # Extract execution mode from the assessment file
+        execution_mode=$(grep -i "selected.*mode\|execution.*mode" "$assessment_output" | head -1 | grep -o -i "SPEED\|STANDARD\|DEEP" | tr '[:lower:]' '[:upper:]')
+        
+        if [ -z "$execution_mode" ]; then
+            echo "⚠️ Could not determine execution mode from assessment - defaulting to STANDARD"
+            execution_mode="STANDARD"
+        fi
     else
-        execution_mode="DEEP"
+        echo "⚠️ Assessment file not generated - defaulting to STANDARD mode"
+        execution_mode="STANDARD"
     fi
     
-    # Create assessment document
-    cat > "$assessment_output" << EOF
-# Complexity Assessment & Mode Selection
-
-## Input Analysis
-**Original Request**: $user_input
-
-## Complexity Scoring
-- **Requirements Count**: $requirements_count indicators
-- **Technology Complexity**: $tech_complexity (0=simple, 1=medium, 2=complex)
-- **Integration Complexity**: $integration_complexity (0=simple, 1=medium, 2=complex)
-- **Total Complexity Score**: $total_complexity
-
-## Selected Execution Mode: $execution_mode
-
-### Mode Characteristics:
-$(case $execution_mode in
-    "SPEED")
-        echo "- **Duration**: 5-8 minutes total discovery"
-        echo "- **Agent Usage**: Minimal, built-in intelligence preferred"
-        echo "- **Confirmations**: Only if major conflicts detected"
-        echo "- **Output**: Consolidated discovery document"
-        ;;
-    "STANDARD")
-        echo "- **Duration**: 15-25 minutes total discovery"
-        echo "- **Agent Usage**: Strategic invocation of tech-research-analyst when needed"
-        echo "- **Confirmations**: Smart triggers for scope/tech/assumptions"
-        echo "- **Output**: Standard phase documents"
-        ;;
-    "DEEP")
-        echo "- **Duration**: 30-45 minutes comprehensive analysis"
-        echo "- **Agent Usage**: Parallel agents for thorough research"
-        echo "- **Confirmations**: Both smart triggers and phase boundaries"
-        echo "- **Output**: Extended analysis with multiple perspectives"
-        ;;
-esac)
-
-## Execution Plan
-Ready to execute $(echo "$execution_mode" | tr '[:upper:]' '[:lower:]') mode discovery phases.
-EOF
-    
-    echo "✅ Complexity assessment complete: $execution_mode mode selected"
+    echo "✅ Intelligent complexity assessment complete: $execution_mode mode selected"
     echo "🎯 Executing $execution_mode mode discovery..."
     
-    # Execute appropriate mode
+    # Execute appropriate mode based on intelligent assessment
     case $execution_mode in
         "SPEED")
             execute_speed_mode
@@ -1185,6 +1184,11 @@ EOF
         "DEEP")
             execute_deep_mode
             standardize_discovery_outputs "deep"
+            ;;
+        *)
+            echo "⚠️ Unknown execution mode: $execution_mode - executing STANDARD mode"
+            execute_standard_mode
+            standardize_discovery_outputs "standard"
             ;;
     esac
     
@@ -1210,39 +1214,593 @@ EOF
     execute_phase12_to_16_deployment
 }
 
-# Bridge discovery outputs to standard phase input format
+# EXECUTION MODE FUNCTIONS WITH INTELLIGENT CONFIRMATION TRIGGERS
+
+# SPEED MODE: Fast-track discovery with intelligent confirmation triggers
+execute_speed_mode() {
+    local main_dir="$(pwd)"
+    echo "⚡ SPEED MODE: Fast-track discovery (5-8 minutes)"
+    
+    # Single consolidated discovery phase with minimal agent involvement
+    echo "🚀 Task: Use product-strategist subagent for fast-track analysis: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    echo "📄 Analysis Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements"
+    
+    # Context-aware confirmation trigger for SPEED mode
+    evaluate_speed_mode_confirmation_needs
+}
+
+# STANDARD MODE: Full phase flow with context-aware smart confirmations
+execute_standard_mode() {
+    local main_dir="$(pwd)"
+    echo "📊 STANDARD MODE: Full phase flow with smart confirmations (15-25 minutes)"
+    
+    # Execute parallel discovery with strategic agent involvement
+    execute_standard_discovery_with_parallel_agents
+    
+    # Context-aware confirmation evaluation
+    evaluate_standard_mode_confirmation_needs
+}
+
+# DEEP MODE: Comprehensive analysis with full agent ecosystem
+execute_deep_mode() {
+    local main_dir="$(pwd)"
+    echo "🔬 DEEP MODE: Comprehensive analysis with full agent ecosystem (30-45 minutes)"
+    
+    # Extended discovery with comprehensive parallel agent coordination
+    execute_comprehensive_discovery_with_parallel_agents
+    
+    # Context-aware confirmation evaluation for complex projects
+    evaluate_deep_mode_confirmation_needs
+}
+
+# INTELLIGENT CONFIRMATION TRIGGER FUNCTIONS
+
+# Context-aware confirmation evaluation for SPEED mode
+evaluate_speed_mode_confirmation_needs() {
+    echo "🧠 Evaluating SPEED mode confirmation needs..."
+    
+    confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - SPEED Mode
+
+**Project Context**: <prompt-context>
+**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+
+**INTELLIGENT CONFIRMATION EVALUATION:**
+
+Determine if user guidance would improve fast-track discovery outcomes:
+
+### **Scope Evolution Check**
+- Has the analysis revealed requirements significantly beyond original request scope?
+- Are there multiple valid interpretation paths that weren't clear from initial input?
+- Would user clarification prevent likely rework during implementation?
+
+### **Assumption Risk Assessment**  
+- Are we making architectural assumptions that could fundamentally alter user expectations?
+- Do technology choices introduce constraints the user should be aware of?
+- Are there business logic assumptions that seem uncertain?
+
+### **Implementation Feasibility**
+- Have we identified potential blockers or constraints that affect viability?
+- Are there integration challenges that change the project scope significantly?
+- Do performance or security requirements seem unclear for the use case?
+
+**CONFIRMATION DECISION LOGIC:**
+
+**TRIGGER USER CONFIRMATION** if:
+- Scope appears to have expanded >30% from original request
+- Major architectural assumptions would be difficult/expensive to change later
+- Technical constraints introduce significant limitations user should approve
+- Multiple implementation approaches exist with very different tradeoffs
+
+**PROCEED WITHOUT CONFIRMATION** if:
+- Requirements are clear and well-bounded for a simple project
+- Technology choices are straightforward and low-risk
+- Implementation approach is obvious and aligns with user input
+- Fast-track timeline would be compromised without significant benefit
+
+**Expected Output**: Document decision in @docs/planning/confirmation-assessment-speed.md
+- **CONFIRMATION_NEEDED**: true/false
+- **Trigger Reasons**: Specific concerns requiring user input
+- **User Questions**: 3 dynamic response proposals if confirmation needed
+- **Confidence Level**: Assessment confidence in the decision"
+
+    echo "🤖 Task: Use system-architect subagent for SPEED mode confirmation evaluation: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/confirmation-assessment-speed.md"
+    
+    # Check if confirmation is needed and trigger user interaction
+    trigger_user_confirmation_if_needed "speed"
+}
+
+# Context-aware confirmation evaluation for STANDARD mode  
+evaluate_standard_mode_confirmation_needs() {
+    echo "🧠 Evaluating STANDARD mode confirmation needs..."
+    
+    confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - STANDARD Mode
+
+**Project Context**: <prompt-context>
+**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+
+**INTELLIGENT CONFIRMATION EVALUATION:**
+
+Assess if strategic user guidance would improve standard project outcomes:
+
+### **Scope & Complexity Evolution**
+- How significantly have requirements evolved from initial understanding?
+- Are there architectural complexity factors that weren't initially apparent?
+- Would user input help prioritize competing requirements or approaches?
+
+### **Technology & Integration Concerns**
+- Do technology research findings suggest unexpected constraints or opportunities?
+- Are there integration challenges that could affect user priorities?
+- Have we discovered performance/security requirements that need validation?
+
+### **Stakeholder & Business Logic Uncertainties**
+- Are there business domain assumptions that seem uncertain?
+- Do workflow or user experience choices need stakeholder validation?
+- Are there regulatory or compliance considerations that emerged?
+
+**CONFIRMATION DECISION LOGIC:**
+
+**TRIGGER USER CONFIRMATION** if:
+- Requirements complexity significantly exceeds initial assessment  
+- Technology research reveals constraints/opportunities affecting approach
+- Business logic assumptions need domain expert validation
+- Multiple architectural approaches exist with significantly different tradeoffs
+
+**PROCEED WITHOUT CONFIRMATION** if:
+- Discovery findings align well with initial complexity assessment
+- Technology choices are well-supported by requirements analysis
+- Business logic understanding seems sufficient for implementation
+- Standard approach timeline would be significantly impacted
+
+**Expected Output**: Document decision in @docs/planning/confirmation-assessment-standard.md"
+
+    echo "🤖 Task: Use system-architect subagent for STANDARD mode confirmation evaluation: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/confirmation-assessment-standard.md"
+    
+    # Check if confirmation is needed and trigger user interaction
+    trigger_user_confirmation_if_needed "standard"
+}
+
+# Context-aware confirmation evaluation for DEEP mode
+evaluate_deep_mode_confirmation_needs() {
+    echo "🧠 Evaluating DEEP mode confirmation needs..."
+    
+    confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - DEEP Mode
+
+**Project Context**: <prompt-context>
+**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+
+**COMPREHENSIVE CONFIRMATION EVALUATION:**
+
+Evaluate comprehensive user guidance needs for complex projects:
+
+### **Architecture & Scale Validation**
+- Do architectural decisions need stakeholder validation before proceeding?
+- Are scalability and performance assumptions aligned with business expectations?
+- Have we identified enterprise constraints that affect design significantly?
+
+### **Risk & Complexity Management**
+- Are there major technical risks that need user priority guidance?
+- Do integration complexities require stakeholder decision-making?
+- Are there regulatory/compliance requirements needing business validation?
+
+### **Resource & Timeline Implications**
+- Do complexity findings affect expected timeline/resource allocation?
+- Are there implementation sequence decisions that need business input?
+- Have we discovered dependencies that affect project priority/scope?
+
+**CONFIRMATION DECISION LOGIC:**
+
+For DEEP mode projects, confirmation is more frequently warranted due to complexity:
+
+**TRIGGER USER CONFIRMATION** if:
+- Architectural decisions have significant business/technical tradeoffs
+- Risk analysis reveals factors that could affect project viability/priority
+- Compliance/regulatory findings affect scope or approach significantly
+- Resource/timeline implications differ substantially from initial expectations
+
+**PROCEED WITHOUT CONFIRMATION** if:
+- Complex analysis confirms initial understanding and approach
+- Risk factors are manageable within expected project parameters
+- Architectural approach is clearly optimal for discovered requirements
+- Comprehensive timeline would be significantly impacted without clear benefit
+
+**Expected Output**: Document decision in @docs/planning/confirmation-assessment-deep.md"
+
+    echo "🤖 Task: Use system-architect subagent for DEEP mode confirmation evaluation: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/confirmation-assessment-deep.md"
+    
+    # Check if confirmation is needed and trigger user interaction  
+    trigger_user_confirmation_if_needed "deep"
+}
+
+# Universal confirmation trigger function
+trigger_user_confirmation_if_needed() {
+    local mode="$1"
+    local confirmation_file="docs/planning/confirmation-assessment-$mode.md"
+    
+    echo "🔍 Checking if user confirmation is needed for $mode mode..."
+    
+    # Wait for confirmation assessment to complete
+    if [ -f "$confirmation_file" ]; then
+        if grep -q "CONFIRMATION_NEEDED.*true" "$confirmation_file"; then
+            echo "🤔 User confirmation needed - generating dynamic proposals..."
+            
+            # Extract user questions from assessment file
+            user_questions=$(grep -A10 "User Questions:" "$confirmation_file" 2>/dev/null || echo "")
+            trigger_reasons=$(grep -A5 "Trigger Reasons:" "$confirmation_file" 2>/dev/null || echo "")
+            
+            # Generate user prompt with dynamic proposals
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "🤔 **USER GUIDANCE NEEDED**"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "**Analysis Context:** $mode mode discovery has identified areas needing your input."
+            echo ""
+            echo "**Key Concerns:**"
+            echo "$trigger_reasons"
+            echo ""
+            echo "**Your Input Options:**"
+            echo "$user_questions"
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            # Wait for user response (this would be handled by Claude Code's user interaction)
+            echo "⏳ Awaiting user response..."
+            echo "📝 User feedback will be incorporated into docs/planning/user-confirmation-response-$mode.md"
+        else
+            echo "✅ No user confirmation needed - proceeding with $mode mode discovery"
+        fi
+    else
+        echo "⚠️ Confirmation assessment not completed - proceeding without confirmation"
+    fi
+}
+
+# ADAPTIVE AGENT ORCHESTRATION FUNCTIONS
+
+# STANDARD MODE: Context-aware agent coordination
+execute_standard_discovery_with_parallel_agents() {
+    local main_dir="$(pwd)"
+    echo "🔗 STANDARD MODE: Context-aware parallel agent coordination"
+    
+    # Intelligent agent selection based on project context
+    agent_selection_prompt="## Context-Aware Agent Selection - STANDARD Mode
+
+**Project Context**: <prompt-context>
+
+**INTELLIGENT AGENT ORCHESTRATION:**
+
+Determine which agents are needed for THIS specific project rather than using predetermined lists:
+
+### **Primary Analysis Domains**
+Evaluate which domains need expert analysis:
+
+**Business & Requirements Domain:**
+- **product-strategist**: Always included for stakeholder analysis and requirements discovery
+- **Focus**: Stakeholder mapping, business logic, functional requirements, use case validation
+
+**Technology Domain Selection:**
+- **tech-research-analyst**: Include if technology choices are non-trivial
+- **Triggers**: Custom integrations, performance requirements, new technology evaluation, complex architecture needs
+- **Skip if**: Simple CRUD, well-established patterns, minimal technical complexity
+
+**Architecture Domain Selection:**  
+- **system-architect**: Include if architectural decisions impact multiple components
+- **Triggers**: Data architecture decisions, API design, service coordination, technology synthesis
+- **Skip if**: Single-component systems, straightforward patterns
+
+**Quality Domain Selection:**
+- **ui-designer**: Include if user experience is non-trivial
+- **Triggers**: Complex workflows, user interface design needs, user experience optimization
+- **Skip if**: API-only systems, admin interfaces, simple forms
+
+### **PARALLEL EXECUTION STRATEGY**
+
+**For Standard Projects**: 2-3 strategic agents in parallel
+- **Phase 1**: product-strategist (always) + context-appropriate specialists
+- **Phase 2**: system-architect synthesis of parallel outputs
+
+**Expected Agent Outputs:**
+- Each agent generates focused analysis in specific domain
+- **product-strategist** → stakeholder and requirements analysis  
+- **tech-research-analyst** → technology recommendations with rationale
+- **system-architect** → synthesis and architecture implications
+- **ui-designer** → interface and experience considerations
+
+**Agent Coordination Pattern:**
+1. Launch selected agents in parallel with shared context
+2. Wait for all parallel agents to complete domain analysis
+3. system-architect synthesizes all outputs into unified discovery document
+
+**Final Output**: @docs/planning/2-discovery-analysis.md (synthesized from all agent inputs)
+
+**Decision**: Select specific agents needed for this project and document reasoning."
+
+    echo "🤖 Task: Use system-architect subagent for intelligent agent selection: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/agent-selection-standard.md"
+    echo "📄 Final Output: docs/planning/2-discovery-analysis.md (post-synthesis)"
+    
+    # Execute selected agents in parallel (implementation would be dynamic based on selection)
+    execute_selected_agents_in_parallel "standard"
+}
+
+# DEEP MODE: Comprehensive agent ecosystem with intelligent coordination
+execute_comprehensive_discovery_with_parallel_agents() {
+    local main_dir="$(pwd)"
+    echo "🔗 DEEP MODE: Comprehensive parallel agent ecosystem"
+    
+    # Intelligent comprehensive agent coordination
+    comprehensive_agent_prompt="## Comprehensive Agent Orchestration - DEEP Mode
+
+**Project Context**: <prompt-context>
+
+**COMPREHENSIVE AGENT ECOSYSTEM:**
+
+For complex projects, use full agent capabilities with intelligent coordination:
+
+### **Core Agent Coordination**
+
+**Strategic Layer:**
+- **product-strategist**: Comprehensive stakeholder analysis, complex business logic, regulatory requirements
+- **Focus**: Complex workflows, multi-role systems, business domain expertise
+
+**Technical Research Layer:**
+- **tech-research-analyst**: Full technology ecosystem evaluation  
+- **Focus**: Architecture patterns, third-party services, performance/security analysis, integration complexity
+
+**Architecture Layer:**
+- **system-architect**: Complex system design and technology synthesis
+- **Focus**: Distributed architecture, data architecture, service design, technology decisions
+
+**Experience Layer:**
+- **ui-designer**: Complex user experience and interface design
+- **Focus**: Multi-role interfaces, complex workflows, accessibility, user journey optimization
+
+### **PARALLEL EXECUTION STRATEGY**
+
+**Phase 1: Parallel Domain Analysis**
+Launch all relevant agents simultaneously:
+1. **product-strategist**: Business domain deep-dive
+2. **tech-research-analyst**: Technology ecosystem research  
+3. **ui-designer**: User experience analysis (if applicable)
+
+**Phase 2: Architecture Synthesis**  
+4. **system-architect**: Synthesize all domain analyses into comprehensive architecture
+
+**Phase 3: Knowledge Integration**
+5. **knowledge-aggregator**: Capture patterns and integration insights
+
+### **Agent Coordination Patterns**
+
+**Handoff Points:**
+- Domain agents → system-architect (architecture synthesis)
+- system-architect → knowledge-aggregator (pattern capture)
+- All agents share: project context, discovery findings, cross-domain insights
+
+**Output Integration:**
+- Domain-specific analysis files from each agent
+- Comprehensive synthesis in @docs/planning/2-discovery-analysis.md
+- Pattern documentation in knowledge base
+
+**Quality Assurance:**
+- Each agent validates assumptions within their domain
+- system-architect ensures cross-domain consistency
+- knowledge-aggregator identifies potential conflicts or gaps
+
+**Expected Timeline**: 30-45 minutes with full parallel execution
+**Expected Depth**: Enterprise-grade analysis with comprehensive coverage"
+
+    echo "🤖 Task: Use system-architect subagent for comprehensive agent orchestration: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/agent-orchestration-deep.md"
+    echo "📄 Final Output: docs/planning/2-discovery-analysis.md (comprehensive synthesis)"
+    
+    # Execute comprehensive agent ecosystem
+    execute_comprehensive_agent_ecosystem "deep"
+}
+
+# Universal agent execution coordinator
+execute_selected_agents_in_parallel() {
+    local mode="$1"
+    local selection_file="docs/planning/agent-selection-$mode.md"
+    
+    echo "🚀 Executing selected agents in parallel for $mode mode..."
+    
+    # Read agent selection and execute accordingly
+    if [ -f "$selection_file" ]; then
+        echo "📋 Agent selection completed - coordinating parallel execution..."
+        
+        # Extract selected agents (this would be dynamic based on the selection file)
+        echo "🤖 Task: Use product-strategist subagent for stakeholder analysis: <prompt-context>"
+        echo "📄 Expected Output: docs/planning/stakeholder-analysis-$mode.md"
+        
+        # Check if tech-research-analyst was selected
+        if grep -q "tech-research-analyst.*INCLUDE" "$selection_file" 2>/dev/null; then
+            echo "🤖 Task: Use tech-research-analyst subagent for technology research: <prompt-context>"
+            echo "📄 Expected Output: docs/planning/technology-research-$mode.md"
+        fi
+        
+        # Check if ui-designer was selected  
+        if grep -q "ui-designer.*INCLUDE" "$selection_file" 2>/dev/null; then
+            echo "🤖 Task: Use ui-designer subagent for user experience analysis: <prompt-context>"
+            echo "📄 Expected Output: docs/planning/ux-analysis-$mode.md"
+        fi
+        
+        # Always synthesize with system-architect
+        echo "⏳ Waiting for all parallel agents to complete..."
+        echo "🤖 Task: Use system-architect subagent to synthesize all agent outputs: <prompt-context>"
+        echo "📄 Input Files: docs/planning/*-analysis-$mode.md, docs/planning/*-research-$mode.md"
+        echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+        
+    else
+        echo "⚠️ Agent selection not completed - using default configuration"
+        # Fallback to basic agent coordination
+        echo "🤖 Task: Use product-strategist subagent for default discovery analysis: <prompt-context>"
+        echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    fi
+}
+
+# Comprehensive agent ecosystem execution
+execute_comprehensive_agent_ecosystem() {
+    local mode="$1"
+    
+    echo "🌐 Executing comprehensive agent ecosystem for $mode mode..."
+    
+    # Phase 1: Parallel domain analysis
+    echo "📊 Phase 1: Launching parallel domain analysis..."
+    echo "🤖 Task: Use product-strategist subagent for comprehensive business analysis: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/business-analysis-comprehensive.md"
+    
+    echo "🤖 Task: Use tech-research-analyst subagent for full technology ecosystem research: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/technology-ecosystem-comprehensive.md"
+    
+    echo "🤖 Task: Use ui-designer subagent for comprehensive user experience analysis: <prompt-context>"  
+    echo "📄 Expected Output: docs/planning/ux-comprehensive.md"
+    
+    # Phase 2: Architecture synthesis
+    echo "📊 Phase 2: Architecture synthesis..."
+    echo "⏳ Waiting for all domain analyses to complete..."
+    echo "🤖 Task: Use system-architect subagent for comprehensive architecture synthesis: <prompt-context>"
+    echo "📄 Input Files: docs/planning/business-analysis-comprehensive.md, docs/planning/technology-ecosystem-comprehensive.md, docs/planning/ux-comprehensive.md"
+    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    
+    # Phase 3: Knowledge integration
+    echo "📊 Phase 3: Knowledge pattern integration..."
+    echo "🤖 Task: Use knowledge-aggregator subagent for pattern capture and integration: <prompt-context>"
+    echo "📄 Input Files: docs/planning/2-discovery-analysis.md"
+    echo "📄 Expected Output: docs/planning/knowledge-patterns-comprehensive.md"
+}
+
+# INTELLIGENT FILE COORDINATION SYSTEM
+
+# Intelligent document synthesis and phase preparation
 standardize_discovery_outputs() {
     local mode="$1"
     local main_dir="$(pwd)"
     
-    echo "🔗 Standardizing $mode mode outputs for phase integration..."
+    echo "🔗 INTELLIGENT FILE COORDINATION: Adaptive document synthesis for $mode mode..."
     
-    # Create standardized discovery document for phases 5-7
-    case "$mode" in
-        "speed")
-            if [ -f "docs/planning/2-discovery-analysis.md" ]; then
-                cp "docs/planning/2-discovery-analysis.md" "docs/planning/discovery-summary.md"
-            fi
-            ;;
-        "standard"|"deep")
-            # Aggregate parallel analysis results
-            cat > "docs/planning/discovery-summary.md" << EOF
-# Discovery Phase Summary
+    # Intelligent document synthesis instead of mechanical file operations
+    document_synthesis_prompt="## Intelligent Document Synthesis - $mode Mode
 
-## Stakeholder Analysis
-$(find docs/planning/ -name "*stakeholder*" -exec cat {} \; 2>/dev/null || echo "- Analysis completed via parallel agents")
+**Project Context**: <prompt-context>
+**Execution Mode**: $mode
 
-## Technology Research  
-$(find docs/planning/ -name "*technology*" -o -name "*tech-research*" -exec cat {} \; 2>/dev/null || echo "- Research completed via tech-research-analyst")
+**ADAPTIVE DOCUMENT COORDINATION:**
 
-## Architecture Considerations
-$(find docs/planning/ -name "*architecture*" -o -name "*synthesis*" -exec cat {} \; 2>/dev/null || echo "- Analysis completed via system-architect")
+Synthesize discovery outputs into meaningful, connected documentation for next phase consumption:
 
-## Requirements Foundation
-$(find docs/planning/ -name "*requirements*" -o -name "*comprehensive*" -exec cat {} \; 2>/dev/null || echo "- Requirements identified through discovery process")
-EOF
-            ;;
-    esac
+### **Content Synthesis Intelligence**
+
+**Available Source Documents:**
+- Primary discovery: @docs/planning/2-discovery-analysis.md
+- Agent outputs: @docs/planning/*-analysis-*.md, @docs/planning/*-research-*.md  
+- Confirmation responses: @docs/planning/user-confirmation-response-*.md
+- Assessment files: @docs/planning/confirmation-assessment-*.md
+
+### **Synthesis Strategy**
+
+**For SPEED Mode:**
+- Focus on essential insights for rapid phase progression
+- Synthesize only critical information needed for requirements specification
+- Maintain fast-track timeline by avoiding information overload
+
+**For STANDARD Mode:**
+- Create balanced synthesis connecting business and technical insights
+- Integrate agent findings into coherent narrative
+- Provide sufficient detail for informed architectural decisions
+
+**For DEEP Mode:**
+- Generate comprehensive synthesis with cross-domain connections
+- Document architectural implications and technology decisions
+- Create detailed foundation for complex implementation planning
+
+### **Document Quality Assessment**
+
+Evaluate content for next phase readiness:
+- **Completeness**: Are key insights captured for requirements specification?
+- **Connections**: Are relationships between business needs and technical choices clear?
+- **Actionability**: Can the next phase proceed with confidence based on synthesis?
+- **Traceability**: Are decisions and rationale properly documented?
+
+### **Next Phase Preparation**
+
+Generate synthesis optimized for subsequent phases:
+- **Requirements Specification**: What functional/NFR foundation is established?
+- **Architecture Design**: What technical decisions and constraints are identified?
+- **Implementation Planning**: What complexity factors will affect development?
+
+**Expected Output**: 
+- @docs/planning/discovery-synthesis-$mode.md (intelligent synthesis for next phases)
+- Content should be meaningful connections, not mechanical aggregation
+- Include confidence levels and identified gaps for next phase awareness"
+
+    echo "🤖 Task: Use system-architect subagent for intelligent document synthesis: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/discovery-synthesis-$mode.md"  
+    echo "📄 Input Strategy: Intelligent synthesis of all discovery documents"
+    echo "📄 Output Purpose: Optimized foundation for requirements specification phase"
+    
+    # Intelligent document usage validation
+    validate_document_usage_chain "$mode"
+}
+
+# Intelligent document usage validation
+validate_document_usage_chain() {
+    local mode="$1"
+    
+    echo "🔍 Validating intelligent document usage chain..."
+    
+    validation_prompt="## Document Usage Chain Validation
+
+**Execution Mode**: $mode
+
+**DOCUMENT FLOW INTELLIGENCE:**
+
+Validate that document generation serves actual implementation needs:
+
+### **Usage Chain Analysis**
+
+**Phase 1 → Phase 2 Flow:**
+- Complexity assessment (@docs/planning/1-complexity-assessment.md) → Discovery mode selection
+- Mode selection → Agent coordination and discovery execution
+- Discovery outputs → Requirements specification foundation
+
+**Discovery → Requirements Flow:**
+- Discovery synthesis → Functional requirements identification
+- Technology research → NFR specification
+- Stakeholder analysis → User story and acceptance criteria development
+
+**Requirements → Architecture Flow:**
+- Requirements specification → Architecture constraints and patterns
+- Technology decisions → Implementation technology stack
+- NFR requirements → Performance, security, scalability design
+
+### **Document Utilization Assessment**
+
+**High-Value Documents** (actively used in next phases):
+- Discovery synthesis: Foundation for requirements
+- Technology research: Architecture and stack decisions
+- Quality assessments: Risk and complexity planning
+
+**Support Documents** (reference and traceability):
+- Agent selection rationales: Understanding decision context
+- Confirmation assessments: Stakeholder alignment validation
+- User feedback: Requirement refinement context
+
+### **Quality Metrics**
+
+**Document Effectiveness:**
+- **Implementation Readiness**: Can next phase proceed with confidence?
+- **Decision Traceability**: Are architectural choices well-reasoned?
+- **Stakeholder Alignment**: Are business needs clearly captured?
+- **Technical Feasibility**: Are constraints and capabilities understood?
+
+**Expected Output**: Document usage validation and optimization recommendations"
+
+    echo "🤖 Task: Use knowledge-aggregator subagent for document usage validation: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/document-usage-validation-$mode.md"
+    echo "📄 Validation Focus: Ensure documents serve implementation needs vs bureaucratic overhead"
+}
     
     echo "✅ Discovery outputs standardized for phase integration"
 }
@@ -1608,20 +2166,54 @@ execute_phase3_requirements_refinement_loop() {
         # Step 3: Analyze 5-15 technology choice impacts
         analyze_technology_choice_impacts $refinement_iteration
         
-        # Step 4: Requirements satisfaction assessment
+        # Step 4: Quality Assessment and User Feedback Loop
+        perform_quality_assessment_and_user_feedback $refinement_iteration
+        
+        # Step 5: Requirements satisfaction assessment (after potential changes)
         assess_requirements_satisfaction $refinement_iteration
         
-        # Check if we should continue refinement
-        if [ -f "docs/planning/requirements-satisfaction-$refinement_iteration.md" ]; then
+        # Intelligent refinement continuation decision
+        echo "🧠 Evaluating refinement continuation..."
+        
+        # Check for user feedback restart flag
+        local restart_requested="false"
+        if [ -f "docs/planning/user-feedback-$refinement_iteration.md" ]; then
+            if grep -q "RESTART.*true" "docs/planning/user-feedback-$refinement_iteration.md"; then
+                restart_requested="true"
+                echo "🔄 User feedback indicates iteration restart needed"
+            fi
+        fi
+        
+        # Check quality assessment confidence
+        local quality_confidence="MEDIUM"
+        if [ -f "docs/planning/quality-assessment-$refinement_iteration.md" ]; then
+            quality_confidence=$(grep -i "confidence.*level" "docs/planning/quality-assessment-$refinement_iteration.md" | grep -o -i "HIGH\|MEDIUM\|LOW" | head -1)
+        fi
+        
+        # Check requirements satisfaction
+        if [ -f "docs/planning/requirements-satisfaction-$refinement_iteration.md" ] && [ "$restart_requested" = "false" ]; then
             if grep -q "SATISFIED.*true" "docs/planning/requirements-satisfaction-$refinement_iteration.md"; then
-                requirements_satisfied="true"
-                echo "✅ Requirements refinement achieved satisfaction criteria"
+                # Check confidence level for final decision
+                if [ "$quality_confidence" = "HIGH" ] || [ "$quality_confidence" = "MEDIUM" ]; then
+                    requirements_satisfied="true"
+                    echo "✅ Requirements refinement complete - implementation readiness achieved"
+                    echo "📊 Final Quality Confidence: $quality_confidence"
+                else
+                    echo "⚠️ Low quality confidence despite satisfaction - continuing refinement..."
+                    refinement_iteration=$((refinement_iteration + 1))
+                fi
             else
-                echo "🔄 Requirements need further refinement..."
+                echo "🔄 Requirements refinement continuing based on satisfaction assessment..."
                 refinement_iteration=$((refinement_iteration + 1))
             fi
         else
-            refinement_iteration=$((refinement_iteration + 1))
+            if [ "$restart_requested" = "true" ]; then
+                echo "🔄 Restarting iteration based on user feedback..."
+                # Keep same iteration number to restart with feedback context
+            else
+                echo "🔄 Assessment not complete - continuing refinement..."
+                refinement_iteration=$((refinement_iteration + 1))
+            fi
         fi
     done
     
@@ -1860,40 +2452,126 @@ $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Us
 $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Anti-Cases:" && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -20)
 $([ -f "docs/planning/technology-impact-analysis-$iteration.md" ] && echo "Tech Analysis:" && cat docs/planning/technology-impact-analysis-$iteration.md | head -20)
 
-**SATISFACTION CRITERIA ASSESSMENT:**
+**INTELLIGENT REQUIREMENTS SATISFACTION ASSESSMENT:**
 
-Evaluate whether requirements understanding has reached sufficient maturity:
+Use contextual reasoning to determine if requirements understanding has reached implementation readiness:
 
-### Completeness Criteria (each must score ≥8/10):
-1. **Functional Coverage** (8-10): Do we understand all major functional requirements?
-2. **Use Case Completeness** (8-10): Have we identified the important unstated use cases?
-3. **Boundary Clarity** (8-10): Are scope boundaries clearly defined via anti-cases?
-4. **Technology Fit** (8-10): Do technology choices align with all use case needs?
-5. **NFR Definition** (8-10): Are non-functional requirements clearly specified?
-6. **Risk Understanding** (8-10): Are major technical and business risks identified?
-7. **Scalability Planning** (8-10): Are scaling requirements and constraints clear?
-8. **Integration Planning** (8-10): Are integration points and requirements clear?
+### **Satisfaction Evaluation Framework:**
 
-### NFR (Non-Functional Requirements) Completeness Check:
-- **Performance**: Response times, throughput, concurrency requirements
-- **Scalability**: User growth, data growth, geographic scaling needs
-- **Security**: Authentication, authorization, data protection, compliance
-- **Reliability**: Uptime, error rates, disaster recovery requirements  
-- **Usability**: User experience, accessibility, internationalization needs
-- **Maintainability**: Code quality, documentation, testing requirements
-- **Portability**: Platform independence, cloud portability needs
-- **Compliance**: Regulatory, industry standard, organizational policy requirements
+**1. Implementation Readiness Assessment**
+- Can a development team start building with confidence based on current understanding?
+- Are the core functional requirements clear enough to define APIs, data models, and user flows?
+- Have we identified the most critical use cases that will drive architectural decisions?
+- Are scope boundaries well-enough defined to prevent major scope creep?
 
-### Required Output Format:
-- **Overall Satisfaction Score**: X/80 (sum of all criteria scores)
-- **SATISFIED**: true/false (requires ≥64/80 score)
-- **Missing Elements**: List what still needs refinement
-- **Refinement Recommendations**: Specific actions for next iteration
-- **NFR Gaps**: Specific non-functional requirements needing attention
+**2. Risk & Uncertainty Analysis** 
+- Are the major technical unknowns identified and understood?
+- Do we understand the business domain well enough to make informed design decisions?
+- Have we identified potential integration challenges and constraints?
+- Are performance, security, and scalability considerations appropriately understood for this project type?
+
+**3. Stakeholder Alignment Potential**
+- Are requirements comprehensive enough that stakeholders could validate the approach?
+- Have we discovered the most important unstated expectations?
+- Are we confident we understand the problem space well enough to propose solutions?
+- Would additional discovery likely yield diminishing returns vs starting implementation?
+
+**4. Architecture Foundation Readiness**
+- Can system architects make informed technology choices based on current understanding?
+- Are non-functional requirements clear enough to guide architectural decisions?
+- Do we understand data flows, user interactions, and system boundaries sufficiently?
+- Are external integrations and dependencies well-understood?
+
+### **Decision Intelligence:**
+Instead of scoring thresholds, make a holistic judgment:
+
+**CONTINUE REFINEMENT** if:
+- Major functional gaps remain unclear
+- Technology choices seem misaligned with discovered needs
+- Stakeholder expectations are still largely unknown  
+- Implementation would likely encounter major unknown requirements
+- Architecture decisions would be largely speculative
+
+**REQUIREMENTS SATISFIED** if:
+- Core functionality is well-understood and bounded
+- Technology approach aligns with discovered requirements
+- Major risks and constraints are identified
+- Implementation team could confidently begin design and development
+- Additional refinement would likely yield diminishing returns
+
+### **Output Format:**
+- **SATISFIED**: true/false (based on implementation readiness reasoning)
+- **Confidence Level**: HIGH/MEDIUM/LOW with reasoning
+- **Key Readiness Factors**: What makes us confident to proceed
+- **Remaining Considerations**: Minor gaps that can be addressed during implementation
+- **Next Phase Preparation**: What the implementation team needs to know
 
 Generate: docs/planning/requirements-satisfaction-$iteration.md"
 
     echo "🤖 Task: Use system-architect subagent to assess requirements satisfaction for: <prompt-context>"
+}
+
+# Step 4: Quality Assessment and User Feedback Loop
+perform_quality_assessment_and_user_feedback() {
+    local iteration=$1
+    echo "🔍 Step 4: Quality Assessment and User Feedback (Iteration $iteration)"
+    
+    quality_assessment_prompt="## Quality Assessment & User Feedback
+
+**Original Request:** <prompt-context>
+
+**Current Analysis Status:**
+- **Use Cases Analyzed:** @docs/planning/refinement/iteration-$iteration-analysis.md (use case sections)
+- **Anti-Cases Identified:** @docs/planning/refinement/iteration-$iteration-analysis.md (anti-case sections)  
+- **Technology Impact:** @docs/planning/technology-impact-analysis-$iteration.md
+
+**CRITICAL QUALITY ASSESSMENT:**
+
+1. **Completeness Check**: Evaluate the current analysis:
+   - Are the discovered use cases truly representative of user needs?
+   - Do the anti-cases effectively bound the scope appropriately? 
+   - Are technology choices aligned with actual requirements vs assumed requirements?
+   - Are there obvious gaps or blind spots in the current analysis?
+
+2. **Quality Evaluation**: Assess analysis depth and accuracy:
+   - Do use cases reflect realistic user scenarios vs theoretical possibilities?
+   - Are anti-cases genuinely helpful scope boundaries vs arbitrary exclusions?
+   - Do technology impacts address real constraints vs speculative concerns?
+   - Is the analysis actionable for implementation planning?
+
+3. **User Feedback Decision**: Based on assessment, determine if user input would improve outcomes:
+   
+   **IF SIGNIFICANT GAPS OR CONCERNS IDENTIFIED:**
+   - Generate user prompt with specific questions about gaps/concerns
+   - Present 3 dynamically calculated response proposals for user selection
+   - Wait for user response and incorporate feedback
+   - Mark iteration for restart with user guidance incorporated
+   
+   **IF ANALYSIS APPEARS SOLID:**
+   - Document quality assessment confidence level
+   - Proceed to requirements satisfaction assessment
+   - No user interruption needed
+
+**Expected Outputs:**
+- @docs/planning/quality-assessment-$iteration.md (assessment results)
+- @docs/planning/user-feedback-$iteration.md (if user consultation needed)
+- Quality confidence score (HIGH/MEDIUM/LOW) for satisfaction assessment
+
+Generate quality assessment and determine if user feedback loop is warranted."
+
+    echo "🤖 Task: Use product-strategist subagent for quality assessment and user feedback determination: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/quality-assessment-$iteration.md"
+    echo "📄 Conditional Output: docs/planning/user-feedback-$iteration.md (if user consultation needed)"
+    echo "📄 Input Files: docs/planning/refinement/iteration-$iteration-analysis.md, docs/planning/technology-impact-analysis-$iteration.md"
+    
+    # Check if user feedback was requested and handle restart logic
+    if [ -f "docs/planning/user-feedback-$iteration.md" ]; then
+        if grep -q "RESTART.*true" "docs/planning/user-feedback-$iteration.md"; then
+            echo "🔄 User feedback indicates iteration restart needed - incorporating feedback and restarting analysis..."
+            # Reset iteration but keep user feedback context for next round
+            iteration=$((iteration - 1))
+        fi
+    fi
 }
 
 # Generate final refined requirements summary
