@@ -5,6 +5,60 @@
 **Template Context**: <prompt-template-name>  
 **Project Requirements**: <prompt-context>
 
+## 📁 PROJECT DIRECTORY STRUCTURE
+
+All analysis and planning documents are organized in `docs/planning/` with logical phase progression:
+
+```
+docs/planning/
+├── 1-complexity-assessment.md          # Phase 1: Project complexity analysis and mode selection
+├── 2-discovery-analysis.md             # Phase 2: Consolidated discovery from all modes (SPEED/STANDARD/DEEP)
+├── 3-use-case-analysis.md              # Phase 3: Comprehensive use case discovery (stated + unstated)
+├── 4-anti-case-analysis.md             # Phase 4: Anti-case identification (what NOT to build)
+├── 5-technology-ecosystem.md           # Phase 5: Complete technology stack analysis
+├── 6-requirements-specification.md     # Phase 6: Final refined functional and NFR requirements
+├── 7-interface-design.md               # Phase 7: UI/UX and API interface specifications
+├── 8-architecture-design.md            # Phase 8: System architecture and technical design
+├── 9-task-planning.md                  # Phase 9: Implementation task breakdown with TDD
+├── 10-implementation-tasks.md          # Phase 10: Detailed development tasks and assignments
+├── 11-deployment-plan.md               # Phase 11: Deployment pipeline and production launch plan
+├── 12-project-summary.md               # Phase 12: Final project comprehensive summary
+│
+├── refinement/                         # Requirements refinement iteration artifacts
+│   ├── iteration-1-analysis.md         # First refinement iteration consolidated results
+│   ├── iteration-2-analysis.md         # Second refinement iteration (if needed)
+│   └── iteration-3-analysis.md         # Third refinement iteration (if needed)
+│
+└── confirmations/                      # User confirmation and decision artifacts  
+    ├── scope-expansion-decision.md     # Scope expansion confirmation results
+    ├── conflict-resolution-decision.md # Conflict resolution confirmation results
+    └── architecture-approval.md        # Architecture confirmation and approval
+```
+
+### 📋 FILE PURPOSE & CONTENT DISTINCTION
+
+**Core Phase Files (1-12)** - Each represents a distinct planning phase:
+1. **Complexity Assessment**: Scoring algorithm results, mode selection rationale
+2. **Discovery Analysis**: Consolidated stakeholder, technology, architecture findings  
+3. **Use Case Analysis**: All identified use cases (stated + discovered) with priorities
+4. **Anti-Case Analysis**: Explicit exclusions, scope boundaries, "what not to build"
+5. **Technology Ecosystem**: Complete stack (frameworks + libraries + services) with decisions
+6. **Requirements Specification**: Final functional and NFR requirements (no duplication)
+7. **Interface Design**: UI/UX wireframes, API contracts, system interfaces
+8. **Architecture Design**: Technical architecture, data models, security design
+9. **Task Planning**: Implementation phases, TDD approach, resource allocation
+10. **Implementation Tasks**: Specific development tasks, acceptance criteria
+11. **Deployment Plan**: Infrastructure, CI/CD, launch strategy
+12. **Project Summary**: Executive summary, decisions, recommendations
+
+**Refinement Files** - Iteration-based analysis (avoid duplication):
+- Each iteration creates ONE consolidated analysis file (not separate files per step)
+- Content builds on previous iterations, doesn't duplicate
+
+**Confirmation Files** - User decision artifacts:
+- Capture user choices and guidance for key decision points
+- Reference core phase files, don't duplicate their content
+
 You are executing an adaptive intelligence planning system that automatically adjusts execution complexity based on project scope. Simple projects get fast-track analysis (SPEED mode), medium projects get standard phase flow with smart confirmations (STANDARD mode), and complex projects get comprehensive analysis (DEEP mode).
 
 ## Adaptive Execution Modes
@@ -45,212 +99,76 @@ Critical checkpoint after discovery phases complete:
 
 ```mermaid
 flowchart TB
-    Start([Mixed User Input]) --> P0[Phase 0: Existing Analysis]
-    P0 --> P05[Phase 0.5: Complexity Assessment & Mode Selection]
+    Start([Mixed User Input]) --> P1[Phase 1: Complexity Assessment]
     
-    P05 --> ModeDecision{Project Complexity?}
+    P1 --> ModeDecision{Project Complexity?}
     ModeDecision -->|Simple| SpeedMode[SPEED MODE: Fast Discovery]
     ModeDecision -->|Medium| StandardMode[STANDARD MODE: Phase Flow]
     ModeDecision -->|Complex| DeepMode[DEEP MODE: Comprehensive]
     
-    SpeedMode --> SpeedP1to4[Consolidated Discovery (5-8 min)]
-    StandardMode --> StandardP1[Phase 1: Discovery & Analysis]
-    DeepMode --> DeepP1[Phase 1: Extended Discovery]
+    SpeedMode --> SpeedP2[Consolidated Discovery (5-8 min)]
+    StandardMode --> StandardP2[Parallel Discovery & Analysis]
+    DeepMode --> DeepP2[Extended Discovery & Research]
     
-    SpeedP1to4 --> SmartTrigger1{Smart Confirmations Needed?}
-    StandardP1 --> SmartTrigger2{Scope/Assumptions/Tech Issues?}
-    DeepP1 --> DeepP2[Phase 2: Goals & Intent]
+    SpeedP2 --> SmartTrigger1{Smart Confirmations Needed?}
+    StandardP2 --> SmartTrigger2{Scope/Assumptions/Tech Issues?}
+    DeepP2 --> SmartTrigger3{Comprehensive Analysis Issues?}
     
-    SmartTrigger1 -->|No| SpeedComplete[Speed Discovery Complete]
+    SmartTrigger1 -->|No| P2Complete[Phase 2: Discovery Complete]
     SmartTrigger1 -->|Yes| UserConfirm1[User Confirmation]
-    SmartTrigger2 -->|No| StandardP2[Phase 2: Goals & Intent]
+    SmartTrigger2 -->|No| P2Complete
     SmartTrigger2 -->|Yes| UserConfirm2[User Confirmation]
+    SmartTrigger3 -->|No| P2Complete
+    SmartTrigger3 -->|Yes| UserConfirm3[User Confirmation]
     
-    UserConfirm1 --> SpeedComplete
-    UserConfirm2 --> StandardP2
+    UserConfirm1 --> P2Complete
+    UserConfirm2 --> P2Complete
+    UserConfirm3 --> P2Complete
     
-    StandardP2 --> StandardP3[Phase 3: Feasibility]
-    StandardP3 --> TechTrigger{Tech Analysis Needed?}
-    TechTrigger -->|Yes| TechAgent[🔄 Ask subagent tech-research-analyst]
-    TechTrigger -->|No| StandardP4[Phase 4: Technology Research]
-    TechAgent --> StandardP4
-    StandardP4 --> StandardComplete[Standard Discovery Complete]
+    P2Complete --> RefineLoop[Requirements Refinement Loop]
+    RefineLoop --> RefineDecision{Requirements Satisfied?}
+    RefineDecision -->|No| P3[Phase 3: Use Case Analysis]
+    P3 --> P4[Phase 4: Anti-Case Analysis]
+    P4 --> P5[Phase 5: Technology Ecosystem]
+    P5 --> RefineDecision
     
-    DeepP2 --> DeepP3[Phase 3: Feasibility Assessment]
-    DeepP3 --> ParallelTech[🔄 In parallel ask multiple subagents]
-    ParallelTech --> DeepP4[Phase 4: Technology Research]
-    DeepP4 --> DeepComplete[Deep Discovery Complete]
-    
-    SpeedComplete --> ArchConfirm[Architecture Confirmation Checkpoint]
-    StandardComplete --> ArchConfirm
-    DeepComplete --> ArchConfirm
-    
-    ArchConfirm -->|Approve| P5[Phase 5: Requirements Specification]
-    ArchConfirm -->|Extend| BackToDiscovery[Extend Discovery]
-    ArchConfirm -->|Stop| EndArch[Architecture Review Required]
-    
-    BackToDiscovery --> StandardMode
-    
-    P5 --> P6[Phase 6: Scope & Prioritization]
-    P6 --> P7[Phase 7: Architecture Design]
-    P7 --> P8[Phase 8: Decision Registry]
-    P8 --> P9[Phase 9: Interface Specifications]
-    P9 --> P10[Phase 10: Task Generation]
-    
-    P10 --> P11[Phase 11: Implementation Loop]
-    P11 --> P11Check{All Features Complete?}
-    P11Check -->|No| P11
-    P11Check -->|Yes| P12[Phase 12: Deployment Classification]
-    
-    P12 --> P13[Phase 13: Pipeline Preparation]
-    P13 --> P14[Phase 14: Deployment Execution]
-    P14 --> P14Check{Health Checks Pass?}
-    P14Check -->|Fail| Rollback[Auto Rollback]
-    Rollback --> P14
-    P14Check -->|Pass| P15[Phase 15: Post-Deployment Validation]
-    
-    P15 --> P16[Phase 16: Monitoring & Feedback]
-    P16 --> Complete([Production Ready])
-    
-    subgraph "Adaptive Discovery Modes"
-        SpeedMode
-        StandardMode
-        DeepMode
-        SpeedP1to4
-        StandardP1
-        DeepP1
-    end
-    
-    subgraph "Smart Confirmation System"
-        SmartTrigger1
-        SmartTrigger2
-        UserConfirm1
-        UserConfirm2
-        TechTrigger
-    end
-    
-    subgraph "Parallel Agent Integration"
-        TechAgent
-        ParallelTech
-    end
-    
-    subgraph "Standard Phase Flow"
-        P5
-        P6
-        P7
-        P8
-        P9
-        P10
-    end
-    
-    subgraph "Implementation Iteration"
-        P11
-        P11Check
-    end
-    
-    subgraph "CI/CD Deployment"
-        P12
-        P13
-        P14
-        P14Check
-        Rollback
-        P15
-        P16
-    end
-    
-    subgraph "Key Agents"
-        SA1[product-strategist: Strategic Analysis]
-        SA2[tech-research-analyst: Technology Research]
-        SA3[system-architect: Architecture Design]
-        SA4[feature-developer: Task Generation & Implementation]
-        SA5[ui-designer: Interface Design]
-        SA6[code-reviewer: Code Quality]
-        SA7[knowledge-aggregator: Learning Capture]
-        SA8[deployment-orchestrator: Production Deployment]
-    end
-    
-    StandardP1 -.-> SA1
-    DeepP1 -.-> SA1
-    TechAgent -.-> SA2
-    ParallelTech -.-> SA2
-    P7 -.-> SA3
-    P9 -.-> SA5
-    P10 -.-> SA4
-    P11 -.-> SA4
-    P11 -.-> SA6
-    P11 -.-> SA7
-    P14 -.-> SA8
-    
-    classDef adaptiveMode fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
-    classDef smartTrigger fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
-    classDef parallelAgent fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
-    classDef standardPhase fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef implPhase fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    classDef deployPhase fill:#fff3e0,stroke:#f57f17,stroke-width:2px
-    classDef agent fill:#fff,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
-    classDef terminal fill:#ffebee,stroke:#c62828,stroke-width:2px
-    
-    class SpeedMode,StandardMode,DeepMode,SpeedP1to4,StandardP1,DeepP1 adaptiveMode
-    class SmartTrigger1,SmartTrigger2,UserConfirm1,UserConfirm2,TechTrigger smartTrigger
-    class TechAgent,ParallelTech parallelAgent
-    class P5,P6,P7,P8,P9,P10 standardPhase
-    class P11,P11Check implPhase
-    class P12,P13,P14,P15,P16 deployPhase
-    class SA1,SA2,SA3,SA4,SA5,SA6,SA7,SA8 agent
-    class Start,Complete,EndArch,Rollback terminal
+    RefineDecision -->|Yes| P6[Phase 6: Requirements Specification]
+    P6 --> P7[Phase 7: Interface Design]
+    P7 --> P8[Phase 8: Architecture Design]
+    P8 --> P9[Phase 9: Task Planning]
+    P9 --> P10[Phase 10: Implementation Tasks]
+    P10 --> P11[Phase 11: Deployment Plan]
+    P11 --> P12[Phase 12: Project Summary]
 ```
 
-## REVOLUTIONARY AGENT INTEGRATION REFERENCE
+## AGENT INTEGRATION REFERENCE
 
-### Parallel Discovery Agent Matrix
+### Agent Roles and Responsibilities Matrix
 
-| **Agent** | **Discovery Stream** | **Trigger** | **Purpose** | **Context Provided** | **Expected Output** |
-|-----------|---------------------|-------------|-------------|---------------------|---------------------|
-| **product-strategist** | Stream 1 Lead | Continuous | Stakeholder-Use Case discovery | Mixed user input + synthesis feedback | Continuously updated stakeholder analysis and use case expansion |
-| **tech-research-analyst** | Stream 2 Lead | Continuous | Technology-Constraint discovery | Mixed user input + synthesis feedback | Real-time tech implications and constraint analysis |
-| **environment-analyst** | Stream 3 Lead | Continuous | Environment-Context discovery | Mixed user input + synthesis feedback | Environment integration analysis and context mapping |
-| **synthesis-coordinator** | Real-time Synthesis | Every 5-10 discoveries | Cross-stream intelligence integration | All stream outputs | Integrated requirements-tech specification with confidence levels |
-| **unknown-detector** | Pattern Analysis | Triggered by synthesis gaps | Unknown unknown identification | Cross-stream patterns + domain research | Critical knowledge gap identification and discovery recommendations |
-| **decision-orchestrator** | Dynamic Decision Management | Intelligence-driven triggers | Dynamic decision point management | Synthesis conflicts/convergence/gaps | User decision point orchestration and conflict resolution |
-| **system-architect** | Post-Convergence | After sufficient convergence | Architecture design | Integrated requirements-tech specification | Architecture specification document |
-| **ui-designer** | Phase 9 | Always | Interface specifications | Architecture, requirements context | UI/UX specifications and API definitions |
-| **feature-developer** | Phase 10 & 11+ | Task generation & implementation | Complete feature development | Task specifications, worktree isolation | Task breakdown with embedded TDD + complete implementations |
-| **code-reviewer** | Phase 11+ | After each implementation | Code quality review | Implementation files and context | Code review analysis and recommendations |
-| **knowledge-aggregator** | After convergence & implementations | Learning capture | Pattern and insight capture | Discovery patterns + implementation learnings | Cross-project learning synthesis and documentation |
-| **deployment-orchestrator** | Phase 14 | Deployment execution | Production deployment | Feature classification, CI/CD requirements | Deployment execution and validation |
+| **Agent** | **Primary Phase** | **Trigger** | **Purpose** | **Context Provided** | **Expected Output** |
+|-----------|------------------|-------------|-------------|---------------------|---------------------|
+| **product-strategist** | Phase 2, 3, 6 | Discovery & Requirements | Stakeholder analysis, use case discovery, requirements definition | User input, refinement context | Stakeholder maps, use cases, requirement specifications |
+| **tech-research-analyst** | Phase 2, 5 | Discovery & Technology | Technology research, ecosystem analysis, third-party evaluation | User context, discovered requirements | Technology recommendations with rationale |
+| **system-architect** | Phase 5, 8 | Technology & Architecture | Technology synthesis, architecture design, decision making | Requirements, technology research | Architecture specifications, technology decisions |
+| **ui-designer** | Phase 7 | Interface Design | UI/UX design, API interface specifications | Requirements, architecture context | Interface designs, API contracts, UX specifications |
+| **feature-developer** | Phase 9, 10 | Implementation Planning | Task generation, implementation planning with TDD | Architecture, requirements, interfaces | Task breakdowns, implementation plans, TDD approach |
+| **code-reviewer** | Phase 10+ | Implementation Review | Code quality review, implementation validation | Implementation files, requirements | Code review reports, quality recommendations |
+| **deployment-orchestrator** | Phase 11 | Deployment | Production deployment, pipeline execution, infrastructure | Implementation tasks, deployment requirements | Deployment plans, infrastructure specifications |
+| **knowledge-aggregator** | Phase 12 | Learning Capture | Pattern capture, project synthesis, documentation | All phase outputs, lessons learned | Project summary, knowledge documentation |
 
-### Revolutionary Agent Orchestration Patterns
+### Agent Orchestration Patterns
 
-**Phase 0.5 - Intelligence Parser Activation:**
-```bash
-# Parse mixed user input into classified elements
-parse_mixed_input() {
-    local user_input="$1"
-    local parser_context="$main_dir/docs/planning/parsed-input.md"
-    
-    # Create input classification
-    cat > "$parser_context" << 'EOF'
-# Mixed Input Intelligence Parsing
+**Phase-Based Agent Coordination:**
+- **Phases 1-2**: Complexity assessment and discovery use single agents per mode
+- **Phases 3-5**: Requirements refinement uses parallel agents for analysis depth
+- **Phases 6-8**: Core planning uses specialized agents for each domain
+- **Phases 9-12**: Implementation uses coordinated agent handoffs for quality
 
-## Input Element Classification
-- **Explicit Requirements**: [Clear user needs identified]
-- **Technology Preferences**: [Tech choices/constraints specified]  
-- **Environment References**: [Existing system/workflow mentions]
-- **Vague Intent Signals**: [Unclear but directional statements]
-- **Constraint Indicators**: [Limitation signals detected]
-
-## Relationship Detection
-- Technology-Requirement Dependencies: [Which tech constrains which requirements]
-- Environment-Use Case Enablers: [Which environment features enable which scenarios]
-- Vague Intent Categories: [What unstated requirement types are suggested]
-
-## Discovery Prioritization Matrix
-- High-Impact Unknowns: [Could change entire approach]
-- Medium-Impact Gaps: [Could affect major decisions]  
-- Low-Impact Details: [Nice-to-know information]
-EOF
-}
-```
+**Parallel Agent Execution:**
+When multiple agents work simultaneously, they are launched using Claude Code native patterns:
+- Each agent receives the original user context via `<prompt-context>`
+- Agents work independently and their outputs are synthesized
+- Agent coordination follows the wait-for-completion pattern
 
 
 ## Adaptive Execution Mode Functions
@@ -263,19 +181,12 @@ execute_speed_mode() {
     echo "⚡ SPEED MODE: Fast-track discovery for simple projects (5-8 minutes)"
     
     # Single consolidated discovery phase with minimal agent involvement
-    speed_prompt="Fast-track analysis for simple project requirements: <prompt-context>
-
-CONSOLIDATED DISCOVERY ANALYSIS:
-1. **Stakeholder & Use Case Analysis**: Quick identification of primary users and core use cases
-2. **Technology Constraints**: Fast assessment of tech requirements and constraints  
-3. **Feasibility Check**: Rapid go/no-go assessment
-4. **Simple Architecture**: Straightforward solution design
-5. **Basic Requirements**: Essential functional and non-functional requirements
-
-Focus on obvious choices, minimal complexity, clear implementation path.
-Create: docs/planning/discovery-analysis.md"
+    echo "🚀 Launching product-strategist for fast-track analysis..."
     
-    ask subagent product-strategist to perform fast-track project analysis with context: "$speed_prompt"
+    # Use product-strategist subagent for speed mode analysis
+    # Task: Fast-track project analysis for: <prompt-context>
+    # Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements
+    # Output: docs/planning/2-discovery-analysis.md
     
     # Smart confirmation only if conflicts detected
     check_smart_confirmations "speed-mode"
@@ -310,16 +221,16 @@ execute_discovery_phases_with_agents() {
     for area in "${analysis_areas[@]}"; do
         case "$area" in
             "stakeholder-analysis")
-                ask subagent product-strategist to analyze stakeholders and users with context: "Strategic stakeholder analysis for: <prompt-context>. Focus on identifying all user types, their needs, goals, and pain points. Create comprehensive stakeholder map."
+                echo "🎯 Task: Use product-strategist subagent for stakeholder analysis of: <prompt-context>"
                 ;;
             "use-case-discovery") 
-                ask subagent product-strategist to discover use cases and scenarios with context: "Use case discovery for: <prompt-context>. Expand beyond obvious use cases to include edge cases, failure modes, and workflow integration scenarios."
+                echo "🔍 Task: Use product-strategist subagent for use case discovery of: <prompt-context>"
                 ;;
             "requirements-extraction")
-                ask subagent product-strategist to extract requirements and constraints with context: "Requirements analysis for: <prompt-context>. Extract both stated and implied functional/non-functional requirements."
+                echo "📋 Task: Use product-strategist subagent for requirements extraction of: <prompt-context>"
                 ;;
             "constraint-identification")
-                ask subagent product-strategist to identify constraints and limitations with context: "Constraint analysis for: <prompt-context>. Identify technical, business, regulatory, and resource constraints."
+                echo "⚠️ Task: Use product-strategist subagent for constraint identification of: <prompt-context>"
                 ;;
         esac
     done
@@ -342,22 +253,22 @@ execute_phases_2_to_4_with_parallel_tech_research() {
     for tech_area in "${tech_areas[@]}"; do
         case "$tech_area" in
             "frontend-tech")
-                ask subagent tech-research-analyst to research frontend technologies with context: "Frontend technology research for: <prompt-context>. Find 5+ GitHub repos (1000+ stars) for each frontend option. Focus on production reality, performance, and integration patterns."
+                echo "💻 Task: Use tech-research-analyst subagent for frontend technology research of: <prompt-context>"
                 ;;
             "backend-tech")
-                ask subagent tech-research-analyst to research backend technologies with context: "Backend technology research for: <prompt-context>. Analyze frameworks, APIs, microservices patterns. Document production performance and scaling characteristics."
+                echo "🏗️ Task: Use tech-research-analyst subagent for backend technology research of: <prompt-context>"
                 ;;
             "database-tech")
-                ask subagent tech-research-analyst to research data technologies with context: "Data persistence research for: <prompt-context>. Evaluate databases, caching, state management. Include performance benchmarks and production learnings."
+                echo "🗄️ Task: Use tech-research-analyst subagent for database technology research of: <prompt-context>"
                 ;;
             "infrastructure-tech")
-                ask subagent tech-research-analyst to research infrastructure options with context: "Infrastructure research for: <prompt-context>. Analyze deployment, scaling, monitoring approaches. Focus on operational complexity and costs."
+                echo "☁️ Task: Use tech-research-analyst subagent for infrastructure research of: <prompt-context>"
                 ;;
             "security-tech")
-                ask subagent tech-research-analyst to research security approaches with context: "Security technology research for: <prompt-context>. Evaluate authentication, authorization, encryption, compliance approaches with production evidence."
+                echo "🔒 Task: Use tech-research-analyst subagent for security technology research of: <prompt-context>"
                 ;;
             "integration-tech")
-                ask subagent tech-research-analyst to research integration patterns with context: "Integration research for: <prompt-context>. Analyze APIs, messaging, data integration patterns. Include real-world scaling and performance data."
+                echo "🔗 Task: Use tech-research-analyst subagent for integration pattern research of: <prompt-context>"
                 ;;
         esac
     done
@@ -369,19 +280,10 @@ execute_phases_2_to_4_with_parallel_tech_research() {
 }
 
 synthesize_standard_mode_analysis() {
-    local synthesis_prompt="Synthesize all parallel discovery and technology research results into comprehensive analysis:
-
-For: <prompt-context>
-
-## Synthesis Requirements:
-1. **Stakeholder Insights**: Consolidate user and stakeholder analysis
-2. **Requirements Synthesis**: Merge functional and non-functional requirements
-3. **Technology Recommendations**: Consolidate technology research findings
-4. **Implementation Strategy**: Practical approach based on all analysis
-
-Generate: docs/planning/discovery-analysis.md"
-
-    ask subagent system-architect to synthesize standard mode analysis with context: "$synthesis_prompt"
+    echo "🔗 Task: Use system-architect subagent to synthesize standard mode analysis for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    echo "📄 Input Files: Parallel agent analysis results from stakeholder, use-case, requirements, and constraint analysis"
+}
 ```
 
 ### DEEP MODE (30-45 minutes): Comprehensive Analysis with Full Agent Ecosystem
@@ -409,28 +311,28 @@ execute_comprehensive_discovery_with_parallel_agents() {
     for area in "${comprehensive_areas[@]}"; do
         case "$area" in
             "strategic-analysis")
-                ask subagent product-strategist to perform comprehensive strategic analysis with context: "Deep strategic analysis for: <prompt-context>. Comprehensive stakeholder mapping, business model analysis, market positioning, competitive landscape, and strategic risks."
+                echo "🤖 Task: Use product-strategist subagent to perform comprehensive strategic analysis for: <prompt-context>"
                 ;;
             "technology-landscape")
-                ask subagent tech-research-analyst to analyze complete technology landscape with context: "Comprehensive technology landscape for: <prompt-context>. Full stack analysis, emerging technologies, vendor evaluations, technology lifecycle assessment, and strategic technology roadmapping."
+                echo "🤖 Task: Use tech-research-analyst subagent to analyze complete technology landscape for: <prompt-context>"
                 ;;
             "architecture-patterns")
-                ask subagent system-architect to evaluate architecture patterns with context: "Architecture pattern analysis for: <prompt-context>. Evaluate multiple architectural approaches, scalability patterns, integration patterns, and design trade-offs with production evidence."
+                echo "🤖 Task: Use system-architect subagent to evaluate architecture patterns for: <prompt-context>"
                 ;;
             "security-analysis")
-                ask subagent tech-research-analyst to perform security analysis with context: "Comprehensive security analysis for: <prompt-context>. Threat modeling, security architecture, compliance requirements, privacy considerations, and security technology evaluation."
+                echo "🤖 Task: Use tech-research-analyst subagent to perform security analysis for: <prompt-context>"
                 ;;
             "performance-analysis")
-                ask subagent tech-research-analyst to analyze performance requirements with context: "Performance analysis for: <prompt-context>. Scalability requirements, performance bottlenecks, optimization strategies, and performance testing approaches with benchmark data."
+                echo "🤖 Task: Use tech-research-analyst subagent to analyze performance requirements for: <prompt-context>"
                 ;;
             "compliance-analysis")
-                ask subagent product-strategist to analyze compliance requirements with context: "Compliance analysis for: <prompt-context>. Regulatory requirements, industry standards, data governance, privacy regulations, and compliance technology requirements."
+                echo "🤖 Task: Use product-strategist subagent to analyze compliance requirements for: <prompt-context>"
                 ;;
             "competitive-analysis")
-                ask subagent product-strategist to perform competitive analysis with context: "Competitive landscape analysis for: <prompt-context>. Market analysis, competitive positioning, feature differentiation, and strategic advantages."
+                echo "🤖 Task: Use product-strategist subagent to perform competitive analysis for: <prompt-context>"
                 ;;
             "risk-analysis")
-                ask subagent product-strategist to analyze project risks with context: "Comprehensive risk analysis for: <prompt-context>. Technical risks, business risks, operational risks, compliance risks, and risk mitigation strategies."
+                echo "🤖 Task: Use product-strategist subagent to analyze project risks for: <prompt-context>"
                 ;;
         esac
     done
@@ -444,24 +346,7 @@ execute_comprehensive_discovery_with_parallel_agents() {
 perform_comprehensive_synthesis() {
     echo "🔗 Deep Mode: Synthesizing all parallel analysis results"
     
-    synthesis_prompt="Comprehensive synthesis of all parallel analysis results for: <prompt-context>
-
-Integrate findings from:
-- Strategic analysis and stakeholder insights  
-- Technology landscape and architecture patterns
-- Security, performance, and compliance analysis
-- Competitive positioning and risk assessment
-
-Create integrated architecture specification with:
-1. **Consolidated Requirements**: Unified functional and non-functional requirements
-2. **Technology Stack Decisions**: Evidence-based technology choices with rationale  
-3. **Architecture Design**: Comprehensive system architecture with trade-offs
-4. **Risk Mitigation**: Integrated risk management strategies
-5. **Implementation Roadmap**: Prioritized development approach
-
-Generate: docs/planning/discovery-analysis.md"
-    
-    ask subagent system-architect to synthesize all parallel analysis with context: "$synthesis_prompt"
+    echo "🤖 Task: Use system-architect subagent to synthesize all parallel analysis for: <prompt-context>"
 }
 ```
 
@@ -480,19 +365,19 @@ launch_parallel_feature_implementation() {
     for area in "${implementation_areas[@]}"; do
         case "$area" in
             "frontend-components")
-                ask subagent feature-developer to implement frontend components with context: "Frontend implementation for $feature_name. Create user interface components, state management, and client-side logic. Include unit tests and component documentation."
+                echo "🤖 Task: Use feature-developer subagent to implement frontend components for: <prompt-context>"
                 ;;
             "backend-apis")
-                ask subagent feature-developer to implement backend APIs with context: "Backend API implementation for $feature_name. Create API endpoints, business logic, and data validation. Include integration tests and API documentation."
+                echo "🤖 Task: Use feature-developer subagent to implement backend APIs for: <prompt-context>"
                 ;;
             "data-layer")  
-                ask subagent feature-developer to implement data layer with context: "Data layer implementation for $feature_name. Create database schemas, data access objects, and data migration scripts. Include database tests."
+                echo "🤖 Task: Use feature-developer subagent to implement data layer for: <prompt-context>"
                 ;;
             "integration-tests")
-                ask subagent feature-developer to create integration tests with context: "Integration testing for $feature_name. Create end-to-end tests, API integration tests, and system integration validation. Include test documentation."
+                echo "🤖 Task: Use feature-developer subagent to create integration tests for: <prompt-context>"
                 ;;
             "documentation")
-                ask subagent feature-developer to create documentation with context: "Documentation for $feature_name. Create user documentation, technical documentation, and deployment guides. Include code examples and troubleshooting guides."
+                echo "🤖 Task: Use feature-developer subagent to create documentation for: <prompt-context>"
                 ;;
         esac
     done
@@ -1194,7 +1079,7 @@ EOF
 }
 ```
 
-### Phase 0.5: Complexity Assessment & Mode Selection
+### Phase 1: Complexity Assessment & Mode Selection
 
 **Purpose:** Analyze user input complexity and select appropriate execution mode (SPEED/STANDARD/DEEP).
 
@@ -1204,9 +1089,9 @@ EOF
 assess_complexity_and_select_mode() {
     local main_dir="$(pwd)"
     local user_input="<prompt-context>"
-    local assessment_output="$main_dir/docs/planning/complexity-assessment.md"
+    local assessment_output="$main_dir/docs/planning/1-complexity-assessment.md"
     
-    echo "🧠 Phase 0.5: Assessing project complexity and selecting execution mode..."
+    echo "🧠 Phase 1: Assessing project complexity and selecting execution mode..."
     
     # Analyze input for complexity indicators
     local requirements_count=0
@@ -1303,11 +1188,20 @@ EOF
             ;;
     esac
     
-    # After discovery completion, proceed to standard phases
-    echo "✅ Discovery phase complete. Proceeding to requirements and architecture..."
-    execute_phase5_requirements
-    execute_phase6_interface  
-    execute_phase7_architecture
+    # After discovery completion, proceed to requirements refinement
+    echo "✅ Discovery phase complete. Starting intelligent requirements refinement..."
+    execute_phase3_requirements_refinement_loop
+    
+    # After refinement, proceed to consolidation phases
+    echo "✅ Requirements refinement complete. Consolidating analysis into dedicated phase files..."
+    execute_phase4_anti_case_consolidation
+    execute_phase5_technology_ecosystem_analysis
+    
+    # After consolidation, proceed to detailed requirements and architecture  
+    echo "✅ Analysis consolidation complete. Proceeding to requirements specification..."
+    execute_phase6_requirements_specification
+    execute_phase7_interface_design  
+    execute_phase8_architecture_design
     
     # Continue to implementation phases
     echo "✅ Architecture phase complete. Proceeding to implementation planning..."
@@ -1326,8 +1220,8 @@ standardize_discovery_outputs() {
     # Create standardized discovery document for phases 5-7
     case "$mode" in
         "speed")
-            if [ -f "docs/planning/discovery-analysis.md" ]; then
-                cp "docs/planning/discovery-analysis.md" "docs/planning/discovery-summary.md"
+            if [ -f "docs/planning/2-discovery-analysis.md" ]; then
+                cp "docs/planning/2-discovery-analysis.md" "docs/planning/discovery-summary.md"
             fi
             ;;
         "standard"|"deep")
@@ -1373,8 +1267,8 @@ check_smart_confirmations() {
     local feasibility_concerns_found=false
     
     # Check for scope expansion (>50% beyond original)
-    if [ -f "docs/planning/complexity-assessment.md" ]; then
-        local original_requirements=$(grep "Requirements Count" docs/planning/complexity-assessment.md | grep -o "[0-9]*" || echo "1")
+    if [ -f "docs/planning/1-complexity-assessment.md" ]; then
+        local original_requirements=$(grep "Requirements Count" docs/planning/1-complexity-assessment.md | grep -o "[0-9]*" || echo "1")
         local current_analysis_size=$(find docs/planning/ -name "*.md" -exec wc -l {} + 2>/dev/null | tail -1 | grep -o "^[0-9]*" || echo "0")
         
         if [ "$current_analysis_size" -gt $((original_requirements * 15)) ] 2>/dev/null; then
@@ -1410,27 +1304,679 @@ trigger_architecture_confirmation() {
     echo "🏗️ ARCHITECTURE CONFIRMATION CHECKPOINT"
     echo "========================================"
     
-    confirmation_prompt="## Architecture Review & Approval Required
+    confirmation_prompt="## 🏗️ Architecture Review & Approval Required
 
-### Comprehensive Requirements & Technology Specification
-$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -50 || echo "Requirements specification pending...")
+Based on your original request: **<prompt-context>**
 
-### Technology Stack & Architecture Design  
-$([ -f "docs/planning/phase7-architecture.md" ] && cat docs/planning/phase7-architecture.md | head -50 || echo "Architecture design pending...")
+### 📋 Comprehensive Requirements & Technology Specification
+$([ -f "docs/planning/6-requirements-specification.md" ] && cat docs/planning/6-requirements-specification.md | head -50 || echo "⚠️ Requirements specification pending - this may indicate an issue with the analysis phase")
 
-### Discovery Summary & Complexity Assessment
-$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -30 || echo "Discovery analysis pending...")
-$([ -f "docs/planning/complexity-assessment.md" ] && cat docs/planning/complexity-assessment.md | head -20 || echo "Complexity assessment pending...")
+### 🏛️ Technology Stack & Architecture Design  
+$([ -f "docs/planning/8-architecture-design.md" ] && cat docs/planning/8-architecture-design.md | head -50 || echo "⚠️ Architecture design pending - this may indicate an issue with the design phase")
 
-### APPROVAL OPTIONS:
-1. **✅ APPROVE**: Proceed to implementation phases
-2. **🔍 EXTEND DISCOVERY**: Additional research needed (specify areas)
-3. **📝 REFINE SCOPE**: Adjust requirements or constraints  
-4. **⏹️ STOP**: Project not feasible or ready
+### 🔍 Discovery Summary & Complexity Assessment
+$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -30 || echo "⚠️ Discovery analysis pending - this may indicate an issue with the discovery phase")
+$([ -f "docs/planning/1-complexity-assessment.md" ] && cat docs/planning/1-complexity-assessment.md | head -20 || echo "⚠️ Complexity assessment pending - this may indicate an issue with the assessment phase")
 
-Please review the architecture specification and select your approval option."
+### 🎯 APPROVAL OPTIONS WITH GUIDANCE:
+
+#### ✅ **APPROVE** - Proceed to implementation phases
+**Choose this if:**
+- Requirements clearly match your needs
+- Technology choices seem appropriate for your context
+- Architecture addresses your key concerns
+- You're comfortable with the complexity assessment
+
+#### 🔍 **EXTEND DISCOVERY** - Additional research needed
+**Choose this if you need more analysis on:**
+- \"Security requirements for [specific area]\"
+- \"Performance analysis for [specific feature]\"  
+- \"Integration patterns with [existing system]\"
+- \"Compliance requirements for [regulation/standard]\"
+- \"Alternative technology options for [component]\"
+
+#### 📝 **REFINE SCOPE** - Adjust requirements or constraints
+**Choose this if you want to:**
+- \"Add requirement: [specific functionality]\"
+- \"Remove feature: [specific component]\"
+- \"Change priority: make [feature] higher/lower priority\"
+- \"Add constraint: must work with [existing system]\"
+- \"Simplify approach: focus on [core functionality]\"
+
+#### ⏹️ **STOP** - Project not feasible or ready
+**Choose this if:**
+- Complexity is much higher than expected
+- Required technology stack doesn't fit your environment
+- Timeline or resources don't align with the analysis
+- Requirements need fundamental rethinking
+
+### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
+
+Based on your request \"<prompt-context>\" and the analysis above, here are three tailored suggestions:
+
+**PROPOSAL 1: $(
+# Analyze complexity and suggest most appropriate action
+if [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "DEEP\|complex\|high" "docs/planning/1-complexity-assessment.md"; then
+    echo "APPROVE with phased approach - implement core functionality first, then expand features in subsequent phases"
+elif [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "SPEED\|simple\|low" "docs/planning/1-complexity-assessment.md"; then
+    echo "APPROVE and proceed - the solution is well-suited to your straightforward requirements"
+else
+    echo "EXTEND DISCOVERY - analyze integration requirements with your existing systems more thoroughly"
+fi
+)**
+
+**PROPOSAL 2: $(
+# Generate refinement suggestion based on discovered technologies
+if [ -f "docs/planning/8-architecture-design.md" ] && grep -qi "react\|vue\|angular" "docs/planning/8-architecture-design.md"; then
+    echo "REFINE SCOPE - focus on essential UI components first, advanced interactions can be Phase 2"
+elif [ -f "docs/planning/8-architecture-design.md" ] && grep -qi "database\|sql\|mongodb" "docs/planning/8-architecture-design.md"; then  
+    echo "REFINE SCOPE - start with core data model, add advanced queries and analytics later"
+else
+    echo "REFINE SCOPE - prioritize user-facing features, administrative features can be added later"
+fi
+)**
+
+**PROPOSAL 3: $(
+# Suggest based on requirements analysis
+if [ -f "docs/planning/6-requirements-specification.md" ] && grep -qi "security\|authentication\|auth" "docs/planning/6-requirements-specification.md"; then
+    echo "EXTEND DISCOVERY - need deeper security analysis for authentication and data protection requirements"
+elif [ -f "docs/planning/6-requirements-specification.md" ] && grep -qi "performance\|scale\|load" "docs/planning/6-requirements-specification.md"; then
+    echo "EXTEND DISCOVERY - need performance benchmarking and load testing strategy analysis"
+else
+    echo "APPROVE with MVP approach - implement minimum viable version first, then iterate based on user feedback"
+fi
+)**
+
+**Please select one of these proposals or provide your own guidance.**"
     
-    ask subagent system-architect to present architecture for user approval with context: "$confirmation_prompt"
+    echo "🤖 Task: Use system-architect subagent to present architecture for user approval for: <prompt-context>"
+}
+
+# Smart confirmation for scope expansion
+trigger_scope_expansion_confirmation() {
+    echo "⚠️ SCOPE EXPANSION DETECTED"
+    echo "=========================="
+    
+    scope_prompt="## 📈 Project Scope Has Significantly Expanded
+
+**Original Request:** <prompt-context>
+
+### 🔍 Scope Analysis
+The analysis has revealed requirements that are **50%+ beyond your original request**. This often happens when:
+- Initial requirements were high-level and analysis uncovered complexity
+- Integration needs were discovered that weren't initially apparent  
+- Technical constraints require additional features
+- User needs analysis revealed additional requirements
+
+### 🎯 SCOPE DECISION OPTIONS WITH GUIDANCE:
+
+#### ✅ **CONTINUE WITH EXPANDED SCOPE**
+**Choose this if:**
+- The expanded scope still fits your timeline and budget
+- The additional features add significant value
+- You have the resources to handle the increased complexity
+- The expansion addresses real needs you hadn't considered
+
+#### 📝 **REFINE TO CORE SCOPE** 
+**Choose this if you want to:**
+- \"Focus on core feature: [specific functionality]\"
+- \"Remove nice-to-have features like [specific items]\"
+- \"Implement in phases: Phase 1 should include [essentials]\"
+- \"Simplify integration: just do [basic integration] for now\"
+
+#### 🔍 **CLARIFY REQUIREMENTS**
+**Choose this if:**
+- \"The expansion misunderstood my needs - I actually need [clarification]\"
+- \"Some of these features aren't necessary: [specific items]\"
+- \"The priority should be [specific order] not what was analyzed\"
+
+### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
+
+Based on your original request \"<prompt-context>\" and the scope expansion analysis:
+
+**PROPOSAL 1: $(
+# Analyze original request keywords for intelligent suggestion
+if echo "<prompt-context>" | grep -qi "simple\|quick\|basic\|minimal"; then
+    echo "REFINE - stick to core functionality as originally intended, expansion seems to have overcomplicated the simple approach you wanted"
+elif echo "<prompt-context>" | grep -qi "enterprise\|production\|scale\|robust"; then
+    echo "CONTINUE - the expansion properly addresses the enterprise-level requirements implied in your request"
+else
+    echo "CONTINUE with phased delivery - implement expanded scope in 2 phases to balance completeness with delivery timeline"
+fi
+)**
+
+**PROPOSAL 2: $(
+# Analyze complexity vs original intent
+if [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "requirements_count.*[0-9]\+" "docs/planning/1-complexity-assessment.md"; then
+    req_count=$(grep "requirements_count.*[0-9]\+" "docs/planning/1-complexity-assessment.md" | grep -o "[0-9]\+" | head -1)
+    if [ "$req_count" -gt 10 ]; then
+        echo "REFINE - prioritize top 5 most critical features from the expanded scope, defer others to Phase 2"
+    else
+        echo "CONTINUE - the expansion is manageable and adds necessary functionality"
+    fi
+else
+    echo "CLARIFY - let me understand which expanded features are essential vs nice-to-have for your specific use case"
+fi
+)**
+
+**PROPOSAL 3: $(
+# Generate budget/timeline conscious suggestion
+if echo "<prompt-context>" | grep -qi "budget\|cost\|timeline\|deadline\|urgent"; then
+    echo "REFINE - implement MVP version first to meet timeline, then expand based on initial feedback and usage patterns"
+elif echo "<prompt-context>" | grep -qi "comprehensive\|complete\|full"; then
+    echo "CONTINUE - the expansion aligns with your comprehensive requirements, proceed with full scope"
+else
+    echo "REFINE - focus on user-facing features first, backend optimizations and admin features can be Phase 2"
+fi
+)**
+
+**Please select one of these proposals or provide your own scope guidance.**"
+
+    echo "🤖 Task: Use product-strategist subagent to present scope expansion analysis for: <prompt-context>"
+}
+
+# Conflict-based confirmations for speed mode
+check_conflict_confirmations() {
+    echo "🚨 CONFLICT DETECTION CHECK"
+    echo "========================="
+    
+    # Check for common conflicts that would require user input
+    local conflicts_detected=false
+    
+    echo "Checking for technology conflicts..."
+    echo "Checking for requirement conflicts..."
+    echo "Checking for constraint conflicts..."
+    
+    if [ "$conflicts_detected" = true ]; then
+        trigger_conflict_resolution_confirmation
+    else
+        echo "✅ No major conflicts detected - proceeding with speed mode"
+    fi
+}
+
+# Technology/requirement conflict resolution
+trigger_conflict_resolution_confirmation() {
+    echo "⚠️ CONFLICTS DETECTED"
+    echo "===================="
+    
+    conflict_prompt="## ⚠️ Analysis Found Conflicts That Need Resolution
+
+**Original Request:** <prompt-context>
+
+### 🔍 Conflict Analysis
+The fast-track analysis detected conflicts between your requirements and constraints:
+
+$([ -f "docs/planning/2-discovery-analysis.md" ] && grep -A3 -B3 "conflict\|issue\|problem\|constraint" docs/planning/2-discovery-analysis.md | head -20 || echo "Detailed conflict analysis in progress...")
+
+### 🎯 CONFLICT RESOLUTION OPTIONS:
+
+#### 🔧 **TECHNICAL SOLUTION**
+**Choose this if the conflict can be resolved technically:**
+- \"Use alternative technology: [suggest specific alternative]\"
+- \"Modify approach: [suggest specific modification]\"
+- \"Add integration layer to resolve [specific conflict]\"
+
+#### 📝 **REQUIREMENT ADJUSTMENT**
+**Choose this if requirements should be modified:**
+- \"Remove conflicting requirement: [specific item]\"
+- \"Relax constraint: [specific constraint] isn't critical\"
+- \"Change priority: [specific requirement] can be Phase 2\"
+
+#### 🔍 **MORE ANALYSIS NEEDED**
+**Choose this if you need deeper investigation:**
+- \"Switch to STANDARD mode for more detailed analysis\"
+- \"Need more research on [specific conflict area]\"
+
+### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
+
+Based on the conflicts detected and your request \"<prompt-context>\":
+
+**PROPOSAL 1: $(
+# Analyze conflict type and suggest technical solution
+if [ -f "docs/planning/2-discovery-analysis.md" ]; then
+    if grep -qi "database\|storage" "docs/planning/2-discovery-analysis.md"; then
+        echo "TECHNICAL - use simpler database approach (SQLite/PostgreSQL) instead of complex NoSQL for easier integration"
+    elif grep -qi "api\|integration" "docs/planning/2-discovery-analysis.md"; then
+        echo "TECHNICAL - implement standard REST API first, can upgrade to GraphQL later if needed"
+    elif grep -qi "auth\|security" "docs/planning/2-discovery-analysis.md"; then
+        echo "TECHNICAL - use OAuth2 with existing identity provider instead of building custom authentication"
+    else
+        echo "TECHNICAL - simplify architecture to use proven, well-documented technologies"
+    fi
+else
+    echo "TECHNICAL - use more standard, widely-adopted technologies to reduce integration complexity"
+fi
+)**
+
+**PROPOSAL 2: $(
+# Analyze original request for requirement flexibility
+if echo "<prompt-context>" | grep -qi "mvp\|minimum\|basic\|simple"; then
+    echo "REQUIREMENT - remove advanced features causing conflicts, focus on core MVP functionality"
+elif echo "<prompt-context>" | grep -qi "real-time\|live\|instant"; then
+    echo "REQUIREMENT - implement polling-based updates instead of real-time, easier integration and fewer conflicts"
+else
+    echo "REQUIREMENT - defer conflicting features to Phase 2, implement core functionality without conflicts first"
+fi
+)**
+
+**PROPOSAL 3: $(
+# Suggest analysis upgrade based on complexity revealed
+if grep -qi "complex\|difficult\|challenging" "docs/planning/2-discovery-analysis.md" 2>/dev/null; then
+    echo "MORE ANALYSIS - switch to STANDARD mode for deeper technical research to resolve architectural conflicts"
+elif echo "<prompt-context>" | grep -qi "integrate\|existing\|current"; then
+    echo "MORE ANALYSIS - need detailed analysis of existing system integration patterns and constraints"
+else
+    echo "MORE ANALYSIS - the conflicts suggest more complexity than initially apparent, need comprehensive analysis"
+fi
+)**
+
+**Please select one of these proposals or describe how you'd like to resolve the conflicts.**"
+
+    echo "🤖 Task: Use system-architect subagent to present conflict resolution options for: <prompt-context>"
+}
+```
+
+## SECTION 2.5: INTELLIGENT REQUIREMENTS REFINEMENT SYSTEM
+
+### Phase 3: Requirements Refinement Loop
+
+**Purpose:** Systematically expand requirements thinking through unstated use cases, anti-cases, and comprehensive technology ecosystem analysis (including third-party services, libraries, and tools) until requirements satisfaction is achieved.
+
+**Execution Instructions:**
+```bash
+execute_phase3_requirements_refinement_loop() {
+    local main_dir="$(pwd)"
+    local refinement_iteration=1
+    local max_iterations=3
+    local requirements_satisfied="false"
+    
+    echo "🧠 Phase 3: Intelligent Requirements Refinement Loop"
+    echo "===================================================="
+    echo "🎯 Original Request: <prompt-context>"
+    echo ""
+    
+    while [ "$requirements_satisfied" = "false" ] && [ $refinement_iteration -le $max_iterations ]; do
+        echo "🔄 REFINEMENT ITERATION $refinement_iteration"
+        echo "----------------------------------------"
+        
+        # Step 1: Discover 5-10 unstated use cases
+        discover_unstated_use_cases $refinement_iteration
+        
+        # Step 2: Identify 5-10 anti-cases (what NOT to consider)
+        identify_anti_cases $refinement_iteration
+        
+        # Step 3: Analyze 5-15 technology choice impacts
+        analyze_technology_choice_impacts $refinement_iteration
+        
+        # Step 4: Requirements satisfaction assessment
+        assess_requirements_satisfaction $refinement_iteration
+        
+        # Check if we should continue refinement
+        if [ -f "docs/planning/requirements-satisfaction-$refinement_iteration.md" ]; then
+            if grep -q "SATISFIED.*true" "docs/planning/requirements-satisfaction-$refinement_iteration.md"; then
+                requirements_satisfied="true"
+                echo "✅ Requirements refinement achieved satisfaction criteria"
+            else
+                echo "🔄 Requirements need further refinement..."
+                refinement_iteration=$((refinement_iteration + 1))
+            fi
+        else
+            refinement_iteration=$((refinement_iteration + 1))
+        fi
+    done
+    
+    # Generate final refined requirements summary
+    generate_refined_requirements_summary $refinement_iteration
+    
+    echo "✅ Phase 3 complete: Requirements refined through $((refinement_iteration-1)) iterations"
+    
+    # Generate consolidated use case analysis
+    echo "🤖 Task: Use product-strategist subagent to consolidate use case analysis for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/3-use-case-analysis.md"
+    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (use case sections)"
+}
+
+# Step 1: Discover unstated use cases through systematic analysis
+discover_unstated_use_cases() {
+    local iteration=$1
+    echo "🔍 Step 1: Discovering Unstated Use Cases (Iteration $iteration)"
+    
+    unstated_cases_prompt="## Unstated Use Case Discovery
+
+**Original Stated Request:** <prompt-context>
+
+**Current Discovery Context:**
+$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -40 || echo "Discovery analysis in progress...")
+
+**SYSTEMATIC USE CASE EXPANSION:**
+
+Analyze the stated request and discovery context to identify 5-10 **unstated but likely important use cases** that the user hasn't explicitly mentioned but would probably need:
+
+### Analysis Framework:
+1. **User Journey Extensions** - What happens before/after the stated use case?
+2. **Edge Case Scenarios** - What unusual but realistic situations might occur?
+3. **Integration Touch Points** - How will this interact with other systems/processes?
+4. **Scalability Scenarios** - What if usage grows 10x, 100x?
+5. **Failure Recovery Cases** - What if things go wrong?
+6. **Multi-User Scenarios** - How do different user types interact with this?
+7. **Temporal Variations** - How do requirements change over time/seasons/events?
+8. **Compliance Scenarios** - What regulatory/security cases might apply?
+9. **Mobile/Device Variations** - How do different access methods affect usage?
+10. **Data Evolution Cases** - How do changing data volumes/types affect usage?
+
+### Required Output Format:
+For each unstated use case, provide:
+- **Use Case ID**: USC-$iteration-01 through USC-$iteration-10
+- **Scenario Description**: Clear, specific scenario
+- **User Impact**: Why this matters to users
+- **Technical Implications**: How this affects architecture/design
+- **Priority Assessment**: Critical/Important/Nice-to-Have
+- **Incorporation Recommendation**: INCORPORATE/UPDATE_EXISTING/ADD_NEW/MONITOR
+
+Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
+
+    echo "🤖 Task: Use product-strategist subagent to discover unstated use cases for: <prompt-context>"
+}
+
+# Step 2: Identify anti-cases (what should NOT be considered)  
+identify_anti_cases() {
+    local iteration=$1
+    echo "🚫 Step 2: Identifying Anti-Cases (Iteration $iteration)"
+    
+    anti_cases_prompt="## Anti-Case Identification
+
+**Original Request:** <prompt-context>
+
+**Discovered Use Cases Context:**
+$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -40 || echo "Use case analysis in progress...")
+
+**SYSTEMATIC ANTI-CASE ANALYSIS:**
+
+Identify 5-10 **anti-cases** - scenarios, features, or requirements that should explicitly NOT be considered or implemented:
+
+### Anti-Case Categories:
+1. **Scope Creep Risks** - Features that sound related but aren't core to the mission
+2. **Over-Engineering Traps** - Complex solutions when simple ones suffice  
+3. **Premature Optimizations** - Performance optimizations not yet needed
+4. **Edge Cases Too Rare** - Scenarios affecting <1% of users with high implementation cost
+5. **Platform Overreach** - Trying to solve problems outside the domain
+6. **Technology Fashion** - Using trendy tech that doesn't fit the actual need
+7. **Feature Creep** - Nice-to-have features that distract from core value
+8. **Perfectionism Traps** - Trying to handle every possible edge case
+9. **Competitor Feature Envy** - Adding features just because competitors have them
+10. **Future-Proofing Excess** - Over-designing for hypothetical future needs
+
+### Required Output Format:
+For each anti-case, provide:
+- **Anti-Case ID**: ANC-$iteration-01 through ANC-$iteration-10
+- **Scenario Description**: What should NOT be considered
+- **Why It's Tempting**: Why someone might want to include this
+- **Why It's Wrong**: Clear reasoning for exclusion
+- **Risk If Included**: What problems it would cause
+- **Boundary Definition**: Clear line of what's in vs out of scope
+
+Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
+
+    echo "🤖 Task: Use product-strategist subagent to identify anti-cases for: <prompt-context>"
+}
+
+# Step 3: Analyze technology choice impacts on all use cases
+analyze_technology_choice_impacts() {
+    local iteration=$1
+    echo "⚙️ Step 3: Technology Choice Impact Analysis (Iteration $iteration)"
+    
+    tech_impact_prompt="## Technology Choice Impact Analysis
+
+**Original Request:** <prompt-context>
+
+**Use Cases Context:**
+$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Use case analysis in progress...")
+
+**Anti-Cases Context:**
+$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Anti-case analysis in progress...")
+
+**Technology Discovery Context:**
+$([ -f "docs/planning/discovery-summary.md" ] && grep -A10 -B5 "Technology\|Stack\|Architecture" docs/planning/discovery-summary.md || echo "Technology analysis in progress...")
+
+**SYSTEMATIC TECHNOLOGY IMPACT ANALYSIS:**
+
+For 5-15 key technology choices identified in discovery, analyze their impact on the complete use case ecosystem:
+
+### Core Framework Assessment:
+1. **Positive Use Case Enablement** - Which use cases does this tech make possible/easier?
+2. **Negative Use Case Constraints** - Which use cases does this tech make harder/impossible?
+3. **Anti-Case Risk Mitigation** - How does this tech help avoid anti-case traps?
+4. **Scalability Impact** - How does this tech affect scalability use cases?
+5. **Integration Impact** - How does this tech affect integration use cases?
+
+### Third-Party Technology Ecosystem Analysis:
+6. **Service Layer Evaluation** - External APIs and SaaS services needed
+7. **Framework Extension Libraries** - Open source libraries that extend the core framework
+8. **NPM/Package Repository Assessment** - Available packages for specific functionality
+9. **GitHub Repository Evaluation** - Community tools and starter templates
+10. **Cost-Benefit Analysis** - Preference for free/open source with stability assessment
+
+### Comprehensive Technology Stack:
+11. **Maintenance Impact** - Long-term operational implications for full stack
+12. **Team Impact** - Learning curve and development velocity effects across all layers
+13. **Cost Impact** - Development, operational, and scaling costs including third-party services
+14. **Risk Impact** - Technical and business risks from entire technology ecosystem
+15. **Migration Impact** - Future flexibility and migration possibilities for integrated stack
+
+### Third-Party Technology Decision Framework:
+
+#### Service Categories to Evaluate:
+1. **Infrastructure Services** - Database, hosting, CDN, caching
+2. **Authentication Services** - Auth0, Firebase Auth, AWS Cognito, Supabase Auth
+3. **Payment Processing** - Stripe, PayPal, Square (if applicable)
+4. **Email/Communication** - SendGrid, Twilio, Mailgun
+5. **File Storage** - AWS S3, Cloudinary, Firebase Storage
+6. **Analytics/Monitoring** - Google Analytics, Mixpanel, Sentry, LogRocket
+7. **Search Services** - Algolia, Elasticsearch, MeiliSearch
+8. **Real-time Features** - Pusher, Socket.io, Supabase Realtime
+
+#### Library Categories to Evaluate:
+1. **UI Component Libraries** - Material-UI, Ant Design, Chakra UI, Tailwind UI
+2. **State Management** - Redux Toolkit, Zustand, Jotai, Valtio
+3. **Form Handling** - React Hook Form, Formik, Final Form
+4. **Date/Time Libraries** - date-fns, Day.js, Luxon
+5. **HTTP Clients** - Axios, Fetch, SWR, React Query/TanStack Query
+6. **Validation Libraries** - Zod, Yup, Joi, Ajv
+7. **Testing Libraries** - Jest, Vitest, Testing Library, Playwright
+8. **Build/Development Tools** - Vite, Webpack, ESBuild, SWC
+
+#### Evaluation Criteria for Each Option:
+- **Open Source Status**: MIT/Apache license preferred
+- **Cost Structure**: Free tier availability, pricing for scale
+- **Stability Metrics**: GitHub stars, last commit date, issue response time
+- **Community Health**: Active maintainers, documentation quality, Stack Overflow activity
+- **Bundle Size Impact**: Size implications for client-side performance
+- **Learning Curve**: Team adoption difficulty and time to productivity
+- **Use Case Alignment**: How well it supports identified use cases
+- **Anti-Case Prevention**: Helps avoid identified anti-patterns
+
+### Required Output Format:
+
+#### Core Framework Analysis:
+For each core technology choice (React, Node.js, PostgreSQL, etc.):
+- **Technology**: Specific technology/framework/tool
+- **Use Case Impact Matrix**: Which use cases benefit (+) or suffer (-) 
+- **Anti-Case Prevention**: Which anti-cases this helps avoid
+- **Quantified Benefits**: Measurable positive impacts
+- **Quantified Costs**: Measurable negative impacts  
+- **Risk Assessment**: Technical and business risks
+- **Recommendation**: INCORPORATE/UPDATE_APPROACH/ADD_ALTERNATIVE/DEFER/REJECT
+- **Rationale**: Clear reasoning for recommendation
+
+#### Third-Party Ecosystem Analysis:
+For each relevant service/library category:
+- **Category**: Service/Library category (Auth, UI Components, etc.)
+- **Top 3 Options Evaluated**: Specific tools with GitHub links
+- **Stability Assessment**: Stars, last commit, maintainer activity, license
+- **Cost Analysis**: Free tier limits, paid tier pricing, total cost of ownership
+- **Use Case Fit**: How well each option supports identified use cases (score 1-10)
+- **Bundle Impact**: Size/performance implications
+- **Learning Curve**: Team adoption difficulty (Low/Medium/High)
+- **Recommended Choice**: Selected option with reasoning
+- **Alternative Options**: Backup choices if primary fails
+- **Integration Complexity**: How it integrates with core framework
+
+#### Decision Matrix:
+Create comprehensive matrices:
+1. **Core Technology vs Use Cases Matrix**: Framework choices against all use cases
+2. **Third-Party Services vs Use Cases Matrix**: Service choices against use cases  
+3. **Library Choices vs Anti-Cases Matrix**: How libraries help avoid anti-patterns
+4. **Cost-Benefit Summary**: Total technology stack cost vs value delivered
+
+#### Final Technology Stack Recommendation:
+- **Core Framework Stack**: Primary frameworks and languages
+- **Essential Third-Party Services**: Must-have external services
+- **Recommended Libraries**: Key libraries for development efficiency
+- **Development Tools**: Build, test, and deployment tooling
+- **Total Cost Estimate**: Monthly and annual cost projections
+- **Implementation Phases**: Which technologies to adopt in which order
+
+Generate: docs/planning/technology-impact-analysis-$iteration.md"
+
+    echo "🤖 Task: Use tech-research-analyst subagent to analyze technology choice impacts for: <prompt-context>"
+}
+
+# Step 4: Assess requirements satisfaction and NFR completeness
+assess_requirements_satisfaction() {
+    local iteration=$1
+    echo "📊 Step 4: Requirements Satisfaction Assessment (Iteration $iteration)"
+    
+    satisfaction_prompt="## Requirements Satisfaction Assessment
+
+**Original Request:** <prompt-context>
+
+**Current Analysis Context:**
+- **Unstated Use Cases:** $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "USC-$iteration" docs/planning/refinement/iteration-$iteration-analysis.md || echo "0") identified
+- **Anti-Cases:** $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "ANC-$iteration" docs/planning/refinement/iteration-$iteration-analysis.md || echo "0") identified  
+- **Technology Impacts:** $([ -f "docs/planning/technology-impact-analysis-$iteration.md" ] && grep -c "Technology:" docs/planning/technology-impact-analysis-$iteration.md || echo "0") analyzed
+
+**Iteration Context Files:**
+$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Use Cases:" && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -20)
+$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Anti-Cases:" && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -20)
+$([ -f "docs/planning/technology-impact-analysis-$iteration.md" ] && echo "Tech Analysis:" && cat docs/planning/technology-impact-analysis-$iteration.md | head -20)
+
+**SATISFACTION CRITERIA ASSESSMENT:**
+
+Evaluate whether requirements understanding has reached sufficient maturity:
+
+### Completeness Criteria (each must score ≥8/10):
+1. **Functional Coverage** (8-10): Do we understand all major functional requirements?
+2. **Use Case Completeness** (8-10): Have we identified the important unstated use cases?
+3. **Boundary Clarity** (8-10): Are scope boundaries clearly defined via anti-cases?
+4. **Technology Fit** (8-10): Do technology choices align with all use case needs?
+5. **NFR Definition** (8-10): Are non-functional requirements clearly specified?
+6. **Risk Understanding** (8-10): Are major technical and business risks identified?
+7. **Scalability Planning** (8-10): Are scaling requirements and constraints clear?
+8. **Integration Planning** (8-10): Are integration points and requirements clear?
+
+### NFR (Non-Functional Requirements) Completeness Check:
+- **Performance**: Response times, throughput, concurrency requirements
+- **Scalability**: User growth, data growth, geographic scaling needs
+- **Security**: Authentication, authorization, data protection, compliance
+- **Reliability**: Uptime, error rates, disaster recovery requirements  
+- **Usability**: User experience, accessibility, internationalization needs
+- **Maintainability**: Code quality, documentation, testing requirements
+- **Portability**: Platform independence, cloud portability needs
+- **Compliance**: Regulatory, industry standard, organizational policy requirements
+
+### Required Output Format:
+- **Overall Satisfaction Score**: X/80 (sum of all criteria scores)
+- **SATISFIED**: true/false (requires ≥64/80 score)
+- **Missing Elements**: List what still needs refinement
+- **Refinement Recommendations**: Specific actions for next iteration
+- **NFR Gaps**: Specific non-functional requirements needing attention
+
+Generate: docs/planning/requirements-satisfaction-$iteration.md"
+
+    echo "🤖 Task: Use system-architect subagent to assess requirements satisfaction for: <prompt-context>"
+}
+
+# Generate final refined requirements summary
+generate_refined_requirements_summary() {
+    local final_iteration=$1
+    echo "📋 Generating Final Refined Requirements Summary"
+    
+    summary_prompt="## Final Refined Requirements Summary
+
+**Original Request:** <prompt-context>
+
+**Refinement Process Summary:**
+- **Iterations Completed**: $((final_iteration-1))
+- **Use Cases Discovered**: $(find docs/planning/ -name "unstated-use-cases-*.md" -exec grep -c "USC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+- **Anti-Cases Identified**: $(find docs/planning/ -name "anti-cases-*.md" -exec grep -c "ANC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+- **Technology Choices Analyzed**: $(find docs/planning/ -name "technology-impact-analysis-*.md" -exec grep -c "Technology:" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+
+**All Analysis Context:**
+$(find docs/planning/ -name "unstated-use-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Use case files not found")
+$(find docs/planning/ -name "anti-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Anti-case files not found")
+$(find docs/planning/ -name "technology-impact-analysis-*.md" -exec cat {} \; 2>/dev/null || echo "Technology analysis files not found")
+$(find docs/planning/ -name "requirements-satisfaction-*.md" -exec cat {} \; 2>/dev/null || echo "Satisfaction assessment files not found")
+
+**SYNTHESIZE FINAL REQUIREMENTS:**
+
+Create comprehensive, refined requirements specification including:
+
+### 1. Core Functional Requirements
+- Original stated requirements (enhanced/clarified)
+- Critical unstated requirements (incorporated from USC analysis)
+- Requirements prioritization (MoSCoW: Must/Should/Could/Won't)
+
+### 2. Comprehensive Non-Functional Requirements (NFRs)
+- Performance requirements with quantified targets
+- Scalability requirements with growth projections  
+- Security requirements with compliance standards
+- Reliability requirements with SLA targets
+- Usability requirements with UX criteria
+- Maintainability requirements with quality metrics
+
+### 3. Technology Requirements & Constraints
+- **Core Framework Stack**: Recommended primary frameworks with rationale
+- **Third-Party Service Requirements**: Essential external services (auth, storage, etc.)
+- **Library Dependencies**: Key libraries for functionality and development efficiency
+- **Technology Constraints**: Platform limitations and compatibility requirements
+- **Integration Requirements**: APIs, webhooks, and data exchange protocols needed
+- **Infrastructure Requirements**: Hosting, database, CDN, and deployment needs
+- **Development Tooling**: Build, test, CI/CD, and monitoring tool requirements
+
+### 4. Explicit Scope Boundaries
+- What IS included (based on use case analysis)
+- What is explicitly EXCLUDED (based on anti-case analysis)  
+- Phase 1 vs Future Phase delineation
+- Success criteria and acceptance criteria
+
+### 5. Risk-Informed Requirements
+- Risk mitigation requirements
+- Fallback and contingency requirements
+- Monitoring and alerting requirements
+
+Generate: docs/planning/refined-requirements-final.md"
+
+    echo "🤖 Task: Use system-architect subagent to generate final refined requirements for: <prompt-context>"
+}
+
+# Phase 4: Anti-Case Consolidation
+execute_phase4_anti_case_consolidation() {
+    local main_dir="$(pwd)"
+    echo "🚫 Phase 4: Anti-Case Analysis Consolidation"
+    
+    echo "🤖 Task: Use product-strategist subagent to consolidate anti-case analysis for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/4-anti-case-analysis.md"
+    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (anti-case sections)"
+}
+
+# Phase 5: Technology Ecosystem Analysis  
+execute_phase5_technology_ecosystem_analysis() {
+    local main_dir="$(pwd)"
+    echo "🔬 Phase 5: Technology Ecosystem Analysis"
+    
+    echo "🤖 Task: Use tech-research-analyst subagent to consolidate technology ecosystem analysis for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/5-technology-ecosystem.md"  
+    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (technology sections), docs/planning/technology-impact-analysis-*.md"
 }
 ```
 
@@ -1438,88 +1984,49 @@ Please review the architecture specification and select your approval option."
 
 This section implements the standard IDEAL-STI phases (5-16) that execute after adaptive discovery completes.
 
-### Phase 5: Requirements Definition
+### Phase 6: Requirements Definition
 
 **Purpose:** Detailed functional and non-functional requirements based on discovery analysis.
 
 **Execution Instructions:**
 ```bash
-execute_phase5_requirements() {
+execute_phase6_requirements_specification() {
     local main_dir="$(pwd)"
-    echo "📋 Phase 5: Requirements Definition based on discovery analysis"
+    echo "📋 Phase 6: Requirements Definition based on discovery analysis"
     
-    requirements_prompt="Based on completed discovery analysis and architecture confirmation:
-
-$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md)
-$([ -f "docs/planning/complexity-assessment.md" ] && echo -e "\n## Complexity Assessment\n" && cat docs/planning/complexity-assessment.md | head -20)
-
-Create comprehensive requirements specification:
-1. **Functional Requirements**: User stories with acceptance criteria based on discovery
-2. **Non-Functional Requirements**: Performance, security, scalability from technology research
-3. **Integration Requirements**: API contracts and data flows from architecture analysis
-4. **Compliance Requirements**: Regulatory and business constraints from stakeholder analysis
-5. **Test Requirements**: Test-driven development approach embedded in tasks
-
-Use findings from discovery phases and technology research above.
-Generate: docs/planning/phase5-requirements.md"
-    
-    ask subagent product-strategist to define comprehensive requirements with context: "$requirements_prompt"
+    echo "🤖 Task: Use product-strategist subagent to define comprehensive requirements for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/6-requirements-specification.md"
+    echo "📄 Input Files: docs/planning/2-discovery-analysis.md, docs/planning/refinement/iteration-*-analysis.md"
 }
 ```
 
-### Phase 6: Interface Design
+### Phase 7: Interface Design
 
 **Purpose:** User experience and API interface design aligned with requirements.
 
 **Execution Instructions:**
 ```bash
-execute_phase6_interface() {
+execute_phase7_interface_design() {
     local main_dir="$(pwd)"
-    echo "🎨 Phase 6: Interface Design for user experience and APIs"
+    echo "🎨 Phase 7: Interface Design for user experience and APIs"
     
-    interface_prompt="Based on requirements and architecture specification:
-
-$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -50)
-$([ -f "docs/planning/discovery-summary.md" ] && echo -e "\n## Discovery Context\n" && cat docs/planning/discovery-summary.md | head -30)
-
-Design comprehensive interface specification:
-1. **User Interface Design**: Wireframes, user flows, interaction patterns aligned with user needs
-2. **API Interface Design**: Endpoints, data models, integration contracts based on requirements
-3. **System Interface Design**: Internal service boundaries and contracts for architecture
-4. **Error Interface Design**: Error handling and user feedback patterns for all scenarios
-
-Include accessibility considerations and responsive design principles.
-Generate: docs/planning/phase6-interface.md"
-    
-    ask subagent ui-designer to design comprehensive interfaces with context: "$interface_prompt"
+    echo "🤖 Task: Use ui-designer subagent to design comprehensive interfaces for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/7-interface-design.md"
+    echo "📄 Input Files: docs/planning/6-requirements-specification.md"
 }
-### Phase 7: Architecture Design
+### Phase 8: Architecture Design
 
 **Purpose:** System architecture design based on requirements and technology research.
 
 **Execution Instructions:**
 ```bash
-execute_phase7_architecture() {
+execute_phase8_architecture_design() {
     local main_dir="$(pwd)"
-    echo "🏗️ Phase 7: Architecture Design based on requirements and technology stack"
+    echo "🏗️ Phase 8: Architecture Design based on requirements and technology stack"
     
-    architecture_prompt="Based on requirements specification and technology research:
-
-$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -60)
-$([ -f "docs/planning/phase6-interface.md" ] && echo -e "\n## Interface Specification\n" && cat docs/planning/phase6-interface.md | head -40)
-$([ -f "docs/planning/discovery-summary.md" ] && echo -e "\n## Discovery Foundation\n" && cat docs/planning/discovery-summary.md | head -40)
-
-Design comprehensive system architecture:
-1. **System Architecture**: High-level system design and component interactions based on requirements
-2. **Data Architecture**: Data models, storage patterns, and data flow design from interface specs  
-3. **Security Architecture**: Authentication, authorization, and data protection per requirements
-4. **Deployment Architecture**: Infrastructure, scaling, and operational considerations from discovery
-5. **Integration Architecture**: External system integrations and API design from interface specs
-
-Include architecture decision records (ADRs) for major decisions.
-Generate: docs/planning/phase7-architecture.md"
-    
-    ask subagent system-architect to design comprehensive architecture with context: "$architecture_prompt"
+    echo "🤖 Task: Use system-architect subagent to design comprehensive architecture for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/8-architecture-design.md"
+    echo "📄 Input Files: docs/planning/6-requirements-specification.md, docs/planning/7-interface-design.md, docs/planning/5-technology-ecosystem.md"
     
     # Architecture confirmation checkpoint
     trigger_architecture_confirmation
@@ -1536,37 +2043,15 @@ execute_phases_8_to_10_task_generation() {
     local main_dir="$(pwd)"
     echo "📝 Phases 8-10: Task Generation with TDD Integration"
     
-    # Phase 8: Task Planning with TDD approach
-    task_planning_prompt="Based on approved architecture and requirements:
-
-Create comprehensive implementation tasks with Test-Driven Development methodology:
-1. **Feature Breakdown**: Break architecture into implementable features
-2. **Test Planning**: Embed test case generation in each task
-3. **Implementation Strategy**: Include Red-Green-Refactor approach
-4. **Acceptance Criteria**: Define clear completion criteria
-5. **Priority Ranking**: Prioritize tasks by business value and dependencies
-
-For each task, include:
-- Test scenarios (happy path and edge cases)
-- Mock data and test fixtures needed
-- Integration test requirements
-- Performance test considerations
-
-Generate: docs/planning/phase8-task-planning.md"
+    # Phase 9: Task Planning with TDD approach
+    echo "🤖 Task: Use feature-developer subagent to create TDD-integrated task plan for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/9-task-planning.md"
+    echo "📄 Input Files: docs/planning/8-architecture-design.md"
     
-    ask subagent feature-developer to create TDD-integrated task plan with context: "$task_planning_prompt"
-    
-    # Phase 9: Implementation Task Generation 
-    task_generation_prompt="Based on task planning and architecture:
-
-Generate specific implementation tasks with parallel execution patterns:
-$([ -f "docs/planning/phase8-task-planning.md" ] && cat docs/planning/phase8-task-planning.md | head -100)
-
-Create detailed implementation tasks using parallel subagent patterns for complex features.
-Each task should include test-first approach and acceptance criteria.
-Generate: docs/planning/phase9-implementation-tasks.md"
-    
-    ask subagent feature-developer to generate implementation tasks with context: "$task_generation_prompt"
+    # Phase 10: Implementation Task Generation 
+    echo "🤖 Task: Use feature-developer subagent to generate implementation tasks for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/10-implementation-tasks.md"
+    echo "📄 Input Files: docs/planning/9-task-planning.md"
 }
 ```
 
@@ -1580,79 +2065,24 @@ execute_phase11_implementation() {
     local main_dir="$(pwd)"
     echo "🚀 Phase 11: Implementation Loop with Parallel Task Execution"
     
-    implementation_prompt="Execute implementation tasks using parallel subagent patterns:
-
-For complex features, launch parallel implementation across:
-- Frontend components and UI
-- Backend APIs and business logic  
-- Database schemas and data access
-- Integration tests and validation
-- Documentation and user guides
-
-Use the launch_parallel_feature_implementation pattern defined earlier.
-Coordinate feature completion before proceeding to next iteration.
-
-Execute all tasks from: docs/planning/phase9-implementation-tasks.md
-Track progress in: docs/planning/implementation-progress.md"
-    
-    ask subagent feature-developer to execute implementation tasks with context: "$implementation_prompt"
+    echo "🤖 Task: Use feature-developer subagent to execute implementation tasks for: <prompt-context>"
+    echo "📄 Input Files: docs/planning/10-implementation-tasks.md"
+    echo "📄 Subagent Output: Implementation files in worktree, tested code"
 }
 
 execute_phase12_to_16_deployment() {
     local main_dir="$(pwd)"
     echo "🚀 Phase 12-16: Deployment Pipeline and Production Launch"
     
-    deployment_prompt="Execute automated deployment pipeline:
-
-1. **Phase 12**: Classification (feature flags, rollout strategy)
-2. **Phase 13**: Pipeline preparation (CI/CD, infrastructure)  
-3. **Phase 14**: Deployment execution (blue-green, canary)
-4. **Phase 15**: Post-deployment validation (health checks, monitoring)
-5. **Phase 16**: Production monitoring and feedback collection
-
-Coordinate with infrastructure team and implement proper rollback procedures.
-Generate: docs/planning/deployment-execution.md"
-    
-    ask subagent deployment-orchestrator to execute deployment pipeline with context: "$deployment_prompt"
+    echo "🤖 Task: Use deployment-orchestrator subagent to execute deployment pipeline for: <prompt-context>"
+    echo "📄 Expected Output: docs/planning/11-deployment-plan.md"
+    echo "📄 Input Files: docs/planning/10-implementation-tasks.md, implemented code from worktree"
+    echo "📄 Final Output: docs/planning/12-project-summary.md (by knowledge-aggregator)"
 }
 ```
 
 ---
 
-## SECTION 4: AGENT INTEGRATION AND COORDINATION
-
-### Agent Context Requirements
-
-**All agents receive:**
-- Working directory path
-- Project session ID
-- Architecture specification reference
-- Relevant phase documentation
-
-**Specific context patterns:**
-- **Strategic agents** (product-strategist): User requirements, problem domain
-- **Technical agents** (tech-research-analyst, system-architect): Technical constraints, performance requirements
-- **Implementation agents** (feature-developer, qa-analyst): Task specifications, acceptance criteria
-- **Quality agents** (code-reviewer, code-refactor): Implementation files, coding standards
-- **Knowledge agents** (knowledge-aggregator): Process outcomes, learnings, patterns
-- **Operations agents** (deployment-orchestrator): Feature classification, CI/CD requirements
-
-### Agent Output Integration
-
-**Documentation Chain:**
-- Phase agents → planning documents (phase1-discovery.md, etc.)
-- Architecture agents → architecture-specification.md
-- Implementation agents → task files, code implementations
-- Quality agents → review reports, refactored code
-- Deployment agents → deployment reports, infrastructure
-
-**Cross-Agent Dependencies:**
-- product-strategist outputs feed into tech-research-analyst
-- system-architect requires outputs from both strategic and technical agents
-- feature-developer coordinates with qa-analyst for test integration
-- deployment-orchestrator requires feature-developer completion signals
-
----
 
 ## SUMMARY: IDEAL-STI v3.0 ADAPTIVE SYSTEM
 
@@ -1668,7 +2098,7 @@ The IDEAL-STI v3.0 system provides adaptive intelligence planning that automatic
 - 🔄 **Adaptive Execution**: Automatic complexity assessment and mode selection
 
 **🎯 KEY FEATURES:**
-- Claude Code parallel subagent syntax: `ask subagent [agent-name] to [task] with context: "[prompt]"`
+- Claude Code parallel subagent syntax: `ask subagent [agent-name] to [task] with arguments: "<prompt-context>"`
 - Parallel execution patterns for complex features with wait coordination
 - Test-driven development embedded in task generation
 - Smart confirmation system that only triggers when analysis demands it
