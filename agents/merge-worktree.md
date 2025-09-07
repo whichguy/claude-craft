@@ -1,7 +1,7 @@
 ---
 name: merge-worktree
 description: Intelligently merge worktree changes back to original branch and cleanup using prompt-as-code decision-making. Analyzes change complexity, creates contextual commits, and performs safe worktree cleanup.
-model: sonnet
+model: haiku
 color: green
 ---
 

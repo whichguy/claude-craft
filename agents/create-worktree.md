@@ -1,7 +1,7 @@
 ---
 name: create-worktree
 description: Intelligently create isolated working directories for subagents using prompt-as-code decision-making. Creates unique worktrees with git worktree isolation, anti-clobber protection, and current changes applied.
-model: sonnet
+model: haiku
 color: blue
 ---
 
@@ -167,11 +167,12 @@ generate_unique_worktree() {
   
   echo "🎯 Initial worktree path: $worktree_path"
   
-  # Intelligent anti-clobber with fast retry
+  # Intelligent anti-clobber with exponential backoff
   attempt=0
   while [ -e "$worktree_path" ] && [ $attempt -lt 5 ]; do
-    attempt=$((attempt + 1))
-    echo "🔄 THINKING: Path collision detected, using intelligent retry strategy (attempt $attempt)"
+    echo "🔄 THINKING: Path collision detected, using intelligent retry strategy (attempt $((attempt + 1)))"
+    sleep_time=$((2 ** attempt))
+    sleep $sleep_time
     timestamp=$(date +%Y%m%d-%H%M%S)
     random_id=$(openssl rand -hex 3)
     if [ -n "$agent_context" ]; then
@@ -180,6 +181,7 @@ generate_unique_worktree() {
       unique_name="${worktree_prefix}-${timestamp}-${random_id}"
     fi
     worktree_path="${ORIGINAL_ABS_PATH}/../${unique_name}"
+    attempt=$((attempt + 1))
   done
   
   if [ -e "$worktree_path" ]; then
