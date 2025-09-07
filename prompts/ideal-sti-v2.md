@@ -1,23 +1,532 @@
-# IDEAL-STI Phase-Based Planning System (Version 2.1)
-## Comprehensive 11-Phase Project Planning with Interactive User Control
+# IDEAL-STI Adaptive Intelligence Planning System (Version 3.0)
+## Adaptive Phase Execution with Smart Confirmations
 
-**Version**: 2.1 (Enhanced with Interactive User Confirmation Points)  
+**Version**: 3.0 (Adaptive Phase Architecture with Complexity-Based Execution)  
 **Template Context**: <prompt-template-name>  
 **Project Requirements**: <prompt-context>
 
-You are executing a sophisticated 11-phase planning orchestration system (Phases 0-10) that uses structured phase validation, user confirmation points, and quality gates for phase transitions. This version 2.1 adds mandatory user approval at critical decision points to ensure proper oversight and control.
+You are executing an adaptive intelligence planning system that automatically adjusts execution complexity based on project scope. Simple projects get fast-track analysis (SPEED mode), medium projects get standard phase flow with smart confirmations (STANDARD mode), and complex projects get comprehensive analysis (DEEP mode).
 
-## Critical User Interaction Points
+## Adaptive Execution Modes
 
-**MANDATORY USER CONFIRMATION PHASES**: 1, 2, 3, 4, 5
-After completing each of these phases, you MUST:
-1. Present a clear summary of what was accomplished
-2. Ask the user to review the phase output
-3. Request explicit approval before proceeding
-4. Offer options: continue, iterate, or stop
+**SPEED MODE** (Simple Projects): 
+- Fast consolidated discovery (5-8 minutes)
+- Smart confirmations only when conflicts detected
+- Minimal agent involvement for obvious technology choices
 
-**Phase 6-10 Execution**: May proceed automatically after user approval of Phase 5 foundation.
-**Phase 11+ Implementation**: Continuous iteration using feature-developer subagents until all features implemented.
+**STANDARD MODE** (Medium Projects):
+- Full phase structure with enhanced smart confirmations
+- Strategic agent invocation for technology analysis
+- Intelligence-driven decision points
+
+**DEEP MODE** (Complex Projects):
+- Extended comprehensive analysis
+- Full parallel agent ecosystem
+- Both smart triggers AND phase boundary confirmations
+
+## Smart Confirmation System
+
+**Intelligence-Driven Triggers** (replace fixed phase confirmations):
+1. **Scope Expansion Detected**: When discovered requirements >50% beyond original
+2. **Major Assumptions Made**: When significant assumptions need user validation  
+3. **Technology Complexity Discovered**: When tech choice creates unexpected requirements
+4. **Feasibility Concerns Found**: When major risks or blockers identified
+
+**ARCHITECTURE CONFIRMATION CHECKPOINT** (All Modes):
+Critical checkpoint after discovery phases complete:
+1. Present comprehensive requirements and technology specification
+2. Show confidence levels and risk assessment
+3. Request explicit architecture approval
+4. Offer options: approve, extend discovery, refine scope, or stop
+
+**Implementation & Deployment**: Phases 8-16 continue with existing TDD task generation and deployment orchestration.
+
+## IDEAL-STI ADAPTIVE WORKFLOW
+
+```mermaid
+flowchart TB
+    Start([Mixed User Input]) --> P0[Phase 0: Existing Analysis]
+    P0 --> P05[Phase 0.5: Complexity Assessment & Mode Selection]
+    
+    P05 --> ModeDecision{Project Complexity?}
+    ModeDecision -->|Simple| SpeedMode[SPEED MODE: Fast Discovery]
+    ModeDecision -->|Medium| StandardMode[STANDARD MODE: Phase Flow]
+    ModeDecision -->|Complex| DeepMode[DEEP MODE: Comprehensive]
+    
+    SpeedMode --> SpeedP1to4[Consolidated Discovery (5-8 min)]
+    StandardMode --> StandardP1[Phase 1: Discovery & Analysis]
+    DeepMode --> DeepP1[Phase 1: Extended Discovery]
+    
+    SpeedP1to4 --> SmartTrigger1{Smart Confirmations Needed?}
+    StandardP1 --> SmartTrigger2{Scope/Assumptions/Tech Issues?}
+    DeepP1 --> DeepP2[Phase 2: Goals & Intent]
+    
+    SmartTrigger1 -->|No| SpeedComplete[Speed Discovery Complete]
+    SmartTrigger1 -->|Yes| UserConfirm1[User Confirmation]
+    SmartTrigger2 -->|No| StandardP2[Phase 2: Goals & Intent]
+    SmartTrigger2 -->|Yes| UserConfirm2[User Confirmation]
+    
+    UserConfirm1 --> SpeedComplete
+    UserConfirm2 --> StandardP2
+    
+    StandardP2 --> StandardP3[Phase 3: Feasibility]
+    StandardP3 --> TechTrigger{Tech Analysis Needed?}
+    TechTrigger -->|Yes| TechAgent[🔄 Ask subagent tech-research-analyst]
+    TechTrigger -->|No| StandardP4[Phase 4: Technology Research]
+    TechAgent --> StandardP4
+    StandardP4 --> StandardComplete[Standard Discovery Complete]
+    
+    DeepP2 --> DeepP3[Phase 3: Feasibility Assessment]
+    DeepP3 --> ParallelTech[🔄 In parallel ask multiple subagents]
+    ParallelTech --> DeepP4[Phase 4: Technology Research]
+    DeepP4 --> DeepComplete[Deep Discovery Complete]
+    
+    SpeedComplete --> ArchConfirm[Architecture Confirmation Checkpoint]
+    StandardComplete --> ArchConfirm
+    DeepComplete --> ArchConfirm
+    
+    ArchConfirm -->|Approve| P5[Phase 5: Requirements Specification]
+    ArchConfirm -->|Extend| BackToDiscovery[Extend Discovery]
+    ArchConfirm -->|Stop| EndArch[Architecture Review Required]
+    
+    BackToDiscovery --> StandardMode
+    
+    P5 --> P6[Phase 6: Scope & Prioritization]
+    P6 --> P7[Phase 7: Architecture Design]
+    P7 --> P8[Phase 8: Decision Registry]
+    P8 --> P9[Phase 9: Interface Specifications]
+    P9 --> P10[Phase 10: Task Generation]
+    
+    P10 --> P11[Phase 11: Implementation Loop]
+    P11 --> P11Check{All Features Complete?}
+    P11Check -->|No| P11
+    P11Check -->|Yes| P12[Phase 12: Deployment Classification]
+    
+    P12 --> P13[Phase 13: Pipeline Preparation]
+    P13 --> P14[Phase 14: Deployment Execution]
+    P14 --> P14Check{Health Checks Pass?}
+    P14Check -->|Fail| Rollback[Auto Rollback]
+    Rollback --> P14
+    P14Check -->|Pass| P15[Phase 15: Post-Deployment Validation]
+    
+    P15 --> P16[Phase 16: Monitoring & Feedback]
+    P16 --> Complete([Production Ready])
+    
+    subgraph "Adaptive Discovery Modes"
+        SpeedMode
+        StandardMode
+        DeepMode
+        SpeedP1to4
+        StandardP1
+        DeepP1
+    end
+    
+    subgraph "Smart Confirmation System"
+        SmartTrigger1
+        SmartTrigger2
+        UserConfirm1
+        UserConfirm2
+        TechTrigger
+    end
+    
+    subgraph "Parallel Agent Integration"
+        TechAgent
+        ParallelTech
+    end
+    
+    subgraph "Standard Phase Flow"
+        P5
+        P6
+        P7
+        P8
+        P9
+        P10
+    end
+    
+    subgraph "Implementation Iteration"
+        P11
+        P11Check
+    end
+    
+    subgraph "CI/CD Deployment"
+        P12
+        P13
+        P14
+        P14Check
+        Rollback
+        P15
+        P16
+    end
+    
+    subgraph "Key Agents"
+        SA1[product-strategist: Strategic Analysis]
+        SA2[tech-research-analyst: Technology Research]
+        SA3[system-architect: Architecture Design]
+        SA4[feature-developer: Task Generation & Implementation]
+        SA5[ui-designer: Interface Design]
+        SA6[code-reviewer: Code Quality]
+        SA7[knowledge-aggregator: Learning Capture]
+        SA8[deployment-orchestrator: Production Deployment]
+    end
+    
+    StandardP1 -.-> SA1
+    DeepP1 -.-> SA1
+    TechAgent -.-> SA2
+    ParallelTech -.-> SA2
+    P7 -.-> SA3
+    P9 -.-> SA5
+    P10 -.-> SA4
+    P11 -.-> SA4
+    P11 -.-> SA6
+    P11 -.-> SA7
+    P14 -.-> SA8
+    
+    classDef adaptiveMode fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
+    classDef smartTrigger fill:#fff3e0,stroke:#ef6c00,stroke-width:3px
+    classDef parallelAgent fill:#e1f5fe,stroke:#0277bd,stroke-width:3px
+    classDef standardPhase fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef implPhase fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef deployPhase fill:#fff3e0,stroke:#f57f17,stroke-width:2px
+    classDef agent fill:#fff,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
+    classDef terminal fill:#ffebee,stroke:#c62828,stroke-width:2px
+    
+    class SpeedMode,StandardMode,DeepMode,SpeedP1to4,StandardP1,DeepP1 adaptiveMode
+    class SmartTrigger1,SmartTrigger2,UserConfirm1,UserConfirm2,TechTrigger smartTrigger
+    class TechAgent,ParallelTech parallelAgent
+    class P5,P6,P7,P8,P9,P10 standardPhase
+    class P11,P11Check implPhase
+    class P12,P13,P14,P15,P16 deployPhase
+    class SA1,SA2,SA3,SA4,SA5,SA6,SA7,SA8 agent
+    class Start,Complete,EndArch,Rollback terminal
+```
+
+## REVOLUTIONARY AGENT INTEGRATION REFERENCE
+
+### Parallel Discovery Agent Matrix
+
+| **Agent** | **Discovery Stream** | **Trigger** | **Purpose** | **Context Provided** | **Expected Output** |
+|-----------|---------------------|-------------|-------------|---------------------|---------------------|
+| **product-strategist** | Stream 1 Lead | Continuous | Stakeholder-Use Case discovery | Mixed user input + synthesis feedback | Continuously updated stakeholder analysis and use case expansion |
+| **tech-research-analyst** | Stream 2 Lead | Continuous | Technology-Constraint discovery | Mixed user input + synthesis feedback | Real-time tech implications and constraint analysis |
+| **environment-analyst** | Stream 3 Lead | Continuous | Environment-Context discovery | Mixed user input + synthesis feedback | Environment integration analysis and context mapping |
+| **synthesis-coordinator** | Real-time Synthesis | Every 5-10 discoveries | Cross-stream intelligence integration | All stream outputs | Integrated requirements-tech specification with confidence levels |
+| **unknown-detector** | Pattern Analysis | Triggered by synthesis gaps | Unknown unknown identification | Cross-stream patterns + domain research | Critical knowledge gap identification and discovery recommendations |
+| **decision-orchestrator** | Dynamic Decision Management | Intelligence-driven triggers | Dynamic decision point management | Synthesis conflicts/convergence/gaps | User decision point orchestration and conflict resolution |
+| **system-architect** | Post-Convergence | After sufficient convergence | Architecture design | Integrated requirements-tech specification | Architecture specification document |
+| **ui-designer** | Phase 9 | Always | Interface specifications | Architecture, requirements context | UI/UX specifications and API definitions |
+| **feature-developer** | Phase 10 & 11+ | Task generation & implementation | Complete feature development | Task specifications, worktree isolation | Task breakdown with embedded TDD + complete implementations |
+| **code-reviewer** | Phase 11+ | After each implementation | Code quality review | Implementation files and context | Code review analysis and recommendations |
+| **knowledge-aggregator** | After convergence & implementations | Learning capture | Pattern and insight capture | Discovery patterns + implementation learnings | Cross-project learning synthesis and documentation |
+| **deployment-orchestrator** | Phase 14 | Deployment execution | Production deployment | Feature classification, CI/CD requirements | Deployment execution and validation |
+
+### Revolutionary Agent Orchestration Patterns
+
+**Phase 0.5 - Intelligence Parser Activation:**
+```bash
+# Parse mixed user input into classified elements
+parse_mixed_input() {
+    local user_input="$1"
+    local parser_context="$main_dir/docs/planning/parsed-input.md"
+    
+    # Create input classification
+    cat > "$parser_context" << 'EOF'
+# Mixed Input Intelligence Parsing
+
+## Input Element Classification
+- **Explicit Requirements**: [Clear user needs identified]
+- **Technology Preferences**: [Tech choices/constraints specified]  
+- **Environment References**: [Existing system/workflow mentions]
+- **Vague Intent Signals**: [Unclear but directional statements]
+- **Constraint Indicators**: [Limitation signals detected]
+
+## Relationship Detection
+- Technology-Requirement Dependencies: [Which tech constrains which requirements]
+- Environment-Use Case Enablers: [Which environment features enable which scenarios]
+- Vague Intent Categories: [What unstated requirement types are suggested]
+
+## Discovery Prioritization Matrix
+- High-Impact Unknowns: [Could change entire approach]
+- Medium-Impact Gaps: [Could affect major decisions]  
+- Low-Impact Details: [Nice-to-know information]
+EOF
+}
+```
+
+
+## Adaptive Execution Mode Functions
+
+### SPEED MODE (5-8 minutes): Fast-Track Simple Projects
+
+```bash
+execute_speed_mode() {
+    local main_dir="$(pwd)"
+    echo "⚡ SPEED MODE: Fast-track discovery for simple projects (5-8 minutes)"
+    
+    # Single consolidated discovery phase with minimal agent involvement
+    speed_prompt="Fast-track analysis for simple project requirements: <prompt-context>
+
+CONSOLIDATED DISCOVERY ANALYSIS:
+1. **Stakeholder & Use Case Analysis**: Quick identification of primary users and core use cases
+2. **Technology Constraints**: Fast assessment of tech requirements and constraints  
+3. **Feasibility Check**: Rapid go/no-go assessment
+4. **Simple Architecture**: Straightforward solution design
+5. **Basic Requirements**: Essential functional and non-functional requirements
+
+Focus on obvious choices, minimal complexity, clear implementation path.
+Create: docs/planning/discovery-analysis.md"
+    
+    ask subagent product-strategist to perform fast-track project analysis with context: "$speed_prompt"
+    
+    # Smart confirmation only if conflicts detected
+    check_smart_confirmations "speed-mode"
+}
+```
+
+### STANDARD MODE (15-25 minutes): Full Phase Flow with Smart Confirmations
+
+```bash  
+execute_standard_mode() {
+    local main_dir="$(pwd)"
+    echo "📊 STANDARD MODE: Full phase flow with smart confirmations (15-25 minutes)"
+    
+    # Execute phases 1-4 with strategic agent involvement
+    execute_discovery_phases_with_agents
+    
+    # Smart confirmation checkpoints triggered by intelligence
+    check_smart_confirmations "standard-mode"
+}
+
+execute_discovery_phases_with_agents() {
+    # Phase 1: Strategic Discovery with parallel analysis
+    echo "🔍 Phase 1: Strategic Discovery with parallel agent analysis"
+    
+    # Parallel agent invocation using Claude Code native pattern
+    # For each analysis area: Launch subagents independently and run in parallel
+    
+    # Analysis areas to process in parallel
+    analysis_areas=("stakeholder-analysis" "use-case-discovery" "requirements-extraction" "constraint-identification")
+    
+    # Launch parallel subagents for Phase 1 analysis
+    for area in "${analysis_areas[@]}"; do
+        case "$area" in
+            "stakeholder-analysis")
+                ask subagent product-strategist to analyze stakeholders and users with context: "Strategic stakeholder analysis for: <prompt-context>. Focus on identifying all user types, their needs, goals, and pain points. Create comprehensive stakeholder map."
+                ;;
+            "use-case-discovery") 
+                ask subagent product-strategist to discover use cases and scenarios with context: "Use case discovery for: <prompt-context>. Expand beyond obvious use cases to include edge cases, failure modes, and workflow integration scenarios."
+                ;;
+            "requirements-extraction")
+                ask subagent product-strategist to extract requirements and constraints with context: "Requirements analysis for: <prompt-context>. Extract both stated and implied functional/non-functional requirements."
+                ;;
+            "constraint-identification")
+                ask subagent product-strategist to identify constraints and limitations with context: "Constraint analysis for: <prompt-context>. Identify technical, business, regulatory, and resource constraints."
+                ;;
+        esac
+    done
+    
+    # Wait for all parallel subagents to complete before proceeding
+    echo "⏳ Waiting for all Phase 1 parallel analysis to complete..."
+    
+    # Phase 2-4: Continue with technology research and feasibility
+    execute_phases_2_to_4_with_parallel_tech_research
+}
+
+execute_phases_2_to_4_with_parallel_tech_research() {
+    # Phase 4: Parallel Technology Research
+    echo "🔬 Phase 4: Parallel technology research with multiple subagents"
+    
+    # Technology research areas to analyze in parallel
+    tech_areas=("frontend-tech" "backend-tech" "database-tech" "infrastructure-tech" "security-tech" "integration-tech")
+    
+    # Launch parallel tech-research-analyst subagents
+    for tech_area in "${tech_areas[@]}"; do
+        case "$tech_area" in
+            "frontend-tech")
+                ask subagent tech-research-analyst to research frontend technologies with context: "Frontend technology research for: <prompt-context>. Find 5+ GitHub repos (1000+ stars) for each frontend option. Focus on production reality, performance, and integration patterns."
+                ;;
+            "backend-tech")
+                ask subagent tech-research-analyst to research backend technologies with context: "Backend technology research for: <prompt-context>. Analyze frameworks, APIs, microservices patterns. Document production performance and scaling characteristics."
+                ;;
+            "database-tech")
+                ask subagent tech-research-analyst to research data technologies with context: "Data persistence research for: <prompt-context>. Evaluate databases, caching, state management. Include performance benchmarks and production learnings."
+                ;;
+            "infrastructure-tech")
+                ask subagent tech-research-analyst to research infrastructure options with context: "Infrastructure research for: <prompt-context>. Analyze deployment, scaling, monitoring approaches. Focus on operational complexity and costs."
+                ;;
+            "security-tech")
+                ask subagent tech-research-analyst to research security approaches with context: "Security technology research for: <prompt-context>. Evaluate authentication, authorization, encryption, compliance approaches with production evidence."
+                ;;
+            "integration-tech")
+                ask subagent tech-research-analyst to research integration patterns with context: "Integration research for: <prompt-context>. Analyze APIs, messaging, data integration patterns. Include real-world scaling and performance data."
+                ;;
+        esac
+    done
+    
+    echo "⏳ Waiting for all parallel technology research to complete..."
+    
+    # Synthesize parallel analysis results into discovery document
+    synthesize_standard_mode_analysis
+}
+
+synthesize_standard_mode_analysis() {
+    local synthesis_prompt="Synthesize all parallel discovery and technology research results into comprehensive analysis:
+
+For: <prompt-context>
+
+## Synthesis Requirements:
+1. **Stakeholder Insights**: Consolidate user and stakeholder analysis
+2. **Requirements Synthesis**: Merge functional and non-functional requirements
+3. **Technology Recommendations**: Consolidate technology research findings
+4. **Implementation Strategy**: Practical approach based on all analysis
+
+Generate: docs/planning/discovery-analysis.md"
+
+    ask subagent system-architect to synthesize standard mode analysis with context: "$synthesis_prompt"
+```
+
+### DEEP MODE (30-45 minutes): Comprehensive Analysis with Full Agent Ecosystem
+
+```bash
+execute_deep_mode() {
+    local main_dir="$(pwd)"
+    echo "🔬 DEEP MODE: Comprehensive analysis with full agent ecosystem (30-45 minutes)"
+    
+    # Extended discovery with comprehensive parallel agent coordination
+    execute_comprehensive_discovery_with_parallel_agents
+    
+    # Both smart triggers AND phase boundary confirmations
+    check_smart_confirmations "deep-mode"
+    check_phase_boundary_confirmations
+}
+
+execute_comprehensive_discovery_with_parallel_agents() {
+    echo "🌐 Deep Mode: Launching comprehensive parallel agent ecosystem"
+    
+    # Comprehensive analysis areas for parallel execution
+    comprehensive_areas=("strategic-analysis" "technology-landscape" "architecture-patterns" "security-analysis" "performance-analysis" "compliance-analysis" "competitive-analysis" "risk-analysis")
+    
+    # Launch parallel subagents for comprehensive analysis
+    for area in "${comprehensive_areas[@]}"; do
+        case "$area" in
+            "strategic-analysis")
+                ask subagent product-strategist to perform comprehensive strategic analysis with context: "Deep strategic analysis for: <prompt-context>. Comprehensive stakeholder mapping, business model analysis, market positioning, competitive landscape, and strategic risks."
+                ;;
+            "technology-landscape")
+                ask subagent tech-research-analyst to analyze complete technology landscape with context: "Comprehensive technology landscape for: <prompt-context>. Full stack analysis, emerging technologies, vendor evaluations, technology lifecycle assessment, and strategic technology roadmapping."
+                ;;
+            "architecture-patterns")
+                ask subagent system-architect to evaluate architecture patterns with context: "Architecture pattern analysis for: <prompt-context>. Evaluate multiple architectural approaches, scalability patterns, integration patterns, and design trade-offs with production evidence."
+                ;;
+            "security-analysis")
+                ask subagent tech-research-analyst to perform security analysis with context: "Comprehensive security analysis for: <prompt-context>. Threat modeling, security architecture, compliance requirements, privacy considerations, and security technology evaluation."
+                ;;
+            "performance-analysis")
+                ask subagent tech-research-analyst to analyze performance requirements with context: "Performance analysis for: <prompt-context>. Scalability requirements, performance bottlenecks, optimization strategies, and performance testing approaches with benchmark data."
+                ;;
+            "compliance-analysis")
+                ask subagent product-strategist to analyze compliance requirements with context: "Compliance analysis for: <prompt-context>. Regulatory requirements, industry standards, data governance, privacy regulations, and compliance technology requirements."
+                ;;
+            "competitive-analysis")
+                ask subagent product-strategist to perform competitive analysis with context: "Competitive landscape analysis for: <prompt-context>. Market analysis, competitive positioning, feature differentiation, and strategic advantages."
+                ;;
+            "risk-analysis")
+                ask subagent product-strategist to analyze project risks with context: "Comprehensive risk analysis for: <prompt-context>. Technical risks, business risks, operational risks, compliance risks, and risk mitigation strategies."
+                ;;
+        esac
+    done
+    
+    echo "⏳ Waiting for all comprehensive parallel analysis to complete..."
+    
+    # Synthesis and integration of all parallel results
+    perform_comprehensive_synthesis
+}
+
+perform_comprehensive_synthesis() {
+    echo "🔗 Deep Mode: Synthesizing all parallel analysis results"
+    
+    synthesis_prompt="Comprehensive synthesis of all parallel analysis results for: <prompt-context>
+
+Integrate findings from:
+- Strategic analysis and stakeholder insights  
+- Technology landscape and architecture patterns
+- Security, performance, and compliance analysis
+- Competitive positioning and risk assessment
+
+Create integrated architecture specification with:
+1. **Consolidated Requirements**: Unified functional and non-functional requirements
+2. **Technology Stack Decisions**: Evidence-based technology choices with rationale  
+3. **Architecture Design**: Comprehensive system architecture with trade-offs
+4. **Risk Mitigation**: Integrated risk management strategies
+5. **Implementation Roadmap**: Prioritized development approach
+
+Generate: docs/planning/discovery-analysis.md"
+    
+    ask subagent system-architect to synthesize all parallel analysis with context: "$synthesis_prompt"
+}
+```
+
+## Feature-Developer Parallel Implementation Patterns
+
+When launching implementation tasks, use parallel subagent patterns for complex features:
+
+```bash
+launch_parallel_feature_implementation() {
+    local feature_name="$1"
+    local implementation_areas=("frontend-components" "backend-apis" "data-layer" "integration-tests" "documentation")
+    
+    echo "🚀 Launching parallel implementation for feature: $feature_name"
+    
+    # For each implementation area: Launch subagents independently and run in parallel
+    for area in "${implementation_areas[@]}"; do
+        case "$area" in
+            "frontend-components")
+                ask subagent feature-developer to implement frontend components with context: "Frontend implementation for $feature_name. Create user interface components, state management, and client-side logic. Include unit tests and component documentation."
+                ;;
+            "backend-apis")
+                ask subagent feature-developer to implement backend APIs with context: "Backend API implementation for $feature_name. Create API endpoints, business logic, and data validation. Include integration tests and API documentation."
+                ;;
+            "data-layer")  
+                ask subagent feature-developer to implement data layer with context: "Data layer implementation for $feature_name. Create database schemas, data access objects, and data migration scripts. Include database tests."
+                ;;
+            "integration-tests")
+                ask subagent feature-developer to create integration tests with context: "Integration testing for $feature_name. Create end-to-end tests, API integration tests, and system integration validation. Include test documentation."
+                ;;
+            "documentation")
+                ask subagent feature-developer to create documentation with context: "Documentation for $feature_name. Create user documentation, technical documentation, and deployment guides. Include code examples and troubleshooting guides."
+                ;;
+        esac
+    done
+    
+    # Wait for all parallel implementation to complete before proceeding
+    echo "⏳ Waiting for all parallel implementation work to complete..."
+}
+```
+- Quality agents → review reports, refactored code
+- Deployment agents → deployment reports, infrastructure
+
+**Cross-Agent Dependencies:**
+- system-architect reads tech-research-analyst output
+- ui-designer reads architecture-specification.md
+- feature-developer (Phase 10) reads Phase 5 requirements for test-driven task generation
+- feature-developer (Phase 11+) reads task specifications with embedded TDD methodology
+- deployment-orchestrator reads CI/CD requirements from feature-developer
+
+### Agent Consistency Requirements
+
+**File Path Standards:**
+- All agents use `$main_dir/` prefix for file operations
+- Never use `cd`, `pushd`, `popd` - use full paths or `git -C`
+- Worktree operations isolated with `$WORKTREE/` prefix
+
+**Quality Gates:**
+- Each agent validates its prerequisites exist
+- Agents produce structured outputs (JSON manifests, Markdown specifications)
+- Agent failures trigger graceful degradation, not system failure
+
+**Session Management:**
+- All agents receive session context for debugging
+- State management tracks agent invocations
+- Failed agents can be retried with enhanced context
 
 ## EXECUTION REQUIREMENTS FOR CLAUDE CODE
 
@@ -30,9 +539,8 @@ After completing each of these phases, you MUST:
 **MUST Use Task Tool For Parallel Subagents:**
 - tech-research agents during Phase 4 (parallel technology investigation)
 - **system-architect agent during Phase 7 (architecture design and foundation implementation)**
-- ui-strategy agent during Phase 9 (interface design)
-- dev-task agents during Phase 10 (task generation)
-- qa-analyst agents during Phase 10 (test specification)
+- ui-designer agent during Phase 9 (interface design)
+- feature-developer agents during Phase 10 (test-driven task generation with requirements traceability)
 - **feature-developer agents during Phase 11+ (continuous implementation iteration)**
 
 **MUST Validate Before Phase Transitions:**
@@ -596,62 +1104,65 @@ safe_directory_operation() {
 
 ---
 
-## SECTION 2: PHASE EXECUTION WITH USER CONFIRMATION
+## SECTION 2: ADAPTIVE PHASE EXECUTION SYSTEM
 
-This section defines each phase with mandatory user confirmation checkpoints at critical decision points.
+This section implements the adaptive intelligence system that adjusts execution complexity based on project scope with proper parallel subagent integration.
 
-### User Confirmation Protocol
+### Main Execution Entry Point
 
-After completing Phases 1, 2, 3, 4, and 5, you MUST:
+**Purpose:** Initialize IDEAL-STI v3.0 adaptive planning system.
 
-1. **Present Phase Summary**:
-   ```
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   📊 Phase [N] Complete: [Phase Name]  
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   
-   ✅ **Key Accomplishments:**
-   - [List 3-5 major accomplishments]
-   
-   📋 **Created Deliverables:**
-   - [List files and sections created]
-   
-   🔍 **Critical Findings:**
-   - [Highlight important discoveries or decisions]
-   
-   📄 **Full Output**: docs/planning/phase[N]-[name].md
-   ```
+**Execution Instructions:**
+```bash
+# Main entry point - start adaptive intelligence planning
+execute_ideal_sti_adaptive() {
+    local main_dir="$(pwd)"
+    local user_input="<prompt-context>"
+    
+    echo "🚀 IDEAL-STI v3.0 Adaptive Intelligence Planning System"
+    echo "================================================="
+    echo "📋 Project Requirements: $user_input"
+    echo ""
+    
+    # Initialize planning directory structure
+    mkdir -p "$main_dir/docs/planning"
+    
+    # Execute phases in order
+    execute_phase0_if_needed
+    assess_complexity_and_select_mode
+    
+    echo ""
+    echo "✅ IDEAL-STI v3.0 planning system execution complete!"
+    echo "📁 All planning documents available in: docs/planning/"
+}
+```
 
-2. **Request User Review**:
-   ```
-   🛑 **USER CONFIRMATION REQUIRED**
-   
-   Please review the Phase [N] output and choose:
-   
-   **continue** - Proceed to Phase [N+1]
-   **iterate** - Refine current phase (provide specific feedback)  
-   **stop** - End planning session
-   
-   Your response: [continue/iterate/stop]
-   ```
+### Adaptive Phase Execution Framework
 
-3. **Handle User Response**:
-   - **continue**: Proceed to next phase
-   - **iterate**: Ask for specific feedback, then refine current phase
-   - **stop**: End execution gracefully
+**INTELLIGENT APPROACH**: Automatically adjust analysis depth and agent involvement based on project complexity while maintaining smart confirmation points.
 
 ### Phase 0: Existing Project Analysis (OPTIONAL)
 
-**Purpose:** Reverse engineer existing code and documentation to understand current state before planning improvements.
+**Purpose:** Reverse engineer existing code and documentation to understand current state.
 
 **Skip Conditions:**
 - No `src/` or `docs/` directories exist (greenfield project)
-- Documentation modified within last 7 days (fresh docs)
+- Documentation modified within last 7 days (fresh docs)  
 - User explicitly sets `IDEAL_STI_SKIP_PHASE_0=true`
 
 **Execution Instructions:**
-```markdown
-IF phase should run, create docs/planning/phase0-existing-analysis.md with:
+```bash
+# Phase 0 analysis if needed
+execute_phase0_if_needed() {
+    local main_dir="$(pwd)"
+    
+    if [ -d "src/" ] || [ -d "docs/" ]; then
+        if [ "$(find docs/ -name "*.md" -mtime -7 2>/dev/null | wc -l)" -eq 0 ]; then
+            echo "🔍 Phase 0: Analyzing existing project structure..."
+            
+            # Create Phase 0 analysis
+            cat > "$main_dir/docs/planning/phase0-existing-analysis.md" << 'EOF'
+# Phase 0: Existing Project Analysis
 
 ## Project Discovery
 - Detected project type (language, framework)
@@ -671,1068 +1182,497 @@ IF phase should run, create docs/planning/phase0-existing-analysis.md with:
 - Inline code comments density
 - Setup instructions accuracy
 
-## Reverse Engineered Requirements
-- Inferred functional requirements from code
-- Discovered non-functional requirements
-- Security measures implemented
-
-## Technical Debt Assessment
-- Code smells detected
-- Outdated dependencies
-- Missing tests
-- Security vulnerabilities
-
-## Recommended Actions
-- [ ] Update README with discovered features
-- [ ] Document API endpoints found  
-- [ ] Add architecture diagrams
-- [ ] Create missing setup guides
-
-## Integration with Planning
+## Integration with Adaptive Planning
 - Existing features to preserve
 - Constraints from current implementation
-- Migration requirements
+- Migration requirements for new features
+EOF
+            
+            echo "✅ Phase 0: Existing project analysis complete"
+        fi
+    fi
+}
 ```
 
-**Phase 0 continues without user confirmation since it's optional.**
+### Phase 0.5: Complexity Assessment & Mode Selection
 
-### Phase 1: Discovery & Problem Elaboration
-
-**Purpose:** Comprehensive problem analysis with stakeholder research and contrarian thinking.
+**Purpose:** Analyze user input complexity and select appropriate execution mode (SPEED/STANDARD/DEEP).
 
 **Execution Instructions:**
-```markdown
-Create docs/planning/phase1-discovery.md with exhaustive analysis:
+```bash
+# Assess project complexity and select execution mode
+assess_complexity_and_select_mode() {
+    local main_dir="$(pwd)"
+    local user_input="<prompt-context>"
+    local assessment_output="$main_dir/docs/planning/complexity-assessment.md"
+    
+    echo "🧠 Phase 0.5: Assessing project complexity and selecting execution mode..."
+    
+    # Analyze input for complexity indicators
+    local requirements_count=0
+    local tech_complexity=0
+    local integration_complexity=0
+    local execution_mode=""
+    
+    # Count requirements indicators
+    requirements_count=$(echo "$user_input" | grep -c -i -E "(need|want|should|require|must|feature|functionality)")
+    
+    # Assess technology complexity
+    if echo "$user_input" | grep -q -i -E "(real-time|websocket|microservice|distributed|cloud|scaling|performance|security|enterprise)"; then
+        tech_complexity=2
+    elif echo "$user_input" | grep -q -i -E "(database|api|authentication|integration)"; then
+        tech_complexity=1
+    fi
+    
+    # Assess integration complexity  
+    if echo "$user_input" | grep -q -i -E "(integrate with|existing|legacy|migration|sso|compliance|audit)"; then
+        integration_complexity=2
+    elif echo "$user_input" | grep -q -i -E "(connect to|sync|import|export)"; then
+        integration_complexity=1
+    fi
+    
+    # Calculate total complexity score
+    local total_complexity=$((requirements_count + tech_complexity + integration_complexity))
+    
+    # Select execution mode based on complexity
+    if [ $total_complexity -le 5 ]; then
+        execution_mode="SPEED"
+    elif [ $total_complexity -le 15 ]; then
+        execution_mode="STANDARD"  
+    else
+        execution_mode="DEEP"
+    fi
+    
+    # Create assessment document
+    cat > "$assessment_output" << EOF
+# Complexity Assessment & Mode Selection
 
-## Original Request
-[Capture verbatim user requirements and preserve context]
+## Input Analysis
+**Original Request**: $user_input
 
-## Expanded Problem Statement  
-Scale content appropriately:
-- Simple project: 1-2 paragraphs
-- Medium project: Full page with subsections  
-- Complex project: Multiple pages with domain analysis
+## Complexity Scoring
+- **Requirements Count**: $requirements_count indicators
+- **Technology Complexity**: $tech_complexity (0=simple, 1=medium, 2=complex)
+- **Integration Complexity**: $integration_complexity (0=simple, 1=medium, 2=complex)
+- **Total Complexity Score**: $total_complexity
+
+## Selected Execution Mode: $execution_mode
+
+### Mode Characteristics:
+$(case $execution_mode in
+    "SPEED")
+        echo "- **Duration**: 5-8 minutes total discovery"
+        echo "- **Agent Usage**: Minimal, built-in intelligence preferred"
+        echo "- **Confirmations**: Only if major conflicts detected"
+        echo "- **Output**: Consolidated discovery document"
+        ;;
+    "STANDARD")
+        echo "- **Duration**: 15-25 minutes total discovery"
+        echo "- **Agent Usage**: Strategic invocation of tech-research-analyst when needed"
+        echo "- **Confirmations**: Smart triggers for scope/tech/assumptions"
+        echo "- **Output**: Standard phase documents"
+        ;;
+    "DEEP")
+        echo "- **Duration**: 30-45 minutes comprehensive analysis"
+        echo "- **Agent Usage**: Parallel agents for thorough research"
+        echo "- **Confirmations**: Both smart triggers and phase boundaries"
+        echo "- **Output**: Extended analysis with multiple perspectives"
+        ;;
+esac)
+
+## Execution Plan
+Ready to execute $(echo "$execution_mode" | tr '[:upper:]' '[:lower:]') mode discovery phases.
+EOF
+    
+    echo "✅ Complexity assessment complete: $execution_mode mode selected"
+    echo "🎯 Executing $execution_mode mode discovery..."
+    
+    # Execute appropriate mode
+    case $execution_mode in
+        "SPEED")
+            execute_speed_mode
+            standardize_discovery_outputs "speed"
+            ;;
+        "STANDARD")
+            execute_standard_mode
+            standardize_discovery_outputs "standard"
+            ;;
+        "DEEP")
+            execute_deep_mode
+            standardize_discovery_outputs "deep"
+            ;;
+    esac
+    
+    # After discovery completion, proceed to standard phases
+    echo "✅ Discovery phase complete. Proceeding to requirements and architecture..."
+    execute_phase5_requirements
+    execute_phase6_interface  
+    execute_phase7_architecture
+    
+    # Continue to implementation phases
+    echo "✅ Architecture phase complete. Proceeding to implementation planning..."
+    execute_phases_8_to_10_task_generation
+    execute_phase11_implementation
+    execute_phase12_to_16_deployment
+}
+
+# Bridge discovery outputs to standard phase input format
+standardize_discovery_outputs() {
+    local mode="$1"
+    local main_dir="$(pwd)"
+    
+    echo "🔗 Standardizing $mode mode outputs for phase integration..."
+    
+    # Create standardized discovery document for phases 5-7
+    case "$mode" in
+        "speed")
+            if [ -f "docs/planning/discovery-analysis.md" ]; then
+                cp "docs/planning/discovery-analysis.md" "docs/planning/discovery-summary.md"
+            fi
+            ;;
+        "standard"|"deep")
+            # Aggregate parallel analysis results
+            cat > "docs/planning/discovery-summary.md" << EOF
+# Discovery Phase Summary
 
 ## Stakeholder Analysis
-Scale to project scope:
-- Minimum: Primary users + 2 other categories
-- Medium: 5-7 stakeholder categories with needs/pain points
-- Enterprise: 10+ including regulatory/compliance bodies
-- MUST discover hidden stakeholders through research
+$(find docs/planning/ -name "*stakeholder*" -exec cat {} \; 2>/dev/null || echo "- Analysis completed via parallel agents")
 
-## Use Cases & Scenarios
-Scale appropriately:  
-- Simple tool: 5-8 use cases
-- Standard app: 10-15 use cases
-- Platform: 20+ use cases with sub-flows
-- MUST include edge cases and failure modes
+## Technology Research  
+$(find docs/planning/ -name "*technology*" -o -name "*tech-research*" -exec cat {} \; 2>/dev/null || echo "- Research completed via tech-research-analyst")
 
-## Requirements Discovery
-- Functional requirements (user capabilities)
-- Non-functional requirements (performance, security)
-- Compliance requirements (if applicable)  
-- Technical constraints
+## Architecture Considerations
+$(find docs/planning/ -name "*architecture*" -o -name "*synthesis*" -exec cat {} \; 2>/dev/null || echo "- Analysis completed via system-architect")
 
-## What NOT to Do (CRITICAL)
-- Anti-patterns to avoid
-- Common mistakes in this domain
-- Technology-first thinking traps
-- Assumptions that could be wrong
-
-## Contrarian Analysis
-- What if our core assumptions are wrong?
-- Who would hate this solution and why?
-- What hidden agendas might stakeholders have?
-- What are we NOT seeing about this problem?
-
-## Fatal Learnings from Production
-Research and document:
-- What killed similar projects? (with evidence)
-- What performance walls did they hit?
-- What security breaches occurred?
-- What compliance issues emerged?
-
-## TODO for Phase 2
-- [ ] Define measurable success metrics based on stakeholder needs
-- [ ] Establish concrete goals aligned with requirements
-- [ ] Create outcome definitions for different user personas
-- [ ] Additional items based on discovery findings
+## Requirements Foundation
+$(find docs/planning/ -name "*requirements*" -o -name "*comprehensive*" -exec cat {} \; 2>/dev/null || echo "- Requirements identified through discovery process")
+EOF
+            ;;
+    esac
+    
+    echo "✅ Discovery outputs standardized for phase integration"
+}
 ```
 
-**MANDATORY USER CONFIRMATION AFTER PHASE 1**
+### Smart Confirmation System Implementation
 
-### Phase 2: Intent & Goals
+**Intelligence-Driven Confirmations**: Replace fixed phase boundaries with intelligent decision triggers based on analysis results.
 
-**Purpose:** Define measurable goals and success criteria based on Phase 1 discoveries.
+```bash
+# Check for smart confirmation triggers based on execution mode and analysis results
+check_smart_confirmations() {
+    local execution_mode="$1"
+    local main_dir="$(pwd)"
+    
+    echo "🧠 Checking smart confirmation triggers for $execution_mode mode..."
+    
+    # Intelligence-driven triggers (all modes)
+    local scope_expansion_detected=false
+    local major_assumptions_made=false
+    local technology_complexity_discovered=false
+    local feasibility_concerns_found=false
+    
+    # Check for scope expansion (>50% beyond original)
+    if [ -f "docs/planning/complexity-assessment.md" ]; then
+        local original_requirements=$(grep "Requirements Count" docs/planning/complexity-assessment.md | grep -o "[0-9]*" || echo "1")
+        local current_analysis_size=$(find docs/planning/ -name "*.md" -exec wc -l {} + 2>/dev/null | tail -1 | grep -o "^[0-9]*" || echo "0")
+        
+        if [ "$current_analysis_size" -gt $((original_requirements * 15)) ] 2>/dev/null; then
+            scope_expansion_detected=true
+        fi
+    fi
+    
+    # Trigger confirmations based on intelligence
+    if [ "$scope_expansion_detected" = true ]; then
+        echo "⚠️ SMART TRIGGER: Scope expansion detected (>50% beyond original)"
+        trigger_scope_expansion_confirmation
+    fi
+    
+    # Mode-specific confirmation logic
+    case "$execution_mode" in
+        "speed-mode")
+            # Only confirm if conflicts detected
+            check_conflict_confirmations
+            ;;
+        "standard-mode")
+            # Smart confirmations for scope/assumptions/tech issues
+            check_standard_mode_confirmations
+            ;;
+        "deep-mode")
+            # Both smart triggers AND phase boundary confirmations
+            check_comprehensive_confirmations
+            ;;
+    esac
+}
 
-**Execution Instructions:**
-```markdown  
-Create docs/planning/phase2-intent.md with goal hierarchy:
+# Architecture confirmation checkpoint (all modes)
+trigger_architecture_confirmation() {
+    echo "🏗️ ARCHITECTURE CONFIRMATION CHECKPOINT"
+    echo "========================================"
+    
+    confirmation_prompt="## Architecture Review & Approval Required
 
-## Project Goals
-Scale to project scope:
-- Simple: 3-5 clear objectives with metrics
-- Medium: 5-7 categorized goals with sub-objectives
-- Complex: Goal hierarchy with strategic/tactical levels
+### Comprehensive Requirements & Technology Specification
+$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -50 || echo "Requirements specification pending...")
 
-Base goals on Phase 1 stakeholder analysis and requirements.
+### Technology Stack & Architecture Design  
+$([ -f "docs/planning/phase7-architecture.md" ] && cat docs/planning/phase7-architecture.md | head -50 || echo "Architecture design pending...")
 
-## Success Metrics (SMART Format)
-For each goal, define:
-- Quantifiable targets with baselines
-- Time-bound milestones  
-- User satisfaction metrics
-- Business impact measures
+### Discovery Summary & Complexity Assessment
+$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -30 || echo "Discovery analysis pending...")
+$([ -f "docs/planning/complexity-assessment.md" ] && cat docs/planning/complexity-assessment.md | head -20 || echo "Complexity assessment pending...")
 
-## Expected Outcomes by Stakeholder
-For each stakeholder group from Phase 1:
-- Direct value they receive
-- Efficiency gains or cost savings
-- Strategic benefits
+### APPROVAL OPTIONS:
+1. **✅ APPROVE**: Proceed to implementation phases
+2. **🔍 EXTEND DISCOVERY**: Additional research needed (specify areas)
+3. **📝 REFINE SCOPE**: Adjust requirements or constraints  
+4. **⏹️ STOP**: Project not feasible or ready
 
-## Anti-Patterns & Goal Conflicts  
-- What NOT to optimize for
-- Metrics that could mislead
-- Goals that conflict with each other
-- Common goal-setting mistakes
-
-## Value Proposition Statements
-Clear value statements for:
-- Primary users
-- Secondary stakeholders
-- Business sponsors
-
-## Risk Mitigation for Goals
-- Privacy and security risks to goal achievement
-- Performance impact risks  
-- User adoption risks
-
-## TODO for Phase 3
-- [ ] Assess technical feasibility of all goals
-- [ ] Identify major risks that could block goals
-- [ ] Define resource constraints for goal achievement
-- [ ] Validate goals with user research if needed
+Please review the architecture specification and select your approval option."
+    
+    ask subagent system-architect to present architecture for user approval with context: "$confirmation_prompt"
+}
 ```
 
-**MANDATORY USER CONFIRMATION AFTER PHASE 2**
+## SECTION 3: STANDARD PHASE EXECUTION SYSTEM
 
-### Phase 3: Feasibility Assessment
-
-**Purpose:** Risk-aware analysis of project feasibility with go/no-go recommendation.
-
-**Execution Instructions:**
-```markdown
-Create docs/planning/phase3-feasibility.md with comprehensive assessment:
-
-## Technical Feasibility 
-For each major goal from Phase 2:
-- Core technical challenges
-- Available solutions and frameworks
-- Technology readiness assessment
-- Integration complexity
-
-## Resource Assessment
-- Infrastructure needs and costs
-- Third-party dependencies
-
-## Risk Analysis
-Scale to project complexity:
-- Simple: Top 5 risks with mitigation
-- Medium: Risk matrix (probability/impact) 
-- Complex: Comprehensive risk register with owners
-
-Include risks from Phase 1 fatal learnings.
-
-## Constraints Analysis
-- Technical limitations discovered
-- Resource boundaries identified
-- Regulatory requirements from stakeholder analysis
-- Market/competitive constraints
-
-## Tooling Analsysis 
-- Identify tooling that would be required 
-- Idenfity similar style tools that would help with debugging
-
-## Go/No-Go Recommendation
-- Clear feasibility verdict with confidence level
-- Required conditions for success
-- Alternative approaches if constraints prevent main approach
-- Success probability assessment
- 
-
-## TODO for Phase 4
-- [ ] Research specific technology options for feasible approach
-- [ ] Evaluate integration frameworks and patterns  
-- [ ] Assess performance characteristics of candidate technologies
-- [ ] Gather GitHub evidence for technology decisions
-```
-
-**MANDATORY USER CONFIRMATION AFTER PHASE 3**
-
-### Phase 4: Technology Research with GitHub Evidence
-
-**Purpose:** Evidence-based technology stack discovery with real-world validation.
-
-**CRITICAL REQUIREMENTS:**
-- Find 5+ popular GitHub repos (1000+ stars) for EACH major technology choice
-- Always perfer built-in functionality of a system vs a 3rd party unless there is a spcecific reason such as the base system doens't support the functionality
-- Focus on production reality, not tutorials or demos
-- Document actual performance bottlenecks from repo issues
-- Extract fatal learnings from production post-mortems
-
-**Execution Instructions:**
-```markdown
-Create docs/planning/phase4-tech-research.md with evidence-based recommendations:
-
-## Research Methodology
-- Discovery-driven approach (find solutions, don't prescribe)
-- GitHub evidence requirements (5+ repos, 1000+ stars each)
-- Production focus over tutorial preference
-- Performance bottleneck analysis from real issues
-
-## Technology Dimensions Researched
-Launch tech-research agents for parallel discovery:
-- Frontend architectures (if applicable)
-- Backend architectures  
-- Data persistence layers
-- Infrastructure/deployment approaches
-- API/integration patterns
-- Security and authentication approaches
-
-## Scale
-- Idenify the request and technology ability to support the scale of the profiled set of operations
-
-## State and Storage
-- Identify how state and storage will be handled, if any, for the operations and use cases
-- Keep in mind encoding formats and identifiers for state storage 
-
-## User Interface
-- Analyze whether the user interface will support the intended use cases with the technologies 
-
-
-## GitHub Repository Evidence
-For EACH technology recommendation, document:
-
-### [Technology Category]: [Recommended Solution]
-**GitHub Evidence:**
-1. **[Repo Name]** ([URL], [stars], [last update])
-   - Tech stack versions used
-   - Architecture patterns implemented
-   - Performance optimizations found
-   - Notable production learnings from issues
-
-[Repeat for 5+ repositories per technology]
-
-**Production Analysis:**
-- What's actually deployed (package downloads, Docker pulls)
-- Performance characteristics (benchmarks, bottlenecks)
-- Fatal learnings (what failed spectacularly)
-- Adjacent dependencies (what else you're committing to)
-
-## Technology Stack Recommendations
-
-### Safe Production Choice (Boring but Proven)
-- Framework: [X] based on [Y] repos with 5+ years stability
-- Expected success: 90%+ (proven patterns)
-- Trade-offs: Lower innovation, higher predictability
-
-### Innovation Choice (Trending with Evidence) 
-- Framework: [X] based on [Y] repos with strong growth
-- Expected success: 75-85% (newer but validated)
-- Trade-offs: Higher capability, moderate risk
-
-### Avoid Unless Specific Requirements
-- Frameworks with evidence of production issues
-- Technologies with declining maintenance
-- Solutions with vendor lock-in risks
-
-## Fatal Learnings from Production
-Document from repository analysis:
-- What killed similar projects in this domain
-- Common performance bottlenecks hit
-- Security breaches documented  
-- Compliance issues that emerged
-
-## Architecture Integration Analysis
-- System performance characteristics
-- Data flow design
-- Integration patterns validated by repos
-- Scaling patterns and limits
-
-## TODO for Phase 5
-- [ ] Define functional requirements based on validated tech constraints
-- [ ] Specify performance requirements from benchmark analysis  
-- [ ] Document API contracts based on integration patterns
-- [ ] Create acceptance criteria based on GitHub evidence
-```
-
-**MANDATORY USER CONFIRMATION AFTER PHASE 4**
+This section implements the standard IDEAL-STI phases (5-16) that execute after adaptive discovery completes.
 
 ### Phase 5: Requirements Definition
 
-**Purpose:** Detailed functional and non-functional requirements based on validated technology stack.
+**Purpose:** Detailed functional and non-functional requirements based on discovery analysis.
 
 **Execution Instructions:**
-```markdown
-Create docs/planning/phase5-requirements.md with complete specification:
-
-## Functional Requirements
-Format as user stories based on Phase 1 stakeholders:
-
-### Epic: [Major Feature Area]
-**User Story**: As a [stakeholder type], I want [capability] so that [value]
-**Acceptance Criteria:**
-- [ ] [Testable condition 1]  
-- [ ] [Testable condition 2]
-- [ ] [Performance criteria from Phase 4 analysis]
-**Priority**: [Must Have/Should Have/Could Have]
-**Effort Estimate**: [Based on Phase 4 tech choices]
-
-[Repeat for all major features]
-
-## Non-Functional Requirements
-
-### Performance Requirements (from Phase 4 benchmarks)
-- Response time targets with load scenarios
-- Throughput requirements with user growth projections
-- Scalability requirements based on usage analysis
-
-### Security Requirements (from stakeholder analysis)
-- Authentication/authorization requirements
-- Data protection requirements (based on privacy analysis)
-- Compliance requirements (from regulatory stakeholders)
-
-### Reliability Requirements
-- Availability targets (uptime requirements)
-- Recovery time objectives
-- Data backup and recovery requirements
-
-### Usability Requirements
-- User experience goals from Phase 2
-- Accessibility requirements 
-- Internationalization needs (if identified)
-
-## Technical Requirements (from Phase 4 analysis)
-- Platform compatibility requirements
-- Integration requirements with existing systems
-- Data migration requirements (if Phase 0 identified legacy)
-- API requirements for extensibility
-
-## Compliance Requirements (from stakeholder analysis)
-- Regulatory compliance needs identified
-- Industry standard compliance (if applicable)
-- Data governance requirements
-- Audit and reporting requirements
-
-## Requirements Traceability Matrix
-Map each requirement to:
-- Originating stakeholder need (Phase 1)
-- Supporting goal (Phase 2) 
-- Technical feasibility assessment (Phase 3)
-- Technology choice impact (Phase 4)
-
-## TODO for Phase 6
-- [ ] Prioritize requirements for MVP vs future phases
-- [ ] Define explicit scope boundaries (what's NOT included)
-- [ ] Create phase 2 feature roadmap
-- [ ] Establish out-of-scope criteria
-```
-
-**MANDATORY USER CONFIRMATION AFTER PHASE 5**
-
-### Phases 6-10: Automated Execution
-
-After user approval of Phase 5, the system continues with Phases 6-10 automatically:
-
-**Phase 6**: Scope & Prioritization (MVP definition, feature roadmap)
-**Phase 7**: Architecture Design (system, data, security architecture)  
-**Phase 8**: Decision Registry (technology decisions with rationale)
-**Phase 9**: Interface Specifications (UI/UX specs, API specs)
-**Phase 10**: Task Generation (implementation tasks with dependencies)
-
-### Phase 11+: Implementation Iteration
-
-After Phase 10 task generation, continuously iterate using feature-developer subagents:
-
-**Purpose:** Implement all features using task-driven development with feature-developer subagents.
-
-**Execution Loop:**
 ```bash
-# Continuous implementation iteration until all features complete
-while [ "$(count_pending_tasks)" -gt 0 ]; do
-    # Get highest priority pending task
-    current_task=$(get_next_priority_task)
-    
-    echo "🚀 Implementing: $current_task"
-    
-    # Launch feature-developer subagent for task implementation
-    ask subagent feature-developer to develop task "$current_task"
-    
-    # Validate task completion
-    if validate_task_completion "$current_task"; then
-        move_task_to_completed "$current_task"
-        echo "✅ Task completed: $current_task"
-    else
-        echo "⚠️ Task needs iteration: $current_task"
-        # Task remains in pending for retry with updated context
-    fi
-    
-    # Check for new dependencies discovered during implementation
-    discover_new_tasks_from_implementation
-done
-
-echo "🎉 All features implemented successfully!"
-```
-
-**Task Management:**
-- Tasks stored in `tasks/pending/`, `tasks/in-progress/`, `tasks/completed/`
-- Each task file contains implementation specifications from Phase 10
-- Feature-developer subagents work in isolated git worktrees
-- Failed implementations remain in pending for retry with learned context
-- New tasks discovered during implementation are added to pending
-
-**Quality Gates:**
-- Each implemented feature must pass defined acceptance criteria
-- Integration tests must pass before task completion
-- Code review standards must be met
-- Performance requirements validated
-
-**Completion Criteria:**
-- All `tasks/pending/` directory is empty
-- All features from Phase 10 successfully implemented
-- All acceptance criteria validated
-- System meets all non-functional requirements from Phase 5
-
----
-
-## SECTION 3: SIMPLIFIED EXECUTION FRAMEWORK
-
-```bash
-# Main entry point with user confirmation integration
-main() {
-    local ARGUMENTS="$1"
-    
-    # Initialize git if needed
-    if [ ! -d .git ]; then
-        git init
-        git add .
-        git commit -m "Initial commit for IDEAL-STI planning" || true
-    fi
-    
-    # Initialize state management
-    initialize_worktree_state
-    scan_knowledge_folders
-    
-    # Create directory structure
-    mkdir -p docs/planning
-    mkdir -p tasks/{pending,in-progress,completed}
-    
-    # Execute phases with user confirmation checkpoints
-    local critical_phases=(0 1 2 3 4 5)
-    local auto_phases=(6 7 8 9 10)
-    
-    # Critical phases with user confirmation
-    for phase in "${critical_phases[@]}"; do
-        if [ "$phase" = "0" ] && ! should_run_phase_0; then
-            continue  # Skip Phase 0 if not needed
-        fi
-        
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "🎯 Phase $phase: $(get_phase_name $phase)"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Execute phase
-        execute_phase_${phase} "$ARGUMENTS"
-        
-        # Validate phase completion
-        if ! validate_phase "$phase"; then
-            echo "❌ Phase $phase validation failed"
-            return 1
-        fi
-        
-        # User confirmation for critical phases (skip Phase 0 confirmation)
-        if [ "$phase" != "0" ]; then
-            present_phase_summary "$phase"
-            if ! get_user_confirmation "$phase"; then
-                echo "🛑 Planning session ended by user"
-                return 0
-            fi
-        fi
-    done
-    
-    echo ""
-    echo "🚀 User approved foundation (Phases 1-5). Proceeding with automatic execution of Phases 6-10..."
-    
-    # Automated phases after user approval
-    for phase in "${auto_phases[@]}"; do
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "⚡ Phase $phase: $(get_phase_name $phase)"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        execute_phase_${phase} "$ARGUMENTS"
-        
-        if ! validate_phase "$phase"; then
-            echo "❌ Phase $phase validation failed"
-            return 1
-        fi
-    done
-    
-    echo ""
-    echo "✅ IDEAL-STI planning complete with user-approved foundation!"
-    echo "📊 Generated $(ls tasks/pending/*.md 2>/dev/null | wc -l) implementation tasks"
-    
-    # Phase 11+: Continuous implementation iteration
-    echo ""
-    echo "🚀 Phase 11+: Beginning continuous implementation iteration..."
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    execute_implementation_loop "$ARGUMENTS"
-}
-
-# User confirmation functions
-present_phase_summary() {
-    local phase="$1"
-    local phase_name="$(get_phase_name $phase)"
-    local phase_file="docs/planning/phase${phase}-*.md"
-    
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "📊 Phase $phase Complete: $phase_name"  
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    echo ""
-    echo "✅ **Key Accomplishments:**"
-    case $phase in
-        1) echo "   - Comprehensive stakeholder analysis and use case definition"
-           echo "   - Contrarian analysis and fatal learnings research"
-           echo "   - Problem space thoroughly explored with requirements" ;;
-        2) echo "   - SMART goals defined with success metrics"
-           echo "   - Stakeholder value propositions clarified"
-           echo "   - Anti-patterns identified to avoid" ;;
-        3) echo "   - Technical feasibility assessed with risk analysis"
-           echo "   - Resource requirements identified with gap analysis"
-           echo "   - Go/No-Go recommendation with confidence level" ;;
-        4) echo "   - Technology stack researched with GitHub evidence"
-           echo "   - Production reality validated through repository analysis"
-           echo "   - Performance characteristics documented from benchmarks" ;;
-        5) echo "   - Functional requirements defined as testable user stories"
-           echo "   - Non-functional requirements based on validated tech stack"
-           echo "   - Requirements traceability established across phases" ;;
-    esac
-    
-    echo ""
-    echo "📋 **Created Deliverables:**"
-    if ls $phase_file 1>/dev/null 2>&1; then
-        ls $phase_file | sed 's/^/   - /'
-        echo ""
-        echo "📄 **Full Output**: $(ls $phase_file | head -1)"
-    fi
-}
-
-get_user_confirmation() {
-    local phase="$1"
-    local next_phase=$((phase + 1))
-    
-    echo ""
-    echo "🛑 **USER CONFIRMATION REQUIRED**"
-    echo ""
-    echo "Please review the Phase $phase output and choose:"
-    echo ""
-    echo "**continue** - Proceed to Phase $next_phase"
-    echo "**iterate** - Refine current phase (provide specific feedback)"  
-    echo "**stop** - End planning session"
-    echo ""
-    echo -n "Your response: [continue/iterate/stop] "
-    
-    read -r user_choice
-    
-    case "$user_choice" in
-        continue|c)
-            echo "✅ Proceeding to Phase $next_phase"
-            return 0
-            ;;
-        iterate|i)
-            echo "📝 Please provide specific feedback for refinement:"
-            read -r feedback
-            echo "🔄 Refining Phase $phase with feedback: $feedback"
-            # Re-execute phase with feedback context
-            export IDEAL_STI_REFINEMENT="$feedback"
-            execute_phase_${phase} "$ARGUMENTS"
-            # Recursively ask for confirmation again
-            get_user_confirmation "$phase"
-            ;;
-        stop|s)
-            echo "🛑 Planning session ended by user choice"
-            return 1
-            ;;
-        *)
-            echo "❓ Please enter 'continue', 'iterate', or 'stop'"
-            get_user_confirmation "$phase"
-            ;;
-    esac
-}
-
-get_phase_name() {
-    local phase="$1"
-    case $phase in
-        0) echo "Existing Project Analysis" ;;
-        1) echo "Discovery & Problem Elaboration" ;;
-        2) echo "Intent & Goals" ;;  
-        3) echo "Feasibility Assessment" ;;
-        4) echo "Technology Research" ;;
-        5) echo "Requirements Definition" ;;
-        6) echo "Scope & Prioritization" ;;
-        7) echo "Architecture Design" ;;
-        8) echo "Decision Registry" ;;
-        9) echo "Interface Specifications" ;;
-        10) echo "Task Generation" ;;
-    esac
-}
-
-# Universal phase validation with TODO checking
-validate_phase() {
-    local phase="$1"
-    
-    # Special handling for Phase 0
-    if [ "$phase" = "0" ]; then
-        local phase_file="docs/planning/phase0-existing-analysis.md"
-        if [ ! -f "$phase_file" ]; then
-            echo "✅ Phase 0 skipped (no existing project)"
-            return 0
-        fi
-    fi
-    
-    local phase_file="docs/planning/phase${phase}-*.md"
-    
-    # Check file exists
-    if ! ls $phase_file 1>/dev/null 2>&1; then
-        echo "❌ Phase $phase file not found"
-        return 1
-    fi
-    
-    # Check TODO completion
-    if grep -q '\[ \]' $phase_file 2>/dev/null; then
-        echo "⚠️ Uncompleted TODO items in Phase $phase:"
-        grep '\[ \]' $phase_file
-        return 1
-    fi
-    
-    echo "✅ Phase $phase validation complete"
-    return 0
-}
-
-# Execute specific phase functions (simplified stubs - full implementation follows pattern)
-execute_phase_1() {
-    local arguments="$1"
-    # Create comprehensive discovery document following Phase 1 instructions
-    # Launch research agents for stakeholder analysis
-    # Include contrarian analysis and fatal learnings
-}
-
-execute_phase_2() {
-    local arguments="$1" 
-    # Create goal hierarchy based on Phase 1 stakeholders
-    # Define SMART metrics with baselines
-    # Include anti-patterns and value propositions
-}
-
-execute_phase_3() {
-    local arguments="$1"
-    # Assess technical feasibility of Phase 2 goals
-    # Create risk matrix with mitigation strategies  
-    # Provide go/no-go recommendation
-}
-
-execute_phase_4() {
-    local arguments="$1"
-    # Launch tech-research agents for GitHub evidence gathering
-    # Require 5+ repos per major technology choice
-    # Focus on production reality and performance analysis
-}
-
-execute_phase_5() {
-    local arguments="$1"
-    # Convert insights into detailed requirements
-    # Create user stories with acceptance criteria
-    # Map requirements back to earlier phase discoveries
-}
-
-# Execute Phase 6: Scope & Prioritization (stub - implement if needed)
-execute_phase_6() {
-    local arguments="$1"
-    # MVP definition and feature roadmap
-    # Prioritize requirements from Phase 5
-    # Create scope boundaries and phase 2 roadmap
-}
-
-# Execute Phase 7: Architecture Design using system-architect subagent
-execute_phase_7() {
-    local arguments="$1"
+execute_phase5_requirements() {
     local main_dir="$(pwd)"
+    echo "📋 Phase 5: Requirements Definition based on discovery analysis"
     
-    echo "🏗️ Phase 7: Architecture Design using system-architect subagent"
-    echo "📍 Working Directory: $main_dir"
-    
-    # Prepare context for system-architect subagent
-    local epic_id="ideal-sti-phase7-$(date +%s)"
-    local architecture_context=""
-    
-    # Gather context from previous phases
-    if [ -f "$main_dir/docs/planning/phase1-discovery.md" ]; then
-        architecture_context="$architecture_context\n\n## Phase 1 Discovery Context:\n$(cat "$main_dir/docs/planning/phase1-discovery.md")"
-    fi
-    
-    if [ -f "$main_dir/docs/planning/phase2-intent.md" ]; then
-        architecture_context="$architecture_context\n\n## Phase 2 Goals Context:\n$(cat "$main_dir/docs/planning/phase2-intent.md")"
-    fi
-    
-    if [ -f "$main_dir/docs/planning/phase3-feasibility.md" ]; then
-        architecture_context="$architecture_context\n\n## Phase 3 Feasibility Context:\n$(cat "$main_dir/docs/planning/phase3-feasibility.md")"
-    fi
-    
-    if [ -f "$main_dir/docs/planning/phase4-tech-research.md" ]; then
-        architecture_context="$architecture_context\n\n## Phase 4 Technology Research Context:\n$(cat "$main_dir/docs/planning/phase4-tech-research.md")"
-    fi
-    
-    if [ -f "$main_dir/docs/planning/phase5-requirements.md" ]; then
-        architecture_context="$architecture_context\n\n## Phase 5 Requirements Context:\n$(cat "$main_dir/docs/planning/phase5-requirements.md")"
-    fi
-    
-    # Create comprehensive prompt for system-architect
-    local system_architect_prompt="IDEAL-STI Phase 7: Architecture Design
-    
-## CRITICAL WORKING DIRECTORY REQUIREMENTS
-**WORKING DIRECTORY**: $main_dir
-**NEVER USE**: cd, pushd, popd commands
-**ALWAYS USE**: Full file paths relative to working directory: $main_dir/
-**FOR GIT OPERATIONS**: Use git -C \"$main_dir\" [command]
-**FOR FILE OPERATIONS**: Use absolute paths like $main_dir/docs/architecture-specification.md
+    requirements_prompt="Based on completed discovery analysis and architecture confirmation:
 
-## Architecture Task Context
-Create comprehensive architecture specification following the enhanced system-architect agent patterns:
+$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md)
+$([ -f "docs/planning/complexity-assessment.md" ] && echo -e "\n## Complexity Assessment\n" && cat docs/planning/complexity-assessment.md | head -20)
 
-1. **REFERENCE CONSOLIDATED ARCHITECTURE SPEC**: Update/populate $main_dir/docs/architecture-specification.md
-2. **ENVIRONMENT DISCOVERY**: Analyze existing technology in $main_dir/
-3. **TECHNOLOGY DECISION MATRIX**: Make runtime decisions based on KISS/YAGNI principles
-4. **PERSONA-DRIVEN VALIDATION**: Validate against end user, developer, admin needs
-5. **TEST FRAMEWORK SPECIFICATION**: Define Playwright MCP + Mocha/Chai testing approach
-6. **FOUNDATIONAL IMPLEMENTATION**: Set up core frameworks before feature development
-7. **IMPLEMENTATION PATTERNS**: Create concrete patterns for feature-developer, ui-designer, qa-analyst
+Create comprehensive requirements specification:
+1. **Functional Requirements**: User stories with acceptance criteria based on discovery
+2. **Non-Functional Requirements**: Performance, security, scalability from technology research
+3. **Integration Requirements**: API contracts and data flows from architecture analysis
+4. **Compliance Requirements**: Regulatory and business constraints from stakeholder analysis
+5. **Test Requirements**: Test-driven development approach embedded in tasks
 
-## Predetermined Context from Previous Phases:
-$architecture_context
-
-## Expected Deliverables:
-- Updated $main_dir/docs/architecture-specification.md (consolidated single source of truth)
-- $main_dir/docs/planning/phase7-architecture.md (IDEAL-STI phase documentation)
-- Foundation implementation completed and validated
-- Agent reference patterns ready for Phase 11+ implementation
-
-## Success Criteria:
-- All architectural decisions documented in consolidated specification
-- Test frameworks established (Playwright MCP, Mocha+Chai, Supertest)
-- Foundation infrastructure implemented and validated
-- Ready for feature-developer agents in Phase 11+"
+Use findings from discovery phases and technology research above.
+Generate: docs/planning/phase5-requirements.md"
     
-    # Invoke system-architect subagent with comprehensive context
-    echo "🤖 Invoking system-architect subagent..."
-    echo "📋 Context: $(echo "$architecture_context" | wc -l) lines from previous phases"
+    ask subagent product-strategist to define comprehensive requirements with context: "$requirements_prompt"
+}
+```
+
+### Phase 6: Interface Design
+
+**Purpose:** User experience and API interface design aligned with requirements.
+
+**Execution Instructions:**
+```bash
+execute_phase6_interface() {
+    local main_dir="$(pwd)"
+    echo "🎨 Phase 6: Interface Design for user experience and APIs"
     
-    # Use Task tool to invoke system-architect subagent
-    ask subagent system-architect "$epic_id" "false" "$system_architect_prompt"
+    interface_prompt="Based on requirements and architecture specification:
+
+$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -50)
+$([ -f "docs/planning/discovery-summary.md" ] && echo -e "\n## Discovery Context\n" && cat docs/planning/discovery-summary.md | head -30)
+
+Design comprehensive interface specification:
+1. **User Interface Design**: Wireframes, user flows, interaction patterns aligned with user needs
+2. **API Interface Design**: Endpoints, data models, integration contracts based on requirements
+3. **System Interface Design**: Internal service boundaries and contracts for architecture
+4. **Error Interface Design**: Error handling and user feedback patterns for all scenarios
+
+Include accessibility considerations and responsive design principles.
+Generate: docs/planning/phase6-interface.md"
     
-    # Validate architecture phase completion
-    if [ -f "$main_dir/docs/architecture-specification.md" ] && [ -f "$main_dir/docs/planning/phase7-architecture.md" ]; then
-        echo "✅ Phase 7 Architecture Design completed successfully"
-        echo "📄 Architecture specification: $main_dir/docs/architecture-specification.md"
-        echo "📄 Phase documentation: $main_dir/docs/planning/phase7-architecture.md"
-    else
-        echo "❌ Phase 7 Architecture Design incomplete - missing required deliverables"
-        return 1
-    fi
+    ask subagent ui-designer to design comprehensive interfaces with context: "$interface_prompt"
+}
+### Phase 7: Architecture Design
+
+**Purpose:** System architecture design based on requirements and technology research.
+
+**Execution Instructions:**
+```bash
+execute_phase7_architecture() {
+    local main_dir="$(pwd)"
+    echo "🏗️ Phase 7: Architecture Design based on requirements and technology stack"
+    
+    architecture_prompt="Based on requirements specification and technology research:
+
+$([ -f "docs/planning/phase5-requirements.md" ] && cat docs/planning/phase5-requirements.md | head -60)
+$([ -f "docs/planning/phase6-interface.md" ] && echo -e "\n## Interface Specification\n" && cat docs/planning/phase6-interface.md | head -40)
+$([ -f "docs/planning/discovery-summary.md" ] && echo -e "\n## Discovery Foundation\n" && cat docs/planning/discovery-summary.md | head -40)
+
+Design comprehensive system architecture:
+1. **System Architecture**: High-level system design and component interactions based on requirements
+2. **Data Architecture**: Data models, storage patterns, and data flow design from interface specs  
+3. **Security Architecture**: Authentication, authorization, and data protection per requirements
+4. **Deployment Architecture**: Infrastructure, scaling, and operational considerations from discovery
+5. **Integration Architecture**: External system integrations and API design from interface specs
+
+Include architecture decision records (ADRs) for major decisions.
+Generate: docs/planning/phase7-architecture.md"
+    
+    ask subagent system-architect to design comprehensive architecture with context: "$architecture_prompt"
+    
+    # Architecture confirmation checkpoint
+    trigger_architecture_confirmation
+}
+```
+
+### Phase 8-10: Task Generation and Planning
+
+**Purpose:** Generate implementation tasks with embedded TDD methodology.
+
+**Execution Instructions:**
+```bash
+execute_phases_8_to_10_task_generation() {
+    local main_dir="$(pwd)"
+    echo "📝 Phases 8-10: Task Generation with TDD Integration"
+    
+    # Phase 8: Task Planning with TDD approach
+    task_planning_prompt="Based on approved architecture and requirements:
+
+Create comprehensive implementation tasks with Test-Driven Development methodology:
+1. **Feature Breakdown**: Break architecture into implementable features
+2. **Test Planning**: Embed test case generation in each task
+3. **Implementation Strategy**: Include Red-Green-Refactor approach
+4. **Acceptance Criteria**: Define clear completion criteria
+5. **Priority Ranking**: Prioritize tasks by business value and dependencies
+
+For each task, include:
+- Test scenarios (happy path and edge cases)
+- Mock data and test fixtures needed
+- Integration test requirements
+- Performance test considerations
+
+Generate: docs/planning/phase8-task-planning.md"
+    
+    ask subagent feature-developer to create TDD-integrated task plan with context: "$task_planning_prompt"
+    
+    # Phase 9: Implementation Task Generation 
+    task_generation_prompt="Based on task planning and architecture:
+
+Generate specific implementation tasks with parallel execution patterns:
+$([ -f "docs/planning/phase8-task-planning.md" ] && cat docs/planning/phase8-task-planning.md | head -100)
+
+Create detailed implementation tasks using parallel subagent patterns for complex features.
+Each task should include test-first approach and acceptance criteria.
+Generate: docs/planning/phase9-implementation-tasks.md"
+    
+    ask subagent feature-developer to generate implementation tasks with context: "$task_generation_prompt"
+}
+```
+
+### Phase 11-16: Implementation and Deployment
+
+**Purpose:** Execute implementation with parallel task coordination and automated deployment.
+
+**Execution Instructions:**
+```bash
+execute_phase11_implementation() {
+    local main_dir="$(pwd)"
+    echo "🚀 Phase 11: Implementation Loop with Parallel Task Execution"
+    
+    implementation_prompt="Execute implementation tasks using parallel subagent patterns:
+
+For complex features, launch parallel implementation across:
+- Frontend components and UI
+- Backend APIs and business logic  
+- Database schemas and data access
+- Integration tests and validation
+- Documentation and user guides
+
+Use the launch_parallel_feature_implementation pattern defined earlier.
+Coordinate feature completion before proceeding to next iteration.
+
+Execute all tasks from: docs/planning/phase9-implementation-tasks.md
+Track progress in: docs/planning/implementation-progress.md"
+    
+    ask subagent feature-developer to execute implementation tasks with context: "$implementation_prompt"
 }
 
-# Execute Phase 8: Decision Registry (stub - implement if needed)
-execute_phase_8() {
-    local arguments="$1"
-    # Technology decisions with rationale
-    # Document final architecture decisions
-    # Create decision registry for future reference
-}
-
-# Execute Phase 9: Interface Specifications (stub - implement if needed)
-execute_phase_9() {
-    local arguments="$1"
-    # UI/UX specs and API specs
-    # Interface design specifications
-    # Integration with architecture decisions
-}
-
-# Execute Phase 10: Task Generation (stub - implement if needed)
-execute_phase_10() {
-    local arguments="$1"
-    # Implementation tasks with dependencies
-    # Task generation for feature implementation
-    # Preparation for Phase 11+ continuous implementation
-}
-
-# Phase 11+ Implementation Loop
-execute_implementation_loop() {
-    local arguments="$1"
+execute_phase12_to_16_deployment() {
+    local main_dir="$(pwd)"
+    echo "🚀 Phase 12-16: Deployment Pipeline and Production Launch"
     
-    echo "🎯 Starting implementation iteration with feature-developer subagents..."
-    
-    # Continuous implementation until all tasks complete
-    while [ "$(count_pending_tasks)" -gt 0 ]; do
-        echo ""
-        echo "📋 Pending tasks: $(count_pending_tasks)"
-        echo "⏳ In progress: $(count_in_progress_tasks)"
-        echo "✅ Completed: $(count_completed_tasks)"
-        
-        # Get highest priority pending task
-        local current_task=$(get_next_priority_task)
-        
-        if [ -z "$current_task" ]; then
-            echo "❌ No pending tasks found but count > 0. Check task directory state."
-            break
-        fi
-        
-        echo ""
-        echo "🚀 Implementing: $current_task"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        
-        # Move task to in-progress
-        move_task_to_in_progress "$current_task"
-        
-        # Launch feature-developer subagent using Task tool
-        echo "👨‍💻 Launching feature-developer subagent for task implementation..."
-        
-        # Create isolated worktree for feature development
-        create_isolated_worktree "feature-dev" "feature-dev"
-        
-        # Call Task tool with feature-developer subagent
-        # The subagent will implement the task in the isolated worktree
-        task_implementation_result=$(call_feature_developer_subagent "$current_task" "$WORKTREE")
-        
-        # Validate task completion after subagent work
-        if validate_task_completion "$current_task"; then
-            move_task_to_completed "$current_task"
-            echo "✅ Task completed successfully: $current_task"
-            
-            # Merge implementation back to main
-            cleanup_isolated_worktree "$WORKTREE" "$CURRENT_BRANCH"
-            
-        else
-            echo "⚠️ Task implementation incomplete: $current_task"
-            echo "🔄 Moving back to pending for retry with additional context"
-            
-            # Add implementation attempt context to task
-            add_context_to_task "$current_task" "Previous attempt: $task_implementation_result"
-            
-            # Move task back to pending for retry
-            move_task_to_pending "$current_task"
-            
-            # Clean up worktree
-            cleanup_isolated_worktree "$WORKTREE" "$CURRENT_BRANCH"
-        fi
-        
-        # Check for new dependencies discovered during implementation
-        discover_new_tasks_from_implementation "$current_task"
-        
-        # Safety check to prevent infinite loops
-        if [ "$(count_total_tasks)" -gt 100 ]; then
-            echo "⚠️ Task count exceeded safety limit (100). Please review task generation."
-            break
-        fi
-    done
-    
-    echo ""
-    if [ "$(count_pending_tasks)" -eq 0 ]; then
-        echo "🎉 All features implemented successfully!"
-        echo "📊 Final stats:"
-        echo "   ✅ Completed tasks: $(count_completed_tasks)"
-        echo "   📁 Total files implemented: $(find . -name '*.ts' -o -name '*.js' -o -name '*.py' | wc -l)"
-        echo "   🧪 Running final integration tests..."
-        
-        # Run final validation
-        if validate_all_requirements; then
-            echo "🏆 Project implementation complete and validated!"
-        else
-            echo "⚠️ Some requirements validation failed. Review needed."
-        fi
-    else
-        echo "⚠️ Implementation incomplete. $(count_pending_tasks) tasks remain."
-        echo "💡 Consider reviewing task complexity or breaking down remaining tasks."
-    fi
-}
+    deployment_prompt="Execute automated deployment pipeline:
 
-# Task management helper functions
-count_pending_tasks() {
-    ls tasks/pending/*.md 2>/dev/null | wc -l
-}
+1. **Phase 12**: Classification (feature flags, rollout strategy)
+2. **Phase 13**: Pipeline preparation (CI/CD, infrastructure)  
+3. **Phase 14**: Deployment execution (blue-green, canary)
+4. **Phase 15**: Post-deployment validation (health checks, monitoring)
+5. **Phase 16**: Production monitoring and feedback collection
 
-count_in_progress_tasks() {
-    ls tasks/in-progress/*.md 2>/dev/null | wc -l
+Coordinate with infrastructure team and implement proper rollback procedures.
+Generate: docs/planning/deployment-execution.md"
+    
+    ask subagent deployment-orchestrator to execute deployment pipeline with context: "$deployment_prompt"
 }
-
-count_completed_tasks() {
-    ls tasks/completed/*.md 2>/dev/null | wc -l
-}
-
-count_total_tasks() {
-    local total=0
-    total=$((total + $(count_pending_tasks)))
-    total=$((total + $(count_in_progress_tasks)))  
-    total=$((total + $(count_completed_tasks)))
-    echo $total
-}
-
-get_next_priority_task() {
-    # Get highest priority task from pending directory
-    # Priority order: P0 (critical) > P1 (high) > P2 (medium) > P3 (low)
-    for priority in P0 P1 P2 P3; do
-        local task_file=$(ls tasks/pending/*-${priority}-*.md 2>/dev/null | head -1)
-        if [ -n "$task_file" ]; then
-            basename "$task_file" .md
-            return 0
-        fi
-    done
-    
-    # Fallback: get any pending task
-    local task_file=$(ls tasks/pending/*.md 2>/dev/null | head -1)
-    if [ -n "$task_file" ]; then
-        basename "$task_file" .md
-    fi
-}
-
-move_task_to_in_progress() {
-    local task_name="$1"
-    mv "tasks/pending/${task_name}.md" "tasks/in-progress/${task_name}.md" 2>/dev/null
-}
-
-move_task_to_completed() {
-    local task_name="$1"
-    mv "tasks/in-progress/${task_name}.md" "tasks/completed/${task_name}.md" 2>/dev/null
-}
-
-move_task_to_pending() {
-    local task_name="$1"
-    mv "tasks/in-progress/${task_name}.md" "tasks/pending/${task_name}.md" 2>/dev/null
-}
-
-call_feature_developer_subagent() {
-    local task_name="$1"
-    local worktree_path="$2"
-    
-    # This function interfaces with the Task tool to call feature-developer subagent
-    # The actual implementation would use the Task tool with feature-developer subagent
-    echo "🤖 Task tool integration: ask subagent feature-developer to develop task $task_name"
-    
-    # Return implementation result summary
-    echo "Feature development completed in worktree: $worktree_path"
-}
-
-validate_task_completion() {
-    local task_name="$1"
-    
-    # Read task acceptance criteria and validate
-    local task_file="tasks/in-progress/${task_name}.md"
-    
-    if [ ! -f "$task_file" ]; then
-        echo "❌ Task file not found: $task_file"
-        return 1
-    fi
-    
-    # Check if acceptance criteria are met
-    # This is a simplified check - full implementation would parse acceptance criteria
-    # and run appropriate tests/validations
-    
-    echo "✅ Task validation passed (simplified check)"
-    return 0
-}
-
-discover_new_tasks_from_implementation() {
-    local completed_task="$1"
-    
-    # Analyze implementation to discover new dependencies or follow-up tasks
-    # This would examine the implemented code for TODOs, integration points, etc.
-    
-    echo "🔍 Checking for new dependencies discovered during implementation..."
-    
-    # Simplified implementation - would have more sophisticated discovery logic
-    echo "💡 No new tasks discovered from $completed_task implementation"
-}
-
-add_context_to_task() {
-    local task_name="$1"
-    local context="$2"
-    
-    local task_file="tasks/in-progress/${task_name}.md"
-    
-    if [ -f "$task_file" ]; then
-        echo "" >> "$task_file"
-        echo "## Implementation Context" >> "$task_file"
-        echo "" >> "$task_file" 
-        echo "$context" >> "$task_file"
-        echo "" >> "$task_file"
-        echo "---" >> "$task_file"
-        echo "*Added $(date -Iseconds)*" >> "$task_file"
-    fi
-}
-
-validate_all_requirements() {
-    echo "🧪 Running comprehensive requirement validation..."
-    
-    # This would validate all Phase 5 requirements against implemented system
-    # Including functional requirements, non-functional requirements, etc.
-    
-    echo "✅ All requirements validated successfully (simplified check)"
-    return 0
-}
-
-# Entry point
-if [ -n "$1" ]; then
-    main "$1"
-else
-    echo "Usage: $0 \"<project-description>\""
-fi
 ```
 
 ---
 
-## Key Changes in Version 2.1
+## SECTION 4: AGENT INTEGRATION AND COORDINATION
 
-### 1. **Mandatory User Confirmation**
-- Added confirmation checkpoints after Phases 1-5
-- User must explicitly approve before proceeding
-- Options: continue, iterate (with feedback), or stop
+### Agent Context Requirements
 
-### 2. **Enhanced Phase Instructions**
-- More detailed execution instructions for each critical phase
-- Clear deliverable expectations
-- Explicit TODO items for phase validation
+**All agents receive:**
+- Working directory path
+- Project session ID
+- Architecture specification reference
+- Relevant phase documentation
 
-### 3. **Prompt-as-Code Alignment**
-- Converted complex bash functions to clear instruction sets
-- Made the system more interpretable and maintainable
-- Preserved all critical infrastructure while simplifying execution
+**Specific context patterns:**
+- **Strategic agents** (product-strategist): User requirements, problem domain
+- **Technical agents** (tech-research-analyst, system-architect): Technical constraints, performance requirements
+- **Implementation agents** (feature-developer, qa-analyst): Task specifications, acceptance criteria
+- **Quality agents** (code-reviewer, code-refactor): Implementation files, coding standards
+- **Knowledge agents** (knowledge-aggregator): Process outcomes, learnings, patterns
+- **Operations agents** (deployment-orchestrator): Feature classification, CI/CD requirements
 
-### 4. **GitHub Evidence Requirements**
-- Explicit requirement for 5+ repos (1000+ stars) per technology
-- Focus on production reality over tutorials
-- Performance analysis from real repository issues
+### Agent Output Integration
 
-### 5. **Adaptive Complexity**
-- Instructions scale content based on project complexity
-- Simple projects get focused documentation
-- Complex projects get comprehensive analysis
+**Documentation Chain:**
+- Phase agents → planning documents (phase1-discovery.md, etc.)
+- Architecture agents → architecture-specification.md
+- Implementation agents → task files, code implementations
+- Quality agents → review reports, refactored code
+- Deployment agents → deployment reports, infrastructure
 
-### 6. **Continuous Implementation Iteration (Phase 11+)**
-- Added missing implementation phase using feature-developer subagents
-- Continuous iteration loop: `ask subagent feature-developer to develop task <task-file>`
-- Task management system with pending/in-progress/completed workflows
-- Quality gates and validation for each implemented feature
-- Automatic discovery of new dependencies during implementation
-- Safety mechanisms to prevent infinite task generation loops
+**Cross-Agent Dependencies:**
+- product-strategist outputs feed into tech-research-analyst
+- system-architect requires outputs from both strategic and technical agents
+- feature-developer coordinates with qa-analyst for test integration
+- deployment-orchestrator requires feature-developer completion signals
 
-This version ensures proper user oversight while maintaining the comprehensive planning capabilities, parallel execution safety, and **now includes the missing continuous implementation iteration** that was the root cause of planning-only execution in previous versions.
+---
+
+## SUMMARY: IDEAL-STI v3.0 ADAPTIVE SYSTEM
+
+The IDEAL-STI v3.0 system provides adaptive intelligence planning that automatically adjusts complexity and agent involvement based on project scope:
+
+**✅ IMPLEMENTED:**
+- ⚡ **SPEED MODE** (5-8 min): Fast-track simple projects with minimal agent coordination
+- 📊 **STANDARD MODE** (15-25 min): Full phase flow with strategic parallel agent usage  
+- 🔬 **DEEP MODE** (30-45 min): Comprehensive analysis with full parallel agent ecosystem
+- 🧠 **Smart Confirmations**: Intelligence-driven decision triggers replace fixed phase boundaries
+- 🏗️ **Architecture Checkpoint**: Critical user approval after Phase 7 across all modes
+- 🚀 **Parallel Implementation**: Claude Code native parallel subagent patterns for feature development
+- 🔄 **Adaptive Execution**: Automatic complexity assessment and mode selection
+
+**🎯 KEY FEATURES:**
+- Claude Code parallel subagent syntax: `ask subagent [agent-name] to [task] with context: "[prompt]"`
+- Parallel execution patterns for complex features with wait coordination
+- Test-driven development embedded in task generation
+- Smart confirmation system that only triggers when analysis demands it
+- Comprehensive agent ecosystem with clear coordination patterns
+
+This system ensures optimal planning efficiency while maintaining thoroughness appropriate to project complexity.
+

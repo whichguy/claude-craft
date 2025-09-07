@@ -816,6 +816,268 @@ validate_decision_continuity() {
 
 ---
 
+## SECTION 11: CI/CD & DEPLOYMENT STRATEGY
+
+### Deployment Pattern Classification
+
+**Decision Framework**: Classify features based on their deployment requirements
+
+#### Seamless Integration Features
+**Characteristics**: 
+- No database schema changes
+- No breaking API changes
+- No configuration file changes
+- Backward compatible code only
+
+**Deployment Strategy**: 
+- Rolling deployment with zero downtime
+- Feature flags for gradual rollout
+- Immediate rollback capability
+- No system restart required
+
+**Examples**:
+- UI enhancements (new components, styling)
+- Additional API endpoints (non-breaking)
+- New utility functions
+- Performance optimizations
+- Bug fixes without schema changes
+
+**Pipeline Configuration**:
+```yaml
+seamless_deployment:
+  stages:
+    - build
+    - unit_tests
+    - integration_tests
+    - staging_deployment
+    - smoke_tests
+    - production_canary_deployment (1%)
+    - production_rollout (25%, 50%, 100%)
+  rollback: instant
+  downtime: zero
+```
+
+#### Upgrade Features (Schema/Data Changes)
+**Characteristics**:
+- Database schema modifications
+- Data migration required
+- Configuration changes needed
+- Potential breaking changes to existing data
+
+**Deployment Strategy**:
+- Blue-green or maintenance window deployment
+- Pre-deployment data backup
+- Schema migration scripts
+- Data validation post-migration
+- Rollback to backup if issues detected
+
+**Examples**:
+- New database columns or tables
+- Data type changes
+- Index modifications
+- Configuration schema updates
+- Third-party integration changes
+
+**Pipeline Configuration**:
+```yaml
+upgrade_deployment:
+  stages:
+    - build
+    - unit_tests
+    - integration_tests
+    - schema_validation
+    - migration_script_tests
+    - staging_deployment_with_migration
+    - data_validation_tests
+    - production_backup
+    - production_migration
+    - production_deployment
+    - post_deployment_validation
+  rollback: backup_restore
+  downtime: scheduled_maintenance_window
+```
+
+#### Batch Integration Features
+**Characteristics**:
+- Multiple interdependent features
+- Cross-component changes
+- Breaking API changes
+- Major architecture modifications
+
+**Deployment Strategy**:
+- System restart required
+- All-or-nothing deployment
+- Comprehensive integration testing
+- Extended rollback procedures
+- Coordinated team deployment
+
+**Examples**:
+- Authentication system overhaul
+- API version upgrades
+- Framework migrations
+- Major architectural refactoring
+- Multi-service integration changes
+
+**Pipeline Configuration**:
+```yaml
+batch_deployment:
+  stages:
+    - build_all_components
+    - unit_tests_all
+    - integration_tests_full_suite
+    - system_tests_complete
+    - staging_deployment_full_system
+    - end_to_end_validation
+    - production_maintenance_mode
+    - production_deployment_atomic
+    - system_restart
+    - post_restart_validation
+    - maintenance_mode_off
+  rollback: full_system_restore
+  downtime: planned_maintenance
+```
+
+### Feature Classification Matrix
+
+| Feature Type | Schema Changes | API Breaking | Config Changes | Deployment Pattern | Downtime | Rollback |
+|-------------|----------------|--------------|----------------|-------------------|----------|----------|
+| UI Enhancement | No | No | No | Seamless | None | Instant |
+| New API Endpoint | No | No | Minor | Seamless | None | Instant |
+| Bug Fix | No | No | No | Seamless | None | Instant |
+| Database Column | Yes | No | No | Upgrade | Scheduled | Backup |
+| API Version Change | Yes | Yes | Yes | Batch | Planned | Full Restore |
+| Auth System Update | Yes | Yes | Yes | Batch | Planned | Full Restore |
+| Framework Migration | Yes | Yes | Yes | Batch | Planned | Full Restore |
+
+### CI/CD Pipeline Architecture
+
+#### Core Pipeline Stages
+```mermaid
+flowchart LR
+    A[Code Commit] --> B[Build]
+    B --> C[Unit Tests]
+    C --> D[Integration Tests]
+    D --> E[Security Scan]
+    E --> F[Staging Deploy]
+    F --> G[E2E Tests]
+    G --> H{Feature Type?}
+    
+    H -->|Seamless| I[Rolling Deploy]
+    H -->|Upgrade| J[Blue-Green Deploy]
+    H -->|Batch| K[Maintenance Deploy]
+    
+    I --> L[Monitoring]
+    J --> L
+    K --> L
+    
+    L --> M{Health Check}
+    M -->|Pass| N[Complete]
+    M -->|Fail| O[Auto Rollback]
+```
+
+#### Environment Strategy
+- **Development**: Feature branches, continuous integration
+- **Staging**: Pre-production testing, full system validation
+- **Production**: Target deployment environment
+- **Rollback**: Previous stable version ready for instant restore
+
+### Schema Migration Patterns
+
+#### Automatic Migration (Level 1-2)
+```sql
+-- Safe, additive changes only
+ALTER TABLE users ADD COLUMN last_login TIMESTAMP;
+CREATE INDEX idx_users_last_login ON users(last_login);
+```
+
+#### Manual Migration (Level 3-4)
+```sql
+-- Complex changes requiring validation
+BEGIN TRANSACTION;
+  -- Create new column
+  ALTER TABLE users ADD COLUMN new_email_format VARCHAR(255);
+  
+  -- Migrate data with validation
+  UPDATE users SET new_email_format = LOWER(TRIM(email)) 
+  WHERE email REGEXP '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$';
+  
+  -- Validate migration
+  SELECT COUNT(*) FROM users WHERE new_email_format IS NULL;
+  
+  -- If validation passes, drop old column
+  ALTER TABLE users DROP COLUMN email;
+  ALTER TABLE users RENAME COLUMN new_email_format TO email;
+COMMIT;
+```
+
+### Rollback Procedures
+
+#### Instant Rollback (Seamless Features)
+- Feature flag toggle
+- Load balancer routing change
+- Previous container version activation
+- Time to rollback: < 1 minute
+
+#### Backup Rollback (Upgrade Features)
+- Database backup restoration
+- Configuration rollback
+- Application version downgrade
+- Time to rollback: 5-15 minutes
+
+#### Full System Restore (Batch Features)
+- Complete system backup restoration
+- Infrastructure state restoration
+- Multi-component rollback coordination
+- Time to rollback: 30-60 minutes
+
+### Deployment Monitoring
+
+#### Health Checks
+```yaml
+health_check_levels:
+  basic:
+    - http_status: 200
+    - response_time: < 500ms
+  
+  intermediate:
+    - database_connection: active
+    - cache_connection: active
+    - external_api_status: reachable
+  
+  comprehensive:
+    - feature_functionality: validated
+    - data_integrity: verified
+    - performance_metrics: within_thresholds
+```
+
+#### Monitoring Triggers
+- **Success**: All health checks pass for 5 minutes
+- **Warning**: Health check degradation detected
+- **Critical**: Health check failures trigger automatic rollback
+- **Rollback**: Initiated if health checks fail for > 2 minutes
+
+### Agent Deployment Responsibilities
+
+#### Feature-Developer
+- Classify feature deployment requirements
+- Implement feature flags where appropriate
+- Ensure backward compatibility for seamless deployments
+- Document migration requirements for upgrade features
+
+#### QA-Analyst  
+- Validate deployment classification accuracy
+- Test rollback procedures for each feature type
+- Verify health check effectiveness
+- Validate migration script safety
+
+#### Deployment-Orchestrator
+- Execute deployment pipeline based on feature classification
+- Monitor health checks during deployment
+- Execute rollback procedures when needed
+- Coordinate batch deployments across teams
+
+---
+
 ## SECTION 10: MAINTENANCE AND UPDATES
 
 ### Architecture Evolution Process

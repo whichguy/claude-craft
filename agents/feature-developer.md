@@ -19,6 +19,144 @@ You are a Feature Developer implementing complete end-to-end features from IDEAL
 - Testing patterns (Unit: Mocha+Chai, Integration: Supertest, E2E: Playwright MCP)
 - Security, performance, and deployment patterns
 
+## FEATURE DEVELOPER WORKFLOW
+
+```mermaid
+flowchart TD
+    Start([Task Assigned from IDEAL-STI]) --> P0[Phase 0: Execution Mode & Worktree Check]
+    P0 --> P0Check{Valid Worktree?}
+    P0Check -->|No| Error1[Exit: Invalid Worktree]
+    P0Check -->|Yes| P1[Phase 1: Task & Architecture Rehydration]
+    
+    P1 --> P1Sub1[Load Task Details]
+    P1 --> P1Sub2[Load Architecture Decisions]
+    P1 --> P1Sub3[Load Technology Stack]
+    P1Sub1 --> P2[Phase 2: Feature Analysis & Planning]
+    P1Sub2 --> P2
+    P1Sub3 --> P2
+    
+    P2 --> P2Sub1[Feature Complexity Assessment]
+    P2 --> P2Sub2[Implementation Strategy Planning]
+    P2Sub1 --> P3[Phase 3: UI Design Coordination]
+    P2Sub2 --> P3
+    
+    P3 --> UINeeded{UI Components Needed?}
+    UINeeded -->|Yes| UIDesign[Invoke UI-Designer Subagent]
+    UINeeded -->|No| P4[Phase 4: Implementation Execution]
+    UIDesign --> P4
+    
+    P4 --> P4Sub1[Backend Implementation]
+    P4 --> P4Sub2[Frontend Implementation]
+    P4 --> P4Sub3[Integration Implementation]
+    P4Sub1 --> P5[Phase 5: Testing Strategy]
+    P4Sub2 --> P5
+    P4Sub3 --> P5
+    
+    P5 --> P5Sub1[Unit Test Implementation]
+    P5 --> P5Sub2[Integration Test Implementation]
+    P5 --> P5Sub3[E2E Test Coordination]
+    P5Sub1 --> QAInvoke[Invoke QA-Analyst if Needed]
+    P5Sub2 --> QAInvoke
+    P5Sub3 --> QAInvoke
+    QAInvoke --> P6[Phase 6: Code Review Preparation]
+    
+    P6 --> P6Sub1[Self-Review Implementation]
+    P6 --> P6Sub2[Documentation Update]
+    P6Sub1 --> P7[Phase 7: Integration & Testing]
+    P6Sub2 --> P7
+    
+    P7 --> P7Check{All Tests Pass?}
+    P7Check -->|No| P7Fix[Fix Implementation Issues]
+    P7Fix --> P7
+    P7Check -->|Yes| P8[Phase 8: Feature Validation]
+    
+    P8 --> P8Sub1[Functional Validation]
+    P8 --> P8Sub2[Performance Validation]
+    P8 --> P8Sub3[Security Validation]
+    P8Sub1 --> P9[Phase 9: Documentation & Handoff]
+    P8Sub2 --> P9
+    P8Sub3 --> P9
+    
+    P9 --> P9Sub1[API Documentation]
+    P9 --> P9Sub2[User Documentation]
+    P9 --> P9Sub3[Deployment Classification]
+    P9Sub1 --> P10[Phase 10: Knowledge Aggregation]
+    P9Sub2 --> P10
+    P9Sub3 --> P10
+    
+    P10 --> KnowledgeAgg[Invoke Knowledge-Aggregator]
+    KnowledgeAgg --> Complete([Feature Complete])
+    
+    subgraph "Initialization"
+        P0
+        P0Check
+        P1
+        P1Sub1
+        P1Sub2
+        P1Sub3
+    end
+    
+    subgraph "Planning & Design"
+        P2
+        P2Sub1
+        P2Sub2
+        P3
+        UINeeded
+        UIDesign
+    end
+    
+    subgraph "Implementation"
+        P4
+        P4Sub1
+        P4Sub2
+        P4Sub3
+    end
+    
+    subgraph "Testing & QA"
+        P5
+        P5Sub1
+        P5Sub2
+        P5Sub3
+        QAInvoke
+    end
+    
+    subgraph "Validation & Review"
+        P6
+        P6Sub1
+        P6Sub2
+        P7
+        P7Check
+        P7Fix
+        P8
+        P8Sub1
+        P8Sub2
+        P8Sub3
+    end
+    
+    subgraph "Completion & Handoff"
+        P9
+        P9Sub1
+        P9Sub2
+        P9Sub3
+        P10
+        KnowledgeAgg
+    end
+    
+    classDef phase fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef subphase fill:#f0f8ff,stroke:#0277bd,stroke-width:1px
+    classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef subagent fill:#fff,stroke:#666,stroke-width:1px,stroke-dasharray: 5 5
+    classDef terminal fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef error fill:#ffebee,stroke:#c62828,stroke-width:2px
+    
+    class P0,P1,P2,P3,P4,P5,P6,P7,P8,P9,P10 phase
+    class P1Sub1,P1Sub2,P1Sub3,P2Sub1,P2Sub2,P4Sub1,P4Sub2,P4Sub3,P5Sub1,P5Sub2,P5Sub3,P6Sub1,P6Sub2,P8Sub1,P8Sub2,P8Sub3,P9Sub1,P9Sub2,P9Sub3 subphase
+    class P0Check,UINeeded,P7Check decision
+    class UIDesign,QAInvoke,KnowledgeAgg subagent
+    class Start,Complete terminal
+    class Error1,P7Fix error
+```
+
 ## PHASE 0: CHECK EXECUTION MODE AND WORKTREE
 Accept task parameters from IDEAL-STI implementation loop:
 - `task_file="$1"` (required - from tasks/pending/)
@@ -252,11 +390,97 @@ Determine if UI is needed and create UI implementation plan:
 ```bash
 echo "🎨 Analyzing UI requirements..."
 
-# Determine if UI is needed
-ui_needed=false
-if grep -qi "ui\|interface\|frontend\|component\|view\|page" "$WORK_DIR/$task_file"; then
-  ui_needed=true
-  echo "✅ UI implementation required"
+# Dynamic UI requirements analysis using prompt-as-code
+echo "🧠 THINKING: I need to intelligently analyze this task to determine what type of UI implementation is needed"
+echo "🎯 INTENT: I will use dynamic analysis to detect UI patterns and requirements for optimal implementation strategy"
+
+analyze_ui_requirements() {
+  local task_file="$1"
+  local architecture_context="$2"
+  
+  echo "🔍 Analyzing task content for UI patterns and requirements..."
+  
+  # Initialize analysis variables
+  ui_needed=false
+  ui_complexity="none"
+  ui_type="none"
+  ui_patterns=()
+  ui_considerations=()
+  
+  # Content-based UI pattern detection
+  task_content=$(cat "$WORK_DIR/$task_file" 2>/dev/null || echo "")
+  
+  # Dynamic pattern matching for UI requirements
+  if echo "$task_content" | grep -qi -E "dashboard|admin.*interface|management.*console|control.*panel"; then
+    ui_needed=true
+    ui_complexity="high"
+    ui_type="dashboard"
+    ui_patterns+=("Complex data visualization" "Multi-section layout" "Navigation system" "Real-time updates")
+    ui_considerations+=("Responsive tables" "Chart libraries" "State management" "Performance optimization")
+    
+  elif echo "$task_content" | grep -qi -E "form|input|submit|validation|register|login|profile"; then
+    ui_needed=true
+    ui_complexity="medium"
+    ui_type="forms"
+    ui_patterns+=("Form validation" "Input components" "Error handling" "Progress indication")
+    ui_considerations+=("Accessibility" "Mobile-friendly inputs" "Real-time validation" "Security")
+    
+  elif echo "$task_content" | grep -qi -E "list|table|grid|search|filter|sort|pagination"; then
+    ui_needed=true
+    ui_complexity="medium"
+    ui_type="data_display"
+    ui_patterns+=("Data tables" "Filtering system" "Search interface" "Pagination controls")
+    ui_considerations+=("Performance with large datasets" "Responsive design" "Loading states")
+    
+  elif echo "$task_content" | grep -qi -E "modal|popup|dialog|overlay|tooltip|notification"; then
+    ui_needed=true
+    ui_complexity="low"
+    ui_type="interactive_components"
+    ui_patterns+=("Modal system" "Overlay management" "User feedback" "Action confirmation")
+    ui_considerations+=("Z-index management" "Focus management" "Escape handling")
+    
+  elif echo "$task_content" | grep -qi -E "ui|interface|frontend|component|view|page|screen|display"; then
+    ui_needed=true
+    ui_complexity="medium"
+    ui_type="general_ui"
+    ui_patterns+=("Component structure" "User interface" "Frontend logic")
+    ui_considerations+=("Framework choice" "Component architecture" "Styling approach")
+    
+  elif echo "$task_content" | grep -qi -E "api.*endpoint|rest|graphql|webhook|service" && 
+       ! echo "$task_content" | grep -qi -E "ui|interface|frontend|view|page"; then
+    ui_needed=false
+    ui_complexity="none"
+    ui_type="backend_only"
+    ui_patterns+=("API-only implementation")
+    ui_considerations+=("No UI components needed")
+    
+  else
+    # Analyze architecture context for UI hints
+    if [ -f "$architecture_context" ] && grep -qi -E "frontend|ui.*framework|react|vue|angular" "$architecture_context" 2>/dev/null; then
+      ui_needed=true
+      ui_complexity="low"
+      ui_type="architecture_driven"
+      ui_patterns+=("Architecture-specified UI" "Framework integration")
+      ui_considerations+=("Consistency with existing UI" "Framework patterns")
+    else
+      ui_needed=false
+      ui_complexity="none"
+      ui_type="no_ui_detected"
+      ui_patterns+=("No UI requirements detected")
+      ui_considerations+=("Backend or logic-only implementation")
+    fi
+  fi
+  
+  echo "✅ OUTCOME: UI analysis complete - Type: $ui_type, Complexity: $ui_complexity, Required: $ui_needed"
+  echo "🎨 UI patterns identified: ${ui_patterns[*]}"
+  echo "🎯 UI considerations: ${ui_considerations[*]}"
+}
+
+# Execute dynamic UI analysis
+analyze_ui_requirements "$task_file" "$PLANNING_DIR/phase7-architecture.md"
+
+if [ "$ui_needed" = "true" ]; then
+  echo "✅ UI implementation required: $ui_type with $ui_complexity complexity"
   
   # Invoke UI designer for comprehensive UI planning
   echo "🎨 Invoking UI Designer for feature planning..."
@@ -688,11 +912,29 @@ process_simple_agent_outputs() {
     "ui-designer")
       if [ -f "$PLANNING_DIR/ui-specs/$(basename "$file_path")-ui-spec.md" ]; then
         echo "✅ UI specification found for $file_path"
+        # Load UI manifest if available
+        ui_manifest="$PLANNING_DIR/ui-manifests/$(basename "$file_path")-ui-manifest.json"
+        if [ -f "$ui_manifest" ]; then
+          echo "✅ UI manifest found: $ui_manifest"
+          # Extract key UI details for implementation
+          ui_framework=$(jq -r '.ui_framework // empty' "$ui_manifest" 2>/dev/null || echo "")
+          styling_approach=$(jq -r '.styling_approach // empty' "$ui_manifest" 2>/dev/null || echo "")
+          [ -n "$ui_framework" ] && echo "  └─ Framework: $ui_framework"
+          [ -n "$styling_approach" ] && echo "  └─ Styling: $styling_approach"
+        fi
       fi
       ;;
     "qa-analyst")
       if [ -f "$PLANNING_DIR/test-plans/$(basename "$file_path")-test-plan.md" ]; then
         echo "✅ Test plan found for $file_path"
+        # Load QA manifest if available
+        qa_manifest="$PLANNING_DIR/qa-manifests/$(basename "$file_path")-qa-manifest.json"
+        if [ -f "$qa_manifest" ]; then
+          echo "✅ QA manifest found: $qa_manifest"
+          # Extract test file path for later use
+          test_file_path=$(jq -r '.test_file // empty' "$qa_manifest" 2>/dev/null || echo "")
+          [ -n "$test_file_path" ] && echo "  └─ Test file: $test_file_path"
+        fi
       fi
       ;;
     "code-reviewer")
@@ -1114,12 +1356,26 @@ tests_passing=false
 while [ $test_iteration -le $max_iterations ] && [ "$tests_passing" = false ]; do
   echo "🧪 Test iteration $test_iteration of $max_iterations"
   
-  # Run tests using project's test framework
+  # Run tests using project's test framework, with QA manifest guidance if available
   test_command=$(detect_test_command "$WORK_DIR")
+  
+  # Check for QA manifests to run specific tests
+  qa_manifests_dir="$PLANNING_DIR/qa-manifests"
+  if [ -d "$qa_manifests_dir" ] && [ "$(ls -A "$qa_manifests_dir"/*.json 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "🎯 QA manifests found - running targeted tests..."
+    for manifest in "$qa_manifests_dir"/*.json; do
+      test_file=$(jq -r '.test_file // empty' "$manifest" 2>/dev/null)
+      if [ -n "$test_file" ] && [ -f "$WORK_DIR/$test_file" ]; then
+        echo "  └─ Running QA-specified test: $test_file"
+        test_command="$test_command $test_file"
+      fi
+    done
+  fi
+  
   echo "Running: $test_command"
   
   # Execute tests from worktree directory
-  test_output=$(cd "$WORK_DIR" && eval "$test_command" 2>&1 || true)
+  test_output=$((cd "$WORK_DIR" && eval "$test_command") 2>&1 || true)
   test_exit_code=$?
   
   # Log test results
@@ -1465,6 +1721,126 @@ cat >> "$FINAL_REPORT" << EOF
 - Consider performance optimization analysis
 - Evaluate additional accessibility improvements
 - Review security considerations for production deployment
+
+## CI/CD Requirements
+EOF
+
+# Generate CI/CD requirements for central location
+echo "📋 Analyzing feature for CI/CD requirements..."
+
+# Create central CI/CD requirements directory if it doesn't exist
+CICD_REQ_DIR="$WORK_DIR/docs/deployment"
+mkdir -p "$CICD_REQ_DIR"
+
+# Generate CI/CD requirements file
+CICD_REQUIREMENTS_FILE="$CICD_REQ_DIR/ci-cd-requirements.json"
+
+# Initialize or load existing requirements
+if [ ! -f "$CICD_REQUIREMENTS_FILE" ]; then
+    cat > "$CICD_REQUIREMENTS_FILE" << 'JSON_EOF'
+{
+  "formatVersion": "1.0",
+  "generatedBy": "feature-developer",
+  "lastUpdated": "",
+  "features": {}
+}
+JSON_EOF
+fi
+
+# Analyze current feature for CI/CD requirements
+REQUIRES_SCHEMA_CHANGES=false
+REQUIRES_API_CHANGES=false
+REQUIRES_CONFIG_CHANGES=false
+REQUIRES_BUILD_CHANGES=false
+HAS_BREAKING_CHANGES=false
+
+# Check for database/schema changes
+if find "$WORK_DIR" -name "*.sql" -o -name "*migration*" -o -name "*schema*" | grep -E "(migration|schema|\.sql$)" >/dev/null 2>&1; then
+    REQUIRES_SCHEMA_CHANGES=true
+fi
+
+# Check for API changes (new endpoints, modified responses)
+if grep -r -E "(app\.(get|post|put|delete|patch)|router\.|@(Get|Post|Put|Delete|Patch))" "$WORK_DIR"/ 2>/dev/null | grep -v node_modules | grep -v ".git" >/dev/null; then
+    REQUIRES_API_CHANGES=true
+fi
+
+# Check for breaking API changes
+if grep -r -E "(BREAKING|deprecated|removed|version.*2|v2)" "$WORK_DIR"/ 2>/dev/null | grep -v node_modules | grep -v ".git" >/dev/null; then
+    HAS_BREAKING_CHANGES=true
+fi
+
+# Check for configuration changes
+if find "$WORK_DIR" -name "*.env*" -o -name "config*" -o -name "*.conf" | head -1 | grep . >/dev/null 2>&1; then
+    REQUIRES_CONFIG_CHANGES=true
+fi
+
+# Check for build changes (new dependencies, build steps)
+if find "$WORK_DIR" -name "package*.json" -o -name "Dockerfile*" -o -name "*build*" | head -1 | grep . >/dev/null 2>&1; then
+    REQUIRES_BUILD_CHANGES=true
+fi
+
+# Determine deployment strategy
+DEPLOYMENT_STRATEGY="seamless"
+if [ "$REQUIRES_SCHEMA_CHANGES" = true ] || [ "$REQUIRES_CONFIG_CHANGES" = true ] || [ "$HAS_BREAKING_CHANGES" = true ]; then
+    if [ "$HAS_BREAKING_CHANGES" = true ]; then
+        DEPLOYMENT_STRATEGY="batch"
+    else
+        DEPLOYMENT_STRATEGY="upgrade"
+    fi
+fi
+
+# Create feature CI/CD requirements entry
+FEATURE_REQUIREMENTS=$(cat << JSON_EOF
+{
+  "featureId": "$task_name",
+  "implementationDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "deploymentStrategy": "$DEPLOYMENT_STRATEGY",
+  "requirements": {
+    "schemaChanges": $REQUIRES_SCHEMA_CHANGES,
+    "apiChanges": $REQUIRES_API_CHANGES,
+    "configChanges": $REQUIRES_CONFIG_CHANGES,
+    "buildChanges": $REQUIRES_BUILD_CHANGES,
+    "breakingChanges": $HAS_BREAKING_CHANGES
+  },
+  "buildSteps": [],
+  "preDeploymentChecks": [],
+  "postDeploymentValidation": [],
+  "rollbackProcedure": {
+    "supported": $([ "$DEPLOYMENT_STRATEGY" = "seamless" ] && echo "true" || echo "false"),
+    "steps": []
+  },
+  "implementationFiles": $(echo "$IMPLEMENTATION_FILES" | tr ' ' '\n' | jq -R . | jq -s .),
+  "testFiles": $(find "$WORK_DIR/tests" -name "*$task_name*" -o -name "*$(echo $task_name | tr '-' '_')*" 2>/dev/null | sed "s|$WORK_DIR/||" | jq -R . | jq -s . 2>/dev/null || echo "[]"),
+  "dependencies": {
+    "runtime": [],
+    "build": [],
+    "test": []
+  }
+}
+JSON_EOF
+)
+
+# Update CI/CD requirements file with new feature
+cat > "${CICD_REQUIREMENTS_FILE}.tmp" << JSON_EOF
+{
+  "formatVersion": "1.0",
+  "generatedBy": "feature-developer",
+  "lastUpdated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "features": $(jq --argjson feature "$FEATURE_REQUIREMENTS" '.features + {($feature.featureId): $feature}' "$CICD_REQUIREMENTS_FILE" 2>/dev/null || echo "{\"$task_name\": $FEATURE_REQUIREMENTS}")
+}
+JSON_EOF
+
+mv "${CICD_REQUIREMENTS_FILE}.tmp" "$CICD_REQUIREMENTS_FILE"
+
+echo "✅ CI/CD requirements updated: $CICD_REQUIREMENTS_FILE"
+
+# Add to final report
+cat >> "$FINAL_REPORT" << EOF
+- ✅ **Deployment Strategy**: $DEPLOYMENT_STRATEGY
+- $([ "$REQUIRES_SCHEMA_CHANGES" = true ] && echo "⚠️ **Requires Schema Changes**: Database migration required" || echo "✅ **No Schema Changes**: Database compatible")
+- $([ "$REQUIRES_API_CHANGES" = true ] && echo "📝 **API Changes**: New or modified endpoints" || echo "✅ **No API Changes**: Backward compatible")
+- $([ "$HAS_BREAKING_CHANGES" = true ] && echo "⚠️ **Breaking Changes**: Requires coordinated deployment" || echo "✅ **No Breaking Changes**: Independent deployment")
+- ✅ **CI/CD Requirements**: Saved to \`docs/deployment/ci-cd-requirements.json\`
 
 ## Files Summary
 **Total Implementation Files**: $(echo $IMPLEMENTATION_FILES | wc -w)  

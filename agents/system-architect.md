@@ -22,9 +22,36 @@ You are the System Architect with advanced decision-making capabilities, designe
 flowchart TD
     Start([System Architect Invoked]) --> P1[Phase 1: Execution Mode & Context Discovery]
     P1 --> P2[Phase 2: Architecture Decision Rehydration]
-    P2 --> P3[Phase 3: Intelligent Environment Analysis]
-    P3 --> P4[Phase 4: Technology Decision Matrix]
-    P4 --> P5[Phase 5: User Confirmation]
+    P2 --> Rehydrate{Existing Decisions?}
+    
+    Rehydrate -->|Fresh Analysis| P3[Phase 3: Environment & Requirements Analysis]
+    Rehydrate -->|Evolution Needed| P3
+    Rehydrate -->|Refinement Only| P4[Phase 4: Technology Decision Matrix]
+    
+    P3 --> P3Sub1[Environment Discovery]
+    P3 --> P3Sub2[IDEAL-STI Requirements Analysis]
+    P3Sub1 --> P3Sub3[Requirements-Driven Analysis]
+    P3Sub2 --> P3Sub3
+    P3Sub3 --> P4
+    
+    P4 --> P4Sub1[Authentication Decision]
+    P4 --> P4Sub2[UI Framework Decision]
+    P4 --> P4Sub3[API Architecture Decision]
+    P4 --> P4Sub4[Storage Decision]
+    P4 --> P4Sub5[Concurrency Decision]
+    P4 --> P4Sub6[Security Decision]
+    P4 --> P4Sub7[Performance Decision]
+    P4 --> P4Sub8[Error Handling Decision]
+    
+    P4Sub1 --> P5[Phase 5: User Confirmation]
+    P4Sub2 --> P5
+    P4Sub3 --> P5
+    P4Sub4 --> P5
+    P4Sub5 --> P5
+    P4Sub6 --> P5
+    P4Sub7 --> P5
+    P4Sub8 --> P5
+    
     P5 --> Decision{User Choice}
     
     Decision -->|Approve All| P6[Phase 6: Persona-Driven Validation]
@@ -32,22 +59,89 @@ flowchart TD
     Decision -->|Request Alternatives| P4
     Decision -->|Restart Analysis| P1
     
-    P6 --> P7[Phase 7: Architecture Documentation]
-    P7 --> P8[Phase 8: Foundational Framework]
+    P6 --> P7[Phase 7: Architecture Documentation & Deliverables]
+    P7 --> P7Sub1[Consolidated Architecture Specification]
+    P7 --> P7Sub2[CI/CD Deployment Strategy]
+    P7Sub1 --> P8[Phase 8: Foundational Framework Implementation]
+    P7Sub2 --> P8
+    
     P8 --> P9[Phase 9: Implementation Validation]
-    P9 --> P10[Phase 10: Implementation Strategy]
-    P10 --> P11[Phase 11: Continuous Refinement]
-    P11 --> End([Architecture Complete])
+    P9 --> P9Check{Foundation Ready?}
+    P9Check -->|Issues Found| P8
+    P9Check -->|Validated| P10[Phase 10: Implementation Strategy & Coordination]
+    
+    P10 --> P10Sub1[Development Approach]
+    P10 --> P10Sub2[CI/CD Pipeline Strategy]
+    P10Sub1 --> P11[Phase 11: Continuous Refinement]
+    P10Sub2 --> P11
+    
+    P11 --> Output[System Architect Output]
+    Output --> OutputSub1[architecture-specification.md]
+    Output --> OutputSub2[CI/CD Strategy JSON]
+    Output --> OutputSub3[Foundation Status]
+    Output --> End([Architecture Complete])
     
     P11 -.-> P4
     
+    subgraph "Context Discovery"
+        P1
+        P2
+        Rehydrate
+    end
+    
+    subgraph "Requirements Analysis"
+        P3
+        P3Sub1
+        P3Sub2
+        P3Sub3
+    end
+    
+    subgraph "Technology Decisions"
+        P4
+        P4Sub1
+        P4Sub2
+        P4Sub3
+        P4Sub4
+        P4Sub5
+        P4Sub6
+        P4Sub7
+        P4Sub8
+    end
+    
+    subgraph "Validation & Documentation"
+        P6
+        P7
+        P7Sub1
+        P7Sub2
+    end
+    
+    subgraph "Implementation Preparation"
+        P8
+        P9
+        P9Check
+        P10
+        P10Sub1
+        P10Sub2
+    end
+    
+    subgraph "Output Generation"
+        Output
+        OutputSub1
+        OutputSub2
+        OutputSub3
+    end
+    
     classDef phase fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef subphase fill:#f0f8ff,stroke:#0277bd,stroke-width:1px
     classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
     classDef terminal fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef output fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
     
-    class P1,P2,P3,P4,P6,P7,P8,P9,P10,P11 phase
-    class P5,Decision decision
+    class P1,P2,P3,P4,P5,P6,P7,P8,P9,P10,P11 phase
+    class P3Sub1,P3Sub2,P3Sub3,P4Sub1,P4Sub2,P4Sub3,P4Sub4,P4Sub5,P4Sub6,P4Sub7,P4Sub8,P7Sub1,P7Sub2,P10Sub1,P10Sub2 subphase
+    class Decision,Rehydrate,P9Check decision
     class Start,End terminal
+    class Output,OutputSub1,OutputSub2,OutputSub3 output
 ```
 
 ## PHASE 1: EXECUTION MODE & CONTEXT DISCOVERY
