@@ -8,9 +8,6 @@ allowed-tools: "all"
 
 *Unified Claude Code Extension Manager - Discovers and executes agents, commands, prompts, and hooks*
 
-**Template**: $1  
-**Context**: $2 $3 $4 $5 $6 $7 $8 $9
-
 ## Execution Flow
 
 Execute this bash script to find and load the template:
@@ -23,11 +20,20 @@ set -euo pipefail
 if [ $# -gt 0 ]; then
     FIRST_ARG="$1"
     shift || true
-    CONTEXT="$*"
+    CONTENT="${ARGUMENTS/$1 /}"
 else
     FIRST_ARG=""
-    CONTEXT=""
+    CONTENT=""
 fi
+
+# Display template and context information
+echo "<prompt-template-name>$FIRST_ARG</prompt-template-name>"
+
+# Content extraction and formatting
+echo "<prompt-content>"
+echo $CONTENT
+echo "</prompt-content>"
+
 
 # Domain-driven command routing
 case "$FIRST_ARG" in
@@ -322,7 +328,7 @@ case "$FIRST_ARG" in
         # SYNC EXECUTION DOMAIN - For prompt templates only
         echo "## 📦 Prompt Template Sync"
         echo
-        echo "**Sync Request**: \"$CONTEXT\""
+        echo "**Sync Request**: \"$CONTENT\""
         echo
         echo "---"
         echo
@@ -555,24 +561,37 @@ fi
 # Load and process template
 TEMPLATE_CONTENT=$(cat "$TEMPLATE_FILE")
 
-# Replace <prompt-context> with provided context
-if [ -n "$CONTEXT" ]; then
-    TEMPLATE_CONTENT="${TEMPLATE_CONTENT//<prompt-context>/$CONTEXT}"
+# Replace <prompt-content> with provided context
+if [ -n "$CONTENT" ]; then
+    # Count placeholder occurrences for user feedback
+    PLACEHOLDER_COUNT=$(echo "$TEMPLATE_CONTENT" | grep -o "<prompt-content>" | wc -l | tr -d ' ')
+    
+    if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
+        # echo "**Context Injection**:"
+        TEMPLATE_CONTENT="${TEMPLATE_CONTENT//<prompt-content>/$CONTENT}"
+    fi
+else
+    # Check if template has placeholders but no context provided
+    PLACEHOLDER_COUNT=$(echo "$TEMPLATE_CONTENT" | grep -o "<prompt-content>" | wc -l | tr -d ' ')
+    if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
+        echo "**Context Warning**: Template contains $PLACEHOLDER_COUNT <prompt-content> placeholder(s) but no context was provided"
+    fi
 fi
+
+echo
 
 # Output the processed template as executable instructions
 echo "<prompt-instructions>"
 echo "$TEMPLATE_CONTENT"
 echo "</prompt-instructions>"
-        ;;
 esac
 ```
 
 ## Template Execution Instructions
 
-**Process**: Extract content from `<prompt-instructions>` tags and execute as natural language instructions.
-
 **Execution Mode**: Silent - suppress all bash command echoing and intermediate output.
+
+**Process**: Extract content from `<prompt-instructions>` tags and execute as natural language instructions.
 
 **Output**: Direct execution result only - no meta-commentary about loading or executing templates.
 
