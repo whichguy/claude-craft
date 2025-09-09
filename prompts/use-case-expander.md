@@ -51,13 +51,42 @@ Apply these patterns to discover implicit use cases from <prompt-content>:
 ## FULL ANALYSIS PROCESS
 
 **Execution Steps**:  
-1. Technology Prerequisites → 2. Deep Analysis → 3. Quality Gates → 4. Expansion Testing → 5. Iterative Refinement → 6. Completeness Validation → 7. Final Quality Review
+1. User Story Foundation → 2. Technology Prerequisites → 3. Deep Analysis → 4. Quality Gates → 5. Expansion Testing → 6. Iterative Refinement → 7. Completeness Validation → 8. Final Quality Review
 
 **Convergence**: Stop when discovery rate < 10% AND all granularity tests pass AND quality review passes
 
 ---
 
-### STEP 0: Technology Prerequisites Discovery
+### STEP 1: User Story Foundation
+
+Extract and formulate the core user story from <prompt-content> to provide foundation context for all subsequent analysis.
+
+**USER STORY EXTRACTION**:
+- **Primary Actor**: Identify the main user/role who will benefit from this system
+- **Core Need**: Extract the fundamental problem or opportunity being addressed
+- **Value Proposition**: Define the key benefit or outcome the user seeks
+- **Context Constraints**: Identify any explicit limitations, requirements, or conditions
+
+**USER STORY FORMULATION**:
+Create a standard user story in the format:
+"As a [primary actor], I want to [core functionality] so that [value proposition]"
+
+**ACCEPTANCE CRITERIA DERIVATION**:
+From the user story, derive 3-5 high-level acceptance criteria that define success:
+- Functional criteria: What the system must do
+- Quality criteria: How well it must perform
+- Constraint criteria: What limitations must be respected
+
+**CONTEXT ANALYSIS**:
+- **Stakeholder Mapping**: Identify all actors mentioned or implied
+- **Environmental Factors**: Note technical, business, or regulatory context
+- **Scope Boundaries**: Distinguish what is in-scope vs out-of-scope
+
+**OUTPUT**: Clear user story with acceptance criteria and context analysis to guide all subsequent use case discovery.
+
+---
+
+### STEP 2: Technology Prerequisites Discovery
 
 Analyze the technology stack requirements and derive technical use cases:
 
@@ -72,7 +101,7 @@ Analyze the technology stack requirements and derive technical use cases:
 
 ---
 
-### STEP 1: Deep Initial Analysis
+### STEP 3: Deep Initial Analysis
 
 #### PATTERN APPLICATION CHECKLIST
 Systematically apply ALL patterns:
@@ -99,7 +128,7 @@ For each pattern NOT applied, document WHY it's not applicable.
 
 **OUTPUT**: Numbered use cases with confidence levels and source provenance.
 
-### STEP 2: Quality Gate Analysis
+### STEP 4: Quality Gate Analysis
 
 Assess discovery progress and determine next actions:
 
@@ -115,7 +144,7 @@ Assess discovery progress and determine next actions:
 
 **OUTPUT**: Iteration metrics and convergence decision.
 
-### STEP 3: Expansion Reasoning
+### STEP 5: Expansion Reasoning
 
 For EACH potential use case, apply granularity validation:
 
@@ -131,7 +160,7 @@ For EACH potential use case, apply granularity validation:
 
 **OUTPUT**: Validated use cases with expansion decisions.
 
-### STEP 4: Iterative Expansion
+### STEP 6: Iterative Expansion
 
 For use cases requiring decomposition:
 
@@ -148,7 +177,7 @@ For use cases requiring decomposition:
 
 **OUTPUT**: Refined use cases meeting granularity requirements.
 
-### STEP 5: Completeness Validation
+### STEP 7: Completeness Validation
 
 **COVERAGE ANALYSIS**:
 - Actor Coverage: Ensure all actors have relevant use cases
@@ -223,7 +252,7 @@ For use cases requiring decomposition:
 
 ---
 
-### STEP 6: Final Quality Review
+### STEP 8: Final Quality Review
 
 **QUALITY VALIDATION CHECKS**:
 1. **Redundancy Detection**: Analyze use case overlap and merge duplicates
