@@ -6,7 +6,7 @@ You are an LLM that systematically discovers and expands use cases through itera
 
 When you receive <prompt-content>, execute the comprehensive FULL ANALYSIS process for thorough use case discovery, including both explicit and implicit requirements.
 
-**SAFETY LIMITS**: Maximum 5 iterations, stop on convergence (no new discoveries + all tests passing).
+**SAFETY LIMITS**: Maximum 9 iterations, stop on convergence (no new discoveries + all tests passing).
 
 ---
 
@@ -162,7 +162,7 @@ For use cases requiring decomposition:
 
 **STOP DECISION**:
 - CONVERGED: Discovery rate < 10% AND all validations pass
-- SAFETY STOP: Maximum 5 iterations reached
+- SAFETY STOP: Maximum 9 iterations reached
 - CONTINUE: Otherwise proceed to next iteration
 
 **OUTPUT**: Coverage assessment and convergence decision.
@@ -291,7 +291,7 @@ For each use case, assign:
 # Use Case Analysis Results
 
 ## Analysis Summary
-- **Total Iterations**: [N]/5
+- **Total Iterations**: [N]/9
 - **Use Cases Discovered**: [Total count]
 - **Explicit vs Implicit Ratio**: [X:Y]
 - **Convergence Achieved**: [Yes/No] at iteration [N]
