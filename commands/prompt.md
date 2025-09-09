@@ -561,25 +561,6 @@ fi
 # Load and process template
 TEMPLATE_CONTENT=$(cat "$TEMPLATE_FILE")
 
-# Replace <prompt-content> with provided context
-if [ -n "$CONTENT" ]; then
-    # Count placeholder occurrences for user feedback
-    PLACEHOLDER_COUNT=$(echo "$TEMPLATE_CONTENT" | grep -o "<prompt-content>" | wc -l | tr -d ' ')
-    
-    if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
-        # echo "**Context Injection**:"
-        TEMPLATE_CONTENT="${TEMPLATE_CONTENT//<prompt-content>/$CONTENT}"
-    fi
-else
-    # Check if template has placeholders but no context provided
-    PLACEHOLDER_COUNT=$(echo "$TEMPLATE_CONTENT" | grep -o "<prompt-content>" | wc -l | tr -d ' ')
-    if [ "$PLACEHOLDER_COUNT" -gt 0 ]; then
-        echo "**Context Warning**: Template contains $PLACEHOLDER_COUNT <prompt-content> placeholder(s) but no context was provided"
-    fi
-fi
-
-echo
-
 # Output the processed template as executable instructions
 echo "<prompt-instructions>"
 echo "$TEMPLATE_CONTENT"
