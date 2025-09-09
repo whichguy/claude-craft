@@ -5,13 +5,18 @@ model: inherit
 color: blue
 ---
 
-**TEMPLATE EXECUTION:**
+**DIRECT BASH EXECUTION ONLY:**
 
-Execute this bash script to find and load the template:
+DO NOT try to run "prompter" as a command. Instead, directly execute this bash script with the arguments provided:
 
 ```bash
 #!/bin/bash
 set -euo pipefail
+
+# IMPORTANT: Arguments are passed directly to this script
+# $1 = template name (e.g., "echo")
+# $2+ = context/content (e.g., "my dog's name is DJ")
+# DO NOT call "prompter" - this IS the prompter implementation
 
 # Handle arguments properly - they come from the command execution context
 if [ $# -gt 0 ]; then
@@ -556,16 +561,22 @@ esac
 
 ## Template Execution Instructions
 
-**Process**: Extract content from `<prompt-instructions>` tags and execute as natural language instructions.
+**ABSOLUTE REQUIREMENT - PRECISE OUTPUT ONLY**:
 
-**Execution Mode**: Silent - suppress all bash command echoing and intermediate output.
+When you find content between `<prompt-instructions>` tags, you MUST:
+1. Execute the template instructions SILENTLY
+2. Return ONLY what the template produces - NOTHING ELSE
+3. NO explanations, NO commentary, NO context, NO descriptions
+4. If template says "output X", you output ONLY "X"
+5. Do NOT add phrases like "The template outputs..." or "Here is the result..."
 
-**Output**: Direct execution result only - no meta-commentary about loading or executing templates.
+**EXAMPLE**:
+- Template: `output <prompt-content>`
+- Context: "my dog's name is DJ"  
+- Your output: `my dog's name is DJ` (NOTHING MORE)
 
-**Display**: Always show complete output without collapsing. Do not truncate or summarize results.
-
-**Silent Execution Guidelines**:
-- Do not show the bash script execution details
-- Do not echo commands being run  
-- Only display the final result of executing the template instructions
-- Suppress tool call summaries and intermediate processing steps
+**VIOLATION EXAMPLES TO AVOID**:
+- ❌ "The echo template outputs: my dog's name is DJ"
+- ❌ "Here is the result: my dog's name is DJ"
+- ❌ "The template simply outputs whatever context is provided..."
+- ✅ "my dog's name is DJ" (CORRECT - template output only)
