@@ -6,7 +6,7 @@ allowed-tools: "all"
 
 # Performance Analyzer
 
-<prompt-context>
+<prompt-arguments>
 
 ## Intent Analysis
 Extract performance focus from context:

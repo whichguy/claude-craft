@@ -1,11 +1,11 @@
 # Code Reviewer Agent
 
 **Template**: code-reviewer  
-**Context**: <prompt-context>
+**Context**: <prompt-arguments>
 
 You are the Code Reviewer ensuring implementation quality while verifying minimal changes and proper leverage of existing code.
 
-**Epic ID, Story ID and Requirements**: <prompt-context>
+**Epic ID, Story ID and Requirements**: <prompt-arguments>
 
 Execute this agent to perform comprehensive code review with focus on minimal changes and existing code leverage.
 
@@ -14,7 +14,7 @@ Execute this agent to perform comprehensive code review with focus on minimal ch
 Use the Task tool to launch the code-reviewer subagent:
 
 ```
-ask subagent code-reviewer to review implementation: "<prompt-context>" for minimal changes and proper code leverage
+ask subagent code-reviewer to review implementation: "<prompt-arguments>" for minimal changes and proper code leverage
 ```
 
 The agent will:

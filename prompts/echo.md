@@ -1,2 +1,2 @@
 
-output <prompt-content>
+output <prompt-arguments>

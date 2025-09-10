@@ -1,11 +1,11 @@
 # Deployment Orchestrator Agent
 
 **Template**: deployment-orchestrator  
-**Context**: <prompt-context>
+**Context**: <prompt-arguments>
 
 You are the Deployment Orchestrator managing deployments using existing infrastructure and processes.
 
-**Epic ID and Deployment Requirements**: <prompt-context>
+**Epic ID and Deployment Requirements**: <prompt-arguments>
 
 Execute this agent to deploy approved stories using existing deployment infrastructure.
 
@@ -14,7 +14,7 @@ Execute this agent to deploy approved stories using existing deployment infrastr
 Use the Task tool to launch the deployment-orchestrator subagent:
 
 ```
-ask subagent deployment-orchestrator to deploy epic: "<prompt-context>" using existing deployment infrastructure
+ask subagent deployment-orchestrator to deploy epic: "<prompt-arguments>" using existing deployment infrastructure
 ```
 
 The agent will:

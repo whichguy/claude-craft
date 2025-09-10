@@ -3,7 +3,7 @@
 
 **Version**: 3.0 (Adaptive Phase Architecture with Complexity-Based Execution)  
 **Template Context**: <prompt-template-name>  
-**Project Requirements**: <prompt-context>
+**Project Requirements**: <prompt-arguments>
 
 ## 📁 PROJECT DIRECTORY STRUCTURE
 
@@ -166,7 +166,7 @@ flowchart TB
 
 **Parallel Agent Execution:**
 When multiple agents work simultaneously, they are launched using Claude Code native patterns:
-- Each agent receives the original user context via `<prompt-context>`
+- Each agent receives the original user context via `<prompt-arguments>`
 - Agents work independently and their outputs are synthesized
 - Agent coordination follows the wait-for-completion pattern
 
@@ -184,7 +184,7 @@ execute_speed_mode() {
     echo "🚀 Launching product-strategist for fast-track analysis..."
     
     # Use product-strategist subagent for speed mode analysis
-    # Task: Fast-track project analysis for: <prompt-context>
+    # Task: Fast-track project analysis for: <prompt-arguments>
     # Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements
     # Output: docs/planning/2-discovery-analysis.md
     
@@ -221,16 +221,16 @@ execute_discovery_phases_with_agents() {
     for area in "${analysis_areas[@]}"; do
         case "$area" in
             "stakeholder-analysis")
-                echo "🎯 Task: Use product-strategist subagent for stakeholder analysis of: <prompt-context>"
+                echo "🎯 Task: Use product-strategist subagent for stakeholder analysis of: <prompt-arguments>"
                 ;;
             "use-case-discovery") 
-                echo "🔍 Task: Use product-strategist subagent for use case discovery of: <prompt-context>"
+                echo "🔍 Task: Use product-strategist subagent for use case discovery of: <prompt-arguments>"
                 ;;
             "requirements-extraction")
-                echo "📋 Task: Use product-strategist subagent for requirements extraction of: <prompt-context>"
+                echo "📋 Task: Use product-strategist subagent for requirements extraction of: <prompt-arguments>"
                 ;;
             "constraint-identification")
-                echo "⚠️ Task: Use product-strategist subagent for constraint identification of: <prompt-context>"
+                echo "⚠️ Task: Use product-strategist subagent for constraint identification of: <prompt-arguments>"
                 ;;
         esac
     done
@@ -253,22 +253,22 @@ execute_phases_2_to_4_with_parallel_tech_research() {
     for tech_area in "${tech_areas[@]}"; do
         case "$tech_area" in
             "frontend-tech")
-                echo "💻 Task: Use tech-research-analyst subagent for frontend technology research of: <prompt-context>"
+                echo "💻 Task: Use tech-research-analyst subagent for frontend technology research of: <prompt-arguments>"
                 ;;
             "backend-tech")
-                echo "🏗️ Task: Use tech-research-analyst subagent for backend technology research of: <prompt-context>"
+                echo "🏗️ Task: Use tech-research-analyst subagent for backend technology research of: <prompt-arguments>"
                 ;;
             "database-tech")
-                echo "🗄️ Task: Use tech-research-analyst subagent for database technology research of: <prompt-context>"
+                echo "🗄️ Task: Use tech-research-analyst subagent for database technology research of: <prompt-arguments>"
                 ;;
             "infrastructure-tech")
-                echo "☁️ Task: Use tech-research-analyst subagent for infrastructure research of: <prompt-context>"
+                echo "☁️ Task: Use tech-research-analyst subagent for infrastructure research of: <prompt-arguments>"
                 ;;
             "security-tech")
-                echo "🔒 Task: Use tech-research-analyst subagent for security technology research of: <prompt-context>"
+                echo "🔒 Task: Use tech-research-analyst subagent for security technology research of: <prompt-arguments>"
                 ;;
             "integration-tech")
-                echo "🔗 Task: Use tech-research-analyst subagent for integration pattern research of: <prompt-context>"
+                echo "🔗 Task: Use tech-research-analyst subagent for integration pattern research of: <prompt-arguments>"
                 ;;
         esac
     done
@@ -280,7 +280,7 @@ execute_phases_2_to_4_with_parallel_tech_research() {
 }
 
 synthesize_standard_mode_analysis() {
-    echo "🔗 Task: Use system-architect subagent to synthesize standard mode analysis for: <prompt-context>"
+    echo "🔗 Task: Use system-architect subagent to synthesize standard mode analysis for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
     echo "📄 Input Files: Parallel agent analysis results from stakeholder, use-case, requirements, and constraint analysis"
 }
@@ -311,28 +311,28 @@ execute_comprehensive_discovery_with_parallel_agents() {
     for area in "${comprehensive_areas[@]}"; do
         case "$area" in
             "strategic-analysis")
-                echo "🤖 Task: Use product-strategist subagent to perform comprehensive strategic analysis for: <prompt-context>"
+                echo "🤖 Task: Use product-strategist subagent to perform comprehensive strategic analysis for: <prompt-arguments>"
                 ;;
             "technology-landscape")
-                echo "🤖 Task: Use tech-research-analyst subagent to analyze complete technology landscape for: <prompt-context>"
+                echo "🤖 Task: Use tech-research-analyst subagent to analyze complete technology landscape for: <prompt-arguments>"
                 ;;
             "architecture-patterns")
-                echo "🤖 Task: Use system-architect subagent to evaluate architecture patterns for: <prompt-context>"
+                echo "🤖 Task: Use system-architect subagent to evaluate architecture patterns for: <prompt-arguments>"
                 ;;
             "security-analysis")
-                echo "🤖 Task: Use tech-research-analyst subagent to perform security analysis for: <prompt-context>"
+                echo "🤖 Task: Use tech-research-analyst subagent to perform security analysis for: <prompt-arguments>"
                 ;;
             "performance-analysis")
-                echo "🤖 Task: Use tech-research-analyst subagent to analyze performance requirements for: <prompt-context>"
+                echo "🤖 Task: Use tech-research-analyst subagent to analyze performance requirements for: <prompt-arguments>"
                 ;;
             "compliance-analysis")
-                echo "🤖 Task: Use product-strategist subagent to analyze compliance requirements for: <prompt-context>"
+                echo "🤖 Task: Use product-strategist subagent to analyze compliance requirements for: <prompt-arguments>"
                 ;;
             "competitive-analysis")
-                echo "🤖 Task: Use product-strategist subagent to perform competitive analysis for: <prompt-context>"
+                echo "🤖 Task: Use product-strategist subagent to perform competitive analysis for: <prompt-arguments>"
                 ;;
             "risk-analysis")
-                echo "🤖 Task: Use product-strategist subagent to analyze project risks for: <prompt-context>"
+                echo "🤖 Task: Use product-strategist subagent to analyze project risks for: <prompt-arguments>"
                 ;;
         esac
     done
@@ -346,7 +346,7 @@ execute_comprehensive_discovery_with_parallel_agents() {
 perform_comprehensive_synthesis() {
     echo "🔗 Deep Mode: Synthesizing all parallel analysis results"
     
-    echo "🤖 Task: Use system-architect subagent to synthesize all parallel analysis for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to synthesize all parallel analysis for: <prompt-arguments>"
 }
 ```
 
@@ -365,19 +365,19 @@ launch_parallel_feature_implementation() {
     for area in "${implementation_areas[@]}"; do
         case "$area" in
             "frontend-components")
-                echo "🤖 Task: Use feature-developer subagent to implement frontend components for: <prompt-context>"
+                echo "🤖 Task: Use feature-developer subagent to implement frontend components for: <prompt-arguments>"
                 ;;
             "backend-apis")
-                echo "🤖 Task: Use feature-developer subagent to implement backend APIs for: <prompt-context>"
+                echo "🤖 Task: Use feature-developer subagent to implement backend APIs for: <prompt-arguments>"
                 ;;
             "data-layer")  
-                echo "🤖 Task: Use feature-developer subagent to implement data layer for: <prompt-context>"
+                echo "🤖 Task: Use feature-developer subagent to implement data layer for: <prompt-arguments>"
                 ;;
             "integration-tests")
-                echo "🤖 Task: Use feature-developer subagent to create integration tests for: <prompt-context>"
+                echo "🤖 Task: Use feature-developer subagent to create integration tests for: <prompt-arguments>"
                 ;;
             "documentation")
-                echo "🤖 Task: Use feature-developer subagent to create documentation for: <prompt-context>"
+                echo "🤖 Task: Use feature-developer subagent to create documentation for: <prompt-arguments>"
                 ;;
         esac
     done
@@ -1002,7 +1002,7 @@ This section implements the adaptive intelligence system that adjusts execution 
 # Main entry point - start adaptive intelligence planning
 execute_ideal_sti_adaptive() {
     local main_dir="$(pwd)"
-    local user_input="<prompt-context>"
+    local user_input="<prompt-arguments>"
     
     echo "🚀 IDEAL-STI v3.0 Adaptive Intelligence Planning System"
     echo "================================================="
@@ -1088,7 +1088,7 @@ EOF
 # Assess project complexity and select execution mode
 assess_complexity_and_select_mode() {
     local main_dir="$(pwd)"
-    local user_input="<prompt-context>"
+    local user_input="<prompt-arguments>"
     local assessment_output="$main_dir/docs/planning/1-complexity-assessment.md"
     
     echo "🧠 Phase 1: Intelligent complexity assessment and execution mode selection..."
@@ -1098,7 +1098,7 @@ assess_complexity_and_select_mode() {
 
 **Task**: Evaluate project complexity through contextual reasoning and intelligent analysis.
 
-**Project Request**: <prompt-context>
+**Project Request**: <prompt-arguments>
 
 **INTELLIGENT ASSESSMENT FRAMEWORK:**
 
@@ -1146,7 +1146,7 @@ Generate comprehensive analysis in @docs/planning/1-complexity-assessment.md inc
 
 **Decision Criteria**: Use intelligent reasoning rather than keyword counting. Consider the full context, not just surface indicators."
 
-    echo "🤖 Task: Use system-architect subagent for intelligent complexity assessment: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for intelligent complexity assessment: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/1-complexity-assessment.md"
     echo "📄 Output Format: Structured analysis with mode selection and detailed reasoning"
     
@@ -1222,7 +1222,7 @@ execute_speed_mode() {
     echo "⚡ SPEED MODE: Fast-track discovery (5-8 minutes)"
     
     # Single consolidated discovery phase with minimal agent involvement
-    echo "🚀 Task: Use product-strategist subagent for fast-track analysis: <prompt-context>"
+    echo "🚀 Task: Use product-strategist subagent for fast-track analysis: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
     echo "📄 Analysis Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements"
     
@@ -1262,7 +1262,7 @@ evaluate_speed_mode_confirmation_needs() {
     
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - SPEED Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 **Discovery Analysis**: @docs/planning/2-discovery-analysis.md
 
 **INTELLIGENT CONFIRMATION EVALUATION:**
@@ -1304,7 +1304,7 @@ Determine if user guidance would improve fast-track discovery outcomes:
 - **User Questions**: 3 dynamic response proposals if confirmation needed
 - **Confidence Level**: Assessment confidence in the decision"
 
-    echo "🤖 Task: Use system-architect subagent for SPEED mode confirmation evaluation: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for SPEED mode confirmation evaluation: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/confirmation-assessment-speed.md"
     
     # Check if confirmation is needed and trigger user interaction
@@ -1317,7 +1317,7 @@ evaluate_standard_mode_confirmation_needs() {
     
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - STANDARD Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 **Discovery Analysis**: @docs/planning/2-discovery-analysis.md
 
 **INTELLIGENT CONFIRMATION EVALUATION:**
@@ -1355,7 +1355,7 @@ Assess if strategic user guidance would improve standard project outcomes:
 
 **Expected Output**: Document decision in @docs/planning/confirmation-assessment-standard.md"
 
-    echo "🤖 Task: Use system-architect subagent for STANDARD mode confirmation evaluation: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for STANDARD mode confirmation evaluation: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/confirmation-assessment-standard.md"
     
     # Check if confirmation is needed and trigger user interaction
@@ -1368,7 +1368,7 @@ evaluate_deep_mode_confirmation_needs() {
     
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - DEEP Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 **Discovery Analysis**: @docs/planning/2-discovery-analysis.md
 
 **COMPREHENSIVE CONFIRMATION EVALUATION:**
@@ -1408,7 +1408,7 @@ For DEEP mode projects, confirmation is more frequently warranted due to complex
 
 **Expected Output**: Document decision in @docs/planning/confirmation-assessment-deep.md"
 
-    echo "🤖 Task: Use system-architect subagent for DEEP mode confirmation evaluation: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for DEEP mode confirmation evaluation: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/confirmation-assessment-deep.md"
     
     # Check if confirmation is needed and trigger user interaction  
@@ -1467,7 +1467,7 @@ execute_standard_discovery_with_parallel_agents() {
     # Intelligent agent selection based on project context
     agent_selection_prompt="## Context-Aware Agent Selection - STANDARD Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 
 **INTELLIGENT AGENT ORCHESTRATION:**
 
@@ -1517,7 +1517,7 @@ Evaluate which domains need expert analysis:
 
 **Decision**: Select specific agents needed for this project and document reasoning."
 
-    echo "🤖 Task: Use system-architect subagent for intelligent agent selection: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for intelligent agent selection: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/agent-selection-standard.md"
     echo "📄 Final Output: docs/planning/2-discovery-analysis.md (post-synthesis)"
     
@@ -1533,7 +1533,7 @@ execute_comprehensive_discovery_with_parallel_agents() {
     # Intelligent comprehensive agent coordination
     comprehensive_agent_prompt="## Comprehensive Agent Orchestration - DEEP Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 
 **COMPREHENSIVE AGENT ECOSYSTEM:**
 
@@ -1591,7 +1591,7 @@ Launch all relevant agents simultaneously:
 **Expected Timeline**: 30-45 minutes with full parallel execution
 **Expected Depth**: Enterprise-grade analysis with comprehensive coverage"
 
-    echo "🤖 Task: Use system-architect subagent for comprehensive agent orchestration: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for comprehensive agent orchestration: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/agent-orchestration-deep.md"
     echo "📄 Final Output: docs/planning/2-discovery-analysis.md (comprehensive synthesis)"
     
@@ -1611,31 +1611,31 @@ execute_selected_agents_in_parallel() {
         echo "📋 Agent selection completed - coordinating parallel execution..."
         
         # Extract selected agents (this would be dynamic based on the selection file)
-        echo "🤖 Task: Use product-strategist subagent for stakeholder analysis: <prompt-context>"
+        echo "🤖 Task: Use product-strategist subagent for stakeholder analysis: <prompt-arguments>"
         echo "📄 Expected Output: docs/planning/stakeholder-analysis-$mode.md"
         
         # Check if tech-research-analyst was selected
         if grep -q "tech-research-analyst.*INCLUDE" "$selection_file" 2>/dev/null; then
-            echo "🤖 Task: Use tech-research-analyst subagent for technology research: <prompt-context>"
+            echo "🤖 Task: Use tech-research-analyst subagent for technology research: <prompt-arguments>"
             echo "📄 Expected Output: docs/planning/technology-research-$mode.md"
         fi
         
         # Check if ui-designer was selected  
         if grep -q "ui-designer.*INCLUDE" "$selection_file" 2>/dev/null; then
-            echo "🤖 Task: Use ui-designer subagent for user experience analysis: <prompt-context>"
+            echo "🤖 Task: Use ui-designer subagent for user experience analysis: <prompt-arguments>"
             echo "📄 Expected Output: docs/planning/ux-analysis-$mode.md"
         fi
         
         # Always synthesize with system-architect
         echo "⏳ Waiting for all parallel agents to complete..."
-        echo "🤖 Task: Use system-architect subagent to synthesize all agent outputs: <prompt-context>"
+        echo "🤖 Task: Use system-architect subagent to synthesize all agent outputs: <prompt-arguments>"
         echo "📄 Input Files: docs/planning/*-analysis-$mode.md, docs/planning/*-research-$mode.md"
         echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
         
     else
         echo "⚠️ Agent selection not completed - using default configuration"
         # Fallback to basic agent coordination
-        echo "🤖 Task: Use product-strategist subagent for default discovery analysis: <prompt-context>"
+        echo "🤖 Task: Use product-strategist subagent for default discovery analysis: <prompt-arguments>"
         echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
     fi
 }
@@ -1648,25 +1648,25 @@ execute_comprehensive_agent_ecosystem() {
     
     # Phase 1: Parallel domain analysis
     echo "📊 Phase 1: Launching parallel domain analysis..."
-    echo "🤖 Task: Use product-strategist subagent for comprehensive business analysis: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent for comprehensive business analysis: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/business-analysis-comprehensive.md"
     
-    echo "🤖 Task: Use tech-research-analyst subagent for full technology ecosystem research: <prompt-context>"
+    echo "🤖 Task: Use tech-research-analyst subagent for full technology ecosystem research: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/technology-ecosystem-comprehensive.md"
     
-    echo "🤖 Task: Use ui-designer subagent for comprehensive user experience analysis: <prompt-context>"  
+    echo "🤖 Task: Use ui-designer subagent for comprehensive user experience analysis: <prompt-arguments>"  
     echo "📄 Expected Output: docs/planning/ux-comprehensive.md"
     
     # Phase 2: Architecture synthesis
     echo "📊 Phase 2: Architecture synthesis..."
     echo "⏳ Waiting for all domain analyses to complete..."
-    echo "🤖 Task: Use system-architect subagent for comprehensive architecture synthesis: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for comprehensive architecture synthesis: <prompt-arguments>"
     echo "📄 Input Files: docs/planning/business-analysis-comprehensive.md, docs/planning/technology-ecosystem-comprehensive.md, docs/planning/ux-comprehensive.md"
     echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
     
     # Phase 3: Knowledge integration
     echo "📊 Phase 3: Knowledge pattern integration..."
-    echo "🤖 Task: Use knowledge-aggregator subagent for pattern capture and integration: <prompt-context>"
+    echo "🤖 Task: Use knowledge-aggregator subagent for pattern capture and integration: <prompt-arguments>"
     echo "📄 Input Files: docs/planning/2-discovery-analysis.md"
     echo "📄 Expected Output: docs/planning/knowledge-patterns-comprehensive.md"
 }
@@ -1683,7 +1683,7 @@ standardize_discovery_outputs() {
     # Intelligent document synthesis instead of mechanical file operations
     document_synthesis_prompt="## Intelligent Document Synthesis - $mode Mode
 
-**Project Context**: <prompt-context>
+**Project Context**: <prompt-arguments>
 **Execution Mode**: $mode
 
 **ADAPTIVE DOCUMENT COORDINATION:**
@@ -1735,7 +1735,7 @@ Generate synthesis optimized for subsequent phases:
 - Content should be meaningful connections, not mechanical aggregation
 - Include confidence levels and identified gaps for next phase awareness"
 
-    echo "🤖 Task: Use system-architect subagent for intelligent document synthesis: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent for intelligent document synthesis: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/discovery-synthesis-$mode.md"  
     echo "📄 Input Strategy: Intelligent synthesis of all discovery documents"
     echo "📄 Output Purpose: Optimized foundation for requirements specification phase"
@@ -1797,7 +1797,7 @@ Validate that document generation serves actual implementation needs:
 
 **Expected Output**: Document usage validation and optimization recommendations"
 
-    echo "🤖 Task: Use knowledge-aggregator subagent for document usage validation: <prompt-context>"
+    echo "🤖 Task: Use knowledge-aggregator subagent for document usage validation: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/document-usage-validation-$mode.md"
     echo "📄 Validation Focus: Ensure documents serve implementation needs vs bureaucratic overhead"
 }
@@ -1864,7 +1864,7 @@ trigger_architecture_confirmation() {
     
     confirmation_prompt="## 🏗️ Architecture Review & Approval Required
 
-Based on your original request: **<prompt-context>**
+Based on your original request: **<prompt-arguments>**
 
 ### 📋 Comprehensive Requirements & Technology Specification
 $([ -f "docs/planning/6-requirements-specification.md" ] && cat docs/planning/6-requirements-specification.md | head -50 || echo "⚠️ Requirements specification pending - this may indicate an issue with the analysis phase")
@@ -1910,7 +1910,7 @@ $([ -f "docs/planning/1-complexity-assessment.md" ] && cat docs/planning/1-compl
 
 ### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
 
-Based on your request \"<prompt-context>\" and the analysis above, here are three tailored suggestions:
+Based on your request \"<prompt-arguments>\" and the analysis above, here are three tailored suggestions:
 
 **PROPOSAL 1: $(
 # Analyze complexity and suggest most appropriate action
@@ -1947,7 +1947,7 @@ fi
 
 **Please select one of these proposals or provide your own guidance.**"
     
-    echo "🤖 Task: Use system-architect subagent to present architecture for user approval for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to present architecture for user approval for: <prompt-arguments>"
 }
 
 # Smart confirmation for scope expansion
@@ -1957,7 +1957,7 @@ trigger_scope_expansion_confirmation() {
     
     scope_prompt="## 📈 Project Scope Has Significantly Expanded
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 ### 🔍 Scope Analysis
 The analysis has revealed requirements that are **50%+ beyond your original request**. This often happens when:
@@ -1990,13 +1990,13 @@ The analysis has revealed requirements that are **50%+ beyond your original requ
 
 ### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
 
-Based on your original request \"<prompt-context>\" and the scope expansion analysis:
+Based on your original request \"<prompt-arguments>\" and the scope expansion analysis:
 
 **PROPOSAL 1: $(
 # Analyze original request keywords for intelligent suggestion
-if echo "<prompt-context>" | grep -qi "simple\|quick\|basic\|minimal"; then
+if echo "<prompt-arguments>" | grep -qi "simple\|quick\|basic\|minimal"; then
     echo "REFINE - stick to core functionality as originally intended, expansion seems to have overcomplicated the simple approach you wanted"
-elif echo "<prompt-context>" | grep -qi "enterprise\|production\|scale\|robust"; then
+elif echo "<prompt-arguments>" | grep -qi "enterprise\|production\|scale\|robust"; then
     echo "CONTINUE - the expansion properly addresses the enterprise-level requirements implied in your request"
 else
     echo "CONTINUE with phased delivery - implement expanded scope in 2 phases to balance completeness with delivery timeline"
@@ -2019,9 +2019,9 @@ fi
 
 **PROPOSAL 3: $(
 # Generate budget/timeline conscious suggestion
-if echo "<prompt-context>" | grep -qi "budget\|cost\|timeline\|deadline\|urgent"; then
+if echo "<prompt-arguments>" | grep -qi "budget\|cost\|timeline\|deadline\|urgent"; then
     echo "REFINE - implement MVP version first to meet timeline, then expand based on initial feedback and usage patterns"
-elif echo "<prompt-context>" | grep -qi "comprehensive\|complete\|full"; then
+elif echo "<prompt-arguments>" | grep -qi "comprehensive\|complete\|full"; then
     echo "CONTINUE - the expansion aligns with your comprehensive requirements, proceed with full scope"
 else
     echo "REFINE - focus on user-facing features first, backend optimizations and admin features can be Phase 2"
@@ -2030,7 +2030,7 @@ fi
 
 **Please select one of these proposals or provide your own scope guidance.**"
 
-    echo "🤖 Task: Use product-strategist subagent to present scope expansion analysis for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to present scope expansion analysis for: <prompt-arguments>"
 }
 
 # Conflict-based confirmations for speed mode
@@ -2059,7 +2059,7 @@ trigger_conflict_resolution_confirmation() {
     
     conflict_prompt="## ⚠️ Analysis Found Conflicts That Need Resolution
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 ### 🔍 Conflict Analysis
 The fast-track analysis detected conflicts between your requirements and constraints:
@@ -2087,7 +2087,7 @@ $([ -f "docs/planning/2-discovery-analysis.md" ] && grep -A3 -B3 "conflict\|issu
 
 ### 💡 **DYNAMICALLY CALCULATED RESPONSE PROPOSALS:**
 
-Based on the conflicts detected and your request \"<prompt-context>\":
+Based on the conflicts detected and your request \"<prompt-arguments>\":
 
 **PROPOSAL 1: $(
 # Analyze conflict type and suggest technical solution
@@ -2108,9 +2108,9 @@ fi
 
 **PROPOSAL 2: $(
 # Analyze original request for requirement flexibility
-if echo "<prompt-context>" | grep -qi "mvp\|minimum\|basic\|simple"; then
+if echo "<prompt-arguments>" | grep -qi "mvp\|minimum\|basic\|simple"; then
     echo "REQUIREMENT - remove advanced features causing conflicts, focus on core MVP functionality"
-elif echo "<prompt-context>" | grep -qi "real-time\|live\|instant"; then
+elif echo "<prompt-arguments>" | grep -qi "real-time\|live\|instant"; then
     echo "REQUIREMENT - implement polling-based updates instead of real-time, easier integration and fewer conflicts"
 else
     echo "REQUIREMENT - defer conflicting features to Phase 2, implement core functionality without conflicts first"
@@ -2121,7 +2121,7 @@ fi
 # Suggest analysis upgrade based on complexity revealed
 if grep -qi "complex\|difficult\|challenging" "docs/planning/2-discovery-analysis.md" 2>/dev/null; then
     echo "MORE ANALYSIS - switch to STANDARD mode for deeper technical research to resolve architectural conflicts"
-elif echo "<prompt-context>" | grep -qi "integrate\|existing\|current"; then
+elif echo "<prompt-arguments>" | grep -qi "integrate\|existing\|current"; then
     echo "MORE ANALYSIS - need detailed analysis of existing system integration patterns and constraints"
 else
     echo "MORE ANALYSIS - the conflicts suggest more complexity than initially apparent, need comprehensive analysis"
@@ -2130,7 +2130,7 @@ fi
 
 **Please select one of these proposals or describe how you'd like to resolve the conflicts.**"
 
-    echo "🤖 Task: Use system-architect subagent to present conflict resolution options for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to present conflict resolution options for: <prompt-arguments>"
 }
 ```
 
@@ -2150,7 +2150,7 @@ execute_phase3_requirements_refinement_loop() {
     
     echo "🧠 Phase 3: Intelligent Requirements Refinement Loop"
     echo "===================================================="
-    echo "🎯 Original Request: <prompt-context>"
+    echo "🎯 Original Request: <prompt-arguments>"
     echo ""
     
     while [ "$requirements_satisfied" = "false" ] && [ $refinement_iteration -le $max_iterations ]; do
@@ -2223,7 +2223,7 @@ execute_phase3_requirements_refinement_loop() {
     echo "✅ Phase 3 complete: Requirements refined through $((refinement_iteration-1)) iterations"
     
     # Generate consolidated use case analysis
-    echo "🤖 Task: Use product-strategist subagent to consolidate use case analysis for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to consolidate use case analysis for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/3-use-case-analysis.md"
     echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (use case sections)"
 }
@@ -2235,7 +2235,7 @@ discover_unstated_use_cases() {
     
     unstated_cases_prompt="## Unstated Use Case Discovery
 
-**Original Stated Request:** <prompt-context>
+**Original Stated Request:** <prompt-arguments>
 
 **Current Discovery Context:**
 $([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -40 || echo "Discovery analysis in progress...")
@@ -2267,7 +2267,7 @@ For each unstated use case, provide:
 
 Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
 
-    echo "🤖 Task: Use product-strategist subagent to discover unstated use cases for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to discover unstated use cases for: <prompt-arguments>"
 }
 
 # Step 2: Identify anti-cases (what should NOT be considered)  
@@ -2277,7 +2277,7 @@ identify_anti_cases() {
     
     anti_cases_prompt="## Anti-Case Identification
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 **Discovered Use Cases Context:**
 $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -40 || echo "Use case analysis in progress...")
@@ -2309,7 +2309,7 @@ For each anti-case, provide:
 
 Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
 
-    echo "🤖 Task: Use product-strategist subagent to identify anti-cases for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to identify anti-cases for: <prompt-arguments>"
 }
 
 # Step 3: Analyze technology choice impacts on all use cases
@@ -2319,7 +2319,7 @@ analyze_technology_choice_impacts() {
     
     tech_impact_prompt="## Technology Choice Impact Analysis
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 **Use Cases Context:**
 $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Use case analysis in progress...")
@@ -2430,7 +2430,7 @@ Create comprehensive matrices:
 
 Generate: docs/planning/technology-impact-analysis-$iteration.md"
 
-    echo "🤖 Task: Use tech-research-analyst subagent to analyze technology choice impacts for: <prompt-context>"
+    echo "🤖 Task: Use tech-research-analyst subagent to analyze technology choice impacts for: <prompt-arguments>"
 }
 
 # Step 4: Assess requirements satisfaction and NFR completeness
@@ -2440,7 +2440,7 @@ assess_requirements_satisfaction() {
     
     satisfaction_prompt="## Requirements Satisfaction Assessment
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 **Current Analysis Context:**
 - **Unstated Use Cases:** $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "USC-$iteration" docs/planning/refinement/iteration-$iteration-analysis.md || echo "0") identified
@@ -2508,7 +2508,7 @@ Instead of scoring thresholds, make a holistic judgment:
 
 Generate: docs/planning/requirements-satisfaction-$iteration.md"
 
-    echo "🤖 Task: Use system-architect subagent to assess requirements satisfaction for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to assess requirements satisfaction for: <prompt-arguments>"
 }
 
 # Step 4: Quality Assessment and User Feedback Loop
@@ -2518,7 +2518,7 @@ perform_quality_assessment_and_user_feedback() {
     
     quality_assessment_prompt="## Quality Assessment & User Feedback
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 **Current Analysis Status:**
 - **Use Cases Analyzed:** @docs/planning/refinement/iteration-$iteration-analysis.md (use case sections)
@@ -2559,7 +2559,7 @@ perform_quality_assessment_and_user_feedback() {
 
 Generate quality assessment and determine if user feedback loop is warranted."
 
-    echo "🤖 Task: Use product-strategist subagent for quality assessment and user feedback determination: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent for quality assessment and user feedback determination: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/quality-assessment-$iteration.md"
     echo "📄 Conditional Output: docs/planning/user-feedback-$iteration.md (if user consultation needed)"
     echo "📄 Input Files: docs/planning/refinement/iteration-$iteration-analysis.md, docs/planning/technology-impact-analysis-$iteration.md"
@@ -2581,7 +2581,7 @@ generate_refined_requirements_summary() {
     
     summary_prompt="## Final Refined Requirements Summary
 
-**Original Request:** <prompt-context>
+**Original Request:** <prompt-arguments>
 
 **Refinement Process Summary:**
 - **Iterations Completed**: $((final_iteration-1))
@@ -2634,7 +2634,7 @@ Create comprehensive, refined requirements specification including:
 
 Generate: docs/planning/refined-requirements-final.md"
 
-    echo "🤖 Task: Use system-architect subagent to generate final refined requirements for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to generate final refined requirements for: <prompt-arguments>"
 }
 
 # Phase 4: Anti-Case Consolidation
@@ -2642,7 +2642,7 @@ execute_phase4_anti_case_consolidation() {
     local main_dir="$(pwd)"
     echo "🚫 Phase 4: Anti-Case Analysis Consolidation"
     
-    echo "🤖 Task: Use product-strategist subagent to consolidate anti-case analysis for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to consolidate anti-case analysis for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/4-anti-case-analysis.md"
     echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (anti-case sections)"
 }
@@ -2652,7 +2652,7 @@ execute_phase5_technology_ecosystem_analysis() {
     local main_dir="$(pwd)"
     echo "🔬 Phase 5: Technology Ecosystem Analysis"
     
-    echo "🤖 Task: Use tech-research-analyst subagent to consolidate technology ecosystem analysis for: <prompt-context>"
+    echo "🤖 Task: Use tech-research-analyst subagent to consolidate technology ecosystem analysis for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/5-technology-ecosystem.md"  
     echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (technology sections), docs/planning/technology-impact-analysis-*.md"
 }
@@ -2672,7 +2672,7 @@ execute_phase6_requirements_specification() {
     local main_dir="$(pwd)"
     echo "📋 Phase 6: Requirements Definition based on discovery analysis"
     
-    echo "🤖 Task: Use product-strategist subagent to define comprehensive requirements for: <prompt-context>"
+    echo "🤖 Task: Use product-strategist subagent to define comprehensive requirements for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/6-requirements-specification.md"
     echo "📄 Input Files: docs/planning/2-discovery-analysis.md, docs/planning/refinement/iteration-*-analysis.md"
 }
@@ -2688,7 +2688,7 @@ execute_phase7_interface_design() {
     local main_dir="$(pwd)"
     echo "🎨 Phase 7: Interface Design for user experience and APIs"
     
-    echo "🤖 Task: Use ui-designer subagent to design comprehensive interfaces for: <prompt-context>"
+    echo "🤖 Task: Use ui-designer subagent to design comprehensive interfaces for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/7-interface-design.md"
     echo "📄 Input Files: docs/planning/6-requirements-specification.md"
 }
@@ -2702,7 +2702,7 @@ execute_phase8_architecture_design() {
     local main_dir="$(pwd)"
     echo "🏗️ Phase 8: Architecture Design based on requirements and technology stack"
     
-    echo "🤖 Task: Use system-architect subagent to design comprehensive architecture for: <prompt-context>"
+    echo "🤖 Task: Use system-architect subagent to design comprehensive architecture for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/8-architecture-design.md"
     echo "📄 Input Files: docs/planning/6-requirements-specification.md, docs/planning/7-interface-design.md, docs/planning/5-technology-ecosystem.md"
     
@@ -2722,12 +2722,12 @@ execute_phases_8_to_10_task_generation() {
     echo "📝 Phases 8-10: Task Generation with TDD Integration"
     
     # Phase 9: Task Planning with TDD approach
-    echo "🤖 Task: Use feature-developer subagent to create TDD-integrated task plan for: <prompt-context>"
+    echo "🤖 Task: Use feature-developer subagent to create TDD-integrated task plan for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/9-task-planning.md"
     echo "📄 Input Files: docs/planning/8-architecture-design.md"
     
     # Phase 10: Implementation Task Generation 
-    echo "🤖 Task: Use feature-developer subagent to generate implementation tasks for: <prompt-context>"
+    echo "🤖 Task: Use feature-developer subagent to generate implementation tasks for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/10-implementation-tasks.md"
     echo "📄 Input Files: docs/planning/9-task-planning.md"
 }
@@ -2743,7 +2743,7 @@ execute_phase11_implementation() {
     local main_dir="$(pwd)"
     echo "🚀 Phase 11: Implementation Loop with Parallel Task Execution"
     
-    echo "🤖 Task: Use feature-developer subagent to execute implementation tasks for: <prompt-context>"
+    echo "🤖 Task: Use feature-developer subagent to execute implementation tasks for: <prompt-arguments>"
     echo "📄 Input Files: docs/planning/10-implementation-tasks.md"
     echo "📄 Subagent Output: Implementation files in worktree, tested code"
 }
@@ -2752,7 +2752,7 @@ execute_phase12_to_16_deployment() {
     local main_dir="$(pwd)"
     echo "🚀 Phase 12-16: Deployment Pipeline and Production Launch"
     
-    echo "🤖 Task: Use deployment-orchestrator subagent to execute deployment pipeline for: <prompt-context>"
+    echo "🤖 Task: Use deployment-orchestrator subagent to execute deployment pipeline for: <prompt-arguments>"
     echo "📄 Expected Output: docs/planning/11-deployment-plan.md"
     echo "📄 Input Files: docs/planning/10-implementation-tasks.md, implemented code from worktree"
     echo "📄 Final Output: docs/planning/12-project-summary.md (by knowledge-aggregator)"
@@ -2776,7 +2776,7 @@ The IDEAL-STI v3.0 system provides adaptive intelligence planning that automatic
 - 🔄 **Adaptive Execution**: Automatic complexity assessment and mode selection
 
 **🎯 KEY FEATURES:**
-- Claude Code parallel subagent syntax: `ask subagent [agent-name] to [task] with arguments: "<prompt-context>"`
+- Claude Code parallel subagent syntax: `ask subagent [agent-name] to [task] with arguments: "<prompt-arguments>"`
 - Parallel execution patterns for complex features with wait coordination
 - Test-driven development embedded in task generation
 - Smart confirmation system that only triggers when analysis demands it

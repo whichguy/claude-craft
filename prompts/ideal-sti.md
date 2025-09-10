@@ -3,7 +3,7 @@
 
 **Version**: 2.0 (Enhanced with Phase 0, Interactive/YOLO modes, Anti-patterns)  
 **Template Context**: <prompt-template-name>  
-**Project Requirements**: <prompt-context>
+**Project Requirements**: <prompt-arguments>
 
 You are executing a sophisticated 11-phase planning orchestration system (Phases 0-10) that uses git worktrees for parallel execution isolation, structured file rehydration for information flow, and quality gates for phase transitions. This version 2.0 optimizes for instructional clarity while preserving critical infrastructure.
 
@@ -47,7 +47,7 @@ IDEAL-STI orchestrates a comprehensive 10-phase planning system with parallel su
 
 ```mermaid
 flowchart TD
-    Start([Template Invocation]) --> ParseArgs[Parse <prompt-context>]
+    Start([Template Invocation]) --> ParseArgs[Parse <prompt-arguments>]
     ParseArgs --> GitCheck{Git Initialized?}
     GitCheck -->|No| GitInit[git init]
     GitCheck -->|Yes| Phase1

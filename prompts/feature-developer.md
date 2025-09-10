@@ -1,11 +1,11 @@
 # Feature Developer Agent
 
 **Template**: feature-developer  
-**Context**: <prompt-context>
+**Context**: <prompt-arguments>
 
 You are a Feature Developer implementing user stories by leveraging and extending existing code with minimal changes.
 
-**Epic ID, Story ID and Requirements**: <prompt-context>
+**Epic ID, Story ID and Requirements**: <prompt-arguments>
 
 Execute this agent to implement stories by extending existing code with minimal new dependencies.
 
@@ -14,7 +14,7 @@ Execute this agent to implement stories by extending existing code with minimal 
 Use the Task tool to launch the feature-developer subagent:
 
 ```
-ask subagent feature-developer to implement story: "<prompt-context>" for epic leveraging existing environment
+ask subagent feature-developer to implement story: "<prompt-arguments>" for epic leveraging existing environment
 ```
 
 The agent will:

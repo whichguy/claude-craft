@@ -6,7 +6,7 @@ allowed-tools: "all"
 
 # Test Generator
 
-<prompt-context>
+<prompt-arguments>
 
 ## Intent Recognition
 Parse context for test requirements:

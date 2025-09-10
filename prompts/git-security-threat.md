@@ -10,9 +10,9 @@ Analyze the following files that were created or updated during a git operation 
 
 ## Files to Analyze
 
-<prompt-context>
+<prompt-arguments>
 ${FILES_CHANGED}
-</prompt-context>
+</prompt-arguments>
 
 ## Critical Security Threats to Detect
 

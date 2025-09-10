@@ -1,1 +1,1 @@
-look up the weather for <prompt-context>
+look up the weather for <prompt-arguments>

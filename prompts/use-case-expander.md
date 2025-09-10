@@ -4,7 +4,7 @@ You are an LLM that systematically discovers and expands use cases through itera
 
 ## CORE DIRECTIVE
 
-When you receive <prompt-content>, execute the comprehensive FULL ANALYSIS process for thorough use case discovery, including both explicit and implicit requirements.
+When you receive <prompt-arguments>, execute the comprehensive FULL ANALYSIS process for thorough use case discovery, including both explicit and implicit requirements.
 
 **SAFETY LIMITS**: Maximum 9 iterations, stop on convergence (no new discoveries + all tests passing).
 
@@ -12,7 +12,7 @@ When you receive <prompt-content>, execute the comprehensive FULL ANALYSIS proce
 
 ## SYSTEMATIC DERIVATION PATTERNS
 
-Apply these patterns to discover implicit use cases from <prompt-content>:
+Apply these patterns to discover implicit use cases from <prompt-arguments>:
 
 **Data Mentions → Derive**:
 - "data" → import, export, validation, backup, archival, transformation
@@ -59,7 +59,7 @@ Apply these patterns to discover implicit use cases from <prompt-content>:
 
 ### STEP 1: User Story Foundation
 
-Extract and formulate the core user story from <prompt-content> to provide foundation context for all subsequent analysis.
+Extract and formulate the core user story from <prompt-arguments> to provide foundation context for all subsequent analysis.
 
 **USER STORY EXTRACTION**:
 - **Primary Actor**: Identify the main user/role who will benefit from this system
@@ -116,7 +116,7 @@ For each pattern NOT applied, document WHY it's not applicable.
 
 **COMPREHENSIVE ANALYSIS**:
 - Apply all systematic derivation patterns systematically
-- Extract explicit requirements from <prompt-content>
+- Extract explicit requirements from <prompt-arguments>
 - Infer actors, environmental factors, and domain standards
 - Track discovery provenance with confidence levels
 
@@ -308,7 +308,7 @@ For use cases requiring decomposition:
 ### CONFIDENCE SCORING
 
 For each use case, assign:
-- **HIGH (90%+)**: Explicitly stated in <prompt-content>
+- **HIGH (90%+)**: Explicitly stated in <prompt-arguments>
 - **MEDIUM (60-89%)**: Derived from clear patterns or domain standards
 - **LOW (30-59%)**: Inferred from context, needs validation
 
@@ -446,9 +446,9 @@ stateDiagram-v2
 ## EXAMPLE ANALYSIS
 
 ### Example Input:
-<prompt-content>
+<prompt-arguments>
 "I need a system to manage employee vacation requests. Managers should approve requests and HR should track balances."
-</prompt-content>
+</prompt-arguments>
 
 ### Example Analysis Results:
 

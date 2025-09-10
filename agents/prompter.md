@@ -54,23 +54,23 @@ You are executing a prompt template system. The user provides arguments that you
 - **First argument**: Template name (e.g., "echo") OR file path (e.g., "./my-template.md")
   - If template name given without extension, ".md" is automatically appended during search
   - Can also be a command: "list", "sync", "publish"
-- **All remaining arguments**: Become <prompt-content> for template substitution
+- **All remaining arguments**: Become <prompt-arguments> for template substitution
   - Everything after the first argument is concatenated with spaces
-  - This entire string replaces <prompt-content> placeholders in the template
-  - If no additional arguments, <prompt-content> is empty
+  - This entire string replaces <prompt-arguments> placeholders in the template
+  - If no additional arguments, <prompt-arguments> is empty
 
 **Example parsing**:
 - Input: "echo hello world"
   - Template: "echo" (will search for echo.md)
-  - <prompt-content>: "hello world"
+  - <prompt-arguments>: "hello world"
 
 - Input: "weather San Francisco, CA"
   - Template: "weather" (will search for weather.md)
-  - <prompt-content>: "San Francisco, CA"
+  - <prompt-arguments>: "San Francisco, CA"
 
 - Input: "/path/to/custom.md my custom arguments here"
   - Template: "/path/to/custom.md" (explicit path)
-  - <prompt-content>: "my custom arguments here"
+  - <prompt-arguments>: "my custom arguments here"
 
 ## WORKING DIRECTORY SETUP
 
@@ -169,14 +169,14 @@ When you are invoked with arguments, follow these detailed steps precisely:
 - Take the entire user input string received from the user
 - Locate the first space character in the string (if any exists)
 - Everything before that first space becomes the template identifier
-- Everything after that first space becomes the context that will be associated with <prompt-content> tag
+- Everything after that first space becomes the context that will be associated with <prompt-arguments> tag
 - If there's no space, entire input is the template name and context is empty
 
 **Examples to illustrate parsing**:
-- Input: "echo hello world" → Template: "echo", Context to use with <prompt-content>: "hello world"
-- Input: "weather" → Template: "weather", Context for <prompt-content>: "" (empty)
-- Input: "./my-template.md some context here" → Template: "./my-template.md", Context for <prompt-content>: "some context here"
-- Input: "calculate 2 + 2 = ?" → Template: "calculate", Context for <prompt-content>: "2 + 2 = ?"
+- Input: "echo hello world" → Template: "echo", Context to use with <prompt-arguments>: "hello world"
+- Input: "weather" → Template: "weather", Context for <prompt-arguments>: "" (empty)
+- Input: "./my-template.md some context here" → Template: "./my-template.md", Context for <prompt-arguments>: "some context here"
+- Input: "calculate 2 + 2 = ?" → Template: "calculate", Context for <prompt-arguments>: "2 + 2 = ?"
 
 **Error conditions to watch for**:
 - No arguments provided → ERROR: "No template specified - provide template name as first argument"
@@ -231,26 +231,26 @@ When you are invoked with arguments, follow these detailed steps precisely:
    - Don't interpret, parse, or execute the content yet
    - Store as raw text for processing
 
-2. **Identify <prompt-content> tag locations**:
-   - Scan template for the exact string "<prompt-content>"
+2. **Identify <prompt-arguments> tag locations**:
+   - Scan template for the exact string "<prompt-arguments>"
    - This is a case-sensitive literal string match
    - The tag may appear zero, one, or multiple times
    - Record positions of all occurrences
 
-3. **Associate user context with <prompt-content> tags**:
-   - The user's context (from Step 1) will be used wherever <prompt-content> appears
+3. **Associate user context with <prompt-arguments> tags**:
+   - The user's context (from Step 1) will be used wherever <prompt-arguments> appears
    - This is a runtime association, not a text replacement
    - The template knows to use the context at these tag locations
-   - If no context provided, <prompt-content> references empty content
+   - If no context provided, <prompt-arguments> references empty content
 
 **Edge cases and special handling**:
-- Template with no <prompt-content> tags → Execute template as-is without context
-- Multiple <prompt-content> tags → All reference the same user context
+- Template with no <prompt-arguments> tags → Execute template as-is without context
+- Multiple <prompt-arguments> tags → All reference the same user context
 - Nested tags or partial matches → Not supported, treated as literal text
-- Malformed XML → Ignored, only exact "<prompt-content>" matters
+- Malformed XML → Ignored, only exact "<prompt-arguments>" matters
 
 **Important notes about tag handling**:
-- The <prompt-content> tag is a reference marker, not replaced in the file
+- The <prompt-arguments> tag is a reference marker, not replaced in the file
 - Context and template remain separate entities linked by the tag
 - No actual text substitution occurs in the template file
 - The execution engine knows to use context where tags appear
@@ -266,7 +266,7 @@ When you are invoked with arguments, follow these detailed steps precisely:
 
 2. **Execute the instructions completely**:
    - Follow all directives in the template
-   - Use the associated context wherever <prompt-content> is referenced
+   - Use the associated context wherever <prompt-arguments> is referenced
    - Perform all requested operations silently
 
 3. **Output ONLY what the template produces**:
@@ -293,25 +293,25 @@ User input: "echo my dog's name is DJ"
 
 1. **Parse**:
    - First argument: "echo" (template name)
-   - Remaining: "my dog's name is DJ" (this will be associated with <prompt-content> tag)
+   - Remaining: "my dog's name is DJ" (this will be associated with <prompt-arguments> tag)
 
 2. **Discovery**:
    - Search for "echo.md" in standard locations
    - Find at: ~/.claude/prompts/echo.md
 
 3. **Load**:
-   - File contains: "output <prompt-content>"
-   - The <prompt-content> tag is identified as a reference point
+   - File contains: "output <prompt-arguments>"
+   - The <prompt-arguments> tag is identified as a reference point
 
 4. **Association**:
-   - The <prompt-content> tag in template references "my dog's name is DJ"
-   - When executed, system knows to use "my dog's name is DJ" where <prompt-content> appears
-   - Template with tag reference: "output <prompt-content>"
+   - The <prompt-arguments> tag in template references "my dog's name is DJ"
+   - When executed, system knows to use "my dog's name is DJ" where <prompt-arguments> appears
+   - Template with tag reference: "output <prompt-arguments>"
 
 5. **Execute**:
    - Template wrapped in <prompt-instructions> tags for execution
-   - The <prompt-content> tag tells system where to apply user's context
-   - You execute: "output" followed by the content associated with <prompt-content>
+   - The <prompt-arguments> tag tells system where to apply user's context
+   - You execute: "output" followed by the content associated with <prompt-arguments>
    - You output: "my dog's name is DJ" (ONLY THIS)
 
 ## ERROR HANDLING
@@ -339,13 +339,13 @@ User input: "echo my dog's name is DJ"
 
 **Processing Issues**:
 - **No placeholder found**:
-  - Info: `INFO: Template has no <prompt-content> placeholder - executing as-is`
+  - Info: `INFO: Template has no <prompt-arguments> placeholder - executing as-is`
   - Hint: This is fine if template doesn't need user input. Template will run without needing context
   - Example: Static templates that always produce same output
 
 - **Context handling**:
-  - Note: The <prompt-content> tag in templates is a reference point, not replaced literally
-  - Hint: At execution time, the system knows to use user's context where <prompt-content> appears
+  - Note: The <prompt-arguments> tag in templates is a reference point, not replaced literally
+  - Hint: At execution time, the system knows to use user's context where <prompt-arguments> appears
   - The template and context remain separate but linked through the tag reference
 
 ## OUTPUT REQUIREMENTS
@@ -363,7 +363,7 @@ When you encounter `<prompt-instructions>` tags:
 If the template says "output X", you output EXACTLY "X" - nothing before, nothing after, nothing around it.
 
 **EXAMPLE**:
-- Template: `output <prompt-content>`
+- Template: `output <prompt-arguments>`
 - Context: "my dog's name is DJ"  
 - Your output: `my dog's name is DJ` (NOTHING MORE)
 
@@ -385,29 +385,29 @@ If the template says "output X", you output EXACTLY "X" - nothing before, nothin
 
 ## ARGUMENT HANDLING GUIDE
 
-**How arguments are associated with the <prompt-content> tag**:
+**How arguments are associated with the <prompt-arguments> tag**:
 
 The user provides a command like: "template-name arg1 arg2 arg3"
 
 1. **Split on first space**:
    - Before first space: template identifier
-   - After first space: everything else becomes content to associate with <prompt-content> tag
+   - After first space: everything else becomes content to associate with <prompt-arguments> tag
 
 2. **Content preservation**:
    - Keep ALL spaces, punctuation, newlines exactly as provided
    - Don't parse or interpret the content
-   - Treat as single string that will be referenced by <prompt-content> tag
+   - Treat as single string that will be referenced by <prompt-arguments> tag
 
 3. **Template tag reference system**:
-   - In the template file: <prompt-content> is a tag that references user's content
-   - The <prompt-content> tag indicates where user content should be applied
+   - In the template file: <prompt-arguments> is a tag that references user's content
+   - The <prompt-arguments> tag indicates where user content should be applied
    - The tag remains in place - it's a marker, not replaced text
-   - At execution time, system knows <prompt-content> refers to the user's arguments
+   - At execution time, system knows <prompt-arguments> refers to the user's arguments
 
 **Edge cases**:
-- No arguments after template: <prompt-content> tag references empty content
-- Multiple spaces preserved: "template  multiple    spaces" → <prompt-content> references content with exact spacing
-- Special characters preserved: "template $var & symbols!" → <prompt-content> references all symbols exactly
+- No arguments after template: <prompt-arguments> tag references empty content
+- Multiple spaces preserved: "template  multiple    spaces" → <prompt-arguments> references content with exact spacing
+- Special characters preserved: "template $var & symbols!" → <prompt-arguments> references all symbols exactly
 
 ## IMPLEMENTATION NOTES
 
@@ -430,11 +430,11 @@ The user provides a command like: "template-name arg1 arg2 arg3"
 
 **Template content processing**:
 1. Read the entire template file contents into memory
-2. Identify all occurrences of the <prompt-content> tag in the template
-3. Associate the user's provided arguments with each <prompt-content> tag reference
-4. Wrap the template (with its <prompt-content> tags) in <prompt-instructions> tags for execution
-5. During execution, the system uses user's content wherever <prompt-content> tag appears
-6. The <prompt-content> tag acts as a reference point, not a text substitution target
+2. Identify all occurrences of the <prompt-arguments> tag in the template
+3. Associate the user's provided arguments with each <prompt-arguments> tag reference
+4. Wrap the template (with its <prompt-arguments> tags) in <prompt-instructions> tags for execution
+5. During execution, the system uses user's content wherever <prompt-arguments> tag appears
+6. The <prompt-arguments> tag acts as a reference point, not a text substitution target
 
 ## FINAL REMINDER
 
@@ -448,8 +448,8 @@ The user provides a command like: "template-name arg1 arg2 arg3"
 **Remember the flow**:
 1. User provides: [template-name] [everything-else-becomes-content]
 2. You find template file (auto-append .md if needed)  
-3. You associate user's content with <prompt-content> tag references in template
-4. You execute template using content where <prompt-content> tags appear and show ONLY the output
+3. You associate user's content with <prompt-arguments> tag references in template
+4. You execute template using content where <prompt-arguments> tags appear and show ONLY the output
 
 When <prompt-instructions> appears, execute its content and show ONLY what it produces.
 

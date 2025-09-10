@@ -20,7 +20,7 @@
 
 ### Core File Dependencies
 ```
-Phase 1: <prompt-content> → Variables (no files)
+Phase 1: <prompt-arguments> → Variables (no files)
 Phase 2: Variables → requirements.md, architecture.md  
 Phase 3: requirements.md, architecture.md → tasks/pending/*.md
 Phase 4: All previous files → .ideal-sti/session-state.json, change-analysis.md
@@ -32,16 +32,16 @@ Phase 6: Enhanced tasks + context → handoff-summary.md
 ```markdown
 Transform user requirements into feature-developer ready tasks using IDEAL-STI v3.0 file-based methodology.
 
-<prompt-content>
+<prompt-arguments>
 {User's project description and requirements}
-</prompt-content>
+</prompt-arguments>
 ```
 
 ## IDEAL-STI v3.0 Workflow
 
 ```mermaid
 flowchart TD
-    A[<prompt-content>] --> B[Phase 1: Requirements Extraction]
+    A[<prompt-arguments>] --> B[Phase 1: Requirements Extraction]
     
     B --> B1{Extract Variables}
     B1 --> B2[Project Name, Functional Req, Technical Constraints, User Types, Integration Needs]
@@ -113,16 +113,16 @@ flowchart TD
 
 You are extracting structured variables from user requirements to prepare for subsequent phases.
 
-<prompt-content>
+<prompt-arguments>
 {$PROMPT_CONTENT}
-</prompt-content>
+</prompt-arguments>
 
 ## Variable Extraction Process
 
-Extract the following variables from the <prompt-content> above for use in Phase 2.
+Extract the following variables from the <prompt-arguments> above for use in Phase 2.
 
 ### `projectName` (REQUIRED)
-- **Look for in <prompt-content>:**
+- **Look for in <prompt-arguments>:**
   - Explicit project names: "Build ProjectX", "Create a system called..."
   - Product names: "e-commerce platform", "inventory management system"
   - Application descriptions: "mobile app", "web application", "dashboard"
@@ -130,7 +130,7 @@ Extract the following variables from the <prompt-content> above for use in Phase
 - **Validation**: Must be a clear, descriptive name
 
 ### `functionalRequirements` (REQUIRED)  
-- **Look for in <prompt-content>:**
+- **Look for in <prompt-arguments>:**
   - Core features: "users can...", "system should...", "needs to support..."
   - Business processes: workflows, operations, user interactions
   - Explicit feature lists: "login, dashboard, reports, admin panel"
@@ -138,7 +138,7 @@ Extract the following variables from the <prompt-content> above for use in Phase
 - **Classification**: Simple (1-5 features), Standard (6-15), Complex (16+)
 
 ### `technicalConstraints` (OPTIONAL)
-- **Look for in <prompt-content>:**
+- **Look for in <prompt-arguments>:**
   - Technology mentions: "React", "Python", "AWS", "mobile-first"
   - Performance needs: "fast", "real-time", "scalable", "high-traffic"
   - Integration requirements: "connect to existing system", "API integration"
@@ -151,14 +151,14 @@ Extract the following variables from the <prompt-content> above for use in Phase
 - **Default**: STANDARD Mode
 
 ### `userTypes` (OPTIONAL)
-- **Look for in <prompt-content>:**
+- **Look for in <prompt-arguments>:**
   - Role mentions: "admin", "customer", "manager", "guest user"
   - Permission levels: "different access levels", "role-based"
   - Stakeholders: who will use the system
 - **Default if not found**: ["end user"]
 
 ### `integrationNeeds` (OPTIONAL)
-- **Look for in <prompt-content>:**
+- **Look for in <prompt-arguments>:**
   - External systems: "integrate with...", "connect to...", "import from..."
   - APIs: "third-party API", "REST API", "external service"
   - Data sources: "database", "existing data", "import/export"
@@ -1199,7 +1199,7 @@ IDEAL-STI v3.0 transforms software requirements into complete, actionable task s
 
 ## Phase Workflow with Agent Integration
 
-1. **Phase 1: Requirements Extraction** - Manual variable extraction from `<prompt-content>`
+1. **Phase 1: Requirements Extraction** - Manual variable extraction from `<prompt-arguments>`
 2. **Phase 2: Architecture Documentation** - agent-driven (product-strategist, tech-research-analyst, system-architect) technology stack decisions with NFR analysis
 3. **Phase 3: Task Generation** - agent-driven (feature-developer, ui-designer, system-architect) simplified task creation with architectural alignment
 4. **Phase 4: State Management** - knowledge-aggregator session tracking with basic change detection  

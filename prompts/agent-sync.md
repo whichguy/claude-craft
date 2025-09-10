@@ -6,7 +6,7 @@ allowed-tools: "all"
 
 # Claude Craft Agent Sync
 
-**Context**: <prompt-context>
+**Context**: <prompt-arguments>
 
 ## Natural Language Instructions
 
@@ -14,7 +14,7 @@ Based on the provided context, perform Claude Code synchronization operations us
 
 ### 1. Determine User Intent
 
-From the context "<prompt-context>", classify the user's request:
+From the context "<prompt-arguments>", classify the user's request:
 
 - **Status intent**: Contains "status", "what", "ready", "available", "check", "current" → Show current sync status
 - **Publish intent**: Contains "publish", "list", "show", "detail" → Show local files ready to publish  
@@ -468,7 +468,7 @@ echo "📊 Total synced: $SYNCED_COUNT items"
 Extract item numbers from context and sync only those items:
 
 ```bash
-NUMBERS=$(echo "<prompt-context>" | grep -o '[0-9]\+' | tr '\n' ' ')
+NUMBERS=$(echo "<prompt-arguments>" | grep -o '[0-9]\+' | tr '\n' ' ')
 echo "🎯 Selective Sync Mode - Numbers: $NUMBERS"
 
 # Build indexed array of all unsynced items first, then process requested numbers
