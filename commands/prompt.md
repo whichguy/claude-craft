@@ -90,6 +90,36 @@ case "$FIRST_ARG" in
             echo
         fi
         
+        # Symlink hygiene - clean broken links before listing
+        # Prompt-as-code instruction: Maintain system cleanliness by removing broken symlinks
+        cleaned=0
+        for type in agents commands prompts hooks; do
+            type_dir="$HOME/.claude/$type"
+            [ -d "$type_dir" ] || continue
+            
+            # Runtime decision: Check each symlink's validity
+            for file in "$type_dir"/*.md 2>/dev/null; do
+                # Only process symlinks
+                [ -L "$file" ] || continue
+                
+                # Test if symlink target exists at runtime
+                if ! [ -e "$file" ]; then
+                    # Broken symlink detected - remove for system hygiene
+                    basename_file=$(basename "$file")
+                    target=$(readlink "$file" 2>/dev/null || echo "unknown")
+                    echo "  ⚠️ Removing broken symlink: $basename_file"
+                    rm "$file"
+                    cleaned=$((cleaned + 1))
+                fi
+            done
+        done
+        
+        # Report cleanup actions for transparency
+        if [ $cleaned -gt 0 ]; then
+            echo "  ✓ Cleaned $cleaned broken symlink(s)"
+            echo
+        fi
+        
         # Function to get extension description
         get_description() {
             local file="$1"
@@ -155,11 +185,13 @@ case "$FIRST_ARG" in
             
             if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
                 for file in "$type_dir"/*.md; do
-                    [ -f "$file" ] || continue
+                    # Runtime decision: Process both symlinks and regular files
+                    # Don't skip broken symlinks - they're already cleaned above
+                    [ -e "$file" ] || [ -L "$file" ] || continue
                     name=$(basename "$file" .md)
                     
                     # Only show symlinked items (published extensions)
-                    if [ -L "$file" ]; then
+                    if [ -L "$file" ] && [ -e "$file" ]; then
                         # Show header only when we find the first symlinked item
                         if [ "$type_has_symlinks" = "false" ]; then
                             echo "#### $icon **$type_name** (Published & Installed)"
@@ -206,7 +238,8 @@ case "$FIRST_ARG" in
             
             if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
                 for file in "$type_dir"/*.md; do
-                    [ -f "$file" ] || continue
+                    # Runtime decision: Process files that exist
+                    [ -e "$file" ] || continue
                     name=$(basename "$file" .md)
                     
                     # Only show non-symlinked items (local-only extensions)
