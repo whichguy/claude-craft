@@ -124,7 +124,7 @@ Generate comparative analysis.
 #### Step 1: Master Prompt Receives Input
 ```python
 # Claude Code internally creates:
-prompt_content = "San Ramon, CA New York, NY"
+prompt-arguments = "San Ramon, CA New York, NY"
 ```
 
 #### Step 2: Master Executes Agent 1
@@ -133,7 +133,7 @@ prompt_content = "San Ramon, CA New York, NY"
 agent1_result = Task(
     subagent_type="prompter",
     description="Get weather for base city",
-    prompt="weather San Ramon, CA"  # Extracted from prompt_content
+    prompt="weather San Ramon, CA"  # Extracted from prompt-arguments
 )
 
 # Agent 1 returns:
@@ -204,7 +204,7 @@ final_output = f"""
 
 #### 2. Master Prompt Processing:
 ```markdown
-# Master reads prompt_content = "San Ramon, CA New York, NY"
+# Master reads prompt-arguments = "San Ramon, CA New York, NY"
 
 ## Execution begins...
 ```
