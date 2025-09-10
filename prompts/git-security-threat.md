@@ -1,6 +1,6 @@
 ---
 description: Security threat analysis for git clone/pull operations
-context-type: prompt-context
+context-type: prompt-arguments
 validation-mode: strict
 ---
 

@@ -57,20 +57,20 @@ allowed-tools: "all"
 
 # Weather Comparison Chain
 
-**Input**: <prompt-content>
+**Input**: <prompt-arguments>
 
 ## Sequential Execution
 
 ### Step 1: Get Base City Weather
 Use Task tool with prompter subagent:
 ```
-ask prompter on weather to extract base city from <prompt-content>
+ask prompter on weather to extract base city from <prompt-arguments>
 ```
 
 ### Step 2: Compare Cities
 Use Task tool with prompter subagent:
 ```
-ask prompter on weather-comparison [INJECT STEP 1 OUTPUT] and <prompt-content>
+ask prompter on weather-comparison [INJECT STEP 1 OUTPUT] and <prompt-arguments>
 ```
 
 ### Step 3: Generate Report
@@ -89,7 +89,7 @@ description: "Get weather for a city"
 ---
 # Weather Data
 
-Extract city from: <prompt-content>
+Extract city from: <prompt-arguments>
 Get current weather data for that city.
 ```
 
@@ -100,7 +100,7 @@ description: "Compare weather between cities"
 ---
 # Weather Comparison
 
-Parse input: <prompt-content>
+Parse input: <prompt-arguments>
 
 Extract:
 1. Base city weather data (from previous agent)
@@ -324,7 +324,7 @@ next_agent_prompt = f"""
 # Template expecting injected data:
 
 Parse the following input:
-<prompt-content>  # <-- This will contain injected data + new instructions
+<prompt-arguments>  # <-- This will contain injected data + new instructions
 
 Extract:
 1. [Previous agent's data]
@@ -415,11 +415,11 @@ Process accordingly.
 ### Actual weather.md Implementation
 **File**: `prompts/weather.md`
 ```markdown
-look up the weather for <prompt-context>
+look up the weather for <prompt-arguments>
 ```
 
 This simple prompt:
-- Receives a city name in `<prompt-context>`
+- Receives a city name in `<prompt-arguments>`
 - Triggers weather lookup via Claude's capabilities
 - Returns weather data for that location
 
@@ -434,15 +434,15 @@ allowed-tools: "all"
 
 # Weather Comparison Chain
 
-**Input**: <prompt-content>
+**Input**: <prompt-arguments>
 
 ## Sequential Execution
 
 ### Base City: 
- - Extract base city and weather information from from <prompt-content>
+ - Extract base city and weather information from from <prompt-arguments>
 
 ### Comparison City: 
- - Extract comparison city from <prompt-content>
+ - Extract comparison city from <prompt-arguments>
 
 ### Output:
  - Output the base city
@@ -451,8 +451,8 @@ allowed-tools: "all"
 ```
 
 This template:
-- Expects weather data for base city in `<prompt-content>`
-- Extracts comparison city from `<prompt-content>`
+- Expects weather data for base city in `<prompt-arguments>`
+- Extracts comparison city from `<prompt-arguments>`
 - Performs comparative analysis between both cities
 
 ---

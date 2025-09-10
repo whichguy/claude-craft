@@ -123,7 +123,7 @@ The `/prompt` command system implements a **prompt-as-code pattern** where natur
 
 Prompts use structured directives instead of traditional scripting:
 ```markdown
-2. **Determine user intent** from context "<prompt-context>":
+2. **Determine user intent** from context "<prompt-arguments>":
    - **Status intent**: Contains "status", "what", "ready"...
 ```
 
@@ -172,7 +172,7 @@ Search precedence for `/prompt` command:
 3. **Profile prompts** (`~/.claude/prompts`)
 4. **Current directory** (fallback)
 
-Templates use `<prompt-context>` placeholders for dynamic content injection.
+Templates use `<prompt-arguments>` placeholders for dynamic content injection.
 
 ### Alias System Implementation
 
@@ -227,7 +227,7 @@ The alias system (`commands/alias.md`, `commands/unalias.md`) creates new comman
 - **Commands & Agents**: Markdown files with YAML frontmatter
 - **Settings**: JSON fragments for merging
 - **Memory**: Markdown fragments with special import markers
-- **Prompts**: Markdown with `<prompt-context>` placeholders
+- **Prompts**: Markdown with `<prompt-arguments>` placeholders
 
 ## Repository-Specific Patterns
 
@@ -281,7 +281,7 @@ The `/prompt --list` command provides comprehensive sync management:
 
 ### Adding a New Prompt Template
 1. Create file in `prompts/` directory
-2. Use `<prompt-context>` for dynamic injection
+2. Use `<prompt-arguments>` for dynamic injection
 3. Test with `/prompt template-name [context]`
 4. Focus on natural language instructions over code
 

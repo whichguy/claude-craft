@@ -30,9 +30,9 @@ fi
 echo "<prompt-template-name>$FIRST_ARG</prompt-template-name>"
 
 # Content extraction and formatting
-echo "<prompt-content>"
+echo "<prompt-arguments>"
 echo $CONTENT
-echo "</prompt-content>"
+echo "</prompt-arguments>"
 
 
 # Domain-driven command routing
