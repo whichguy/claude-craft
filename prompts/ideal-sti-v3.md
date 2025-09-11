@@ -1,1220 +1,854 @@
-# IDEAL-STI v3.0: File-Based Task Generation System
+# IDEAL-STI v3.0: Progressive Prompt-as-Code Development System
 
 ## System Overview
 
-**IDEAL-STI v3.0** (Intelligent Development Enhancement and Adaptive Learning - Systematic Task Intelligence) is a file-based development methodology that transforms user requirements into comprehensive implementation specifications for feature-developer subagents. The system uses a sequential phase architecture where each phase reads files from previous phases and creates new files for subsequent phases.
+**IDEAL-STI v3.0** (Intelligent Development Enhancement and Adaptive Learning - Systematic Task Intelligence) is a **prompt-as-code methodology** that orchestrates specialized prompter subagents to transform user requirements into comprehensive project specifications through progressive knowledge discovery and synthesis.
 
 ## Core Architecture
 
-### File-Based Design Philosophy
-- **Sequential File Processing**: Each phase reads specific files from previous phases
-- **Smart Rehydration**: Compare current execution with previous session files for intelligent state recovery
-- **Key File Types**: requirements.md, architecture.md, and tasks/*.md form the core documentation chain
-- **Phase Isolation**: Each phase has clearly defined input files and output file responsibilities
+### Prompt-as-Code Philosophy
+- **Runtime Decision Making**: All architectural choices made based on discovered context
+- **Progressive Learning**: Each phase builds upon discoveries from previous phases
+- **State Management**: Comprehensive rehydration and checkpoint system
+- **Quality Gates**: Multi-level validation at each phase transition
 
-### Execution Modes
-- **STANDARD Mode** (Default): Comprehensive task generation for most projects (15-30 tasks)
-- **DEEP Mode** (Enterprise): Detailed enterprise-grade specifications (30-60+ tasks)
-
-## File Processing Chain
-
-### Core File Dependencies
+### Execution Flow
 ```
-Phase 1: <prompt-arguments> → Variables (no files)
-Phase 2: Variables → requirements.md, architecture.md  
-Phase 3: requirements.md, architecture.md → tasks/pending/*.md
-Phase 4: All previous files → .ideal-sti/session-state.json, change-analysis.md
-Phase 5: tasks/pending/*.md + context files → Enhanced tasks/pending/*.md
-Phase 6: Enhanced tasks + context → handoff-summary.md
+User Input → Use Case Discovery → Requirements Synthesis → Document Assembly → Implementation
 ```
 
-### Usage Pattern
-```markdown
-Transform user requirements into feature-developer ready tasks using IDEAL-STI v3.0 file-based methodology.
-
-<prompt-arguments>
-{User's project description and requirements}
-</prompt-arguments>
-```
-
-## IDEAL-STI v3.0 Workflow
+## System Architecture Flow
 
 ```mermaid
-flowchart TD
-    A[<prompt-arguments>] --> B[Phase 1: Requirements Extraction]
+flowchart TB
+    subgraph "INITIALIZATION LAYER"
+        A[User Input<br/><prompt-arguments>] --> B{State Check}
+        B -->|Exists| C[Load .ideal-sti/state.json]
+        B -->|New| D[Initialize Fresh State]
+        C --> E{Resume Dialog}
+        E -->|Yes| F[Load Checkpoints]
+        E -->|No| D
+        D --> G[Create .ideal-sti Directory]
+        F --> H[Set Phase Pointer]
+        G --> H
+    end
     
-    B --> B1{Extract Variables}
-    B1 --> B2[Project Name, Functional Req, Technical Constraints, User Types, Integration Needs]
+    subgraph "PHASE 1: USE CASE DISCOVERY"
+        H --> I[Execute Prompter Directive]
+        I --> J[ask subagent prompter<br/>on use-case-expander<br/><prompt-arguments>]
+        J --> K{Output Received?}
+        K -->|Timeout| L[Save Partial State]
+        K -->|Success| M[Parse UC### Format]
+        L --> N[User Intervention]
+        M --> O{Quality Gate 1}
+        O -->|Pass| P[Extract Discovery Seeds]
+        O -->|Fail| Q[Generate Quality Report]
+        Q --> N
+        P --> R[Save phase1-output.md]
+    end
     
-    B2 --> C[Phase 2: Architecture Documentation]
-    C --> C1[product-strategist: Requirements Analysis]
-    C --> C2[tech-research-analyst: Technology Research]
-    C --> C3[system-architect: Architecture Design]
-    C1 & C2 & C3 --> C4{Phase 2 Review}
-    C4 --> C5[User Confirmation: Architecture Approved?]
-    C5 -->|No| C6[Revise Architecture] --> C4
-    C5 -->|Yes| C7[Generate requirements.md & architecture.md]
+    subgraph "PHASE 2: REQUIREMENTS SYNTHESIS"
+        R --> S[Prepare Input Package]
+        S --> T[ask subagent prompter<br/>on requirements-generator<br/><use-cases>]
+        T --> U{Output Received?}
+        U -->|Timeout| V[Save Partial State]
+        U -->|Success| W[Parse FR-*/NFR-* Format]
+        V --> N
+        W --> X{Quality Gate 2}
+        X -->|Pass| Y[Extract Tech Specs]
+        X -->|Fail| Z[Adjust Parameters]
+        Z --> T
+        Y --> AA[Save phase2-output.md]
+    end
     
-    C7 --> D[Phase 3: Task Generation]
-    D --> D1[feature-developer: Task Analysis]
-    D --> D2[ui-designer: UI/UX Tasks]
-    D --> D3[system-architect: Technical Validation]
-    D1 & D2 & D3 --> D4{Phase 3 Review}
-    D4 --> D5[User Confirmation: Tasks Approved?]
-    D5 -->|No| D6[Revise Tasks] --> D4
-    D5 -->|Yes| D7[Generate tasks/pending/*.md]
+    subgraph "PHASE 2.5: DOCUMENT ASSEMBLY"
+        AA --> AB[Load Both Outputs]
+        AB --> AC[Execute Assembly Directive]
+        AC --> AD[Generate Traceability Matrix]
+        AD --> AE[Build Navigation Index]
+        AE --> AF[Merge Sections]
+        AF --> AG{Quality Gate 3}
+        AG -->|Pass| AH[Write project-specifications.md]
+        AG -->|Fail| AI[Assembly Error Report]
+        AI --> N
+        AH --> AJ[Update State: Complete]
+    end
     
-    D7 --> E[Phase 4: State Management]
-    E --> E1[knowledge-aggregator: Session Summary]
-    E --> E2[Basic Change Detection]
-    E1 & E2 --> E3{Phase 4 Review}
-    E3 --> E4[User Confirmation: Session State OK?]
-    E4 -->|No| E5[Adjust State] --> E3
-    E4 -->|Yes| E6[Generate session-summary.md]
-    
-    E6 --> F[Phase 5: Task Validation]
-    F --> F1[code-reviewer: Task Quality Check]
-    F --> F2[feature-developer: Feasibility Check]
-    F --> F3[system-architect: Coherence Review]
-    F1 & F2 & F3 --> F4{Phase 5 Review}
-    F4 --> F5[User Confirmation: Tasks Ready?]
-    F5 -->|No| F6[Enhance Tasks] --> F4
-    F5 -->|Yes| F7[Update Enhanced Tasks]
-    
-    F7 --> G[Phase 6: Feature-Developer Handoff]
-    G --> G1[knowledge-aggregator: Handoff Package]
-    G --> G2[feature-developer: Task Organization]
-    G --> G3[system-architect: Final QA Check]
-    G1 & G2 & G3 --> G4{Phase 6 Review}
-    G4 --> G5[User Confirmation: Ready for Implementation?]
-    G5 -->|No| G6[Adjust Handoff] --> G4
-    G5 -->|Yes| G7[Generate handoff-summary.md]
-    
-    G7 --> H[Feature-Developer Execution]
-    H --> H1[Task Assignment & Coordination]
-    H --> H2[Implementation Monitoring]
-    H --> H3[Quality Gates & Integration]
-    H1 & H2 & H3 --> I[Project Completion]
+    subgraph "QUALITY MONITORING"
+        O --> AK[Phase 1 Metrics]
+        X --> AL[Phase 2 Metrics]
+        AG --> AM[Assembly Metrics]
+        AK --> AN[Quality Dashboard]
+        AL --> AN
+        AM --> AN
+    end
     
     style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#fff3e0
-    style D fill:#e8f5e8
-    style E fill:#fff8e1
-    style F fill:#fce4ec
-    style G fill:#f1f8e9
-    style H fill:#e0f2f1
-    style I fill:#e8eaf6
+    style AH fill:#c8e6c9
+    style N fill:#ffccbc
+    style AN fill:#fff9c4
 ```
 
 ---
 
-# PHASE 1: PROJECT REQUIREMENTS EXTRACTOR
+# STATE MANAGEMENT DIRECTIVE
 
-You are extracting structured variables from user requirements to prepare for subsequent phases.
+**WHEN** initiating IDEAL-STI process  
+**THEN** execute state discovery protocol:
+
+<thinking>
+State Discovery:
+1. Check existence: .ideal-sti/state.json
+2. If exists:
+   - Load previous state
+   - Identify last successful phase
+   - Locate checkpoint files
+   - Prompt: "Resume from Phase [X]? (Y/n)"
+3. If not exists:
+   - Create directory: .ideal-sti/
+   - Initialize state.json with:
+     ```json
+     {
+       "session_id": "[generate-uuid]",
+       "started_at": "[current-iso-8601]",
+       "current_phase": 0,
+       "phase_status": {},
+       "quality_scores": {},
+       "artifacts": {}
+     }
+     ```
+</thinking>
+
+## TodoWrite Integration
+Create TodoWrite task: "Initialize IDEAL-STI state management"
+- Mark in-progress when checking state
+- Mark completed when state is ready
+
+---
+
+# PHASE 1: USE CASE DISCOVERY DIRECTIVE
+
+You are orchestrating use case discovery through a specialized prompter subagent.
 
 <prompt-arguments>
 {$PROMPT_CONTENT}
 </prompt-arguments>
 
-## Variable Extraction Process
+## DIRECTIVE 1: Execute Use Case Discovery
 
-Extract the following variables from the <prompt-arguments> above for use in Phase 2.
+**GIVEN** user requirements in <prompt-arguments>  
+**WHEN** Phase 1 is initiated  
+**THEN** execute progressive discovery:
 
-### `projectName` (REQUIRED)
-- **Look for in <prompt-arguments>:**
-  - Explicit project names: "Build ProjectX", "Create a system called..."
-  - Product names: "e-commerce platform", "inventory management system"
-  - Application descriptions: "mobile app", "web application", "dashboard"
-- **If not explicit**: Generate name from main functionality described
-- **Validation**: Must be a clear, descriptive name
+<thinking>
+Phase 1 Progressive Learning:
+1. **INVOKE**: `ask subagent prompter on use-case-expander <prompt-arguments>`
+2. **EXPECT**: Markdown with UC### pattern
+3. **TIMEOUT**: 300 seconds maximum
+4. **CAPTURE**: Raw output to .ideal-sti/phase1-output.md
 
-### `functionalRequirements` (REQUIRED)  
-- **Look for in <prompt-arguments>:**
-  - Core features: "users can...", "system should...", "needs to support..."
-  - Business processes: workflows, operations, user interactions
-  - Explicit feature lists: "login, dashboard, reports, admin panel"
-- **Extract as**: List of distinct functional areas
-- **Classification**: Simple (1-5 features), Standard (6-15), Complex (16+)
+Quality Validation:
+- Count use cases: MUST be ≥ 10
+- Verify UC### numbering sequence
+- Check DoR presence: ≥3 items per UC
+- Check DoD presence: ≥3 items per UC
+- Validate confidence distribution
 
-### `technicalConstraints` (OPTIONAL)
-- **Look for in <prompt-arguments>:**
-  - Technology mentions: "React", "Python", "AWS", "mobile-first"
-  - Performance needs: "fast", "real-time", "scalable", "high-traffic"
-  - Integration requirements: "connect to existing system", "API integration"
-- **Default if not found**: "Standard web technologies"
+IF quality_check PASSES:
+  - Extract discovery_seeds:
+    * actors[]
+    * entities[]
+    * patterns[]
+    * integrations[]
+  - Update state.json: phase_1 = "completed"
+  - Proceed to Phase 2
 
-### `executionMode` (DERIVED)
-- **Determine based on extracted complexity**:
-  - **STANDARD Mode**: Most projects (6-30 features, standard complexity)
-  - **DEEP Mode**: Enterprise indicators present ("compliance", "enterprise", "scalability", "security")
-- **Default**: STANDARD Mode
+ELSE IF quality_check FAILS:
+  - Generate failure report with specifics
+  - Prompt user for clarification
+  - Offer retry with adjusted parameters
+</thinking>
 
-### `userTypes` (OPTIONAL)
-- **Look for in <prompt-arguments>:**
-  - Role mentions: "admin", "customer", "manager", "guest user"
-  - Permission levels: "different access levels", "role-based"
-  - Stakeholders: who will use the system
-- **Default if not found**: ["end user"]
+## Quality Gate 1: Use Case Validation
 
-### `integrationNeeds` (OPTIONAL)
-- **Look for in <prompt-arguments>:**
-  - External systems: "integrate with...", "connect to...", "import from..."
-  - APIs: "third-party API", "REST API", "external service"
-  - Data sources: "database", "existing data", "import/export"
-- **Default if not found**: []
+```mermaid
+flowchart LR
+    QG1A[UC Count ≥ 10] --> QG1B{Pass?}
+    QG1C[All DoR Present] --> QG1B
+    QG1D[All DoD Present] --> QG1B
+    QG1E[No Duplicates] --> QG1B
+    QG1F[Confidence Mix] --> QG1B
+    QG1B -->|All Pass| QG1_PASS[✓ Phase 1 Complete]
+    QG1B -->|Any Fail| QG1_FAIL[✗ Needs Revision]
+```
 
-## TodoWrite Integration
-
-### Phase 1 Tasks
-Create TodoWrite task: "Extract project variables from user requirements"
-- Mark in-progress when starting extraction
-- Mark completed when all variables extracted and validated
-
-### Pass to Phase 2
-All extracted variables will be used by Phase 2 to create initial requirements.md and architecture.md files.
+## TodoWrite Tasks
+- "Execute use-case-expander prompter" (in_progress)
+- "Validate use case quality" (pending)
+- "Extract discovery seeds" (pending)
 
 ## Output Format
-
-**Extracted Variables for Phase 2**:
-- Project Name: [extracted/generated name]
-- Functional Requirements: [list of features/capabilities]  
-- Technical Constraints: [technology preferences/requirements]
-- Execution Mode: [STANDARD/DEEP with justification]
-- User Types: [list of user roles]
-- Integration Needs: [external systems/APIs needed]
-
-**Next Phase Input**: These variables will be used by Phase 2 to generate the requirements.md and architecture.md files.
+```yaml
+phase1_output:
+  use_cases:
+    - id: UC001
+      confidence: HIGH
+      dor: [prerequisite1, prerequisite2, prerequisite3]
+      dod: [completion1, completion2, completion3]
+  discovery_seeds:
+    actors: [user, admin, system]
+    entities: [profile, session, data]
+    patterns: [secure, scalable, real-time]
+  quality_metrics:
+    total_use_cases: 42
+    confidence_distribution: {HIGH: 5, MEDIUM: 35, LOW: 2}
+```
 
 ---
 
-# PHASE 2: REQUIREMENTS & ARCHITECTURE DOCUMENTATION
+# PHASE 2: REQUIREMENTS SYNTHESIS DIRECTIVE
 
-You are creating foundational project documentation using variables extracted from Phase 1.
+You are orchestrating requirements generation through a specialized prompter subagent.
 
-## Input Processing
+## DIRECTIVE 2: Execute Requirements Generation
 
-**Variables from Phase 1**:
-- Project Name: [from Phase 1 extraction]
-- Functional Requirements: [from Phase 1 extraction]
-- Technical Constraints: [from Phase 1 extraction]
-- Execution Mode: [STANDARD/DEEP from Phase 1]
-- User Types: [from Phase 1 extraction]
-- Integration Needs: [from Phase 1 extraction]
+**GIVEN** use cases from Phase 1  
+**WHEN** Phase 2 is triggered  
+**THEN** execute requirements synthesis:
 
-## Rehydration Check
+<thinking>
+Input Preparation:
+1. Load .ideal-sti/phase1-output.md
+2. Parse use_cases[] and discovery_seeds{}
+3. Format input package:
+   ```yaml
+   use_cases:
+     - id: UC001
+       dod: [...]
+       dor: [...]
+   discovery_context:
+     actors: [...]
+     patterns: [...]
+   ```
 
-### Check for Existing Files
-Look for existing files that need rehydration:
-- `docs/requirements.md` (if exists) - previous requirements to compare against
-- `docs/architecture.md` (if exists) - previous architecture decisions to preserve
+Execution:
+1. **INVOKE**: `ask subagent prompter on requirements-generator <use-cases>`
+2. **MONITOR**: Progress indicators
+3. **CAPTURE**: Output to phase2-output.md
 
-### Rehydration Strategy
-- **If no existing files**: Create fresh documentation
-- **If existing files found**: 
-  - Read existing requirements.md and compare with Phase 1 extracted requirements
-  - Identify changes, additions, or modifications
-  - Merge changes while preserving valid existing content
-  - Update architecture.md with new technical decisions
+Validation Protocol:
+- Parse FR-XXX-### patterns
+- Parse NFR-XXX-### patterns
+- Verify coverage: all_use_cases_have_requirements()
+- Check evidence_scores ≥ 5
+- Validate architecture_level selection
 
-## File Generation Tasks
+IF validation PASSES:
+  - Extract technical_specifications
+  - Map requirements to use cases
+  - Update state: phase_2 = "completed"
+  
+ELSE:
+  - Identify coverage gaps
+  - Re-invoke with emphasis on gaps
+  - Maximum 2 retries
+</thinking>
 
-### Create/Update `docs/requirements.md`
-**Content Structure**:
-```markdown
-# [Project Name] - Requirements Specification
+## Quality Gate 2: Requirements Validation
 
-## Project Overview
-[Description based on Phase 1 extracted requirements]
-
-## Functional Requirements
-[Detailed breakdown of Phase 1 functional requirements]
-1. [Requirement 1 with acceptance criteria]
-2. [Requirement 2 with acceptance criteria]
-...
-
-## User Types and Roles
-[Based on Phase 1 user types]
-- [User Type 1]: [Permissions and capabilities]
-- [User Type 2]: [Permissions and capabilities]
-
-## Non-Functional Requirements
-[Derived from Phase 1 technical constraints]
-- Performance: [Requirements based on technical constraints]
-- Security: [Requirements based on user types and constraints]
-- Scalability: [Requirements based on execution mode]
-
-## Integration Requirements
-[Based on Phase 1 integration needs]
-- [External System 1]: [Integration details]
-- [External System 2]: [Integration details]
-
-## Success Criteria
-[Measurable project success indicators]
+```mermaid
+flowchart LR
+    QG2A[All UCs Covered] --> QG2B{Pass?}
+    QG2C[Evidence Scores ≥5] --> QG2B
+    QG2D[Valid ID Format] --> QG2B
+    QG2E[No Orphans] --> QG2B
+    QG2F[Architecture Selected] --> QG2B
+    QG2B -->|All Pass| QG2_PASS[✓ Phase 2 Complete]
+    QG2B -->|Any Fail| QG2_FAIL[✗ Needs Revision]
 ```
 
-### Create/Update `docs/architecture.md`
-**Content Structure**:
-```markdown
-# [Project Name] - Architecture Specification
+## TodoWrite Tasks
+- "Execute requirements-generator prompter" (in_progress)
+- "Validate requirements coverage" (pending)
+- "Extract technical specifications" (pending)
 
-## Execution Mode: [STANDARD/DEEP]
-Selected based on: [Phase 1 complexity analysis]
-
-## Technology Stack Decisions
-
-### Language & Framework Selection
-**Primary Language**: [Language choice with justification]
-- **Rationale**: [Performance, ecosystem, team expertise considerations]
-- **Alternatives Considered**: [Other options and why they were rejected]
-- **NFR Impact**: [How this choice affects performance, scalability, maintainability]
-
-**Framework Selection**: [Framework choice with GitHub preference]
-- **Framework**: [Specific framework with version]
-- **Community**: [GitHub stars, maintenance status, security track record]
-- **Rationale**: [Why chosen over alternatives using KISS/YAGNI principles]
-- **NFR Impact**: [Performance implications, learning curve, operational overhead]
-
-### Third-Party Dependencies & Libraries
-**Core Dependencies** (GitHub-sourced preferred):
-- **[Library 1]**: [Purpose, GitHub repo, license, security assessment]
-- **[Library 2]**: [Purpose, GitHub repo, license, performance impact]
-- **[Service Integration]**: [External services, API limitations, fallback strategies]
-
-**Dependency Risk Assessment**:
-- **Security**: [Vulnerability scanning, license compatibility]
-- **Maintenance**: [Update frequency, breaking changes, community support]
-- **Performance**: [Bundle size, runtime overhead, optimization opportunities]
-
-### Service Architecture Design
-**Architecture Pattern**: [Monolith/Microservices/Hybrid]
-- **Rationale**: [Scale requirements, team structure, operational complexity]
-- **Service Boundaries**: [Domain-driven design considerations]
-- **Communication Patterns**: [Synchronous/asynchronous, event-driven]
-
-## Non-Functional Requirements (NFR) Impact Analysis
-
-### Isolation Requirements & Solutions
-**Process Isolation**:
-- **Strategy**: [Containerization/VMs/Serverless approach]
-- **Implementation**: [Docker, Kubernetes, Lambda functions]
-- **NFR Impact**: [Resource efficiency, deployment complexity, security boundaries]
-
-**Data Isolation**:
-- **Multi-tenancy Approach**: [Schema separation, database per tenant, row-level security]
-- **Encryption Strategy**: [At-rest, in-transit, key management]
-- **Access Control**: [Database roles, application-level permissions]
-
-**Network Isolation**:
-- **Infrastructure**: [VPC design, security groups, API gateways]
-- **Service Communication**: [Service mesh, load balancers, TLS termination]
-- **External Access**: [CDN, WAF, DDoS protection]
-
-### Concurrency & Performance Architecture
-**Concurrency Model**:
-- **Approach**: [Threading, async/await, event loops, actor model]
-- **Resource Management**: [Connection pooling, thread pool sizing]
-- **Bottleneck Mitigation**: [Queue systems, circuit breakers, rate limiting]
-
-**Performance Targets**:
-- **Response Time**: [Target latency with percentiles: p50, p95, p99]
-- **Throughput**: [Requests per second, concurrent users]
-- **Resource Utilization**: [CPU, memory, I/O optimization targets]
-
-### Scalability & Growth Architecture
-**Horizontal Scaling Strategy**:
-- **Load Balancing**: [Algorithm choice, session affinity, health checks]
-- **Auto-scaling**: [Metrics-based scaling, predictive scaling]
-- **Distributed Caching**: [Redis/Memcached, cache invalidation strategies]
-
-**Database Scaling**:
-- **Read Scaling**: [Read replicas, query optimization, indexing strategy]
-- **Write Scaling**: [Sharding strategy, partitioning keys, consistency models]
-- **Connection Management**: [Pooling, connection limits, failover procedures]
-
-### Storage & Data Management Architecture
-**Storage Format Decisions**:
-- **Primary Database**: [PostgreSQL/MySQL/MongoDB choice with rationale]
-- **Document Storage**: [JSON/XML/Binary format selection]
-- **File Storage**: [Object storage, CDN integration, backup strategy]
-
-**Data Persistence Strategy**:
-- **ACID Compliance**: [Transaction requirements, consistency guarantees]
-- **Backup & Recovery**: [RPO/RTO targets, disaster recovery procedures]
-- **Data Migration**: [Schema evolution, version management, rollback procedures]
-
-**Caching Architecture**:
-- **Cache Layers**: [Application cache, database cache, CDN cache]
-- **Cache Policies**: [TTL strategies, eviction policies, cache warming]
-- **Invalidation Strategy**: [Event-driven, time-based, manual invalidation]
-
-### User Interface Framework Architecture
-**Frontend Technology Stack**:
-- **Framework Choice**: [React/Vue/Angular/Svelte with justification]
-- **Architecture Pattern**: [SPA/MPA, SSR/CSR, PWA capabilities]
-- **State Management**: [Redux/Zustand/Context, server state synchronization]
-
-**Responsive Design Strategy**:
-- **Mobile-First Approach**: [Breakpoints, progressive enhancement]
-- **Accessibility Compliance**: [WCAG 2.1 AA standards, screen reader support]
-- **Performance Optimization**: [Bundle splitting, lazy loading, image optimization]
-
-**User Experience Patterns**:
-- **Loading States**: [Skeleton screens, progress indicators, optimistic updates]
-- **Error Handling**: [Error boundaries, fallback UI, retry mechanisms]
-- **Offline Capabilities**: [Service workers, local storage, sync strategies]
-
-### Authentication & Security Architecture
-**Authentication Strategy**:
-- **Authentication Method**: [OAuth 2.0/SAML/JWT with provider selection]
-- **Multi-Factor Authentication**: [TOTP, SMS, biometric options]
-- **Session Management**: [Token lifecycle, refresh strategies, secure storage]
-
-**Authorization Framework**:
-- **Authorization Model**: [RBAC/ABAC with role hierarchy design]
-- **Permission Granularity**: [Resource-level, field-level, operation-based]
-- **Policy Engine**: [External authorization service, embedded policies]
-
-**Security Compliance**:
-- **Data Protection**: [GDPR/CCPA compliance, data anonymization]
-- **Audit Logging**: [Security events, compliance reporting, log retention]
-- **Vulnerability Management**: [Security scanning, patch management, incident response]
-
-## Technology Choice Impact Matrix
-
-### Impact on Functional Requirements
-**Requirement Enablement**:
-- **[Functional Req 1]**: [How technology stack enables/constrains implementation]
-- **[Functional Req 2]**: [Technology-specific capabilities and limitations]
-- **[Integration Req]**: [API compatibility, protocol support, data format constraints]
-
-### Impact on Non-Functional Requirements
-**Performance Impact**:
-- **Response Time**: [Technology overhead, optimization opportunities]
-- **Scalability**: [Scaling limitations, resource requirements]
-- **Reliability**: [Fault tolerance, failure modes, recovery capabilities]
-
-**Security Impact**:
-- **Vulnerability Surface**: [Known security issues, mitigation strategies]
-- **Compliance Support**: [Built-in security features, audit capabilities]
-- **Encryption Support**: [Native encryption, key management integration]
-
-**Operational Impact**:
-- **Deployment Complexity**: [Infrastructure requirements, CI/CD integration]
-- **Monitoring & Observability**: [Logging, metrics, tracing capabilities]
-- **Maintenance Overhead**: [Update procedures, backward compatibility]
-
-## Risk Assessment & Mitigation
-
-### Technology Risks
-**High-Risk Areas**:
-- **[Risk 1]**: [Technology limitation/dependency risk with mitigation plan]
-- **[Risk 2]**: [Performance bottleneck with alternative approaches]
-- **[Risk 3]**: [Security vulnerability with protection measures]
-
-**Mitigation Strategies**:
-- **Fallback Options**: [Alternative technologies, graceful degradation]
-- **Risk Monitoring**: [Early warning indicators, performance thresholds]
-- **Contingency Plans**: [Migration paths, rollback procedures]
-
-### Architectural Decisions Record
-**Key Decisions Made**:
-1. **[Decision Topic]**: [Decision with context and rationale]
-2. **[Technology Choice]**: [Alternatives considered and selection criteria]
-3. **[Architecture Pattern]**: [Trade-offs and implications]
-
-## Implementation Approach
-[High-level implementation strategy based on execution mode and technology choices]
-- **Development Phases**: [Phase breakdown with technology integration points]
-- **Testing Strategy**: [Technology-specific testing approaches and tools]
-- **Deployment Approach**: [Infrastructure provisioning and deployment pipeline]
-- **Performance Validation**: [Benchmarking approach and success criteria]
+## Output Format
+```yaml
+phase2_output:
+  functional_requirements:
+    - id: FR-CAP-001
+      description: "System SHALL capture messages in real-time"
+      source_uc: UC001
+      evidence_score: 9
+  non_functional_requirements:
+    - id: NFR-PER-001
+      description: "Response time SHALL be <200ms"
+      evidence_score: 7
+  architecture:
+    complexity_level: 4
+    technology_stack: ["Node.js", "SQLite", "Redis"]
 ```
-
-## Agent Integration for Technology Decision Making
-
-### DO: Use Prescription Instructions for Agent Orchestration
-
-**Phase 2 Agent Coordination Strategy**:
-
-1. **Requirements Analysis and Documentation** (product-strategist):
-   - Analyze Phase 1 variables for requirement completeness and consistency
-   - Identify missing functional requirements that weren't extracted in Phase 1
-   - Create comprehensive requirements.md with user-focused acceptance criteria
-   - Validate requirement-user type alignment and integration needs
-
-2. **Technology Research and Evaluation** (tech-research-analyst):
-   - Research technology options based on Phase 1 technical constraints
-   - Evaluate GitHub-based libraries and frameworks using security/performance criteria
-   - Analyze technology ecosystem compatibility and integration patterns  
-   - Create technology recommendation matrix with KISS/YAGNI justification
-
-3. **Architecture Design and Synthesis** (system-architect):
-   - Synthesize requirements and technology research into coherent architecture
-   - Make final technology stack decisions using impact analysis framework
-   - Design comprehensive NFR solutions for isolation, concurrency, scale, storage
-   - Create architecture.md with detailed technology choice impact matrix
-
-### DON'T: Use TodoWrite for Agent Orchestration
-
-Instead of TodoWrite tasks, provide clear prescription instructions:
-
-**Prescription for Requirements Documentation**:
-- READ Phase 1 variables and identify gaps or inconsistencies
-- CREATE comprehensive functional requirements with measurable acceptance criteria
-- VALIDATE requirements align with user types and integration needs
-- DOCUMENT requirements in clear, testable format for feature developers
-
-**Prescription for Technology Stack Decisions**:
-- RESEARCH technology options using GitHub preference and security criteria
-- EVALUATE alternatives using KISS/YAGNI principles and NFR impact analysis
-- CHOOSE proven technologies with strong community support and maintenance
-- DOCUMENT technology decisions with rationale and requirement impact analysis
-
-**Prescription for Architecture Design**:
-- SYNTHESIZE requirements and technology choices into coherent system design
-- DESIGN NFR solutions for isolation, concurrency, scalability, and security
-- CREATE architecture specifications with implementation guidance
-- VALIDATE architectural decisions against functional and non-functional requirements
-
-## Phase Review and Quality Check
-
-### Phase 2 Review Criteria
-Before presenting architecture to user, validate:
-
-**Requirements Quality Check** (product-strategist review):
-- All functional requirements are testable and measurable
-- User types and permissions are clearly defined
-- Integration requirements specify clear interfaces and protocols
-- Success criteria are quantifiable and achievable
-
-**Technology Decision Quality Check** (system-architect review):
-- Technology choices are justified with clear rationale
-- NFR impact analysis is comprehensive and realistic
-- Risk assessment identifies key concerns with mitigation strategies  
-- Architecture decisions follow KISS/YAGNI principles
-
-**Implementation Readiness Check**:
-- Architecture provides sufficient detail for task generation
-- Technology stack decisions enable all functional requirements
-- Performance and scalability targets are achievable
-- Security and compliance requirements are addressable
-
-### Executive Summary for User Confirmation
-
-Present to user:
-
-**Architecture Decision Summary**:
-- **Primary Technology Stack**: [Key technology choices with rationale]
-- **Architecture Pattern**: [Monolith/Microservices choice with justification]
-- **Critical NFR Decisions**: [Isolation, scalability, security approach]
-- **Key Trade-offs Made**: [Performance vs complexity, cost vs capability]
-
-**Requirement Impact Analysis**:
-- **Functional Requirements Enabled**: [How technology choices enable features]
-- **Non-Functional Requirements Addressed**: [Performance, security, scalability solutions]
-- **Integration Capabilities**: [External system integration approach]
-
-**Risk Assessment Summary**:
-- **Technology Risks**: [Key technology limitations and mitigation strategies]
-- **Implementation Risks**: [Potential challenges and contingency plans]
-- **Operational Risks**: [Deployment and maintenance considerations]
-
-**User Confirmation Required**:
-- [ ] Architecture approach approved (Monolith/Microservices/Hybrid)
-- [ ] Technology stack decisions accepted
-- [ ] NFR solutions and targets approved
-- [ ] Risk assessment and mitigation strategies accepted
-- [ ] Ready to proceed to implementation task generation
-
-## Post-Confirmation Documentation Phase
-
-After user confirms architecture decisions:
-
-### Documentation Capture (knowledge-aggregator):
-- Create final `docs/requirements.md` with approved functional requirements
-- Generate comprehensive `docs/architecture.md` with technology decisions
-- Document user decisions and architectural rationale in decision log
-- Prepare structured input files for Phase 3 consumption
-
-### File Validation:
-- Ensure requirements.md contains all necessary information for task generation
-- Verify architecture.md provides sufficient technical guidance
-- Validate file format compatibility with Phase 3 input requirements
-- Create phase completion summary with key outputs
-
-### File Handoff to Phase 3
-**Output Files for Phase 3**:
-- `docs/requirements.md` → Phase 3 will read this for comprehensive functional requirements and user types
-- `docs/architecture.md` → Phase 3 will read this for technology stack, NFR solutions, and implementation approach
-- `.ideal-sti/phase2-decisions.md` → Phase 3 will reference this for architectural rationale and user preferences
-
-**Next Phase Preparation**: Files contain validated requirements, comprehensive architecture specifications, and technology choice justifications needed for intelligent task generation.
 
 ---
 
-# PHASE 3: IMPLEMENTATION TASK GENERATION
+# PHASE 2.5: DOCUMENT ASSEMBLY DIRECTIVE
 
-You are generating specific implementation tasks based on requirements and architecture documentation from Phase 2.
+You are assembling the unified project specifications document.
 
-## Input File Processing
+## DIRECTIVE 3: Execute Document Assembly
 
-**Required Input Files from Phase 2**:
-- `docs/requirements.md` - Project requirements and functional specifications
-- `docs/architecture.md` - Technical architecture and implementation approach
+**GIVEN** Phase 1 and Phase 2 outputs  
+**WHEN** both phases complete successfully  
+**THEN** execute unified document assembly:
 
-## Read and Process Input Files
+<thinking>
+Assembly Algorithm:
+1. **LOAD** both output files
+2. **PARSE** structured sections
+3. **EXECUTE** assembly sequence:
 
-### Extract from `docs/requirements.md`
-Read the requirements file and extract:
-- **Functional Requirements List**: All features and capabilities to implement
-- **User Types and Roles**: Different user personas and their permissions
-- **Success Criteria**: Measurable outcomes for each requirement
-- **Integration Requirements**: External systems and APIs needed
+   a. Navigation Index Generation:
+      - Scan all UC### identifiers
+      - Scan all FR-*/NFR-* identifiers
+      - Build hierarchical index with anchors
+   
+   b. Traceability Matrix Construction:
+      FOR each use_case IN phase1_output:
+        FIND requirements IN phase2_output WHERE 
+          requirement.source_uc == use_case.id
+        MAP bidirectional links
+      
+   c. Section Merging:
+      sections = [
+        "# PROJECT SPECIFICATIONS",
+        "## NAVIGATION INDEX",
+        phase1.use_cases,
+        phase2.functional_requirements,
+        phase2.non_functional_requirements,
+        generated.traceability_matrix,
+        phase2.architecture,
+        phase2.implementation_plan
+      ]
+      
+   d. Cross-Reference Linking:
+      FOR each reference IN document:
+        IF reference matches UC###:
+          CREATE anchor link
+        IF reference matches FR-*/NFR-*:
+          CREATE anchor link
 
-### Extract from `docs/architecture.md`
-Read the architecture file and extract:
-- **Execution Mode**: STANDARD or DEEP mode for task detail level
-- **Technology Stack**: Specific technologies and frameworks to use
-- **System Architecture**: High-level design patterns and structure
-- **Implementation Approach**: Development phases and methodology
+Quality Assurance:
+- Verify all sections present
+- Check link validity (no 404s)
+- Validate metrics in executive summary
+- Confirm traceability coverage > 90%
 
-## Rehydration Check
+IF assembly PASSES:
+  - Write docs/project-specifications.md
+  - Generate success summary
+  - Archive state for audit
+  
+ELSE:
+  - Generate detailed error report
+  - Preserve partial assembly
+  - Request user intervention
+</thinking>
 
-### Check for Existing Tasks
-Look for existing task files that need rehydration:
-- `tasks/pending/*.md` - Previous implementation tasks
+## Quality Gate 3: Assembly Validation
 
-### Rehydration Strategy
-- **If no existing tasks**: Generate fresh implementation tasks
-- **If existing tasks found**:
-  - Read each existing task file
-  - Compare with current requirements.md and architecture.md
-  - Preserve valid tasks that align with current requirements
-  - Generate new tasks for changed or added requirements
-  - Update existing tasks if architecture changed
+```mermaid
+flowchart LR
+    QG3A[Traceability >90%] --> QG3B{Pass?}
+    QG3C[Links Valid] --> QG3B
+    QG3D[Sections Complete] --> QG3B
+    QG3E[Index Accurate] --> QG3B
+    QG3F[Metrics Correct] --> QG3B
+    QG3B -->|All Pass| QG3_PASS[✓ Document Ready]
+    QG3B -->|Any Fail| QG3_FAIL[✗ Assembly Error]
+```
+
+## TodoWrite Tasks
+- "Load Phase 1 and 2 outputs" (in_progress)
+- "Generate traceability matrix" (pending)
+- "Build navigation index" (pending)
+- "Assemble unified document" (pending)
+- "Validate document quality" (pending)
+
+## Output Structure
+```markdown
+# PROJECT SPECIFICATIONS
+Generated: [timestamp]
+Source: IDEAL-STI v3.0
+
+## NAVIGATION INDEX
+[Hyperlinked directory of all sections]
+
+## EXECUTIVE SUMMARY
+- Use Cases: [count]
+- Requirements: [count]
+- Architecture Level: [level]
+- Confidence: [percentage]
+
+## USE CASES
+[From Phase 1]
+
+## FUNCTIONAL REQUIREMENTS
+[From Phase 2]
+
+## NON-FUNCTIONAL REQUIREMENTS
+[From Phase 2]
+
+## TRACEABILITY MATRIX
+[Generated mapping]
+
+## ARCHITECTURE
+[From Phase 2]
+
+## IMPLEMENTATION PLAN
+[From Phase 2]
+```
+
+---
+
+# PHASE 3: TASK GENERATION
+
+You are transforming requirements into actionable implementation tasks.
+
+## Input Files
+- `docs/project-specifications.md` (from Phase 2.5)
+- `.ideal-sti/state.json` (current state)
+
+## Agent Orchestration
+
+### Primary Agents
+- **feature-developer**: Generate implementation tasks from requirements
+- **ui-designer**: Create UI/UX tasks for user-facing features
+- **qa-analyst**: Define testing tasks for each requirement
+
+### Quality Agents
+- **code-reviewer**: Validate task specifications
+- **system-architect**: Ensure architectural coherence
 
 ## Task Generation Process
 
-### Agent-Driven Task Generation Strategy
+<thinking>
+Task Creation:
+1. Parse project-specifications.md
+2. For each functional requirement:
+   - Generate implementation task
+   - Generate test task
+   - Generate documentation task
+3. For each non-functional requirement:
+   - Generate infrastructure task
+   - Generate monitoring task
+4. Create task dependencies based on UC relationships
 
-**DO: Use Prescription Instructions for Agent-Based Task Generation**
-
-1. **Task Analysis and Scoping** (feature-developer):
-   - READ requirements.md and architecture.md for comprehensive understanding
-   - IDENTIFY logical feature boundaries and implementation groupings
-   - DETERMINE appropriate task granularity based on execution mode
-   - CREATE task breakdown that aligns with architecture patterns
-
-2. **UI/UX Task Generation** (ui-designer):
-   - ANALYZE user types and interface requirements from requirements.md
-   - DESIGN task specifications for frontend components and user workflows
-   - ENSURE accessibility and responsive design requirements are included
-   - VALIDATE task alignment with user experience goals
-
-3. **Technical Task Validation** (system-architect):
-   - REVIEW generated tasks for technical coherence and dependency logic
-   - VALIDATE task specifications align with architecture decisions
-   - ENSURE NFR requirements (performance, security, scalability) are addressed
-   - APPROVE task dependency mapping and execution sequencing
-
-### Simplified Task Generation Approach
-
-**Task Count and Complexity** (based on execution mode):
-- **STANDARD Mode**: Generate 10-20 focused tasks (200-400 words each)
-- **DEEP Mode**: Generate 20-40 detailed tasks (400-600 words each)
-
-**KISS/YAGNI Task Template Principles**:
-- Focus on essential implementation details, not exhaustive documentation
-- Provide sufficient guidance without overwhelming feature developers
-- Include only necessary acceptance criteria and technical requirements
-- Emphasize proven approaches over theoretical perfection
-
-### Simplified STANDARD Mode Task Template
+Task Format:
 ```markdown
-## Task: [Clear Task Name]
-**ID**: TASK-STD-[Number]
-**Priority**: [Critical/High/Medium/Low]
-**Category**: [Frontend/Backend/Integration/Testing]
-**Estimated Effort**: [Small/Medium/Large]
+# TASK-001: [Task Title]
+**Requirement**: FR-XXX-001
+**Use Case**: UC001
+**Priority**: HIGH
+**Estimated Effort**: 4 hours
+**Dependencies**: [TASK-###]
 
-### What to Build
-[Clear description of what needs to be implemented based on requirements.md]
+## Description
+[Detailed task description]
 
-### Success Criteria
-- [ ] [Core functional requirement - testable]
-- [ ] [User experience requirement for specific user type]
-- [ ] [Performance requirement with specific target]
-- [ ] [Security requirement if applicable]
+## Acceptance Criteria
+- [ ] Criterion 1
+- [ ] Criterion 2
 
-### Technical Approach
-**Technology**: [Specific technology from architecture.md]
-**Pattern**: [Architecture pattern to follow]
-**Key Files**: [Main files to create/modify]
-**API Endpoints**: [If applicable, endpoint specs]
-
-### Testing Requirements
-- **Unit Tests**: [Essential test scenarios]
-- **Integration Tests**: [Key integration points to validate]
-
-### Dependencies
-- **Prerequisites**: [Tasks that must complete first]
-- **Blockers**: [External dependencies or decisions needed]
-
-### Definition of Done
-- [ ] Implementation working as specified
-- [ ] Tests written and passing
-- [ ] Code reviewed and approved
-- [ ] Ready for next dependent tasks
+## Technical Notes
+[Implementation guidance]
 ```
+</thinking>
 
-### Simplified DEEP Mode Task Template
-```markdown
-## Task: [Detailed Task Name with Context]
-**ID**: TASK-DEEP-[Number]
-**Priority**: [Critical/High/Medium/Low] 
-**Category**: [Frontend/Backend/Integration/Testing/Infrastructure]
-**Complexity**: [Complex/Advanced]
-**Business Value**: [High/Medium impact with brief rationale]
-**Risk Level**: [High/Medium/Low]
+## Quality Validation
+- All requirements have tasks
+- Task dependencies are acyclic
+- Effort estimates are reasonable
+- Priority distribution is balanced
 
-### What to Build
-[Detailed description of implementation requirements from requirements.md]
-
-### Business Context
-[Why this task matters to users and business goals]
-
-### Success Criteria
-**Functional Requirements**:
-- [ ] [Core functional requirement with acceptance criteria]
-- [ ] [User interaction requirement for specific user types]
-- [ ] [Integration requirement with external systems]
-
-**Non-Functional Requirements**:
-- [ ] [Performance requirement with specific benchmark]
-- [ ] [Security requirement with validation method]
-- [ ] [Scalability requirement with load target]
-- [ ] [Reliability requirement with SLA target]
-
-### Technical Approach
-**Technology Stack**: [Specific technologies from architecture.md with versions]
-**Architecture Pattern**: [Design pattern with implementation strategy]
-**Data Design**: [Database schema, API contracts, data flow]
-**Security Design**: [Authentication, authorization, data protection]
-**Performance Strategy**: [Caching, optimization, monitoring approach]
-
-### Implementation Plan
-**Phase 1**: [Foundation components and setup]
-**Phase 2**: [Core implementation with key features]
-**Phase 3**: [Integration and optimization]
-**Phase 4**: [Testing and deployment readiness]
-
-### Comprehensive Testing
-- **Unit Testing**: [Key test scenarios with edge cases]
-- **Integration Testing**: [End-to-end scenarios with real data]
-- **Performance Testing**: [Load testing with realistic volumes]
-- **Security Testing**: [Security validation and penetration testing]
-
-### Dependencies & Risks
-**Prerequisites**: [Tasks that must complete first with timeline]
-**External Dependencies**: [Third-party services, APIs, data sources]
-**Risk Mitigation**: [Key risks and mitigation strategies]
-
-### Quality Gates
-- [ ] Code coverage >80% with meaningful tests
-- [ ] Security scan passed with zero critical vulnerabilities
-- [ ] Performance benchmarks met with monitoring
-- [ ] Integration tests passing with real services
-- [ ] Code review approved with architecture validation
-
-### Key Deliverables
-**Implementation Files**: [Primary code files with purpose]
-**Test Files**: [Test suites with coverage areas]  
-**Documentation**: [API docs, deployment guides, troubleshooting]
-**Configuration**: [Environment setup, monitoring, deployment scripts]
-```
-
-## Phase Review and Quality Check
-
-### Phase 3 Review Criteria
-Before presenting tasks to user, validate:
-
-**Task Quality Check** (feature-developer review):
-- All tasks have clear, testable success criteria
-- Implementation approach is feasible with chosen technology stack
-- Dependencies between tasks are logical and achievable
-- Task granularity is appropriate for execution mode
-
-**Technical Coherence Check** (system-architect review):
-- Tasks align with architecture decisions from Phase 2
-- NFR requirements are distributed appropriately across tasks
-- API contracts and data models are consistent between tasks
-- Performance and security requirements are realistic and testable
-
-**User Experience Validation** (ui-designer review):
-- Frontend tasks address all user types from requirements
-- User workflows are complete and logically sequenced
-- Accessibility and responsive design requirements are included
-- Interface tasks align with technical architecture decisions
-
-### Executive Summary for User Confirmation
-
-Present to user:
-
-**Task Generation Summary**:
-- **Total Tasks Generated**: [Number of tasks with breakdown by category]
-- **Execution Mode Applied**: [STANDARD/DEEP with task complexity rationale]
-- **Priority Distribution**: [Critical/High/Medium/Low task counts]
-- **Implementation Timeline**: [Estimated timeline based on task dependencies]
-
-**Technical Implementation Approach**:
-- **Architecture Alignment**: [How tasks implement the approved architecture]
-- **Technology Integration**: [How tasks utilize the approved technology stack]
-- **NFR Implementation**: [How performance, security, scalability requirements are addressed]
-- **Testing Strategy**: [Comprehensive testing approach across all tasks]
-
-**Risk Assessment**:
-- **Implementation Risks**: [Key technical challenges and mitigation strategies]
-- **Dependency Risks**: [Critical path dependencies and alternatives]
-- **Timeline Risks**: [Potential delays and buffer strategies]
-
-**User Confirmation Required**:
-- [ ] Task breakdown and granularity approved
-- [ ] Priority and dependency sequencing accepted
-- [ ] Implementation approach and timeline realistic
-- [ ] Ready to proceed to rehydration and state management
-
-## Post-Confirmation Documentation Phase
-
-After user confirms task generation:
-
-### Task File Generation (feature-developer):
-- Create individual task files: `tasks/pending/TASK-[MODE]-[NUMBER].md`
-- Use appropriate template based on execution mode
-- Fill templates with specific information from requirements.md and architecture.md
-- Validate task dependencies are properly mapped
-
-### Task Validation (system-architect):
-- Ensure all task acceptance criteria are testable and measurable
-- Validate technical requirements align with architecture decisions
-- Confirm implementation guidance provides sufficient detail
-- Verify dependencies are clearly defined and achievable
-
-### File Handoff to Phase 4
-**Output Files for Phase 4**:
-- `tasks/pending/TASK-[MODE]-001.md` through `TASK-[MODE]-N.md` → Complete implementation tasks
-- `.ideal-sti/phase3-summary.md` → Task generation summary and user decisions
-- All task files contain validated implementation specifications with architecture alignment
-
-**Next Phase Preparation**: Task files are ready for smart rehydration analysis and state management in Phase 4.
+## Output
+- `tasks/pending/*.md` (individual task files)
+- `tasks/task-index.md` (task directory with priorities)
 
 ---
 
-# PHASE 4: SIMPLIFIED STATE MANAGEMENT
+# PHASE 4: STATE MANAGEMENT & KNOWLEDGE AGGREGATION
 
-You are creating session state tracking and preparing for task validation.
+You are managing execution state and aggregating learned knowledge.
 
-## Simplified State Management Approach
+## State Persistence
 
-**DO**: Focus on essential state tracking for session continuity
-**DON'T**: Over-engineer complex change detection systems
-
-### Session State Capture (knowledge-aggregator)
-
-**Create Session Summary**:
-- CAPTURE key decisions made in Phases 1-3
-- DOCUMENT technology stack and architecture choices  
-- SUMMARIZE generated tasks with priorities and dependencies
-- RECORD user confirmations and preferences
-
-### Basic Change Detection
-
-**Simple File Comparison** (if previous session exists):
-- CHECK if `docs/requirements.md` exists from previous session
-- COMPARE current vs previous requirements for major changes
-- IDENTIFY if technology stack or architecture significantly changed
-- DETERMINE if task regeneration is needed
-
-**Impact Assessment**:
-- **MINIMAL CHANGES**: Documentation updates only → Preserve all tasks
-- **MODERATE CHANGES**: Some requirements changed → Update affected tasks
-- **MAJOR CHANGES**: Architecture or significant scope changes → Consider regenerating tasks
-
-## State File Creation
-
-### Create `.ideal-sti/session-summary.md`
-```markdown
-# IDEAL-STI Session Summary
-
-## Session Information
-- **Timestamp**: [Current date/time]
-- **Execution Mode**: [STANDARD/DEEP]
-- **Project Name**: [From Phase 1]
-
-## Key Decisions Made
-### Phase 1 - Requirements Extraction
-- **Functional Requirements**: [Count and key areas]
-- **Technical Constraints**: [Primary constraints identified]
-- **User Types**: [User types identified]
-
-### Phase 2 - Architecture Decisions  
-- **Technology Stack**: [Primary technologies chosen]
-- **Architecture Pattern**: [Monolith/Microservices/Hybrid]
-- **Critical NFR Decisions**: [Performance, security, scalability]
-
-### Phase 3 - Task Generation
-- **Tasks Created**: [Total count by category]
-- **Dependencies Mapped**: [Critical path tasks]
-- **Timeline Estimate**: [Overall implementation timeline]
-
-## Current State
-- **Requirements Finalized**: [Yes/No with Phase 2 confirmation]
-- **Architecture Approved**: [Yes/No with user confirmation]
-- **Tasks Generated**: [Yes/No with Phase 3 confirmation]
-
-## Files Created
-- `docs/requirements.md` - Approved functional requirements
-- `docs/architecture.md` - Approved technology and architecture decisions
-- `tasks/pending/TASK-[MODE]-*.md` - Implementation tasks ready for development
-
-## Next Steps
-- Proceed to task validation and enhancement (Phase 5)
-- Prepare for feature-developer handoff (Phase 6)
-```
-
-### Optional: Create `.ideal-sti/session-state.json` (for tooling)
+### Checkpoint Creation
 ```json
 {
-  "sessionId": "[timestamp-based ID]",
-  "executionMode": "[STANDARD/DEEP]",
-  "tasksGenerated": "[number]",
-  "phasesCompleted": ["Phase1", "Phase2", "Phase3", "Phase4"],
-  "userConfirmations": {
-    "architectureApproved": true,
-    "tasksApproved": true
+  "session_id": "uuid",
+  "phases_completed": [1, 2, 2.5, 3],
+  "total_use_cases": 42,
+  "total_requirements": 132,
+  "total_tasks": 87,
+  "knowledge_gained": {
+    "patterns_discovered": ["real-time", "scalable"],
+    "architecture_decisions": ["monolithic", "postgres"],
+    "technology_choices": ["node.js", "react"]
   }
 }
 ```
 
-## Phase Review and Quality Check
+## Knowledge Aggregation
 
-### Phase 4 Review Criteria
+<thinking>
+Knowledge Extraction:
+1. Patterns from use cases
+2. Decisions from requirements
+3. Technologies from architecture
+4. Risks from implementation
 
-**Session Continuity Check** (knowledge-aggregator review):
-- All key decisions from previous phases are captured
-- User confirmations are properly documented
-- File handoffs are complete and validated
-- Session state is ready for next phase
-
-**State Consistency Check**:  
-- Requirements, architecture, and tasks are aligned
-- No conflicting decisions or missing information
-- All files needed for Phase 5 are present and valid
-
-### Executive Summary for User
-
-**Session Progress Summary**:
-- **Requirements Defined**: [Functional requirements count and complexity]
-- **Architecture Decided**: [Technology stack and key architectural decisions]
-- **Tasks Generated**: [Implementation tasks with timeline estimate]
-- **User Confirmations**: [Architecture approved, tasks approved]
-
-**Ready for Next Phase**:
-- All foundational decisions have been made and confirmed
-- Implementation tasks are ready for validation and enhancement
-- Project is ready to proceed to feature-developer handoff preparation
-
-**User Confirmation Required**:
-- [ ] Session summary accurately reflects decisions made
-- [ ] Ready to proceed to task validation and feature-developer handoff
-- [ ] No major changes needed to requirements, architecture, or tasks
-
-## Post-Confirmation Documentation
-
-### Session State Finalization (knowledge-aggregator):
-- Create final session summary with all decisions captured
-- Ensure all files are properly formatted for Phase 5 consumption  
-- Archive session state for potential future rehydration
-- Prepare handoff documentation for remaining phases
-
-### File Handoff to Phase 5
-**Output Files for Phase 5**:
-- `.ideal-sti/session-summary.md` → Comprehensive summary of all decisions and progress
-- `tasks/pending/TASK-[MODE]-*.md` → All generated tasks ready for validation  
-- `docs/requirements.md` and `docs/architecture.md` → Approved specifications
-
-**Next Phase Preparation**: Session state is captured and all files are ready for task validation and enhancement.
+Knowledge Storage:
+- .ideal-sti/knowledge-base.json
+- Cumulative across sessions
+- Used for future recommendations
+</thinking>
 
 ---
 
 # PHASE 5: TASK VALIDATION & ENHANCEMENT
 
-You are validating and enhancing implementation tasks before feature-developer handoff.
+You are validating and enhancing generated tasks for implementation readiness.
 
-## Task Validation Strategy
+## Validation Agents
+- **code-reviewer**: Check task completeness and clarity
+- **qa-analyst**: Validate test coverage
+- **system-architect**: Ensure architectural alignment
 
-### DO: Use Agent-Driven Validation Process
+## Enhancement Process
+1. Add missing technical details
+2. Clarify ambiguous requirements
+3. Add error handling considerations
+4. Include performance requirements
+5. Define monitoring needs
 
-**Task Quality Validation** (code-reviewer):
-- READ all generated task files from `tasks/pending/`
-- VALIDATE task specifications are clear and implementable
-- ENSURE acceptance criteria are testable and measurable
-- CHECK technical requirements align with architecture decisions
-
-**Implementation Feasibility Check** (feature-developer):
-- REVIEW task complexity and implementation approach
-- VALIDATE technology choices are correctly applied to tasks
-- ENSURE task dependencies are logical and achievable
-- CONFIRM task granularity is appropriate for execution mode
-
-**Architecture Coherence Review** (system-architect):
-- VERIFY tasks implement approved architecture consistently
-- CHECK API contracts and data models align between tasks
-- VALIDATE NFR requirements are properly distributed
-- ENSURE integration points are well-defined
-
-### Task Enhancement Process
-
-Based on validation findings, enhance tasks with:
-
-**Clarified Success Criteria**:
-- Ensure all acceptance criteria use testable, measurable language
-- Add specific metrics for performance and quality requirements
-- Include user experience validation criteria
-- Specify integration testing requirements
-
-**Improved Implementation Guidance**:
-- Add specific code patterns and architecture guidance
-- Include error handling and edge case considerations  
-- Provide API endpoint specifications and data contracts
-- Add security and performance implementation notes
-
-**Enhanced Dependency Mapping**:
-- Clarify prerequisite relationships between tasks
-- Identify potential blocking issues and mitigation strategies
-- Add parallel execution opportunities where possible
-- Include external dependency management
-
-## Phase Review and Quality Check
-
-### Phase 5 Review Criteria
-
-**Task Readiness Assessment** (code-reviewer + feature-developer):
-- All tasks have implementable specifications
-- Acceptance criteria are clear and testable
-- Technology guidance is specific and actionable
-- Dependencies and blockers are identified
-
-**Handoff Preparation Validation**:
-- Tasks are self-contained with sufficient context
-- Implementation approach is feasible with chosen technologies
-- Quality gates are realistic and measurable
-- Documentation requirements are clear
-
-### Executive Summary for User
-
-**Task Validation Results**:
-- **Tasks Validated**: [Number of tasks reviewed and approved]
-- **Enhancement Areas**: [Key improvements made to task specifications]
-- **Quality Assurance**: [Validation results and confidence level]
-- **Readiness Assessment**: [Tasks ready for feature-developer handoff]
-
-**Implementation Readiness**:
-- **Technical Coherence**: [Tasks align with approved architecture]
-- **Feasibility Confidence**: [High/Medium confidence in implementation approach]
-- **Dependency Management**: [Critical path identified and managed]
-- **Quality Framework**: [Testing and validation strategy confirmed]
-
-**User Confirmation Required**:
-- [ ] Task enhancements and validation results approved
-- [ ] Implementation approach and timeline acceptable  
-- [ ] Ready to proceed to feature-developer handoff
-- [ ] Quality gates and success criteria realistic
-
-## Post-Confirmation Documentation
-
-### Enhanced Task Files (feature-developer):
-- Update task files with validation feedback and enhancements
-- Ensure all tasks meet handoff readiness criteria
-- Create task summary with implementation timeline
-- Generate handoff documentation package
-
-### File Handoff to Phase 6
-**Output Files for Phase 6**:
-- Enhanced `tasks/pending/TASK-[MODE]-*.md` → Validated and improved tasks
-- `.ideal-sti/task-validation-summary.md` → Validation results and enhancements
-- Ready for standardized feature-developer handoff protocol
-
-**Next Phase Preparation**: Tasks are validated, enhanced, and ready for final handoff to feature-developer execution.
+## Quality Metrics
+- Task clarity score: >85%
+- Technical completeness: 100%
+- Test coverage defined: 100%
+- Dependencies validated: 100%
 
 ---
 
 # PHASE 6: FEATURE-DEVELOPER HANDOFF
 
-You are preparing the final handoff package for feature-developer execution.
+You are preparing the final handoff package for implementation.
 
-## Handoff Preparation Strategy
+## Handoff Package Contents
 
-### DO: Create Comprehensive Handoff Package
+### 1. Executive Summary
+- Project overview
+- Total scope metrics
+- Technology decisions
+- Risk assessment
 
-**Handoff Documentation Creation** (knowledge-aggregator):
-- CREATE comprehensive project summary with all key decisions  
-- COMPILE all validated tasks into execution-ready format
-- GENERATE implementation timeline with dependency mapping
-- PREPARE troubleshooting guide and escalation procedures
+### 2. Implementation Guide
+- Task execution order
+- Dependency graph
+- Critical path analysis
+- Resource requirements
 
-**Task Package Preparation** (feature-developer):
-- ORGANIZE tasks by priority and execution sequence
-- CREATE standardized task interface format for feature-developer consumption
-- VALIDATE all tasks have complete implementation specifications
-- ENSURE task dependencies are clearly documented
+### 3. Quality Standards
+- Code review checklist
+- Testing requirements
+- Documentation standards
+- Performance benchmarks
 
-**Quality Assurance Final Check** (system-architect):
-- REVIEW complete handoff package for consistency and completeness
-- VALIDATE technical coherence across all tasks and specifications  
-- ENSURE architecture decisions are clearly communicated to feature-developers
-- CONFIRM all NFR requirements are properly distributed and testable
+### 4. Task Assignment
+```markdown
+## Priority 1 Tasks (Week 1)
+- TASK-001: Database schema
+- TASK-002: Authentication service
+- TASK-003: Core API endpoints
 
-## Standardized Task Interface Protocol
+## Priority 2 Tasks (Week 2)
+- TASK-010: User interface
+- TASK-011: Admin panel
+...
+```
 
-### Feature-Developer Task Package Format
+## Final Validation
+- All tasks assigned
+- Timeline realistic
+- Resources adequate
+- Risks documented
 
-Each task prepared for handoff includes:
+## Output
+- `docs/handoff-summary.md`
+- `docs/implementation-guide.md`
+- Updated `tasks/pending/*.md` with assignments
 
-**Task Execution Context**:
-- Complete project background and architectural decisions
-- Technology stack specifications with implementation guidance
-- User types and requirements context for implementation
-- Quality gates and success criteria with validation procedures
+---
 
-**Self-Contained Task Specifications**:
-- Clear implementation objectives with business value
-- Complete acceptance criteria with testable requirements
-- Detailed technical approach with architecture alignment
-- Comprehensive testing requirements with validation procedures
+# RUNTIME DECISION FRAMEWORK
 
-**Support and Escalation Framework**:
-- Technical escalation paths for complex implementation questions
-- Requirement clarification procedures for ambiguous specifications
-- Quality review processes for implementation validation
-- Project coordination protocols for dependency management
+## Decision Points
 
-## Phase Review and Quality Check
+### DECISION 1: Architecture Complexity Level
+**WHEN** requirements are generated  
+**EVALUATE** at runtime:
+```
+IF user_count < 100 AND no_real_time_requirements:
+  SELECT Level 1 (File-based)
+ELSE IF user_count < 1000 AND single_region:
+  SELECT Level 4 (Single Server)
+ELSE IF user_count < 10000:
+  SELECT Level 5 (Multi-Service)
+ELSE:
+  SELECT Level 6+ (Distributed)
+```
 
-### Phase 6 Review Criteria
+### DECISION 2: Quality Gate Thresholds
+**WHEN** checking quality  
+**ADAPT** based on project size:
+```
+IF use_case_count < 20:
+  SET minimum_requirements = use_case_count * 2
+ELSE IF use_case_count < 50:
+  SET minimum_requirements = use_case_count * 3
+ELSE:
+  SET minimum_requirements = use_case_count * 4
+```
 
-**Handoff Readiness Assessment** (knowledge-aggregator + system-architect):
-- Complete project documentation package is ready
-- All tasks are self-contained with sufficient implementation context
-- Technical specifications are consistent and implementable
-- Quality assurance framework is complete and actionable
+### DECISION 3: Retry Strategy
+**WHEN** prompter fails  
+**DETERMINE** retry approach:
+```
+IF timeout AND partial_output_exists:
+  CONTINUE from partial
+ELSE IF quality_fail AND specific_gaps:
+  RETRY with targeted prompt
+ELSE IF complete_failure:
+  FALLBACK to manual mode
+```
 
-**Feature-Developer Readiness Validation**:
-- Task specifications provide clear implementation guidance
-- Architecture decisions are properly communicated
-- Dependency management and coordination procedures are clear
-- Quality gates and validation procedures are realistic and achievable
+---
 
-### Executive Summary for User
+# REHYDRATION FLOW
 
-**Project Handoff Package**:
-- **Total Tasks for Implementation**: [Final task count with priority breakdown]
-- **Implementation Timeline**: [Estimated timeline with critical path analysis]
-- **Architecture Summary**: [Key architectural decisions and technology stack]
-- **Quality Framework**: [Testing strategy and success criteria]
+```mermaid
+stateDiagram-v2
+    [*] --> CheckState: Start IDEAL-STI
+    
+    CheckState --> FreshStart: No State Found
+    CheckState --> ResumeDialog: State Exists
+    
+    ResumeDialog --> LoadPhase1: Resume Yes
+    ResumeDialog --> FreshStart: Resume No
+    
+    FreshStart --> Phase1: Initialize
+    LoadPhase1 --> Phase1Status: Check Status
+    
+    Phase1Status --> Phase1: Incomplete
+    Phase1Status --> Phase2: Complete
+    
+    Phase1 --> QualityGate1: Execute UC Discovery
+    QualityGate1 --> Phase2: Pass
+    QualityGate1 --> UserFix: Fail
+    
+    UserFix --> Phase1: Retry
+    UserFix --> Abort: Cancel
+    
+    Phase2 --> QualityGate2: Execute Requirements
+    QualityGate2 --> Assembly: Pass
+    QualityGate2 --> Phase2: Retry
+    
+    Assembly --> QualityGate3: Build Document
+    QualityGate3 --> Complete: Pass
+    QualityGate3 --> Assembly: Fix & Retry
+    
+    Complete --> [*]: Success
+    Abort --> [*]: Cancelled
+```
 
-**Feature-Developer Readiness**:
-- **Specification Quality**: [All tasks have complete, implementable specifications]
-- **Technical Coherence**: [Architecture is consistently applied across all tasks]
-- **Support Framework**: [Clear escalation and support procedures established]
-- **Implementation Confidence**: [High/Medium confidence in successful execution]
+---
 
-**Final Confirmation Required**:
-- [ ] Complete handoff package approved and ready
-- [ ] Implementation timeline and approach acceptable
-- [ ] Feature-developer support framework adequate
-- [ ] Ready to proceed with feature-developer execution
+# FILE STRUCTURE & ARTIFACTS
 
-## Post-Confirmation Handoff Execution
+```
+project-root/
+├── .ideal-sti/                    # Process state directory
+│   ├── state.json                 # Current execution state
+│   ├── phase1-output.md           # Raw use case expander output
+│   ├── phase2-output.md           # Raw requirements generator output
+│   ├── discovery-seeds.json       # Extracted patterns for Phase 2
+│   ├── traceability-matrix.json   # UC to Req mappings
+│   ├── quality-report.json        # Quality metrics and scores
+│   └── knowledge-base.json        # Accumulated learning
+│
+├── docs/
+│   ├── project-specifications.md  # Final unified document
+│   ├── handoff-summary.md         # Implementation guide
+│   └── implementation-guide.md    # Detailed execution plan
+│
+└── tasks/
+    ├── pending/                    # Individual task files
+    │   ├── TASK-001.md
+    │   ├── TASK-002.md
+    │   └── ...
+    └── task-index.md              # Task directory with priorities
+```
 
-### Final Handoff Package Creation (knowledge-aggregator):
-- Generate complete `docs/handoff-summary.md` with project overview
-- Create standardized task execution package for feature-developers
-- Prepare implementation timeline with milestone tracking
-- Document all architectural decisions and technical guidance
+---
 
-### Feature-Developer Coordination Protocol
+# QUALITY GATES SPECIFICATION
 
-**Task Assignment and Execution**:
-- COORDINATE feature-developer task assignment with workload balancing
-- ESTABLISH progress monitoring with milestone tracking and reporting
-- IMPLEMENT quality assurance checkpoints with review procedures
-- MANAGE dependency coordination with blocking issue resolution
+## Gate 1: Use Case Discovery Validation (After Phase 1)
 
-**Execution Monitoring and Support**:
-- PROVIDE ongoing technical guidance and architecture clarification
-- RESOLVE blocking issues with escalation to appropriate specialists
-- COORDINATE integration testing with cross-task validation
-- ENSURE quality gates are met with comprehensive validation
+**VALIDATION CRITERIA**:
+```markdown
+CHECK use_case_count >= 5 ELSE "Insufficient use case discovery"
+CHECK actor_coverage >= 2 ELSE "Missing actor perspectives"  
+CHECK granularity_valid == true ELSE "Use cases too coarse/fine"
+CHECK confidence_distribution.HIGH >= 30% ELSE "Too many assumptions"
+```
 
-### Project Completion and Success Validation
+**RUNTIME DECISION**:
+- **PASS**: Continue to Phase 2
+- **FAIL WITH RETRY**: Re-run Phase 1 with additional context hints
+- **FAIL HARD**: After 3 attempts, escalate to manual review
 
-**Implementation Success Criteria**:
-- All task acceptance criteria validated with evidence
-- Architecture implementation consistent with approved specifications  
-- Performance, security, and scalability requirements met
-- User experience requirements validated with testing
+## Gate 2: Requirements Coverage (After Phase 2)
 
-**Final Deliverables**:
-- Complete implementation meeting all functional requirements
-- Comprehensive test suite with validation of all quality gates
-- Documentation package with deployment and operational guidance
-- Project success metrics validated against original objectives
+**VALIDATION CRITERIA**:
+```markdown
+CHECK functional_count >= use_case_count ELSE "Missing functional coverage"
+CHECK nonfunctional_count >= 5 ELSE "Insufficient quality attributes"
+CHECK evidence_scores.average >= 5 ELSE "Weak requirement justification"
+CHECK traceability_complete == true ELSE "Broken UC-to-REQ mapping"
+```
 
-# SYSTEM SUMMARY
+**RUNTIME DECISION**:
+- **PASS**: Continue to Phase 2.5
+- **FAIL**: Identify gaps and re-run Phase 2 with gap focus
 
-IDEAL-STI v3.0 transforms software requirements into complete, actionable task specifications that enable confident feature-developer execution through a file-based methodology with comprehensive agent integration. The system provides:
+## Gate 3: Document Assembly (After Phase 2.5)
 
-## Core Capabilities
+**VALIDATION CRITERIA**:
+```markdown
+CHECK index_complete == true ELSE "Missing navigation structure"
+CHECK cross_references_valid == true ELSE "Broken internal links"
+CHECK no_duplicates == true ELSE "Redundant content detected"
+CHECK unified_format == true ELSE "Inconsistent formatting"
+```
 
-- **File-Based Architecture**: Sequential phase processing with file input/output chains for state management
-- **Comprehensive Technology Decision Framework**: GitHub-preferred libraries, NFR impact analysis, KISS/YAGNI principles
-- **Agent-Driven Intelligence**: Specialized agents (product-strategist, tech-research-analyst, system-architect, feature-developer, ui-designer, code-reviewer, knowledge-aggregator) handle each phase
-- **Prescription-Based Orchestration**: Natural language instructions replace complex TodoWrite patterns
-- **User Confirmation Workflows**: Phase review and quality checks with executive summaries before proceeding
-- **Simplified Task Specifications**: Focused 200-600 word task templates emphasizing essential implementation guidance
-- **Adaptive Execution Modes**: STANDARD (10-20 tasks) and DEEP (20-40 tasks) with appropriate complexity levels
+**RUNTIME DECISION**:
+- **PASS**: Continue to Phase 3
+- **FAIL**: Re-run assembly with error corrections
 
-## Enhanced NFR Framework
+## Gate 4: Task Generation (After Phase 3)
 
-**Comprehensive Architecture Analysis**:
-- **Isolation Requirements**: Process, data, network, and runtime isolation strategies
-- **Concurrency & Performance**: Threading models, load handling, resource management with specific targets
-- **Scalability Architecture**: Horizontal/vertical scaling with database and service scaling strategies
-- **Storage & Data Management**: Format decisions, persistence strategies, caching architecture
-- **UI Framework Architecture**: Frontend technology stack with responsive design and UX patterns
-- **Authentication & Security**: OAuth/JWT strategies, RBAC/ABAC patterns, compliance frameworks
+**VALIDATION CRITERIA**:
+```markdown
+CHECK all_requirements_covered == true ELSE "Unmapped requirements"
+CHECK dependency_graph_valid == true ELSE "Circular dependencies"
+CHECK effort_estimates_complete == true ELSE "Missing estimates"
+CHECK risk_assessment_done == true ELSE "No risk analysis"
+```
 
-**Technology Choice Impact Matrix**: How each technology decision affects functional and non-functional requirements
+**RUNTIME DECISION**:
+- **PASS**: Continue to Phase 4
+- **WARNING**: Continue with caveats documented
 
-## Phase Workflow with Agent Integration
+## Gate 5: Final Handoff (After Phase 6)
 
-1. **Phase 1: Requirements Extraction** - Manual variable extraction from `<prompt-arguments>`
-2. **Phase 2: Architecture Documentation** - agent-driven (product-strategist, tech-research-analyst, system-architect) technology stack decisions with NFR analysis
-3. **Phase 3: Task Generation** - agent-driven (feature-developer, ui-designer, system-architect) simplified task creation with architectural alignment
-4. **Phase 4: State Management** - knowledge-aggregator session tracking with basic change detection  
-5. **Phase 5: Task Validation** - agent-driven (code-reviewer, feature-developer, system-architect) task enhancement and quality assurance
-6. **Phase 6: Feature-Developer Handoff** - knowledge-aggregator handoff package with coordination protocols
+**VALIDATION CRITERIA**:
+```markdown
+CHECK implementation_ready == true ELSE "Missing critical components"
+CHECK knowledge_persisted == true ELSE "State not saved"
+CHECK feature_developer_package_complete == true ELSE "Incomplete handoff"
+```
 
-Each phase includes review/quality checks and user confirmation with executive summaries before proceeding.
+**RUNTIME DECISION**:
+- **APPROVED**: Release to implementation
+- **CONDITIONAL**: Release with mandatory reviews
+- **BLOCKED**: Return to identified phase for correction
 
-## Key Design Principles
+---
 
-- **KISS/YAGNI Technology Selection**: Proven technologies with strong community support
-- **Prescription over Code**: Natural language instructions rather than complex bash scripting
-- **Agent Intelligence over Automation**: Leverage specialized agent expertise for decision-making
-- **User Validation**: Confirm key decisions at architecture and task generation phases
-- **Implementation Readiness**: Tasks are self-contained and ready for feature-developer execution
+# STATE PERSISTENCE PROTOCOL
 
-This methodology ensures optimal development efficiency while maintaining quality and completeness appropriate to project complexity, transforming planning into execution-ready specifications with intelligent agent collaboration.
+## Checkpoint Strategy
 
+**AUTOMATIC CHECKPOINTS**:
+```bash
+# After each successful phase
+echo "{
+  \"phase\": \"$CURRENT_PHASE\",
+  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
+  \"status\": \"completed\",
+  \"outputs\": [...],
+  \"next_phase\": \"$NEXT_PHASE\"
+}" > .ideal-sti/checkpoint-$PHASE.json
+```
+
+**MANUAL CHECKPOINT TRIGGER**:
+```markdown
+IF execution_time > 60_seconds THEN
+  CREATE checkpoint with partial_output flag
+  LOG "Long-running phase checkpoint at $(date)"
+END IF
+```
+
+## Recovery Mechanism
+
+**ON STARTUP CHECK**:
+```markdown
+IF EXISTS .ideal-sti/state.json THEN
+  PROMPT "Previous session detected. Resume from Phase $LAST_PHASE? [Y/n]"
+  IF user_confirms THEN
+    LOAD state from .ideal-sti/
+    SKIP completed phases
+    RESUME from $NEXT_PHASE
+  ELSE
+    ARCHIVE old state to .ideal-sti/archive-$(date +%s)/
+    START fresh execution
+  END IF
+END IF
+```
+
+**PARTIAL OUTPUT HANDLING**:
+```markdown
+IF checkpoint.partial_output == true THEN
+  ANALYZE partial content
+  DETERMINE safe_resume_point
+  IF can_continue THEN
+    APPEND to existing output
+  ELSE
+    RESTART phase with context from partial
+  END IF
+END IF
+```
+
+---
+
+# USAGE
+
+To execute IDEAL-STI v3.0:
+
+```markdown
+Transform the following requirements into a comprehensive project specification using IDEAL-STI v3.0 prompt-as-code methodology:
+
+<prompt-arguments>
+[Your project requirements here]
+</prompt-arguments>
+```
+
+The system will:
+1. Check for existing state and offer to resume
+2. Execute use-case-expander prompter for discovery
+3. Execute requirements-generator prompter for synthesis
+4. Assemble unified project-specifications.md
+5. Generate implementation tasks
+6. Prepare feature-developer handoff package
+
+All with comprehensive quality gates, state management, and progressive learning throughout the process.
