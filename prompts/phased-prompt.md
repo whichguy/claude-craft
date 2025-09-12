@@ -7,7 +7,48 @@
 
 ## Executive Summary
 
-This framework defines a methodology for writing phase-based prompts where each phase contains multiple stages that progressively build knowledge through iterative refinement. Each phase includes 7 standard stages: Input Extraction, Rehydration, Planning, Review, Execution, Quality Check (1-25 iterations), and Documentation. All operations use absolute paths and never change working directories.
+This framework defines a methodology for evaluating existing prompts or creating new phase-based prompts. Each phase contains 7 standard stages that progressively build knowledge through iterative refinement: Input Extraction, Rehydration (deserializing stored resources and merging with fresh inputs), Planning, Review, Execution, Quality Check (1-25 iterations), and Documentation (serializing outputs). All operations use absolute paths and never change working directories.
+
+## Source File Extraction Protocol
+
+```markdown
+FRAMEWORK MODE SELECTION:
+
+WHEN processing <prompt-arguments>:
+  FIRST attempt to extract a filename or path:
+    **SOURCE_FILE**: Look for patterns indicating a file reference:
+      - Absolute paths: /path/to/prompt.md
+      - Relative paths: ./prompts/example.md  
+      - Filenames: my-prompt.md
+      - URLs: https://example.com/prompt.md
+      - Git paths: prompts/existing-prompt.md
+    
+    IF **SOURCE_FILE** pattern is detected THEN:
+      Verify file exists using: test -f "<SOURCE_FILE>"
+      IF file exists THEN:
+        Read prompt content from "<SOURCE_FILE>"
+        Set **EVALUATION_MODE**: true
+        Store content for evaluation phases
+        Proceed to evaluate existing prompt
+      ELSE:
+        Document as **MISSING_FILE**: "<SOURCE_FILE>" not found
+        Check for inline content instead
+    
+    IF no file pattern found OR file missing THEN:
+      Check if <prompt-arguments> contains inline prompt content
+      IF prompt content detected (markdown structure, phases, etc.) THEN:
+        Set **EVALUATION_MODE**: true
+        Extract inline content for evaluation
+        Proceed to evaluate provided prompt
+      ELSE:
+        Set **GUIDANCE_MODE**: true
+        Provide exhaustive framework documentation
+        Show how to build prompt from scratch
+
+Mode determines framework behavior:
+  **EVALUATION_MODE**: Analyze existing prompt and provide transformation feedback
+  **GUIDANCE_MODE**: Provide complete framework details with examples
+```
 
 ## Framework Architecture
 
@@ -214,6 +255,48 @@ WHEN starting the framework:
     echo '{"current_phase": 0, "current_stage": 0, "iterations": {}}' > "<worktree>/state/current.json"
 ```
 
+## Required Mermaid Phase Overview
+
+```markdown
+CRITICAL REQUIREMENT:
+
+Every prompt following this framework MUST begin with a mermaid chart that outlines all phases:
+
+At the very beginning of your prompt, include:
+
+```mermaid
+flowchart TD
+    Start[<prompt-arguments>] --> P1[Phase 1: Initial Purpose]
+    P1 --> P2[Phase 2: Next Purpose]
+    P2 --> PN[Phase N: ...]
+    PN --> PF[Phase Final: Review]
+    PF --> End[Final Output]
+    
+    P1 -.-> K1[Knowledge Base]
+    P2 -.-> K1
+    PN -.-> K1
+    PF -.-> K1
+    
+    style Start fill:#e1f5fe
+    style End fill:#c8e6c9
+    style K1 fill:#fff9c4
+```
+
+The mermaid chart should:
+  - Show all phases in sequence (can be any number: 3, 5, 7, etc.)
+  - Include phase numbers and descriptive names
+  - Show knowledge flow between phases
+  - Indicate input source and final output
+  - Use consistent styling for clarity
+  - Use "Phase N" notation to indicate variable phase count
+
+This visual overview helps users understand:
+  - The complete journey from input to output
+  - How phases build on each other
+  - Where knowledge accumulates
+  - The overall structure before diving into details
+```
+
 ## Phase and Stage Template
 
 Each phase contains exactly 7 stages following this pattern:
@@ -261,27 +344,37 @@ BEFORE any other processing:
 
 ### Stage N.2: Rehydration
 
-**STAGE_N.2_PURPOSE**: Load all relevant context from previous work
+**STAGE_N.2_PURPOSE**: Deserialize previously stored resources AND merge with newly extracted inputs (rehydration = deserialization + merging)
 
 WHEN beginning this stage:
-  **STAGE_N.2_INPUT**: State files, knowledge base, checkpoints
+  **STAGE_N.2_INPUT**: Serialized state files, knowledge base, checkpoints, AND extracted inputs from Stage N.1
   
-  First, check if previous work exists:
+  Deserialize previously serialized resources:
     IF file exists at "<worktree>/state/current.json" THEN
-      Read the current state
-      Understand what phase and stage we're in
+      Deserialize the current state
+      Load phase and stage position
+      Reconstruct working context from stored data
     
     IF directory exists at "<worktree>/knowledge/" THEN
-      Load all knowledge files: ls "<worktree>/knowledge/"*.md
-      Incorporate relevant discoveries into current thinking
+      Deserialize all knowledge files: ls "<worktree>/knowledge/"*.md
+      Load discovered facts, patterns, and decisions
+      Reconstruct knowledge graph from serialized form
     
     IF this is a resumed phase THEN
-      Load checkpoint from "<worktree>/checkpoints/phase-N.json"
-      Continue from where we left off
+      Deserialize checkpoint from "<worktree>/checkpoints/phase-N.json"
+      Restore execution state from last save point
+      Load iteration history and quality metrics
     
-    Load phase inputs from "<worktree>/state/phase-N-inputs.md"
+  Merge deserialized resources with new inputs:
+    Load extracted inputs from Stage N.1 ("<worktree>/state/phase-N-inputs.md")
+    Combine historical knowledge with fresh parameters
+    Resolve any conflicts between stored state and new inputs:
+      - Fresh inputs take precedence over stale data
+      - Preserve historical patterns and learnings
+      - Update context with latest requirements
+    Create unified working dataset for this phase
   
-  **STAGE_N.2_OUTPUT**: Complete context loaded into working memory
+  **STAGE_N.2_OUTPUT**: Complete rehydrated context (deserialized resources + fresh inputs merged)
 
 ---
 
@@ -404,38 +497,145 @@ Evaluate if phase goals were achieved:
 
 ### Stage N.7: Documentation
 
-**STAGE_N.7_PURPOSE**: Capture all knowledge and prepare for next phase
+**STAGE_N.7_PURPOSE**: Serialize all knowledge and state for future rehydration
 
-Capture all knowledge gained in this phase:
+Serialize all knowledge gained in this phase:
   **STAGE_N.7_INPUT**: All outputs from stages N.1 through N.6
   
-  Write phase discoveries to "<worktree>/knowledge/phase-N-discoveries.md":
+  Serialize phase discoveries to "<worktree>/knowledge/phase-N-discoveries.md":
     # Phase N Discoveries
     ## KNOWLEDGE_DISCOVERED
-    [new facts and patterns found]
+    [new facts and patterns found - serialized]
     
     ## KNOWLEDGE_SYNTHESIZED
-    [combined understanding]
+    [combined understanding - serialized]
     
     ## KNOWLEDGE_TO_TRANSFER
-    [what next phases need to know]
+    [what next phases need to know - serialized]
   
-  Update checkpoint at "<worktree>/checkpoints/phase-N-complete.json":
+  Serialize checkpoint at "<worktree>/checkpoints/phase-N-complete.json":
     {
       "phase": N,
       "completion_status": "complete|partial",
       "quality_score": 85,
       "iterations_required": 7,
       "knowledge_dependencies": ["phase_1", "phase_2"],
-      "outputs_generated": ["list of artifacts"]
+      "outputs_generated": ["list of artifacts"],
+      "serialization_timestamp": "ISO-8601 timestamp",
+      "state_snapshot": "complete phase state"
     }
+  
+  Serialize execution state to "<worktree>/state/phase-N-final.json":
+    - Current working context
+    - Quality metrics achieved
+    - Iteration history
+    - Decision rationale
   
   Generate artifacts in "<worktree>/artifacts/":
     - Any outputs produced
     - Reports or summaries
     - Reusable patterns identified
   
-  **STAGE_N.7_OUTPUT**: Complete documentation and artifacts
+  **STAGE_N.7_OUTPUT**: Complete serialized documentation and artifacts ready for future rehydration
+```
+
+## Serialization and Deserialization Patterns
+
+### Phase Data Flow Pattern
+
+```markdown
+The relationship between Input Extraction, Rehydration, and Documentation:
+
+Stage N.1 (Input Extraction) → Extracts fresh inputs from <prompt-arguments>
+                              ↓
+Stage N.2 (Rehydration) → Deserializes stored resources from previous phases
+                        → Merges deserialized data with Stage N.1 outputs  
+                        → Creates unified working dataset
+                              ↓
+Stage N.3-N.6 → Use merged dataset for planning and execution
+                              ↓
+Stage N.7 (Documentation) → Serializes all outputs for future rehydration
+                          → Stores state, knowledge, and artifacts
+```
+
+### What Gets Serialized (Stage N.7)
+
+```markdown
+During Documentation stage, serialize these resources:
+  
+  Knowledge Resources:
+    - Discoveries → "<worktree>/knowledge/phase-N-discoveries.md"
+    - Patterns → "<worktree>/knowledge/phase-N-patterns.json"
+    - Decisions → "<worktree>/knowledge/phase-N-decisions.md"
+    - Relationships → "<worktree>/knowledge/phase-N-relationships.json"
+  
+  State Resources:
+    - Execution state → "<worktree>/state/phase-N-state.json"
+    - Quality metrics → "<worktree>/state/phase-N-metrics.json"
+    - Iteration history → "<worktree>/state/phase-N-iterations.log"
+    - Current position → "<worktree>/state/current.json"
+  
+  Checkpoint Resources:
+    - Complete snapshot → "<worktree>/checkpoints/phase-N-complete.json"
+    - Partial progress → "<worktree>/checkpoints/phase-N-partial.json"
+    - Recovery points → "<worktree>/checkpoints/phase-N-recovery.json"
+```
+
+### How Rehydration Works (Stage N.2)
+
+```markdown
+REHYDRATION DEFINITION: The process of deserializing stored data AND merging it with fresh inputs
+
+During Rehydration stage, follow this process:
+  
+  1. Deserialize all stored resources:
+     - Read JSON files and parse into objects
+     - Load markdown files and extract structured data
+     - Reconstruct state from checkpoints
+  
+  2. Load fresh inputs from Stage N.1:
+     - Get newly extracted parameters
+     - Capture current requirements
+     - Identify new constraints
+  
+  3. Merge to create complete working context:
+     - Combine historical knowledge with new inputs
+     - Fresh inputs override conflicting stored data
+     - Preserve valuable patterns and learnings
+  
+  4. Resolve conflicts:
+     - New requirements take precedence
+     - Historical patterns inform approach
+     - Document conflict resolutions
+  
+  5. Output unified dataset:
+     - Single source of truth for remaining stages
+     - Complete context for decision-making
+     - Ready for planning and execution
+```
+
+### Serialization Formats
+
+```markdown
+Different data types use appropriate serialization:
+  
+  Structured Data (JSON):
+    - State information
+    - Metrics and scores
+    - Configuration parameters
+    - Dependency graphs
+  
+  Narrative Data (Markdown):
+    - Discoveries and insights
+    - Decision rationale
+    - Documentation
+    - Patterns and learnings
+  
+  Log Data (Plain Text):
+    - Iteration history
+    - Execution traces
+    - Error logs
+    - Progress tracking
 ```
 
 ## Progressive Knowledge Patterns
@@ -690,7 +890,7 @@ WHEN evaluating an existing prompt from <prompt-arguments>:
   
   Phase 1 - Parse and Understand (7 stages):
     Stage 1.1: Extract prompt from **PROMPT_TO_EVALUATE**
-    Stage 1.2: Load any prior evaluations
+    Stage 1.2: Rehydrate (deserialize any prior evaluations + merge with fresh inputs)
     Stage 1.3: Plan parsing approach
     Stage 1.4: Review parsing strategy
     Stage 1.5: Parse prompt structure
@@ -699,7 +899,7 @@ WHEN evaluating an existing prompt from <prompt-arguments>:
   
   Phase 2 - Analyze Against Framework (7 stages):
     Stage 2.1: Extract **EVALUATION_CRITERIA** or use defaults
-    Stage 2.2: Load parsed structure
+    Stage 2.2: Rehydrate (deserialize parsed structure + merge with evaluation criteria)
     Stage 2.3: Plan analysis approach
     Stage 2.4: Review analysis strategy
     Stage 2.5: Compare to framework patterns
@@ -708,17 +908,108 @@ WHEN evaluating an existing prompt from <prompt-arguments>:
   
   Phase 3 - Generate Recommendations (7 stages):
     Stage 3.1: Extract **EVALUATION_DEPTH** parameter
-    Stage 3.2: Load analysis results
+    Stage 3.2: Rehydrate (deserialize analysis results + merge with recommendation parameters)
     Stage 3.3: Plan recommendation approach
     Stage 3.4: Review recommendation strategy
     Stage 3.5: Generate improvements
     Stage 3.6: Quality check recommendations
     Stage 3.7: Write report to "<worktree>/evaluation/artifacts/evaluation-report.md"
+  
+  Phase 4 - Generate Transformation Instructions (7 stages):
+    Stage 4.1: Input Extraction
+      Extract transformation depth parameters
+      Load prompt to transform from previous phases
+    
+    Stage 4.2: Rehydration
+      Deserialize framework requirements from previous phases
+      Merge with analyzed prompt content AND transformation parameters
+      Create unified transformation dataset (deserialized + fresh = rehydrated)
+    
+    Stage 4.3: Planning Transformation
+      Map specific gaps between current and target structure
+      Design line-by-line transformation strategy
+      Identify exact changes needed
+    
+    Stage 4.4: Review Transformation Plan
+      Validate all gaps will be addressed
+      Check transformation is achievable
+    
+    Stage 4.5: Generate Specific Instructions
+      For each identified gap, generate SPECIFIC instruction:
+        
+        "Line 23: CHANGE 'Input:' to '**PHASE_1_INPUTS**:'"
+        "After line 45: ADD Stage 1.2 Rehydration section:
+         ```
+         ### Stage 1.2: Rehydration
+         **STAGE_1.2_PURPOSE**: Deserialize and merge...
+         [complete template]
+         ```"
+        "Line 67: REPLACE 'cd /tmp' with 'use <worktree>/tmp'"
+        "Line 89: CHANGE 'git add .' to 'git -C <worktree> add .'"
+        "INSERT at beginning: Mermaid chart showing all phases"
+    
+    Stage 4.6: Quality Check Transformation
+      Verify all framework requirements addressed
+      Check instructions are clear and actionable
+      Validate no conflicts in instructions
+    
+    Stage 4.7: Generate Transformation Report
+      Write to "<worktree>/evaluation/artifacts/transformation-report.md":
+        
+        # Prompt Transformation Report
+        
+        ## Current State Analysis
+        [Summary of what the prompt currently has]
+        
+        ## Gap Analysis Against Framework
+        ### Missing Components
+        - [ ] Mermaid phase overview chart
+        - [ ] 7-stage structure for each phase
+        - [ ] Rehydration stages with deserialization
+        - [ ] Quality iteration loops (1-25)
+        - [ ] Path management with <worktree>
+        
+        ## SPECIFIC TRANSFORMATION INSTRUCTIONS
+        
+        ### 1. Add Mermaid Chart at Beginning
+        INSERT at line 1:
+        ```mermaid
+        [complete mermaid template for their phases]
+        ```
+        
+        ### 2. Restructure Phase 1
+        REPLACE lines 10-25 with:
+        ```markdown
+        ## Phase 1: [Their Purpose]
+        
+        ### Stage 1.1: Input Extraction
+        [specific content]
+        
+        ### Stage 1.2: Rehydration
+        [merge pattern]
+        ```
+        
+        ### 3. Fix Path Management
+        Line 67: CHANGE "cd directory" → "operations at <worktree>/directory"
+        Line 89: CHANGE "git commit" → "git -C '<worktree>' commit"
+        
+        ### 4. Add Quality Iterations
+        After Stage N.5, INSERT:
+        ```markdown
+        ### Stage N.6: Quality Check
+        FOR iteration FROM 1 TO 25:
+          [quality framework]
+        ```
+        
+        ## Transformed Prompt Preview
+        [Show first phase fully transformed as example]
 ```
 
 ## Creation Mode Usage
 
 ```markdown
+CREATION MODE: For building a new prompt from requirements (not evaluating existing)
+
 WHEN creating a new phased prompt from requirements:
   
   Set creation worktree:
@@ -734,7 +1025,7 @@ WHEN creating a new phased prompt from requirements:
   
   Phase 1 - Requirements Discovery (7 stages):
     Stage 1.1: Extract **CREATION_REQUIREMENTS**
-    Stage 1.2: Load any templates
+    Stage 1.2: Rehydrate (deserialize any templates + merge with requirements)
     Stage 1.3: Plan discovery approach
     Stage 1.4: Review discovery strategy
     Stage 1.5: Analyze requirements
@@ -743,7 +1034,7 @@ WHEN creating a new phased prompt from requirements:
   
   Phase 2 - Design Architecture (7 stages):
     Stage 2.1: Extract **CREATION_PHASES** and **CREATION_DOMAIN**
-    Stage 2.2: Load requirements
+    Stage 2.2: Rehydrate (deserialize requirements + merge with design parameters)
     Stage 2.3: Plan design approach
     Stage 2.4: Review design strategy
     Stage 2.5: Design phase structure
@@ -752,7 +1043,7 @@ WHEN creating a new phased prompt from requirements:
   
   Phase 3 - Implementation (7 stages):
     Stage 3.1: Extract **CREATION_COMPLEXITY**
-    Stage 3.2: Load design
+    Stage 3.2: Rehydrate (deserialize design + merge with implementation complexity)
     Stage 3.3: Plan implementation
     Stage 3.4: Review implementation plan
     Stage 3.5: Write prompt following framework
@@ -761,7 +1052,7 @@ WHEN creating a new phased prompt from requirements:
   
   Phase 4 - Validation (7 stages):
     Stage 4.1: Extract validation criteria
-    Stage 4.2: Load generated prompt
+    Stage 4.2: Rehydrate (deserialize generated prompt + merge with validation criteria)
     Stage 4.3: Plan validation
     Stage 4.4: Review validation plan
     Stage 4.5: Test prompt components
@@ -887,6 +1178,58 @@ Generate final outputs:
 Archive final state:
   Save to "<worktree>/checkpoints/final-state.json"
   If using git: git -C "<worktree>" tag "complete-$(date +%Y%m%d)"
+```
+
+## Guidance Mode (When No Prompt Provided)
+
+```markdown
+GUIDANCE MODE: For when user provides no prompt at all (neither to evaluate nor requirements to build)
+
+WHEN no existing prompt is detected in <prompt-arguments>:
+  
+  Enter GUIDANCE_MODE and provide exhaustive framework details:
+    
+    1. Complete Framework Overview
+       - Explain all 7 stages in detail
+       - Show how phases connect
+       - Describe knowledge accumulation
+    
+    2. Detailed Stage Templates
+       - Provide complete template for each stage
+       - Include all input/output specifications
+       - Show example content for each section
+    
+    3. Implementation Examples
+       - Walk through creating Phase 1 from scratch
+       - Show how to design Stage 1.1 Input Extraction
+       - Demonstrate Stage 1.2 Rehydration patterns
+       - Provide Stage 1.6 Quality iteration examples
+    
+    4. Common Patterns Library
+       - Input extraction patterns for different domains
+       - Rehydration strategies for various data types
+       - Quality metrics for different objectives
+       - Serialization approaches
+    
+    5. Step-by-Step Building Guide
+       - Start with mermaid chart creation
+       - Design phase purposes
+       - Map stage flow
+       - Implement each stage systematically
+    
+    6. Nuanced Details
+       - When to use JSON vs Markdown serialization
+       - How to handle conflicting inputs during rehydration
+       - Optimal iteration strategies for quality checks
+       - Path management best practices
+       - Git integration patterns
+    
+  Provide ready-to-use snippets:
+    - Mermaid chart templates
+    - Stage structure templates
+    - Serialization/deserialization code
+    - Quality check frameworks
+    - Documentation patterns
 ```
 
 ## Framework Meta-Documentation
