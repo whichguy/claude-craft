@@ -46,7 +46,7 @@ Agent 1 → [Output] → Orchestrator → [Inject Output] → Agent 2
 
 ### Step 1: Create Master Orchestrator Prompt
 
-**File**: `prompts/weather-comparison-chain.md`
+**File**: [`prompts/weather-comparison-chain.md`](https://github.com/whichguy/claude-craft/blob/main/prompts/weather-comparison-chain.md)
 
 ```markdown
 ---
@@ -82,7 +82,7 @@ ask prompter on report-generator [INJECT STEPS 1&2 OUTPUT]
 
 ### Step 2: Create Agent Templates
 
-**Template 1**: `prompts/weather.md`
+**Template 1**: [`prompts/weather.md`](https://github.com/whichguy/claude-craft/blob/main/prompts/weather.md)
 ```markdown
 ---
 description: "Get weather for a city"
@@ -93,7 +93,7 @@ Extract city from: <prompt-arguments>
 Get current weather data for that city.
 ```
 
-**Template 2**: `prompts/weather-comparison.md`
+**Template 2**: [`prompts/weather-comparison.md`](https://github.com/whichguy/claude-craft/blob/main/prompts/weather-comparison.md)
 ```markdown
 ---
 description: "Compare weather between cities"
@@ -413,7 +413,7 @@ Process accordingly.
 ## Complete Template Files
 
 ### Actual weather.md Implementation
-**File**: `prompts/weather.md`
+**File**: [`prompts/weather.md`](https://github.com/whichguy/claude-craft/blob/main/prompts/weather.md)
 ```markdown
 look up the weather for <prompt-arguments>
 ```
@@ -424,7 +424,7 @@ This simple prompt:
 - Returns weather data for that location
 
 ### Actual weather-comparison.md Implementation  
-**File**: `prompts/weather-comparison.md`
+**File**: [`prompts/weather-comparison.md`](https://github.com/whichguy/claude-craft/blob/main/prompts/weather-comparison.md)
 ```markdown
 ---
 argument-hint: "[base-city-with-weather] [comparison-city]"  
@@ -459,7 +459,34 @@ This template:
 
 ## Prompter Agent Implementation
 
-The prompter agent is implemented via the `/prompt` command in `commands/prompt.md`. Here's how it discovers and executes templates:
+The prompter agent ([`agents/prompter.md`](https://github.com/whichguy/claude-craft/blob/main/agents/prompter.md)) is a sophisticated prompt template executor that discovers, loads, and executes markdown templates. It's invoked via the [`/prompt`](https://github.com/whichguy/claude-craft/blob/main/commands/prompt.md) command.
+
+### How Prompter Works
+
+The prompter agent operates with **complete silence** - it outputs only what the template produces, with zero processing artifacts or meta-commentary.
+
+#### Core Functionality:
+1. **Argument Parsing**: Splits input on first space
+   - Before space: template name (e.g., "weather")
+   - After space: becomes `<prompt-arguments>` content
+   - Example: "weather San Francisco" → template: "weather", arguments: "San Francisco"
+
+2. **Template Discovery**: Searches hierarchically for templates
+   - Auto-appends `.md` to template names
+   - Searches in priority order (git parent, repository, profile, local)
+   - Supports explicit paths and fuzzy matching
+
+3. **Tag Association**: Links user content to template
+   - `<prompt-arguments>` tags in template reference user's input
+   - Tags are markers, not replaced literally
+   - Multiple tags all reference the same user content
+
+4. **Silent Execution**: Processes template invisibly
+   - Wraps template in `<prompt-instructions>` tags internally
+   - Executes instructions completely
+   - Outputs ONLY what template produces
+
+The prompter is implemented via the `/prompt` command in [`commands/prompt.md`](https://github.com/whichguy/claude-craft/blob/main/commands/prompt.md). Here's how it discovers and executes templates:
 
 ### Template Discovery Logic
 ```bash
