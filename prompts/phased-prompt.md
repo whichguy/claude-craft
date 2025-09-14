@@ -7,7 +7,56 @@
 
 ## Executive Summary
 
-This framework defines a methodology for evaluating existing prompts or creating new phase-based prompts. Each phase contains 9 standard stages that progressively build knowledge through iterative refinement: Input Extraction, Rehydration (deserializing stored resources and merging with fresh inputs), Criteria Definition (runtime generation of success/anti/dependency criteria), Research & Discovery (criteria-driven exploration), Planning (based on research findings), Review, Execution, Quality Check (criteria validation with 1-25 iterations), and Documentation (serializing outputs). All operations use absolute paths and never change working directories.
+This framework implements a **phased-based, progressive knowledge-building, iterative prompt system with quality gates and intelligent looping**. It defines a methodology for evaluating existing prompts or creating new phase-based prompts through:
+
+- **Phased Architecture**: Distinct phases with specific purposes that build sequentially
+- **Progressive Intelligence**: Each phase builds on accumulated wisdom from previous phases
+- **Iterative Refinement**: 1-25 quality iterations per phase with learning capture
+- **Quality Gates**: Criteria-based validation with loop-back capability for continuous improvement
+- **Knowledge Persistence**: Learning captured and rehydrated across all phases
+
+Each phase contains 9 standard stages that progressively build knowledge through iterative refinement: Input Extraction, Rehydration (deserializing stored resources and merging with fresh inputs), Criteria Definition (runtime generation of success/anti/dependency criteria), Research & Discovery (criteria-driven exploration), Planning (based on research findings), Review, Execution, Quality Check (criteria validation with 1-25 iterations), and Documentation (serializing outputs). All operations use absolute paths and never change working directories.
+
+## Framework Core Principles
+
+This framework embodies five core architectural principles:
+
+1. **PHASED-BASED EXECUTION**: Work progresses through distinct phases, each with clear purpose and deliverables. Phases cannot be skipped - they build sequentially.
+
+2. **PROGRESSIVE KNOWLEDGE ACCUMULATION**: Each phase learns from all previous phases. Knowledge compounds through rehydration, creating increasingly intelligent execution.
+
+3. **ITERATIVE REFINEMENT**: Quality is achieved through iteration, not perfection on first attempt. Each iteration captures learnings that improve the next.
+
+4. **QUALITY GATES WITH LOOPING**: Stage N.8 enforces quality standards through criteria validation. Failed quality checks loop back to execution with refinements. Success breaks the loop.
+
+5. **INTELLIGENT FEEDBACK LOOPS**: The framework creates three levels of loops:
+   - **Micro-loops**: Within quality iterations (N.8 → N.7 → N.8)
+   - **Meso-loops**: Between stages within a phase
+   - **Macro-loops**: Between phases through knowledge transfer
+
+These principles ensure continuous improvement and prevent stagnation.
+
+## Global Initialization
+
+```markdown
+WHEN starting ANY prompt using this framework:
+  IMMEDIATELY set these global variables:
+    <worktree> = $(pwd)  # Set once at the beginning, never change
+
+  Ensure required directory structure exists:
+    IF NOT exists "<worktree>/planning" THEN
+      mkdir -p "<worktree>/planning"
+    IF NOT exists "<worktree>/docs" THEN
+      mkdir -p "<worktree>/docs"
+
+  ALL phases MUST use <worktree> for file paths:
+    - Never use relative paths without <worktree> prefix
+    - Never change directories (no cd, pushd, popd)
+    - Always use git -C "<worktree>" for git operations
+
+  This initialization happens ONCE at framework start.
+  Every phase respects these global definitions.
+```
 
 ## Source File Extraction Protocol
 
@@ -79,16 +128,13 @@ PROMPT FRAMEWORK
 ```markdown
 ABSOLUTE PATH DIRECTIVE:
 
-NEVER use cd, pushd, popd, or any directory changing commands
-NEVER rely on relative paths without <worktree> prefix
-ALWAYS use full absolute paths constructed from <worktree>
-ALWAYS use git -C "<worktree>" for ALL git operations
+Respecting the globally defined <worktree> from initialization:
+  NEVER use cd, pushd, popd, or any directory changing commands
+  NEVER rely on relative paths without <worktree> prefix
+  ALWAYS use full absolute paths constructed from <worktree>
+  ALWAYS use git -C "<worktree>" for ALL git operations
 
-WHEN <worktree> is not provided:
-  THEN set <worktree>$(pwd)</worktree>
-  AND use this as the base for all paths
-
-ALL file operations MUST use absolute paths:
+ALL file operations MUST use the global <worktree>:
   Reading: <worktree>/planning/phase-1.md
   Writing: <worktree>/planning/phase-2.md
   Creating: <worktree>/docs/synthesis.md
@@ -108,13 +154,14 @@ Git operations MUST use -C flag:
 
 ```mermaid
 flowchart TD
-    A[Input:<br/><prompt-arguments>] --> B{Worktree<br/>Defined?}
-    B -->|No| C[Set <worktree><br/>to $(pwd)]
-    B -->|Yes| D[Use provided<br/><worktree>]
-    C --> E[Initialize Structure]
-    D --> E
-    
-    E --> P1[Phase 1: Discovery]
+    A[Input:<br/><prompt-arguments>] --> B[Global Init:<br/>Set worktree=$(pwd)]
+    B --> C{Directories<br/>Exist?}
+    C -->|No| D[Create<br/>planning/ & docs/]
+    C -->|Yes| E[Use Existing]
+    D --> F[Initialize Structure]
+    E --> F
+
+    F --> P1[Phase 1: Discovery]
 
     subgraph "Phase 1 Stages"
         P1 --> S11[Stage 1.1: Input Extraction]
@@ -145,7 +192,8 @@ flowchart TD
     S29 --> P3[Phase 3+]
 
     style A fill:#e1f5fe
-    style E fill:#fff9c4
+    style B fill:#fff9c4
+    style F fill:#fff9c4
     style S13 fill:#e8f5e9
     style S23 fill:#e8f5e9
     style S18 fill:#ffccbc
@@ -203,6 +251,40 @@ flowchart TD
     style BP fill:#ffccbc
 ```
 
+### Loop Architecture
+
+```mermaid
+flowchart TD
+    subgraph "Quality Loop (Micro)"
+        E[Stage N.7: Execution] --> Q[Stage N.8: Quality Check]
+        Q -->|Fail| I[Capture Learning]
+        I --> R[Refine Approach]
+        R --> E
+        Q -->|Pass| D[Stage N.9: Documentation]
+    end
+
+    subgraph "Stage Loop (Meso)"
+        S[Any Stage] -->|Issue Found| Rev[Stage N.6: Review]
+        Rev -->|Retry| S
+    end
+
+    subgraph "Phase Loop (Macro)"
+        P1[Phase 1] --> K1[Knowledge]
+        K1 --> P2[Phase 2]
+        P2 --> K2[More Knowledge]
+        K2 --> P3[Phase 3]
+    end
+
+    style E fill:#e1f5fe
+    style Q fill:#fff9c4
+    style I fill:#ffccbc
+    style R fill:#e8f5e9
+    style D fill:#c8e6c9
+    style Rev fill:#fff3e0
+    style K1 fill:#f3e5f5
+    style K2 fill:#f3e5f5
+```
+
 ## Input Extraction Protocol
 
 ```markdown
@@ -248,18 +330,22 @@ WHEN any phase or stage requires input not provided by previous phases:
       Document the gap for user clarification in phase file
 ```
 
-## Working Directory Initialization
+## Working Directory Structure
 
 ```markdown
-WHEN starting the framework:
-  IF <worktree> is not defined THEN
-    Set <worktree>$(pwd)</worktree>
-  
-  Create the following structure at <worktree>:
-    mkdir -p "<worktree>/planning"
-    mkdir -p "<worktree>/docs"
+The framework uses this structure (created during global initialization):
 
-  Phase files will be created progressively as phases execute
+<worktree>/
+├── planning/          # Working documents (one file per phase)
+│   ├── phase-1.md     # Complete Phase 1 history
+│   ├── phase-2.md     # Complete Phase 2 history
+│   └── phase-3.md     # Complete Phase 3 history
+└── docs/              # Final deliverables only
+    ├── phase-1-summary.md  # Optional distilled summary
+    ├── phase-2-summary.md  # Optional distilled summary
+    └── synthesis.md        # Final synthesis
+
+Phase files are created progressively as phases execute.
 ```
 
 ## Required Mermaid Phase Overview
@@ -304,13 +390,41 @@ This visual overview helps users understand:
   - The overall structure before diving into details
 ```
 
+## Progressive Intelligence Pattern
+
+Each phase becomes progressively smarter through:
+
+1. **CUMULATIVE LEARNING**:
+   - Phase 1 discoveries inform Phase 2 criteria
+   - Phase 2 patterns guide Phase 3 research
+   - Each phase stands on shoulders of previous phases
+
+2. **ITERATION WISDOM**:
+   - Early iterations (1-5): Broad exploration
+   - Middle iterations (6-15): Targeted refinement
+   - Late iterations (16-25): Edge case polishing
+   - Each iteration's key learning feeds next iteration
+
+3. **QUALITY EVOLUTION**:
+   - Initial phases: Learn what quality means
+   - Middle phases: Apply learned quality patterns
+   - Final phases: Validate quality comprehensively
+
+4. **LOOP INTELLIGENCE**:
+   - Loops aren't repetition - they're refinement
+   - Each loop carries forward what worked
+   - Each loop discards what failed
+   - Loops terminate when criteria met or limit reached
+
 ## Phase and Stage Template
 
-Each phase contains exactly 7 stages following this pattern:
+Each phase contains exactly 9 stages following this pattern:
 
 ### Phase N: [Purpose Name]
 
 ```markdown
+# Using globally initialized <worktree> for all paths
+
 ## PHASE_N_PURPOSE
 Clearly state what this phase aims to achieve and how it builds on previous knowledge
 
@@ -328,17 +442,17 @@ Define what this phase will produce for subsequent phases
 
 BEFORE any other processing:
   Examine what inputs this phase requires
-  
+
   **STAGE_N.1_INPUT**: <prompt-arguments> and previous phase outputs
-  
+
   IF inputs are not available from previous phases THEN
     Extract from <prompt-arguments>:
       **PHASE_N_REQUIREMENTS**: specific needs for this phase
       **PHASE_N_CONTEXT**: relevant context for this phase
       **PHASE_N_DATA**: data or examples needed
       **PHASE_N_CONSTRAINTS**: limitations to observe
-    
-    Begin phase file at "<worktree>/planning/phase-N.md"
+
+    Begin phase file using global <worktree>: "<worktree>/planning/phase-N.md"
 
     IF critical inputs are missing THEN
       Document as: **MISSING_CRITICAL_INPUT**: description
@@ -706,6 +820,13 @@ Evaluate using intelligent thresholds:
     - Apply [pattern] from the beginning
 
   **STAGE_N.8_OUTPUT**: Quality-validated results with iteration learnings
+
+**LOOP MECHANICS**:
+  This stage creates an intelligent feedback loop:
+  - Execute (N.7) → Check Quality (N.8) → Learn → Refine → Execute (N.7)
+  - Loop continues until quality threshold OR iteration limit
+  - Each loop iteration is smarter than the last
+  - Learnings persist even if phase doesn't fully succeed
 
 ---
 
@@ -1536,3 +1657,436 @@ This framework itself follows its own patterns:
 - **Consistent labeling**: Systematic naming throughout
 
 Execute this framework to create robust, phase-based prompts with clear stage progression, systematic knowledge accumulation, and comprehensive quality assurance.
+
+## Framework Behavior Guarantees
+
+When using this framework, the following behaviors are guaranteed:
+
+1. **NO INFINITE LOOPS**: Maximum 25 iterations per quality check
+2. **KNOWLEDGE PERSISTENCE**: Learnings never lost between phases
+3. **PROGRESSIVE IMPROVEMENT**: Each iteration ≥ previous quality
+4. **GRACEFUL DEGRADATION**: Best effort captured even at iteration limit
+5. **DETERMINISTIC PHASES**: Same inputs → similar execution path
+6. **CUMULATIVE INTELLIGENCE**: Phase N always smarter than Phase N-1
+7. **GLOBAL VALIDATION ASSURANCE**: Every prompt execution ends with comprehensive requirements validation
+
+These guarantees ensure reliable, improving execution with complete satisfaction validation.
+
+---
+
+## Global Final Quality Review
+
+**CRITICAL**: After ALL phases complete, execute this comprehensive validation to ensure the original `<prompt-arguments>` requirements were fully satisfied.
+
+### When to Execute Global Review
+
+Execute ONLY when:
+- All defined phases have completed their Stage N.9 serialization
+- All phase outputs exist in `<worktree>/planning/phase-*.md`
+- The complete workflow defined in the initial mermaid chart has finished
+
+### Global Validation Process
+
+1. **Requirements Satisfaction Check**
+   ```
+   Load original prompt arguments: <prompt-arguments>
+
+   For each requirement in original request:
+     Review ALL phase outputs to find evidence of satisfaction
+     Check if requirement was addressed completely
+     Verify quality of solution meets expectations
+     Document gaps or partial solutions
+
+   Generate requirements satisfaction matrix:
+     Requirement | Phase(s) Addressed | Quality Score | Evidence | Status
+     -----------------------------------------------------------------------
+     [req1]     | Phase 2, 4         | 8.5/10       | [files]  | SATISFIED
+     [req2]     | Phase 3            | 6.2/10       | [files]  | PARTIAL
+   ```
+
+2. **Completeness Validation**
+   ```
+   Verify all planned phases were executed:
+     Check phase outputs exist for each planned phase
+     Verify no phase was skipped or terminated early
+     Confirm all stages (1-9) completed per phase
+
+   Check deliverable completeness:
+     Review docs/ directory for final deliverables
+     Verify planning/ directory contains complete phase history
+     Confirm all promised outputs were generated
+   ```
+
+3. **Coherence Assessment**
+   ```
+   Cross-phase consistency check:
+     Verify solutions across phases don't contradict
+     Check that later phases built properly on earlier ones
+     Confirm architectural decisions align across phases
+
+   Quality progression validation:
+     Verify each phase showed quality improvement over iterations
+     Check that global quality improved with each phase
+     Confirm no regression in solution quality
+   ```
+
+4. **Value Delivery Check**
+   ```
+   Assess practical utility of outputs:
+     Can the deliverables actually solve the original problem?
+     Are the outputs actionable and implementable?
+     Do the solutions address real-world constraints?
+
+   Stakeholder value assessment:
+     Would the intended user find this valuable?
+     Are the outputs at appropriate technical level?
+     Is the documentation sufficient for implementation?
+   ```
+
+### Global Quality Score Calculation
+
+Calculate comprehensive quality score across all phases:
+
+```
+GLOBAL_QUALITY_SCORE = (
+  (REQUIREMENTS_SATISFACTION * 0.40) +
+  (COMPLETENESS_SCORE * 0.25) +
+  (COHERENCE_SCORE * 0.20) +
+  (VALUE_DELIVERY * 0.15)
+) * PHASE_CONSISTENCY_MULTIPLIER
+
+Where:
+  REQUIREMENTS_SATISFACTION = Average of all requirement satisfaction scores
+  COMPLETENESS_SCORE = Percentage of planned deliverables completed
+  COHERENCE_SCORE = Cross-phase alignment assessment (1-10)
+  VALUE_DELIVERY = Practical utility assessment (1-10)
+  PHASE_CONSISTENCY_MULTIPLIER = 1.0 if all phases align, 0.8-0.95 if conflicts exist
+
+MINIMUM_ACCEPTABLE_SCORE = 7.0/10.0
+
+Phase-Specific Weighting:
+  Foundation phases (1-2): Weight × 1.2 (more critical)
+  Implementation phases (3-5): Weight × 1.0 (standard)
+  Validation phases (6+): Weight × 1.1 (important for quality)
+```
+
+**Global Quality Thresholds:**
+- **9.0-10.0**: Exceptional - Exceeds all expectations
+- **8.0-8.9**: Excellent - Fully satisfies with high quality
+- **7.0-7.9**: Good - Meets requirements acceptably
+- **6.0-6.9**: Marginal - Significant gaps or quality issues
+- **Below 6.0**: Unacceptable - Requires remediation
+
+### Meta-Learning Extraction
+
+Extract high-level patterns and insights for future prompts:
+
+```
+CROSS-PHASE PATTERN ANALYSIS:
+
+1. Successful Strategies:
+   Identify strategies that worked well across multiple phases:
+   - Which rehydration patterns led to better quality?
+   - Which criteria types proved most valuable?
+   - Which research approaches yielded best results?
+   - Which iteration patterns converged fastest?
+
+2. Failed Approach Analysis:
+   Document what didn't work to avoid future repetition:
+   - Criteria that proved unmeasurable or misleading
+   - Research directions that were dead ends
+   - Planning approaches that led to rework
+   - Quality check patterns that missed issues
+
+3. Optimal Workflow Patterns:
+   Extract workflow insights:
+   - Optimal number of phases for this type of problem
+   - Most effective stage sequencing patterns
+   - Best practices for dependency management
+   - Effective documentation strategies
+
+4. Domain-Specific Insights:
+   Capture domain knowledge gained:
+   - Technical patterns specific to this domain
+   - Stakeholder management insights
+   - Implementation complexity patterns
+   - Risk mitigation strategies that worked
+
+5. Framework Evolution Recommendations:
+   Suggest improvements to this framework:
+   - Stages that could be optimized or combined
+   - Missing stages that would have been valuable
+   - Better template structures for future use
+   - Automated checks that could be added
+```
+
+**Meta-Learning Documentation Format:**
+```markdown
+## Meta-Learning Summary
+
+### What Worked Exceptionally Well
+- [Pattern 1]: [Evidence from phases] → [Future application]
+- [Pattern 2]: [Evidence from phases] → [Future application]
+
+### What Should Be Avoided
+- [Anti-pattern 1]: [Where it failed] → [Alternative approach]
+- [Anti-pattern 2]: [Where it failed] → [Alternative approach]
+
+### Framework Optimization Opportunities
+- [Improvement 1]: [Specific change] → [Expected benefit]
+- [Improvement 2]: [Specific change] → [Expected benefit]
+
+### Domain-Specific Knowledge Gained
+- [Insight 1]: [Technical/business knowledge] → [When to apply]
+- [Insight 2]: [Technical/business knowledge] → [When to apply]
+
+### Recommended Next Actions
+If similar prompt needed in future:
+1. [Specific preparation step]
+2. [Specific execution modification]
+3. [Specific validation approach]
+```
+
+### Optional Remediation Phase Template
+
+**Execute ONLY if Global Quality Score < 7.0 or critical requirements not satisfied**
+
+```
+REMEDIATION_PHASE_TEMPLATE:
+
+## Phase R: Remediation & Recovery
+
+### Stage R.1: Gap Analysis
+Analyze specific failures from global review:
+  Load global quality report from <worktree>/docs/global-quality-review.md
+
+  For each UNSATISFIED or PARTIAL requirement:
+    Root cause analysis: Why was requirement not met?
+    Phase failure analysis: Which phase(s) contributed to the gap?
+    Stage failure analysis: Which stage(s) had quality issues?
+
+  Generate remediation priority matrix:
+    Requirement | Impact | Effort | Priority | Remediation Strategy
+    ------------------------------------------------------------
+    [req1]     | HIGH  | MED   | 1       | Re-execute Phase 3 with new criteria
+    [req2]     | MED   | LOW   | 2       | Add missing deliverable to Phase 4
+
+### Stage R.2: Targeted Re-execution Plan
+Create surgical remediation plan:
+
+  Full Phase Re-runs:
+    IF phase fundamentally flawed → Re-execute entire phase with new approach
+    PHASES_TO_RERUN: [Phase X, Phase Y]
+
+  Partial Stage Re-runs:
+    IF specific stage failed → Re-execute stage with corrected inputs
+    STAGES_TO_RERUN: [Phase X.Stage Y, Phase Z.Stage W]
+
+  Additive Improvements:
+    IF deliverable missing → Add missing component without full re-run
+    ADDITIONS_NEEDED: [New deliverable A, Enhanced deliverable B]
+
+### Stage R.3: Remediation Execution
+Execute targeted fixes:
+
+  FOR each item in remediation plan:
+    Execute remediation strategy
+    Apply lessons learned from meta-analysis
+    Maintain quality standards from original phases
+    Document changes in phase planning files
+
+  Avoid cascade failures:
+    Test impact on downstream phases after each fix
+    Update phase dependencies if remediation changes inputs
+    Maintain coherence with non-remediated phases
+
+### Stage R.4: Re-validation
+Validate remediation success:
+
+  Re-run Global Final Quality Review process
+  Focus validation on remediated requirements
+  Verify no regression in previously satisfied requirements
+  Calculate new Global Quality Score
+
+  IF score still < 7.0:
+    Log specific remaining issues
+    Recommend manual review or scope reduction
+    Document "best effort" final state
+
+  ELSE:
+    Document successful remediation
+    Update meta-learning with remediation insights
+```
+
+**Remediation Documentation Pattern:**
+```markdown
+# Remediation Phase: [Date/Time]
+
+## Original Issues
+- Global Score: [X.X/10.0] (Below 7.0 threshold)
+- Failed Requirements: [list]
+- Critical Gaps: [list]
+
+## Remediation Actions Taken
+1. [Action 1]: [What was done] → [Result]
+2. [Action 2]: [What was done] → [Result]
+
+## Final Validation Results
+- New Global Score: [Y.Y/10.0]
+- Requirements Status: [satisfied/partial/failed]
+- Remaining Issues: [none/list]
+
+## Remediation Learnings
+- What caused the original failures
+- How remediation process could be improved
+- Prevention strategies for future prompts
+```
+
+### Global Review Documentation
+
+**Document all global review results in: `<worktree>/docs/global-quality-review.md`**
+
+Create comprehensive final documentation:
+
+```
+Document global validation results:
+  Load original <prompt-arguments> for reference
+  Generate complete requirements satisfaction report
+  Include global quality score with breakdown
+  Document meta-learning insights
+  Provide executive summary for stakeholders
+
+Create final deliverable index:
+  List all final outputs in docs/ directory
+  Reference all phase documentation in planning/ directory
+  Provide clear navigation to key deliverables
+  Include implementation guidance where needed
+
+Archive complete audit trail:
+  All phase planning files preserved
+  All iteration quality scores documented
+  All key learnings captured
+  Complete decision history available
+```
+
+### Example Global Quality Review Output
+
+**Sample: `<worktree>/docs/global-quality-review.md`**
+
+```markdown
+# Global Quality Review
+*Generated: [Timestamp]*
+*Framework Version: Phased Progressive v3.0*
+
+## Executive Summary
+
+**Overall Assessment**: EXCELLENT (8.7/10.0)
+- All primary requirements satisfied with high quality
+- 2 minor recommendations for optimization
+- Strong coherence across all 4 phases
+- Exceptional value delivery to stakeholders
+
+## Original Requirements Analysis
+
+**Source Prompt**: `[Original <prompt-arguments> text]`
+
+### Requirements Satisfaction Matrix
+
+| Requirement | Phase(s) Addressed | Quality Score | Evidence | Status |
+|------------|-------------------|---------------|----------|---------|
+| Feature A Implementation | Phase 2, 3 | 9.2/10 | phase-2.md:L156-289, docs/feature-a-spec.md | ✅ SATISFIED |
+| Performance Optimization | Phase 3, 4 | 8.1/10 | phase-3.md:L445-678, docs/perf-analysis.md | ✅ SATISFIED |
+| Documentation | Phase 4 | 8.9/10 | docs/user-guide.md, docs/api-spec.md | ✅ SATISFIED |
+| Testing Strategy | Phase 3 | 7.8/10 | docs/test-plan.md | ⚠️ MINOR GAPS |
+
+**Requirements Satisfaction Score**: 8.5/10.0
+
+## Quality Assessment Breakdown
+
+### Completeness Score: 9.0/10.0
+- ✅ All 4 planned phases executed completely
+- ✅ All stages (1-9) completed per phase
+- ✅ All promised deliverables generated
+- ⚠️ Minor: Integration testing documentation incomplete
+
+### Coherence Score: 8.2/10.0
+- ✅ Strong alignment between Phase 2 architecture and Phase 3 implementation
+- ✅ Consistent technical decisions across all phases
+- ⚠️ Minor conflict: Phase 3 performance approach vs Phase 4 recommendations
+
+### Value Delivery Score: 9.0/10.0
+- ✅ Solutions directly address stated business needs
+- ✅ Outputs immediately actionable by development team
+- ✅ Documentation sufficient for implementation
+- ✅ Risk mitigation strategies comprehensive
+
+**Global Quality Score**: 8.7/10.0 ✅ EXCEEDS MINIMUM (7.0)
+
+## Phase Quality Progression
+
+| Phase | Final Score | Iterations | Key Strength |
+|-------|-------------|------------|-------------|
+| Phase 1: Analysis | 8.3/10 | 4 | Thorough stakeholder analysis |
+| Phase 2: Architecture | 9.1/10 | 6 | Excellent technical design |
+| Phase 3: Implementation | 8.5/10 | 8 | Solid coding standards |
+| Phase 4: Validation | 8.9/10 | 3 | Comprehensive testing |
+
+**Quality Trend**: ↗️ **Improving** (consistent growth across phases)
+
+## Meta-Learning Summary
+
+### What Worked Exceptionally Well
+- **Stakeholder-First Approach**: Phase 1 stakeholder analysis drove excellent Phase 2 architecture decisions
+- **Iterative Architecture Refinement**: Phase 2 iteration pattern (6 cycles) produced robust design
+- **Quality-First Implementation**: Phase 3's emphasis on testing prevented rework in Phase 4
+
+### Key Insights for Future Prompts
+- **Technical projects benefit from 6+ architecture iterations**
+- **Early stakeholder validation saves 40% rework time**
+- **Documentation-driven development improved cross-phase coherence**
+
+### Framework Performance
+- **Optimal phase count**: 4 phases perfect for this complexity
+- **Stage 8 quality loops**: Averaged 5.25 iterations, all converged successfully
+- **Knowledge transfer**: 89% of Phase N learnings effectively used in Phase N+1
+
+## Deliverable Index
+
+### Primary Outputs (docs/)
+- `technical-architecture.md` - Core system design
+- `implementation-guide.md` - Step-by-step development guide
+- `api-specification.md` - Complete API documentation
+- `test-strategy.md` - Comprehensive testing approach
+
+### Planning Artifacts (planning/)
+- `phase-1.md` - Complete stakeholder and requirements analysis
+- `phase-2.md` - Full architecture design with iterations
+- `phase-3.md` - Implementation planning and standards
+- `phase-4.md` - Validation and testing strategies
+
+### Implementation Readiness: ✅ **READY FOR DEVELOPMENT**
+
+All outputs provide sufficient detail for immediate implementation by development team.
+
+---
+*End of Global Quality Review*
+*Total Execution Time: [Duration]*
+*Framework completed successfully with exceptional results*
+```
+
+## Global Review Execution Instructions
+
+**When to Generate Global Review:**
+- Execute IMMEDIATELY after final phase Stage N.9 completes
+- Required for ALL prompts using this framework
+- No exceptions - guaranteed by Framework Behavior #7
+
+**Global Review Process:**
+1. Load ALL phase outputs from `<worktree>/planning/phase-*.md`
+2. Extract original requirements from initial `<prompt-arguments>`
+3. Execute comprehensive validation process outlined above
+4. Generate complete `global-quality-review.md` documentation
+5. IF score < 7.0, execute Remediation Phase Template
+6. Archive complete results for future reference
+
+This completes the comprehensive Global Final Quality Review system, ensuring every prompt execution ends with thorough validation against original requirements.
