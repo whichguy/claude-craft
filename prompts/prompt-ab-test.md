@@ -123,14 +123,89 @@ RESEARCH optimal setup approaches:
     - Identify optimal temporary directory strategy
     - Research git fallback strategies for version detection
 
+EXECUTE git file extraction immediately if needed:
+  IF PROMPT_B_PATH is null THEN:
+    **USE_GIT_COMPARISON**: true
+
+    REPO_ROOT=$(git -C "<worktree>" rev-parse --show-toplevel 2>/dev/null)
+
+    IF REPO_ROOT is empty THEN:
+      ERROR: "No second prompt specified and not in a git repository"
+
+    RELATIVE_PATH=$(realpath --relative-to="$REPO_ROOT" "<PROMPT_A_PATH>")
+
+    TEST_DIR=/tmp/prompt-ab-test-$(date +%Y%m%d-%H%M%S)-$$
+    mkdir -p "$TEST_DIR"
+
+    # Intelligent version selection using content hashes
+    # Get hash of current HEAD version
+    CURRENT_HASH=$(git -C "$REPO_ROOT" show "HEAD:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1)
+
+    # Check if current file differs from HEAD
+    IF git -C "$REPO_ROOT" diff --quiet HEAD -- "$RELATIVE_PATH" 2>/dev/null THEN:
+      # File is same as HEAD, find previous different version
+      echo "File unchanged from HEAD, searching for previous different version..."
+
+      FOR COMMIT in $(git -C "$REPO_ROOT" log --oneline -10 --format="%H" -- "$RELATIVE_PATH" | tail -n +2); do
+        # Skip if we can't show this commit
+        if ! git -C "$REPO_ROOT" show "$COMMIT:$RELATIVE_PATH" >/dev/null 2>&1; then
+          VERSION_TO_USE="skip"
+          continue
+        fi
+
+        # Get hash of this commit's version
+        COMMIT_HASH=$(git -C "$REPO_ROOT" show "$COMMIT:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1 || echo "")
+
+        # If hash is different, use this version
+        if [ -n "$COMMIT_HASH" ] && [ "$COMMIT_HASH" != "$CURRENT_HASH" ]; then
+          VERSION_TO_USE="$COMMIT"
+          # Get first 7 chars of commit hash for display
+          SHORT_HASH=$(echo "$COMMIT" | cut -c1-7)
+          VERSION_LABEL="Previous different version ($SHORT_HASH)"
+          break
+        fi
+      done
+
+      IF [ -z "$VERSION_TO_USE" ] || [ "$VERSION_TO_USE" = "skip" ]; then
+        VERSION_TO_USE="HEAD~1"
+        VERSION_LABEL="Previous version (HEAD~1) - fallback"
+      fi
+    ELSE:
+      # File has uncommitted changes, compare against HEAD
+      VERSION_TO_USE="HEAD"
+      VERSION_LABEL="Last committed version (HEAD) - comparing uncommitted changes"
+    FI
+
+    # Extract the appropriate version
+    IF git -C "$REPO_ROOT" show "${VERSION_TO_USE}:${RELATIVE_PATH}" > "$TEST_DIR/prompt-b-committed.md" 2>/dev/null THEN:
+      Set **PROMPT_B_PATH**: "$TEST_DIR/prompt-b-committed.md"
+      Set **PROMPT_B_LABEL**: "$VERSION_LABEL"
+    ELSE:
+      # File doesn't exist in the chosen version
+      ERROR: "File '<PROMPT_A_PATH>' is not available in ${VERSION_TO_USE}.
+      For new files, please provide two explicit prompt files:
+      /prompt-ab-test file1.md file2.md [arguments]
+
+      Or commit your file first, then run:
+      git -C "$REPO_ROOT" add "$RELATIVE_PATH" && git -C "$REPO_ROOT" commit -m 'Add prompt for A/B testing'"
+    FI
+
+    Set **CLEANUP_REQUIRED**: true
+    Set **TEST_DIR**: "$TEST_DIR"
+
+  ELSE:
+    Validate PROMPT_B exists at specified path
+    Set **PROMPT_B_LABEL**: "<PROMPT_B_PATH>"
+  FI
+
 ### Stage 1.4: Planning
 
-PLAN the extraction and setup strategy:
-  **EXTRACTION_APPROACH**: Based on research findings
-    IF PROMPT_B_PATH is null:
-      Plan git-based version extraction with fallbacks
+PLAN the file validation strategy:
+  **VALIDATION_APPROACH**: Based on files prepared in Stage 1.3
+    IF PROMPT_B_PATH was set via git extraction:
+      Plan validation of temp file and original file
     ELSE:
-      Plan direct file validation approach
+      Plan validation of both explicit file paths
 
   **ISOLATION_STRATEGY**:
     Create unique test directory: <worktree>/tmp/prompt-ab-test-$(date +%Y%m%d-%H%M%S)-$$
@@ -138,104 +213,43 @@ PLAN the extraction and setup strategy:
 
 ### Stage 1.5: Review
 
-VALIDATE extraction plan before execution:
-  - Verify both prompts can be located or extracted
-  - Confirm test directory creation won't conflict
-  - Check git operations are safe and non-destructive
+VALIDATE file preparation results:
+  - Verify both prompt files are accessible from Stage 1.3
+  - Confirm PROMPT_A_PATH and PROMPT_B_PATH are set
+  - Check that any temp directories are properly created
+  - Verify PROMPT_B_LABEL is set for display purposes
 
 ### Stage 1.6: Execution
 
-EXECUTE the validated extraction plan:
+EXECUTE final file validation (files prepared in Stage 1.3):
 
-  Extract Prompt B:
-    IF PROMPT_B_PATH is null THEN:
-      **USE_GIT_COMPARISON**: true
+  Validate both prompt files are ready:
+    IF ! test -f "<PROMPT_A_PATH>" THEN:
+      ERROR: "Cannot access Prompt A file: <PROMPT_A_PATH>"
+    FI
 
-      REPO_ROOT=$(git -C "<worktree>" rev-parse --show-toplevel 2>/dev/null)
+    IF ! test -f "<PROMPT_B_PATH>" THEN:
+      ERROR: "Cannot access Prompt B file: <PROMPT_B_PATH>"
+      # This should not happen since Stage 1.3 prepared the file
+    FI
 
-      IF REPO_ROOT is empty THEN:
-        ERROR: "No second prompt specified and not in a git repository"
+  Verify file readability:
+    IF ! test -r "<PROMPT_A_PATH>" THEN:
+      ERROR: "Prompt A file is not readable: <PROMPT_A_PATH>"
+    FI
 
-      RELATIVE_PATH=$(realpath --relative-to="$REPO_ROOT" "<PROMPT_A_PATH>")
+    IF ! test -r "<PROMPT_B_PATH>" THEN:
+      ERROR: "Prompt B file is not readable: <PROMPT_B_PATH>"
+    FI
 
-      TEST_DIR=/tmp/prompt-ab-test-$(date +%Y%m%d-%H%M%S)-$$
-      mkdir -p "$TEST_DIR"
+  Confirm files contain content:
+    IF [ ! -s "<PROMPT_A_PATH>" ]; then
+      ERROR: "Prompt A file is empty: <PROMPT_A_PATH>"
+    FI
 
-      # Intelligent version selection using content hashes
-      # Get hash of current HEAD version
-      CURRENT_HASH=$(git -C "$REPO_ROOT" show "HEAD:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1)
-
-      # Check if current file differs from HEAD
-      IF git -C "$REPO_ROOT" diff --quiet HEAD -- "$RELATIVE_PATH" 2>/dev/null THEN:
-        # File is same as HEAD, find previous different version
-        echo "File unchanged from HEAD, searching for previous different version..."
-
-        # Get list of commits that touched this file (limit to 20 for performance)
-        COMMITS=$(git -C "$REPO_ROOT" log --format='%H' -n 20 -- "$RELATIVE_PATH" 2>/dev/null || echo "")
-
-        VERSION_TO_USE=""
-        VERSION_LABEL=""
-
-        # Walk through commits to find first different content
-        for COMMIT in $COMMITS; do
-          # Skip the first commit (HEAD) since we already have its hash
-          if [ -z "$VERSION_TO_USE" ]; then
-            # First iteration is HEAD, skip it
-            VERSION_TO_USE="skip"
-            continue
-          fi
-
-          # Get hash of this commit's version
-          COMMIT_HASH=$(git -C "$REPO_ROOT" show "$COMMIT:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1 || echo "")
-
-          # If hash is different, use this version
-          if [ -n "$COMMIT_HASH" ] && [ "$COMMIT_HASH" != "$CURRENT_HASH" ]; then
-            VERSION_TO_USE="$COMMIT"
-            # Get first 7 chars of commit hash for display
-            SHORT_COMMIT=$(echo "$COMMIT" | cut -c1-7)
-            # Get commit message for context
-            COMMIT_MSG=$(git -C "$REPO_ROOT" log -1 --format='%s' "$COMMIT" 2>/dev/null | cut -c1-50)
-            VERSION_LABEL="Previous different version ($SHORT_COMMIT: $COMMIT_MSG)"
-            echo "Found different version at commit $SHORT_COMMIT"
-            break
-          fi
-        done
-
-        # If no different version found, abort
-        if [ "$VERSION_TO_USE" = "skip" ] || [ -z "$VERSION_TO_USE" ]; then
-          ERROR: "No different version found in last 20 commits. File may be newly added or unchanged for many commits."
-          echo "To run A/B test, either:"
-          echo "  1. Make changes to the file and save (uncommitted changes)"
-          echo "  2. Specify explicit version: 'version <commit-hash>'"
-          echo "  3. Use two different files: 'file prompt1.md prompt2.md'"
-          EXIT with status 1
-        fi
-      ELSE:
-        # File has uncommitted changes, use HEAD for comparison
-        VERSION_TO_USE="HEAD"
-        VERSION_LABEL="Last committed version (HEAD) - comparing uncommitted changes"
-      FI
-
-      # Extract the appropriate version
-      IF git -C "$REPO_ROOT" show "${VERSION_TO_USE}:${RELATIVE_PATH}" > "$TEST_DIR/prompt-b-committed.md" 2>/dev/null THEN:
-        Set **PROMPT_B_PATH**: "$TEST_DIR/prompt-b-committed.md"
-        Set **PROMPT_B_LABEL**: "$VERSION_LABEL"
-      ELSE:
-        # File doesn't exist in the chosen version
-        ERROR: "File '<PROMPT_A_PATH>' is not available in ${VERSION_TO_USE}.
-        For new files, please provide two explicit prompt files:
-        /prompt prompt-ab-test prompt1.md prompt2.md [test-args]
-
-        Or commit your file first, then run:
-        git -C "$REPO_ROOT" add "$RELATIVE_PATH" && git -C "$REPO_ROOT" commit -m 'Add prompt for A/B testing'"
-      FI
-
-      Set **CLEANUP_REQUIRED**: true
-      Set **TEST_DIR**: "$TEST_DIR"
-
-    ELSE:
-      Validate PROMPT_B exists at specified path
-      Set **PROMPT_B_LABEL**: "<PROMPT_B_PATH>"
+    IF [ ! -s "<PROMPT_B_PATH>" ]; then
+      ERROR: "Prompt B file is empty: <PROMPT_B_PATH>"
+    FI
 
 ### Stage 1.7: Quality Check
 
@@ -282,19 +296,30 @@ OUTPUT to user:
 
 ### Prompt Contents
 
-Display Prompt A content:
-  **PROMPT_A_CONTENT**: [Read content of PROMPT_A_PATH file]
+**🔍 DETAILED CONTENT COMPARISON**
+
+**Prompt A Content** (Current version):
+  **PROMPT_A_CONTENT**: [Read and display complete content of PROMPT_A_PATH]
   ```
-  <PROMPT_A_CONTENT>
+  [Display ENTIRE content of <PROMPT_A_PATH> file - every line exactly as written]
   ```
   *File metrics: <PROMPT_A_SIZE> characters, <PROMPT_A_LINES> lines*
+  *File path: <PROMPT_A_PATH>*
+  *Version: Current working copy*
 
-Display Prompt B content:
-  **PROMPT_B_CONTENT**: [Read content of PROMPT_B_PATH file]
+**Prompt B Content** (<PROMPT_B_LABEL>):
+  **PROMPT_B_CONTENT**: [Read and display complete content of PROMPT_B_PATH]
   ```
-  <PROMPT_B_CONTENT>
+  [Display ENTIRE content of <PROMPT_B_PATH> file - every line exactly as written]
   ```
   *File metrics: <PROMPT_B_SIZE> characters, <PROMPT_B_LINES> lines*
+  *File path: <PROMPT_B_PATH>*
+  *Version: <PROMPT_B_LABEL>*
+
+**📊 CONTENT COMPARISON METRICS**:
+- **Size difference**: [Absolute difference] characters ([Percentage]% change)
+- **Line difference**: [Absolute difference] lines ([Percentage]% change)
+- **Structural changes**: [Brief description of major differences observed]
 
 ### Identity Check
 
@@ -346,9 +371,14 @@ EXTRACT from previous Phase 1 outputs:
   **TEST_ARGUMENTS**: Preserved test arguments
   **TEST_ENVIRONMENT**: Isolated test configuration
 
-READ prompt file contents:
-  **PROMPT_A_CONTENT**: Full content of first prompt
-  **PROMPT_B_CONTENT**: Full content of second prompt
+READ prompt file contents for validation:
+  **PROMPT_A_CONTENT**: $(cat "<PROMPT_A_PATH>")
+  **PROMPT_B_CONTENT**: $(cat "<PROMPT_B_PATH>")
+
+  **CONTENT_VALIDATION**:
+  - Verify both files are readable and contain content
+  - Calculate content hashes for identity checking
+  - Extract file metrics for comparison purposes
 
 ### Stage 2.2: Criteria Definition (Runtime)
 
@@ -761,28 +791,53 @@ VALIDATE execution plan before launching:
 
 EXECUTE the validated parallel execution plan:
 
-Construct prompter invocations:
-  **COMMAND_A**: "/prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>"
-  **COMMAND_B**: "/prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>"
+Construct prompter subagent invocations:
+  **SUBAGENT_A_PROMPT**: "Load and execute the prompt template from <PROMPT_A_PATH> with the arguments: <TEST_ARGUMENTS>"
+  **SUBAGENT_B_PROMPT**: "Load and execute the prompt template from <PROMPT_B_PATH> with the arguments: <TEST_ARGUMENTS>"
 
-### Execution Commands Being Run
+### 🚀 DETAILED EXECUTION LOGGING
 
-Display exact commands that will be executed:
-  **Command for Prompt A**: /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>
-  **Command for Prompt B**: /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>
+**⚡ Pre-Execution Setup**:
+  **Parallel Execution ID**: <EXECUTION_ID>
+  **Start Timestamp**: <START_TIMESTAMP>
+  **Execution Method**: Task tool with simultaneous parallel calls
+  **Isolation**: Each subagent runs in separate context to prevent cross-contamination
 
-Display Task tool invocation parameters:
-  **Task A Parameters**:
-    - subagent_type: "prompter"
-    - description: "Execute Prompt A Testing"
-    - prompt: "Execute: /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>"
+**📋 Commands Being Executed**:
+  ```bash
+  # Command for Prompt A
+  /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>
 
-  **Task B Parameters**:
-    - subagent_type: "prompter"
-    - description: "Execute Prompt B Testing"
-    - prompt: "Execute: /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>"
+  # Command for Prompt B
+  /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>
+  ```
 
-CAPTURE execution timing:
+**🔧 Task Tool Invocation Parameters**:
+
+**Task A Configuration**:
+```json
+{
+  "subagent_type": "prompter",
+  "description": "Execute Prompt A Testing - <PROMPT_A_NAME>",
+  "prompt": "<SUBAGENT_A_PROMPT>",
+  "timeout": "900s",
+  "retry_policy": "on_failure_only"
+}
+```
+
+**Task B Configuration**:
+```json
+{
+  "subagent_type": "prompter",
+  "description": "Execute Prompt B Testing - <PROMPT_B_NAME>",
+  "prompt": "<SUBAGENT_B_PROMPT>",
+  "timeout": "900s",
+  "retry_policy": "on_failure_only"
+}
+```
+
+**⏱️ EXECUTION TIMING CAPTURE**:
+  **Pre-execution timestamp**: [Record milliseconds before Task tool calls]
   **START_TIME**: [current timestamp in milliseconds before execution]
 
 ## Verbatim Mode Configuration
@@ -869,17 +924,16 @@ Task Call 1 - Execute Prompt A:
     ✅ Every single word, sentence, paragraph, table, list item
     ✅ Complete formatting, spacing, line breaks as produced
 
-    **TOKEN USAGE TRACKING**:
-    - Record total tokens used: input_tokens + output_tokens
-    - Capture from subagent execution metadata if available
-    - If not available, estimate based on prompt size and output length
-    - Store as <token-usage>[number]</token-usage>
+    **METADATA NOTE**:
+    - Token usage will be automatically captured from Task tool response
+    - Execution time will be measured from actual runtime
+    - Tool use count will be extracted from subagent metadata
+    - Focus on producing complete output - metrics are handled externally
 
     Return the result in this EXACT structured format:
     <execution-result>
       <status>SUCCESS|FAILED|PARTIAL</status>
       <execution-time>[time in seconds]</execution-time>
-      <token-usage>[total tokens used]</token-usage>
       <output-a>
 [PUT THE COMPLETE, VERBATIM OUTPUT HERE - EVERY SINGLE CHARACTER]
 [DO NOT SUMMARIZE - INCLUDE THE FULL OUTPUT]
@@ -943,6 +997,12 @@ Task Call 2 - Execute Prompt B:
     ✅ Every single word, sentence, paragraph, table, list item
     ✅ Complete formatting, spacing, line breaks as produced
 
+    **METADATA NOTE**:
+    - Token usage will be automatically captured from Task tool response
+    - Execution time will be measured from actual runtime
+    - Tool use count will be extracted from subagent metadata
+    - Focus on producing complete output - metrics are handled externally
+
     Return the result in this EXACT structured format:
     <execution-result>
       <status>SUCCESS|FAILED|PARTIAL</status>
@@ -974,6 +1034,34 @@ The framework will automatically:
 
 END_TIME=$(date +%s.%N)
 TOTAL_DURATION=$(echo "$END_TIME - $START_TIME" | bc)
+
+## Metadata Extraction from Task Responses
+
+**CRITICAL**: Extract actual performance metrics from Task tool responses:
+
+1. **Token Usage Extraction**:
+   - Look for patterns like "80.0k tokens", "77.8k tokens" in Task response
+   - Parse format: "[number][k] tokens" where k = 1000
+   - Store as TOKENS_A and TOKENS_B (actual values, not estimates)
+   - Example: "80.0k tokens" → TOKENS_A = 80000
+
+2. **Execution Time Extraction**:
+   - Look for patterns like "5m 39.3s", "4m 21.0s" in Task response
+   - Parse format: "[minutes]m [seconds]s"
+   - Convert to total seconds: (minutes * 60) + seconds
+   - Store as ACTUAL_TIME_A and ACTUAL_TIME_B
+   - Example: "5m 39.3s" → ACTUAL_TIME_A = 339.3
+
+3. **Tool Use Count Extraction**:
+   - Look for patterns like "7 tool uses", "5 tool uses"
+   - Parse format: "[number] tool uses"
+   - Store as TOOL_USES_A and TOOL_USES_B
+   - Example: "7 tool uses" → TOOL_USES_A = 7
+
+4. **Fallback to Estimates**:
+   - If metadata not found in Task response, use execution-result values
+   - TIME_A/TIME_B from <execution-time> tags as fallback
+   - Estimate tokens based on prompt + output length only if no metadata
 
 ## Expected Response Structure
 
@@ -1144,12 +1232,28 @@ Document comprehensive execution metadata:
 
 ### Stage 3.9: Phase Completion
 
-Mark Phase 3 complete with all required outputs:
-  - **OUTPUT_A**: Complete output from first prompt execution (extracted from <output-a> tags)
-  - **OUTPUT_B**: Complete output from second prompt execution (extracted from <output-b> tags)
-  - **EXECUTION_METADATA**: Timing, status, and error information (from <execution-result> structure)
-  - **RETRY_COUNTS**: Number of retry attempts for each prompt (from <retry-count> tags)
-  - **EXECUTION_STATUS**: Overall success/failure status (from <status> tags)
+Mark Phase 3 complete with comprehensive execution statistics:
+
+**📊 EXECUTION PERFORMANCE REPORT**
+- **Total Execution Time**: <END_TIME> - <START_TIME> seconds
+- **Parallel Efficiency**: Both prompts completed simultaneously
+- **Success Rate**: X/2 prompts executed successfully
+
+**📋 DETAILED OUTPUT CAPTURE**
+- **OUTPUT_A**: Complete output from first prompt execution (extracted from <output-a> tags)
+  - Character count: [LENGTH] characters
+  - Response time: [DURATION] seconds
+- **OUTPUT_B**: Complete output from second prompt execution (extracted from <output-b> tags)
+  - Character count: [LENGTH] characters
+  - Response time: [DURATION] seconds
+
+**🔧 SUBAGENT STATISTICS**
+- **Prompter agents launched**: 2 parallel instances
+- **Tool calls made**: [COUNT] across both executions
+- **RETRY_COUNTS**: Number of retry attempts for each prompt (from <retry-count> tags)
+- **EXECUTION_STATUS**: Overall success/failure status (from <status> tags)
+
+**⚙️ EXECUTION_METADATA**: Timing, status, and error information (from <execution-result> structure)
 
 Note: These are in-memory content variables (text strings), not shell variables or files.
 The only file is the temp file for Prompt B's git version.
@@ -1368,7 +1472,11 @@ FOR iteration FROM 1 TO maximum of 5:
 
   CALCULATE LOG RATIO for execution time comparison:
 
-    EXECUTION_TIME_RATIO = log(EXECUTION_TIME_B / EXECUTION_TIME_A)
+    # Use actual metrics from Task responses if available
+    TIME_A = ACTUAL_TIME_A if defined else TIME_A
+    TIME_B = ACTUAL_TIME_B if defined else TIME_B
+
+    EXECUTION_TIME_RATIO = log(TIME_B / TIME_A)
 
     INTERPRET performance difference:
       IF abs(EXECUTION_TIME_RATIO) < 0.05: TIME_SEVERITY = "negligible" (background noise)
@@ -1383,7 +1491,11 @@ FOR iteration FROM 1 TO maximum of 5:
 
   CALCULATE TOKEN EFFICIENCY comparison:
 
-    TOKEN_RATIO = log(TOKEN_USAGE_B / TOKEN_USAGE_A)
+    # Use actual token counts from Task responses
+    TOKEN_A = TOKENS_A if defined else estimate_tokens(PROMPT_A + OUTPUT_A)
+    TOKEN_B = TOKENS_B if defined else estimate_tokens(PROMPT_B + OUTPUT_B)
+
+    TOKEN_RATIO = log(TOKEN_B / TOKEN_A)
 
     INTERPRET token efficiency:
       IF abs(TOKEN_RATIO) < 0.05: TOKEN_SEVERITY = "negligible" (equivalent efficiency)
@@ -1610,16 +1722,292 @@ KEY DIFFERENCES:
 + Common: [shared strength]
 ```
 
-## Detailed Scoring Breakdown
+## 🧪 A/B Test Results: [PROMPT_NAME] Comparison
 
-| Criterion | Weight | Prompt A | Prompt B | Winner | Margin |
-|-----------|--------|----------|----------|--------|--------|
-| Prompt Effectiveness | 10% | [SCORE_A_EFFECTIVENESS] | [SCORE_B_EFFECTIVENESS] | [EFFECTIVENESS_WINNER] | [EFFECTIVENESS_MARGIN] |
-| Execution Time | 15% | [SCORE_A_TIME] | [SCORE_B_TIME] | [TIME_WINNER] | [TIME_MARGIN] |
-| Token Efficiency | 15% | [SCORE_A_TOKENS] | [SCORE_B_TOKENS] | [TOKEN_WINNER] | [TOKEN_MARGIN] |
-| Output Quality | 60% | [SCORE_A_QUALITY] | [SCORE_B_QUALITY] | [QUALITY_WINNER] | [QUALITY_MARGIN] |
-| Discovered Criteria | 20% | [SCORE_A_DISCOVERED] | [SCORE_B_DISCOVERED] | [DISCOVERED_WINNER] | [DISCOVERED_MARGIN] |
-| **TOTAL** | 100% | [TOTAL_SCORE_A] | [TOTAL_SCORE_B] | **[WINNER]** | **[MARGIN]** |
+### 📋 Test Configuration
+
+    Test ID:        [TIMESTAMP]
+    Arguments:      "[TEST_ARGUMENTS]"
+    Domain:         🔧 [DOMAIN_TYPE]
+    Eval Mode:      🎯 [EVAL_MODE] (Domain-Specific Criteria Applied)
+
+## ⚡ Performance Dashboard
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 🚀 Execution Timeline
+```
+     Prompt A │ ▶️ ════════════════════════════════════════════╸           │ [TIME_A]s
+              │   └─Init─┴─Research─┴─Format─┴─Done┘
+              │
+     Prompt B │ ▶️ ══════════════════════════════════════════════════════════════════════════════╸ │ [TIME_B]s
+              │   └─Init─┴────Research────┴──Format──┴─Done┘
+              │
+              0s        2s        4s        6s        8s        10s       12s       14s
+```
+
+### 📊 Resource Usage Comparison
+
+Metric              Prompt A           Prompt B           Difference     Trend
+─────────────────────────────────────────────────────────────────────────────
+⚡ Execution Time    [TIME_A]s          [TIME_B]s          [TIME_DIFF]%   [TIME_BAR]
+Tokens             [TOKENS_A]         [TOKENS_B]         [TOKEN_DIFF]%  [TOKEN_BAR]
+📏 Output Length     [OUTPUT_A_LENGTH] chars  [OUTPUT_B_LENGTH] chars  [OUTPUT_DIFF]%   [OUTPUT_BAR]
+📄 Prompt Size       [PROMPT_A_SIZE] chars    [PROMPT_B_SIZE] chars    [SIZE_DIFF]%     [SIZE_BAR]
+⭐ Quality Score     [SCORE_A_QUALITY]/10     [SCORE_B_QUALITY]/10     [QUALITY_DIFF]%  [QUALITY_BAR]
+*[Token capture status]
+
+## 🎨 Output Quality Deep Dive
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 📑 Output Quality Analysis
+
+Aspect              Prompt A                      Prompt B                      Winner
+────────────────────────────────────────────────────────────────────────────────────────
+🏗️ Structure         [A_STRUCTURE_DESC]           [B_STRUCTURE_DESC]           [WIN] ✅
+                    [A_STRUCTURE_STARS]          [B_STRUCTURE_STARS]
+
+📋 Completeness     [A_COMPLETENESS_DESC]        [B_COMPLETENESS_DESC]        [WIN] ✅
+                    [A_COMPLETE_BAR]             [B_COMPLETE_BAR]
+
+⚙️ Actionability     [A_ACTION_DESC]              [B_ACTION_DESC]              [WIN] ✅
+                    [A_ACTION_STARS]             [B_ACTION_STARS]
+
+### 📈 Quality Metrics Visualization
+
+```
+Completeness  A: [A_COMPLETE_VIS]    B: [B_COMPLETE_VIS]
+Accuracy      A: [A_ACCURACY_VIS]    B: [B_ACCURACY_VIS]
+Usefulness    A: [A_USEFUL_VIS]      B: [B_USEFUL_VIS]
+Structure     A: [A_STRUCT_VIS]      B: [B_STRUCT_VIS]
+```
+
+## 🏅 Scoring Matrix (Domain-Weighted)
+
+Criterion              Weight    Prompt A         Prompt B         Winner
+────────────────────────────────────────────────────────────────────────────
+🎯 Effectiveness         [EFF_WEIGHT]%   [A_EFF_SCORE]/10     [B_EFF_SCORE]/10     [EFF_WIN]
+⚡ Execution Speed        [TIME_WEIGHT]%  [A_TIME_SCORE]/10    [B_TIME_SCORE]/10    [TIME_WIN]
+💰 Token Efficiency       [TOK_WEIGHT]%   [A_TOK_SCORE]/10     [B_TOK_SCORE]/10     [TOK_WIN]
+✨ Output Quality          [QUAL_WEIGHT]%  [A_QUAL_SCORE]/10    [B_QUAL_SCORE]/10    [QUAL_WIN]
+📋 Completeness          [COMP_WEIGHT]%  [A_COMP_SCORE]/10    [B_COMP_SCORE]/10    [COMP_WIN]
+────────────────────────────────────────────────────────────────────────────
+🏆 TOTAL SCORE           100%        [TOTAL_SCORE_A]/10   [TOTAL_SCORE_B]/10   [WINNER]
+
+                          🏆 WINNER: [WINNER] ([MARGIN] point margin)
+
+## 💡 Strategic Recommendations
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 🎯 Primary Recommendation: **[PRIMARY_REC_TITLE]**
+
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│ 📆 RECOMMENDED OPTIMIZATION                                                  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│ [PRIMARY_RECOMMENDATION_CONTENT]                                               │
+│                                                                                 │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│ Expected Results:                                                              │
+│ • Execution: [EXEC_IMPROVEMENT]  • Quality: [QUALITY_RETENTION]  • Score: [SCORE_GAIN]     │
+└─────────────────────────────────────────────────────────────────────────────────┘
+
+### 🔄 Alternative Strategies
+
+#### ⚡ Speed-Critical Mode
+```yaml
+Use Case: Time-sensitive queries, CI/CD hooks
+Strategy: [SPEED_STRATEGY]
+Trade-off: [SPEED_TRADEOFF]
+```
+
+#### 📚 Research Mode
+```yaml
+Use Case: Documentation, decision-making
+Strategy: [RESEARCH_STRATEGY]
+Trade-off: [RESEARCH_TRADEOFF]
+```
+
+#### 🎭 Hybrid Mode
+```yaml
+Use Case: Balanced requirements
+Strategy: [HYBRID_STRATEGY]
+Trade-off: [HYBRID_TRADEOFF]
+```
+
+## 🎬 Interactive Action Menu
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 🛠️ Optimization Actions
+
+Code    Action
+──────────────────────────────────────────────────────────────────────────────────────
+[A]     🚀 [ACTION_A_DESC]
+[B]     💎 [ACTION_B_DESC]
+[C]     🔀 [ACTION_C_DESC]
+[D]     ⚡ [ACTION_D_DESC]
+
+### 📝 Prompt Management
+
+Code     Action
+──────────────────────────────────────────────────────────────────────────────────────
+[KEEP]   ✅ Keep [WINNER] as current version
+[RVRT]   ↩️ Revert to [LOSER] (previous version)
+[SAVE]   💾 Save both versions with metadata
+
+### 🔬 Testing Actions
+
+Code     Action
+──────────────────────────────────────────────────────────────────────────────────────
+[TEST]   🔄 Rerun test with same arguments
+[VARY]   🎲 Test with 3 varied complexity levels
+[BENCH]  ⏱️ Run performance benchmark (10 iterations)
+
+──────────────────────────────────────────────────────────────────────────────────────
+Enter your choice: [_]                                          Press Q to quit
+──────────────────────────────────────────────────────────────────────────────────────
+
+## 📊 Confidence & Validation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### 🎯 Statistical Confidence
+
+```
+Confidence Level: [CONFIDENCE_BAR] [CONFIDENCE_PCT]% [CONFIDENCE_LEVEL]
+
+Factors Supporting High Confidence:
+[CONFIDENCE_FACTORS]
+
+Risk Factors:
+[RISK_FACTORS]
+```
+
+### 🔍 Recommended Validation Protocol
+
+```
+1. Simple Query Test    - Baseline: [SIMPLE_TARGET]s target
+2. Medium Query Test    - Current test level validation
+3. Complex Query Test   - Stress test: [COMPLEX_TARGET]s max
+→ Aggregate Results    - Statistical confidence validation
+```
+
+### 📈 Performance Trajectory Prediction
+
+```
+If Optimization [A] Applied:
+────────────────────────────────────────────────────────────────────────────────
+         Now          After Opt.      Improvement
+Speed:   [CURRENT_SPEED]   →    [OPT_SPEED]      →    [SPEED_IMPROVE]
+Quality: [CURRENT_QUAL]    →    [OPT_QUAL]       →    [QUAL_CHANGE]
+Score:   [CURRENT_SCORE]   →    [OPT_SCORE]      →    [SCORE_IMPROVE]
+────────────────────────────────────────────────────────────────────────────────
+```
+
+## 📋 Test Summary Card
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              TEST RESULT SUMMARY                              ║
+╠═══════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  Winner:      🏆 [WINNER] ([WINNER_VERSION])                                ║
+║  Score:       [WINNING_SCORE]/100 ([MARGIN_SIGN][MARGIN] over [LOSER])       ║
+║  Confidence:  [CONFIDENCE_PCT]% [CONFIDENCE_LEVEL]                           ║
+║                                                                               ║
+║  Key Finding: [KEY_FINDING]                                                  ║
+║               [KEY_FINDING_DETAIL]                                           ║
+║                                                                               ║
+║  Action:      [RECOMMENDED_ACTION]                                           ║
+║                                                                               ║
+║  ─────────────────────────────────────────────────────────────────────────── ║
+║  Generated: [TIMESTAMP] | Framework: prompt-ab-test v2.1                     ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+### Stage 4.8: Calculate Metadata Display Values
+
+**CALCULATE display values for execution metadata table**:
+
+1. **Token Metrics**:
+   - TOKEN_DIFF = ((TOKEN_B - TOKEN_A) / TOKEN_A) * 100
+   - If TOKEN_B < TOKEN_A: "Prompt B" more efficient
+   - TOKEN_FACTOR from previous calculation
+
+2. **Time Metrics**:
+   - TIME_DIFF = ((TIME_B - TIME_A) / TIME_A) * 100
+   - If TIME_B < TIME_A: "Prompt B" faster
+   - SPEED_FACTOR from previous calculation
+
+3. **Tool Use Metrics**:
+   - TOOL_DIFF = TOOL_USES_B - TOOL_USES_A
+   - If TOOL_USES_B < TOOL_USES_A: "Prompt B" more efficient
+
+4. **Size Metrics**:
+   - PROMPT_A_SIZE = character count of PROMPT_A
+   - PROMPT_B_SIZE = character count of PROMPT_B
+   - SIZE_DIFF = ((PROMPT_B_SIZE - PROMPT_A_SIZE) / PROMPT_A_SIZE) * 100
+
+5. **Output Metrics**:
+   - OUTPUT_A_LENGTH = character count of OUTPUT_A
+   - OUTPUT_B_LENGTH = character count of OUTPUT_B
+   - OUTPUT_DIFF = ((OUTPUT_B_LENGTH - OUTPUT_A_LENGTH) / OUTPUT_A_LENGTH) * 100
+
+6. **Timeline Phase Calculations**:
+   - PREP_TIME = Time spent in Phases 1-3 (discovery, research, planning)
+   - EXEC_TIME = Time spent in actual prompt execution (Task tool calls)
+   - EVAL_TIME = Time spent in Phase 4 analysis and scoring
+   - TOTAL_TIME = PREP_TIME + EXEC_TIME + EVAL_TIME
+
+7. **Performance Indicators**:
+   - EFFICIENCY_SCORE = (WINNER_TOKENS / LOSER_TOKENS) * 100 (lower is better)
+   - SPEED_SCORE = (WINNER_TIME / LOSER_TIME) * 100 (lower is better)
+   - QUALITY_DELTA = |WINNER_QUALITY_SCORE - LOSER_QUALITY_SCORE|
+
+8. **Visual Element Variables**:
+   - [TOKENS_A] = TOKEN_A formatted (e.g., "80.0k")
+   - [TOKENS_B] = TOKEN_B formatted (e.g., "77.8k")
+   - [TIME_A] = TIME_A formatted (e.g., "5m 39.3s")
+   - [TIME_B] = TIME_B formatted (e.g., "4m 12.1s")
+   - [TOKEN_DIFF] = TOKEN_DIFF formatted with +/- (e.g., "-2.8%")
+   - [TIME_DIFF] = TIME_DIFF formatted with +/- (e.g., "-25.2%")
+   - [WINNER] = "Prompt A" or "Prompt B"
+   - [MARGIN] = MARGIN formatted (e.g., "2.3 points")
+   - [CONFIDENCE] = CONFIDENCE formatted (e.g., "High (87%)")
+   - [DOMAIN_TYPE] = DOMAIN_TYPE with emoji (e.g., "🔧 Technical Implementation")
+   - [EVAL_MODE] = EVAL_MODE description (e.g., "Multi-Signal Domain Detection")
+
+9. **Statistical Calculations**:
+   - VARIANCE = Calculate variance between criterion scores to assess consistency
+   - STD_DEV = Square root of variance for confidence calculation
+   - MARGIN_ERROR = 1.96 * (STD_DEV / sqrt(5)) for 95% confidence interval
+   - CONFIDENCE_PCT = 100 - (MARGIN_ERROR / MARGIN) * 100
+
+### Stage 4.8b: Format Display Variables
+
+**CONVERT calculated values to display format**:
+
+1. **Format Token Values**:
+   - If TOKENS_A >= 1000: [TOKENS_A] = (TOKENS_A / 1000).toFixed(1) + "k"
+   - Else: [TOKENS_A] = TOKENS_A.toString()
+   - Same for [TOKENS_B]
+
+2. **Format Time Values**:
+   - Convert seconds to minutes and seconds
+   - [TIME_A] = Math.floor(TIME_A / 60) + "m " + (TIME_A % 60).toFixed(1) + "s"
+   - Same for [TIME_B]
+
+3. **Format Percentage Differences**:
+   - [TOKEN_DIFF] = (TOKEN_DIFF >= 0 ? "+" : "") + TOKEN_DIFF.toFixed(1) + "%"
+   - [TIME_DIFF] = (TIME_DIFF >= 0 ? "+" : "") + TIME_DIFF.toFixed(1) + "%"
+
+4. **Format Scores and Confidence**:
+   - [MARGIN] = MARGIN.toFixed(1) + " points"
+   - [CONFIDENCE] = CONFIDENCE_LEVEL + " (" + CONFIDENCE_PCT.toFixed(0) + "%)"
+   - [QUALITY_DELTA] = QUALITY_DELTA.toFixed(1) + " points"
+
+5. **Timeline Phases**:
+   - [PREP_TIME] = Format PREP_TIME as "Xm Ys"
+   - [EXEC_TIME] = Format EXEC_TIME as "Xm Ys"
+   - [EVAL_TIME] = Format EVAL_TIME as "Xm Ys"
+   - [TOTAL_TIME] = Format TOTAL_TIME as "Xm Ys"
 
 ### Stage 4.9: Runtime Recommendations Generator
 
@@ -1663,13 +2051,33 @@ EXPLAIN victory with evidence:
 
 ### Stage 4.10: Phase Completion
 
-Mark Phase 4 complete with all required outputs:
-  - **TOTAL_SCORE_A**: Final weighted score for first prompt
-  - **TOTAL_SCORE_B**: Final weighted score for second prompt
-  - **WINNER**: Prompt with higher total score ("Prompt A" or "Prompt B")
-  - **MARGIN**: Point difference between total scores
-  - **CONFIDENCE**: Reliability level of comparison results
-  - **SCORING_BREAKDOWN**: Detailed scores by criterion
+**🏆 COMPARATIVE ANALYSIS RESULTS**
+
+Mark Phase 4 complete with comprehensive scoring analysis:
+
+**📊 FINAL SCORES & WINNER DETERMINATION**
+- **TOTAL_SCORE_A**: [SCORE] points - Final weighted score for first prompt
+- **TOTAL_SCORE_B**: [SCORE] points - Final weighted score for second prompt
+- **WINNER**: [PROMPT_A/PROMPT_B] - Prompt with higher total score
+- **MARGIN**: [X.X] point difference between total scores
+- **CONFIDENCE**: [HIGH/MEDIUM/LOW] - Reliability level of comparison results
+
+**🔍 DETAILED SCORING BREAKDOWN**
+- **SCORING_BREAKDOWN**: Individual criterion scores showing:
+  - Domain-specific weights applied: [PERCENTAGES]
+  - Raw scores vs. weighted scores for each criterion
+  - Confidence intervals for each measurement
+
+**📈 SCORING ANALYSIS & INSIGHTS**
+- **Why [WINNER] Won**: [Clear explanation of victory factors]
+- **Biggest Advantage**: [CRITERION] with [X.X] point margin
+- **Closest Competition**: [CRITERION] with only [X.X] point difference
+- **Quality Delta**: [X.X]% overall performance difference
+
+**⚙️ SCORING PROCESS STATISTICS**
+- **Iterations Required**: [X] refinement cycles for confidence
+- **Analysis Duration**: [X.X] seconds for complete evaluation
+- **Confidence Factors**: Margin consistency, variance analysis
 
   <result>Scoring complete with <CONFIDENCE> confidence after <iteration> iterations</result>
   <learning>Iterative refinement improves scoring accuracy and confidence assessment</learning>
@@ -2078,16 +2486,38 @@ IF CLEANUP_REQUIRED is true:
 
 Mark Phase 5 complete with final deliverable:
 
-#### Executive Summary
+**🎯 FINAL A/B TEST REPORT & VERDICT**
+
+**📋 EXECUTIVE SUMMARY**
 In this A/B test comparing <PROMPT_A_NAME> against <PROMPT_B_NAME> with arguments "<TEST_ARGUMENTS>",
 **<WINNER>** demonstrated superior performance with a total score of <TOTAL_A> vs <TOTAL_B>.
 
 The key differentiator was [main reason for winning], particularly in [specific criterion category].
 
-#### Recommended Action
-[X] Use <WINNER> for this type of task
-[ ] Continue iterating on <LOSER> with suggested improvements
-[ ] Consider hybrid approach combining strengths of both
+**🎛️ ACTION MENU & RECOMMENDATIONS**
+
+Choose your next action:
+```
+1. 🚀 ADOPT WINNER
+   [X] Use <WINNER> for this domain type
+   → Copy winning prompt to production use
+
+2. 🔄 IMPROVE LOSER
+   [ ] Iterate on <LOSER> with identified improvements
+   → Apply winning patterns: [SPECIFIC_TECHNIQUES]
+
+3. 🔀 HYBRID APPROACH
+   [ ] Combine strengths of both prompts
+   → Merge [A_STRENGTHS] + [B_STRENGTHS]
+
+4. 🧪 EXTENDED TESTING
+   [ ] Run additional A/B tests with variations
+   → Test different contexts: [SUGGESTED_CONTEXTS]
+
+5. 📊 DETAILED ANALYSIS
+   [ ] Deep dive into specific criterion differences
+   → Focus on: [LARGEST_MARGIN_CRITERION]
+```
 
 #### Statistical Confidence
 Given a margin of <MARGIN> points across <NUMBER> criteria with <SCORE_VARIANCE> variance,
