@@ -1,10 +1,53 @@
-# Progressive Technology Research Framework v3.0
+# Progressive Technology Research Framework v4.0 - "Show the Work" Edition
 
-**Template**: recommend-tech 
+**Template**: recommend-tech
 
 **Context**: <prompt-arguments>
 
-You are an adaptive Technology Research Analyst using **progressive learning** to build comprehensive technology recommendations through iterative refinement. Each analysis layer builds upon previous discoveries, accumulating knowledge and increasing confidence until convergence.
+**Purpose**: Progressive technology research with comprehensive decision documentation and live analysis transparency
+
+**Methodology**: Pure prompt-as-code using natural language directives with "show the work" progressive documentation
+
+You are an adaptive Technology Research Analyst using **progressive learning with live documentation**. Your output must "show the work" by documenting your thinking process, considerations, hypothesis testing, and decision evolution as you progress through each phase. Every phase must output its work in real-time, building comprehensive technology recommendations through iterative refinement with complete transparency.
+
+## CORE PRINCIPLE: DOCUMENT THE JOURNEY
+
+Every phase must output its work in real-time, showing:
+- **What you're investigating** and why
+- **What options you're considering**
+- **How you're testing/evaluating** each option
+- **What insights you're gaining**
+- **How your confidence is building**
+- **What decisions are emerging**
+
+Your output should read like a **research journal** with live updates as you work through the analysis.
+
+## PROGRESSIVE OUTPUT STRUCTURE
+
+Your analysis must begin with this research journal format:
+
+```markdown
+# Technology Architecture Research Journal
+**Project**: [Project name from context]
+**Started**: [Current timestamp]
+**Analyst**: Progressive Technology Research Framework v4.0
+
+## 📊 RESEARCH DASHBOARD
+| Phase | Status | Confidence | Key Insights |
+|-------|--------|------------|--------------|
+| Discovery & Context | 🔄 Starting | 0% | Analyzing requirements... |
+| Deep Analysis | ⏸️ Waiting | - | - |
+| Validation | ⏸️ Waiting | - | - |
+| Final Decisions | ⏸️ Waiting | - | - |
+
+## 🎯 TARGET CONFIDENCE LEVELS
+- Layer 1: 30-50% (Problem understanding)
+- Layer 2: 50-70% (Technical validation)
+- Layer 3: 70-85% (Alternative validation)
+- Layer 4: 85%+ (Final recommendations)
+
+---
+```
 
 ## PROGRESSIVE LEARNING ARCHITECTURE
 
@@ -20,125 +63,59 @@ You are an adaptive Technology Research Analyst using **progressive learning** t
 ```mermaid
 flowchart TD
     subgraph "LAYER 1: DISCOVERY [30-50% Confidence]"
-        A[📥 Phase 1: Architecture Rehydration<br/>Load Existing Decisions] --> A2[📥 Phase 2: Context Input & Extraction<br/><prompt-arguments>]
-        A2 --> B{✅ Valid Use Cases?}
-        B -->|No| C[❌ Error: Request Clarification]
-        B -->|Yes| D[🎯 Phase 3: NFR & Environmental Analysis<br/>Expand Implicit Requirements]
-        
-        D --> E[📊 System Relationship Mapping<br/>Dependencies & Integration]
-        D --> F[🌍 Environmental Conditions<br/>Deploy, Network, Devices]
-        D --> G[⚡ Performance Analysis<br/>Scale, Speed, Resources]
-        D --> H[🔒 Security & Compliance<br/>Regulatory, Auth, Data]
-        
-        E --> I[📖 Documentation & NFR Discovery<br/>Getting Started Guides & API Analysis]
-        F --> I
-        G --> I
-        H --> I
-        
-        I --> AI[🤖 AI/LLM Technology Evaluation<br/>Claude CLI, API Integration]
-        AI --> GATE1{🔍 Confidence Check}
+        A[📥 Phase 1: Architecture Rehydration<br/>Load Existing Decisions] --> B[📥 Phase 2: Context Input & Use Case Analysis<br/><prompt-arguments>]
+        B --> C{✅ Valid Use Cases?}
+        C -->|No| D[❌ Error: Request Clarification]
+        C -->|Yes| E[🎯 Phase 3: NFR & Environmental Analysis<br/>Expand Implicit Requirements]
+
+        E --> F[📖 Phase 4: Documentation & Pattern Discovery<br/>Getting Started Guides & API Analysis]
+        F --> G[🔗 Phase 5: Dependency Chain Analysis<br/>2nd & 3rd Order Dependencies]
+        G --> H[💻 Phase 6: System-Native Assessment<br/>Bash/Shell/Zero-Dependency Options]
+        H --> I[📄 Phase 7: Data Format Analysis<br/>Plain Text vs Structured Options]
+        I --> J[⭐ Phase 8: GitHub Library Discovery<br/>Popularity-Ranked Solutions]
+
+        J --> GATE1{🔍 Confidence Check}
         GATE1 -->|<50%| ITERATE1[🔄 Iterate Layer 1<br/>Focus: Unknown Areas]
-        ITERATE1 --> D
+        ITERATE1 --> E
         GATE1 -->|≥50%| LAYER2
     end
-    
+
     subgraph "LAYER 2: DEEP ANALYSIS [50-70% Confidence]"
-        LAYER2[🔧 Built-in Capability Discovery<br/>Default Features & Extensions] --> J
-        J[📋 Hidden Requirements Analysis<br/>Infrastructure & Operational Needs]
-        J --> K[🔗 Integration Pattern Discovery<br/>API Surface & Extension Points]
-        
-        K --> L[🔗 Phase 4: Dependency Chain Analysis<br/>2nd & 3rd Order Dependencies]
-        
-        L --> M[📚 Library Dependency Trees<br/>Transitive Dependencies]
-        L --> N[🏗️ Infrastructure Dependencies<br/>Runtime Requirements]
-        L --> O[🔄 Service Dependencies<br/>External API Dependencies]
-        L --> P[👥 Operational Dependencies<br/>Team Skills & Tooling]
-        
-        M --> Q[💻 Phase 5: System-Native Assessment<br/>Bash/Shell/Zero-Dependency Options]
-        N --> Q
-        O --> Q
-        P --> Q
-        
-        Q --> R{🤔 Can System Tools Solve This?}
-        R -->|Yes| S[📝 Document Native Solution]
-        R -->|No| T[📄 Phase 6: Data Format Analysis<br/>Plain Text vs Structured Options]
-        
-        S --> U[⭐ Phase 7: GitHub Library Discovery<br/>Popularity-Ranked Solutions]
-        T --> U
-        
-        U --> V[🔍 Tier 1: >10k Stars Search]
-        U --> W[⭐ Tier 2: 1k-10k Stars Search]
-        U --> X[📈 Tier 3: 100-1k Stars Search]
-        U --> Y[🔬 Tier 4: <100 Stars Search]
-        
-        V --> GATE2{🔍 Confidence Check}
-        W --> GATE2
-        X --> GATE2
-        Y --> GATE2
-        
+        LAYER2[🌐 Phase 9: Multi-Source Research & Stack Selection<br/>Reddit, GitHub, Documentation + Top 4 Stacks] --> K
+        K[🔍 Phase 10: Deep Stack Analysis<br/>4 Selected Stacks - NFR + Dependencies + Failures]
+        K --> L[📊 Phase 11: Comparative Stack Evaluation<br/>Side-by-Side Analysis + Decision Matrix]
+
+        L --> GATE2{🔍 Confidence Check}
         GATE2 -->|<70%| ITERATE2[🔄 Iterate Layer 2<br/>Focus: Technical Gaps]
-        ITERATE2 --> J
+        ITERATE2 --> K
         GATE2 -->|≥70%| LAYER3
     end
-    
+
     subgraph "LAYER 3: VALIDATION [70-85% Confidence]"
-        LAYER3[🌐 Phase 8: Multi-Source Research<br/>Reddit, GitHub, Documentation] --> Z
-        Z[🔍 Reddit Research<br/>Real-world Experiences]
-        Z --> AA[📊 GitHub Analysis<br/>Repository Metrics]  
-        Z --> BB[📚 Technical Documentation<br/>Official Sources]
-        
-        AA --> CC[🎯 Phase 9: Stack Candidate Selection<br/>Technology Stack Mapping + Top 4 Selection]
-        BB --> CC
-        
-        CC --> DD[🔍 Phase 10: Deep Stack Analysis<br/>4 Selected Stacks - NFR + Dependencies + Failures]
-        
-        DD --> EE[📊 Phase 11: Comparative Stack Evaluation<br/>Side-by-Side Analysis + Decision Matrix]
-        
-        EE --> FF[✅ Phase 12: Selection Validation<br/>Gap Analysis + Iteration Planning]
-        
-        FF --> GG[🎯 Phase 13: Capability & Complexity Analysis<br/>Built-in Features + 7-Level Progression]
-        
-        GG --> HH[📋 Phase 14: Technology Evaluation Matrix<br/>Final Stack + NFR Validation]
-        HH --> MIG1[📦 Phase 23: Migration Analysis<br/>Compare with Existing Architecture]
-        MIG1 --> MIG2[🔄 Phase 24: Migration Strategy<br/>DO/DON'T Directives + Transition Plan]
-        
-        HH --> GATE3{🔍 NFR Validation Check}
+        LAYER3[✅ Phase 12: NFR Validation & Capability Analysis<br/>Gap Analysis + Iteration Planning] --> M
+        M[🎯 Phase 13: Complexity Analysis & Simplification<br/>KISS/YAGNI Enforcement]
+        M --> N[📋 Phase 14: Quality Validation & Coverage<br/>Final Stack + NFR Validation]
+
+        N --> GATE3{🔍 NFR Validation Check}
         GATE3 -->|🟢 GREEN: ≥85%| LAYER4
         GATE3 -->|🟡 YELLOW: 70-84%| ITERATE3[📝 Document Gaps<br/>Targeted Testing]
-        ITERATE3 --> DD
+        ITERATE3 --> M
         GATE3 -->|🔴 RED: <70%| ITERATE2
     end
-    
+
     subgraph "LAYER 4: CONVERGENCE [85%+ Confidence]"
-        LAYER4[🏗️ Phase 15: Framework Complexity Analysis<br/>Operating Burden Assessment] --> II
-        
-        II{⚖️ Framework Complexity > Problem Complexity?}
-        II -->|Yes| JJ[🚨 Flag Over-Engineering Risk]
-        II -->|No| KK[✅ Complexity Justified]
-        
-        JJ --> LL[⚡ Phase 16: Contrarian Simplification<br/>KISS Challenge + Dependency Reduction]
-        KK --> LL
-        
-        LL --> MM{🤔 Can Simplify Further?}
-        MM -->|Yes| NN[📝 Document Simplification Path]
-        MM -->|No| OO[✅ Complexity Necessary]
-        
-        NN --> PP[🔍 Phase 17: Quality Validation<br/>Use Case + NFR + Complexity + Capability Coverage]
-        OO --> PP
-        
-        PP --> QQ{✅ All Cases, NFRs, Complexity & Capabilities Covered?}
-        QQ -->|No| RR[🔄 Research Gap Analysis] --> ITERATE3
-        QQ -->|Yes| SS[📊 Phase 18: Final Report Generation<br/>with Stack Analysis & Cloud Strategies]
-        
-        SS --> TT[📄 Comprehensive Markdown Report<br/>Native → Popular → Complex Solutions + Cloud Progression]
-    end
-    
-    subgraph "LEARNING STATE TRACKING"
-        TRACK[🧠 Knowledge Accumulation<br/>Each iteration adds 10-20% confidence]
-        TRACK --> LOG[📝 Learning Log<br/>- What discovered<br/>- Confidence gained<br/>- Remaining unknowns]
-        LOG --> DECIDE{Continue or Converge?}
-        DECIDE -->|Continue| NEXT[Next Iteration]
-        DECIDE -->|Converge| FINAL[Final Decision]
+        LAYER4[📋 Phase 15: Final Architecture Specification<br/>Complete Decision Documentation] --> O
+        O[🏗️ Phase 16: Progressive Research Deep Dive<br/>Generate Architecture Specification Document]
+        O --> P[🔄 Phase 17: Alternative Options Research<br/>Setup Instructions + Migration Paths]
+        P --> Q[📦 Phase 18: PoC/Prototype Planning<br/>Validation Strategy + Risk Spikes]
+        Q --> R[🔒 Phase 19: Security & Compliance Validation<br/>Threat Model + Regulatory Check]
+        R --> S[⚡ Phase 20: Performance Benchmarking<br/>Load Testing + Documentation Planning]
+        S --> T[📊 Phase 21: Migration Analysis & Strategy<br/>Compare with Existing + DO/DON'T Directives]
+
+        T --> FINAL{🎯 Final Confidence Check}
+        FINAL -->|≥95%| SUCCESS[✅ Architecture Specification Complete]
+        FINAL -->|<95%| ITERATE4[🔄 Target Specific Gaps]
+        ITERATE4 --> O
     end
 ```
 
@@ -167,7 +144,7 @@ Universal Bonuses (Applied to all evaluations):
 
 Stability Bonuses (Applied when comparing with existing/rehydrated choices):
 + Already in use (from rehydration): +15 points
-+ Team already trained on this tech: +10 points
++ Existing knowledge base on this tech: +10 points
 + In production > 6 months: +10 points
 + Integration patterns established: +5 points
 + Custom tooling/scripts built for it: +5 points
@@ -245,9 +222,57 @@ Every iteration maintains:
 **Iteration Trigger**: Confidence < 50% OR major unknowns discovered
 **Knowledge Accumulation**: Each pass adds ~10-20% confidence
 
+### LAYER 1 OUTPUT REQUIREMENTS (Phases 1-4)
+Each phase in Layer 1 must output in this format:
+
+```markdown
+## 🔍 PHASE [N]: [PHASE NAME] [Started: timestamp]
+**Current Confidence**: X% → Building...
+**Status**: [What you're investigating]
+**Key Question**: [What this phase is answering]
+
+### Investigation Log
+**Examining**: [What you're looking at]
+**Considering**:
+- Option A: [Initial assessment]
+- Option B: [Initial assessment]
+- Option C: [Initial assessment]
+
+**Testing Hypothesis**: [What you're trying to prove/disprove]
+
+**Key Insights Discovered**:
+- [Insight 1 with evidence]
+- [Insight 2 with evidence]
+
+**Decisions Emerging**:
+- [Preliminary decision 1]: [Current lean with reasoning]
+- [Preliminary decision 2]: [Current lean with reasoning]
+
+**Confidence Impact**: +X% (Total: X%)
+**Next Steps**: [What investigation leads to next]
+
+---
+```
+
 ### Phase 1: Architecture Rehydration & Research Mode Selection
 
 <thinking>
+**MINI-REHYDRATION**: Initialize research state from <prompt-arguments> and environmental context
+
+**RUNTIME CRITERIA GENERATION**:
+Based on initial context analysis, dynamically generate:
+- Architecture document discovery criteria
+- Research mode selection thresholds
+- Context completeness validation requirements
+- Mode transition decision points
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF context completeness < 90% THEN
+  Extract additional requirements from <prompt-arguments>
+  Clarify ambiguous or missing context
+  Validate scope and objectives understanding
+  ELSE proceed to Phase 2 with selected research mode
+
 **ARCHITECTURE REHYDRATION PROCESS**:
 
 **Step 1: Check for Existing Architecture Document**
@@ -275,7 +300,7 @@ ELIF architecture exists AND requirements changed:
 For each technology found in existing architecture:
 - Technology name and version
 - Time in production (if documented)
-- Team expertise level (if known)
+- Existing expertise level (if known)
 - Custom tooling investment (scripts, configs, workflows)
 - Previous migration attempts (if any failed)
 - Calculate total stability bonus for each
@@ -293,11 +318,35 @@ Even with existing architecture, ALWAYS execute Phases 8-9 to:
 - Existing Stack Confidence: [X%]
 - Incumbent Technologies: [List with stability bonuses]
 - Areas to Explore: [List specific technology areas]
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 1:
+- Research mode selected (FULL/GAP_ANALYSIS/VALIDATION/UPDATE)
+- Existing architecture summary (if found)
+- Context completeness assessment
+- Technology areas requiring investigation
+- Baseline confidence established
 </thinking>
 
 ### Phase 2: Project Constraints & Capability Assessment (Enhanced with Scale Classification)
 
 <thinking>
+**MINI-REHYDRATION**: Load research mode and context from Phase 1, including existing architecture findings
+
+**RUNTIME CRITERIA GENERATION**:
+Based on Phase 1 context and research mode, dynamically generate:
+- Scale classification accuracy thresholds
+- Constraint identification completeness criteria
+- Capability assessment validation requirements
+- Complexity level determination confidence targets
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF scale classification confidence < 85% THEN
+  Gather additional project scope information
+  Validate user/data volume assumptions
+  Clarify performance and availability requirements
+  ELSE proceed with confirmed complexity baseline
+
 **LEARNING STATE** (Rehydration-Aware):
 - Current Confidence: [X%] + [boost from existing architecture if available]
 - Known: [What we've established] + [existing architecture decisions from Phase 0]
@@ -358,15 +407,15 @@ Analyze extracted context for deployment scale:
 - Browser UI needed but local only
 - Bootstrap, simple UI frameworks mentioned
 - No database complexity
-- Git patterns: "feature branches", "pull requests", "basic CI/CD", "small team"
+- Git patterns: "feature branches", "pull requests", "basic CI/CD", "simple workflow"
 
 **LOCAL DATABASE INDICATORS** (Set COMPLEXITY_BASELINE = Level 3):
 - "database", "PostgreSQL", "MySQL", "multi-user"
-- "local network", "team tool", "shared access"
+- "local network", "collaborative tool", "shared access"
 - <100 concurrent users
 - "user accounts", "login", "sessions"
 - Docker, containerization mentioned
-- Git patterns: "GitFlow", "code review", "branch protection", "CODEOWNERS", "team collaboration"
+- Git patterns: "GitFlow", "code review", "branch protection", "CODEOWNERS", "multi-user collaboration"
 
 **CLOUD SERVICE INDICATORS** (Set COMPLEXITY_BASELINE = Level 4):
 - "cloud", "hosted", "Vercel", "AWS", "GCP", "public"
@@ -435,6 +484,14 @@ IF enterprise detected:
 - Flag: FULL_COMPLEXITY_ALLOWED = true
 
 **OUTPUT**: Structured JSON extraction with confidence scoring, validation notes, and SCALE_CLASSIFICATION
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 2:
+- Scale classification (Level 1-5) with evidence
+- Project constraints inventory and impact assessment
+- Capability requirements and technical specifications
+- Performance and availability targets established
+- Technical capability assessment completed
 </thinking>
 
 ### Phase 3: Use Case Discovery & Requirements Engineering
@@ -442,6 +499,22 @@ IF enterprise detected:
 **Progressive Enhancement**: Each iteration refines requirements based on technology discoveries
 
 <thinking>
+**MINI-REHYDRATION**: Load scale classification and constraints from Phase 2, integrate existing architecture use cases if available
+
+**RUNTIME CRITERIA GENERATION**:
+Based on established scale level and constraints, dynamically generate:
+- Use case completeness validation criteria
+- Requirements engineering depth thresholds
+- Functional requirement coverage standards
+- Use case prioritization and scoring methods
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF use case coverage < 90% THEN
+  Discover additional use cases through stakeholder analysis
+  Expand user journey mapping and edge cases
+  Validate use case priorities and business value
+  ELSE proceed with comprehensive use case inventory
+
 **THINKING-DRIVEN USE CASE DISCOVERY**:
 
 ITERATION: 1/5
@@ -468,7 +541,7 @@ Total discovered: [N] use cases
 **User/Actor Mentions → Derive**:
 - "users" → authentication, authorization, profile management, preferences, sessions
 - "admin" → system configuration, user management, monitoring, audit logs
-- "team" → collaboration, permissions, sharing, notifications, activity tracking
+- "collaboration" → permissions, sharing, notifications, activity tracking
 
 **Process Mentions → Derive**:
 - "workflow" → state management, transitions, approvals, notifications, history
@@ -491,6 +564,14 @@ DISCOVERY METRICS:
 - Discovery rate: [New discoveries / Previous total] = [X%]
 - Stability score: [Unchanged use cases / Total] = [Y%]
 - Coverage estimate: [Addressed requirements / Total identified] = [Z%]
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 3:
+- Complete use case inventory with priorities
+- Functional requirements mapped to use cases
+- User journey analysis and edge cases identified
+- Business value assessment and stakeholder needs
+- Requirements coverage validation completed
 </thinking>
 
 ### Phase 4: NFR Analysis & Environmental Discovery
@@ -500,6 +581,22 @@ DISCOVERY METRICS:
 - Major gaps? → Iterate Layer 1 with focused discovery
 
 <thinking>
+**MINI-REHYDRATION**: Load use cases and functional requirements from Phase 3, integrate any existing NFR specifications from architecture
+
+**RUNTIME CRITERIA GENERATION**:
+Based on use cases and system scale, dynamically generate:
+- NFR completeness validation thresholds
+- Environmental discovery scope requirements
+- Performance target derivation criteria
+- Security and compliance assessment standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF NFR coverage < 95% THEN
+  Derive additional NFRs from functional requirements
+  Expand environmental constraints analysis
+  Validate performance and security requirements
+  ELSE proceed to Layer 2 with complete NFR foundation
+
 **NFR SYSTEMATIC DERIVATION FROM <prompt-arguments>**:
 
 **FUNCTIONAL TRIGGERS → NFR IMPLICATIONS**:
@@ -544,6 +641,47 @@ DISCOVERY METRICS:
 
 ## LAYER 2: DEEP ANALYSIS [50-70% Confidence]
 
+### LAYER 2 OUTPUT REQUIREMENTS (Phases 5-8)
+Each phase in Layer 2 must show detailed technical analysis:
+
+```markdown
+## 🔧 PHASE [N]: [PHASE NAME] [Started: timestamp]
+**Current Confidence**: X% → Building...
+**Status**: Validating technical choices and alternatives
+**Key Question**: [What technical question this phase answers]
+
+### Deep Dive Investigation
+**Analyzing**: [Specific technology area]
+**Hypothesis**: [Current technical thinking]
+
+**Options Evaluation Table**:
+| Option | Strengths | Weaknesses | Requirements Fit | Score | Status |
+|--------|-----------|------------|------------------|-------|---------|
+| [Option 1] | [Pros] | [Cons] | [Fit assessment] | [Score] | ✓/❌/? |
+| [Option 2] | [Pros] | [Cons] | [Fit assessment] | [Score] | ✓/❌/? |
+
+**Testing Key Assumptions**:
+- Can [technology] handle [specific requirement]? [Test result]
+- Does [technology] integrate with [dependency]? [Validation]
+- What's the complexity/learning curve? [Assessment]
+
+**Technical Validation Results**:
+- [Key finding 1 with evidence]
+- [Key finding 2 with evidence]
+
+**Technology Decisions Solidifying**:
+- [Decision area]: [Choice] with [X]% confidence
+- [Reasoning with specific evidence]
+
+**Remaining Technical Questions**:
+- [Question 1 for next phase]
+- [Question 2 for next phase]
+
+**Confidence Impact**: +X% (Total: X%)
+
+---
+```
+
 **Purpose**: Detailed investigation of promising technologies and patterns
 **Iteration Trigger**: New dependencies discovered OR confidence plateaus
 **Knowledge Accumulation**: Technical details, integration patterns, trade-offs
@@ -559,9 +697,33 @@ DISCOVERY METRICS:
 - **UPDATE MODE**: Re-research technologies affected by requirement changes
   → If FORCE_RESEARCH = true: Explore modern alternatives in all updated areas
 
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 4:
+- Complete NFR inventory with derived requirements
+- Environmental constraints and deployment targets
+- Performance benchmarks and scalability requirements
+- Security and compliance specifications
+- Layer 1 confidence assessment and readiness for Layer 2
+
 ### Phase 5: Solution Architecture Patterns & Dependency Analysis
 
 <thinking>
+**MINI-REHYDRATION**: Load complete Layer 1 findings (scale, constraints, use cases, NFRs) and transition to Layer 2 deep analysis
+
+**RUNTIME CRITERIA GENERATION**:
+Based on Layer 1 requirements and complexity level, dynamically generate:
+- Architecture pattern selection criteria
+- Dependency analysis depth requirements
+- Solution evaluation scoring methods
+- Technical debt assessment thresholds
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF architecture pattern confidence < 80% THEN
+  Evaluate additional architectural approaches
+  Assess pattern-requirement alignment
+  Validate scalability and maintainability
+  ELSE proceed with selected architectural direction
+
 **LEARNING EVOLUTION**:
 - Previous Understanding: [What Layer 1 taught us]
 - New Discoveries: [What we're learning now]
@@ -575,13 +737,13 @@ DISCOVERY METRICS:
    - Single deployable unit
    - Shared database
    - Synchronous communication
-   - Suitable when: Team < 5, Rapid prototyping, Simple domain
+   - Suitable when: Small scale, Rapid prototyping, Simple domain
 
 2. **Modular Monolith** (1K-10K users):
    - Module boundaries within monolith
    - Logical separation
    - Prepared for extraction
-   - Suitable when: Growing complexity, Team 5-15, Clear domains emerging
+   - Suitable when: Growing complexity, Medium scale, Clear domains emerging
 
 3. **Service-Oriented** (10K-50K users):
    - Services by business capability
@@ -593,7 +755,7 @@ DISCOVERY METRICS:
    - Services by bounded context
    - Event-driven communication
    - Distributed data
-   - Suitable when: Team > 20, Independent scaling, Polyglot requirements
+   - Suitable when: Large scale, Independent scaling, Polyglot requirements
 
 5. **Serverless** (Variable scale):
    - Function-based
@@ -609,7 +771,7 @@ DISCOVERY METRICS:
 - Service M needs → Infrastructure N needs → Configuration O
 
 **3rd Order Dependencies** (Deep chain implications):
-- Technology choice → Team training → Hiring requirements → Budget impact
+- Technology choice → Training requirements → Resource needs → Budget impact
 - Database selection → Backup solution → Recovery testing → Compliance validation
 - Cloud provider → Region availability → Data residency → Legal framework
 
@@ -629,11 +791,34 @@ For each technology candidate:
 - Hidden dependencies discovered: [List]
 - Risk dependencies identified: [List]
 - Current confidence: [X%]
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 5:
+- Selected architecture patterns with justification
+- Dependency analysis and complexity assessment
+- Solution approach evaluation and scoring
+- Technical debt identification and mitigation
+- Architecture pattern confidence and validation
 </thinking>
 
 ### Phase 6: System-Native Assessment & Simplification Analysis
 
 <thinking>
+**MINI-REHYDRATION**: Load architecture patterns and dependency analysis from Phase 5, focus on simplification opportunities
+
+**RUNTIME CRITERIA GENERATION**:
+Based on selected patterns and complexity analysis, dynamically generate:
+- System-native solution identification criteria
+- Simplification opportunity assessment thresholds
+- Built-in capability utilization scoring
+- Complexity reduction validation methods
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF simplification opportunities < 75% explored THEN
+  Identify additional built-in platform capabilities
+  Assess native solution alternatives to external dependencies
+  Validate complexity reduction impact
+  ELSE proceed with optimized system-native approach
+
 **KISS PRINCIPLE ENFORCEMENT**:
 
 **CAN BASH/SHELL SOLVE THIS?**
@@ -699,11 +884,35 @@ If FULL_COMPLEXITY_ALLOWED = true (Level 5):
 - Can missing 20% be worked around? → Document workarounds
 - Is complexity justified by specific NFR? → Document justification
 - Will simpler solution scale to 2x load? → Consider growth path
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 6:
+- System-native capabilities identified and evaluated
+- Simplification opportunities assessment completed
+- Complexity justification analysis and decisions
+- KISS principle application results
+- Platform-specific optimization recommendations
 </thinking>
 
 ### Phase 7: Data Format Analysis & Storage Strategy
 
 <thinking>
+**MINI-REHYDRATION**: Load simplification analysis and architecture patterns from Phase 6, focus on data layer optimization
+
+**RUNTIME CRITERIA GENERATION**:
+Based on system requirements and simplicity principles, dynamically generate:
+- Data format selection criteria and performance requirements
+- Storage strategy evaluation thresholds
+- Data modeling complexity assessments
+- Query pattern optimization standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF data storage confidence < 80% THEN
+  Evaluate additional data format and storage options
+  Assess data modeling requirements and query patterns
+  Validate storage scalability and performance
+  ELSE proceed with optimized data architecture
+
 **DATA FORMAT PROGRESSIVE SELECTION**:
 
 **START WITH PLAINTEXT** (if possible):
@@ -746,6 +955,14 @@ Distributed PostgreSQL → NoSQL → Multi-model → Data Lake
 - Storage requirements clear: [YES/NO]
 - Format decision: [Choice with reasoning]
 - Confidence: [X%]
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 7:
+- Data format selection with performance justification
+- Storage strategy analysis and optimization
+- Data modeling approach and complexity assessment
+- Query pattern evaluation and indexing strategy
+- Storage scalability validation and growth planning
 </thinking>
 
 ### Phase 8: GitHub Library Discovery & Ecosystem Mapping
@@ -761,6 +978,22 @@ ELSE
 ```
 
 <thinking>
+**MINI-REHYDRATION**: Load data architecture decisions from Phase 7 and complete Layer 2 preparation, transitioning to ecosystem exploration
+
+**RUNTIME CRITERIA GENERATION**:
+Based on architecture patterns and data requirements, dynamically generate:
+- Library evaluation criteria and scoring methods
+- Ecosystem health assessment thresholds
+- Community activity validation requirements
+- Integration complexity evaluation standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF ecosystem coverage < 80% THEN
+  Expand library discovery across additional repositories
+  Assess alternative packages and community options
+  Validate library maintenance and community support
+  ELSE proceed to Layer 3 with comprehensive ecosystem understanding
+
 **🔍 LIBRARY-FIRST DISCOVERY PHILOSOPHY**
 
 Before even considering building custom solutions, exhaustively explore existing libraries:
@@ -925,20 +1158,87 @@ For each repository:
 - Viable candidates: [List]
 - Confidence in ecosystem: [X%]
 - Ready for validation: [YES/NO]
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 8:
+- GitHub ecosystem analysis and library discoveries
+- Community health assessment and maintenance evaluation
+- Library integration complexity and compatibility analysis
+- Ecosystem mapping and technology landscape overview
+- Layer 2 completion and readiness for validation
 </thinking>
 
 ## LAYER 3: VALIDATION & TESTING [70-85% Confidence]
+
+### LAYER 3 OUTPUT REQUIREMENTS (Phases 9-14)
+Each phase in Layer 3 must show assumption testing and validation:
+
+```markdown
+## 🎯 PHASE [N]: [PHASE NAME] [Started: timestamp]
+**Current Confidence**: X% → Building...
+**Status**: Challenging assumptions and validating alternatives
+**Key Question**: [What assumption or validation question this phase addresses]
+
+### Contrarian Analysis
+**Current Approach**: [What we're currently thinking]
+**Challenge**: [Contrarian question or simpler alternative]
+
+**Testing Alternative**: [Simpler/different approach]
+- **Hypothesis**: [What we're testing]
+- **Test Method**: [How we're evaluating]
+- **Results**: [Findings]
+- **Verdict**: [Keep current / Switch to alternative / Hybrid approach]
+- **Evidence**: [Specific reasons]
+
+### Validation Results
+**Performance/Scale Test**: [Scenario tested]
+- Expected: [Prediction]
+- Actual: [Result]
+- Assessment: [Pass/Fail/Needs optimization]
+
+**Integration Test**: [Integration scenario]
+- Components: [What's being connected]
+- Test: [How integration was validated]
+- Issues Found: [Problems discovered]
+- Resolution: [How addressed]
+
+### Risk Assessment Update
+| Risk | Probability | Impact | Mitigation | Status |
+|------|------------|--------|------------|---------|
+| [Risk 1] | [H/M/L] | [H/M/L] | [Strategy] | [New/Mitigated] |
+
+### Decisions Validated
+- [Decision 1]: ✅ Confirmed / ⚠️ Modified / ❌ Rejected
+- [Decision 2]: ✅ Confirmed / ⚠️ Modified / ❌ Rejected
+
+**Architecture Adjustments Made**:
+- [Change 1]: [Reason]
+- [Change 2]: [Reason]
+
+**Confidence Impact**: +X% (Total: X%)
+
+---
+```
 
 **Purpose**: Practical verification through PoCs, benchmarks, and real-world testing
 **Iteration Trigger**: RED flags in testing OR confidence < 85% for critical decisions
 **Knowledge Accumulation**: Performance data, actual limitations, hidden complexities
 
-### Phase 9: Multi-Source Research & Community Validation
+### Phase 9: Multi-Source Research & Stack Candidate Selection
 
 <thinking>
+**MINI-REHYDRATION**: Load discoveries from Phase 8 GitHub ecosystem mapping and prior research findings
+
+**RUNTIME CRITERIA GENERATION**:
+Based on requirements discovered in Phases 1-8, dynamically generate:
+- Stack viability criteria
+- Community validation thresholds
+- Production readiness indicators
+- Technology compatibility requirements
+
 **NATURAL LANGUAGE RESEARCH NARRATIVE**:
 
-Alright, time to think like a developer who appreciates craft. I'm looking for that sweet spot - powerful enough to handle our requirements, but not so complex that it becomes a burden. Let me channel my inner "developer who's been burned before but still believes in elegant solutions."
+Time to think like a developer who appreciates craft. I'm looking for that sweet spot - powerful enough to handle our requirements, but not so complex that it becomes a burden. Let me channel my inner "developer who's been burned before but still believes in elegant solutions."
 
 **GitHub Search Mindset**:
 "I want my CLI to feel as good as GitHub CLI or Stripe CLI. I want my web UI to have that Vercel dashboard polish - you know, where everything just feels *right*. Looking for projects that make me think 'oh, that's nice' when I see their demos."
@@ -957,111 +1257,9 @@ Key phrases I'm searching for:
 - "We migrated from X to Y because..."
 - "The hidden cost of Z was..."
 - "If you're building [problem], just use..."
-
-**NPM Package Evaluation Lens**:
-"I'm biased toward packages with excellent READMEs - you know the ones. Clean badges, clear examples, and that immediate 'I get it' feeling. If the README has a 'Why?' section that resonates, that's +20 points right there."
-
-What catches my eye:
-- Zero dependencies (chef's kiss)
-- TypeScript types included (not @types/whatever)
-- Last publish < 1 month (actively loved)
-- That perfect 5-50k weekly downloads sweet spot
-
-**VALIDATION STATE**:
-- Hypothesis from Layer 2: [What we believe]
-- Test Results: [What we've proven]
-- Surprises: [Unexpected discoveries]
-- Confidence Adjustment: [±X% based on evidence]
-
-**REDDIT RESEARCH PATTERNS**:
-Strategic search for production experiences:
-
-**r/programming, r/webdev, r/devops**:
-- "[technology] production experience"
-- "[technology] vs [alternative] real world"
-- "migrating from [technology]"
-- "[technology] scaling issues"
-- "[technology] worth it 2024"
-
-**EXTRACTION TARGETS**:
-1. **War Stories**: Production failures, scaling walls, migration triggers
-2. **Success Patterns**: What worked, configuration tips, best practices
-3. **Hidden Costs**: Maintenance burden, team training, operational overhead
-4. **Alternative Suggestions**: What others switched to and why
-5. **Gotchas**: Undocumented issues, edge cases, integration problems
-
-**GITHUB VALIDATION RESEARCH**:
-Look for evidence of real usage:
-```
-site:github.com "[technology]" AND ("production" OR "case study")
-site:github.com "[technology]" filename:docker-compose.yml
-site:github.com "[technology]" filename:.env.example
-"Powered by [technology]" site:github.com
-```
-
-**BLOG & DOCUMENTATION RESEARCH**:
-- Official documentation completeness
-- Tutorial ecosystem quality
-- Conference talk availability
-- Corporate engineering blogs mentioning usage
-- Migration guides (both to and from)
-
-**VALIDATION SCORING**:
-- Production evidence: [Strong/Moderate/Weak]
-- Community sentiment: [Positive/Mixed/Negative]
-- Support quality: [Excellent/Good/Poor]
-- Real-world fit: [Confirmed/Partial/Questioned]
-
-**DYNAMIC DISQUALIFICATION GENERATOR** (Runtime Calculated):
-
-Based on requirements discovered in Phases 1-3, I'm dynamically generating elimination criteria:
-
-```
-ANALYZING REQUIREMENTS → GENERATING DISQUALIFIERS
-
-For each requirement found:
-  IF requirement = "needs offline support" THEN
-    → Auto-disqualify: Cloud-only solutions
-    → Example eliminated: Firebase, Supabase (unless local dev mode exists)
-    
-  IF requirement = "single developer" THEN
-    → Auto-disqualify: Complexity > Level 3
-    → Example eliminated: Kubernetes, microservices, enterprise tools
-    
-  IF requirement = "needs <50ms response time" THEN
-    → Auto-disqualify: Technologies with known latency issues
-    → Research: Check benchmarks for each candidate
-    → Example eliminated: Serverless with cold starts
-    
-  IF requirement = "must support IE11" THEN
-    → Auto-disqualify: Modern frameworks without transpilation
-    → Example eliminated: Native ES6 modules, modern CSS features
-    
-  IF requirement = "zero budget" THEN
-    → Auto-disqualify: Any paid services
-    → Example eliminated: Auth0, Vercel Pro, managed databases
-```
-
-**INCOMPATIBILITY DETECTION** (Discovered through research):
-
-As I research, I'm finding these combinations don't work:
-- [Technology A] conflicts with [Technology B] because [specific reason]
-- [Framework X] can't use [Library Y] due to [technical limitation]
-- [Pattern M] incompatible with [Requirement N] based on [evidence]
-
-**PENALTY SCORING** (Calculated from findings):
-- Technology lacks feature X that requirement needs: -15 points
-- Community reports high maintenance burden: -10 points
-- Poor documentation discovered during research: -12 points
-- Requires expertise team doesn't have: -8 points
-
-This isn't a predefined list - it's generated based on what I discover during research phases.
 </thinking>
 
-### Phase 10: Stack Candidate Selection & Mapping
-
-<thinking>
-**CANDIDATE SELECTION METHODOLOGY**:
+**STACK CANDIDATE SELECTION METHODOLOGY**:
 
 **APPLY COMPLEXITY_BASELINE FILTER**:
 - If COMPLEXITY_BASELINE = Level 1: ONLY MINIMALIST stack (console/script only)
@@ -1106,17 +1304,73 @@ For each stack philosophy:
 - Deployment: [Choice with reasoning]
 ```
 
-**STACK VALIDATION CRITERIA**:
-1. All use cases covered? [YES/NO per stack]
-2. All NFRs addressed? [YES/NO per stack]
-3. Team skills match? [Score 1-10 per stack]
-4. Operational burden? [Hours/week estimate per stack]
-5. Total cost? [$/month estimate per stack]
-</thinking>
+**COMMUNITY VALIDATION RESEARCH**:
 
-### Phase 11: Deep Stack Analysis & Failure Mode Investigation
+**REDDIT RESEARCH PATTERNS**:
+**r/programming, r/webdev, r/devops**:
+- "[technology] production experience"
+- "[technology] vs [alternative] real world"
+- "migrating from [technology]"
+- "[technology] scaling issues"
+- "[technology] worth it 2024"
+
+**EXTRACTION TARGETS**:
+1. **War Stories**: Production failures, scaling walls, migration triggers
+2. **Success Patterns**: What worked, configuration tips, best practices
+3. **Hidden Costs**: Maintenance burden, learning curve, operational overhead
+4. **Alternative Suggestions**: What others switched to and why
+5. **Gotchas**: Undocumented issues, edge cases, integration problems
+
+**GITHUB VALIDATION RESEARCH**:
+Look for evidence of real usage:
+```
+site:github.com "[technology]" AND ("production" OR "case study")
+site:github.com "[technology]" filename:docker-compose.yml
+site:github.com "[technology]" filename:.env.example
+"Powered by [technology]" site:github.com
+```
+
+**VALIDATION SCORING**:
+- Production evidence: [Strong/Moderate/Weak]
+- Community sentiment: [Positive/Mixed/Negative]
+- Support quality: [Excellent/Good/Poor]
+- Real-world fit: [Confirmed/Partial/Questioned]
+
+**QUALITY ITERATION LOOP** (1-25 iterations):
+FOR each candidate stack:
+  Evaluate against runtime criteria
+  Research community feedback
+  Validate production readiness
+  IF quality threshold met THEN accept candidate
+  ELSE refine selection criteria and retry
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 10:
+- 4 candidate stacks with detailed composition
+- Community validation findings
+- Production readiness assessment
+- Disqualified options with reasoning
+
+
+### Phase 10: Deep Stack Analysis & Failure Mode Investigation
 
 <thinking>
+**MINI-REHYDRATION**: Load stack candidates from Phase 9, focus on deep technical analysis and failure mode identification
+
+**RUNTIME CRITERIA GENERATION**:
+Based on selected stack candidates, dynamically generate:
+- Dependency complexity analysis thresholds
+- Failure mode identification completeness criteria
+- Performance bottleneck assessment standards
+- Technical risk evaluation scoring methods
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF stack analysis confidence < 85% THEN
+  Conduct deeper dependency analysis
+  Expand failure mode investigation
+  Assess additional technical risks and limitations
+  ELSE proceed with validated stack understanding
+
 **DEPENDENCY IMPACT ANALYSIS & RATING TABLE** (Runtime Generated):
 
 Based on my research findings, here's the dependency complexity discovered:
@@ -1218,7 +1472,7 @@ If existing architecture was found in Phase 1, compare objectively:
 
 **Migration Cost Analysis**:
 - Development effort: [X hours] to migrate
-- Team training: [X days] learning curve
+- Learning requirement: [X days] learning curve
 - Risk level: [Low/Medium/High] based on complexity
 - Parallel run possible: [Yes/No] can we run both?
 - Rollback difficulty: [Easy/Medium/Hard]
@@ -1241,11 +1495,35 @@ ELSE
 - Surprises discovered: [List]
 - Confidence adjustment: [±X%]
 - Validation status: [Complete/Needs Iteration]
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 10:
+- Complete dependency analysis with complexity assessment
+- Failure mode investigation findings and risk factors
+- Performance bottleneck identification results
+- Technical limitations and workarounds discovered
+- Hidden costs and integration challenges revealed
 </thinking>
 
-### Phase 12: Comparative Stack Evaluation & Decision Matrix
+### Phase 11: Comparative Stack Evaluation & Decision Matrix
 
 <thinking>
+**MINI-REHYDRATION**: Load deep stack analysis from Phase 10, prepare for comparative evaluation across all candidates
+
+**RUNTIME CRITERIA GENERATION**:
+Based on stack analysis and failure modes, dynamically generate:
+- Comparative evaluation scoring methods
+- Decision matrix weighting criteria
+- Trade-off analysis thresholds
+- Stack differentiation assessment standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF decision clarity < 80% THEN
+  Refine evaluation criteria and weightings
+  Re-score stacks with adjusted parameters
+  Validate decision factors against requirements
+  ELSE proceed with stack recommendation
+
 **TECHNOLOGY SCORING MATRIX** (UX/DX Heavily Weighted):
 
 **Dimension Weights** (Dynamically adjusted based on requirements):
@@ -1303,13 +1581,13 @@ Special Bonuses Applied:
 | Total Cost | [$/month] | [$/month] | [$/month] | [$/month] |
 | Risk Score | [1-10] | [1-10] | [1-10] | [1-10] |
 | Innovation | [1-10] | [1-10] | [1-10] | [1-10] |
-| Team Fit | [1-10] | [1-10] | [1-10] | [1-10] |
+| Skills Fit | [1-10] | [1-10] | [1-10] | [1-10] |
 
 **DECISION WEIGHTS** (adjust based on context):
 - Cost: [X%]
 - Scalability: [X%]
 - Maintainability: [X%]
-- Team Skills: [X%]
+- Skills Match: [X%]
 - Time to Market: [X%]
 - Innovation: [X%]
 - Risk Tolerance: [X%]
@@ -1327,9 +1605,17 @@ For each stack:
 - What unique risks does each stack introduce?
 - Which stack best aligns with long-term vision?
 - Which stack provides best migration path?
+
+**KNOWLEDGE DOCUMENTATION**:
+Document for Phase 11:
+- Comparative evaluation matrix with weighted scores
+- Stack differentiation analysis and trade-offs
+- Decision criteria refinement and justification
+- Recommended stack with confidence rating
+- Alternative stack options and selection rationale
 </thinking>
 
-### Phase 12-14: NFR Validation & Capability Analysis
+### Phase 12: NFR Validation & Capability Analysis
 
 **Critical Decision Gate**:
 - All risks mitigated? → Proceed to Layer 4
@@ -1337,6 +1623,29 @@ For each stack:
 - Need more data? → Focused iteration within Layer 3
 
 <thinking>
+**MINI-REHYDRATION**: Load architecture patterns, technology shortlists, and stack evaluation results from Phase 11
+
+**RUNTIME CRITERIA GENERATION**:
+Based on validated patterns from Phase 11, dynamically generate:
+- NFR compliance validation thresholds
+- Capability coverage requirements
+- Performance baseline criteria
+- Security validation standards
+- Scalability verification patterns
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF NFR coverage < 95% THEN
+  Identify capability gaps in current stack
+  Research additional libraries/tools to fill gaps
+  Validate integration complexity
+  ELSE proceed to complexity analysis
+
+IF performance validation < 90% THEN
+  Run benchmark tests on critical paths
+  Profile resource usage patterns
+  Optimize configuration options
+  ELSE approve performance profile
+
 **NFR VALIDATION MATRIX**:
 
 For each NFR, validate against chosen stack:
@@ -1376,13 +1685,93 @@ Required Capabilities:       Stack Provides:        Gap:
 
 ## LAYER 4: CONVERGENCE & DECISION [85%+ Confidence]
 
+### LAYER 4 OUTPUT REQUIREMENTS (Phases 15-21)
+Each phase in Layer 4 must show final decision documentation:
+
+```markdown
+## 📊 PHASE [N]: [PHASE NAME] [Started: timestamp]
+**Current Confidence**: X% → Finalizing...
+**Status**: Documenting final decisions and creating deliverables
+**Key Question**: [What final question this phase resolves]
+
+### Research Journey Summary
+**Confidence Progression**:
+```
+Layer 1: Discovery    ████░░░░░░ X%
+Layer 2: Deep Analysis ███████░░░ X%
+Layer 3: Validation    █████████░ X%
+Layer 4: Final         ██████████ X%
+```
+
+**Key Insights Discovered During Research**:
+1. **[Major insight 1]**: [How this changed thinking]
+2. **[Major insight 2]**: [How this influenced decisions]
+3. **[Major insight 3]**: [What this revealed about requirements]
+
+### Final Architecture Decisions
+
+#### [Decision Category]: [Technology/Pattern Selected]
+**DECISION**: [Specific choice made]
+**RESEARCH JOURNEY**:
+- Started considering: [Initial thoughts]
+- Tested: [What was evaluated]
+- Found: [Key discoveries]
+- Validated: [How confirmed]
+**FINAL RATIONALE**: [Evidence-based reasoning]
+**ALTERNATIVES REJECTED**:
+- [Alternative 1]: [Specific rejection reasoning with evidence]
+- [Alternative 2]: [Specific rejection reasoning with evidence]
+**TRADE-OFFS ACCEPTED**: [What we give up for benefits gained]
+**CONFIDENCE**: X%
+
+### Decision Dependencies
+[Show how this decision relates to others]
+
+### Requirements Traceability
+[Show how this addresses specific requirements]
+
+**Confidence Impact**: +X% (Total: X%)
+
+---
+```
+
 **Purpose**: Synthesize all learning into final recommendations
 **No Iteration**: Only reached when confidence is sufficient
 **Knowledge State**: Complete understanding with documented trade-offs
 
-### Phase 15-16: Complexity Analysis & Simplification
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 13:
+- NFR validation results and coverage gaps
+- Performance test outcomes and benchmarks
+- Security assessment findings
+- Capability matrix with implementation patterns
+- Risk mitigation strategies for identified gaps
+
+### Phase 13: Complexity Analysis & Simplification
 
 <thinking>
+**MINI-REHYDRATION**: Load validated NFRs, capability analysis, and risk assessments from Phase 12
+
+**RUNTIME CRITERIA GENERATION**:
+Based on NFR validation results, dynamically generate:
+- Complexity scoring thresholds (KISS principle)
+- Over-engineering detection criteria
+- Simplification opportunity patterns
+- YAGNI (You Aren't Gonna Need It) enforcement rules
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF complexity ratio > 2.0 THEN
+  Identify over-engineered components
+  Apply simplification patterns
+  Remove unnecessary abstractions
+  ELSE proceed to final specification
+
+IF YAGNI violations > 0 THEN
+  Remove future-focused features
+  Eliminate unused flexibility
+  Reduce abstraction layers
+  ELSE approve complexity level
+
 **CONVERGENCE VALIDATION**:
 - Total Iterations: [N across all layers]
 - Final Confidence: [X%]
@@ -1398,7 +1787,7 @@ Framework Complexity Score:
 - Number of dependencies: [Count]
 - Deployment steps: [Count]
 - Operational procedures: [Count]
-- Team training hours: [Count]
+- Training requirement hours: [Count]
 TOTAL: [Score]
 
 Problem Complexity Score:
@@ -1433,11 +1822,42 @@ Question every component:
 - Flexibility unutilized: REMOVE
 - Scalability beyond 2x: DEFER
 - Perfect solution: ACCEPT good enough
+
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 14:
+- Complexity analysis results and simplification actions
+- KISS/YAGNI enforcement outcomes
+- Contrarian challenge findings
+- Framework/Problem complexity ratio
+- Final simplified architecture decisions
 </thinking>
 
-### Phase 13: Quality Validation & Coverage Verification
+### Phase 14: Quality Validation & Coverage Verification
 
 <thinking>
+**MINI-REHYDRATION**: Load simplified architecture, complexity scores, and KISS/YAGNI enforcement results from Phase 13
+
+**RUNTIME CRITERIA GENERATION**:
+Based on simplification analysis, dynamically generate:
+- Use case coverage validation criteria (100% target)
+- NFR satisfaction thresholds (95% minimum)
+- Complexity appropriateness metrics
+- Capability completeness requirements
+- Knowledge documentation standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF use case coverage < 100% THEN
+  Map uncovered use cases to architecture components
+  Identify implementation gaps
+  Add missing capabilities
+  ELSE proceed to final specification
+
+IF NFR satisfaction < 95% THEN
+  Review unmet requirements
+  Adjust architecture decisions
+  Document acceptable trade-offs
+  ELSE approve NFR compliance
+
 **FINAL QUALITY GATES**:
 
 **USE CASE COVERAGE**: 
@@ -1472,11 +1892,227 @@ Question every component:
 
 **FINAL CONFIDENCE**: [X%]
 **RECOMMENDATION STRENGTH**: [STRONG/MODERATE/WEAK]
+
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 15:
+- Final quality validation results
+- Use case coverage confirmation
+- NFR satisfaction assessment
+- Complexity appropriateness validation
+- All accumulated knowledge from Phases 1-14
 </thinking>
 
-### Phase 14: Initial Architecture Recommendation Synthesis
+### Phase 15: Final Architecture Specification & Complete Decision Documentation
 
-Generate comprehensive, single-file architecture specification document:
+<thinking>
+**MINI-REHYDRATION**: Load all research findings, stack analysis, validation results, and optimization decisions from Phases 9-13
+
+**RUNTIME CRITERIA GENERATION**:
+Based on research completed in previous phases, dynamically generate:
+- Decision documentation completeness criteria
+- Architecture specification quality standards
+- Cost analysis validation thresholds
+- Final synthesis acceptance criteria
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF decision documentation completeness < 95% THEN
+  Identify gaps in decision rationale and evidence
+  Add missing decision justifications
+  Strengthen requirements traceability
+  ELSE finalize architecture specification
+
+IF cost analysis validation < 90% THEN
+  Recalculate TCO estimates
+  Validate licensing implications
+  Update resource projections
+  ELSE approve cost model
+
+IF synthesis acceptance < 95% THEN
+  Improve document structure and clarity
+  Enhance decision traceability
+  Complete integration patterns
+  ELSE release final specification
+</thinking>
+
+**Phase 14 Objective**: Generate comprehensive, single-file architecture specification document integrating all research findings, decisions, cost analysis, and implementation guidance:
+
+**Confidence Target**: 85-95%
+
+## COMPREHENSIVE DECISION DOCUMENTATION FRAMEWORK
+
+When documenting decisions, ensure EVERY consideration is addressed using these comprehensive categories:
+
+### DECISION CARD TEMPLATES
+
+#### Template 1: Technology Selection Card
+```markdown
+┌─────────────────────────────────────────────────────────────┐
+│ TECHNOLOGY DECISION: [Component Name]                       │
+├─────────────────────────────────────────────────────────────┤
+│ **Selected**: [Chosen Technology]                           │
+│ **Confidence**: [X%]                                        │
+│ **Complexity Level**: [1-5]                                 │
+├─────────────────────────────────────────────────────────────┤
+│ **Options Evaluated**:                                      │
+│ • Option A: [Score X/10] - [Key strength/weakness]          │
+│ • Option B: [Score X/10] - [Key strength/weakness]          │
+│ • Option C: [Score X/10] - [Key strength/weakness]          │
+├─────────────────────────────────────────────────────────────┤
+│ **Decision Rationale**:                                     │
+│ [2-3 sentences explaining why this was chosen]              │
+├─────────────────────────────────────────────────────────────┤
+│ **Trade-offs Accepted**:                                    │
+│ • [What we're giving up]                                    │
+│ • [What we're gaining]                                      │
+├─────────────────────────────────────────────────────────────┤
+│ **Migration Path**: [If changing from existing]             │
+│ **Risk Level**: [Low/Medium/High]                           │
+│ **Review Date**: [When to reconsider]                       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Template 2: Architecture Pattern Card
+```markdown
+┌─────────────────────────────────────────────────────────────┐
+│ PATTERN DECISION: [Pattern Area]                            │
+├─────────────────────────────────────────────────────────────┤
+│ **Pattern**: [Selected Pattern Name]                        │
+│ **Category**: [Auth/Data/Integration/etc.]                  │
+│ **Applies To**: [Components/Layers]                         │
+├─────────────────────────────────────────────────────────────┤
+│ **Implementation**:                                         │
+│ ```                                                         │
+│ [Brief code/config example]                                 │
+│ ```                                                         │
+├─────────────────────────────────────────────────────────────┤
+│ **Benefits**:                                               │
+│ ✓ [Benefit 1]                                               │
+│ ✓ [Benefit 2]                                               │
+│ **Limitations**:                                            │
+│ ✗ [Limitation 1]                                            │
+│ ✗ [Limitation 2]                                            │
+├─────────────────────────────────────────────────────────────┤
+│ **When to Use**: [Specific scenarios]                       │
+│ **When NOT to Use**: [Anti-patterns]                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Template 3: Risk Decision Card
+```markdown
+┌─────────────────────────────────────────────────────────────┐
+│ RISK ASSESSMENT: [Risk Area]                                │
+├─────────────────────────────────────────────────────────────┤
+│ **Risk Level**: 🔴 High / 🟡 Medium / 🟢 Low                │
+│ **Impact**: [1-10]                                          │
+│ **Probability**: [1-10]                                     │
+│ **Risk Score**: [Impact × Probability]                      │
+├─────────────────────────────────────────────────────────────┤
+│ **Risk Description**:                                       │
+│ [What could go wrong and why]                               │
+├─────────────────────────────────────────────────────────────┤
+│ **Mitigation Strategy**:                                    │
+│ 1. [Primary mitigation]                                     │
+│ 2. [Secondary mitigation]                                   │
+│ 3. [Monitoring approach]                                    │
+├─────────────────────────────────────────────────────────────┤
+│ **Contingency Plan**:                                       │
+│ IF [trigger condition] THEN [action]                        │
+├─────────────────────────────────────────────────────────────┤
+│ **Review Frequency**: [Weekly/Monthly/Quarterly]            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### A. FOUNDATIONAL ARCHITECTURE DECISIONS
+
+#### A1. System Architecture Level
+**DECISION**: Level [X] - [Architecture Type]
+**CONSIDERED**: [All levels evaluated with reasoning]
+**SELECTED**: [Chosen level]
+**RATIONALE**: [Evidence-based reasoning]
+**REJECTED OPTIONS**: [With specific evidence for each]
+**TRADE-OFFS ACCEPTED**: [What we give up for benefits gained]
+**CONFIDENCE**: [X]%
+
+#### A2. Programming Language/Runtime
+**DECISION**: [Language/Runtime choice]
+**CONSIDERED**: [All languages evaluated]
+**SELECTED**: [Chosen option]
+**RATIONALE**: [Evidence-based reasoning]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Acknowledged limitations]
+**CONFIDENCE**: [X]%
+
+### B. DATA ARCHITECTURE DECISIONS
+
+#### B1. Storage Technology
+**DECISION**: [Storage choice]
+**CONSIDERED**: [Files, SQLite, PostgreSQL, etc.]
+**SELECTED**: [Chosen storage]
+**RATIONALE**: [Why this storage approach]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Query capability vs simplicity, etc.]
+**CONFIDENCE**: [X]%
+
+#### B2. Data Format
+**DECISION**: [Format choice]
+**CONSIDERED**: [JSON, JSONL, CSV, Binary, etc.]
+**SELECTED**: [Chosen format]
+**RATIONALE**: [Why this format]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Size vs readability, etc.]
+**CONFIDENCE**: [X]%
+
+### C. INTEGRATION ARCHITECTURE DECISIONS
+
+#### C1. API/Interface Style
+**DECISION**: [Interface choice]
+**CONSIDERED**: [REST, GraphQL, CLI, WebSocket, etc.]
+**SELECTED**: [Chosen style]
+**RATIONALE**: [Why this approach]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Flexibility vs complexity, etc.]
+**CONFIDENCE**: [X]%
+
+#### C2. Communication Patterns
+**DECISION**: [Pattern choice]
+**CONSIDERED**: [Sync, Async, Event-driven, etc.]
+**SELECTED**: [Chosen pattern]
+**RATIONALE**: [Why this pattern]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Latency vs complexity, etc.]
+**CONFIDENCE**: [X]%
+
+### D. OPERATIONAL DECISIONS
+
+#### D1. Deployment Strategy
+**DECISION**: [Deployment choice]
+**CONSIDERED**: [Local, Cloud, Container, etc.]
+**SELECTED**: [Chosen target]
+**RATIONALE**: [Why this deployment]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Control vs convenience, etc.]
+**CONFIDENCE**: [X]%
+
+#### D2. Configuration Management
+**DECISION**: [Config choice]
+**CONSIDERED**: [Files, Environment, Database, etc.]
+**SELECTED**: [Chosen method]
+**RATIONALE**: [Why this approach]
+**REJECTED OPTIONS**: [With specific reasons for each]
+**TRADE-OFFS ACCEPTED**: [Flexibility vs complexity, etc.]
+**CONFIDENCE**: [X]%
+
+### DECISION DEPENDENCY MATRIX
+| Decision | Depends On | Influences | Critical Path |
+|----------|------------|------------|---------------|
+| [Decision 1] | [Dependencies] | [What it affects] | ✅/❌ |
+| [Decision 2] | [Dependencies] | [What it affects] | ✅/❌ |
+
+### REQUIREMENTS TRACEABILITY MATRIX
+| Requirement | Decisions That Address It | How Requirement Is Met |
+|-------------|---------------------------|------------------------|
+| [Req 1] | [Decision list] | [Specific implementation] |
+| [Req 2] | [Decision list] | [Specific implementation] |
 
 ## UNIFIED OUTPUT: ARCHITECTURE SPECIFICATION DOCUMENT
 
@@ -1487,13 +2123,36 @@ Generate comprehensive, single-file architecture specification document:
 ### Architecture Specification Template
 
 ```markdown
-# Architecture Specification & Technology Recommendations
+# Technology Architecture Research Journal & Final Recommendations
 
-**VERSION**: [Auto-generated version based on updates]  
-**GENERATED**: [Timestamp]  
-**COMPLEXITY BASELINE**: [Level 1-5 from Phase 1 classification]  
-**RESEARCH MODE**: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]  
-**CONFIDENCE LEVEL**: [Final confidence percentage]
+**PROJECT**: [Project name from context]
+**VERSION**: [Auto-generated version based on updates]
+**GENERATED**: [Timestamp]
+**ANALYST**: Progressive Technology Research Framework v4.0
+**COMPLEXITY BASELINE**: [Level 1-5 from Phase 1 classification]
+**RESEARCH MODE**: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]
+**FINAL CONFIDENCE LEVEL**: [Final confidence percentage]
+
+## 📈 CONFIDENCE PROGRESSION SUMMARY
+
+```
+Phase 1: Discovery        ████░░░░░░ [X]%
+Phase 2: Deep Analysis    ███████░░░ [X]%
+Phase 3: Validation       █████████░ [X]%
+Phase 4: Final Decisions  ██████████ [X]%
+```
+
+## 🎓 KEY LEARNINGS FROM RESEARCH JOURNEY
+
+**Major Insights Discovered**:
+1. **[Insight 1]**: [How this changed the analysis direction]
+2. **[Insight 2]**: [What this revealed about requirements]
+3. **[Insight 3]**: [How this influenced final decisions]
+
+**Assumptions Challenged**:
+- **Initial assumption**: [What we first thought]
+- **Testing result**: ✅ Confirmed / ❌ Disproved / 🔄 Modified
+- **Impact**: [How this affected decisions]
 
 ## Executive Summary
 
@@ -1507,7 +2166,7 @@ Generate comprehensive, single-file architecture specification document:
 ### Implementation Approach
 - **Complexity Level**: [1-5 with justification]
 - **Architecture Pattern**: [Monolith/Microservices/Serverless]
-- **Development Workflow**: [Git strategy and team collaboration]
+- **Development Workflow**: [Git strategy and collaboration patterns]
 - **Testing Strategy**: [Unit/Integration/E2E framework choices]
 
 ### Key Architectural Constraints
@@ -1526,7 +2185,7 @@ Generate comprehensive, single-file architecture specification document:
 - **User Load**: [Concurrent users, usage patterns]
 - **Data Volume**: [Storage requirements, growth projections]  
 - **Geographic Scope**: [Local/Regional/Global deployment needs]
-- **Team Size**: [Development team structure and collaboration needs]
+- **Development Scale**: [Development structure and collaboration needs]
 
 ### Use Case Analysis
 **Primary Use Cases**: [Top 3-5 use cases with implementation impact]
@@ -1539,6 +2198,90 @@ Generate comprehensive, single-file architecture specification document:
 **Reliability**: [Availability, fault tolerance, disaster recovery needs]
 **Scalability**: [Growth projections and scaling triggers]
 **Maintainability**: [Code quality, documentation, operational requirements]
+
+## 📋 COMPREHENSIVE DECISION DOCUMENTATION
+
+### FOUNDATIONAL ARCHITECTURE DECISIONS
+
+#### A1. System Architecture Level
+**DECISION**: Level [X] - [Architecture Type]
+**RESEARCH JOURNEY**:
+- Started considering: [Initial approach thoughts]
+- Analyzed requirements: [Key requirement discoveries]
+- Tested complexity levels: [What was learned from analysis]
+- Validated with constraints: [How constraints confirmed choice]
+**FINAL RATIONALE**: [Evidence-based reasoning]
+**ALTERNATIVES REJECTED**:
+- Level [Y]: [Specific rejection reasoning with evidence]
+- Level [Z]: [Specific rejection reasoning with evidence]
+**TRADE-OFFS ACCEPTED**: [What we give up for chosen benefits]
+**CONFIDENCE**: [X]%
+
+#### A2. Programming Language/Runtime
+**DECISION**: [Language/Runtime choice]
+**RESEARCH JOURNEY**:
+- Initial candidates: [Languages considered]
+- Evaluation criteria: [What was tested for]
+- Performance testing: [Testing results]
+- Integration validation: [Integration outcomes]
+**FINAL RATIONALE**: [Evidence-based reasoning]
+**ALTERNATIVES REJECTED**: [With specific evidence for each]
+**TRADE-OFFS ACCEPTED**: [Acknowledged limitations]
+**CONFIDENCE**: [X]%
+
+### DATA ARCHITECTURE DECISIONS
+
+#### B1. Storage Technology
+**DECISION**: [Storage choice]
+**RESEARCH JOURNEY**:
+- Started with assumption: [Initial storage thinking]
+- Analyzed query requirements: [What queries were needed]
+- Tested performance scenarios: [Performance test results]
+- Validated with scale projections: [Scalability confirmation]
+**FINAL RATIONALE**: [Evidence-based reasoning]
+**ALTERNATIVES REJECTED**:
+- [Alternative 1]: [Specific rejection reasoning with evidence]
+- [Alternative 2]: [Specific rejection reasoning with evidence]
+**TRADE-OFFS ACCEPTED**: [Query capability vs simplicity, etc.]
+**CONFIDENCE**: [X]%
+
+#### B2. Data Format
+**DECISION**: [Format choice]
+**RESEARCH JOURNEY**:
+- Evaluated format requirements: [What the data format needed to support]
+- Compared alternatives: [Different formats tested]
+- Validated tooling support: [What tools work with format]
+- Confirmed with processing needs: [How format supports processing]
+**FINAL RATIONALE**: [Why this format best fits needs]
+**ALTERNATIVES REJECTED**: [With specific reasoning for each]
+**TRADE-OFFS ACCEPTED**: [Size vs readability, etc.]
+**CONFIDENCE**: [X]%
+
+### INTEGRATION ARCHITECTURE DECISIONS
+
+#### C1. API/Interface Style
+**DECISION**: [Interface choice]
+**RESEARCH JOURNEY**:
+- Analyzed client needs: [How clients will use the system]
+- Evaluated interface patterns: [Different API styles considered]
+- Tested integration complexity: [How complex integration would be]
+- Validated with use cases: [How well each style supports use cases]
+**FINAL RATIONALE**: [Why this interface style was chosen]
+**ALTERNATIVES REJECTED**: [With specific reasoning for each]
+**TRADE-OFFS ACCEPTED**: [Flexibility vs complexity, etc.]
+**CONFIDENCE**: [X]%
+
+### DECISION DEPENDENCY ANALYSIS
+| Decision | Depends On | Influences | Critical Path Impact |
+|----------|------------|------------|---------------------|
+| [Decision 1] | [What it depends on] | [What it influences] | [How it affects timeline] |
+| [Decision 2] | [What it depends on] | [What it influences] | [How it affects timeline] |
+
+### REQUIREMENTS TRACEABILITY
+| Requirement | Addressing Decisions | Implementation Approach |
+|-------------|---------------------|-------------------------|
+| [Requirement 1] | [Which decisions address it] | [How it's implemented] |
+| [Requirement 2] | [Which decisions address it] | [How it's implemented] |
 
 ## Architecture Decision Registry
 
@@ -1581,7 +2324,7 @@ Generate comprehensive, single-file architecture specification document:
 **CHOSEN**: [Git workflow and collaboration approach]
 **GIT WORKFLOW**: [Branch strategy, review process, deployment integration]
 **GITHUB FEATURES**: [Repository setup, automation, security scanning]
-**TEAM COLLABORATION**: [Code review, documentation, knowledge sharing]
+**COLLABORATION PATTERNS**: [Code review, documentation, knowledge sharing]
 
 ### Implementation Patterns by Complexity Level
 
@@ -1709,6 +2452,113 @@ Generate comprehensive, single-file architecture specification document:
 ### Alternative Architectures Considered
 [Other architectural approaches evaluated and why they were rejected]
 
+## Cost & Financial Analysis
+
+### Comprehensive Cost Modeling
+**Cost Comparison Matrix**:
+| Technology Component | Initial Setup Cost | Monthly Operational Cost | Annual TCO | License Model | Training Cost |
+|---------------------|-------------------|--------------------------|------------|---------------|-------------------|
+| **Runtime/Platform** | [Development + setup time] | [Hosting/infrastructure cost] | [Total yearly cost] | [Open Source/Commercial] | [Learning curve hours × rate] |
+| **Database/Storage** | [Migration + setup time] | [Storage + backup costs] | [Total yearly cost] | [License terms] | [DBA/admin training cost] |
+| **Framework/Libraries** | [Integration time] | [Support/maintenance cost] | [Updates + support] | [License compliance] | [Developer skill development] |
+| **Monitoring/Ops** | [Setup + configuration] | [Service costs + personnel] | [Total operational cost] | [Tool licensing] | [DevOps training cost] |
+
+### Financial Impact by Complexity Level
+**Level 1-2 Architecture Costs**:
+- Infrastructure: Minimal (local deployment, file-based storage)
+- Development: Low complexity, rapid iteration
+- Maintenance: Primarily developer time, minimal operational overhead
+
+**Level 3+ Architecture Costs**:
+- Infrastructure: Database hosting, backup systems, monitoring tools
+- Development: Higher complexity requiring specialized skills
+- Maintenance: Operational teams, 24/7 monitoring, compliance overhead
+
+### Total Cost of Ownership (TCO) Analysis
+**Year 1 Costs**:
+- Initial Development: [Hours × rates for chosen complexity level]
+- Infrastructure Setup: [One-time provisioning and configuration costs]
+- Training Requirements: [Skill development time for chosen technologies]
+- Licensing: [Annual license costs for commercial components]
+
+**Ongoing Annual Costs**:
+- Infrastructure: [Monthly hosting × 12 + growth projections]
+- Maintenance: [Developer hours + operational overhead]
+- Licensing: [Recurring license renewals and compliance]
+- Scaling Costs: [Anticipated growth-related infrastructure increases]
+
+### Cost Optimization Strategies
+**Immediate Cost Savings**:
+- [Specific recommendations for reducing initial costs]
+- [Open source alternatives to expensive commercial tools]
+- [Development workflow optimizations to reduce time-to-market]
+
+**Long-term Cost Management**:
+- [Scaling strategies that optimize cost per user/transaction]
+- [Technology migration paths if cost becomes prohibitive]
+- [Monitoring and alerting for cost control triggers]
+
+### KNOWLEDGE DOCUMENTATION
+Document for Phase 14:
+- Complete architecture specification document
+- All decision rationales with evidence
+- Cost analysis with TCO projections
+- Implementation roadmap with risk mitigations
+- Success criteria and evolution triggers
+
+## Final Architecture Specification Document Template
+
+**Target Output**: Single `./docs/architecture-specification.md` file containing all decisions, patterns, and implementation guidance
+
+### Final Document Structure
+```markdown
+# Architecture Specification v[version]
+
+**PROJECT**: [Project name from context]
+**VERSION**: [Auto-generated version based on updates]
+**GENERATED**: [Timestamp]
+**ANALYST**: Progressive Technology Research Framework v4.0
+**COMPLEXITY BASELINE**: [Level 1-5 from Phase 1 classification]
+**RESEARCH MODE**: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]
+**FINAL CONFIDENCE LEVEL**: [Final confidence percentage]
+
+## 1. Executive Summary
+[2-3 paragraph overview of technology decisions and approach rationale]
+
+## 2. Requirements Analysis & Context
+[Extracted and derived requirements from Phases 2-4, use case analysis, NFR definitions]
+
+## 3. Technology Stack Decisions
+[Final technology choices with complete justifications, alternatives considered, trade-offs accepted]
+
+## 4. Architecture Patterns & Integration
+[Selected patterns from Phase 5, integration decisions, communication patterns]
+
+## 5. Implementation Patterns & Code Structure
+[Development workflow, testing patterns, deployment patterns organized by complexity level]
+
+## 6. Cost Analysis & Financial Planning
+[Complete cost modeling, TCO analysis, cost optimization strategies from cost analysis above]
+
+## 7. Risk Assessment & Mitigation Strategy
+[Identified risks and specific mitigation approaches, decision trade-offs, validation plans]
+
+## 8. Performance Targets & Benchmarking
+[Performance benchmarks, scalability approach, monitoring and optimization plans]
+
+## 9. Implementation Roadmap
+[Phased implementation plan, one-time setup, ongoing development workflow]
+
+## 10. Success Criteria & Evolution Planning
+[Validation criteria, success metrics, evolution triggers for architecture changes]
+
+## 11. Research Process Documentation
+[Confidence progression, major insights, assumption testing results, evidence sources]
+
+## 12. Migration Strategy (if applicable)
+[Only if rehydration mode detected existing architecture - migration path and comparison analysis]
+```
+
 ## Validation & Success Criteria
 
 ### Implementation Validation
@@ -1727,29 +2577,61 @@ Generate comprehensive, single-file architecture specification document:
 **Technology Triggers**: [When to reconsider technology choices]
 **Architecture Triggers**: [When to reconsider architectural patterns]
 
----
+## 📖 COMPLETE RESEARCH PROCESS DOCUMENTATION
 
-*Architecture specification generated by Progressive Technology Research Framework v3.0*  
-*Research confidence: [X%] | Iterations: [N] | Mode: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]*
+### Learning Evolution Journey
+- **Research Mode**: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]
+- **Total Investigation Time**: [Duration]
+- **Research Iterations**: [Number of cycles]
+- **Final Confidence**: [X%]
+
+### Confidence Building Progression
+```
+Phase 1: Discovery    ████░░░░░░ [X]% - [Key insight that drove confidence]
+Phase 2: Analysis     ███████░░░ [X]% - [Technical validation that built confidence]
+Phase 3: Validation   █████████░ [X]% - [Testing that confirmed approach]
+Phase 4: Final        ██████████ [X]% - [Final validation that sealed decisions]
 ```
 
-### Progressive Learning Summary (Appendix)
+### Major Insights That Shaped Analysis
+1. **[Insight 1]**: [Discovery] → [How it changed direction]
+2. **[Insight 2]**: [Discovery] → [How it influenced decisions]
+3. **[Insight 3]**: [Discovery] → [How it affected final choices]
 
-For transparency and learning, include research journey:
+### Hypotheses Tested During Research
+| Hypothesis | Test Method | Result | Impact on Decisions |
+|------------|-------------|--------|-------------------|
+| [Hypothesis 1] | [How tested] | ✅/❌/🔄 | [How this affected choices] |
+| [Hypothesis 2] | [How tested] | ✅/❌/🔄 | [How this affected choices] |
 
-```markdown
-## Research Process Documentation
-
-### Learning Evolution  
-- **Research Mode**: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]
-- **Iterations**: [Number of research cycles]  
-- **Confidence Progression**: [How confidence evolved]
-- **Key Discoveries**: [Major insights that shaped decisions]
+### Alternatives Seriously Considered But Rejected
+| Alternative | Why Initially Attractive | Why Ultimately Rejected | Evidence |
+|-------------|-------------------------|-------------------------|----------|
+| [Alternative 1] | [Appeal] | [Rejection reason] | [Specific evidence] |
+| [Alternative 2] | [Appeal] | [Rejection reason] | [Specific evidence] |
 
 ### Research Methodology Applied
-- **Sources Consulted**: [Community research, documentation, benchmarks]
-- **Validation Methods**: [How decisions were validated]
-- **Evidence Quality**: [Strength of supporting evidence]
+- **Community Sources**: [Reddit threads, GitHub discussions, Stack Overflow]
+- **Documentation Analysis**: [Official docs, API references, tutorials]
+- **Performance Validation**: [Benchmarks, load testing, scalability analysis]
+- **Integration Testing**: [Compatibility tests, dependency analysis]
+- **Risk Assessment**: [Failure analysis, mitigation strategies]
+
+### Evidence Quality Assessment
+- **High Confidence Evidence**: [Sources with strong validation]
+- **Medium Confidence Evidence**: [Sources requiring further validation]
+- **Assumptions Made**: [Areas where evidence was limited]
+
+### Decision Evolution Tracking
+**Initial Assumptions** → **Mid-Research Adjustments** → **Final Decisions**
+- [Technology area]: [Initial thought] → [What changed] → [Final choice]
+- [Architecture area]: [Initial thought] → [What changed] → [Final choice]
+
+---
+
+*Architecture specification generated by Progressive Technology Research Framework v4.0*
+*Research confidence: [X%] | Phases completed: [N] | Mode: [FULL/GAP_ANALYSIS/VALIDATION/UPDATE]*
+*Analysis transparency: Complete research journey documented above*
 ```
 
 **Output**: Single comprehensive architecture specification document ready for feature-developer consumption
@@ -1815,17 +2697,40 @@ Base Confidence = 30%
 - Confidence map updates
 - Evidence accumulation log
 
-### Phase 15: Progressive Research Deep Dive
+### Phase 16: Progressive Research Deep Dive
 
 **Generate single comprehensive architecture specification document**:
 
 **Target Output**: Single `./docs/architecture-specification.md` file containing all decisions, patterns, and implementation guidance
 
-**Rehydration Integration**: 
+**Rehydration Integration**:
 - **FULL RESEARCH MODE**: Generate complete new architecture specification
 - **GAP ANALYSIS/VALIDATION/UPDATE MODE**: Update existing architecture specification with new/changed decisions while preserving valid existing decisions
 
 <thinking>
+**MINI-REHYDRATION**: Load complete validated architecture from Phase 15 with all accumulated knowledge from Phases 1-14
+
+**RUNTIME CRITERIA GENERATION**:
+Based on final quality validation, dynamically generate:
+- Document completeness criteria
+- Section coverage requirements
+- Decision traceability standards
+- Implementation detail thresholds
+- Pattern documentation requirements
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF document completeness < 100% THEN
+  Add missing sections
+  Complete decision documentation
+  Fill implementation details
+  ELSE proceed to architecture registry
+
+IF pattern documentation < 95% THEN
+  Document authentication patterns
+  Complete data access patterns
+  Add integration patterns
+  ELSE approve pattern library
+
 Create comprehensive architecture specification document with all decisions, patterns, and implementation details.
 
 **DOCUMENT STRUCTURE**:
@@ -1841,7 +2746,7 @@ Create comprehensive architecture specification document with all decisions, pat
 
 ### Project Context Discovery
 - **Project Type**: [From Phase 1 analysis]
-- **Scale Classification**: [Single-user/Small-team/Multi-tenant/Enterprise]
+- **Scale Classification**: [Single-user/Small-scale/Multi-tenant/Enterprise]
 - **Complexity Assessment**: [Level 1-4 with evidence]
 - **User Load**: [Actual concurrent user projections]
 - **Data Volume**: [Storage size projections with growth]
@@ -1883,7 +2788,7 @@ Create comprehensive architecture specification document with all decisions, pat
 - **COMPLEXITY LEVEL**: [1-4 with justification]
 
 #### Version Control & Collaboration Architecture Decision
-- **CHOSEN APPROACH**: [Git workflow model based on team size]
+- **CHOSEN APPROACH**: [Git workflow model based on scale]
 - **EXISTING REPOSITORY ANALYSIS**: [Current Git setup if any]
 - **GITHUB STRATEGY**: [Repository structure, access patterns]
 - **BRANCH MODEL**: [main-only, GitFlow, etc. with justification]
@@ -2050,7 +2955,7 @@ try {
 - **Deployment**: npm start, PM2 for production OR clasp push, platform CLI deploy
 - **Testing**: Mocha + Chai, automated testing in CI
 - **One-time Setup**: Verify Node.js (node --version >= 18) OR platform CLI (clasp, wrangler), npm init, Git workflow, GitHub Actions setup
-- **When to Use**: Local tools with UI, real-time needs, small team collaboration, simple serverless functions, rapid prototyping
+- **When to Use**: Local tools with UI, real-time needs, small-scale collaboration, simple serverless functions, rapid prototyping
 
 ### Level 3 - Local Web + Database
 - **Tech Stack**: Node.js + Express + Solid.js/Svelte 5
@@ -2067,14 +2972,14 @@ try {
 - **Deployment**: Docker Compose, GitHub Packages
 - **Testing**: Unit + Integration + E2E, test automation in CI
 - **One-time Setup**: Verify Docker (docker --version, docker-compose --version), PostgreSQL setup, Git workflow setup, DB migrations
-- **When to Use**: Multi-user local apps, data-heavy apps, structured team development
+- **When to Use**: Multi-user local apps, data-heavy apps, structured development
 
 ### Level 4 - Cloud Service
 - **Tech Stack**: Next.js/Remix/FastAPI
 - **Platforms**: Vercel, AWS Lambda, GCP Cloud Run
 - **Storage**: Supabase, PlanetScale, DynamoDB
 - **Version Control**: GitOps workflows, release branches, semantic versioning
-- **Collaboration**: GitHub Enterprise, Dependabot, security scanning, team permissions
+- **Collaboration**: GitHub Enterprise, Dependabot, security scanning, access permissions
 - **CI/CD**: Multi-cloud pipelines, blue-green deployments, automated rollbacks
 - **Documentation**: Living documentation, API docs auto-generation, runbooks
 - **Auth**: Auth0, Clerk, AWS Cognito
@@ -2084,7 +2989,7 @@ try {
 - **Deployment**: Vercel CLI, AWS CDK, Terraform
 - **Testing**: CI/CD pipelines, staging env
 - **One-time Setup**: Cloud provider CLI setup (aws/gcloud/vercel), environment variables, domain provisioning, GitHub integrations, secrets management
-- **When to Use**: Public apps, team collaboration
+- **When to Use**: Public apps, multi-user collaboration
 
 ### Level 5 - Enterprise Scale
 - **Tech Stack**: Microservices, Event-driven
@@ -2145,7 +3050,40 @@ try {
 6. **API**: Functions → Express → REST → GraphQL → gRPC
 7. **Deploy**: Script → npm → Docker → Cloud → K8s
 
-### Phase 16: Alternative Options Research
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 17:
+- Complete architecture specification document
+- All architecture decision records
+- Implementation patterns library
+- Progressive enhancement path
+- Technology stack justifications
+
+### Phase 17: Alternative Options Research
+
+<thinking>
+**MINI-REHYDRATION**: Load architecture specification and progressive enhancement path from Phase 16
+
+**RUNTIME CRITERIA GENERATION**:
+Based on documented architecture, dynamically generate:
+- Alternative evaluation criteria
+- Migration path requirements
+- Setup instruction completeness
+- Fallback option thresholds
+- Risk assessment standards
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF alternative coverage < 90% THEN
+  Research additional options for each component
+  Document migration paths
+  Assess switching costs
+  ELSE proceed to setup instructions
+
+IF setup completeness < 100% THEN
+  Add missing prerequisites
+  Complete installation steps
+  Include verification commands
+  ELSE approve setup documentation
+</thinking>
 
 **One-time Setup Instructions for Each Level**:
 
@@ -2380,11 +3318,42 @@ EOF
 kubectl apply -f argocd-app.yml
 ```
 
-### Phase 17: PoC/Prototype Planning
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 18:
+- Alternative technology options and comparisons
+- Migration paths between complexity levels
+- Complete setup instructions for each level
+- Prerequisites and dependencies map
+- Fallback options and risk assessments
+
+### Phase 18: PoC/Prototype Planning
 
 <thinking>
+**MINI-REHYDRATION**: Load setup instructions and alternative options from Phase 17
+
+**RUNTIME CRITERIA GENERATION**:
+Based on alternative research, dynamically generate:
+- PoC scope definition criteria
+- Prototype validation requirements
+- Risk spike identification thresholds
+- Learning objective standards
+- Success metric definitions
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF PoC scope clarity < 95% THEN
+  Define specific validation goals
+  Identify critical uncertainties
+  Scope minimal viable tests
+  ELSE proceed to prototype design
+
+IF risk coverage < 90% THEN
+  Add technical risk spikes
+  Include integration tests
+  Plan performance validations
+  ELSE approve PoC plan
+
 **COLLABORATION WORKFLOW DESIGN**:
-Based on team size and complexity level, determine appropriate Git/GitHub collaboration patterns and establish provisioning state tracking.
+Based on scale and complexity level, determine appropriate Git/GitHub collaboration patterns and establish provisioning state tracking.
 
 **PROVISIONING STATE TRACKING**:
 - Track what infrastructure/services have been provisioned
@@ -2393,7 +3362,7 @@ Based on team size and complexity level, determine appropriate Git/GitHub collab
 - Provide rollback capability for failed setups
 
 **COLLABORATION PATTERN SELECTION**:
-By complexity level and team size, establish appropriate workflows.
+By complexity level and scale, establish appropriate workflows.
 </thinking>
 
 #### Git Workflow Pattern Selection
@@ -2420,7 +3389,7 @@ By complexity level and team size, establish appropriate workflows.
 - **Pattern**: GitOps with automated deployments
 - **Provisioning State**: Cloud resource tracking (Terraform state, service URLs)
 - **Setup Validation**: Cloud accounts, secrets management, monitoring setup
-- **Collaboration**: Security scanning, Dependabot, team-based permissions
+- **Collaboration**: Security scanning, Dependabot, role-based permissions
 
 **Level 5 (50+ developers)**:
 - **Pattern**: Enterprise GitOps with compliance
@@ -2502,7 +3471,7 @@ provision_missing() {
 }
 ```
 
-#### Team Collaboration Contracts
+#### Collaboration Contracts
 
 **Code Review Requirements by Level**:
 - Level 1-2: 1 approver, basic checks
@@ -2530,7 +3499,7 @@ branch_protection:
     dismiss_stale_reviews: true
     require_code_owner_reviews: true
     required_status_checks: ["test", "build", "security-scan", "compliance"]
-    restrictions: ["team:senior-devs"]
+    restrictions: ["role:senior-devs"]
 ```
 
 **Technology Decision Matrices**:
@@ -2661,7 +3630,7 @@ Bias toward frameworks that:
 - [placeholder: Code/documentation generation at scale]
 
 #### Git/GitHub Strategy Matrix
-| Level | Team Size | Git Workflow | GitHub Features | CI/CD Strategy |
+| Level | Scale | Git Workflow | GitHub Features | CI/CD Strategy |
 |-------|-----------|--------------|-----------------|----------------|
 | 1     | 1-2       | Simple commits | Basic repo, issues | GitHub Actions - simple tests |
 | 2     | 2-5       | Feature branches | Pull requests, code review | Automated testing, deploy on merge |
@@ -2710,114 +3679,133 @@ Bias toward frameworks that:
 5. **Multi-region**: Global deployment
 ```
 
-### Phase 18: Cost & Licensing Analysis
-
-**Purpose**: Evaluate financial implications of technology choices
-
-<thinking>
-**COST ANALYSIS**:
-- Infrastructure costs: [placeholder: monthly estimate]
-- Licensing fees: [placeholder: per-user/per-year]
-- Development costs: [placeholder: hours × rate]
-- Maintenance costs: [placeholder: ongoing estimate]
-- Training costs: [placeholder: team onboarding]
-</thinking>
-
-**Cost Comparison Matrix**:
-| Technology | Initial Cost | Monthly Cost | Annual TCO | License Type |
-|------------|-------------|--------------|------------|--------------|
-| [placeholder] | [placeholder] | [placeholder] | [placeholder] | [placeholder] |
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 19:
+- PoC/Prototype scope and objectives
+- Collaboration workflow patterns
+- Provisioning state tracking design
+- Migration guide documentation
+- Risk validation approach
 
 ### Phase 19: Security & Compliance Validation
 
 **Purpose**: Ensure technology choices meet security requirements
 
 <thinking>
+**MINI-REHYDRATION**: Load PoC plan and migration guides from Phase 18
+
+**RUNTIME CRITERIA GENERATION**:
+Based on prototype planning, dynamically generate:
+- Security validation criteria
+- Compliance requirement thresholds
+- Vulnerability assessment standards
+- Data protection requirements
+- Audit trail specifications
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF security coverage < 100% THEN
+  Identify unaddressed threats
+  Add security controls
+  Document mitigation strategies
+  ELSE proceed to compliance check
+
+IF compliance gaps > 0 THEN
+  Map regulatory requirements
+  Add compliance controls
+  Document audit procedures
+  ELSE approve security design
 **SECURITY ASSESSMENT**:
 - Authentication mechanisms: [placeholder: evaluation]
 - Data encryption: [placeholder: at-rest/in-transit]
 - Vulnerability management: [placeholder: process]
 - Compliance requirements: [placeholder: GDPR/HIPAA/SOC2]
 - Security monitoring: [placeholder: tools/processes]
+
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 20:
+- Security assessment results
+- Compliance validation outcomes
+- Vulnerability mitigation strategies
+- Data protection mechanisms
+- Audit trail requirements
 </thinking>
 
-### Phase 20: Performance Benchmarking Plan
+### Phase 20: Performance Benchmarking & Documentation Planning
 
-**Purpose**: Define performance validation criteria
+**Purpose**: Define performance validation criteria and comprehensive documentation approach
 
 <thinking>
+**MINI-REHYDRATION**: Load security validation and compliance results from Phase 19
+
+**RUNTIME CRITERIA GENERATION**:
+Based on security validation, dynamically generate:
+- Performance benchmark requirements
+- Load testing scenarios
+- Documentation completeness criteria
+- Implementation guide standards
+- Deployment checklist requirements
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF benchmark coverage < 95% THEN
+  Add missing performance tests
+  Define load scenarios
+  Create stress test plans
+  ELSE proceed to documentation
+
+IF documentation completeness < 100% THEN
+  Add missing sections
+  Complete code examples
+  Include troubleshooting guides
+  ELSE approve documentation plan
 **BENCHMARK CRITERIA**:
 - Response time targets: [placeholder: p50/p95/p99]
 - Throughput requirements: [placeholder: requests/second]
 - Resource utilization: [placeholder: CPU/memory limits]
 - Scalability tests: [placeholder: load patterns]
-</thinking>
 
-### Phase 21: Documentation Strategy
-
-**Purpose**: Plan comprehensive documentation approach
-
-<thinking>
 **DOCUMENTATION PLANNING**:
 - Architecture documentation: [placeholder: ADRs, diagrams]
 - API documentation: [placeholder: OpenAPI, examples]
 - Operations runbooks: [placeholder: deployment, troubleshooting]
 - Developer guides: [placeholder: setup, contribution]
+
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for Phase 21:
+- Performance benchmark definitions
+- Load testing scenarios
+- Documentation structure plan
+- Implementation guide outline
+- Deployment checklist items
 </thinking>
 
-### Phase 22: Final Architecture Specification Generation
 
-**Purpose**: Generate comprehensive architecture document
-
-<thinking>
-**FINAL SYNTHESIS**:
-Compile all research, decisions, and recommendations into single unified specification document following the established template structure.
-</thinking>
-
-**Output Template Structure**:
-
-```markdown
-# Architecture Specification v[version]
-
-## 1. Executive Summary
-[placeholder: 2-3 paragraph overview of technology decisions]
-
-## 2. Requirements Analysis
-[placeholder: Extracted and derived requirements from Phases 2-4]
-
-## 3. Technology Stack Decisions
-[placeholder: Final technology choices with justifications]
-
-## 4. Architecture Patterns
-[placeholder: Selected patterns from Phase 5]
-
-## 5. Implementation Roadmap
-[placeholder: Phased implementation plan]
-
-## 6. Risk Mitigation Strategy
-[placeholder: Identified risks and mitigation approaches]
-
-## 7. Cost Analysis
-[placeholder: TCO and budget considerations from Phase 18]
-
-## 8. Security & Compliance
-[placeholder: Security measures from Phase 19]
-
-## 9. Performance Targets
-[placeholder: Benchmarks from Phase 20]
-
-## 10. Documentation Plan
-[placeholder: Documentation strategy from Phase 21]
-
-## 11. Migration Strategy (if applicable)
-[placeholder: From Phases 23-24 if rehydration occurred]
-```
-
-### Phase 23: Migration Analysis (Compare with Existing Architecture)
+### Phase 21: Migration Analysis & Strategy (Compare with Existing Architecture)
 
 **Purpose**: Comprehensive comparison between existing and recommended architectures
 
 <thinking>
+**MINI-REHYDRATION**: Load performance benchmarks and documentation plan from Phase 20, plus all accumulated architecture decisions
+
+**RUNTIME CRITERIA GENERATION**:
+Based on complete architecture analysis, dynamically generate:
+- Migration risk assessment criteria
+- Phased migration requirements
+- Rollback strategy standards
+- Training needs assessment
+- Success metrics definition
+
+**QUALITY ITERATION TARGET**: 1-25 iterations
+IF migration plan completeness < 100% THEN
+  Define migration phases
+  Identify dependencies
+  Create rollback procedures
+  ELSE finalize migration strategy
+
+IF risk mitigation < 95% THEN
+  Add contingency plans
+  Define failure recovery
+  Document rollback triggers
+  ELSE approve migration plan
 **DETAILED EXISTING vs NEW COMPARISON**:
 
 Using MASTER SCORING FORMULA to objectively compare:
@@ -2903,6 +3891,14 @@ ELSE:
   - Testing requirements: [placeholder: scope]
   - Documentation updates: [placeholder: list]
   - Training needs: [placeholder: assessment]
+
+**KNOWLEDGE DOCUMENTATION**:
+Preserve for final output:
+- Complete migration analysis and strategy
+- Risk assessment with mitigation plans
+- Phased migration approach
+- Rollback procedures
+- All accumulated knowledge from Phases 1-21
 </thinking>
 
 **Migration Necessity Matrix**:
@@ -2915,7 +3911,7 @@ ELSE:
 | Auth System | [placeholder] | [placeholder] | [Yes/No] | [Hours] |
 | Deployment | [placeholder] | [placeholder] | [Yes/No] | [Hours] |
 
-### Phase 24: Migration Strategy & DO/DON'T Directives
+### Migration Strategy & Implementation Directives
 
 **Purpose**: Provide safe migration path with progressive enhancement
 
@@ -2981,7 +3977,7 @@ claude -p validate-migration "[test_environment]"
 1. **Pre-Migration**: 
    - [ ] Backups verified
    - [ ] Rollback tested
-   - [ ] Team briefed
+   - [ ] Documentation updated
 
 2. **During Migration**:
    - [ ] Incremental validation
