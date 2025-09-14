@@ -412,8 +412,8 @@ FOR each prompt in [PROMPT_A, PROMPT_B]:
     **HAS_TOOLS**: Mentions specific tools
     **COMPLEXITY_LEVEL**: Count of directives and conditions
 
-  DETECT domain type:
-    **DOMAIN_TYPE**: Analyze content for domain indicators
+  DETECT domain type using multi-signal approach:
+    **PRIMARY_DOMAIN_SIGNAL**: Analyze prompt content for domain indicators
       - CODE_GENERATION: Contains "create", "implement", "function", "class", "build"
       - ANALYSIS: Contains "analyze", "evaluate", "assess", "review", "examine"
       - DOCUMENTATION: Contains "document", "describe", "explain", "write", "spec"
@@ -424,39 +424,179 @@ FOR each prompt in [PROMPT_A, PROMPT_B]:
       - PLANNING: Contains "plan", "design", "architect", "strategy", "roadmap"
       - RESEARCH: Contains "research", "investigate", "explore", "discover", "study"
 
-    **DOMAIN_CONFIDENCE**: Calculate confidence based on keyword density
-    **SECONDARY_DOMAIN**: Detect mixed domains (e.g., CODE_GENERATION + TESTING)
+    **SECONDARY_DOMAIN_SIGNAL**: Analyze TEST_ARGUMENTS for action verbs
+      Parse TEST_ARGUMENTS content for:
+      - Action indicators: "create", "analyze", "debug", "optimize", "compare"
+      - Context indicators: "performance", "security", "scalability", "usability"
+      - Output format hints: "table", "list", "report", "dashboard", "code"
+      - Complexity indicators: "simple", "comprehensive", "detailed", "enterprise"
+
+    **TERTIARY_DOMAIN_SIGNAL**: Expected output format from arguments
+      Detect format expectations from TEST_ARGUMENTS:
+      - Code output: mentions "function", "class", "script", "implementation"
+      - Analysis output: mentions "comparison", "evaluation", "assessment"
+      - Documentation: mentions "guide", "documentation", "explanation"
+
+    **DOMAIN_CONFIDENCE**: Calculate multi-signal confidence
+      Base confidence = keyword density in prompt (current method)
+
+      CONFIDENCE_ADJUSTMENTS:
+        IF TEST_ARGUMENTS reinforce prompt domain: +20% confidence boost
+        IF TEST_ARGUMENTS suggest different domain: -15% confidence penalty
+        IF expected output format matches domain: +10% confidence boost
+        IF complexity indicators align with domain: +5% confidence boost
+
+    **SECONDARY_DOMAIN**: Detect mixed domains with argument influence
+      Consider both prompt keywords AND argument context for hybrid classification
 
   EXTRACT purpose indicators:
     **STATED_PURPOSE**: From frontmatter or header
     **DOMAIN_CONTEXT**: Subject area references
     **EXPECTED_OUTPUTS**: What prompt claims to produce
 
-ADAPT criteria weights based on detected domain (quality-focused, efficiency minimal):
+ADAPT criteria weights using dynamic argument-aware calculation:
 
-  IF DOMAIN_TYPE == CODE_GENERATION:
-    Weights: Completeness=35%, Quality=30%, Efficiency=5%, ErrorHandling=20%, Usability=10%
-  ELIF DOMAIN_TYPE == ANALYSIS:
-    Weights: Completeness=35%, Quality=35%, Efficiency=5%, ErrorHandling=15%, Usability=10%
-  ELIF DOMAIN_TYPE == DOCUMENTATION:
-    Weights: Completeness=30%, Quality=40%, Efficiency=3%, ErrorHandling=7%, Usability=20%
-  ELIF DOMAIN_TYPE == TESTING:
-    Weights: Completeness=40%, Quality=30%, Efficiency=5%, ErrorHandling=20%, Usability=5%
-  ELIF DOMAIN_TYPE == DEBUGGING:
-    Weights: Completeness=25%, Quality=30%, Efficiency=5%, ErrorHandling=35%, Usability=5%
-  ELIF DOMAIN_TYPE == PLANNING:
-    Weights: Completeness=35%, Quality=35%, Efficiency=5%, ErrorHandling=10%, Usability=15%
-  ELIF DOMAIN_TYPE == RESEARCH:
-    Weights: Completeness=40%, Quality=35%, Efficiency=5%, ErrorHandling=10%, Usability=10%
-  ELIF DOMAIN_TYPE == TRANSFORMATION:
-    Weights: Completeness=35%, Quality=25%, Efficiency=5%, ErrorHandling=30%, Usability=5%
-  ELIF DOMAIN_TYPE == AUTOMATION:
-    Weights: Completeness=30%, Quality=25%, Efficiency=5%, ErrorHandling=35%, Usability=5%
-  ELSE:
-    Weights: Completeness=35%, Quality=30%, Efficiency=5%, ErrorHandling=15%, Usability=15%
+### Dynamic Weight Calculation Framework
 
+**DYNAMIC_CRITERIA_TEMPLATES**: Flexible weight ranges instead of fixed values
+
+DEFINE base criteria templates with min/max ranges:
+  **BASE_CRITERIA_CONSTRAINTS**:
+    completeness: { min_weight: 20, max_weight: 50 }
+    quality: { min_weight: 20, max_weight: 45 }
+    efficiency: { min_weight: 2, max_weight: 20 }
+    error_handling: { min_weight: 5, max_weight: 40 }
+    usability: { min_weight: 5, max_weight: 30 }
+
+APPLY domain-specific weight preferences:
+  **DOMAIN_WEIGHT_PREFERENCES**: Calculate within constraints
+    IF DOMAIN_TYPE == CODE_GENERATION:
+      preferences = { completeness: 35, quality: 30, efficiency: 5, error_handling: 20, usability: 10 }
+      modifiers = { error_handling: +10, quality: +5 } # Code needs reliability and clarity
+
+    ELIF DOMAIN_TYPE == ANALYSIS:
+      preferences = { completeness: 35, quality: 35, efficiency: 5, error_handling: 15, usability: 10 }
+      modifiers = { completeness: +10, quality: +10 } # Analysis needs thoroughness and insight
+
+    ELIF DOMAIN_TYPE == DOCUMENTATION:
+      preferences = { completeness: 30, quality: 40, efficiency: 3, error_handling: 7, usability: 20 }
+      modifiers = { usability: +15, quality: +8 } # Docs need clarity and user-friendliness
+
+    ELIF DOMAIN_TYPE == TESTING:
+      preferences = { completeness: 40, quality: 30, efficiency: 5, error_handling: 20, usability: 5 }
+      modifiers = { completeness: +15, error_handling: +15 } # Tests need comprehensive coverage
+
+    ELIF DOMAIN_TYPE == DEBUGGING:
+      preferences = { completeness: 25, quality: 30, efficiency: 5, error_handling: 35, usability: 5 }
+      modifiers = { error_handling: +20 } # Debugging prioritizes problem-solving
+
+    ELIF DOMAIN_TYPE == PLANNING:
+      preferences = { completeness: 35, quality: 35, efficiency: 5, error_handling: 10, usability: 15 }
+      modifiers = { completeness: +8, usability: +8 } # Plans need completeness and clarity
+
+    ELIF DOMAIN_TYPE == RESEARCH:
+      preferences = { completeness: 40, quality: 35, efficiency: 5, error_handling: 10, usability: 10 }
+      modifiers = { completeness: +12, quality: +8 } # Research needs depth and accuracy
+
+    ELIF DOMAIN_TYPE == TRANSFORMATION:
+      preferences = { completeness: 35, quality: 25, efficiency: 5, error_handling: 30, usability: 5 }
+      modifiers = { error_handling: +18 } # Transformations need robust handling
+
+    ELIF DOMAIN_TYPE == AUTOMATION:
+      preferences = { completeness: 30, quality: 25, efficiency: 5, error_handling: 35, usability: 5 }
+      modifiers = { error_handling: +20, efficiency: +5 } # Automation needs reliability and efficiency
+
+    ELSE:
+      preferences = { completeness: 35, quality: 30, efficiency: 5, error_handling: 15, usability: 15 }
+      modifiers = { quality: +5 } # Default: slight quality preference
+
+**CONTEXT_MODIFIERS**: Situational adjustments applied to preferences
+  **RESEARCH_CONTEXT**: { completeness: +10, quality: +5 }
+  **PRODUCTION_CONTEXT**: { error_handling: +15, quality: +10 }
+  **PROTOTYPE_CONTEXT**: { efficiency: +10, usability: +5 }
+  **ANALYSIS_CONTEXT**: { completeness: +15, quality: +10 }
+  **USER_FACING_CONTEXT**: { usability: +12, quality: +8 }
+  **TECHNICAL_DEPTH_CONTEXT**: { quality: +12, completeness: +8 }
+
+CALCULATE dynamic base weights:
+  FOR each criterion:
+    initial_weight = domain_preferences[criterion]
+
+    APPLY domain modifiers:
+      adjusted_weight = initial_weight + domain_modifiers[criterion]
+
+    APPLY context modifiers based on TEST_ARGUMENTS:
+      IF "research" in TEST_ARGUMENTS:
+        adjusted_weight += RESEARCH_CONTEXT[criterion]
+      IF "production" in TEST_ARGUMENTS:
+        adjusted_weight += PRODUCTION_CONTEXT[criterion]
+      # ... (other context applications)
+
+    ENFORCE constraints:
+      final_weight = CLAMP(adjusted_weight, min_weight, max_weight)
+
+  NORMALIZE to 100%:
+    total = sum(all_final_weights)
+    FOR each criterion:
+      normalized_weight = (final_weight / total) * 100
+
+**SIMPLIFIED PROMPT-FOCUSED EVALUATION**:
+
+EVALUATE prompts and their outputs directly:
+
+**PRIMARY CRITERIA FOCUS** (80% total weight):
+
+1. **PROMPT_EFFECTIVENESS** (25%):
+   - Instruction clarity and specificity
+   - Structural organization of prompts
+   - Adaptability to different contexts
+   - Guidance quality for AI execution
+
+2. **EXECUTION_PERFORMANCE** (30%):
+   - Actual time to complete (critical for hooks)
+   - Resource efficiency and overhead
+   - Startup and processing speed
+   - Comparative timing advantage
+   - Performance consistency across runs
+
+3. **OUTPUT_QUALITY** (25%):
+   - Breadth of coverage and scope
+   - Depth of analysis and insight
+   - Detail accuracy and precision
+   - Format presentation and structure
+   - Practical value and usefulness
+
+**BASIC_DOMAIN_ADJUSTMENTS**:
+  Only apply simple adjustments based on prompt domain:
+    IF RESEARCH domain: +5% Quality, +5% Completeness
+    IF CODE_GENERATION domain: +5% Performance, +5% Error Handling
+    IF DOCUMENTATION domain: +10% Usability
+
+  Maximum adjustment: 10% to prevent over-tuning
+
+**WEIGHT_BALANCING**: Ensure weights sum to 100%
+
+  CALCULATE total_adjustments = sum of all positive adjustments
+  CALCULATE rebalance_factor = (100 - original_total_after_increases) / remaining_criteria_count
+
+  APPLY proportional reduction to non-boosted criteria:
+    FOR each criterion not receiving positive adjustment:
+      new_weight = original_weight - (original_weight * rebalance_factor)
+
+  VERIFY final weights sum to exactly 100%
+  ENSURE no weight falls below minimum thresholds:
+    - Completeness: minimum 20%
+    - Quality: minimum 20%
+    - Efficiency: minimum 2%
+    - ErrorHandling: minimum 5%
+    - Usability: minimum 5%
+
+**SECONDARY_DOMAIN_BLENDING**: Blend domain weights if hybrid detected
   IF SECONDARY_DOMAIN exists:
-    Adjust weights by blending primary (70%) and secondary (30%) domain preferences
+    primary_weights = domain_weights * 0.70
+    secondary_weights = secondary_domain_weights * 0.30
+    blended_weights = primary_weights + secondary_weights
+    Apply argument adjustments to blended base weights
 
 DETERMINE expected outcomes based on TEST_ARGUMENTS:
   Parse TEST_ARGUMENTS for intent:
@@ -485,45 +625,40 @@ FOR iteration FROM 1 TO maximum of 25:
 
 ### Stage 2.8: Create Evaluation Framework
 
-Finalize comprehensive evaluation criteria:
+**SIMPLIFIED EVALUATION CRITERIA** focused on prompt quality and output:
 
-  <effectiveness-criteria>
-  **OUTPUT_COMPLETENESS** (weight: ADAPTED):
-    - Does output address all TEST_ARGUMENTS?
-    - Are all promised deliverables present?
-    - Is response self-contained and actionable?
-  </effectiveness-criteria>
+  <prompt-criteria>
+  **PROMPT_EFFECTIVENESS** (25%):
+    - Instruction clarity: Are directions specific and actionable?
+    - Structure quality: Is the prompt well-organized?
+    - Adaptability: Does it work across different contexts?
+    - AI guidance: Does it help AI produce better results?
+  </prompt-criteria>
 
-  <quality-criteria>
-  **EXECUTION_QUALITY** (weight: ADAPTED):
-    - Clear structure and organization
-    - Appropriate level of detail
-    - Logical flow and coherence
-  </quality-criteria>
+  <performance-criteria>
+  **EXECUTION_PERFORMANCE** (20%):
+    - Speed comparison: Which prompt executes faster?
+    - Resource efficiency: Memory and processing overhead
+    - Timing advantage: Significant speed differences (>3x = major)
+    - Hook suitability: Fast enough for development workflows
+  </performance-criteria>
 
-  <efficiency-criteria>
-  **PROCESSING_EFFICIENCY** (weight: ADAPTED):
-    - Execution speed (measured in milliseconds)
-    - Prompt brevity (character and line count)
-    - Output efficiency (value-to-verbosity ratio)
-    - Conciseness without loss of value
-    - Appropriate use of subagents
-    - Avoiding redundant operations
-  </efficiency-criteria>
+  <output-criteria>
+  **OUTPUT_QUALITY** (35%):
+    - Coverage breadth: Comprehensive topic coverage
+    - Analysis depth: Detailed insights and understanding
+    - Accuracy: Factual correctness and precision
+    - Format excellence: Professional presentation and structure
+    - Practical value: Actionable and useful results
+  </output-criteria>
 
-  <robustness-criteria>
-  **ERROR_HANDLING** (weight: ADAPTED):
-    - Graceful handling of edge cases
-    - Clear error messages
-    - Recovery strategies present
-  </robustness-criteria>
-
-  <usability-criteria>
-  **OUTPUT_USABILITY** (weight: ADAPTED):
-    - Clarity for end user
-    - Actionable recommendations
-    - Appropriate formatting
-  </usability-criteria>
+  <discovered-criteria>
+  **POST-EXECUTION_DISCOVERY** (20%):
+    - Content-specific criteria based on actual outputs
+    - Emergent quality factors found during analysis
+    - Domain-specific requirements discovered from results
+    - Output characteristic patterns unique to this comparison
+  </discovered-criteria>
 
 ### Stage 2.9: Phase Completion
 
@@ -670,7 +805,15 @@ Summaries or descriptions will cause test failure.
 
 EXECUTE both prompts in parallel using two simultaneous Task tool calls:
 
-**CRITICAL**: Use single message with multiple Task calls to ensure true parallel execution
+**⚠️ CRITICAL PARALLEL EXECUTION REQUIREMENT ⚠️**:
+**You MUST execute both Task calls in the SAME AI MESSAGE for true parallel execution.**
+**Sequential Task calls will invalidate the comparison due to timing bias.**
+
+**🔄 PARALLEL EXECUTION PATTERN**:
+1. Start both Task calls simultaneously in one message
+2. Both prompter subagents launch at exactly the same time
+3. Fair timing comparison with no sequential advantage
+4. Use this exact pattern: Task(Prompt A) + Task(Prompt B) in single response
 
 Task Call 1 - Execute Prompt A:
   Use Task tool with:
@@ -1036,6 +1179,92 @@ PREPARE analysis environment:
   **ANALYSIS_ID**: comparative-analysis-$(date +%Y%m%d-%H%M%S)
   **ITERATION_LIMIT**: 5 (maximum scoring iterations)
 
+### Stage 4.1b: Post-Execution Criteria Discovery
+
+<thinking>
+INTENTION: Analyze actual outputs to discover context-specific evaluation criteria
+ACTION: Examine output patterns, structures, and characteristics to enhance criteria
+</thinking>
+
+DISCOVER additional criteria from actual OUTPUT_A and OUTPUT_B content:
+
+**OUTPUT_STRUCTURE_ANALYSIS**:
+  EXAMINE both outputs for structural patterns:
+    - Contains comparison tables: ADD "Data Organization" criterion
+    - Contains code samples: ADD "Code Practicality" criterion
+    - Contains numbered lists: ADD "Information Structure" criterion
+    - Contains citations/sources: ADD "Research Depth" criterion
+    - Contains examples: ADD "Example Quality" criterion
+    - Contains diagrams/visuals: ADD "Visual Communication" criterion
+    - Contains step-by-step instructions: ADD "Actionability" criterion
+
+**CONTENT_CHARACTERISTIC_ANALYSIS**:
+  ANALYZE output characteristics:
+    - Technical depth level (surface vs deep-dive)
+    - Practical applicability (theoretical vs actionable)
+    - Evidence quality (unsupported vs well-sourced)
+    - Innovation level (standard vs creative approaches)
+    - Comprehensiveness (focused vs broad coverage)
+
+**EMERGENT_CRITERIA_GENERATION**:
+  GENERATE context-specific criteria based on discoveries:
+
+    IF both outputs contain comparison tables:
+      **DATA_ORGANIZATION** (weight: 15%):
+        - Table clarity and readability [0-10]
+        - Data accuracy and completeness [0-10]
+        - Visual organization effectiveness [0-10]
+
+    IF both outputs contain code samples:
+      **CODE_PRACTICALITY** (weight: 20%):
+        - Code correctness and syntax [0-10]
+        - Real-world applicability [0-10]
+        - Code clarity and documentation [0-10]
+
+    IF both outputs cite sources/research:
+      **RESEARCH_DEPTH** (weight: 15%):
+        - Source quality and credibility [0-10]
+        - Research comprehensiveness [0-10]
+        - Citation accuracy and relevance [0-10]
+
+    IF both outputs provide step-by-step guidance:
+      **ACTIONABILITY** (weight: 18%):
+        - Step clarity and precision [0-10]
+        - Implementation feasibility [0-10]
+        - Completeness of guidance [0-10]
+
+    IF both outputs use creative/innovative approaches:
+      **INNOVATION** (weight: 12%):
+        - Originality of approach [0-10]
+        - Creative problem-solving [0-10]
+        - Novel insight generation [0-10]
+
+**CRITERIA_INTEGRATION_STRATEGY**:
+  BLEND discovered criteria with original 5 criteria:
+
+    WEIGHT_DISTRIBUTION_APPROACH:
+      - Original 5 criteria: 60% of total weight
+      - Discovered criteria: 40% of total weight
+      - Maintain 100% total weight allocation
+
+    REBALANCING_METHOD:
+      FOR each original criterion:
+        adjusted_weight = original_weight * 0.60
+
+      FOR each discovered criterion:
+        new_weight = (40% total) / number_of_discovered_criteria
+
+      VERIFY total equals 100%
+      ENSURE no criterion exceeds 25% (prevent single-criterion dominance)
+      ENSURE no criterion falls below 8% (maintain meaningful impact)
+
+**ENHANCED_CRITERIA_FRAMEWORK**:
+  CREATE final evaluation framework combining:
+    - Original domain-adapted weights (60% allocation)
+    - Argument-aware adjustments (applied to original criteria)
+    - Discovered context-specific criteria (40% allocation)
+    - Post-execution weight calibration (applied after output analysis)
+
 ### Stage 4.2: Criteria Definition (Runtime)
 
 GENERATE runtime criteria for Phase 4:
@@ -1167,7 +1396,80 @@ FOR iteration FROM 1 TO maximum of 5:
       [Same assessment process]
       SCORE_B_USABILITY = average * adapted_weight
 
-  COMPUTE total scores:
+  APPLY output-driven weight calibration:
+
+    <thinking>
+    INTENTION: Recalibrate weights based on actual output characteristics discovered during scoring
+    ACTION: Analyze output relationships and adjust weights to better reflect what was actually produced
+    </thinking>
+
+    **OUTPUT_CHARACTERISTICS_ANALYSIS**:
+      CALCULATE output metrics:
+        LENGTH_RATIO = length(OUTPUT_B) / length(OUTPUT_A)
+        STRUCTURE_SIMILARITY = similarity_score(structure_A, structure_B) [0-1]
+        APPROACH_DIFFERENCE = approach_variance_score [0-1]
+
+    **CALIBRATION_ADJUSTMENTS**:
+
+      EXTREME_LENGTH_DIFFERENCES:
+        IF LENGTH_RATIO > 3.0 OR LENGTH_RATIO < 0.33:  # One output 3x longer/shorter
+          Reduce EFFICIENCY weight to 2% (extreme length differences make efficiency less meaningful)
+          Increase COMPLETENESS weight by +12%
+          Increase QUALITY weight by +8%
+          Log: "Extreme length difference detected - prioritizing content over efficiency"
+
+      HIGHLY_SIMILAR_STRUCTURES:
+        IF STRUCTURE_SIMILARITY > 0.8:  # Very similar output structures
+          Increase QUALITY weight by +15% (focus on subtle quality differences)
+          Increase USABILITY weight by +10% (focus on presentation and clarity)
+          Reduce COMPLETENESS weight by -5% (both likely complete if structures similar)
+          Log: "Similar structures detected - focusing on quality and presentation differences"
+
+      FUNDAMENTALLY_DIFFERENT_APPROACHES:
+        IF APPROACH_DIFFERENCE > 0.7:  # Completely different approaches
+          Add temporary "APPROACH_INNOVATION" criterion (weight: 15%)
+          Reduce all original criteria weights proportionally by 15%
+          Log: "Different approaches detected - adding innovation assessment"
+
+      MISSING_EXPECTED_ELEMENTS:
+        IF neither output contains expected elements from TEST_ARGUMENTS:
+          Increase ERROR_HANDLING weight by +20%
+          Reduce COMPLETENESS weight by -10%
+          Log: "Both outputs missing expected elements - prioritizing error handling"
+
+      CODE_QUALITY_FOCUS:
+        IF both outputs contain code AND code quality varies significantly:
+          Add temporary "CODE_PRACTICALITY" criterion (weight: 18%)
+          Reduce EFFICIENCY weight by -3%
+          Reduce other criteria proportionally
+          Log: "Significant code quality differences - adding code assessment"
+
+      RESEARCH_DEPTH_FOCUS:
+        IF both outputs contain research AND depth varies significantly:
+          Add temporary "RESEARCH_DEPTH" criterion (weight: 16%)
+          Increase QUALITY weight by +8%
+          Reduce EFFICIENCY weight by -4%
+          Log: "Research depth differences - enhancing quality assessment"
+
+    **WEIGHT_REBALANCING_AFTER_CALIBRATION**:
+      ENSURE total weights = 100%:
+        total_weight = sum(all_adjusted_weights)
+        IF total_weight != 100:
+          normalization_factor = 100 / total_weight
+          FOR each criterion:
+            final_weight = adjusted_weight * normalization_factor
+
+      APPLY minimum/maximum constraints:
+        ENSURE no criterion < 2% (maintain minimal impact)
+        ENSURE no criterion > 30% (prevent over-dominance)
+        ENSURE core criteria maintain minimum thresholds:
+          - Completeness: minimum 15%
+          - Quality: minimum 15%
+          - At least 3 criteria must be >= 10%
+
+      LOG final calibrated weights for transparency
+
+  COMPUTE total scores using calibrated weights:
     **TOTAL_SCORE_A** = sum of all weighted scores for A
     **TOTAL_SCORE_B** = sum of all weighted scores for B
 
@@ -1259,7 +1561,47 @@ KEY DIFFERENCES:
 | Output Usability | [ADAPTED_USABILITY_WEIGHT]% | [SCORE_A_USABILITY] | [SCORE_B_USABILITY] | [USABILITY_WINNER] | [USABILITY_MARGIN] |
 | **TOTAL** | 100% | [TOTAL_SCORE_A] | [TOTAL_SCORE_B] | **[WINNER]** | **[MARGIN]** |
 
-### Stage 4.9: Phase Completion
+### Stage 4.9: Runtime Recommendations Generator
+
+<thinking>
+INTENTION: Analyze scoring patterns to generate specific, actionable improvements for the winning prompt
+ACTION: Examine weakest areas, identify transferable strengths, create targeted enhancements
+RESULT: 3 runtime-calculated recommendations to improve the winning prompt
+</thinking>
+
+ANALYZE scoring patterns for improvement opportunities:
+  **WEAKNESS_ANALYSIS**: Identify the winning prompt's lowest-scoring criterion and specific deficit
+  **STRENGTH_TRANSFER**: Find techniques from the losing prompt that could enhance the winner
+  **OUTPUT_ANALYSIS**: Examine both outputs for format, depth, breadth, and insight opportunities
+
+GENERATE three specific recommendations based on scoring data:
+
+**RECOMMENDATION_1** (Target: Weakest scoring criterion):
+  - **DEFICIT**: [Specific weakness identified in lowest-scoring area]
+  - **ENHANCEMENT**: [Concrete prompt modification to address this weakness]
+  - **RATIONALE**: [Why this change would improve the score in this criterion]
+
+**RECOMMENDATION_2** (Target: Strength transfer):
+  - **OPPORTUNITY**: [Technique from losing prompt that could be adapted]
+  - **INTEGRATION**: [How to incorporate this strength without losing winner's advantages]
+  - **EXPECTED_BENEFIT**: [Which criteria would improve from this change]
+
+**RECOMMENDATION_3** (Target: Output optimization):
+  - **OUTPUT_GAP**: [Specific improvement in breadth/depth/format/insights]
+  - **PROMPT_ADJUSTMENT**: [Exact modification to achieve better output quality]
+  - **IMPACT_PREDICTION**: [Expected score improvements across multiple criteria]
+
+EXPLAIN victory with evidence:
+**WHY_WINNER_WON**:
+  - **PRIMARY_ADVANTAGE**: [Main factor that secured victory with specific score evidence]
+  - **SECONDARY_STRENGTHS**: [2-3 supporting factors with quantified margins]
+  - **DECISIVE_CRITERIA**: [Which scoring areas made the difference]
+  - **EXECUTION_FACTOR**: [How timing/efficiency contributed to the win]
+
+<result>Generated 3 targeted recommendations for [WINNER] based on scoring analysis</result>
+<learning>Runtime recommendation generation creates actionable improvements from comparative scoring data</learning>
+
+### Stage 4.10: Phase Completion
 
 Mark Phase 4 complete with all required outputs:
   - **TOTAL_SCORE_A**: Final weighted score for first prompt
