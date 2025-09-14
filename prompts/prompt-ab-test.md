@@ -1061,19 +1061,27 @@ Task Call 2 - Execute Prompt B:
 
 **Implementation**: Send both Task calls in the same AI message to ensure parallel execution
 
-START_TIME=$(date +%s.%N)
+**Pre-Execution Timing Capture**:
+```bash
+PARALLEL_START_TIME=$(date +%s.%N)
+PARALLEL_START_TIMESTAMP=$(date -Iseconds)
+```
 
 The framework will automatically:
-- Launch both subagents simultaneously
+- Launch both subagents simultaneously with individual timing
 - Wait for both to complete
-- Parse structured XML responses
+- Parse structured XML responses including timing metadata
 - Extract <output-a> and <output-b> content
-- Capture status, timing, and error information
+- Capture status, timing, error information, and token usage
 - Apply retry logic if needed
 - Continue with comparative analysis once both complete
 
-END_TIME=$(date +%s.%N)
-TOTAL_DURATION=$(echo "$END_TIME - $START_TIME" | bc)
+**Post-Execution Timing Capture**:
+```bash
+PARALLEL_END_TIME=$(date +%s.%N)
+PARALLEL_END_TIMESTAMP=$(date -Iseconds)
+TOTAL_PARALLEL_DURATION=$(echo "$PARALLEL_END_TIME - $PARALLEL_START_TIME" | bc)
+```
 
 ## Metadata Extraction from Task Responses
 
@@ -1813,12 +1821,30 @@ KEY DIFFERENCES:
 
 Metric              Prompt A           Prompt B           Difference     Trend
 ─────────────────────────────────────────────────────────────────────────────
-⚡ Execution Time    [TIME_A]s          [TIME_B]s          [TIME_DIFF]%   [TIME_BAR]
-Tokens             [TOKENS_A]         [TOKENS_B]         [TOKEN_DIFF]%  [TOKEN_BAR]
+⚡ Execution Time    [ACTUAL_TIME_A]s   [ACTUAL_TIME_B]s   [TIME_DIFF]%   [TIME_BAR]
+🪙 Token Usage       [TOKENS_A]         [TOKENS_B]         [TOKEN_DIFF]%  [TOKEN_BAR]
+🔧 Tool Uses         [TOOL_USES_A]      [TOOL_USES_B]      [TOOL_DIFF]%   [TOOL_BAR]
 📏 Output Length     [OUTPUT_A_LENGTH] chars  [OUTPUT_B_LENGTH] chars  [OUTPUT_DIFF]%   [OUTPUT_BAR]
-📄 Prompt Size       [PROMPT_A_SIZE] chars    [PROMPT_B_SIZE] chars    [SIZE_DIFF]%     [SIZE_BAR]
+📄 Prompt Lines      [PROMPT_A_LINES]   [PROMPT_B_LINES]   [LINES_DIFF]%  [LINES_BAR]
+📊 Prompt Chars      [PROMPT_A_CHARS]   [PROMPT_B_CHARS]   [CHARS_DIFF]%  [CHARS_BAR]
+📝 Prompt Words      [PROMPT_A_WORDS]   [PROMPT_B_WORDS]   [WORDS_DIFF]%  [WORDS_BAR]
 ⭐ Quality Score     [SCORE_A_QUALITY]/10     [SCORE_B_QUALITY]/10     [QUALITY_DIFF]%  [QUALITY_BAR]
-*[Token capture status]
+
+### 📚 Git Statistics (if applicable)
+─────────────────────────────────────────────────────────────────────────────
+Prompt A:
+  Last Commit: [GIT_A_LAST_COMMIT]
+  Last Author: [GIT_A_LAST_AUTHOR]
+  Last Modified: [GIT_A_LAST_DATE]
+  Total Commits: [GIT_A_TOTAL_COMMITS]
+  Recent Changes: [GIT_A_LINES_CHANGED]
+
+Prompt B:
+  Last Commit: [GIT_B_LAST_COMMIT]
+  Last Author: [GIT_B_LAST_AUTHOR]
+  Last Modified: [GIT_B_LAST_DATE]
+  Total Commits: [GIT_B_TOTAL_COMMITS]
+  Recent Changes: [GIT_B_LINES_CHANGED]
 
 ## 🎨 Output Quality Deep Dive
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2254,10 +2280,28 @@ EXECUTE the validated synthesis plan:
 - **Prompt B Path**: <PROMPT_B_PATH>
 - **Prompt B Source**: <PROMPT_B_LABEL>
 
+### Full Prompt Contents
+
+**IMPORTANT**: Displaying complete prompt files for transparency and comparison
+
+#### Prompt A Content
+**File**: <PROMPT_A_PATH> (<PROMPT_A_LINES> lines, <PROMPT_A_CHARS> chars, <PROMPT_A_WORDS> words)
+<GIT_A_INFO_IF_APPLICABLE>
+```markdown
+<PROMPT_A_FULL_CONTENT>
+```
+
+#### Prompt B Content
+**File**: <PROMPT_B_PATH> (<PROMPT_B_LINES> lines, <PROMPT_B_CHARS> chars, <PROMPT_B_WORDS> words)
+<GIT_B_INFO_IF_APPLICABLE>
+```markdown
+<PROMPT_B_FULL_CONTENT>
+```
+
 ### Performance Metrics
-- **Prompt A**: <PROMPT_A_LINES> lines, <PROMPT_A_SIZE> characters, ~<EXECUTION_TIME_A> ms execution
-- **Prompt B**: <PROMPT_B_LINES> lines, <PROMPT_B_SIZE> characters, ~<EXECUTION_TIME_B> ms execution
-- **Total Test Duration**: <TOTAL_EXECUTION_TIME> ms (parallel execution)
+- **Prompt A Execution**: <ACTUAL_TIME_A>s | <TOKENS_A> tokens | <TOOL_USES_A> tool uses
+- **Prompt B Execution**: <ACTUAL_TIME_B>s | <TOKENS_B> tokens | <TOOL_USES_B> tool uses
+- **Total Test Duration**: <TOTAL_PARALLEL_DURATION>s (true parallel execution)
 
 ### Prompt Outputs Comparison
 
