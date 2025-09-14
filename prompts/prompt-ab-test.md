@@ -546,20 +546,23 @@ EVALUATE prompts and their outputs directly:
 
 **PRIMARY CRITERIA FOCUS** (80% total weight):
 
-1. **PROMPT_EFFECTIVENESS** (25%):
+1. **PROMPT_EFFECTIVENESS** (10%):
    - Instruction clarity and specificity
    - Structural organization of prompts
    - Adaptability to different contexts
    - Guidance quality for AI execution
 
 2. **EXECUTION_PERFORMANCE** (30%):
-   - Actual time to complete (critical for hooks)
-   - Resource efficiency and overhead
-   - Startup and processing speed
-   - Comparative timing advantage
-   - Performance consistency across runs
+   a. **EXECUTION_TIME** (15%):
+      - Actual time to complete (critical for hooks)
+      - Startup and processing speed
+      - Log ratio severity scoring
+   b. **TOKEN_EFFICIENCY** (15%):
+      - Total tokens used (input + output)
+      - Token economy (lower is better)
+      - Resource consumption optimization
 
-3. **OUTPUT_QUALITY** (25%):
+3. **OUTPUT_QUALITY** (60%):
    - Breadth of coverage and scope
    - Depth of analysis and insight
    - Detail accuracy and precision
@@ -866,10 +869,17 @@ Task Call 1 - Execute Prompt A:
     ✅ Every single word, sentence, paragraph, table, list item
     ✅ Complete formatting, spacing, line breaks as produced
 
+    **TOKEN USAGE TRACKING**:
+    - Record total tokens used: input_tokens + output_tokens
+    - Capture from subagent execution metadata if available
+    - If not available, estimate based on prompt size and output length
+    - Store as <token-usage>[number]</token-usage>
+
     Return the result in this EXACT structured format:
     <execution-result>
       <status>SUCCESS|FAILED|PARTIAL</status>
       <execution-time>[time in seconds]</execution-time>
+      <token-usage>[total tokens used]</token-usage>
       <output-a>
 [PUT THE COMPLETE, VERBATIM OUTPUT HERE - EVERY SINGLE CHARACTER]
 [DO NOT SUMMARIZE - INCLUDE THE FULL OUTPUT]
@@ -1356,21 +1366,71 @@ FOR iteration FROM 1 TO maximum of 5:
       [Same assessment process]
       SCORE_B_QUALITY = average * adapted_weight
 
+  CALCULATE LOG RATIO for execution time comparison:
+
+    EXECUTION_TIME_RATIO = log(EXECUTION_TIME_B / EXECUTION_TIME_A)
+
+    INTERPRET performance difference:
+      IF abs(EXECUTION_TIME_RATIO) < 0.05: TIME_SEVERITY = "negligible" (background noise)
+      ELIF abs(EXECUTION_TIME_RATIO) < 0.10: TIME_SEVERITY = "minor" (small variance)
+      ELIF abs(EXECUTION_TIME_RATIO) < 0.30: TIME_SEVERITY = "notable" (moderate change)
+      ELSE: TIME_SEVERITY = "severe" (major performance difference)
+
+    CALCULATE human-readable metrics:
+      SPEED_FACTOR = exp(abs(EXECUTION_TIME_RATIO))
+      FASTER_PROMPT = if EXECUTION_TIME_RATIO < 0 then "A" else "B"
+      TIME_PERFORMANCE_DESCRIPTION = "{SPEED_FACTOR}x faster" if TIME_SEVERITY != "negligible"
+
+  CALCULATE TOKEN EFFICIENCY comparison:
+
+    TOKEN_RATIO = log(TOKEN_USAGE_B / TOKEN_USAGE_A)
+
+    INTERPRET token efficiency:
+      IF abs(TOKEN_RATIO) < 0.05: TOKEN_SEVERITY = "negligible" (equivalent efficiency)
+      ELIF abs(TOKEN_RATIO) < 0.10: TOKEN_SEVERITY = "minor" (slight difference)
+      ELIF abs(TOKEN_RATIO) < 0.30: TOKEN_SEVERITY = "notable" (meaningful difference)
+      ELSE: TOKEN_SEVERITY = "severe" (major efficiency difference)
+
+    CALCULATE token metrics:
+      TOKEN_FACTOR = exp(abs(TOKEN_RATIO))
+      EFFICIENT_PROMPT = if TOKEN_RATIO < 0 then "A" else "B"
+      TOKEN_EFFICIENCY_DESCRIPTION = "{TOKEN_FACTOR}x more efficient" if TOKEN_SEVERITY != "negligible"
+
   EVALUATE PROCESSING_EFFICIENCY (adapted weight):
 
+    ASSIGN execution speed scores based on TIME_SEVERITY (15% sub-weight):
+      IF TIME_SEVERITY = "negligible":
+        SPEED_SCORE_A = 7, SPEED_SCORE_B = 7 (equal performance)
+      ELIF TIME_SEVERITY = "minor":
+        Winner = 8, Loser = 6 (slight advantage)
+      ELIF TIME_SEVERITY = "notable":
+        Winner = 9, Loser = 5 (clear advantage)
+      ELIF TIME_SEVERITY = "severe":
+        Winner = 10, Loser = 3 (decisive advantage)
+
+    ASSIGN token efficiency scores based on TOKEN_SEVERITY (15% sub-weight):
+      IF TOKEN_SEVERITY = "negligible":
+        TOKEN_SCORE_A = 7, TOKEN_SCORE_B = 7 (equivalent efficiency)
+      ELIF TOKEN_SEVERITY = "minor":
+        Winner = 8, Loser = 6 (slight efficiency advantage)
+      ELIF TOKEN_SEVERITY = "notable":
+        Winner = 9, Loser = 5 (clear efficiency advantage)
+      ELIF TOKEN_SEVERITY = "severe":
+        Winner = 10, Loser = 3 (decisive efficiency advantage)
+
     For OUTPUT_A:
-      Consider: Execution speed (<EXECUTION_TIME_A> ms) [0-10]
-      Consider: Prompt brevity (<PROMPT_A_SIZE> chars, <PROMPT_A_LINES> lines) [0-10]
-      Consider: Output efficiency (value-to-verbosity ratio) [0-10]
-      Consider: Output conciseness vs completeness [0-10]
-      SCORE_A_EFFICIENCY = average * adapted_weight
+      Consider: Execution speed (SPEED_SCORE_A) [15% sub-weight]
+      Consider: Token efficiency (TOKEN_SCORE_A) [15% sub-weight]
+      Consider: Prompt brevity (<PROMPT_A_SIZE> chars, <PROMPT_A_LINES> lines) [remaining weight]
+      Consider: Output efficiency (value-to-verbosity ratio) [remaining weight]
+      SCORE_A_EFFICIENCY = weighted average * adapted_weight
 
     For OUTPUT_B:
-      Consider: Execution speed (<EXECUTION_TIME_B> ms) [0-10]
-      Consider: Prompt brevity (<PROMPT_B_SIZE> chars, <PROMPT_B_LINES> lines) [0-10]
-      Consider: Output efficiency (value-to-verbosity ratio) [0-10]
-      Consider: Output conciseness vs completeness [0-10]
-      SCORE_B_EFFICIENCY = average * adapted_weight
+      Consider: Execution speed (SPEED_SCORE_B) [15% sub-weight]
+      Consider: Token efficiency (TOKEN_SCORE_B) [15% sub-weight]
+      Consider: Prompt brevity (<PROMPT_B_SIZE> chars, <PROMPT_B_LINES> lines) [remaining weight]
+      Consider: Output efficiency (value-to-verbosity ratio) [remaining weight]
+      SCORE_B_EFFICIENCY = weighted average * adapted_weight
 
   EVALUATE ERROR_HANDLING (adapted weight):
 
@@ -1554,11 +1614,11 @@ KEY DIFFERENCES:
 
 | Criterion | Weight | Prompt A | Prompt B | Winner | Margin |
 |-----------|--------|----------|----------|--------|--------|
-| Output Completeness | [ADAPTED_COMPLETENESS_WEIGHT]% | [SCORE_A_COMPLETENESS] | [SCORE_B_COMPLETENESS] | [COMPLETENESS_WINNER] | [COMPLETENESS_MARGIN] |
-| Execution Quality | [ADAPTED_QUALITY_WEIGHT]% | [SCORE_A_QUALITY] | [SCORE_B_QUALITY] | [QUALITY_WINNER] | [QUALITY_MARGIN] |
-| Processing Efficiency | [ADAPTED_EFFICIENCY_WEIGHT]% | [SCORE_A_EFFICIENCY] | [SCORE_B_EFFICIENCY] | [EFFICIENCY_WINNER] | [EFFICIENCY_MARGIN] |
-| Error Handling | [ADAPTED_ERROR_WEIGHT]% | [SCORE_A_ERROR] | [SCORE_B_ERROR] | [ERROR_WINNER] | [ERROR_MARGIN] |
-| Output Usability | [ADAPTED_USABILITY_WEIGHT]% | [SCORE_A_USABILITY] | [SCORE_B_USABILITY] | [USABILITY_WINNER] | [USABILITY_MARGIN] |
+| Prompt Effectiveness | 10% | [SCORE_A_EFFECTIVENESS] | [SCORE_B_EFFECTIVENESS] | [EFFECTIVENESS_WINNER] | [EFFECTIVENESS_MARGIN] |
+| Execution Time | 15% | [SCORE_A_TIME] | [SCORE_B_TIME] | [TIME_WINNER] | [TIME_MARGIN] |
+| Token Efficiency | 15% | [SCORE_A_TOKENS] | [SCORE_B_TOKENS] | [TOKEN_WINNER] | [TOKEN_MARGIN] |
+| Output Quality | 60% | [SCORE_A_QUALITY] | [SCORE_B_QUALITY] | [QUALITY_WINNER] | [QUALITY_MARGIN] |
+| Discovered Criteria | 20% | [SCORE_A_DISCOVERED] | [SCORE_B_DISCOVERED] | [DISCOVERED_WINNER] | [DISCOVERED_MARGIN] |
 | **TOTAL** | 100% | [TOTAL_SCORE_A] | [TOTAL_SCORE_B] | **[WINNER]** | **[MARGIN]** |
 
 ### Stage 4.9: Runtime Recommendations Generator
@@ -1596,7 +1656,7 @@ EXPLAIN victory with evidence:
   - **PRIMARY_ADVANTAGE**: [Main factor that secured victory with specific score evidence]
   - **SECONDARY_STRENGTHS**: [2-3 supporting factors with quantified margins]
   - **DECISIVE_CRITERIA**: [Which scoring areas made the difference]
-  - **EXECUTION_FACTOR**: [How timing/efficiency contributed to the win]
+  - **EXECUTION_FACTOR**: [Reference TIME_SEVERITY and TOKEN_SEVERITY levels from log ratio analysis - e.g., "Notable performance advantage: 2.47x faster execution (log ratio: -0.905, time severity: notable) + 1.3x more token efficient (log ratio: -0.262, token severity: minor)"]
 
 <result>Generated 3 targeted recommendations for [WINNER] based on scoring analysis</result>
 <learning>Runtime recommendation generation creates actionable improvements from comparative scoring data</learning>
