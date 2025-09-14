@@ -252,6 +252,34 @@ Display Prompt B content:
   <PROMPT_B_CONTENT>
   ```
   *File metrics: <PROMPT_B_SIZE> characters, <PROMPT_B_LINES> lines*
+
+### Identity Check
+
+**CRITICAL VALIDATION - Refuse identical prompts**:
+IF PROMPT_A_CONTENT == PROMPT_B_CONTENT:
+  ERROR: "Both prompts have identical content - A/B test cannot proceed"
+
+  Display error message:
+  ```
+  ⚠️ A/B TEST ABORTED ⚠️
+
+  Reason: Both prompts contain identical content
+
+  This makes comparison meaningless as they will produce
+  identical outputs. Please ensure the prompts differ by:
+  - Using different prompt files
+  - Specifying a different git version for Prompt B
+  - Making uncommitted changes to one prompt
+
+  Current situation:
+  - Prompt A: <PROMPT_A_PATH>
+  - Prompt B: <PROMPT_B_PATH>
+  - Content hash A: [SHA256 of PROMPT_A_CONTENT]
+  - Content hash B: [SHA256 of PROMPT_B_CONTENT]
+  ```
+
+  EXIT with status code 1
+  ABORT entire test execution
 ```
 
 ## Phase 2: Prompt Analysis and Criteria Generation
