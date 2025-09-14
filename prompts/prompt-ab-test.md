@@ -874,7 +874,10 @@ Construct prompter subagent invocations:
 ```
 
 **⏱️ EXECUTION TIMING CAPTURE**:
-  **Pre-execution timestamp**: [Record milliseconds before Task tool calls]
+  **Pre-execution metrics capture**:
+    - **START_TIME_A**: [Record epoch milliseconds before Prompt A execution]
+    - **START_TIME_B**: [Record epoch milliseconds before Prompt B execution]
+    - **SYSTEM_RESOURCES**: [Note available memory/CPU if relevant]
   **START_TIME**: [current timestamp in milliseconds before execution]
 
 ## Verbatim Mode Configuration
