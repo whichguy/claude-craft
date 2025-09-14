@@ -56,7 +56,12 @@ WHEN processing <prompt-arguments>:
     IF no **PROMPT_B** found THEN:
       Set **USE_GIT_PREVIOUS**: true
       Extract previous version using:
-        git show HEAD:<PROMPT_A> > /tmp/prompt-b-previous.md
+        # Check if file has uncommitted changes to determine version
+        if git -C "$(dirname <PROMPT_A>)" diff --quiet HEAD -- "$(basename <PROMPT_A>)"; then
+          git -C "$(dirname <PROMPT_A>)" show HEAD~1:"$(basename <PROMPT_A>)" > /tmp/prompt-b-previous.md
+        else
+          git -C "$(dirname <PROMPT_A>)" show HEAD:"$(basename <PROMPT_A>)" > /tmp/prompt-b-previous.md
+        fi
         Set **PROMPT_B**: /tmp/prompt-b-previous.md
         Set **CLEANUP_TEMP**: true
 
@@ -156,18 +161,30 @@ EXECUTE the validated extraction plan:
       TEST_DIR=/tmp/prompt-ab-test-$(date +%Y%m%d-%H%M%S)-$$
       mkdir -p "$TEST_DIR"
 
-      # Try to get the last committed version (HEAD)
-      IF git -C "$REPO_ROOT" show HEAD:"$RELATIVE_PATH" > "$TEST_DIR/prompt-b-committed.md" 2>/dev/null THEN:
-        Set **PROMPT_B_PATH**: "$TEST_DIR/prompt-b-committed.md"
-        Set **PROMPT_B_LABEL**: "Last committed version (HEAD)"
+      # Determine which version to compare against
+      # Check if current file differs from HEAD
+      IF git -C "$REPO_ROOT" diff --quiet HEAD -- "$RELATIVE_PATH" 2>/dev/null THEN:
+        # File is same as HEAD, use previous version
+        VERSION_TO_USE="HEAD~1"
+        VERSION_LABEL="Previous committed version (HEAD~1)"
       ELSE:
-        # File doesn't exist in version control yet (new file)
-        ERROR: "File '<PROMPT_A_PATH>' is not yet committed to version control.
+        # File has uncommitted changes, use HEAD
+        VERSION_TO_USE="HEAD"
+        VERSION_LABEL="Last committed version (HEAD) - comparing uncommitted changes"
+      FI
+
+      # Extract the appropriate version
+      IF git -C "$REPO_ROOT" show "${VERSION_TO_USE}:${RELATIVE_PATH}" > "$TEST_DIR/prompt-b-committed.md" 2>/dev/null THEN:
+        Set **PROMPT_B_PATH**: "$TEST_DIR/prompt-b-committed.md"
+        Set **PROMPT_B_LABEL**: "$VERSION_LABEL"
+      ELSE:
+        # File doesn't exist in the chosen version
+        ERROR: "File '<PROMPT_A_PATH>' is not available in ${VERSION_TO_USE}.
         For new files, please provide two explicit prompt files:
         /prompt prompt-ab-test prompt1.md prompt2.md [test-args]
 
         Or commit your file first, then run:
-        git add <PROMPT_A_PATH> && git commit -m 'Add prompt for A/B testing'"
+        git -C "$REPO_ROOT" add "$RELATIVE_PATH" && git -C "$REPO_ROOT" commit -m 'Add prompt for A/B testing'"
       FI
 
       Set **CLEANUP_REQUIRED**: true
@@ -219,6 +236,22 @@ OUTPUT to user:
   - Prompt A: <PROMPT_A_PATH>
   - Prompt B: <PROMPT_B_PATH> (<PROMPT_B_LABEL>)
   - Test Arguments: <TEST_ARGUMENTS>
+
+### Prompt Contents
+
+Display Prompt A content:
+  **PROMPT_A_CONTENT**: [Read content of PROMPT_A_PATH file]
+  ```
+  <PROMPT_A_CONTENT>
+  ```
+  *File metrics: <PROMPT_A_SIZE> characters, <PROMPT_A_LINES> lines*
+
+Display Prompt B content:
+  **PROMPT_B_CONTENT**: [Read content of PROMPT_B_PATH file]
+  ```
+  <PROMPT_B_CONTENT>
+  ```
+  *File metrics: <PROMPT_B_SIZE> characters, <PROMPT_B_LINES> lines*
 ```
 
 ## Phase 2: Prompt Analysis and Criteria Generation
@@ -328,28 +361,28 @@ FOR each prompt in [PROMPT_A, PROMPT_B]:
     **DOMAIN_CONTEXT**: Subject area references
     **EXPECTED_OUTPUTS**: What prompt claims to produce
 
-ADAPT criteria weights based on detected domain:
+ADAPT criteria weights based on detected domain (quality-focused, efficiency minimal):
 
   IF DOMAIN_TYPE == CODE_GENERATION:
-    Weights: Completeness=25%, Quality=20%, Efficiency=15%, ErrorHandling=30%, Usability=10%
+    Weights: Completeness=35%, Quality=30%, Efficiency=5%, ErrorHandling=20%, Usability=10%
   ELIF DOMAIN_TYPE == ANALYSIS:
-    Weights: Completeness=30%, Quality=30%, Efficiency=15%, ErrorHandling=15%, Usability=10%
+    Weights: Completeness=35%, Quality=35%, Efficiency=5%, ErrorHandling=15%, Usability=10%
   ELIF DOMAIN_TYPE == DOCUMENTATION:
-    Weights: Completeness=25%, Quality=35%, Efficiency=10%, ErrorHandling=10%, Usability=20%
+    Weights: Completeness=30%, Quality=40%, Efficiency=3%, ErrorHandling=7%, Usability=20%
   ELIF DOMAIN_TYPE == TESTING:
-    Weights: Completeness=35%, Quality=25%, Efficiency=10%, ErrorHandling=25%, Usability=5%
+    Weights: Completeness=40%, Quality=30%, Efficiency=5%, ErrorHandling=20%, Usability=5%
   ELIF DOMAIN_TYPE == DEBUGGING:
-    Weights: Completeness=20%, Quality=25%, Efficiency=20%, ErrorHandling=30%, Usability=5%
+    Weights: Completeness=25%, Quality=30%, Efficiency=5%, ErrorHandling=35%, Usability=5%
   ELIF DOMAIN_TYPE == PLANNING:
-    Weights: Completeness=30%, Quality=30%, Efficiency=15%, ErrorHandling=10%, Usability=15%
+    Weights: Completeness=35%, Quality=35%, Efficiency=5%, ErrorHandling=10%, Usability=15%
   ELIF DOMAIN_TYPE == RESEARCH:
-    Weights: Completeness=35%, Quality=30%, Efficiency=15%, ErrorHandling=10%, Usability=10%
+    Weights: Completeness=40%, Quality=35%, Efficiency=5%, ErrorHandling=10%, Usability=10%
   ELIF DOMAIN_TYPE == TRANSFORMATION:
-    Weights: Completeness=30%, Quality=20%, Efficiency=20%, ErrorHandling=25%, Usability=5%
+    Weights: Completeness=35%, Quality=25%, Efficiency=5%, ErrorHandling=30%, Usability=5%
   ELIF DOMAIN_TYPE == AUTOMATION:
-    Weights: Completeness=25%, Quality=20%, Efficiency=25%, ErrorHandling=25%, Usability=5%
+    Weights: Completeness=30%, Quality=25%, Efficiency=5%, ErrorHandling=35%, Usability=5%
   ELSE:
-    Weights: Completeness=30%, Quality=25%, Efficiency=20%, ErrorHandling=15%, Usability=10%
+    Weights: Completeness=35%, Quality=30%, Efficiency=5%, ErrorHandling=15%, Usability=15%
 
   IF SECONDARY_DOMAIN exists:
     Adjust weights by blending primary (70%) and secondary (30%) domain preferences
@@ -523,10 +556,46 @@ Construct prompter invocations:
   **COMMAND_A**: "/prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>"
   **COMMAND_B**: "/prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>"
 
+### Execution Commands Being Run
+
+Display exact commands that will be executed:
+  **Command for Prompt A**: /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>
+  **Command for Prompt B**: /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>
+
+Display Task tool invocation parameters:
+  **Task A Parameters**:
+    - subagent_type: "prompter"
+    - description: "Execute Prompt A Testing"
+    - prompt: "Execute: /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>"
+
+  **Task B Parameters**:
+    - subagent_type: "prompter"
+    - description: "Execute Prompt B Testing"
+    - prompt: "Execute: /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>"
+
 CAPTURE execution timing:
   **START_TIME**: [current timestamp in milliseconds before execution]
 
+## Verbatim Mode Configuration
+
+**VERBATIM_PREFIX** - Prepend to all Task tool prompts:
+```
+===== VERBATIM CAPTURE MODE =====
+NO SUMMARIZATION - FULL OUTPUT REQUIRED
+This test framework requires EXACT output capture.
+Include EVERY character, even if 20,000+ long.
+Summaries or descriptions will cause test failure.
+===================================
+```
+
 ## Parallel Execution Strategy
+
+**CRITICAL ANTI-SUMMARIZATION DIRECTIVES**:
+- The outputs MUST be the exact text produced by the prompts
+- Do NOT replace long outputs with descriptions
+- Even if output is 15,000+ characters, capture it ALL
+- No "[Comprehensive output...]" descriptions allowed
+- Character-for-character verbatim capture required
 
 EXECUTE both prompts in parallel using two simultaneous Task tool calls:
 
@@ -535,43 +604,135 @@ EXECUTE both prompts in parallel using two simultaneous Task tool calls:
 Task Call 1 - Execute Prompt A:
   Use Task tool with:
   - subagent_type: "prompter"
-  - description: "Execute Prompt A Testing"
-  - prompt: "Execute: /prompt <PROMPT_A_PATH> <TEST_ARGUMENTS>
+  - description: "Execute Prompt A with VERBATIM output"
+  - prompt: "⚠️ VERBATIM OUTPUT MODE - NO SUMMARIZATION ALLOWED ⚠️
 
-    This will load the prompt at <PROMPT_A_PATH> and pass <TEST_ARGUMENTS> as the prompt-arguments value.
+    **ULTRA-CRITICAL REQUIREMENTS**:
+    You MUST return EVERY SINGLE CHARACTER of output.
+    Even if the output is 20,000+ characters, include it ALL.
+    Do NOT summarize, truncate, or describe the output.
+    Do NOT use phrases like '[comprehensive output...]' or '[extensive research...]'
 
-    Return the result in this structured format:
+    ===== VERBATIM CAPTURE MODE =====
+    NO SUMMARIZATION - FULL OUTPUT REQUIRED
+    This test framework requires EXACT output capture.
+    Include EVERY character produced by the prompt.
+    Summaries or descriptions will cause test failure.
+    ===================================
+
+    Execute the prompt template at <PROMPT_A_PATH> with arguments: <TEST_ARGUMENTS>
+
+    STEP 1: Read and display the COMPLETE prompt file content:
+    ```
+    [Read and display ENTIRE content of <PROMPT_A_PATH> - every line]
+    ```
+
+    STEP 2: Execute the prompt by:
+    1. Loading the template from <PROMPT_A_PATH>
+    2. Replacing <prompt-arguments> with: <TEST_ARGUMENTS>
+    3. Following ALL instructions in the prompt to produce output
+    4. Executing any research, analysis, or generation tasks specified
+
+    **CRITICAL EXECUTION REQUIREMENTS**:
+    - You must EXECUTE the instructions in the prompt, not just substitute arguments
+    - Follow all #Research, #Output or other sections in the prompt
+    - Produce actual results based on the prompt's instructions
+    - This is NOT just text substitution - you must DO what the prompt says
+
+    **FORBIDDEN - WILL CAUSE TEST FAILURE**:
+    ❌ Summaries or descriptions of output
+    ❌ Truncation with '...'
+    ❌ Phrases like '[extensive research...]' or '[comprehensive analysis...]'
+    ❌ Any form of abbreviation or shortening
+    ❌ Replacing actual output with descriptions
+
+    **REQUIRED - MUST INCLUDE**:
+    ✅ The exact, complete, character-for-character output
+    ✅ ALL characters produced, no matter how long (10,000+, 20,000+, etc.)
+    ✅ Every single word, sentence, paragraph, table, list item
+    ✅ Complete formatting, spacing, line breaks as produced
+
+    Return the result in this EXACT structured format:
     <execution-result>
       <status>SUCCESS|FAILED|PARTIAL</status>
       <execution-time>[time in seconds]</execution-time>
       <output-a>
-        [Complete output from prompt execution]
+[PUT THE COMPLETE, VERBATIM OUTPUT HERE - EVERY SINGLE CHARACTER]
+[DO NOT SUMMARIZE - INCLUDE THE FULL OUTPUT]
+[EVEN IF 20,000+ CHARACTERS - INCLUDE IT ALL]
       </output-a>
       <errors>[Any errors or issues encountered]</errors>
       <retry-count>[Number of retry attempts]</retry-count>
     </execution-result>
 
+    REMINDER: The <output-a> section MUST contain the COMPLETE output, not a summary.
     If the initial execution fails, retry once before returning FAILED status."
 
 Task Call 2 - Execute Prompt B:
   Use Task tool with:
   - subagent_type: "prompter"
-  - description: "Execute Prompt B Testing"
-  - prompt: "Execute: /prompt <PROMPT_B_PATH> <TEST_ARGUMENTS>
+  - description: "Execute Prompt B with VERBATIM output"
+  - prompt: "⚠️ VERBATIM OUTPUT MODE - NO SUMMARIZATION ALLOWED ⚠️
 
-    This will load the prompt at <PROMPT_B_PATH> and pass <TEST_ARGUMENTS> as the prompt-arguments value.
+    **ULTRA-CRITICAL REQUIREMENTS**:
+    You MUST return EVERY SINGLE CHARACTER of output.
+    Even if the output is 20,000+ characters, include it ALL.
+    Do NOT summarize, truncate, or describe the output.
+    Do NOT use phrases like '[comprehensive output...]' or '[extensive research...]'
 
-    Return the result in this structured format:
+    ===== VERBATIM CAPTURE MODE =====
+    NO SUMMARIZATION - FULL OUTPUT REQUIRED
+    This test framework requires EXACT output capture.
+    Include EVERY character produced by the prompt.
+    Summaries or descriptions will cause test failure.
+    ===================================
+
+    Execute the prompt template at <PROMPT_B_PATH> with arguments: <TEST_ARGUMENTS>
+
+    STEP 1: Read and display the COMPLETE prompt file content:
+    ```
+    [Read and display ENTIRE content of <PROMPT_B_PATH> - every line]
+    ```
+
+    STEP 2: Execute the prompt by:
+    1. Loading the template from <PROMPT_B_PATH>
+    2. Replacing <prompt-arguments> with: <TEST_ARGUMENTS>
+    3. Following ALL instructions in the prompt to produce output
+    4. Executing any research, analysis, or generation tasks specified
+
+    **CRITICAL EXECUTION REQUIREMENTS**:
+    - You must EXECUTE the instructions in the prompt, not just substitute arguments
+    - Follow all #Research, #Output or other sections in the prompt
+    - Produce actual results based on the prompt's instructions
+    - This is NOT just text substitution - you must DO what the prompt says
+
+    **FORBIDDEN - WILL CAUSE TEST FAILURE**:
+    ❌ Summaries or descriptions of output
+    ❌ Truncation with '...'
+    ❌ Phrases like '[extensive research...]' or '[comprehensive analysis...]'
+    ❌ Any form of abbreviation or shortening
+    ❌ Replacing actual output with descriptions
+
+    **REQUIRED - MUST INCLUDE**:
+    ✅ The exact, complete, character-for-character output
+    ✅ ALL characters produced, no matter how long (10,000+, 20,000+, etc.)
+    ✅ Every single word, sentence, paragraph, table, list item
+    ✅ Complete formatting, spacing, line breaks as produced
+
+    Return the result in this EXACT structured format:
     <execution-result>
       <status>SUCCESS|FAILED|PARTIAL</status>
       <execution-time>[time in seconds]</execution-time>
       <output-b>
-        [Complete output from prompt execution]
+[PUT THE COMPLETE, VERBATIM OUTPUT HERE - EVERY SINGLE CHARACTER]
+[DO NOT SUMMARIZE - INCLUDE THE FULL OUTPUT]
+[EVEN IF 20,000+ CHARACTERS - INCLUDE IT ALL]
       </output-b>
       <errors>[Any errors or issues encountered]</errors>
       <retry-count>[Number of retry attempts]</retry-count>
     </execution-result>
 
+    REMINDER: The <output-b> section MUST contain the COMPLETE output, not a summary.
     If the initial execution fails, retry once before returning FAILED status."
 
 **Implementation**: Send both Task calls in the same AI message to ensure parallel execution
@@ -613,6 +774,118 @@ After both subagents complete, extract content from XML responses:
   **ERRORS_B** = <errors> content from second response
 
 Note: These are content variables (strings), not shell variables
+
+### Stage 3.6a: Output Validation
+
+VALIDATE captured outputs to ensure they are verbatim:
+  - Check OUTPUT_A and OUTPUT_B contain actual prompt output, not descriptions
+  - Verify outputs are not wrapped in explanatory text like "[Comprehensive output...]"
+  - Ensure no summarization has occurred - outputs must be character-for-character exact
+  - If outputs appear to be descriptions rather than actual content, FAIL validation
+
+**AGGRESSIVE ANTI-SUMMARIZATION VALIDATION**:
+
+Define FORBIDDEN_PATTERNS:
+```
+FORBIDDEN_PATTERNS = [
+  "\[comprehensive", "\[detailed", "\[extensive",
+  "\[research", "\[analysis", "\[output",
+  "~[0-9]+ characters", "~[0-9]+k characters",
+  "output with.*characters", "approximately.*characters",
+  "\.\.\.", "truncated", "summarized",
+  "roughly", "about [0-9]+ chars",
+  "see above", "as shown", "etc\.",
+  "\[.*continues.*\]", "\[.*omitted.*\]"
+]
+```
+
+FOR each pattern in FORBIDDEN_PATTERNS:
+  IF pattern found in OUTPUT_A:
+    ERROR: "Output A was summarized - forbidden pattern found: {pattern}"
+    Set VALIDATION_FAILED_A = true
+
+  IF pattern found in OUTPUT_B:
+    ERROR: "Output B was summarized - forbidden pattern found: {pattern}"
+    Set VALIDATION_FAILED_B = true
+
+**ADDITIONAL LENGTH CHECKS**:
+  IF DOMAIN_TYPE == "RESEARCH" AND length(OUTPUT_A) < 1000:
+    WARNING: "Output A suspiciously short for research task ({length} chars)"
+    Set VALIDATION_WARNING_A = true
+
+  IF DOMAIN_TYPE == "RESEARCH" AND length(OUTPUT_B) < 1000:
+    WARNING: "Output B suspiciously short for research task ({length} chars)"
+    Set VALIDATION_WARNING_B = true
+
+  IF OUTPUT_A contains more than 3 instances of "[...]":
+    ERROR: "Output A contains multiple bracketed placeholders"
+    Set VALIDATION_FAILED_A = true
+
+  IF OUTPUT_B contains more than 3 instances of "[...]":
+    ERROR: "Output B contains multiple bracketed placeholders"
+    Set VALIDATION_FAILED_B = true
+
+**VERBATIM OUTPUT REQUIREMENT**:
+  - Even if output is 15,000+ characters, it must ALL be captured
+  - No placeholders, no descriptions, no summaries
+  - The EXACT text that the prompt produced
+
+### Stage 3.6b: Fallback Verbatim Re-execution
+
+IF VALIDATION_FAILED_A OR VALIDATION_FAILED_B:
+  Log: "Summarization detected - entering ULTRA-STRICT VERBATIM MODE"
+
+  **ULTRA_STRICT_PREFIX**:
+  ```
+  ⚠️⚠️⚠️ ULTRA STRICT VERBATIM MODE ⚠️⚠️⚠️
+  DO NOT SUMMARIZE - RETURN FULL OUTPUT
+  DO NOT SUMMARIZE - RETURN FULL OUTPUT
+  DO NOT SUMMARIZE - RETURN FULL OUTPUT
+  DO NOT SUMMARIZE - RETURN FULL OUTPUT
+  DO NOT SUMMARIZE - RETURN FULL OUTPUT
+
+  FAILURE TO COMPLY WILL ABORT TEST
+  EXPECTED OUTPUT: 10,000+ CHARACTERS MINIMUM
+
+  THIS IS YOUR FINAL ATTEMPT - NO SUMMARIZATION
+  ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+  ```
+
+  IF VALIDATION_FAILED_A:
+    Log: "Re-executing Prompt A with ULTRA-STRICT mode"
+    Re-execute Task Call 1 with ULTRA_STRICT_PREFIX prepended to prompt
+
+    Parse new response and extract OUTPUT_A_RETRY
+    Validate OUTPUT_A_RETRY with same forbidden patterns
+
+    IF still contains forbidden patterns:
+      CRITICAL_ERROR: "Cannot capture verbatim output for Prompt A after 2 attempts"
+      Set TEST_STATUS = "FAILED"
+      Document failure reason: "Prompt A output persistently summarized"
+    ELSE:
+      OUTPUT_A = OUTPUT_A_RETRY
+      Log: "Successfully captured verbatim output for Prompt A on retry"
+
+  IF VALIDATION_FAILED_B:
+    Log: "Re-executing Prompt B with ULTRA-STRICT mode"
+    Re-execute Task Call 2 with ULTRA_STRICT_PREFIX prepended to prompt
+
+    Parse new response and extract OUTPUT_B_RETRY
+    Validate OUTPUT_B_RETRY with same forbidden patterns
+
+    IF still contains forbidden patterns:
+      CRITICAL_ERROR: "Cannot capture verbatim output for Prompt B after 2 attempts"
+      Set TEST_STATUS = "FAILED"
+      Document failure reason: "Prompt B output persistently summarized"
+    ELSE:
+      OUTPUT_B = OUTPUT_B_RETRY
+      Log: "Successfully captured verbatim output for Prompt B on retry"
+
+  IF TEST_STATUS == "FAILED":
+    ABORT test with comprehensive error report:
+    - Which prompts failed verbatim capture
+    - What patterns were detected
+    - Recommendation: Manual execution may be required
 
 ### Stage 3.7: Quality Check
 
@@ -786,13 +1059,17 @@ FOR iteration FROM 1 TO maximum of 5:
   EVALUATE PROCESSING_EFFICIENCY (adapted weight):
 
     For OUTPUT_A:
+      Consider: Execution speed (<EXECUTION_TIME_A> ms) [0-10]
+      Consider: Prompt brevity (<PROMPT_A_SIZE> chars, <PROMPT_A_LINES> lines) [0-10]
+      Consider: Output efficiency (value-to-verbosity ratio) [0-10]
       Consider: Output conciseness vs completeness [0-10]
-      Consider: Execution time if significant [0-10]
-      Consider: Resource usage patterns [0-10]
       SCORE_A_EFFICIENCY = average * adapted_weight
 
     For OUTPUT_B:
-      [Same evaluation process]
+      Consider: Execution speed (<EXECUTION_TIME_B> ms) [0-10]
+      Consider: Prompt brevity (<PROMPT_B_SIZE> chars, <PROMPT_B_LINES> lines) [0-10]
+      Consider: Output efficiency (value-to-verbosity ratio) [0-10]
+      Consider: Output conciseness vs completeness [0-10]
       SCORE_B_EFFICIENCY = average * adapted_weight
 
   EVALUATE ERROR_HANDLING (adapted weight):
@@ -836,6 +1113,22 @@ FOR iteration FROM 1 TO maximum of 5:
         **CONFIDENCE**: MEDIUM (probable winner)
       ELSE:
         **CONFIDENCE**: LOW (close competition)
+
+        # TIE-BREAKING LOGIC: When margin is <5 points, use efficiency as tiebreaker
+        IF MARGIN < 5:
+          <thinking>
+          INTENTION: Scores are too close - using efficiency metrics as tiebreaker
+          ACTION: Compare execution speed and prompt brevity to determine winner
+          </thinking>
+
+          COMPARE efficiency metrics directly:
+            Speed difference: <EXECUTION_TIME_A> vs <EXECUTION_TIME_B> ms
+            Brevity difference: <PROMPT_A_SIZE> vs <PROMPT_B_SIZE> characters
+
+          IF speed difference > 20% OR brevity difference > 30%:
+            Adjust WINNER based on efficiency advantage
+            Note in report: "Efficiency was the deciding factor"
+            Set **TIE_BROKEN_BY**: "efficiency metrics"
 
     IF CONFIDENCE == LOW AND iteration < 5:
       <learning>Low confidence detected, refining scores in next iteration</learning>
@@ -1018,7 +1311,17 @@ EXECUTE the validated synthesis plan:
 - **Prompt B Path**: <PROMPT_B_PATH>
 - **Prompt B Source**: <PROMPT_B_LABEL>
 
+### Performance Metrics
+- **Prompt A**: <PROMPT_A_LINES> lines, <PROMPT_A_SIZE> characters, ~<EXECUTION_TIME_A> ms execution
+- **Prompt B**: <PROMPT_B_LINES> lines, <PROMPT_B_SIZE> characters, ~<EXECUTION_TIME_B> ms execution
+- **Total Test Duration**: <TOTAL_EXECUTION_TIME> ms (parallel execution)
+
 ### Prompt Outputs Comparison
+
+**CRITICAL**: Display the EXACT, VERBATIM outputs captured from Phase 3
+- Do NOT summarize or describe - show the actual output text
+- If output is very long (15,000+ characters), still show it in FULL
+- These must be the exact characters produced by each prompt
 
 #### Prompt A Output
 ```
@@ -1031,6 +1334,9 @@ EXECUTE the validated synthesis plan:
 <OUTPUT_B>
 ```
 *Output characteristics: [length of OUTPUT_B] characters, [line count of OUTPUT_B] lines*
+
+Note: If outputs appear as descriptions like "[Comprehensive research output...]" rather than
+actual content, the test has failed to capture verbatim output and must be re-run.
 
 ### Scoring Summary
 *Domain: <DOMAIN_TYPE>* | *Secondary: <SECONDARY_DOMAIN>* | *Confidence: <DOMAIN_CONFIDENCE>%*
@@ -1163,6 +1469,11 @@ WHEN <MARGIN> < 10:
   "**Marginal Preference**: <WINNER> edges ahead but advantages are contextual.
    Consider test case variations before final adoption.
    Both prompts remain viable with different strengths."
+
+WHEN TIE_BROKEN_BY == "efficiency metrics":
+  "**Tie Resolved by Efficiency**: Quality scores were virtually identical.
+   <WINNER> selected based on superior execution speed and/or prompt brevity.
+   Both prompts deliver comparable quality output."
 
 ### Recommended Actions
 
