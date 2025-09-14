@@ -1,7 +1,9 @@
-***Technology Research Topic: <prompt-arguments>***
+# Technology Research: <prompt-arguments>
 
-#Research 
-research technology based on on the topic, and include reddit, github, and other forums
+Conduct comprehensive research prioritizing:
+- Performance benchmarks and efficiency metrics
+- Community adoption (GitHub stars, Reddit discussions)
+- Practical implementation examples
+- Production readiness assessment
 
-#Output
-Classify all the research based on the output, chart the criteria of evaluation across the field and format it in markdown
+Synthesize findings into actionable recommendations with comparative analysis tables.
