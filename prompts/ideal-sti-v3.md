@@ -560,7 +560,7 @@ OTHERWISE:
 Execute task generation, dependency analysis, and parallel execution planning:
 
 **STEP 1 - Generate Tasks**:
-**INVOKE**: `ask subagent prompter on feature-task-creator use cases: <worktree>/planning/use-cases.md requirements: <worktree>/planning/requirements.md architecture: <worktree>/planning/architecture.md`
+**INVOKE**: `ask subagent prompter on feature-task-creator use cases at <worktree>/planning/use-cases.md and requirements at <worktree>/planning/requirements.md and architecture at <worktree>/planning/architecture.md`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw markdown output with all task specifications
 
