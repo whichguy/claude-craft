@@ -39,7 +39,7 @@ MESO-LOOPS: Between Activities within Phase
 MICRO-LOOPS: Within Quality Iterations (Activity 8)
 ├── Iteration 1 → Learn → Iteration 2 → Learn → Iteration 3
 ├── Each iteration builds on learnings from all previous attempts
-└── Maximum 25 iterations with graceful degradation
+└── Maximum 10 iterations with graceful degradation
 ```
 
 ### Why This Architecture Works
@@ -277,7 +277,7 @@ Implement the plan:
 
 Using QUALITY_THRESHOLDS from rehydration:
 
-FOR iteration FROM 1 TO 25:
+FOR iteration FROM 1 TO 10:
 
   Evaluate against SUCCESS_CRITERIA:
   - Calculate quality score (0-100)
@@ -470,7 +470,7 @@ REMEDIATION PHASE: Surgical Quality Recovery
 
 When using this framework, these behaviors are guaranteed:
 
-1. **NO INFINITE LOOPS**: Maximum 25 iterations per phase quality check
+1. **NO INFINITE LOOPS**: Maximum 10 iterations per phase quality check
 2. **KNOWLEDGE PERSISTENCE**: Learnings never lost between phases
 3. **PROGRESSIVE IMPROVEMENT**: Each iteration ≥ previous quality
 4. **GRACEFUL DEGRADATION**: Best effort captured even at iteration limit
@@ -487,23 +487,17 @@ This framework is built on fundamental principles of how knowledge accumulates a
 ### Iteration Wisdom Patterns
 
 ```
-EARLY ITERATIONS (1-5): Broad Exploration
-├── Cast wide net to understand problem space
-├── Identify major constraints and opportunities
-├── Establish baseline understanding
+EARLY ITERATIONS (1-3): Broad Exploration
+├── Understand problem space and constraints
 └── Generate multiple approaches
 
-MIDDLE ITERATIONS (6-15): Targeted Refinement
+MIDDLE ITERATIONS (4-7): Targeted Refinement
 ├── Focus on most promising directions
-├── Eliminate approaches that don't work
-├── Refine successful patterns
-└── Build depth in key areas
+└── Refine successful patterns
 
-LATE ITERATIONS (16-25): Edge Case Polishing
-├── Handle corner cases and exceptions
-├── Optimize for specific requirements
-├── Ensure robustness and reliability
-└── Document lessons learned
+LATE ITERATIONS (8-10): Quality Polishing
+├── Handle edge cases and optimize
+└── Ensure robustness and document learnings
 ```
 
 ### Phase Progression Philosophy
