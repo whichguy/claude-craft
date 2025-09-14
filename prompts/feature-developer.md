@@ -13,6 +13,46 @@ You are a Feature Developer implementing a single task from requirements to comp
 
 ---
 
+## Global Start: Git Worktree Initialization
+
+**Initialize isolated development environment:**
+
+1. **Verify git repository exists** in current directory. If not initialized, create new repository with initial commit of all current files.
+
+2. **Capture current context** for later restoration:
+   - Store current branch name for merge target
+
+3. **Generate unique worktree identifier** using task name:
+   - Extract descriptive task name from `<prompt-arguments>` filename
+   - Remove TASK-number prefix, limit to 20 characters
+   - Add timestamp and random suffix for uniqueness
+
+4. **Create isolated worktree environment:**
+   ```bash
+   TASK_FILE="$(basename <prompt-arguments> .md)"
+   TASK_PREFIX="$(echo "${TASK_FILE}" | sed 's/TASK-[0-9]*-//' | head -c 20)"
+   TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+   RANDOM_ID="$(openssl rand -hex 3)"
+   WORKTREE_NAME="${TASK_PREFIX}-${TIMESTAMP}-${RANDOM_ID}"
+
+   git -C "$(pwd)" worktree add "/tmp/worktree-${WORKTREE_NAME}" -b "feature/${WORKTREE_NAME}" HEAD
+   ```
+
+5. **Transfer current work to isolated environment:**
+   ```bash
+   # Apply staged changes to worktree index
+   git -C "$(pwd)" diff --cached | git -C "<worktree>" apply --cached || true
+
+   # Apply unstaged changes to worktree working directory
+   git -C "$(pwd)" diff | git -C "<worktree>" apply || true
+   ```
+
+6. **Establish working context:**
+   - Define `<worktree>` as `/tmp/worktree-${WORKTREE_NAME}` for all subsequent operations
+   - All file operations, architecture references, and task management use `<worktree>` prefix
+
+---
+
 ## Phase: Task Implementation
 
 ### Phase Purpose & Dependencies
@@ -160,9 +200,9 @@ Investigate codebase guided by architecture:
 
 FOR LOCAL:
 ```
-src/             # Standard source directory
-test/            # Test directory
-lib/             # Libraries if needed
+<worktree>/src/      # Standard source directory
+<worktree>/test/     # Test directory
+<worktree>/lib/      # Libraries if needed
 ```
 
 FOR REMOTE SYSTEMS:
@@ -713,5 +753,43 @@ When using this agent, these behaviors are guaranteed:
 6. **NO PARTIAL COMPLETION**: Task only moves when 100% done
 7. **KNOWLEDGE CAPTURE**: Patterns and discoveries documented
 8. **PLATFORM FLEXIBILITY**: Works with local and remote systems
+
+---
+
+## Global End: Git Worktree Merge and Cleanup
+
+**Complete task and integrate changes:**
+
+1. **Finalize task status** by moving task file from `<worktree>/pending/` to `<worktree>/completed/` directory.
+
+2. **Commit all changes in isolated environment:**
+   ```bash
+   git -C "<worktree>" add -A
+   TASK_DESC="$(grep -m1 '^# ' <prompt-arguments> | sed 's/^# //' || echo 'Feature implementation')"
+   git -C "<worktree>" commit -m "feat: ${TASK_PREFIX} - ${TASK_DESC}
+
+   Implemented in isolated worktree: ${WORKTREE_NAME}
+   Task moved to completed directory
+   All acceptance criteria met"
+   ```
+
+3. **Integrate changes back to original directory** using 3-way merge:
+   ```bash
+   git -C "$(pwd)" merge "feature/${WORKTREE_NAME}" -m "merge: ${TASK_PREFIX} feature branch
+
+   3-way merge from feature/${WORKTREE_NAME}
+   Preserves development history
+   All tests passing and acceptance criteria met"
+   ```
+
+4. **Clean up isolated environment:**
+   ```bash
+   git -C "$(pwd)" worktree remove "<worktree>" --force
+   git -C "$(pwd)" branch -D "feature/${WORKTREE_NAME}"
+   ```
+
+5. **Report completion status** with summary of isolated development and successful integration back to main branch.
+
+---
 
 Execute this agent to implement tasks completely with guaranteed quality, architecture compliance, and valuable discovery insights.
