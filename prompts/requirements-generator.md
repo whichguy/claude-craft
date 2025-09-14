@@ -118,9 +118,47 @@
 6. **YAML**: Acceptable for configuration (though JSON preferred)
 7. **Binary**: Only when necessary for performance
 
+## Phase 0: Input Rehydration
+
+**INPUT ANALYSIS**:
+Examine <prompt-arguments> to determine input type and extract use cases:
+
+1. **Check for file path**:
+   - IF <prompt-arguments> contains a path pattern (e.g., "./use-cases.md", "<worktree>/planning/use-cases.md", "docs/use-cases.md")
+   - AND file exists at that path
+   - AND file has .md extension
+   - THEN read file content as use cases
+
+2. **Direct content fallback**:
+   - ELSE use <prompt-arguments> directly as use cases content
+
+**REHYDRATION LOGIC**:
+```
+IF <prompt-arguments> matches file path pattern (contains "/" or "\" or ends with .md) THEN:
+  IF file exists at path THEN:
+    use_cases_content = read(path)
+    IF use_cases_content contains "UC###:" or "UC[0-9]+:" patterns THEN:
+      # This is properly formatted use cases
+      use_cases = use_cases_content
+    ELSE:
+      # This might be requirements, try to extract use cases
+      ERROR: Expected use cases file but found different format
+      HINT: Ensure file contains UC### formatted use cases
+  ELSE:
+    ERROR: File not found at specified path: <prompt-arguments>
+    HALT execution with helpful error message
+ELSE:
+  # Direct use cases in arguments
+  use_cases = <prompt-arguments>
+```
+
+**OUTPUT**: Extracted use cases ready for analysis
+
+---
+
 ## Phase 1: Use Case Analysis & Classification
 
-**Parse the provided use cases** from `<prompt-arguments>` and systematically analyze each one:
+**Parse the use cases** (extracted in Phase 0) and systematically analyze each one:
 
 1. **Extract core functionality** described in each use case
    - **Example**: "Users need to upload files" → Core function: file upload capability

@@ -194,29 +194,29 @@ Universal Penalties (Applied to all evaluations):
 #### 1. Execution Environment & Nested Frameworks
 ```
 Priority 0: Shell scripts, system executables
-Priority 1: Node.js standalone, Python scripts
-Priority 2: Single-file executables (Go, Rust compiled)
-Priority 3: Docker containers, Google Apps Script
-Priority 4: Serverless functions (AWS Lambda, Vercel)
-Priority 5: Container orchestration (Kubernetes basic)
-Priority 6: Microservices architecture
-Priority 7: Service mesh implementations
-Priority 8: Multi-cloud orchestration
-Priority 9: Complex distributed systems
+Priority 1: Node.js standalone, Python scripts, Docker single container
+Priority 2: Single-file executables (Go, Rust compiled), Docker with local development
+Priority 3: Docker Compose multi-container, Google Apps Script, Browser JavaScript
+Priority 4: Serverless functions (AWS Lambda, Vercel), Salesforce Apex, Terraform-managed compute
+Priority 5: Container orchestration (Docker Swarm, Kubernetes basic)
+Priority 6: Kubernetes with Helm charts, Microservices architecture
+Priority 7: Service mesh (Istio, Linkerd), Terraform multi-provider deployments
+Priority 8: Multi-cloud orchestration with Terraform workspaces
+Priority 9: Complex distributed systems with global orchestration
 ```
 
 #### 2. Storage System
 ```
-Priority 0: Local files, environment variables
-Priority 1: JSON/YAML config files, SQLite
-Priority 2: Embedded databases (LevelDB, RocksDB)
-Priority 3: Single-instance databases (PostgreSQL, MySQL)
-Priority 4: Managed database services (RDS, Firebase)
-Priority 5: Distributed databases (MongoDB clusters)
-Priority 6: Multi-region database replication
-Priority 7: Polyglot persistence architectures
-Priority 8: Event-sourcing with CQRS
-Priority 9: Global distributed consensus systems
+Priority 0: Local files, environment variables, JSON/YAML/JSONL/Markdown files
+Priority 1: SQLite, Google Drive (remote files), Browser localStorage, Docker volumes (bind mounts)
+Priority 2: Embedded databases (LevelDB, RocksDB), Platform storage (GAS PropertiesService, Salesforce Custom Settings), Docker named volumes
+Priority 3: Single-instance databases (PostgreSQL, MySQL), Platform databases (GAS JDBC, Salesforce Objects), Docker Compose managed DBs
+Priority 4: Managed database services (RDS, Firebase), Google Sheets as database, Terraform-provisioned infrastructure
+Priority 5: Distributed databases (MongoDB clusters), Multi-org Salesforce, Docker Swarm storage
+Priority 6: Multi-region database replication, Kubernetes PersistentVolumes
+Priority 7: Polyglot persistence architectures, Terraform-managed multi-cloud storage
+Priority 8: Event-sourcing with CQRS, Kafka clusters
+Priority 9: Global distributed consensus systems, Cross-region active-active databases
 ```
 
 #### 3. Storage Format
@@ -306,16 +306,102 @@ Priority 9: Custom language implementations
 #### 9. CI/CD & Deployment Automation
 ```
 Priority 0: Manual deployment, git hooks only
-Priority 1: Simple scripts (deploy.sh, basic automation)
-Priority 2: GitHub Actions, basic CI/CD workflows
-Priority 3: Advanced CI/CD (multi-stage, testing integration)
-Priority 4: GitOps workflows (ArgoCD, Flux)
-Priority 5: Multi-environment pipelines (dev/staging/prod)
-Priority 6: Advanced deployment (blue/green, canary)
-Priority 7: Infrastructure as Code (Terraform, CDK)
-Priority 8: Multi-cloud deployment orchestration
-Priority 9: Custom deployment platforms and tooling
+Priority 1: Simple scripts (deploy.sh, basic automation), Dockerfile for builds
+Priority 2: GitHub Actions, basic CI/CD workflows, Docker Hub automated builds
+Priority 3: Advanced CI/CD (multi-stage, testing integration), Docker Compose deployments
+Priority 4: GitOps workflows (ArgoCD, Flux), Terraform for infrastructure provisioning
+Priority 5: Multi-environment pipelines (dev/staging/prod) with Terraform workspaces
+Priority 6: Advanced deployment (blue/green, canary) with container orchestration
+Priority 7: Infrastructure as Code (Terraform, CDK), Policy as Code (OPA, Sentinel)
+Priority 8: Multi-cloud deployment orchestration, Terraform Cloud/Enterprise
+Priority 9: Custom deployment platforms with full IaC automation
 ```
+
+### Infrastructure & Containerization Considerations
+
+**Docker's Role Across Priorities**:
+- **Priority 1-2**: Development environment consistency
+  - Simple Dockerfile for reproducible builds
+  - Bind mounts for local development
+  - Single container applications
+
+- **Priority 3-4**: Multi-service applications
+  - Docker Compose for service orchestration
+  - Named volumes for data persistence
+  - Container networking for service communication
+
+- **Priority 5-6**: Production container orchestration
+  - Docker Swarm or Kubernetes deployment
+  - Container registries (Docker Hub, ECR, GCR)
+  - Health checks and rolling updates
+
+**Terraform's Role Across Priorities**:
+- **Priority 4-5**: Basic infrastructure provisioning
+  - Single cloud provider resources
+  - Database and compute provisioning
+  - Network configuration
+
+- **Priority 6-7**: Complex infrastructure management
+  - Multi-environment management (dev/staging/prod)
+  - State management with remote backends
+  - Module-based infrastructure composition
+
+- **Priority 8-9**: Enterprise-scale infrastructure
+  - Multi-cloud provisioning
+  - Policy as Code integration
+  - Terraform Cloud/Enterprise for team collaboration
+
+**Platform-Specific Storage Considerations**:
+
+**Google Apps Script (GAS)**:
+- Priority 0: Script Properties, User Properties (key-value, <9KB per property)
+- Priority 1: Google Drive files (JSON/CSV/MD stored as Drive files)
+- Priority 2: PropertiesService, CacheService (temporary storage)
+- Priority 3: JDBC connections to external databases
+- Priority 4: Google Sheets as structured storage (via SpreadsheetApp)
+
+**Salesforce Platform**:
+- Priority 2: Custom Settings, Custom Metadata Types (configuration data)
+- Priority 3: Custom Objects with SOQL (application data)
+- Priority 4: Platform Events, Big Objects (event/archive data)
+- Priority 5: External Objects via Salesforce Connect
+
+**Storage Implications of Containerization**:
+```yaml
+Local Development:
+  - Docker volumes for database persistence
+  - Bind mounts for code hot-reloading
+  - tmpfs mounts for temporary data
+
+Production:
+  - Named volumes for stateful services
+  - Cloud storage mounts (EFS, Azure Files)
+  - Backup strategies for volume data
+
+Infrastructure as Code:
+  - Terraform state files (critical to protect)
+  - Variable files for environment configs
+  - Module repositories for reusable components
+```
+
+### Platform-Storage-Infrastructure Affinity Matrix
+
+| Platform | Storage Options | Docker Support | Terraform Support | Complexity |
+|----------|----------------|----------------|-------------------|------------|
+| Local Dev | Local files, SQLite | Native | N/A | Priority 0-1 |
+| Node.js | Any | Excellent | N/A | Priority 1-2 |
+| Docker | Volumes, Any DB | Native | docker provider | Priority 1-3 |
+| Google Apps Script | PropertiesService, Drive | No | google provider | Priority 2-4 |
+| Salesforce | Custom Objects | Via Heroku | Limited | Priority 3-5 |
+| AWS Lambda | S3, DynamoDB | Via ECR | Full aws provider | Priority 4-6 |
+| Kubernetes | PersistentVolumes | Native | kubernetes provider | Priority 5-7 |
+| Multi-Cloud | Various | Yes | Multiple providers | Priority 7-9 |
+
+**Decision Framework**:
+- Use Docker when: Need environment consistency, microservices, easy scaling
+- Skip Docker when: Simple scripts, platform-locked (GAS, Salesforce), serverless-only
+- Use Terraform when: Multi-environment, cloud resources, team collaboration
+- Skip Terraform when: Local-only, platform manages infrastructure, simple deployments
 
 ### Priority Selection Decision Framework
 
@@ -346,45 +432,73 @@ COMPLEXITY ZONES:
 ### Priority Migration Paths
 
 Each category includes **upgrade paths** for when requirements change:
-- **Priority 0→1**: Add minimal dependencies (colors, config files)
-- **Priority 1→2**: Add structured frameworks (SQLite, enhanced CLI)
-- **Priority 2→3**: Add production features (Docker, Bootstrap, OAuth)
+- **Priority 0→1**: Add minimal dependencies (colors, config files), or move to Google Drive for remote access
+- **Priority 1→2**: Add structured frameworks (SQLite, enhanced CLI, Docker for consistency)
+- **Priority 2→3**: Add production features (Docker Compose, Bootstrap, OAuth, platform storage)
 - **Priority 3+**: Requires architectural review and migration planning
+
+### Container and Infrastructure Portability
+
+**Docker Portability Benefits**:
+- **Development → Production**: Same container runs everywhere
+- **Team Onboarding**: "docker-compose up" gets anyone running
+- **Cloud Migration**: Containers run on any cloud's container service
+- **Rollback Safety**: Previous container versions always available
+
+**Terraform Migration Patterns**:
+- **Single → Multi Environment**: Add workspaces and variables
+- **Single → Multi Cloud**: Abstract resources into modules
+- **Manual → IaC**: Import existing resources into Terraform state
+- **Simple → Complex**: Gradual module composition
+
+**Google Drive as Storage Bridge**:
+- Works across platforms (web, GAS, desktop)
+- Maintains file semantics while adding remote access
+- Provides upgrade path from local files without database complexity
+- Supports both simple files and structured data (via Sheets API)
+
+**Anti-Patterns to Avoid**:
+- Over-containerizing simple scripts (adds complexity without benefit)
+- Using Terraform for local-only development
+- Creating deeply nested Docker Compose files
+- Managing secrets in Terraform state files
+- Using latest tags in production containers
+- Forcing platform storage when portability is needed
 
 ### Technology Selection Examples
 
 **Minimal Stack (Priority 0-1 each, Total: 9)**:
-- Execution: Shell scripts
-- Storage: Local files
-- Format: JSON
+- Execution: Shell scripts or single Docker container
+- Storage: Local files or Docker volumes
+- Format: JSON, YAML, Markdown
 - UI: CLI output
-- Auth: None
+- Auth: None or simple API keys
 - API: Function calls
 - Testing: Manual
-- Language: Bash
-- CI/CD: Manual deployment
+- Language: Bash or Python
+- CI/CD: Manual or simple Dockerfile
 
 **Balanced Stack (Priority 2-3 each, Total: 22)**:
-- Execution: Docker containers
-- Storage: SQLite
-- Format: JSONL
-- UI: Bootstrap
+- Execution: Docker Compose multi-container
+- Storage: PostgreSQL in Docker, Google Drive for backups
+- Format: JSONL, structured XML
+- UI: Bootstrap with hot-reload via Docker
 - Auth: OAuth 2.0
-- API: RESTful APIs
-- Testing: Mocha+Chai
+- API: RESTful APIs in containers
+- Testing: Mocha+Chai in CI pipeline
 - Language: TypeScript
-- CI/CD: GitHub Actions
+- CI/CD: GitHub Actions with Docker builds
 
-**Modern Stack (Priority 5-7 each, Total: 54)**:
-- Execution: Kubernetes
-- Storage: Distributed databases
-- Format: Binary formats
-- UI: WebSocket + shadcn/ui
-- Auth: Advanced identity
-- API: Event-driven APIs
-- Testing: E2E automation
-- Language: Polyglot architecture
-- CI/CD: Infrastructure as Code
+**Modern Cloud Stack (Priority 4-6 each, Total: 45)**:
+- Execution: Kubernetes with Terraform provisioning
+- Storage: Managed RDS via Terraform, S3 for objects
+- Format: Protocol Buffers for services
+- UI: React with CDN deployment
+- Auth: Auth0 or AWS Cognito (Terraform managed)
+- API: GraphQL with API Gateway
+- Testing: E2E with Playwright, load testing
+- Language: Polyglot (Go services, TypeScript frontend)
+- CI/CD: GitOps with ArgoCD, Terraform Cloud
 - Poor/outdated documentation: -12 points
 - Maintenance burden (from research): -8 points
 - No TypeScript support: -5 points

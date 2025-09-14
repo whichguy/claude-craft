@@ -140,7 +140,7 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent prompter on use-case-expander <original-requirements>`
+**INVOKE**: `ask subagent prompter on use-case-expander with requirements at <original-requirements>`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/use-cases.md
 
@@ -279,7 +279,7 @@ OTHERWISE:
 Execute requirements generation:
 
 **READ**: <worktree>/planning/use-cases.md content
-**INVOKE**: `ask subagent prompter on requirements-generator <use-cases-content>`
+**INVOKE**: `ask subagent prompter on requirements-generator with use-cases at <worktree>/planning/use-cases.md`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/requirements.md
 
@@ -418,7 +418,7 @@ OTHERWISE:
 Execute architecture generation via progressive technology research:
 
 **READ**: <worktree>/planning/use-cases.md and <worktree>/planning/requirements.md content
-**INVOKE**: `ask subagent prompter on recommend-tech use cases at <worktree>/planning/use-cases.md and requirements <worktree>/planning/requirements.md`
+**INVOKE**: `ask subagent prompter on recommend-tech with use-cases at <worktree>/planning/use-cases.md and requirements at <worktree>/planning/requirements.md`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/architecture.md
 
@@ -630,11 +630,11 @@ Analyze dependencies to create execution waves:
 
 **Wave 3 - Features Group A** (Parallel):
 - Tasks T200-T299 with no blocking dependencies
-- Execute: `in parallel ask feature-developer on task <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
+- Execute: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
 
 **Wave 4 - Features Group B** (Parallel):
 - Tasks T300-T399 depending on Wave 3
-- Execute: `in parallel ask feature-developer on task <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
+- Execute: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
 
 **Wave 5 - Testing & Deployment** (Sequential):
 - Tasks T600-T699 after all features complete
@@ -790,12 +790,12 @@ FOR each execution wave in parallel-execution-plan:
 
   IF wave.type == "Sequential" THEN:
     FOR each task in wave.tasks (in dependency order):
-      **INVOKE**: `ask subagent feature-developer <worktree>/pending/TASK-{ID}-*.md`
+      **INVOKE**: `ask subagent feature-developer on task with file at <worktree>/pending/TASK-{ID}-*.md`
       **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
       **WAIT**: For completion before next task
 
   ELSE IF wave.type == "Parallel" THEN:
-    **INVOKE**: `in parallel ask feature-developer on task {task1.path} {task2.path} {task3.path} ...`
+    **INVOKE**: `in parallel ask feature-developer on task with files at {task1.path} {task2.path} {task3.path} ...`
     WHERE: task paths are all tasks in current wave with no blocking dependencies
     **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
     **WAIT**: For all parallel tasks in wave to complete before next wave
@@ -804,13 +804,13 @@ FOR each execution wave in parallel-execution-plan:
 
 Wave 1 - Infrastructure (Sequential):
 ```
-ask subagent feature-developer <worktree>/pending/TASK-001-database-setup.md
-ask subagent feature-developer <worktree>/pending/TASK-002-cicd-pipeline.md
+ask subagent feature-developer on task with file at <worktree>/pending/TASK-001-database-setup.md
+ask subagent feature-developer on task with file at <worktree>/pending/TASK-002-cicd-pipeline.md
 ```
 
 Wave 2 - Cross-Cutting (Parallel):
 ```
-in parallel ask feature-developer on task \
+in parallel ask feature-developer on task with files at \
   <worktree>/pending/TASK-100-authentication.md \
   <worktree>/pending/TASK-101-logging.md \
   <worktree>/pending/TASK-102-error-handling.md
@@ -818,7 +818,7 @@ in parallel ask feature-developer on task \
 
 Wave 3 - Features Group A (Parallel):
 ```
-in parallel ask feature-developer on task \
+in parallel ask feature-developer on task with files at \
   <worktree>/pending/TASK-200-feature-a.md \
   <worktree>/pending/TASK-201-feature-b.md \
   <worktree>/pending/TASK-202-feature-c.md
@@ -978,7 +978,7 @@ Integrate all completed components:
 
 **STEP 2 - Test Suite Development**:
 IF test specifications needed THEN:
-  **INVOKE**: `ask subagent qa-analyst for test specifications based on <worktree>/completed/ implementations`
+  **INVOKE**: `ask subagent qa-analyst on test specifications with implementations at <worktree>/completed/`
   **TIMEOUT**: 1200 seconds maximum (20 minutes)
 
 **STEP 3 - Test Execution**:
@@ -1154,7 +1154,7 @@ Setup configuration for all environments:
 
 **STEP 3 - CI/CD Pipeline**:
 IF deployment automation needed THEN:
-  **INVOKE**: `ask subagent deployment-orchestrator to setup CI/CD pipeline for <worktree>/completed/ system`
+  **INVOKE**: `ask subagent deployment-orchestrator on CI/CD pipeline setup with system at <worktree>/completed/`
   **TIMEOUT**: 1200 seconds maximum (20 minutes)
 
 **STEP 4 - Monitoring Setup**:

@@ -50,16 +50,57 @@ Apply these patterns to discover implicit use cases from <prompt-arguments>:
 
 ## FULL ANALYSIS PROCESS
 
-**Execution Steps**:  
-1. User Story Foundation → 2. Technology Prerequisites → 3. Deep Analysis → 4. Quality Gates → 5. Expansion Testing → 6. Iterative Refinement → 7. Completeness Validation → 8. Final Quality Review
+**Execution Steps**:
+0. Input Rehydration → 1. User Story Foundation → 2. Technology Prerequisites → 3. Deep Analysis → 4. Quality Gates → 5. Expansion Testing → 6. Iterative Refinement → 7. Completeness Validation → 8. Final Quality Review
 
 **Convergence**: Stop when discovery rate < 10% AND all granularity tests pass AND quality review passes
 
 ---
 
+### STEP 0: Input Rehydration and Context Loading
+
+**INPUT ANALYSIS**:
+Examine <prompt-arguments> to determine input type and extract requirements:
+
+1. **Check for file path**:
+   - IF <prompt-arguments> contains a path pattern (e.g., "./requirements.md", "<worktree>/planning/requirements.md", "docs/requirements.md")
+   - AND file exists at that path
+   - AND file has .md extension
+   - THEN read file content and use as requirements input
+
+2. **Check for use cases file path**:
+   - IF <prompt-arguments> contains "use-cases" in path
+   - THEN this is likely already-processed use cases, extract underlying requirements from them
+
+3. **Direct content fallback**:
+   - ELSE use <prompt-arguments> directly as requirements text
+
+**REHYDRATION LOGIC**:
+```
+IF <prompt-arguments> matches file path pattern (contains "/" or "\" or ends with .md) THEN:
+  IF file exists at path THEN:
+    content = read(path)
+    IF content contains "UC###:" or "UC[0-9]+:" patterns THEN:
+      # This is a use-cases file, extract original requirements
+      requirements = extract_requirements_narrative_from_use_cases(content)
+    ELSE:
+      # This is raw requirements or requirements.md file
+      requirements = content
+  ELSE:
+    ERROR: File not found at specified path: <prompt-arguments>
+    HALT execution with helpful error message
+ELSE:
+  # Direct requirements in arguments
+  requirements = <prompt-arguments>
+```
+
+**OUTPUT**: Extracted requirements ready for use case analysis
+
+---
+
 ### STEP 1: User Story Foundation
 
-Extract and formulate the core user story from <prompt-arguments> to provide foundation context for all subsequent analysis.
+Extract and formulate the core user story from the requirements (extracted in STEP 0) to provide foundation context for all subsequent analysis.
 
 **USER STORY EXTRACTION**:
 - **Primary Actor**: Identify the main user/role who will benefit from this system
