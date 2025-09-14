@@ -380,6 +380,43 @@ READ prompt file contents for validation:
   - Calculate content hashes for identity checking
   - Extract file metrics for comparison purposes
 
+### Stage 2.1b: Prompt Metrics Collection
+
+COLLECT comprehensive metrics for both prompts:
+  **FILE_METRICS**:
+    - **PROMPT_A_LINES**: $(wc -l < "<PROMPT_A_PATH>")
+    - **PROMPT_A_CHARS**: $(wc -c < "<PROMPT_A_PATH>")
+    - **PROMPT_A_WORDS**: $(wc -w < "<PROMPT_A_PATH>")
+    - **PROMPT_B_LINES**: $(wc -l < "<PROMPT_B_PATH>")
+    - **PROMPT_B_CHARS**: $(wc -c < "<PROMPT_B_PATH>")
+    - **PROMPT_B_WORDS**: $(wc -w < "<PROMPT_B_PATH>")
+
+  **GIT_STATISTICS** (if applicable):
+    IF prompt is from git repository:
+      - **LAST_COMMIT**: $(git log -1 --format="%H %s" -- "<PROMPT_PATH>")
+      - **LAST_AUTHOR**: $(git log -1 --format="%an" -- "<PROMPT_PATH>")
+      - **LAST_DATE**: $(git log -1 --format="%ar" -- "<PROMPT_PATH>")
+      - **TOTAL_COMMITS**: $(git rev-list --count HEAD -- "<PROMPT_PATH>")
+      - **LINES_CHANGED**: $(git diff --stat HEAD~1 HEAD -- "<PROMPT_PATH>")
+
+### Stage 2.1c: Full Prompt Content Display
+
+**DISPLAY complete prompt contents for transparency:**
+
+```
+═══════════════════════════════════════════════════════════════════════
+PROMPT A: [PROMPT_A_NAME] ([PROMPT_A_LINES] lines, [PROMPT_A_CHARS] chars)
+═══════════════════════════════════════════════════════════════════════
+[PROMPT_A_FULL_CONTENT]
+═══════════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════════
+PROMPT B: [PROMPT_B_NAME] ([PROMPT_B_LINES] lines, [PROMPT_B_CHARS] chars)
+═══════════════════════════════════════════════════════════════════════
+[PROMPT_B_FULL_CONTENT]
+═══════════════════════════════════════════════════════════════════════
+```
+
 ### Stage 2.2: Criteria Definition (Runtime)
 
 GENERATE runtime criteria for Phase 2:
@@ -1234,26 +1271,50 @@ Document comprehensive execution metadata:
 
 Mark Phase 3 complete with comprehensive execution statistics:
 
-**📊 EXECUTION PERFORMANCE REPORT**
-- **Total Execution Time**: <END_TIME> - <START_TIME> seconds
-- **Parallel Efficiency**: Both prompts completed simultaneously
-- **Success Rate**: X/2 prompts executed successfully
+**⚡ EXECUTION PERFORMANCE DASHBOARD**
 
-**📋 DETAILED OUTPUT CAPTURE**
-- **OUTPUT_A**: Complete output from first prompt execution (extracted from <output-a> tags)
-  - Character count: [LENGTH] characters
-  - Response time: [DURATION] seconds
-- **OUTPUT_B**: Complete output from second prompt execution (extracted from <output-b> tags)
-  - Character count: [LENGTH] characters
-  - Response time: [DURATION] seconds
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### ⏱️ TIMING METRICS
 
-**🔧 SUBAGENT STATISTICS**
-- **Prompter agents launched**: 2 parallel instances
-- **Tool calls made**: [COUNT] across both executions
-- **RETRY_COUNTS**: Number of retry attempts for each prompt (from <retry-count> tags)
-- **EXECUTION_STATUS**: Overall success/failure status (from <status> tags)
+**🚀 Parallel Execution Summary:**
+```
+Total Runtime: [TOTAL_TIME] seconds
+Prompt A: ████████████████████ [TIME_A]s
+Prompt B: ██████████████████ [TIME_B]s
+Efficiency: ✓ True parallel execution (no sequential bias)
+```
 
-**⚙️ EXECUTION_METADATA**: Timing, status, and error information (from <execution-result> structure)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### 📊 OUTPUT QUALITY METRICS
+
+**📝 Content Generation:**
+```
+Prompt A Output: [OUTPUT_A_LENGTH] chars ████████████░░░░
+Prompt B Output: [OUTPUT_B_LENGTH] chars ████████████████████
+
+Quality Indicators:
+• Completeness: Both prompts generated full responses
+• Detail Level: Prompt [RICHER_PROMPT] produced [RICHNESS_DIFF]% more detail
+• Structure: Both maintained clear organization
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### 🔧 EXECUTION RELIABILITY
+
+**✅ Success Metrics:**
+```
+Prompt A: [SUCCESS_A] ✓ | Retries: [RETRY_A] | Status: [STATUS_A]
+Prompt B: [SUCCESS_B] ✓ | Retries: [RETRY_B] | Status: [STATUS_B]
+
+Overall Success Rate: [SUCCESS_RATE]/2 prompts executed successfully
+Reliability Score: [RELIABILITY_PERCENTAGE]%
+```
+
+**🎯 Process Integrity:**
+• **Subagent Deployment**: 2 prompter agents launched in parallel
+• **Tool Invocations**: [TOOL_COUNT] total tool calls executed
+• **Error Handling**: [ERROR_COUNT] errors captured and processed
+• **Data Integrity**: All outputs captured verbatim without truncation
 
 Note: These are in-memory content variables (text strings), not shell variables or files.
 The only file is the temp file for Prompt B's git version.
@@ -1834,37 +1895,6 @@ Strategy: [HYBRID_STRATEGY]
 Trade-off: [HYBRID_TRADEOFF]
 ```
 
-## 🎬 Interactive Action Menu
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-### 🛠️ Optimization Actions
-
-Code    Action
-──────────────────────────────────────────────────────────────────────────────────────
-[A]     🚀 [ACTION_A_DESC]
-[B]     💎 [ACTION_B_DESC]
-[C]     🔀 [ACTION_C_DESC]
-[D]     ⚡ [ACTION_D_DESC]
-
-### 📝 Prompt Management
-
-Code     Action
-──────────────────────────────────────────────────────────────────────────────────────
-[KEEP]   ✅ Keep [WINNER] as current version
-[RVRT]   ↩️ Revert to [LOSER] (previous version)
-[SAVE]   💾 Save both versions with metadata
-
-### 🔬 Testing Actions
-
-Code     Action
-──────────────────────────────────────────────────────────────────────────────────────
-[TEST]   🔄 Rerun test with same arguments
-[VARY]   🎲 Test with 3 varied complexity levels
-[BENCH]  ⏱️ Run performance benchmark (10 iterations)
-
-──────────────────────────────────────────────────────────────────────────────────────
-Enter your choice: [_]                                          Press Q to quit
-──────────────────────────────────────────────────────────────────────────────────────
 
 ## 📊 Confidence & Validation
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -2051,33 +2081,62 @@ EXPLAIN victory with evidence:
 
 ### Stage 4.10: Phase Completion
 
-**🏆 COMPARATIVE ANALYSIS RESULTS**
+**📊 COMPARATIVE ANALYSIS RESULTS**
 
-Mark Phase 4 complete with comprehensive scoring analysis:
+### Performance Summary
 
-**📊 FINAL SCORES & WINNER DETERMINATION**
-- **TOTAL_SCORE_A**: [SCORE] points - Final weighted score for first prompt
-- **TOTAL_SCORE_B**: [SCORE] points - Final weighted score for second prompt
-- **WINNER**: [PROMPT_A/PROMPT_B] - Prompt with higher total score
-- **MARGIN**: [X.X] point difference between total scores
-- **CONFIDENCE**: [HIGH/MEDIUM/LOW] - Reliability level of comparison results
+| Metric | Prompt A | Prompt B | Difference | Better |
+|--------|----------|----------|------------|--------|
+| **Total Score** | [TOTAL_SCORE_A]/100 | [TOTAL_SCORE_B]/100 | [MARGIN] pts | [WINNER] |
+| **Completeness** | [COMPLETENESS_A]/25 | [COMPLETENESS_B]/25 | [COMPLETENESS_DIFF] | [COMPLETENESS_WINNER] |
+| **Clarity** | [CLARITY_A]/20 | [CLARITY_B]/20 | [CLARITY_DIFF] | [CLARITY_WINNER] |
+| **Specificity** | [SPECIFICITY_A]/20 | [SPECIFICITY_B]/20 | [SPECIFICITY_DIFF] | [SPECIFICITY_WINNER] |
+| **Actionability** | [ACTIONABILITY_A]/20 | [ACTIONABILITY_B]/20 | [ACTIONABILITY_DIFF] | [ACTIONABILITY_WINNER] |
+| **Efficiency** | [EFFICIENCY_A]/15 | [EFFICIENCY_B]/15 | [EFFICIENCY_DIFF] | [EFFICIENCY_WINNER] |
 
-**🔍 DETAILED SCORING BREAKDOWN**
-- **SCORING_BREAKDOWN**: Individual criterion scores showing:
-  - Domain-specific weights applied: [PERCENTAGES]
-  - Raw scores vs. weighted scores for each criterion
-  - Confidence intervals for each measurement
+### Output Statistics
 
-**📈 SCORING ANALYSIS & INSIGHTS**
-- **Why [WINNER] Won**: [Clear explanation of victory factors]
-- **Biggest Advantage**: [CRITERION] with [X.X] point margin
-- **Closest Competition**: [CRITERION] with only [X.X] point difference
-- **Quality Delta**: [X.X]% overall performance difference
+| Characteristic | Prompt A | Prompt B | Analysis |
+|----------------|----------|----------|----------|
+| **Character Count** | [OUTPUT_A_LENGTH] | [OUTPUT_B_LENGTH] | [LENGTH_COMPARISON] |
+| **Execution Time** | [TIME_A]s | [TIME_B]s | [TIME_COMPARISON] |
+| **Success Rate** | [SUCCESS_A] | [SUCCESS_B] | [SUCCESS_COMPARISON] |
+| **Retry Count** | [RETRY_A] | [RETRY_B] | [RELIABILITY_COMPARISON] |
 
-**⚙️ SCORING PROCESS STATISTICS**
-- **Iterations Required**: [X] refinement cycles for confidence
-- **Analysis Duration**: [X.X] seconds for complete evaluation
-- **Confidence Factors**: Margin consistency, variance analysis
+### Performance Analysis
+
+**Why [WINNER] Performed Better:**
+
+**Primary Advantage**: [LARGEST_MARGIN_CRITERION] ([MARGIN_DIFFERENCE] point difference)
+- [SPECIFIC_EXPLANATION_OF_ADVANTAGE]
+- [CONCRETE_EXAMPLES_FROM_OUTPUT]
+
+**Secondary Strengths**:
+- **[SECOND_BEST_CRITERION]**: [EXPLANATION_OF_STRENGTH]
+- **[THIRD_BEST_CRITERION]**: [EXPLANATION_OF_STRENGTH]
+
+**Areas Where [LOSER] Excelled**:
+- **[LOSER_BEST_CRITERION]**: [WHAT_IT_DID_WELL]
+- [SPECIFIC_EXAMPLES_WHERE_LOSER_WAS_BETTER]
+
+**Key Differentiators**:
+1. **Content Depth**: [DEPTH_ANALYSIS]
+2. **Implementation Detail**: [IMPLEMENTATION_ANALYSIS]
+3. **Practical Value**: [PRACTICAL_VALUE_ANALYSIS]
+
+### Statistical Confidence
+
+| Metric | Value | Interpretation |
+|--------|-------|----------------|
+| **Score Margin** | [MARGIN] points | [SIGNIFICANCE_INTERPRETATION] |
+| **Confidence Level** | [CONFIDENCE] | [CONFIDENCE_EXPLANATION] |
+| **Analysis Iterations** | [ITERATIONS] | [ITERATION_EXPLANATION] |
+| **Domain Alignment** | [DOMAIN_TYPE] | [DOMAIN_MATCH_EXPLANATION] |
+
+**Reliability Factors**:
+- **Score Consistency**: [VARIANCE] variance across criteria
+- **Measurement Stability**: [STABILITY_ANALYSIS]
+- **Process Integrity**: [PROCESS_INTEGRITY_STATUS]
 
   <result>Scoring complete with <CONFIDENCE> confidence after <iteration> iterations</result>
   <learning>Iterative refinement improves scoring accuracy and confidence assessment</learning>
@@ -2486,48 +2545,9 @@ IF CLEANUP_REQUIRED is true:
 
 Mark Phase 5 complete with final deliverable:
 
-**🎯 FINAL A/B TEST REPORT & VERDICT**
+**📊 A/B Test Analysis Report**
 
-**📋 EXECUTIVE SUMMARY**
-In this A/B test comparing <PROMPT_A_NAME> against <PROMPT_B_NAME> with arguments "<TEST_ARGUMENTS>",
-**<WINNER>** demonstrated superior performance with a total score of <TOTAL_A> vs <TOTAL_B>.
-
-The key differentiator was [main reason for winning], particularly in [specific criterion category].
-
-**🎛️ ACTION MENU & RECOMMENDATIONS**
-
-Choose your next action:
-```
-1. 🚀 ADOPT WINNER
-   [X] Use <WINNER> for this domain type
-   → Copy winning prompt to production use
-
-2. 🔄 IMPROVE LOSER
-   [ ] Iterate on <LOSER> with identified improvements
-   → Apply winning patterns: [SPECIFIC_TECHNIQUES]
-
-3. 🔀 HYBRID APPROACH
-   [ ] Combine strengths of both prompts
-   → Merge [A_STRENGTHS] + [B_STRENGTHS]
-
-4. 🧪 EXTENDED TESTING
-   [ ] Run additional A/B tests with variations
-   → Test different contexts: [SUGGESTED_CONTEXTS]
-
-5. 📊 DETAILED ANALYSIS
-   [ ] Deep dive into specific criterion differences
-   → Focus on: [LARGEST_MARGIN_CRITERION]
-```
-
-#### Statistical Confidence
-Given a margin of <MARGIN> points across <NUMBER> criteria with <SCORE_VARIANCE> variance,
-this recommendation has **<CONFIDENCE>** confidence after <iteration> scoring iterations.
-
-Confidence factors:
-- Score margin: <MARGIN> points
-- Criterion consistency: <SCORE_VARIANCE> variance
-- Iterations required: <iteration>
-- Domain alignment: <DOMAIN_TYPE> criteria applied
+## Test Report Complete
 
   <result>A/B testing framework complete - comprehensive report generated</result>
   <learning>Systematic evaluation with domain adaptation provides reliable prompt comparison</learning>
@@ -2572,6 +2592,64 @@ WHEN errors occur during execution:
       - Suggest: "Provide two explicit file paths instead"
       - Fallback: Ask user to specify second prompt manually
 ```
+
+## 🎬 Dynamic Action Recommendations
+
+<thinking>
+INTENTION: Generate strategic improvement recommendations based on A/B test results
+ACTION: Analyze performance gaps and identify structural improvements to prompt design
+RESULT: Present strategic options for enhancing prompt effectiveness, not tactical implementation
+LEARNING: Focus on WHY and HOW to improve prompts strategically, not just WHAT commands to run
+</thinking>
+
+**Based on your test results, here are the recommended next actions:**
+
+**IMPORTANT**:
+1. Maintain single line spacing between each output element
+2. Focus on strategic improvements to prompt structure and approach
+3. Avoid tactical implementation details (no git commands or file operations)
+4. Explain WHY each improvement would enhance prompt effectiveness
+5. End with a question asking which strategic improvement to pursue
+
+**Performance Gap:** [PERFORMANCE_DIFFERENCE] points ([WINNER_SCORE] vs [LOSER_SCORE])
+
+**Confidence Level:** [CONFIDENCE_PERCENTAGE]%
+
+**Winner:** [WINNER_NAME]
+
+### 📋 Strategic Improvement Options
+
+Based on the test results, here are strategic recommendations for improving your prompt:
+
+**1. [DYNAMIC_ACTION_1_TITLE]**
+    [DYNAMIC_ACTION_1_ICON] [DYNAMIC_ACTION_1_RATIONALE]
+    Strategy: [DYNAMIC_ACTION_1_STRATEGY]
+
+**2. [DYNAMIC_ACTION_2_TITLE]**
+    [DYNAMIC_ACTION_2_ICON] [DYNAMIC_ACTION_2_RATIONALE]
+    Strategy: [DYNAMIC_ACTION_2_STRATEGY]
+
+**3. [DYNAMIC_ACTION_3_TITLE]**
+    [DYNAMIC_ACTION_3_ICON] [DYNAMIC_ACTION_3_RATIONALE]
+    Strategy: [DYNAMIC_ACTION_3_STRATEGY]
+
+**4. [DYNAMIC_ACTION_4_TITLE]**
+    [DYNAMIC_ACTION_4_ICON] [DYNAMIC_ACTION_4_RATIONALE]
+    Strategy: [DYNAMIC_ACTION_4_STRATEGY]
+
+**5. [DYNAMIC_ACTION_5_TITLE]**
+    [DYNAMIC_ACTION_5_ICON] [DYNAMIC_ACTION_5_RATIONALE]
+    Strategy: [DYNAMIC_ACTION_5_STRATEGY]
+
+**6. Test prompt with different problem domain**
+    🔬 Validate performance across diverse use cases
+
+**7. Keep current version without changes**
+    ✅ Performance is already satisfactory
+
+**🎯 Primary Recommendation:** [PRIMARY_RECOMMENDATION_TEXT]
+
+**Which strategic improvement would you like to pursue? (Enter 1-7):**
 
 ## Usage Examples
 

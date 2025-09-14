@@ -1,854 +1,1334 @@
-# IDEAL-STI v3.0: Progressive Prompt-as-Code Development System
+# IDEAL-STI v3.0: Iterative Development Enhancement with Adaptive Learning
 
-## System Overview
+**Template**: ideal-sti-v3
+**Context**: `<prompt-arguments>`
+**Version**: 3.0.0
+**Methodology**: Prompt-as-Code with Runtime Decision Making following phased-prompt.md template
 
-**IDEAL-STI v3.0** (Intelligent Development Enhancement and Adaptive Learning - Systematic Task Intelligence) is a **prompt-as-code methodology** that orchestrates specialized prompter subagents to transform user requirements into comprehensive project specifications through progressive knowledge discovery and synthesis.
+## Executive Directive
 
-## Core Architecture
-
-### Prompt-as-Code Philosophy
-- **Runtime Decision Making**: All architectural choices made based on discovered context
-- **Progressive Learning**: Each phase builds upon discoveries from previous phases
-- **State Management**: Comprehensive rehydration and checkpoint system
-- **Quality Gates**: Multi-level validation at each phase transition
-
-### Execution Flow
-```
-User Input → Use Case Discovery → Requirements Synthesis → Document Assembly → Implementation
-```
-
-## System Architecture Flow
-
-```mermaid
-flowchart TB
-    subgraph "INITIALIZATION LAYER"
-        A[User Input<br/><prompt-arguments>] --> B{State Check}
-        B -->|Exists| C[Load .ideal-sti/state.json]
-        B -->|New| D[Initialize Fresh State]
-        C --> E{Resume Dialog}
-        E -->|Yes| F[Load Checkpoints]
-        E -->|No| D
-        D --> G[Create .ideal-sti Directory]
-        F --> H[Set Phase Pointer]
-        G --> H
-    end
-    
-    subgraph "PHASE 1: USE CASE DISCOVERY"
-        H --> I[Execute Prompter Directive]
-        I --> J[ask subagent prompter<br/>on use-case-expander<br/><prompt-arguments>]
-        J --> K{Output Received?}
-        K -->|Timeout| L[Save Partial State]
-        K -->|Success| M[Parse UC### Format]
-        L --> N[User Intervention]
-        M --> O{Quality Gate 1}
-        O -->|Pass| P[Extract Discovery Seeds]
-        O -->|Fail| Q[Generate Quality Report]
-        Q --> N
-        P --> R[Save phase1-output.md]
-    end
-    
-    subgraph "PHASE 2: REQUIREMENTS SYNTHESIS"
-        R --> S[Prepare Input Package]
-        S --> T[ask subagent prompter<br/>on requirements-generator<br/><use-cases>]
-        T --> U{Output Received?}
-        U -->|Timeout| V[Save Partial State]
-        U -->|Success| W[Parse FR-*/NFR-* Format]
-        V --> N
-        W --> X{Quality Gate 2}
-        X -->|Pass| Y[Extract Tech Specs]
-        X -->|Fail| Z[Adjust Parameters]
-        Z --> T
-        Y --> AA[Save phase2-output.md]
-    end
-    
-    subgraph "PHASE 2.5: DOCUMENT ASSEMBLY"
-        AA --> AB[Load Both Outputs]
-        AB --> AC[Execute Assembly Directive]
-        AC --> AD[Generate Traceability Matrix]
-        AD --> AE[Build Navigation Index]
-        AE --> AF[Merge Sections]
-        AF --> AG{Quality Gate 3}
-        AG -->|Pass| AH[Write project-specifications.md]
-        AG -->|Fail| AI[Assembly Error Report]
-        AI --> N
-        AH --> AJ[Update State: Complete]
-    end
-    
-    subgraph "QUALITY MONITORING"
-        O --> AK[Phase 1 Metrics]
-        X --> AL[Phase 2 Metrics]
-        AG --> AM[Assembly Metrics]
-        AK --> AN[Quality Dashboard]
-        AL --> AN
-        AM --> AN
-    end
-    
-    style A fill:#e1f5fe
-    style AH fill:#c8e6c9
-    style N fill:#ffccbc
-    style AN fill:#fff9c4
-```
+You are implementing IDEAL-STI v3.0, an adaptive orchestration system that transforms user requirements into executable implementation tasks through intelligent discovery, requirements engineering, architecture planning, task generation, and parallel feature development. Execute all phases sequentially using the phased-prompt.md template structure with progressive knowledge building.
 
 ---
 
-# STATE MANAGEMENT DIRECTIVE
+## GLOBAL START
 
-**WHEN** initiating IDEAL-STI process  
-**THEN** execute state discovery protocol:
+**Execute ONCE at the beginning of any prompt using this framework**
 
-<thinking>
-State Discovery:
-1. Check existence: .ideal-sti/state.json
-2. If exists:
-   - Load previous state
-   - Identify last successful phase
-   - Locate checkpoint files
-   - Prompt: "Resume from Phase [X]? (Y/n)"
-3. If not exists:
-   - Create directory: .ideal-sti/
-   - Initialize state.json with:
-     ```json
-     {
-       "session_id": "[generate-uuid]",
-       "started_at": "[current-iso-8601]",
-       "current_phase": 0,
-       "phase_status": {},
-       "quality_scores": {},
-       "artifacts": {}
-     }
-     ```
-</thinking>
+### Framework Initialization
 
-## TodoWrite Integration
-Create TodoWrite task: "Initialize IDEAL-STI state management"
-- Mark in-progress when checking state
-- Mark completed when state is ready
-
----
-
-# PHASE 1: USE CASE DISCOVERY DIRECTIVE
-
-You are orchestrating use case discovery through a specialized prompter subagent.
-
-<prompt-arguments>
-{$PROMPT_CONTENT}
-</prompt-arguments>
-
-## DIRECTIVE 1: Execute Use Case Discovery
-
-**GIVEN** user requirements in <prompt-arguments>  
-**WHEN** Phase 1 is initiated  
-**THEN** execute progressive discovery:
-
-<thinking>
-Phase 1 Progressive Learning:
-1. **INVOKE**: `ask subagent prompter on use-case-expander <prompt-arguments>`
-2. **EXPECT**: Markdown with UC### pattern
-3. **TIMEOUT**: 300 seconds maximum
-4. **CAPTURE**: Raw output to .ideal-sti/phase1-output.md
-
-Quality Validation:
-- Count use cases: MUST be ≥ 10
-- Verify UC### numbering sequence
-- Check DoR presence: ≥3 items per UC
-- Check DoD presence: ≥3 items per UC
-- Validate confidence distribution
-
-IF quality_check PASSES:
-  - Extract discovery_seeds:
-    * actors[]
-    * entities[]
-    * patterns[]
-    * integrations[]
-  - Update state.json: phase_1 = "completed"
-  - Proceed to Phase 2
-
-ELSE IF quality_check FAILS:
-  - Generate failure report with specifics
-  - Prompt user for clarification
-  - Offer retry with adjusted parameters
-</thinking>
-
-## Quality Gate 1: Use Case Validation
-
-```mermaid
-flowchart LR
-    QG1A[UC Count ≥ 10] --> QG1B{Pass?}
-    QG1C[All DoR Present] --> QG1B
-    QG1D[All DoD Present] --> QG1B
-    QG1E[No Duplicates] --> QG1B
-    QG1F[Confidence Mix] --> QG1B
-    QG1B -->|All Pass| QG1_PASS[✓ Phase 1 Complete]
-    QG1B -->|Any Fail| QG1_FAIL[✗ Needs Revision]
-```
-
-## TodoWrite Tasks
-- "Execute use-case-expander prompter" (in_progress)
-- "Validate use case quality" (pending)
-- "Extract discovery seeds" (pending)
-
-## Output Format
-```yaml
-phase1_output:
-  use_cases:
-    - id: UC001
-      confidence: HIGH
-      dor: [prerequisite1, prerequisite2, prerequisite3]
-      dod: [completion1, completion2, completion3]
-  discovery_seeds:
-    actors: [user, admin, system]
-    entities: [profile, session, data]
-    patterns: [secure, scalable, real-time]
-  quality_metrics:
-    total_use_cases: 42
-    confidence_distribution: {HIGH: 5, MEDIUM: 35, LOW: 2}
-```
-
----
-
-# PHASE 2: REQUIREMENTS SYNTHESIS DIRECTIVE
-
-You are orchestrating requirements generation through a specialized prompter subagent.
-
-## DIRECTIVE 2: Execute Requirements Generation
-
-**GIVEN** use cases from Phase 1  
-**WHEN** Phase 2 is triggered  
-**THEN** execute requirements synthesis:
-
-<thinking>
-Input Preparation:
-1. Load .ideal-sti/phase1-output.md
-2. Parse use_cases[] and discovery_seeds{}
-3. Format input package:
-   ```yaml
-   use_cases:
-     - id: UC001
-       dod: [...]
-       dor: [...]
-   discovery_context:
-     actors: [...]
-     patterns: [...]
-   ```
-
-Execution:
-1. **INVOKE**: `ask subagent prompter on requirements-generator <use-cases>`
-2. **MONITOR**: Progress indicators
-3. **CAPTURE**: Output to phase2-output.md
-
-Validation Protocol:
-- Parse FR-XXX-### patterns
-- Parse NFR-XXX-### patterns
-- Verify coverage: all_use_cases_have_requirements()
-- Check evidence_scores ≥ 5
-- Validate architecture_level selection
-
-IF validation PASSES:
-  - Extract technical_specifications
-  - Map requirements to use cases
-  - Update state: phase_2 = "completed"
-  
-ELSE:
-  - Identify coverage gaps
-  - Re-invoke with emphasis on gaps
-  - Maximum 2 retries
-</thinking>
-
-## Quality Gate 2: Requirements Validation
-
-```mermaid
-flowchart LR
-    QG2A[All UCs Covered] --> QG2B{Pass?}
-    QG2C[Evidence Scores ≥5] --> QG2B
-    QG2D[Valid ID Format] --> QG2B
-    QG2E[No Orphans] --> QG2B
-    QG2F[Architecture Selected] --> QG2B
-    QG2B -->|All Pass| QG2_PASS[✓ Phase 2 Complete]
-    QG2B -->|Any Fail| QG2_FAIL[✗ Needs Revision]
-```
-
-## TodoWrite Tasks
-- "Execute requirements-generator prompter" (in_progress)
-- "Validate requirements coverage" (pending)
-- "Extract technical specifications" (pending)
-
-## Output Format
-```yaml
-phase2_output:
-  functional_requirements:
-    - id: FR-CAP-001
-      description: "System SHALL capture messages in real-time"
-      source_uc: UC001
-      evidence_score: 9
-  non_functional_requirements:
-    - id: NFR-PER-001
-      description: "Response time SHALL be <200ms"
-      evidence_score: 7
-  architecture:
-    complexity_level: 4
-    technology_stack: ["Node.js", "SQLite", "Redis"]
-```
-
----
-
-# PHASE 2.5: DOCUMENT ASSEMBLY DIRECTIVE
-
-You are assembling the unified project specifications document.
-
-## DIRECTIVE 3: Execute Document Assembly
-
-**GIVEN** Phase 1 and Phase 2 outputs  
-**WHEN** both phases complete successfully  
-**THEN** execute unified document assembly:
-
-<thinking>
-Assembly Algorithm:
-1. **LOAD** both output files
-2. **PARSE** structured sections
-3. **EXECUTE** assembly sequence:
-
-   a. Navigation Index Generation:
-      - Scan all UC### identifiers
-      - Scan all FR-*/NFR-* identifiers
-      - Build hierarchical index with anchors
-   
-   b. Traceability Matrix Construction:
-      FOR each use_case IN phase1_output:
-        FIND requirements IN phase2_output WHERE 
-          requirement.source_uc == use_case.id
-        MAP bidirectional links
-      
-   c. Section Merging:
-      sections = [
-        "# PROJECT SPECIFICATIONS",
-        "## NAVIGATION INDEX",
-        phase1.use_cases,
-        phase2.functional_requirements,
-        phase2.non_functional_requirements,
-        generated.traceability_matrix,
-        phase2.architecture,
-        phase2.implementation_plan
-      ]
-      
-   d. Cross-Reference Linking:
-      FOR each reference IN document:
-        IF reference matches UC###:
-          CREATE anchor link
-        IF reference matches FR-*/NFR-*:
-          CREATE anchor link
-
-Quality Assurance:
-- Verify all sections present
-- Check link validity (no 404s)
-- Validate metrics in executive summary
-- Confirm traceability coverage > 90%
-
-IF assembly PASSES:
-  - Write docs/project-specifications.md
-  - Generate success summary
-  - Archive state for audit
-  
-ELSE:
-  - Generate detailed error report
-  - Preserve partial assembly
-  - Request user intervention
-</thinking>
-
-## Quality Gate 3: Assembly Validation
-
-```mermaid
-flowchart LR
-    QG3A[Traceability >90%] --> QG3B{Pass?}
-    QG3C[Links Valid] --> QG3B
-    QG3D[Sections Complete] --> QG3B
-    QG3E[Index Accurate] --> QG3B
-    QG3F[Metrics Correct] --> QG3B
-    QG3B -->|All Pass| QG3_PASS[✓ Document Ready]
-    QG3B -->|Any Fail| QG3_FAIL[✗ Assembly Error]
-```
-
-## TodoWrite Tasks
-- "Load Phase 1 and 2 outputs" (in_progress)
-- "Generate traceability matrix" (pending)
-- "Build navigation index" (pending)
-- "Assemble unified document" (pending)
-- "Validate document quality" (pending)
-
-## Output Structure
 ```markdown
-# PROJECT SPECIFICATIONS
-Generated: [timestamp]
-Source: IDEAL-STI v3.0
+WHEN starting ANY prompt using this framework:
 
-## NAVIGATION INDEX
-[Hyperlinked directory of all sections]
+1. SET GLOBAL VARIABLES (once only):
+   <worktree> = $(pwd)  # Never change this
+   <original-requirements> = <prompt-arguments>
 
-## EXECUTIVE SUMMARY
-- Use Cases: [count]
-- Requirements: [count]
-- Architecture Level: [level]
-- Confidence: [percentage]
+2. CREATE DIRECTORY STRUCTURE:
+   mkdir -p "<worktree>/planning"   # Phase documentation
+   mkdir -p "<worktree>/pending"    # Tasks awaiting development
+   mkdir -p "<worktree>/completed"  # Finished tasks
+   mkdir -p "<worktree>/docs"       # Final deliverables
 
-## USE CASES
-[From Phase 1]
+3. ESTABLISH PATH DISCIPLINE:
+   - NEVER use cd, pushd, popd, or directory changing commands
+   - NEVER use relative paths without <worktree> prefix
+   - ALWAYS use absolute paths: <worktree>/planning/phase-N.md
+   - ALWAYS use git -C "<worktree>" for ALL git operations
 
-## FUNCTIONAL REQUIREMENTS
-[From Phase 2]
+4. LOAD ORIGINAL REQUIREMENTS:
+   Parse <prompt-arguments> to identify:
+   - What needs to be accomplished
+   - Expected deliverables
+   - Quality standards
+   - Any constraints or dependencies
 
-## NON-FUNCTIONAL REQUIREMENTS
-[From Phase 2]
+5. PLAN PHASE STRUCTURE:
+   Determine phases needed based on complexity:
+   - Phase 1: Use Case Discovery (always required)
+   - Phase 2: Requirements Generation (always required)
+   - Phase 3: Architecture Definition (always required)
+   - Phase 4: Task Generation & Organization (always required)
+   - Phase 5: Parallel Feature Development (always required)
+   - Phase 6: Integration & Testing (always required)
+   - Phase 7: Deployment Preparation (always required)
 
-## TRACEABILITY MATRIX
-[Generated mapping]
-
-## ARCHITECTURE
-[From Phase 2]
-
-## IMPLEMENTATION PLAN
-[From Phase 2]
+Framework is now initialized and ready for phases.
 ```
 
 ---
 
-# PHASE 3: TASK GENERATION
+## PHASE 1: USE CASE DISCOVERY
 
-You are transforming requirements into actionable implementation tasks.
+**Purpose**: Generate comprehensive use cases from user requirements via prompter
 
-## Input Files
-- `docs/project-specifications.md` (from Phase 2.5)
-- `.ideal-sti/state.json` (current state)
+### Phase Purpose & Dependencies
 
-## Agent Orchestration
+**PHASE_PURPOSE**: Transform user requirements into structured use cases with acceptance criteria
 
-### Primary Agents
-- **feature-developer**: Generate implementation tasks from requirements
-- **ui-designer**: Create UI/UX tasks for user-facing features
-- **qa-analyst**: Define testing tasks for each requirement
+**DEPENDENCIES**:
+- Input from Global Start: <original-requirements>
+- External dependencies: None (initial phase)
 
-### Quality Agents
-- **code-reviewer**: Validate task specifications
-- **system-architect**: Ensure architectural coherence
+**DELIVERABLES**: Complete use case specification in <worktree>/planning/use-cases.md
 
-## Task Generation Process
+---
 
-<thinking>
-Task Creation:
-1. Parse project-specifications.md
-2. For each functional requirement:
-   - Generate implementation task
-   - Generate test task
-   - Generate documentation task
-3. For each non-functional requirement:
-   - Generate infrastructure task
-   - Generate monitoring task
-4. Create task dependencies based on UC relationships
+## Phase Activities
 
-Task Format:
-```markdown
-# TASK-001: [Task Title]
-**Requirement**: FR-XXX-001
-**Use Case**: UC001
-**Priority**: HIGH
-**Estimated Effort**: 4 hours
-**Dependencies**: [TASK-###]
+### 1. Rehydration & Intelligence Loading
 
-## Description
-[Detailed task description]
+Load accumulated wisdom from previous phases:
 
-## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
+Since this is Phase 1, no previous phases exist.
+Initialize empty knowledge base for future phases.
 
-## Technical Notes
-[Implementation guidance]
+Document initialization in: <worktree>/planning/phase-1.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From <original-requirements>: User's stated requirements and goals
+- Missing inputs: Document any unclear requirements for clarification
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Define success criteria for use case generation:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- Minimum 8 use cases for medium projects (adjust based on scope)
+- Each use case follows "As a [user], I want [goal], so that [benefit]" format
+- Definition of Ready and Done criteria for each use case
+- Confidence scores ≥ 70% for critical use cases
+
+**ANTI_CRITERIA**: What must be avoided
+- Vague or unmeasurable use cases
+- Missing acceptance criteria
+- Duplicate functionality across use cases
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Alignment with original requirements
+- Technical feasibility consideration
+
+### 4. Research & Discovery
+
+Research use case patterns and best practices:
+- Analyze similar project patterns
+- Identify user personas and workflows
+- Research domain-specific requirements
+
+### 5. Planning
+
+Plan the use case generation approach:
+- Determine project complexity level (prototype/small/medium/large/enterprise)
+- Set quality thresholds based on complexity
+- Plan prompter invocation strategy
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Does approach align with original requirements?
+- Are complexity assessments reasonable?
+- Is prompter strategy appropriate?
+
+IF plan needs refinement:
+  Return to Planning (activity 5) with adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute use case generation:
+
+**INVOKE**: `ask subagent prompter on use-case-expander <original-requirements>`
+**TIMEOUT**: 1200 seconds maximum (20 minutes)
+**CAPTURE**: Raw output to <worktree>/planning/use-cases.md
+
+### 8. Quality Iteration Loop
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Count generated use cases vs. minimum threshold
+  - Validate format compliance ("As a..." structure)
+  - Check for Definition of Ready/Done criteria
+  - Assess confidence scores
+  - Calculate coverage score and completeness score
+
+  IF quality score >= 80% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document what was discovered this iteration
+    - Coverage gaps identified
+    - Format issues found
+    - Missing acceptance criteria
+
+    Adjust approach based on learnings:
+    - Retry with expanded scope if coverage < 60%
+    - Focus on completion if format issues exist
+    - Request user clarification if fundamental gaps
+
+    Return to Execution (activity 7) with refinements
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-1.md
+
+Include:
+- Use case generation completed with quality metrics
+- Total use cases generated and confidence levels
+- Patterns discovered for future phases
+- Quality iterations performed and learnings
+- Final deliverable: <worktree>/planning/use-cases.md
+
+---
+
+## PHASE 2: REQUIREMENTS GENERATION
+
+**Purpose**: Generate detailed functional and non-functional requirements from use cases
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Transform use cases into measurable technical requirements
+
+**DEPENDENCIES**:
+- Input from Phase 1: <worktree>/planning/use-cases.md
+- Original requirements: <original-requirements>
+
+**DELIVERABLES**: Complete requirements specification in <worktree>/planning/requirements.md
+
+---
+
+## Phase Activities
+
+### 1. Rehydration & Intelligence Loading
+
+Load accumulated wisdom from previous phases:
+
+Load Phase 1 outputs: <worktree>/planning/use-cases.md
+Extract intelligence:
+- User personas identified
+- System complexity indicators
+- Integration needs discovered
+- Patterns for requirements derivation
+
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Expected FR/NFR patterns from use case analysis
+- **RESEARCH_FOCUS**: Technical areas requiring investigation
+- **QUALITY_THRESHOLDS**: Expected requirements count and evidence scores
+
+Document rehydration results in: <worktree>/planning/phase-2.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From Phase 1: Complete use case content
+- From original requirements: Technical constraints and context
+- Missing inputs: Note any gaps in use case coverage
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- Minimum 10 FR-* functional requirements
+- Minimum 5 NFR-* non-functional requirements
+- Evidence scores for each requirement
+- Rationale linking requirements to use cases
+- Bidirectional traceability matrix
+
+**ANTI_CRITERIA**: What must be avoided
+- Unmeasurable or vague requirements
+- Requirements without use case justification
+- Missing non-functional considerations
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Technical feasibility within constraints
+- Consistency with Phase 1 use cases
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze use cases for implicit requirements
+- Research domain-specific NFR patterns
+- Investigate technical constraints and dependencies
+- Study integration requirements
+
+### 5. Planning
+
+Using validated strategies from rehydration:
+- Plan requirements extraction methodology
+- Determine NFR derivation approach
+- Plan prompter invocation with use case content
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Does approach cover all use cases comprehensively?
+- Are NFR derivation patterns appropriate?
+- Will output meet success criteria?
+
+IF plan needs refinement:
+  Return to Planning with new considerations
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute requirements generation:
+
+**READ**: <worktree>/planning/use-cases.md content
+**INVOKE**: `ask subagent prompter on requirements-generator <use-cases-content>`
+**TIMEOUT**: 1200 seconds maximum (20 minutes)
+**CAPTURE**: Raw output to <worktree>/planning/requirements.md
+
+### 8. Quality Iteration Loop
+
+Using QUALITY_THRESHOLDS from rehydration:
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Count FR-* and NFR-* requirements vs. thresholds
+  - Validate evidence scores and rationale quality
+  - Check traceability to use cases
+  - Assess requirement measurability
+
+  IF quality score >= 80% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Requirements gaps identified
+    - Traceability issues found
+    - NFR coverage problems
+
+    Refine approach based on learnings and return to Execution
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-2.md
+
+Include:
+- Requirements generation completed with metrics
+- FR/NFR counts and evidence quality
+- Traceability analysis results
+- Quality iterations and key learnings
+- Insights for architecture phase
+- Final deliverable: <worktree>/planning/requirements.md
+
+---
+
+## PHASE 3: ARCHITECTURE DEFINITION
+
+**Purpose**: Research and generate comprehensive technology architecture using recommend-tech framework
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Research solutions and create detailed technology architecture decisions using progressive analysis
+
+**DEPENDENCIES**:
+- Input from Phase 1: <worktree>/planning/use-cases.md
+- Input from Phase 2: <worktree>/planning/requirements.md
+- Original requirements: <original-requirements>
+
+**DELIVERABLES**: Complete architecture specification in <worktree>/planning/architecture.md
+
+---
+
+## Phase Activities
+
+### 1. Rehydration & Intelligence Loading
+
+Load accumulated wisdom from previous phases:
+
+Load Phase 1 & 2 outputs:
+- Use cases with user personas and complexity indicators
+- Requirements with technical and NFR patterns
+- Integration points and constraints discovered
+
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Expected architecture complexity from requirements
+- **RESEARCH_FOCUS**: Technology areas requiring deep analysis
+- **PLANNING_BASELINE**: Priority-based technology framework approach
+- **QUALITY_THRESHOLDS**: Expected 8-phase analysis completion with 85%+ confidence
+
+Document rehydration results in: <worktree>/planning/phase-3.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From Phase 1: Use case complexity and user workflow patterns
+- From Phase 2: Technical requirements and NFR constraints
+- Integration requirements: External systems and APIs
+- Missing inputs: Note any architectural constraint gaps
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- Complete 8-phase progressive technology research
+- All 9 technology categories addressed (Execution, Storage, Format, UI, Auth, API, Testing, Language, CI/CD)
+- Priority levels justified (0-9 scale) with complexity scoring
+- Final confidence ≥ 85% with architecture specification
+- Technology decisions traceable to requirements
+
+**ANTI_CRITERIA**: What must be avoided
+- Over-engineering (unjustified high-priority selections)
+- Under-engineering (missing critical capabilities)
+- Technology choices without requirement justification
+- Incomplete analysis of alternatives
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Architecture must support all use cases
+- Technology stack must satisfy all NFRs
+- Solutions must fit within stated constraints
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze architectural implications of requirements
+- Research technology category priorities
+- Investigate integration patterns and constraints
+- Study performance and scalability needs
+
+### 5. Planning
+
+Using PLANNING_BASELINE from rehydration:
+- Plan comprehensive architecture analysis via recommend-tech
+- Prepare use cases and requirements for prompter input
+- Plan 20-minute analysis execution strategy
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Are use cases and requirements properly formatted for prompter?
+- Will recommend-tech framework address all architectural needs?
+- Is analysis approach comprehensive enough?
+
+IF plan needs refinement:
+  Return to Planning with architectural adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute architecture generation via progressive technology research:
+
+**READ**: <worktree>/planning/use-cases.md and <worktree>/planning/requirements.md content
+**INVOKE**: `ask subagent prompter on recommend-tech use cases at <worktree>/planning/use-cases.md and requirements <worktree>/planning/requirements.md`
+**TIMEOUT**: 1200 seconds maximum (20 minutes)
+**CAPTURE**: Raw output to <worktree>/planning/architecture.md
+
+### 8. Quality Iteration Loop
+
+Using QUALITY_THRESHOLDS from rehydration:
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Validate 8-phase analysis completion
+  - Check all 9 technology categories addressed
+  - Verify priority justifications and complexity scoring
+  - Assess final confidence level (target ≥ 85%)
+  - Validate architecture addresses all requirements
+
+  IF quality score >= 85% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Technology gaps identified
+    - Priority justification issues
+    - Requirements coverage problems
+    - Confidence level shortfalls
+
+    Refine prompter inputs or approach and return to Execution
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-3.md
+
+Include:
+- Architecture elaboration completed via recommend-tech
+- Technology stack decisions with priority levels
+- Complexity scoring and justification analysis
+- Quality iterations and confidence building
+- Integration patterns and migration considerations
+- Final deliverable: <worktree>/planning/architecture.md with complete technology specification
+
+---
+
+## PHASE 4: TASK GENERATION & ORGANIZATION
+
+**Purpose**: Generate actionable implementation tasks from architecture and requirements
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Transform architecture decisions into parallel development tasks
+
+**DEPENDENCIES**:
+- Input from Phase 1: <worktree>/planning/use-cases.md
+- Input from Phase 2: <worktree>/planning/requirements.md
+- Input from Phase 3: <worktree>/planning/architecture.md
+- Directory structure: <worktree>/pending/ and <worktree>/completed/
+
+**DELIVERABLES**: Individual task files in <worktree>/pending/ ready for parallel development
+
+---
+
+## Phase Activities
+
+### 1. Rehydration & Intelligence Loading
+
+Load accumulated wisdom from previous phases:
+
+Load all prior outputs:
+- Use cases with user workflows and acceptance criteria
+- Requirements with FR/NFR specifications and traceability
+- Architecture with technology stack and implementation patterns
+
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Expected task complexity and organization patterns
+- **RESEARCH_FOCUS**: Implementation areas requiring task breakdown
+- **PLANNING_BASELINE**: Task categorization and dependency strategies
+- **QUALITY_THRESHOLDS**: Expected task count and granularity levels
+
+Document rehydration results in: <worktree>/planning/phase-4.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From architecture: Implementation components and technology choices
+- From requirements: Functional scope and acceptance criteria
+- From use cases: User workflow priorities and dependencies
+- Missing inputs: Note any implementation planning gaps
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- All requirements covered by specific tasks
+- Tasks appropriately granular for parallel development
+- Clear acceptance criteria for each task
+- Dependencies identified and managed
+- Tasks organized in <worktree>/pending/ directory
+
+**ANTI_CRITERIA**: What must be avoided
+- Overly large tasks that block parallel work
+- Task dependencies that create serial bottlenecks
+- Tasks without clear acceptance criteria
+- Missing coverage of critical requirements
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Tasks must align with architecture decisions
+- Implementation must be feasible with selected technology stack
+- Parallel execution must be viable
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze architecture for natural task boundaries
+- Research implementation patterns for selected technologies
+- Study task organization best practices
+- Investigate parallel development strategies
+
+### 5. Planning
+
+Using PLANNING_BASELINE from rehydration:
+- Plan comprehensive task generation strategy
+- Determine task granularity and organization approach
+- Plan feature-task-creator prompter invocation
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Will task generation cover all architectural components?
+- Is approach suitable for parallel development?
+- Are dependencies properly considered?
+
+IF plan needs refinement:
+  Return to Planning with task organization adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute task generation, dependency analysis, and parallel execution planning:
+
+**STEP 1 - Generate Tasks**:
+**INVOKE**: `ask subagent prompter on feature-task-creator use cases: <worktree>/planning/use-cases.md requirements: <worktree>/planning/requirements.md architecture: <worktree>/planning/architecture.md`
+**TIMEOUT**: 1200 seconds maximum (20 minutes)
+**CAPTURE**: Raw markdown output with all task specifications
+
+**STEP 2 - Parse Task Specifications**:
+Parse the markdown output to extract individual task specifications:
+- Identify task boundaries (### Task T###: sections)
+- Extract task ID, name, dependencies, priority, effort
+- Parse epic/story mappings and acceptance criteria
+- Preserve all formatting and implementation details
+
+**STEP 3 - Create Task Files**:
+FOR each parsed task specification:
+  **CREATE**: File <worktree>/pending/TASK-{ID}-{name-slug}.md
+  **CONTENT**: Complete task specification in feature-developer format:
+    - Task ID and name
+    - Epic and story mappings
+    - Priority and effort estimates
+    - Dependencies list
+    - Acceptance criteria
+    - Testing requirements
+    - Implementation notes
+
+**STEP 4 - Generate Dependency Graph**:
+Create mermaid visualization of task dependencies:
+
+```mermaid
+graph TD
+    subgraph "Infrastructure (T001-T099)"
+        T001[Database Setup]
+        T002[CI/CD Pipeline] --> T001
+        T003[Environment Config] --> T001
+    end
+
+    subgraph "Cross-Cutting (T100-T199)"
+        T100[Authentication] --> T001
+        T101[Logging] --> T001
+        T102[Error Handling] --> T001
+    end
+
+    subgraph "Features Wave 1 (T200-T299)"
+        T200[Feature A] --> T100
+        T201[Feature B] --> T100
+        T202[Feature C] --> T101
+    end
+
+    subgraph "Features Wave 2 (T300-T399)"
+        T300[Feature D] --> T200
+        T301[Feature E] --> T201
+    end
+
+    subgraph "Testing (T600-T699)"
+        T600[Integration Tests] --> T300
+        T601[E2E Tests] --> T301
+    end
 ```
-</thinking>
 
-## Quality Validation
-- All requirements have tasks
-- Task dependencies are acyclic
-- Effort estimates are reasonable
-- Priority distribution is balanced
+**STEP 5 - Identify Parallel Execution Waves**:
+Analyze dependencies to create execution waves:
 
-## Output
-- `tasks/pending/*.md` (individual task files)
-- `tasks/task-index.md` (task directory with priorities)
+**Wave 1 - Infrastructure** (Sequential):
+- Tasks T001-T099 with dependencies respected
+- Must complete before other waves
+
+**Wave 2 - Cross-Cutting** (Parallel):
+- Tasks T100-T199 that have no interdependencies
+- Can execute in parallel after infrastructure
+
+**Wave 3 - Features Group A** (Parallel):
+- Tasks T200-T299 with no blocking dependencies
+- Execute: `in parallel ask feature-developer on task <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
+
+**Wave 4 - Features Group B** (Parallel):
+- Tasks T300-T399 depending on Wave 3
+- Execute: `in parallel ask feature-developer on task <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
+
+**Wave 5 - Testing & Deployment** (Sequential):
+- Tasks T600-T699 after all features complete
+- Final validation and deployment tasks
+
+**STEP 6 - Document Execution Strategy**:
+Create <worktree>/planning/parallel-execution-plan.md with:
+- Dependency graph visualization
+- Wave definitions and task groupings
+- Parallel execution commands for each wave
+- Expected completion timeline
+
+### 8. Quality Iteration Loop
+
+Using QUALITY_THRESHOLDS from rehydration:
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Count generated tasks vs. requirements coverage
+  - Validate task granularity for parallel development
+  - Check acceptance criteria completeness
+  - Assess dependency management
+  - Verify all tasks in correct <worktree>/pending/ location
+
+  IF quality score >= 80% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Task coverage gaps identified
+    - Granularity issues found
+    - Dependency problems discovered
+
+    Refine task generation approach and return to Execution
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-4.md
+
+Include:
+- Task generation completed with coverage analysis
+- Total tasks created and organization strategy
+- Dependency analysis and parallel execution readiness
+- Quality iterations and task refinements
+- Final deliverable: Multiple TASK-###.md files in <worktree>/pending/
 
 ---
 
-# PHASE 4: STATE MANAGEMENT & KNOWLEDGE AGGREGATION
+## PHASE 5: PARALLEL FEATURE DEVELOPMENT
 
-You are managing execution state and aggregating learned knowledge.
+**Purpose**: Execute all implementation tasks in parallel via feature-developer agents
 
-## State Persistence
+### Phase Purpose & Dependencies
 
-### Checkpoint Creation
-```json
-{
-  "session_id": "uuid",
-  "phases_completed": [1, 2, 2.5, 3],
-  "total_use_cases": 42,
-  "total_requirements": 132,
-  "total_tasks": 87,
-  "knowledge_gained": {
-    "patterns_discovered": ["real-time", "scalable"],
-    "architecture_decisions": ["monolithic", "postgres"],
-    "technology_choices": ["node.js", "react"]
-  }
-}
+**PHASE_PURPOSE**: Implement all features concurrently using parallel feature-developer agents
+
+**DEPENDENCIES**:
+- Input from Phase 4: Task files in <worktree>/pending/
+- Architecture reference: <worktree>/planning/architecture.md
+- Requirements context: <worktree>/planning/requirements.md and use-cases.md
+- Directory structure: <worktree>/completed/ for finished tasks
+
+**DELIVERABLES**: All tasks completed and moved to <worktree>/completed/ with implementations
+
+---
+
+## Phase Activities
+
+### 1. Rehydration & Intelligence Loading
+
+Load accumulated wisdom from previous phases:
+
+Load all task and planning context:
+- Task files from <worktree>/pending/ with acceptance criteria
+- Architecture decisions for implementation guidance
+- Requirements and use cases for development context
+
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Expected parallel execution patterns and completion criteria
+- **RESEARCH_FOCUS**: Implementation coordination and quality assurance needs
+- **PLANNING_BASELINE**: Parallel agent management strategies
+- **QUALITY_THRESHOLDS**: Task completion rates and quality expectations
+
+Document rehydration results in: <worktree>/planning/phase-5.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From pending directory: All TASK-###.md files requiring implementation
+- From architecture: Technology stack and implementation patterns
+- From requirements: Quality standards and acceptance criteria
+- Missing inputs: Note any task preparation gaps
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- All tasks moved from <worktree>/pending/ to <worktree>/completed/
+- Each task implemented according to acceptance criteria
+- Implementation follows architecture decisions
+- Code quality meets requirements standards
+- No blocking dependencies prevent parallel execution
+
+**ANTI_CRITERIA**: What must be avoided
+- Tasks blocking each other unnecessarily
+- Implementation deviating from architecture
+- Incomplete task implementations
+- Quality standards not met
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Each feature-developer operates independently
+- Shared planning files remain read-only during development
+- Task lifecycle management handled by feature-developer agents
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze task interdependencies for parallel execution
+- Research feature-developer agent coordination patterns
+- Study task completion tracking strategies
+- Investigate quality assurance during parallel development
+
+### 5. Planning
+
+Using PLANNING_BASELINE from rehydration:
+- Plan parallel agent launch strategy
+- Determine task assignment and monitoring approach
+- Plan completion tracking and quality validation
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Are all tasks ready for parallel development?
+- Is feature-developer agent strategy sound?
+- Can task completion be properly tracked?
+
+IF plan needs refinement:
+  Return to Planning with parallel execution adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute wave-based parallel feature development according to execution plan:
+
+**LOAD**: Parallel execution plan from <worktree>/planning/parallel-execution-plan.md
+
+**EXECUTE BY WAVES**:
+
+FOR each execution wave in parallel-execution-plan:
+
+  IF wave.type == "Sequential" THEN:
+    FOR each task in wave.tasks (in dependency order):
+      **INVOKE**: `ask subagent feature-developer <worktree>/pending/TASK-{ID}-*.md`
+      **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
+      **WAIT**: For completion before next task
+
+  ELSE IF wave.type == "Parallel" THEN:
+    **INVOKE**: `in parallel ask feature-developer on task {task1.path} {task2.path} {task3.path} ...`
+    WHERE: task paths are all tasks in current wave with no blocking dependencies
+    **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
+    **WAIT**: For all parallel tasks in wave to complete before next wave
+
+**EXAMPLE WAVE EXECUTION**:
+
+Wave 1 - Infrastructure (Sequential):
+```
+ask subagent feature-developer <worktree>/pending/TASK-001-database-setup.md
+ask subagent feature-developer <worktree>/pending/TASK-002-cicd-pipeline.md
 ```
 
-## Knowledge Aggregation
+Wave 2 - Cross-Cutting (Parallel):
+```
+in parallel ask feature-developer on task \
+  <worktree>/pending/TASK-100-authentication.md \
+  <worktree>/pending/TASK-101-logging.md \
+  <worktree>/pending/TASK-102-error-handling.md
+```
 
-<thinking>
-Knowledge Extraction:
-1. Patterns from use cases
-2. Decisions from requirements
-3. Technologies from architecture
-4. Risks from implementation
+Wave 3 - Features Group A (Parallel):
+```
+in parallel ask feature-developer on task \
+  <worktree>/pending/TASK-200-feature-a.md \
+  <worktree>/pending/TASK-201-feature-b.md \
+  <worktree>/pending/TASK-202-feature-c.md
+```
 
-Knowledge Storage:
-- .ideal-sti/knowledge-base.json
-- Cumulative across sessions
-- Used for future recommendations
-</thinking>
+**COORDINATION**: Each feature-developer agent:
+- Loads specific task from <worktree>/pending/
+- References architecture from <worktree>/planning/architecture.md
+- Implements according to acceptance criteria
+- Moves completed task to <worktree>/completed/ upon successful completion
+- Documents implementation patterns in task file
+
+### 8. Quality Iteration Loop
+
+Using QUALITY_THRESHOLDS from rehydration:
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Count tasks remaining in <worktree>/pending/
+  - Count tasks completed in <worktree>/completed/
+  - Validate implementation quality of completed tasks
+  - Check adherence to architecture decisions
+  - Assess overall development progress
+
+  IF all tasks completed AND quality score >= 80% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Parallel execution bottlenecks identified
+    - Quality issues in implementations
+    - Architecture adherence problems
+    - Task completion blocking factors
+
+    Address issues and continue monitoring parallel development
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-5.md
+
+Include:
+- Parallel feature development completed
+- Total tasks implemented and quality assessment
+- Implementation patterns documented across tasks
+- Quality iterations and issue resolution
+- Architecture adherence analysis
+- Final deliverable: All TASK-###.md files moved to <worktree>/completed/ with implementations
 
 ---
 
-# PHASE 5: TASK VALIDATION & ENHANCEMENT
+## PHASE 6: INTEGRATION & TESTING
 
-You are validating and enhancing generated tasks for implementation readiness.
+**Purpose**: Integrate completed features and execute comprehensive testing
 
-## Validation Agents
-- **code-reviewer**: Check task completeness and clarity
-- **qa-analyst**: Validate test coverage
-- **system-architect**: Ensure architectural alignment
+### Phase Purpose & Dependencies
 
-## Enhancement Process
-1. Add missing technical details
-2. Clarify ambiguous requirements
-3. Add error handling considerations
-4. Include performance requirements
-5. Define monitoring needs
+**PHASE_PURPOSE**: Validate all implementations work together and meet quality standards
 
-## Quality Metrics
-- Task clarity score: >85%
-- Technical completeness: 100%
-- Test coverage defined: 100%
-- Dependencies validated: 100%
+**DEPENDENCIES**:
+- Input from Phase 5: Completed task implementations in <worktree>/completed/
+- Architecture reference: <worktree>/planning/architecture.md
+- Requirements for validation: <worktree>/planning/requirements.md
+- Use cases for test scenarios: <worktree>/planning/use-cases.md
+
+**DELIVERABLES**: Integrated system with test results and quality reports
 
 ---
 
-# PHASE 6: FEATURE-DEVELOPER HANDOFF
+## Phase Activities
 
-You are preparing the final handoff package for implementation.
+### 1. Rehydration & Intelligence Loading
 
-## Handoff Package Contents
+Load accumulated wisdom from previous phases:
 
-### 1. Executive Summary
-- Project overview
-- Total scope metrics
-- Technology decisions
-- Risk assessment
+Load all prior outputs:
+- Task implementations from <worktree>/completed/
+- Architecture patterns from Phase 3
+- Requirements and acceptance criteria from Phases 1-2
+- Implementation learnings from Phase 5
 
-### 2. Implementation Guide
-- Task execution order
-- Dependency graph
-- Critical path analysis
-- Resource requirements
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Expected integration challenges and test patterns
+- **RESEARCH_FOCUS**: Quality assurance areas requiring attention
+- **PLANNING_BASELINE**: Testing strategies and integration approaches
+- **QUALITY_THRESHOLDS**: Test coverage targets and performance benchmarks
 
-### 3. Quality Standards
-- Code review checklist
-- Testing requirements
-- Documentation standards
+Document rehydration results in: <worktree>/planning/phase-6.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From completed tasks: Implementation details and interfaces
+- From architecture: Integration patterns and system design
+- From requirements: Quality criteria and performance targets
+- Missing inputs: Note any incomplete implementations
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- All unit tests passing (>80% coverage)
+- Integration tests successful
+- E2E test scenarios validated
+- Performance benchmarks met
+- Security requirements validated
+
+**ANTI_CRITERIA**: What must be avoided
+- Untested code paths
+- Integration failures
+- Performance regressions
+- Security vulnerabilities
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Test environment availability
+- External service dependencies
+- Data fixtures and test data
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze implementation interfaces for integration points
+- Research testing patterns for technology stack
+- Investigate performance testing approaches
+- Study security testing requirements
+
+### 5. Planning
+
+Using PLANNING_BASELINE from rehydration:
+- Plan integration sequence
+- Design test execution strategy
+- Plan performance benchmarking
+- Schedule security validation
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Are all components ready for integration?
+- Is test coverage comprehensive?
+- Are test environments prepared?
+
+IF plan needs refinement:
+  Return to Planning with testing adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute integration and testing:
+
+**STEP 1 - Component Integration**:
+Integrate all completed components:
+- Verify interface compatibility
+- Resolve integration conflicts
+- Document integration patterns
+
+**STEP 2 - Test Suite Development**:
+IF test specifications needed THEN:
+  **INVOKE**: `ask subagent qa-analyst for test specifications based on <worktree>/completed/ implementations`
+  **TIMEOUT**: 1200 seconds maximum (20 minutes)
+
+**STEP 3 - Test Execution**:
+Execute comprehensive test suite:
+- Unit tests for all components
+- Integration tests for workflows
+- E2E tests for user scenarios
 - Performance benchmarks
+- Security validation
 
-### 4. Task Assignment
-```markdown
-## Priority 1 Tasks (Week 1)
-- TASK-001: Database schema
-- TASK-002: Authentication service
-- TASK-003: Core API endpoints
+**STEP 4 - Quality Analysis**:
+Analyze test results:
+- Calculate code coverage
+- Identify failing tests
+- Document performance metrics
+- Report security findings
 
-## Priority 2 Tasks (Week 2)
-- TASK-010: User interface
-- TASK-011: Admin panel
-...
-```
+### 8. Quality Iteration Loop
 
-## Final Validation
-- All tasks assigned
-- Timeline realistic
-- Resources adequate
-- Risks documented
+Using QUALITY_THRESHOLDS from rehydration:
 
-## Output
-- `docs/handoff-summary.md`
-- `docs/implementation-guide.md`
-- Updated `tasks/pending/*.md` with assignments
+FOR iteration FROM 1 TO 10:
 
----
+  Evaluate against SUCCESS_CRITERIA:
+  - Unit test pass rate and coverage
+  - Integration test success rate
+  - E2E scenario validation
+  - Performance benchmark achievement
+  - Security requirement compliance
 
-# RUNTIME DECISION FRAMEWORK
+  IF quality score >= 85% THEN:
+    Break from loop (phase complete)
 
-## Decision Points
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Test failures identified
+    - Integration issues found
+    - Performance bottlenecks discovered
+    - Security gaps detected
 
-### DECISION 1: Architecture Complexity Level
-**WHEN** requirements are generated  
-**EVALUATE** at runtime:
-```
-IF user_count < 100 AND no_real_time_requirements:
-  SELECT Level 1 (File-based)
-ELSE IF user_count < 1000 AND single_region:
-  SELECT Level 4 (Single Server)
-ELSE IF user_count < 10000:
-  SELECT Level 5 (Multi-Service)
-ELSE:
-  SELECT Level 6+ (Distributed)
-```
+    Address issues and return to Execution
 
-### DECISION 2: Quality Gate Thresholds
-**WHEN** checking quality  
-**ADAPT** based on project size:
-```
-IF use_case_count < 20:
-  SET minimum_requirements = use_case_count * 2
-ELSE IF use_case_count < 50:
-  SET minimum_requirements = use_case_count * 3
-ELSE:
-  SET minimum_requirements = use_case_count * 4
-```
+### 9. Documentation & Knowledge Capture
 
-### DECISION 3: Retry Strategy
-**WHEN** prompter fails  
-**DETERMINE** retry approach:
-```
-IF timeout AND partial_output_exists:
-  CONTINUE from partial
-ELSE IF quality_fail AND specific_gaps:
-  RETRY with targeted prompt
-ELSE IF complete_failure:
-  FALLBACK to manual mode
-```
+Append complete phase results to: <worktree>/planning/phase-6.md
+
+Include:
+- Integration completed with patterns documented
+- Test results and coverage metrics
+- Performance benchmarks achieved
+- Security validation results
+- Quality iterations and issue resolutions
+- Final deliverable: Integrated and tested system
 
 ---
 
-# REHYDRATION FLOW
+## PHASE 7: DEPLOYMENT PREPARATION
 
-```mermaid
-stateDiagram-v2
-    [*] --> CheckState: Start IDEAL-STI
-    
-    CheckState --> FreshStart: No State Found
-    CheckState --> ResumeDialog: State Exists
-    
-    ResumeDialog --> LoadPhase1: Resume Yes
-    ResumeDialog --> FreshStart: Resume No
-    
-    FreshStart --> Phase1: Initialize
-    LoadPhase1 --> Phase1Status: Check Status
-    
-    Phase1Status --> Phase1: Incomplete
-    Phase1Status --> Phase2: Complete
-    
-    Phase1 --> QualityGate1: Execute UC Discovery
-    QualityGate1 --> Phase2: Pass
-    QualityGate1 --> UserFix: Fail
-    
-    UserFix --> Phase1: Retry
-    UserFix --> Abort: Cancel
-    
-    Phase2 --> QualityGate2: Execute Requirements
-    QualityGate2 --> Assembly: Pass
-    QualityGate2 --> Phase2: Retry
-    
-    Assembly --> QualityGate3: Build Document
-    QualityGate3 --> Complete: Pass
-    QualityGate3 --> Assembly: Fix & Retry
-    
-    Complete --> [*]: Success
-    Abort --> [*]: Cancelled
+**Purpose**: Prepare system for production deployment
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Package, configure, and prepare system for production deployment
+
+**DEPENDENCIES**:
+- Input from Phase 6: Tested and integrated system
+- Architecture deployment strategy: <worktree>/planning/architecture.md
+- Infrastructure requirements: From Phase 3 architecture
+- Configuration needs: From requirements and architecture
+
+**DELIVERABLES**: Production-ready deployment package with documentation
+
+---
+
+## Phase Activities
+
+### 1. Rehydration & Intelligence Loading
+
+Load accumulated wisdom from previous phases:
+
+Load all prior outputs:
+- Integration results from Phase 6
+- Architecture deployment decisions from Phase 3
+- Infrastructure requirements
+- Configuration patterns
+
+Generate intelligent predefinitions:
+- **CRITERIA_HINTS**: Deployment readiness patterns
+- **RESEARCH_FOCUS**: Production environment considerations
+- **PLANNING_BASELINE**: Deployment strategies and rollback plans
+- **QUALITY_THRESHOLDS**: Production readiness criteria
+
+Document rehydration results in: <worktree>/planning/phase-7.md
+
+### 2. Input Extraction & Validation
+
+Extract what this phase needs:
+- From integration phase: System components and dependencies
+- From architecture: Deployment topology and infrastructure
+- From requirements: Production SLAs and constraints
+- Missing inputs: Note any deployment blockers
+
+### 3. Criteria Definition (Runtime Intelligence)
+
+Using CRITERIA_HINTS from rehydration, define:
+
+**SUCCESS_CRITERIA**: What constitutes completion
+- Deployment packages created
+- Configuration management ready
+- CI/CD pipeline configured
+- Monitoring and alerting setup
+- Documentation complete
+- Rollback procedures defined
+
+**ANTI_CRITERIA**: What must be avoided
+- Hardcoded configurations
+- Missing environment variables
+- Incomplete deployment scripts
+- No rollback capability
+- Missing monitoring
+
+**DEPENDENCY_CRITERIA**: External requirements
+- Production environment access
+- Deployment credentials
+- External service configurations
+- SSL certificates and security
+
+### 4. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Research deployment best practices for technology stack
+- Investigate container/serverless options
+- Study monitoring and observability patterns
+- Analyze security hardening requirements
+
+### 5. Planning
+
+Using PLANNING_BASELINE from rehydration:
+- Plan deployment packaging strategy
+- Design configuration management
+- Plan CI/CD pipeline setup
+- Schedule deployment validation
+
+### 6. Review & Validation
+
+Before executing, validate the plan:
+- Are all components deployment-ready?
+- Is configuration management comprehensive?
+- Are rollback procedures defined?
+
+IF plan needs refinement:
+  Return to Planning with deployment adjustments
+OTHERWISE:
+  Proceed to execution
+
+### 7. Execution
+
+Execute deployment preparation:
+
+**STEP 1 - Package Creation**:
+Create deployment packages:
+- Build production artifacts
+- Optimize assets and bundles
+- Create container images if needed
+- Package dependencies
+
+**STEP 2 - Configuration Management**:
+Setup configuration for all environments:
+- Environment variables
+- Secrets management
+- Feature flags
+- Service endpoints
+
+**STEP 3 - CI/CD Pipeline**:
+IF deployment automation needed THEN:
+  **INVOKE**: `ask subagent deployment-orchestrator to setup CI/CD pipeline for <worktree>/completed/ system`
+  **TIMEOUT**: 1200 seconds maximum (20 minutes)
+
+**STEP 4 - Monitoring Setup**:
+Configure monitoring and observability:
+- Application metrics
+- System health checks
+- Log aggregation
+- Alert rules
+
+**STEP 5 - Documentation**:
+Create deployment documentation:
+- Deployment procedures
+- Configuration guide
+- Troubleshooting runbook
+- Rollback procedures
+
+### 8. Quality Iteration Loop
+
+Using QUALITY_THRESHOLDS from rehydration:
+
+FOR iteration FROM 1 TO 10:
+
+  Evaluate against SUCCESS_CRITERIA:
+  - Deployment packages validated
+  - Configuration complete for all environments
+  - CI/CD pipeline tested
+  - Monitoring coverage adequate
+  - Documentation comprehensive
+
+  IF quality score >= 90% THEN:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document iteration discoveries
+    - Packaging issues identified
+    - Configuration gaps found
+    - Pipeline problems discovered
+    - Monitoring blind spots detected
+
+    Address issues and return to Execution
+
+### 9. Documentation & Knowledge Capture
+
+Append complete phase results to: <worktree>/planning/phase-7.md
+
+Include:
+- Deployment preparation completed
+- Package and configuration details
+- CI/CD pipeline configuration
+- Monitoring and alerting setup
+- Documentation and runbooks
+- Final deliverable: Production-ready deployment package
+
+---
+
+## GLOBAL END
+
+**Execute AFTER all phases complete to ensure original requirements satisfied**
+
+### Requirements Validation
+
+```markdown
+1. LOAD ORIGINAL REQUIREMENTS:
+   Review <original-requirements> from Global Start
+
+2. EVIDENCE GATHERING:
+   For each requirement in original request:
+   - Search ALL phase outputs for evidence of satisfaction
+   - Check use cases, requirements, architecture, and task implementations
+   - Document gaps or partial solutions
+
+   Create requirements satisfaction matrix:
+   | Requirement | Phase(s) Addressed | Implementation Tasks | Quality Score | Status |
+   |-------------|-------------------|---------------------|---------------|--------|
+   | [req1]      | Phase 1,2,6       | TASK-001, TASK-003 | 8.5/10       | ✅ SATISFIED |
+   | [req2]      | Phase 2,4,6       | TASK-002           | 6.2/10       | ⚠️ PARTIAL |
+```
+
+### Global Quality Score Calculation
+
+```markdown
+GLOBAL_QUALITY_SCORE = (
+  (REQUIREMENTS_SATISFACTION * 0.40) +
+  (COMPLETENESS_SCORE * 0.25) +
+  (COHERENCE_SCORE * 0.20) +
+  (VALUE_DELIVERY * 0.15)
+) * PHASE_CONSISTENCY_MULTIPLIER
+
+MINIMUM_ACCEPTABLE_SCORE = 7.0/10.0
+
+Quality Thresholds:
+- 9.0-10.0: Exceptional - Exceeds expectations
+- 8.0-8.9: Excellent - Fully satisfies with high quality
+- 7.0-7.9: Good - Meets requirements acceptably
+- 6.0-6.9: Marginal - Significant gaps or issues
+- Below 6.0: Unacceptable - Requires remediation
+```
+
+### Meta-Learning Extraction
+
+```markdown
+Extract insights for future prompts:
+
+SUCCESSFUL STRATEGIES:
+- Which rehydration patterns led to better quality?
+- Which criteria types proved most valuable?
+- Which planning approaches yielded best results?
+- Which iteration patterns converged fastest?
+- How effective was parallel task execution?
+
+FAILED APPROACHES:
+- Criteria that proved unmeasurable or misleading
+- Research directions that were dead ends
+- Planning approaches that led to rework
+- Quality patterns that missed issues
+- Parallel execution coordination problems
+
+FRAMEWORK EVOLUTION:
+- Task generation effectiveness and improvements needed
+- Feature-developer coordination patterns that worked/failed
+- Architecture-to-implementation traceability success
+- Quality assurance during parallel development
+```
+
+### Final Documentation
+
+```markdown
+Create comprehensive final report: <worktree>/docs/global-quality-review.md
+
+Include:
+- Requirements satisfaction matrix with evidence
+- Global quality score with detailed breakdown
+- Complete deliverable index for all implementations
+- Task completion analysis and parallel execution effectiveness
+- Meta-learning insights for future IDEAL-STI executions
+- Executive summary for stakeholders
+
+IF Global Quality Score < 7.0 THEN:
+  Execute detailed remediation process:
+  1. GAP ANALYSIS: Identify unsatisfied requirements and failed tasks
+  2. TARGETED RE-EXECUTION: Re-run specific phases or tasks as needed
+  3. QUALITY IMPROVEMENT: Address implementation and architecture gaps
+  4. RE-VALIDATION: Ensure improved global quality score
 ```
 
 ---
 
-# FILE STRUCTURE & ARTIFACTS
+## Framework Behavior Guarantees
 
-```
-project-root/
-├── .ideal-sti/                    # Process state directory
-│   ├── state.json                 # Current execution state
-│   ├── phase1-output.md           # Raw use case expander output
-│   ├── phase2-output.md           # Raw requirements generator output
-│   ├── discovery-seeds.json       # Extracted patterns for Phase 2
-│   ├── traceability-matrix.json   # UC to Req mappings
-│   ├── quality-report.json        # Quality metrics and scores
-│   └── knowledge-base.json        # Accumulated learning
-│
-├── docs/
-│   ├── project-specifications.md  # Final unified document
-│   ├── handoff-summary.md         # Implementation guide
-│   └── implementation-guide.md    # Detailed execution plan
-│
-└── tasks/
-    ├── pending/                    # Individual task files
-    │   ├── TASK-001.md
-    │   ├── TASK-002.md
-    │   └── ...
-    └── task-index.md              # Task directory with priorities
-```
+When using this IDEAL-STI v3.0 framework, these behaviors are guaranteed:
 
----
+1. **PROGRESSIVE KNOWLEDGE BUILDING**: Each phase builds on all previous phases
+2. **TEMPLATE COMPLIANCE**: All phases follow phased-prompt.md 9-activity structure
+3. **CONSISTENT FILE ORGANIZATION**: All planning in <worktree>/planning/, all tasks in pending/completed
+4. **PARALLEL EXECUTION**: Tasks developed concurrently for maximum efficiency
+5. **QUALITY ASSURANCE**: Built-in iteration loops with 10-iteration max per phase
+6. **COMPLETE TRACEABILITY**: Requirements → Use Cases → Architecture → Tasks → Implementation → Testing → Deployment
+7. **GRACEFUL DEGRADATION**: Best effort captured even at iteration limits
+8. **GLOBAL VALIDATION**: Every execution ends with comprehensive requirements validation
 
-# QUALITY GATES SPECIFICATION
+## Execution Summary
 
-## Gate 1: Use Case Discovery Validation (After Phase 1)
+This IDEAL-STI v3.0 implementation provides:
+- **7 Complete Phases** following phased-prompt.md template structure:
+  1. Use Case Discovery
+  2. Requirements Generation
+  3. Architecture Definition (with recommend-tech)
+  4. Task Generation & Organization (with feature-task-creator)
+  5. Parallel Feature Development (with feature-developer agents)
+  6. Integration & Testing (with qa-analyst)
+  7. Deployment Preparation (with deployment-orchestrator)
+- **Progressive Knowledge Building** with rehydration between phases
+- **Complete Task Lifecycle** from pending through completed directories
+- **Quality Assurance** with built-in iteration loops and global validation
+- **Comprehensive Documentation** in structured planning directory
 
-**VALIDATION CRITERIA**:
-```markdown
-CHECK use_case_count >= 5 ELSE "Insufficient use case discovery"
-CHECK actor_coverage >= 2 ELSE "Missing actor perspectives"  
-CHECK granularity_valid == true ELSE "Use cases too coarse/fine"
-CHECK confidence_distribution.HIGH >= 30% ELSE "Too many assumptions"
-```
-
-**RUNTIME DECISION**:
-- **PASS**: Continue to Phase 2
-- **FAIL WITH RETRY**: Re-run Phase 1 with additional context hints
-- **FAIL HARD**: After 3 attempts, escalate to manual review
-
-## Gate 2: Requirements Coverage (After Phase 2)
-
-**VALIDATION CRITERIA**:
-```markdown
-CHECK functional_count >= use_case_count ELSE "Missing functional coverage"
-CHECK nonfunctional_count >= 5 ELSE "Insufficient quality attributes"
-CHECK evidence_scores.average >= 5 ELSE "Weak requirement justification"
-CHECK traceability_complete == true ELSE "Broken UC-to-REQ mapping"
-```
-
-**RUNTIME DECISION**:
-- **PASS**: Continue to Phase 2.5
-- **FAIL**: Identify gaps and re-run Phase 2 with gap focus
-
-## Gate 3: Document Assembly (After Phase 2.5)
-
-**VALIDATION CRITERIA**:
-```markdown
-CHECK index_complete == true ELSE "Missing navigation structure"
-CHECK cross_references_valid == true ELSE "Broken internal links"
-CHECK no_duplicates == true ELSE "Redundant content detected"
-CHECK unified_format == true ELSE "Inconsistent formatting"
-```
-
-**RUNTIME DECISION**:
-- **PASS**: Continue to Phase 3
-- **FAIL**: Re-run assembly with error corrections
-
-## Gate 4: Task Generation (After Phase 3)
-
-**VALIDATION CRITERIA**:
-```markdown
-CHECK all_requirements_covered == true ELSE "Unmapped requirements"
-CHECK dependency_graph_valid == true ELSE "Circular dependencies"
-CHECK effort_estimates_complete == true ELSE "Missing estimates"
-CHECK risk_assessment_done == true ELSE "No risk analysis"
-```
-
-**RUNTIME DECISION**:
-- **PASS**: Continue to Phase 4
-- **WARNING**: Continue with caveats documented
-
-## Gate 5: Final Handoff (After Phase 6)
-
-**VALIDATION CRITERIA**:
-```markdown
-CHECK implementation_ready == true ELSE "Missing critical components"
-CHECK knowledge_persisted == true ELSE "State not saved"
-CHECK feature_developer_package_complete == true ELSE "Incomplete handoff"
-```
-
-**RUNTIME DECISION**:
-- **APPROVED**: Release to implementation
-- **CONDITIONAL**: Release with mandatory reviews
-- **BLOCKED**: Return to identified phase for correction
-
----
-
-# STATE PERSISTENCE PROTOCOL
-
-## Checkpoint Strategy
-
-**AUTOMATIC CHECKPOINTS**:
-```bash
-# After each successful phase
-echo "{
-  \"phase\": \"$CURRENT_PHASE\",
-  \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
-  \"status\": \"completed\",
-  \"outputs\": [...],
-  \"next_phase\": \"$NEXT_PHASE\"
-}" > .ideal-sti/checkpoint-$PHASE.json
-```
-
-**MANUAL CHECKPOINT TRIGGER**:
-```markdown
-IF execution_time > 60_seconds THEN
-  CREATE checkpoint with partial_output flag
-  LOG "Long-running phase checkpoint at $(date)"
-END IF
-```
-
-## Recovery Mechanism
-
-**ON STARTUP CHECK**:
-```markdown
-IF EXISTS .ideal-sti/state.json THEN
-  PROMPT "Previous session detected. Resume from Phase $LAST_PHASE? [Y/n]"
-  IF user_confirms THEN
-    LOAD state from .ideal-sti/
-    SKIP completed phases
-    RESUME from $NEXT_PHASE
-  ELSE
-    ARCHIVE old state to .ideal-sti/archive-$(date +%s)/
-    START fresh execution
-  END IF
-END IF
-```
-
-**PARTIAL OUTPUT HANDLING**:
-```markdown
-IF checkpoint.partial_output == true THEN
-  ANALYZE partial content
-  DETERMINE safe_resume_point
-  IF can_continue THEN
-    APPEND to existing output
-  ELSE
-    RESTART phase with context from partial
-  END IF
-END IF
-```
-
----
-
-# USAGE
-
-To execute IDEAL-STI v3.0:
-
-```markdown
-Transform the following requirements into a comprehensive project specification using IDEAL-STI v3.0 prompt-as-code methodology:
-
-<prompt-arguments>
-[Your project requirements here]
-</prompt-arguments>
-```
-
-The system will:
-1. Check for existing state and offer to resume
-2. Execute use-case-expander prompter for discovery
-3. Execute requirements-generator prompter for synthesis
-4. Assemble unified project-specifications.md
-5. Generate implementation tasks
-6. Prepare feature-developer handoff package
-
-All with comprehensive quality gates, state management, and progressive learning throughout the process.
+Execute this framework to transform user requirements into fully implemented, tested, and deployment-ready systems with maximum parallelization, comprehensive state management, and complete requirements traceability.

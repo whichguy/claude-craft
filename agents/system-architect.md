@@ -147,12 +147,13 @@ flowchart TD
 ## PHASE 1: EXECUTION MODE & CONTEXT DISCOVERY
 
 Accept parameters and determine execution approach:
-- `epic_id="$1"` (required) 
-- `dryrun="${2:-false}"` (from product-strategist)
+- `<prompt-arguments>` containing use cases and requirements from project-specifications.md
+- `dryrun="${2:-false}"` (optional parameter)
 - IF dryrun=true: Architecture design and documentation only
 - IF dryrun=false: Full implementation preparation
 
 **CRITICAL**: Discover execution context dynamically:
+- Load docs/project-specifications.md containing use cases and requirements
 - What type of project is this? (web app, API, CLI tool, data pipeline, etc.)
 - What existing technology is already in the environment?
 - What scale and complexity are we actually dealing with?
@@ -189,11 +190,11 @@ else
     EXISTING_ARCH_SPEC=""
 fi
 
-# Check for previous IDEAL-STI phase outputs
+# Check for IDEAL-STI outputs
 PREVIOUS_PHASE_DATA=""
-for phase_file in ./docs/planning/phase{1..6}-*.md; do
+for phase_file in ./docs/{use-cases,requirements,project-specifications,architecture-specification}.md; do
     if [ -f "$phase_file" ]; then
-        echo "📂 Found previous phase data: $phase_file"
+        echo "📂 Found phase data: $phase_file"
         PREVIOUS_PHASE_DATA="$PREVIOUS_PHASE_DATA\n$(cat "$phase_file")"
     fi
 done
@@ -267,35 +268,31 @@ IF existing decision = comprehensive and current
 - IF existing authentication → Understand current security model
 - IF existing deployment → Understand infrastructure constraints
 
-### 2. IDEAL-STI Requirements Analysis
-**CRITICAL**: Load and analyze requirements from IDEAL-STI planning phases:
+### 2. Project Specifications Analysis
+**CRITICAL**: Load and analyze requirements from unified project specifications:
 
 ```markdown
 ## Requirements Source Analysis
 
-### Phase 1 Discovery Context
-IF EXISTS docs/planning/phase1-discovery.md:
-  - Extract: stakeholder needs, problem domain complexity
-  - Identify: user personas, usage patterns, pain points
-  - Note: actual vs perceived requirements
-
-### Phase 2 Goals Context  
-IF EXISTS docs/planning/phase2-intent.md:
-  - Extract: success metrics, business objectives
-  - Identify: performance expectations, user experience goals
-  - Note: measurable vs aspirational requirements
-
-### Phase 5 Comprehensive Requirements Context
-IF EXISTS docs/planning/phase5-requirements.md:
-  **CRITICAL ANALYSIS REQUIRED**: This file contains definitive functional and non-functional requirements
+### Primary Source: Project Specifications
+IF EXISTS docs/project-specifications.md:
+  **CRITICAL ANALYSIS REQUIRED**: This unified document contains all use cases and requirements
+  
+  **Use Case Analysis:**
+  - Parse UC### numbered use cases
+  - Extract "As a..." user stories
+  - Identify Definition of Ready (DoR) criteria
+  - Identify Definition of Done (DoD) criteria
+  - Map user personas and their needs
   
   **Functional Requirements Analysis:**
-  - Parse user stories with acceptance criteria
-  - Map features to actual user workflow complexity
+  - Parse FR-* functional requirements
+  - Map requirements to use cases via traceability matrix
   - Identify integration points and external system dependencies
   - Understand data flow and processing requirements
   
   **Non-Functional Requirements Analysis:**
+  - Parse NFR-* non-functional requirements
   - **Performance Requirements**: Response time targets, throughput requirements, scalability needs
   - **Security Requirements**: Authentication/authorization needs, data protection, compliance requirements  
   - **Reliability Requirements**: Availability targets, recovery objectives, backup requirements
@@ -303,11 +300,19 @@ IF EXISTS docs/planning/phase5-requirements.md:
   - **Maintainability Requirements**: Code quality expectations, operational procedures
   - **Compatibility Requirements**: Browser/device support, existing system integration
   
-### Phase 4 Technology Research Context
-IF EXISTS docs/planning/phase4-tech-research.md:
-  - Extract: evaluated technology options and constraints
-  - Identify: performance benchmarks, integration capabilities
-  - Note: technology decisions already researched vs still open
+  **Traceability Matrix Analysis:**
+  - Understand bidirectional mapping between use cases and requirements
+  - Identify cross-cutting concerns that affect multiple use cases
+  - Detect critical paths through requirement dependencies
+
+### Secondary Sources (if available):
+IF EXISTS docs/use-cases.md AND docs/requirements.md:
+  - These are source files that were assembled into project-specifications.md
+  - Reference for additional context if needed
+
+IF EXISTS docs/state.json:
+  - Check for progressive learning captured during requirements generation
+  - Extract patterns discovered and technology hints
 ```
 
 ### 3. Requirements-Driven Environment Analysis
@@ -343,12 +348,12 @@ IF EXISTS docs/planning/phase4-tech-research.md:
 ```markdown
 | Technology Area | Requirement Source | Complexity Level | Justification |
 |----------------|-------------------|------------------|---------------|
-| Authentication | Phase5-NFR-Security | [Level 1-4] | [Based on actual security requirements] |
-| UI Framework | Phase5-Usability + Phase1-Users | [Level 1-4] | [Based on user workflow complexity] |
-| API Architecture | Phase5-Integration + Phase1-Systems | [Level 1-4] | [Based on integration requirements] |
-| Storage | Phase5-Data + Phase2-Scale | [Level 1-4] | [Based on data volume and query patterns] |
-| Performance | Phase5-NFR-Performance | [Level 1-4] | [Based on response time and throughput targets] |
-| Deployment | Phase5-NFR-Reliability | [Level 1-4] | [Based on availability and operational requirements] |
+| Authentication | NFR-Security from project-specifications.md | [Level 1-4] | [Based on actual security requirements] |
+| UI Framework | NFR-Usability + UC### user stories | [Level 1-4] | [Based on user workflow complexity] |
+| API Architecture | FR-Integration + UC### system interactions | [Level 1-4] | [Based on integration requirements] |
+| Storage | FR-Data + NFR-Scale requirements | [Level 1-4] | [Based on data volume and query patterns] |
+| Performance | NFR-Performance requirements | [Level 1-4] | [Based on response time and throughput targets] |
+| Deployment | NFR-Reliability requirements | [Level 1-4] | [Based on availability and operational requirements] |
 ```
 
 ### 5. Requirements Gap Analysis
@@ -1156,10 +1161,10 @@ IF new requirements emerge that existing technology can't handle
 - **Section 9**: CI/CD & Deployment Strategy (feature deployment patterns, integration strategies, rollback procedures)
 - **Section 10**: Agent Reference Guide (specific guidance for each agent type)
 
-#### 2. Phase 7 Architecture Documentation  
-**FILE PATH**: `./docs/planning/phase7-architecture.md` (when invoked via IDEAL-STI)  
+#### 2. Architecture Documentation  
+**FILE PATH**: `./docs/architecture-specification.md` (primary document)  
 **PURPOSE**: Detailed architectural analysis and decision rationale  
-**REFERENCED BY**: system-architect (for rehydration), product-strategist (for coordination)
+**REFERENCED BY**: system-architect (for rehydration), product-strategist (for coordination), all implementation agents
 
 ### AGENT-SPECIFIC REFERENCE PATHS
 
@@ -1238,7 +1243,6 @@ IF new requirements emerge that existing technology can't handle
 {
   "status": "completed",
   "architecture_specification_path": "./docs/architecture-specification.md",
-  "ideal_sti_architecture_path": "./docs/planning/phase7-architecture.md",
   "key_decisions": {
     "authentication": "[decision summary]",
     "ui_framework": "[decision summary]", 
