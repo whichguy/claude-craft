@@ -161,14 +161,57 @@ EXECUTE the validated extraction plan:
       TEST_DIR=/tmp/prompt-ab-test-$(date +%Y%m%d-%H%M%S)-$$
       mkdir -p "$TEST_DIR"
 
-      # Determine which version to compare against
+      # Intelligent version selection using content hashes
+      # Get hash of current HEAD version
+      CURRENT_HASH=$(git -C "$REPO_ROOT" show "HEAD:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1)
+
       # Check if current file differs from HEAD
       IF git -C "$REPO_ROOT" diff --quiet HEAD -- "$RELATIVE_PATH" 2>/dev/null THEN:
-        # File is same as HEAD, use previous version
-        VERSION_TO_USE="HEAD~1"
-        VERSION_LABEL="Previous committed version (HEAD~1)"
+        # File is same as HEAD, find previous different version
+        echo "File unchanged from HEAD, searching for previous different version..."
+
+        # Get list of commits that touched this file (limit to 20 for performance)
+        COMMITS=$(git -C "$REPO_ROOT" log --format='%H' -n 20 -- "$RELATIVE_PATH" 2>/dev/null || echo "")
+
+        VERSION_TO_USE=""
+        VERSION_LABEL=""
+
+        # Walk through commits to find first different content
+        for COMMIT in $COMMITS; do
+          # Skip the first commit (HEAD) since we already have its hash
+          if [ -z "$VERSION_TO_USE" ]; then
+            # First iteration is HEAD, skip it
+            VERSION_TO_USE="skip"
+            continue
+          fi
+
+          # Get hash of this commit's version
+          COMMIT_HASH=$(git -C "$REPO_ROOT" show "$COMMIT:$RELATIVE_PATH" 2>/dev/null | sha256sum | cut -d' ' -f1 || echo "")
+
+          # If hash is different, use this version
+          if [ -n "$COMMIT_HASH" ] && [ "$COMMIT_HASH" != "$CURRENT_HASH" ]; then
+            VERSION_TO_USE="$COMMIT"
+            # Get first 7 chars of commit hash for display
+            SHORT_COMMIT=$(echo "$COMMIT" | cut -c1-7)
+            # Get commit message for context
+            COMMIT_MSG=$(git -C "$REPO_ROOT" log -1 --format='%s' "$COMMIT" 2>/dev/null | cut -c1-50)
+            VERSION_LABEL="Previous different version ($SHORT_COMMIT: $COMMIT_MSG)"
+            echo "Found different version at commit $SHORT_COMMIT"
+            break
+          fi
+        done
+
+        # If no different version found, abort
+        if [ "$VERSION_TO_USE" = "skip" ] || [ -z "$VERSION_TO_USE" ]; then
+          ERROR: "No different version found in last 20 commits. File may be newly added or unchanged for many commits."
+          echo "To run A/B test, either:"
+          echo "  1. Make changes to the file and save (uncommitted changes)"
+          echo "  2. Specify explicit version: 'version <commit-hash>'"
+          echo "  3. Use two different files: 'file prompt1.md prompt2.md'"
+          EXIT with status 1
+        fi
       ELSE:
-        # File has uncommitted changes, use HEAD
+        # File has uncommitted changes, use HEAD for comparison
         VERSION_TO_USE="HEAD"
         VERSION_LABEL="Last committed version (HEAD) - comparing uncommitted changes"
       FI
