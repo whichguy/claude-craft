@@ -166,7 +166,7 @@ Determine template location using this strict priority order:
 
    Search locations in priority order (SAME AS /prompt COMMAND):
    a) Git parent project: $(dirname $(git -C "<worktree>" rev-parse --show-toplevel))/.claude/prompts/
-   b) Repository path: <repository-path>/prompts/ (from claude-craft.json discovery)
+   b) Repository path: <repository-path>/prompts/ (from settings.json or claude-craft.json discovery)
    c) Profile level: ~/.claude/prompts/ (user global templates)
 
    # Search pattern for template discovery
@@ -183,7 +183,7 @@ Determine template location using this strict priority order:
    - Display "Template '$TEMPLATE' not found"
    - Show the 3 core searched locations in priority order:
      - Git parent project: $(dirname $GIT_ROOT)/.claude/prompts/
-     - Repository: <repository-path>/prompts/ (from claude-craft.json)
+     - Repository: <repository-path>/prompts/ (from settings.json or claude-craft.json)
      - Profile: ~/.claude/prompts/
    - Suggest using full path or syncing from repository with `/prompt sync`
 
@@ -236,7 +236,7 @@ When you are invoked with arguments, follow these detailed steps precisely:
    - Automatically append ".md" extension to the name
    - Use the shared 3-location discovery logic (same as above):
      a. Git parent project: $(dirname $(git -C "<worktree>" rev-parse --show-toplevel))/.claude/prompts/{name}.md
-     b. Repository: <repository-path>/prompts/{name}.md (from claude-craft.json)
+     b. Repository: <repository-path>/prompts/{name}.md (from settings.json or claude-craft.json)
      c. Profile: ~/.claude/prompts/{name}.md
 
 **Fallback strategies if exact match fails**:
@@ -451,11 +451,13 @@ The user provides a command like: "template-name arg1 arg2 arg3"
 
 **Repository discovery process**:
 1. Get git repository root from <worktree> using git rev-parse
-2. Check for claude-craft.json in {git-parent}/.claude/
-3. If not found, check ~/.claude/claude-craft.json as fallback
-4. Extract "repository.path" field from the JSON configuration
-5. Expand $HOME references to actual paths
-6. Validate that the path contains a prompts/ directory
+2. Check ~/.claude/settings.json for "claude-craft.repo" key (primary source)
+3. If not found, check "repository.path" in ~/.claude/settings.json
+4. If not found, check ~/.claude/claude-craft.json for "repository.path" (backward compatibility)
+5. If not found, check {git-parent}/.claude/claude-craft.json as fallback
+6. Expand $HOME and ~ references to actual paths
+7. Validate that the path exists and contains a prompts/ directory
+8. If no configuration found, check standard locations: ~/claude-craft, ~/Documents/claude-craft, ~/Projects/claude-craft
 
 **Template content processing**:
 1. Read the entire template file contents into memory

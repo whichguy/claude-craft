@@ -48,33 +48,52 @@ case "$FIRST_ARG" in
         # Repository discovery function
         get_repo_path() {
             local repo_path=""
-            local config_file=""
-            
-            # 1. Try project config first (git parent/.claude/claude-craft.json)
-            if [ -n "$GIT_ROOT" ]; then
-                config_file="$(dirname "$GIT_ROOT")/.claude/claude-craft.json"
-                if [ -f "$config_file" ]; then
-                    repo_path=$(jq -r '.repository.path // empty' "$config_file" 2>/dev/null)
+            local settings_file="$HOME/.claude/settings.json"
+
+            # 1. Try settings.json first (primary configuration source)
+            if [ -f "$settings_file" ]; then
+                # Check for claude-craft.repo key
+                repo_path=$(jq -r '."claude-craft.repo" // empty' "$settings_file" 2>/dev/null)
+
+                # If not found, try repository.path
+                if [ -z "$repo_path" ]; then
+                    repo_path=$(jq -r '.repository.path // empty' "$settings_file" 2>/dev/null)
                 fi
             fi
-            
-            # 2. Try profile config (fallback)
-            if [ -z "$repo_path" ] && [ -f "$HOME/.claude/claude-craft.json" ]; then
-                repo_path=$(jq -r '.repository.path // empty' "$HOME/.claude/claude-craft.json" 2>/dev/null)
-            fi
-            
-            # 3. Expand environment variables and validate path
+
+            # 2. Expand environment variables and validate path
             if [ -n "$repo_path" ]; then
-                # Handle $HOME expansion
-                repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g")
+                # Handle $HOME and ~ expansion
+                repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g" | sed "s|^~|$HOME|")
                 # Verify path exists and has extension directories
                 if [ -d "$repo_path" ] && ([ -d "$repo_path/prompts" ] || [ -d "$repo_path/agents" ] || [ -d "$repo_path/commands" ] || [ -d "$repo_path/hooks" ]); then
                     echo "$repo_path"
                     return
                 fi
             fi
-            
-            # 4. Final fallback - current directory if it looks like claude-craft
+
+            # 3. Try claude-craft.json (backward compatibility)
+            local config_file="$HOME/.claude/claude-craft.json"
+            if [ -f "$config_file" ]; then
+                repo_path=$(jq -r '.repository.path // empty' "$config_file" 2>/dev/null)
+                if [ -n "$repo_path" ]; then
+                    repo_path=$(echo "$repo_path" | sed "s|\$HOME|$HOME|g" | sed "s|^~|$HOME|")
+                    if [ -d "$repo_path" ] && [ -d "$repo_path/prompts" ]; then
+                        echo "$repo_path"
+                        return
+                    fi
+                fi
+            fi
+
+            # 4. Check standard locations
+            for check_path in "$HOME/claude-craft" "$HOME/Documents/claude-craft" "$HOME/Projects/claude-craft" "$HOME/repos/claude-craft"; do
+                if [ -d "$check_path" ] && [ -d "$check_path/prompts" ]; then
+                    echo "$check_path"
+                    return
+                fi
+            done
+
+            # 5. Final fallback - current directory if it looks like claude-craft
             local current_dir="$(pwd)"
             if [ -d "$current_dir" ] && ([ -d "$current_dir/prompts" ] || [ -d "$current_dir/agents" ] || [ -d "$current_dir/commands" ] || [ -d "$current_dir/hooks" ]); then
                 echo "$current_dir"
@@ -86,7 +105,22 @@ case "$FIRST_ARG" in
         # Auto-pull latest changes from repository
         if [ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/.git" ]; then
             echo "*Fetching latest extensions from repository...*"
-            git -C "$REPO_DIR" pull --quiet >/dev/null 2>&1 || true
+
+            # Capture git pull output and errors
+            pull_output=$(git -C "$REPO_DIR" pull 2>&1)
+            pull_status=$?
+
+            if [ $pull_status -eq 0 ]; then
+                # Check if there were updates
+                if echo "$pull_output" | grep -q "Already up to date"; then
+                    echo "  ✓ Repository already up to date"
+                else
+                    echo "  ✓ Repository updated successfully"
+                fi
+            else
+                echo "  ⚠️ Warning: Could not update repository"
+                echo "  Error: $(echo "$pull_output" | head -1)"
+            fi
             echo
         fi
         
@@ -98,12 +132,12 @@ case "$FIRST_ARG" in
             [ -d "$type_dir" ] || continue
             
             # Runtime decision: Check each symlink's validity
-            for file in "$type_dir"/*.md 2>/dev/null; do
+            for file in "$type_dir"/*.md; do
                 # Only process symlinks
                 [ -L "$file" ] || continue
                 
                 # Test if symlink target exists at runtime
-                if ! [ -e "$file" ]; then
+                if [ ! -e "$file" ]; then
                     # Broken symlink detected - remove for system hygiene
                     basename_file=$(basename "$file")
                     target=$(readlink "$file" 2>/dev/null || echo "unknown")
@@ -120,27 +154,39 @@ case "$FIRST_ARG" in
             echo
         fi
         
-        # Function to get extension description
+        # Function to get extension description (secured against command injection)
         get_description() {
             local file="$1"
             local description=""
-            
-            # Try YAML frontmatter first
+
+            # Try YAML frontmatter first (using awk for safer processing)
             if grep -q "^---" "$file" 2>/dev/null; then
-                description=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^description:" | sed 's/description:[[:space:]]*//' | tr -d '"' 2>/dev/null || true)
+                description=$(awk '/^---$/ {in_fm=!in_fm; next} in_fm && /^description:/ {
+                    sub(/^description:[[:space:]]*/, "");
+                    gsub(/"/, "");
+                    print;
+                    exit
+                }' "$file" 2>/dev/null || true)
             fi
-            
+
             # Fallback to first non-empty, non-comment line
             if [ -z "$description" ]; then
-                description=$(grep -v "^#\|^---\|^$\|^<!--" "$file" | head -1 | sed 's/^[[:space:]]*//' 2>/dev/null || echo "No description")
+                description=$(awk '!/^#/ && !/^---/ && !/^$/ && !/^<!--/ {
+                    gsub(/^[[:space:]]+/, "");
+                    print;
+                    exit
+                }' "$file" 2>/dev/null || echo "No description")
             fi
-            
+
+            # Sanitize output - remove any shell special characters that could cause injection
+            description=$(printf '%s' "$description" | tr -d '`$()[]{};&|<>' | tr -s ' ')
+
             # Truncate if too long
             if [ ${#description} -gt 60 ]; then
-                description="$(echo "$description" | cut -c1-57)..."
+                description="${description:0:57}..."
             fi
-            
-            echo "$description"
+
+            printf '%s' "$description"
         }
         
         # Function to check if extension is synced
@@ -192,11 +238,21 @@ case "$FIRST_ARG" in
             type_unsynced_found=false
 
             # First pass: check if type has any extensions
-            if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
-                type_has_any=true
+            if [ -d "$type_dir" ]; then
+                for check_file in "$type_dir"/*.md; do
+                    if [ -e "$check_file" ]; then
+                        type_has_any=true
+                        break
+                    fi
+                done
             fi
-            if [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ] && ls "$repo_type_dir"/*.md >/dev/null 2>&1; then
-                type_has_any=true
+            if [ "$type_has_any" = "false" ] && [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ]; then
+                for check_file in "$repo_type_dir"/*.md; do
+                    if [ -f "$check_file" ]; then
+                        type_has_any=true
+                        break
+                    fi
+                done
             fi
 
             # Only process if this type has extensions
@@ -206,12 +262,13 @@ case "$FIRST_ARG" in
 
                 # Section 1: Installed (Symlinked)
                 section_has_items=false
-                if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                if [ -d "$type_dir" ]; then
                     for file in "$type_dir"/*.md; do
-                        [ -e "$file" ] || [ -L "$file" ] || continue
+                        # Skip if pattern didn't match any files
+                        [ -e "$file" ] || continue
                         name=$(basename "$file" .md)
 
-                        # Check if symlinked
+                        # Check if symlinked and target exists
                         if [ -L "$file" ] && [ -e "$file" ]; then
                             if [ "$section_has_items" = "false" ]; then
                                 echo "#### Installed (Symlinked)"
@@ -232,13 +289,14 @@ case "$FIRST_ARG" in
 
                 # Section 2: Local Only
                 section_has_items=false
-                if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                if [ -d "$type_dir" ]; then
                     for file in "$type_dir"/*.md; do
-                        [ -e "$file" ] || continue
+                        # Skip if file doesn't exist or is a glob pattern
+                        [ -f "$file" ] || continue
                         name=$(basename "$file" .md)
 
-                        # Check if NOT symlinked (local only)
-                        if [ ! -L "$file" ]; then
+                        # Check if NOT symlinked (local only) and actually exists as a regular file
+                        if [ -f "$file" ] && [ ! -L "$file" ]; then
                             if [ "$section_has_items" = "false" ]; then
                                 echo "#### Local Only"
                                 echo
@@ -259,8 +317,9 @@ case "$FIRST_ARG" in
 
                 # Section 3: Unsynced (Ready to Sync)
                 section_has_items=false
-                if [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ] && ls "$repo_type_dir"/*.md >/dev/null 2>&1; then
+                if [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ]; then
                     for file in "$repo_type_dir"/*.md; do
+                        # Skip if pattern didn't match any files
                         [ -f "$file" ] || continue
                         name=$(basename "$file" .md)
 
@@ -324,7 +383,7 @@ case "$FIRST_ARG" in
         echo "    ▼                 │"
         echo "┌─────────┐           ▼"
         echo "│ my.md ──┼──► Repository/my.md"
-        echo "│(symlink)│"
+        echo "│\(symlink\)│"
         echo "└─────────┘"
         echo "```"
         echo
@@ -349,10 +408,13 @@ case "$FIRST_ARG" in
             local_dir="$HOME/.claude/$type"
             if [ -d "$local_dir" ]; then
                 for file in "$local_dir"/*.md; do
+                    # Ensure file actually exists
                     [ -f "$file" ] || continue
-                    if ! [ -L "$file" ]; then
+                    if [ ! -L "$file" ]; then
+                        # Regular file, not a symlink
                         local_only_count=$((local_only_count + 1))
-                    else
+                    elif [ -L "$file" ] && [ -e "$file" ]; then
+                        # Valid symlink with existing target
                         installed_count=$((installed_count + 1))
                     fi
                 done
@@ -363,7 +425,10 @@ case "$FIRST_ARG" in
                 for file in "$REPO_DIR/$type"/*.md; do
                     [ -f "$file" ] || continue
                     base_name=$(basename "$file")
-                    if ! [ -e "$local_dir/$base_name" ]; then
+                    local_file="$local_dir/$base_name"
+
+                    # Check if not already installed locally (either as file or symlink)
+                    if [ ! -e "$local_file" ]; then
                         unsynced_count=$((unsynced_count + 1))
                     fi
                 done
@@ -645,7 +710,7 @@ else
         else
             MATCH_COUNT=$(echo "$MATCHES" | wc -l | tr -d ' ')
             # Ensure MATCH_COUNT is a valid number
-            if ! [[ "$MATCH_COUNT" =~ ^[0-9]+$ ]]; then
+            if [[ ! "$MATCH_COUNT" =~ ^[0-9]+$ ]]; then
                 MATCH_COUNT=0
             fi
         fi
