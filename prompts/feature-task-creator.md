@@ -247,6 +247,21 @@ Discover natural breaking points:
 - Core functionality vs enhancements
 - Independent vs dependent features
 
+Establish time estimation heuristics:
+- **Simple CRUD operations**: 2-3 hours
+- **Complex business logic**: 4-5 hours
+- **UI components with state**: 3-4 hours
+- **API endpoint with validation**: 2-3 hours
+- **Database schema changes**: 1-2 hours
+- **Integration with external service**: 4-6 hours
+- **Authentication/authorization**: 4-5 hours
+- **Data migration scripts**: 3-4 hours
+
+Load historical estimation data if available:
+- Check for previous project estimates in <worktree>/historical/
+- Note actual vs estimated times for similar tasks
+- Adjust heuristics based on team velocity
+
 Document patterns for similar requirements.
 ```
 
@@ -300,16 +315,36 @@ For each requirement:
    - Split complex logic into steps
    - Isolate edge case handling
 
-3. Apply time-boxing:
-   - Estimate time for each task
+3. Apply time-boxing with validation:
+   - Estimate time using heuristics from Research phase
+   - Validate against historical data if available
    - Split tasks exceeding 6 hours
+   - Flag estimates that deviate >50% from heuristics for review
 
-4. Map dependencies:
+4. Map dependencies and detect cycles:
    - Note prerequisite tasks
+   - Build directed dependency graph
+   - Run cycle detection algorithm:
+     ```
+     For each task T:
+       visited = empty set
+       recursion_stack = empty set
+       IF detect_cycle(T, visited, recursion_stack):
+         IDENTIFY cycle participants
+         PROPOSE cycle breaking strategy:
+           - Extract shared setup task
+           - Use event-based decoupling
+           - Implement facade pattern
+     ```
    - Identify shared resources
    - Mark parallel opportunities
 
-Generate initial task list with estimates.
+5. Validate time estimates:
+   - Compare against heuristics
+   - Check total time against project timeline
+   - Flag outliers for manual review
+
+Generate initial task list with validated estimates.
 ```
 
 #### 8. Quality Iteration Loop
@@ -528,9 +563,36 @@ Map use cases to tasks:
 | UC-001   | T-1,T-3 | Full    |
 | UC-002   | T-2,T-4 | Full    |
 
-Identify shared context:
+Identify and validate shared context:
 - Extract common patterns across tasks
 - Document shared resources and interfaces
+- Validate interface compatibility:
+  ```
+  For each task T1 with exposed interfaces:
+    For each dependent task T2:
+      IF T2 consumes interface from T1:
+        VERIFY interface contract compatibility:
+          - Data types match
+          - Required fields present
+          - Version compatibility
+        IF incompatible:
+          LOG interface mismatch
+          PROPOSE resolution:
+            - Adapter pattern
+            - Version negotiation
+            - Interface versioning
+  ```
+- Validate shared constraints don't conflict:
+  ```
+  For each shared constraint C:
+    affected_tasks = tasks referencing C
+    IF constraint values differ across tasks:
+      LOG constraint conflict
+      PROPOSE resolution:
+        - Establish single source of truth
+        - Create configuration service
+        - Document precedence rules
+  ```
 - Note integration points between tasks
 - List common constraints and requirements
 
@@ -538,18 +600,21 @@ Generate critical path:
   Identify longest dependency chain
   Mark parallel execution groups
   Note resource bottlenecks
+  Validate no cycles remain after Phase 1 fixes
 
 Generate CI/CD tasks:
   After all feature tasks
   Include pipeline setup tasks
   Add deployment configuration
   Create validation and smoke test tasks
+  Ensure CI/CD tasks reference shared context
 
 Format tasks for feature-developer.md:
   Create individual task files
   Include metadata headers with use cases
-  Add shared context section
+  Add validated shared context section
   Specify dependencies and interfaces
+  Include time estimation confidence level
 ```
 
 #### 8. Quality Iteration Loop
@@ -560,9 +625,11 @@ Iterate until complete validation:
 FOR iteration FROM 1 TO 10:
 
   Calculate validation score:
-  - Coverage: (requirements with tasks / total) * 50
-  - Traceability: (documented links / total) * 30
-  - Format: (valid task files / total) * 20
+  - Coverage: (requirements with tasks / total) * 35
+  - Traceability: (documented links / total) * 25
+  - Format: (valid task files / total) * 15
+  - Interface Compatibility: (compatible interfaces / total) * 15
+  - Constraint Consistency: (consistent constraints / total) * 10
 
   IF validation score >= 95:
     Break from loop (phase complete)
@@ -573,6 +640,16 @@ FOR iteration FROM 1 TO 10:
     For uncovered requirements:
       Create missing tasks
       Update traceability matrix
+
+    For interface mismatches:
+      Fix interface definitions
+      Add adapter tasks if needed
+      Update consuming task specifications
+
+    For constraint conflicts:
+      Resolve to single source of truth
+      Update all affected tasks
+      Document resolution in shared context
 
     For format issues:
       Fix task file structure
@@ -595,6 +672,8 @@ task-id: TASK-NNN
 title: [Clear, actionable title]
 task-type: [feature|setup|migration|infrastructure|ci-cd]
 estimated-hours: N
+estimation-confidence: [high|medium|low]
+estimation-rationale: [Why this estimate - based on heuristics, historical data, or complexity]
 dependencies: [TASK-XXX, TASK-YYY]
 requirements: [REQ-XXX, REQ-YYY]
 use-cases: [UC-XXX, UC-YYY]
@@ -610,20 +689,24 @@ parallel-eligible: [true|false]
 ### Interfaces This Task Exposes
 - [What other tasks can expect from this one]
 - [API contracts, data models, events]
+- [Interface version if applicable]
 
 ### Interfaces This Task Consumes
 - [What this task expects from other tasks]
 - [Dependencies on other task outputs]
+- [Expected interface versions]
 
 ### Shared Constraints
 - [Performance, security, or business rules affecting multiple tasks]
 - [Common patterns all tasks must follow]
+- [Validated to be consistent across all affected tasks]
 
 ## Success Criteria
 [Measurable outcomes that define completion]
 - [ ] Requirement X is satisfied when...
 - [ ] Use case Y works end-to-end when...
 - [ ] Integration with dependent tasks verified
+- [ ] Interface contracts validated
 - [ ] Task marked complete by developer
 
 ## Architecture References
@@ -635,6 +718,7 @@ parallel-eligible: [true|false]
 - This task should be self-contained and independently executable
 - All implementation details determined by feature-developer.md using architecture.md
 - Coordinate with dependent tasks through defined interfaces
+- Time estimate includes setup, implementation, and basic testing
 
 ---
 
