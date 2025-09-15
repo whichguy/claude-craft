@@ -1,1490 +1,917 @@
-# Feature Task Creator: Use Case to Atomic Task Transformation
+# Feature Task Creator: Atomic Task Decomposition Framework
 
-**Template**: feature-task-creator  
-**Context**: `<prompt-arguments>`  
-**Purpose**: Transform use cases and requirements into atomic, implementable tasks for feature-developer agent  
-**Methodology**: Phased prompt-as-code with 5 phases × 7 stages for progressive task generation
+**Template**: feature-task-creator
+**Context**: `<prompt-arguments>`
+**Purpose**: Transform use cases and requirements into atomic tasks for feature-developer.md
+**Methodology**: Prompt-as-code using natural language directives with progressive task atomization
 
 ## Executive Summary
 
-This framework transforms use cases and requirements into atomic, parallel-executable tasks suitable for the feature-developer agent. Through 5 phases of analysis and refinement, it produces fully specified tasks with dependency graphs, ensuring complete requirement coverage and implementation readiness.
+This framework transforms high-level use cases and requirements into **atomic, implementable tasks** suitable for feature-developer.md execution.
 
-**Expected Inputs**: File paths to use-cases.md and requirements.md via `<prompt-arguments>`  
-**Expected Outputs**: Atomic task specifications, dependency graphs, coverage reports, and execution order
+**Core Architecture**:
+- **Global Start**: Framework initialization and document loading
+- **Phase 1**: Analysis & Decomposition (requirements → atomic tasks)
+- **Phase 2**: Validation & Output Generation (tasks → feature-developer format)
+- **Global End**: Comprehensive validation and delivery
 
-## Phase Overview
+**Progressive Intelligence**:
+- Each phase builds on accumulated wisdom through rehydration
+- Quality achieved through iteration loops (max 10 per activity)
+- Knowledge compounds to ensure complete requirement coverage
+
+## Progressive Task Atomization Architecture
+
+This framework creates atomic tasks through intelligent decomposition:
+
+### Decomposition Hierarchy
+
+```
+REQUIREMENTS: High-level user needs
+├── Use Cases: Specific user scenarios
+├── Technical Requirements: System capabilities
+└── Non-Functional Requirements: Quality attributes
+
+ATOMIC TASKS: ≤6 hour implementable units
+├── Setup Tasks: Environment and dependencies
+├── Core Tasks: Primary functionality
+├── Integration Tasks: Component connections
+└── Validation Tasks: Testing and verification
+```
+
+### Quality Through Iteration
+
+- **Phase 1 Iterations**: Refine decomposition until all tasks ≤6 hours
+- **Phase 2 Iterations**: Ensure 100% requirement traceability
+- **Global Validation**: Verify feature-developer.md compatibility
+
+---
+
+## GLOBAL START
+
+**Execute ONCE at the beginning to initialize the framework**
+
+### Framework Initialization
+
+```markdown
+WHEN starting the feature task creation process:
+
+1. SET GLOBAL VARIABLES (once only):
+   <worktree> = $(pwd)  # Never change this
+   <original-requirements> = <prompt-arguments>
+
+2. CREATE DIRECTORY STRUCTURE:
+   mkdir -p "<worktree>/planning"        # Phase documentation
+   mkdir -p "<worktree>/tasks"           # Generated task files
+   mkdir -p "<worktree>/docs"            # Requirements and specs
+
+3. ESTABLISH PATH DISCIPLINE:
+   - NEVER use cd, pushd, popd, or directory changing commands
+   - ALWAYS use absolute paths: <worktree>/tasks/task-001.md
+   - ALWAYS use git -C "<worktree>" for ALL git operations
+
+4. DETERMINE INPUT SOURCES:
+   Parse <prompt-arguments> to identify:
+   - Use cases document path (e.g., docs/use-cases.md)
+   - Requirements document path (e.g., docs/requirements.md)
+   - Architecture document path (e.g., docs/architecture.md)
+
+   IF any document missing THEN:
+     Log warning but continue with available documents
+     Note gaps for manual specification during execution
+
+5. LOAD INITIAL CONTEXT:
+   Read and validate input documents:
+   - Extract use case count and complexity
+   - Identify requirement categories and priorities
+   - Note architectural constraints and decisions
+
+6. ESTABLISH SUCCESS METRICS:
+   - Task Atomicity: 100% of tasks ≤6 hours
+   - Requirement Coverage: 100% requirements have tasks
+   - Dependency Resolution: All dependencies mapped
+   - Output Compatibility: Valid feature-developer.md format
+```
+
+### Task Decomposition Flow Visualization
 
 ```mermaid
 flowchart TD
-    Start[<prompt-arguments>:<br/>use-cases.md<br/>requirements.md] --> P1[Phase 1: Discovery & Extraction<br/>Load and parse inputs]
-    P1 --> P2[Phase 2: Dependency Analysis<br/>Map relationships]
-    P2 --> P3[Phase 3: Task Atomization<br/>Create atomic tasks]
-    P3 --> P4[Phase 4: Task Specification<br/>Generate details]
-    P4 --> P5[Phase 5: Quality Validation<br/>Verify completeness]
-    P5 --> End[Validated Task Plan<br/>Ready for feature-developer]
-    
-    P1 -.-> K1[(Knowledge Base)]
-    P2 -.-> K1
-    P3 -.-> K1
-    P4 -.-> K1
-    P5 -.-> K1
-    
+    Start([Global Start<br/>Load Documents]) --> P1[Phase 1<br/>Analysis & Decomposition]
+
+    subgraph Phase1[Phase 1: Analysis & Decomposition]
+        direction TB
+        P1A[1. Rehydration] --> P1B[2. Input Extraction]
+        P1B --> P1C[3. Criteria Definition]
+        P1C --> P1D[4. Research & Discovery]
+        P1D --> P1E[5. Planning]
+        P1E --> P1F[6. Review & Validation]
+        P1F -->|Issues| P1E
+        P1F -->|Approved| P1G[7. Execution]
+        P1G --> P1H[8. Quality Iteration]
+        P1H -->|Not Atomic| P1G
+        P1H -->|All ≤6hrs| P1I[9. Documentation]
+    end
+
+    P1I --> P2[Phase 2<br/>Validation & Output]
+
+    subgraph Phase2[Phase 2: Validation & Output Generation]
+        direction TB
+        P2A[1. Rehydration] --> P2B[2. Input Extraction]
+        P2B --> P2C[3. Criteria Definition]
+        P2C --> P2D[4. Research & Discovery]
+        P2D --> P2E[5. Planning]
+        P2E --> P2F[6. Review & Validation]
+        P2F -->|Gaps Found| P2E
+        P2F -->|Complete| P2G[7. Execution]
+        P2G --> P2H[8. Quality Iteration]
+        P2H -->|<100% Coverage| P2G
+        P2H -->|Complete| P2I[9. Documentation]
+    end
+
+    P2I --> GlobalEnd([Global End<br/>Final Validation])
+    GlobalEnd --> Output([Task List for<br/>feature-developer.md])
+
     style Start fill:#e1f5fe
-    style End fill:#c8e6c9
-    style K1 fill:#fff9c4
-    style P1 fill:#f3e5f5
-    style P2 fill:#fff3e0
-    style P3 fill:#e8f5e9
-    style P4 fill:#fce4ec
-    style P5 fill:#fff8e1
+    style Phase1 fill:#f3e5f5
+    style Phase2 fill:#fff3e0
+    style GlobalEnd fill:#e8f5e9
+    style Output fill:#c8e6c9
 ```
 
-## Execution Mode
+Framework is now initialized and ready for task decomposition.
+
+---
+
+## Phase 1: Analysis & Decomposition
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Transform requirements and use cases into atomic tasks (≤6 hours each)
+
+**DEPENDENCIES**:
+- Original requirements from `<prompt-arguments>`
+- Use cases document (if available)
+- Requirements document (if available)
+- Architecture document (if available)
+
+**DELIVERABLES**:
+- Atomic task list with time estimates
+- Dependency graph between tasks
+- Task decomposition patterns for reuse
+
+---
+
+### Phase 1 Activities
+
+**Execute activities in sequence with quality loops**
+
+#### 1. Rehydration & Intelligence Loading
+
+Since this is the first phase, establish baseline intelligence:
 
 ```markdown
-EXECUTION_MODE: Direct markdown output
-OUTPUT_STRATEGY: Generate comprehensive markdown document
-FILE_OPERATIONS: None - all processing in memory
-RESULT_FORMAT: Single markdown document with all task specifications
+Initialize decomposition intelligence:
+- No previous phases to load
+- Establish fresh analysis context
+- Prepare decomposition rules and patterns
+
+Document initialization in: <worktree>/planning/phase-1.md
 ```
 
----
+#### 2. Input Extraction & Validation
 
-## Phase 1: Discovery & Extraction
-
-**PHASE_1_PURPOSE**: Extract file paths from arguments, validate existence, load and parse use cases and requirements
-
-### Stage 1.1: Input Extraction
-
-**STAGE_1.1_PURPOSE**: Extract and validate file paths from prompt arguments
-
-BEFORE any other processing:
-  Examine <prompt-arguments> for file paths
-  
-  **STAGE_1.1_INPUT**: <prompt-arguments>
-  
-  Extract from <prompt-arguments>:
-    **USE_CASES_PATH**: path to use cases file (typically docs/use-cases.md)
-    **REQUIREMENTS_PATH**: path to requirements file (typically docs/requirements.md)
-    **ARCHITECTURE_PATH**: path to the architecture definition
-    **TASK_CONTEXT**: any additional context about task creation
-    **IMPLEMENTATION_CONSTRAINTS**: technology or resource constraints
-  
-  IF file paths not found in arguments THEN
-    Search for common patterns:
-      - "./use-cases.md" or "./docs/use-cases.md"
-      - "./requirements.md" or "./docs/requirements.md"
-      - "UC###:" patterns indicating inline use cases
-      - "REQ-###:" patterns indicating inline requirements
-  
-  Track extracted inputs in memory:
-    USE_CASES_PATH = [extracted path]
-    REQUIREMENTS_PATH = [extracted path]
-    TASK_CONTEXT = [any additional context]
-    IMPLEMENTATION_CONSTRAINTS = [constraints]
-  
-  **STAGE_1.1_OUTPUT**: Validated input parameters in memory
-
-### Stage 1.2: Context Preparation
-
-**STAGE_1.2_PURPOSE**: Prepare context for file reading and parsing
-
-WHEN beginning this stage:
-  **STAGE_1.2_INPUT**: Extracted inputs from Stage 1.1
-  
-  Prepare context in memory:
-    - File paths to read
-    - Context parameters
-    - Parsing patterns for use cases and requirements
-  
-  **STAGE_1.2_OUTPUT**: Context ready for file operations
-
-### Stage 1.3: Planning
-
-**STAGE_1.3_PURPOSE**: Plan approach for reading and parsing files
-
-Based on rehydrated context:
-  **STAGE_1.3_INPUT**: Merged context from stages 1.1 and 1.2
-  
-  Plan file reading strategy:
-    1. Validate file existence using test -f
-    2. Read file contents
-    3. Parse use case format (UC###: [Name])
-    4. Parse requirement format (REQ-###: [Description])
-    5. Extract metadata (priorities, categories, dependencies)
-  
-  Track plan in memory:
-    APPROACH: Sequential file reading with structured parsing
-    STEPS:
-      1. Validate USE_CASES_PATH exists
-      2. Validate REQUIREMENTS_PATH exists
-      3. Read and parse use cases
-      4. Read and parse requirements
-      5. Create structured data model
-    SUCCESS_CRITERIA:
-      - All files successfully read
-      - All UC### patterns extracted
-      - All REQ-### patterns extracted
-      - Structured data ready for analysis
-  
-  **STAGE_1.3_OUTPUT**: Documented extraction plan
-
-### Stage 1.4: Review
-
-**STAGE_1.4_PURPOSE**: Validate the extraction plan before execution
-
-Before executing:
-  **STAGE_1.4_INPUT**: Plan from stage 1.3
-  
-  Ask validation questions:
-    - "Do the file paths look correct?"
-    - "Are we prepared for different file formats?"
-    - "Do we handle missing files gracefully?"
-    - "Is the parsing strategy comprehensive?"
-  
-  IF plan incomplete THEN
-    Note issues and return to Stage 1.3 with adjustments
-  OTHERWISE
-    Approve plan and proceed
-  
-  **STAGE_1.4_OUTPUT**: Validated extraction plan
-
-### Stage 1.5: Execution
-
-**STAGE_1.5_PURPOSE**: Read files and parse use cases and requirements with nuance detection
-
-Execute the file reading plan:
-  **STAGE_1.5_INPUT**: Approved plan from stage 1.4
-  
-  Validate file existence:
-    IF NOT file exists at USE_CASES_PATH THEN
-      ERROR: Use cases file not found at USE_CASES_PATH
-      Output error and halt
-    
-    IF NOT file exists at REQUIREMENTS_PATH THEN
-      ERROR: Requirements file not found at REQUIREMENTS_PATH
-      Output error and halt
-  
-  Read and parse use cases:
-    Content = read("<USE_CASES_PATH>")
-    For each line matching "UC[0-9]+:":
-      Extract UC ID, name, description
-      Parse acceptance criteria
-      Identify actors and dependencies
-      Store in structured format
-  
-  Read and parse requirements:
-    Content = read("<REQUIREMENTS_PATH>")
-    For each line matching "REQ-[A-Z]+-[0-9]+:":
-      Extract REQ ID, category, description
-      Parse priority and type
-      Identify related use cases
-      Store in structured format
-  
-  Apply NUANCE_DETECTION_PATTERNS:
-    Performance Indicators:
-      "fast", "quick", "responsive", "real-time", "immediate" → Mark for performance task
-      "within [0-9]+ms", "less than", "under" → Extract specific performance requirement
-    
-    Reliability Indicators:
-      "always", "never", "must", "zero tolerance" → Mark for reliability task
-      "graceful", "fallback", "recover" → Mark for error recovery task
-      "without disruption", "transparently" → Mark for zero-downtime task
-    
-    Security Indicators:
-      "secure", "private", "encrypted", "authenticated" → Mark for security task
-      "permission", "authorized", "access control" → Mark for authorization task
-      "sensitive", "confidential", "protected" → Mark for data protection task
-    
-    Usability Indicators:
-      "intuitive", "easy", "simple", "clear" → Mark for UX task
-      "accessible", "a11y", "screen reader" → Mark for accessibility task
-      "color-coded", "visual", "formatted" → Mark for display task
-    
-    Scale Indicators:
-      "concurrent", "multiple", "parallel", "simultaneous" → Mark for concurrency task
-      "high volume", "scale", "load", "bulk" → Mark for scalability task
-      "batch", "queue", "async" → Mark for async processing task
-  
-  Track progress in memory
-  
-  **STAGE_1.5_OUTPUT**: Parsed use cases and requirements with nuance markers
-
-### Stage 1.6: Quality Check
-
-**STAGE_1.6_PURPOSE**: Iteratively verify extraction completeness and accuracy
-
-Evaluate extraction quality:
-  **STAGE_1.6_INPUT**: Parsed data from stage 1.5
-  
-  FOR iteration FROM 1 TO maximum of 25:
-    Calculate extraction metrics:
-      - Use cases found: [count]
-      - Requirements found: [count]
-      - Parsing errors: [count]
-      - Missing references: [count]
-    
-    Quality questions:
-      - "Did we extract all UC### patterns?"
-      - "Did we capture all REQ-### patterns?"
-      - "Are descriptions complete?"
-      - "Are relationships identified?"
-    
-    Calculate quality score (0-100):
-      score = (extracted_items / expected_items) * 100
-      
-    IF quality score >= 95 THEN
-      Mark phase as complete
-      Break from iteration
-    
-    OTHERWISE identify improvements:
-      - Check for alternative formats
-      - Look for inline requirements
-      - Parse nested structures
-      
-      Adjust parsing patterns
-      Return to Stage 1.5 with refinements
-      Track iteration progress in memory
-  
-  **STAGE_1.6_OUTPUT**: Quality-validated parsed data
-
-### Stage 1.7: Phase Summary
-
-**STAGE_1.7_PURPOSE**: Summarize discoveries for next phases
-
-Summarize extracted data:
-  **STAGE_1.7_INPUT**: Validated data from stages 1.1 through 1.6
-  
-  Store in memory for Phase 2:
-    - Parsed use cases with IDs, names, descriptions, actors, acceptance criteria
-    - Parsed requirements with IDs, categories, descriptions, priorities
-    - Metadata: total counts, extraction quality score
-    - Nuance markers detected
-  
-  **STAGE_1.7_OUTPUT**: Discoveries ready for Phase 2
-
----
-
-## Phase 2: Dependency Analysis
-
-**PHASE_2_PURPOSE**: Identify cross-cutting concerns, infrastructure needs, and map dependencies between use cases
-
-### Stage 2.1: Input Extraction
-
-**STAGE_2.1_PURPOSE**: Extract dependency analysis parameters
-
-BEFORE analysis:
-  **STAGE_2.1_INPUT**: <prompt-arguments> and Phase 1 outputs
-  
-  IF not in Phase 1 outputs, extract from <prompt-arguments>:
-    **DEPENDENCY_RULES**: how to identify dependencies
-    **CROSS_CUTTING_CATEGORIES**: types of concerns to identify
-    **INFRASTRUCTURE_NEEDS**: technology stack requirements
-    **PRIORITY_SCHEME**: how to prioritize tasks
-  
-  Define analysis categories:
-    - Infrastructure: setup, configuration, deployment
-    - Cross-cutting: auth, logging, error handling, caching
-    - Data layer: models, migrations, repositories
-    - API layer: endpoints, validation, serialization
-    - UI layer: components, state, routing
-    - Testing: unit, integration, E2E
-  
-  Track analysis parameters in memory
-  
-  **STAGE_2.1_OUTPUT**: Analysis parameters defined
-
-### Stage 2.2: Data Preparation
-
-**STAGE_2.2_PURPOSE**: Prepare Phase 1 discoveries for analysis
-
-WHEN beginning analysis:
-  **STAGE_2.2_INPUT**: Phase 1 discoveries and Stage 2.1 parameters
-  
-  Access Phase 1 outputs from memory:
-    - Use cases array
-    - Requirements array
-    - Relationships
-  
-  Merge with analysis parameters:
-    - Combine use cases with dependency rules
-    - Apply cross-cutting categories
-    - Create working dataset for analysis
-  
-  **STAGE_2.2_OUTPUT**: Complete dataset for dependency analysis
-
-### Stage 2.3: Planning
-
-**STAGE_2.3_PURPOSE**: Plan dependency discovery approach
-
-Based on loaded data:
-  **STAGE_2.3_INPUT**: Merged dataset from stage 2.2
-  
-  Plan analysis strategy:
-    1. Identify infrastructure requirements
-    2. Find cross-cutting concerns
-    3. Map use case dependencies
-    4. Create dependency graph
-    5. Identify critical path
-    6. Find parallelization opportunities
-  
-  Track plan in memory
-  
-  **STAGE_2.3_OUTPUT**: Dependency analysis plan
-
-### Stage 2.4: Review
-
-**STAGE_2.4_PURPOSE**: Validate analysis approach
-
-Review the plan:
-  **STAGE_2.4_INPUT**: Plan from stage 2.3
-  
-  Validation questions:
-    - "Are all dependency types covered?"
-    - "Is the analysis comprehensive?"
-    - "Do we handle circular dependencies?"
-  
-  **STAGE_2.4_OUTPUT**: Validated analysis plan
-
-### Stage 2.5: Execution
-
-**STAGE_2.5_PURPOSE**: Multi-dimensional dependency analysis with comprehensive coverage
-
-Execute dependency analysis:
-  **STAGE_2.5_INPUT**: Validated plan from stage 2.4
-  
-  Apply MULTI_DIMENSIONAL_ANALYSIS framework:
-  
-  **Infrastructure Dependencies**:
-    - Project initialization and setup
-    - Environment configuration (dev/staging/prod)
-    - Build system and toolchain setup
-    - CI/CD pipeline configuration
-    - Deployment infrastructure
-    - Database setup and migrations
-    - External service integrations
-    - Monitoring and alerting setup
-  
-  **Technical Dependencies**:
-    - Framework and library requirements
-    - API/service dependencies
-    - Database schema dependencies
-    - Message queue requirements
-    - Cache layer needs
-    - Search infrastructure
-    - File storage requirements
-  
-  **Data Dependencies**:
-    For each feature:
-      - Input data requirements and formats
-      - Output data specifications
-      - Data transformation pipelines
-      - Data validation rules
-      - Data persistence patterns
-      - Data access patterns
-      - Data migration needs
-  
-  **Cross-Cutting Concerns**:
-    Scan all requirements for indicators:
-      Authentication: "auth", "login", "user", "session", "token"
-      Authorization: "permission", "role", "access", "allowed"
-      Logging: "log", "audit", "track", "record"
-      Error Handling: "error", "exception", "fail", "recover"
-      Caching: "cache", "performance", "speed", "fast"
-      Security: "secure", "encrypt", "protect", "safe"
-      Validation: "validate", "check", "verify", "ensure"
-      Monitoring: "monitor", "observe", "metric", "telemetry"
-      Rate Limiting: "throttle", "limit", "quota", "restrict"
-  
-  **Integration Analysis**:
-    - External API touchpoints
-    - Third-party service dependencies
-    - Webhook/callback requirements
-    - Event/message bus interactions
-    - Synchronization requirements
-    - Data exchange formats
-    - Backward compatibility needs
-  
-  **Resource Conflicts**:
-    - Shared database tables
-    - Concurrent file access
-    - API rate limits
-    - Memory constraints
-    - CPU-intensive operations
-    - Network bandwidth limits
-    - Lock/mutex requirements
-  
-  **Use Case Dependencies**:
-    For each use case UC_X:
-      For each other use case UC_Y:
-        Analyze relationship types:
-          PREREQUISITE: UC_Y must complete before UC_X
-          COREQUISITE: UC_X and UC_Y must coordinate
-          SHARED_DATA: Both access same data models
-          SHARED_INTERFACE: Both use same UI components
-          SHARED_SERVICE: Both use same backend service
-          CONFLICT: Both modify same resources
-  
-  Build comprehensive dependency graph:
-    Create directed acyclic graph (DAG)
-    Detect and resolve circular dependencies
-    Calculate topological sort
-    Identify critical path
-    Find parallelization opportunities
-    Group independent tasks
-  
-  **STAGE_2.5_OUTPUT**: Multi-dimensional dependency analysis
-
-### Stage 2.6: Quality Check
-
-**STAGE_2.6_PURPOSE**: Validate dependency analysis completeness
-
-Quality validation:
-  **STAGE_2.6_INPUT**: Analysis from stage 2.5
-  
-  FOR iteration FROM 1 TO maximum of 25:
-    Check analysis quality:
-      - All use cases analyzed? [yes/no]
-      - Circular dependencies found? [count]
-      - Cross-cutting concerns complete? [yes/no]
-      - Infrastructure tasks identified? [yes/no]
-    
-    IF all checks pass THEN
-      Break from iteration
-    
-    OTHERWISE refine:
-      - Re-examine unanalyzed items
-      - Resolve circular dependencies
-      - Add missing concerns
-      
-      Return to Stage 2.5 with improvements
-  
-  **STAGE_2.6_OUTPUT**: Validated dependency analysis
-
-### Stage 2.7: Phase Summary
-
-**STAGE_2.7_PURPOSE**: Summarize dependency analysis for next phases
-
-Summarize analysis results:
-  **STAGE_2.7_INPUT**: Validated analysis from all stages
-  
-  Store in memory for Phase 3:
-    - Infrastructure tasks identified
-    - Cross-cutting concerns mapped
-    - Use case dependencies analyzed
-    - Dependency graph structure
-    - Critical path calculated
-    - Parallel execution groups identified
-  
-  **STAGE_2.7_OUTPUT**: Dependency analysis ready for Phase 3
-
----
-
-## Phase 3: Task Atomization
-
-**PHASE_3_PURPOSE**: Transform use cases and requirements into atomic, implementable tasks
-
-### Stage 3.1: Input Extraction
-
-**STAGE_3.1_PURPOSE**: Extract atomization rules and constraints
-
-Extract task creation parameters:
-  **STAGE_3.1_INPUT**: <prompt-arguments> and previous phases
-  
-  IF not defined, extract from <prompt-arguments>:
-    **MAX_TASK_EFFORT**: maximum hours per task (default: 6)
-    **TASK_GRANULARITY**: preferred task size (small/medium/large)
-    **PARALLELIZATION_GOAL**: optimize for parallel execution
-    **LAYER_SEPARATION**: enforce architectural layers
-  
-  Define atomization rules:
-    - One task = One file OR One component OR One endpoint
-    - Maximum effort: 6 hours
-    - Single responsibility principle
-    - Clear input/output boundaries
-    - Testable in isolation
-  
-  **STAGE_3.1_OUTPUT**: Atomization parameters defined
-
-### Stage 3.2: Data Preparation
-
-**STAGE_3.2_PURPOSE**: Prepare discoveries and dependencies for task creation
-
-Access previous phase outputs from memory:
-  **STAGE_3.2_INPUT**: Phase 1 and 2 outputs, Stage 3.1 parameters
-  
-  From Phase 1:
-    - Use cases with descriptions
-    - Requirements with categories
-    - Relationships and actors
-  
-  From Phase 2:
-    - Infrastructure tasks
-    - Cross-cutting concerns
-    - Dependency graph
-    - Critical path
-  
-  Merge into working dataset:
-    - Each use case → potential tasks
-    - Each requirement → implementation needs
-    - Dependencies → task ordering
-  
-  **STAGE_3.2_OUTPUT**: Complete dataset for atomization
-
-### Stage 3.3: Planning
-
-**STAGE_3.3_PURPOSE**: Plan task decomposition strategy
-
-Plan atomization approach:
-  **STAGE_3.3_INPUT**: Merged dataset from stage 3.2
-  
-  Strategy for each use case:
-    1. Identify affected layers (UI, API, Data, Logic)
-    2. Create task per layer per component
-    3. Ensure single responsibility
-    4. Map to requirements
-    5. Assign preliminary IDs
-    6. Estimate effort
-  
-  Track plan in memory
-  
-  **STAGE_3.3_OUTPUT**: Atomization plan
-
-### Stage 3.4: Review
-
-**STAGE_3.4_PURPOSE**: Validate atomization strategy
-
-Review atomization plan:
-  **STAGE_3.4_INPUT**: Plan from stage 3.3
-  
-  Validation:
-    - "Is granularity appropriate?"
-    - "Are tasks truly atomic?"
-    - "Can tasks execute in parallel?"
-  
-  **STAGE_3.4_OUTPUT**: Validated atomization plan
-
-### Stage 3.5: Execution
-
-**STAGE_3.5_PURPOSE**: Decompose use cases into atomic tasks with comprehensive rules
-
-Execute atomization:
-  **STAGE_3.5_INPUT**: Validated plan from stage 3.4
-  
-  Apply DECOMPOSITION_RULES framework:
-  
-  **Complexity-Based Decomposition**:
-    For each requirement R:
-      IF effort_estimate > 6 hours THEN
-        Apply recursive decomposition:
-          1. Identify logical sub-components
-          2. Split into preparation, implementation, validation tasks
-          3. Each sub-task must be ≤ 6 hours
-          4. Maintain clear boundaries between sub-tasks
-  
-  **Layer-Based Decomposition**:
-    For each use case UC:
-      
-      IF UC requires data storage THEN
-        Create task: "T###: Design [Entity] data schema"
-        Create task: "T###: Create [Entity] data model"
-        Create task: "T###: Implement [Entity] repository"
-        Create task: "T###: Create database migrations"
-        Create task: "T###: Add data validation rules"
-        Create task: "T###: Implement data access patterns"
-      
-      IF UC requires API THEN
-        Create task: "T###: Design API contract for [Action]"
-        Create task: "T###: Implement [Action] endpoint"
-        Create task: "T###: Add request validation"
-        Create task: "T###: Add response serialization"
-        Create task: "T###: Implement error responses"
-        Create task: "T###: Add API documentation"
-      
-      IF UC requires business logic THEN
-        Create task: "T###: Design [Feature] service interface"
-        Create task: "T###: Implement [Feature] service"
-        Create task: "T###: Add business validation rules"
-        Create task: "T###: Implement [Algorithm]"
-        Create task: "T###: Add transaction management"
-        Create task: "T###: Implement retry logic"
-      
-      IF UC requires UI THEN
-        Create task: "T###: Design [Component] interface"
-        Create task: "T###: Create [Component] component"
-        Create task: "T###: Implement [Feature] view"
-        Create task: "T###: Add state management"
-        Create task: "T###: Implement user interactions"
-        Create task: "T###: Add form validation"
-        Create task: "T###: Implement responsive design"
-      
-      IF UC requires integration THEN
-        Create task: "T###: Design integration interface"
-        Create task: "T###: Implement integration adapter"
-        Create task: "T###: Add retry/circuit breaker"
-        Create task: "T###: Implement data mapping"
-        Create task: "T###: Add integration monitoring"
-  
-  **Requirement-Type Decomposition**:
-    For each requirement by type:
-      
-      FUNCTIONAL requirements:
-        - Core implementation task
-        - Validation task
-        - Error handling task
-      
-      PERFORMANCE requirements:
-        - Baseline measurement task
-        - Optimization implementation task
-        - Performance testing task
-      
-      SECURITY requirements:
-        - Threat modeling task
-        - Security implementation task
-        - Security testing task
-      
-      USABILITY requirements:
-        - UX design task
-        - Implementation task
-        - Accessibility task
-      
-      RELIABILITY requirements:
-        - Failure mode analysis task
-        - Resilience implementation task
-        - Chaos testing task
-  
-  **Cross-Cutting Decomposition**:
-    For each cross-cutting concern:
-      
-      AUTHENTICATION:
-        Create task: "T###: Design auth architecture"
-        Create task: "T###: Implement auth provider"
-        Create task: "T###: Add session management"
-        Create task: "T###: Implement token validation"
-      
-      AUTHORIZATION:
-        Create task: "T###: Design permission model"
-        Create task: "T###: Implement role system"
-        Create task: "T###: Add access control checks"
-      
-      LOGGING:
-        Create task: "T###: Design logging strategy"
-        Create task: "T###: Implement structured logging"
-        Create task: "T###: Add audit logging"
-      
-      ERROR_HANDLING:
-        Create task: "T###: Design error taxonomy"
-        Create task: "T###: Implement error handlers"
-        Create task: "T###: Add error recovery"
-      
-      MONITORING:
-        Create task: "T###: Define metrics/SLIs"
-        Create task: "T###: Implement instrumentation"
-        Create task: "T###: Create dashboards"
-  
-  **Testing Decomposition**:
-    For each feature F:
-      Create task: "T###: Write unit tests for [F]"
-      Create task: "T###: Create integration tests for [F]"
-      Create task: "T###: Add E2E test scenarios for [F]"
-      Create task: "T###: Add performance tests for [F]"
-      Create task: "T###: Add security tests for [F]"
-  
-  **Infrastructure Decomposition**:
-    For each infrastructure need:
-      Create task: "T###: Design [Infrastructure] architecture"
-      Create task: "T###: Implement [Infrastructure] setup"
-      Create task: "T###: Add configuration management"
-      Create task: "T###: Create deployment scripts"
-      Create task: "T###: Add monitoring/alerting"
-  
-  Apply task numbering:
-    - Infrastructure tasks: T001-T099
-    - Cross-cutting tasks: T100-T199
-    - Core feature tasks: T200-T599
-    - Testing tasks: T600-T699
-    - Documentation tasks: T700-T799
-  
-  **STAGE_3.5_OUTPUT**: Comprehensively decomposed atomic task list
-
-### Stage 3.6: Quality Check
-
-**STAGE_3.6_PURPOSE**: Validate task atomicity and completeness
-
-Validate atomization:
-  **STAGE_3.6_INPUT**: Task list from stage 3.5
-  
-  FOR iteration FROM 1 TO maximum of 25:
-    Check each task:
-      - Single responsibility? [yes/no]
-      - Effort ≤ 6 hours? [yes/no]
-      - Clear boundaries? [yes/no]
-      - Testable in isolation? [yes/no]
-    
-    Check coverage:
-      - All use cases have tasks? [yes/no]
-      - All requirements addressed? [yes/no]
-      - All layers covered? [yes/no]
-    
-    IF all validations pass THEN
-      Break from iteration
-    
-    OTHERWISE refine:
-      - Split large tasks
-      - Combine tiny tasks
-      - Clarify boundaries
-      
-      Return to Stage 3.5 with adjustments
-  
-  **STAGE_3.6_OUTPUT**: Validated atomic tasks
-
-### Stage 3.7: Phase Summary
-
-**STAGE_3.7_PURPOSE**: Summarize atomic tasks for specification phase
-
-Summarize task list:
-  **STAGE_3.7_INPUT**: Validated tasks from all stages
-  
-  Store in memory for Phase 4:
-    - Complete list of atomic tasks with IDs
-    - Task types and layers
-    - Effort estimates
-    - Use case and requirement mappings
-    - Dependencies
-    - Task boundaries (input/output/scope)
-    - Statistics (total tasks, by type, by effort, parallelizable)
-  
-  **STAGE_3.7_OUTPUT**: Atomic task list ready for Phase 4
-
----
-
-## Phase 4: Task Specification
-
-**PHASE_4_PURPOSE**: Generate detailed specifications in feature-developer agent format
-
-### Stage 4.1: Input Extraction
-
-**STAGE_4.1_PURPOSE**: Extract specification format requirements
-
-Extract specification parameters:
-  **STAGE_4.1_INPUT**: <prompt-arguments> and feature-developer requirements
-  
-  Required fields for feature-developer:
-    **EPIC_MAPPING**: how to group tasks into epics
-    **STORY_MAPPING**: how to assign stories
-    **PRIORITY_SCHEME**: P0 (critical) to P3 (low)
-    **EFFORT_UNITS**: hours (1h, 2h, 4h, 6h)
-    **TYPE_CATEGORIES**: Infrastructure|Feature|API|Data|UI|Test|Security|Performance
-  
-  **STAGE_4.1_OUTPUT**: Specification parameters
-
-### Stage 4.2: Data Preparation
-
-**STAGE_4.2_PURPOSE**: Prepare all previous outputs for specification generation
-
-Access all phases from memory:
-  **STAGE_4.2_INPUT**: Phases 1-3 outputs and Stage 4.1 parameters
-  
-  From Phase 1: Use cases and requirements
-  From Phase 2: Dependencies and critical path
-  From Phase 3: Atomic tasks with boundaries
-  
-  Create specification dataset:
-    - Map tasks to epics/stories
-    - Apply priority scheme
-    - Include dependency chains
-  
-  **STAGE_4.2_OUTPUT**: Complete dataset for specifications
-
-### Stage 4.3: Planning
-
-**STAGE_4.3_PURPOSE**: Plan specification generation
-
-Plan specification approach:
-  **STAGE_4.3_INPUT**: Merged dataset from stage 4.2
-  
-  For each atomic task:
-    1. Assign epic and story IDs
-    2. Calculate priority based on critical path
-    3. Confirm effort estimate
-    4. List explicit dependencies
-    5. Generate acceptance criteria
-    6. Define testing requirements
-  
-  **STAGE_4.3_OUTPUT**: Specification plan
-
-### Stage 4.4: Review
-
-**STAGE_4.4_PURPOSE**: Validate specification approach
-
-Review specification plan:
-  **STAGE_4.4_INPUT**: Plan from stage 4.3
-  
-  Validate:
-    - "All required fields covered?"
-    - "Format matches feature-developer?"
-    - "Dependencies explicit?"
-  
-  **STAGE_4.4_OUTPUT**: Validated specification plan
-
-### Stage 4.5: Execution
-
-**STAGE_4.5_PURPOSE**: Generate detailed task specifications
-
-Generate specifications:
-  **STAGE_4.5_INPUT**: Validated plan from stage 4.4
-  
-  For each task T:
-    Generate specification:
-      
-      ### Task {T.id}: {T.name}
-      
-      **Epic**: EPIC-{epic_number} ({epic_name})
-      **Story**: STORY-{story_number} ({story_name})
-      **Priority**: P{0-3} based on critical path position
-      **Effort**: {T.estimated_effort}
-      **Dependencies**: [{dep_tasks}] or [None]
-      **Type**: {T.type}
-      
-      **Objective**: {single_clear_goal}
-      
-      **Technical Specification**:
-      - **Input**: {T.boundaries.input}
-      - **Output**: {T.boundaries.output}
-      - **Files to Create/Modify**:
-        - `path/to/file1.ext` - {purpose}
-        - `path/to/file2.ext` - {purpose}
-      
-      **Implementation Requirements**:
-      1. {specific_requirement_1}
-      2. {specific_requirement_2}
-      3. {specific_requirement_3}
-      
-      **Acceptance Criteria**:
-      - [ ] {testable_criterion_1}
-      - [ ] {testable_criterion_2}
-      - [ ] {testable_criterion_3}
-      
-      **Testing Requirements**:
-      - Unit tests for {specific_functions}
-      - Integration tests for {specific_flows}
-      - Edge cases: {specific_scenarios}
-      
-      **Notes for feature-developer**:
-      - {special_considerations}
-      - {suggested_approach}
-      - {potential_gotchas}
-  
-  **STAGE_4.5_OUTPUT**: Complete task specifications
-
-### Stage 4.6: Quality Check
-
-**STAGE_4.6_PURPOSE**: Validate specification completeness
-
-Validate specifications:
-  **STAGE_4.6_INPUT**: Specifications from stage 4.5
-  
-  FOR iteration FROM 1 TO maximum of 25:
-    Check each specification:
-      - All required fields present? [yes/no]
-      - Dependencies valid? [yes/no]
-      - Acceptance criteria clear? [yes/no]
-      - Testing requirements defined? [yes/no]
-    
-    IF all specifications complete THEN
-      Break from iteration
-    
-    OTHERWISE improve:
-      - Add missing fields
-      - Clarify vague criteria
-      - Expand testing requirements
-      
-      Return to Stage 4.5 with improvements
-  
-  **STAGE_4.6_OUTPUT**: Validated specifications
-
-### Stage 4.7: Phase Summary
-
-**STAGE_4.7_PURPOSE**: Prepare complete specifications for validation
-
-Summarize specifications:
-  **STAGE_4.7_INPUT**: All validated specifications
-  
-  Store in memory for Phase 5:
-    - Complete task specifications
-    - Epic and story mappings
-    - Priority distribution
-    - Total effort calculation
-  
-  **STAGE_4.7_OUTPUT**: Complete task specifications ready for validation
-
----
-
-## Phase 5: Quality Validation
-
-**PHASE_5_PURPOSE**: Comprehensive validation ensuring all requirements covered and tasks ready for implementation
-
-### Stage 5.1: Input Extraction
-
-**STAGE_5.1_PURPOSE**: Extract validation criteria
-
-Extract validation parameters:
-  **STAGE_5.1_INPUT**: <prompt-arguments> and all phases
-  
-  Define validation criteria:
-    **COVERAGE_REQUIREMENT**: 100% of use cases and requirements
-    **DEPENDENCY_VALIDATION**: No circular, all resolvable
-    **EFFORT_VALIDATION**: Reasonable and achievable
-    **COMPLETENESS_CHECK**: All tasks fully specified
-  
-  **STAGE_5.1_OUTPUT**: Validation criteria defined
-
-### Stage 5.2: Data Preparation
-
-**STAGE_5.2_PURPOSE**: Prepare all outputs for final validation
-
-Access everything from memory:
-  **STAGE_5.2_INPUT**: All phase outputs and Stage 5.1 criteria
-  
-  From all phases:
-    - Phase 1: Original use cases and requirements
-    - Phase 2: Dependencies and critical path
-    - Phase 3: Atomic task list
-    - Phase 4: Complete specifications
-  
-  Create validation dataset
-  
-  **STAGE_5.2_OUTPUT**: Complete dataset for validation
-
-### Stage 5.3: Planning
-
-**STAGE_5.3_PURPOSE**: Plan validation approach
-
-Plan validation:
-  **STAGE_5.3_INPUT**: Complete dataset from stage 5.2
-  
-  Validation strategy:
-    1. Coverage analysis
-    2. Dependency validation
-    3. Effort assessment
-    4. Completeness check
-    5. Implementation readiness
-  
-  **STAGE_5.3_OUTPUT**: Validation plan
-
-### Stage 5.4: Review
-
-**STAGE_5.4_PURPOSE**: Review validation approach
-
-Review plan:
-  **STAGE_5.4_INPUT**: Plan from stage 5.3
-  
-  Ensure comprehensive validation
-  
-  **STAGE_5.4_OUTPUT**: Approved validation plan
-
-### Stage 5.5: Execution
-
-**STAGE_5.5_PURPOSE**: Execute comprehensive validation with requirement traceability
-
-Perform validation:
-  **STAGE_5.5_INPUT**: Approved plan from stage 5.4
-  
-  Build REQUIREMENT_TRACEABILITY_MATRIX:
-    Create matrix structure:
-      Rows: All requirements (REQ-###)
-      Columns: All tasks (T###)
-      Cells: Coverage relationship
-    
-    For each requirement REQ:
-      For each task T:
-        Determine coverage type:
-          DIRECT: Task directly implements requirement
-          PARTIAL: Task partially addresses requirement
-          INDIRECT: Task enables requirement
-          NONE: No relationship
-        
-        Mark cell with coverage type
-        Track coverage percentage
-    
-    Generate traceability report:
-      ```markdown
-      ## Requirement Traceability Matrix
-      
-      | Requirement | Description | Tasks | Coverage |
-      |-------------|-------------|-------|----------|
-      | REQ-FUN-001 | User login | T101, T102, T103 | 100% |
-      | REQ-FUN-002 | Data export | T201, T202 (partial) | 75% |
-      | REQ-SEC-001 | Encryption | T301 | 100% |
-      | REQ-PER-001 | < 200ms response | T401, T402, T403 | 100% |
-      
-      ### Coverage Summary
-      - Fully Covered: X requirements (Y%)
-      - Partially Covered: X requirements (Y%)
-      - Not Covered: X requirements (Y%)
-      
-      ### Uncovered Requirements
-      [List any requirements with 0% coverage]
-      
-      ### High-Risk Partial Coverage
-      [List critical requirements with < 100% coverage]
-      ```
-  
-  Coverage analysis:
-    For each use case UC:
-      Check: Has corresponding tasks? [yes/no]
-      Track: Task IDs that implement UC
-      Calculate: Implementation completeness
-      
-      If UC not fully covered:
-        Document gap: "UC### missing [component]"
-        Suggest additional task
-    
-    For each requirement REQ:
-      Check: Addressed by tasks? [yes/no]
-      Track: Task IDs that implement REQ
-      Analyze: Coverage percentage
-      
-      If REQ not fully covered:
-        Document gap: "REQ-### needs [aspect]"
-        Identify missing task type
-    
-    Calculate overall coverage:
-      use_case_coverage = (covered_UCs / total_UCs) * 100
-      requirement_coverage = (covered_REQs / total_REQs) * 100
-      overall_coverage = (use_case_coverage + requirement_coverage) / 2
-  
-  Dependency validation:
-    Build dependency graph
-    Run cycle detection algorithm
-    If circular dependencies found:
-      Document cycles
-      Suggest resolution
-    
-    Verify all task dependencies exist:
-      For each task T with dependencies D:
-        Verify each D references valid task
-        Check dependency is logically sound
-    
-    Calculate critical path:
-      Find longest dependency chain
-      Identify bottleneck tasks
-      Count parallel execution groups
-  
-  Effort assessment:
-    Calculate totals:
-      total_effort = sum(all task efforts)
-      average_effort = total_effort / task_count
-      
-    Distribution analysis:
-      infrastructure_effort = sum(T001-T099)
-      crosscutting_effort = sum(T100-T199)
-      feature_effort = sum(T200-T599)
-      testing_effort = sum(T600-T699)
-      
-    Identify imbalances:
-      If testing_effort < feature_effort * 0.3:
-        Warning: Insufficient testing coverage
-      If infrastructure_effort > feature_effort:
-        Warning: Heavy infrastructure overhead
-  
-  Completeness validation:
-    For each task T:
-      Check required fields:
-        - Has ID? [yes/no]
-        - Has name? [yes/no]
-        - Has epic? [yes/no]
-        - Has story? [yes/no]
-        - Has priority? [yes/no]
-        - Has effort? [yes/no]
-        - Has dependencies? [yes/no/none]
-        - Has acceptance criteria? [yes/no]
-        - Has testing requirements? [yes/no]
-      
-      If any field missing:
-        Mark task incomplete
-        Document missing field
-  
-  Nuance coverage check:
-    Review nuance markers from Phase 1:
-      For each nuance marker:
-        Check: Has corresponding task? [yes/no]
-        Track: Which task addresses it
-      
-      Performance nuances → Performance tasks
-      Security nuances → Security tasks
-      Usability nuances → UX tasks
-      Scale nuances → Scalability tasks
-  
-  **STAGE_5.5_OUTPUT**: Comprehensive validation results with traceability matrix
-
-### Stage 5.6: Quality Check
-
-**STAGE_5.6_PURPOSE**: Ensure validation is thorough with comprehensive checklist
-
-Validate the validation:
-  **STAGE_5.6_INPUT**: Validation results from stage 5.5
-  
-  Apply COMPLETENESS_VALIDATION_CHECKLIST:
-  
-  FOR iteration FROM 1 TO maximum of 25:
-    
-    **Requirements Coverage Checklist**:
-      □ All functional requirements have tasks? [yes/no]
-      □ All non-functional requirements addressed? [yes/no]
-      □ All security requirements implemented? [yes/no]
-      □ All performance requirements measured? [yes/no]
-      □ All usability requirements designed? [yes/no]
-      □ All compliance requirements met? [yes/no]
-      □ Traceability matrix shows 100% coverage? [yes/no]
-    
-    **Use Case Coverage Checklist**:
-      □ All use cases have implementation tasks? [yes/no]
-      □ All actors have interface tasks? [yes/no]
-      □ All acceptance criteria have test tasks? [yes/no]
-      □ All edge cases have handling tasks? [yes/no]
-      □ All error scenarios have recovery tasks? [yes/no]
-    
-    **Task Completeness Checklist**:
-      □ All tasks have unique IDs? [yes/no]
-      □ All tasks have clear objectives? [yes/no]
-      □ All tasks ≤ 6 hours effort? [yes/no]
-      □ All tasks have defined boundaries? [yes/no]
-      □ All tasks have acceptance criteria? [yes/no]
-      □ All tasks have test requirements? [yes/no]
-      □ All task dependencies valid? [yes/no]
-    
-    **Cross-Cutting Checklist**:
-      □ Authentication tasks defined? [yes/no/na]
-      □ Authorization tasks defined? [yes/no/na]
-      □ Logging tasks defined? [yes/no/na]
-      □ Error handling tasks defined? [yes/no/na]
-      □ Monitoring tasks defined? [yes/no/na]
-      □ Security tasks defined? [yes/no/na]
-      □ Performance tasks defined? [yes/no/na]
-    
-    **Infrastructure Checklist**:
-      □ Environment setup tasks? [yes/no]
-      □ Database setup tasks? [yes/no/na]
-      □ CI/CD pipeline tasks? [yes/no]
-      □ Deployment tasks? [yes/no]
-      □ Configuration tasks? [yes/no]
-      □ Migration tasks? [yes/no/na]
-    
-    **Testing Checklist**:
-      □ Unit test tasks for all components? [yes/no]
-      □ Integration test tasks for all flows? [yes/no]
-      □ E2E test tasks for all scenarios? [yes/no]
-      □ Performance test tasks? [yes/no/na]
-      □ Security test tasks? [yes/no/na]
-      □ Accessibility test tasks? [yes/no/na]
-    
-    **Documentation Checklist**:
-      □ API documentation tasks? [yes/no/na]
-      □ User documentation tasks? [yes/no/na]
-      □ Developer documentation tasks? [yes/no]
-      □ Architecture documentation tasks? [yes/no]
-      □ Deployment documentation tasks? [yes/no]
-    
-    **Nuance Coverage Checklist**:
-      □ All performance indicators have tasks? [yes/no]
-      □ All reliability indicators have tasks? [yes/no]
-      □ All security indicators have tasks? [yes/no]
-      □ All usability indicators have tasks? [yes/no]
-      □ All scale indicators have tasks? [yes/no]
-    
-    Calculate completeness score:
-      total_checks = count(all checklist items != "na")
-      passed_checks = count(all "yes" responses)
-      completeness_score = (passed_checks / total_checks) * 100
-    
-    IF completeness_score >= 95% AND no critical gaps THEN
-      Mark as ready for feature-developer
-      Break from iteration
-    
-    OTHERWISE identify and prioritize gaps:
-      Critical gaps (must fix):
-        - Missing functional requirements
-        - Missing security requirements
-        - Invalid task dependencies
-        - Tasks > 6 hours
-      
-      Important gaps (should fix):
-        - Missing test coverage
-        - Missing error handling
-        - Missing documentation
-      
-      Minor gaps (can defer):
-        - Missing nice-to-have features
-        - Optional optimizations
-      
-      FOR each critical gap:
-        Document gap with specific details
-        Identify which phase needs revision
-        
-        IF gap can be fixed in current iteration THEN
-          Return to appropriate phase with specific fix
-        ELSE
-          Document as blocking issue
-          Require user intervention
-      
-      FOR each important gap:
-        Document as warning
-        Suggest remediation task
-      
-      FOR each minor gap:
-        Document as known limitation
-        Add to future enhancement list
-  
-  Generate completeness report:
-    ```markdown
-    ## Completeness Validation Report
-    
-    ### Overall Score: {completeness_score}%
-    
-    ### Checklist Results
-    - Requirements Coverage: X/Y passed
-    - Use Case Coverage: X/Y passed
-    - Task Completeness: X/Y passed
-    - Cross-Cutting: X/Y passed
-    - Infrastructure: X/Y passed
-    - Testing: X/Y passed
-    - Documentation: X/Y passed
-    - Nuance Coverage: X/Y passed
-    
-    ### Critical Issues
-    [List any blocking issues]
-    
-    ### Warnings
-    [List important but non-blocking issues]
-    
-    ### Deferred Items
-    [List minor gaps to address later]
-    
-    ### Recommendation
-    [READY for feature-developer | NEEDS FIXES | BLOCKED]
-    ```
-  
-  **STAGE_5.6_OUTPUT**: Comprehensive validation status with checklist results
-
-### Stage 5.7: Final Output Generation
-
-**STAGE_5.7_PURPOSE**: Generate comprehensive markdown output
-
-Generate final markdown document:
-  **STAGE_5.7_INPUT**: All validated outputs from all phases
-  
-  OUTPUT the following markdown document directly:
-    # Feature Implementation Task Plan
-    
-    ## Task Dependency Graph
-    [Mermaid diagram showing all tasks with dependencies]
-    
-    ## Execution Summary
-    - **Total Tasks**: {count}
-    - **Critical Path Length**: {sequential_tasks}
-    - **Parallel Execution Groups**: {groups}
-    - **Estimated Total Effort**: {hours}h
-    - **Infrastructure Tasks**: {count}
-    - **Feature Tasks**: {count}
-    - **Test Tasks**: {count}
-    
-    ## Requirement Traceability Matrix
-    
-    | Requirement | Description | Tasks | Coverage |
-    |-------------|-------------|-------|----------|
-    | REQ-FUN-001 | [Description] | T###, T### | 100% |
-    | REQ-FUN-002 | [Description] | T###, T### | 100% |
-    [All requirements with task mappings]
-    
-    ### Coverage Statistics
-    - **Functional Requirements**: X/Y (Z%) covered
-    - **Non-Functional Requirements**: X/Y (Z%) covered  
-    - **Security Requirements**: X/Y (Z%) covered
-    - **Performance Requirements**: X/Y (Z%) covered
-    - **Usability Requirements**: X/Y (Z%) covered
-    
-    ## Completeness Validation Report
-    
-    ### Overall Completeness Score: {score}%
-    
-    ### Validation Checklist Results
-    ✅ Requirements Coverage: {X}/{Y} checks passed
-    ✅ Use Case Coverage: {X}/{Y} checks passed
-    ✅ Task Completeness: {X}/{Y} checks passed
-    ✅ Cross-Cutting: {X}/{Y} checks passed
-    ✅ Infrastructure: {X}/{Y} checks passed
-    ✅ Testing: {X}/{Y} checks passed
-    ✅ Documentation: {X}/{Y} checks passed
-    ✅ Nuance Coverage: {X}/{Y} checks passed
-    
-    ### Critical Findings
-    - **Fully Covered Requirements**: {count} ({percentage}%)
-    - **Partially Covered Requirements**: {count} ({percentage}%)
-    - **Uncovered Requirements**: {count} ({percentage}%)
-    - **High-Risk Gaps**: [List critical missing coverage]
-    
-    ### Nuance Detection Results
-    - **Performance Nuances Detected**: {count} → Tasks created: {count}
-    - **Security Nuances Detected**: {count} → Tasks created: {count}
-    - **Reliability Nuances Detected**: {count} → Tasks created: {count}
-    - **Usability Nuances Detected**: {count} → Tasks created: {count}
-    - **Scale Nuances Detected**: {count} → Tasks created: {count}
-    
-    ## Priority 0: Infrastructure Tasks (Must Complete First)
-    [Detailed task list with specifications]
-    
-    ## Priority 1: Cross-Cutting Foundation
-    [Detailed task list with specifications]
-    
-    ## Priority 2: Core Features
-    [Detailed task list with specifications]
-    
-    ## Priority 3: Enhancements
-    [Detailed task list with specifications]
-    
-    ## Detailed Task Specifications
-    [All task specifications in feature-developer format]
-    
-    ## Dependency Analysis
-    
-    ### Critical Path
-    ```
-    {T001} → {T002} → {T003} → ... → {T###}
-    Total Duration: {hours} hours
-    ```
-    
-    ### Bottleneck Analysis
-    - **Task {T###}**: Blocks {count} downstream tasks
-    - **Task {T###}**: Blocks {count} downstream tasks
-    
-    ### Parallel Execution Opportunities
-    - **Group A**: Tasks {T###, T###, T###} can run in parallel
-    - **Group B**: Tasks {T###, T###, T###} can run in parallel
-    
-    ## Implementation Readiness Assessment
-    
-    ### Task Quality Metrics
-    - ✅ All tasks atomic (≤ 6 hours): {yes/no}
-    - ✅ All dependencies valid: {yes/no}
-    - ✅ All tasks estimated: {yes/no}
-    - ✅ All acceptance criteria defined: {yes/no}
-    - ✅ All test requirements specified: {yes/no}
-    
-    ### Coverage Gaps (If Any)
-    - **Missing Requirements Coverage**: [List]
-    - **Missing Use Case Coverage**: [List]
-    - **Missing Test Coverage**: [List]
-    
-    ### Risk Assessment
-    - **High Risk Items**: [List critical gaps]
-    - **Medium Risk Items**: [List important gaps]
-    - **Low Risk Items**: [List minor gaps]
-    
-    ## Recommended Execution Order
-    
-    ### Phase 1: Foundation (Week 1)
-    Critical infrastructure and setup tasks
-    - [ ] Task T001: [Name] - {effort}h
-    - [ ] Task T002: [Name] - {effort}h - depends on T001
-    
-    ### Phase 2: Cross-Cutting (Week 2)
-    Authentication, logging, error handling
-    - [ ] Task T100: [Name] - {effort}h
-    - [ ] Task T101: [Name] - {effort}h (parallel with T100)
-    
-    ### Phase 3: Core Implementation (Week 3-4)
-    Main feature development
-    
-    #### Parallel Stream A:
-    - [ ] Task T200: [Name] - {effort}h
-    - [ ] Task T201: [Name] - {effort}h
-    
-    #### Parallel Stream B:
-    - [ ] Task T250: [Name] - {effort}h
-    - [ ] Task T251: [Name] - {effort}h
-    
-    ### Phase 4: Testing & Polish (Week 5-6)
-    Comprehensive testing and documentation
-    - [ ] Task T600: [Name] - {effort}h
-    - [ ] Task T601: [Name] - {effort}h
-    
-    ## Final Status
-    
-    **Implementation Readiness**: {READY | NEEDS_REVIEW | BLOCKED}
-    **Completeness Score**: {score}%
-    **Total Effort Required**: {hours} hours
-    **Recommended Team Size**: {count} developers
-    **Estimated Duration**: {weeks} weeks
-  
-  
-  **STAGE_5.7_OUTPUT**: Complete markdown document with all task specifications
-
----
-
-## Error Handling
+Extract and validate all input documents:
 
 ```markdown
-IF files cannot be found or read:
-  ERROR: Cannot locate required files from <prompt-arguments>
-  
-  Expected format:
-    - Use cases file: path/to/use-cases.md
-    - Requirements file: path/to/requirements.md
-  
-  Provided arguments: [show what was provided]
-  
-  File check results:
-    - {path}: {exists|not found|no permission}
-  
-  Recovery attempts:
-    - Searched for common locations: ./docs/, ./
-    - Looked for inline content: {found|not found}
-  
-  Please provide valid file paths to continue.
+Load available documents from <worktree>/docs/:
+- Parse use-cases.md for user scenarios
+- Extract requirements.md for system needs
+- Review architecture.md for technical constraints
+
+For each document:
+- Validate format and structure
+- Extract relevant sections
+- Note any missing or unclear content
+
+Document gaps that need manual specification.
+```
+
+#### 3. Criteria Definition (Runtime Intelligence)
+
+Define success criteria for task decomposition:
+
+```markdown
+**ATOMICITY_CRITERIA**: Tasks must be implementable in ≤6 hours
+- Include setup, implementation, and basic testing
+- Account for complexity and dependencies
+- Consider developer experience level
+
+**COMPLETENESS_CRITERIA**: 100% requirement coverage
+- Every requirement maps to at least one task
+- Edge cases have dedicated tasks
+- Non-functional requirements addressed
+
+**USE_CASE_TRACEABILITY_CRITERIA**: Every use case maps to tasks
+- Each use case has at least one implementing task
+- Complex use cases may span multiple tasks
+- Edge cases from use cases get dedicated tasks
+
+**DEPENDENCY_CRITERIA**: Clear task sequencing
+- Technical dependencies identified
+- Data dependencies mapped
+- Temporal dependencies noted
+
+**SHARED_CONTEXT_CRITERIA**: Cross-task information identified
+- Common data models documented
+- Shared API endpoints listed
+- Authentication patterns noted
+- Performance requirements specified
+```
+
+#### 4. Research & Discovery
+
+Analyze requirements for decomposition opportunities:
+
+```markdown
+For each requirement and use case:
+
+Identify decomposition dimensions:
+- **Functional Layers**: UI → Business Logic → Data Access
+- **Complexity Levels**: Simple → Moderate → Complex
+- **Requirement Types**: Functional vs Non-Functional
+- **User Scenarios**: Happy Path vs Edge Cases
+
+Discover natural breaking points:
+- Setup vs implementation vs validation
+- Core functionality vs enhancements
+- Independent vs dependent features
+
+Document patterns for similar requirements.
+```
+
+#### 5. Planning
+
+Plan the decomposition strategy:
+
+```markdown
+Create decomposition approach:
+
+1. Group related requirements into feature sets
+2. Identify shared components and utilities
+3. Define task sequencing based on dependencies
+4. Estimate time for each potential task
+5. Plan iterative refinement strategy
+
+Consider decomposition rules:
+- Tasks >6 hours must be split
+- Dependent tasks need clear interfaces
+- Parallel tasks should be truly independent
+```
+
+#### 6. Review & Validation
+
+Validate the decomposition plan:
+
+```markdown
+Review planned approach:
+- Does every requirement have a decomposition strategy?
+- Are all identified dependencies addressable?
+- Is the time estimation realistic?
+- Are there any circular dependencies?
+
+IF issues found:
+  Return to Planning with adjustments
+ELSE:
+  Proceed to execution
+```
+
+#### 7. Execution
+
+Apply decomposition to create atomic tasks:
+
+```markdown
+For each requirement:
+
+1. Apply layer-based decomposition:
+   - Separate UI, logic, and data tasks
+
+2. Apply complexity-based breakdown:
+   - Split complex logic into steps
+   - Isolate edge case handling
+
+3. Apply time-boxing:
+   - Estimate time for each task
+   - Split tasks exceeding 6 hours
+
+4. Map dependencies:
+   - Note prerequisite tasks
+   - Identify shared resources
+   - Mark parallel opportunities
+
+Generate initial task list with estimates.
+```
+
+#### 8. Quality Iteration Loop
+
+Refine tasks until all are atomic:
+
+```markdown
+FOR iteration FROM 1 TO 10:
+
+  Evaluate task list:
+  - Count tasks exceeding 6 hours
+  - Check requirement coverage percentage
+  - Validate dependency completeness
+
+  Calculate quality score:
+  - Atomicity: (tasks ≤6hrs / total tasks) * 40
+  - Coverage: (requirements with tasks / total) * 40
+  - Dependencies: (resolved deps / total deps) * 20
+
+  IF quality score >= 90:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document decomposition gaps
+
+    For tasks >6 hours:
+      Apply further decomposition
+      Consider alternative approaches
+      Split into setup/core/validation
+
+    For uncovered requirements:
+      Create specific tasks
+      Add edge case tasks
+
+    Return to Execution with refinements
+```
+
+#### 9. Documentation & Knowledge Capture
+
+Document decomposition results:
+
+```markdown
+Save to: <worktree>/planning/phase-1.md
+
+Include:
+- Final atomic task list with time estimates
+- Dependency graph structure
+- Decomposition patterns discovered
+- Quality iteration history
+- Key learnings for Phase 2
+
+Example task format:
+Task-001: Setup authentication module
+- Estimated time: 4 hours
+- Dependencies: None
+- Type: Setup
+- Requirements: REQ-AUTH-001, REQ-AUTH-002
 ```
 
 ---
 
-## Anti-Patterns to Avoid
+## Phase 2: Validation & Output Generation
 
-### Task Creation Anti-Patterns
-- **Monolithic tasks**: Tasks exceeding 6 hours of effort
-- **Vague specifications**: Tasks without clear acceptance criteria
-- **Circular dependencies**: Task A depends on B, B depends on A
-- **Missing foundations**: Feature tasks before infrastructure
-- **Untestable tasks**: Tasks with no measurable outcome
-- **Overlapping scope**: Multiple tasks doing the same thing
+### Phase Purpose & Dependencies
 
-### Dependency Anti-Patterns
-- **Over-serialization**: Making everything sequential unnecessarily
-- **Hidden dependencies**: Not documenting shared resources
-- **Premature optimization**: Performance tasks before features work
-- **Security afterthought**: Adding security as final tasks only
-- **Missing parallelization**: Not identifying parallel opportunities
+**PHASE_PURPOSE**: Validate task completeness and generate feature-developer.md compatible output
 
-### Quality Anti-Patterns
-- **Incomplete coverage**: Missing use cases or requirements
-- **No error handling**: Forgetting error case tasks
-- **Missing tests**: No test tasks for features
-- **Documentation gap**: No documentation tasks
-- **Deployment oversight**: No CI/CD tasks
-- **Accessibility ignored**: No accessibility compliance tasks
+**DEPENDENCIES**:
+- Atomic task list from Phase 1
+- Dependency graph from Phase 1
+- Original requirements for validation
+
+**DELIVERABLES**:
+- Complete requirement-task traceability matrix
+- Validated task sequence with critical path
+- Feature-developer.md formatted task files
 
 ---
 
-## Execution Reminder
+### Phase 2 Activities
 
-**Think systematically**: Infrastructure → Foundation → Features → Testing → Deployment
+**Execute activities with focus on validation and output formatting**
 
-**Validate thoroughly**: Every use case and requirement must map to implementable tasks
+#### 1. Rehydration & Intelligence Loading
 
-**Enable parallelism**: Maximize concurrent execution opportunities for efficiency
+Load Phase 1 results and patterns:
 
-**Ensure atomicity**: Each task must be independently implementable with clear boundaries
+```markdown
+Load from Phase 1:
+- Read <worktree>/planning/phase-1.md
+- Extract atomic task list
+- Load dependency graph
+- Review decomposition patterns
 
-**Quality first**: Use iterations wisely to refine and improve task specifications
+Establish validation intelligence:
+- Task atomicity achievements
+- Coverage gaps identified
+- Successful decomposition patterns
+```
 
-**Output mode**: Generate a single comprehensive markdown document as the output - no file creation
+#### 2. Input Extraction & Validation
 
-Execute this framework to transform use cases and requirements into a comprehensive markdown document containing all task specifications, dependency graphs, traceability matrices, and execution plans suitable for the feature-developer agent.
+Extract Phase 1 deliverables:
+
+```markdown
+From Phase 1 documentation:
+- Load all atomic tasks with estimates
+- Extract dependency relationships
+- Get requirement mappings
+
+Validate completeness:
+- Check all tasks have time estimates
+- Verify dependencies are bidirectional
+- Ensure requirement IDs are valid
+```
+
+#### 3. Criteria Definition (Runtime Intelligence)
+
+Define validation success criteria:
+
+```markdown
+**TRACEABILITY_CRITERIA**: 100% requirement coverage
+- Every requirement has ≥1 task
+- Critical requirements have validation tasks
+- Non-functional requirements addressed
+
+**FORMAT_CRITERIA**: Feature-developer.md compatibility
+- Task names are branch-safe
+- Descriptions are clear and actionable
+- Dependencies properly sequenced
+
+**COMPLETENESS_CRITERIA**: Ready for implementation
+- No missing prerequisites
+- Clear acceptance criteria
+- Testable outcomes defined
+```
+
+#### 4. Research & Discovery
+
+Analyze for validation gaps:
+
+```markdown
+Identify coverage gaps:
+- Requirements without tasks
+- Tasks without requirements
+- Orphaned dependencies
+- Circular dependencies
+
+Discover critical path:
+- Longest dependency chain
+- Bottleneck tasks
+- Parallel execution opportunities
+
+Find integration points:
+- Tasks requiring coordination
+- Shared resource conflicts
+- Testing dependencies
+```
+
+#### 5. Planning
+
+Plan validation and output generation:
+
+```markdown
+Design validation approach:
+1. Build requirement-task matrix
+2. Validate 100% coverage
+3. Identify critical path
+4. Generate task sequence
+5. Format for feature-developer.md
+
+Plan output structure:
+- Task file naming convention
+- Directory organization
+- Metadata format
+- Sequence documentation
+```
+
+#### 6. Review & Validation
+
+Pre-validate the approach:
+
+```markdown
+Review validation plan:
+- Will this catch all coverage gaps?
+- Is the critical path analysis complete?
+- Does output format match feature-developer needs?
+- Are all success criteria addressable?
+
+IF issues found:
+  Adjust planning approach
+ELSE:
+  Proceed to execution
+```
+
+#### 7. Execution
+
+Generate traceability matrix and formatted output:
+
+```markdown
+Build requirement-task traceability:
+
+For each requirement:
+  Find all implementing tasks
+  Note coverage level (full/partial)
+  Identify validation tasks
+
+Create traceability matrix:
+| Requirement | Tasks | Coverage | Status |
+|-------------|-------|----------|--------|
+| REQ-001     | T-1,T-2 | 100%   | ✓      |
+
+Map use cases to tasks:
+| Use Case | Tasks | Coverage |
+|----------|-------|-----------|
+| UC-001   | T-1,T-3 | Full    |
+| UC-002   | T-2,T-4 | Full    |
+
+Identify shared context:
+- Extract common patterns across tasks
+- Document shared resources and interfaces
+- Note integration points between tasks
+- List common constraints and requirements
+
+Generate critical path:
+  Identify longest dependency chain
+  Mark parallel execution groups
+  Note resource bottlenecks
+
+Generate CI/CD tasks:
+  After all feature tasks
+  Include pipeline setup tasks
+  Add deployment configuration
+  Create validation and smoke test tasks
+
+Format tasks for feature-developer.md:
+  Create individual task files
+  Include metadata headers with use cases
+  Add shared context section
+  Specify dependencies and interfaces
+```
+
+#### 8. Quality Iteration Loop
+
+Iterate until complete validation:
+
+```markdown
+FOR iteration FROM 1 TO 10:
+
+  Calculate validation score:
+  - Coverage: (requirements with tasks / total) * 50
+  - Traceability: (documented links / total) * 30
+  - Format: (valid task files / total) * 20
+
+  IF validation score >= 95:
+    Break from loop (phase complete)
+
+  OTHERWISE:
+    **KEY LEARNING**: Document validation gaps
+
+    For uncovered requirements:
+      Create missing tasks
+      Update traceability matrix
+
+    For format issues:
+      Fix task file structure
+      Clarify descriptions
+      Update dependencies
+
+    Return to Execution with corrections
+```
+
+#### 9. Documentation & Knowledge Capture
+
+Generate final deliverables:
+
+```markdown
+Save to: <worktree>/tasks/
+
+For each task, create: task-NNN.md
+---
+task-id: TASK-NNN
+title: [Clear, actionable title]
+task-type: [feature|setup|migration|infrastructure|ci-cd]
+estimated-hours: N
+dependencies: [TASK-XXX, TASK-YYY]
+requirements: [REQ-XXX, REQ-YYY]
+use-cases: [UC-XXX, UC-YYY]
+parallel-eligible: [true|false]
+---
+
+## Objective
+[The outcome this task must achieve - the "what" not "how"]
+
+## Shared Context
+[Critical information that other tasks also depend on]
+
+### Interfaces This Task Exposes
+- [What other tasks can expect from this one]
+- [API contracts, data models, events]
+
+### Interfaces This Task Consumes
+- [What this task expects from other tasks]
+- [Dependencies on other task outputs]
+
+### Shared Constraints
+- [Performance, security, or business rules affecting multiple tasks]
+- [Common patterns all tasks must follow]
+
+## Success Criteria
+[Measurable outcomes that define completion]
+- [ ] Requirement X is satisfied when...
+- [ ] Use case Y works end-to-end when...
+- [ ] Integration with dependent tasks verified
+- [ ] Task marked complete by developer
+
+## Architecture References
+- See architecture.md section [X] for [relevant patterns]
+- See architecture.md section [Y] for [technology guidance]
+- Refer to architecture.md for implementation specifics
+
+## Notes for feature-developer.md
+- This task should be self-contained and independently executable
+- All implementation details determined by feature-developer.md using architecture.md
+- Coordinate with dependent tasks through defined interfaces
+
+---
+
+Save summary to: <worktree>/planning/phase-2.md
+- Requirement-task traceability matrix
+- Use-case-task traceability matrix
+- Critical path analysis
+- Task sequence recommendation
+- Shared context documentation
+- Quality metrics achieved
+```
+
+---
+
+## Task Execution Sequencing
+
+### Generate Task Dependency Visualization
+
+Create a mermaid diagram showing task execution flow and parallelization opportunities:
+
+```markdown
+Generate mermaid flowchart from task dependencies:
+
+```mermaid
+flowchart TD
+    subgraph "Setup Phase (One-time)"
+        TASK-001[Environment Setup]
+        TASK-002[Database Init]
+        TASK-003[Config Setup]
+        TASK-001 --> TASK-002
+        TASK-002 --> TASK-003
+    end
+
+    subgraph "Parallel Feature Development"
+        TASK-010[Feature A: Auth Module]
+        TASK-011[Feature B: User Profile]
+        TASK-012[Feature C: Dashboard]
+        TASK-013[Feature D: API Layer]
+    end
+
+    subgraph "Integration Phase"
+        TASK-020[API Integration]
+        TASK-021[Component Integration]
+        TASK-022[Testing Suite]
+        TASK-020 --> TASK-021
+        TASK-021 --> TASK-022
+    end
+
+    subgraph "Migration Phase"
+        TASK-025[Data Migration]
+        TASK-026[Migration Validation]
+        TASK-025 --> TASK-026
+    end
+
+    subgraph "CI/CD Phase"
+        TASK-030[Pipeline Setup]
+        TASK-031[Deployment Config]
+        TASK-032[Smoke Tests]
+        TASK-030 --> TASK-031
+        TASK-031 --> TASK-032
+    end
+
+    %% Setup must complete before features
+    TASK-003 --> TASK-010
+    TASK-003 --> TASK-011
+    TASK-003 --> TASK-012
+    TASK-003 --> TASK-013
+
+    %% Features must complete before integration
+    TASK-010 --> TASK-020
+    TASK-011 --> TASK-020
+    TASK-012 --> TASK-021
+    TASK-013 --> TASK-020
+
+    %% Integration before migration
+    TASK-022 --> TASK-025
+
+    %% Migration before CI/CD
+    TASK-026 --> TASK-030
+
+    %% Styling
+    style TASK-001 fill:#e1f5fe
+    style TASK-002 fill:#e1f5fe
+    style TASK-003 fill:#e1f5fe
+    style TASK-030 fill:#c8e6c9
+    style TASK-031 fill:#c8e6c9
+    style TASK-032 fill:#c8e6c9
+```
+
+Provide execution guidance:
+- **Sequential tasks** (→): Must complete in order, blocking dependency
+- **Parallel tasks**: Can be worked on simultaneously by different developers
+- **One-time setup tasks** (blue): Run once at project start
+- **Feature tasks**: Core functionality, can often run in parallel
+- **Integration tasks**: Require feature completion
+- **CI/CD tasks** (green): Final phase for deployment readiness
+
+Generate parallelization report:
+- Maximum parallel developers: [count parallel branches]
+- Critical path length: [longest sequential chain]
+- Bottleneck tasks: [tasks that block the most others]
+- Estimated timeline with N developers: [calculation]
+```
+
+---
+
+## GLOBAL END
+
+**Execute AFTER both phases to ensure complete validation**
+
+### Requirements Validation
+
+```markdown
+1. LOAD ORIGINAL REQUIREMENTS:
+   Review <original-requirements> from Global Start
+
+2. EVIDENCE GATHERING:
+   For each requirement:
+   - Find implementing tasks
+   - Verify time estimates ≤6 hours
+   - Check dependency completeness
+
+   For each use case:
+   - Find implementing tasks
+   - Verify end-to-end coverage
+   - Check integration points
+
+   Create final validation matrices:
+
+   Requirements Matrix:
+   | Requirement | Tasks | Total Hours | Status |
+   |-------------|-------|-------------|--------|
+   | REQ-001     | T-1,T-2 | 6.5 | ✅ SATISFIED |
+
+   Use Cases Matrix:
+   | Use Case | Tasks | Coverage | Status |
+   |----------|-------|----------|--------|
+   | UC-001   | T-1,T-3,T-5 | 100% | ✅ COMPLETE |
+```
+
+### Global Quality Score Calculation
+
+```markdown
+GLOBAL_QUALITY_SCORE = (
+  (TASK_ATOMICITY * 0.25) +          // All tasks ≤6 hours
+  (REQUIREMENT_COVERAGE * 0.25) +     // All requirements have tasks
+  (USE_CASE_COVERAGE * 0.25) +       // All use cases traced to tasks
+  (DEPENDENCY_RESOLUTION * 0.15) +    // All dependencies mapped
+  (OUTPUT_VALIDITY * 0.10)           // Valid feature-developer format
+)
+
+MINIMUM_ACCEPTABLE_SCORE = 9.0/10.0
+
+Quality Assessment:
+- 9.5-10.0: Excellent - Ready for implementation
+- 9.0-9.4: Good - Minor adjustments may help
+- 8.0-8.9: Acceptable - Some gaps remain
+- Below 8.0: Requires remediation
+```
+
+### Meta-Learning Extraction
+
+```markdown
+Extract insights for future use:
+
+SUCCESSFUL PATTERNS:
+- Which decomposition rules worked best?
+- What estimation techniques were accurate?
+- Which requirement types were easiest to decompose?
+
+CHALLENGES ENCOUNTERED:
+- Requirements that resisted decomposition
+- Dependencies that were complex to map
+- Time estimates that were difficult
+
+FRAMEWORK IMPROVEMENTS:
+- Additional decomposition patterns to consider
+- Better time estimation heuristics
+- Enhanced dependency detection
+```
+
+### Final Output Validation
+
+```markdown
+Verify feature-developer.md compatibility:
+
+For each task file in <worktree>/tasks/:
+- ✓ Has unique task ID
+- ✓ Has estimated hours ≤6
+- ✓ Has clear dependencies
+- ✓ Has acceptance criteria
+- ✓ Maps to requirements
+
+Generate final summary: <worktree>/docs/task-generation-summary.md
+
+Include:
+- Total tasks generated
+- Total estimated hours
+- Critical path length
+- Parallel execution opportunities
+- Implementation sequence recommendation
+
+IF Global Quality Score < 9.0:
+  Log specific issues for manual review
+  Suggest remediation approach
+ELSE:
+  Mark as ready for feature-developer.md execution
+```
+
+### Remediation Process (If Quality Score < 9.0)
+
+```markdown
+REMEDIATION: Targeted Quality Recovery
+
+1. GAP ANALYSIS:
+   Identify specific quality failures:
+   - Tasks still >6 hours
+   - Requirements without tasks
+   - Invalid output format
+
+2. TARGETED FIXES:
+   For each gap:
+   - Apply additional decomposition
+   - Create missing tasks
+   - Fix format issues
+
+3. RE-VALIDATION:
+   Re-run Global End validation
+   Calculate new quality score
+
+4. FINAL DECISION:
+   IF score still <9.0:
+     Document remaining issues
+     Provide manual intervention guide
+   ELSE:
+     Proceed with implementation
+```
+
+---
+
+## Framework Behavior Guarantees
+
+When using this framework:
+
+1. **NO INFINITE LOOPS**: Maximum 10 iterations per quality check
+2. **PROGRESSIVE REFINEMENT**: Each iteration improves atomicity
+3. **COMPLETE COVERAGE**: All requirements get tasks
+4. **TIME BOUNDED**: All tasks guaranteed ≤6 hours
+5. **DEPENDENCY AWARE**: Full dependency graph maintained
+6. **OUTPUT READY**: Valid feature-developer.md format
+
+---
+
+## Usage Example
+
+```markdown
+/prompt feature-task-creator docs/use-cases.md docs/requirements.md
+
+GLOBAL START
+└── Load documents, initialize framework
+
+PHASE 1: Analysis & Decomposition
+├── Extract 42 use cases, 98 requirements
+├── Apply decomposition rules
+├── Iterate 3 times to achieve atomicity
+└── Generate 67 atomic tasks
+
+PHASE 2: Validation & Output
+├── Build traceability matrix
+├── Validate 100% coverage
+├── Generate critical path
+└── Create 67 task files
+
+GLOBAL END
+└── Quality Score: 9.4/10 - Ready for implementation
+```
+
+---
+
+Execute this framework to transform requirements into atomic, implementable tasks optimized for feature-developer.md execution.
