@@ -336,30 +336,70 @@ case "$FIRST_ARG" in
 
         # Dynamic action menu based on what was found
         action_count=1
-        echo "**Available Actions:**"
+        echo "**Recommended Actions:**"
+        echo
 
-        # Always show repository sync option
+        # Count extensions in each state
+        local_only_count=0
+        unsynced_count=0
+        installed_count=0
+
+        for type in agents commands prompts hooks; do
+            # Count local only files
+            local_dir="$HOME/.claude/$type"
+            if [ -d "$local_dir" ]; then
+                for file in "$local_dir"/*.md; do
+                    [ -f "$file" ] || continue
+                    if ! [ -L "$file" ]; then
+                        local_only_count=$((local_only_count + 1))
+                    else
+                        installed_count=$((installed_count + 1))
+                    fi
+                done
+            fi
+
+            # Count unsynced repository files
+            if [ -n "$REPO_DIR" ] && [ -d "$REPO_DIR/$type" ]; then
+                for file in "$REPO_DIR/$type"/*.md; do
+                    [ -f "$file" ] || continue
+                    base_name=$(basename "$file")
+                    if ! [ -e "$local_dir/$base_name" ]; then
+                        unsynced_count=$((unsynced_count + 1))
+                    fi
+                done
+            fi
+        done
+
+        # Show contextually relevant actions based on actual state
+        if [ "$unsynced_count" -gt 0 ]; then
+            echo "$action_count. **Install Extensions** - \`/prompt sync [numbers]\` ($unsynced_count unsynced extensions available)"
+            action_count=$((action_count + 1))
+        fi
+
+        if [ "$local_only_count" -gt 0 ]; then
+            echo "$action_count. **Publish Extensions** - \`/prompt publish [numbers]\` ($local_only_count local extensions ready)"
+            action_count=$((action_count + 1))
+        fi
+
+        # Always show repository update if configured
         if [ -n "$REPO_DIR" ]; then
-            echo "$action_count. **Pull Latest** - \`/prompt sync\` (update repository & check for new extensions)"
+            echo "$action_count. **Update Repository** - \`/prompt sync\` (pull latest changes from git)"
             action_count=$((action_count + 1))
         fi
 
-        # Show publish option if unpublished extensions exist
-        if [ "$local_extensions_found" = "true" ]; then
-            echo "$action_count. **Publish Local** - \`/prompt publish\` (share your extensions with team)"
-            action_count=$((action_count + 1))
-        fi
-
-        # Show install option if available extensions exist
-        if [ "$available_extensions_found" = "true" ]; then
-            echo "$action_count. **Install Available** - \`/prompt sync [number]\` (install from repository)"
-            action_count=$((action_count + 1))
-        fi
-
-        # Always show help and template execution options
-        echo "$action_count. **Execute Template** - \`/prompt [name] [context]\` (run any prompt with context)"
+        # Show stats summary
+        echo "$action_count. **View Details** - \`/prompt list --verbose\` (show full descriptions)"
         action_count=$((action_count + 1))
-        echo "$action_count. **Help & Setup** - \`/help prompt\` (detailed documentation)"
+
+        # Always show help
+        echo "$action_count. **Help & Documentation** - \`/help prompt\` (usage guide)"
+        echo
+
+        # Show current status summary
+        echo "**📊 Status Summary:**"
+        echo "• $installed_count extensions installed (symlinked)"
+        echo "• $local_only_count local extensions (unpublished)"
+        echo "• $unsynced_count repository extensions available to sync"
 
         exit 0
         ;;
