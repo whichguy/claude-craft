@@ -156,7 +156,11 @@ case "$FIRST_ARG" in
         
         # Counter for numbering across all sections
         GLOBAL_COUNTER=1
-        
+
+        # Track for dynamic actions menu
+        local_extensions_found=false
+        available_extensions_found=false
+
         # Function to check if extension exists in repository
         is_in_repository() {
             local type="$1"
@@ -164,176 +168,139 @@ case "$FIRST_ARG" in
             local repo_file="$REPO_DIR/$type/$name.md"
             [ -f "$repo_file" ]
         }
-        
-        echo "### 🔗 Installed Extensions (Published & Symlinked)"
-        echo
-        
-        # Show symlinked extensions (published and installed)
+
+        # Type-first grouping with status as secondary
         for type in agents commands prompts hooks; do
             type_dir="$HOME/.claude/$type"
+            repo_type_dir=""
+            [ -n "$REPO_DIR" ] && repo_type_dir="$REPO_DIR/$type"
+
             icon=""
             type_name=""
-            
+
             case "$type" in
                 agents)   icon="🤖"; type_name="Agents" ;;
                 commands) icon="⚡"; type_name="Commands" ;;
                 prompts)  icon="📝"; type_name="Prompts" ;;
                 hooks)    icon="🪝"; type_name="Hooks" ;;
             esac
-            
-            type_has_symlinks=false
-            
+
+            # Track if this type has any extensions at all
+            type_has_any=false
+            type_installed_found=false
+            type_local_found=false
+            type_unsynced_found=false
+
+            # First pass: check if type has any extensions
             if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
-                for file in "$type_dir"/*.md; do
-                    # Runtime decision: Process both symlinks and regular files
-                    # Don't skip broken symlinks - they're already cleaned above
-                    [ -e "$file" ] || [ -L "$file" ] || continue
-                    name=$(basename "$file" .md)
-                    
-                    # Only show symlinked items (published extensions)
-                    if [ -L "$file" ] && [ -e "$file" ]; then
-                        # Show header only when we find the first symlinked item
-                        if [ "$type_has_symlinks" = "false" ]; then
-                            echo "#### $icon **$type_name** (Published & Installed)"
-                            echo
-                            type_has_symlinks=true
-                        fi
-                        
-                        description=$(get_description "$file")
-                        echo "$GLOBAL_COUNTER. **$name** 🔗"
-                        echo "    $description"
-                        echo
-                        GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
-                    fi
-                done
-                
-                # Add spacing after section if any items were shown
-                if [ "$type_has_symlinks" = "true" ]; then
-                    echo
-                fi
+                type_has_any=true
             fi
-        done
-        
-        echo "═══════════════════════════════════════════════════════════════════════════════"
-        echo
-        
-        echo "### 📝 Local Only Extensions (Unpublished)"
-        echo
-        
-        # Show local-only extensions (not symlinked, available to publish)
-        local_extensions_found=false
-        for type in agents commands prompts hooks; do
-            type_dir="$HOME/.claude/$type"
-            icon=""
-            type_name=""
-            
-            case "$type" in
-                agents)   icon="🤖"; type_name="Agents" ;;
-                commands) icon="⚡"; type_name="Commands" ;;
-                prompts)  icon="📝"; type_name="Prompts" ;;
-                hooks)    icon="🪝"; type_name="Hooks" ;;
-            esac
-            
-            type_has_local=false
-            
-            if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
-                for file in "$type_dir"/*.md; do
-                    # Runtime decision: Process files that exist
-                    [ -e "$file" ] || continue
-                    name=$(basename "$file" .md)
-                    
-                    # Only show non-symlinked items (local-only extensions)
-                    if [ ! -L "$file" ]; then
-                        # Show header only when we find the first local item
-                        if [ "$type_has_local" = "false" ]; then
-                            echo "#### $icon **$type_name** (Ready to Publish)"
-                            echo
-                            type_has_local=true
-                            local_extensions_found=true
-                        fi
-                        
-                        description=$(get_description "$file")
-                        echo "$GLOBAL_COUNTER. **$name** 📤"
-                        echo "    $description"
-                        echo
-                        GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
-                    fi
-                done
-                
-                # Add spacing after section if any items were shown
-                if [ "$type_has_local" = "true" ]; then
-                    echo
-                fi
+            if [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ] && ls "$repo_type_dir"/*.md >/dev/null 2>&1; then
+                type_has_any=true
             fi
-        done
-        
-        if [ "$local_extensions_found" = "false" ]; then
-            echo "*No unpublished local extensions found.*"
-            echo
-        fi
-        
-        echo "═══════════════════════════════════════════════════════════════════════════════"
-        echo
-        
-        echo "### 📦 Available from Repository (Not Installed)"
-        echo
-        
-        # Show repository extensions that are NOT locally installed
-        if [ -n "$REPO_DIR" ]; then
-            available_extensions_found=false
-            for type in agents commands prompts hooks; do
-                type_dir="$REPO_DIR/$type"
-                icon=""
-                type_name=""
-                
-                case "$type" in
-                    agents)   icon="🤖"; type_name="Agents" ;;
-                    commands) icon="⚡"; type_name="Commands" ;;
-                    prompts)  icon="📝"; type_name="Prompts" ;;
-                    hooks)    icon="🪝"; type_name="Hooks" ;;
-                esac
-                
+
+            # Only process if this type has extensions
+            if [ "$type_has_any" = "true" ]; then
+                echo "### $icon **$type_name**"
+                echo
+
+                # Section 1: Installed (Symlinked)
+                section_has_items=false
                 if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
-                    type_has_available=false
-                    
                     for file in "$type_dir"/*.md; do
-                        [ -f "$file" ] || continue
+                        [ -e "$file" ] || [ -L "$file" ] || continue
                         name=$(basename "$file" .md)
-                        description=$(get_description "$file")
-                        
-                        # Only show if NOT locally installed (no symlink exists)
-                        local_file="$HOME/.claude/$type/$name.md"
-                        if [ ! -f "$local_file" ]; then
-                            # Show header only when we find the first available item
-                            if [ "$type_has_available" = "false" ]; then
-                                echo "#### $icon **Repository $type_name** (Ready to Install)"
+
+                        # Check if symlinked
+                        if [ -L "$file" ] && [ -e "$file" ]; then
+                            if [ "$section_has_items" = "false" ]; then
+                                echo "#### Installed (Symlinked)"
                                 echo
-                                type_has_available=true
-                                available_extensions_found=true
+                                section_has_items=true
+                                type_installed_found=true
                             fi
-                            
-                            echo "$GLOBAL_COUNTER. **$name** 📥"
+
+                            description=$(get_description "$file")
+                            echo "$GLOBAL_COUNTER. **$name**"
                             echo "    $description"
+                            echo
                             echo
                             GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
                         fi
                     done
-                    
-                    # Add spacing after section if any items were shown
-                    if [ "$type_has_available" = "true" ]; then
-                        echo
-                    fi
                 fi
-            done
-            
-            if [ "$available_extensions_found" = "false" ]; then
-                echo "*All repository extensions are already installed.*"
+
+                # Section 2: Local Only
+                section_has_items=false
+                if [ -d "$type_dir" ] && ls "$type_dir"/*.md >/dev/null 2>&1; then
+                    for file in "$type_dir"/*.md; do
+                        [ -e "$file" ] || continue
+                        name=$(basename "$file" .md)
+
+                        # Check if NOT symlinked (local only)
+                        if [ ! -L "$file" ]; then
+                            if [ "$section_has_items" = "false" ]; then
+                                echo "#### Local Only"
+                                echo
+                                section_has_items=true
+                                type_local_found=true
+                                local_extensions_found=true
+                            fi
+
+                            description=$(get_description "$file")
+                            echo "$GLOBAL_COUNTER. **$name**"
+                            echo "    $description"
+                            echo
+                            echo
+                            GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+                        fi
+                    done
+                fi
+
+                # Section 3: Unsynced (Ready to Sync)
+                section_has_items=false
+                if [ -n "$repo_type_dir" ] && [ -d "$repo_type_dir" ] && ls "$repo_type_dir"/*.md >/dev/null 2>&1; then
+                    for file in "$repo_type_dir"/*.md; do
+                        [ -f "$file" ] || continue
+                        name=$(basename "$file" .md)
+
+                        # Check if not installed locally
+                        profile_file="$HOME/.claude/$type/$name.md"
+                        project_file=""
+
+                        if [ -n "$GIT_ROOT" ]; then
+                            git_parent_dir="$(dirname "$GIT_ROOT")"
+                            project_file="$git_parent_dir/.claude/$type/$name.md"
+                        fi
+
+                        installation_exists=false
+                        [ -f "$profile_file" ] && installation_exists=true
+                        [ -n "$project_file" ] && [ -f "$project_file" ] && installation_exists=true
+
+                        if [ "$installation_exists" = "false" ]; then
+                            if [ "$section_has_items" = "false" ]; then
+                                echo "#### Unsynced (Ready to Sync)"
+                                echo
+                                section_has_items=true
+                                type_unsynced_found=true
+                                available_extensions_found=true
+                            fi
+
+                            description=$(get_description "$file")
+                            echo "$GLOBAL_COUNTER. **$name**"
+                            echo "    $description"
+                            echo
+                            echo
+                            GLOBAL_COUNTER=$((GLOBAL_COUNTER + 1))
+                        fi
+                    done
+                fi
+
+                # Add separator after type section
+                echo "═══════════════════════════════════════════════════════════════════════════════"
                 echo
             fi
-        else
-            echo "*No repository configured. Set up claude-craft.json to see available extensions.*"
-            echo
-        fi
+        done
         
         echo "**Usage:**"
         echo "- Execute prompt: \`/prompt template-name [context]\`"
@@ -343,23 +310,63 @@ case "$FIRST_ARG" in
         echo "- Direct file: \`/prompt /path/to/file.md [context]\`"
         echo
         echo "**Extension States:**"
-        echo "- 🔗 = Published & Installed (symlinked to repository)"
-        echo "- 📤 = Local Only (ready to publish to repository)"
-        echo "- 📥 = Available (in repository, ready to install locally)"
+        echo "- **Installed (Symlinked)** = Extensions symlinked to repository"
+        echo "- **Local Only** = Extensions ready to publish to repository"
+        echo "- **Unsynced (Ready to Sync)** = Repository extensions ready to install locally"
         echo
         echo "**Publishing Workflow:**"
-        echo "1. Copy local extension to repository directory"
-        echo "2. Replace local file with symlink to repository"
-        echo "3. Git add, commit, and push changes to repository"
-        echo "4. Extension becomes published and shareable"
+        echo "```"
+        echo "Local File       Repository       Shared Access"
+        echo "┌─────────┐      ┌─────────┐      ┌─────────┐"
+        echo "│ my.md   │ ──►  │ my.md   │ ──►  │ Team    │"
+        echo "└─────────┘      └─────────┘      │ Install │"
+        echo "    │            Git Commit       └─────────┘"
+        echo "    ▼                 │"
+        echo "┌─────────┐           ▼"
+        echo "│ my.md ──┼──► Repository/my.md"
+        echo "│(symlink)│"
+        echo "└─────────┘"
+        echo "```"
         echo
         echo "**Symbols:** 🤖 = AI Agents  ⚡ = Commands  📝 = Prompts  🪝 = Hooks"
+        echo
+        echo "═══════════════════════════════════════════════════════════════════════════════"
+        echo "### 🎯 **Quick Actions**"
+        echo
+
+        # Dynamic action menu based on what was found
+        action_count=1
+        echo "**Available Actions:**"
+
+        # Always show repository sync option
+        if [ -n "$REPO_DIR" ]; then
+            echo "$action_count. **Pull Latest** - \`/prompt sync\` (update repository & check for new extensions)"
+            action_count=$((action_count + 1))
+        fi
+
+        # Show publish option if unpublished extensions exist
+        if [ "$local_extensions_found" = "true" ]; then
+            echo "$action_count. **Publish Local** - \`/prompt publish\` (share your extensions with team)"
+            action_count=$((action_count + 1))
+        fi
+
+        # Show install option if available extensions exist
+        if [ "$available_extensions_found" = "true" ]; then
+            echo "$action_count. **Install Available** - \`/prompt sync [number]\` (install from repository)"
+            action_count=$((action_count + 1))
+        fi
+
+        # Always show help and template execution options
+        echo "$action_count. **Execute Template** - \`/prompt [name] [context]\` (run any prompt with context)"
+        action_count=$((action_count + 1))
+        echo "$action_count. **Help & Setup** - \`/help prompt\` (detailed documentation)"
+
         exit 0
         ;;
 
-    "sync"|"add"|"link"|"install") 
-        # SYNC EXECUTION DOMAIN - For prompt templates only
-        echo "## 📦 Prompt Template Sync"
+    "sync"|"add"|"link"|"install")
+        # SYNC EXECUTION DOMAIN - Repository → Local workflow
+        echo "## 📥 Extension Synchronization"
         echo
         echo "**Sync Request**: \"$CONTENT\""
         echo
@@ -367,27 +374,99 @@ case "$FIRST_ARG" in
         echo
         echo "**Instructions for AI:**"
         echo
-        echo "1. **Parse the sync request** to identify which prompt templates to sync"
-        echo "2. **Run \`/prompt list\` first** to see available templates and their numbers"
-        echo "3. **For each template to sync:**"
-        echo "   - Get repository path from claude-craft.json configuration"
-        echo "   - Determine sync level (ask user if unclear):"
-        echo "     - **Project**: Link to git parent's .claude/prompts/"
-        echo "     - **Profile**: Link to ~/.claude/prompts/"
-        echo "   - Create symlink: \`ln -sf \$REPO_DIR/prompts/template.md \$TARGET_DIR/template.md\`"
-        echo "4. **Ask user about sync level if unclear:**"
-        echo "   - \"Do you want to sync to project level (this repo only) or profile level (globally)?\""
-        echo "5. **Confirm completion** with list of synced templates"
+        echo "**Template Variables Setup** (CRITICAL):"
+        echo "- \`<prompt-template-name>\`: \"sync\" (or \"add\", \"link\", \"install\" as provided)"
+        echo "- \`<prompt-arguments>\`: \"$CONTENT\""
         echo
-        echo "**Sync level determination:**"
-        echo "- **Project keywords**: \"project\", \"local\", \"this repo\", \"here\""
-        echo "- **Profile keywords**: \"profile\", \"global\", \"everywhere\", \"all projects\""
-        echo "- **Default behavior**: Ask user to choose if not specified"
+        echo "**Primary Directive**: Synchronize repository extensions to local environment"
+        echo
+        echo "**CRITICAL FIRST STEP - Repository Freshness**:"
+        echo "BEFORE any analysis, comparisons, or sync operations:"
+        echo "- Run \`git -C \"<repo-dir>\" pull\` to ensure current repository state"
+        echo "- **Reasoning**: All decisions must be based on fresh repository data, not stale cached information"
+        echo
+        echo "**After Repository Update**:"
+        echo "1. **Run \`/prompt list\`** to see current repository vs local status using fresh data"
+        echo "2. **Analyze sync request** from <prompt-arguments>:"
+        echo "   - **Selection criteria**: Numbers from list, extension names, \"all available\""
+        echo "   - **Scope preference**: Profile level (default) unless \"local\"/\"project\" specified"
+        echo "   - **Extension types**: prompts, agents, commands, hooks"
+        echo
+        echo "3. **For each selected extension**:"
+        echo "   - **Standard extensions**: Create symlink from ~/.claude/ to repository file"
+        echo "   - **Hooks**: Parse JSON definition and install into appropriate settings.json"
+        echo "   - **Conflict handling**: Backup existing files, offer merge/replace options"
+        echo "   - **Scope targeting**: Profile (~/.claude/) default, project level if requested"
+        echo
+        echo "**Runtime Decision Making**:"
+        echo "- **Scope detection**: \"local\"/\"project\" keywords → project level, otherwise profile level"
+        echo "- **Selection parsing**: Parse numbers, names, or \"all\" from user request"
+        echo "- **Conflict resolution**: Safe backup and user choice for existing files"
+        echo "- **Hook installation**: Target correct settings.json based on scope preference"
+        echo
+        echo "**Safety Protocols**:"
+        echo "- Always pull repository first to avoid stale data decisions"
+        echo "- Backup existing files before creating symlinks"
+        echo "- Verify symlink integrity after creation"
+        echo "- Validate hook configurations in settings.json"
         echo
         echo "**Example sync operations:**"
-        echo "- Numbers: \"19, 25\" → sync templates #19 and #25"
-        echo "- Names: \"echo, weather\" → sync echo.md and weather.md templates"
-        echo "- All: \"all available\" → sync all unsynced repository templates"
+        echo "- Numbers: \"19, 25\" → sync extensions #19 and #25 to profile level"
+        echo "- Names: \"echo, weather\" → sync echo.md and weather.md to profile level"
+        echo "- Local scope: \"sync 5 --local\" → sync extension #5 to project level"
+        echo "- All available: \"sync all\" → sync all unsynced repository extensions to profile"
+        exit 0
+        ;;
+
+    "publish"|"share"|"contribute")
+        # PUBLISH EXECUTION DOMAIN - Local → Repository workflow
+        echo "## 📤 Extension Publishing"
+        echo
+        echo "**Publish Request**: \"$CONTENT\""
+        echo
+        echo "---"
+        echo
+        echo "**Instructions for AI:**"
+        echo
+        echo "**Template Variables Setup** (CRITICAL):"
+        echo "- \`<prompt-template-name>\`: \"publish\""
+        echo "- \`<prompt-arguments>\`: \"$CONTENT\""
+        echo
+        echo "**Primary Directive**: Publish local extensions to repository for sharing"
+        echo
+        echo "**Critical Workflow Sequence**:"
+        echo "1. **Repository preparation**: Ensure repository is ready for new content"
+        echo "   - Check repository accessibility and clean state"
+        echo "   - Run \`git -C \"<repo-dir>\" pull\` to get latest before adding content"
+        echo
+        echo "2. **Analyze publish request** from <prompt-arguments>:"
+        echo "   - **Selection criteria**: Numbers from /prompt list, extension names, \"all local\""
+        echo "   - **Scope detection**: Profile level (default) unless \"local\" scope specified"
+        echo "   - **Extension types**: prompts, agents, commands, hooks"
+        echo
+        echo "3. **For each selected extension**:"
+        echo "   - **Standard extensions**: Copy local .md file to repository directory"
+        echo "   - **Hooks**: Extract configuration from settings.json → create JSON definition"
+        echo "   - **Git operations**: \`git -C \"<repo-dir>\" add/commit/push\` with descriptive message"
+        echo "   - **Create symlinks**: Replace local files with links to repository versions"
+        echo
+        echo "4. **Safety protocols**:"
+        echo "   - Backup existing files before replacement"
+        echo "   - Verify git operations succeed before proceeding"
+        echo "   - Validate symlink integrity after creation"
+        echo "   - Provide rollback instructions if errors occur"
+        echo
+        echo "**Runtime Decision Making**:"
+        echo "- **Scope intelligence**: Default to profile level (~/.claude/) unless context suggests project-specific"
+        echo "- **Selection parsing**: Parse numbers, names, or \"all\" from user request"
+        echo "- **Conflict handling**: Handle existing repository files with merge or replace options"
+        echo "- **Hook extraction**: Convert hook configurations to standardized JSON format"
+        echo
+        echo "**Repository Integration**:"
+        echo "- Use existing get_repo_path() logic for repository discovery"
+        echo "- Always use \`git -C \"<repo-dir>\"\` syntax for directory safety"
+        echo "- Create meaningful commit messages: \"Publish extensions: <names>\""
+        echo "- Ensure published extensions become available for team sharing"
         exit 0
         ;;
 

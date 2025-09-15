@@ -50,7 +50,7 @@ Do NOT show ANY of these internal operations to the user:
 
 You are executing a prompt template system. The user provides arguments that you parse as follows:
 
-**ARGUMENT PARSING**:
+**ARGUMENT PARSING & TEMPLATE VARIABLES**:
 - **First argument**: Template name (e.g., "echo") OR file path (e.g., "./my-template.md")
   - If template name given without extension, ".md" is automatically appended during search
   - Can also be a command: "list", "sync", "publish"
@@ -58,6 +58,12 @@ You are executing a prompt template system. The user provides arguments that you
   - Everything after the first argument is concatenated with spaces
   - This entire string replaces <prompt-arguments> placeholders in the template
   - If no additional arguments, <prompt-arguments> is empty
+
+**TEMPLATE VARIABLE SETUP** (CRITICAL):
+Must establish these template variables for ALL execution modes:
+- `<prompt-arguments>`: User-provided context (all args after template name)
+- `<prompt-template-name>`: Name of the template being executed (first argument)
+- Both variables must be available for template substitution regardless of execution path
 
 **Example parsing**:
 - Input: "echo hello world"
@@ -72,7 +78,10 @@ You are executing a prompt template system. The user provides arguments that you
   - Template: "/path/to/custom.md" (explicit path)
   - <prompt-arguments>: "my custom arguments here"
 
-## WORKING DIRECTORY SETUP
+## WORKTREE CONTEXT ESTABLISHMENT
+
+# Prompt-as-code instruction: Ensure consistent working directory reference
+# Runtime decision: Establish worktree context if not already defined
 
 Check if `<worktree>` tag is already defined in the context:
 - If `<worktree>` exists: Use it as the current working directory reference
@@ -80,7 +89,10 @@ Check if `<worktree>` tag is already defined in the context:
   ```
   <worktree>$(pwd)</worktree>
   ```
-  This establishes the working directory for all subsequent operations
+
+# All subsequent git operations use this worktree context
+# This maintains directory isolation and prevents getcwd errors
+# Pattern: Always use `git -C "<worktree>"` for git commands
 
 Also establish `<repository-path>` tag:
 - Use the repository discovery logic to find the claude-craft repository path
@@ -92,30 +104,44 @@ Also establish `<repository-path>` tag:
 Analyze the first argument provided by the user and execute ONLY the matching section below:
 
 ### CONDITION 1: If first argument exactly matches "list" OR "--list" OR "status"
-**Action: Display available extensions**
-1. Check for git repository root using `git -C "<worktree>" rev-parse --show-toplevel`
-2. Find repository path from claude-craft.json (check git parent/.claude/ then ~/.claude/)
-3. Display extensions in three sections:
-   - **Installed (Symlinked)**: Files in ~/.claude/{agents,commands,prompts,hooks} that ARE symlinks (created via sync)
-   - **Local Only**: Files in ~/.claude/{agents,commands,prompts,hooks} that are NOT symlinks
-   - **Available from Repository**: Files in repository that don't exist locally
-4. Number items consecutively across all sections for easy reference
-5. Note: Symlinks are the preferred way to manage extensions (allows version control and sharing)
+**Action: Execute list template with proper template variables**
+
+**Template Variable Setup**:
+- `<prompt-template-name>`: "list" (or "--list" or "status" as provided)
+- `<prompt-arguments>`: All remaining arguments (filter criteria, etc.)
+
+**Execution**: Use the same 3-location discovery logic to find and execute the "list" template, which will:
+- Display available extensions using shared discovery hierarchy
+- Show symlinked vs local-only vs available status
+- Provide numbered reference system for selection
+- Auto-pull repository updates before showing status
 
 ### CONDITION 2: If first argument exactly matches "sync" OR "add" OR "link" OR "install"
-**Action: Create symlinks from repository to local**
-1. Parse the remaining arguments to identify which templates to sync
-2. If numbers provided, map to templates from list output
-3. For each template, create symlink: `ln -sf <repository-path>/prompts/<template>.md ~/.claude/prompts/<template>.md`
-4. Symlinks allow templates to stay version-controlled while being accessible locally
+**Action: Execute sync template with proper template variables**
+
+**Template Variable Setup**:
+- `<prompt-template-name>`: "sync" (or "add", "link", "install" as provided)
+- `<prompt-arguments>`: All remaining arguments (selection criteria, scope flags, etc.)
+
+**Execution**: Use the same 3-location discovery logic to find and execute the "sync" template, which will:
+- **CRITICAL FIRST STEP**: Run `git -C "<repo-dir>" pull` before any comparisons
+- Parse selection criteria and scope preferences from `<prompt-arguments>`
+- Create symlinks from repository to profile level (default) or local level
+- Handle hooks by parsing JSON definitions and installing into settings.json
 
 ### CONDITION 3: If first argument exactly matches "publish"
-**Action: Publish local templates to repository using symlinks**
-1. Parse arguments to identify which local templates to publish
-2. Copy local files to repository directory
-3. Replace local files with symlinks pointing to repository version
-4. This maintains single source of truth in repository
-5. Suggest git commands to commit and push changes
+**Action: Execute publish template with proper template variables**
+
+**Template Variable Setup**:
+- `<prompt-template-name>`: "publish"
+- `<prompt-arguments>`: All remaining arguments (selection criteria, scope preferences, etc.)
+
+**Execution**: Use the same 3-location discovery logic to find and execute the "publish" template, which will:
+- Parse selection criteria from `<prompt-arguments>` to identify local extensions to publish
+- Copy local files to repository directories
+- Execute git operations: `git -C "<repo-dir>" add/commit/push`
+- Replace local files with symlinks pointing to repository versions
+- Handle hooks by extracting from settings.json and creating JSON definitions
 
 ### CONDITION 4: DEFAULT - Template execution (when none of the above conditions match)
 **Action: Execute the named template**
@@ -133,27 +159,33 @@ Determine template location using this strict priority order:
    - If argument contains "/" or ends with ".md", treat as explicit path
    - For template names, automatically append ".md" during search
 
-2. **Search standard locations in priority order**:
+2. **Template discovery using shared 3-location logic** (aligned with `/prompt` command):
    ```
-   For each of these directories in order:
-   a) Parent of git root: $(dirname $(git -C "<worktree>" rev-parse --show-toplevel))/prompts
-   b) Repository path: <repository-path>/prompts (from claude-craft.json)  
-   c) Profile prompts: ~/.claude/prompts (managed templates only)
-   d) Local project prompts: ./prompts
-   e) User home prompts: ~/prompts
-   f) Working directory: <worktree> (for direct .md files only)
-   
+   # Runtime decision: Use identical discovery logic as /prompt command
+   # These 3 core locations provide complete coverage for template management
+
+   Search locations in priority order (SAME AS /prompt COMMAND):
+   a) Git parent project: $(dirname $(git -C "<worktree>" rev-parse --show-toplevel))/.claude/prompts/
+   b) Repository path: <repository-path>/prompts/ (from claude-craft.json discovery)
+   c) Profile level: ~/.claude/prompts/ (user global templates)
+
+   # Search pattern for template discovery
+   # Runtime decision: Escalate search precision as needed
+
    In each directory:
-   - Check for exact match: $dir/$TEMPLATE.md
-   - Follow symlinks if they exist (symlinks are valid and preferred)
-   - If not found, try case-insensitive search with: find "$dir" -maxdepth 1 -iname "${TEMPLATE}.md"
-   - If still not found, try fuzzy matching with grep -i
+   - Primary search: Check for exact match at $dir/$TEMPLATE.md
+   - Follow symlinks if they exist (symlinks indicate published/synced templates)
+   - Fallback search: Case-insensitive with find "$dir" -maxdepth 1 -iname "${TEMPLATE}.md"
+   - Final attempt: Fuzzy matching with grep -i for partial name matches
    ```
 
-3. **If template not found**: 
+3. **If template not found**:
    - Display "Template '$TEMPLATE' not found"
-   - Show searched locations in priority order
-   - Suggest using full path or syncing from repository
+   - Show the 3 core searched locations in priority order:
+     - Git parent project: $(dirname $GIT_ROOT)/.claude/prompts/
+     - Repository: <repository-path>/prompts/ (from claude-craft.json)
+     - Profile: ~/.claude/prompts/
+   - Suggest using full path or syncing from repository with `/prompt sync`
 
 #### TEMPLATE EXECUTION:
 Once template file is found:
@@ -202,13 +234,10 @@ When you are invoked with arguments, follow these detailed steps precisely:
 
 2. **Search for template names** (no "/" and doesn't end with ".md"):
    - Automatically append ".md" extension to the name
-   - Search in these locations sequentially (stop at first match):
-     a. Parent of git root: Look in {git-parent}/prompts/{name}.md
-     b. Repository location: Check {repo-path}/prompts/{name}.md  
-     c. User profile: Search ~/.claude/prompts/{name}.md
-     d. Local project prompts: Try ./prompts/{name}.md
-     e. User home prompts: Check ~/prompts/{name}.md
-     f. Current directory: Look for ./{name}.md
+   - Use the shared 3-location discovery logic (same as above):
+     a. Git parent project: $(dirname $(git -C "<worktree>" rev-parse --show-toplevel))/.claude/prompts/{name}.md
+     b. Repository: <repository-path>/prompts/{name}.md (from claude-craft.json)
+     c. Profile: ~/.claude/prompts/{name}.md
 
 **Fallback strategies if exact match fails**:
 - Perform case-insensitive search in each directory
