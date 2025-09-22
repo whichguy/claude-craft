@@ -1,9 +1,8 @@
-# Technology Research: <prompt-arguments>
+# Tech Research: <prompt-arguments>
 
-Conduct comprehensive research prioritizing:
-- Performance benchmarks and efficiency metrics
-- Community adoption (GitHub stars, Reddit discussions)
-- Practical implementation examples
-- Production readiness assessment
+Analyze technologies:
+1. Performance metrics & benchmarks
+2. Community adoption (GitHub, Reddit)
+3. Production readiness
 
-Synthesize findings into actionable recommendations with comparative analysis tables.
+Output: Comparison table with recommendations.

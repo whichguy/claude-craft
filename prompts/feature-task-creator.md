@@ -76,9 +76,9 @@ WHEN starting the feature task creation process:
 
 4. DETERMINE INPUT SOURCES:
    Parse <prompt-arguments> to identify:
-   - Use cases document path (e.g., docs/use-cases.md)
-   - Requirements document path (e.g., docs/requirements.md)
-   - Architecture document path (e.g., docs/architecture.md)
+   - Use cases document path (e.g., planning/use-cases.md)
+   - Requirements document path (e.g., planning/requirements.md)
+   - Architecture document path (e.g., planning/architecture.md)
 
    IF any document missing THEN:
      Log warning but continue with available documents
@@ -214,7 +214,7 @@ Include: Existing task inventory and coverage analysis
 Extract and validate all input documents with rich context:
 
 ```markdown
-Load available documents from <worktree>/docs/:
+Load available documents from <worktree>/planning/:
 - Parse use-cases.md:
   - Extract Definition of Ready for each use case
   - Extract Basic Flow steps
@@ -1145,7 +1145,7 @@ For each task file in <worktree>/pending/:
 - ✓ Has acceptance criteria
 - ✓ Maps to requirements
 
-Generate final summary: <worktree>/docs/task-generation-summary.md
+Generate final summary: <worktree>/planning/task-generation-summary.md
 
 Include:
 - Total tasks generated
@@ -1209,7 +1209,7 @@ When using this framework:
 ## Usage Example
 
 ```markdown
-/prompt feature-task-creator docs/use-cases.md docs/requirements.md docs/architecture.md
+/prompt feature-task-creator planning/use-cases.md planning/requirements.md planning/architecture.md
 
 GLOBAL START
 ├── Load documents with rich context extraction

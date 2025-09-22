@@ -639,7 +639,7 @@ ELSE:
 **Step 2: Load Prior Architecture Decisions**
 Search for existing decisions to rehydrate:
 - <worktree>/planning/architecture.md (primary location)
-- ./docs/technology-recommendations.md
+- ./planning/technology-recommendations.md
 - ./planning/phase-*.md (previous run outputs)
 
 IF prior_decisions_exist THEN:
@@ -675,7 +675,7 @@ Apply pattern recognition on use case content:
 ### Rehydration & Context Loading
 
 **Step 1: Architecture Discovery**
-- Check for existing `./docs/architecture-specification.md`
+- Check for existing `./planning/architecture-specification.md`
 - Load current technology stack and priority levels
 - Extract deployment complexity and scale indicators
 

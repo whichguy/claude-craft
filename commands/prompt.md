@@ -333,8 +333,8 @@ case "$FIRST_ARG" in
                         fi
 
                         installation_exists=false
-                        [ -f "$profile_file" ] && installation_exists=true
-                        [ -n "$project_file" ] && [ -f "$project_file" ] && installation_exists=true
+                        [ -e "$profile_file" ] && installation_exists=true
+                        [ -n "$project_file" ] && [ -e "$project_file" ] && installation_exists=true
 
                         if [ "$installation_exists" = "false" ]; then
                             if [ "$section_has_items" = "false" ]; then

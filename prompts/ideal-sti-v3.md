@@ -140,7 +140,7 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent prompter on use-case-expander with requirements at <original-requirements>`
+**INVOKE**: `ask subagent prompter on use-case-expander with requirements="<original-requirements>"`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/use-cases.md
 
@@ -279,7 +279,7 @@ OTHERWISE:
 Execute requirements generation:
 
 **READ**: <worktree>/planning/use-cases.md content
-**INVOKE**: `ask subagent prompter on requirements-generator with use-cases at <worktree>/planning/use-cases.md`
+**INVOKE**: `ask subagent prompter on requirements-generator with use-cases="<worktree>/planning/use-cases.md"`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/requirements.md
 
@@ -418,7 +418,7 @@ OTHERWISE:
 Execute architecture generation via progressive technology research:
 
 **READ**: <worktree>/planning/use-cases.md and <worktree>/planning/requirements.md content
-**INVOKE**: `ask subagent prompter on recommend-tech with use-cases at <worktree>/planning/use-cases.md and requirements at <worktree>/planning/requirements.md`
+**INVOKE**: `ask subagent prompter on recommend-tech with use-cases="<worktree>/planning/use-cases.md" requirements="<worktree>/planning/requirements.md"`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/architecture.md
 
@@ -560,7 +560,7 @@ OTHERWISE:
 Execute task generation, dependency analysis, and parallel execution planning:
 
 **STEP 1 - Generate Tasks**:
-**INVOKE**: `ask subagent prompter on feature-task-creator use cases at <worktree>/planning/use-cases.md and requirements at <worktree>/planning/requirements.md and architecture at <worktree>/planning/architecture.md`
+**INVOKE**: `ask subagent prompter on feature-task-creator with use-cases="<worktree>/planning/use-cases.md" requirements="<worktree>/planning/requirements.md" architecture="<worktree>/planning/architecture.md"`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw markdown output with all task specifications
 
@@ -780,11 +780,16 @@ OTHERWISE:
 
 ### 7. Execution
 
-Execute wave-based parallel feature development according to execution plan:
+Execute wave-based parallel feature development according to execution plan with controlled concurrency:
+
+**CONFIGURATION**:
+- **MAX_CONCURRENT_AGENTS**: 10 (maximum agents running simultaneously)
+- **BATCH_TIMEOUT**: 1200 seconds (20 minutes per batch)
+- **TASK_TIMEOUT**: 1200 seconds (20 minutes per task)
 
 **LOAD**: Parallel execution plan from <worktree>/planning/parallel-execution-plan.md
 
-**EXECUTE BY WAVES**:
+**EXECUTE BY WAVES WITH BATCH PROCESSING**:
 
 FOR each execution wave in parallel-execution-plan:
 
@@ -793,36 +798,99 @@ FOR each execution wave in parallel-execution-plan:
       **INVOKE**: `ask subagent feature-developer on task with file at <worktree>/pending/TASK-{ID}-*.md`
       **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
       **WAIT**: For completion before next task
+      **MOVE**: Completed task from <worktree>/pending/ to <worktree>/completed/
 
   ELSE IF wave.type == "Parallel" THEN:
-    **INVOKE**: `in parallel ask feature-developer on task with files at {task1.path} {task2.path} {task3.path} ...`
-    WHERE: task paths are all tasks in current wave with no blocking dependencies
-    **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
-    **WAIT**: For all parallel tasks in wave to complete before next wave
+    **BATCH PROCESSING** (for controlled parallelism):
+
+    SPLIT wave.tasks into batches of MAX_CONCURRENT_AGENTS (10):
+      batch_size = 10
+      task_batches = []
+      FOR i = 0; i < wave.tasks.length; i += batch_size:
+        batch = wave.tasks.slice(i, min(i + batch_size, wave.tasks.length))
+        task_batches.append(batch)
+
+    FOR each batch in task_batches:
+      **ANNOUNCE**: "Processing batch of {batch.length} tasks (max 10 concurrent)"
+
+      **PARALLEL INVOKE** (all in same message for true parallelism):
+        Execute multiple Task tool calls in single AI message:
+        FOR each task in batch:
+          - Task call: feature-developer for <worktree>/pending/TASK-{ID}-*.md
+
+      **WAIT**: For all tasks in current batch to complete
+
+      **POST-BATCH PROCESSING**:
+        FOR each completed task in batch:
+          **MOVE**: Task file from <worktree>/pending/ to <worktree>/completed/
+          **LOG**: Task completion status to <worktree>/planning/execution-log.md
+
+      **CONTINUE**: With next batch if more tasks remain
 
 **EXAMPLE WAVE EXECUTION**:
 
 Wave 1 - Infrastructure (Sequential):
 ```
+# Each task runs sequentially, one at a time
 ask subagent feature-developer on task with file at <worktree>/pending/TASK-001-database-setup.md
+# Wait for completion, move to <worktree>/completed/
 ask subagent feature-developer on task with file at <worktree>/pending/TASK-002-cicd-pipeline.md
+# Wait for completion, move to <worktree>/completed/
 ```
 
-Wave 2 - Cross-Cutting (Parallel):
+Wave 2 - Cross-Cutting (Parallel - Single Batch):
 ```
-in parallel ask feature-developer on task with files at \
-  <worktree>/pending/TASK-100-authentication.md \
-  <worktree>/pending/TASK-101-logging.md \
-  <worktree>/pending/TASK-102-error-handling.md
+# Only 3 tasks, fits in single batch (< 10)
+# All execute in parallel via single AI message with multiple Task calls:
+Batch 1 (3 tasks):
+  - Task 1: feature-developer for <worktree>/pending/TASK-100-authentication.md
+  - Task 2: feature-developer for <worktree>/pending/TASK-101-logging.md
+  - Task 3: feature-developer for <worktree>/pending/TASK-102-error-handling.md
+# Wait for all 3 to complete, move all to <worktree>/completed/
 ```
 
-Wave 3 - Features Group A (Parallel):
+Wave 3 - Large Feature Wave (Parallel - Multiple Batches):
 ```
-in parallel ask feature-developer on task with files at \
-  <worktree>/pending/TASK-200-feature-a.md \
-  <worktree>/pending/TASK-201-feature-b.md \
-  <worktree>/pending/TASK-202-feature-c.md
+# Example with 25 tasks requiring 3 batches
+Batch 1 (10 tasks - MAX_CONCURRENT_AGENTS):
+  - Task 1: feature-developer for <worktree>/pending/TASK-200-feature-a.md
+  - Task 2: feature-developer for <worktree>/pending/TASK-201-feature-b.md
+  ... (up to Task 10)
+# Wait for batch 1 completion, move to <worktree>/completed/
+
+Batch 2 (10 tasks):
+  - Task 11: feature-developer for <worktree>/pending/TASK-210-feature-k.md
+  - Task 12: feature-developer for <worktree>/pending/TASK-211-feature-l.md
+  ... (up to Task 20)
+# Wait for batch 2 completion, move to <worktree>/completed/
+
+Batch 3 (5 remaining tasks):
+  - Task 21: feature-developer for <worktree>/pending/TASK-220-feature-u.md
+  - Task 22: feature-developer for <worktree>/pending/TASK-221-feature-v.md
+  ... (up to Task 25)
+# Wait for batch 3 completion, move to <worktree>/completed/
 ```
+
+**CLAUDE CODE TASK TOOL REQUIREMENTS**:
+
+For proper parallel execution in Claude Code:
+- **Single Message Rule**: All Task tool calls for a batch MUST be in the SAME AI message
+- **Sequential calls in separate messages will NOT run in parallel**
+- **Example of CORRECT parallel invocation**:
+  ```
+  In a single AI message, invoke:
+  - Task 1: feature-developer for task A
+  - Task 2: feature-developer for task B
+  - Task 3: feature-developer for task C
+  (All execute simultaneously)
+  ```
+- **Example of INCORRECT sequential invocation**:
+  ```
+  Message 1: Task 1: feature-developer for task A
+  Message 2: Task 2: feature-developer for task B
+  Message 3: Task 3: feature-developer for task C
+  (These execute one after another, not in parallel)
+  ```
 
 **COORDINATION**: Each feature-developer agent:
 - Loads specific task from <worktree>/pending/
