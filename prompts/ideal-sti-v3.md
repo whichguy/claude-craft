@@ -814,11 +814,11 @@ Analyze dependencies to create execution waves:
 
 **Wave 3 - Features Group A** (Parallel):
 - Tasks T200-T299 with no blocking dependencies
-- Execute: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
+- **INVOKE**: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
 
 **Wave 4 - Features Group B** (Parallel):
 - Tasks T300-T399 depending on Wave 3
-- Execute: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
+- **INVOKE**: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
 
 **Wave 5 - Testing & Deployment** (Sequential):
 - Tasks T600-T699 after all features complete
@@ -1002,34 +1002,22 @@ FOR each execution wave in parallel-execution-plan:
       **INVOKE**: `ask subagent feature-developer on task with file at <worktree>/pending/TASK-{ID}-*.md`
       **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
       **WAIT**: For completion before next task
-      **MOVE**: Completed task from <worktree>/pending/ to <worktree>/completed/
+      **NOTE**: feature-developer automatically moves task to <worktree>/completed/ when done
 
   ELSE IF wave.type == "Parallel" THEN:
-    **BATCH PROCESSING** (for controlled parallelism):
 
-    SPLIT wave.tasks into batches of MAX_CONCURRENT_AGENTS (10):
-      batch_size = 10
-      task_batches = []
-      FOR i = 0; i < wave.tasks.length; i += batch_size:
-        batch = wave.tasks.slice(i, min(i + batch_size, wave.tasks.length))
-        task_batches.append(batch)
+    **PARALLEL BATCH EXECUTION**:
 
-    FOR each batch in task_batches:
-      **ANNOUNCE**: "Processing batch of {batch.length} tasks (max 10 concurrent)"
+    Group the wave's tasks into batches of 10 tasks maximum.
 
-      **PARALLEL INVOKE** (all in same message for true parallelism):
-        Execute multiple Task tool calls in single AI message:
-        FOR each task in batch:
-          - Task call: feature-developer for <worktree>/pending/TASK-{ID}-*.md
+    For each batch:
+    - Invoke feature-developer subagent in parallel on all task files in the batch
+    - Each subagent processes one task file from <worktree>/pending/TASK-*.md
+    - Wait for all subagents in the batch to complete
+    - Each feature-developer automatically moves its task to <worktree>/completed/ when done
+    - Continue to the next batch until all tasks are processed
 
-      **WAIT**: For all tasks in current batch to complete
-
-      **POST-BATCH PROCESSING**:
-        FOR each completed task in batch:
-          **MOVE**: Task file from <worktree>/pending/ to <worktree>/completed/
-          **LOG**: Task completion status to <worktree>/planning/execution-log.md
-
-      **CONTINUE**: With next batch if more tasks remain
+    Important: To execute in parallel, invoke all subagents for a batch in a single message with multiple Task tool calls.
 
 **EXAMPLE WAVE EXECUTION**:
 
@@ -1037,9 +1025,9 @@ Wave 1 - Infrastructure (Sequential):
 ```
 # Each task runs sequentially, one at a time
 ask subagent feature-developer on task with file at <worktree>/pending/TASK-001-database-setup.md
-# Wait for completion, move to <worktree>/completed/
+# Wait for completion, feature-developer moves to <worktree>/completed/
 ask subagent feature-developer on task with file at <worktree>/pending/TASK-002-cicd-pipeline.md
-# Wait for completion, move to <worktree>/completed/
+# Wait for completion, feature-developer moves to <worktree>/completed/
 ```
 
 Wave 2 - Cross-Cutting (Parallel - Single Batch):
@@ -1050,7 +1038,7 @@ Batch 1 (3 tasks):
   - Task 1: feature-developer for <worktree>/pending/TASK-100-authentication.md
   - Task 2: feature-developer for <worktree>/pending/TASK-101-logging.md
   - Task 3: feature-developer for <worktree>/pending/TASK-102-error-handling.md
-# Wait for all 3 to complete, move all to <worktree>/completed/
+# Wait for all 3 to complete, each feature-developer moves its task to <worktree>/completed/
 ```
 
 Wave 3 - Large Feature Wave (Parallel - Multiple Batches):
@@ -1060,19 +1048,19 @@ Batch 1 (10 tasks - MAX_CONCURRENT_AGENTS):
   - Task 1: feature-developer for <worktree>/pending/TASK-200-feature-a.md
   - Task 2: feature-developer for <worktree>/pending/TASK-201-feature-b.md
   ... (up to Task 10)
-# Wait for batch 1 completion, move to <worktree>/completed/
+# Wait for batch 1 completion, each agent moves its task to <worktree>/completed/
 
 Batch 2 (10 tasks):
   - Task 11: feature-developer for <worktree>/pending/TASK-210-feature-k.md
   - Task 12: feature-developer for <worktree>/pending/TASK-211-feature-l.md
   ... (up to Task 20)
-# Wait for batch 2 completion, move to <worktree>/completed/
+# Wait for batch 2 completion, each agent moves its task to <worktree>/completed/
 
 Batch 3 (5 remaining tasks):
   - Task 21: feature-developer for <worktree>/pending/TASK-220-feature-u.md
   - Task 22: feature-developer for <worktree>/pending/TASK-221-feature-v.md
   ... (up to Task 25)
-# Wait for batch 3 completion, move to <worktree>/completed/
+# Wait for batch 3 completion, each agent moves its task to <worktree>/completed/
 ```
 
 **CLAUDE CODE TASK TOOL REQUIREMENTS**:
