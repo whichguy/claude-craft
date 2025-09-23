@@ -7,7 +7,78 @@
 
 ## Executive Directive
 
-You are implementing IDEAL-STI v3.0, an adaptive orchestration system that transforms user requirements into executable implementation tasks through intelligent discovery, requirements engineering, architecture planning, task generation, and parallel feature development. Execute all phases sequentially using the phased-prompt.md template structure with progressive knowledge building.
+**⚡ MANDATORY SEQUENTIAL EXECUTION ⚡**
+
+You are implementing IDEAL-STI v3.0, an adaptive orchestration system that MUST execute in STRICT SEQUENTIAL ORDER: GLOBAL START → PHASES 1-7 (in order) → GLOBAL END.
+
+**CRITICAL**: You MUST NOT skip phases, execute out of order, or run phases in parallel. Each phase builds on the previous one. Attempting to skip ahead WILL cause system failure and incomplete deliverables.
+
+This framework transforms user requirements into executable implementation through:
+- GLOBAL START (mandatory initialization)
+- 7 Sequential Phases (each depends on the previous)
+- GLOBAL END (mandatory validation)
+
+Execute using the phased-prompt.md template with progressive knowledge building.
+
+---
+
+## 🚨 CRITICAL EXECUTION ORDER - MANDATORY COMPLIANCE 🚨
+
+**THIS IS NOT OPTIONAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:**
+
+1. **GLOBAL START** - ALWAYS execute FIRST (no exceptions)
+2. **PHASE 1-7** - Execute in EXACT numerical order (no skipping, no parallel phases)
+3. **GLOBAL END** - ALWAYS execute LAST (validates all requirements)
+
+⚠️ **VIOLATIONS THAT WILL CAUSE FAILURE:**
+- ❌ Skipping any phase
+- ❌ Executing phases out of order
+- ❌ Running phases in parallel
+- ❌ Starting without GLOBAL START
+- ❌ Ending without GLOBAL END
+- ❌ Jumping to implementation before planning
+
+**ENFORCEMENT**: Each phase MUST verify the previous phase completed successfully before proceeding.
+
+---
+
+## Process Flow Visualization
+
+```mermaid
+graph TD
+    Start([USER REQUEST]) --> GS[GLOBAL START<br/>Initialize Framework<br/>Set Worktree<br/>Create Directories]
+
+    GS --> P1[PHASE 1: Use Case Discovery<br/>Generate comprehensive use cases<br/>via prompter]
+
+    P1 --> P2[PHASE 2: Requirements Generation<br/>Transform use cases into<br/>FR/NFR requirements]
+
+    P2 --> P3[PHASE 3: Architecture Definition<br/>Research & generate technology<br/>architecture via recommend-tech]
+
+    P3 --> P4[PHASE 4: Task Generation<br/>Create actionable tasks via<br/>feature-task-creator]
+
+    P4 --> P5[PHASE 5: Parallel Development<br/>Execute tasks via parallel<br/>feature-developer agents]
+
+    P5 --> P6[PHASE 6: Integration & Testing<br/>Validate implementations<br/>via qa-analyst]
+
+    P6 --> P7[PHASE 7: Deployment Prep<br/>Package for production via<br/>deployment-orchestrator]
+
+    P7 --> GE[GLOBAL END<br/>Validate Requirements<br/>Calculate Quality Score<br/>Extract Meta-Learning]
+
+    GE --> Complete([DELIVERY COMPLETE])
+
+    %% Styling
+    classDef globalNode fill:#ff6b6b,stroke:#c92a2a,stroke-width:3px,color:#fff
+    classDef phaseNode fill:#4dabf7,stroke:#1971c2,stroke-width:2px,color:#fff
+    classDef startEnd fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
+
+    class GS,GE globalNode
+    class P1,P2,P3,P4,P5,P6,P7 phaseNode
+    class Start,Complete startEnd
+
+    %% Add warning notes
+    GS -.->|"NEVER SKIP THIS"| GS
+    GE -.->|"NEVER SKIP THIS"| GE
+```
 
 ---
 
@@ -20,11 +91,58 @@ You are implementing IDEAL-STI v3.0, an adaptive orchestration system that trans
 ```markdown
 WHEN starting ANY prompt using this framework:
 
-1. SET GLOBAL VARIABLES (once only):
-   <worktree> = $(pwd)  # Never change this
+1. CAPTURE ORIGINAL LOCATION (critical for safety checks):
+   <original_pwd> = $(pwd)
+   echo "📍 Original location captured: <original_pwd>"
+
+2. WORKTREE INITIALIZATION (Execute only if running as subagent):
+   # Only create worktree if running as subagent to ensure isolation
+   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
+     echo "🧠 THINKING: Subagent detected - creating isolated worktree for IDEAL-STI execution"
+
+     # Verify git repository exists
+     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
+       echo "📝 Initializing git repository"
+       git -C "<original_pwd>" init
+       git -C "<original_pwd>" add -A
+       git -C "<original_pwd>" commit -m "Initial commit for IDEAL-STI framework execution"
+     fi
+
+     # Generate unique worktree with anti-collision
+     timestamp=$(date +%Y%m%d-%H%M%S)
+     random_id=$(openssl rand -hex 3)
+     worktree_name="ideal-sti-${timestamp}-${random_id}"
+     worktree_path="/tmp/${worktree_name}"
+
+     # Create worktree with new branch based on current
+     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+     worktree_branch="ideal-sti/${current_branch}-${timestamp}"
+
+     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
+     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+
+     # Apply uncommitted changes for continuity
+     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
+       echo "📋 Applying uncommitted changes to worktree"
+       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
+     fi
+
+     # Update framework variables for all subsequent operations
+     <worktree> = ${worktree_path}
+     <worktree_created> = true
+     <worktree_branch> = ${worktree_branch}
+     <worktree_name> = ${worktree_name}
+
+     echo "✅ Worktree created for IDEAL-STI isolation: ${worktree_name}"
+   ELSE:
+     echo "📝 Standard execution mode - using current directory"
+     <worktree> = <original_pwd>
+     <worktree_created> = false
+   FI
+
    <original-requirements> = <prompt-arguments>
 
-2. CREATE DIRECTORY STRUCTURE:
+3. CREATE DIRECTORY STRUCTURE:
    mkdir -p "<worktree>/planning"   # Phase documentation
    mkdir -p "<worktree>/pending"    # Tasks awaiting development
    mkdir -p "<worktree>/completed"  # Finished tasks
@@ -71,6 +189,12 @@ Framework is now initialized and ready for phases.
 - External dependencies: None (initial phase)
 
 **DELIVERABLES**: Complete use case specification in <worktree>/planning/use-cases.md
+
+**PREREQUISITE VALIDATION**:
+✓ GLOBAL START MUST be complete with directories created
+✓ <worktree> variable MUST be set and immutable
+✓ <original-requirements> MUST be loaded from prompt-arguments
+✗ DO NOT proceed if GLOBAL START was skipped or failed
 
 ---
 
@@ -184,6 +308,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 1→2
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 1 completed: YES/NO
+- ✅ use-cases.md exists and is valid: YES/NO
+- ✅ Minimum use cases generated (8+): YES/NO
+- ✅ Quality score ≥ 80%: YES/NO
+- ✅ Ready to proceed to Phase 2: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 2
+
+---
+
 ## PHASE 2: REQUIREMENTS GENERATION
 
 **Purpose**: Generate detailed functional and non-functional requirements from use cases
@@ -197,6 +334,13 @@ Include:
 - Original requirements: <original-requirements>
 
 **DELIVERABLES**: Complete requirements specification in <worktree>/planning/requirements.md
+
+**PREREQUISITE VALIDATION**:
+✓ Phase 1 MUST be complete with use-cases.md generated
+✓ <worktree>/planning/use-cases.md MUST exist and be valid
+✓ GLOBAL START MUST have initialized directory structure
+✗ DO NOT proceed if Phase 1 incomplete or failed
+✗ NEVER skip directly to Phase 2 without Phase 1
 
 ---
 
@@ -320,6 +464,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 2→3
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 2 completed: YES/NO
+- ✅ requirements.md exists and is valid: YES/NO
+- ✅ FR and NFR requirements generated: YES/NO
+- ✅ Traceability to use cases established: YES/NO
+- ✅ Ready to proceed to Phase 3: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 3
+
+---
+
 ## PHASE 3: ARCHITECTURE DEFINITION
 
 **Purpose**: Research and generate comprehensive technology architecture using recommend-tech framework
@@ -334,6 +491,13 @@ Include:
 - Original requirements: <original-requirements>
 
 **DELIVERABLES**: Complete architecture specification in <worktree>/planning/architecture.md
+
+**PREREQUISITE VALIDATION**:
+✓ Phase 1 & 2 MUST be complete with all deliverables
+✓ <worktree>/planning/use-cases.md MUST exist
+✓ <worktree>/planning/requirements.md MUST exist
+✗ DO NOT proceed if Phases 1-2 incomplete
+✗ NEVER jump to architecture without requirements
 
 ---
 
@@ -461,6 +625,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 3→4
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 3 completed: YES/NO
+- ✅ architecture.md exists with 8-phase analysis: YES/NO
+- ✅ All 9 technology categories addressed: YES/NO
+- ✅ Final confidence ≥ 85%: YES/NO
+- ✅ Ready to proceed to Phase 4: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 4
+
+---
+
 ## PHASE 4: TASK GENERATION & ORGANIZATION
 
 **Purpose**: Generate actionable implementation tasks from architecture and requirements
@@ -476,6 +653,13 @@ Include:
 - Directory structure: <worktree>/pending/ and <worktree>/completed/
 
 **DELIVERABLES**: Individual task files in <worktree>/pending/ ready for parallel development
+
+**PREREQUISITE VALIDATION**:
+✓ Phases 1-3 MUST be complete with all deliverables
+✓ <worktree>/planning/architecture.md MUST exist
+✓ <worktree>/pending/ and <worktree>/completed/ directories MUST exist
+✗ DO NOT proceed if Phases 1-3 incomplete
+✗ NEVER generate tasks without architecture
 
 ---
 
@@ -684,6 +868,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 4→5
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 4 completed: YES/NO
+- ✅ Task files created in pending/: YES/NO
+- ✅ Dependency graph generated: YES/NO
+- ✅ Parallel execution plan created: YES/NO
+- ✅ Ready to proceed to Phase 5: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 5
+
+---
+
 ## PHASE 5: PARALLEL FEATURE DEVELOPMENT
 
 **Purpose**: Execute all implementation tasks in parallel via feature-developer agents
@@ -699,6 +896,13 @@ Include:
 - Directory structure: <worktree>/completed/ for finished tasks
 
 **DELIVERABLES**: All tasks completed and moved to <worktree>/completed/ with implementations
+
+**PREREQUISITE VALIDATION**:
+✓ Phase 4 MUST be complete with tasks in <worktree>/pending/
+✓ At least one TASK-*.md file MUST exist in pending/
+✓ <worktree>/planning/architecture.md MUST be available
+✗ DO NOT proceed if Phase 4 incomplete or no tasks generated
+✗ NEVER start development without task specifications
 
 ---
 
@@ -938,6 +1142,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 5→6
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 5 completed: YES/NO
+- ✅ All tasks moved to completed/: YES/NO
+- ✅ Implementations follow architecture: YES/NO
+- ✅ Quality standards met: YES/NO
+- ✅ Ready to proceed to Phase 6: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 6
+
+---
+
 ## PHASE 6: INTEGRATION & TESTING
 
 **Purpose**: Integrate completed features and execute comprehensive testing
@@ -953,6 +1170,13 @@ Include:
 - Use cases for test scenarios: <worktree>/planning/use-cases.md
 
 **DELIVERABLES**: Integrated system with test results and quality reports
+
+**PREREQUISITE VALIDATION**:
+✓ Phase 5 MUST be complete with tasks in <worktree>/completed/
+✓ All critical tasks MUST be implemented
+✓ <worktree>/planning/requirements.md MUST exist for validation
+✗ DO NOT proceed if Phase 5 incomplete
+✗ NEVER test without completed implementations
 
 ---
 
@@ -1103,6 +1327,19 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 6→7
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 6 completed: YES/NO
+- ✅ All tests passing: YES/NO
+- ✅ Integration successful: YES/NO
+- ✅ Performance benchmarks met: YES/NO
+- ✅ Ready to proceed to Phase 7: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 7
+
+---
+
 ## PHASE 7: DEPLOYMENT PREPARATION
 
 **Purpose**: Prepare system for production deployment
@@ -1118,6 +1355,13 @@ Include:
 - Configuration needs: From requirements and architecture
 
 **DELIVERABLES**: Production-ready deployment package with documentation
+
+**PREREQUISITE VALIDATION**:
+✓ Phase 6 MUST be complete with successful test results
+✓ Integration testing MUST have passed
+✓ <worktree>/planning/architecture.md MUST contain deployment strategy
+✗ DO NOT proceed if Phase 6 incomplete or tests failed
+✗ NEVER deploy untested code
 
 ---
 
@@ -1278,9 +1522,29 @@ Include:
 
 ---
 
+### 🔄 PHASE TRANSITION CHECKPOINT 7→GLOBAL END
+
+**VALIDATION BEFORE PROCEEDING**:
+- ✅ Phase 7 completed: YES/NO
+- ✅ Deployment packages created: YES/NO
+- ✅ Configuration management ready: YES/NO
+- ✅ Documentation complete: YES/NO
+- ✅ Ready to proceed to GLOBAL END: YES/NO
+
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before proceeding to GLOBAL END
+
+---
+
 ## GLOBAL END
 
 **Execute AFTER all phases complete to ensure original requirements satisfied**
+
+**⚠️ MANDATORY PREREQUISITE VALIDATION ⚠️**:
+✓ ALL 7 PHASES MUST be complete (no exceptions)
+✓ GLOBAL START MUST have been executed at the beginning
+✓ All phase deliverables MUST exist in <worktree>/
+✗ DO NOT execute GLOBAL END if ANY phase was skipped
+✗ NEVER conclude without full phase completion
 
 ### Requirements Validation
 
@@ -1382,6 +1646,78 @@ When using this IDEAL-STI v3.0 framework, these behaviors are guaranteed:
 6. **COMPLETE TRACEABILITY**: Requirements → Use Cases → Architecture → Tasks → Implementation → Testing → Deployment
 7. **GRACEFUL DEGRADATION**: Best effort captured even at iteration limits
 8. **GLOBAL VALIDATION**: Every execution ends with comprehensive requirements validation
+
+### WORKTREE CONSOLIDATION
+
+```markdown
+IF git worktree was created in GLOBAL START:
+
+1. CAPTURE CURRENT LOCATION:
+   <current_location> = $(pwd)
+
+2. CRITICAL SAFETY CHECK:
+   IF "<worktree>" != "<current_location>" THEN:
+
+      # SAFE TO CONSOLIDATE - We're NOT inside the worktree
+
+      a. Stage all worktree changes:
+         git -C "<worktree>" add -A .
+
+      b. Commit with IDEAL-STI framework context:
+         git -C "<worktree>" commit -m "IDEAL-STI v3: Complete 7-phase implementation
+
+         Framework: IDEAL-STI v3.0
+         Worktree: <worktree>
+         Original: <original_pwd>
+         Quality Score: <global_quality_score>
+
+         Phases Completed:
+         - Phase 1: Use Case Discovery
+         - Phase 2: Requirements Generation
+         - Phase 3: Architecture Definition
+         - Phase 4: Task Generation
+         - Phase 5: Parallel Development
+         - Phase 6: Integration Testing
+         - Phase 7: Deployment Preparation
+
+         Requirements Satisfied: <requirements_count>
+         Tasks Completed: <completed_task_count>
+         Parallel Agents: <agent_count>"
+
+      c. Return to original branch and location:
+         git -C "<original_pwd>" checkout <original_branch>
+
+      d. Merge worktree changes (squash for clean history):
+         git -C "<original_pwd>" merge --squash <worktree_branch>
+         git -C "<original_pwd>" commit -m "Apply IDEAL-STI v3 implementation from worktree"
+
+      e. Clean up worktree and branch:
+         git -C "<original_pwd>" worktree remove "<worktree>" --force
+         git -C "<original_pwd>" branch -D <worktree_branch>
+
+      f. Confirm cleanup:
+         echo "✅ Worktree consolidated and cleaned: <worktree>"
+
+   ELSE:
+      # UNSAFE - Current directory IS the worktree
+      echo "⚠️ MANUAL MERGE REQUIRED - Currently inside worktree"
+      echo "Cannot auto-delete worktree from within itself"
+      echo ""
+      echo "To consolidate manually:"
+      echo "1. Exit worktree: cd <original_pwd>"
+      echo "2. Stage changes: git -C '<worktree>' add -A ."
+      echo "3. Commit: git -C '<worktree>' commit -m 'IDEAL-STI implementation'"
+      echo "4. Switch branch: git checkout <original_branch>"
+      echo "5. Merge: git merge --squash <worktree_branch>"
+      echo "6. Commit: git commit -m 'Apply IDEAL-STI implementation'"
+      echo "7. Cleanup: git worktree remove '<worktree>' --force"
+      echo "8. Delete branch: git branch -D <worktree_branch>"
+   FI
+
+ELSE:
+   echo "No worktree to consolidate (running in standard mode)"
+FI
+```
 
 ## Execution Summary
 

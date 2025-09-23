@@ -17,6 +17,101 @@ When you receive `<prompt-arguments>`, execute the comprehensive use case discov
 
 ---
 
+## GLOBAL START
+
+**Execute ONCE at the beginning of any prompt using this framework**
+
+### Framework Initialization
+
+```markdown
+WHEN starting ANY prompt using this framework:
+
+1. SET GLOBAL VARIABLES (once only):
+   <original_pwd> = $(pwd)  # Capture starting location - NEVER CHANGE
+   <worktree> = $(pwd)      # Default - may be updated if subagent
+   <original-requirements> = <prompt-arguments>
+   <worktree_created> = false  # Track if we created a worktree
+   <worktree_branch> = ""       # Track worktree branch name
+   <worktree_name> = ""         # Track worktree identifier
+
+2. WORKTREE INITIALIZATION (Execute only if running as subagent):
+   # Only create worktree if running as subagent to ensure isolation
+   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
+     echo "🧠 THINKING: Subagent detected - creating isolated worktree for clean execution"
+
+     # Verify git repository exists
+     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
+       echo "📝 Initializing git repository"
+       git -C "<original_pwd>" init
+       git -C "<original_pwd>" add -A
+       git -C "<original_pwd>" commit -m "Initial commit for use case expansion"
+     fi
+
+     # Generate unique worktree with anti-collision
+     timestamp=$(date +%Y%m%d-%H%M%S)
+     random_id=$(openssl rand -hex 3)
+     worktree_name="use-case-${timestamp}-${random_id}"
+     worktree_path="/tmp/${worktree_name}"
+
+     # Create worktree with new branch based on current
+     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+     worktree_branch="worktree/${current_branch}-${timestamp}"
+
+     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
+     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+
+     # Apply uncommitted changes for continuity
+     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
+       echo "📋 Applying uncommitted changes to worktree"
+       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
+     fi
+
+     # Update framework variables for all subsequent operations
+     <worktree> = ${worktree_path}
+     <worktree_created> = true
+     <worktree_branch> = ${worktree_branch}
+     <worktree_name> = ${worktree_name}
+
+     echo "✅ Worktree created for progressive intelligence isolation: ${worktree_name}"
+   ELSE:
+     echo "📝 Standard execution mode - using current directory"
+
+3. CREATE DIRECTORY STRUCTURE:
+   mkdir -p "<worktree>/planning"  # Phase documentation
+   mkdir -p "<worktree>/docs"      # Final deliverables
+
+4. ESTABLISH PATH DISCIPLINE:
+   - NEVER use cd, pushd, popd, or directory changing commands
+   - NEVER use relative paths without <worktree> prefix
+   - ALWAYS use absolute paths: <worktree>/planning/phase-N.md
+   - ALWAYS use git -C "<worktree>" for ALL git operations
+
+5. LOAD ORIGINAL REQUIREMENTS:
+   Parse <prompt-arguments> to identify:
+   - What needs to be accomplished (use case discovery and expansion)
+   - Expected deliverables (complete use case specification)
+   - Quality standards (coverage, confidence, granularity)
+   - Any constraints or dependencies
+```
+
+---
+
+## PHASE 1: Use Case Discovery & Expansion
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Systematically discover and expand use cases through iterative reasoning and pattern-based derivation
+
+**DEPENDENCIES**:
+- Original requirements: <prompt-arguments>
+- External dependencies: None (initial phase)
+
+**DELIVERABLES**:
+- Complete use case specification in `<worktree>/planning/use-cases.md`
+- Summary for caller showing generation results
+
+---
+
 ## SYSTEMATIC DERIVATION PATTERNS
 
 Apply these patterns to discover implicit use cases:
@@ -55,9 +150,11 @@ Apply these patterns to discover implicit use cases:
 
 ---
 
-## Phase Activities
+### Phase Activities
 
-### 1. Rehydration & Intelligence Loading
+**Execute activities in dependency order (not necessarily sequential)**
+
+#### 1. Rehydration & Intelligence Loading
 
 Load accumulated wisdom from previous phases or runs:
 
@@ -84,7 +181,7 @@ Generate intelligent predefinitions:
 Document rehydration results for this phase.
 ```
 
-### 2. Input Extraction & Validation
+#### 2. Input Extraction & Validation
 
 Extract requirements from input:
 
@@ -112,7 +209,7 @@ Examine <prompt-arguments> to determine input type:
 **OUTPUT**: Validated requirements ready for use case analysis
 ```
 
-### 3. Criteria Definition (Runtime Intelligence)
+#### 3. Criteria Definition (Runtime Intelligence)
 
 Using CRITERIA_HINTS from rehydration, define:
 
@@ -138,7 +235,7 @@ Using CRITERIA_HINTS from rehydration, define:
 - Regulatory compliance needs
 ```
 
-### 4. Research & Discovery
+#### 4. Research & Discovery
 
 Using RESEARCH_FOCUS from rehydration:
 
@@ -173,7 +270,7 @@ For each pattern NOT applied, document WHY it's not applicable.
 - From domain knowledge: LOW confidence (30-59%)
 ```
 
-### 5. Planning
+#### 5. Planning
 
 Using PLANNING_BASELINE from rehydration:
 
@@ -197,7 +294,7 @@ For use cases requiring decomposition:
 - Define coverage validation approach
 ```
 
-### 6. Review & Validation
+#### 6. Review & Validation
 
 Before executing, validate the plan:
 
@@ -220,7 +317,7 @@ OTHERWISE:
   Proceed to execution
 ```
 
-### 7. Execution
+#### 7. Execution
 
 Execute use case discovery and analysis:
 
@@ -253,7 +350,7 @@ For EACH finalized use case:
 Write complete analysis to: <worktree>/planning/use-cases.md
 ```
 
-### 8. Quality Iteration Loop
+#### 8. Quality Iteration Loop
 
 Using QUALITY_THRESHOLDS from rehydration:
 
@@ -289,7 +386,7 @@ FOR iteration FROM 1 TO 10:
     Document best effort with remaining gaps
 ```
 
-### 9. Documentation & Knowledge Capture
+#### 9. Documentation & Knowledge Capture
 
 Document complete results:
 
@@ -371,6 +468,187 @@ Document complete results:
 
 ## Next Phase Ready
 The complete use case analysis with [N] use cases has been written to the planning directory, ready for requirements generation in Phase 2.
+```
+
+---
+
+## GLOBAL END
+
+**Execute AFTER all phases complete to ensure original requirements satisfied**
+
+### Requirements Validation
+
+```markdown
+1. LOAD ORIGINAL REQUIREMENTS:
+   Review <original-requirements> from Global Start
+
+2. EVIDENCE GATHERING:
+   For each requirement in original request:
+   - Search ALL phase outputs for evidence of satisfaction
+   - Check completeness and quality of solution
+   - Document gaps or partial solutions
+
+   Create requirements satisfaction matrix:
+   | Requirement | Phase(s) Addressed | Quality Score | Evidence | Status |
+   |-------------|-------------------|---------------|----------|--------|
+   | Use case discovery | Phase 1 | [score]/10 | use-cases.md | [status] |
+   | Pattern application | Phase 1 | [score]/10 | derivation patterns | [status] |
+   | Quality iteration | Phase 1 | [score]/10 | convergence achieved | [status] |
+```
+
+### Global Quality Score Calculation
+
+```markdown
+GLOBAL_QUALITY_SCORE = (
+  (REQUIREMENTS_SATISFACTION * 0.40) +
+  (COMPLETENESS_SCORE * 0.25) +
+  (COHERENCE_SCORE * 0.20) +
+  (VALUE_DELIVERY * 0.15)
+) * PHASE_CONSISTENCY_MULTIPLIER
+
+MINIMUM_ACCEPTABLE_SCORE = 7.0/10.0
+
+Quality Thresholds:
+- 9.0-10.0: Exceptional - Exceeds expectations
+- 8.0-8.9: Excellent - Fully satisfies with high quality
+- 7.0-7.9: Good - Meets requirements acceptably
+- 6.0-6.9: Marginal - Significant gaps or issues
+- Below 6.0: Unacceptable - Requires remediation
+```
+
+### Meta-Learning Extraction
+
+```markdown
+Extract insights for future prompts:
+
+SUCCESSFUL STRATEGIES:
+- Which derivation patterns yielded most discoveries?
+- Which criteria types proved most valuable?
+- Which iteration patterns converged fastest?
+- Which confidence scoring approaches worked best?
+
+FAILED APPROACHES:
+- Patterns that over-generated irrelevant use cases
+- Criteria that proved unmeasurable or misleading
+- Research directions that were dead ends
+- Quality patterns that missed important cases
+
+FRAMEWORK EVOLUTION:
+- Additional derivation patterns to consider
+- Better granularity detection methods
+- Improved confidence scoring mechanisms
+- Enhanced convergence detection
+```
+
+### WORKTREE CONSOLIDATION
+
+```markdown
+# Merge worktree if one was created (only for subagent execution)
+IF <worktree_created> == true THEN:
+  echo "🧠 THINKING: Framework execution complete - consolidating worktree"
+
+  # CRITICAL SAFETY CHECK - never delete if we're inside it
+  <current_location> = $(pwd)
+
+  IF "<worktree>" != "<current_location>" THEN:
+    echo "✅ Safe to consolidate - not inside worktree"
+
+    # Gather framework execution metadata
+    use_case_count=$(grep -c "^### UC[0-9]" "${worktree}"/planning/use-cases.md 2>/dev/null || echo "0")
+    quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
+    files_created=$(find "${worktree}" -type f -name "*.md" | wc -l || echo "0")
+
+    # Build informative commit message with framework context
+    worktree_commit="feat(use-case-expander): ${worktree_name} execution complete
+
+Framework: use case discovery and expansion
+Worktree: ${worktree_name}
+Branch: ${worktree_branch}
+Use cases discovered: ${use_case_count}
+Quality score: ${quality_score}/10
+Planning docs: $(ls -1 '${worktree}'/planning/*.md 2>/dev/null | wc -l)
+Deliverables: $(ls -1 '${worktree}'/docs/*.md 2>/dev/null | wc -l)
+
+Progressive knowledge accumulation and pattern-based derivation completed."
+
+    # Commit all worktree changes
+    echo "📝 Committing worktree changes"
+    git -C "${worktree}" add -A
+    if ! git -C "${worktree}" diff --cached --quiet; then
+      git -C "${worktree}" commit -m "${worktree_commit}"
+    fi
+
+    # Merge back to original branch with detailed message
+    merge_message="merge(use-case-expander): Consolidate ${worktree_name} results
+
+Source: ${worktree_branch}
+Use cases: ${use_case_count} discovered
+Quality: ${quality_score}/10
+Framework: Progressive intelligence with pattern derivation
+
+This merge includes all discovered use cases, planning documents, and
+analysis artifacts from the isolated worktree execution, preserving the
+knowledge accumulation and derivation patterns discovered."
+
+    # Execute squash merge for clean history
+    git -C "<original_pwd>" merge "<worktree_branch>" --squash
+    git -C "<original_pwd>" commit -m "${merge_message}"
+
+    # Clean up worktree and branch
+    git -C "<original_pwd>" worktree remove "<worktree>" --force
+    git -C "<original_pwd>" branch -D "<worktree_branch>"
+    git -C "<original_pwd>" worktree prune
+
+    echo "✅ Worktree consolidated - use cases preserved in main branch"
+
+  ELSE:
+    echo "⚠️ SAFETY: Cannot delete worktree - currently inside it"
+    echo "📍 Location: ${worktree}"
+    echo "📍 Branch: ${worktree_branch}"
+    echo "📍 Use cases: ${use_case_count}"
+
+    # Commit changes but preserve worktree for safety
+    git -C "${worktree}" add -A
+    git -C "${worktree}" commit -m "wip(use-case-expander): ${worktree_name} - manual merge required"
+
+    cat << EOF
+⚠️ MANUAL CONSOLIDATION REQUIRED
+Worktree cannot be removed (safety: pwd inside worktree)
+
+Framework execution details:
+- Worktree: ${worktree_name}
+- Branch: ${worktree_branch}
+- Location: ${worktree}
+- Use cases discovered: ${use_case_count}
+
+To consolidate manually after exiting worktree:
+1. cd "<original_pwd>"
+2. git -C "<original_pwd>" merge "<worktree_branch>" --squash
+3. git -C "<original_pwd>" commit -m "merge: Consolidate use case expansion"
+4. git -C "<original_pwd>" worktree remove "<worktree>" --force
+5. git -C "<original_pwd>" branch -D "<worktree_branch>"
+EOF
+  FI
+ELSE:
+  echo "📝 No worktree was created - standard execution completed"
+FI
+```
+
+### Final Documentation
+
+```markdown
+Create comprehensive final report: <worktree>/docs/use-case-expansion-report.md
+
+Include:
+- Requirements satisfaction matrix with evidence
+- Global quality score with detailed breakdown
+- Complete use case inventory with confidence levels
+- Pattern effectiveness analysis
+- Meta-learning insights for future expansions
+- Executive summary of discovered use cases
+
+IF Global Quality Score < 7.0 THEN:
+  Execute detailed remediation process (focus on missing use cases)
 ```
 
 ---

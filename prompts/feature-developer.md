@@ -17,39 +17,60 @@ You are a Feature Developer implementing a single task from requirements to comp
 
 **Initialize isolated development environment:**
 
-1. **Verify git repository exists** in current directory. If not initialized, create new repository with initial commit of all current files.
-
-2. **Capture current context** for later restoration:
-   - Store current branch name for merge target
-
-3. **Generate unique worktree identifier** using task name:
-   - Extract descriptive task name from `<prompt-arguments>` filename
-   - Remove TASK-number prefix, limit to 20 characters
-   - Add timestamp and random suffix for uniqueness
-
-4. **Create isolated worktree environment:**
+1. **CAPTURE ORIGINAL LOCATION** (critical for safety checks):
    ```bash
-   TASK_FILE="$(basename <prompt-arguments> .md)"
-   TASK_PREFIX="$(echo "${TASK_FILE}" | sed 's/TASK-[0-9]*-//' | head -c 20)"
-   TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-   RANDOM_ID="$(openssl rand -hex 3)"
-   WORKTREE_NAME="${TASK_PREFIX}-${TIMESTAMP}-${RANDOM_ID}"
-
-   git -C "$(pwd)" worktree add "/tmp/worktree-${WORKTREE_NAME}" -b "feature/${WORKTREE_NAME}" HEAD
+   <original_pwd> = $(pwd)
+   echo "📍 Original location captured: <original_pwd>"
    ```
 
-5. **Transfer current work to isolated environment:**
-   ```bash
-   # Apply staged changes to worktree index
-   git -C "$(pwd)" diff --cached | git -C "<worktree>" apply --cached || true
+2. **WORKTREE INITIALIZATION** (Execute only if running as subagent):
+   # Only create worktree if running as subagent to ensure isolation
+   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
+     echo "🧠 THINKING: Subagent detected - creating isolated worktree for feature development"
 
-   # Apply unstaged changes to worktree working directory
-   git -C "$(pwd)" diff | git -C "<worktree>" apply || true
-   ```
+     # Verify git repository exists
+     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
+       echo "📝 Initializing git repository"
+       git -C "<original_pwd>" init
+       git -C "<original_pwd>" add -A
+       git -C "<original_pwd>" commit -m "Initial commit for feature development"
+     fi
 
-6. **Establish working context:**
-   - Define `<worktree>` as `/tmp/worktree-${WORKTREE_NAME}` for all subsequent operations
-   - All file operations, architecture references, and task management use `<worktree>` prefix
+     # Extract task context from prompt-arguments
+     TASK_FILE="$(basename <prompt-arguments> .md)"
+     TASK_PREFIX="$(echo "${TASK_FILE}" | sed 's/TASK-[0-9]*-//' | head -c 20)"
+
+     # Generate unique worktree with anti-collision
+     timestamp=$(date +%Y%m%d-%H%M%S)
+     random_id=$(openssl rand -hex 3)
+     worktree_name="feature-${TASK_PREFIX}-${timestamp}-${random_id}"
+     worktree_path="/tmp/${worktree_name}"
+
+     # Create worktree with new branch based on current
+     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+     worktree_branch="feature/${current_branch}-${TASK_PREFIX}-${timestamp}"
+
+     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
+     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+
+     # Apply uncommitted changes for continuity
+     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
+       echo "📋 Applying uncommitted changes to worktree"
+       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
+     fi
+
+     # Update framework variables for all subsequent operations
+     <worktree> = ${worktree_path}
+     <worktree_created> = true
+     <worktree_branch> = ${worktree_branch}
+     <worktree_name> = ${worktree_name}
+     <task_prefix> = ${TASK_PREFIX}
+
+     echo "✅ Worktree created for feature isolation: ${worktree_name}"
+   ELSE:
+     echo "📝 Standard execution mode - using current directory"
+     <worktree> = <original_pwd>
+     <worktree_created> = false
 
 ---
 
@@ -758,37 +779,106 @@ When using this agent, these behaviors are guaranteed:
 
 ## Global End: Git Worktree Merge and Cleanup
 
-**Complete task and integrate changes:**
+### WORKTREE CONSOLIDATION
 
-1. **Finalize task status** by moving task file from `<worktree>/pending/` to `<worktree>/completed/` directory.
+```markdown
+# Merge worktree if one was created (only for subagent execution)
+IF <worktree_created> == true THEN:
+  echo "🧠 THINKING: Feature implementation complete - consolidating worktree"
 
-2. **Commit all changes in isolated environment:**
-   ```bash
-   git -C "<worktree>" add -A
-   TASK_DESC="$(grep -m1 '^# ' <prompt-arguments> | sed 's/^# //' || echo 'Feature implementation')"
-   git -C "<worktree>" commit -m "feat: ${TASK_PREFIX} - ${TASK_DESC}
+  # CRITICAL SAFETY CHECK - never delete if we're inside it
+  <current_location> = $(pwd)
 
-   Implemented in isolated worktree: ${WORKTREE_NAME}
-   Task moved to completed directory
-   All acceptance criteria met"
-   ```
+  IF "<worktree>" != "<current_location>" THEN:
+    echo "✅ Safe to consolidate - not inside worktree"
 
-3. **Integrate changes back to original directory** using 3-way merge:
-   ```bash
-   git -C "$(pwd)" merge "feature/${WORKTREE_NAME}" -m "merge: ${TASK_PREFIX} feature branch
+    # Move task file from pending/ to completed/ if it exists
+    if [ -f "${worktree}/pending/${TASK_FILE}" ]; then
+      mkdir -p "${worktree}/completed"
+      mv "${worktree}/pending/${TASK_FILE}" "${worktree}/completed/"
+    fi
 
-   3-way merge from feature/${WORKTREE_NAME}
-   Preserves development history
-   All tests passing and acceptance criteria met"
-   ```
+    # Gather feature implementation metadata
+    TASK_DESC="$(grep -m1 '^# ' <prompt-arguments> | sed 's/^# //' || echo 'Feature implementation')"
+    test_count=$(find "${worktree}" -name "*test*" -o -name "*spec*" | wc -l || echo "0")
+    files_modified=$(git -C "${worktree}" diff --name-only HEAD 2>/dev/null | wc -l || echo "0")
 
-4. **Clean up isolated environment:**
-   ```bash
-   git -C "$(pwd)" worktree remove "<worktree>" --force
-   git -C "$(pwd)" branch -D "feature/${WORKTREE_NAME}"
-   ```
+    # Build informative commit message with feature context
+    worktree_commit="feat(${task_prefix}): ${TASK_DESC}
 
-5. **Report completion status** with summary of isolated development and successful integration back to main branch.
+Framework: Feature Developer Agent
+Worktree: ${worktree_name}
+Branch: ${worktree_branch}
+Task: ${TASK_FILE}
+Tests added: ${test_count}
+Files modified: ${files_modified}
+Status: All acceptance criteria met
+
+Task moved from pending/ to completed/
+Feature implemented with test-driven development and architecture compliance."
+
+    # Commit all worktree changes
+    echo "📝 Committing worktree changes"
+    git -C "${worktree}" add -A
+    if ! git -C "${worktree}" diff --cached --quiet; then
+      git -C "${worktree}" commit -m "${worktree_commit}"
+    fi
+
+    # Merge back to original branch with detailed message
+    merge_message="merge(feature): Consolidate ${task_prefix} implementation
+
+Source: ${worktree_branch}
+Task: ${TASK_FILE}
+Tests: ${test_count} test files
+Modified: ${files_modified} files
+Framework: Feature Developer with TDD
+
+This merge includes the complete feature implementation with all tests passing
+and acceptance criteria met. The task has been moved to completed status."
+
+    # Execute squash merge for clean history
+    git -C "<original_pwd>" merge "<worktree_branch>" --squash
+    git -C "<original_pwd>" commit -m "${merge_message}"
+
+    # Clean up worktree and branch
+    git -C "<original_pwd>" worktree remove "<worktree>" --force
+    git -C "<original_pwd>" branch -D "<worktree_branch>"
+    git -C "<original_pwd>" worktree prune
+
+    echo "✅ Worktree consolidated - feature merged to main branch"
+
+  ELSE:
+    echo "⚠️ SAFETY: Cannot delete worktree - currently inside it"
+    echo "📍 Location: ${worktree}"
+    echo "📍 Branch: ${worktree_branch}"
+    echo "📍 Task: ${TASK_FILE}"
+
+    # Commit changes but preserve worktree for safety
+    git -C "${worktree}" add -A
+    git -C "${worktree}" commit -m "wip(feature): ${task_prefix} - manual merge required"
+
+    cat << EOF
+⚠️ MANUAL CONSOLIDATION REQUIRED
+Worktree cannot be removed (safety: pwd inside worktree)
+
+Feature implementation details:
+- Worktree: ${worktree_name}
+- Branch: ${worktree_branch}
+- Location: ${worktree}
+- Task: ${TASK_FILE}
+
+To consolidate manually after exiting worktree:
+1. cd "<original_pwd>"
+2. git -C "<original_pwd>" merge "<worktree_branch>" --squash
+3. git -C "<original_pwd>" commit -m "merge: Consolidate ${task_prefix} feature"
+4. git -C "<original_pwd>" worktree remove "<worktree>" --force
+5. git -C "<original_pwd>" branch -D "<worktree_branch>"
+EOF
+  FI
+ELSE:
+  echo "📝 No worktree was created - standard execution completed"
+FI
+```
 
 ---
 

@@ -59,11 +59,64 @@ EXECUTION PHASES: Organized by dependency order
 ```markdown
 WHEN starting the feature task creation process:
 
-1. SET GLOBAL VARIABLES (once only):
-   <worktree> = $(pwd)  # Never change this
+1. CAPTURE ORIGINAL LOCATION (critical for safety checks):
+   <original_pwd> = $(pwd)
+   echo "📍 Original location captured: <original_pwd>"
+
+2. WORKTREE INITIALIZATION (Execute only if running as subagent):
+   # Only create worktree if running as subagent to ensure isolation
+   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
+     echo "🧠 THINKING: Subagent detected - creating isolated worktree for task generation"
+
+     # Verify git repository exists
+     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
+       echo "📝 Initializing git repository"
+       git -C "<original_pwd>" init
+       git -C "<original_pwd>" add -A
+       git -C "<original_pwd>" commit -m "Initial commit for task generation"
+     fi
+
+     # Generate unique worktree for task creation
+     timestamp=$(date +%Y%m%d-%H%M%S)
+     random_id=$(openssl rand -hex 3)
+     worktree_name="task-creator-${timestamp}-${random_id}"
+     worktree_path="/tmp/${worktree_name}"
+
+     # Create worktree with branch for task generation
+     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+     worktree_branch="task-gen/${current_branch}-${timestamp}"
+
+     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
+     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+
+     # CRITICAL: Copy existing completed/ directory for delta detection
+     if [ -d "<original_pwd>/completed" ]; then
+       cp -r "<original_pwd>/completed" "${worktree_path}/completed"
+       echo "📋 Copied existing completed tasks for delta detection"
+     fi
+
+     # Apply uncommitted changes (planning docs, etc.)
+     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
+       echo "📋 Applying uncommitted changes to worktree"
+       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
+     fi
+
+     # Update framework variables for all subsequent operations
+     <worktree> = ${worktree_path}
+     <worktree_created> = true
+     <worktree_branch> = ${worktree_branch}
+     <worktree_name> = ${worktree_name}
+
+     echo "✅ Worktree created for task generation isolation: ${worktree_name}"
+   ELSE:
+     echo "📝 Standard execution mode - using current directory"
+     <worktree> = <original_pwd>
+     <worktree_created> = false
+   FI
+
    <original-requirements> = <prompt-arguments>
 
-2. CREATE DIRECTORY STRUCTURE:
+3. CREATE DIRECTORY STRUCTURE:
    mkdir -p "<worktree>/planning"        # Phase documentation
    mkdir -p "<worktree>/pending"         # New task files awaiting implementation
    mkdir -p "<worktree>/completed"       # Completed task files after implementation
@@ -1159,6 +1212,104 @@ IF Global Quality Score < 9.0:
   Suggest remediation approach
 ELSE:
   Mark as ready for feature-developer.md execution
+```
+
+### WORKTREE CONSOLIDATION
+
+```markdown
+# Merge worktree if one was created (only for subagent execution)
+IF <worktree_created> == true THEN:
+  echo "🧠 THINKING: Task generation complete - consolidating worktree"
+
+  # CRITICAL SAFETY CHECK - never delete if we're inside it
+  <current_location> = $(pwd)
+
+  IF "<worktree>" != "<current_location>" THEN:
+    echo "✅ Safe to consolidate - not inside worktree"
+
+    # Gather task generation metrics
+    tasks_generated=$(ls -1 "${worktree}"/pending/task-*.md 2>/dev/null | wc -l || echo "0")
+    tasks_skipped=$(grep -c "already satisfied" "${worktree}"/planning/phase-1.md 2>/dev/null || echo "0")
+    delta_efficiency=$(grep "Delta Efficiency:" "${worktree}"/planning/phase-2.md | grep -o "[0-9]*%" || echo "unknown")
+    quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
+
+    # Build comprehensive commit message with task generation context
+    worktree_commit="feat(task-gen): Generated ${tasks_generated} tasks via feature-task-creator
+
+Framework: Feature Task Creator
+Worktree: ${worktree_name}
+Branch: ${worktree_branch}
+Tasks generated: ${tasks_generated}
+Tasks skipped (unchanged): ${tasks_skipped}
+Delta efficiency: ${delta_efficiency}
+Quality score: ${quality_score}/10
+
+Task decomposition complete with LLM-optimized atomic tasks.
+All changed requirements and use cases have implementing tasks."
+
+    # Commit all generated tasks and planning docs
+    echo "📝 Committing task generation results"
+    git -C "${worktree}" add -A
+    if ! git -C "${worktree}" diff --cached --quiet; then
+      git -C "${worktree}" commit -m "${worktree_commit}"
+    fi
+
+    # Merge back to original branch with detailed message
+    merge_message="merge(task-gen): Consolidate ${tasks_generated} generated tasks
+
+Source: ${worktree_branch}
+Generated: ${tasks_generated} new/modified tasks
+Skipped: ${tasks_skipped} unchanged tasks
+Delta efficiency: ${delta_efficiency}
+Quality: ${quality_score}/10
+Framework: Feature Task Creator with delta detection
+
+This merge includes all generated task files in pending/ directory
+and planning documentation for full traceability."
+
+    # Execute squash merge for clean history
+    git -C "<original_pwd>" merge "<worktree_branch>" --squash
+    git -C "<original_pwd>" commit -m "${merge_message}"
+
+    # Clean up worktree and branch
+    git -C "<original_pwd>" worktree remove "<worktree>" --force
+    git -C "<original_pwd>" branch -D "<worktree_branch>"
+    git -C "<original_pwd>" worktree prune
+
+    echo "✅ Task generation consolidated - ${tasks_generated} tasks ready for feature-developer.md"
+
+  ELSE:
+    echo "⚠️ SAFETY: Cannot delete worktree - currently inside it"
+    echo "📍 Location: ${worktree}"
+    echo "📍 Branch: ${worktree_branch}"
+    echo "📍 Tasks generated: ${tasks_generated}"
+
+    # Commit changes but preserve worktree for safety
+    git -C "${worktree}" add -A
+    git -C "${worktree}" commit -m "wip(task-gen): ${worktree_name} - manual merge required"
+
+    cat << EOF
+⚠️ MANUAL CONSOLIDATION REQUIRED
+Worktree cannot be removed (safety: pwd inside worktree)
+
+Task generation details:
+- Worktree: ${worktree_name}
+- Branch: ${worktree_branch}
+- Location: ${worktree}
+- Tasks generated: ${tasks_generated}
+- Tasks skipped: ${tasks_skipped}
+
+To consolidate manually after exiting worktree:
+1. cd "<original_pwd>"
+2. git -C "<original_pwd>" merge "<worktree_branch>" --squash
+3. git -C "<original_pwd>" commit -m "merge: Consolidate task generation"
+4. git -C "<original_pwd>" worktree remove "<worktree>" --force
+5. git -C "<original_pwd>" branch -D "<worktree_branch>"
+EOF
+  FI
+ELSE:
+  echo "📝 No worktree was created - standard task generation completed"
+FI
 ```
 
 ### Remediation Process (If Quality Score < 9.0)

@@ -62,20 +62,66 @@ This creates a fractal improvement pattern where learning happens at every scale
 WHEN starting ANY prompt using this framework:
 
 1. SET GLOBAL VARIABLES (once only):
-   <worktree> = $(pwd)  # Never change this
+   <original_pwd> = $(pwd)  # Capture starting location - NEVER CHANGE
+   <worktree> = $(pwd)      # Default - may be updated if subagent
    <original-requirements> = <prompt-arguments>
+   <worktree_created> = false  # Track if we created a worktree
+   <worktree_branch> = ""       # Track worktree branch name
+   <worktree_name> = ""         # Track worktree identifier
 
-2. CREATE DIRECTORY STRUCTURE:
+2. WORKTREE INITIALIZATION (Execute only if running as subagent):
+   # Only create worktree if running as subagent to ensure isolation
+   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
+     echo "🧠 THINKING: Subagent detected - creating isolated worktree for clean execution"
+
+     # Verify git repository exists
+     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
+       echo "📝 Initializing git repository"
+       git -C "<original_pwd>" init
+       git -C "<original_pwd>" add -A
+       git -C "<original_pwd>" commit -m "Initial commit for phased framework execution"
+     fi
+
+     # Generate unique worktree with anti-collision
+     timestamp=$(date +%Y%m%d-%H%M%S)
+     random_id=$(openssl rand -hex 3)
+     worktree_name="phased-${timestamp}-${random_id}"
+     worktree_path="/tmp/${worktree_name}"
+
+     # Create worktree with new branch based on current
+     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+     worktree_branch="worktree/${current_branch}-${timestamp}"
+
+     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
+     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+
+     # Apply uncommitted changes for continuity
+     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
+       echo "📋 Applying uncommitted changes to worktree"
+       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
+     fi
+
+     # Update framework variables for all subsequent operations
+     <worktree> = ${worktree_path}
+     <worktree_created> = true
+     <worktree_branch> = ${worktree_branch}
+     <worktree_name> = ${worktree_name}
+
+     echo "✅ Worktree created for progressive intelligence isolation: ${worktree_name}"
+   ELSE:
+     echo "📝 Standard execution mode - using current directory"
+
+3. CREATE DIRECTORY STRUCTURE:
    mkdir -p "<worktree>/planning"  # Phase documentation
    mkdir -p "<worktree>/docs"      # Final deliverables
 
-3. ESTABLISH PATH DISCIPLINE:
+4. ESTABLISH PATH DISCIPLINE:
    - NEVER use cd, pushd, popd, or directory changing commands
    - NEVER use relative paths without <worktree> prefix
    - ALWAYS use absolute paths: <worktree>/planning/phase-N.md
    - ALWAYS use git -C "<worktree>" for ALL git operations
 
-4. DETERMINE FRAMEWORK MODE:
+5. DETERMINE FRAMEWORK MODE:
    FIRST attempt to extract a filename or path from <prompt-arguments>:
    - Look for patterns: /path/to/prompt.md, ./prompts/example.md, filename.md
    - Check if file exists using: test -f "<filename>"
@@ -101,14 +147,14 @@ WHEN starting ANY prompt using this framework:
      - Explain when to use which activities
      THEN EXIT framework (documentation complete)
 
-5. LOAD ORIGINAL REQUIREMENTS:
+6. LOAD ORIGINAL REQUIREMENTS:
    Parse <prompt-arguments> to identify:
    - What needs to be accomplished
    - Expected deliverables
    - Quality standards
    - Any constraints or dependencies
 
-6. PLAN PHASE STRUCTURE:
+7. PLAN PHASE STRUCTURE:
    Determine how many phases needed based on complexity
 
 ### Complete Framework Flow Visualization
@@ -386,6 +432,100 @@ FRAMEWORK EVOLUTION:
 - Stages that could be optimized or combined
 - Missing activities that would have been valuable
 - Better template structures for future use
+```
+
+### WORKTREE CONSOLIDATION
+
+```markdown
+# Merge worktree if one was created (only for subagent execution)
+IF <worktree_created> == true THEN:
+  echo "🧠 THINKING: Framework execution complete - consolidating worktree"
+
+  # CRITICAL SAFETY CHECK - never delete if we're inside it
+  <current_location> = $(pwd)
+
+  IF "<worktree>" != "<current_location>" THEN:
+    echo "✅ Safe to consolidate - not inside worktree"
+
+    # Gather framework execution metadata
+    phase_count=$(ls -1 "${worktree}"/planning/phase-*.md 2>/dev/null | wc -l || echo "0")
+    quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
+    files_created=$(find "${worktree}" -type f -name "*.md" | wc -l || echo "0")
+
+    # Build informative commit message with framework context
+    worktree_commit="feat(phased-framework): ${worktree_name} execution complete
+
+Framework: phased-prompt progressive intelligence
+Worktree: ${worktree_name}
+Branch: ${worktree_branch}
+Phases executed: ${phase_count}
+Quality score: ${quality_score}/10
+Planning docs: $(ls -1 '${worktree}'/planning/*.md 2>/dev/null | wc -l)
+Deliverables: $(ls -1 '${worktree}'/docs/*.md 2>/dev/null | wc -l)
+
+Knowledge accumulation and rehydration completed across all phases."
+
+    # Commit all worktree changes
+    echo "📝 Committing worktree changes"
+    git -C "${worktree}" add -A
+    if ! git -C "${worktree}" diff --cached --quiet; then
+      git -C "${worktree}" commit -m "${worktree_commit}"
+    fi
+
+    # Merge back to original branch with detailed message
+    merge_message="merge(phased-framework): Consolidate ${worktree_name} results
+
+Source: ${worktree_branch}
+Phases: ${phase_count} completed
+Quality: ${quality_score}/10
+Framework: Progressive intelligence with rehydration
+
+This merge includes all phase artifacts, planning documents, and deliverables
+from the isolated worktree execution, preserving the knowledge accumulation
+and learning patterns discovered during framework execution."
+
+    # Execute squash merge for clean history
+    git -C "<original_pwd>" merge "<worktree_branch>" --squash
+    git -C "<original_pwd>" commit -m "${merge_message}"
+
+    # Clean up worktree and branch
+    git -C "<original_pwd>" worktree remove "<worktree>" --force
+    git -C "<original_pwd>" branch -D "<worktree_branch>"
+    git -C "<original_pwd>" worktree prune
+
+    echo "✅ Worktree consolidated - knowledge preserved in main branch"
+
+  ELSE:
+    echo "⚠️ SAFETY: Cannot delete worktree - currently inside it"
+    echo "📍 Location: ${worktree}"
+    echo "📍 Branch: ${worktree_branch}"
+    echo "📍 Phases: ${phase_count}"
+
+    # Commit changes but preserve worktree for safety
+    git -C "${worktree}" add -A
+    git -C "${worktree}" commit -m "wip(phased-framework): ${worktree_name} - manual merge required"
+
+    cat << EOF
+⚠️ MANUAL CONSOLIDATION REQUIRED
+Worktree cannot be removed (safety: pwd inside worktree)
+
+Framework execution details:
+- Worktree: ${worktree_name}
+- Branch: ${worktree_branch}
+- Location: ${worktree}
+- Phases completed: ${phase_count}
+
+To consolidate manually after exiting worktree:
+1. cd "<original_pwd>"
+2. git -C "<original_pwd>" merge "<worktree_branch>" --squash
+3. git -C "<original_pwd>" commit -m "merge: Consolidate phased framework execution"
+4. git -C "<original_pwd>" worktree remove "<worktree>" --force
+5. git -C "<original_pwd>" branch -D "<worktree_branch>"
+EOF
+  FI
+ELSE:
+  echo "📝 No worktree was created - standard execution completed"
+FI
 ```
 
 ### Final Documentation
