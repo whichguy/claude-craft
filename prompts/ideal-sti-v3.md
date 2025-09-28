@@ -174,11 +174,57 @@ WHEN starting ANY prompt using this framework:
 Framework is now initialized and ready for phases.
 ```
 
+### TODO LIST INITIALIZATION & MANAGEMENT
+
+```markdown
+**Initialize Framework Backbone**:
+Create EXACTLY these 9 todos - these are the immutable backbone of execution:
+- GLOBAL START: Initialize Framework
+- PHASE 1: USE CASE DISCOVERY
+- PHASE 2: REQUIREMENTS GENERATION
+- PHASE 3: ARCHITECTURE DEFINITION
+- PHASE 4: TASK GENERATION & ORGANIZATION
+- PHASE 5: PARALLEL FEATURE DEVELOPMENT
+- PHASE 6: INTEGRATION & TESTING
+- PHASE 7: DEPLOYMENT PREPARATION
+- GLOBAL END: Validate Requirements
+
+Mark GLOBAL START as "in_progress" immediately.
+
+**Discovered Work Mapping Protocol**:
+When new work items are discovered during execution:
+
+1. FIRST CHECK: Is this already covered by an upcoming phase?
+   - "Need to define API endpoints" → Already covered by PHASE 2 (Requirements)
+   - "Need to choose database" → Already covered by PHASE 3 (Architecture)
+   - "Need to write tests" → Already covered by PHASE 6 (Integration & Testing)
+
+2. IF already covered by a phase:
+   - Make a note in <worktree>/planning/phase-X-notes.md
+   - DO NOT create a new todo
+   - Address it when that phase executes
+
+3. IF truly novel and not covered:
+   - Determine which phase it belongs to
+   - Add to that phase's execution scope
+   - Document in phase planning file
+   - Still execute within the phase structure
+
+The 9 backbone todos NEVER change - only their internal scope expands.
+```
+
 ---
 
 ## PHASE 1: USE CASE DISCOVERY
 
 **Purpose**: Generate comprehensive use cases from user requirements via prompter
+
+**PHASE TODO PROTOCOL**:
+- Mark GLOBAL START as "completed"
+- Mark PHASE 1: USE CASE DISCOVERY as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
 
 ### Phase Purpose & Dependencies
 
@@ -247,6 +293,12 @@ Plan the use case generation approach:
 - Determine project complexity level (prototype/small/medium/large/enterprise)
 - Set quality thresholds based on complexity
 - Plan prompter invocation strategy
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
 
 ### 6. Review & Validation
 
@@ -324,6 +376,13 @@ Include:
 ## PHASE 2: REQUIREMENTS GENERATION
 
 **Purpose**: Generate detailed functional and non-functional requirements from use cases
+
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 1: USE CASE DISCOVERY as "completed"
+- Mark PHASE 2: REQUIREMENTS GENERATION as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
 
 ### Phase Purpose & Dependencies
 
@@ -406,6 +465,12 @@ Using validated strategies from rehydration:
 - Determine NFR derivation approach
 - Plan prompter invocation with use case content
 
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
+
 ### 6. Review & Validation
 
 Before executing, validate the plan:
@@ -480,6 +545,13 @@ Include:
 ## PHASE 3: ARCHITECTURE DEFINITION
 
 **Purpose**: Research and generate comprehensive technology architecture using recommend-tech framework
+
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 2: REQUIREMENTS GENERATION as "completed"
+- Mark PHASE 3: ARCHITECTURE DEFINITION as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
 
 ### Phase Purpose & Dependencies
 
@@ -565,6 +637,12 @@ Using PLANNING_BASELINE from rehydration:
 - Prepare use cases and requirements for prompter input
 - Plan 20-minute analysis execution strategy
 
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
+
 ### 6. Review & Validation
 
 Before executing, validate the plan:
@@ -641,6 +719,13 @@ Include:
 ## PHASE 4: TASK GENERATION & ORGANIZATION
 
 **Purpose**: Generate actionable implementation tasks from architecture and requirements
+
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 3: ARCHITECTURE DEFINITION as "completed"
+- Mark PHASE 4: TASK GENERATION & ORGANIZATION as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
 
 ### Phase Purpose & Dependencies
 
@@ -726,6 +811,12 @@ Using PLANNING_BASELINE from rehydration:
 - Plan comprehensive task generation strategy
 - Determine task granularity and organization approach
 - Plan feature-task-creator prompter invocation
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
 
 ### 6. Review & Validation
 
@@ -885,6 +976,13 @@ Include:
 
 **Purpose**: Execute all implementation tasks in parallel via feature-developer agents
 
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 4: TASK GENERATION & ORGANIZATION as "completed"
+- Mark PHASE 5: PARALLEL FEATURE DEVELOPMENT as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
+
 ### Phase Purpose & Dependencies
 
 **PHASE_PURPOSE**: Implement all features concurrently using parallel feature-developer agents
@@ -969,6 +1067,12 @@ Using PLANNING_BASELINE from rehydration:
 - Plan parallel agent launch strategy
 - Determine task assignment and monitoring approach
 - Plan completion tracking and quality validation
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
 
 ### 6. Review & Validation
 
@@ -1147,6 +1251,13 @@ Include:
 
 **Purpose**: Integrate completed features and execute comprehensive testing
 
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 5: PARALLEL FEATURE DEVELOPMENT as "completed"
+- Mark PHASE 6: INTEGRATION & TESTING as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
+
 ### Phase Purpose & Dependencies
 
 **PHASE_PURPOSE**: Validate all implementations work together and meet quality standards
@@ -1232,6 +1343,12 @@ Using PLANNING_BASELINE from rehydration:
 - Plan integration sequence
 - Design test execution strategy
 - Plan performance benchmarking
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
 - Schedule security validation
 
 ### 6. Review & Validation
@@ -1332,6 +1449,13 @@ Include:
 
 **Purpose**: Prepare system for production deployment
 
+**PHASE TODO PROTOCOL**:
+- Mark PHASE 6: INTEGRATION & TESTING as "completed"
+- Mark PHASE 7: DEPLOYMENT PREPARATION as "in_progress"
+- Review any discovered items mapped to this phase
+- Execute all phase responsibilities including discovered items
+- Only mark complete when ALL phase work is done
+
 ### Phase Purpose & Dependencies
 
 **PHASE_PURPOSE**: Package, configure, and prepare system for production deployment
@@ -1420,6 +1544,12 @@ Using PLANNING_BASELINE from rehydration:
 - Plan deployment packaging strategy
 - Design configuration management
 - Plan CI/CD pipeline setup
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
 - Schedule deployment validation
 
 ### 6. Review & Validation
@@ -1634,6 +1764,36 @@ When using this IDEAL-STI v3.0 framework, these behaviors are guaranteed:
 6. **COMPLETE TRACEABILITY**: Requirements → Use Cases → Architecture → Tasks → Implementation → Testing → Deployment
 7. **GRACEFUL DEGRADATION**: Best effort captured even at iteration limits
 8. **GLOBAL VALIDATION**: Every execution ends with comprehensive requirements validation
+
+### TODO BACKBONE VERIFICATION
+
+```markdown
+**Confirm Framework Execution Integrity**:
+- Verify all 9 backbone todos show "completed" status
+- No additional todos should exist - all work was executed within phases
+- The todo list should show EXACTLY 9 completed items:
+  1. GLOBAL START: Initialize Framework ✓
+  2. PHASE 1: USE CASE DISCOVERY ✓
+  3. PHASE 2: REQUIREMENTS GENERATION ✓
+  4. PHASE 3: ARCHITECTURE DEFINITION ✓
+  5. PHASE 4: TASK GENERATION & ORGANIZATION ✓
+  6. PHASE 5: PARALLEL FEATURE DEVELOPMENT ✓
+  7. PHASE 6: INTEGRATION & TESTING ✓
+  8. PHASE 7: DEPLOYMENT PREPARATION ✓
+  9. GLOBAL END: Validate Requirements ✓
+
+This proves complete framework execution without scope creep.
+
+IF any phase todo is not completed:
+  - STOP - Framework execution is incomplete
+  - Identify which phase was skipped or failed
+  - Document the gap in global-quality-review.md
+  - Recommend remediation strategy
+
+Mark PHASE 7: DEPLOYMENT PREPARATION as "completed"
+Mark GLOBAL END: Validate Requirements as "in_progress"
+Upon successful validation, mark GLOBAL END as "completed"
+```
 
 ### WORKTREE CONSOLIDATION
 
