@@ -199,9 +199,9 @@ Mark GLOBAL START as "in_progress" immediately.
 When new work items are discovered during execution:
 
 1. FIRST CHECK: Is this already covered by an upcoming phase?
-   - "Need to define API endpoints" → Already covered by PHASE 2 (Requirements)
-   - "Need to choose database" → Already covered by PHASE 3 (Architecture)
-   - "Need to write tests" → Already covered by PHASE 6 (Integration & Testing)
+   - "Need to define API endpoints" → Already covered by PHASE 3 (Requirements)
+   - "Need to choose database" → Already covered by PHASE 4 (Architecture)
+   - "Need to write tests" → Already covered by PHASE 7 (Integration & Testing)
 
 2. IF already covered by a phase:
    - Make a note in <worktree>/planning/phase-X-notes.md
