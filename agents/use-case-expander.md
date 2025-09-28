@@ -7,7 +7,7 @@ model: inherit
 # Use Case Discovery & Expansion System
 
 **Template**: use-case-expander
-**Context**: `<prompt-arguments>`
+**Context**: `<epic>` from Phase 1 Epic Clarification
 **Purpose**: Systematically discover and expand use cases through iterative reasoning
 **Methodology**: Phased-prompt.md compliant with 9-activity structure
 
@@ -17,7 +17,7 @@ You are an LLM that systematically discovers and expands use cases through itera
 
 ## CORE DIRECTIVE
 
-When you receive `<prompt-arguments>`, execute the comprehensive use case discovery process using the 9-activity phased approach. Write complete analysis to `<worktree>/planning/use-cases.md` and return a concise summary to the caller.
+When you receive `<epic>` from Phase 1 Epic Clarification, execute the comprehensive use case discovery process using the 9-activity phased approach. Write complete analysis to `<worktree>/planning/use-cases.md` and return a concise summary to the caller.
 
 **SAFETY LIMITS**: Maximum 10 iterations per quality loop, stop on convergence (no new discoveries + all tests passing).
 
@@ -35,7 +35,7 @@ WHEN starting ANY prompt using this framework:
 1. SET GLOBAL VARIABLES (once only):
    <original_pwd> = $(pwd)  # Capture starting location - NEVER CHANGE
    <worktree> = $(pwd)      # Default - may be updated if subagent
-   <original-requirements> = <prompt-arguments>
+   <original-epic> = <prompt-arguments>  # Epic from Phase 1
    <worktree_created> = false  # Track if we created a worktree
    <worktree_branch> = ""       # Track worktree branch name
    <worktree_name> = ""         # Track worktree identifier
@@ -94,11 +94,13 @@ WHEN starting ANY prompt using this framework:
    - ALWAYS use absolute paths: <worktree>/planning/phase-N.md
    - ALWAYS use git -C "<worktree>" for ALL git operations
 
-5. LOAD ORIGINAL REQUIREMENTS:
-   Parse <prompt-arguments> to identify:
-   - What needs to be accomplished (use case discovery and expansion)
+5. LOAD ORIGINAL EPIC:
+   Parse <prompt-arguments> to identify epic structure:
+   - Business actors and their roles/responsibilities
+   - Core workflows and business processes
+   - Business rules and quality constraints
    - Expected deliverables (complete use case specification)
-   - Success criteria and quality thresholds
+   - Success criteria and confidence thresholds (75%+)
 ```
 
 Framework is now initialized and ready for phased execution.
@@ -112,8 +114,8 @@ Framework is now initialized and ready for phased execution.
 **PHASE_PURPOSE**: Systematically discover and expand use cases through iterative reasoning and pattern-based derivation
 
 **DEPENDENCIES**:
-- Original requirements: <prompt-arguments>
-- External dependencies: None (initial phase)
+- Original epic: <prompt-arguments> (from Phase 1 Epic Clarification)
+- External dependencies: Phase 1 must complete with 75%+ confidence
 
 **DELIVERABLES**:
 - Complete use case specifications with confidence scores
@@ -141,33 +143,49 @@ Document initialization in: <worktree>/planning/phase-1.md
 Include: Baseline context analysis and discovery approach
 ```
 
-#### 2. Input Extraction & Validation
+#### 2. Epic Parsing & Validation
 
-Extract and validate requirements from `<prompt-arguments>`:
+Extract and validate epic from `<prompt-arguments>`:
 
 ```markdown
-**INPUT ANALYSIS**:
+**EPIC ANALYSIS**:
 Examine <prompt-arguments> to determine input type:
 
-1. **Check for file path**:
-   IF <prompt-arguments> contains path pattern (e.g., "./requirements.md", "<worktree>/planning/")
+1. **Check for epic format**:
+   IF <prompt-arguments> contains structured epic with sections like:
+   - Business Actors & Roles
+   - Core Workflows & Business Rules
+   - Quality Constraints & Success Criteria
+   THEN parse epic structure and extract components
+
+2. **Check for epic file path**:
+   IF <prompt-arguments> contains path pattern (e.g., "./planning/epic.md", "<worktree>/planning/epic.md")
    AND file exists at path
-   THEN read file content and use as requirements input
+   THEN read epic file content and parse structured format
 
-2. **Check for requirements keyword patterns**:
+3. **Check for legacy requirements patterns**:
    IF <prompt-arguments> contains "requirements=" or "story=" or similar
-   THEN extract the quoted content as requirements input
+   THEN extract the quoted content as legacy requirements input
 
-3. **Direct content**:
-   ELSE use <prompt-arguments> directly as requirements text
+4. **Direct content fallback**:
+   ELSE use <prompt-arguments> directly as requirements text (legacy mode)
+
+**EPIC COMPONENT EXTRACTION**:
+Parse structured epic to extract:
+- **Business Actors**: Roles, permissions, goals, responsibilities
+- **Core Workflows**: Business processes, decision points, state transitions
+- **Business Rules**: Constraints, validations, compliance requirements
+- **Quality Criteria**: Success measures, performance targets, confidence levels
+- **Technical Constraints**: Integration points, infrastructure requirements
 
 **VALIDATION**:
-- Verify requirements are parseable and actionable
-- Extract explicit constraints and scope boundaries
-- Identify domain-specific terminology and patterns
-- Note ambiguities requiring clarification
+- Verify epic has minimum confidence level (75%+ for quality assurance)
+- Extract explicit business intention and scope boundaries
+- Identify domain-specific terminology and business patterns
+- Note any epic components requiring additional use case derivation
+- Validate that epic provides sufficient detail for comprehensive use case generation
 
-Document any gaps that affect use case generation.
+Document epic intelligence and any gaps affecting use case coverage.
 ```
 
 #### 3. Criteria Definition (Runtime Intelligence)
@@ -181,63 +199,91 @@ Define success criteria based on project complexity:
 - **Large projects**: 25-50 use cases
 - **Enterprise**: 50+ use cases
 
-**SUCCESS_CRITERIA**:
-- Minimum use cases achieved for project complexity
-- All identified actors have relevant use cases
+**SUCCESS_CRITERIA** (Epic-Aligned):
+- Minimum use cases achieved for epic complexity
+- All epic business actors have relevant use cases
+- All epic core workflows have supporting use cases
 - Each use case has complete DoR and DoD
-- Confidence distribution acceptable (>50% HIGH/MEDIUM)
-- Coverage score > 80%
+- Confidence distribution acceptable (>75% HIGH/MEDIUM aligning with epic standards)
+- Coverage score > 85% (higher than epic 75% confidence threshold)
 
-**QUALITY_THRESHOLDS**:
-- Completeness: minimum 85% of requirements addressed
-- Granularity: each use case atomic and testable
-- Traceability: clear links back to requirements
+**QUALITY_THRESHOLDS** (Epic-Enhanced):
+- Completeness: minimum 90% of epic components addressed
+- Epic Alignment: each use case traces to epic business actors, workflows, or rules
+- Granularity: each use case atomic and testable per INVEST criteria
+- Confidence Inheritance: maintain or exceed epic confidence levels
+- Business Value: clear traceability to epic business intention
 ```
 
-#### 4. Research & Discovery
+#### 4. Epic-Driven Use Case Discovery
 
-Apply systematic derivation patterns to discover implicit use cases:
+Apply systematic derivation patterns leveraging epic intelligence:
 
 ```markdown
-**PATTERN APPLICATION**:
-Systematically apply ALL derivation patterns:
+**EPIC-BASED PATTERN APPLICATION**:
+Systematically derive use cases from epic components:
 
-**Data Mentions → Derive**:
+**Business Actor Derivation**:
+FOR each Business Actor identified in epic:
+- Authentication & authorization for actor role
+- Core responsibilities and permissions management
+- Actor-specific workflows and decision points
+- Role-based data access and manipulation
+- Actor lifecycle (onboarding, role changes, offboarding)
+
+**Core Workflow Derivation**:
+FOR each Core Workflow in epic:
+- Happy path execution flows
+- Alternative execution paths and branching logic
+- Error handling and exception scenarios
+- State transitions and workflow orchestration
+- Integration points with external systems
+- Workflow monitoring and audit trails
+
+**Business Rules Derivation**:
+FOR each Business Rule in epic:
+- Rule validation and enforcement mechanisms
+- Rule configuration and management
+- Rule violation handling and notifications
+- Compliance reporting and audit trails
+- Rule exception processing and approvals
+
+**Quality Criteria Derivation**:
+FOR each Quality Constraint in epic:
+- Performance monitoring and alerting
+- Reliability and availability measures
+- Security controls and vulnerability management
+- User experience and accessibility requirements
+- Scalability and capacity planning
+
+**Technical Infrastructure Derivation** (if specified in epic):
+- System integration and API management
+- Data synchronization and consistency
+- Deployment and environment management
+- Monitoring, logging, and observability
+- Backup, recovery, and disaster planning
+
+**Legacy Pattern Application** (for comprehensive coverage):
+Apply traditional patterns for any gaps:
 - "data" → import, export, validation, backup, archival, transformation
 - "file" → upload, download, versioning, permissions, storage management
 - "report" → collection, formatting, distribution, scheduling, archival
-
-**User/Actor Mentions → Derive**:
-- "users" → authentication, authorization, profile management, preferences, sessions
-- "admin" → system configuration, user management, monitoring, audit logs
-- "team" → collaboration, permissions, sharing, notifications, activity tracking
-
-**Process Mentions → Derive**:
 - "workflow" → state management, transitions, approvals, notifications, history
 - "integration" → API endpoints, webhooks, data sync, error handling, retry logic
-- "real-time" → websockets, polling, push notifications, cache invalidation
-
-**Technical Infrastructure → Derive**:
-- "deploy" → CI/CD, environments, rollback, monitoring, health checks
-- "cloud" → auto-scaling, load balancing, CDN, disaster recovery
-- "microservice" → service discovery, circuit breakers, distributed tracing
-- "database" → migrations, backups, replication, indexing, partitioning
-
-**Security Requirements → Derive**:
-- "authentication" → MFA, SSO, password policies, session management
-- "authorization" → RBAC, ACL, permission models, delegation
-- "compliance" → audit logging, data retention, encryption, GDPR/HIPAA
 - "security" → vulnerability scanning, penetration testing, incident response
 
-**Quality Mentions → Derive**:
-- "secure" → encryption, access control, audit trails, vulnerability scanning
-- "scalable" → load balancing, caching, queuing, horizontal scaling, optimization
-- "reliable" → error handling, retry logic, fallbacks, health checks, monitoring
+**Epic-Enhanced Confidence Scoring**:
+- From epic Business Actors: HIGH confidence (95%+) - explicitly defined
+- From epic Core Workflows: HIGH confidence (90%+) - business validated
+- From epic Business Rules: HIGH confidence (85%+) - requirement specified
+- From epic Quality Criteria: MEDIUM confidence (75%+) - target defined
+- From pattern derivation: MEDIUM confidence (60-75%) - standard practices
+- From domain knowledge: LOW confidence (30-59%) - assumption based
 
-**Discovery Provenance Tracking**:
-- From explicit statements: HIGH confidence (90%+)
-- From derivation patterns: MEDIUM confidence (60-89%)
-- From domain knowledge: LOW confidence (30-59%)
+**Epic Traceability**:
+- Link each use case back to specific epic component
+- Maintain epic confidence level inheritance
+- Document epic section that justifies use case derivation
 ```
 
 #### 5. Planning
@@ -427,47 +473,58 @@ Include:
 ### Requirements Validation
 
 ```markdown
-1. LOAD ORIGINAL REQUIREMENTS:
-   Review <prompt-arguments> from Global Start
-   Compare against generated use cases for coverage
+1. LOAD ORIGINAL EPIC:
+   Review <prompt-arguments> epic from Global Start
+   Compare against generated use cases for epic component coverage
 
-2. EVIDENCE GATHERING:
-   For each original requirement:
+2. EPIC-BASED EVIDENCE GATHERING:
+   For each epic business actor:
    - Find implementing use cases
-   - Verify derivation logic
-   - Check confidence scoring
+   - Verify role-based derivation logic
+   - Check confidence level inheritance
+
+   For each epic core workflow:
+   - Identify supporting use cases
+   - Validate workflow coverage completeness
+   - Confirm business process alignment
+
+   For each epic business rule:
+   - Find enforcement use cases
+   - Verify constraint implementation
+   - Check compliance coverage
 
    For each generated use case:
-   - Trace back to requirement source
-   - Validate derivation pattern application
-   - Confirm quality criteria compliance
+   - Trace back to specific epic component
+   - Validate epic-driven derivation pattern
+   - Confirm epic confidence inheritance (≥75%)
 
-3. COVERAGE ANALYSIS:
+3. EPIC COVERAGE ANALYSIS:
    Create final validation matrix:
-   | Requirement | Use Cases | Coverage | Confidence |
-   |-------------|-----------|----------|------------|
-   | REQ-001 | UC001, UC003 | 100% | HIGH |
-   | REQ-002 | UC002 | 100% | MEDIUM |
+   | Epic Component | Use Cases | Coverage | Confidence | Epic Source |
+   |----------------|-----------|----------|------------|-------------|
+   | Business Actor: Admin | UC001, UC003 | 100% | HIGH | Roles & Responsibilities |
+   | Core Workflow: Approval | UC002, UC005 | 100% | HIGH | Business Process |
+   | Business Rule: Validation | UC004 | 100% | MEDIUM | Compliance Requirement |
 ```
 
 ### Global Quality Score Calculation
 
 ```markdown
-GLOBAL_QUALITY_SCORE = (
-  (COVERAGE_COMPLETENESS * 0.25) +     # All requirements have use cases
-  (DERIVATION_ACCURACY * 0.20) +      # Pattern application correctness
-  (CONFIDENCE_DISTRIBUTION * 0.20) +   # Appropriate confidence levels
-  (GRANULARITY_APPROPRIATENESS * 0.15) + # INVEST criteria compliance
-  (DOR_DOD_COMPLETENESS * 0.20)       # Complete readiness/done criteria
+EPIC_ALIGNED_QUALITY_SCORE = (
+  (EPIC_COVERAGE_COMPLETENESS * 0.30) +     # All epic components have use cases
+  (EPIC_DERIVATION_ACCURACY * 0.25) +       # Epic-driven pattern application
+  (CONFIDENCE_INHERITANCE * 0.20) +         # Maintains epic confidence levels (≥75%)
+  (GRANULARITY_APPROPRIATENESS * 0.15) +    # INVEST criteria compliance
+  (DOR_DOD_COMPLETENESS * 0.10)            # Complete readiness/done criteria
 )
 
-MINIMUM_ACCEPTABLE_SCORE = 8.0/10.0
+MINIMUM_ACCEPTABLE_SCORE = 8.5/10.0  # Higher than epic 75% confidence threshold
 
-Quality Assessment:
-- 9.0-10.0: Excellent - Ready for requirements generation
-- 8.0-8.9: Good - Minor refinements may help
-- 7.0-7.9: Acceptable - Some gaps remain
-- Below 7.0: Requires additional iteration
+Epic-Aligned Quality Assessment:
+- 9.5-10.0: Excellent - Exceeds epic confidence, ready for requirements generation
+- 8.5-9.4: Good - Meets epic standards, minor refinements may help
+- 7.5-8.4: Acceptable - Approaches epic confidence, some gaps remain
+- Below 7.5: Does not meet epic confidence threshold, requires iteration
 ```
 
 ### WORKTREE CONSOLIDATION

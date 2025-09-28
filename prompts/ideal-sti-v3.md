@@ -219,256 +219,349 @@ The 9 backbone todos NEVER change - only their internal scope expands.
 
 ---
 
-## PHASE 1: STORY CLARIFICATION
+## PHASE 1: EPIC CLARIFICATION
 
-**Purpose**: Eliminate ambiguity from user's software system intention before expansion and implementation
+**Purpose**: Extract business intention, surface unstated implications, and create a validated epic optimized for LLM use case generation
 
 **PHASE TODO PROTOCOL**:
 - Mark GLOBAL START as "completed"
-- Mark PHASE 1: STORY CLARIFICATION as "in_progress"
-- Iterate up to 5 times until story is unambiguous
-- Only mark complete when story clarity gates pass
+- Mark PHASE 1: EPIC CLARIFICATION as "in_progress"
+- Use confidence-driven progression (target: 75%+) until epic is LLM-ready
+- Only mark complete when quality gates pass
 
 ### Phase Purpose & Dependencies
 
-**PHASE_PURPOSE**: Transform user input into a well-articulated, unambiguous story that subsequent phases can expand upon without misinterpretation
+**PHASE_PURPOSE**: Transform user input into a comprehensive business epic that provides an LLM with sufficient context to generate accurate use cases and implementation requirements
 
 **DEPENDENCIES**:
 - Input from Global Start: <original-requirements>
-- Optional: Existing project documentation for context
-- Optional: Legacy system analysis for replacement scenarios
+- Optional: Existing project documentation for DELTA scenarios
 
 **DELIVERABLES**:
-- Unambiguous story in <worktree>/planning/unambiguous-story.md
-- Context analysis in <worktree>/planning/story-context.md
+- Validated epic in <worktree>/planning/epic.md
+- Rehydration context in <worktree>/planning/rehydration-context.md
 
 ### Activity Flow
 
-### 1. Scenario Detection
+### 1. Scenario Detection & Comprehensive Rehydration
 
-Determine the type of clarification needed:
+Establish complete baseline understanding:
 
 ```markdown
-CHECK project context:
+SCENARIO_DETECTION:
+CHECK <worktree>/planning/ directory:
 
-IF <worktree>/planning/ is empty OR no key files exist:
-  ASK: "Are you building something completely new, or replacing/integrating with existing systems?"
-
-  IF "completely new":
-    <scenario> = "GREENFIELD"
-
-  IF "replacing/integrating":
-    <scenario> = "GREENFIELD_WITH_LEGACY"
-    REQUEST legacy system details for analysis
-
-ELSE IF key planning files exist:
+IF directory exists AND contains any .md files:
   <scenario> = "DELTA"
-  LOAD existing project context
+
+  COMPREHENSIVE_REHYDRATION (read ALL planning artifacts):
+  - epic.md → previous business context, validated assumptions, stakeholders
+  - use-cases.md → existing actors, workflows, acceptance criteria
+  - requirements.md → functional/non-functional requirements, constraints
+  - architecture.md → tech stack, integrations, design decisions
+  - [any-other].md → additional context, decisions, notes
+
+  BUILD complete baseline understanding:
+  - Existing capabilities and their business value
+  - Established stakeholder relationships and roles
+  - Previous business assumptions and validation status
+  - Known constraints and dependencies
+  - Integration touchpoints and business relationships
+  - Success metrics and business outcomes achieved
+
+  ANALYZE project evolution context:
+  - What business problems were previously solved?
+  - What stakeholder needs are already addressed?
+  - What business assumptions were validated in prior work?
+  - What scope boundaries were previously established?
+
+ELSE:
+  <scenario> = "GREENFIELD"
+  <baseline> = "No existing project context"
+
+OUTPUT: <worktree>/planning/rehydration-context.md
 ```
 
-### 2. Context Rehydration
+### 2. Intention Extraction
 
-Based on scenario, gather relevant context:
+Extract core business intention and surface implications:
 
 ```markdown
-IF <scenario> = "DELTA":
-  LOAD existing project documentation:
-  - <worktree>/planning/use-cases.md → existing actors, workflows
-  - <worktree>/planning/architecture.md → existing tech stack, integrations
-  - <worktree>/planning/requirements.md → existing features, constraints
+CORE_EXTRACTION:
+1. **Primary Business Intention**: What business problem are we solving?
+2. **Success Vision**: What does success look like to each stakeholder?
+3. **Value Proposition**: Why is this valuable now?
+4. **Unstated Implications**: What's assumed but not explicitly said?
+5. **Hidden Stakeholders**: Who's affected but not mentioned?
 
-IF <scenario> = "GREENFIELD_WITH_LEGACY":
-  REQUEST from user:
-  - Legacy system documentation or codebase location
-  - Current process descriptions
-  - Existing integrations and data sources
-  - Current user workflows and pain points
+FOR DELTA scenarios - INTEGRATION ANALYSIS:
+6. **Change Intention**: What's unsatisfactory about current business state?
+7. **Business Impact**: How does this change existing stakeholder value?
+8. **Destructive Intent**: What existing business capabilities should change/be removed?
+9. **Continuity Requirements**: What existing relationships must be preserved?
 
-  ANALYZE legacy context for:
-  - Current actors and their roles
-  - Current technical stack
-  - Current data patterns and workflows
-  - Current pain points to address
+GENERATE initial business assumptions for validation
+SET initial confidence: 15%
+CREATE initial epic draft with assumption markers
 ```
 
-### 3. Research & Discovery
+### 3. Progressive Refinement (Proposal-Driven)
 
-Using RESEARCH_FOCUS from rehydration:
-- Analyze current story for ambiguous elements
-- Identify terminology that could be misinterpreted
-- Research domain-specific patterns based on context
-- Study common software system clarification needs
-
-### 4. Planning
-
-**DISCOVERED WORK INTEGRATION**:
-Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
-- Integrate discovered items into phase planning
-- These are NOT new todos, they are part of THIS phase's scope
-- Execute them as part of normal phase activities
-
-Plan the story clarification approach:
-- Prioritize ambiguities by impact on implementation
-- Sequence clarification questions for maximum efficiency
-- Plan context-appropriate questioning strategy
-
-### 5. Execution
-
-**AMBIGUITY ELIMINATION PROCESS**:
+Build understanding through intelligent proposal validation:
 
 ```markdown
-<story> = <original-requirements>
-<iteration> = 0
+PROGRESSIVE_REFINEMENT_LOOP:
 
-WHILE <iteration> < 5 AND ambiguities_exist:
-  <iteration> += 1
+WHILE confidence < 75% AND user_continues:
 
-  1. SCAN <story> for ambiguous elements:
-     - Undefined acronyms (API, CRM, SSO)
-     - Vague references ("users", "the system", "dashboard")
-     - Unclear scope ("integrate with", "support for")
-     - Missing context (when, who, how often, what happens if)
-     - Implicit assumptions (real-time vs batch, internal vs external)
+  ANALYZE current epic for LLM implementation gaps:
+  - Missing actor definitions with roles/permissions
+  - Vague business rules without explicit conditions
+  - Unclear workflow boundaries and triggers
+  - Undefined success criteria (not measurable)
+  - Missing error scenarios and expected responses
+  - Ambiguous scope boundaries
+  - Incomplete stakeholder relationships
 
-  2. SELECT most critical ambiguity that would cause misinterpretation
+  DISPLAY current epic state and propose refinements:
 
-  3. PROPOSE specific interpretation:
-     ```
-     ## Story Clarity Check: Iteration <iteration>
+  ```
+  ═══════════════════════════════════════════════════════════════════════════════
+                           CURRENT EPIC - ITERATION [N]
+                        LLM Implementation Readiness: [X]%
+  ═══════════════════════════════════════════════════════════════════════════════
 
-     Current Story:
-     <story>
+  ## [Epic Title]
 
-     Ambiguity Found:
-     "[ambiguous element]" could mean multiple things
+  **Business Actors**:
+  [Current actor definitions with roles, permissions, goals]
 
-     Our Interpretation:
-     We interpret this as: [specific, concrete interpretation]
+  **Core Workflows**:
+  [Current workflow definitions with triggers, steps, outcomes]
 
-     This means: [specific implications for implementation]
+  **Business Rules**:
+  [Current business rules with conditions and constraints]
 
-     Correct? [ ] ✓ Yes [ ] ✗ No, actually: ___________
-     ```
+  **Quality Constraints**:
+  [Current success criteria and quality measures]
 
-  4. REPLACE ambiguous element with user's specific clarification
+  **Technical Context**:
+  [Current technical requirements and constraints if specified]
 
-  5. UPDATE <story> with precise, unambiguous language
+  ───────────────────────────────────────────────────────────────────────────────
+                           REFINEMENT PROPOSALS
+  ───────────────────────────────────────────────────────────────────────────────
 
-  6. CHECK: Can subsequent phases proceed without guessing?
+  1. Actor Definition Enhancement .......................... NEW
+     Add: "[Specific actor with role, permissions, goals]"
 
-IF iteration limit reached OR no significant ambiguities remain:
-  PROCEED to validation
+  2. Business Rule Clarification .......................... NEW
+     Add: "[Specific rule with trigger, condition, and outcome]"
+
+  3. Workflow Boundary Definition ......................... NEW
+     Add: "[Process starts when X, includes steps Y, ends when Z]"
+
+  4. Success Criteria Definition .......................... NEW
+     Add: "[Measurable outcome with specific metrics and validation]"
+
+  5. Error Handling Expectation ........................... NEW
+     Add: "[Specific error scenario with expected user experience]"
+
+  ───────────────────────────────────────────────────────────────────────────────
+
+  ACTION: [V]iew full epic | [1-5] Edit item | [A]ccept all | [C]ontinue | [P]roceed: _
+  ```
+
+  PROCESS user responses:
+  - [V]: Redisplay current epic
+  - [1-5]: User provides correction for specific item (e.g., "2: Rule should be X instead")
+  - [A]: Accept all proposals and update epic
+  - [C]: Continue with another iteration of refinement
+  - [P]: Proceed to quality gates with current epic
+
+  UPDATE <worktree>/planning/epic.md with accepted changes
+  RECALCULATE confidence based on LLM implementation readiness
+
+END when: confidence ≥ 75% OR user chooses "Proceed"
 ```
 
-### 6. Evaluation
+### 4. Quality Gates (15-Gate Validation)
 
-Before completing phase, verify story clarity:
+Comprehensive validation for LLM implementation readiness:
 
 ```markdown
-STORY QUALITY GATES:
+QUALITY_GATE_SYSTEM:
 
-ACTORS ARE SPECIFIC:
-✓ "Sales managers" not "users"
-✓ "External customers" not "people"
-✓ "PostgreSQL database" not "the database"
+CRITICAL GATES (Must Address):
+1. **Logical Conflict Detection**: Any contradictory business requirements?
+2. **Business Showstopper**: Any impossible business constraints?
+3. **Stakeholder Priority Paradox**: Conflicting stakeholder value propositions?
 
-ACTIONS ARE PRECISE:
-✓ "Daily batch sync at 6am" not "regular updates"
-✓ "REST API calls" not "integration"
-✓ "Email notifications" not "alerts"
+IMPORTANT GATES (Should Address):
+4. **Business Novelty Check**: Why is this new vs existing solutions?
+5. **Business Simplicity Test**: Would simpler approach meet the need?
+6. **Reality Check**: Is this already addressed elsewhere?
+7. **Pre-existing Business State**: Assumptions about current operations?
+8. **Business Migration Path**: How do stakeholders transition?
+9. **Stakeholder Completeness**: All business stakeholders identified?
+10. **Business Scope Boundaries**: Clear inclusions/exclusions?
 
-SCOPE IS BOUNDED:
-✓ "View-only access to order history" not "customer portal"
-✓ "Sales team in North America region" not "sales team"
-✓ "Q4 2024 orders only" not "historical data"
+SUPPLEMENTARY GATES (Consider):
+11. **Business Failure Mode**: What business risks could cause failure?
+12. **Contrarian Business Perspective**: What if opposite approach?
+13. **Second-order Business Effects**: Organizational ripple effects?
+14. **Business Resource Reality**: Resource assumptions realistic?
+15. **Business Assumption Contradictions**: Do assumptions conflict?
 
-CONTEXT IS COMPLETE:
-✓ When it happens, how often, what triggers it
-✓ What happens on failure, who gets notified
-✓ Performance expectations, security requirements
+GATE_PROCESSING:
+- Critical failures → STOP, must resolve before proceeding
+- Important failures → Document concerns, user decides
+- Supplementary failures → Note for later phases
+
+GENERATE quality gate report for epic.md
 ```
 
-### 7. Learning Capture
+### 5. Epic Finalization (LLM-Optimized Output)
 
-Document insights for future story clarifications:
+Create structured epic optimized for LLM use case generation:
 
 ```markdown
-CAPTURE to <worktree>/planning/story-clarification-log.md:
+CREATE <worktree>/planning/epic.md:
 
-AMBIGUITIES RESOLVED:
-- [Original term] → [Clarified meaning]
-- [Vague reference] → [Specific definition]
+# Epic: [Business-Focused Title]
+**Status**: VALIDATED | **LLM Implementation Readiness**: [X]% | **Scenario**: [GREENFIELD/DELTA]
+**Created**: [Date] | **Base Context**: [Previous version for DELTA]
 
-CONTEXT PATTERNS DISCOVERED:
-- Domain-specific terminology learned
-- User mental models identified
-- Implicit assumptions surfaced
+## Business Context for LLM Implementation
 
-CLARIFICATION EFFECTIVENESS:
-- Questions that yielded high-value clarifications
-- Approaches that led to quick resolution
-- Patterns that predict future ambiguities
+### Core Business Problem
+**Problem Statement**: [Clear business problem an LLM can understand and solve]
+**Business Value**: [Measurable outcomes an LLM can design toward]
+**Success Definition**: [Concrete criteria an LLM can test against]
+
+### Business Actors for Use Case Generation
+**Primary Actors**:
+- **[Actor Name]**: [Role definition, permissions, goals, typical workflows]
+
+**Secondary Actors**:
+- **[Actor Name]**: [How they interact, what they need, when involved]
+
+**System Actors** (if applicable):
+- **[External System]**: [Integration expectations, data flow, error handling]
+
+### Business Workflows for LLM Understanding
+**Core Workflows**:
+1. **[Workflow Name]**: [Trigger] → [Steps] → [Completion] → [Success outcome]
+
+**Exception Workflows**:
+1. **[Error Scenario]**: [Trigger] → [Expected response] → [User experience]
+
+### Business Rules for LLM Implementation
+**Core Business Rules**:
+- **[Rule Category]**: When [condition], then [required behavior]
+
+**Business Constraints**:
+- **[Constraint Type]**: [Limitation with clear definition]
+
+### Business Scope Definition
+### NEW Capabilities (All scenarios)
+- [Completely new business value propositions]
+
+### MODIFIED Capabilities (DELTA only)
+- [Existing capability] → [Enhanced version with business impact]
+
+### LEVERAGES EXISTING (DELTA only)
+- [Existing business capabilities being reused]
+
+### REMOVES/REPLACES (DELTA destructive only)
+- [Capability being eliminated with migration implications]
+
+### Validated Business Assumptions ✅
+- **[Business Category]**: [Assumption] → [Business implication]
+
+### Deferred Decisions ⏸️
+- **[Technical Decision]**: [Why deferred to Phase 4] → [Business dependency]
+
+### Business Success Criteria
+- **Primary Metrics**: [How we measure business success]
+- **Stakeholder Satisfaction**: [How we validate value]
+
+### Quality Gate Results
+- ✅ **Business Logic**: No contradictory requirements
+- ✅ **Stakeholder Alignment**: No conflicting value propositions
+- ⚠️ **Business Complexity**: [Assessment of change complexity]
+
+### LLM Implementation Confidence Metrics
+- **Business Actor Clarity**: [X]%
+- **Business Rule Completeness**: [X]%
+- **Workflow Definition**: [X]%
+- **Success Criteria Completeness**: [X]%
+- **Overall LLM Readiness**: [X]%
+
+### Context for Phase 2 (LLM Use Case Generation)
+**Key Business Actors**: [Primary users/roles for use case development]
+**Core Business Workflows**: [Main processes to be supported]
+**Business Constraints**: [Non-negotiable requirements]
+**Value Optimization**: [What business value to maximize]
+
+DISPLAY final epic and persist to filesystem:
+
 ```
+═══════════════════════════════════════════════════════════════════════════════
+                    ✅ PHASE 1 COMPLETE - FINAL EPIC
+                      LLM Implementation Readiness: [X]%
+═══════════════════════════════════════════════════════════════════════════════
 
-### 8. Validation
+## [Epic Title]
 
-Final verification before proceeding:
+**Business Actors**:
+[Final actor definitions with all refinements]
 
-```markdown
-VALIDATE story completeness:
+**Core Workflows**:
+[Final workflow definitions with all refinements]
 
-✓ ALL actors specifically identified
-✓ ALL systems/technologies specifically named
-✓ ALL processes specifically defined
-✓ ALL scope boundaries explicitly set
-✓ NO remaining ambiguous terms
-✓ SUBSEQUENT phases can proceed without interpretation guesses
+**Business Rules**:
+[Final business rules with all refinements]
 
-CREATE <worktree>/planning/unambiguous-story.md:
+**Quality Constraints**:
+[Final success criteria and quality measures]
 
-## Clear Software System Story
-[Complete story with all ambiguities resolved]
+**Technical Context**:
+[Final technical requirements if specified]
 
-## Specific Definitions Used
-- [Term]: [Exact meaning in this context]
-- [Acronym]: [Specific system/technology referenced]
-- [Process]: [Precise workflow defined]
+───────────────────────────────────────────────────────────────────────────────
+                         EPIC EVOLUTION SUMMARY
+───────────────────────────────────────────────────────────────────────────────
 
-## Explicit Scope Boundaries
-- INCLUDES: [Specific capabilities within scope]
-- EXCLUDES: [Specific items explicitly out of scope]
-- DEPENDS ON: [External systems/data this relies on]
+**Iterations Completed**: [N]
+**Total Refinements Applied**: [X] accepted, [Y] corrected, [Z] deferred
+**Confidence Progression**: [Initial]% → [Iterations]% → [Final]%
 
-## Story Confidence Level
-[HIGH] - Story is unambiguous and ready for detailed expansion
+**Key Enhancements Made**:
+• [Enhancement 1 - what improved]
+• [Enhancement 2 - what improved]
+• [Enhancement 3 - what improved]
+[etc...]
+
+───────────────────────────────────────────────────────────────────────────────
+
+This epic is now ready for Phase 2: Use Case Generation
+
+Writing epic to: <worktree>/planning/epic.md
+Proceeding to Phase 2...
+```
 
 ESTABLISH for subsequent phases:
-<unambiguous-story> = content of unambiguous-story.md
-```
-
-### 9. Iteration Management
-
-Manage iteration quality and learning:
-
-```markdown
-IF <iteration> >= 5:
-  DOCUMENT remaining ambiguities for future resolution
-  PROCEED with best available story clarity
-  NOTE limitations for subsequent phases
-
-LEARNING CAPTURE:
-- Effective clarification patterns
-- Domain-specific terminology discovered
-- User communication preferences identified
+<epic> = content of <worktree>/planning/epic.md file
 ```
 
 ⚠️ **PREREQUISITE VALIDATION FOR PHASE 1**:
-✓ Story ambiguities eliminated to acceptable level
-✓ unambiguous-story.md created and validated
-✓ Context documentation complete
-✓ Subsequent phases have clear foundation to build upon
+✓ Epic confidence ≥ 75% or user approval to proceed
+✓ <worktree>/planning/epic.md created and validated for LLM use case generation
+✓ Business context documentation complete
+✓ Quality gates addressed adequately for project risk level
 
-**IF ANY CHECK FAILS**: Address story clarity issues before continuing to Phase 2
+**IF ANY CHECK FAILS**: Address epic clarity issues before continuing to Phase 2
 
 ---
 
@@ -488,7 +581,7 @@ LEARNING CAPTURE:
 **PHASE_PURPOSE**: Transform user requirements into structured use cases with acceptance criteria
 
 **DEPENDENCIES**:
-- Input from Phase 1: <unambiguous-story>
+- Input from Phase 1: <epic>
 - External dependencies: None
 
 **DELIVERABLES**: Complete use case specification in <worktree>/planning/use-cases.md
@@ -496,7 +589,7 @@ LEARNING CAPTURE:
 **PREREQUISITE VALIDATION**:
 ✓ PHASE 1 MUST be complete with unambiguous story produced
 ✓ <worktree> variable MUST be set and immutable
-✓ <unambiguous-story> MUST be available from Phase 1
+✓ <epic> MUST be available from Phase 1
 ✗ DO NOT proceed if PHASE 1 was skipped or failed
 
 ---
@@ -515,7 +608,7 @@ Document initialization in: <worktree>/planning/phase-1.md
 ### 2. Input Extraction & Validation
 
 Extract what this phase needs:
-- From <unambiguous-story>: Clarified requirements and goals from Phase 1
+- From <epic>: Clarified requirements and goals from Phase 1
 - Missing inputs: Document any unclear requirements for clarification
 
 ### 3. Criteria Definition (Runtime Intelligence)
@@ -573,7 +666,7 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent use-case-expander with story "<unambiguous-story>" using worktree "<worktree>" output use cases to "<worktree>/planning/use-cases.md"`
+**INVOKE**: `ask subagent use-case-expander with epic "<epic>" using worktree "<worktree>" output use cases to "<worktree>/planning/use-cases.md"`
 
 ### 8. Quality Iteration Loop
 
@@ -645,7 +738,7 @@ Include:
 
 **DEPENDENCIES**:
 - Input from Phase 2: <worktree>/planning/use-cases.md
-- Original story: <unambiguous-story>
+- Original story: <epic>
 
 **DELIVERABLES**: Complete requirements specification in <worktree>/planning/requirements.md
 
@@ -813,7 +906,7 @@ Include:
 **DEPENDENCIES**:
 - Input from Phase 2: <worktree>/planning/use-cases.md
 - Input from Phase 3: <worktree>/planning/requirements.md
-- Original story: <unambiguous-story>
+- Original story: <epic>
 
 **DELIVERABLES**: Complete architecture specification in <worktree>/planning/architecture.md
 
@@ -1914,7 +2007,7 @@ Include:
 
 ```markdown
 1. LOAD ORIGINAL REQUIREMENTS:
-   Review <unambiguous-story> from Phase 1
+   Review <epic> from Phase 1
 
 2. EVIDENCE GATHERING:
    For each requirement in original request:
