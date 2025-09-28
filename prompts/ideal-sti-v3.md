@@ -9,13 +9,13 @@
 
 **⚡ MANDATORY SEQUENTIAL EXECUTION ⚡**
 
-You are implementing IDEAL-STI v3.0, an adaptive orchestration system that MUST execute in STRICT SEQUENTIAL ORDER: GLOBAL START → PHASES 1-7 (in order) → GLOBAL END.
+You are implementing IDEAL-STI v3.0, an adaptive orchestration system that MUST execute in STRICT SEQUENTIAL ORDER: GLOBAL START → PHASES 1-8 (in order) → GLOBAL END.
 
 **CRITICAL**: You MUST NOT skip phases, execute out of order, or run phases in parallel. Each phase builds on the previous one. Attempting to skip ahead WILL cause system failure and incomplete deliverables.
 
 This framework transforms user requirements into executable implementation through:
 - GLOBAL START (mandatory initialization)
-- 7 Sequential Phases (each depends on the previous)
+- 8 Sequential Phases (each depends on the previous)
 - GLOBAL END (mandatory validation)
 
 Execute using the phased-prompt.md template with progressive knowledge building.
@@ -27,7 +27,7 @@ Execute using the phased-prompt.md template with progressive knowledge building.
 **THIS IS NOT OPTIONAL - YOU MUST FOLLOW THIS EXACT SEQUENCE:**
 
 1. **GLOBAL START** - ALWAYS execute FIRST (no exceptions)
-2. **PHASE 1-7** - Execute in EXACT numerical order (no skipping, no parallel phases)
+2. **PHASE 1-8** - Execute in EXACT numerical order (no skipping, no parallel phases)
 3. **GLOBAL END** - ALWAYS execute LAST (validates all requirements)
 
 ⚠️ **VIOLATIONS THAT WILL CAUSE FAILURE:**
@@ -48,21 +48,23 @@ Execute using the phased-prompt.md template with progressive knowledge building.
 graph TD
     Start([USER REQUEST]) --> GS[GLOBAL START<br/>Initialize Framework<br/>Set Worktree<br/>Create Directories]
 
-    GS --> P1[PHASE 1: Use Case Discovery<br/>Generate comprehensive use cases<br/>via prompter]
+    GS --> P1[PHASE 1: Story Clarification<br/>Eliminate ambiguity from requirements<br/>via iterative user dialogue]
 
-    P1 --> P2[PHASE 2: Requirements Generation<br/>Transform use cases into<br/>FR/NFR requirements]
+    P1 --> P2[PHASE 2: Use Case Discovery<br/>Generate comprehensive use cases<br/>via prompter]
 
-    P2 --> P3[PHASE 3: Architecture Definition<br/>Research & generate technology<br/>architecture via recommend-tech]
+    P2 --> P3[PHASE 3: Requirements Generation<br/>Transform use cases into<br/>FR/NFR requirements]
 
-    P3 --> P4[PHASE 4: Task Generation<br/>Create actionable tasks via<br/>feature-task-creator]
+    P3 --> P4[PHASE 4: Architecture Definition<br/>Research & generate technology<br/>architecture via recommend-tech]
 
-    P4 --> P5[PHASE 5: Parallel Development<br/>Execute tasks via parallel<br/>feature-developer agents]
+    P4 --> P5[PHASE 5: Task Generation<br/>Create actionable tasks via<br/>feature-task-creator]
 
-    P5 --> P6[PHASE 6: Integration & Testing<br/>Validate implementations<br/>via qa-analyst]
+    P5 --> P6[PHASE 6: Parallel Development<br/>Execute tasks via parallel<br/>feature-developer agents]
 
-    P6 --> P7[PHASE 7: Deployment Prep<br/>Package for production via<br/>deployment-orchestrator]
+    P6 --> P7[PHASE 7: Integration & Testing<br/>Validate implementations<br/>via qa-analyst]
 
-    P7 --> GE[GLOBAL END<br/>Validate Requirements<br/>Calculate Quality Score<br/>Extract Meta-Learning]
+    P7 --> P8[PHASE 8: Deployment Prep<br/>Package for production via<br/>deployment-orchestrator]
+
+    P8 --> GE[GLOBAL END<br/>Validate Requirements<br/>Calculate Quality Score<br/>Extract Meta-Learning]
 
     GE --> Complete([DELIVERY COMPLETE])
 
@@ -72,7 +74,7 @@ graph TD
     classDef startEnd fill:#51cf66,stroke:#2f9e44,stroke-width:3px,color:#fff
 
     class GS,GE globalNode
-    class P1,P2,P3,P4,P5,P6,P7 phaseNode
+    class P1,P2,P3,P4,P5,P6,P7,P8 phaseNode
     class Start,Complete startEnd
 
     %% Add warning notes
@@ -163,13 +165,14 @@ WHEN starting ANY prompt using this framework:
 
 5. PLAN PHASE STRUCTURE:
    Determine phases needed based on complexity:
-   - Phase 1: Use Case Discovery (always required)
-   - Phase 2: Requirements Generation (always required)
-   - Phase 3: Architecture Definition (always required)
-   - Phase 4: Task Generation & Organization (always required)
-   - Phase 5: Parallel Feature Development (always required)
-   - Phase 6: Integration & Testing (always required)
-   - Phase 7: Deployment Preparation (always required)
+   - Phase 1: Story Clarification (always required)
+   - Phase 2: Use Case Discovery (always required)
+   - Phase 3: Requirements Generation (always required)
+   - Phase 4: Architecture Definition (always required)
+   - Phase 5: Task Generation & Organization (always required)
+   - Phase 6: Parallel Feature Development (always required)
+   - Phase 7: Integration & Testing (always required)
+   - Phase 8: Deployment Preparation (always required)
 
 Framework is now initialized and ready for phases.
 ```
@@ -178,15 +181,16 @@ Framework is now initialized and ready for phases.
 
 ```markdown
 **Initialize Framework Backbone**:
-Create EXACTLY these 9 todos - these are the immutable backbone of execution:
+Create EXACTLY these 10 todos - these are the immutable backbone of execution:
 - GLOBAL START: Initialize Framework
-- PHASE 1: USE CASE DISCOVERY
-- PHASE 2: REQUIREMENTS GENERATION
-- PHASE 3: ARCHITECTURE DEFINITION
-- PHASE 4: TASK GENERATION & ORGANIZATION
-- PHASE 5: PARALLEL FEATURE DEVELOPMENT
-- PHASE 6: INTEGRATION & TESTING
-- PHASE 7: DEPLOYMENT PREPARATION
+- PHASE 1: STORY CLARIFICATION
+- PHASE 2: USE CASE DISCOVERY
+- PHASE 3: REQUIREMENTS GENERATION
+- PHASE 4: ARCHITECTURE DEFINITION
+- PHASE 5: TASK GENERATION & ORGANIZATION
+- PHASE 6: PARALLEL FEATURE DEVELOPMENT
+- PHASE 7: INTEGRATION & TESTING
+- PHASE 8: DEPLOYMENT PREPARATION
 - GLOBAL END: Validate Requirements
 
 Mark GLOBAL START as "in_progress" immediately.
@@ -215,13 +219,266 @@ The 9 backbone todos NEVER change - only their internal scope expands.
 
 ---
 
-## PHASE 1: USE CASE DISCOVERY
+## PHASE 1: STORY CLARIFICATION
+
+**Purpose**: Eliminate ambiguity from user's software system intention before expansion and implementation
+
+**PHASE TODO PROTOCOL**:
+- Mark GLOBAL START as "completed"
+- Mark PHASE 1: STORY CLARIFICATION as "in_progress"
+- Iterate up to 5 times until story is unambiguous
+- Only mark complete when story clarity gates pass
+
+### Phase Purpose & Dependencies
+
+**PHASE_PURPOSE**: Transform user input into a well-articulated, unambiguous story that subsequent phases can expand upon without misinterpretation
+
+**DEPENDENCIES**:
+- Input from Global Start: <original-requirements>
+- Optional: Existing project documentation for context
+- Optional: Legacy system analysis for replacement scenarios
+
+**DELIVERABLES**:
+- Unambiguous story in <worktree>/planning/unambiguous-story.md
+- Context analysis in <worktree>/planning/story-context.md
+
+### Activity Flow
+
+### 1. Scenario Detection
+
+Determine the type of clarification needed:
+
+```markdown
+CHECK project context:
+
+IF <worktree>/planning/ is empty OR no key files exist:
+  ASK: "Are you building something completely new, or replacing/integrating with existing systems?"
+
+  IF "completely new":
+    <scenario> = "GREENFIELD"
+
+  IF "replacing/integrating":
+    <scenario> = "GREENFIELD_WITH_LEGACY"
+    REQUEST legacy system details for analysis
+
+ELSE IF key planning files exist:
+  <scenario> = "DELTA"
+  LOAD existing project context
+```
+
+### 2. Context Rehydration
+
+Based on scenario, gather relevant context:
+
+```markdown
+IF <scenario> = "DELTA":
+  LOAD existing project documentation:
+  - <worktree>/planning/use-cases.md → existing actors, workflows
+  - <worktree>/planning/architecture.md → existing tech stack, integrations
+  - <worktree>/planning/requirements.md → existing features, constraints
+
+IF <scenario> = "GREENFIELD_WITH_LEGACY":
+  REQUEST from user:
+  - Legacy system documentation or codebase location
+  - Current process descriptions
+  - Existing integrations and data sources
+  - Current user workflows and pain points
+
+  ANALYZE legacy context for:
+  - Current actors and their roles
+  - Current technical stack
+  - Current data patterns and workflows
+  - Current pain points to address
+```
+
+### 3. Research & Discovery
+
+Using RESEARCH_FOCUS from rehydration:
+- Analyze current story for ambiguous elements
+- Identify terminology that could be misinterpreted
+- Research domain-specific patterns based on context
+- Study common software system clarification needs
+
+### 4. Planning
+
+**DISCOVERED WORK INTEGRATION**:
+Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
+- Integrate discovered items into phase planning
+- These are NOT new todos, they are part of THIS phase's scope
+- Execute them as part of normal phase activities
+
+Plan the story clarification approach:
+- Prioritize ambiguities by impact on implementation
+- Sequence clarification questions for maximum efficiency
+- Plan context-appropriate questioning strategy
+
+### 5. Execution
+
+**AMBIGUITY ELIMINATION PROCESS**:
+
+```markdown
+<story> = <original-requirements>
+<iteration> = 0
+
+WHILE <iteration> < 5 AND ambiguities_exist:
+  <iteration> += 1
+
+  1. SCAN <story> for ambiguous elements:
+     - Undefined acronyms (API, CRM, SSO)
+     - Vague references ("users", "the system", "dashboard")
+     - Unclear scope ("integrate with", "support for")
+     - Missing context (when, who, how often, what happens if)
+     - Implicit assumptions (real-time vs batch, internal vs external)
+
+  2. SELECT most critical ambiguity that would cause misinterpretation
+
+  3. PROPOSE specific interpretation:
+     ```
+     ## Story Clarity Check: Iteration <iteration>
+
+     Current Story:
+     <story>
+
+     Ambiguity Found:
+     "[ambiguous element]" could mean multiple things
+
+     Our Interpretation:
+     We interpret this as: [specific, concrete interpretation]
+
+     This means: [specific implications for implementation]
+
+     Correct? [ ] ✓ Yes [ ] ✗ No, actually: ___________
+     ```
+
+  4. REPLACE ambiguous element with user's specific clarification
+
+  5. UPDATE <story> with precise, unambiguous language
+
+  6. CHECK: Can subsequent phases proceed without guessing?
+
+IF iteration limit reached OR no significant ambiguities remain:
+  PROCEED to validation
+```
+
+### 6. Evaluation
+
+Before completing phase, verify story clarity:
+
+```markdown
+STORY QUALITY GATES:
+
+ACTORS ARE SPECIFIC:
+✓ "Sales managers" not "users"
+✓ "External customers" not "people"
+✓ "PostgreSQL database" not "the database"
+
+ACTIONS ARE PRECISE:
+✓ "Daily batch sync at 6am" not "regular updates"
+✓ "REST API calls" not "integration"
+✓ "Email notifications" not "alerts"
+
+SCOPE IS BOUNDED:
+✓ "View-only access to order history" not "customer portal"
+✓ "Sales team in North America region" not "sales team"
+✓ "Q4 2024 orders only" not "historical data"
+
+CONTEXT IS COMPLETE:
+✓ When it happens, how often, what triggers it
+✓ What happens on failure, who gets notified
+✓ Performance expectations, security requirements
+```
+
+### 7. Learning Capture
+
+Document insights for future story clarifications:
+
+```markdown
+CAPTURE to <worktree>/planning/story-clarification-log.md:
+
+AMBIGUITIES RESOLVED:
+- [Original term] → [Clarified meaning]
+- [Vague reference] → [Specific definition]
+
+CONTEXT PATTERNS DISCOVERED:
+- Domain-specific terminology learned
+- User mental models identified
+- Implicit assumptions surfaced
+
+CLARIFICATION EFFECTIVENESS:
+- Questions that yielded high-value clarifications
+- Approaches that led to quick resolution
+- Patterns that predict future ambiguities
+```
+
+### 8. Validation
+
+Final verification before proceeding:
+
+```markdown
+VALIDATE story completeness:
+
+✓ ALL actors specifically identified
+✓ ALL systems/technologies specifically named
+✓ ALL processes specifically defined
+✓ ALL scope boundaries explicitly set
+✓ NO remaining ambiguous terms
+✓ SUBSEQUENT phases can proceed without interpretation guesses
+
+CREATE <worktree>/planning/unambiguous-story.md:
+
+## Clear Software System Story
+[Complete story with all ambiguities resolved]
+
+## Specific Definitions Used
+- [Term]: [Exact meaning in this context]
+- [Acronym]: [Specific system/technology referenced]
+- [Process]: [Precise workflow defined]
+
+## Explicit Scope Boundaries
+- INCLUDES: [Specific capabilities within scope]
+- EXCLUDES: [Specific items explicitly out of scope]
+- DEPENDS ON: [External systems/data this relies on]
+
+## Story Confidence Level
+[HIGH] - Story is unambiguous and ready for detailed expansion
+
+ESTABLISH for subsequent phases:
+<unambiguous-story> = content of unambiguous-story.md
+```
+
+### 9. Iteration Management
+
+Manage iteration quality and learning:
+
+```markdown
+IF <iteration> >= 5:
+  DOCUMENT remaining ambiguities for future resolution
+  PROCEED with best available story clarity
+  NOTE limitations for subsequent phases
+
+LEARNING CAPTURE:
+- Effective clarification patterns
+- Domain-specific terminology discovered
+- User communication preferences identified
+```
+
+⚠️ **PREREQUISITE VALIDATION FOR PHASE 1**:
+✓ Story ambiguities eliminated to acceptable level
+✓ unambiguous-story.md created and validated
+✓ Context documentation complete
+✓ Subsequent phases have clear foundation to build upon
+
+**IF ANY CHECK FAILS**: Address story clarity issues before continuing to Phase 2
+
+---
+
+## PHASE 2: USE CASE DISCOVERY
 
 **Purpose**: Generate comprehensive use cases from user requirements via prompter
 
 **PHASE TODO PROTOCOL**:
-- Mark GLOBAL START as "completed"
-- Mark PHASE 1: USE CASE DISCOVERY as "in_progress"
+- Mark PHASE 1: STORY CLARIFICATION as "completed"
+- Mark PHASE 2: USE CASE DISCOVERY as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -231,16 +488,16 @@ The 9 backbone todos NEVER change - only their internal scope expands.
 **PHASE_PURPOSE**: Transform user requirements into structured use cases with acceptance criteria
 
 **DEPENDENCIES**:
-- Input from Global Start: <original-requirements>
-- External dependencies: None (initial phase)
+- Input from Phase 1: <unambiguous-story>
+- External dependencies: None
 
 **DELIVERABLES**: Complete use case specification in <worktree>/planning/use-cases.md
 
 **PREREQUISITE VALIDATION**:
-✓ GLOBAL START MUST be complete with directories created
+✓ PHASE 1 MUST be complete with unambiguous story produced
 ✓ <worktree> variable MUST be set and immutable
-✓ <original-requirements> MUST be loaded from prompt-arguments
-✗ DO NOT proceed if GLOBAL START was skipped or failed
+✓ <unambiguous-story> MUST be available from Phase 1
+✗ DO NOT proceed if PHASE 1 was skipped or failed
 
 ---
 
@@ -258,7 +515,7 @@ Document initialization in: <worktree>/planning/phase-1.md
 ### 2. Input Extraction & Validation
 
 Extract what this phase needs:
-- From <original-requirements>: User's stated requirements and goals
+- From <unambiguous-story>: Clarified requirements and goals from Phase 1
 - Missing inputs: Document any unclear requirements for clarification
 
 ### 3. Criteria Definition (Runtime Intelligence)
@@ -316,7 +573,7 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent prompter on use-case-expander with requirements="<original-requirements>"`
+**INVOKE**: `ask subagent prompter on use-case-expander with requirements="<unambiguous-story>"`
 **TIMEOUT**: 1200 seconds maximum (20 minutes)
 **CAPTURE**: Raw output to <worktree>/planning/use-cases.md
 
@@ -367,19 +624,19 @@ Include:
 - ✅ use-cases.md exists and is valid: YES/NO
 - ✅ Minimum use cases generated (8+): YES/NO
 - ✅ Quality score ≥ 80%: YES/NO
-- ✅ Ready to proceed to Phase 2: YES/NO
+- ✅ Ready to proceed to Phase 3: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 2
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 3
 
 ---
 
-## PHASE 2: REQUIREMENTS GENERATION
+## PHASE 3: REQUIREMENTS GENERATION
 
 **Purpose**: Generate detailed functional and non-functional requirements from use cases
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 1: USE CASE DISCOVERY as "completed"
-- Mark PHASE 2: REQUIREMENTS GENERATION as "in_progress"
+- Mark PHASE 2: USE CASE DISCOVERY as "completed"
+- Mark PHASE 3: REQUIREMENTS GENERATION as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -389,8 +646,8 @@ Include:
 **PHASE_PURPOSE**: Transform use cases into measurable technical requirements
 
 **DEPENDENCIES**:
-- Input from Phase 1: <worktree>/planning/use-cases.md
-- Original requirements: <original-requirements>
+- Input from Phase 2: <worktree>/planning/use-cases.md
+- Original story: <unambiguous-story>
 
 **DELIVERABLES**: Complete requirements specification in <worktree>/planning/requirements.md
 
@@ -536,19 +793,19 @@ Include:
 - ✅ requirements.md exists and is valid: YES/NO
 - ✅ FR and NFR requirements generated: YES/NO
 - ✅ Traceability to use cases established: YES/NO
-- ✅ Ready to proceed to Phase 3: YES/NO
+- ✅ Ready to proceed to Phase 4: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 3
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 4
 
 ---
 
-## PHASE 3: ARCHITECTURE DEFINITION
+## PHASE 4: ARCHITECTURE DEFINITION
 
 **Purpose**: Research and generate comprehensive technology architecture using recommend-tech framework
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 2: REQUIREMENTS GENERATION as "completed"
-- Mark PHASE 3: ARCHITECTURE DEFINITION as "in_progress"
+- Mark PHASE 3: REQUIREMENTS GENERATION as "completed"
+- Mark PHASE 4: ARCHITECTURE DEFINITION as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -558,9 +815,9 @@ Include:
 **PHASE_PURPOSE**: Research solutions and create detailed technology architecture decisions using progressive analysis
 
 **DEPENDENCIES**:
-- Input from Phase 1: <worktree>/planning/use-cases.md
-- Input from Phase 2: <worktree>/planning/requirements.md
-- Original requirements: <original-requirements>
+- Input from Phase 2: <worktree>/planning/use-cases.md
+- Input from Phase 3: <worktree>/planning/requirements.md
+- Original story: <unambiguous-story>
 
 **DELIVERABLES**: Complete architecture specification in <worktree>/planning/architecture.md
 
@@ -710,19 +967,19 @@ Include:
 - ✅ architecture.md exists with 8-phase analysis: YES/NO
 - ✅ All 9 technology categories addressed: YES/NO
 - ✅ Final confidence ≥ 85%: YES/NO
-- ✅ Ready to proceed to Phase 4: YES/NO
+- ✅ Ready to proceed to Phase 5: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 4
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 5
 
 ---
 
-## PHASE 4: TASK GENERATION & ORGANIZATION
+## PHASE 5: TASK GENERATION & ORGANIZATION
 
 **Purpose**: Generate actionable implementation tasks from architecture and requirements
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 3: ARCHITECTURE DEFINITION as "completed"
-- Mark PHASE 4: TASK GENERATION & ORGANIZATION as "in_progress"
+- Mark PHASE 4: ARCHITECTURE DEFINITION as "completed"
+- Mark PHASE 5: TASK GENERATION & ORGANIZATION as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -732,9 +989,9 @@ Include:
 **PHASE_PURPOSE**: Transform architecture decisions into parallel development tasks
 
 **DEPENDENCIES**:
-- Input from Phase 1: <worktree>/planning/use-cases.md
-- Input from Phase 2: <worktree>/planning/requirements.md
-- Input from Phase 3: <worktree>/planning/architecture.md
+- Input from Phase 2: <worktree>/planning/use-cases.md
+- Input from Phase 3: <worktree>/planning/requirements.md
+- Input from Phase 4: <worktree>/planning/architecture.md
 - Directory structure: <worktree>/pending/ and <worktree>/completed/
 
 **DELIVERABLES**: Individual task files in <worktree>/pending/ ready for parallel development
@@ -966,19 +1223,19 @@ Include:
 - ✅ Task files created in pending/: YES/NO
 - ✅ Dependency graph generated: YES/NO
 - ✅ Parallel execution plan created: YES/NO
-- ✅ Ready to proceed to Phase 5: YES/NO
+- ✅ Ready to proceed to Phase 6: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 5
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 6
 
 ---
 
-## PHASE 5: PARALLEL FEATURE DEVELOPMENT
+## PHASE 6: PARALLEL FEATURE DEVELOPMENT
 
 **Purpose**: Execute all implementation tasks in parallel via feature-developer agents
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 4: TASK GENERATION & ORGANIZATION as "completed"
-- Mark PHASE 5: PARALLEL FEATURE DEVELOPMENT as "in_progress"
+- Mark PHASE 5: TASK GENERATION & ORGANIZATION as "completed"
+- Mark PHASE 6: PARALLEL FEATURE DEVELOPMENT as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -988,7 +1245,7 @@ Include:
 **PHASE_PURPOSE**: Implement all features concurrently using parallel feature-developer agents
 
 **DEPENDENCIES**:
-- Input from Phase 4: Task files in <worktree>/pending/
+- Input from Phase 5: Task files in <worktree>/pending/
 - Architecture reference: <worktree>/planning/architecture.md
 - Requirements context: <worktree>/planning/requirements.md and use-cases.md
 - Directory structure: <worktree>/completed/ for finished tasks
@@ -1241,19 +1498,19 @@ Include:
 - ✅ All tasks moved to completed/: YES/NO
 - ✅ Implementations follow architecture: YES/NO
 - ✅ Quality standards met: YES/NO
-- ✅ Ready to proceed to Phase 6: YES/NO
+- ✅ Ready to proceed to Phase 7: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 6
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 7
 
 ---
 
-## PHASE 6: INTEGRATION & TESTING
+## PHASE 7: INTEGRATION & TESTING
 
 **Purpose**: Integrate completed features and execute comprehensive testing
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 5: PARALLEL FEATURE DEVELOPMENT as "completed"
-- Mark PHASE 6: INTEGRATION & TESTING as "in_progress"
+- Mark PHASE 6: PARALLEL FEATURE DEVELOPMENT as "completed"
+- Mark PHASE 7: INTEGRATION & TESTING as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -1263,7 +1520,7 @@ Include:
 **PHASE_PURPOSE**: Validate all implementations work together and meet quality standards
 
 **DEPENDENCIES**:
-- Input from Phase 5: Completed task implementations in <worktree>/completed/
+- Input from Phase 6: Completed task implementations in <worktree>/completed/
 - Architecture reference: <worktree>/planning/architecture.md
 - Requirements for validation: <worktree>/planning/requirements.md
 - Use cases for test scenarios: <worktree>/planning/use-cases.md
@@ -1439,19 +1696,19 @@ Include:
 - ✅ All tests passing: YES/NO
 - ✅ Integration successful: YES/NO
 - ✅ Performance benchmarks met: YES/NO
-- ✅ Ready to proceed to Phase 7: YES/NO
+- ✅ Ready to proceed to Phase 8: YES/NO
 
-⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 7
+⚠️ **IF ANY CHECK FAILS**: STOP and address issues before continuing to Phase 8
 
 ---
 
-## PHASE 7: DEPLOYMENT PREPARATION
+## PHASE 8: DEPLOYMENT PREPARATION
 
 **Purpose**: Prepare system for production deployment
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 6: INTEGRATION & TESTING as "completed"
-- Mark PHASE 7: DEPLOYMENT PREPARATION as "in_progress"
+- Mark PHASE 7: INTEGRATION & TESTING as "completed"
+- Mark PHASE 8: DEPLOYMENT PREPARATION as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
 - Only mark complete when ALL phase work is done
@@ -1461,9 +1718,9 @@ Include:
 **PHASE_PURPOSE**: Package, configure, and prepare system for production deployment
 
 **DEPENDENCIES**:
-- Input from Phase 6: Tested and integrated system
+- Input from Phase 7: Tested and integrated system
 - Architecture deployment strategy: <worktree>/planning/architecture.md
-- Infrastructure requirements: From Phase 3 architecture
+- Infrastructure requirements: From Phase 4 architecture
 - Configuration needs: From requirements and architecture
 
 **DELIVERABLES**: Production-ready deployment package with documentation
@@ -1640,10 +1897,10 @@ Include:
 
 ---
 
-### 🔄 PHASE TRANSITION CHECKPOINT 7→GLOBAL END
+### 🔄 PHASE TRANSITION CHECKPOINT 8→GLOBAL END
 
 **VALIDATION BEFORE PROCEEDING**:
-- ✅ Phase 7 completed: YES/NO
+- ✅ Phase 8 completed: YES/NO
 - ✅ Deployment packages created: YES/NO
 - ✅ Configuration management ready: YES/NO
 - ✅ Documentation complete: YES/NO
@@ -1658,7 +1915,7 @@ Include:
 **Execute AFTER all phases complete to ensure original requirements satisfied**
 
 **⚠️ MANDATORY PREREQUISITE VALIDATION ⚠️**:
-✓ ALL 7 PHASES MUST be complete (no exceptions)
+✓ ALL 8 PHASES MUST be complete (no exceptions)
 ✓ GLOBAL START MUST have been executed at the beginning
 ✓ All phase deliverables MUST exist in <worktree>/
 ✗ DO NOT execute GLOBAL END if ANY phase was skipped
@@ -1668,7 +1925,7 @@ Include:
 
 ```markdown
 1. LOAD ORIGINAL REQUIREMENTS:
-   Review <original-requirements> from Global Start
+   Review <unambiguous-story> from Phase 1
 
 2. EVIDENCE GATHERING:
    For each requirement in original request:
@@ -1769,18 +2026,19 @@ When using this IDEAL-STI v3.0 framework, these behaviors are guaranteed:
 
 ```markdown
 **Confirm Framework Execution Integrity**:
-- Verify all 9 backbone todos show "completed" status
+- Verify all 10 backbone todos show "completed" status
 - No additional todos should exist - all work was executed within phases
-- The todo list should show EXACTLY 9 completed items:
+- The todo list should show EXACTLY 10 completed items:
   1. GLOBAL START: Initialize Framework ✓
-  2. PHASE 1: USE CASE DISCOVERY ✓
-  3. PHASE 2: REQUIREMENTS GENERATION ✓
-  4. PHASE 3: ARCHITECTURE DEFINITION ✓
-  5. PHASE 4: TASK GENERATION & ORGANIZATION ✓
-  6. PHASE 5: PARALLEL FEATURE DEVELOPMENT ✓
-  7. PHASE 6: INTEGRATION & TESTING ✓
-  8. PHASE 7: DEPLOYMENT PREPARATION ✓
-  9. GLOBAL END: Validate Requirements ✓
+  2. PHASE 1: STORY CLARIFICATION ✓
+  3. PHASE 2: USE CASE DISCOVERY ✓
+  4. PHASE 3: REQUIREMENTS GENERATION ✓
+  5. PHASE 4: ARCHITECTURE DEFINITION ✓
+  6. PHASE 5: TASK GENERATION & ORGANIZATION ✓
+  7. PHASE 6: PARALLEL FEATURE DEVELOPMENT ✓
+  8. PHASE 7: INTEGRATION & TESTING ✓
+  9. PHASE 8: DEPLOYMENT PREPARATION ✓
+  10. GLOBAL END: Validate Requirements ✓
 
 This proves complete framework execution without scope creep.
 
@@ -1790,7 +2048,7 @@ IF any phase todo is not completed:
   - Document the gap in global-quality-review.md
   - Recommend remediation strategy
 
-Mark PHASE 7: DEPLOYMENT PREPARATION as "completed"
+Mark PHASE 8: DEPLOYMENT PREPARATION as "completed"
 Mark GLOBAL END: Validate Requirements as "in_progress"
 Upon successful validation, mark GLOBAL END as "completed"
 ```
@@ -1812,7 +2070,7 @@ IF git worktree was created in GLOBAL START:
          git -C "<worktree>" add -A .
 
       b. Commit with IDEAL-STI framework context:
-         git -C "<worktree>" commit -m "IDEAL-STI v3: Complete 7-phase implementation
+         git -C "<worktree>" commit -m "IDEAL-STI v3: Complete 8-phase implementation
 
          Framework: IDEAL-STI v3.0
          Worktree: <worktree>
@@ -1820,13 +2078,14 @@ IF git worktree was created in GLOBAL START:
          Quality Score: <global_quality_score>
 
          Phases Completed:
-         - Phase 1: Use Case Discovery
-         - Phase 2: Requirements Generation
-         - Phase 3: Architecture Definition
-         - Phase 4: Task Generation
-         - Phase 5: Parallel Development
-         - Phase 6: Integration Testing
-         - Phase 7: Deployment Preparation
+         - Phase 1: Story Clarification
+         - Phase 2: Use Case Discovery
+         - Phase 3: Requirements Generation
+         - Phase 4: Architecture Definition
+         - Phase 5: Task Generation
+         - Phase 6: Parallel Development
+         - Phase 7: Integration Testing
+         - Phase 8: Deployment Preparation
 
          Requirements Satisfied: <requirements_count>
          Tasks Completed: <completed_task_count>
@@ -1870,14 +2129,15 @@ FI
 ## Execution Summary
 
 This IDEAL-STI v3.0 implementation provides:
-- **7 Complete Phases** following phased-prompt.md template structure:
-  1. Use Case Discovery
-  2. Requirements Generation
-  3. Architecture Definition (with recommend-tech)
-  4. Task Generation & Organization (with feature-task-creator)
-  5. Parallel Feature Development (with feature-developer agents)
-  6. Integration & Testing (with qa-analyst)
-  7. Deployment Preparation (with deployment-orchestrator)
+- **8 Complete Phases** following phased-prompt.md template structure:
+  1. Story Clarification (ambiguity elimination)
+  2. Use Case Discovery
+  3. Requirements Generation
+  4. Architecture Definition (with recommend-tech)
+  5. Task Generation & Organization (with feature-task-creator)
+  6. Parallel Feature Development (with feature-developer agents)
+  7. Integration & Testing (with qa-analyst)
+  8. Deployment Preparation (with deployment-orchestrator)
 - **Progressive Knowledge Building** with rehydration between phases
 - **Complete Task Lifecycle** from pending through completed directories
 - **Quality Assurance** with built-in iteration loops and global validation
