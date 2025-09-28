@@ -316,9 +316,9 @@ for knowledge_path in "./knowledge" "../knowledge" "../../knowledge" "~/knowledg
 done
 
 # Load coding standards from IDEAL-STI planning
-if [ -f "./docs/planning/phase7-architecture.md" ]; then
+if [ -f "./planning/phase7-architecture.md" ]; then
   echo "Loading coding standards from IDEAL-STI architecture..."
-  grep -A 10 -B 2 -i "code.*standard\|style\|convention" ./docs/planning/phase7-architecture.md
+  grep -A 10 -B 2 -i "code.*standard\|style\|convention" ./planning/phase7-architecture.md
 fi
 
 # Analyze target file type and find similar files for pattern reference
@@ -351,13 +351,13 @@ if [ -f "$task_file" ]; then
 fi
 
 # Load IDEAL-STI technology context
-if [ -f "./docs/planning/phase4-tech-research.md" ]; then
+if [ -f "./planning/phase4-tech-research.md" ]; then
   echo "Loading technology standards for review..."
-  grep -A 5 -B 2 "$file_extension\|$(basename "$target_file")" ./docs/planning/phase4-tech-research.md
+  grep -A 5 -B 2 "$file_extension\|$(basename "$target_file")" ./planning/phase4-tech-research.md
 fi
 
 # Load QA manifest if available with timeout protection
-qa_manifest="$WORK_DIR/docs/planning/qa-manifests/$(basename "$target_file")-qa-manifest.json"
+qa_manifest="$WORK_DIR/planning/qa-manifests/$(basename "$target_file")-qa-manifest.json"
 if [ -f "$qa_manifest" ]; then
   echo "Loading QA context: $qa_manifest"
   timeout 10s cat "$qa_manifest" || echo "⚠️ QA manifest read timeout"
@@ -1051,7 +1051,7 @@ $([ "$dryrun" = "true" ] && echo "Implementation plan is well-structured and ali
 EOF
 
 # Create review manifest with validation
-review_manifest="$WORK_DIR/docs/planning/review-manifests/$(basename "$target_file")-review-manifest.json"
+review_manifest="$WORK_DIR/planning/review-manifests/$(basename "$target_file")-review-manifest.json"
 mkdir -p "$(dirname "$review_manifest")"
 
 # Ensure manifest directory was created successfully

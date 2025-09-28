@@ -304,15 +304,15 @@ if [ -f "$task_file" ]; then
 fi
 
 # Load IDEAL-STI requirements context
-if [ -f "./docs/planning/phase5-requirements.md" ]; then
+if [ -f "./planning/phase5-requirements.md" ]; then
   echo "Loading requirements context for test specifications..."
-  grep -A 5 -B 2 -i "$(basename "$target_file")\|test\|quality" ./docs/planning/phase5-requirements.md
+  grep -A 5 -B 2 -i "$(basename "$target_file")\|test\|quality" ./planning/phase5-requirements.md
 fi
 
 # Load technology context for test framework selection
-if [ -f "./docs/planning/phase4-tech-research.md" ]; then
+if [ -f "./planning/phase4-tech-research.md" ]; then
   echo "Loading technology context for test framework..."
-  grep -A 5 -B 2 -i "test\|framework\|quality" ./docs/planning/phase4-tech-research.md
+  grep -A 5 -B 2 -i "test\|framework\|quality" ./planning/phase4-tech-research.md
 fi
 ```
 
@@ -593,7 +593,7 @@ echo "✅ Comprehensive test research completed: $TEST_RESEARCH_FILE"
 ```
 
 ## PHASE 5: CREATE FILE-SPECIFIC TEST PLAN
-`./docs/planning/test-plans/$(basename "$target_file")-test-plan.md`:
+`./planning/test-plans/$(basename "$target_file")-test-plan.md`:
 - Target file: `$target_file`
 - Test framework selection based on file type
 - Test cases derived from task acceptance criteria
@@ -634,7 +634,7 @@ cat >> "$test_plan_file" << EOF
 - [ ] Performance tests (if applicable)
 
 ## Test Framework
-$(grep -i "test.*framework" ./docs/planning/phase4-tech-research.md | head -3 || echo "- TBD: Select based on project structure")
+$(grep -i "test.*framework" ./planning/phase4-tech-research.md | head -3 || echo "- TBD: Select based on project structure")
 
 ## Mock Requirements
 $(grep -E "import|require|from" "$target_file" 2>/dev/null | head -5 || echo "- Analyze dependencies after implementation")

@@ -7,10 +7,10 @@
 
 ## 📁 PROJECT DIRECTORY STRUCTURE
 
-All analysis and planning documents are organized in `docs/planning/` with logical phase progression:
+All analysis and planning documents are organized in `planning/` with logical phase progression:
 
 ```
-docs/planning/
+planning/
 ├── 1-complexity-assessment.md          # Phase 1: Project complexity analysis and mode selection
 ├── 2-discovery-analysis.md             # Phase 2: Consolidated discovery from all modes (SPEED/STANDARD/DEEP)
 ├── 3-use-case-analysis.md              # Phase 3: Comprehensive use case discovery (stated + unstated)
@@ -186,7 +186,7 @@ execute_speed_mode() {
     # Use product-strategist subagent for speed mode analysis
     # Task: Fast-track project analysis for: <prompt-arguments>
     # Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements
-    # Output: docs/planning/2-discovery-analysis.md
+    # Output: planning/2-discovery-analysis.md
     
     # Smart confirmation only if conflicts detected
     check_smart_confirmations "speed-mode"
@@ -281,7 +281,7 @@ execute_phases_2_to_4_with_parallel_tech_research() {
 
 synthesize_standard_mode_analysis() {
     echo "🔗 Task: Use system-architect subagent to synthesize standard mode analysis for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    echo "📄 Expected Output: planning/2-discovery-analysis.md"
     echo "📄 Input Files: Parallel agent analysis results from stakeholder, use-case, requirements, and constraint analysis"
 }
 ```
@@ -483,7 +483,7 @@ test_parent_access() {
 # State Management for Concurrent Execution
 initialize_worktree_state() {
     local main_dir="$(pwd)"
-    local state_dir="docs/planning/.worktree-state"
+    local state_dir="planning/.worktree-state"
     
     # Create state directory if it doesn't exist
     mkdir -p "$state_dir"
@@ -562,7 +562,7 @@ create_isolated_worktree() {
     local max_attempts=50  # Increased for concurrent safety
     local attempt=1
     local main_dir="$(pwd)"
-    local state_dir="docs/planning/.worktree-state"
+    local state_dir="planning/.worktree-state"
     
     # Ensure state management is initialized
     initialize_worktree_state
@@ -681,7 +681,7 @@ cleanup_isolated_worktree() {
     local worktree="${1:-$CURRENT_WORKTREE}"
     local branch="${2:-$CURRENT_BRANCH}"
     local main_dir="$(pwd)"  # Store current directory for main repo operations
-    local state_dir="docs/planning/.worktree-state"
+    local state_dir="planning/.worktree-state"
     
     if [ -z "$worktree" ] || [ -z "$branch" ]; then
         echo "⚠️ Warning: Missing worktree or branch information for cleanup"
@@ -908,7 +908,7 @@ scan_knowledge_folders() {
         
         # Create or update project knowledge section
         local claude_md_path="CLAUDE.md"
-        local project_knowledge_path="docs/planning/aggregated-knowledge.md"
+        local project_knowledge_path="planning/aggregated-knowledge.md"
         
         # Create aggregated knowledge file
         cat > "$project_knowledge_path" << EOF
@@ -938,7 +938,7 @@ EOF
                 echo "## Project Knowledge" >> "$claude_md_path"
                 echo "" >> "$claude_md_path"
                 echo "Comprehensive knowledge aggregated from available knowledge folders:" >> "$claude_md_path"
-                echo "- See: [Aggregated Knowledge](docs/planning/aggregated-knowledge.md)" >> "$claude_md_path"
+                echo "- See: [Aggregated Knowledge](planning/aggregated-knowledge.md)" >> "$claude_md_path"
                 echo "- Auto-updated during IDEAL-STI execution" >> "$claude_md_path"
             fi
         else
@@ -949,7 +949,7 @@ EOF
 ## Project Knowledge
 
 Comprehensive knowledge aggregated from available knowledge folders:
-- See: [Aggregated Knowledge](docs/planning/aggregated-knowledge.md)
+- See: [Aggregated Knowledge](planning/aggregated-knowledge.md)
 - Auto-updated during IDEAL-STI execution
 
 ## IDEAL-STI Integration
@@ -1010,7 +1010,7 @@ execute_ideal_sti_adaptive() {
     echo ""
     
     # Initialize planning directory structure
-    mkdir -p "$main_dir/docs/planning"
+    mkdir -p "$main_dir/planning"
     
     # Execute phases in order
     execute_phase0_if_needed
@@ -1018,7 +1018,7 @@ execute_ideal_sti_adaptive() {
     
     echo ""
     echo "✅ IDEAL-STI v3.0 planning system execution complete!"
-    echo "📁 All planning documents available in: docs/planning/"
+    echo "📁 All planning documents available in: planning/"
 }
 ```
 
@@ -1046,7 +1046,7 @@ execute_phase0_if_needed() {
             echo "🔍 Phase 0: Analyzing existing project structure..."
             
             # Create Phase 0 analysis
-            cat > "$main_dir/docs/planning/phase0-existing-analysis.md" << 'EOF'
+            cat > "$main_dir/planning/phase0-existing-analysis.md" << 'EOF'
 # Phase 0: Existing Project Analysis
 
 ## Project Discovery
@@ -1089,7 +1089,7 @@ EOF
 assess_complexity_and_select_mode() {
     local main_dir="$(pwd)"
     local user_input="<prompt-arguments>"
-    local assessment_output="$main_dir/docs/planning/1-complexity-assessment.md"
+    local assessment_output="$main_dir/planning/1-complexity-assessment.md"
     
     echo "🧠 Phase 1: Intelligent complexity assessment and execution mode selection..."
     
@@ -1137,7 +1137,7 @@ Based on your analysis, select the optimal mode:
 - **DEEP MODE (30-45 min)**: For high complexity or high-risk projects requiring thorough analysis. Suitable for enterprise systems, complex architectures, critical business systems, or projects with significant unknowns.
 
 **Required Output Format:**
-Generate comprehensive analysis in @docs/planning/1-complexity-assessment.md including:
+Generate comprehensive analysis in @planning/1-complexity-assessment.md including:
 1. **Complexity Analysis**: Detailed reasoning for each dimension
 2. **Execution Mode**: Selected mode with clear justification  
 3. **Risk Factors**: Key risks and mitigation considerations
@@ -1147,7 +1147,7 @@ Generate comprehensive analysis in @docs/planning/1-complexity-assessment.md inc
 **Decision Criteria**: Use intelligent reasoning rather than keyword counting. Consider the full context, not just surface indicators."
 
     echo "🤖 Task: Use system-architect subagent for intelligent complexity assessment: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/1-complexity-assessment.md"
+    echo "📄 Expected Output: planning/1-complexity-assessment.md"
     echo "📄 Output Format: Structured analysis with mode selection and detailed reasoning"
     
     # Wait for intelligent assessment to complete and read the selected mode
@@ -1223,7 +1223,7 @@ execute_speed_mode() {
     
     # Single consolidated discovery phase with minimal agent involvement
     echo "🚀 Task: Use product-strategist subagent for fast-track analysis: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    echo "📄 Expected Output: planning/2-discovery-analysis.md"
     echo "📄 Analysis Focus: Quick stakeholder ID, basic tech constraints, simple architecture, essential requirements"
     
     # Context-aware confirmation trigger for SPEED mode
@@ -1263,7 +1263,7 @@ evaluate_speed_mode_confirmation_needs() {
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - SPEED Mode
 
 **Project Context**: <prompt-arguments>
-**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+**Discovery Analysis**: @planning/2-discovery-analysis.md
 
 **INTELLIGENT CONFIRMATION EVALUATION:**
 
@@ -1298,14 +1298,14 @@ Determine if user guidance would improve fast-track discovery outcomes:
 - Implementation approach is obvious and aligns with user input
 - Fast-track timeline would be compromised without significant benefit
 
-**Expected Output**: Document decision in @docs/planning/confirmation-assessment-speed.md
+**Expected Output**: Document decision in @planning/confirmation-assessment-speed.md
 - **CONFIRMATION_NEEDED**: true/false
 - **Trigger Reasons**: Specific concerns requiring user input
 - **User Questions**: 3 dynamic response proposals if confirmation needed
 - **Confidence Level**: Assessment confidence in the decision"
 
     echo "🤖 Task: Use system-architect subagent for SPEED mode confirmation evaluation: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/confirmation-assessment-speed.md"
+    echo "📄 Expected Output: planning/confirmation-assessment-speed.md"
     
     # Check if confirmation is needed and trigger user interaction
     trigger_user_confirmation_if_needed "speed"
@@ -1318,7 +1318,7 @@ evaluate_standard_mode_confirmation_needs() {
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - STANDARD Mode
 
 **Project Context**: <prompt-arguments>
-**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+**Discovery Analysis**: @planning/2-discovery-analysis.md
 
 **INTELLIGENT CONFIRMATION EVALUATION:**
 
@@ -1353,10 +1353,10 @@ Assess if strategic user guidance would improve standard project outcomes:
 - Business logic understanding seems sufficient for implementation
 - Standard approach timeline would be significantly impacted
 
-**Expected Output**: Document decision in @docs/planning/confirmation-assessment-standard.md"
+**Expected Output**: Document decision in @planning/confirmation-assessment-standard.md"
 
     echo "🤖 Task: Use system-architect subagent for STANDARD mode confirmation evaluation: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/confirmation-assessment-standard.md"
+    echo "📄 Expected Output: planning/confirmation-assessment-standard.md"
     
     # Check if confirmation is needed and trigger user interaction
     trigger_user_confirmation_if_needed "standard"
@@ -1369,7 +1369,7 @@ evaluate_deep_mode_confirmation_needs() {
     confirmation_evaluation_prompt="## Context-Aware Confirmation Assessment - DEEP Mode
 
 **Project Context**: <prompt-arguments>
-**Discovery Analysis**: @docs/planning/2-discovery-analysis.md
+**Discovery Analysis**: @planning/2-discovery-analysis.md
 
 **COMPREHENSIVE CONFIRMATION EVALUATION:**
 
@@ -1406,10 +1406,10 @@ For DEEP mode projects, confirmation is more frequently warranted due to complex
 - Architectural approach is clearly optimal for discovered requirements
 - Comprehensive timeline would be significantly impacted without clear benefit
 
-**Expected Output**: Document decision in @docs/planning/confirmation-assessment-deep.md"
+**Expected Output**: Document decision in @planning/confirmation-assessment-deep.md"
 
     echo "🤖 Task: Use system-architect subagent for DEEP mode confirmation evaluation: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/confirmation-assessment-deep.md"
+    echo "📄 Expected Output: planning/confirmation-assessment-deep.md"
     
     # Check if confirmation is needed and trigger user interaction  
     trigger_user_confirmation_if_needed "deep"
@@ -1418,7 +1418,7 @@ For DEEP mode projects, confirmation is more frequently warranted due to complex
 # Universal confirmation trigger function
 trigger_user_confirmation_if_needed() {
     local mode="$1"
-    local confirmation_file="docs/planning/confirmation-assessment-$mode.md"
+    local confirmation_file="planning/confirmation-assessment-$mode.md"
     
     echo "🔍 Checking if user confirmation is needed for $mode mode..."
     
@@ -1448,7 +1448,7 @@ trigger_user_confirmation_if_needed() {
             
             # Wait for user response (this would be handled by Claude Code's user interaction)
             echo "⏳ Awaiting user response..."
-            echo "📝 User feedback will be incorporated into docs/planning/user-confirmation-response-$mode.md"
+            echo "📝 User feedback will be incorporated into planning/user-confirmation-response-$mode.md"
         else
             echo "✅ No user confirmation needed - proceeding with $mode mode discovery"
         fi
@@ -1513,13 +1513,13 @@ Evaluate which domains need expert analysis:
 2. Wait for all parallel agents to complete domain analysis
 3. system-architect synthesizes all outputs into unified discovery document
 
-**Final Output**: @docs/planning/2-discovery-analysis.md (synthesized from all agent inputs)
+**Final Output**: @planning/2-discovery-analysis.md (synthesized from all agent inputs)
 
 **Decision**: Select specific agents needed for this project and document reasoning."
 
     echo "🤖 Task: Use system-architect subagent for intelligent agent selection: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/agent-selection-standard.md"
-    echo "📄 Final Output: docs/planning/2-discovery-analysis.md (post-synthesis)"
+    echo "📄 Expected Output: planning/agent-selection-standard.md"
+    echo "📄 Final Output: planning/2-discovery-analysis.md (post-synthesis)"
     
     # Execute selected agents in parallel (implementation would be dynamic based on selection)
     execute_selected_agents_in_parallel "standard"
@@ -1580,7 +1580,7 @@ Launch all relevant agents simultaneously:
 
 **Output Integration:**
 - Domain-specific analysis files from each agent
-- Comprehensive synthesis in @docs/planning/2-discovery-analysis.md
+- Comprehensive synthesis in @planning/2-discovery-analysis.md
 - Pattern documentation in knowledge base
 
 **Quality Assurance:**
@@ -1592,8 +1592,8 @@ Launch all relevant agents simultaneously:
 **Expected Depth**: Enterprise-grade analysis with comprehensive coverage"
 
     echo "🤖 Task: Use system-architect subagent for comprehensive agent orchestration: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/agent-orchestration-deep.md"
-    echo "📄 Final Output: docs/planning/2-discovery-analysis.md (comprehensive synthesis)"
+    echo "📄 Expected Output: planning/agent-orchestration-deep.md"
+    echo "📄 Final Output: planning/2-discovery-analysis.md (comprehensive synthesis)"
     
     # Execute comprehensive agent ecosystem
     execute_comprehensive_agent_ecosystem "deep"
@@ -1602,7 +1602,7 @@ Launch all relevant agents simultaneously:
 # Universal agent execution coordinator
 execute_selected_agents_in_parallel() {
     local mode="$1"
-    local selection_file="docs/planning/agent-selection-$mode.md"
+    local selection_file="planning/agent-selection-$mode.md"
     
     echo "🚀 Executing selected agents in parallel for $mode mode..."
     
@@ -1612,31 +1612,31 @@ execute_selected_agents_in_parallel() {
         
         # Extract selected agents (this would be dynamic based on the selection file)
         echo "🤖 Task: Use product-strategist subagent for stakeholder analysis: <prompt-arguments>"
-        echo "📄 Expected Output: docs/planning/stakeholder-analysis-$mode.md"
+        echo "📄 Expected Output: planning/stakeholder-analysis-$mode.md"
         
         # Check if tech-research-analyst was selected
         if grep -q "tech-research-analyst.*INCLUDE" "$selection_file" 2>/dev/null; then
             echo "🤖 Task: Use tech-research-analyst subagent for technology research: <prompt-arguments>"
-            echo "📄 Expected Output: docs/planning/technology-research-$mode.md"
+            echo "📄 Expected Output: planning/technology-research-$mode.md"
         fi
         
         # Check if ui-designer was selected  
         if grep -q "ui-designer.*INCLUDE" "$selection_file" 2>/dev/null; then
             echo "🤖 Task: Use ui-designer subagent for user experience analysis: <prompt-arguments>"
-            echo "📄 Expected Output: docs/planning/ux-analysis-$mode.md"
+            echo "📄 Expected Output: planning/ux-analysis-$mode.md"
         fi
         
         # Always synthesize with system-architect
         echo "⏳ Waiting for all parallel agents to complete..."
         echo "🤖 Task: Use system-architect subagent to synthesize all agent outputs: <prompt-arguments>"
-        echo "📄 Input Files: docs/planning/*-analysis-$mode.md, docs/planning/*-research-$mode.md"
-        echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+        echo "📄 Input Files: planning/*-analysis-$mode.md, planning/*-research-$mode.md"
+        echo "📄 Expected Output: planning/2-discovery-analysis.md"
         
     else
         echo "⚠️ Agent selection not completed - using default configuration"
         # Fallback to basic agent coordination
         echo "🤖 Task: Use product-strategist subagent for default discovery analysis: <prompt-arguments>"
-        echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+        echo "📄 Expected Output: planning/2-discovery-analysis.md"
     fi
 }
 
@@ -1649,26 +1649,26 @@ execute_comprehensive_agent_ecosystem() {
     # Phase 1: Parallel domain analysis
     echo "📊 Phase 1: Launching parallel domain analysis..."
     echo "🤖 Task: Use product-strategist subagent for comprehensive business analysis: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/business-analysis-comprehensive.md"
+    echo "📄 Expected Output: planning/business-analysis-comprehensive.md"
     
     echo "🤖 Task: Use tech-research-analyst subagent for full technology ecosystem research: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/technology-ecosystem-comprehensive.md"
+    echo "📄 Expected Output: planning/technology-ecosystem-comprehensive.md"
     
     echo "🤖 Task: Use ui-designer subagent for comprehensive user experience analysis: <prompt-arguments>"  
-    echo "📄 Expected Output: docs/planning/ux-comprehensive.md"
+    echo "📄 Expected Output: planning/ux-comprehensive.md"
     
     # Phase 2: Architecture synthesis
     echo "📊 Phase 2: Architecture synthesis..."
     echo "⏳ Waiting for all domain analyses to complete..."
     echo "🤖 Task: Use system-architect subagent for comprehensive architecture synthesis: <prompt-arguments>"
-    echo "📄 Input Files: docs/planning/business-analysis-comprehensive.md, docs/planning/technology-ecosystem-comprehensive.md, docs/planning/ux-comprehensive.md"
-    echo "📄 Expected Output: docs/planning/2-discovery-analysis.md"
+    echo "📄 Input Files: planning/business-analysis-comprehensive.md, planning/technology-ecosystem-comprehensive.md, planning/ux-comprehensive.md"
+    echo "📄 Expected Output: planning/2-discovery-analysis.md"
     
     # Phase 3: Knowledge integration
     echo "📊 Phase 3: Knowledge pattern integration..."
     echo "🤖 Task: Use knowledge-aggregator subagent for pattern capture and integration: <prompt-arguments>"
-    echo "📄 Input Files: docs/planning/2-discovery-analysis.md"
-    echo "📄 Expected Output: docs/planning/knowledge-patterns-comprehensive.md"
+    echo "📄 Input Files: planning/2-discovery-analysis.md"
+    echo "📄 Expected Output: planning/knowledge-patterns-comprehensive.md"
 }
 
 # INTELLIGENT FILE COORDINATION SYSTEM
@@ -1693,10 +1693,10 @@ Synthesize discovery outputs into meaningful, connected documentation for next p
 ### **Content Synthesis Intelligence**
 
 **Available Source Documents:**
-- Primary discovery: @docs/planning/2-discovery-analysis.md
-- Agent outputs: @docs/planning/*-analysis-*.md, @docs/planning/*-research-*.md  
-- Confirmation responses: @docs/planning/user-confirmation-response-*.md
-- Assessment files: @docs/planning/confirmation-assessment-*.md
+- Primary discovery: @planning/2-discovery-analysis.md
+- Agent outputs: @planning/*-analysis-*.md, @planning/*-research-*.md  
+- Confirmation responses: @planning/user-confirmation-response-*.md
+- Assessment files: @planning/confirmation-assessment-*.md
 
 ### **Synthesis Strategy**
 
@@ -1731,12 +1731,12 @@ Generate synthesis optimized for subsequent phases:
 - **Implementation Planning**: What complexity factors will affect development?
 
 **Expected Output**: 
-- @docs/planning/discovery-synthesis-$mode.md (intelligent synthesis for next phases)
+- @planning/discovery-synthesis-$mode.md (intelligent synthesis for next phases)
 - Content should be meaningful connections, not mechanical aggregation
 - Include confidence levels and identified gaps for next phase awareness"
 
     echo "🤖 Task: Use system-architect subagent for intelligent document synthesis: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/discovery-synthesis-$mode.md"  
+    echo "📄 Expected Output: planning/discovery-synthesis-$mode.md"  
     echo "📄 Input Strategy: Intelligent synthesis of all discovery documents"
     echo "📄 Output Purpose: Optimized foundation for requirements specification phase"
     
@@ -1761,7 +1761,7 @@ Validate that document generation serves actual implementation needs:
 ### **Usage Chain Analysis**
 
 **Phase 1 → Phase 2 Flow:**
-- Complexity assessment (@docs/planning/1-complexity-assessment.md) → Discovery mode selection
+- Complexity assessment (@planning/1-complexity-assessment.md) → Discovery mode selection
 - Mode selection → Agent coordination and discovery execution
 - Discovery outputs → Requirements specification foundation
 
@@ -1798,7 +1798,7 @@ Validate that document generation serves actual implementation needs:
 **Expected Output**: Document usage validation and optimization recommendations"
 
     echo "🤖 Task: Use knowledge-aggregator subagent for document usage validation: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/document-usage-validation-$mode.md"
+    echo "📄 Expected Output: planning/document-usage-validation-$mode.md"
     echo "📄 Validation Focus: Ensure documents serve implementation needs vs bureaucratic overhead"
 }
     
@@ -1825,9 +1825,9 @@ check_smart_confirmations() {
     local feasibility_concerns_found=false
     
     # Check for scope expansion (>50% beyond original)
-    if [ -f "docs/planning/1-complexity-assessment.md" ]; then
-        local original_requirements=$(grep "Requirements Count" docs/planning/1-complexity-assessment.md | grep -o "[0-9]*" || echo "1")
-        local current_analysis_size=$(find docs/planning/ -name "*.md" -exec wc -l {} + 2>/dev/null | tail -1 | grep -o "^[0-9]*" || echo "0")
+    if [ -f "planning/1-complexity-assessment.md" ]; then
+        local original_requirements=$(grep "Requirements Count" planning/1-complexity-assessment.md | grep -o "[0-9]*" || echo "1")
+        local current_analysis_size=$(find planning/ -name "*.md" -exec wc -l {} + 2>/dev/null | tail -1 | grep -o "^[0-9]*" || echo "0")
         
         if [ "$current_analysis_size" -gt $((original_requirements * 15)) ] 2>/dev/null; then
             scope_expansion_detected=true
@@ -1867,14 +1867,14 @@ trigger_architecture_confirmation() {
 Based on your original request: **<prompt-arguments>**
 
 ### 📋 Comprehensive Requirements & Technology Specification
-$([ -f "docs/planning/6-requirements-specification.md" ] && cat docs/planning/6-requirements-specification.md | head -50 || echo "⚠️ Requirements specification pending - this may indicate an issue with the analysis phase")
+$([ -f "planning/6-requirements-specification.md" ] && cat planning/6-requirements-specification.md | head -50 || echo "⚠️ Requirements specification pending - this may indicate an issue with the analysis phase")
 
 ### 🏛️ Technology Stack & Architecture Design  
-$([ -f "docs/planning/8-architecture-design.md" ] && cat docs/planning/8-architecture-design.md | head -50 || echo "⚠️ Architecture design pending - this may indicate an issue with the design phase")
+$([ -f "planning/8-architecture-design.md" ] && cat planning/8-architecture-design.md | head -50 || echo "⚠️ Architecture design pending - this may indicate an issue with the design phase")
 
 ### 🔍 Discovery Summary & Complexity Assessment
-$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -30 || echo "⚠️ Discovery analysis pending - this may indicate an issue with the discovery phase")
-$([ -f "docs/planning/1-complexity-assessment.md" ] && cat docs/planning/1-complexity-assessment.md | head -20 || echo "⚠️ Complexity assessment pending - this may indicate an issue with the assessment phase")
+$([ -f "planning/discovery-summary.md" ] && cat planning/discovery-summary.md | head -30 || echo "⚠️ Discovery analysis pending - this may indicate an issue with the discovery phase")
+$([ -f "planning/1-complexity-assessment.md" ] && cat planning/1-complexity-assessment.md | head -20 || echo "⚠️ Complexity assessment pending - this may indicate an issue with the assessment phase")
 
 ### 🎯 APPROVAL OPTIONS WITH GUIDANCE:
 
@@ -1914,9 +1914,9 @@ Based on your request \"<prompt-arguments>\" and the analysis above, here are th
 
 **PROPOSAL 1: $(
 # Analyze complexity and suggest most appropriate action
-if [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "DEEP\|complex\|high" "docs/planning/1-complexity-assessment.md"; then
+if [ -f "planning/1-complexity-assessment.md" ] && grep -q "DEEP\|complex\|high" "planning/1-complexity-assessment.md"; then
     echo "APPROVE with phased approach - implement core functionality first, then expand features in subsequent phases"
-elif [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "SPEED\|simple\|low" "docs/planning/1-complexity-assessment.md"; then
+elif [ -f "planning/1-complexity-assessment.md" ] && grep -q "SPEED\|simple\|low" "planning/1-complexity-assessment.md"; then
     echo "APPROVE and proceed - the solution is well-suited to your straightforward requirements"
 else
     echo "EXTEND DISCOVERY - analyze integration requirements with your existing systems more thoroughly"
@@ -1925,9 +1925,9 @@ fi
 
 **PROPOSAL 2: $(
 # Generate refinement suggestion based on discovered technologies
-if [ -f "docs/planning/8-architecture-design.md" ] && grep -qi "react\|vue\|angular" "docs/planning/8-architecture-design.md"; then
+if [ -f "planning/8-architecture-design.md" ] && grep -qi "react\|vue\|angular" "planning/8-architecture-design.md"; then
     echo "REFINE SCOPE - focus on essential UI components first, advanced interactions can be Phase 2"
-elif [ -f "docs/planning/8-architecture-design.md" ] && grep -qi "database\|sql\|mongodb" "docs/planning/8-architecture-design.md"; then  
+elif [ -f "planning/8-architecture-design.md" ] && grep -qi "database\|sql\|mongodb" "planning/8-architecture-design.md"; then  
     echo "REFINE SCOPE - start with core data model, add advanced queries and analytics later"
 else
     echo "REFINE SCOPE - prioritize user-facing features, administrative features can be added later"
@@ -1936,9 +1936,9 @@ fi
 
 **PROPOSAL 3: $(
 # Suggest based on requirements analysis
-if [ -f "docs/planning/6-requirements-specification.md" ] && grep -qi "security\|authentication\|auth" "docs/planning/6-requirements-specification.md"; then
+if [ -f "planning/6-requirements-specification.md" ] && grep -qi "security\|authentication\|auth" "planning/6-requirements-specification.md"; then
     echo "EXTEND DISCOVERY - need deeper security analysis for authentication and data protection requirements"
-elif [ -f "docs/planning/6-requirements-specification.md" ] && grep -qi "performance\|scale\|load" "docs/planning/6-requirements-specification.md"; then
+elif [ -f "planning/6-requirements-specification.md" ] && grep -qi "performance\|scale\|load" "planning/6-requirements-specification.md"; then
     echo "EXTEND DISCOVERY - need performance benchmarking and load testing strategy analysis"
 else
     echo "APPROVE with MVP approach - implement minimum viable version first, then iterate based on user feedback"
@@ -2005,8 +2005,8 @@ fi
 
 **PROPOSAL 2: $(
 # Analyze complexity vs original intent
-if [ -f "docs/planning/1-complexity-assessment.md" ] && grep -q "requirements_count.*[0-9]\+" "docs/planning/1-complexity-assessment.md"; then
-    req_count=$(grep "requirements_count.*[0-9]\+" "docs/planning/1-complexity-assessment.md" | grep -o "[0-9]\+" | head -1)
+if [ -f "planning/1-complexity-assessment.md" ] && grep -q "requirements_count.*[0-9]\+" "planning/1-complexity-assessment.md"; then
+    req_count=$(grep "requirements_count.*[0-9]\+" "planning/1-complexity-assessment.md" | grep -o "[0-9]\+" | head -1)
     if [ "$req_count" -gt 10 ]; then
         echo "REFINE - prioritize top 5 most critical features from the expanded scope, defer others to Phase 2"
     else
@@ -2064,7 +2064,7 @@ trigger_conflict_resolution_confirmation() {
 ### 🔍 Conflict Analysis
 The fast-track analysis detected conflicts between your requirements and constraints:
 
-$([ -f "docs/planning/2-discovery-analysis.md" ] && grep -A3 -B3 "conflict\|issue\|problem\|constraint" docs/planning/2-discovery-analysis.md | head -20 || echo "Detailed conflict analysis in progress...")
+$([ -f "planning/2-discovery-analysis.md" ] && grep -A3 -B3 "conflict\|issue\|problem\|constraint" planning/2-discovery-analysis.md | head -20 || echo "Detailed conflict analysis in progress...")
 
 ### 🎯 CONFLICT RESOLUTION OPTIONS:
 
@@ -2091,12 +2091,12 @@ Based on the conflicts detected and your request \"<prompt-arguments>\":
 
 **PROPOSAL 1: $(
 # Analyze conflict type and suggest technical solution
-if [ -f "docs/planning/2-discovery-analysis.md" ]; then
-    if grep -qi "database\|storage" "docs/planning/2-discovery-analysis.md"; then
+if [ -f "planning/2-discovery-analysis.md" ]; then
+    if grep -qi "database\|storage" "planning/2-discovery-analysis.md"; then
         echo "TECHNICAL - use simpler database approach (SQLite/PostgreSQL) instead of complex NoSQL for easier integration"
-    elif grep -qi "api\|integration" "docs/planning/2-discovery-analysis.md"; then
+    elif grep -qi "api\|integration" "planning/2-discovery-analysis.md"; then
         echo "TECHNICAL - implement standard REST API first, can upgrade to GraphQL later if needed"
-    elif grep -qi "auth\|security" "docs/planning/2-discovery-analysis.md"; then
+    elif grep -qi "auth\|security" "planning/2-discovery-analysis.md"; then
         echo "TECHNICAL - use OAuth2 with existing identity provider instead of building custom authentication"
     else
         echo "TECHNICAL - simplify architecture to use proven, well-documented technologies"
@@ -2119,7 +2119,7 @@ fi
 
 **PROPOSAL 3: $(
 # Suggest analysis upgrade based on complexity revealed
-if grep -qi "complex\|difficult\|challenging" "docs/planning/2-discovery-analysis.md" 2>/dev/null; then
+if grep -qi "complex\|difficult\|challenging" "planning/2-discovery-analysis.md" 2>/dev/null; then
     echo "MORE ANALYSIS - switch to STANDARD mode for deeper technical research to resolve architectural conflicts"
 elif echo "<prompt-arguments>" | grep -qi "integrate\|existing\|current"; then
     echo "MORE ANALYSIS - need detailed analysis of existing system integration patterns and constraints"
@@ -2177,8 +2177,8 @@ execute_phase3_requirements_refinement_loop() {
         
         # Check for user feedback restart flag
         local restart_requested="false"
-        if [ -f "docs/planning/user-feedback-$refinement_iteration.md" ]; then
-            if grep -q "RESTART.*true" "docs/planning/user-feedback-$refinement_iteration.md"; then
+        if [ -f "planning/user-feedback-$refinement_iteration.md" ]; then
+            if grep -q "RESTART.*true" "planning/user-feedback-$refinement_iteration.md"; then
                 restart_requested="true"
                 echo "🔄 User feedback indicates iteration restart needed"
             fi
@@ -2186,13 +2186,13 @@ execute_phase3_requirements_refinement_loop() {
         
         # Check quality assessment confidence
         local quality_confidence="MEDIUM"
-        if [ -f "docs/planning/quality-assessment-$refinement_iteration.md" ]; then
-            quality_confidence=$(grep -i "confidence.*level" "docs/planning/quality-assessment-$refinement_iteration.md" | grep -o -i "HIGH\|MEDIUM\|LOW" | head -1)
+        if [ -f "planning/quality-assessment-$refinement_iteration.md" ]; then
+            quality_confidence=$(grep -i "confidence.*level" "planning/quality-assessment-$refinement_iteration.md" | grep -o -i "HIGH\|MEDIUM\|LOW" | head -1)
         fi
         
         # Check requirements satisfaction
-        if [ -f "docs/planning/requirements-satisfaction-$refinement_iteration.md" ] && [ "$restart_requested" = "false" ]; then
-            if grep -q "SATISFIED.*true" "docs/planning/requirements-satisfaction-$refinement_iteration.md"; then
+        if [ -f "planning/requirements-satisfaction-$refinement_iteration.md" ] && [ "$restart_requested" = "false" ]; then
+            if grep -q "SATISFIED.*true" "planning/requirements-satisfaction-$refinement_iteration.md"; then
                 # Check confidence level for final decision
                 if [ "$quality_confidence" = "HIGH" ] || [ "$quality_confidence" = "MEDIUM" ]; then
                     requirements_satisfied="true"
@@ -2224,8 +2224,8 @@ execute_phase3_requirements_refinement_loop() {
     
     # Generate consolidated use case analysis
     echo "🤖 Task: Use product-strategist subagent to consolidate use case analysis for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/3-use-case-analysis.md"
-    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (use case sections)"
+    echo "📄 Expected Output: planning/3-use-case-analysis.md"
+    echo "📄 Input Files: planning/refinement/iteration-*-analysis.md (use case sections)"
 }
 
 # Step 1: Discover unstated use cases through systematic analysis
@@ -2238,7 +2238,7 @@ discover_unstated_use_cases() {
 **Original Stated Request:** <prompt-arguments>
 
 **Current Discovery Context:**
-$([ -f "docs/planning/discovery-summary.md" ] && cat docs/planning/discovery-summary.md | head -40 || echo "Discovery analysis in progress...")
+$([ -f "planning/discovery-summary.md" ] && cat planning/discovery-summary.md | head -40 || echo "Discovery analysis in progress...")
 
 **SYSTEMATIC USE CASE EXPANSION:**
 
@@ -2265,7 +2265,7 @@ For each unstated use case, provide:
 - **Priority Assessment**: Critical/Important/Nice-to-Have
 - **Incorporation Recommendation**: INCORPORATE/UPDATE_EXISTING/ADD_NEW/MONITOR
 
-Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
+Generate: planning/refinement/iteration-$iteration-analysis.md"
 
     echo "🤖 Task: Use product-strategist subagent to discover unstated use cases for: <prompt-arguments>"
 }
@@ -2280,7 +2280,7 @@ identify_anti_cases() {
 **Original Request:** <prompt-arguments>
 
 **Discovered Use Cases Context:**
-$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -40 || echo "Use case analysis in progress...")
+$([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && cat planning/refinement/iteration-$iteration-analysis.md | head -40 || echo "Use case analysis in progress...")
 
 **SYSTEMATIC ANTI-CASE ANALYSIS:**
 
@@ -2307,7 +2307,7 @@ For each anti-case, provide:
 - **Risk If Included**: What problems it would cause
 - **Boundary Definition**: Clear line of what's in vs out of scope
 
-Generate: docs/planning/refinement/iteration-$iteration-analysis.md"
+Generate: planning/refinement/iteration-$iteration-analysis.md"
 
     echo "🤖 Task: Use product-strategist subagent to identify anti-cases for: <prompt-arguments>"
 }
@@ -2322,13 +2322,13 @@ analyze_technology_choice_impacts() {
 **Original Request:** <prompt-arguments>
 
 **Use Cases Context:**
-$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Use case analysis in progress...")
+$([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && cat planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Use case analysis in progress...")
 
 **Anti-Cases Context:**
-$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Anti-case analysis in progress...")
+$([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && cat planning/refinement/iteration-$iteration-analysis.md | head -30 || echo "Anti-case analysis in progress...")
 
 **Technology Discovery Context:**
-$([ -f "docs/planning/discovery-summary.md" ] && grep -A10 -B5 "Technology\|Stack\|Architecture" docs/planning/discovery-summary.md || echo "Technology analysis in progress...")
+$([ -f "planning/discovery-summary.md" ] && grep -A10 -B5 "Technology\|Stack\|Architecture" planning/discovery-summary.md || echo "Technology analysis in progress...")
 
 **SYSTEMATIC TECHNOLOGY IMPACT ANALYSIS:**
 
@@ -2428,7 +2428,7 @@ Create comprehensive matrices:
 - **Total Cost Estimate**: Monthly and annual cost projections
 - **Implementation Phases**: Which technologies to adopt in which order
 
-Generate: docs/planning/technology-impact-analysis-$iteration.md"
+Generate: planning/technology-impact-analysis-$iteration.md"
 
     echo "🤖 Task: Use tech-research-analyst subagent to analyze technology choice impacts for: <prompt-arguments>"
 }
@@ -2443,14 +2443,14 @@ assess_requirements_satisfaction() {
 **Original Request:** <prompt-arguments>
 
 **Current Analysis Context:**
-- **Unstated Use Cases:** $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "USC-$iteration" docs/planning/refinement/iteration-$iteration-analysis.md || echo "0") identified
-- **Anti-Cases:** $([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "ANC-$iteration" docs/planning/refinement/iteration-$iteration-analysis.md || echo "0") identified  
-- **Technology Impacts:** $([ -f "docs/planning/technology-impact-analysis-$iteration.md" ] && grep -c "Technology:" docs/planning/technology-impact-analysis-$iteration.md || echo "0") analyzed
+- **Unstated Use Cases:** $([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "USC-$iteration" planning/refinement/iteration-$iteration-analysis.md || echo "0") identified
+- **Anti-Cases:** $([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && grep -c "ANC-$iteration" planning/refinement/iteration-$iteration-analysis.md || echo "0") identified  
+- **Technology Impacts:** $([ -f "planning/technology-impact-analysis-$iteration.md" ] && grep -c "Technology:" planning/technology-impact-analysis-$iteration.md || echo "0") analyzed
 
 **Iteration Context Files:**
-$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Use Cases:" && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -20)
-$([ -f "docs/planning/refinement/iteration-$iteration-analysis.md" ] && echo "Anti-Cases:" && cat docs/planning/refinement/iteration-$iteration-analysis.md | head -20)
-$([ -f "docs/planning/technology-impact-analysis-$iteration.md" ] && echo "Tech Analysis:" && cat docs/planning/technology-impact-analysis-$iteration.md | head -20)
+$([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && echo "Use Cases:" && cat planning/refinement/iteration-$iteration-analysis.md | head -20)
+$([ -f "planning/refinement/iteration-$iteration-analysis.md" ] && echo "Anti-Cases:" && cat planning/refinement/iteration-$iteration-analysis.md | head -20)
+$([ -f "planning/technology-impact-analysis-$iteration.md" ] && echo "Tech Analysis:" && cat planning/technology-impact-analysis-$iteration.md | head -20)
 
 **INTELLIGENT REQUIREMENTS SATISFACTION ASSESSMENT:**
 
@@ -2506,7 +2506,7 @@ Instead of scoring thresholds, make a holistic judgment:
 - **Remaining Considerations**: Minor gaps that can be addressed during implementation
 - **Next Phase Preparation**: What the implementation team needs to know
 
-Generate: docs/planning/requirements-satisfaction-$iteration.md"
+Generate: planning/requirements-satisfaction-$iteration.md"
 
     echo "🤖 Task: Use system-architect subagent to assess requirements satisfaction for: <prompt-arguments>"
 }
@@ -2521,9 +2521,9 @@ perform_quality_assessment_and_user_feedback() {
 **Original Request:** <prompt-arguments>
 
 **Current Analysis Status:**
-- **Use Cases Analyzed:** @docs/planning/refinement/iteration-$iteration-analysis.md (use case sections)
-- **Anti-Cases Identified:** @docs/planning/refinement/iteration-$iteration-analysis.md (anti-case sections)  
-- **Technology Impact:** @docs/planning/technology-impact-analysis-$iteration.md
+- **Use Cases Analyzed:** @planning/refinement/iteration-$iteration-analysis.md (use case sections)
+- **Anti-Cases Identified:** @planning/refinement/iteration-$iteration-analysis.md (anti-case sections)  
+- **Technology Impact:** @planning/technology-impact-analysis-$iteration.md
 
 **CRITICAL QUALITY ASSESSMENT:**
 
@@ -2553,20 +2553,20 @@ perform_quality_assessment_and_user_feedback() {
    - No user interruption needed
 
 **Expected Outputs:**
-- @docs/planning/quality-assessment-$iteration.md (assessment results)
-- @docs/planning/user-feedback-$iteration.md (if user consultation needed)
+- @planning/quality-assessment-$iteration.md (assessment results)
+- @planning/user-feedback-$iteration.md (if user consultation needed)
 - Quality confidence score (HIGH/MEDIUM/LOW) for satisfaction assessment
 
 Generate quality assessment and determine if user feedback loop is warranted."
 
     echo "🤖 Task: Use product-strategist subagent for quality assessment and user feedback determination: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/quality-assessment-$iteration.md"
-    echo "📄 Conditional Output: docs/planning/user-feedback-$iteration.md (if user consultation needed)"
-    echo "📄 Input Files: docs/planning/refinement/iteration-$iteration-analysis.md, docs/planning/technology-impact-analysis-$iteration.md"
+    echo "📄 Expected Output: planning/quality-assessment-$iteration.md"
+    echo "📄 Conditional Output: planning/user-feedback-$iteration.md (if user consultation needed)"
+    echo "📄 Input Files: planning/refinement/iteration-$iteration-analysis.md, planning/technology-impact-analysis-$iteration.md"
     
     # Check if user feedback was requested and handle restart logic
-    if [ -f "docs/planning/user-feedback-$iteration.md" ]; then
-        if grep -q "RESTART.*true" "docs/planning/user-feedback-$iteration.md"; then
+    if [ -f "planning/user-feedback-$iteration.md" ]; then
+        if grep -q "RESTART.*true" "planning/user-feedback-$iteration.md"; then
             echo "🔄 User feedback indicates iteration restart needed - incorporating feedback and restarting analysis..."
             # Reset iteration but keep user feedback context for next round
             iteration=$((iteration - 1))
@@ -2585,15 +2585,15 @@ generate_refined_requirements_summary() {
 
 **Refinement Process Summary:**
 - **Iterations Completed**: $((final_iteration-1))
-- **Use Cases Discovered**: $(find docs/planning/ -name "unstated-use-cases-*.md" -exec grep -c "USC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
-- **Anti-Cases Identified**: $(find docs/planning/ -name "anti-cases-*.md" -exec grep -c "ANC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
-- **Technology Choices Analyzed**: $(find docs/planning/ -name "technology-impact-analysis-*.md" -exec grep -c "Technology:" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+- **Use Cases Discovered**: $(find planning/ -name "unstated-use-cases-*.md" -exec grep -c "USC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+- **Anti-Cases Identified**: $(find planning/ -name "anti-cases-*.md" -exec grep -c "ANC-" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
+- **Technology Choices Analyzed**: $(find planning/ -name "technology-impact-analysis-*.md" -exec grep -c "Technology:" {} + 2>/dev/null | paste -sd+ | bc || echo "0")
 
 **All Analysis Context:**
-$(find docs/planning/ -name "unstated-use-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Use case files not found")
-$(find docs/planning/ -name "anti-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Anti-case files not found")
-$(find docs/planning/ -name "technology-impact-analysis-*.md" -exec cat {} \; 2>/dev/null || echo "Technology analysis files not found")
-$(find docs/planning/ -name "requirements-satisfaction-*.md" -exec cat {} \; 2>/dev/null || echo "Satisfaction assessment files not found")
+$(find planning/ -name "unstated-use-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Use case files not found")
+$(find planning/ -name "anti-cases-*.md" -exec cat {} \; 2>/dev/null || echo "Anti-case files not found")
+$(find planning/ -name "technology-impact-analysis-*.md" -exec cat {} \; 2>/dev/null || echo "Technology analysis files not found")
+$(find planning/ -name "requirements-satisfaction-*.md" -exec cat {} \; 2>/dev/null || echo "Satisfaction assessment files not found")
 
 **SYNTHESIZE FINAL REQUIREMENTS:**
 
@@ -2632,7 +2632,7 @@ Create comprehensive, refined requirements specification including:
 - Fallback and contingency requirements
 - Monitoring and alerting requirements
 
-Generate: docs/planning/refined-requirements-final.md"
+Generate: planning/refined-requirements-final.md"
 
     echo "🤖 Task: Use system-architect subagent to generate final refined requirements for: <prompt-arguments>"
 }
@@ -2643,8 +2643,8 @@ execute_phase4_anti_case_consolidation() {
     echo "🚫 Phase 4: Anti-Case Analysis Consolidation"
     
     echo "🤖 Task: Use product-strategist subagent to consolidate anti-case analysis for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/4-anti-case-analysis.md"
-    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (anti-case sections)"
+    echo "📄 Expected Output: planning/4-anti-case-analysis.md"
+    echo "📄 Input Files: planning/refinement/iteration-*-analysis.md (anti-case sections)"
 }
 
 # Phase 5: Technology Ecosystem Analysis  
@@ -2653,8 +2653,8 @@ execute_phase5_technology_ecosystem_analysis() {
     echo "🔬 Phase 5: Technology Ecosystem Analysis"
     
     echo "🤖 Task: Use tech-research-analyst subagent to consolidate technology ecosystem analysis for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/5-technology-ecosystem.md"  
-    echo "📄 Input Files: docs/planning/refinement/iteration-*-analysis.md (technology sections), docs/planning/technology-impact-analysis-*.md"
+    echo "📄 Expected Output: planning/5-technology-ecosystem.md"  
+    echo "📄 Input Files: planning/refinement/iteration-*-analysis.md (technology sections), planning/technology-impact-analysis-*.md"
 }
 ```
 
@@ -2673,8 +2673,8 @@ execute_phase6_requirements_specification() {
     echo "📋 Phase 6: Requirements Definition based on discovery analysis"
     
     echo "🤖 Task: Use product-strategist subagent to define comprehensive requirements for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/6-requirements-specification.md"
-    echo "📄 Input Files: docs/planning/2-discovery-analysis.md, docs/planning/refinement/iteration-*-analysis.md"
+    echo "📄 Expected Output: planning/6-requirements-specification.md"
+    echo "📄 Input Files: planning/2-discovery-analysis.md, planning/refinement/iteration-*-analysis.md"
 }
 ```
 
@@ -2689,8 +2689,8 @@ execute_phase7_interface_design() {
     echo "🎨 Phase 7: Interface Design for user experience and APIs"
     
     echo "🤖 Task: Use ui-designer subagent to design comprehensive interfaces for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/7-interface-design.md"
-    echo "📄 Input Files: docs/planning/6-requirements-specification.md"
+    echo "📄 Expected Output: planning/7-interface-design.md"
+    echo "📄 Input Files: planning/6-requirements-specification.md"
 }
 ### Phase 8: Architecture Design
 
@@ -2703,8 +2703,8 @@ execute_phase8_architecture_design() {
     echo "🏗️ Phase 8: Architecture Design based on requirements and technology stack"
     
     echo "🤖 Task: Use system-architect subagent to design comprehensive architecture for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/8-architecture-design.md"
-    echo "📄 Input Files: docs/planning/6-requirements-specification.md, docs/planning/7-interface-design.md, docs/planning/5-technology-ecosystem.md"
+    echo "📄 Expected Output: planning/8-architecture-design.md"
+    echo "📄 Input Files: planning/6-requirements-specification.md, planning/7-interface-design.md, planning/5-technology-ecosystem.md"
     
     # Architecture confirmation checkpoint
     trigger_architecture_confirmation
@@ -2723,13 +2723,13 @@ execute_phases_8_to_10_task_generation() {
     
     # Phase 9: Task Planning with TDD approach
     echo "🤖 Task: Use feature-developer subagent to create TDD-integrated task plan for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/9-task-planning.md"
-    echo "📄 Input Files: docs/planning/8-architecture-design.md"
+    echo "📄 Expected Output: planning/9-task-planning.md"
+    echo "📄 Input Files: planning/8-architecture-design.md"
     
     # Phase 10: Implementation Task Generation 
     echo "🤖 Task: Use feature-developer subagent to generate implementation tasks for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/10-implementation-tasks.md"
-    echo "📄 Input Files: docs/planning/9-task-planning.md"
+    echo "📄 Expected Output: planning/10-implementation-tasks.md"
+    echo "📄 Input Files: planning/9-task-planning.md"
 }
 ```
 
@@ -2744,7 +2744,7 @@ execute_phase11_implementation() {
     echo "🚀 Phase 11: Implementation Loop with Parallel Task Execution"
     
     echo "🤖 Task: Use feature-developer subagent to execute implementation tasks for: <prompt-arguments>"
-    echo "📄 Input Files: docs/planning/10-implementation-tasks.md"
+    echo "📄 Input Files: planning/10-implementation-tasks.md"
     echo "📄 Subagent Output: Implementation files in worktree, tested code"
 }
 
@@ -2753,9 +2753,9 @@ execute_phase12_to_16_deployment() {
     echo "🚀 Phase 12-16: Deployment Pipeline and Production Launch"
     
     echo "🤖 Task: Use deployment-orchestrator subagent to execute deployment pipeline for: <prompt-arguments>"
-    echo "📄 Expected Output: docs/planning/11-deployment-plan.md"
-    echo "📄 Input Files: docs/planning/10-implementation-tasks.md, implemented code from worktree"
-    echo "📄 Final Output: docs/planning/12-project-summary.md (by knowledge-aggregator)"
+    echo "📄 Expected Output: planning/11-deployment-plan.md"
+    echo "📄 Input Files: planning/10-implementation-tasks.md, implemented code from worktree"
+    echo "📄 Final Output: planning/12-project-summary.md (by knowledge-aggregator)"
 }
 ```
 

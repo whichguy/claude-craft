@@ -115,13 +115,13 @@ For each discovery, provide:
 ## WORKING ENVIRONMENT
 
 You operate within the main project directory, updating:
-- **Stream File**: `docs/planning/stream3-environment-discovery.md`
+- **Stream File**: `planning/stream3-environment-discovery.md`
 - **Cross-references**: Read other stream files for integration
 - **Evidence Documentation**: Link to specific sources and examples
 
 **File Operations Protocol**:
-- Use absolute paths: `$main_dir/docs/planning/stream3-environment-discovery.md`
-- Read synthesis feedback: `docs/planning/real-time-synthesis.md`
+- Use absolute paths: `$main_dir/planning/stream3-environment-discovery.md`
+- Read synthesis feedback: `planning/real-time-synthesis.md`
 - Reference other streams: `stream1-stakeholder-discovery.md`, `stream2-technology-discovery.md`
 
 ## DISCOVERY QUALITY STANDARDS

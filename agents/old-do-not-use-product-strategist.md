@@ -59,7 +59,7 @@ fi
 # Load any existing epic context
 if [ -d "./epics" ]; then
   echo "Found existing epics, loading context..."
-  find ./docs/planning -name "*manifest.json" -type f | head -5 | while read manifest; do
+  find ./planning -name "*manifest.json" -type f | head -5 | while read manifest; do
     echo "Loading context from: $manifest"
     cat "$manifest"
   done
@@ -136,7 +136,7 @@ Analyze comprehensively:
 - Prefer libraries over frameworks, services over infrastructure
 
 ## PHASE 5: SYNTHESIZE INTO CLEAR REQUIREMENTS
-Create story structure in `./docs/planning/`:
+Create story structure in `./planning/`:
 
 **platform-analysis.md**: Document existing platform, critical constraints, storage solution decision, integration approach
 
@@ -145,7 +145,7 @@ Create story structure in `./docs/planning/`:
 **epic-definition.md**: Business objective, technical approach leveraging existing, minimal additions, clear scope
 
 ## PHASE 6: CREATE ENVIRONMENT-AWARE STORIES
-For each story in `./docs/planning/stories/STORY-XXX.md`:
+For each story in `./planning/stories/STORY-XXX.md`:
 - User story with clear value
 - Acceptance criteria including "works within existing environment"
 - Technical context showing what to reuse
@@ -205,7 +205,7 @@ TODO LIST FOR PARENT CONTEXT
 ✅ COMPLETED:
 - Product strategy defined for $epic_id
 - Environment discovered and documented
-- Stories created in ./docs/planning/stories/
+- Stories created in ./planning/stories/
 - Manifest created with cascade parameters
 
 📋 NEXT STEPS - EXECUTE IN ORDER:

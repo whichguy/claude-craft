@@ -50,7 +50,7 @@ graph TD
 
     GS --> P1[PHASE 1: Story Clarification<br/>Eliminate ambiguity from requirements<br/>via iterative user dialogue]
 
-    P1 --> P2[PHASE 2: Use Case Discovery<br/>Generate comprehensive use cases<br/>via prompter]
+    P1 --> P2[PHASE 2: Use Case Discovery<br/>Generate comprehensive use cases<br/>via use-case-expander]
 
     P2 --> P3[PHASE 3: Requirements Generation<br/>Transform use cases into<br/>FR/NFR requirements]
 
@@ -474,7 +474,7 @@ LEARNING CAPTURE:
 
 ## PHASE 2: USE CASE DISCOVERY
 
-**Purpose**: Generate comprehensive use cases from user requirements via prompter
+**Purpose**: Generate comprehensive use cases from user requirements via use-case-expander agent
 
 **PHASE TODO PROTOCOL**:
 - Mark PHASE 1: STORY CLARIFICATION as "completed"
@@ -549,7 +549,7 @@ Research use case patterns and best practices:
 Plan the use case generation approach:
 - Determine project complexity level (prototype/small/medium/large/enterprise)
 - Set quality thresholds based on complexity
-- Plan prompter invocation strategy
+- Plan use-case-expander agent invocation strategy
 
 **DISCOVERED WORK INTEGRATION**:
 Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
@@ -562,7 +562,7 @@ Check <worktree>/planning/discovered-items.md for any items mapped to this phase
 Before executing, validate the plan:
 - Does approach align with original requirements?
 - Are complexity assessments reasonable?
-- Is prompter strategy appropriate?
+- Is agent invocation strategy appropriate?
 
 IF plan needs refinement:
   Return to Planning (activity 5) with adjustments
@@ -573,9 +573,7 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent prompter on use-case-expander with requirements="<unambiguous-story>"`
-**TIMEOUT**: 1200 seconds maximum (20 minutes)
-**CAPTURE**: Raw output to <worktree>/planning/use-cases.md
+**INVOKE**: `ask subagent use-case-expander with story "<unambiguous-story>" using worktree "<worktree>" output use cases to "<worktree>/planning/use-cases.md"`
 
 ### 8. Quality Iteration Loop
 
@@ -720,7 +718,7 @@ Using RESEARCH_FOCUS from rehydration:
 Using validated strategies from rehydration:
 - Plan requirements extraction methodology
 - Determine NFR derivation approach
-- Plan prompter invocation with use case content
+- Plan requirements-generator agent invocation with use case content
 
 **DISCOVERED WORK INTEGRATION**:
 Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
@@ -745,9 +743,7 @@ OTHERWISE:
 Execute requirements generation:
 
 **READ**: <worktree>/planning/use-cases.md content
-**INVOKE**: `ask subagent prompter on requirements-generator with use-cases="<worktree>/planning/use-cases.md"`
-**TIMEOUT**: 1200 seconds maximum (20 minutes)
-**CAPTURE**: Raw output to <worktree>/planning/requirements.md
+**INVOKE**: `ask subagent requirements-generator with use cases from "<worktree>/planning/use-cases.md" using worktree "<worktree>" output requirements to "<worktree>/planning/requirements.md"`
 
 ### 8. Quality Iteration Loop
 
@@ -891,7 +887,7 @@ Using RESEARCH_FOCUS from rehydration:
 
 Using PLANNING_BASELINE from rehydration:
 - Plan comprehensive architecture analysis via recommend-tech
-- Prepare use cases and requirements for prompter input
+- Prepare use cases and requirements for agent input
 - Plan 20-minute analysis execution strategy
 
 **DISCOVERED WORK INTEGRATION**:
@@ -903,7 +899,7 @@ Check <worktree>/planning/discovered-items.md for any items mapped to this phase
 ### 6. Review & Validation
 
 Before executing, validate the plan:
-- Are use cases and requirements properly formatted for prompter?
+- Are use cases and requirements properly formatted for recommend-tech agent?
 - Will recommend-tech framework address all architectural needs?
 - Is analysis approach comprehensive enough?
 
@@ -917,9 +913,7 @@ OTHERWISE:
 Execute architecture generation via progressive technology research:
 
 **READ**: <worktree>/planning/use-cases.md and <worktree>/planning/requirements.md content
-**INVOKE**: `ask subagent prompter on recommend-tech with use-cases="<worktree>/planning/use-cases.md" requirements="<worktree>/planning/requirements.md"`
-**TIMEOUT**: 1200 seconds maximum (20 minutes)
-**CAPTURE**: Raw output to <worktree>/planning/architecture.md
+**INVOKE**: `ask subagent recommend-tech with use cases from "<worktree>/planning/use-cases.md" and requirements from "<worktree>/planning/requirements.md" using worktree "<worktree>" output architecture to "<worktree>/planning/architecture.md"`
 
 ### 8. Quality Iteration Loop
 
@@ -944,7 +938,7 @@ FOR iteration FROM 1 TO 10:
     - Requirements coverage problems
     - Confidence level shortfalls
 
-    Refine prompter inputs or approach and return to Execution
+    Refine agent inputs or approach and return to Execution
 
 ### 9. Documentation & Knowledge Capture
 
@@ -1067,7 +1061,7 @@ Using RESEARCH_FOCUS from rehydration:
 Using PLANNING_BASELINE from rehydration:
 - Plan comprehensive task generation strategy
 - Determine task granularity and organization approach
-- Plan feature-task-creator prompter invocation
+- Plan feature-task-creator agent invocation
 
 **DISCOVERED WORK INTEGRATION**:
 Check <worktree>/planning/discovered-items.md for any items mapped to this phase:
@@ -1092,9 +1086,7 @@ OTHERWISE:
 Execute task generation, dependency analysis, and parallel execution planning:
 
 **STEP 1 - Generate Tasks**:
-**INVOKE**: `ask subagent prompter on feature-task-creator with use-cases="<worktree>/planning/use-cases.md" requirements="<worktree>/planning/requirements.md" architecture="<worktree>/planning/architecture.md"`
-**TIMEOUT**: 1200 seconds maximum (20 minutes)
-**CAPTURE**: Raw markdown output with all task specifications
+**INVOKE**: `ask subagent feature-task-creator with use cases from "<worktree>/planning/use-cases.md", requirements from "<worktree>/planning/requirements.md", and architecture from "<worktree>/planning/architecture.md" using worktree "<worktree>" output tasks to "<worktree>/planning/tasks.md"`
 
 **STEP 2 - Parse Task Specifications**:
 Parse the markdown output to extract individual task specifications:
@@ -1360,8 +1352,7 @@ FOR each execution wave in parallel-execution-plan:
 
   IF wave.type == "Sequential" THEN:
     FOR each task in wave.tasks (in dependency order):
-      **INVOKE**: `ask subagent feature-developer on task with file at <worktree>/pending/TASK-{ID}-*.md`
-      **TIMEOUT**: 1200 seconds maximum per task (20 minutes)
+      **INVOKE**: `ask subagent feature-developer with task from "<worktree>/pending/TASK-{ID}-*.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"`
       **WAIT**: For completion before next task
       **NOTE**: feature-developer automatically moves task to <worktree>/completed/ when done
 
@@ -1385,10 +1376,10 @@ FOR each execution wave in parallel-execution-plan:
 Wave 1 - Infrastructure (Sequential):
 ```
 # Each task runs sequentially, one at a time
-ask subagent feature-developer on task with file at <worktree>/pending/TASK-001-database-setup.md
-# Wait for completion, feature-developer moves to <worktree>/completed/
-ask subagent feature-developer on task with file at <worktree>/pending/TASK-002-cicd-pipeline.md
-# Wait for completion, feature-developer moves to <worktree>/completed/
+ask subagent feature-developer with task from "<worktree>/pending/TASK-001-database-setup.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"
+# Wait for completion
+ask subagent feature-developer with task from "<worktree>/pending/TASK-002-cicd-pipeline.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"
+# Wait for completion
 ```
 
 Wave 2 - Cross-Cutting (Parallel - Single Batch):
@@ -1632,8 +1623,7 @@ Integrate all completed components:
 
 **STEP 2 - Test Suite Development**:
 IF test specifications needed THEN:
-  **INVOKE**: `ask subagent qa-analyst on test specifications with implementations at <worktree>/completed/`
-  **TIMEOUT**: 1200 seconds maximum (20 minutes)
+  **INVOKE**: `ask subagent qa-analyst with implementations from "<worktree>/completed/" using worktree "<worktree>" output test specifications to "<worktree>/planning/test-specifications.md"`
 
 **STEP 3 - Test Execution**:
 Execute comprehensive test suite:
@@ -1841,8 +1831,7 @@ Setup configuration for all environments:
 
 **STEP 3 - CI/CD Pipeline**:
 IF deployment automation needed THEN:
-  **INVOKE**: `ask subagent deployment-orchestrator on CI/CD pipeline setup with system at <worktree>/completed/`
-  **TIMEOUT**: 1200 seconds maximum (20 minutes)
+  **INVOKE**: `ask subagent deployment-orchestrator with system from "<worktree>/completed/" using worktree "<worktree>" output deployment pipeline to "<worktree>/planning/deployment-pipeline.md"`
 
 **STEP 4 - Monitoring Setup**:
 Configure monitoring and observability:
