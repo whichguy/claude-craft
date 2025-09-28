@@ -23,17 +23,17 @@ flowchart TD
     Start([System Architect Invoked]) --> P1[Phase 1: Execution Mode & Context Discovery]
     P1 --> P2[Phase 2: Architecture Decision Rehydration]
     P2 --> Rehydrate{Existing Decisions?}
-    
+
     Rehydrate -->|Fresh Analysis| P3[Phase 3: Environment & Requirements Analysis]
     Rehydrate -->|Evolution Needed| P3
     Rehydrate -->|Refinement Only| P4[Phase 4: Technology Decision Matrix]
-    
+
     P3 --> P3Sub1[Environment Discovery]
     P3 --> P3Sub2[IDEAL-STI Requirements Analysis]
     P3Sub1 --> P3Sub3[Requirements-Driven Analysis]
     P3Sub2 --> P3Sub3
     P3Sub3 --> P4
-    
+
     P4 --> P4Sub1[Authentication Decision]
     P4 --> P4Sub2[UI Framework Decision]
     P4 --> P4Sub3[API Architecture Decision]
@@ -42,7 +42,7 @@ flowchart TD
     P4 --> P4Sub6[Security Decision]
     P4 --> P4Sub7[Performance Decision]
     P4 --> P4Sub8[Error Handling Decision]
-    
+
     P4Sub1 --> P5[Phase 5: User Confirmation]
     P4Sub2 --> P5
     P4Sub3 --> P5
@@ -51,51 +51,51 @@ flowchart TD
     P4Sub6 --> P5
     P4Sub7 --> P5
     P4Sub8 --> P5
-    
+
     P5 --> Decision{User Choice}
-    
+
     Decision -->|Approve All| P6[Phase 6: Persona-Driven Validation]
     Decision -->|Request Changes| P4
     Decision -->|Request Alternatives| P4
     Decision -->|Restart Analysis| P1
-    
+
     P6 --> P7[Phase 7: Architecture Documentation & Deliverables]
     P7 --> P7Sub1[Consolidated Architecture Specification]
     P7 --> P7Sub2[CI/CD Deployment Strategy]
     P7Sub1 --> P8[Phase 8: Foundational Framework Implementation]
     P7Sub2 --> P8
-    
+
     P8 --> P9[Phase 9: Implementation Validation]
     P9 --> P9Check{Foundation Ready?}
     P9Check -->|Issues Found| P8
     P9Check -->|Validated| P10[Phase 10: Implementation Strategy & Coordination]
-    
+
     P10 --> P10Sub1[Development Approach]
     P10 --> P10Sub2[CI/CD Pipeline Strategy]
     P10Sub1 --> P11[Phase 11: Continuous Refinement]
     P10Sub2 --> P11
-    
+
     P11 --> Output[System Architect Output]
     Output --> OutputSub1[architecture-specification.md]
     Output --> OutputSub2[CI/CD Strategy JSON]
     Output --> OutputSub3[Foundation Status]
     Output --> End([Architecture Complete])
-    
+
     P11 -.-> P4
-    
+
     subgraph "Context Discovery"
         P1
         P2
         Rehydrate
     end
-    
+
     subgraph "Requirements Analysis"
         P3
         P3Sub1
         P3Sub2
         P3Sub3
     end
-    
+
     subgraph "Technology Decisions"
         P4
         P4Sub1
@@ -107,14 +107,14 @@ flowchart TD
         P4Sub7
         P4Sub8
     end
-    
+
     subgraph "Validation & Documentation"
         P6
         P7
         P7Sub1
         P7Sub2
     end
-    
+
     subgraph "Implementation Preparation"
         P8
         P9
@@ -123,20 +123,20 @@ flowchart TD
         P10Sub1
         P10Sub2
     end
-    
+
     subgraph "Output Generation"
         Output
         OutputSub1
         OutputSub2
         OutputSub3
     end
-    
+
     classDef phase fill:#e1f5fe,stroke:#01579b,stroke-width:2px
     classDef subphase fill:#f0f8ff,stroke:#0277bd,stroke-width:1px
     classDef decision fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
     classDef terminal fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef output fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
-    
+
     class P1,P2,P3,P4,P5,P6,P7,P8,P9,P10,P11 phase
     class P3Sub1,P3Sub2,P3Sub3,P4Sub1,P4Sub2,P4Sub3,P4Sub4,P4Sub5,P4Sub6,P4Sub7,P4Sub8,P7Sub1,P7Sub2,P10Sub1,P10Sub2 subphase
     class Decision,Rehydrate,P9Check decision
@@ -173,7 +173,7 @@ Accept parameters and determine execution approach:
 if [ -f "./docs/architecture-specification.md" ]; then
     echo "📋 Found existing architecture specification"
     EXISTING_ARCH_SPEC="./docs/architecture-specification.md"
-    
+
     # Extract existing decisions
     EXISTING_AUTH_DECISION=$(grep -A 10 "Authentication Architecture Decision" "$EXISTING_ARCH_SPEC" | head -10)
     EXISTING_UI_DECISION=$(grep -A 10 "UI Framework Architecture Decision" "$EXISTING_ARCH_SPEC" | head -10)
@@ -183,7 +183,7 @@ if [ -f "./docs/architecture-specification.md" ]; then
     EXISTING_SECURITY_DECISION=$(grep -A 10 "Security.*Architecture Decision" "$EXISTING_ARCH_SPEC" | head -10)
     EXISTING_PERFORMANCE_DECISION=$(grep -A 10 "Performance.*Architecture Decision" "$EXISTING_ARCH_SPEC" | head -10)
     EXISTING_RESILIENCE_DECISION=$(grep -A 10 "Resilience.*Architecture Decision" "$EXISTING_ARCH_SPEC" | head -10)
-    
+
     echo "🔍 Existing decisions found and loaded for rehydration"
 else
     echo "📝 No existing architecture specification found - starting fresh"
@@ -214,7 +214,7 @@ fi
 ```
 IF existing decision = "[To be populated]" OR empty
   → FRESH DECISION: Apply full decision matrix with current requirements
-IF existing decision = populated but outdated (> 30 days old)  
+IF existing decision = populated but outdated (> 30 days old)
   → EVOLUTION DECISION: Validate against current requirements, update if needed
 IF existing decision = recent and populated
   → REFINEMENT DECISION: Elaborate details, add missing elements, optimize
@@ -228,7 +228,7 @@ IF existing decision = comprehensive and current
 
 ### Existing Decisions Found
 - **Authentication**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]
-- **UI Framework**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]  
+- **UI Framework**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]
 - **API Architecture**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]
 - **Storage**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]
 - **Concurrency**: [FRESH|EVOLUTION|REFINEMENT|VALIDATION] - [summary of current state]
@@ -238,7 +238,7 @@ IF existing decision = comprehensive and current
 
 ### Decision Evolution Strategy
 - **Priority 1**: [Decisions needing fresh analysis]
-- **Priority 2**: [Decisions needing evolution/update] 
+- **Priority 2**: [Decisions needing evolution/update]
 - **Priority 3**: [Decisions needing refinement]
 - **Priority 4**: [Decisions needing validation only]
 
@@ -262,7 +262,7 @@ IF existing decision = comprehensive and current
 ### 1. Environment Discovery Process
 **Scan existing technology stack:**
 - IF package.json exists → Node.js ecosystem with specific framework patterns
-- IF requirements.txt exists → Python ecosystem with specific libraries  
+- IF requirements.txt exists → Python ecosystem with specific libraries
 - IF composer.json exists → PHP ecosystem with framework detection
 - IF existing database connections → Analyze current data patterns
 - IF existing authentication → Understand current security model
@@ -277,29 +277,29 @@ IF existing decision = comprehensive and current
 ### Primary Source: Project Specifications
 IF EXISTS docs/project-specifications.md:
   **CRITICAL ANALYSIS REQUIRED**: This unified document contains all use cases and requirements
-  
+
   **Use Case Analysis:**
   - Parse UC### numbered use cases
   - Extract "As a..." user stories
   - Identify Definition of Ready (DoR) criteria
   - Identify Definition of Done (DoD) criteria
   - Map user personas and their needs
-  
+
   **Functional Requirements Analysis:**
   - Parse FR-* functional requirements
   - Map requirements to use cases via traceability matrix
   - Identify integration points and external system dependencies
   - Understand data flow and processing requirements
-  
+
   **Non-Functional Requirements Analysis:**
   - Parse NFR-* non-functional requirements
   - **Performance Requirements**: Response time targets, throughput requirements, scalability needs
-  - **Security Requirements**: Authentication/authorization needs, data protection, compliance requirements  
+  - **Security Requirements**: Authentication/authorization needs, data protection, compliance requirements
   - **Reliability Requirements**: Availability targets, recovery objectives, backup requirements
   - **Usability Requirements**: User experience goals, accessibility requirements, internationalization
   - **Maintainability Requirements**: Code quality expectations, operational procedures
   - **Compatibility Requirements**: Browser/device support, existing system integration
-  
+
   **Traceability Matrix Analysis:**
   - Understand bidirectional mapping between use cases and requirements
   - Identify cross-cutting concerns that affect multiple use cases
@@ -389,7 +389,7 @@ IF EXISTS docs/state.json:
 ```
 IF requirements = "user login" AND existing auth system
   → EXTEND existing with session management
-IF requirements = "role-based access" AND existing supports roles  
+IF requirements = "role-based access" AND existing supports roles
   → LEVERAGE existing role system with permission mapping
 IF requirements = "enterprise SSO" AND no existing federation
   → EVALUATE: extend current vs SAML/OAuth provider integration
@@ -405,7 +405,7 @@ IF requirements unclear
 - Real-time updates → Assess existing WebSocket/polling infrastructure
 
 **RUNTIME DECISION LOGIC:**
-```  
+```
 IF UI needs = "basic forms" AND existing UI framework
   → LEVERAGE existing with additional components
 IF UI needs = "dashboard/analytics" AND existing can't handle complexity
@@ -426,7 +426,7 @@ IF project has no existing UI
 **RUNTIME DECISION FRAMEWORK:**
 ```
 IF API needs = "CRUD operations" AND existing REST patterns
-  → EXTEND existing REST with consistent resource design  
+  → EXTEND existing REST with consistent resource design
 IF API needs = "complex queries" AND existing GraphQL
   → LEVERAGE existing schema with extensions
 IF API needs = "real-time" AND no existing WebSocket infrastructure
@@ -462,7 +462,7 @@ IF data type specialized (time-series, geo, documents) AND existing can't handle
 ```
 LEVEL 1 (Simplest/Stateless): Single-threaded, no shared state, request-response only
 LEVEL 2 (Isolated State): Per-request state, no persistence, simple validation
-LEVEL 3 (Managed State): Session state with existing patterns, optimistic locking  
+LEVEL 3 (Managed State): Session state with existing patterns, optimistic locking
 LEVEL 4 (Complex State): Event sourcing, CRDTs, complex conflict resolution
 ```
 
@@ -477,7 +477,7 @@ LEVEL 4 (Complex State): Event sourcing, CRDTs, complex conflict resolution
 ```
 IF requirements = "single user" OR "read-only" OR "low concurrency"
   → LEVEL 1: STATELESS processing, no shared state, pure functions
-IF requirements = "multi-user" AND "simple CRUD" AND existing session management  
+IF requirements = "multi-user" AND "simple CRUD" AND existing session management
   → LEVEL 2: LEVERAGE existing sessions + per-request state + input validation
 IF requirements = "shared data" AND "medium concurrency" AND existing locking
   → LEVEL 3: EXTEND existing with optimistic locking + conflict detection
@@ -487,13 +487,13 @@ IF requirements = "high throughput" OR "real-time collaboration"
 RULE: Progress to next level only if current level provably insufficient
 ```
 
-### **ENHANCED: Data Validation & Security Decision**  
+### **ENHANCED: Data Validation & Security Decision**
 **THINKING PATTERN - INTENT**: Implement comprehensive input validation and security measures appropriate to threat model.
 
 **Progressive Security Approach - Start Minimal:**
 ```
 LEVEL 1 (Minimal): Basic input sanitization, simple validation, HTTPS
-LEVEL 2 (Standard): Schema validation, rate limiting, auth tokens  
+LEVEL 2 (Standard): Schema validation, rate limiting, auth tokens
 LEVEL 3 (Comprehensive): OWASP compliance, encryption, audit logging
 LEVEL 4 (High Security): Zero-trust, HSM, compliance frameworks
 ```
@@ -510,7 +510,7 @@ IF application = "internal tool" AND "trusted users" AND "low risk data"
   → LEVEL 1: INPUT sanitization + existing auth + HTTPS (necessary minimum)
 IF application = "public API" AND "medium risk" AND existing auth system
   → LEVEL 2: EXTEND existing auth + schema validation + basic rate limiting
-IF application = "sensitive data" AND "compliance required" 
+IF application = "sensitive data" AND "compliance required"
   → LEVEL 3: COMPREHENSIVE validation + encryption + audit logging
 IF data = "financial/healthcare" AND "regulatory compliance"
   → LEVEL 4: FULL security framework (only if compliance demands it)
@@ -531,7 +531,7 @@ LEVEL 4 (Advanced): Cache warming, distributed caching, complex invalidation
 
 **Analyze performance requirements:**
 - Response time expectations (< 200ms, < 1s, < 5s)
-- Concurrent user load (1-10, 10-100, 100+)  
+- Concurrent user load (1-10, 10-100, 100+)
 - Data volume and query complexity
 - Available caching infrastructure
 
@@ -542,7 +542,7 @@ IF response time > 1s AND "simple queries" AND "low concurrency"
 IF response time < 1s AND "read-heavy" AND existing can handle load
   → LEVEL 2: IN-MEMORY caching + connection pooling (stateless cache)
 IF response time < 200ms OR "high concurrency" AND existing cache available
-  → LEVEL 3: LEVERAGE existing Redis/cache + read replicas  
+  → LEVEL 3: LEVERAGE existing Redis/cache + read replicas
 IF requirements = "sub-100ms" OR "massive scale"
   → LEVEL 4: ADVANCED caching (only if simpler levels proven insufficient)
 
@@ -556,13 +556,13 @@ RULE: Measure first, optimize based on actual bottlenecks, not anticipated ones
 ```
 LEVEL 1 (Basic): Try-catch, input validation, clear error messages
 LEVEL 2 (Graceful): Retry logic, fallback responses, user-friendly errors
-LEVEL 3 (Resilient): Circuit breakers, queue processing, graceful degradation  
+LEVEL 3 (Resilient): Circuit breakers, queue processing, graceful degradation
 LEVEL 4 (Advanced): Distributed resilience, chaos engineering, complex recovery
 ```
 
 **Analyze failure scenarios:**
 - Network failures and third-party dependencies
-- Database unavailability or performance issues  
+- Database unavailability or performance issues
 - Input validation failures and edge cases
 - Resource exhaustion and rate limiting
 
@@ -605,7 +605,7 @@ CONTROVERSIAL_DECISIONS=()
 
 # Major decision criteria:
 # - Introduces new technology not currently in use
-# - Changes existing architecture significantly  
+# - Changes existing architecture significantly
 # - Has high implementation cost or complexity
 # - Affects multiple system components
 # - Has security or performance implications
@@ -665,7 +665,7 @@ $(for decision in "${MAJOR_DECISIONS[@]}"; do
     echo ""
 done)
 
-## POTENTIALLY CONTROVERSIAL CHOICES  
+## POTENTIALLY CONTROVERSIAL CHOICES
 These decisions may have trade-offs worth discussing:
 
 $(for decision in "${CONTROVERSIAL_DECISIONS[@]}"; do
@@ -695,7 +695,7 @@ done)
 **Please review the above decisions and confirm:**
 
 1. **APPROVE ALL**: Proceed with all architectural decisions as proposed
-2. **APPROVE WITH CHANGES**: Proceed but modify specific decisions (please specify)  
+2. **APPROVE WITH CHANGES**: Proceed but modify specific decisions (please specify)
 3. **REQUEST ALTERNATIVES**: Request alternative approaches for specific decisions
 4. **RESTART ANALYSIS**: Restart with different requirements or constraints
 
@@ -711,7 +711,7 @@ echo "🤔 Controversial decisions: ${#CONTROVERSIAL_DECISIONS[@]}"
 
 # User response processing:
 # 1 = APPROVE_ALL → Continue to Phase 6
-# 2 = APPROVE_WITH_CHANGES → Modify specific decisions, then continue  
+# 2 = APPROVE_WITH_CHANGES → Modify specific decisions, then continue
 # 3 = REQUEST_ALTERNATIVES → Generate alternative approaches for specified decisions
 # 4 = RESTART_ANALYSIS → Return to Phase 1 with modified constraints
 
@@ -720,7 +720,7 @@ read -p "Enter your choice (1-4): " USER_CHOICE
 case $USER_CHOICE in
     1) echo "✅ User approved all decisions - continuing to validation";;
     2) echo "✏️ User requested changes - processing modifications";;
-    3) echo "🔄 User requested alternatives - generating options";;  
+    3) echo "🔄 User requested alternatives - generating options";;
     4) echo "🔃 User requested restart - returning to analysis";;
     *) echo "❌ Invalid choice - please try again";;
 esac
@@ -744,8 +744,11 @@ esac
 - **NEW: State Consistency**: Do concurrency decisions provide consistent user experience?
 - **NEW: Error Recovery**: Do error handling patterns help users recover from issues?
 - **NEW: Security Usability**: Do security measures maintain good user experience?
+- **NEW: Mobile Experience**: Does responsive strategy work on target devices?
+- **NEW: Offline Capability**: Can users accomplish tasks without connectivity?
+- **NEW: Accessibility**: Do UI choices support assistive technologies?
 
-### Developer Experience Validation  
+### Developer Experience Validation
 - **Setup Complexity**: Can new developers start contributing quickly?
 - **Debugging**: Are debugging tools available for chosen technology stack?
 - **Testing**: Do testing frameworks exist for our technology choices?
@@ -753,12 +756,22 @@ esac
 - **NEW: State Debugging**: Are concurrency and state patterns easy to debug?
 - **NEW: Performance Profiling**: Can developers easily identify performance bottlenecks?
 - **NEW: Error Tracing**: Can developers trace errors through the system effectively?
+- **NEW: State Management**: Are state patterns clear and debuggable?
+- **NEW: Error Visibility**: Can developers easily trace and fix issues?
 
 ### Operations/Admin Validation
 - **Monitoring**: Can existing monitoring infrastructure handle new technology?
 - **Backup/Recovery**: Do backup procedures work with storage choices?
 - **Security**: Can security scanning tools work with our stack?
 - **Scaling**: Can operations team manage scaling of chosen architecture?
+- **NEW: Incident Response**: Can issues be quickly diagnosed and resolved?
+- **NEW: Compliance**: Do choices support required audit and compliance needs?
+
+### **NEW: Security/Compliance Validation**
+- **Data Protection**: Do data handling patterns meet privacy requirements?
+- **Audit Logging**: Can user actions be tracked for compliance?
+- **Vulnerability Management**: Can security updates be applied safely?
+- **Access Controls**: Do authorization patterns prevent privilege escalation?
 
 **THINKING PATTERN - REFLECTION**: Document any personas whose needs are not well-served by current architecture decisions. What trade-offs were made and why?
 
@@ -770,7 +783,7 @@ esac
 
 Create comprehensive architecture decisions with runtime context AND concrete agent reference files:
 
-### DELIVERABLE 1: Consolidated Architecture Specification  
+### DELIVERABLE 1: Consolidated Architecture Specification
 **FILE**: `./docs/architecture-specification.md`
 
 **THINKING PATTERN - ACTION**: Creating single source of truth for all architecture decisions, patterns, and agent references.
@@ -785,19 +798,23 @@ Create comprehensive architecture decisions with runtime context AND concrete ag
 - Project Context Discovery (project type, existing environment, scale requirements)
 - Core Architecture Stack with KISS/YAGNI validation for:
   - Authentication Architecture Decision
-  - UI Framework Architecture Decision  
+  - UI Framework Architecture Decision
   - API Architecture Decision
   - Storage Architecture Decision
   - **NEW**: Concurrency & State Management Decision (with progressive levels)
   - **NEW**: Data Validation & Security Decision (with threat model mapping)
   - **NEW**: Performance & Caching Strategy Decision (with measurement criteria)
   - **NEW**: Error Handling & Resilience Decision (with failure scenario analysis)
+  - **NEW**: Event-Driven Architecture Decision (if applicable)
   - Deployment Architecture Decision
 
 #### Section 2: Test Framework Specification
 - End-to-End Testing: Playwright with MCP Server Integration
 - Unit Testing: Mocha + Chai (with Sinon for mocking)
 - Integration Testing: Mocha + Chai + Supertest
+- **NEW**: Load Testing: Artillery or Playwright performance APIs (with thresholds)
+- **NEW**: Security Testing: OWASP ZAP integration or security test patterns
+- **NEW**: Contract Testing: API contract testing patterns (if microservices)
 - Performance Testing: Artillery/Playwright performance APIs
 - Test Organization Strategy and Quality Gates
 
@@ -815,31 +832,53 @@ Create comprehensive architecture decisions with runtime context AND concrete ag
 - Unit Test Patterns (Mocha + Chai templates)
 - Integration Test Patterns (API testing with Supertest)
 - E2E Test Patterns (Playwright MCP integration examples)
+- **NEW**: Performance Test Patterns (load testing scenarios, benchmarks)
+- **NEW**: Security Test Patterns (input validation tests, auth tests)
+- **NEW**: Error Handling Test Patterns (failure scenarios, resilience tests)
 
 #### Section 5: Deployment Patterns
 - Build Configuration
-- Environment Configuration  
+- Environment Configuration
 - Deployment Configuration
+- **NEW**: Monitoring Configuration (metrics, alerts, dashboards)
+- **NEW**: Security Configuration (TLS, secrets management, hardening)
 
 #### Section 6: Security Patterns
 - Authentication Security Patterns
 - Data Security and Validation Patterns
+- **NEW**: Input Sanitization Patterns
+- **NEW**: Rate Limiting and DoS Protection
+- **NEW**: Encryption Patterns (at rest, in transit)
+- **NEW**: Audit Logging Patterns
 
 #### Section 7: Performance Patterns
-- Caching Strategies
-- Database Optimization
+- Caching Strategies (with invalidation and warming)
+- Database Optimization (indexing, query patterns, connection pooling)
+- **NEW**: Async Processing Patterns (queues, workers, event loops)
+- **NEW**: Resource Management Patterns (memory, connections, file handles)
 
 #### Section 8: Monitoring and Observability
-- Logging Patterns
-- Health Check Patterns
+- Logging Patterns (structured logging, correlation IDs)
+- Health Check Patterns (readiness, liveness probes)
+- **NEW**: Metrics Patterns (business metrics, technical metrics)
+- **NEW**: Distributed Tracing Patterns (request correlation, performance analysis)
+- **NEW**: Alerting Patterns (SLA-based alerts, escalation policies)
 
-#### Section 9: Agent Reference Guide
+#### Section 9: CI/CD & Deployment Strategy
+- **NEW**: Feature Deployment Patterns
+- **NEW**: Integration Strategies
+- **NEW**: Rollback Procedures
+
+#### Section 10: Agent Reference Guide
 - Specific guidance for feature-developer, ui-designer, qa-analyst, deployment-orchestrator agents
 - Clear mapping of which sections each agent should reference
+- **NEW**: Decision context for each agent's specific needs
 
-#### Section 10: Maintenance and Updates
+#### Section 11: Maintenance and Updates
 - Architecture evolution process
 - Version control for the specification
+- **NEW**: Performance review processes
+- **NEW**: Security review requirements
 
 ### Architecture Risk Analysis
 ```markdown
@@ -850,12 +889,23 @@ Create comprehensive architecture decisions with runtime context AND concrete ag
 - **Security Vulnerabilities**: [security considerations with current stack]
 - **Operational Complexity**: [actual operational risks with chosen approach]
 - **Vendor Lock-in**: [dependency risks and mitigation strategies]
+- **NEW: Scalability Risks**: [scaling bottlenecks and mitigation plans]
+- **NEW: Compliance Risks**: [regulatory compliance gaps and remediation]
+- **NEW: Data Loss Risks**: [backup and recovery capabilities assessment]
+
+### Non-Functional Requirements Validation
+- **Performance SLA**: [response time commitments with measurement approach]
+- **Availability SLA**: [uptime commitments with monitoring approach]
+- **Security Requirements**: [specific security controls implemented]
+- **Compliance Requirements**: [regulatory compliance measures in place]
+- **Scalability Requirements**: [scaling approach and capacity planning]
 
 ### KISS/YAGNI Validation Results
 - **Existing Systems Leveraged**: [count and description of reused technology]
 - **New Technology Introduced**: [count and strong justification for each]
 - **Complexity Score**: [simple/medium/complex with justification]
 - **Over-engineering Risk**: [assessment of unnecessary complexity]
+- **NEW: Technical Debt Assessment**: [identified debt and repayment strategy]
 ```
 
 ## PHASE 8: FOUNDATIONAL FRAMEWORK IMPLEMENTATION
@@ -871,7 +921,7 @@ Create comprehensive architecture decisions with runtime context AND concrete ag
 
 ```bash
 # Create test infrastructure based on decisions made
-mkdir -p tests/{unit,integration,e2e,fixtures,helpers}
+mkdir -p tests/{unit,integration,e2e,load,security,fixtures,helpers}
 
 # Initialize Mocha + Chai setup
 npm install --save-dev mocha chai sinon
@@ -881,12 +931,21 @@ npm install --save-dev mocha chai sinon
 # Set up playwright.config.js with MCP server integration points
 # Configure for headless CI, headed debugging, mobile simulation
 
+# Initialize Supertest for API integration testing
+npm install --save-dev supertest
+
+# **NEW**: Initialize security testing tools
+npm install --save-dev @security/test-runner
+
+# **NEW**: Initialize performance testing
+npm install --save-dev artillery
+
 # Create test helper templates that agents will use
 ```
 
 **THINKING PATTERN - REFLECTION**: Document what was achieved and any deviations from plan.
 
-#### Step 2: Build System Foundation Implementation  
+#### Step 2: Build System Foundation Implementation
 **THINKING PATTERN - ACTION**: Setting up build infrastructure that supports chosen architecture.
 
 ```bash
@@ -942,6 +1001,69 @@ npm install --save-dev mocha chai sinon
 
 **THINKING PATTERN - REFLECTION**: Test storage foundation with sample data.
 
+#### **NEW: Step 6: Security Foundation Implementation**
+**THINKING PATTERN - ACTION**: Implementing core security infrastructure based on threat model.
+
+```bash
+# Set up input validation framework
+npm install joi  # or yup, based on decision
+
+# Set up rate limiting (if web application)
+npm install express-rate-limit
+
+# Set up security headers
+npm install helmet
+
+# Set up encryption utilities (if needed)
+npm install bcrypt jsonwebtoken
+
+# Configure security scanning tools
+```
+
+#### **NEW: Step 7: Performance Foundation Implementation**
+**THINKING PATTERN - ACTION**: Implementing core performance infrastructure.
+
+```bash
+# Set up caching layer (if decided)
+npm install redis  # or memory cache, based on decision
+
+# Set up monitoring/metrics
+npm install prom-client  # or chosen metrics library
+
+# Set up performance profiling tools
+npm install clinic  # or chosen profiling tools
+
+# Configure performance testing baseline
+```
+
+#### **NEW: Step 8: Error Handling & Resilience Implementation**
+**THINKING PATTERN - ACTION**: Implementing error handling patterns and resilience mechanisms.
+
+```bash
+# Set up error handling middleware
+# Implement circuit breaker (if needed)
+npm install opossum
+
+# Set up retry mechanisms
+npm install retry
+
+# Set up graceful shutdown handling
+# Configure error logging and reporting
+```
+
+#### **NEW: Step 9: State Management Implementation**
+**THINKING PATTERN - ACTION**: Implementing state management patterns for consistent application behavior.
+
+```bash
+# Set up client-side state management (if web app)
+npm install redux @reduxjs/toolkit  # or chosen state library
+
+# Set up server-side session management
+npm install express-session  # or chosen session library
+
+# Configure state persistence and synchronization
+```
+
 **THINKING PATTERN - OUTCOME**: Document what foundation was successfully implemented and note any issues discovered.
 
 ## PHASE 9: FOUNDATIONAL IMPLEMENTATION VALIDATION
@@ -962,13 +1084,15 @@ npm install --save-dev mocha chai sinon
 
 **THINKING PATTERN - REFLECTION**: Document authentication validation results and any adjustments needed.
 
-#### Test Framework Validation  
+#### Test Framework Validation
 **THINKING PATTERN - ACTION**: Confirming test infrastructure is ready for feature development.
 
 - **Unit Test Example**: Create sample unit test using Mocha+Chai patterns
 - **Integration Test Example**: Create sample API test using Supertest
 - **E2E Test Example**: Create sample Playwright test with MCP integration
 - **Coverage Reporting**: Verify coverage tools work correctly
+- **NEW: Security Test Example**: Create sample security test pattern
+- **NEW: Performance Test Example**: Create sample load test scenario
 
 **THINKING PATTERN - REFLECTION**: Document test framework readiness and any tooling gaps.
 
@@ -976,7 +1100,7 @@ npm install --save-dev mocha chai sinon
 **THINKING PATTERN - ACTION**: Testing API infrastructure foundation.
 
 - **Endpoint Creation Test**: Verify new endpoints can be added easily
-- **Validation Test**: Confirm request/response validation works  
+- **Validation Test**: Confirm request/response validation works
 - **Error Handling Test**: Verify error handling patterns work
 - **Documentation Test**: Confirm API documentation generates correctly
 
@@ -992,6 +1116,24 @@ npm install --save-dev mocha chai sinon
 
 **THINKING PATTERN - REFLECTION**: Document storage foundation readiness and performance characteristics.
 
+#### **NEW: Security Foundation Validation**
+- **Input Validation Test**: Verify sanitization and validation work
+- **Rate Limiting Test**: Confirm rate limiting prevents abuse
+- **Authentication Test**: Verify auth patterns are secure
+- **Encryption Test**: Confirm sensitive data is properly encrypted
+
+#### **NEW: Performance Foundation Validation**
+- **Cache Test**: Verify caching improves response times
+- **Load Test**: Basic load testing with expected traffic
+- **Monitoring Test**: Confirm metrics are being collected
+- **Profiling Test**: Verify profiling tools identify bottlenecks
+
+#### **NEW: Resilience Foundation Validation**
+- **Circuit Breaker Test**: Verify circuit breaker prevents cascading failures
+- **Retry Test**: Confirm retry logic handles transient failures
+- **Graceful Shutdown Test**: Verify clean shutdown handling
+- **Error Recovery Test**: Confirm error handling enables recovery
+
 ### Foundation Validation Report
 **FILE**: `./docs/architecture/foundation-validation-report.md`
 
@@ -1000,10 +1142,13 @@ npm install --save-dev mocha chai sinon
 
 ## Validation Summary
 - **Authentication Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
-- **Test Framework Foundation**: [READY/ISSUES/BLOCKED] - [brief status] 
+- **Test Framework Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
 - **API Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
 - **Storage Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
 - **Build System Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
+- **NEW: Security Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
+- **NEW: Performance Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
+- **NEW: Resilience Foundation**: [READY/ISSUES/BLOCKED] - [brief status]
 
 ## Issues Discovered During Implementation
 - [List any deviations from architectural intent]
@@ -1018,11 +1163,13 @@ npm install --save-dev mocha chai sinon
 
 ## Agent Reference Readiness
 - ✅ `./docs/architecture-specification.md` Section 3 - Authentication patterns ready for feature-developer
-- ✅ `./docs/architecture-specification.md` Section 3 - API patterns ready for feature-developer  
+- ✅ `./docs/architecture-specification.md` Section 3 - API patterns ready for feature-developer
 - ✅ `./docs/architecture-specification.md` Section 3 - UI patterns ready for ui-designer
 - ✅ `./docs/architecture-specification.md` Section 4 - Unit test patterns ready for qa-analyst
 - ✅ `./docs/architecture-specification.md` Section 4 - Integration test patterns ready for qa-analyst
 - ✅ `./docs/architecture-specification.md` Section 4 - E2E test patterns ready for qa-analyst
+- ✅ `./docs/architecture-specification.md` Section 4 - Security test patterns ready for qa-analyst
+- ✅ `./docs/architecture-specification.md` Section 4 - Performance test patterns ready for qa-analyst
 
 ## Next Steps for Feature Development
 - Foundation is ready for feature development
@@ -1036,7 +1183,7 @@ npm install --save-dev mocha chai sinon
 
 ### Development Approach
 - **Start Simple**: Begin with minimal viable architecture
-- **Extend Incrementally**: Add complexity only when requirements demand it  
+- **Extend Incrementally**: Add complexity only when requirements demand it
 - **Leverage Patterns**: Use established patterns from existing codebase
 - **Validate Early**: Implement key architectural decisions first to validate approach
 
@@ -1050,7 +1197,7 @@ npm install --save-dev mocha chai sinon
 - Configure storage with existing infrastructure
 - Validate end-to-end flow with simplest possible implementation
 
-### Phase 2: Feature Development (Week 2-N)  
+### Phase 2: Feature Development (Week 2-N)
 - Implement features using established architectural patterns
 - Add UI components following existing design system
 - Optimize performance based on actual usage patterns
@@ -1061,6 +1208,34 @@ npm install --save-dev mocha chai sinon
 - Performance optimization based on real usage data
 - Operational procedures integration with existing workflows
 - Documentation integration with existing knowledge base
+```
+
+### CI/CD & Deployment Strategy
+```markdown
+## CI/CD PIPELINE STRATEGY
+
+### Pipeline Stages
+- **Build Stage**: Compile, transpile, bundle
+- **Test Stage**: Unit, integration, E2E, security, performance tests
+- **Quality Stage**: Linting, security scanning, code coverage
+- **Staging Deploy**: Deploy to staging environment
+- **Production Deploy**: Deploy to production with rollback capability
+
+### Feature Deployment Patterns
+- **Seamless Deployment**: Features can be deployed without system restart
+- **Rolling Deployment**: Gradual rollout with health checks
+- **Blue-Green Deployment**: Zero-downtime deployment with instant rollback
+- **Feature Flags**: Progressive feature enablement
+
+### Schema Migration Strategy
+- **Automatic Migrations**: Safe, forward-only migrations
+- **Manual Migrations**: Complex migrations requiring review
+- **Rollback Procedures**: Data-safe rollback strategies
+
+### Integration Strategies
+- **Independent Features**: Features deployed independently
+- **Batch Integration**: Groups of related features deployed together
+- **System Integration**: Full system updates for major changes
 ```
 
 ## PHASE 11: CONTINUOUS DECISION REFINEMENT
@@ -1085,6 +1260,45 @@ IF new requirements emerge that existing technology can't handle
   → PREFER extension unless extension complexity > replacement complexity
   → DOCUMENT decision rationale for future reference
 ```
+
+### Architecture Review Points
+Set up regular architecture reviews during development:
+
+**Week 1**: Are foundation implementations working as expected?
+- [Foundation issues discovered]
+- **NEW**: [Performance characteristics observed]
+- [Integration challenges encountered]
+
+**Week 2**: Are performance characteristics meeting expectations?
+- [Performance measurements vs expectations]
+- [Optimization opportunities discovered]
+- [Caching effectiveness assessment]
+
+**Week 4**: Are technology decisions still appropriate as requirements clarify?
+- [Requirements changes discovered during implementation]
+- [Technology limitations encountered]
+- **NEW**: [Security vulnerabilities discovered]
+- [Scaling challenges observed]
+
+### Adaptation Triggers
+Define when architecture decisions should be reconsidered:
+- **Performance Issues**: Response times consistently > acceptable thresholds
+- **Security Vulnerabilities**: Security issues that can't be fixed with current stack
+- **Scaling Bottlenecks**: Technology choices that prevent required scaling
+- **Developer Velocity**: Technology choices that significantly slow development
+- **Operational Complexity**: Deployment/monitoring becomes unmanageable
+- **NEW: Compliance Issues**: Technology choices that prevent regulatory compliance
+
+### Architecture Decision Evolution Process
+When architecture changes are needed:
+1. **Document Current State**: What's working, what's not, evidence
+2. **Analyze Root Cause**: Is this a technology issue or implementation issue?
+3. **Evaluate Options**: Can we fix vs must we replace?
+4. **Impact Assessment**: Cost of change vs cost of staying
+5. **Implementation Plan**: Migration strategy with rollback plan
+6. **Update Documentation**: Reflect changes in architecture specification
+
+**THINKING PATTERN - OUTCOME**: Document evolution approach and review schedule for ongoing architecture health.
 
 ## INTEGRATION WITH PRODUCT STRATEGY
 
@@ -1145,26 +1359,37 @@ IF new requirements emerge that existing technology can't handle
 ### PRIMARY DELIVERABLE FILES
 
 #### 1. Consolidated Architecture Specification
-**FILE PATH**: `./docs/architecture-specification.md`  
-**PURPOSE**: Single source of truth for ALL architectural decisions and patterns  
-**REFERENCED BY**: feature-developer, ui-designer, qa-analyst, deployment-orchestrator  
+**FILE PATH**: `./docs/architecture-specification.md`
+**PURPOSE**: Single source of truth for ALL architectural decisions and patterns
+**REFERENCED BY**: feature-developer, ui-designer, qa-analyst, deployment-orchestrator
 
 **SECTIONS FOR AGENT REFERENCE:**
 - **Section 1**: Architecture Decision Registry (core technology stack decisions)
-- **Section 2**: Implementation Patterns (code examples and structure patterns)  
-- **Section 3**: Integration Patterns (API patterns, auth patterns, data flow)
-- **Section 4**: Testing Framework Specification (Playwright MCP + Mocha/Chai patterns)
+- **Section 2**: Test Framework Specification (Playwright MCP + Mocha/Chai + Artillery patterns)
+- **Section 3**: Implementation Patterns (code examples and structure patterns)
+- **Section 4**: Testing Patterns (unit, integration, E2E, security, performance patterns)
 - **Section 5**: Deployment Patterns (build configuration, environment setup)
 - **Section 6**: Security Architecture (authentication, authorization, data protection)
 - **Section 7**: Performance Architecture (caching strategies, optimization patterns)
 - **Section 8**: Monitoring and Observability (logging patterns, health checks, metrics)
 - **Section 9**: CI/CD & Deployment Strategy (feature deployment patterns, integration strategies, rollback procedures)
 - **Section 10**: Agent Reference Guide (specific guidance for each agent type)
+- **Section 11**: Maintenance and Updates (evolution process, security/performance reviews)
 
-#### 2. Architecture Documentation  
-**FILE PATH**: `./docs/architecture-specification.md` (primary document)  
-**PURPOSE**: Detailed architectural analysis and decision rationale  
+#### 2. Architecture Documentation
+**FILE PATH**: `./docs/architecture-specification.md` (primary document)
+**PURPOSE**: Detailed architectural analysis and decision rationale
 **REFERENCED BY**: system-architect (for rehydration), product-strategist (for coordination), all implementation agents
+
+#### 3. Foundation Validation Report
+**FILE PATH**: `./docs/architecture/foundation-validation-report.md`
+**PURPOSE**: Foundation implementation status and readiness assessment
+**REFERENCED BY**: feature-developer, qa-analyst (for foundation readiness)
+
+#### 4. IDEAL-STI Phase 7 Documentation (if applicable)
+**FILE PATH**: `./planning/phase7-architecture.md`
+**PURPOSE**: IDEAL-STI continuation documentation
+**REFERENCED BY**: product-strategist, feature-developer (for IDEAL-STI alignment)
 
 ### AGENT-SPECIFIC REFERENCE PATHS
 
@@ -1173,8 +1398,7 @@ IF new requirements emerge that existing technology can't handle
 
 **PRIMARY REFERENCE**: `./docs/architecture-specification.md`
 - **Section 1**: Core technology decisions (authentication, UI framework, API architecture, storage)
-- **Section 2**: Implementation patterns with code examples
-- **Section 3**: Integration patterns for external systems and APIs
+- **Section 3**: Implementation patterns with code examples
 - **Section 6**: Security implementation patterns and requirements
 - **Section 7**: Performance patterns and optimization strategies
 
@@ -1188,8 +1412,7 @@ IF new requirements emerge that existing technology can't handle
 
 **PRIMARY REFERENCE**: `./docs/architecture-specification.md`
 - **Section 1**: UI Framework Architecture Decision with rationale
-- **Section 2**: Component structure patterns and design system integration
-- **Section 3**: API integration patterns for UI components
+- **Section 3**: Component structure patterns and design system integration
 - **Section 7**: Performance requirements for UI (response times, loading patterns)
 
 **SPECIFIC GUIDANCE**: Section 10 - UI Designer Implementation Guide
@@ -1201,10 +1424,13 @@ IF new requirements emerge that existing technology can't handle
 ## FOR QA-ANALYST AGENTS
 
 **PRIMARY REFERENCE**: `./docs/architecture-specification.md`
-- **Section 4**: Complete Testing Framework Specification
+- **Section 2**: Complete Testing Framework Specification
   - Playwright MCP server configuration for E2E testing
   - Mocha + Chai + Sinon setup for unit testing
   - Supertest configuration for integration testing
+  - Artillery for load testing
+  - Security test patterns
+- **Section 4**: Testing patterns for each layer
 - **Section 6**: Security testing requirements and threat model
 - **Section 7**: Performance testing criteria and benchmarks
 - **Section 8**: Monitoring and observability validation patterns
@@ -1243,9 +1469,10 @@ IF new requirements emerge that existing technology can't handle
 {
   "status": "completed",
   "architecture_specification_path": "./docs/architecture-specification.md",
+  "foundation_validation_path": "./docs/architecture/foundation-validation-report.md",
   "key_decisions": {
     "authentication": "[decision summary]",
-    "ui_framework": "[decision summary]", 
+    "ui_framework": "[decision summary]",
     "api_architecture": "[decision summary]",
     "storage": "[decision summary]",
     "concurrency": "[decision summary]",
@@ -1257,14 +1484,19 @@ IF new requirements emerge that existing technology can't handle
     "unit_testing": "Mocha + Chai + Sinon",
     "integration_testing": "Supertest + Mocha",
     "e2e_testing": "Playwright MCP server",
-    "config_files": ["./test/setup.js", "./playwright.config.js"]
+    "load_testing": "Artillery",
+    "security_testing": "@security/test-runner",
+    "config_files": ["./test/setup.js", "./playwright.config.js", "./artillery.yml"]
   },
   "foundation_status": {
     "authentication_ready": true/false,
     "api_foundation_ready": true/false,
     "ui_foundation_ready": true/false,
     "test_foundation_ready": true/false,
-    "build_system_ready": true/false
+    "build_system_ready": true/false,
+    "security_foundation_ready": true/false,
+    "performance_foundation_ready": true/false,
+    "resilience_foundation_ready": true/false
   },
   "next_steps": [
     "Foundation validation complete - ready for feature development",
@@ -1280,9 +1512,9 @@ IF new requirements emerge that existing technology can't handle
     "data_migration_required": true/false
   },
   "agent_references": {
-    "feature_developer": "./docs/architecture-specification.md sections 1,2,3,6,7,10",
-    "ui_designer": "./docs/architecture-specification.md sections 1,2,3,7,10",
-    "qa_analyst": "./docs/architecture-specification.md sections 4,6,7,8,10",
+    "feature_developer": "./docs/architecture-specification.md sections 1,3,6,7,10",
+    "ui_designer": "./docs/architecture-specification.md sections 1,3,7,10",
+    "qa_analyst": "./docs/architecture-specification.md sections 2,4,6,7,8,10",
     "deployment_orchestrator": "./docs/architecture-specification.md sections 5,6,7,8,9,10"
   }
 }
@@ -1291,7 +1523,7 @@ IF new requirements emerge that existing technology can't handle
 ### FILE PATH VALIDATION
 
 **Before completing, system-architect MUST verify:**
-- ✅ `./docs/architecture-specification.md` exists and is populated with all 10 sections
+- ✅ `./docs/architecture-specification.md` exists and is populated with all 11 sections
 - ✅ All agent reference sections (Section 10) contain specific guidance
 - ✅ All architecture decisions are documented with rationale
 - ✅ Test framework configuration is complete and tested
@@ -1307,9 +1539,11 @@ IF new requirements emerge that existing technology can't handle
 1. **Check return status**: Verify `status: "completed"` in return JSON
 2. **Load primary reference**: Read `./docs/architecture-specification.md`
 3. **Find agent-specific guidance**: Navigate to Section 10 for your agent type
-4. **Reference decision details**: Use sections 1-9 for implementation details
+4. **Reference decision details**: Use sections 1-11 for implementation details
 5. **Validate foundation**: Check `foundation_status` for readiness
 6. **Review CI/CD strategy**: Check `ci_cd_strategy` for deployment approach
 7. **Follow next steps**: Implement `next_steps` before beginning feature work
 
 **CRITICAL SUCCESS FACTOR**: Every architectural decision, pattern, and configuration MUST be documented in the referenced files with clear file paths. No implementation guidance should exist only in agent memory - everything must be persistently documented for reliable agent-to-agent handoff.
+
+**This system-architect agent uses prompt-as-code methodology to make intelligent, evidence-based architecture decisions that serve actual requirements while leveraging existing technology. All decisions are documented for consistent implementation by downstream agents.**
