@@ -2216,11 +2216,11 @@ Analyze dependencies to create execution waves:
 
 **Wave 3 - Features Group A** (Parallel):
 - Tasks T200-T299 with no blocking dependencies
-- **INVOKE**: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-200-*.md <worktree>/pending/TASK-201-*.md ...`
+- **INVOKE**: `in parallel ask subagent feature-developer with tasks from pending/TASK-200-*.md pending/TASK-201-*.md ... using worktree "<worktree>"`
 
 **Wave 4 - Features Group B** (Parallel):
 - Tasks T300-T399 depending on Wave 3
-- **INVOKE**: `in parallel ask feature-developer on task with files at <worktree>/pending/TASK-300-*.md <worktree>/pending/TASK-301-*.md ...`
+- **INVOKE**: `in parallel ask subagent feature-developer with tasks from pending/TASK-300-*.md pending/TASK-301-*.md ... using worktree "<worktree>"`
 
 **Wave 5 - Testing & Deployment** (Sequential):
 - Tasks T600-T699 after all features complete
@@ -2414,9 +2414,9 @@ FOR each execution wave in parallel-execution-plan:
 
   IF wave.type == "Sequential" THEN:
     FOR each task in wave.tasks (in dependency order):
-      **INVOKE**: `ask subagent feature-developer with task from "<worktree>/pending/TASK-{ID}-*.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"`
+      **INVOKE**: `ask subagent feature-developer with task from "pending/TASK-{ID}-*.md" using worktree "<worktree>"`
       **WAIT**: For completion before next task
-      **NOTE**: feature-developer automatically moves task to <worktree>/completed/ when done
+      **NOTE**: feature-developer creates its own temp worktree and handles cleanup
 
   ELSE IF wave.type == "Parallel" THEN:
 
@@ -2426,9 +2426,9 @@ FOR each execution wave in parallel-execution-plan:
 
     For each batch:
     - Invoke feature-developer subagent in parallel on all task files in the batch
-    - Each subagent processes one task file from <worktree>/pending/TASK-*.md
+    - Each subagent gets worktree "<worktree>" and creates its own temp worktree
     - Wait for all subagents in the batch to complete
-    - Each feature-developer automatically moves its task to <worktree>/completed/ when done
+    - Each feature-developer handles its own cleanup
     - Continue to the next batch until all tasks are processed
 
     Important: To execute in parallel, invoke all subagents for a batch in a single message with multiple Task tool calls.
@@ -2438,9 +2438,10 @@ FOR each execution wave in parallel-execution-plan:
 Wave 1 - Infrastructure (Sequential):
 ```
 # Each task runs sequentially, one at a time
-ask subagent feature-developer with task from "<worktree>/pending/TASK-001-database-setup.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"
+ask subagent feature-developer with task from "pending/TASK-001-database-setup.md" using worktree "<worktree>"
 # Wait for completion
-ask subagent feature-developer with task from "<worktree>/pending/TASK-002-cicd-pipeline.md" using worktree "<worktree>" move completed task to "<worktree>/completed/"
+
+ask subagent feature-developer with task from "pending/TASK-002-cicd-pipeline.md" using worktree "<worktree>"
 # Wait for completion
 ```
 
@@ -2449,32 +2450,33 @@ Wave 2 - Cross-Cutting (Parallel - Single Batch):
 # Only 3 tasks, fits in single batch (< 10)
 # All execute in parallel via single AI message with multiple Task calls:
 Batch 1 (3 tasks):
-  - Task 1: feature-developer for <worktree>/pending/TASK-100-authentication.md
-  - Task 2: feature-developer for <worktree>/pending/TASK-101-logging.md
-  - Task 3: feature-developer for <worktree>/pending/TASK-102-error-handling.md
-# Wait for all 3 to complete, each feature-developer moves its task to <worktree>/completed/
+  - Task 1: feature-developer for pending/TASK-100-authentication.md using worktree "<worktree>"
+  - Task 2: feature-developer for pending/TASK-101-logging.md using worktree "<worktree>"
+  - Task 3: feature-developer for pending/TASK-102-error-handling.md using worktree "<worktree>"
+# Wait for all 3 to complete, each creates its own temp worktree
 ```
 
 Wave 3 - Large Feature Wave (Parallel - Multiple Batches):
 ```
 # Example with 25 tasks requiring 3 batches
+
 Batch 1 (10 tasks - MAX_CONCURRENT_AGENTS):
-  - Task 1: feature-developer for <worktree>/pending/TASK-200-feature-a.md
-  - Task 2: feature-developer for <worktree>/pending/TASK-201-feature-b.md
+  - Task 1: feature-developer for pending/TASK-200-feature-a.md using worktree "<worktree>"
+  - Task 2: feature-developer for pending/TASK-201-feature-b.md using worktree "<worktree>"
   ... (up to Task 10)
-# Wait for batch 1 completion, each agent moves its task to <worktree>/completed/
+# Wait for batch 1 completion
 
 Batch 2 (10 tasks):
-  - Task 11: feature-developer for <worktree>/pending/TASK-210-feature-k.md
-  - Task 12: feature-developer for <worktree>/pending/TASK-211-feature-l.md
+  - Task 11: feature-developer for pending/TASK-210-feature-k.md using worktree "<worktree>"
+  - Task 12: feature-developer for pending/TASK-211-feature-l.md using worktree "<worktree>"
   ... (up to Task 20)
-# Wait for batch 2 completion, each agent moves its task to <worktree>/completed/
+# Wait for batch 2 completion
 
 Batch 3 (5 remaining tasks):
-  - Task 21: feature-developer for <worktree>/pending/TASK-220-feature-u.md
-  - Task 22: feature-developer for <worktree>/pending/TASK-221-feature-v.md
+  - Task 21: feature-developer for pending/TASK-220-feature-u.md using worktree "<worktree>"
+  - Task 22: feature-developer for pending/TASK-221-feature-v.md using worktree "<worktree>"
   ... (up to Task 25)
-# Wait for batch 3 completion, each agent moves its task to <worktree>/completed/
+# Wait for batch 3 completion
 ```
 
 **CLAUDE CODE TASK TOOL REQUIREMENTS**:
@@ -2499,11 +2501,12 @@ For proper parallel execution in Claude Code:
   ```
 
 **COORDINATION**: Each feature-developer agent:
-- Loads specific task from <worktree>/pending/
-- References architecture from <worktree>/planning/architecture.md
+- Creates its own temp worktree from parent <worktree>
+- Loads specific task from its temp worktree's pending/ directory
+- References architecture from planning/architecture.md
 - Implements according to acceptance criteria
-- Moves completed task to <worktree>/completed/ upon successful completion
-- Documents implementation patterns in task file
+- Merges changes back to parent worktree upon successful completion
+- Handles its own cleanup (removes temp worktree)
 
 ### 8. Quality Iteration Loop
 

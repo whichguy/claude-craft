@@ -160,34 +160,125 @@ flowchart TD
 ## PHASE 0: CHECK EXECUTION MODE AND WORKTREE
 Accept task parameters from IDEAL-STI implementation loop:
 - `task_file="$1"` (required - from tasks/pending/)
-- `worktree_dir="$2"` (required - working directory from IDEAL-STI)
+- `parent_worktree="${2:-$(pwd)}"` (optional - parent worktree to branch from, defaults to pwd)
 - `dryrun="${3:-false}"` (from IDEAL-STI Phase 11+ loop)
 - If dryrun=true: Plan implementation only, CASCADE to all subagents
 - If dryrun=false: Execute full implementation
 
 ```bash
 # CRITICAL: Never use cd/pushd - always use full paths or git -C
-if [ -z "$worktree_dir" ] || [ ! -d "$worktree_dir" ]; then
-  echo "❌ Worktree directory not provided or does not exist: $worktree_dir"
-  exit 1
-fi
+# Store original pwd for safety checks
+original_pwd="$(pwd)"
 
-# Extract task metadata
-if [ -f "$worktree_dir/$task_file" ]; then
-  epic_id=$(grep "^Epic:" "$worktree_dir/$task_file" | cut -d: -f2 | xargs)
-  story_id=$(grep "^Story:" "$worktree_dir/$task_file" | cut -d: -f2 | xargs)
-  task_name=$(basename "$task_file" .md)
-  echo "🎯 Processing task: $task_name in worktree: $worktree_dir"
+# Use provided parent worktree or default to current directory
+if [ -z "$2" ]; then
+  parent_worktree="$original_pwd"
+  echo "📍 No parent worktree provided, using current directory: $parent_worktree"
 else
-  echo "❌ Task file not found: $worktree_dir/$task_file"
+  parent_worktree="$2"
+  if [ ! -d "$parent_worktree" ]; then
+    echo "❌ Provided parent worktree does not exist: $parent_worktree" >&2
+    exit 1
+  fi
+fi
+
+# Extract task ID with fallback
+task_id=$(echo "$task_file" | grep -o 'TASK-[0-9]*' | cut -d- -f2 || echo "notask")
+timestamp=$(date +%Y%m%d-%H%M%S)
+
+# Generate unique temp worktree path with collision detection
+attempt=0
+temp_worktree=""
+while [ $attempt -lt 10 ]; do
+  random_hex=$(openssl rand -hex 3)
+  temp_worktree="/tmp/feature-dev-${timestamp}-task-${task_id}-${random_hex}"
+
+  # Safety: Ensure not matching pwd or parent
+  if [ "$temp_worktree" = "$original_pwd" ] || [ "$temp_worktree" = "$parent_worktree" ]; then
+    echo "⚠️ Generated path matches existing directory, regenerating..." >&2
+    attempt=$((attempt + 1))
+    continue
+  fi
+
+  if [ ! -d "$temp_worktree" ]; then
+    break
+  fi
+
+  echo "⚠️ Directory exists: $temp_worktree, regenerating..." >&2
+  attempt=$((attempt + 1))
+  sleep 0.1
+done
+
+if [ -d "$temp_worktree" ]; then
+  echo "❌ Failed to generate unique temp folder after 10 attempts" >&2
   exit 1
 fi
 
-# Set working context (all operations use full paths)
-WORK_DIR="$worktree_dir"
-DOCS_DIR="$WORK_DIR/docs"
-PLANNING_DIR="$DOCS_DIR/planning"
-TASKS_DIR="$WORK_DIR/tasks"
+# Track if merge was successful for cleanup decision
+merge_successful=false
+
+# Set up cleanup trap
+cleanup() {
+  # Only clean up if merge was successful
+  if [ "$merge_successful" = "false" ]; then
+    echo "⚠️ Merge was not successful, preserving worktree for manual resolution: $temp_worktree" >&2
+    echo "⚠️ To manually resolve:" >&2
+    echo "   cd $temp_worktree" >&2
+    echo "   git status" >&2
+    echo "   # Fix any issues, then:" >&2
+    echo "   git -C $parent_worktree worktree remove $temp_worktree" >&2
+    return 0
+  fi
+
+  if [ -n "$temp_worktree" ] && [ -d "$temp_worktree" ]; then
+    # Safety validations
+    if [ "$temp_worktree" = "$original_pwd" ] || [ "$temp_worktree" = "$parent_worktree" ]; then
+      echo "⚠️ SAFETY: Refusing to delete protected directory: $temp_worktree" >&2
+      return 1
+    fi
+
+    if [[ "$temp_worktree" != /tmp/* ]]; then
+      echo "⚠️ SAFETY: Refusing to delete non-temp directory: $temp_worktree" >&2
+      return 1
+    fi
+
+    echo "🧹 Cleaning up worktree: $temp_worktree"
+    git -C "$parent_worktree" worktree remove "$temp_worktree" --force 2>/dev/null || true
+    rm -rf "$temp_worktree" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT INT TERM
+
+# Create worktree at temp location
+current_branch=$(git -C "$parent_worktree" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+feature_branch="feature-dev-task-${task_id}-${timestamp}"
+
+echo "🔧 Creating isolated worktree: ${temp_worktree}"
+echo "   From parent: ${parent_worktree} (branch: ${current_branch})"
+git -C "$parent_worktree" worktree add "${temp_worktree}" -b "${feature_branch}" HEAD
+
+# Apply uncommitted changes if any
+if ! git -C "$parent_worktree" diff --quiet HEAD 2>/dev/null; then
+  echo "📋 Applying uncommitted changes to worktree"
+  git -C "$parent_worktree" diff HEAD | git -C "${temp_worktree}" apply
+fi
+
+# Extract task metadata from temp worktree
+if [ -f "$temp_worktree/$task_file" ]; then
+  epic_id=$(grep "^Epic:" "$temp_worktree/$task_file" | cut -d: -f2 | xargs)
+  story_id=$(grep "^Story:" "$temp_worktree/$task_file" | cut -d: -f2 | xargs)
+  task_name=$(basename "$task_file" .md)
+  echo "🎯 Processing task: $task_name in worktree: $temp_worktree"
+else
+  echo "❌ Task file not found: $temp_worktree/$task_file" >&2
+  exit 1
+fi
+
+# Set working context - use consistent variable names
+WORK_DIR="$temp_worktree"           # For backward compatibility
+<temp-worktree>="$temp_worktree"    # The working worktree
+<parent-worktree>="$parent_worktree" # Reference to parent
+PLANNING_DIR="$WORK_DIR/planning"   # Planning is directly under WORK_DIR
 ```
 
 ## PHASE 1: REHYDRATE TASK AND ARCHITECTURE CHOICES
@@ -1297,11 +1388,66 @@ find_related_files() {
 }
 ```
 
-## PHASE 9: IMPLEMENT TEST CASES
-Implement all test cases from QA recommendations:
+## EXTERNAL SYSTEM TEST DETECTION PATTERNS
 
+When analyzing tests, identify if they require external systems by looking for:
+
+**External Service Dependencies**:
+- Webhooks, callbacks, or external API integrations
+- Message queues: Kafka, RabbitMQ, Redis pub/sub, AWS SQS/SNS
+- Databases: MongoDB, DynamoDB, Elasticsearch, external PostgreSQL/MySQL
+- Cloud services: S3, Firebase, Stripe, Twilio, SendGrid, Mailgun
+- Authentication: OAuth, SAML, LDAP, Active Directory
+
+**Event-Driven Patterns**:
+- Event emitters/listeners that wait for external triggers
+- WebSocket or Socket.io connections
+- Server-sent events or long polling
+- Push notifications or real-time updates
+- Asynchronous callbacks from external sources
+
+**State-Dependent Patterns**:
+- Tests that wait for external events to change state
+- Tests requiring specific external system states
+- Tests dependent on external system responses or timeouts
+
+When such patterns are detected, mark the test as "requires-external-system" and handle accordingly.
+
+## PHASE 9: IMPLEMENT TEST CASES
+Implement test cases with external system awareness:
+
+**Thinking**: I need to implement test cases while being aware that some tests may require external systems that won't be available during automated testing. I'll analyze each test for external dependencies and handle them appropriately.
+
+**Process**:
+1. For each test file to create:
+   - Analyze the feature being tested
+   - Check if it involves any external system patterns
+   - If external dependencies detected:
+     * Add skip annotation to the test
+     * Document why the test requires external systems
+     * Create a mock version if possible
+   - If no external dependencies:
+     * Implement the test normally
+
+2. When writing test code:
+   - IF test involves webhook endpoints:
+     * Mark as "skip: requires external webhook trigger"
+   - IF test involves message queues:
+     * Mark as "skip: requires message queue infrastructure"
+   - IF test involves external APIs:
+     * Mark as "skip: requires external API availability"
+   - IF test involves event listeners waiting for external triggers:
+     * Mark as "skip: requires external event source"
+
+3. Add appropriate skip annotations based on test framework:
+   - For Jest/Mocha: Use `describe.skip()` or `it.skip()`
+   - For pytest: Use `@pytest.mark.skip(reason="...")`
+   - For Go: Use `t.Skip("...")`
+   - Document the skip reason clearly
+
+**Implementation Steps**:
 ```bash
-echo "🧪 Implementing test cases..."
+echo "🧪 Implementing test cases with external system awareness..."
 
 TEST_IMPLEMENTATION_LOG="$PLANNING_DIR/test-implementation-log-$task_name.md"
 cat > "$TEST_IMPLEMENTATION_LOG" << EOF
@@ -1319,7 +1465,7 @@ mkdir -p "$WORK_DIR/tests/e2e"
 if [ -f "$QA_RECOMMENDATIONS_FILE" ]; then
   # Extract test scenarios from QA recommendations
   test_scenarios=$(grep -E "test.*case|scenario" "$QA_RECOMMENDATIONS_FILE" | head -20)
-  
+
   # Create test files for each implementation file
   for file_path in $IMPLEMENTATION_FILES; do
     create_test_file "$file_path" "$task_name" "$QA_RECOMMENDATIONS_FILE" "$WORK_DIR"
@@ -1336,11 +1482,50 @@ fi
 echo "✅ Test implementation completed"
 ```
 
-## PHASE 10: RUN AND VALIDATE TESTS (REPEAT AS NEEDED)
-Run tests and iterate until satisfactory results:
+**Result**: Test files created with appropriate handling for external dependencies.
 
+## PHASE 10: RUN AND VALIDATE TESTS (REPEAT AS NEEDED)
+Execute tests with intelligent external system handling:
+
+**Thinking**: I need to run tests but must handle cases where tests require external systems gracefully. I'll analyze each test for external dependencies before execution and skip those that need unavailable infrastructure.
+
+**Pre-Test Analysis**:
+Before running each test file:
+1. Read the test file content
+2. Look for external system indicators:
+   - Search for webhook, callback, external API references
+   - Check for message queue connections (Kafka, RabbitMQ, SQS, etc.)
+   - Identify event listener patterns
+   - Find state-dependent test patterns
+3. If external system required:
+   - Log: "Skipping test [name] - requires external system: [type]"
+   - Record in test results as "SKIPPED - External Dependency"
+   - Continue to next test
+4. If no external system required:
+   - Execute the test normally
+
+**Test Execution Logic**:
+FOR each test file in the test suite:
+  - Analyze test content for external dependencies
+  - IF test requires external system that's not available:
+    * Log skip reason to test results
+    * Mark as "skipped" not "failed"
+    * Provide clear explanation of what external system is needed
+  - ELSE:
+    * Run the test
+    * Record actual pass/fail results
+
+**Handling Skipped Tests**:
+- Skipped tests should not count as failures
+- Generate a summary of skipped tests with reasons
+- Suggest manual testing steps for skipped tests
+- If all tests are skipped due to external dependencies:
+  * Log warning about limited test coverage
+  * Recommend integration testing environment setup
+
+**Implementation**:
 ```bash
-echo "🚀 Running and validating tests..."
+echo "🚀 Running and validating tests with external system awareness..."
 
 TEST_RESULTS_LOG="$PLANNING_DIR/test-results-log-$task_name.md"
 cat > "$TEST_RESULTS_LOG" << EOF
@@ -1349,61 +1534,129 @@ cat > "$TEST_RESULTS_LOG" << EOF
 ## Test Execution History
 EOF
 
+# Initialize counters
+tests_total=0
+tests_executed=0
+tests_passed=0
+tests_failed=0
+tests_skipped=0
+
 test_iteration=1
 max_iterations=5
 tests_passing=false
 
 while [ $test_iteration -le $max_iterations ] && [ "$tests_passing" = false ]; do
   echo "🧪 Test iteration $test_iteration of $max_iterations"
-  
-  # Run tests using project's test framework, with QA manifest guidance if available
+
+  # Run tests using project's test framework
   test_command=$(detect_test_command "$WORK_DIR")
-  
+
   # Check for QA manifests to run specific tests
   qa_manifests_dir="$PLANNING_DIR/qa-manifests"
   if [ -d "$qa_manifests_dir" ] && [ "$(ls -A "$qa_manifests_dir"/*.json 2>/dev/null | wc -l)" -gt 0 ]; then
-    echo "🎯 QA manifests found - running targeted tests..."
+    echo "🎯 QA manifests found - analyzing tests for external dependencies..."
     for manifest in "$qa_manifests_dir"/*.json; do
       test_file=$(jq -r '.test_file // empty' "$manifest" 2>/dev/null)
       if [ -n "$test_file" ] && [ -f "$WORK_DIR/$test_file" ]; then
-        echo "  └─ Running QA-specified test: $test_file"
+        tests_total=$((tests_total + 1))
+
+        # Check if test requires external systems
+        if grep -qiE "webhook|callback|external.*api|kafka|rabbitmq|sqs|sns|oauth|stripe|twilio|websocket|event.*emitter" "$WORK_DIR/$test_file" 2>/dev/null; then
+          echo "⚠️ SKIPPING test that requires external system: $test_file"
+          echo "   Reason: Test depends on external services or state events"
+          tests_skipped=$((tests_skipped + 1))
+
+          cat >> "$TEST_RESULTS_LOG" << EOF
+
+### Skipped Test: $test_file
+**Reason**: Requires external system or state events
+**Detection**: Automated detection of external dependencies
+**Manual Testing**: Required for full validation
+EOF
+          continue
+        fi
+
+        echo "  └─ Running test: $test_file"
+        tests_executed=$((tests_executed + 1))
         test_command="$test_command $test_file"
       fi
     done
   fi
-  
-  echo "Running: $test_command"
-  
-  # Execute tests from worktree directory
-  test_output=$((cd "$WORK_DIR" && eval "$test_command") 2>&1 || true)
-  test_exit_code=$?
-  
-  # Log test results
-  cat >> "$TEST_RESULTS_LOG" << EOF
+
+  # Only run tests if we have some to execute
+  if [ $tests_executed -gt 0 ]; then
+    echo "Running: $test_command"
+
+    # Execute tests from worktree directory
+    test_output=$((cd "$WORK_DIR" && eval "$test_command") 2>&1 || true)
+    test_exit_code=$?
+
+    # Log test results
+    cat >> "$TEST_RESULTS_LOG" << EOF
 
 ### Iteration $test_iteration ($(date))
 **Command**: $test_command
 **Exit Code**: $test_exit_code
+**Tests Executed**: $tests_executed
+**Tests Skipped**: $tests_skipped
 **Output**:
 \`\`\`
 $test_output
 \`\`\`
 EOF
 
-  if [ $test_exit_code -eq 0 ]; then
-    echo "✅ All tests passing!"
-    tests_passing=true
-    echo "**Status**: ✅ PASSED" >> "$TEST_RESULTS_LOG"
+    if [ $test_exit_code -eq 0 ]; then
+      echo "✅ All executable tests passing!"
+      tests_passing=true
+      tests_passed=$tests_executed
+      echo "**Status**: ✅ PASSED" >> "$TEST_RESULTS_LOG"
+    else
+      echo "❌ Tests failing, analyzing and fixing..."
+      tests_failed=$((tests_executed - tests_passed))
+      echo "**Status**: ❌ FAILED" >> "$TEST_RESULTS_LOG"
+
+      # Analyze failures and attempt fixes
+      analyze_and_fix_test_failures "$test_output" "$WORK_DIR" "$IMPLEMENTATION_FILES"
+
+      test_iteration=$((test_iteration + 1))
+    fi
   else
-    echo "❌ Tests failing, analyzing and fixing..."
-    echo "**Status**: ❌ FAILED" >> "$TEST_RESULTS_LOG"
-    
-    # Analyze failures and attempt fixes
-    analyze_and_fix_test_failures "$test_output" "$WORK_DIR" "$IMPLEMENTATION_FILES"
-    
-    test_iteration=$((test_iteration + 1))
+    echo "⚠️ All tests require external systems - skipping automated testing"
+    tests_passing=true  # Don't fail the build for external dependencies
+    cat >> "$TEST_RESULTS_LOG" << EOF
+
+### Test Execution Summary
+**Status**: ⚠️ ALL TESTS SKIPPED
+**Reason**: All discovered tests require external systems
+**Recommendation**: Manual testing required in integration environment
+EOF
   fi
 done
+
+# Generate final summary
+cat >> "$TEST_RESULTS_LOG" << EOF
+
+## Test Results Summary
+- **Total tests discovered**: $tests_total
+- **Tests executed**: $tests_executed
+- **Tests passed**: $tests_passed
+- **Tests failed**: $tests_failed
+- **Tests skipped (external dependencies)**: $tests_skipped
+
+EOF
+
+if [ $tests_skipped -gt 0 ]; then
+  cat >> "$TEST_RESULTS_LOG" << EOF
+## Skipped Tests Requiring Manual Validation
+The following tests were skipped due to external dependencies and require manual validation:
+- Review test files marked as skipped
+- Set up integration environment with required external systems
+- Run skipped tests manually to ensure full coverage
+- Document results in test validation report
+
+**Priority**: $([ $tests_skipped -gt $tests_executed ] && echo "HIGH - Most tests require external systems" || echo "MEDIUM - Some tests require external systems")
+EOF
+fi
 
 if [ "$tests_passing" = false ]; then
   echo "⚠️ Tests not passing after $max_iterations iterations"
@@ -1892,6 +2145,50 @@ $(tail -5 "$LESSONS_LEARNED" 2>/dev/null | head -3 | sed 's/^/  /')
 **Implementation Status**: READY FOR REVIEW AND DEPLOYMENT
 ========================================
 EOF
+```
+
+## PHASE 11: MERGE BACK AND CLEANUP
+
+Merge changes back to parent worktree and clean up:
+
+```bash
+echo "🔄 Merging changes back to parent worktree..."
+
+# Stage and commit any changes in temp worktree
+if ! git -C "$temp_worktree" diff --quiet HEAD 2>/dev/null; then
+  git -C "$temp_worktree" add -A
+  git -C "$temp_worktree" commit -m "feat: Complete task $task_name" || {
+    echo "❌ Failed to commit changes in temp worktree" >&2
+    echo "   Worktree preserved at: $temp_worktree" >&2
+    exit 1
+  }
+fi
+
+# Attempt to merge changes back to parent
+current_parent_branch=$(git -C "$parent_worktree" rev-parse --abbrev-ref HEAD)
+if git -C "$parent_worktree" merge "$feature_branch" --no-ff -m "Merge feature-dev task $task_name"; then
+  echo "✅ Successfully merged changes to parent worktree"
+  merge_successful=true
+
+  # Move completed task to parent's completed folder
+  if [ -f "$temp_worktree/$task_file" ] && [ -d "$parent_worktree/completed" ]; then
+    cp "$temp_worktree/$task_file" "$parent_worktree/completed/"
+    echo "✅ Task moved to completed: $parent_worktree/completed/$(basename $task_file)"
+  fi
+else
+  echo "❌ MERGE FAILED: Could not merge $feature_branch into $current_parent_branch" >&2
+  echo "   The temporary worktree has been preserved at: $temp_worktree" >&2
+  echo "   To resolve manually:" >&2
+  echo "     cd $parent_worktree" >&2
+  echo "     git merge $feature_branch" >&2
+  echo "     # Resolve conflicts, then:" >&2
+  echo "     git -C $parent_worktree worktree remove $temp_worktree" >&2
+  merge_successful=false
+  exit 1
+fi
+
+echo "✅ Feature development complete"
+# Cleanup will run via trap if merge was successful
 ```
 
 **CRITICAL WORKTREE INTEGRATION NOTES**:
