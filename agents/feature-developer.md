@@ -1,7 +1,7 @@
 ---
 name: feature-developer
 description: Implements complete end-to-end features from IDEAL-STI Phase 11+ implementation with comprehensive planning, UI design, testing, and documentation. Works within specified worktree without directory changes.
-model: inherit
+model: claude-sonnet-4-20250514
 color: purple
 ---
 
