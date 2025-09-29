@@ -783,91 +783,317 @@ ELSE:
 ## Phase 8: Final Specification & Documentation
 
 **Priority Focus**: Complete architecture specification with all technology decisions documented
-**Purpose**: Create comprehensive technology recommendation with full implementation details
+**Purpose**: Create concise, actionable technology recommendation with visual architecture
 **Target Confidence**: 98-100%
 
-### Final Technology Stack Specification
+### Write Concise Architecture.md
 
-**Complete Technology Matrix:**
+Write the complete architecture specification to `<worktree>/planning/architecture.md` using this concise format:
+
+```markdown
+# Architecture Decision Record
+
+> **📌 Reading Guide**: The "Architecture Decision" section contains all technology choices.
+> Remaining sections provide detailed reasoning and implementation guidance.
+
+**Status**: ✅ Approved | **Complexity**: [X/81] ([Zone Color] Zone) | **Confidence**: [X%]
+
+---
+
+## 🏗️ ARCHITECTURE DECISION
+*This section contains the complete architecture. Read this to understand what we're building.*
+
+### Technology Stack
+| Category | Technology | Priority |
+|----------|------------|----------|
+| Execution Environment | [Selected Tech] | [X] |
+| Storage System | [Selected Tech] | [X] |
+| Storage Format | [Selected Tech] | [X] |
+| User Interface | [Selected Tech] | [X] |
+| Authentication | [Selected Tech] | [X] |
+| API Service & Format | [Selected Tech] | [X] |
+| Testing Framework | [Selected Tech] | [X] |
+| Programming Language | [Selected Tech] | [X] |
+| CI/CD & Deployment | [Selected Tech] | [X] |
+
+**Total Complexity**: [Sum]/81 - [Zone] Zone
+
+### Architecture Pattern
+- **Type**: [Architecture pattern - e.g., "Real-time collaborative web application"]
+- **Stack Summary**: [One-line summary - e.g., "React + Node.js + PostgreSQL + WebSocket"]
+- **Deployment Target**: [Where it runs - e.g., "AWS ECS with CloudFront CDN"]
+
+### System Architecture Diagram
+```mermaid
+graph TB
+    subgraph "System Architecture [Complexity: [X/81] [Zone]]"
+        subgraph "User Layer [P:[X]]"
+            UI["[UI Tech]<br/>Priority: [X]<br/>[Key Requirements]"]
+            Auth["[Auth Tech]<br/>Priority: [X]<br/>[Security Level]"]
+        end
+
+        subgraph "Application Layer [P:[X]]"
+            API["[API Tech]<br/>Priority: [X]<br/>[Integration Type]"]
+            Exec["[Execution Tech]<br/>Priority: [X]<br/>[Runtime Pattern]"]
+            Lang["[Language]<br/>Priority: [X]<br/>[Paradigm]"]
+        end
+
+        subgraph "Data Layer [P:[X]]"
+            Storage["[Storage Tech]<br/>Priority: [X]<br/>[Data Pattern]"]
+            Format["[Format]<br/>Priority: [X]<br/>[Serialization]"]
+        end
+
+        subgraph "Quality & Operations [P:[X]]"
+            Test["[Test Framework]<br/>Priority: [X]<br/>[Coverage Type]"]
+            CICD["[CI/CD Tech]<br/>Priority: [X]<br/>[Automation Level]"]
+        end
+    end
+
+    UI --> API
+    Auth --> API
+    API --> Storage
+    Exec --> Storage
+    Test -.-> API
+    Test -.-> Storage
+    CICD -.-> Exec
+
+    classDef priority0 fill:#d4edda,stroke:#155724
+    classDef priority1 fill:#fff3cd,stroke:#856404
+    classDef priority2 fill:#ffeaa7,stroke:#e67e22
+    classDef priority3 fill:#ffeaa7,stroke:#e67e22
+    classDef priority4 fill:#ffd6cc,stroke:#e74c3c
+    classDef priority5 fill:#f8d7da,stroke:#721c24
 ```
-CATEGORY                 | TECHNOLOGY        | PRIORITY | JUSTIFICATION
--------------------------|-------------------|----------|-------------------
-Execution Environment    | [Selected Tech]   |    X     | [Business reason]
-Storage System          | [Selected Tech]   |    X     | [Technical reason]
-Storage Format          | [Selected Tech]   |    X     | [Integration need]
-User Interface          | [Selected Tech]   |    X     | [User requirement]
-Authentication          | [Selected Tech]   |    X     | [Security need]
-API Service & Format    | [Selected Tech]   |    X     | [Integration req]
-Testing Framework       | [Selected Tech]   |    X     | [Quality standard]
-Programming Language    | [Selected Tech]   |    X     | [Team capability]
-CI/CD & Deployment      | [Selected Tech]   |    X     | [Automation need]
--------------------------|-------------------|----------|-------------------
-TOTAL COMPLEXITY SCORE: | [Sum of priorities] | XX/81   | [Zone: Green/Yellow/Orange/Red]
-```
 
-### Progressive Learning Capture
-
+### Integration Code Patterns
 ```yaml
-decisions_validated:
-  - Maintained: [List of prior decisions kept]
-  - Changed: [List of decisions modified]
-  - New: [List of new decisions]
+API_to_Database:
+  pattern: "[Database ORM/connection pattern]"
+  example: "[Technology].connect() → [Query pattern]"
+  error_handling: "[Connection failure/retry strategy]"
 
-patterns_discovered:
-  - Use case pattern: [What we learned]
-  - Technology fit: [What worked well]
-  - Complexity balance: [Sweet spots found]
+Frontend_to_API:
+  pattern: "[HTTP client + WebSocket pattern]"
+  example: "[HTTP library].request() + [WebSocket library].connect()"
+  auth_pattern: "[Authentication header/token pattern]"
 
-anti_patterns_identified:
-  - Avoided: [What we didn't choose and why]
-  - Risk: [What could have gone wrong]
+Authentication_Flow:
+  pattern: "[Auth mechanism - JWT/OAuth/API key]"
+  login_flow: "[Login process steps]"
+  token_management: "[Token storage/refresh pattern]"
 
-future_recommendations:
-  - Next analysis: [Start with these decisions as baseline]
-  - Watch for: [Emerging requirements to monitor]
-  - Consider: [Technologies to evaluate next time]
+Inter_Service_Communication:
+  pattern: "[Service-to-service communication method]"
+  data_format: "[JSON/Protocol Buffer/etc.]"
+  reliability: "[Retry/circuit breaker patterns]"
 ```
 
-**Output**: Complete technology recommendation written to <worktree>/planning/architecture.md
+### Technology Configuration
+```yaml
+[Primary Database Technology]:
+  connection: "[Connection string pattern]"
+  pool_config: "[Connection pool settings]"
+  migration_tool: "[Schema migration approach]"
+
+[Runtime Environment]:
+  version: "[Specific version requirement]"
+  dependencies: "[Key dependency management]"
+  environment_config: "[Environment variable patterns]"
+
+[Frontend Technology]:
+  build_tool: "[Build system configuration]"
+  state_management: "[State management pattern]"
+  routing: "[Routing configuration]"
+
+[API Technology]:
+  middleware: "[Authentication/CORS/logging middleware]"
+  validation: "[Input validation approach]"
+  serialization: "[Response format standards]"
+```
+
+---
+
+## 📋 RATIONALE & REASONING
+*The following sections explain WHY these technologies were chosen. For reference only.*
+
+### Executive Summary
+- **Key Decision**: [Most critical technology choice and brief reasoning]
+- **Main Risk**: [Primary risk identified and mitigation approach]
+
+### Requirements → Technology Mapping
+
+#### Critical Requirements
+- **[REQ-ID]**: [Requirement] → **[Technology]** - [One-line reasoning]
+- **[UC-ID]**: [Use case] → **[Technology Pattern]** - [Implementation approach]
+
+#### Non-Functional Requirements
+- **Performance**: [Target] → **[Technologies]** - [How achieved]
+- **Scalability**: [Requirement] → **[Technologies]** - [Scaling approach]
+- **Security**: [Requirements] → **[Technologies]** - [Security measures]
+
+### Priority Escalation Rules
+- **Default Priority Range**: 0-2 (Use unless specific requirements demand higher)
+- **Escalate to Priority 3-5 when**:
+  - Multi-user concurrent access required
+  - Real-time features needed (WebSocket, streaming)
+  - External system integrations required
+  - Compliance/security standards mandate specific technologies
+- **Escalate to Priority 6+ only when**:
+  - High availability requirements (99.9%+ uptime)
+  - Massive scale requirements (1M+ users)
+  - Complex distributed system architecture needed
+  - Enterprise-grade features absolutely required
+
+### Technology Decision Details
+
+#### Decision Records (Major Choices)
+```yaml
+Decision: [Primary Technology Choice]
+Alternative: [What we considered instead]
+Requirement: [Driving requirement/use case]
+Reasoning:
+  - Pro: [Key advantage 1]
+  - Pro: [Key advantage 2]
+  - Con: [Main limitation and mitigation]
+Trade-offs: "[Benefit] vs [Cost]"
+Confidence: [X%]
+```
+
+### Research Findings Summary
+
+#### Phase 1-3: Discovery & Analysis
+- **Scale Classification**: [Project type] → Priority baseline [X-Y]
+- **Constraints Identified**: [Platform/Resource/Integration constraints]
+- **Technology Candidates**: [X options evaluated per category]
+
+#### Phase 4-6: Evaluation & Validation
+- **Winner Selection**: [Technology] (Score: [X/100]) vs [Alternative] ([Y/100])
+- **Performance Validation**: [Key metrics achieved]
+- **Integration Testing**: [Compatibility confirmed/issues resolved]
+
+#### Phase 7-8: Planning & Documentation
+- **Implementation Dependencies**: [Foundation→Features→Enhancement layers]
+- **Risk Mitigation**: [Primary risks] → [Specific mitigations]
+- **Integration Patterns**: [How components connect and communicate]
+
+---
+
+## 🚀 IMPLEMENTATION GUIDANCE
+*Practical guidance for building this architecture.*
+
+### Implementation Dependencies & Order
+- **Foundation Layer**: Priority 0-2 technologies (core infrastructure)
+  - [Database setup, basic API endpoints, authentication framework]
+- **Feature Layer**: Priority 3-5 technologies (business logic)
+  - [Complex business features, integrations, advanced UI components]
+- **Enhancement Layer**: Priority 6+ technologies (optimization)
+  - [Performance optimizations, advanced features, monitoring]
+
+### Error Handling Patterns
+- **Database Errors**: [Retry strategy] - Connection timeouts, deadlocks, constraint violations
+- **API Errors**: [Circuit breaker pattern] - External service failures, rate limiting
+- **Authentication Errors**: [Token refresh strategy] - Expired tokens, invalid credentials
+- **Validation Errors**: [Structured error responses] - Input validation, business rule violations
+- **Network Errors**: [Exponential backoff] - Temporary connectivity issues, DNS failures
+- **Resource Errors**: [Graceful degradation] - Memory limits, disk space, CPU constraints
+
+### Testing Patterns by Layer
+- **Unit Tests**: [Testing framework] for business logic
+  - Mock external dependencies (database, APIs, file system)
+  - Test pure functions and isolated components
+  - Coverage target: Business logic and utility functions
+- **Integration Tests**: [Testing framework] for API endpoints
+  - Test with real database (test environment)
+  - Validate request/response contracts
+  - Test authentication and authorization flows
+- **End-to-End Tests**: [E2E framework] for user workflows
+  - Test complete user journeys
+  - Validate UI interactions and data persistence
+  - Test critical business scenarios
+
+### Migration Strategy (if applicable)
+- **From**: [Previous architecture stack]
+- **Migration Approach**: [Technical migration steps]
+- **Data Migration**: [Schema changes, data transformation requirements]
+- **Compatibility Requirements**: [Backward compatibility needs during transition]
+
+## Risk Assessment & Mitigation
+
+| Risk Category | Specific Risk | Probability | Impact | Mitigation Strategy |
+|---------------|---------------|-------------|--------|-------------------|
+| Technical | [Technology risk] | [High/Med/Low] | [Impact level] | [Specific mitigation] |
+| Integration | [Compatibility risk] | [High/Med/Low] | [Impact level] | [Specific approach] |
+| Performance | [Scalability concern] | [High/Med/Low] | [Impact level] | [Performance strategy] |
+| Operational | [Maintenance burden] | [High/Med/Low] | [Impact level] | [Operations plan] |
+
+---
+
+## 🔮 FUTURE CONSIDERATIONS
+*Evolution and monitoring plans.*
+
+### Architecture Evolution Path
+- **Scaling considerations**: [When and how to scale each technology layer]
+- **Technology upgrade paths**: [Migration strategies for technology updates]
+- **Integration expansion**: [How to add new technologies or external systems]
+
+### Architecture Evolution Triggers
+- **Performance thresholds**: When to consider scaling or optimization
+- **Feature complexity growth**: When to add higher-priority technologies
+- **Integration requirements**: When external system changes require updates
+
+---
+
+*Generated by Progressive Technology Research Framework v4.0*
+*Phases Executed: 8/8 | Research Sources: [X] | Confidence: [Y%]*
+```
+
+**Output**: Complete concise technology architecture specification written to <worktree>/planning/architecture.md
 
 ---
 
 ## Return Summary
 
-After completing all 8 phases, return concise summary:
+After completing all 8 phases, return this concise summary to user:
 
 ```markdown
-# Technology Architecture Research Complete
+# 🏗️ Technology Architecture Research Complete
 
-## Summary
-- **File Written**: <worktree>/planning/architecture.md
-- **Total Complexity Score**: [X/81] ([Zone])
-- **Final Confidence**: [X%]
-- **Phases Executed**: 8/8
+## Summary Dashboard
+- **📋 File Written**: `<worktree>/planning/architecture.md` (Concise ADR format)
+- **🎯 Complexity Score**: [X/81] ([Zone Color] Zone)
+- **📊 Final Confidence**: [X%]
+- **⚡ Phases Executed**: 8/8 (Complete)
 
-## Technology Stack Selected
-- Execution Environment: [Tech] (Priority [X])
-- Storage System: [Tech] (Priority [X])
-- Storage Format: [Tech] (Priority [X])
-- User Interface: [Tech] (Priority [X])
-- Authentication: [Tech] (Priority [X])
-- API Service: [Tech] (Priority [X])
-- Testing Framework: [Tech] (Priority [X])
-- Programming Language: [Tech] (Priority [X])
-- CI/CD & Deployment: [Tech] (Priority [X])
+## Architecture at a Glance
+**Stack**: [Primary technologies in one line]
+**Pattern**: [Architecture pattern type]
+**Key Decision**: [Most critical choice made]
 
-## Key Insights
-- [Major discovery 1]
-- [Major discovery 2]
-- [Pattern observation]
+## Technology Stack (Priority-Optimized)
+| Layer | Technology | Priority | Core Benefit |
+|-------|------------|----------|--------------|
+| 🎨 UI | [Tech] | [X] | [Key advantage] |
+| 🔧 API | [Tech] | [X] | [Main strength] |
+| 💾 Data | [Tech] | [X] | [Primary reason] |
+| ⚡ Runtime | [Tech] | [X] | [Critical factor] |
+| 🧪 Testing | [Tech] | [X] | [Quality approach] |
 
-## Architecture Evolution
-- Prior Decisions Maintained: [Count]
-- Changes Required: [Count with justification]
-- New Decisions: [Count]
+## Research Highlights
+- **✅ Requirements Satisfied**: [X/X] use cases fully supported
+- **⚖️ Trade-offs Made**: [Primary technology trade-off]
+- **🎯 Sweet Spot Found**: [Complexity vs capability balance]
+- **⚠️ Key Risk**: [Main risk identified] → [Mitigation approach]
 
-## Next Phase Ready
-The complete technology architecture specification with [X/81] complexity score has been written to the planning directory, ready for implementation planning in subsequent phases.
+## Ready for Feature Development
+The complete architecture decision record includes:
+- Technology stack decisions with priority levels
+- Visual mermaid diagram showing all technology relationships
+- Requirements → technology traceability matrix
+- Structured decision records with technical reasoning
+- Implementation dependencies and integration patterns
+- Risk assessment with technical mitigation strategies
+
+**Next Step**: Use `<worktree>/planning/architecture.md` as foundation for feature development decisions.
 ```
 
 Execute systematically, research progressively, prioritize intelligently, document comprehensively.
