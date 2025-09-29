@@ -241,7 +241,7 @@ The 9 backbone todos NEVER change - only their internal scope expands.
 - Validated epic in <worktree>/planning/epic.md
 - Rehydration context in <worktree>/planning/rehydration-context.md
 
-### Activity Flow
+### Progressive Knowledge-Building Flow
 
 ```mermaid
 graph TD
@@ -254,63 +254,59 @@ graph TD
     Ask --> Delta
     Ask --> New
 
-    Delta --> BaselineCheck{Baseline<br/>Exists?}
-    BaselineCheck -->|Yes| Rehydrate[Load from<br/>planning/*.md]
-    BaselineCheck -->|No| Discover[Discover Current State<br/>via Questions:<br/>• What exists today?<br/>• What needs changing?<br/>• What stays same?]
+    Delta --> InitKnowledge[Initialize<br/>Knowledge Base<br/>Level 1]
+    New --> InitKnowledge
 
-    New --> InitEpic[Initialize<br/>Epic Structure]
-    Rehydrate --> InitEpic
-    Discover --> InitEpic
+    InitKnowledge --> CoreQuestions[Ask Core<br/>Intention Questions:<br/>• Problem?<br/>• Who affected?<br/>• Success?<br/>• Why now?<br/>• Tried before?]
 
-    InitEpic --> Evaluate[Evaluate Categories<br/>Level 0-3]
+    CoreQuestions --> ExtractAnswers[Extract/Infer<br/>Answers from Input]
 
-    Evaluate --> CheckBlockers{Red Flag<br/>Blockers?}
-    CheckBlockers -->|Yes| ShowBlockers[Display Blockers<br/>Must Fix]
-    CheckBlockers -->|No| CheckReady{All Categories<br/>Level 2+?}
+    ExtractAnswers --> GenerateProposals[Generate<br/>Proposed Answers<br/>with Reasoning]
 
-    ShowBlockers --> GenProposals[Generate<br/>Proposals]
-    CheckReady -->|No| GenProposals
-    CheckReady -->|Yes| EnhancedCheck{Enhanced<br/>Scrutiny<br/>Required?}
+    GenerateProposals --> DisplayProposals[Display Proposals<br/>for Confirmation]
 
-    GenProposals --> Display[Display Epic +<br/>Proposals]
+    DisplayProposals --> UserChoice{User<br/>Action?}
+    UserChoice -->|Accept All| ApplyAnswers[Apply to<br/>Knowledge Base]
+    UserChoice -->|Edit [1-5]| EditAnswer[User Corrects<br/>Interpretation]
+    UserChoice -->|Tell Directly| DirectAnswer[User Provides<br/>Answers]
+    UserChoice -->|Example| ProcessExample[Extract from<br/>Example]
+    UserChoice -->|Proceed| CheckQuality{Quality<br/>Criteria<br/>Met?}
 
-    Display --> UserChoice{User<br/>Action?}
-    UserChoice -->|Accept All| ApplyAll[Apply All<br/>Proposals]
-    UserChoice -->|Edit [1-5]| EditProp[Edit Specific<br/>Proposal]
-    UserChoice -->|Continue| NextIter[Generate New<br/>Proposals]
-    UserChoice -->|Proceed| ForceExit{Confirm<br/>Proceed?}
+    ApplyAnswers --> CheckProgress{Level<br/>Complete?}
+    EditAnswer --> ApplyAnswers
+    DirectAnswer --> ApplyAnswers
+    ProcessExample --> ApplyAnswers
 
-    ApplyAll --> UpdateEpic[Update<br/>epic.md]
-    EditProp --> UpdateEpic
-    NextIter --> UpdateEpic
+    CheckProgress -->|Yes & Level < 3| NextLevel[Progress to<br/>Next Level]
+    CheckProgress -->|No| MoreQuestions[Generate More<br/>Questions]
+    CheckProgress -->|Level 3 Done| CheckQuality
 
-    UpdateEpic --> IterCheck{Iteration<br/>< 7?}
-    IterCheck -->|Yes| Evaluate
-    IterCheck -->|No| ForceExit
+    NextLevel -->|Level 2| ContextQuestions[Generate Context<br/>Questions Based<br/>on Level 1]
+    NextLevel -->|Level 3| DetailQuestions[Generate Detail<br/>Questions Based<br/>on Levels 1-2]
 
-    EnhancedCheck -->|Financial/Medical/etc| AddReqs[Add Domain<br/>Requirements]
-    EnhancedCheck -->|No| QualityGates[Run Quality<br/>Gates]
-    AddReqs --> QualityGates
+    ContextQuestions --> ExtractAnswers
+    DetailQuestions --> ExtractAnswers
+    MoreQuestions --> ExtractAnswers
 
-    QualityGates --> GateCheck{All Gates<br/>Pass?}
-    GateCheck -->|No| GenProposals
-    GateCheck -->|Yes| Complete[Phase 1<br/>Complete]
+    CheckQuality -->|Not Met| ShowGaps[Show Quality<br/>Gaps]
+    CheckQuality -->|Met| Complete[Phase 1<br/>Complete]
 
-    ForceExit -->|Yes| Complete
-    ForceExit -->|No| GenProposals
+    ShowGaps --> UserConfirm{Force<br/>Proceed?}
+    UserConfirm -->|Yes| Complete
+    UserConfirm -->|No| MoreQuestions
 
     Complete --> Output[Output:<br/>epic.md]
 
     style Start fill:#e1f5e1
     style Complete fill:#e1f5e1
     style Output fill:#c8e6c9
-    style ShowBlockers fill:#ffcdd2
-    style Delta fill:#fff3e0
-    style New fill:#e3f2fd
-    style Discover fill:#fff9c4
+    style CoreQuestions fill:#fff3e0
+    style ContextQuestions fill:#e3f2fd
+    style DetailQuestions fill:#f3e5f5
+    style CheckQuality fill:#ffcdd2
 ```
 
-### 1. Epic Type Detection & Baseline Discovery
+### 1. Epic Type Detection & Knowledge Base Initialization
 
 Determine if we're building new or changing existing:
 
@@ -356,331 +352,1095 @@ IF TYPE == DELTA:
 OUTPUT: <worktree>/planning/rehydration-context.md
 ```
 
-### 2. Intention Extraction
+### 2. Progressive Intention Extraction Through Questions
 
-Extract core business intention and surface implications:
+Extract user's true intention through progressive knowledge-building:
 
 ```markdown
-CORE_EXTRACTION:
-1. **Primary Business Intention**: What business problem are we solving?
-2. **Success Vision**: What does success look like to each stakeholder?
-3. **Value Proposition**: Why is this valuable now?
-4. **Unstated Implications**: What's assumed but not explicitly said?
-5. **Hidden Stakeholders**: Who's affected but not mentioned?
+# LEVEL 1: CORE INTENTION QUESTIONS (Always Ask First)
+CORE_QUESTIONS = [
+  {
+    "id": "INTENT-1",
+    "question": "What problem are you trying to solve?",
+    "why": "Understand the root problem, not just the proposed solution",
+    "quality_criteria": "Answer must describe a business problem, not a technical solution",
+    "required": true
+  },
+  {
+    "id": "INTENT-2",
+    "question": "Who is experiencing this problem and how does it affect them?",
+    "why": "Identify real stakeholders and their pain points",
+    "quality_criteria": "Must name specific roles/users and describe their current struggle",
+    "required": true
+  },
+  {
+    "id": "INTENT-3",
+    "question": "What does success look like when this is solved?",
+    "why": "Define the target state in business terms",
+    "quality_criteria": "Must be measurable and describe outcomes, not features",
+    "required": true
+  },
+  {
+    "id": "INTENT-4",
+    "question": "Why is this important to solve now?",
+    "why": "Understand urgency and priority",
+    "quality_criteria": "Must explain business drivers or consequences of not solving",
+    "required": true
+  },
+  {
+    "id": "INTENT-5",
+    "question": "What have you already tried or considered?",
+    "why": "Learn from past attempts and avoid repeating failures",
+    "quality_criteria": "Should reveal constraints and lessons learned",
+    "required": false
+  }
+]
 
-FOR DELTA scenarios - INTEGRATION ANALYSIS:
-6. **Change Intention**: What's unsatisfactory about current business state?
-7. **Business Impact**: How does this change existing stakeholder value?
-8. **Destructive Intent**: What existing business capabilities should change/be removed?
-9. **Continuity Requirements**: What existing relationships must be preserved?
+# LEVEL 2: CONTEXT EXPANSION (Generated from Level 1 answers)
+GENERATE_CONTEXT_QUESTIONS(level1_answers):
+  questions = []
 
-GENERATE initial business assumptions for validation
-SET initial confidence: 15%
-CREATE initial epic draft with assumption markers
+  # Based on problem type
+  IF mentions_existing_system(level1_answers["INTENT-1"]):
+    questions.add("What parts of the current system work well and must be preserved?")
+    questions.add("What specific aspects are failing or inadequate?")
+    questions.add("Who depends on the current system continuing to work?")
+
+  # Based on stakeholders
+  FOR stakeholder IN extract_stakeholders(level1_answers["INTENT-2"]):
+    questions.add(f"How does {stakeholder} currently handle this without a solution?")
+    questions.add(f"What would {stakeholder} lose if we solve this incorrectly?")
+
+  # Based on success criteria
+  IF has_metrics(level1_answers["INTENT-3"]):
+    questions.add("What are the current baseline metrics?")
+    questions.add("What improvement percentage would be meaningful?")
+    questions.add("How will we measure and track these metrics?")
+
+  # Based on urgency
+  IF is_urgent(level1_answers["INTENT-4"]):
+    questions.add("What happens if we don't solve this in the next [timeframe]?")
+    questions.add("Is there a minimum viable solution we should target first?")
+
+  RETURN questions
+
+# LEVEL 3: DETAILED REQUIREMENTS (Generated from Levels 1-2)
+GENERATE_DETAIL_QUESTIONS(knowledge_base):
+  questions = []
+
+  # Workflow questions
+  IF has_user_actions(knowledge_base):
+    questions.add("Walk through the complete workflow from start to finish")
+    questions.add("What can go wrong at each step?")
+    questions.add("What decisions do users make and what information do they need?")
+
+  # Business rule questions
+  IF has_constraints(knowledge_base):
+    questions.add("What business rules must always be enforced?")
+    questions.add("Are there any regulatory or compliance requirements?")
+    questions.add("What validations prevent invalid states?")
+
+  # Integration questions
+  IF mentions_other_systems(knowledge_base):
+    questions.add("How should this interact with [specific system]?")
+    questions.add("What data needs to flow between systems?")
+    questions.add("What happens if the external system is unavailable?")
+
+  RETURN questions
 ```
 
-### 3. Progressive Refinement with Category Tracking
+### 3. Progressive Knowledge-Building Loop
 
-Build understanding through category-based evaluation and explicit proposals:
+Build understanding through iterative question-answer cycles with user confirmation:
 
 ```markdown
-PROGRESSIVE_REFINEMENT_LOOP:
+PHASE_1_PROGRESSIVE_REFINEMENT:
 
-EVALUATE epic against categories:
+# Initialize knowledge base
+knowledge = {
+  "level": 1,
+  "answered_questions": {},
+  "proposed_additions": [],
+  "confidence": 0,
+  "gaps": []
+}
 
-CORE CATEGORIES (All epics):
-1. Actors & Permissions - WHO uses this and what can they do?
-2. Workflows & Triggers - WHAT do they do and when?
-3. Business Rules - WHAT constraints and conditions apply?
-4. Error Handling - WHAT can go wrong and how to recover?
-5. Success Criteria - HOW do we measure success?
-6. Data & State - WHAT data and state transitions?
-7. Testability - HOW will we validate this works?
+# Start with user's initial input
+initial_epic = <original-requirements>
 
-DELTA-SPECIFIC (When TYPE == DELTA):
-8. Baseline Clarity - WHAT exists now?
-9. Change Precision - WHAT exactly is changing?
-10. Migration Path - HOW do we transition?
+# Function to display the progressively building epic
+FUNCTION display_progressive_epic(initial_epic, knowledge, iteration):
+  """
+  Display the epic as it evolves with each iteration, showing:
+  1. Original request at the top
+  2. All confirmed knowledge organized by level
+  3. Visual indicators for new/updated information
+  """
 
-INTEGRATION-HEAVY (When external systems detected):
-11. External Systems - WHAT systems integrate?
-12. API Contracts - WHAT are the interfaces?
+  output = f"""
+### Original Request:
+{initial_epic}
 
-CRITICAL THINKING (Always evaluate):
-13. Contradictions - Any logical conflicts?
-14. Second-order Effects - What ripple impacts?
-15. Anti-criteria - What are we NOT doing?
-16. Key Assumptions - What are we assuming?
+### What We've Learned So Far (Iteration {iteration}):
+"""
 
-WHILE not ready AND user_continues:
+  # Show Level 1 answers if we have them
+  IF any(q.startswith("INTENT-") for q in knowledge.answered_questions):
+    output += "\n#### 📍 Core Intention (Level 1):\n"
 
-  ASSESS category levels (0-3):
-  - Level 0: Not addressed
-  - Level 1: Basic/vague
-  - Level 2: Clear/testable (MINIMUM TARGET)
-  - Level 3: Comprehensive
+    IF "INTENT-1" IN knowledge.answered_questions:
+      answer = knowledge.answered_questions["INTENT-1"]
+      output += f"**Problem to Solve**: {answer.answer}\n"
+      output += f"   ↳ Confidence: {answer.confidence*100}%\n\n"
 
-  DETECT blockers (red flags):
-  - Circular dependencies
-  - Contradictory requirements
-  - Undefined core actors
-  - Missing success criteria
-  - Impossible constraints
+    IF "INTENT-2" IN knowledge.answered_questions:
+      answer = knowledge.answered_questions["INTENT-2"]
+      output += f"**Who's Affected**: {answer.answer}\n"
+      output += f"   ↳ Confidence: {answer.confidence*100}%\n\n"
 
-  DISPLAY epic with progress:
+    IF "INTENT-3" IN knowledge.answered_questions:
+      answer = knowledge.answered_questions["INTENT-3"]
+      output += f"**Success Looks Like**: {answer.answer}\n"
+      output += f"   ↳ Confidence: {answer.confidence*100}%\n\n"
 
-  ```
-  ═══════════════════════════════════════════════════════════════════════════════
-                        EPIC REFINEMENT - TYPE: [DELTA/NEW]
-                             Iteration [N] of 7
-  ═══════════════════════════════════════════════════════════════════════════════
+    IF "INTENT-4" IN knowledge.answered_questions:
+      answer = knowledge.answered_questions["INTENT-4"]
+      output += f"**Why Now**: {answer.answer}\n"
+      output += f"   ↳ Confidence: {answer.confidence*100}%\n\n"
 
-  ## [Epic Title]
+    IF "INTENT-5" IN knowledge.answered_questions:
+      answer = knowledge.answered_questions["INTENT-5"]
+      output += f"**Previous Attempts**: {answer.answer}\n"
+      output += f"   ↳ Confidence: {answer.confidence*100}%\n\n"
 
-  ### Business Actors
-  [Current actor definitions with roles, permissions, goals]
+  # Show Level 2 answers if we have them
+  IF knowledge.level >= 2 AND any(q.startswith("L2-") for q in knowledge.answered_questions):
+    output += "\n#### 🔍 Context Details (Level 2):\n"
+    FOR question_id, answer IN knowledge.answered_questions.items():
+      IF question_id.startswith("L2-"):
+        question_text = get_question_text(question_id)
+        output += f"**{question_text}**\n"
+        output += f"{answer.answer}\n"
+        output += f"   ↳ Confidence: {answer.confidence*100}% | Source: {answer.source}\n\n"
 
-  ### Core Workflows
-  [Current workflow definitions with triggers, steps, outcomes]
+  # Show Level 3 answers if we have them
+  IF knowledge.level >= 3 AND any(q.startswith("L3-") for q in knowledge.answered_questions):
+    output += "\n#### 📋 Detailed Requirements (Level 3):\n"
+    FOR question_id, answer IN knowledge.answered_questions.items():
+      IF question_id.startswith("L3-"):
+        question_text = get_question_text(question_id)
+        output += f"**{question_text}**\n"
+        output += f"{answer.answer}\n"
+        output += f"   ↳ Confidence: {answer.confidence*100}% | Source: {answer.source}\n\n"
 
-  ### Business Rules
-  [Current business rules with conditions and constraints]
+  # Show what's still unclear
+  IF knowledge.gaps:
+    output += "\n#### ❓ Areas Needing Clarification:\n"
+    FOR gap IN knowledge.gaps[:3]:  # Show top 3 gaps
+      output += f"• {gap}\n"
 
-  ### Data & State
-  [Data models and state transitions]
+  RETURN output
 
-  ### Error Handling
-  [Error scenarios and recovery procedures]
+FOR iteration FROM 1 TO 7:
 
-  ### Success Criteria
-  [Measurable success metrics]
+  # Determine current questions based on knowledge level
+  IF knowledge.level == 1:
+    current_questions = CORE_QUESTIONS
+  ELIF knowledge.level == 2:
+    current_questions = GENERATE_CONTEXT_QUESTIONS(knowledge.answered_questions)
+  ELIF knowledge.level == 3:
+    current_questions = GENERATE_DETAIL_QUESTIONS(knowledge)
 
-  [DELTA sections if applicable:]
-  ### Current System (Baseline)
-  [What exists today]
+  # Analyze current epic against questions
+  unanswered = []
+  FOR question IN current_questions:
+    IF question.id NOT IN knowledge.answered_questions:
+      # Try to extract from epic
+      extracted = extract_answer(question, initial_epic, knowledge)
+      IF extracted.confidence >= 0.7:
+        knowledge.answered_questions[question.id] = extracted
+      ELSE:
+        unanswered.append(question)
 
-  ### Changes Required
-  [What's changing and why]
+  # Check if we can progress to next level
+  level_complete = (len(knowledge.answered_questions) / len(current_questions)) >= 0.8
+  IF level_complete AND knowledge.level < 3:
+    knowledge.level += 1
+    CONTINUE  # Generate new questions for next level
 
-  ### Migration Plan
-  [How to transition]
+  # Generate proposals for unanswered questions
+  proposals = []
+  FOR question IN unanswered[:5]:  # Max 5 proposals per iteration
+    proposal = {
+      "question": question,
+      "proposed_answer": generate_intelligent_answer(question, knowledge),
+      "confidence": calculate_confidence(question, knowledge),
+      "reasoning": explain_reasoning(question, knowledge),
+      "impact": "This will help us understand " + question.why
+    }
+    proposals.append(proposal)
 
-  ───────────────────────────────────────────────────────────────────────────────
-                           READINESS: [X]%
-  ───────────────────────────────────────────────────────────────────────────────
+  # Display current state and proposals
+  DISPLAY """
+═══════════════════════════════════════════════════════════════════════════════
+                 PHASE 1: EXTRACTING YOUR INTENTION
+                     Iteration {iteration}/7
+           Building Knowledge Level {knowledge.level}/3
+═══════════════════════════════════════════════════════════════════════════════
 
-  ❌ BLOCKERS (Must Fix)
-  • [Specific blocker with description]
+## YOUR EVOLVING EPIC
 
-  ⚠️ GAPS (Should Address)
-  • [Specific gap with impact]
+{display_progressive_epic(initial_epic, knowledge, iteration)}
 
-  ✅ COMPLETE
-  • [Categories meeting targets]
+───────────────────────────────────────────────────────────────────────────────
+                    KNOWLEDGE BUILDING PROGRESS
+───────────────────────────────────────────────────────────────────────────────
 
-  ───────────────────────────────────────────────────────────────────────────────
-                         PROPOSED ADDITIONS
-  ───────────────────────────────────────────────────────────────────────────────
+📚 Knowledge Level: {knowledge.level}/3 - {get_level_name(knowledge.level)}
+📊 Questions Answered: {len(knowledge.answered_questions)}/{total_questions_so_far}
+🎯 Confidence: {knowledge.confidence}%
 
-  [1] ACTOR CLARIFICATION
-      In "Business Actors", ADD:
-      "**Approver**: Manager role with authority to approve orders >$5000
-       - Permissions: View all orders, approve/reject high-value
-       - Goals: Ensure compliance and prevent fraud"
+LEVEL 1 - CORE INTENTION: {show_level_1_progress()}
+{FOR q IN CORE_QUESTIONS:
+  icon = "✅" if q.id in knowledge.answered_questions else "⭕"
+  print(f"{icon} {q.question}")
+}
 
-  [2] WORKFLOW ENHANCEMENT
-      In "Core Workflows", ADD:
-      "**Error Recovery**:
-       • Payment failure: Release inventory, restore cart, notify user
-       • System timeout: Save state, allow resume within 24 hours"
+{IF knowledge.level >= 2:}
+LEVEL 2 - CONTEXT EXPANSION: {show_level_2_progress()}
+{FOR q IN level_2_questions:
+  icon = "✅" if q.id in knowledge.answered_questions else "⭕"
+  print(f"{icon} {q.question}")
+}
+{END IF}
 
-  [3] BUSINESS RULE
-      In "Business Rules", ADD:
-      "**Order Validation**:
-       IF order.total > 10000 THEN require_manager_approval
-       IF order.items > 100 THEN split_into_batches"
+{IF knowledge.level >= 3:}
+LEVEL 3 - DETAILED REQUIREMENTS: {show_level_3_progress()}
+{FOR q IN level_3_questions:
+  icon = "✅" if q.id in knowledge.answered_questions else "⭕"
+  print(f"{icon} {q.question}")
+}
+{END IF}
 
-  [4] SUCCESS METRIC
-      In "Success Criteria", ADD:
-      "• 95% checkout completion rate
-       • <3 minute average checkout time
-       • Zero payment data exposure"
+───────────────────────────────────────────────────────────────────────────────
+                    📊 QUALITY ASSESSMENT
+───────────────────────────────────────────────────────────────────────────────
+"""
 
-  [5] TEST STRATEGY
-      ADD NEW SECTION "Validation Approach":
-      "• Unit tests: All business rules
-       • Integration: Full checkout flow
-       • Load: 1000 concurrent users"
+  # Run quality evaluation if we have enough knowledge
+  IF len(knowledge.answered_questions) >= 3:
+    evaluation = evaluate_epic_quality(knowledge)
 
-  ───────────────────────────────────────────────────────────────────────────────
+    DISPLAY f"""
+{evaluation.overall_score}/100 - {get_quality_label(evaluation.overall_score)}
 
-  [A]ccept all  [1-5] Edit specific  [C]ontinue  [P]roceed: _
-  ```
+QUALITY DIMENSIONS BY CATEGORY:
+"""
 
-  PROCESS user responses:
-  - [A]: Apply all proposals to epic
-  - [1-5]: User edits specific proposal (e.g., "3: Change limit to 5000")
-  - [C]: Generate new proposals for remaining gaps
-  - [P]: Proceed despite gaps (with confirmation)
+    # Group dimensions by category for better readability
+    categories = {
+      "Core Clarity": evaluation.dimensions[0:5],
+      "Quality & Simplicity": evaluation.dimensions[5:10],
+      "Logical Integrity": evaluation.dimensions[10:15],
+      "Technical Readiness": evaluation.dimensions[15:20]
+    }
 
-  UPDATE <worktree>/planning/epic.md
-  RECALCULATE readiness percentage
+    FOR category_name, dimensions IN categories.items():
+      category_avg = sum(d.score for d in dimensions) / len(dimensions)
+      category_icon = "✅" if category_avg >= 80 else "⚠️" if category_avg >= 60 else "❌"
 
-EXIT CONDITIONS:
-- All blockers resolved AND
-- All core categories at Level 2+ OR
-- User explicitly proceeds OR
-- 7 iterations completed
+      DISPLAY f"""
+{category_icon} {category_name}: {category_avg:.0f}/100"""
+
+      FOR dimension IN dimensions:
+        icon = "  ✅" if dimension.score >= 80 else "  ⚠️" if dimension.score >= 60 else "  ❌"
+        DISPLAY f"{icon} {dimension.name}: {dimension.score}/100"
+        IF dimension.score < 80:
+          DISPLAY f"     Issue: {dimension.issue}"
+          DISPLAY f"     → {dimension.suggestion}"
+
+    # Generate and display improvements if needed
+    IF evaluation.overall_score < 80:
+      improvements = generate_epic_improvements(evaluation, knowledge)
+
+      DISPLAY """
+───────────────────────────────────────────────────────────────────────────────
+                    💡 RECOMMENDED IMPROVEMENTS
+───────────────────────────────────────────────────────────────────────────────
+Based on the quality assessment, here are specific improvements to strengthen
+your epic:
+"""
+
+      FOR i, improvement IN enumerate(improvements, 1):
+        priority_icon = "🔴" if improvement.priority == "blocking" else "🟡" if improvement.priority == "high" else "⚪"
+
+        DISPLAY f"""
+{priority_icon} [{i}] {improvement.dimension_name} (Current score: {improvement.score}/100)
+
+CURRENT STATE:
+{improvement.current or "[Missing]"}
+
+RECOMMENDED CHANGE:
+{improvement.proposed}
+
+WHY THIS HELPS:
+{improvement.rationale}
+────────────────────────────────────────────────────────────
+"""
+
+      DISPLAY """
+───────────────────────────────────────────────────────────────────────────────
+                    🎯 EPIC IMPROVEMENT OPTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+[A] Accept all improvements
+[1-5] Accept specific improvement #n
+[S] Skip improvements for now
+[Q] Continue with clarification questions
+[P] Proceed to next phase (current quality: {evaluation.overall_score}/100)
+
+📝 Or provide an editorial comment to modify the improvements (e.g., "Make the success criteria more specific" or "Focus on user experience instead")
+
+Choice: """
+
+      improvement_choice = GET_USER_INPUT()
+
+      # Check if this is a menu option or editorial comment
+      IF improvement_choice IN ["A", "1", "2", "3", "4", "5", "S", "Q", "P"]:
+        # Handle menu selections
+        IF improvement_choice == "A":
+          # Apply all improvements to knowledge
+          FOR improvement IN improvements:
+            apply_improvement_to_knowledge(improvement, knowledge)
+          knowledge.confidence = recalculate_confidence(knowledge)
+          DISPLAY "✅ All improvements applied to your epic."
+
+        ELIF improvement_choice IN ["1", "2", "3", "4", "5"]:
+          # Apply specific improvement
+          improvement = improvements[int(improvement_choice) - 1]
+          apply_improvement_to_knowledge(improvement, knowledge)
+          DISPLAY f"✅ Applied improvement: {improvement.dimension_name}"
+
+        ELIF improvement_choice == "P":
+          # User wants to proceed despite quality issues
+          DISPLAY f"Proceeding with current quality level: {evaluation.overall_score}/100"
+          BREAK
+
+        # If S or Q, continue to clarification questions below
+
+      ELSE:
+        # Handle editorial comment
+        editorial_comment = improvement_choice
+
+        # Use LLM to interpret the editorial comment
+        interpretation = interpret_editorial_comment(editorial_comment, improvements, knowledge)
+
+        DISPLAY f"""
+───────────────────────────────────────────────────────────────────────────────
+                    📝 PROCESSING YOUR EDITORIAL COMMENT
+───────────────────────────────────────────────────────────────────────────────
+
+YOUR COMMENT: {editorial_comment}
+
+MY INTERPRETATION:
+{interpretation.understanding}
+
+MODIFIED IMPROVEMENTS:"""
+
+        FOR modified IN interpretation.modified_improvements:
+          DISPLAY f"""
+────────────────────────────────────────────────────────────────
+{modified.dimension_name} (Score: {modified.score}/100)
+
+ORIGINAL RECOMMENDATION:
+{modified.original}
+
+YOUR MODIFIED VERSION:
+{modified.new_version}
+
+WHY THIS CHANGE MAKES SENSE:
+{modified.rationale}
+────────────────────────────────────────────────────────────────"""
+
+        DISPLAY """
+───────────────────────────────────────────────────────────────────────────────
+                    🎯 CONFIRM YOUR EDITORIAL CHANGES
+───────────────────────────────────────────────────────────────────────────────
+
+[C] Confirm and apply these modified improvements
+[R] Let me re-explain my editorial comment
+[M] Make additional modifications
+[S] Skip these changes and continue
+[Q] Continue with clarification questions
+
+Choice: """
+
+        confirm_choice = GET_USER_INPUT()
+
+        IF confirm_choice == "C":
+          # Apply modified improvements
+          FOR modified IN interpretation.modified_improvements:
+            apply_modified_improvement(modified, knowledge)
+          DISPLAY "✅ Applied your edited improvements to the epic."
+
+        ELIF confirm_choice == "R":
+          # Loop back to get clearer editorial input
+          DISPLAY "Please re-explain what you'd like to change about the improvements:"
+          CONTINUE
+
+        ELIF confirm_choice == "M":
+          # Allow further modifications
+          DISPLAY "What additional modifications would you like to make?"
+          additional_comment = GET_USER_INPUT()
+          # Process additional comment and merge with previous interpretation
+          enhanced_interpretation = enhance_interpretation(interpretation, additional_comment)
+          # Apply enhanced version
+          FOR modified IN enhanced_interpretation.modified_improvements:
+            apply_modified_improvement(modified, knowledge)
+          DISPLAY "✅ Applied your enhanced improvements to the epic."
+
+        # If S or Q, continue to clarification questions below
+
+  DISPLAY """
+───────────────────────────────────────────────────────────────────────────────
+              CLARIFICATION QUESTIONS
+───────────────────────────────────────────────────────────────────────────────
+
+Based on your epic above, I need to clarify the following to ensure I fully
+understand your intention:
+"""
+
+  FOR i, proposal IN enumerate(proposals, 1):
+    DISPLAY f"""
+────────────────────────────────────────────────────────────────
+[{i}] {proposal.question.question}
+
+📝 MY UNDERSTANDING:
+{proposal.proposed_answer}
+
+💭 MY REASONING:
+{proposal.reasoning}
+
+🎯 WHY THIS MATTERS:
+{proposal.impact}
+
+📊 Confidence: {proposal.confidence}
+────────────────────────────────────────────────────────────────
+"""
+
+  DISPLAY """
+───────────────────────────────────────────────────────────────────────────────
+                         YOUR RESPONSE
+───────────────────────────────────────────────────────────────────────────────
+
+Please help me understand your intention:
+
+[A] Yes, accept all {len(proposals)} interpretations
+[1-{len(proposals)}] Let me correct interpretation #{n}
+[R] No, these miss the point - try again
+[T] Tell you directly: Let me answer the questions myself
+[E] Provide an example or scenario
+[P] My epic is complete enough - proceed to Phase 2
+
+Choice: """
+
+  # Process user response
+  choice = GET_USER_INPUT()
+
+  IF choice == "A":
+    # Accept all proposals - build knowledge
+    FOR proposal IN proposals:
+      knowledge.answered_questions[proposal.question.id] = {
+        "answer": proposal.proposed_answer,
+        "confidence": proposal.confidence,
+        "source": "confirmed by user"
+      }
+      knowledge.confidence = recalculate_confidence(knowledge)
+
+  ELIF choice IN ["1", "2", "3", "4", "5"]:
+    # Correct specific interpretation
+    idx = int(choice) - 1
+    proposal = proposals[idx]
+    DISPLAY f"""
+Let me correct this interpretation:
+
+Question: {proposal.question.question}
+My interpretation: {proposal.proposed_answer}
+
+Your correction: """
+    correction = GET_USER_INPUT()
+
+    knowledge.answered_questions[proposal.question.id] = {
+      "answer": correction,
+      "confidence": 1.0,
+      "source": "directly from user"
+    }
+
+    # This correction might reveal new insights
+    knowledge = update_knowledge_from_correction(knowledge, correction)
+
+  ELIF choice == "T":
+    # Direct answers
+    FOR question IN unanswered:
+      DISPLAY f"Question: {question.question}"
+      DISPLAY f"(Why I'm asking: {question.why})"
+      answer = GET_USER_INPUT("Your answer: ")
+
+      knowledge.answered_questions[question.id] = {
+        "answer": answer,
+        "confidence": 1.0,
+        "source": "directly from user"
+      }
+
+  ELIF choice == "E":
+    # Example/scenario provided
+    DISPLAY "Please provide an example or scenario:"
+    example = GET_USER_INPUT()
+
+    # Extract knowledge from example
+    extracted = extract_knowledge_from_example(example, unanswered)
+    FOR question_id, answer IN extracted.items():
+      knowledge.answered_questions[question_id] = answer
+
+  ELIF choice == "P":
+    # Check if we have enough to proceed
+    IF knowledge.confidence >= 75:
+      BREAK
+    ELSE:
+      DISPLAY f"Current confidence: {knowledge.confidence}%"
+      DISPLAY "Minimum recommended: 75%"
+      DISPLAY "Proceed anyway? (yes/no)"
+      IF GET_USER_INPUT() == "yes":
+        BREAK
+
+# END REFINEMENT LOOP
 ```
 
-### 4. Enhanced Scrutiny & Quality Gates
+### 4. Quality Evaluation Through Natural Language
 
-Apply domain-specific rigor and validate readiness:
+Evaluate the completed knowledge for quality and readiness using LLM reasoning:
 
 ```markdown
-ENHANCED_SCRUTINY_DETECTION:
+QUALITY_EVALUATION_SYSTEM:
 
-CHECK for high-risk domains requiring extra detail:
+FUNCTION evaluate_epic_quality(knowledge):
+  """
+  Use LLM's natural reasoning to evaluate epic quality and generate recommendations
+  """
 
-LIFE-CRITICAL:
-Triggers: ["medical", "safety", "emergency", "aviation"]
-→ REQUIRE: Failure modes, redundancy, regulatory compliance
+  # Natural language evaluation prompt
+  EVALUATION_PROMPT = """
+  Evaluate this epic for quality and completeness. Read through the current
+  understanding and assess each quality dimension naturally:
 
-FINANCIAL:
-Triggers: ["payment", "banking", "transaction", "monetary"]
-→ REQUIRE: Atomicity, audit trails, precision, compliance
+  EPIC KNOWLEDGE:
+  {format_epic_knowledge(knowledge)}
 
-PRIVACY-SENSITIVE:
-Triggers: ["HIPAA", "GDPR", "PII", "personal data"]
-→ REQUIRE: Data classification, consent, retention, breach procedures
+  Please evaluate the following dimensions by reasoning through each one:
 
-REAL-TIME:
-Triggers: ["real-time", "streaming", "latency", "<X ms"]
-→ REQUIRE: Performance bounds, degradation, backpressure
+  === CORE CLARITY (1-5) ===
 
-HIGH-SCALE:
-Triggers: [">1M users", ">1B records", ">10K TPS"]
-→ REQUIRE: Sharding, caching, capacity planning
+  1. INTENTION CLARITY
+     - Is the core problem clearly stated without jumping to solutions?
+     - Can you understand WHY this matters to the business?
 
-IF enhanced_scrutiny_triggered:
-  ELEVATE minimum category levels
-  ADD domain-specific requirements
-  REQUIRE additional validation
+  2. STAKEHOLDER IDENTIFICATION
+     - Are all affected parties named with their specific needs?
+     - Do we know who will use this and how?
 
-QUALITY_GATES:
+  3. SUCCESS DEFINITION
+     - Is success defined in measurable terms?
+     - Will we know when we're done?
 
-BLOCKERS (Red flags - must fix):
-1. **Contradictory Requirements**: Mutually exclusive needs
-2. **Circular Dependencies**: A needs B, B needs C, C needs A
-3. **Impossible Constraints**: Violates laws of physics/logic
-4. **Undefined Core Elements**: References to non-existent actors/data
+  4. SCOPE BOUNDARIES
+     - Is it clear what's included and what's not?
+     - Are the boundaries well-defined?
 
-CRITICAL VALIDATIONS:
-5. **DELTA Baseline**: For changes, is current state documented?
-6. **Migration Path**: For changes, how do we transition?
-7. **Integration Contracts**: Are external dependencies specified?
-8. **Success Measurability**: Can we objectively validate success?
+  5. ACCEPTANCE CRITERIA
+     - Are completion criteria specific and testable?
+     - Who validates that requirements are met?
 
-CONTRARIAN CHECKS:
-9. **Opposite Approach**: What if we did the reverse?
-10. **Do Nothing Option**: What if we didn't build this?
-11. **Simpler Alternative**: Could a trivial solution work?
-12. **Second-Order Effects**: What breaks if this succeeds wildly?
+  === QUALITY & SIMPLICITY (6-10) ===
 
-ASSUMPTION VALIDATION:
-13. **Hidden Dependencies**: What are we assuming exists?
-14. **Resource Reality**: Are resource needs realistic?
-15. **User Behavior**: Will users actually do what we expect?
+  6. SIMPLICITY
+     - Is the solution appropriately simple for the problem?
+     - Are we over-engineering or adding unnecessary complexity?
+     - Check for: YAGNI violations, gold plating, premature optimization
 
-GATE_PROCESSING:
-- Blockers → MUST resolve before proceeding
-- Critical → SHOULD address or document acceptance
-- Contrarian → CONSIDER and note insights
-- Assumptions → VALIDATE or mark as risks
+  7. EASE OF USE
+     - Will users find this intuitive and easy to use?
+     - How many steps for common tasks?
+     - Is the learning curve reasonable?
+
+  8. POSITIVE FRAMING
+     - Are objectives stated as what TO do (not what NOT to do)?
+     - Example: "Response time < 200ms" vs "Don't be slow"
+     - Are success criteria framed positively?
+
+  9. USER JOURNEY COMPLETENESS
+     - Is the happy path clearly defined?
+     - Are error scenarios identified?
+     - Have edge cases been considered?
+
+  10. BUSINESS RULES CLARITY
+      - Are all business rules explicitly stated?
+      - Are exceptions and special cases documented?
+      - Is validation logic clear?
+
+  === LOGICAL INTEGRITY (11-15) ===
+
+  11. LOGICAL CONSISTENCY
+      - Do all requirements work together logically?
+      - Are there any contradictions or circular dependencies?
+      - Check for impossible constraints (e.g., "instant" + "batch processing")
+
+  12. NO REDUNDANCY
+      - Are requirements stated once clearly (not repeated)?
+      - Check for duplicate success criteria
+      - Identify overlapping scope statements
+
+  13. NO LOGICAL FALLACIES
+      - False dichotomies ("either X or failure")
+      - Hasty generalizations ("all users want...")
+      - Sunk cost fallacy ("we already built...")
+      - Appeals to authority without justification
+
+  14. NO ANTI-PATTERNS
+      - XY Problem: Asking for solution Y when problem is X
+      - Kitchen sink: Trying to solve too many problems at once
+      - Golden hammer: Forcing a familiar solution
+      - Feature creep: "While we're at it..." additions
+
+  15. PRIORITY & VALUE CLARITY
+      - Is business value articulated?
+      - Is relative priority clear?
+      - Do we understand cost of delay?
+
+  === TECHNICAL READINESS (16-20) ===
+
+  16. RISK AWARENESS
+      - Are major risks identified?
+      - Do we know what could go wrong?
+      - Are mitigation strategies mentioned?
+
+  17. DEPENDENCIES
+      - Are external dependencies and prerequisites clear?
+      - Do we know what we need before starting?
+      - Are integration points identified?
+
+  18. DATA REQUIREMENTS
+      - What data is involved?
+      - Are state transitions defined?
+      - Is data migration addressed?
+
+  19. NON-FUNCTIONAL REQUIREMENTS
+      - Performance expectations stated?
+      - Security requirements identified?
+      - Scalability needs clear?
+      - Accessibility requirements mentioned?
+
+  20. TESTABILITY
+      - Can we verify when each requirement is met?
+      - Are success criteria specific and measurable?
+      - Is there a clear way to validate completion?
+
+  For each dimension:
+  - Explain your reasoning
+  - Score from 0-100 (100 = excellent, 0 = missing/poor)
+  - Note specific issues found
+  - Suggest improvements if score < 80
+
+  After evaluating all dimensions:
+  - Calculate overall quality score (weighted average)
+  - Identify any BLOCKING issues (must fix)
+  - List top 3-5 specific improvements needed
+  - Note any detected anti-patterns or logical fallacies
+  """
+
+  evaluation_result = ANALYZE_WITH_LLM(EVALUATION_PROMPT)
+  RETURN evaluation_result
+
+FUNCTION generate_epic_improvements(evaluation_result, knowledge):
+  """
+  Based on quality evaluation, generate specific epic improvements
+  """
+
+  IMPROVEMENT_PROMPT = """
+  Based on the quality evaluation:
+  {evaluation_result}
+
+  Generate specific, actionable improvements to the epic.
+  For each low-scoring dimension, propose concrete text to add or modify.
+
+  Format each improvement as:
+
+  IMPROVEMENT #{n}: {dimension_name} (Score: {score}/100)
+  CURRENT: {what's currently in the epic or missing}
+  PROPOSED: {specific text to add/change}
+  RATIONALE: {why this improvement helps}
+  PRIORITY: {blocking|high|medium|low}
+
+  Focus on:
+  - Making vague statements specific
+  - Adding missing success criteria
+  - Clarifying ambiguous requirements
+  - Simplifying over-complicated aspects
+  - Ensuring positive framing (what TO do, not what NOT to do)
+  - Making success measurable
+
+  Limit to top 5 most important improvements.
+  """
+
+  improvements = GENERATE_WITH_LLM(IMPROVEMENT_PROMPT)
+  RETURN improvements
+
+FUNCTION interpret_editorial_comment(editorial_comment, improvements, knowledge):
+  """
+  Use LLM reasoning to interpret user's editorial comment about improvements
+  """
+
+  INTERPRETATION_PROMPT = f"""
+  The user provided this editorial comment about the recommended epic improvements:
+
+  USER COMMENT: "{editorial_comment}"
+
+  CONTEXT - CURRENT IMPROVEMENTS:
+  {format_improvements_for_interpretation(improvements)}
+
+  CURRENT EPIC STATE:
+  {display_progressive_epic(knowledge.initial_epic, knowledge, knowledge.iteration)}
+
+  TASK: Interpret the user's editorial comment and determine:
+
+  1. UNDERSTANDING: What specific changes is the user requesting?
+
+  2. AFFECTED IMPROVEMENTS: Which of the recommended improvements does this comment apply to?
+
+  3. MODIFIED IMPROVEMENTS: For each affected improvement, what should the new version be?
+
+  REASONING APPROACH:
+  - Look for specific suggestions, corrections, or preferences in the comment
+  - Consider if the user is rejecting, modifying, or enhancing the recommendations
+  - Identify any new requirements or constraints mentioned
+  - Preserve the intent of quality improvement while incorporating user feedback
+  - If the comment is unclear, make the most reasonable interpretation
+
+  RESPONSE FORMAT:
+  {{
+    "understanding": "Clear explanation of what the user wants changed",
+    "confidence": 0.85,
+    "modified_improvements": [
+      {{
+        "dimension_name": "Specific dimension being modified",
+        "score": 65,
+        "original": "Original improvement text",
+        "new_version": "User's modified version incorporating their feedback",
+        "rationale": "Why this interpretation makes sense based on their comment"
+      }}
+    ]
+  }}
+
+  If the editorial comment seems to apply to the epic in general rather than specific improvements,
+  create a new improvement that captures their feedback.
+  """
+
+  interpretation = ANALYZE_WITH_LLM(INTERPRETATION_PROMPT)
+  RETURN interpretation
+
+FUNCTION enhance_interpretation(base_interpretation, additional_comment):
+  """
+  Enhance an existing interpretation with additional user feedback
+  """
+
+  ENHANCEMENT_PROMPT = f"""
+  PREVIOUS INTERPRETATION:
+  {base_interpretation}
+
+  ADDITIONAL USER FEEDBACK:
+  "{additional_comment}"
+
+  TASK: Enhance the interpretation by incorporating this additional feedback.
+
+  - Merge the new feedback with existing modifications
+  - Resolve any conflicts by prioritizing the latest feedback
+  - Maintain consistency across all improvements
+  - Keep the same format as the original interpretation
+
+  Return the enhanced interpretation in the same JSON format.
+  """
+
+  enhanced = ANALYZE_WITH_LLM(ENHANCEMENT_PROMPT)
+  RETURN enhanced
+
+FUNCTION apply_modified_improvement(modified_improvement, knowledge):
+  """
+  Apply a user-modified improvement to the knowledge base
+  """
+
+  # Find the corresponding dimension in knowledge and update it
+  dimension_name = modified_improvement.dimension_name
+  new_content = modified_improvement.new_version
+
+  # Update the knowledge base with the modified improvement
+  IF dimension_name IN knowledge.answered_questions:
+    # Update existing answer with improved version
+    knowledge.answered_questions[dimension_name]["answer"] = new_content
+    knowledge.answered_questions[dimension_name]["confidence"] = 1.0
+    knowledge.answered_questions[dimension_name]["source"] = "user-edited improvement"
+  ELSE:
+    # Add new information to knowledge base
+    knowledge.answered_questions[f"improvement_{dimension_name}"] = {
+      "answer": new_content,
+      "confidence": 1.0,
+      "source": "user-edited improvement"
+    }
+
+  # Recalculate overall confidence
+  knowledge.confidence = recalculate_confidence(knowledge)
+
+FUNCTION format_improvements_for_interpretation(improvements):
+  """
+  Format improvements list for LLM interpretation context
+  """
+  formatted = ""
+  FOR i, improvement IN enumerate(improvements, 1):
+    formatted += f"""
+IMPROVEMENT #{i}: {improvement.dimension_name} (Score: {improvement.score}/100)
+CURRENT: {improvement.current or "[Missing]"}
+PROPOSED: {improvement.proposed}
+RATIONALE: {improvement.rationale}
+---"""
+  RETURN formatted
+
+# Helper functions for improvement application
+FUNCTION get_quality_label(score):
+  IF score >= 90: RETURN "Excellent - Ready to proceed"
+  IF score >= 80: RETURN "Good - Minor improvements recommended"
+  IF score >= 70: RETURN "Adequate - Several improvements needed"
+  IF score >= 60: RETURN "Weak - Significant improvements required"
+  RETURN "Poor - Major issues must be addressed"
+
+FUNCTION apply_improvement_to_knowledge(improvement, knowledge):
+  """
+  Apply the recommended improvement to the knowledge base
+  """
+  # Parse improvement to identify which question/field it affects
+  affected_question_id = identify_affected_question(improvement)
+
+  IF affected_question_id IN knowledge.answered_questions:
+    # Update existing answer
+    knowledge.answered_questions[affected_question_id].answer = improvement.proposed
+    knowledge.answered_questions[affected_question_id].source = "improved via recommendation"
+  ELSE:
+    # Add new answer
+    knowledge.answered_questions[affected_question_id] = {
+      "answer": improvement.proposed,
+      "confidence": 0.9,
+      "source": "added via recommendation"
+    }
+
+FUNCTION format_epic_knowledge(knowledge):
+  """
+  Format the knowledge base for LLM evaluation
+  """
+  formatted = "CURRENT EPIC KNOWLEDGE:\n\n"
+
+  # Core intention answers
+  IF "INTENT-1" IN knowledge.answered_questions:
+    formatted += f"PROBLEM: {knowledge.answered_questions['INTENT-1'].answer}\n"
+  IF "INTENT-2" IN knowledge.answered_questions:
+    formatted += f"STAKEHOLDERS: {knowledge.answered_questions['INTENT-2'].answer}\n"
+  IF "INTENT-3" IN knowledge.answered_questions:
+    formatted += f"SUCCESS: {knowledge.answered_questions['INTENT-3'].answer}\n"
+  IF "INTENT-4" IN knowledge.answered_questions:
+    formatted += f"WHY NOW: {knowledge.answered_questions['INTENT-4'].answer}\n"
+  IF "INTENT-5" IN knowledge.answered_questions:
+    formatted += f"PREVIOUS ATTEMPTS: {knowledge.answered_questions['INTENT-5'].answer}\n"
+
+  # Level 2 and 3 answers
+  FOR question_id, answer IN knowledge.answered_questions.items():
+    IF question_id.startswith("L2-") OR question_id.startswith("L3-"):
+      formatted += f"{question_id}: {answer.answer}\n"
+
+  RETURN formatted
+
+# Enhanced scrutiny for specific domains
+DOMAIN_SPECIFIC_REQUIREMENTS:
+
+IF mentions_domain(knowledge, ["medical", "healthcare", "safety"]):
+  ADD_REQUIRED_QUESTIONS([
+    "What are the regulatory compliance requirements?",
+    "What are the safety failure scenarios?",
+    "Who is responsible for user safety validation?"
+  ])
+
+IF mentions_domain(knowledge, ["financial", "payment", "banking"]):
+  ADD_REQUIRED_QUESTIONS([
+    "What are the audit and compliance requirements?",
+    "What financial regulations must be followed?",
+    "How is financial data protected and validated?"
+  ])
+
+IF mentions_domain(knowledge, ["privacy", "GDPR", "HIPAA", "PII"]):
+  ADD_REQUIRED_QUESTIONS([
+    "What personal data is collected and why?",
+    "How is user consent obtained and managed?",
+    "What are the data retention and deletion policies?"
+  ])
+
+# Quality gate validation
+QUALITY_GATES_CHECK:
+
+BLOCKERS (Must resolve before proceeding):
+- Contradictory answers detected in knowledge base
+- Circular dependencies in workflows/requirements
+- Critical stakeholders undefined or missing
+- Success criteria not measurable
+- Required questions unanswered for high-risk domains
+
+WARNINGS (Should address but not blocking):
+- Low confidence on multiple core questions
+- Incomplete understanding of existing system (for DELTA epics)
+- Missing non-functional requirements context
+- Unclear integration boundaries
+
+IF any blockers found:
+  DISPLAY blocker details with specific gaps
+  REQUIRE user to address before proceeding
+  GENERATE targeted questions to resolve blockers
+
+IF warnings found but no blockers:
+  DISPLAY warning summary
+  ALLOW user to proceed with confirmation
+  NOTE: "Phase 1 complete with noted gaps - can be addressed in later phases"
+
+FINAL_VALIDATION:
+- Overall quality score >= 75%
+- All required questions answered
+- No unresolved contradictions
+- User explicitly approves proceeding to Phase 2
 ```
 
 ### 5. Epic Finalization (LLM-Optimized Output)
 
-Create structured epic optimized for LLM use case generation:
+Generate final epic with extracted intentions and confirmed knowledge:
 
 ```markdown
-CREATE <worktree>/planning/epic.md:
+# Generate epic that captures user's true intention
+WRITE <worktree>/planning/epic.md:
 
-# Epic: [Business-Focused Title]
-**Status**: VALIDATED | **LLM Implementation Readiness**: [X]% | **Scenario**: [NEW/DELTA]
-**Created**: [Date] | **Base Context**: [Previous version for DELTA]
+# Epic: {derive_title_from_intention(knowledge)}
 
-## Business Context for LLM Implementation
+**Knowledge Level**: {knowledge.level}/3
+**Confidence**: {knowledge.confidence}%
+**Iterations**: {iteration}
+**Type**: {epic_type}
 
-### Core Business Problem
-**Problem Statement**: [Clear business problem an LLM can understand and solve]
-**Business Value**: [Measurable outcomes an LLM can design toward]
-**Success Definition**: [Concrete criteria an LLM can test against]
+## Core Intention (What and Why)
 
-### Business Actors for Use Case Generation
-**Primary Actors**:
-- **[Actor Name]**: [Role definition, permissions, goals, typical workflows]
+### The Problem We're Solving
+{knowledge.answered_questions["INTENT-1"].answer}
 
-**Secondary Actors**:
-- **[Actor Name]**: [How they interact, what they need, when involved]
+### Who It Affects and How
+{knowledge.answered_questions["INTENT-2"].answer}
 
-**System Actors** (if applicable):
-- **[External System]**: [Integration expectations, data flow, error handling]
+### Definition of Success
+{knowledge.answered_questions["INTENT-3"].answer}
 
-### Business Workflows for LLM Understanding
-**Core Workflows**:
-1. **[Workflow Name]**: [Trigger] → [Steps] → [Completion] → [Success outcome]
+### Why This Matters Now
+{knowledge.answered_questions["INTENT-4"].answer}
 
-**Exception Workflows**:
-1. **[Error Scenario]**: [Trigger] → [Expected response] → [User experience]
+### Context and Previous Attempts
+{knowledge.answered_questions["INTENT-5"].answer}
 
-### Business Rules for LLM Implementation
-**Core Business Rules**:
-- **[Rule Category]**: When [condition], then [required behavior]
+## Deeper Understanding (Level 2 Context)
 
-**Business Constraints**:
-- **[Constraint Type]**: [Limitation with clear definition]
+{FOR question_id, answer IN knowledge.answered_questions.items():
+  IF question_id.startswith("L2-"):  # Level 2 questions
+    "### {get_question_text(question_id)}"
+    "{answer.answer}"
+    "**Confidence**: {answer.confidence} | **Source**: {answer.source}"
+    ""
+}
 
-### Business Scope Definition
-### NEW Capabilities (All scenarios)
-- [Completely new business value propositions]
+## Detailed Requirements (Level 3 Specifics)
 
-### MODIFIED Capabilities (DELTA only)
-- [Existing capability] → [Enhanced version with business impact]
+{FOR question_id, answer IN knowledge.answered_questions.items():
+  IF question_id.startswith("L3-"):  # Level 3 questions
+    "### {get_question_text(question_id)}"
+    "{answer.answer}"
+    "**Confidence**: {answer.confidence} | **Source**: {answer.source}"
+    ""
+}
 
-### LEVERAGES EXISTING (DELTA only)
-- [Existing business capabilities being reused]
+## Quality Validation
 
-### REMOVES/REPLACES (DELTA destructive only)
-- [Capability being eliminated with migration implications]
+✅ **Core intention extracted and confirmed**
+✅ **Knowledge built progressively through {knowledge.level} levels**
+✅ **User corrections incorporated**: {correction_count}
+✅ **Confidence level**: {knowledge.confidence}%
+✅ **Quality criteria met**: {quality_score}/5
 
-### Validated Business Assumptions ✅
-- **[Business Category]**: [Assumption] → [Business implication]
+### Quality Assessment Details
+{FOR criterion_name, result IN quality_results.items():
+  icon = "✅" if result.meets_minimum else "⚠️"
+  "{icon} **{criterion_name}**: {result.score*100}% ({result.check})"
+}
 
-### Deferred Decisions ⏸️
-- **[Technical Decision]**: [Why deferred to Phase 4] → [Business dependency]
+## Key Insights for Next Phases
 
-### Business Success Criteria
-- **Primary Metrics**: [How we measure business success]
-- **Stakeholder Satisfaction**: [How we validate value]
+- **Primary stakeholders**: {extract_stakeholders(knowledge)}
+- **Core workflows**: {extract_workflows(knowledge)}
+- **Critical constraints**: {extract_constraints(knowledge)}
+- **Success metrics**: {extract_metrics(knowledge)}
+- **Integration points**: {extract_integrations(knowledge)}
 
-### Quality Gate Results
-- ✅ **Business Logic**: No contradictory requirements
-- ✅ **Stakeholder Alignment**: No conflicting value propositions
-- ⚠️ **Business Complexity**: [Assessment of change complexity]
+## Progressive Knowledge Audit
 
-### LLM Implementation Confidence Metrics
-- **Business Actor Clarity**: [X]%
-- **Business Rule Completeness**: [X]%
-- **Workflow Definition**: [X]%
-- **Success Criteria Completeness**: [X]%
-- **Overall LLM Readiness**: [X]%
+### Questions Asked and Answered
+**Level 1 - Core Intention** ({count_level_1_answered()}/5):
+{FOR q IN CORE_QUESTIONS:
+  status = "✅" if q.id in knowledge.answered_questions else "⭕"
+  confidence = knowledge.answered_questions[q.id].confidence if q.id in knowledge.answered_questions else "N/A"
+  "{status} {q.question} (Confidence: {confidence})"
+}
 
-### Context for Phase 2 (LLM Use Case Generation)
-**Key Business Actors**: [Primary users/roles for use case development]
-**Core Business Workflows**: [Main processes to be supported]
-**Business Constraints**: [Non-negotiable requirements]
-**Value Optimization**: [What business value to maximize]
+{IF knowledge.level >= 2:}
+**Level 2 - Context Expansion** ({count_level_2_answered()}/{count_level_2_total()}):
+{FOR q IN level_2_questions:
+  status = "✅" if q.id in knowledge.answered_questions else "⭕"
+  confidence = knowledge.answered_questions[q.id].confidence if q.id in knowledge.answered_questions else "N/A"
+  "{status} {q.question} (Confidence: {confidence})"
+}
+{END IF}
+
+{IF knowledge.level >= 3:}
+**Level 3 - Detailed Requirements** ({count_level_3_answered()}/{count_level_3_total()}):
+{FOR q IN level_3_questions:
+  status = "✅" if q.id in knowledge.answered_questions else "⭕"
+  confidence = knowledge.answered_questions[q.id].confidence if q.id in knowledge.answered_questions else "N/A"
+  "{status} {q.question} (Confidence: {confidence})"
+}
+{END IF}
+
+### Deferred Items (For Later Phases)
+**Technical Architecture** (Phase 4):
+- Technology stack selection
+- Database design and modeling
+- Performance targets and optimization
+- Integration protocols and APIs
+
+**Implementation Details** (Phase 5-6):
+- Detailed technical requirements
+- API contracts and specifications
+- Security implementation approach
+- Testing strategies and validation
+
+**NOTE**: Phase 1 intentionally focuses on WHAT and WHY, not HOW. Technical decisions are appropriately deferred to later phases.
+
+---
+**PHASE 1 COMPLETE**: This epic represents validated understanding of user intention.
+**Ready for Phase 2**: Use Case Discovery
 
 DISPLAY final validated epic:
 
@@ -701,14 +1461,11 @@ DISPLAY final validated epic:
 ### Business Rules
 [Final business rules with conditions and constraints]
 
-### Data & State
-[Final data models and state transitions]
-
-### Error Handling
-[Final error scenarios and recovery procedures]
+### Error Scenarios
+[Final error scenarios and business impact]
 
 ### Success Criteria
-[Final measurable success metrics]
+[Final measurable business success metrics]
 
 [IF DELTA:]
 ### Current System (Baseline)
@@ -735,10 +1492,12 @@ CATEGORY ASSESSMENT:
 ✅ Actors & Permissions: Level [N]/3
 ✅ Workflows & Triggers: Level [N]/3
 ✅ Business Rules: Level [N]/3
-✅ Error Handling: Level [N]/3
+✅ Error Scenarios: Level [N]/3
 ✅ Success Criteria: Level [N]/3
-✅ Data & State: Level [N]/3
-✅ Testability: Level [N]/3
+[IF DELTA:]
+✅ Baseline Clarity: Level [N]/3
+✅ Change Precision: Level [N]/3
+✅ Migration Impact: Level [N]/3
 
 QUALITY GATES PASSED:
 ✅ No contradictions detected
