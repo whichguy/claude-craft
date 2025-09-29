@@ -48,7 +48,7 @@ Execute using the phased-prompt.md template with progressive knowledge building.
 graph TD
     Start([USER REQUEST]) --> GS[GLOBAL START<br/>Initialize Framework<br/>Set Worktree<br/>Create Directories]
 
-    GS --> P1[PHASE 1: Story Clarification<br/>Eliminate ambiguity from requirements<br/>via iterative user dialogue]
+    GS --> P1[PHASE 1: Epic Clarification<br/>Eliminate ambiguity from requirements<br/>via iterative user dialogue]
 
     P1 --> P2[PHASE 2: Use Case Discovery<br/>Generate comprehensive use cases<br/>via use-case-expander]
 
@@ -165,7 +165,7 @@ WHEN starting ANY prompt using this framework:
 
 5. PLAN PHASE STRUCTURE:
    Determine phases needed based on complexity:
-   - Phase 1: Story Clarification (always required)
+   - Phase 1: Epic Clarification (always required)
    - Phase 2: Use Case Discovery (always required)
    - Phase 3: Requirements Generation (always required)
    - Phase 4: Architecture Definition (always required)
@@ -183,7 +183,7 @@ Framework is now initialized and ready for phases.
 **Initialize Framework Backbone**:
 Create EXACTLY these 10 todos - these are the immutable backbone of execution:
 - GLOBAL START: Initialize Framework
-- PHASE 1: STORY CLARIFICATION
+- PHASE 1: EPIC CLARIFICATION
 - PHASE 2: USE CASE DISCOVERY
 - PHASE 3: REQUIREMENTS GENERATION
 - PHASE 4: ARCHITECTURE DEFINITION
@@ -243,41 +243,115 @@ The 9 backbone todos NEVER change - only their internal scope expands.
 
 ### Activity Flow
 
-### 1. Scenario Detection & Comprehensive Rehydration
+```mermaid
+graph TD
+    Start([User Input]) --> TypeDetect{Epic Type<br/>Detection}
 
-Establish complete baseline understanding:
+    TypeDetect -->|"Contains 'change/update/modify'"| Delta[DELTA Epic]
+    TypeDetect -->|"Contains 'new/create/build'"| New[NEW Epic]
+    TypeDetect -->|Ambiguous| Ask[Ask User:<br/>New or Modifying?]
+
+    Ask --> Delta
+    Ask --> New
+
+    Delta --> BaselineCheck{Baseline<br/>Exists?}
+    BaselineCheck -->|Yes| Rehydrate[Load from<br/>planning/*.md]
+    BaselineCheck -->|No| Discover[Discover Current State<br/>via Questions:<br/>• What exists today?<br/>• What needs changing?<br/>• What stays same?]
+
+    New --> InitEpic[Initialize<br/>Epic Structure]
+    Rehydrate --> InitEpic
+    Discover --> InitEpic
+
+    InitEpic --> Evaluate[Evaluate Categories<br/>Level 0-3]
+
+    Evaluate --> CheckBlockers{Red Flag<br/>Blockers?}
+    CheckBlockers -->|Yes| ShowBlockers[Display Blockers<br/>Must Fix]
+    CheckBlockers -->|No| CheckReady{All Categories<br/>Level 2+?}
+
+    ShowBlockers --> GenProposals[Generate<br/>Proposals]
+    CheckReady -->|No| GenProposals
+    CheckReady -->|Yes| EnhancedCheck{Enhanced<br/>Scrutiny<br/>Required?}
+
+    GenProposals --> Display[Display Epic +<br/>Proposals]
+
+    Display --> UserChoice{User<br/>Action?}
+    UserChoice -->|Accept All| ApplyAll[Apply All<br/>Proposals]
+    UserChoice -->|Edit [1-5]| EditProp[Edit Specific<br/>Proposal]
+    UserChoice -->|Continue| NextIter[Generate New<br/>Proposals]
+    UserChoice -->|Proceed| ForceExit{Confirm<br/>Proceed?}
+
+    ApplyAll --> UpdateEpic[Update<br/>epic.md]
+    EditProp --> UpdateEpic
+    NextIter --> UpdateEpic
+
+    UpdateEpic --> IterCheck{Iteration<br/>< 7?}
+    IterCheck -->|Yes| Evaluate
+    IterCheck -->|No| ForceExit
+
+    EnhancedCheck -->|Financial/Medical/etc| AddReqs[Add Domain<br/>Requirements]
+    EnhancedCheck -->|No| QualityGates[Run Quality<br/>Gates]
+    AddReqs --> QualityGates
+
+    QualityGates --> GateCheck{All Gates<br/>Pass?}
+    GateCheck -->|No| GenProposals
+    GateCheck -->|Yes| Complete[Phase 1<br/>Complete]
+
+    ForceExit -->|Yes| Complete
+    ForceExit -->|No| GenProposals
+
+    Complete --> Output[Output:<br/>epic.md]
+
+    style Start fill:#e1f5e1
+    style Complete fill:#e1f5e1
+    style Output fill:#c8e6c9
+    style ShowBlockers fill:#ffcdd2
+    style Delta fill:#fff3e0
+    style New fill:#e3f2fd
+    style Discover fill:#fff9c4
+```
+
+### 1. Epic Type Detection & Baseline Discovery
+
+Determine if we're building new or changing existing:
 
 ```markdown
-SCENARIO_DETECTION:
-CHECK <worktree>/planning/ directory:
+EPIC_TYPE_DETECTION:
 
-IF directory exists AND contains any .md files:
-  <scenario> = "DELTA"
+ANALYZE initial input for change indicators:
 
-  COMPREHENSIVE_REHYDRATION (read ALL planning artifacts):
-  - epic.md → previous business context, validated assumptions, stakeholders
-  - use-cases.md → existing actors, workflows, acceptance criteria
-  - requirements.md → functional/non-functional requirements, constraints
-  - architecture.md → tech stack, integrations, design decisions
-  - [any-other].md → additional context, decisions, notes
+DELTA INDICATORS:
+- "Update the existing..." / "Change the current..." / "Improve the..."
+- "Fix the..." / "Enhance..." / "Migrate from..."
+- "Replace the..." / "Add to existing..." / "Remove from..."
+- "Instead of X, now Y" / References to current system
 
-  BUILD complete baseline understanding:
-  - Existing capabilities and their business value
-  - Established stakeholder relationships and roles
-  - Previous business assumptions and validation status
-  - Known constraints and dependencies
-  - Integration touchpoints and business relationships
-  - Success metrics and business outcomes achieved
+NEW INDICATORS:
+- "Build new..." / "Create a..." / "Implement..." (without existing reference)
+- "Design a system for..." / No references to current state
 
-  ANALYZE project evolution context:
-  - What business problems were previously solved?
-  - What stakeholder needs are already addressed?
-  - What business assumptions were validated in prior work?
-  - What scope boundaries were previously established?
-
+CLASSIFICATION:
+IF delta_indicators found:
+  TYPE = DELTA
+  REQUIRE: Baseline discovery
+ELSE IF new_indicators found:
+  TYPE = NEW
+  REQUIRE: Full specification
 ELSE:
-  <scenario> = "GREENFIELD"
-  <baseline> = "No existing project context"
+  TYPE = AMBIGUOUS
+  ASK: "Are we modifying an existing system or building new?"
+
+FOR DELTA EPICS - BASELINE DISCOVERY:
+IF TYPE == DELTA:
+  CHECK <worktree>/planning/ for existing artifacts
+  IF exists:
+    REHYDRATE from all .md files
+  ELSE:
+    DISCOVER baseline through targeted questions:
+    - "What system/process exists today?"
+    - "What specific aspects need changing?"
+    - "What must remain unchanged?"
+    - "Who uses the current system?"
+    - "What data exists currently?"
 
 OUTPUT: <worktree>/planning/rehydration-context.md
 ```
@@ -305,120 +379,224 @@ SET initial confidence: 15%
 CREATE initial epic draft with assumption markers
 ```
 
-### 3. Progressive Refinement (Proposal-Driven)
+### 3. Progressive Refinement with Category Tracking
 
-Build understanding through intelligent proposal validation:
+Build understanding through category-based evaluation and explicit proposals:
 
 ```markdown
 PROGRESSIVE_REFINEMENT_LOOP:
 
-WHILE confidence < 75% AND user_continues:
+EVALUATE epic against categories:
 
-  ANALYZE current epic for LLM implementation gaps:
-  - Missing actor definitions with roles/permissions
-  - Vague business rules without explicit conditions
-  - Unclear workflow boundaries and triggers
-  - Undefined success criteria (not measurable)
-  - Missing error scenarios and expected responses
-  - Ambiguous scope boundaries
-  - Incomplete stakeholder relationships
+CORE CATEGORIES (All epics):
+1. Actors & Permissions - WHO uses this and what can they do?
+2. Workflows & Triggers - WHAT do they do and when?
+3. Business Rules - WHAT constraints and conditions apply?
+4. Error Handling - WHAT can go wrong and how to recover?
+5. Success Criteria - HOW do we measure success?
+6. Data & State - WHAT data and state transitions?
+7. Testability - HOW will we validate this works?
 
-  DISPLAY current epic state and propose refinements:
+DELTA-SPECIFIC (When TYPE == DELTA):
+8. Baseline Clarity - WHAT exists now?
+9. Change Precision - WHAT exactly is changing?
+10. Migration Path - HOW do we transition?
+
+INTEGRATION-HEAVY (When external systems detected):
+11. External Systems - WHAT systems integrate?
+12. API Contracts - WHAT are the interfaces?
+
+CRITICAL THINKING (Always evaluate):
+13. Contradictions - Any logical conflicts?
+14. Second-order Effects - What ripple impacts?
+15. Anti-criteria - What are we NOT doing?
+16. Key Assumptions - What are we assuming?
+
+WHILE not ready AND user_continues:
+
+  ASSESS category levels (0-3):
+  - Level 0: Not addressed
+  - Level 1: Basic/vague
+  - Level 2: Clear/testable (MINIMUM TARGET)
+  - Level 3: Comprehensive
+
+  DETECT blockers (red flags):
+  - Circular dependencies
+  - Contradictory requirements
+  - Undefined core actors
+  - Missing success criteria
+  - Impossible constraints
+
+  DISPLAY epic with progress:
 
   ```
   ═══════════════════════════════════════════════════════════════════════════════
-                           CURRENT EPIC - ITERATION [N]
-                        LLM Implementation Readiness: [X]%
+                        EPIC REFINEMENT - TYPE: [DELTA/NEW]
+                             Iteration [N] of 7
   ═══════════════════════════════════════════════════════════════════════════════
 
   ## [Epic Title]
 
-  **Business Actors**:
+  ### Business Actors
   [Current actor definitions with roles, permissions, goals]
 
-  **Core Workflows**:
+  ### Core Workflows
   [Current workflow definitions with triggers, steps, outcomes]
 
-  **Business Rules**:
+  ### Business Rules
   [Current business rules with conditions and constraints]
 
-  **Quality Constraints**:
-  [Current success criteria and quality measures]
+  ### Data & State
+  [Data models and state transitions]
 
-  **Technical Context**:
-  [Current technical requirements and constraints if specified]
+  ### Error Handling
+  [Error scenarios and recovery procedures]
 
-  ───────────────────────────────────────────────────────────────────────────────
-                           REFINEMENT PROPOSALS
-  ───────────────────────────────────────────────────────────────────────────────
+  ### Success Criteria
+  [Measurable success metrics]
 
-  1. Actor Definition Enhancement .......................... NEW
-     Add: "[Specific actor with role, permissions, goals]"
+  [DELTA sections if applicable:]
+  ### Current System (Baseline)
+  [What exists today]
 
-  2. Business Rule Clarification .......................... NEW
-     Add: "[Specific rule with trigger, condition, and outcome]"
+  ### Changes Required
+  [What's changing and why]
 
-  3. Workflow Boundary Definition ......................... NEW
-     Add: "[Process starts when X, includes steps Y, ends when Z]"
-
-  4. Success Criteria Definition .......................... NEW
-     Add: "[Measurable outcome with specific metrics and validation]"
-
-  5. Error Handling Expectation ........................... NEW
-     Add: "[Specific error scenario with expected user experience]"
+  ### Migration Plan
+  [How to transition]
 
   ───────────────────────────────────────────────────────────────────────────────
+                           READINESS: [X]%
+  ───────────────────────────────────────────────────────────────────────────────
 
-  ACTION: [V]iew full epic | [1-5] Edit item | [A]ccept all | [C]ontinue | [P]roceed: _
+  ❌ BLOCKERS (Must Fix)
+  • [Specific blocker with description]
+
+  ⚠️ GAPS (Should Address)
+  • [Specific gap with impact]
+
+  ✅ COMPLETE
+  • [Categories meeting targets]
+
+  ───────────────────────────────────────────────────────────────────────────────
+                         PROPOSED ADDITIONS
+  ───────────────────────────────────────────────────────────────────────────────
+
+  [1] ACTOR CLARIFICATION
+      In "Business Actors", ADD:
+      "**Approver**: Manager role with authority to approve orders >$5000
+       - Permissions: View all orders, approve/reject high-value
+       - Goals: Ensure compliance and prevent fraud"
+
+  [2] WORKFLOW ENHANCEMENT
+      In "Core Workflows", ADD:
+      "**Error Recovery**:
+       • Payment failure: Release inventory, restore cart, notify user
+       • System timeout: Save state, allow resume within 24 hours"
+
+  [3] BUSINESS RULE
+      In "Business Rules", ADD:
+      "**Order Validation**:
+       IF order.total > 10000 THEN require_manager_approval
+       IF order.items > 100 THEN split_into_batches"
+
+  [4] SUCCESS METRIC
+      In "Success Criteria", ADD:
+      "• 95% checkout completion rate
+       • <3 minute average checkout time
+       • Zero payment data exposure"
+
+  [5] TEST STRATEGY
+      ADD NEW SECTION "Validation Approach":
+      "• Unit tests: All business rules
+       • Integration: Full checkout flow
+       • Load: 1000 concurrent users"
+
+  ───────────────────────────────────────────────────────────────────────────────
+
+  [A]ccept all  [1-5] Edit specific  [C]ontinue  [P]roceed: _
   ```
 
   PROCESS user responses:
-  - [V]: Redisplay current epic
-  - [1-5]: User provides correction for specific item (e.g., "2: Rule should be X instead")
-  - [A]: Accept all proposals and update epic
-  - [C]: Continue with another iteration of refinement
-  - [P]: Proceed to quality gates with current epic
+  - [A]: Apply all proposals to epic
+  - [1-5]: User edits specific proposal (e.g., "3: Change limit to 5000")
+  - [C]: Generate new proposals for remaining gaps
+  - [P]: Proceed despite gaps (with confirmation)
 
-  UPDATE <worktree>/planning/epic.md with accepted changes
-  RECALCULATE confidence based on LLM implementation readiness
+  UPDATE <worktree>/planning/epic.md
+  RECALCULATE readiness percentage
 
-END when: confidence ≥ 75% OR user chooses "Proceed"
+EXIT CONDITIONS:
+- All blockers resolved AND
+- All core categories at Level 2+ OR
+- User explicitly proceeds OR
+- 7 iterations completed
 ```
 
-### 4. Quality Gates (15-Gate Validation)
+### 4. Enhanced Scrutiny & Quality Gates
 
-Comprehensive validation for LLM implementation readiness:
+Apply domain-specific rigor and validate readiness:
 
 ```markdown
-QUALITY_GATE_SYSTEM:
+ENHANCED_SCRUTINY_DETECTION:
 
-CRITICAL GATES (Must Address):
-1. **Logical Conflict Detection**: Any contradictory business requirements?
-2. **Business Showstopper**: Any impossible business constraints?
-3. **Stakeholder Priority Paradox**: Conflicting stakeholder value propositions?
+CHECK for high-risk domains requiring extra detail:
 
-IMPORTANT GATES (Should Address):
-4. **Business Novelty Check**: Why is this new vs existing solutions?
-5. **Business Simplicity Test**: Would simpler approach meet the need?
-6. **Reality Check**: Is this already addressed elsewhere?
-7. **Pre-existing Business State**: Assumptions about current operations?
-8. **Business Migration Path**: How do stakeholders transition?
-9. **Stakeholder Completeness**: All business stakeholders identified?
-10. **Business Scope Boundaries**: Clear inclusions/exclusions?
+LIFE-CRITICAL:
+Triggers: ["medical", "safety", "emergency", "aviation"]
+→ REQUIRE: Failure modes, redundancy, regulatory compliance
 
-SUPPLEMENTARY GATES (Consider):
-11. **Business Failure Mode**: What business risks could cause failure?
-12. **Contrarian Business Perspective**: What if opposite approach?
-13. **Second-order Business Effects**: Organizational ripple effects?
-14. **Business Resource Reality**: Resource assumptions realistic?
-15. **Business Assumption Contradictions**: Do assumptions conflict?
+FINANCIAL:
+Triggers: ["payment", "banking", "transaction", "monetary"]
+→ REQUIRE: Atomicity, audit trails, precision, compliance
+
+PRIVACY-SENSITIVE:
+Triggers: ["HIPAA", "GDPR", "PII", "personal data"]
+→ REQUIRE: Data classification, consent, retention, breach procedures
+
+REAL-TIME:
+Triggers: ["real-time", "streaming", "latency", "<X ms"]
+→ REQUIRE: Performance bounds, degradation, backpressure
+
+HIGH-SCALE:
+Triggers: [">1M users", ">1B records", ">10K TPS"]
+→ REQUIRE: Sharding, caching, capacity planning
+
+IF enhanced_scrutiny_triggered:
+  ELEVATE minimum category levels
+  ADD domain-specific requirements
+  REQUIRE additional validation
+
+QUALITY_GATES:
+
+BLOCKERS (Red flags - must fix):
+1. **Contradictory Requirements**: Mutually exclusive needs
+2. **Circular Dependencies**: A needs B, B needs C, C needs A
+3. **Impossible Constraints**: Violates laws of physics/logic
+4. **Undefined Core Elements**: References to non-existent actors/data
+
+CRITICAL VALIDATIONS:
+5. **DELTA Baseline**: For changes, is current state documented?
+6. **Migration Path**: For changes, how do we transition?
+7. **Integration Contracts**: Are external dependencies specified?
+8. **Success Measurability**: Can we objectively validate success?
+
+CONTRARIAN CHECKS:
+9. **Opposite Approach**: What if we did the reverse?
+10. **Do Nothing Option**: What if we didn't build this?
+11. **Simpler Alternative**: Could a trivial solution work?
+12. **Second-Order Effects**: What breaks if this succeeds wildly?
+
+ASSUMPTION VALIDATION:
+13. **Hidden Dependencies**: What are we assuming exists?
+14. **Resource Reality**: Are resource needs realistic?
+15. **User Behavior**: Will users actually do what we expect?
 
 GATE_PROCESSING:
-- Critical failures → STOP, must resolve before proceeding
-- Important failures → Document concerns, user decides
-- Supplementary failures → Note for later phases
-
-GENERATE quality gate report for epic.md
+- Blockers → MUST resolve before proceeding
+- Critical → SHOULD address or document acceptance
+- Contrarian → CONSIDER and note insights
+- Assumptions → VALIDATE or mark as risks
 ```
 
 ### 5. Epic Finalization (LLM-Optimized Output)
@@ -429,7 +607,7 @@ Create structured epic optimized for LLM use case generation:
 CREATE <worktree>/planning/epic.md:
 
 # Epic: [Business-Focused Title]
-**Status**: VALIDATED | **LLM Implementation Readiness**: [X]% | **Scenario**: [GREENFIELD/DELTA]
+**Status**: VALIDATED | **LLM Implementation Readiness**: [X]% | **Scenario**: [NEW/DELTA]
 **Created**: [Date] | **Base Context**: [Previous version for DELTA]
 
 ## Business Context for LLM Implementation
@@ -504,44 +682,76 @@ CREATE <worktree>/planning/epic.md:
 **Business Constraints**: [Non-negotiable requirements]
 **Value Optimization**: [What business value to maximize]
 
-DISPLAY final epic and persist to filesystem:
+DISPLAY final validated epic:
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════
-                    ✅ PHASE 1 COMPLETE - FINAL EPIC
-                      LLM Implementation Readiness: [X]%
+                    ✅ PHASE 1 COMPLETE - VALIDATED EPIC
+                      Type: [DELTA/NEW] | Readiness: [X]%
 ═══════════════════════════════════════════════════════════════════════════════
 
 ## [Epic Title]
 
-**Business Actors**:
-[Final actor definitions with all refinements]
+### Business Actors
+[Final actor definitions with roles, permissions, goals]
 
-**Core Workflows**:
-[Final workflow definitions with all refinements]
+### Core Workflows
+[Final workflow definitions with triggers, steps, outcomes]
 
-**Business Rules**:
-[Final business rules with all refinements]
+### Business Rules
+[Final business rules with conditions and constraints]
 
-**Quality Constraints**:
-[Final success criteria and quality measures]
+### Data & State
+[Final data models and state transitions]
 
-**Technical Context**:
-[Final technical requirements if specified]
+### Error Handling
+[Final error scenarios and recovery procedures]
+
+### Success Criteria
+[Final measurable success metrics]
+
+[IF DELTA:]
+### Current System (Baseline)
+[Final baseline documentation]
+
+### Changes Required
+[Final change specifications]
+
+### Migration Plan
+[Final transition approach]
+
+[IF INTEGRATIONS:]
+### External Systems
+[Final integration specifications]
+
+### API Contracts
+[Final interface definitions]
 
 ───────────────────────────────────────────────────────────────────────────────
-                         EPIC EVOLUTION SUMMARY
+                         VALIDATION SUMMARY
 ───────────────────────────────────────────────────────────────────────────────
 
-**Iterations Completed**: [N]
-**Total Refinements Applied**: [X] accepted, [Y] corrected, [Z] deferred
-**Confidence Progression**: [Initial]% → [Iterations]% → [Final]%
+CATEGORY ASSESSMENT:
+✅ Actors & Permissions: Level [N]/3
+✅ Workflows & Triggers: Level [N]/3
+✅ Business Rules: Level [N]/3
+✅ Error Handling: Level [N]/3
+✅ Success Criteria: Level [N]/3
+✅ Data & State: Level [N]/3
+✅ Testability: Level [N]/3
 
-**Key Enhancements Made**:
-• [Enhancement 1 - what improved]
-• [Enhancement 2 - what improved]
-• [Enhancement 3 - what improved]
-[etc...]
+QUALITY GATES PASSED:
+✅ No contradictions detected
+✅ No circular dependencies
+✅ All core elements defined
+✅ Success metrics measurable
+[Domain-specific validations if applicable]
+
+REFINEMENT METRICS:
+• Iterations: [N]
+• Proposals accepted: [X]
+• User corrections: [Y]
+• Blockers resolved: [Z]
 
 ───────────────────────────────────────────────────────────────────────────────
 
@@ -570,7 +780,7 @@ ESTABLISH for subsequent phases:
 **Purpose**: Generate comprehensive use cases from user requirements via use-case-expander agent
 
 **PHASE TODO PROTOCOL**:
-- Mark PHASE 1: STORY CLARIFICATION as "completed"
+- Mark PHASE 1: EPIC CLARIFICATION as "completed"
 - Mark PHASE 2: USE CASE DISCOVERY as "in_progress"
 - Review any discovered items mapped to this phase
 - Execute all phase responsibilities including discovered items
@@ -587,7 +797,7 @@ ESTABLISH for subsequent phases:
 **DELIVERABLES**: Complete use case specification in <worktree>/planning/use-cases.md
 
 **PREREQUISITE VALIDATION**:
-✓ PHASE 1 MUST be complete with unambiguous story produced
+✓ PHASE 1 MUST be complete with unambiguous epic produced
 ✓ <worktree> variable MUST be set and immutable
 ✓ <epic> MUST be available from Phase 1
 ✗ DO NOT proceed if PHASE 1 was skipped or failed
@@ -738,7 +948,7 @@ Include:
 
 **DEPENDENCIES**:
 - Input from Phase 2: <worktree>/planning/use-cases.md
-- Original story: <epic>
+- Original epic: <epic>
 
 **DELIVERABLES**: Complete requirements specification in <worktree>/planning/requirements.md
 
@@ -906,7 +1116,7 @@ Include:
 **DEPENDENCIES**:
 - Input from Phase 2: <worktree>/planning/use-cases.md
 - Input from Phase 3: <worktree>/planning/requirements.md
-- Original story: <epic>
+- Original epic: <epic>
 
 **DELIVERABLES**: Complete architecture specification in <worktree>/planning/architecture.md
 
@@ -1185,7 +1395,7 @@ Execute task generation, dependency analysis, and parallel execution planning:
 Parse the markdown output to extract individual task specifications:
 - Identify task boundaries (### Task T###: sections)
 - Extract task ID, name, dependencies, priority, effort
-- Parse epic/story mappings and acceptance criteria
+- Parse epic mappings and acceptance criteria
 - Preserve all formatting and implementation details
 
 **STEP 3 - Create Task Files**:
@@ -1193,7 +1403,7 @@ FOR each parsed task specification:
   **CREATE**: File <worktree>/pending/TASK-{ID}-{name-slug}.md
   **CONTENT**: Complete task specification in feature-developer format:
     - Task ID and name
-    - Epic and story mappings
+    - Epic mappings
     - Priority and effort estimates
     - Dependencies list
     - Acceptance criteria
@@ -2112,7 +2322,7 @@ When using this IDEAL-STI v3.0 framework, these behaviors are guaranteed:
 - No additional todos should exist - all work was executed within phases
 - The todo list should show EXACTLY 10 completed items:
   1. GLOBAL START: Initialize Framework ✓
-  2. PHASE 1: STORY CLARIFICATION ✓
+  2. PHASE 1: EPIC CLARIFICATION ✓
   3. PHASE 2: USE CASE DISCOVERY ✓
   4. PHASE 3: REQUIREMENTS GENERATION ✓
   5. PHASE 4: ARCHITECTURE DEFINITION ✓
@@ -2160,7 +2370,7 @@ IF git worktree was created in GLOBAL START:
          Quality Score: <global_quality_score>
 
          Phases Completed:
-         - Phase 1: Story Clarification
+         - Phase 1: Epic Clarification
          - Phase 2: Use Case Discovery
          - Phase 3: Requirements Generation
          - Phase 4: Architecture Definition
@@ -2212,7 +2422,7 @@ FI
 
 This IDEAL-STI v3.0 implementation provides:
 - **8 Complete Phases** following phased-prompt.md template structure:
-  1. Story Clarification (ambiguity elimination)
+  1. Epic Clarification (ambiguity elimination)
   2. Use Case Discovery
   3. Requirements Generation
   4. Architecture Definition (with recommend-tech)
