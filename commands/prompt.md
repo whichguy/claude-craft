@@ -1,6 +1,6 @@
 ---
-argument-hint: "[list|sync|publish|template] [context...]"
-description: "Manage and execute Claude Code extensions (agents, commands, prompts, hooks)"
+argument-hint: "[list|sync|publish|template-name] [context/arguments...]"
+description: "Manage and execute Claude Code extensions - pass template name + unlimited context"
 allowed-tools: "all"
 ---
 
@@ -8,31 +8,42 @@ allowed-tools: "all"
 
 *Unified Claude Code Extension Manager - Discovers and executes agents, commands, prompts, and hooks*
 
+## Argument Capture
+
+First argument (command/template): $1
+Remaining context: $ARGUMENTS
+
 ## Execution Flow
 
-Execute this bash script to find and load the template:
+Execute this bash script to find and load the template, passing arguments explicitly:
 
 ```bash
 #!/bin/bash
 set -euo pipefail
 
-# Handle arguments properly - they come from the command execution context
-if [ $# -gt 0 ]; then
-    FIRST_ARG="$1"
-    shift || true
-    CONTENT="$*"
+# Arguments from Claude Code via explicit passing
+# $1 = first argument (command/template name)
+# $2 = all arguments as single string (including $1)
+FIRST_ARG="${1:-}"
+ALL_ARGS="${2:-}"
+
+# Extract content by removing first argument and trailing space
+if [ -n "$FIRST_ARG" ] && [ -n "$ALL_ARGS" ]; then
+    FIRST_LEN=${#FIRST_ARG}
+    # Remove first argument + space from ALL_ARGS
+    CONTENT="${ALL_ARGS:$((FIRST_LEN + 1))}"
 else
-    FIRST_ARG=""
+    # Fallback for edge cases
     CONTENT=""
 fi
 
 # Display template and context information
 echo "<prompt-template-name>$FIRST_ARG</prompt-template-name>"
 
-# Content extraction and formatting
-echo "<prompt-arguments>"
+# Content extraction and formatting with XML safety
+echo "<prompt-arguments><![CDATA["
 echo "$CONTENT"
-echo "</prompt-arguments>"
+echo "]]></prompt-arguments>"
 
 
 # Domain-driven command routing
