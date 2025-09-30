@@ -20,7 +20,7 @@ set -euo pipefail
 if [ $# -gt 0 ]; then
     FIRST_ARG="$1"
     shift || true
-    CONTENT="${ARGUMENTS/$1 /}"
+    CONTENT="$*"
 else
     FIRST_ARG=""
     CONTENT=""
@@ -31,7 +31,7 @@ echo "<prompt-template-name>$FIRST_ARG</prompt-template-name>"
 
 # Content extraction and formatting
 echo "<prompt-arguments>"
-echo $CONTENT
+echo "$CONTENT"
 echo "</prompt-arguments>"
 
 
