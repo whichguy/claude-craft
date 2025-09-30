@@ -125,13 +125,20 @@ This ensures no partial states exist after errors.
 
 **Parameters**: Call this agent with positional parameters:
 - `$1` - worktree_path (required): Path to worktree directory to merge
-- `$2` - source_path (required): Path to source directory
+- `$2` - source_path (optional): Path to source directory (auto-discovered from worktree if not provided)
 - `$3` - commit_message (optional): Custom commit message for squash merge
 - `$4` - agent_context (optional): Agent context for intelligent merge strategy
 - `$5` - branch_name (optional): Specific branch name (auto-detected if not provided)
 
-**Example**: To merge a feature worktree with custom commit message:
+**Examples**:
 ```bash
+# Auto-discover source from worktree (recommended)
+merge-worktree /path/to/worktree
+
+# With custom commit message
+merge-worktree /path/to/worktree "" "feat: implement new feature"
+
+# Explicit source path (legacy compatibility)
 merge-worktree /path/to/worktree /path/to/original "feat: implement new feature" feature-developer
 ```
 
@@ -162,21 +169,62 @@ parse_merger_parameters() {
   agent_context="${4:-}"
   branch_name="${5:-}"
   
-  # Validate mandatory parameters
-  if [ -z "$worktree_path" ] || [ -z "$source_path" ]; then
-    echo "❌ DECISION: Missing mandatory parameters"
+  # Validate mandatory worktree_path
+  if [ -z "$worktree_path" ]; then
+    echo "❌ DECISION: Missing mandatory worktree_path parameter"
     cat << EOF
 {
   "status": "error",
-  "error": "Missing mandatory parameters: worktree_path and source_path are required",
-  "usage": "merge-worktree <worktree_path> <source_path> [commit_message] [agent_context] [branch_name]"
+  "error": "Missing mandatory parameter: worktree_path is required",
+  "usage": "merge-worktree <worktree_path> [source_path] [commit_message] [agent_context] [branch_name]"
 }
 EOF
     exit 1
   fi
-  
+
   echo "🎯 DECISION: worktree_path = $worktree_path"
-  echo "🎯 DECISION: source_path = $source_path"
+
+  # Auto-discover source_path if not provided
+  if [ -z "$source_path" ]; then
+    echo "🧠 THINKING: source_path not provided, attempting auto-discovery from worktree"
+
+    # Check if worktree has .git file (not directory)
+    if [ -f "$worktree_path/.git" ]; then
+      # Extract gitdir path from worktree's .git file
+      gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
+
+      if [ -n "$gitdir" ]; then
+        # Navigate up from .git/worktrees/name to main .git then to repo root
+        main_git_dir=$(dirname $(dirname "$gitdir"))
+        source_path=$(dirname "$main_git_dir")
+        echo "🎯 DECISION: Auto-discovered source_path = $source_path"
+      else
+        echo "❌ DECISION: Failed to parse worktree .git file"
+        cat << EOF
+{
+  "status": "error",
+  "error": "Could not auto-discover source_path from worktree .git file",
+  "worktree_path": "$worktree_path",
+  "hint": "Provide source_path explicitly as second parameter"
+}
+EOF
+        exit 1
+      fi
+    else
+      echo "❌ DECISION: Worktree .git file not found, cannot auto-discover source"
+      cat << EOF
+{
+  "status": "error",
+  "error": "Cannot auto-discover source_path: worktree .git file not found",
+  "worktree_path": "$worktree_path",
+  "hint": "Provide source_path explicitly as second parameter"
+}
+EOF
+      exit 1
+    fi
+  else
+    echo "🎯 DECISION: source_path provided explicitly = $source_path"
+  fi
   
   if [ -n "$commit_message" ]; then
     echo "🎯 DECISION: commit_message = $commit_message"
