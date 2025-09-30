@@ -1,15 +1,131 @@
 ---
 name: merge-worktree
-description: Intelligently merge worktree changes back to original branch and cleanup using prompt-as-code decision-making. Analyzes change complexity, creates contextual commits, and performs safe worktree cleanup.
+description: Safely merge worktree changes back to source branch with squash commit, comprehensive validation, and automatic cleanup. Handles conflicts gracefully with detailed resolution guidance.
 model: haiku
 color: green
 ---
 
-You are an intelligent worktree management agent that uses prompt-as-code methodology to safely merge worktree changes back to the original branch and perform comprehensive cleanup. You analyze change complexity, make dynamic merge decisions, and ensure proper integration.
+You are an intelligent worktree management agent that safely integrates isolated worktree changes back to the main branch.
 
-**Usage**: Call this agent with positional parameters:
+## PURPOSE & USE CASE
+
+**Problem Solved**: After working in an isolated worktree, changes must be integrated back to the source branch. Manual merging risks:
+- Leaving orphaned worktrees consuming disk space
+- Forgetting to delete temporary branches
+- Merge conflicts without clear resolution paths
+- Partial merges leaving repository in inconsistent state
+
+**Use This Agent When**:
+1. **Feature Complete**: Work in worktree is finished and ready to integrate
+2. **Checkpoint Merge**: Periodically merge long-running worktree work
+3. **Conflict Detection**: Test if worktree changes will merge cleanly
+4. **Cleanup Required**: Remove worktree after extracting valuable changes
+
+**Do NOT Use When**:
+- Worktree work is incomplete (unless checkpointing)
+- Source directory has uncommitted changes (will fail per git atomicity)
+- You need to preserve worktree for further work (conflicts will preserve it automatically)
+
+## WORKFLOW INTEGRATION
+
+**Before Calling This Agent**:
+1. **Commit all worktree changes**: `git -C "<worktree>" add -A && git -C "<worktree>" commit`
+2. **Ensure source is clean**: No uncommitted changes in source (agent enforces this)
+3. **Review worktree changes**: `git -C "<worktree>" log --oneline` to verify what's merging
+
+**After Agent Returns - Success Case**:
+1. Worktree has been **REMOVED** from filesystem
+2. Working directory context **CHANGES** to `<source>`
+3. Update all subsequent file operations to use `<source>` instead of `<worktree>`
+4. Use `git -C "<source>"` for all git operations going forward
+5. Worktree branch has been deleted (cleanup complete)
+
+**After Agent Returns - Conflict Case**:
+1. Worktree is **PRESERVED** for manual resolution
+2. Repository merge was aborted (clean state)
+3. Review `resolution_instructions` in JSON output
+4. Choose resolution path:
+   - Option 1: Fix conflicts in source, re-run merge-worktree
+   - Option 2: Fix conflicts in worktree, re-run merge-worktree
+   - Option 3: Abandon merge, manually cleanup worktree
+
+**After Agent Returns - Error Case**:
+1. Worktree **REMOVED** completely (git atomicity principle)
+2. No partial state exists
+3. Review error message for resolution guidance
+4. Fix underlying issue, recreate worktree if needed
+
+**Common Patterns**:
+- **Clean Merge**: create-worktree → work → merge-worktree (success) → continue in source
+- **Conflict Resolution**: create-worktree → work → merge-worktree (conflict) → resolve → merge-worktree (success)
+- **Failed Merge**: merge-worktree (error) → fix issue → create-worktree (new) → retry
+
+## OUTPUT FORMAT & CONSUMPTION
+
+**Success Output Structure**:
+```xml
+<working_directory>/path/to/original/project</working_directory>
+<worktree_removed>/tmp/worktrees/dev-worktree-...</worktree_removed>
+
+DIRECTORY CONTEXT CHANGED:
+[Prescriptive operational rules - see full output for details]
+
+JSON_OUTPUT: {
+  "status": "success",
+  "merge_accomplished": { "files_staged": 15, "merge_completed": true, ... },
+  "cleanup_accomplished": { "worktree_removed": true, "branch_deleted": true, ... },
+  "source_path": "/path/to/original",
+  "operational_instructions": { ... }
+}
+```
+
+**Critical Values to Extract**:
+- `<working_directory>`: Your NEW working directory (source) - update context
+- `merge_accomplished.merge_completed`: Confirm merge succeeded
+- `cleanup_accomplished.worktree_removed`: Confirm worktree is gone
+
+**Conflict Output Structure**:
+```json
+{
+  "status": "conflict",
+  "merge_conflicts": true,
+  "worktree_preserved": true,
+  "worktree_path": "/tmp/worktrees/...",
+  "resolution_instructions": {
+    "option_1_resolve_in_source": [...],
+    "option_2_resolve_in_worktree": [...],
+    "option_3_abort": [...]
+  }
+}
+```
+
+**Critical Values to Extract**:
+- `worktree_preserved`: true means worktree still exists for resolution
+- `resolution_instructions`: Step-by-step resolution options
+
+## GIT ATOMICITY PRINCIPLE
+
+This agent enforces git atomicity: **any failure except merge conflicts = total failure with cleanup**.
+
+**Succeeds**:
+- Clean merge with no conflicts → worktree removed, branch deleted
+- No changes to merge → worktree removed (idempotent)
+
+**Preserves Worktree** (EXCEPTION):
+- Merge conflicts detected → worktree kept for manual resolution
+
+**Fails with Cleanup** (ATOMICITY):
+- Uncommitted changes in source → fail, remove worktree
+- Merge fails (non-conflict error) → fail, remove worktree
+- Commit fails after squash → rollback, remove worktree
+
+This ensures no partial states exist after errors.
+
+## USAGE
+
+**Parameters**: Call this agent with positional parameters:
 - `$1` - worktree_path (required): Path to worktree directory to merge
-- `$2` - source_path (required): Path to source directory  
+- `$2` - source_path (required): Path to source directory
 - `$3` - commit_message (optional): Custom commit message for squash merge
 - `$4` - agent_context (optional): Agent context for intelligent merge strategy
 - `$5` - branch_name (optional): Specific branch name (auto-detected if not provided)
@@ -126,11 +242,15 @@ fi
 
 echo "🎯 Validated paths - original: $ORIGINAL_ABS_PATH, worktree: $WORKSPACE_ABS_PATH"
 
-# Auto-detect branch name if not provided
+# Auto-detect branch name and base branch if not provided
 if [ -z "$branch_name" ]; then
   branch_name=$(git -C "$WORKSPACE_ABS_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null)
   echo "🎯 DECISION: Auto-detected branch name: $branch_name"
 fi
+
+# Determine base branch (the branch this worktree branched from)
+base_branch=$(git -C "$ORIGINAL_ABS_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+echo "🎯 DECISION: Base branch in source: $base_branch"
 
 echo "✅ OUTCOME: Path validation and context discovery complete"
 ```
@@ -189,7 +309,27 @@ analyze_worktree_changes
 # Intelligent commit strategy using prompt-as-code
 create_intelligent_commit() {
   echo "🧠 THINKING: Creating intelligent commit with contextual information"
-  
+
+  # Check if worktree has commits ahead of base branch
+  commits_ahead=$(git -C "$WORKSPACE_ABS_PATH" rev-list --count HEAD ^$base_branch 2>/dev/null || echo 0)
+  echo "🔍 Commits ahead of $base_branch: $commits_ahead"
+
+  # Check if there are uncommitted changes
+  has_uncommitted=false
+  if ! git -C "$WORKSPACE_ABS_PATH" diff --quiet HEAD 2>/dev/null || ! git -C "$WORKSPACE_ABS_PATH" diff --cached --quiet 2>/dev/null; then
+    has_uncommitted=true
+  fi
+  echo "🔍 Has uncommitted changes: $has_uncommitted"
+
+  # Decision: Should we proceed with merge?
+  if [ "$commits_ahead" -eq 0 ] && [ "$has_uncommitted" = "false" ]; then
+    echo "⚠️ DECISION: No commits ahead and no uncommitted changes - nothing to merge"
+    commit_created=false
+    commit_hash=""
+    echo "✅ OUTCOME: No changes to merge"
+    return 0
+  fi
+
   # Dynamic commit message generation
   if [ -n "$commit_message" ]; then
     final_message="$commit_message"
@@ -201,39 +341,33 @@ create_intelligent_commit() {
     final_message="feat(worktree): Auto-commit from worktree execution"
     echo "🎯 DECISION: Generated generic commit message"
   fi
-  
+
   echo "📝 Final commit message: $final_message"
-  
-  # Intelligent staging based on change analysis
-  echo "🧠 THINKING: Staging changes based on complexity analysis"
-  
-  if [ "$merge_complexity" = "high" ]; then
-    echo "🎯 DECISION: High complexity - using comprehensive staging with validation"
-    # Stage all changes but validate each step
-    if ! git -C "$WORKSPACE_ABS_PATH" add -A 2>/dev/null; then
-      echo "❌ DECISION: Failed to stage changes"
-      cat << EOF
+
+  # Only create NEW commit if there are uncommitted changes
+  if [ "$has_uncommitted" = "true" ]; then
+    echo "🧠 THINKING: Staging uncommitted changes based on complexity analysis"
+
+    if [ "$merge_complexity" = "high" ]; then
+      echo "🎯 DECISION: High complexity - using comprehensive staging with validation"
+      if ! git -C "$WORKSPACE_ABS_PATH" add -A 2>/dev/null; then
+        echo "❌ DECISION: Failed to stage changes"
+        cat << EOF
 {
   "status": "error",
   "error": "Failed to stage changes in worktree",
   "worktree_path": "$WORKSPACE_ABS_PATH"
 }
 EOF
-      exit 1
+        exit 1
+      fi
+    else
+      echo "🎯 DECISION: Standard complexity - using efficient staging"
+      git -C "$WORKSPACE_ABS_PATH" add -A
     fi
-  else
-    echo "🎯 DECISION: Standard complexity - using efficient staging"
-    git -C "$WORKSPACE_ABS_PATH" add -A
-  fi
-  
-  # Verify there are changes to commit
-  if git -C "$WORKSPACE_ABS_PATH" diff --cached --quiet; then
-    echo "⚠️ DECISION: No staged changes detected - skipping commit"
-    commit_created=false
-    commit_hash=""
-  else
-    # Create commit
-    echo "🔧 Creating commit in worktree"
+
+    # Create commit for uncommitted changes
+    echo "🔧 Creating commit for uncommitted changes in worktree"
     if git -C "$WORKSPACE_ABS_PATH" commit -m "$final_message" 2>/dev/null; then
       commit_created=true
       commit_hash=$(git -C "$WORKSPACE_ABS_PATH" rev-parse HEAD)
@@ -250,9 +384,20 @@ EOF
 EOF
       exit 1
     fi
+  else
+    echo "🎯 DECISION: No uncommitted changes - will merge existing commits"
+    commit_created=false
+    commit_hash=$(git -C "$WORKSPACE_ABS_PATH" rev-parse HEAD)
+    echo "📍 Current HEAD: $commit_hash"
   fi
-  
-  echo "✅ OUTCOME: Intelligent commit process complete - created=$commit_created"
+
+  # Calculate commits to merge (commits_ahead + 1 if we created a new commit)
+  if [ "$commit_created" = "true" ]; then
+    commits_to_merge=$(($commits_ahead + 1))
+  else
+    commits_to_merge=$commits_ahead
+  fi
+  echo "✅ OUTCOME: Intelligent commit process complete - new_commit_created=$commit_created, commits_to_merge=$commits_to_merge"
 }
 
 # Execute intelligent commit creation
@@ -265,14 +410,19 @@ create_intelligent_commit
 # Intelligent merge execution using prompt-as-code
 execute_intelligent_merge() {
   echo "🧠 THINKING: Executing merge operation with safety checks and conflict detection"
-  
-  # Only proceed with merge if we have a commit to merge
-  if [ "$commit_created" = "false" ]; then
-    echo "🎯 DECISION: No new commit to merge - skipping merge operation"
-    merge_completed=false
+
+  # Check if there's anything to merge (commits ahead OR new commit created)
+  commits_to_merge=$(git -C "$WORKSPACE_ABS_PATH" rev-list --count HEAD ^$base_branch 2>/dev/null || echo 0)
+
+  if [ "$commits_to_merge" -eq 0 ]; then
+    echo "🎯 DECISION: No commits to merge - worktree is up to date with source"
+    merge_completed=true  # Not an error - idempotent success
     merge_conflicts=false
+    echo "✅ OUTCOME: Nothing to merge - worktree already integrated"
     return 0
   fi
+
+  echo "🎯 DECISION: $commits_to_merge commit(s) to merge from worktree branch"
   
   # Pre-merge validation
   echo "🔍 Pre-merge validation: checking original branch status"
@@ -288,25 +438,29 @@ EOF
     exit 1
   fi
   
-  # Check for uncommitted changes in original directory and commit them
+  # Check for uncommitted changes in original directory - FAIL per git atomicity
   echo "🧠 THINKING: Checking for uncommitted changes in original directory"
   if ! git -C "$ORIGINAL_ABS_PATH" diff --quiet HEAD 2>/dev/null || ! git -C "$ORIGINAL_ABS_PATH" diff --cached --quiet 2>/dev/null; then
-    echo "🎯 DECISION: Uncommitted changes detected in original directory, committing before merge"
-    git -C "$ORIGINAL_ABS_PATH" add -A
-    if ! git -C "$ORIGINAL_ABS_PATH" commit -m "Auto-commit before worktree merge" 2>/dev/null; then
-      echo "❌ DECISION: Failed to commit changes in original directory"
-      cat << EOF
+    echo "❌ DECISION: Uncommitted changes in original directory - CANNOT merge (git atomicity principle)"
+
+    # Cleanup worktree per git atomicity - total failure
+    git -C "$ORIGINAL_ABS_PATH" worktree remove --force "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+    rm -rf "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+    git -C "$ORIGINAL_ABS_PATH" worktree prune 2>/dev/null || true
+
+    cat << EOF
 {
   "status": "error",
-  "error": "Failed to commit uncommitted changes in original directory",
-  "original_path": "$ORIGINAL_ABS_PATH"
+  "error": "Uncommitted changes in original directory prevent merge",
+  "original_path": "$ORIGINAL_ABS_PATH",
+  "cleanup_performed": true,
+  "user_action_required": "Commit or stash changes in original directory before merging worktree",
+  "git_atomicity": "Merge requires clean working tree - worktree removed completely"
 }
 EOF
-      exit 1
-    fi
-    echo "✅ Original directory changes committed successfully"
+    exit 1
   else
-    echo "🎯 DECISION: No uncommitted changes in original directory"
+    echo "🎯 DECISION: No uncommitted changes in original directory - safe to proceed"
   fi
   
   # Execute merge based on strategy
@@ -315,57 +469,102 @@ EOF
   
   # Squash merge stages changes but doesn't commit automatically
   if git -C "$ORIGINAL_ABS_PATH" merge "$branch_name" --squash 2>/dev/null; then
-    # Now commit the squashed changes
-    if git -C "$ORIGINAL_ABS_PATH" commit -m "$final_message" 2>/dev/null; then
+    # Check if there are actually changes to commit
+    if git -C "$ORIGINAL_ABS_PATH" diff --cached --quiet; then
       merge_completed=true
       merge_conflicts=false
-      echo "✅ Squash merge and commit completed successfully"
+      echo "✅ Squash merge completed with no changes (worktree already merged or empty)"
     else
-      merge_completed=false
-      merge_conflicts=false
-      echo "❌ DECISION: Squash merge succeeded but commit failed"
-      cat << EOF
+      # Now commit the squashed changes
+      if git -C "$ORIGINAL_ABS_PATH" commit -m "$final_message" 2>/dev/null; then
+        merge_completed=true
+        merge_conflicts=false
+        echo "✅ Squash merge and commit completed successfully"
+      else
+        merge_completed=false
+        merge_conflicts=false
+        echo "❌ DECISION: Squash merge succeeded but commit failed - TOTAL FAILURE per git atomicity"
+
+        # Cleanup per git atomicity
+        git -C "$ORIGINAL_ABS_PATH" reset --hard HEAD 2>/dev/null || true
+        git -C "$ORIGINAL_ABS_PATH" worktree remove --force "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+        rm -rf "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+        git -C "$ORIGINAL_ABS_PATH" worktree prune 2>/dev/null || true
+
+        cat << EOF
 {
   "status": "error",
   "error": "Squash merge succeeded but commit failed",
   "original_path": "$ORIGINAL_ABS_PATH",
-  "branch_name": "$branch_name"
+  "branch_name": "$branch_name",
+  "cleanup_performed": true,
+  "git_atomicity": "Failed commit - all changes rolled back, worktree removed"
 }
 EOF
-      exit 1
+        exit 1
+      fi
     fi
   else
     # Check if it's a conflict or other error
-    if git -C "$ORIGINAL_ABS_PATH" status --porcelain | grep -q "^UU\\|^AA\\|^DD"; then
+    if git -C "$ORIGINAL_ABS_PATH" status --porcelain | grep -q "^U\\|^AA\\|^DD"; then
       merge_completed=false
       merge_conflicts=true
-      echo "⚠️ DECISION: Merge conflicts detected - manual resolution required"
-      
-      # Abort the merge to leave repository in clean state
+      echo "⚠️ DECISION: Merge conflicts detected - EXCEPTION to atomicity (preserve for resolution)"
+
+      # Abort the merge to leave repository in clean state, but KEEP worktree
       git -C "$ORIGINAL_ABS_PATH" merge --abort 2>/dev/null || true
-      
+
       cat << EOF
 {
-  "status": "error",
+  "status": "conflict",
   "error": "Merge conflicts detected",
   "merge_completed": false,
   "merge_conflicts": true,
   "original_path": "$ORIGINAL_ABS_PATH",
+  "worktree_path": "$WORKSPACE_ABS_PATH",
   "branch_name": "$branch_name",
-  "resolution_required": "Manual conflict resolution needed before merge"
+  "worktree_preserved": true,
+  "resolution_instructions": {
+    "manual_resolution": "Resolve conflicts manually in source or worktree",
+    "option_1_resolve_in_source": [
+      "1. Review changes in worktree: git -C '$WORKSPACE_ABS_PATH' log --oneline",
+      "2. Manually merge key changes to source",
+      "3. Re-run merge-worktree after source is ready"
+    ],
+    "option_2_resolve_in_worktree": [
+      "1. Identify conflicting files",
+      "2. Update worktree code to be compatible",
+      "3. Re-run merge-worktree to retry"
+    ],
+    "option_3_abort": [
+      "1. Manually cleanup: git -C '$ORIGINAL_ABS_PATH' worktree remove --force '$WORKSPACE_ABS_PATH'",
+      "2. rm -rf '$WORKSPACE_ABS_PATH'",
+      "3. git -C '$ORIGINAL_ABS_PATH' worktree prune"
+    ]
+  },
+  "git_atomicity": "Conflicts are EXCEPTION - worktree preserved for manual resolution"
 }
 EOF
       exit 1
     else
       merge_completed=false
       merge_conflicts=false
-      echo "❌ DECISION: Merge failed for unknown reason"
+      echo "❌ DECISION: Merge failed for non-conflict reason - TOTAL FAILURE per git atomicity"
+
+      # Cleanup per git atomicity - total failure
+      git -C "$ORIGINAL_ABS_PATH" merge --abort 2>/dev/null || true
+      git -C "$ORIGINAL_ABS_PATH" worktree remove --force "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+      rm -rf "$WORKSPACE_ABS_PATH" 2>/dev/null || true
+      git -C "$ORIGINAL_ABS_PATH" worktree prune 2>/dev/null || true
+
       cat << EOF
 {
   "status": "error",
-  "error": "Merge operation failed",
+  "error": "Merge operation failed (non-conflict error)",
   "original_path": "$ORIGINAL_ABS_PATH",
-  "branch_name": "$branch_name"
+  "branch_name": "$branch_name",
+  "cleanup_performed": true,
+  "git_atomicity": "Non-conflict failure - worktree removed completely"
 }
 EOF
       exit 1
@@ -384,61 +583,107 @@ execute_intelligent_merge
 ```bash
 # Intelligent cleanup using prompt-as-code
 cleanup_worktree_intelligently() {
-  echo "🧠 THINKING: Performing intelligent worktree cleanup with safety checks"
-  
-  # Safety validation before cleanup
-  if [ ! -d "$WORKSPACE_ABS_PATH" ]; then
-    echo "⚠️ DECISION: Worktree path doesn't exist, skipping worktree cleanup"
-    worktree_removed=false
-  else
-    # Intelligent worktree cleanup sequence
-    echo "🎯 DECISION: Removing worktree safely: $WORKSPACE_ABS_PATH"
-    if git -C "$ORIGINAL_ABS_PATH" worktree remove "$WORKSPACE_ABS_PATH" --force 2>/dev/null; then
-      worktree_removed=true
-      echo "✅ Worktree removed successfully"
+  echo "🧠 THINKING: Determining cleanup strategy based on merge outcome"
+
+  # Only cleanup if merge was successful
+  if [ "$merge_completed" = "true" ]; then
+    echo "🎯 DECISION: Merge successful - performing comprehensive cleanup"
+
+    # Safety validation before cleanup
+    if [ ! -d "$WORKSPACE_ABS_PATH" ]; then
+      echo "⚠️ DECISION: Worktree path doesn't exist, skipping worktree cleanup"
+      worktree_removed=false
     else
-      echo "⚠️ DECISION: Git worktree remove failed, attempting manual cleanup"
-      if rm -rf "$WORKSPACE_ABS_PATH" 2>/dev/null; then
-        worktree_removed=true
-        echo "✅ Manual worktree cleanup successful"
+      # Step 1: Remove git worktree tracking
+      echo "🧠 THINKING: Removing git worktree tracking"
+      if git -C "$ORIGINAL_ABS_PATH" worktree remove "$WORKSPACE_ABS_PATH" 2>/dev/null; then
+        echo "✅ Git worktree removed successfully"
       else
-        worktree_removed=false
-        echo "⚠️ Manual cleanup failed - worktree may need manual removal"
+        echo "⚠️ DECISION: Git worktree remove failed, forcing removal"
+        git -C "$ORIGINAL_ABS_PATH" worktree remove --force "$WORKSPACE_ABS_PATH" 2>/dev/null || true
       fi
-    fi
-  fi
-  
-  # Intelligent branch cleanup
-  if [ -n "$branch_name" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
-    echo "🎯 DECISION: Cleaning up branch: $branch_name"
-    if git -C "$ORIGINAL_ABS_PATH" branch -d "$branch_name" 2>/dev/null; then
-      branch_deleted=true
-      echo "✅ Branch deleted successfully"
-    else
-      echo "⚠️ DECISION: Branch deletion failed - may be unmerged or protected"
-      # Try force delete for worktree branches
-      if echo "$branch_name" | grep -q "^worktree/"; then
-        if git -C "$ORIGINAL_ABS_PATH" branch -D "$branch_name" 2>/dev/null; then
-          branch_deleted=true
-          echo "✅ Branch force-deleted successfully"
+
+      # Step 2: Prune stale worktree references
+      echo "🧠 THINKING: Pruning stale worktree references"
+      git -C "$ORIGINAL_ABS_PATH" worktree prune 2>/dev/null || true
+      echo "✅ Worktree references pruned"
+
+      # Step 3: Remove filesystem directory if still exists
+      if [ -d "$WORKSPACE_ABS_PATH" ]; then
+        echo "🧠 THINKING: Removing worktree directory from filesystem"
+        if rm -rf "$WORKSPACE_ABS_PATH" 2>/dev/null; then
+          worktree_removed=true
+          echo "✅ Worktree directory removed from filesystem"
         else
-          branch_deleted=false
-          echo "⚠️ Branch force-delete failed"
+          worktree_removed=false
+          echo "⚠️ Failed to remove worktree directory"
         fi
       else
-        branch_deleted=false
+        worktree_removed=true
+        echo "✅ Worktree directory already removed"
+      fi
+
+      # Step 4: Cleanup /tmp/worktrees base directory if empty
+      if [ -d /tmp/worktrees ]; then
+        remaining=$(ls /tmp/worktrees 2>/dev/null | wc -l)
+        if [ "$remaining" -eq 0 ]; then
+          echo "🧠 THINKING: No worktrees remaining, cleaning up base directory"
+          if rmdir /tmp/worktrees 2>/dev/null; then
+            echo "✅ Removed empty /tmp/worktrees base directory"
+          else
+            echo "⚠️ Could not remove /tmp/worktrees (may contain hidden files)"
+          fi
+        else
+          echo "🎯 DECISION: $remaining worktrees remain in /tmp/worktrees, keeping base directory"
+        fi
       fi
     fi
+
+    # Intelligent branch cleanup
+    if [ -n "$branch_name" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+      echo "🎯 DECISION: Cleaning up branch: $branch_name"
+      if git -C "$ORIGINAL_ABS_PATH" branch -d "$branch_name" 2>/dev/null; then
+        branch_deleted=true
+        echo "✅ Branch deleted successfully"
+      else
+        echo "⚠️ DECISION: Branch deletion failed - may be unmerged or protected"
+        # Try force delete for worktree branches
+        if echo "$branch_name" | grep -q "^worktree/"; then
+          if git -C "$ORIGINAL_ABS_PATH" branch -D "$branch_name" 2>/dev/null; then
+            branch_deleted=true
+            echo "✅ Branch force-deleted successfully"
+          else
+            branch_deleted=false
+            echo "⚠️ Branch force-delete failed"
+          fi
+        else
+          branch_deleted=false
+        fi
+      fi
+    else
+      echo "🎯 DECISION: Skipping branch cleanup - protected or missing branch name"
+      branch_deleted=false
+    fi
+
+    echo "✅ OUTCOME: Comprehensive cleanup completed - worktree_removed=$worktree_removed, branch_deleted=$branch_deleted"
+
   else
-    echo "🎯 DECISION: Skipping branch cleanup - protected or missing branch name"
+    echo "🎯 DECISION: Merge failed or had conflicts - PRESERVING worktree for recovery"
+    echo "📍 Worktree preserved at: $WORKSPACE_ABS_PATH"
+    echo "🔧 To cleanup after manual resolution:"
+    echo "   1. Resolve conflicts in $WORKSPACE_ABS_PATH"
+    echo "   2. Re-run: merge-worktree $WORKSPACE_ABS_PATH $ORIGINAL_ABS_PATH"
+    echo "   OR"
+    echo "   3. Manual cleanup:"
+    echo "      git -C $ORIGINAL_ABS_PATH worktree remove --force $WORKSPACE_ABS_PATH"
+    echo "      rm -rf $WORKSPACE_ABS_PATH"
+    echo "      git -C $ORIGINAL_ABS_PATH worktree prune"
+
+    worktree_removed=false
     branch_deleted=false
+
+    echo "⚠️ OUTCOME: Worktree preserved for manual recovery"
   fi
-  
-  # Cleanup git worktree references
-  echo "🧠 THINKING: Pruning git worktree references"
-  git -C "$ORIGINAL_ABS_PATH" worktree prune 2>/dev/null || true
-  
-  echo "✅ OUTCOME: Intelligent cleanup completed - worktree_removed=$worktree_removed, branch_deleted=$branch_deleted"
 }
 
 # Execute intelligent cleanup
@@ -454,7 +699,13 @@ echo "🧠 THINKING: Generating comprehensive worktree merger report"
 worktree_folder=$(basename "$WORKSPACE_ABS_PATH" 2>/dev/null || echo "unknown")
 final_files_processed=$total_changes
 
-# Generate comprehensive success response
+# Output XML tags for easy parsing
+echo "<working_directory>$ORIGINAL_ABS_PATH</working_directory>"
+echo "<worktree_removed>$WORKSPACE_ABS_PATH</worktree_removed>"
+echo "<branch_deleted>$branch_name</branch_deleted>"
+echo ""
+
+# Generate comprehensive success response with operational instructions
 cat << EOF
 {
   "status": "success",
@@ -482,7 +733,20 @@ cat << EOF
   "agent_context": "${agent_context:-none}",
   "thinking_process": "Analyzed changes → Created commit → Executed merge → Cleaned worktree → Validated results",
   "message": "Successfully processed $final_files_processed changes from worktree, merged with $merge_strategy strategy, and cleaned up",
-  "todo": "If any processes or tools were configured to use the worktree folder ($WORKSPACE_ABS_PATH) as their working context, update them to use the source directory ($ORIGINAL_ABS_PATH) since the worktree has been removed"
+  "operational_instructions": {
+    "directory_transition": "Worktree has been REMOVED - all operations must now target source directory",
+    "updated_working_directory": "$ORIGINAL_ABS_PATH",
+    "git_operations": "Use git -C '$ORIGINAL_ABS_PATH' for all git commands",
+    "file_operations": "All file reads/writes must target: $ORIGINAL_ABS_PATH/<relative-path>",
+    "example_commands": [
+      "Read file: Read tool with file_path='$ORIGINAL_ABS_PATH/src/file.js'",
+      "Write file: Write tool with file_path='$ORIGINAL_ABS_PATH/src/file.js'",
+      "Git status: git -C '$ORIGINAL_ABS_PATH' status",
+      "Git log: git -C '$ORIGINAL_ABS_PATH' log --oneline -5"
+    ],
+    "worktree_status": "Worktree and branch removed - changes merged to source",
+    "next_steps": "Continue work in source directory OR create new worktree if needed"
+  }
 }
 EOF
 
