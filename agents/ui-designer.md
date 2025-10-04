@@ -195,15 +195,15 @@ if [ -f "$PLANNING_DIR/phase6-scope.md" ]; then
 fi
 
 # Load IDEAL-STI Phase 7: Architecture Decisions  
-if [ -f "$PLANNING_DIR/phase7-architecture.md" ]; then
+if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "🧠 THINKING: Phase 7 architecture decisions are critical - they'll determine UI framework, styling approach, and component patterns"
   echo "### Phase 7: Architecture Decisions" >> "$FULL_CONTEXT"
-  cat "$PLANNING_DIR/phase7-architecture.md" >> "$FULL_CONTEXT"
+  cat "$PLANNING_DIR/architecture.md" >> "$FULL_CONTEXT"
   echo "" >> "$FULL_CONTEXT"
   
   # Extract UI-specific architectural decisions
   echo "### UI Architecture Decisions" >> "$FULL_CONTEXT"
-  grep -A 5 -B 2 -i "frontend\|ui\|interface\|component\|style\|theme\|responsive" "$PLANNING_DIR/phase7-architecture.md" >> "$FULL_CONTEXT" 2>/dev/null || echo "- No specific UI architecture decisions found" >> "$FULL_CONTEXT"
+  grep -A 5 -B 2 -i "frontend\|ui\|interface\|component\|style\|theme\|responsive" "$PLANNING_DIR/architecture.md" >> "$FULL_CONTEXT" 2>/dev/null || echo "- No specific UI architecture decisions found" >> "$FULL_CONTEXT"
   echo "" >> "$FULL_CONTEXT"
   echo "✅ OUTCOME: Architecture decisions loaded - UI framework and styling approach identified"
 else
@@ -290,7 +290,7 @@ echo "### Key UI Constraints and Requirements" >> "$FULL_CONTEXT"
 echo "- Technology stack: $ui_framework with $styling_approach" >> "$FULL_CONTEXT"
 echo "- Target users: $(grep -i "user" "$PLANNING_DIR/phase2-target-users.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Not specified")..." >> "$FULL_CONTEXT"
 echo "- Feasibility constraints: $(grep -i "constraint" "$PLANNING_DIR/phase3-feasibility.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "None identified")..." >> "$FULL_CONTEXT"
-echo "- Architecture requirements: $(grep -i "ui\|frontend" "$PLANNING_DIR/phase7-architecture.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Follow project patterns")..." >> "$FULL_CONTEXT"
+echo "- Architecture requirements: $(grep -i "ui\|frontend" "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Follow project patterns")..." >> "$FULL_CONTEXT"
 
 echo "" >> "$FULL_CONTEXT"
 echo "---" >> "$FULL_CONTEXT"
@@ -555,34 +555,34 @@ ideal_sti_styling="none"
 has_performance_constraints="false"
 has_accessibility_requirements="false"
 
-if [ -f "$PLANNING_DIR/phase7-architecture.md" ]; then
+if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "**Architecture Phase Analysis:**" >> "$ARCH_DECISIONS"
   
   # Extract framework preferences from architecture decisions
-  if grep -qi "react" "$PLANNING_DIR/phase7-architecture.md"; then
+  if grep -qi "react" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_framework="React"
-  elif grep -qi "vue" "$PLANNING_DIR/phase7-architecture.md"; then
+  elif grep -qi "vue" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_framework="Vue"
-  elif grep -qi "angular" "$PLANNING_DIR/phase7-architecture.md"; then
+  elif grep -qi "angular" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_framework="Angular"
   fi
   
   # Extract styling preferences
-  if grep -qi "tailwind" "$PLANNING_DIR/phase7-architecture.md"; then
+  if grep -qi "tailwind" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_styling="Tailwind CSS"
-  elif grep -qi "styled.*components" "$PLANNING_DIR/phase7-architecture.md"; then
+  elif grep -qi "styled.*components" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_styling="Styled Components"
-  elif grep -qi "css.*in.*js" "$PLANNING_DIR/phase7-architecture.md"; then
+  elif grep -qi "css.*in.*js" "$PLANNING_DIR/architecture.md"; then
     ideal_sti_styling="CSS-in-JS"
   fi
   
   # Check for constraints
-  if grep -qi "performance\|fast\|speed\|optimization" "$PLANNING_DIR/phase7-architecture.md"; then
+  if grep -qi "performance\|fast\|speed\|optimization" "$PLANNING_DIR/architecture.md"; then
     has_performance_constraints="true"
     echo "- Performance constraints: High (optimization requirements detected)" >> "$ARCH_DECISIONS"
   fi
   
-  if grep -qi "accessibility\|a11y\|wcag\|screen.*reader" "$PLANNING_DIR/phase7-architecture.md"; then
+  if grep -qi "accessibility\|a11y\|wcag\|screen.*reader" "$PLANNING_DIR/architecture.md"; then
     has_accessibility_requirements="true"
     echo "- Accessibility requirements: High (WCAG compliance needed)" >> "$ARCH_DECISIONS"
   fi

@@ -246,13 +246,13 @@ echo "" >> "$CONTEXT_FILE"
 
 # Load completed tasks for deployment analysis
 echo "### Completed Tasks Analysis" >> "$CONTEXT_FILE"
-if [ -d "$TASKS_DIR/completed" ]; then
-    COMPLETED_TASKS=$(find "$TASKS_DIR/completed" -name "*.md" -type f | wc -l)
+if [ -d "$TASKS_DIR/planning/completed" ]; then
+    COMPLETED_TASKS=$(find "$TASKS_DIR/planning/completed" -name "*.md" -type f | wc -l)
     echo "Found $COMPLETED_TASKS completed tasks for deployment analysis" >> "$CONTEXT_FILE"
     echo "#### Task List:" >> "$CONTEXT_FILE"
-    find "$TASKS_DIR/completed" -name "*.md" -type f -exec basename {} .md \; | sort >> "$CONTEXT_FILE"
+    find "$TASKS_DIR/planning/completed" -name "*.md" -type f -exec basename {} .md \; | sort >> "$CONTEXT_FILE"
 else
-    echo "⚠️ No completed tasks found at: $TASKS_DIR/completed" >> "$CONTEXT_FILE"
+    echo "⚠️ No completed tasks found at: $TASKS_DIR/planning/completed" >> "$CONTEXT_FILE"
 fi
 
 echo "✅ Deployment context rehydrated: $CONTEXT_FILE"
@@ -306,8 +306,8 @@ else
 fi
 
 # PRIORITY 2: Analyze completed tasks for features not in CI/CD requirements
-if [ -d "$TASKS_DIR/completed" ]; then
-    for task_file in "$TASKS_DIR/completed"/*.md; do
+if [ -d "$TASKS_DIR/planning/completed" ]; then
+    for task_file in "$TASKS_DIR/planning/completed"/*.md; do
         [ ! -f "$task_file" ] && continue
         
         task_name=$(basename "$task_file" .md)
@@ -479,7 +479,7 @@ case $DEPLOYMENT_STRATEGY in
         mkdir -p "$DEPLOYMENT_DIR/migrations"
         
         # Look for migration files in completed tasks
-        find "$TASKS_DIR/completed" -name "*.md" -exec grep -l "migration\|schema" {} \; | while read task; do
+        find "$TASKS_DIR/planning/completed" -name "*.md" -exec grep -l "migration\|schema" {} \; | while read task; do
             task_name=$(basename "$task" .md)
             echo "Migration required for: $task_name" >> "$DEPLOYMENT_DIR/migrations/migration-plan.md"
         done

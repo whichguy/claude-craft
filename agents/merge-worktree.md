@@ -715,6 +715,18 @@ cleanup_worktree_intelligently() {
 
     echo "✅ OUTCOME: Comprehensive cleanup completed - worktree_removed=$worktree_removed, branch_deleted=$branch_deleted"
 
+  # Display compact merge completion summary
+  if [ "$worktree_removed" = "true" ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════╗"
+    echo "║  MERGE COMPLETED ✓                                       ║"
+    echo "╚══════════════════════════════════════════════════════════╝"
+    echo "FROM: $WORKSPACE_ABS_PATH [REMOVED]"
+    echo "TO:   $ORIGINAL_ABS_PATH ($total_changes files)"
+    echo "⚠️  <worktree> context invalid → use $ORIGINAL_ABS_PATH"
+    echo ""
+  fi
+
   else
     echo "🎯 DECISION: Merge failed or had conflicts - PRESERVING worktree for recovery"
     echo "📍 Worktree preserved at: $WORKSPACE_ABS_PATH"

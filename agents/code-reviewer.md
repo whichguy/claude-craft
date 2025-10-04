@@ -214,9 +214,9 @@ if [ -f "$PLANNING_DIR/phase4-tech-research.md" ]; then
 fi
 
 # Load IDEAL-STI Phase 5: Architecture Planning
-if [ -f "$PLANNING_DIR/phase5-architecture.md" ]; then
+if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "### Phase 5: Architecture Planning" >> "$FULL_REVIEW_CONTEXT"
-  cat "$PLANNING_DIR/phase5-architecture.md" >> "$FULL_REVIEW_CONTEXT"
+  cat "$PLANNING_DIR/architecture.md" >> "$FULL_REVIEW_CONTEXT"
   echo "" >> "$FULL_REVIEW_CONTEXT"
 fi
 
@@ -316,9 +316,9 @@ for knowledge_path in "./knowledge" "../knowledge" "../../knowledge" "~/knowledg
 done
 
 # Load coding standards from IDEAL-STI planning
-if [ -f "./planning/phase7-architecture.md" ]; then
+if [ -f "./planning/architecture.md" ]; then
   echo "Loading coding standards from IDEAL-STI architecture..."
-  grep -A 10 -B 2 -i "code.*standard\|style\|convention" ./planning/phase7-architecture.md
+  grep -A 10 -B 2 -i "code.*standard\|style\|convention" ./planning/architecture.md
 fi
 
 # Analyze target file type and find similar files for pattern reference

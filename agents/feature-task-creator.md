@@ -57,7 +57,7 @@ Analyze <prompt-arguments> for content extraction:
      Extract relevant context for task generation
 ```
 
-Write complete task files to `<worktree>/pending/` and return a concise summary.
+Write complete task files to `<worktree>/planning/pending/` and return a concise summary.
 
 **Safety Limits**: Maximum 10 iterations per quality loop, global quality score must reach ≥9.0/10.0.
 
@@ -87,34 +87,38 @@ WHEN starting the feature task creation process:
        git -C "<original_pwd>" commit -m "Initial commit for task generation"
      fi
 
-     # Generate unique worktree for task creation
-     timestamp=$(date +%Y%m%d-%H%M%S)
-     random_id=$(openssl rand -hex 3)
-     worktree_name="task-creator-${timestamp}-${random_id}"
-     worktree_path="/tmp/${worktree_name}"
+     # Use create-worktree agent for robust worktree creation
+     # Agent handles: collision-resistant naming, branch creation, uncommitted changes
+     echo "🔧 Calling create-worktree agent with feature-task-creator context"
+     ask create-worktree "<original_pwd>" "task-creator" "feature-task-creator"
 
-     # Create worktree with branch for task generation
-     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-     worktree_branch="task-gen/${current_branch}-${timestamp}"
+     # Extract agent return values from XML tags
+     extracted_worktree=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<worktree>\K[^<]+')
+     extracted_branch=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<branch>\K[^<]+')
+     extracted_source=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<source>\K[^<]+')
 
-     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
-     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+     # Validate agent returned valid worktree path
+     if [ -z "$extracted_worktree" ] || [ ! -d "$extracted_worktree" ]; then
+       echo "❌ FAILED: create-worktree agent did not return valid worktree path"
+       echo "Agent output:"
+       echo "$LAST_AGENT_OUTPUT"
+       exit 1
+     fi
 
-     # CRITICAL: Copy existing completed/ directory for delta detection
-     if [ -d "<original_pwd>/completed" ]; then
-       cp -r "<original_pwd>/completed" "${worktree_path}/completed"
+     # CRITICAL: Copy existing planning/completed/ directory for delta detection
+     # This must happen AFTER worktree creation for accurate delta analysis
+     if [ -d "<original_pwd>/planning/completed" ]; then
+       cp -r "<original_pwd>/planning/completed" "${extracted_worktree}/planning/completed"
        echo "📋 Copied existing completed tasks for delta detection"
      fi
 
-     # Apply uncommitted changes (planning docs, etc.)
-     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
-       echo "📋 Applying uncommitted changes to worktree"
-       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply --allow-empty 2>/dev/null || true
-     fi
-
-     # Set worktree for remainder of execution
-     <worktree> = "${worktree_path}"
+     # Reassign framework variables to agent's returned path
+     <worktree> = "${extracted_worktree}"
      <worktree_created> = true
+     <worktree_branch> = ${extracted_branch}
+     <worktree_name> = $(basename "${extracted_worktree}")
+
+     echo "✅ Worktree created by agent: ${worktree_name}"
      echo "📂 Worktree set to: <worktree>"
    ELSE:
      echo "📝 Running in main environment - using current directory"
@@ -125,9 +129,9 @@ WHEN starting the feature task creation process:
 3. DIRECTORY INITIALIZATION:
    Create required directories:
    mkdir -p "<worktree>/planning"
-   mkdir -p "<worktree>/pending"     # New tasks to be implemented
-   mkdir -p "<worktree>/completed"   # Completed tasks
-   mkdir -p "<worktree>/docs"        # Documentation
+   mkdir -p "<worktree>/planning/pending"     # New tasks to be implemented
+   mkdir -p "<worktree>/planning/completed"   # Completed tasks
+   mkdir -p "<worktree>/docs"                 # Documentation
    echo "📁 Directories initialized"
 
 4. DOCUMENT DISCOVERY & LOADING:
@@ -170,7 +174,7 @@ WHEN starting the feature task creation process:
 
 5. PATH DISCIPLINE (Critical for safety):
    # NEVER use cd, pushd, popd, or directory changing commands
-   # ALWAYS use absolute paths: "<worktree>/pending/task-001.md"
+   # ALWAYS use absolute paths: "<worktree>/planning/pending/task-001.md"
    # ALWAYS use git -C "<worktree>" for ALL git operations
    echo "🔒 Path discipline enforced - no directory changes allowed"
 
@@ -211,7 +215,7 @@ EXECUTION PHASES: Organized by dependency order
 
 ```markdown
 DETECT EXISTING TASKS:
-Scan <worktree>/completed/ directory:
+Scan <worktree>/planning/completed/ directory:
 - List all existing task-*.md files
 - Extract requirement IDs and use case IDs from each
 - Build satisfaction inventories:
@@ -500,7 +504,7 @@ dependencies: [TASK-XXX, TASK-YYY]
      echo "📦 Consolidating results back to main environment"
 
      # Copy generated tasks to original location
-     cp -r "<worktree>/pending" "<original_pwd>/pending"
+     cp -r "<worktree>/planning/pending" "<original_pwd>/planning/pending"
 
      # Commit results in worktree
      git -C "<worktree>" add -A
@@ -563,7 +567,7 @@ After completing both phases and global end, return concise summary:
 ## Generated Task Files
 - New Tasks: [task-050.md, task-051.md, ...]
 - Modification Tasks: [task-001-mod.md, task-002-mod.md, ...]
-- Files Location: `<worktree>/pending/`
+- Files Location: `<worktree>/planning/pending/`
 
 ## Execution Phases
 - Phase 0 (Setup): [X] tasks
@@ -574,7 +578,7 @@ After completing both phases and global end, return concise summary:
 - Phase 6 (CI/CD): [C] tasks
 
 ## Next Steps
-1. Review generated tasks in `<worktree>/pending/`
+1. Review generated tasks in `<worktree>/planning/pending/`
 2. Execute tasks via feature-developer agent in phase order
 3. Use parallel execution for Phase 2-3 tasks when possible
 4. Follow critical path: Setup → Migration → Features → Integration → Validation → CI/CD

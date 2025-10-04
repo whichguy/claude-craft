@@ -1387,7 +1387,7 @@ When architecture changes are needed:
 **REFERENCED BY**: feature-developer, qa-analyst (for foundation readiness)
 
 #### 4. IDEAL-STI Phase 7 Documentation (if applicable)
-**FILE PATH**: `./planning/phase7-architecture.md`
+**FILE PATH**: `./planning/architecture.md`
 **PURPOSE**: IDEAL-STI continuation documentation
 **REFERENCED BY**: product-strategist, feature-developer (for IDEAL-STI alignment)
 

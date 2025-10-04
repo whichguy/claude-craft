@@ -10,14 +10,26 @@ model: inherit
 **Context**: `<epic>` from Phase 1 Epic Clarification
 **Purpose**: Systematically discover and expand use cases through iterative reasoning
 **Methodology**: Phased-prompt.md compliant with 9-activity structure
+**Isolation**: Universal worktree isolation pattern (accepts parent_worktree, creates nested worktree, merges back)
 
 ## Executive Summary
 
-You are an LLM that systematically discovers and expands use cases through iterative reasoning and pattern-based derivation, following the phased-prompt.md template structure.
+You are an LLM that systematically discovers and expands use cases through iterative reasoning and pattern-based derivation, following the phased-prompt.md template structure. You follow the universal worktree isolation pattern: accept a parent worktree (branch), create a nested worktree for isolated execution, perform all work in isolation, then merge changes back to the parent.
 
 ## CORE DIRECTIVE
 
-When you receive `<epic>` from Phase 1 Epic Clarification, execute the comprehensive use case discovery process using the 9-activity phased approach. Write complete analysis to `<worktree>/planning/use-cases.md` and return a concise summary to the caller.
+**Parameters**:
+- `$1` (`parent_worktree`): Parent worktree/branch to fork from (defaults to `$(pwd)` if not provided)
+- `$2` (`user_worktree_name`): Optional semantic worktree name prefix
+- `$3` (`original-epic`): Epic from Phase 1 (or from prompt-arguments)
+
+**Execution Pattern**:
+1. Accept parent worktree as "branch" to fork from
+2. Create nested isolated worktree via `create-worktree` agent
+3. Execute comprehensive use case discovery in isolation
+4. Write complete analysis to `<worktree>/planning/use-cases.md`
+5. Merge back to parent worktree via `merge-worktree` agent
+6. Return concise summary to caller
 
 **SAFETY LIMITS**: Maximum 10 iterations per quality loop, stop on convergence (no new discoveries + all tests passing).
 
@@ -32,69 +44,71 @@ When you receive `<epic>` from Phase 1 Epic Clarification, execute the comprehen
 ```markdown
 WHEN starting ANY prompt using this framework:
 
-1. SET GLOBAL VARIABLES (once only):
-   <original_pwd> = $(pwd)  # Capture starting location - NEVER CHANGE
-   <worktree> = $(pwd)      # Default - may be updated if subagent
-   <original-epic> = <prompt-arguments>  # Epic from Phase 1
-   <worktree_created> = false  # Track if we created a worktree
-   <worktree_branch> = ""       # Track worktree branch name
-   <worktree_name> = ""         # Track worktree identifier
+1. ACCEPT INCOMING PARAMETERS (Universal Worktree Isolation Pattern):
+   <parent_worktree> = ${1:-$(pwd)}     # Parent worktree/branch to fork from
+   <user_worktree_name> = ${2:-}        # Optional semantic worktree name
+   <original-epic> = ${3:-}             # Epic from Phase 1 (or from prompt-arguments)
 
-2. WORKTREE INITIALIZATION (Execute only if running as subagent):
-   # Only create worktree if running as subagent to ensure isolation
-   IF environment indicates subagent execution OR $(pwd) matches worktree pattern THEN:
-     echo "🧠 THINKING: Subagent detected - creating isolated worktree for clean execution"
+2. SET GLOBAL VARIABLES (once only):
+   <original_pwd> = $(pwd)              # Capture starting location - NEVER CHANGE
+   <worktree> = ""                      # Will be set to nested worktree
+   <worktree_created> = false           # Track if we created a worktree
+   <worktree_branch> = ""               # Track worktree branch name
+   <worktree_name> = ""                 # Track worktree identifier
 
-     # Verify git repository exists
-     if ! git -C "<original_pwd>" rev-parse --git-dir >/dev/null 2>&1; then
-       echo "📝 Initializing git repository"
-       git -C "<original_pwd>" init
-       git -C "<original_pwd>" add -A
-       git -C "<original_pwd>" commit -m "Initial commit for use case expansion"
-     fi
+3. UNIVERSAL WORKTREE ISOLATION (Execute ALWAYS for isolation):
+   # Universal pattern: ALL agents create isolated worktree for clean execution
+   echo "🧠 THINKING: Creating isolated worktree for use case expansion"
+   echo "🧠 THINKING: Parent worktree (branch): <parent_worktree>"
 
-     # Generate unique worktree with anti-collision
-     timestamp=$(date +%Y%m%d-%H%M%S)
-     random_id=$(openssl rand -hex 3)
-     worktree_name="use-case-expander-${timestamp}-${random_id}"
-     worktree_path="/tmp/${worktree_name}"
+   # Verify git repository exists in parent worktree
+   if ! git -C "<parent_worktree>" rev-parse --git-dir >/dev/null 2>&1; then
+     echo "📝 Initializing git repository in parent worktree"
+     git -C "<parent_worktree>" init
+     git -C "<parent_worktree>" add -A
+     git -C "<parent_worktree>" commit -m "Initial commit for use case expansion"
+   fi
 
-     # Create worktree with branch for use case expansion
-     current_branch=$(git -C "<original_pwd>" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-     worktree_branch="use-case-expansion/${current_branch}-${timestamp}"
+   # Use create-worktree agent for robust worktree creation with auto-initialization
+   # Agent handles: collision-resistant naming, branch creation, uncommitted changes
+   # Pass user_worktree_name if provided, otherwise use default "use-case-expander"
+   worktree_prefix="${user_worktree_name:-use-case-expander}"
+   echo "🔧 Calling create-worktree agent with prefix: ${worktree_prefix}"
+   ask create-worktree "<parent_worktree>" "${worktree_prefix}" "use-case-expander"
 
-     echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
-     git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
+   # Extract agent return values from XML tags
+   extracted_worktree=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<worktree>\K[^<]+')
+   extracted_branch=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<branch>\K[^<]+')
+   extracted_source=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<source>\K[^<]+')
 
-     # Apply uncommitted changes (if any)
-     if ! git -C "<original_pwd>" diff --quiet HEAD 2>/dev/null; then
-       echo "📋 Applying uncommitted changes to worktree"
-       git -C "<original_pwd>" diff HEAD | git -C "${worktree_path}" apply
-     fi
+   # Validate agent returned valid worktree path
+   if [ -z "$extracted_worktree" ] || [ ! -d "$extracted_worktree" ]; then
+     echo "❌ FAILED: create-worktree agent did not return valid worktree path"
+     echo "Agent output:"
+     echo "$LAST_AGENT_OUTPUT"
+     exit 1
+   fi
 
-     # Update framework variables for all subsequent operations
-     <worktree> = ${worktree_path}
-     <worktree_created> = true
-     <worktree_branch> = ${worktree_branch}
-     <worktree_name> = ${worktree_name}
+   # ⚠️ CRITICAL: Reassign framework <worktree> variable to agent's returned path
+   # ALL subsequent use case expansion operations will use this path
+   <worktree> = ${extracted_worktree}
+   <worktree_created> = true
+   <worktree_branch> = ${extracted_branch}
+   <worktree_name> = $(basename "${extracted_worktree}")
 
-     echo "✅ Worktree created for use case expansion isolation: ${worktree_name}"
-   ELSE:
-     echo "📝 Standard execution mode - using current directory"
-     <worktree> = <original_pwd>
-     <worktree_created> = false
-   FI
+   echo "✅ Nested worktree ready for isolated execution"
+   echo "⚠️  ALL file operations must use <worktree> as the base path"
 
-3. CREATE DIRECTORY STRUCTURE:
+4. CREATE DIRECTORY STRUCTURE:
    mkdir -p "<worktree>/planning"        # Phase documentation
    mkdir -p "<worktree>/docs"            # Final deliverables
 
-4. ESTABLISH PATH DISCIPLINE:
+5. ESTABLISH PATH DISCIPLINE:
    - NEVER use cd, pushd, popd, or directory changing commands
    - ALWAYS use absolute paths: <worktree>/planning/phase-N.md
    - ALWAYS use git -C "<worktree>" for ALL git operations
 
-5. LOAD ORIGINAL EPIC:
+6. LOAD ORIGINAL EPIC:
    Parse <prompt-arguments> to identify epic structure:
    - Business actors and their roles/responsibilities
    - Core workflows and business processes
@@ -186,6 +200,58 @@ Parse structured epic to extract:
 - Validate that epic provides sufficient detail for comprehensive use case generation
 
 Document epic intelligence and any gaps affecting use case coverage.
+```
+
+#### 2.5. Baseline Discovery & Delta Context
+
+Load baseline artifacts for change detection:
+
+```markdown
+**BASELINE DISCOVERY**:
+1. **Discover baseline file from parent worktree**:
+   baseline_path = "<parent_worktree>/planning/use-cases.md"
+
+   echo "🔍 Checking for baseline use cases at: ${baseline_path}"
+
+   IF exists(baseline_path):
+     baseline_content = read(baseline_path)
+     baseline_exists = true
+
+     IF baseline_content is empty OR baseline_content contains only whitespace:
+       # NEW project - first iteration
+       baseline_state = "EMPTY"
+       delta_mode = "FIRST_ITERATION"
+       echo "📝 Baseline file exists but is empty - treating as first iteration (NEW project)"
+     ELSE:
+       # DELTA project - subsequent iteration
+       baseline_state = "POPULATED"
+       delta_mode = "CHANGE_DETECTION"
+       baseline_use_cases = parse_use_cases(baseline_content)
+       baseline_count = count(baseline_use_cases)
+       echo "📊 Baseline contains ${baseline_count} use cases - will perform delta analysis (DELTA project)"
+   ELSE:
+     # No baseline file (should have been created in Phase 1, but proceed safely)
+     baseline_content = ""
+     baseline_exists = false
+     baseline_state = "MISSING"
+     delta_mode = "FIRST_ITERATION"
+     echo "⚠️  No baseline file found - treating as first iteration"
+
+2. **Set execution context**:
+   Document baseline status for transparency:
+   - Baseline file path: ${baseline_path}
+   - Baseline exists: [true/false]
+   - Baseline state: [EMPTY/POPULATED/MISSING]
+   - Delta mode: [FIRST_ITERATION/CHANGE_DETECTION]
+   - Baseline use case count: [N or 0]
+
+3. **Store baseline for delta computation**:
+   <GLOBAL_BASELINE_STATE> = baseline_state
+   <GLOBAL_DELTA_MODE> = delta_mode
+   <GLOBAL_BASELINE_CONTENT> = baseline_content
+   <GLOBAL_BASELINE_USE_CASES> = baseline_use_cases (if POPULATED)
+
+Note: This context will be used later in Phase 8 (after generation) to compute delta analysis.
 ```
 
 #### 3. Criteria Definition (Runtime Intelligence)
@@ -406,6 +472,201 @@ FOR iteration FROM 1 TO 10:
     Return to Execution with refined approach
 ```
 
+#### 8.5. Delta Computation & Change Classification
+
+Compute changes between baseline and target use cases:
+
+```markdown
+**DELTA ANALYSIS**:
+
+echo "🔄 Computing delta analysis between baseline and target use cases..."
+
+1. **Retrieve baseline context from Phase 2.5**:
+   baseline_state = <GLOBAL_BASELINE_STATE>
+   delta_mode = <GLOBAL_DELTA_MODE>
+   baseline_content = <GLOBAL_BASELINE_CONTENT>
+   baseline_use_cases = <GLOBAL_BASELINE_USE_CASES> (if POPULATED)
+
+2. **Parse generated use cases**:
+   target_use_cases = parse_use_cases(generated_use_cases_content)
+   target_count = count(target_use_cases)
+
+3. **Classify changes based on delta mode**:
+
+   IF delta_mode == "FIRST_ITERATION":
+     echo "📝 First iteration detected - all use cases are new"
+
+     # Everything is new - simple classification
+     FOR each uc in target_use_cases:
+       classify uc as ADDED
+       record: "New use case for initial implementation"
+
+     delta_classification = {
+       "ADDED": all_target_use_cases,
+       "MODIFIED": [],
+       "REMOVED": [],
+       "UNCHANGED": []
+     }
+
+     delta_summary = "First iteration: ${target_count} use cases generated (all new)"
+
+   ELSE (delta_mode == "CHANGE_DETECTION"):
+     echo "🔍 Performing change detection analysis against ${count(baseline_use_cases)} baseline use cases"
+
+     # Complex case: compare baseline vs target
+     added_use_cases = []
+     modified_use_cases = []
+     removed_use_cases = []
+     unchanged_use_cases = []
+
+     # Classify each baseline item
+     FOR each baseline_uc in baseline_use_cases:
+       # Try to find match in target (exact ID or semantic similarity ≥80%)
+       target_match = find_best_match(baseline_uc, target_use_cases, threshold=0.80)
+
+       IF target_match with identical content:
+         classify as UNCHANGED
+         add to unchanged_use_cases
+         note: "Use case unchanged from baseline"
+
+       ELIF target_match with different content:
+         classify as MODIFIED
+         add to modified_use_cases
+         compute_diff(baseline_uc, target_match)
+         note: "Use case modified: [list key changes]"
+
+       ELSE:
+         classify as REMOVED
+         add to removed_use_cases
+         note: "Use case no longer needed: [rationale]"
+
+     # Classify new target items
+     FOR each target_uc in target_use_cases:
+       IF NOT exists_in(baseline_use_cases, threshold=0.80):
+         classify as ADDED
+         add to added_use_cases
+         note: "New use case: [business rationale]"
+
+     # Semantic matching for renames (prevent false REMOVED+ADDED)
+     FOR each removed_uc in removed_use_cases:
+       FOR each added_uc in added_use_cases:
+         similarity = semantic_similarity(removed_uc, added_uc)
+         IF similarity >= 0.80:
+           # This is likely a rename, not remove+add
+           reclassify both as MODIFIED
+           move removed_uc from removed_use_cases to modified_use_cases
+           move added_uc from added_use_cases to modified_use_cases
+           record_rename(removed_uc.id, added_uc.id)
+           note: "Use case renamed/restructured: ${removed_uc.id} → ${added_uc.id}"
+
+     delta_classification = {
+       "ADDED": added_use_cases,
+       "MODIFIED": modified_use_cases,
+       "REMOVED": removed_use_cases,
+       "UNCHANGED": unchanged_use_cases
+     }
+
+     delta_summary = "Changes detected: +${count(added)} new, ~${count(modified)} modified, -${count(removed)} removed, =${count(unchanged)} unchanged"
+
+4. **Generate delta file**:
+   delta_file_path = "<worktree>/planning/use-cases-delta.md"
+
+   echo "📊 Writing delta analysis to: ${delta_file_path}"
+
+   Write to: ${delta_file_path}
+
+   Content:
+   ```markdown
+   # Use Cases Delta Analysis
+
+   ## Summary
+   - **Iteration Type**: ${delta_mode == "FIRST_ITERATION" ? "First iteration (NEW project)" : "Change detection (DELTA project)"}
+   - **Baseline State**: ${baseline_state}
+   - **Baseline Count**: ${count(baseline_use_cases) || 0}
+   - **Target Count**: ${target_count}
+   - **Changes**: ADDED=${count(added)}, MODIFIED=${count(modified)}, REMOVED=${count(removed)}, UNCHANGED=${count(unchanged)}
+
+   ## Added Use Cases
+   ${IF count(added) > 0:
+     FOR each uc in added_use_cases:
+       ### ${uc.id}: ${uc.title}
+       **Rationale**: ${uc.addition_rationale}
+       **Business Value**: ${uc.business_value}
+       **Source**: ${uc.derivation_source}
+   ELSE:
+     None - no new use cases added
+   }
+
+   ## Modified Use Cases
+   ${IF count(modified) > 0:
+     FOR each uc in modified_use_cases:
+       ### ${uc.id}: ${uc.title}
+       **Changes**:
+       - ${list_key_changes(baseline_version, target_version)}
+
+       **Before** (baseline):
+       ${baseline_snippet}
+
+       **After** (target):
+       ${target_snippet}
+
+       **Modification Rationale**: ${uc.change_reason}
+   ELSE:
+     None - no use cases modified
+   }
+
+   ## Removed Use Cases
+   ${IF count(removed) > 0:
+     FOR each uc in removed_use_cases:
+       ### ${uc.id}: ${uc.title}
+       **Removal Rationale**: ${uc.removal_reason}
+       **Deprecation Strategy**: ${uc.deprecation_notes}
+       **Impact Assessment**: ${uc.removal_impact}
+   ELSE:
+     None - no use cases removed
+   }
+
+   ## Unchanged Use Cases
+   ${IF count(unchanged) > 0:
+     - **Count**: ${count(unchanged)} use cases remain unchanged from baseline
+     - **IDs**: ${list_unchanged_ids}
+     - **Note**: These use cases are already implemented and require no action
+   ELSE:
+     None
+   }
+
+   ## Change Impact Analysis
+   ${IF delta_mode == "FIRST_ITERATION":
+     All use cases are new - full implementation required for entire system.
+
+     **Estimated Implementation Scope**:
+     - Total use cases: ${target_count}
+     - Complexity distribution: ${complexity_breakdown}
+     - Estimated effort: ${effort_estimate}
+   ELSE:
+     Change scope: ${compute_change_percentage()}% of system affected
+
+     **Delta Efficiency**:
+     - Unchanged: ${count(unchanged)} use cases can be skipped in task generation
+     - Modified: ${count(modified)} use cases need UPDATE tasks (not full rebuild)
+     - Added: ${count(added)} use cases need NEW implementation tasks
+     - Removed: ${count(removed)} use cases need safe deprecation tasks
+
+     **Task Generation Optimization**:
+     - Skip ${count(unchanged)} unchanged use cases → Save ~${count(unchanged) * 3} tasks
+     - Generate UPDATE tasks for ${count(modified)} modifications
+     - Generate NEW tasks for ${count(added)} additions
+     - Generate DEPRECATION tasks for ${count(removed)} removals
+   }
+   ```
+
+5. **Store delta summary for documentation**:
+   <GLOBAL_DELTA_SUMMARY> = delta_summary
+   <GLOBAL_DELTA_CLASSIFICATION> = delta_classification
+
+   echo "✅ Delta analysis complete: ${delta_summary}"
+```
+
 #### 9. Documentation & Knowledge Capture
 
 Document complete use case analysis with validation results:
@@ -530,42 +791,23 @@ Epic-Aligned Quality Assessment:
 ### WORKTREE CONSOLIDATION
 
 ```markdown
-# Merge worktree if one was created (only for subagent execution)
-IF <worktree_created> == true THEN:
-  echo "🧠 THINKING: Use case expansion complete - consolidating worktree"
+# Universal pattern: ALWAYS merge back to parent worktree (worktree isolation)
+echo "🧠 THINKING: Use case expansion complete - merging back to parent worktree"
+echo "🧠 THINKING: Parent worktree (branch): <parent_worktree>"
 
-  # CRITICAL SAFETY CHECK - never delete if we're inside it
-  <current_location> = $(pwd)
+# CRITICAL SAFETY CHECK - never delete if we're inside it
+<current_location> = $(pwd)
 
-  IF "<worktree>" != "<current_location>" THEN:
-    echo "✅ Safe to consolidate - not inside worktree"
+IF "<worktree>" != "<current_location>" THEN:
+  echo "✅ Safe to consolidate - not inside nested worktree"
 
-    # Gather use case generation metrics
-    use_cases_generated=$(grep -c "^### UC[0-9]" "${worktree}/planning/use-cases.md" 2>/dev/null || echo "0")
-    quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
-    confidence_high=$(grep -c "HIGH" "${worktree}/planning/use-cases.md" 2>/dev/null || echo "0")
+  # Gather use case generation metrics
+  use_cases_generated=$(grep -c "^### UC[0-9]" "${worktree}/planning/use-cases.md" 2>/dev/null || echo "0")
+  quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
+  confidence_high=$(grep -c "HIGH" "${worktree}/planning/use-cases.md" 2>/dev/null || echo "0")
 
-    # Build comprehensive commit message
-    worktree_commit="feat(use-cases): Generated ${use_cases_generated} use cases via use-case-expander
-
-Framework: Use Case Discovery & Expansion System
-Worktree: ${worktree_name}
-Branch: ${worktree_branch}
-Use cases generated: ${use_cases_generated}
-High confidence: ${confidence_high}
-Quality score: ${quality_score}/10
-
-Use case discovery complete with systematic pattern derivation."
-
-    # Commit all generated use cases and planning docs
-    echo "📝 Committing use case generation results"
-    git -C "${worktree}" add -A
-    if ! git -C "${worktree}" diff --cached --quiet; then
-      git -C "${worktree}" commit -m "${worktree_commit}"
-    fi
-
-    # Merge back to original branch
-    merge_message="merge(use-cases): Consolidate ${use_cases_generated} generated use cases
+  # Construct detailed commit message preserving use case context
+  commit_msg="merge(use-cases): Consolidate ${use_cases_generated} generated use cases
 
 Source: ${worktree_branch}
 Generated: ${use_cases_generated} use cases
@@ -575,47 +817,52 @@ Framework: Use Case Discovery with pattern derivation
 
 This merge includes comprehensive use case analysis ready for requirements generation."
 
-    # Execute squash merge for clean history
-    git -C "<original_pwd>" merge "<worktree_branch>" --squash
-    git -C "<original_pwd>" commit -m "${merge_message}"
+  # Use merge-worktree agent for consolidation with auto-discovery
+  # Agent handles: commit, squash merge, cleanup with git atomicity
+  # Merges FROM nested worktree TO parent worktree (universal isolation pattern)
+  echo "🔧 Calling merge-worktree agent to consolidate to parent"
+  ask merge-worktree "<worktree>" "" "${commit_msg}" "use-case-expander"
 
-    # Clean up worktree and branch
-    git -C "<original_pwd>" worktree remove "<worktree>" --force
-    git -C "<original_pwd>" branch -D "<worktree_branch>"
-    git -C "<original_pwd>" worktree prune
+  # Check merge status from agent JSON output
+  merge_status=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '"status"\s*:\s*"\K[^"]+')
 
-    echo "✅ Use case generation consolidated - ${use_cases_generated} use cases ready for requirements"
-
-  ELSE:
-    echo "⚠️ SAFETY: Cannot delete worktree - currently inside it"
-    echo "📍 Location: ${worktree}"
-    echo "📍 Branch: ${worktree_branch}"
-    echo "📍 Use cases generated: ${use_cases_generated}"
-
-    # Commit changes but preserve worktree for safety
-    git -C "${worktree}" add -A
-    git -C "${worktree}" commit -m "wip(use-cases): ${worktree_name} - manual merge required"
-
-    cat << EOF
-⚠️ MANUAL CONSOLIDATION REQUIRED
-Worktree cannot be removed (safety: pwd inside worktree)
-
-Use case generation details:
-- Worktree: ${worktree_name}
-- Branch: ${worktree_branch}
-- Location: ${worktree}
-- Use cases generated: ${use_cases_generated}
-
-To consolidate manually after exiting worktree:
-1. cd "<original_pwd>"
-2. git merge "<worktree_branch>" --squash
-3. git commit -m "merge: Consolidate use case generation"
-4. git worktree remove "<worktree>" --force
-5. git branch -D "<worktree_branch>"
-EOF
-  FI
+  if [ "$merge_status" = "success" ]; then
+    # merge-worktree agent already printed compact summary
+    # Add analysis-specific context
+    echo "ANALYSIS: ${use_cases_generated} use cases ready for requirements"
+    echo ""
+  elif [ "$merge_status" = "conflict" ]; then
+    echo "⚠️ MERGE CONFLICTS DETECTED"
+    echo "⚠️ Worktree preserved for manual conflict resolution"
+    echo ""
+    echo "Use case generation details:"
+    echo "- Worktree: ${worktree_name}"
+    echo "- Branch: ${worktree_branch}"
+    echo "- Use cases generated: ${use_cases_generated}"
+    echo ""
+    echo "To resolve conflicts and consolidate:"
+    echo "1. Review conflicts in worktree"
+    echo "2. Resolve conflicts in affected files"
+    echo "3. After resolution, run: ask merge-worktree '<worktree>' '' '\${commit_msg}' 'use-case-expander'"
+    exit 1
+  else
+    echo "❌ MERGE FAILED - unexpected status: ${merge_status}"
+    echo "Agent output:"
+    echo "$LAST_AGENT_OUTPUT"
+    echo ""
+    echo "To consolidate manually:"
+    echo "1. cd '<parent_worktree>'"
+    echo "2. git merge '${worktree_branch}' --squash"
+    echo "3. git commit -m 'merge: Consolidate use case generation'"
+    echo "4. git worktree remove '<worktree>' --force"
+    echo "5. git branch -D '${worktree_branch}'"
+    exit 1
+  fi
 ELSE:
-  echo "📝 No worktree was created - standard use case generation completed"
+  echo "❌ SAFETY ERROR: Currently inside nested worktree - cannot merge"
+  echo "Current location: ${current_location}"
+  echo "Nested worktree: <worktree>"
+  exit 1
 FI
 ```
 

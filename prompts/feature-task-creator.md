@@ -89,9 +89,9 @@ WHEN starting the feature task creation process:
      echo "🔧 Creating worktree: ${worktree_path} on branch ${worktree_branch}"
      git -C "<original_pwd>" worktree add "${worktree_path}" -b "${worktree_branch}" "${current_branch}"
 
-     # CRITICAL: Copy existing completed/ directory for delta detection
-     if [ -d "<original_pwd>/completed" ]; then
-       cp -r "<original_pwd>/completed" "${worktree_path}/completed"
+     # CRITICAL: Copy existing planning/completed/ directory for delta detection
+     if [ -d "<original_pwd>/planning/completed" ]; then
+       cp -r "<original_pwd>/planning/completed" "${worktree_path}/planning/completed"
        echo "📋 Copied existing completed tasks for delta detection"
      fi
 
@@ -117,14 +117,14 @@ WHEN starting the feature task creation process:
    <original-requirements> = <prompt-arguments>
 
 3. CREATE DIRECTORY STRUCTURE:
-   mkdir -p "<worktree>/planning"        # Phase documentation
-   mkdir -p "<worktree>/pending"         # New task files awaiting implementation
-   mkdir -p "<worktree>/completed"       # Completed task files after implementation
-   mkdir -p "<worktree>/docs"            # Requirements and specs
+   mkdir -p "<worktree>/planning"            # Phase documentation
+   mkdir -p "<worktree>/planning/pending"    # New task files awaiting implementation
+   mkdir -p "<worktree>/planning/completed"  # Completed task files after implementation
+   mkdir -p "<worktree>/docs"                # Requirements and specs
 
 3. ESTABLISH PATH DISCIPLINE:
    - NEVER use cd, pushd, popd, or directory changing commands
-   - ALWAYS use absolute paths: <worktree>/pending/task-001.md
+   - ALWAYS use absolute paths: <worktree>/planning/pending/task-001.md
    - ALWAYS use git -C "<worktree>" for ALL git operations
 
 4. DETERMINE INPUT SOURCES:
@@ -138,7 +138,7 @@ WHEN starting the feature task creation process:
      Note gaps for manual specification during execution
 
 5. DETECT EXISTING TASKS:
-   Scan <worktree>/completed/ directory:
+   Scan <worktree>/planning/completed/ directory:
    - List all existing task-*.md files
    - Extract requirement IDs and use case IDs from each
    - Build satisfaction inventories:
@@ -879,7 +879,7 @@ FOR iteration FROM 1 TO 10:
 Generate final deliverables:
 
 ```markdown
-Save to: <worktree>/pending/
+Save to: <worktree>/planning/pending/
 
 For each task, create: task-NNN.md (or task-NNN-mod.md for modifications)
 ---
@@ -1191,7 +1191,7 @@ FRAMEWORK IMPROVEMENTS:
 ```markdown
 Verify feature-developer.md compatibility:
 
-For each task file in <worktree>/pending/:
+For each task file in <worktree>/planning/pending/:
 - ✓ Has unique task ID
 - ✓ Has estimated hours ≤6
 - ✓ Has clear dependencies
@@ -1228,7 +1228,7 @@ IF <worktree_created> == true THEN:
     echo "✅ Safe to consolidate - not inside worktree"
 
     # Gather task generation metrics
-    tasks_generated=$(ls -1 "${worktree}"/pending/task-*.md 2>/dev/null | wc -l || echo "0")
+    tasks_generated=$(ls -1 "${worktree}"/planning/pending/task-*.md 2>/dev/null | wc -l || echo "0")
     tasks_skipped=$(grep -c "already satisfied" "${worktree}"/planning/phase-1.md 2>/dev/null || echo "0")
     delta_efficiency=$(grep "Delta Efficiency:" "${worktree}"/planning/phase-2.md | grep -o "[0-9]*%" || echo "unknown")
     quality_score="${GLOBAL_QUALITY_SCORE:-unknown}"
@@ -1364,7 +1364,7 @@ When using this framework:
 
 GLOBAL START
 ├── Load documents with rich context extraction
-└── Detect 45 existing tasks in <worktree>/completed/
+└── Detect 45 existing tasks in <worktree>/planning/completed/
 
 PHASE 1: Analysis & Decomposition
 ├── Extract 42 use cases (25 unchanged, 5 modified, 12 new)

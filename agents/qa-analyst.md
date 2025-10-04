@@ -166,14 +166,14 @@ if [ -f "$PLANNING_DIR/phase6-scope.md" ]; then
 fi
 
 # Load IDEAL-STI Phase 7: Architecture Decisions  
-if [ -f "$PLANNING_DIR/phase7-architecture.md" ]; then
+if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "### Phase 7: Architecture Decisions" >> "$FULL_QA_CONTEXT"
-  cat "$PLANNING_DIR/phase7-architecture.md" >> "$FULL_QA_CONTEXT"
+  cat "$PLANNING_DIR/architecture.md" >> "$FULL_QA_CONTEXT"
   echo "" >> "$FULL_QA_CONTEXT"
   
   # Extract testing strategy from architecture
   echo "### Testing Strategy from Architecture" >> "$FULL_QA_CONTEXT"
-  grep -A 5 -B 2 -i "test\|testing\|quality\|framework\|strategy\|coverage" "$PLANNING_DIR/phase7-architecture.md" >> "$FULL_QA_CONTEXT" 2>/dev/null || echo "- No specific testing architecture found" >> "$FULL_QA_CONTEXT"
+  grep -A 5 -B 2 -i "test\|testing\|quality\|framework\|strategy\|coverage" "$PLANNING_DIR/architecture.md" >> "$FULL_QA_CONTEXT" 2>/dev/null || echo "- No specific testing architecture found" >> "$FULL_QA_CONTEXT"
   echo "" >> "$FULL_QA_CONTEXT"
 fi
 
@@ -241,7 +241,7 @@ echo "### Key Testing Requirements and Constraints" >> "$FULL_QA_CONTEXT"
 echo "- Testing framework: $testing_framework" >> "$FULL_QA_CONTEXT"
 echo "- Target users: $(grep -i "user" "$PLANNING_DIR/phase2-target-users.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Not specified")..." >> "$FULL_QA_CONTEXT"
 echo "- Quality constraints: $(grep -i "quality\|test" "$PLANNING_DIR/phase3-feasibility.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Standard quality gates")..." >> "$FULL_QA_CONTEXT"
-echo "- Architecture testing strategy: $(grep -i "test\|quality" "$PLANNING_DIR/phase7-architecture.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Follow project patterns")..." >> "$FULL_QA_CONTEXT"
+echo "- Architecture testing strategy: $(grep -i "test\|quality" "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | cut -d' ' -f1-10 || echo "Follow project patterns")..." >> "$FULL_QA_CONTEXT"
 
 echo "" >> "$FULL_QA_CONTEXT"
 echo "---" >> "$FULL_QA_CONTEXT"

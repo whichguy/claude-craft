@@ -31,7 +31,7 @@ docs/planning/phase3-feasibility.md    # Risk and feasibility assessment
 docs/planning/phase4-tech-research.md  # Technology research and recommendations
 docs/planning/phase5-requirements.md   # Functional and non-functional requirements
 docs/planning/phase6-scope.md          # MVP scope and prioritization
-docs/planning/phase7-architecture.md   # Architecture design documentation
+docs/planning/architecture.md   # Architecture design documentation
 docs/planning/phase8-decisions.md      # Decision registry and rationale
 docs/planning/phase9-interface.md      # Interface specifications and API design
 docs/planning/phase10-tasks.md         # Task generation and breakdown

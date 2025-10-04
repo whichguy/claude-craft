@@ -362,7 +362,16 @@ setup_worktree_with_intelligence() {
 EOF
     exit 1
   fi
-  
+
+  # Display compact worktree creation summary
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════╗"
+  echo "║  WORKTREE CREATED ✓                                      ║"
+  echo "╚══════════════════════════════════════════════════════════╝"
+  echo "<worktree> = $worktree_path"
+  echo "Branch:      $worktree_branch (from $base_branch)"
+  echo ""
+
   # Intelligently apply current changes with atomic failure handling
   echo "🧠 THINKING: Checking for uncommitted changes to apply to worktree"
   if git -C "$ORIGINAL_ABS_PATH" diff --quiet HEAD 2>/dev/null; then

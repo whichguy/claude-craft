@@ -629,8 +629,8 @@ IF all items verified complete:
 
   2. **Move Task to Completed**:
      ```
-     MOVE: <worktree>/pending/TASK-###-*.md
-     TO: <worktree>/completed/TASK-###-*.md
+     MOVE: <worktree>/planning/pending/TASK-###-*.md
+     TO: <worktree>/planning/completed/TASK-###-*.md
      ```
 
   3. **Document Patterns**:
@@ -707,7 +707,7 @@ IF all items verified complete:
   6. **FINAL STATUS**:
      ```yaml
      Task: COMPLETED ✅
-     Location: <worktree>/completed/
+     Location: <worktree>/planning/completed/
      Quality: All criteria met
      Tests: All passing
      Review: Approved
@@ -792,10 +792,10 @@ IF <worktree_created> == true THEN:
   IF "<worktree>" != "<current_location>" THEN:
     echo "✅ Safe to consolidate - not inside worktree"
 
-    # Move task file from pending/ to completed/ if it exists
-    if [ -f "${worktree}/pending/${TASK_FILE}" ]; then
-      mkdir -p "${worktree}/completed"
-      mv "${worktree}/pending/${TASK_FILE}" "${worktree}/completed/"
+    # Move task file from planning/pending/ to planning/completed/ if it exists
+    if [ -f "${worktree}/planning/pending/${TASK_FILE}" ]; then
+      mkdir -p "${worktree}/planning/completed"
+      mv "${worktree}/planning/pending/${TASK_FILE}" "${worktree}/planning/completed/"
     fi
 
     # Gather feature implementation metadata

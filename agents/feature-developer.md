@@ -249,19 +249,27 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# Create worktree at temp location
-current_branch=$(git -C "$parent_worktree" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
-feature_branch="feature-dev-task-${task_id}-${timestamp}"
+# Use create-worktree agent for temp worktree creation
+# Agent handles: collision-resistant naming, branch creation, uncommitted changes
+echo "🔧 Creating isolated worktree from parent: ${parent_worktree}"
+ask create-worktree "${parent_worktree}" "feature-dev-task-${task_id}" "feature-developer"
 
-echo "🔧 Creating isolated worktree: ${temp_worktree}"
-echo "   From parent: ${parent_worktree} (branch: ${current_branch})"
-git -C "$parent_worktree" worktree add "${temp_worktree}" -b "${feature_branch}" HEAD
+# Extract agent return values from XML tags
+extracted_worktree=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<worktree>\K[^<]+')
+feature_branch=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<branch>\K[^<]+')
+extracted_source=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<source>\K[^<]+')
 
-# Apply uncommitted changes if any
-if ! git -C "$parent_worktree" diff --quiet HEAD 2>/dev/null; then
-  echo "📋 Applying uncommitted changes to worktree"
-  git -C "$parent_worktree" diff HEAD | git -C "${temp_worktree}" apply
+# Validate agent returned valid worktree path
+if [ -z "$extracted_worktree" ] || [ ! -d "$extracted_worktree" ]; then
+  echo "❌ FAILED: create-worktree agent did not return valid worktree path"
+  echo "Agent output:"
+  echo "$LAST_AGENT_OUTPUT"
+  exit 1
 fi
+
+# Update temp_worktree variable to agent's returned path
+temp_worktree="${extracted_worktree}"
+echo "✅ Worktree created by agent: ${temp_worktree}"
 
 # Extract task metadata from temp worktree
 if [ -f "$temp_worktree/$task_file" ]; then
@@ -311,9 +319,9 @@ fi
 
 # Load architecture decisions
 echo "### Architecture Choices" >> "$CONTEXT_FILE"
-if [ -f "$PLANNING_DIR/phase7-architecture.md" ]; then
+if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "Architecture decisions loaded from IDEAL-STI Phase 7:" >> "$CONTEXT_FILE"
-  cat "$PLANNING_DIR/phase7-architecture.md" >> "$CONTEXT_FILE"
+  cat "$PLANNING_DIR/architecture.md" >> "$CONTEXT_FILE"
 else
   echo "⚠️ No architecture decisions found - will use defaults" >> "$CONTEXT_FILE"
 fi
@@ -568,7 +576,7 @@ analyze_ui_requirements() {
 }
 
 # Execute dynamic UI analysis
-analyze_ui_requirements "$task_file" "$PLANNING_DIR/phase7-architecture.md"
+analyze_ui_requirements "$task_file" "$PLANNING_DIR/architecture.md"
 
 if [ "$ui_needed" = "true" ]; then
   echo "✅ UI implementation required: $ui_type with $ui_complexity complexity"
@@ -585,7 +593,7 @@ if [ "$ui_needed" = "true" ]; then
 $(cat "$WORK_DIR/$task_file")
 
 ## Architecture Context
-$([ -f "$PLANNING_DIR/phase7-architecture.md" ] && cat "$PLANNING_DIR/phase7-architecture.md" || echo "No specific architecture found")
+$([ -f "$PLANNING_DIR/architecture.md" ] && cat "$PLANNING_DIR/architecture.md" || echo "No specific architecture found")
 
 ## Request
 Create a comprehensive UI implementation plan for this feature including:
@@ -662,7 +670,7 @@ EOF
 # Analyze storage needs
 if grep -qi "data\|store\|save\|persist\|database\|storage" "$WORK_DIR/$task_file"; then
   storage_approach="JSON/JSONL" # Default
-  [ -f "$PLANNING_DIR/phase7-architecture.md" ] && storage_approach=$(grep -i "storage" "$PLANNING_DIR/phase7-architecture.md" | head -1 | cut -d: -f2 | xargs || echo "JSON/JSONL")
+  [ -f "$PLANNING_DIR/architecture.md" ] && storage_approach=$(grep -i "storage" "$PLANNING_DIR/architecture.md" | head -1 | cut -d: -f2 | xargs || echo "JSON/JSONL")
   
   cat >> "$IMPLEMENTATION_PLAN" << EOF
 **Required**: Yes
@@ -2154,35 +2162,49 @@ Merge changes back to parent worktree and clean up:
 ```bash
 echo "🔄 Merging changes back to parent worktree..."
 
-# Stage and commit any changes in temp worktree
-if ! git -C "$temp_worktree" diff --quiet HEAD 2>/dev/null; then
-  git -C "$temp_worktree" add -A
-  git -C "$temp_worktree" commit -m "feat: Complete task $task_name" || {
-    echo "❌ Failed to commit changes in temp worktree" >&2
-    echo "   Worktree preserved at: $temp_worktree" >&2
-    exit 1
-  }
-fi
+# Construct commit message for task completion
+commit_msg="feat: Complete task $task_name
 
-# Attempt to merge changes back to parent
-current_parent_branch=$(git -C "$parent_worktree" rev-parse --abbrev-ref HEAD)
-if git -C "$parent_worktree" merge "$feature_branch" --no-ff -m "Merge feature-dev task $task_name"; then
-  echo "✅ Successfully merged changes to parent worktree"
+Task: ${task_id}
+Framework: feature-developer
+Worktree: ${temp_worktree}"
+
+# Use merge-worktree agent for consolidation with auto-discovery
+# Agent handles: commit, merge, cleanup with git atomicity
+echo "🔧 Calling merge-worktree agent for task consolidation"
+ask merge-worktree "${temp_worktree}" "" "${commit_msg}" "feature-developer"
+
+# Check merge status from agent JSON output
+merge_status=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '"status"\s*:\s*"\K[^"]+')
+
+if [ "$merge_status" = "success" ]; then
+  # merge-worktree agent already printed compact summary
+  # Add task-specific context
+  echo "TASK: $(basename $task_file) ✓"
+  echo ""
   merge_successful=true
 
-  # Move completed task to parent's completed folder
-  if [ -f "$temp_worktree/$task_file" ] && [ -d "$parent_worktree/completed" ]; then
-    cp "$temp_worktree/$task_file" "$parent_worktree/completed/"
-    echo "✅ Task moved to completed: $parent_worktree/completed/$(basename $task_file)"
+  # Move completed task to parent's planning/completed folder
+  if [ -f "$temp_worktree/$task_file" ] && [ -d "$parent_worktree/planning/completed" ]; then
+    cp "$temp_worktree/$task_file" "$parent_worktree/planning/completed/"
+    echo "✅ Task moved to completed: $parent_worktree/planning/completed/$(basename $task_file)"
   fi
+elif [ "$merge_status" = "conflict" ]; then
+  echo "❌ MERGE CONFLICTS DETECTED"
+  echo "⚠️ Worktree preserved at: $temp_worktree"
+  echo ""
+  echo "To resolve conflicts:"
+  echo "1. Review conflicts in worktree"
+  echo "2. Resolve conflicts in affected files"
+  echo "3. After resolution, run: ask merge-worktree '${temp_worktree}' '' '\${commit_msg}' 'feature-developer'"
+  merge_successful=false
+  exit 1
 else
-  echo "❌ MERGE FAILED: Could not merge $feature_branch into $current_parent_branch" >&2
-  echo "   The temporary worktree has been preserved at: $temp_worktree" >&2
-  echo "   To resolve manually:" >&2
-  echo "     cd $parent_worktree" >&2
-  echo "     git merge $feature_branch" >&2
-  echo "     # Resolve conflicts, then:" >&2
-  echo "     git -C $parent_worktree worktree remove $temp_worktree" >&2
+  echo "❌ MERGE FAILED - unexpected status: ${merge_status}"
+  echo "Agent output:"
+  echo "$LAST_AGENT_OUTPUT"
+  echo ""
+  echo "Worktree preserved at: $temp_worktree"
   merge_successful=false
   exit 1
 fi
