@@ -322,6 +322,8 @@ echo "### Architecture Choices" >> "$CONTEXT_FILE"
 if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "Architecture decisions loaded from IDEAL-STI Phase 7:" >> "$CONTEXT_FILE"
   cat "$PLANNING_DIR/architecture.md" >> "$CONTEXT_FILE"
+  # Note: MCP server recommendations (if any) are included in architecture.md
+  # from feature-task-creator.md discovery. Use those MCP tools during implementation.
 else
   echo "⚠️ No architecture decisions found - will use defaults" >> "$CONTEXT_FILE"
 fi

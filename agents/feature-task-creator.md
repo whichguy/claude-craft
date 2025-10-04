@@ -292,7 +292,33 @@ For each document:
 - Note information completeness
 ```
 
-#### 3. Task Generation with Delta Detection
+#### 3. MCP Server Discovery (if architecture lacks MCP guidance)
+```markdown
+IF <architecture> does not contain MCP server recommendations THEN:
+
+  Execute MCP discovery with this prompt:
+
+  "Discover any MCP servers that are available for implementing the epic
+  in '<worktree>/planning/epic.md', use cases described in
+  '<worktree>/planning/use-cases.md', requirements in
+  '<worktree>/planning/requirements.md', and architecture in
+  '<worktree>/planning/architecture.md'. Also consider delta files if they exist:
+  '<worktree>/planning/use-cases-delta.md',
+  '<worktree>/planning/requirements-delta.md', and
+  '<worktree>/planning/architecture-delta.md'.
+
+  Identify if there is one or more most likely candidate MCP servers to
+  leverage, if any, and what initialization will be needed for the intended
+  epics and stories, outlining specific tasks. Don't write these to a file
+  but track this as part of our architecture choices."
+
+  Append the MCP discovery results to <architecture> content in memory.
+  This will be included in generated task files for feature-developer reference.
+
+END IF
+```
+
+#### 4. Task Generation with Delta Detection
 ```markdown
 Process based on delta analysis results:
 
@@ -323,7 +349,7 @@ FOR NEW ITEMS:
   5. Validate completeness
 ```
 
-#### 4. Quality Iteration Loop
+#### 5. Quality Iteration Loop
 ```markdown
 FOR iteration FROM 1 TO 10:
   Calculate quality score:
@@ -437,6 +463,11 @@ dependencies: [TASK-XXX, TASK-YYY]
 
 ### Patterns to Apply
 [Architectural patterns from architecture.md]
+
+### MCP Tools Available
+[From architecture.md - if MCP servers were discovered]
+[List primary/secondary MCP server tools that can be used for this task]
+[Example: mcp__gas__write for Code.gs files, mcp__gas__run for testing]
 
 ### Trade-offs Accepted
 [Conscious decisions and their implications]
