@@ -4985,27 +4985,19 @@ ELSE:
 FI
 ```
 
-## Final Step: Merge Delta Files to Baseline
+## Final Step: Clean Up Delta Files
 
-After all phases complete, merge delta files back to baseline:
+After all phases complete, clean up delta metadata files:
 
 ```markdown
-**For planning/use-cases-delta.md:**
-- Read the complete content from planning/use-cases-delta.md
-- Replace the content of planning/use-cases.md with this new content
-- Delete planning/use-cases-delta.md
+**Note**: Baseline files (use-cases.md, requirements.md, architecture.md) already contain the complete merged state. Delta files contain only change metadata for tracking purposes and can be deleted after task generation completes.
 
-**For planning/requirements-delta.md:**
-- Read the complete content from planning/requirements-delta.md
-- Replace the content of planning/requirements.md with this new content
-- Delete planning/requirements-delta.md
+**Delete delta metadata files**:
+- Delete planning/use-cases-delta.md (if exists)
+- Delete planning/requirements-delta.md (if exists)
+- Delete planning/architecture-delta.md (if exists)
 
-**For planning/architecture-delta.md:**
-- Read the complete content from planning/architecture-delta.md
-- Replace the content of planning/architecture.md with this new content
-- Delete planning/architecture-delta.md
-
-Result: Only baseline files remain (use-cases.md, requirements.md, architecture.md), containing the complete merged state ready for the next iteration.
+Result: Only baseline files remain (use-cases.md, requirements.md, architecture.md), containing the complete state ready for the next iteration. Delta files served their purpose during task generation for change detection and are no longer needed.
 ```
 
 ## Execution Summary
