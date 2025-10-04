@@ -300,10 +300,24 @@ ELSE:
   <mcp_state_exists> = false
   Note: MCP initialization may be needed (first iteration)
 END IF
+
+CHECK for existing Service Runtime State:
+IF architecture.md contains "## Service Runtime State" section THEN:
+  <service_state_exists> = true
+  <existing_services> = extract list of initialized services
+  Note: Service initialization already complete, will reuse existing state
+ELSE:
+  <service_state_exists> = false
+  Note: Service initialization may be needed (first iteration)
+END IF
 ```
 
-#### 3. MCP Server Discovery (if architecture lacks MCP guidance)
+#### 3. Infrastructure Discovery (MCP Servers + Services)
 ```markdown
+Discover all infrastructure components requiring initialization:
+
+PART A: MCP Server Discovery
+
 IF <architecture> does not contain MCP server recommendations THEN:
 
   Execute MCP discovery with this prompt:
@@ -323,29 +337,58 @@ IF <architecture> does not contain MCP server recommendations THEN:
   but track this as part of our architecture choices."
 
   Append the MCP discovery results to <architecture> content in memory.
-  This will be included in generated task files for feature-developer reference.
-
-  ADDITIONALLY, for each discovered MCP server:
-    IF <mcp_state_exists> = true AND server is in <existing_mcp_servers> THEN:
-      Mark server as "initialized - reuse existing state"
-      Skip initialization task generation for this server
-    ELSE:
-      Determine if server requires one-time initialization
-      (e.g., project creation, authentication, resource setup)
-      IF initialization required THEN:
-        Mark server as "needs-initialization"
-        Document what state will be generated (scriptId, repoUrl, etc.)
-        Note initialization order if dependencies exist
-      END IF
-    END IF
-  END FOR
 
 END IF
+
+FOR EACH discovered or existing MCP server:
+  IF <mcp_state_exists> = true AND server is in <existing_mcp_servers> THEN:
+    Mark server as "initialized - reuse existing state"
+    Skip initialization task generation for this server
+  ELSE:
+    Determine if server requires one-time initialization
+    (e.g., project creation, authentication, resource setup)
+    IF initialization required THEN:
+      Mark server as "needs-initialization"
+      Document what state will be generated (scriptId, repoUrl, etc.)
+      Note initialization order if dependencies exist
+    END IF
+  END IF
+END FOR
+
+PART B: Service Infrastructure Discovery
+
+Analyze architecture.md for services requiring initialization:
+
+FOR EACH technology/service mentioned in architecture.md:
+  IF service requires initialization (database, cloud storage, auth, APIs) THEN:
+    IF <service_state_exists> = true AND service is in <existing_services> THEN:
+      Mark service as "initialized - reuse existing state"
+      Skip initialization task generation for this service
+    ELSE:
+      Mark service as "needs-initialization"
+      Document what state will be generated (connection strings, IDs, keys, etc.)
+      Note initialization order if dependencies exist
+    END IF
+  END IF
+END FOR
+
+Common patterns for services requiring initialization:
+- Databases: Create database → capture connection strings, schema versions, credentials
+- Cloud storage: Create buckets/containers → capture names, regions, access credentials
+- Authentication: Register applications → capture client IDs, domains, callback URLs
+- Payment systems: Set up accounts → capture API keys, webhook endpoints
+- Cache/queue systems: Deploy instances → capture hosts, ports, passwords
+- Email/SMS services: Configure senders → capture API keys, verified identities
+- Any service requiring setup before feature implementation
+
+Result: Comprehensive infrastructure inventory with initialization status
 ```
 
-#### 4. Task Generation with Delta Detection
+#### 4. Infrastructure Initialization Tasks
 ```markdown
-FIRST, handle MCP initialization tasks (SEQUENTIAL EXECUTION REQUIRED):
+Generate Phase 0 initialization tasks for MCP servers and services:
+
+PART A: MCP Initialization Tasks (SEQUENTIAL EXECUTION REQUIRED):
 
 IF any MCP servers are marked "needs-initialization" THEN:
 
@@ -368,38 +411,161 @@ IF any MCP servers are marked "needs-initialization" THEN:
     Implementation Guidance:
     "Initialize {MCP-server-name} by executing required setup commands.
 
-    **CRITICAL**: After successful initialization, you MUST persist the generated
-    state to <worktree>/planning/architecture.md by appending:
+    **CRITICAL State Persistence Protocol**:
 
-    ## MCP Runtime State
-    - {server-name}: {state-key}={state-value}
+    STEP 1: Capture State from Initialization
+      After running the MCP initialization command, capture all returned state values.
+      Example: After mcp__gas__project_create, capture scriptId value
+      Example: After mcp__github__create_repository, capture repoUrl value
 
-    Example for gas MCP after running mcp__gas__project_create:
-    ```bash
-    # After project creation returns scriptId
-    echo "" >> <worktree>/planning/architecture.md
-    echo "## MCP Runtime State" >> <worktree>/planning/architecture.md
-    echo "- gas: scriptId={captured-script-id}" >> <worktree>/planning/architecture.md
-    ```
+    STEP 2: Prepare State Entry
+      Format exactly as: '- {server-name}: {state-key}={captured-value}'
+      Example: '- gas: scriptId=abc123xyz'
+      Example: '- github: repoUrl=https://github.com/user/repo'
 
-    Example for github MCP after running mcp__github__create_repository:
-    ```bash
-    echo "- github: repoUrl={captured-repo-url}" >> <worktree>/planning/architecture.md
-    ```
+    STEP 3: Read Architecture File
+      Read <worktree>/planning/architecture.md into memory
+
+    STEP 4: Locate or Create Section
+      Search for exact line: '## MCP Runtime State'
+
+      IF found:
+        Identify last line of this section (line before next ## header or EOF)
+        Your entry will be appended after last state entry in this section
+      ELSE:
+        Start new section at end of file:
+        - Add blank line (if file not empty)
+        - Add header: '## MCP Runtime State'
+        - Add your state entry below the header
+      END IF
+
+    STEP 5: Insert State Entry
+      Add your formatted entry to the location identified in Step 4
+
+    STEP 6: Write Updated Content
+      Write complete updated content back to <worktree>/planning/architecture.md
+
+    STEP 7: Verify (REQUIRED)
+      Re-read architecture.md
+      Confirm: Your entry exists in file
+      Confirm: Exactly ONE '## MCP Runtime State' header exists (no duplicates)
+      Confirm: Entry properly formatted with '- ' prefix
+
+      IF verification fails:
+        Report failure details
+        Do NOT mark task as complete
+      END IF
 
     This persisted state will be available to all subsequent tasks via architecture.md."
 
     Definition of Done:
     - [ ] MCP server initialized successfully
     - [ ] State captured from initialization response
-    - [ ] State appended to <worktree>/planning/architecture.md
-    - [ ] State verified readable in architecture.md
+    - [ ] State persistence Steps 1-7 completed successfully
+    - [ ] Verification confirms: entry exists, no duplicate headers, proper format
   END FOR
 
   NOTE: All feature tasks (Phase 1-6) will depend on ALL Phase 0 MCP init tasks completing.
 END IF
 
-THEN, process use cases/requirements for feature tasks:
+PART B: Service Initialization Tasks (SEQUENTIAL EXECUTION REQUIRED):
+
+IF any services are marked "needs-initialization" THEN:
+
+  Create Phase 0 service initialization tasks with dependency chain:
+
+  FOR EACH service requiring initialization (in dependency order):
+    Create initialization task:
+
+    Task ID: TASK-001-service-{service-name}-init
+    Title: "Initialize {service-name} for project"
+    Execution Phase: 0-setup
+    Complexity: atomic or simple (depending on service)
+    Parallel-eligible: FALSE (services may have dependencies)
+    Dependencies: [all MCP init tasks, previous service init task]
+
+    Example dependency chain:
+    - TASK-000-mcp-{first-server}-init (MCP init runs first)
+    - TASK-001-service-{first-service}-init: dependencies=[all MCP init tasks]
+    - TASK-002-service-{second-service}-init: dependencies=[TASK-001-service-{first-service}-init]
+
+    Implementation Guidance:
+    "Initialize {service-name} by executing required setup commands based on the
+    service type identified in architecture.md.
+
+    **CRITICAL State Persistence Protocol**:
+
+    STEP 1: Capture State from Initialization
+      After service initialization completes, capture ALL returned state values.
+      Examples: connection strings, IDs, keys, URLs, regions, versions, credentials
+      Service may return multiple state values - capture all of them
+
+    STEP 2: Prepare State Entries
+      Format each state value as: '- {service-name}: {state-key}={captured-value}'
+      Multiple keys for same service: create multiple entries with same service name
+      Examples:
+        '- database: connectionString=postgresql://localhost:5432/mydb'
+        '- database: schemaVersion=001'
+        '- storage: bucketName=my-app-uploads'
+        '- storage: region=us-east-1'
+
+    STEP 3: Read Architecture File
+      Read <worktree>/planning/architecture.md into memory
+
+    STEP 4: Locate or Create Section
+      Search for exact line: '## Service Runtime State'
+
+      IF found:
+        Identify last line of this section (line before next ## header or EOF)
+        Your entries will be appended after last state entry in this section
+      ELSE:
+        Start new section at end of file:
+        - Add blank line (if file not empty)
+        - Add header: '## Service Runtime State'
+        - Add your state entries below the header
+      END IF
+
+    STEP 5: Insert State Entries
+      Add ALL your formatted entries to the location identified in Step 4
+      Preserve order and grouping by service name
+
+    STEP 6: Write Updated Content
+      Write complete updated content back to <worktree>/planning/architecture.md
+
+    STEP 7: Verify (REQUIRED)
+      Re-read architecture.md
+      Confirm: ALL your entries exist in file
+      Confirm: Exactly ONE '## Service Runtime State' header exists (no duplicates)
+      Confirm: All entries properly formatted with '- ' prefix
+
+      IF verification fails:
+        Report failure details
+        Do NOT mark task as complete
+      END IF
+
+    STEP 8: Test Service Connectivity
+      Verify service is accessible using the captured state
+      Confirm service responds to basic operations
+
+    This persisted state will be available to all subsequent tasks via architecture.md."
+
+    Definition of Done:
+    - [ ] Service initialized successfully
+    - [ ] All state captured from initialization response
+    - [ ] State persistence Steps 1-7 completed successfully
+    - [ ] Verification confirms: all entries exist, no duplicate headers, proper format
+    - [ ] Service connectivity tested and confirmed working
+  END FOR
+
+  NOTE: All feature tasks (Phase 1-6) will depend on ALL Phase 0 service init tasks.
+END IF
+
+Result: Phase 0 infrastructure initialization tasks generated with sequential dependencies
+```
+
+#### 5. Feature Task Generation with Delta Detection
+```markdown
+Generate feature implementation tasks (Phases 1-6) using delta detection:
 
 Process based on delta analysis results:
 
@@ -426,11 +592,54 @@ FOR NEW ITEMS:
   1. Assign to execution phase (0-6)
   2. Extract rich context from all input documents
   3. Apply complexity scoring based on integration density
-  4. Map dependencies and detect cycles
-  5. Validate completeness
+  4. Validate completeness (dependencies handled in Step 6)
+
+Result: Feature tasks generated for changed/new requirements with delta detection
 ```
 
-#### 5. Quality Iteration Loop
+#### 6. Dependency Analysis & Parallel Optimization
+```markdown
+Analyze task dependencies and optimize for parallel execution:
+
+1. Build Dependency Graph:
+   FOR EACH generated task (infrastructure + feature tasks):
+     - Extract dependencies from task metadata
+     - Identify required inputs from other tasks
+     - Note shared resources or state
+     - Build directed dependency graph
+
+2. Detect Dependency Cycles:
+   IF cycles detected THEN:
+     - Report cycle path
+     - Suggest cycle-breaking strategies
+     - Fail if cycles cannot be resolved
+
+3. Assign Parallel-Eligible Flags:
+   FOR EACH task:
+     IF task has no dependencies OR all dependencies in earlier phases THEN:
+       Check for resource conflicts with other tasks
+       IF no conflicts THEN:
+         Mark parallel-eligible: TRUE
+       ELSE:
+         Mark parallel-eligible: FALSE
+     ELSE:
+       Mark parallel-eligible: FALSE (has intra-phase dependencies)
+
+4. Identify Critical Path:
+   - Calculate longest dependency chain
+   - Identify bottleneck tasks
+   - Note tasks on critical path for priority execution
+
+5. Generate Parallel Execution Groups:
+   FOR EACH execution phase:
+     Group tasks that can run concurrently
+     Suggest optimal agent allocation
+     Document parallelization opportunities
+
+Result: Dependency graph built, cycles resolved, parallel execution plan created
+```
+
+#### 7. Quality Iteration Loop
 ```markdown
 FOR iteration FROM 1 TO 10:
   Calculate quality score:
@@ -549,6 +758,43 @@ dependencies: [TASK-XXX, TASK-YYY]
 [From architecture.md - if MCP servers were discovered]
 [List primary/secondary MCP server tools that can be used for this task]
 [Example: mcp__gas__write for Code.gs files, mcp__gas__run for testing]
+
+### Infrastructure State References
+
+When generating this task file, examine <worktree>/planning/architecture.md for infrastructure state:
+
+1. Look for section titled "## MCP Runtime State"
+2. Look for section titled "## Service Runtime State"
+
+IF either section exists in architecture.md THEN:
+  Create subsection in this task documenting available state:
+
+  **Available Infrastructure State**:
+
+  For each state entry found, list in format:
+  - {server/service-name}: {key}={value-from-architecture.md}
+
+  Add usage guidance:
+  "This state was created by Phase 0 initialization tasks. Reference these values
+  in your implementation. For example, use scriptId when calling mcp__gas__write,
+  or use connectionString when setting up database connections."
+
+  Example output format:
+  **MCP Runtime State**:
+  - gas: scriptId=abc123xyz
+  - github: repoUrl=https://github.com/user/repo
+
+  **Service Runtime State**:
+  - database: connectionString=postgresql://localhost:5432/mydb
+  - storage: bucketName=my-app-uploads, region=us-east-1
+  - auth: clientId=xyz789, domain=myapp.auth0.com
+
+ELSE:
+  Add note: "No infrastructure state available (Phase 0 initialization not needed for this project)"
+END IF
+
+**Note**: feature-developer.md will automatically provide architecture.md in the
+implementation context, making all state readily accessible.
 
 ### Trade-offs Accepted
 [Conscious decisions and their implications]

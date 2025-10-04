@@ -317,13 +317,18 @@ if [ -f "$WORK_DIR/$task_file" ]; then
   dependencies=$(grep "^Dependencies:" "$WORK_DIR/$task_file" | cut -d: -f2- | xargs)
 fi
 
-# Load architecture decisions
-echo "### Architecture Choices" >> "$CONTEXT_FILE"
+# Load architecture decisions and infrastructure state
+echo "### Architecture Choices & Infrastructure State" >> "$CONTEXT_FILE"
 if [ -f "$PLANNING_DIR/architecture.md" ]; then
-  echo "Architecture decisions loaded from IDEAL-STI Phase 7:" >> "$CONTEXT_FILE"
+  echo "Architecture decisions from IDEAL-STI and infrastructure state from Phase 0 initialization:" >> "$CONTEXT_FILE"
+  echo "" >> "$CONTEXT_FILE"
+  echo "Note: This document contains MCP server recommendations, Service configurations," >> "$CONTEXT_FILE"
+  echo "and runtime state sections (## MCP Runtime State, ## Service Runtime State)" >> "$CONTEXT_FILE"
+  echo "if Phase 0 initialization tasks ran. Reference these state values during implementation." >> "$CONTEXT_FILE"
+  echo "" >> "$CONTEXT_FILE"
   cat "$PLANNING_DIR/architecture.md" >> "$CONTEXT_FILE"
-  # Note: MCP server recommendations (if any) are included in architecture.md
-  # from feature-task-creator.md discovery. Use those MCP tools during implementation.
+  echo "" >> "$CONTEXT_FILE"
+  echo "✅ Architecture and infrastructure state loaded for implementation" >> "$CONTEXT_FILE"
 else
   echo "⚠️ No architecture decisions found - will use defaults" >> "$CONTEXT_FILE"
 fi
