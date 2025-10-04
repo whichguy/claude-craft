@@ -290,6 +290,16 @@ For each document:
 - Preserve rich context structure
 - Maintain traceability links
 - Note information completeness
+
+CHECK for existing MCP Runtime State:
+IF architecture.md contains "## MCP Runtime State" section THEN:
+  <mcp_state_exists> = true
+  <existing_mcp_servers> = extract list of initialized MCP servers
+  Note: MCP initialization already complete, will reuse existing state
+ELSE:
+  <mcp_state_exists> = false
+  Note: MCP initialization may be needed (first iteration)
+END IF
 ```
 
 #### 3. MCP Server Discovery (if architecture lacks MCP guidance)
@@ -315,11 +325,82 @@ IF <architecture> does not contain MCP server recommendations THEN:
   Append the MCP discovery results to <architecture> content in memory.
   This will be included in generated task files for feature-developer reference.
 
+  ADDITIONALLY, for each discovered MCP server:
+    IF <mcp_state_exists> = true AND server is in <existing_mcp_servers> THEN:
+      Mark server as "initialized - reuse existing state"
+      Skip initialization task generation for this server
+    ELSE:
+      Determine if server requires one-time initialization
+      (e.g., project creation, authentication, resource setup)
+      IF initialization required THEN:
+        Mark server as "needs-initialization"
+        Document what state will be generated (scriptId, repoUrl, etc.)
+        Note initialization order if dependencies exist
+      END IF
+    END IF
+  END FOR
+
 END IF
 ```
 
 #### 4. Task Generation with Delta Detection
 ```markdown
+FIRST, handle MCP initialization tasks (SEQUENTIAL EXECUTION REQUIRED):
+
+IF any MCP servers are marked "needs-initialization" THEN:
+
+  Create Phase 0 initialization tasks with dependency chain for sequential execution:
+
+  FOR EACH MCP server requiring initialization (in discovery order):
+    Create initialization task:
+
+    Task ID: TASK-000-mcp-{server}-init
+    Title: "Initialize {MCP-server-name} for project"
+    Execution Phase: 0-setup
+    Complexity: atomic
+    Parallel-eligible: FALSE (MCP init must run sequentially)
+    Dependencies: [previous MCP init task, if any]
+
+    Example dependency chain:
+    - TASK-000-mcp-gas-init: dependencies=none (runs first)
+    - TASK-000-mcp-github-init: dependencies=[TASK-000-mcp-gas-init] (runs after gas)
+
+    Implementation Guidance:
+    "Initialize {MCP-server-name} by executing required setup commands.
+
+    **CRITICAL**: After successful initialization, you MUST persist the generated
+    state to <worktree>/planning/architecture.md by appending:
+
+    ## MCP Runtime State
+    - {server-name}: {state-key}={state-value}
+
+    Example for gas MCP after running mcp__gas__project_create:
+    ```bash
+    # After project creation returns scriptId
+    echo "" >> <worktree>/planning/architecture.md
+    echo "## MCP Runtime State" >> <worktree>/planning/architecture.md
+    echo "- gas: scriptId={captured-script-id}" >> <worktree>/planning/architecture.md
+    ```
+
+    Example for github MCP after running mcp__github__create_repository:
+    ```bash
+    echo "- github: repoUrl={captured-repo-url}" >> <worktree>/planning/architecture.md
+    ```
+
+    This persisted state will be available to all subsequent tasks via architecture.md."
+
+    Definition of Done:
+    - [ ] MCP server initialized successfully
+    - [ ] State captured from initialization response
+    - [ ] State appended to <worktree>/planning/architecture.md
+    - [ ] State verified readable in architecture.md
+  END FOR
+
+  NOTE: All feature tasks (Phase 1-6) will depend on ALL Phase 0 MCP init tasks completing.
+END IF
+
+THEN, process use cases/requirements for feature tasks:
+
 Process based on delta analysis results:
 
 FOR SKIPPED ITEMS (unchanged):
