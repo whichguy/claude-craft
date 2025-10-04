@@ -194,12 +194,13 @@ INPUT DOCUMENTS: Rich contextual information
 └── Architecture: Technology Decisions, Trade-offs, Patterns
 
 EXECUTION PHASES: Organized by dependency order
-├── Phase 0: One-time Setup (infrastructure, environment)
-├── Phase 1: Migration Tasks (data, schema, compatibility)
-├── Phase 2-3: Feature Tasks (core logic, UI/UX) - Parallel eligible
-├── Phase 4: Integration Tasks (cross-feature, external services)
-├── Phase 5: Validation Tasks (tests, quality assurance)
-└── Phase 6: CI/CD Tasks (pipelines, deployment)
+├── Phase 1: Infrastructure Setup (MCP servers, services, environment)
+├── Phase 2: Migration Tasks (data, schema, compatibility)
+├── Phase 3-4: Feature Tasks (core logic, UI/UX) - Parallel eligible
+├── Phase 5: Integration Tasks (cross-feature, external services)
+├── Phase 6: Validation Tasks (tests, quality assurance)
+├── Phase 7: Deployment Preparation (deployment infrastructure) - CONDITIONAL
+└── Phase 8: CI/CD Execution (automated deployment) - CONDITIONAL
 ```
 
 ### Complexity-Based Sizing (Not Time)
@@ -291,24 +292,16 @@ For each document:
 - Maintain traceability links
 - Note information completeness
 
-CHECK for existing MCP Runtime State:
-IF architecture.md contains "## MCP Runtime State" section THEN:
-  <mcp_state_exists> = true
-  <existing_mcp_servers> = extract list of initialized MCP servers
-  Note: MCP initialization already complete, will reuse existing state
+CHECK for existing Infrastructure State:
+IF architecture.md contains "## Infrastructure State" section THEN:
+  <state_exists> = true
+  <existing_infrastructure> = extract list of initialized components from state entries
+  Parse state entries using pattern: {component}.{context}.{key}: {value}
+  Note: Infrastructure already initialized, will reuse existing state
+  Components may include: MCP servers, services, databases, deployment tools, etc.
 ELSE:
-  <mcp_state_exists> = false
-  Note: MCP initialization may be needed (first iteration)
-END IF
-
-CHECK for existing Service Runtime State:
-IF architecture.md contains "## Service Runtime State" section THEN:
-  <service_state_exists> = true
-  <existing_services> = extract list of initialized services
-  Note: Service initialization already complete, will reuse existing state
-ELSE:
-  <service_state_exists> = false
-  Note: Service initialization may be needed (first iteration)
+  <state_exists> = false
+  Note: Infrastructure initialization may be needed (first iteration)
 END IF
 ```
 
@@ -341,9 +334,12 @@ IF <architecture> does not contain MCP server recommendations THEN:
 END IF
 
 FOR EACH discovered or existing MCP server:
-  IF <mcp_state_exists> = true AND server is in <existing_mcp_servers> THEN:
-    Mark server as "initialized - reuse existing state"
-    Skip initialization task generation for this server
+  IF <state_exists> = true AND server exists in <existing_infrastructure> THEN:
+    Check for state entries matching pattern: {server}.{context}.*
+    IF state found THEN:
+      Mark server as "initialized - reuse existing state"
+      Skip initialization task generation for this server
+    END IF
   ELSE:
     Determine if server requires one-time initialization
     (e.g., project creation, authentication, resource setup)
@@ -361,9 +357,12 @@ Analyze architecture.md for services requiring initialization:
 
 FOR EACH technology/service mentioned in architecture.md:
   IF service requires initialization (database, cloud storage, auth, APIs) THEN:
-    IF <service_state_exists> = true AND service is in <existing_services> THEN:
-      Mark service as "initialized - reuse existing state"
-      Skip initialization task generation for this service
+    IF <state_exists> = true AND service exists in <existing_infrastructure> THEN:
+      Check for state entries matching pattern: {service}.{context}.*
+      IF state found THEN:
+        Mark service as "initialized - reuse existing state"
+        Skip initialization task generation for this service
+      END IF
     ELSE:
       Mark service as "needs-initialization"
       Document what state will be generated (connection strings, IDs, keys, etc.)
@@ -386,27 +385,85 @@ Result: Comprehensive infrastructure inventory with initialization status
 
 #### 4. Infrastructure Initialization Tasks
 ```markdown
-Generate Phase 0 initialization tasks for MCP servers and services:
+Generate Phase 1 infrastructure setup tasks for MCP servers and services.
+
+**Phase 1 Scope and Purpose**:
+Phase 1 handles ANY infrastructure setup needed before OR for the project.
+
+**IMPORTANT**: Phase 1 can include:
+- ONLY development infrastructure (if dev ≠ prod)
+- ONLY deployment infrastructure (if no dev setup needed)
+- BOTH development AND deployment infrastructure (if they overlap or are the same)
+- Examples:
+  * Google Apps Script: Often Phase 1 creates BOTH dev AND prod projects
+  * Docker-first projects: Dev containers ARE the deployment infrastructure
+  * Serverless: May skip Phase 1 entirely if using cloud-only development
+
+The distinction:
+- Phase 1: Infrastructure needed BEFORE features can be built (or that IS the deployment)
+- Phase 7: ADDITIONAL production infrastructure needed AFTER features are validated
+
+**Runtime Decision Pattern**:
+Read architecture.md to determine what infrastructure is needed.
+Generate Phase 1 tasks for components requiring initialization.
+
+Common infrastructure patterns (illustrative examples):
+
+1. **MCP Servers** requiring project creation or authentication
+   Examples:
+   - Google Apps Script: mcp__gas__project_create, mcp__gas__auth
+   - GitHub: mcp__github__create_repository
+   - Database MCP servers: project/instance setup
+
+2. **Development Databases** needing provisioning
+   Examples:
+   - Local: Docker PostgreSQL, MongoDB containers
+   - Cloud dev: RDS dev instance, Cloud SQL dev database
+   - Firebase: Project initialization
+
+3. **External Services** requiring configuration
+   Examples:
+   - Auth providers: Auth0 tenant setup, OAuth app registration
+   - Payment processors: Stripe test account, API keys
+   - Email/SMS: SendGrid sender verification, Twilio setup
+   - Storage: S3 bucket creation, Cloud Storage setup
+
+4. **Development Tools** needing authentication
+   Examples:
+   - CLI tools: clasp login, gh auth, kubectl config
+   - Package managers: npm authentication, private registry access
+
+5. **Deployment Infrastructure** (if needed before features)
+   Examples:
+   - Cloud projects: GCP project, AWS account setup
+   - Container registries: Docker Hub, ECR, GCR
+   - Deployment credentials: Service accounts, API tokens
+
+State generated by Phase 1 tasks:
+- Persists to architecture.md "## Infrastructure State"
+- Uses semantic keys: {component}.{context}.{key}: {value}
+- Context examples: dev, prod, staging, deployment
+- Available to all Phase 2-8 tasks
 
 PART A: MCP Initialization Tasks (SEQUENTIAL EXECUTION REQUIRED):
 
 IF any MCP servers are marked "needs-initialization" THEN:
 
-  Create Phase 0 initialization tasks with dependency chain for sequential execution:
+  Create Phase 1 infrastructure setup tasks with dependency chain for sequential execution:
 
   FOR EACH MCP server requiring initialization (in discovery order):
     Create initialization task:
 
-    Task ID: TASK-000-mcp-{server}-init
+    Task ID: TASK-001-mcp-{server}-init
     Title: "Initialize {MCP-server-name} for project"
-    Execution Phase: 0-setup
+    Execution Phase: 1-infrastructure-setup
     Complexity: atomic
     Parallel-eligible: FALSE (MCP init must run sequentially)
     Dependencies: [previous MCP init task, if any]
 
     Example dependency chain:
-    - TASK-000-mcp-gas-init: dependencies=none (runs first)
-    - TASK-000-mcp-github-init: dependencies=[TASK-000-mcp-gas-init] (runs after gas)
+    - TASK-001-mcp-gas-init: dependencies=none (runs first)
+    - TASK-002-mcp-github-init: dependencies=[TASK-001-mcp-gas-init] (runs after gas)
 
     Implementation Guidance:
     "Initialize {MCP-server-name} by executing required setup commands.
@@ -419,15 +476,16 @@ IF any MCP servers are marked "needs-initialization" THEN:
       Example: After mcp__github__create_repository, capture repoUrl value
 
     STEP 2: Prepare State Entry
-      Format exactly as: '- {server-name}: {state-key}={captured-value}'
-      Example: '- gas: scriptId=abc123xyz'
-      Example: '- github: repoUrl=https://github.com/user/repo'
+      Format using semantic dot-notation: '- {server}.{context}.{key}: {value}'
+      Context: Use 'dev' for development, 'prod' for production
+      Example: '- gas.dev.scriptId: abc123xyz'
+      Example: '- github.dev.repoUrl: https://github.com/user/repo'
 
     STEP 3: Read Architecture File
       Read <worktree>/planning/architecture.md into memory
 
     STEP 4: Locate or Create Section
-      Search for exact line: '## MCP Runtime State'
+      Search for exact line: '## Infrastructure State'
 
       IF found:
         Identify last line of this section (line before next ## header or EOF)
@@ -435,11 +493,15 @@ IF any MCP servers are marked "needs-initialization" THEN:
       ELSE:
         Start new section at end of file:
         - Add blank line (if file not empty)
-        - Add header: '## MCP Runtime State'
-        - Add your state entry below the header
+        - Add header: '## Infrastructure State'
+        - Add comment line: '# Phase 1 (MCP Server Initialization)'
+        - Add your state entry below the comment
       END IF
 
     STEP 5: Insert State Entry
+      Format using semantic dot-notation: {server}.{context}.{key}: {value}
+      Context for Phase 1 MCP servers: typically 'dev' or 'prod'
+      Example: - gas.dev.scriptId: abc123xyz
       Add your formatted entry to the location identified in Step 4
 
     STEP 6: Write Updated Content
@@ -448,8 +510,8 @@ IF any MCP servers are marked "needs-initialization" THEN:
     STEP 7: Verify (REQUIRED)
       Re-read architecture.md
       Confirm: Your entry exists in file
-      Confirm: Exactly ONE '## MCP Runtime State' header exists (no duplicates)
-      Confirm: Entry properly formatted with '- ' prefix
+      Confirm: Exactly ONE '## Infrastructure State' header exists (no duplicates)
+      Confirm: Entry properly formatted with '- ' prefix and semantic key pattern
 
       IF verification fails:
         Report failure details
@@ -465,29 +527,29 @@ IF any MCP servers are marked "needs-initialization" THEN:
     - [ ] Verification confirms: entry exists, no duplicate headers, proper format
   END FOR
 
-  NOTE: All feature tasks (Phase 1-6) will depend on ALL Phase 0 MCP init tasks completing.
+  NOTE: All feature tasks (Phase 2-8) will depend on ALL Phase 1 MCP init tasks completing.
 END IF
 
 PART B: Service Initialization Tasks (SEQUENTIAL EXECUTION REQUIRED):
 
 IF any services are marked "needs-initialization" THEN:
 
-  Create Phase 0 service initialization tasks with dependency chain:
+  Create Phase 1 service initialization tasks with dependency chain:
 
   FOR EACH service requiring initialization (in dependency order):
     Create initialization task:
 
-    Task ID: TASK-001-service-{service-name}-init
+    Task ID: TASK-00X-service-{service-name}-init
     Title: "Initialize {service-name} for project"
-    Execution Phase: 0-setup
+    Execution Phase: 1-infrastructure-setup
     Complexity: atomic or simple (depending on service)
     Parallel-eligible: FALSE (services may have dependencies)
     Dependencies: [all MCP init tasks, previous service init task]
 
     Example dependency chain:
-    - TASK-000-mcp-{first-server}-init (MCP init runs first)
-    - TASK-001-service-{first-service}-init: dependencies=[all MCP init tasks]
-    - TASK-002-service-{second-service}-init: dependencies=[TASK-001-service-{first-service}-init]
+    - TASK-001-mcp-{first-server}-init (MCP init runs first)
+    - TASK-002-service-{first-service}-init: dependencies=[all MCP init tasks]
+    - TASK-003-service-{second-service}-init: dependencies=[TASK-002-service-{first-service}-init]
 
     Implementation Guidance:
     "Initialize {service-name} by executing required setup commands based on the
@@ -501,19 +563,20 @@ IF any services are marked "needs-initialization" THEN:
       Service may return multiple state values - capture all of them
 
     STEP 2: Prepare State Entries
-      Format each state value as: '- {service-name}: {state-key}={captured-value}'
-      Multiple keys for same service: create multiple entries with same service name
+      Format each state value using semantic dot-notation: '- {service}.{context}.{key}: {value}'
+      Context: Use 'dev' for development, 'prod' for production
+      Multiple keys for same service: use multiple dot-notation entries
       Examples:
-        '- database: connectionString=postgresql://localhost:5432/mydb'
-        '- database: schemaVersion=001'
-        '- storage: bucketName=my-app-uploads'
-        '- storage: region=us-east-1'
+        '- database.dev.connectionString: postgresql://localhost:5432/mydb'
+        '- database.dev.schemaVersion: 001'
+        '- storage.dev.bucketName: my-app-uploads'
+        '- storage.dev.region: us-east-1'
 
     STEP 3: Read Architecture File
       Read <worktree>/planning/architecture.md into memory
 
     STEP 4: Locate or Create Section
-      Search for exact line: '## Service Runtime State'
+      Search for exact line: '## Infrastructure State'
 
       IF found:
         Identify last line of this section (line before next ## header or EOF)
@@ -521,13 +584,19 @@ IF any services are marked "needs-initialization" THEN:
       ELSE:
         Start new section at end of file:
         - Add blank line (if file not empty)
-        - Add header: '## Service Runtime State'
-        - Add your state entries below the header
+        - Add header: '## Infrastructure State'
+        - Add comment line: '# Phase 1 (Service Initialization)'
+        - Add your state entries below the comment
       END IF
 
     STEP 5: Insert State Entries
-      Add ALL your formatted entries to the location identified in Step 4
-      Preserve order and grouping by service name
+      Add ALL your formatted entries using semantic dot-notation
+      Pattern: {service}.{context}.{key}: {value}
+      Preserve logical grouping by service name
+      Example ordering:
+        - database.dev.connectionString: ...
+        - database.dev.schemaVersion: ...
+        - storage.dev.bucketName: ...
 
     STEP 6: Write Updated Content
       Write complete updated content back to <worktree>/planning/architecture.md
@@ -535,8 +604,8 @@ IF any services are marked "needs-initialization" THEN:
     STEP 7: Verify (REQUIRED)
       Re-read architecture.md
       Confirm: ALL your entries exist in file
-      Confirm: Exactly ONE '## Service Runtime State' header exists (no duplicates)
-      Confirm: All entries properly formatted with '- ' prefix
+      Confirm: Exactly ONE '## Infrastructure State' header exists (no duplicates)
+      Confirm: All entries properly formatted with '- ' prefix and semantic key pattern
 
       IF verification fails:
         Report failure details
@@ -557,15 +626,15 @@ IF any services are marked "needs-initialization" THEN:
     - [ ] Service connectivity tested and confirmed working
   END FOR
 
-  NOTE: All feature tasks (Phase 1-6) will depend on ALL Phase 0 service init tasks.
+  NOTE: All feature tasks (Phase 2-8) will depend on ALL Phase 1 service init tasks.
 END IF
 
-Result: Phase 0 infrastructure initialization tasks generated with sequential dependencies
+Result: Phase 1 infrastructure setup tasks generated with sequential dependencies
 ```
 
 #### 5. Feature Task Generation with Delta Detection
 ```markdown
-Generate feature implementation tasks (Phases 1-6) using delta detection:
+Generate feature implementation tasks (Phases 2-8) using delta detection:
 
 Process based on delta analysis results:
 
@@ -589,7 +658,7 @@ FOR FEATURE MODIFICATIONS (use case changed):
      - Document flow changes
 
 FOR NEW ITEMS:
-  1. Assign to execution phase (0-6)
+  1. Assign to execution phase (1-8)
   2. Extract rich context from all input documents
   3. Apply complexity scoring based on integration density
   4. Validate completeness (dependencies handled in Step 6)
@@ -597,7 +666,171 @@ FOR NEW ITEMS:
 Result: Feature tasks generated for changed/new requirements with delta detection
 ```
 
-#### 6. Dependency Analysis & Parallel Optimization
+#### 6. Deployment Preparation Task Generation (Phase 7 - CONDITIONAL)
+```markdown
+Generate Phase 7 deployment preparation tasks if needed.
+
+**When to Generate Phase 7 Tasks**:
+Read architecture.md deployment section and analyze feature requirements.
+
+IF deployment requires infrastructure NOT handled in Phase 1:
+  Generate Phase 7 deployment preparation tasks
+ELSE:
+  Skip Phase 7 (no additional deployment infrastructure needed)
+
+**Decision Tree**:
+- Does production deployment need different infrastructure than development?
+- Are there post-validation deployment prerequisites?
+- Does deployment need OAuth/security configurations finalized?
+- Are there production-only services or tools to configure?
+
+IF YES to any: Generate Phase 7 tasks
+IF NO to all: Skip Phase 7
+
+**Common Patterns Requiring Phase 7** (illustrative examples):
+
+1. **Production Cloud Infrastructure** (separate from development)
+   Examples:
+   - GCP: Production project creation, production APIs enabled
+   - AWS: Production account setup, production IAM roles
+   - Azure: Production resource groups, production subscriptions
+
+2. **Production OAuth/Security** (after dev testing complete)
+   Examples:
+   - OAuth consent screens with production scopes
+   - SSL/TLS certificate activation
+   - Security policy finalization
+   - Production API key generation
+
+3. **Production Service Configuration** (different from dev)
+   Examples:
+   - Production databases (RDS prod, Cloud SQL prod)
+   - Production storage (S3 prod buckets, GCS prod)
+   - Production caches (Redis prod, Memcached prod)
+   - Production message queues (SQS, Pub/Sub)
+
+4. **Deployment Tool Configuration** (production authentication)
+   Examples:
+   - clasp login for production deployment
+   - kubectl context for production cluster
+   - terraform workspace for production
+   - Docker registry authentication for production
+
+5. **Networking and DNS** (post-validation setup)
+   Examples:
+   - DNS configuration and cutover
+   - CDN setup (CloudFront, Cloudflare)
+   - Load balancer configuration
+   - Firewall rules and security groups
+
+**Task Generation** (prompt-as-code style):
+FOR EACH deployment infrastructure requirement:
+  Create task-XXX-deploy-prep.md with:
+  - Natural language instructions: "Execute these steps...", "Navigate to...", "Run: ..."
+  - State capture directives: "Capture {key} from response"
+  - Persistence instructions: "Persist to architecture.md: - {component}.{context}.{key}: {value}"
+  - Verification steps: "Verify by checking..."
+
+Task metadata:
+- execution-phase: 7-deployment-prep
+- parallel-eligible: false (infrastructure may have dependencies)
+- dependencies: [all Phase 6 validation tasks]
+- complexity: atomic or simple (infrastructure setup)
+
+State persistence:
+- Append to architecture.md "## Infrastructure State"
+- Use semantic keys: {component}.prod.{key} or {component}.deployment.{key}
+- Examples: gcp.prod.projectId, oauth.prod.consentConfigured, ssl.prod.certificateArn
+
+Result: Phase 7 deployment preparation tasks generated (if needed)
+```
+
+#### 7. CI/CD Execution Task Generation (Phase 8 - CONDITIONAL)
+```markdown
+Generate Phase 8 CI/CD deployment execution tasks if automated deployment specified.
+
+**When to Generate Phase 8 Tasks**:
+Read architecture.md deployment strategy section.
+
+IF automated deployment specified:
+  Generate Phase 8 CI/CD execution tasks
+ELSE IF manual deployment:
+  Generate manual deployment checklist (not tasks)
+ELSE:
+  Skip Phase 8 (no deployment specified)
+
+**Decision Tree**:
+- Does architecture.md specify deployment automation?
+- Are there deployment scripts or tools configured?
+- Is there a deployment pipeline defined?
+
+IF YES: Generate Phase 8 automated deployment tasks
+IF NO: Generate deployment checklist or skip
+
+**Task Generation** (prompt-as-code style):
+Create task-XXX-deploy-execute.md with natural language deployment steps:
+
+Template structure:
+```
+## Deployment Execution
+
+Execute these deployment steps in sequence:
+
+1. **Pre-Deployment Verification**
+   - Verify all Phase 7 infrastructure ready
+   - Check architecture.md for required state values
+   - Run: [pre-deployment validation command]
+   - Expected: All checks pass
+
+2. **Deployment Execution**
+   - Navigate to: [deployment directory]
+   - Run: [deployment command]
+   - Examples:
+     * clasp: "Run: clasp push && clasp deploy --description 'Production vX.Y.Z'"
+     * Kubernetes: "Run: kubectl apply -f manifests/ && kubectl rollout status deployment/app"
+     * Terraform: "Run: terraform apply -auto-approve"
+     * Serverless: "Run: sls deploy --stage prod"
+
+3. **Post-Deployment Verification**
+   - Verify: [deployment succeeded indicator]
+   - Test: [smoke test commands]
+   - Capture deployment metadata (version, timestamp, deployment ID)
+
+4. **State Persistence**
+   - Persist to architecture.md "## Infrastructure State":
+     * deployment.prod.version: {version}
+     * deployment.prod.endpoint: {url}
+     * deployment.prod.timestamp: {timestamp}
+     * deployment.prod.deploymentId: {id}
+
+5. **Rollback Procedure** (if deployment fails)
+   - IF deployment fails OR smoke tests fail:
+     * Run: [rollback command]
+     * Examples:
+       - clasp: "clasp undeploy {deploymentId} && clasp deploy --deploymentId {previous}"
+       - Kubernetes: "kubectl rollout undo deployment/app"
+       - Terraform: "terraform apply -auto-approve {previous-state}"
+     * Verify: Rollback successful
+     * Alert: Deployment failed, rolled back to previous version
+```
+
+Task metadata:
+- execution-phase: 8-ci-cd
+- parallel-eligible: false (deployment must be sequential)
+- dependencies: [all Phase 7 tasks if present, else all Phase 6 tasks]
+- complexity: simple or moderate (deployment complexity)
+
+Common deployment patterns (examples):
+- Google Apps Script: clasp push && clasp deploy
+- Kubernetes: kubectl apply -f && rollout status
+- AWS Lambda: sam deploy or sls deploy
+- Static sites: netlify deploy or s3 sync
+- Containers: docker push && kubectl set image
+
+Result: Phase 8 CI/CD execution tasks generated (if automated deployment)
+```
+
+#### 8. Dependency Analysis & Parallel Optimization
 ```markdown
 Analyze task dependencies and optimize for parallel execution:
 
@@ -639,7 +872,7 @@ Analyze task dependencies and optimize for parallel execution:
 Result: Dependency graph built, cycles resolved, parallel execution plan created
 ```
 
-#### 7. Quality Iteration Loop
+#### 9. Quality Iteration Loop
 ```markdown
 FOR iteration FROM 1 TO 10:
   Calculate quality score:
@@ -709,7 +942,7 @@ Task File Format:
 task-id: TASK-NNN
 title: [Clear outcome-focused title]
 task-type: [new|modification|technical-update]
-execution-phase: [0-setup|1-migration|2-feature-core|3-feature-ui|4-integration|5-validation|6-ci-cd]
+execution-phase: [1-infrastructure-setup|2-migration|3-feature-core|4-feature-ui|5-integration|6-validation|7-deployment-prep|8-ci-cd]
 complexity: [atomic|simple|moderate|complex]
 parallel-eligible: [true|false]
 source-requirements: [REQ-XXX, REQ-YYY]
@@ -763,38 +996,94 @@ dependencies: [TASK-XXX, TASK-YYY]
 
 When generating this task file, examine <worktree>/planning/architecture.md for infrastructure state:
 
-1. Look for section titled "## MCP Runtime State"
-2. Look for section titled "## Service Runtime State"
+1. Look for section titled "## Infrastructure State"
 
-IF either section exists in architecture.md THEN:
+IF section exists in architecture.md THEN:
   Create subsection in this task documenting available state:
 
   **Available Infrastructure State**:
 
-  For each state entry found, list in format:
-  - {server/service-name}: {key}={value-from-architecture.md}
+  For each state entry found, list using semantic dot-notation format:
+  - {component}.{context}.{key}: {value-from-architecture.md}
 
   Add usage guidance:
-  "This state was created by Phase 0 initialization tasks. Reference these values
-  in your implementation. For example, use scriptId when calling mcp__gas__write,
-  or use connectionString when setting up database connections."
+  "This state was created by Phase 1 infrastructure setup tasks and may include deployment state from Phase 7/8.
+  Reference these values in your implementation using the component.context.key pattern.
+  For example, use gas.dev.scriptId when calling mcp__gas__write, or database.dev.connectionString for DB setup."
 
   Example output format:
-  **MCP Runtime State**:
-  - gas: scriptId=abc123xyz
-  - github: repoUrl=https://github.com/user/repo
-
-  **Service Runtime State**:
-  - database: connectionString=postgresql://localhost:5432/mydb
-  - storage: bucketName=my-app-uploads, region=us-east-1
-  - auth: clientId=xyz789, domain=myapp.auth0.com
+  **Infrastructure State** (from architecture.md):
+  - gas.dev.scriptId: abc123xyz
+  - github.dev.repoUrl: https://github.com/user/repo
+  - database.dev.connectionString: postgresql://localhost:5432/mydb
+  - storage.dev.bucketName: my-app-uploads
+  - storage.dev.region: us-east-1
+  - auth.dev.clientId: xyz789
+  - gas.prod.scriptId: xyz789_prod (if deployment state exists)
+  - deployment.prod.endpoint: https://api.example.com (if deployed)
 
 ELSE:
-  Add note: "No infrastructure state available (Phase 0 initialization not needed for this project)"
+  Add note: "No infrastructure state available (Phase 1 infrastructure setup not needed for this project)"
 END IF
 
 **Note**: feature-developer.md will automatically provide architecture.md in the
 implementation context, making all state readily accessible.
+
+### Infrastructure State Management
+
+**ALL infrastructure state persists to architecture.md** in a single unified section:
+
+```markdown
+## Infrastructure State
+
+Use semantic dot-notation keys to organize state by component and context.
+
+Pattern: {component}.{context}.{key}: {value}
+
+Common contexts: dev, prod, staging, test, deployment
+
+State sources and examples:
+
+**Phase 1 (Infrastructure Setup)**:
+- gas.dev.scriptId: abc123_dev
+- database.dev.connectionString: postgresql://localhost:5432/app
+- redis.dev.host: localhost, redis.dev.port: 6379
+- auth.dev.clientId: dev_xyz123
+
+**Phase 7 (Deployment Preparation)**:
+- gas.prod.scriptId: xyz789_prod
+- database.prod.connectionString: postgresql://prod-db:5432/app
+- gcp.prod.projectId: myapp-prod-123456
+- oauth.prod.consentConfigured: true
+- ssl.prod.certificateArn: arn:aws:acm:us-east-1:123:certificate/abc
+
+**Phase 8 (CI/CD Execution)**:
+- deployment.prod.version: v1.0.0
+- deployment.prod.endpoint: https://api.example.com/v1
+- deployment.prod.timestamp: 2025-10-04T12:00:00Z
+- deployment.prod.deploymentId: d-abc123xyz
+
+**Phase 10 (Feature-Generated State)**:
+- api.deployment.endpoint: https://api.example.com/v1
+- auth.prod.callbackUrl: https://app.example.com/callback
+- storage.prod.bucketName: app-uploads-prod
+
+Benefits of unified state:
+- Single source of truth in architecture.md
+- Flexible namespacing via dot notation
+- Clear context separation (dev vs prod)
+- No taxonomy enforcement (adapt to project needs)
+- Scales to any infrastructure pattern
+```
+
+**State Persistence Protocol** (referenced in Phase 1, 7, 8 tasks):
+1. Capture state from initialization/deployment
+2. Format as: {component}.{context}.{key}: {value}
+3. Read architecture.md
+4. Locate or create "## Infrastructure State" section
+5. Append new state entries
+6. Write updated architecture.md
+7. Verify entries persisted correctly
 
 ### Trade-offs Accepted
 [Conscious decisions and their implications]
@@ -891,17 +1180,19 @@ GLOBAL_END complete - task generation finalized
 ```markdown
 Generate execution phase flowchart showing LLM execution phases:
 
-- **Phase 0 (Setup)**: One-time infrastructure, must complete first
-- **Phase 1 (Migration)**: Data/schema changes, sequential within phase
-- **Phase 2-3 (Features/UI)**: Parallel execution possible by multiple agents
-- **Phase 4 (Integration)**: Requires feature completion, sequential
-- **Phase 5 (Validation)**: Testing tasks, can parallelize by test type
-- **Phase 6 (CI/CD)**: Final deployment preparation, sequential
+- **Phase 1 (Infrastructure Setup)**: Development and/or deployment infrastructure (CONDITIONAL - if needed)
+- **Phase 2 (Migration)**: Data/schema changes, sequential within phase
+- **Phase 3-4 (Features/UI)**: Parallel execution possible by multiple agents
+- **Phase 5 (Integration)**: Requires feature completion, sequential
+- **Phase 6 (Validation)**: Testing tasks, can parallelize by test type
+- **Phase 7 (Deployment Prep)**: Deployment infrastructure preparation (CONDITIONAL - if needed)
+- **Phase 8 (CI/CD)**: Automated deployment execution (CONDITIONAL - if automated)
 
-Parallel execution opportunities: [Phase 2-3 tasks]
-Critical path: [Phase 0 → 1 → 4 → 5 → 6]
+Parallel execution opportunities: [Phase 3-4 tasks, Phase 6 tasks by type]
+Critical path: [Phase 1 (if needed) → 2 → 5 → 6 → 7 (if needed) → 8 (if needed)]
+Conditional phases: [Phase 1, 7, 8 - only generate if architecture.md indicates need]
 Bottleneck phases: [Integration typically bottleneck]
-LLM agent allocation: [Suggest agent-per-feature strategy]
+LLM agent allocation: [Suggest agent-per-feature strategy for Phase 3-4]
 ```
 
 ## Return Summary
@@ -928,18 +1219,20 @@ After completing both phases and global end, return concise summary:
 - Files Location: `<worktree>/planning/pending/`
 
 ## Execution Phases
-- Phase 0 (Setup): [X] tasks
-- Phase 1 (Migration): [Y] tasks
-- Phase 2-3 (Features): [Z] tasks (parallel eligible)
-- Phase 4 (Integration): [A] tasks
-- Phase 5 (Validation): [B] tasks
-- Phase 6 (CI/CD): [C] tasks
+- Phase 1 (Infrastructure Setup): [X] tasks (conditional)
+- Phase 2 (Migration): [Y] tasks
+- Phase 3-4 (Features): [Z] tasks (parallel eligible)
+- Phase 5 (Integration): [A] tasks
+- Phase 6 (Validation): [B] tasks
+- Phase 7 (Deployment Prep): [C] tasks (conditional)
+- Phase 8 (CI/CD): [D] tasks (conditional)
 
 ## Next Steps
 1. Review generated tasks in `<worktree>/planning/pending/`
 2. Execute tasks via feature-developer agent in phase order
-3. Use parallel execution for Phase 2-3 tasks when possible
-4. Follow critical path: Setup → Migration → Features → Integration → Validation → CI/CD
+3. Use parallel execution for Phase 3-4 tasks when possible
+4. Follow critical path: Infrastructure Setup → Migration → Features → Integration → Validation → Deployment Prep → CI/CD
+5. Note: Conditional phases (1, 7, 8) only present if architecture.md indicates need
 
 ## Efficiency Metrics
 - Reuse Rate: [X%] of requirements already satisfied

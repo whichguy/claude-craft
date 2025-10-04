@@ -27,6 +27,8 @@ flowchart TD
     P0 --> P0Check{Valid Worktree?}
     P0Check -->|No| Error1[Exit: Invalid Worktree]
     P0Check -->|Yes| P1[Phase 1: Task & Architecture Rehydration]
+
+    Note: Internal workflow phases (0-12) are separate from task execution phases (1-8)
     
     P1 --> P1Sub1[Load Task Details]
     P1 --> P1Sub2[Load Architecture Decisions]
@@ -320,11 +322,11 @@ fi
 # Load architecture decisions and infrastructure state
 echo "### Architecture Choices & Infrastructure State" >> "$CONTEXT_FILE"
 if [ -f "$PLANNING_DIR/architecture.md" ]; then
-  echo "Architecture decisions from IDEAL-STI and infrastructure state from Phase 0 initialization:" >> "$CONTEXT_FILE"
+  echo "Architecture decisions from IDEAL-STI and infrastructure state from Phase 1 setup:" >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
   echo "Note: This document contains MCP server recommendations, Service configurations," >> "$CONTEXT_FILE"
-  echo "and runtime state sections (## MCP Runtime State, ## Service Runtime State)" >> "$CONTEXT_FILE"
-  echo "if Phase 0 initialization tasks ran. Reference these state values during implementation." >> "$CONTEXT_FILE"
+  echo "and runtime state in '## Infrastructure State' section" >> "$CONTEXT_FILE"
+  echo "if Phase 1 infrastructure setup tasks ran. Reference these state values during implementation." >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
   cat "$PLANNING_DIR/architecture.md" >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
@@ -1990,125 +1992,244 @@ cat >> "$FINAL_REPORT" << EOF
 - Evaluate additional accessibility improvements
 - Review security considerations for production deployment
 
-## CI/CD Requirements
+## Deployment Task Generation
 EOF
 
-# Generate CI/CD requirements for central location
-echo "📋 Analyzing feature for CI/CD requirements..."
+# Phase 9: Generate deployment tasks (prompt-as-code style)
+echo "📋 Phase 9: Analyzing feature for deployment task generation..."
 
-# Create central CI/CD requirements directory if it doesn't exist
-CICD_REQ_DIR="$WORK_DIR/docs/deployment"
-mkdir -p "$CICD_REQ_DIR"
+# Read architecture.md to understand deployment needs
+ARCHITECTURE_FILE="$PLANNING_DIR/architecture.md"
+DEPLOYMENT_TASKS_NEEDED=false
+PHASE7_NEEDED=false
+PHASE8_NEEDED=false
 
-# Generate CI/CD requirements file
-CICD_REQUIREMENTS_FILE="$CICD_REQ_DIR/ci-cd-requirements.json"
+# Check if architecture.md exists and has deployment information
+if [ -f "$ARCHITECTURE_FILE" ]; then
+    # Check for deployment strategy indicators
+    if grep -E -i "(deployment|production|ci.?cd|pipeline)" "$ARCHITECTURE_FILE" >/dev/null 2>&1; then
+        DEPLOYMENT_TASKS_NEEDED=true
 
-# Initialize or load existing requirements
-if [ ! -f "$CICD_REQUIREMENTS_FILE" ]; then
-    cat > "$CICD_REQUIREMENTS_FILE" << 'JSON_EOF'
-{
-  "formatVersion": "1.0",
-  "generatedBy": "feature-developer",
-  "lastUpdated": "",
-  "features": {}
-}
-JSON_EOF
+        # Determine if Phase 7 (infrastructure prep) is needed
+        if grep -E -i "(production.*infrastructure|prod.*setup|deployment.*prerequisite)" "$ARCHITECTURE_FILE" >/dev/null 2>&1; then
+            PHASE7_NEEDED=true
+        fi
+
+        # Determine if Phase 8 (automated deployment) is needed
+        if grep -E -i "(automated.*deployment|deployment.*automation|ci.?cd.*pipeline)" "$ARCHITECTURE_FILE" >/dev/null 2>&1; then
+            PHASE8_NEEDED=true
+        fi
+    fi
 fi
 
-# Analyze current feature for CI/CD requirements
+# Analyze current feature for deployment requirements
 REQUIRES_SCHEMA_CHANGES=false
 REQUIRES_API_CHANGES=false
-REQUIRES_CONFIG_CHANGES=false
-REQUIRES_BUILD_CHANGES=false
-HAS_BREAKING_CHANGES=false
+REQUIRES_INFRA_CHANGES=false
 
-# Check for database/schema changes
 if find "$WORK_DIR" -name "*.sql" -o -name "*migration*" -o -name "*schema*" | grep -E "(migration|schema|\.sql$)" >/dev/null 2>&1; then
     REQUIRES_SCHEMA_CHANGES=true
+    PHASE7_NEEDED=true  # Schema changes may need production DB setup
 fi
 
-# Check for API changes (new endpoints, modified responses)
 if grep -r -E "(app\.(get|post|put|delete|patch)|router\.|@(Get|Post|Put|Delete|Patch))" "$WORK_DIR"/ 2>/dev/null | grep -v node_modules | grep -v ".git" >/dev/null; then
     REQUIRES_API_CHANGES=true
 fi
 
-# Check for breaking API changes
-if grep -r -E "(BREAKING|deprecated|removed|version.*2|v2)" "$WORK_DIR"/ 2>/dev/null | grep -v node_modules | grep -v ".git" >/dev/null; then
-    HAS_BREAKING_CHANGES=true
+# Generate deployment tasks if needed
+DEPLOYMENT_TASK_COUNT=0
+PENDING_TASKS_DIR="$PLANNING_DIR/pending"
+mkdir -p "$PENDING_TASKS_DIR"
+
+# Find next task number
+NEXT_TASK_NUM=$(find "$PENDING_TASKS_DIR" -name "task-*.md" 2>/dev/null | sed 's/.*task-0*\([0-9]*\).*/\1/' | sort -n | tail -1)
+NEXT_TASK_NUM=$((NEXT_TASK_NUM + 1))
+
+if [ "$PHASE7_NEEDED" = true ]; then
+    TASK_FILE="$PENDING_TASKS_DIR/task-$(printf '%03d' $NEXT_TASK_NUM)-deploy-prep.md"
+    echo "📝 Generating Phase 7 deployment preparation task: $TASK_FILE"
+
+    cat > "$TASK_FILE" << 'TASK_EOF'
+---
+task-id: TASK-{XXX}
+title: Prepare Deployment Infrastructure
+execution-phase: 7-deployment-prep
+complexity: simple
+parallel-eligible: false
+dependencies: [all Phase 6 validation tasks]
+---
+
+## Outcome Definition
+Production deployment infrastructure configured and ready for automated deployment execution.
+
+## Definition of Ready
+- All Phase 6 validation tests passing
+- Feature implementation complete and verified
+- Architecture.md deployment section reviewed
+
+## Implementation Guidance
+
+### Approach
+Analyze architecture.md for deployment infrastructure requirements and execute necessary setup based on technology stack and deployment strategy.
+
+### Primary Flow
+
+**STEP 1: Review Architecture and Requirements**
+Read architecture.md deployment section to understand:
+- What production infrastructure is needed
+- What differs from development infrastructure
+- What deployment tools are configured
+
+**STEP 2: Execute Infrastructure Setup**
+Based on architecture.md, perform necessary setup:
+
+Examples (adapt to your architecture):
+- IF using Google Apps Script:
+  * Verify GCP production project exists
+  * Configure OAuth consent screen for production scopes
+  * Authenticate clasp CLI for production deployment
+
+- IF using cloud platforms (AWS/GCP/Azure):
+  * Create/verify production project or account
+  * Enable required production APIs
+  * Configure production IAM roles and service accounts
+
+- IF using databases:
+  * Provision production database instances
+  * Configure connection security and access
+  * Prepare migration scripts for schema changes
+
+**STEP 3: Capture and Persist State**
+For each infrastructure component configured:
+- Capture returned values (project IDs, connection strings, endpoints)
+- Format as: {component}.prod.{key}: {value}
+- Read architecture.md
+- Locate or create "## Infrastructure State" section
+- Append new state entries
+- Write updated architecture.md
+
+**STEP 4: Verify Infrastructure Ready**
+- Test connectivity to production infrastructure
+- Verify credentials and authentication working
+- Confirm all prerequisites for deployment met
+
+## Acceptance Criteria
+- [ ] All production infrastructure components configured
+- [ ] Infrastructure state persisted to architecture.md
+- [ ] Deployment tool authentication verified
+- [ ] No manual steps required for Phase 8 deployment
+
+## Definition of Done
+- Infrastructure: Production infrastructure ready
+- State: All infrastructure details in architecture.md
+- Tooling: Deployment tools authenticated and tested
+- Verification: Infrastructure connectivity confirmed
+
+TASK_EOF
+
+    DEPLOYMENT_TASK_COUNT=$((DEPLOYMENT_TASK_COUNT + 1))
+    NEXT_TASK_NUM=$((NEXT_TASK_NUM + 1))
 fi
 
-# Check for configuration changes
-if find "$WORK_DIR" -name "*.env*" -o -name "config*" -o -name "*.conf" | head -1 | grep . >/dev/null 2>&1; then
-    REQUIRES_CONFIG_CHANGES=true
+if [ "$PHASE8_NEEDED" = true ]; then
+    TASK_FILE="$PENDING_TASKS_DIR/task-$(printf '%03d' $NEXT_TASK_NUM)-deploy-execute.md"
+    echo "📝 Generating Phase 8 CI/CD execution task: $TASK_FILE"
+
+    cat > "$TASK_FILE" << 'TASK_EOF'
+---
+task-id: TASK-{XXX}
+title: Execute Automated Deployment
+execution-phase: 8-ci-cd
+complexity: moderate
+parallel-eligible: false
+dependencies: [all Phase 7 tasks or all Phase 6 tasks]
+---
+
+## Outcome Definition
+Feature deployed to production environment with verification and rollback capability.
+
+## Definition of Ready
+- Phase 7 infrastructure preparation complete (if Phase 7 tasks exist)
+- OR all Phase 6 validation complete (if no Phase 7)
+- Architecture.md contains required deployment state
+- Deployment tools authenticated and ready
+
+## Implementation Guidance
+
+### Approach
+Execute automated deployment based on architecture.md deployment strategy, with verification and rollback procedures.
+
+### Deployment Flow
+
+**STEP 1: Pre-Deployment Verification**
+- Read architecture.md "## Infrastructure State" for required values
+- Verify all infrastructure prerequisites available
+- Run pre-deployment checks (if defined in architecture)
+- Confirm deployment target is correct (production)
+
+**STEP 2: Execute Deployment**
+Based on architecture.md deployment method, run appropriate command:
+
+Examples (adapt to your deployment tool):
+- Google Apps Script: Run: clasp push && clasp deploy --description "Production v{version}"
+- Kubernetes: Run: kubectl apply -f manifests/ && kubectl rollout status deployment/app
+- Serverless: Run: sls deploy --stage prod
+- Terraform: Run: terraform apply -auto-approve
+- Docker: Run: docker push && kubectl set image deployment/app app={image}:{tag}
+
+**STEP 3: Post-Deployment Verification**
+- Verify deployment succeeded (check exit code, deployment status)
+- Run smoke tests against deployed environment
+- Capture deployment metadata (version, timestamp, deployment ID)
+
+**STEP 4: Persist Deployment State**
+Append to architecture.md "## Infrastructure State":
+- deployment.prod.version: {version}
+- deployment.prod.endpoint: {deployed-url}
+- deployment.prod.timestamp: {iso-timestamp}
+- deployment.prod.deploymentId: {deployment-id}
+
+**STEP 5: Rollback Procedure** (if deployment fails)
+IF deployment fails OR smoke tests fail:
+- Execute rollback command based on deployment tool
+- Verify rollback successful
+- Report deployment failure with details
+
+Rollback examples:
+- clasp: clasp undeploy {deploymentId} && clasp deploy --deploymentId {previous}
+- Kubernetes: kubectl rollout undo deployment/app
+- Terraform: terraform apply {previous-state-file}
+
+## Acceptance Criteria
+- [ ] Deployment executes without errors
+- [ ] Smoke tests pass on deployed environment
+- [ ] Deployment state persisted to architecture.md
+- [ ] Rollback procedure tested and documented
+
+## Definition of Done
+- Deployment: Feature live in production
+- Verification: Smoke tests passing
+- State: Deployment details in architecture.md
+- Monitoring: Deployment verified and stable
+
+TASK_EOF
+
+    DEPLOYMENT_TASK_COUNT=$((DEPLOYMENT_TASK_COUNT + 1))
 fi
 
-# Check for build changes (new dependencies, build steps)
-if find "$WORK_DIR" -name "package*.json" -o -name "Dockerfile*" -o -name "*build*" | head -1 | grep . >/dev/null 2>&1; then
-    REQUIRES_BUILD_CHANGES=true
+# Update final report
+if [ "$DEPLOYMENT_TASK_COUNT" -gt 0 ]; then
+    cat >> "$FINAL_REPORT" << EOF
+- ✅ **Deployment Tasks Generated**: $DEPLOYMENT_TASK_COUNT task(s) in planning/pending/
+$([ "$PHASE7_NEEDED" = true ] && echo "  - Phase 7: Deployment infrastructure preparation")
+$([ "$PHASE8_NEEDED" = true ] && echo "  - Phase 8: CI/CD automated deployment")
+- 📝 **Task Style**: Prompt-as-code with natural language instructions
+EOF
+else
+    cat >> "$FINAL_REPORT" << EOF
+- ℹ️ **Deployment Tasks**: None needed (no deployment specified in architecture.md)
+EOF
 fi
-
-# Determine deployment strategy
-DEPLOYMENT_STRATEGY="seamless"
-if [ "$REQUIRES_SCHEMA_CHANGES" = true ] || [ "$REQUIRES_CONFIG_CHANGES" = true ] || [ "$HAS_BREAKING_CHANGES" = true ]; then
-    if [ "$HAS_BREAKING_CHANGES" = true ]; then
-        DEPLOYMENT_STRATEGY="batch"
-    else
-        DEPLOYMENT_STRATEGY="upgrade"
-    fi
-fi
-
-# Create feature CI/CD requirements entry
-FEATURE_REQUIREMENTS=$(cat << JSON_EOF
-{
-  "featureId": "$task_name",
-  "implementationDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "deploymentStrategy": "$DEPLOYMENT_STRATEGY",
-  "requirements": {
-    "schemaChanges": $REQUIRES_SCHEMA_CHANGES,
-    "apiChanges": $REQUIRES_API_CHANGES,
-    "configChanges": $REQUIRES_CONFIG_CHANGES,
-    "buildChanges": $REQUIRES_BUILD_CHANGES,
-    "breakingChanges": $HAS_BREAKING_CHANGES
-  },
-  "buildSteps": [],
-  "preDeploymentChecks": [],
-  "postDeploymentValidation": [],
-  "rollbackProcedure": {
-    "supported": $([ "$DEPLOYMENT_STRATEGY" = "seamless" ] && echo "true" || echo "false"),
-    "steps": []
-  },
-  "implementationFiles": $(echo "$IMPLEMENTATION_FILES" | tr ' ' '\n' | jq -R . | jq -s .),
-  "testFiles": $(find "$WORK_DIR/tests" -name "*$task_name*" -o -name "*$(echo $task_name | tr '-' '_')*" 2>/dev/null | sed "s|$WORK_DIR/||" | jq -R . | jq -s . 2>/dev/null || echo "[]"),
-  "dependencies": {
-    "runtime": [],
-    "build": [],
-    "test": []
-  }
-}
-JSON_EOF
-)
-
-# Update CI/CD requirements file with new feature
-cat > "${CICD_REQUIREMENTS_FILE}.tmp" << JSON_EOF
-{
-  "formatVersion": "1.0",
-  "generatedBy": "feature-developer",
-  "lastUpdated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "features": $(jq --argjson feature "$FEATURE_REQUIREMENTS" '.features + {($feature.featureId): $feature}' "$CICD_REQUIREMENTS_FILE" 2>/dev/null || echo "{\"$task_name\": $FEATURE_REQUIREMENTS}")
-}
-JSON_EOF
-
-mv "${CICD_REQUIREMENTS_FILE}.tmp" "$CICD_REQUIREMENTS_FILE"
-
-echo "✅ CI/CD requirements updated: $CICD_REQUIREMENTS_FILE"
-
-# Add to final report
-cat >> "$FINAL_REPORT" << EOF
-- ✅ **Deployment Strategy**: $DEPLOYMENT_STRATEGY
-- $([ "$REQUIRES_SCHEMA_CHANGES" = true ] && echo "⚠️ **Requires Schema Changes**: Database migration required" || echo "✅ **No Schema Changes**: Database compatible")
-- $([ "$REQUIRES_API_CHANGES" = true ] && echo "📝 **API Changes**: New or modified endpoints" || echo "✅ **No API Changes**: Backward compatible")
-- $([ "$HAS_BREAKING_CHANGES" = true ] && echo "⚠️ **Breaking Changes**: Requires coordinated deployment" || echo "✅ **No Breaking Changes**: Independent deployment")
-- ✅ **CI/CD Requirements**: Saved to \`docs/deployment/ci-cd-requirements.json\`
 
 ## Files Summary
 **Total Implementation Files**: $(echo $IMPLEMENTATION_FILES | wc -w)  
@@ -2122,6 +2243,83 @@ cat >> "$FINAL_REPORT" << EOF
 EOF
 
 echo "✅ Final implementation report generated: $FINAL_REPORT"
+
+# Phase 10: Cross-Feature State Persistence
+echo "📋 Phase 10: Checking for cross-feature state to persist..."
+
+# Determine if this feature created state that other features might need
+CROSS_FEATURE_STATE_NEEDED=false
+STATE_ENTRIES=()
+
+# Check for API endpoints created
+if grep -r -E "(app\.(get|post|put|delete)|router\.|express\(\)|@(Get|Post))" "$WORK_DIR/src" 2>/dev/null | grep -v node_modules >/dev/null; then
+    # Feature likely creates API endpoints
+    CROSS_FEATURE_STATE_NEEDED=true
+    echo "  → Detected: API endpoints (may need endpoint URL persisted)"
+fi
+
+# Check for deployment URLs or service endpoints in implementation
+if grep -r -E "(https?://|endpoint|baseUrl|apiUrl)" "$WORK_DIR/src" 2>/dev/null | grep -v node_modules >/dev/null; then
+    CROSS_FEATURE_STATE_NEEDED=true
+    echo "  → Detected: Service endpoints or URLs"
+fi
+
+# Check for service identifiers (database names, storage buckets, queue names)
+if grep -r -E "(bucketName|queueName|databaseName|connectionString)" "$WORK_DIR/src" 2>/dev/null | grep -v node_modules >/dev/null; then
+    CROSS_FEATURE_STATE_NEEDED=true
+    echo "  → Detected: Service identifiers"
+fi
+
+if [ "$CROSS_FEATURE_STATE_NEEDED" = true ]; then
+    echo ""
+    echo "⚠️  CROSS-FEATURE STATE DETECTED"
+    echo ""
+    echo "This feature appears to create state that OTHER features may depend on."
+    echo ""
+    echo "**Action Required**: Persist cross-feature state to architecture.md"
+    echo ""
+    echo "Examples of state to persist:"
+    echo "  - API endpoints: api.deployment.endpoint: https://api.example.com/v1"
+    echo "  - Service IDs: storage.prod.bucketName: app-uploads-prod"
+    echo "  - Deployment URLs: app.prod.url: https://app.example.com"
+    echo "  - Auth callbacks: auth.prod.callbackUrl: https://app.example.com/callback"
+    echo ""
+    echo "**State Persistence Protocol**:"
+    echo "  1. Identify reusable state values created during implementation"
+    echo "  2. Format as: {component}.{context}.{key}: {value}"
+    echo "  3. Read architecture.md"
+    echo "  4. Locate or create '## Infrastructure State' section"
+    echo "  5. Append state entries under appropriate phase comment"
+    echo "  6. Write updated architecture.md"
+    echo "  7. Verify entries persisted correctly"
+    echo ""
+    echo "Add this to your implementation report or execute manually."
+    echo ""
+
+    # Add reminder to final report
+    cat >> "$FINAL_REPORT" << EOF
+
+## Cross-Feature State Persistence
+
+⚠️ **ACTION REQUIRED**: This feature may create state that other features need.
+
+**State Persistence Protocol**:
+1. Review implementation for cross-feature dependencies (API endpoints, service IDs, deployment URLs)
+2. Identify state values that should be shared
+3. Format as: {component}.{context}.{key}: {value}
+4. Persist to architecture.md "## Infrastructure State" section
+5. Add comment indicating source: "# Phase 10 (Feature-Generated State)"
+
+**Examples**:
+- api.deployment.endpoint: https://api.example.com/v1
+- storage.prod.bucketName: app-uploads-prod
+- auth.prod.clientId: xyz123, auth.prod.callbackUrl: https://app.example.com/callback
+
+This makes state available to all future features via architecture.md.
+EOF
+else
+    echo "  ✓ No cross-feature state detected (feature is self-contained)"
+fi
 
 # Output final summary
 cat << EOF
