@@ -502,7 +502,43 @@ IF any MCP servers are marked "needs-initialization" THEN:
       Format using semantic dot-notation: {server}.{context}.{key}: {value}
       Context for Phase 1 MCP servers: typically 'dev' or 'prod'
       Example: - gas.dev.scriptId: abc123xyz
-      Add your formatted entry to the location identified in Step 4
+
+      **IMPORTANT: Capture MCP Server Capabilities**
+      When initializing an MCP server, also capture its capabilities:
+
+      - mcp.server.name: {server-name}
+      - mcp.server.writeCapable: {true|false}  # Can write files directly
+      - mcp.server.writeFunctions: {comma-separated-list}  # e.g., gas_write,gas_cat,gas_delete
+      - mcp.server.qualityFunctions: {comma-separated-list}  # e.g., gas_validate,gas_lint,gas_test
+
+      **Function Categories**:
+
+      **writeFunctions** (Content Read/Write Operations):
+      - Read functions: gas_cat, mcp_read, mcp_fetch, gas_get
+      - Write functions: gas_write, mcp_write, gas_delete, mcp_update
+      - Purpose: Basic content access for file operations
+
+      **qualityFunctions** (Auxiliary/Quality Operations):
+      - Pattern Matching (grep/ripgrep equivalent): gas_grep, mcp_search, mcp_ripgrep, mcp_scan
+      - Text Transformation (sed equivalent): gas_sed, mcp_substitute, mcp_transform, mcp_edit
+      - Field Extraction (cut/awk equivalent): gas_cut, mcp_field_extract, mcp_parse, mcp_split
+      - Section Extraction (sed -n range equivalent): gas_extract_section, mcp_range, mcp_slice
+      - Quality Checks: gas_validate, gas_lint, gas_test, mcp_quality_check
+      - Purpose: Advanced text processing and quality validation
+
+      Examples:
+      - gas.dev.scriptId: abc123xyz
+      - mcp.server.name: gas-project
+      - mcp.server.writeCapable: true
+      - mcp.server.writeFunctions: gas_write,gas_cat,gas_delete
+      - mcp.server.qualityFunctions: gas_validate,gas_lint,gas_test,gas_grep,gas_sed,gas_extract_section
+
+      These capability flags signal to feature-developer and code-reviewer:
+      - writeCapable + writeFunctions → Use MCP for direct writes (no local files)
+      - qualityFunctions → Use MCP for automated quality checks (lint, validate, test)
+      - qualityFunctions with grep/sed/cut equivalents → Use MCP auxiliary functions instead of shell commands
+
+      Add your formatted entries to the location identified in Step 4
 
     STEP 6: Write Updated Content
       Write complete updated content back to <worktree>/planning/architecture.md
@@ -571,6 +607,17 @@ IF any services are marked "needs-initialization" THEN:
         '- database.dev.schemaVersion: 001'
         '- storage.dev.bucketName: my-app-uploads'
         '- storage.dev.region: us-east-1'
+
+      **IMPORTANT: Capture Service Quality Tool Capabilities**
+      If service provides linting, testing, or validation capabilities:
+        '- service.linter.name: {linter-name}'  # e.g., eslint, pylint, rubocop
+        '- service.linter.config: {config-file}'  # e.g., .eslintrc.json
+        '- service.tester.endpoint: {test-service-url}'  # e.g., http://test-service:8080
+        '- service.tester.type: {test-framework}'  # e.g., jest, pytest, rspec
+
+      These quality tool flags signal to code-reviewer:
+      - service.linter.* → Use external linter for quality checks
+      - service.tester.* → Use external test service for validation
 
     STEP 3: Read Architecture File
       Read <worktree>/planning/architecture.md into memory
@@ -1046,9 +1093,15 @@ State sources and examples:
 
 **Phase 1 (Infrastructure Setup)**:
 - gas.dev.scriptId: abc123_dev
+- mcp.server.name: gas-project
+- mcp.server.writeCapable: true
+- mcp.server.writeFunctions: gas_write,gas_cat,gas_delete
+- mcp.server.qualityFunctions: gas_validate,gas_lint,gas_test
 - database.dev.connectionString: postgresql://localhost:5432/app
 - redis.dev.host: localhost, redis.dev.port: 6379
 - auth.dev.clientId: dev_xyz123
+- service.linter.name: eslint
+- service.linter.config: .eslintrc.json
 
 **Phase 7 (Deployment Preparation)**:
 - gas.prod.scriptId: xyz789_prod
