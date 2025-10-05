@@ -95,30 +95,54 @@ MCP_SERVER_NAME=""
 MCP_WRITE_CAPABLE="false"
 MCP_WRITE_FUNCTIONS=""
 MCP_QUALITY_FUNCTIONS=""
+MCP_SOURCE="none"
 
 # Logical Discovery Statement:
-# If MCP servers were specified in the architecture, then discover the content access (read/write)
+# If MCP servers were specified in the task or architecture, then discover the content access (read/write)
 # and any auxiliary functions (sed/awk/ripgrep) equivalents to use during these operations,
 # otherwise if shell, then use shell functions
 
-if [ -n "$PLANNING_DIR" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
-  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
-    # Discover MCP server configuration
-    MCP_SERVER_NAME=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-
-    if [ -n "$MCP_SERVER_NAME" ]; then
-      # MCP server specified - discover capabilities
-      MODE="mcp"
-      MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-      MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-      MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-
-      echo "✅ Discovered MCP server: $MCP_SERVER_NAME"
-      echo "   - Content access: read via ${MCP_WRITE_FUNCTIONS:-none}, write: ${MCP_WRITE_CAPABLE}"
-      echo "   - Auxiliary functions: ${MCP_QUALITY_FUNCTIONS:-none}"
-      echo "   - MODE: mcp (identifiers passed as-is to MCP functions)"
+# PRIORITY 1: Check task file for MCP server directive (if we have a task file)
+if [ -n "$task_name" ] && [ -n "$worktree" ]; then
+  task_file="$worktree/tasks/in-progress/${task_name}.md"
+  if [ -f "$task_file" ]; then
+    task_mcp_server=$(grep -i "^MCP-Server:" "$task_file" 2>/dev/null | cut -d: -f2 | xargs)
+    if [ -n "$task_mcp_server" ]; then
+      MCP_SERVER_NAME="$task_mcp_server"
+      MCP_SOURCE="task_file"
+      echo "✅ MCP server from task file: $MCP_SERVER_NAME"
     fi
   fi
+fi
+
+# PRIORITY 2: Check architecture.md Infrastructure State (if not found in task)
+if [ -z "$MCP_SERVER_NAME" ] && [ -n "$PLANNING_DIR" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
+  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
+    # Discover MCP server configuration
+    arch_mcp_server=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+
+    if [ -n "$arch_mcp_server" ]; then
+      # MCP server specified - discover capabilities
+      MCP_SERVER_NAME="$arch_mcp_server"
+      MCP_SOURCE="architecture"
+      echo "✅ MCP server from architecture.md: $MCP_SERVER_NAME"
+    fi
+  fi
+fi
+
+# Extract capabilities if MCP server found
+if [ -n "$MCP_SERVER_NAME" ]; then
+  MODE="mcp"
+  if [ -n "$PLANNING_DIR" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
+    MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+  fi
+
+  echo "   - Content access: read via ${MCP_WRITE_FUNCTIONS:-none}, write: ${MCP_WRITE_CAPABLE}"
+  echo "   - Auxiliary functions: ${MCP_QUALITY_FUNCTIONS:-none}"
+  echo "   - MODE: mcp (identifiers passed as-is to MCP functions)"
+  echo "   - Source: $MCP_SOURCE"
 fi
 
 if [ "$MODE" = "filesystem" ]; then

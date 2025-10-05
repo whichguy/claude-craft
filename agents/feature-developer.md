@@ -538,25 +538,21 @@ cat > "$CONTEXT_FILE" << EOF
 - **PARENT**: Worktree ($worktree)
 - **IDENTIFIER**: Relative path from worktree (e.g., src/main.js, tasks/pending/TASK-001.md)
 
-### Available Approaches for Operations
+### MODE-Aware Operations Guide
 
-**Reading Content**:
-- If MODE=mcp AND MCP has read functions: Use MCP (gas_cat, mcp_read)
-- Otherwise: Use filesystem with worktree prefix (cat "\$worktree/identifier")
+**When MODE=mcp**:
+- Read: gas_cat(identifier) or MCP read functions
+- Write: gas_write(identifier, content) if MCP_WRITE_CAPABLE=true
+- Pattern: MCP quality functions (if available per MCP_QUALITY_FUNCTIONS)
+- Extract: MCP field functions (if available per MCP_QUALITY_FUNCTIONS)
 
-**Pattern Matching**:
-- If MODE=mcp AND MCP_QUALITY_FUNCTIONS contains grep/search: Use MCP pattern matching
-- Otherwise: Use grep/sed on "\$worktree/identifier"
+**When MODE=filesystem**:
+- Read: cat "\$worktree/identifier"
+- Write: echo/cat > "\$worktree/identifier"
+- Pattern: grep/sed "\$worktree/identifier"
+- Extract: grep|cut|xargs pipeline
 
-**Field Extraction**:
-- If MODE=mcp AND MCP_QUALITY_FUNCTIONS contains cut/parse/field_extract: Use MCP
-- Otherwise: Use grep + cut + xargs pattern
-
-**Writing Content**:
-- If MODE=mcp AND MCP_WRITE_CAPABLE=true: Use MCP write functions (gas_write)
-- Otherwise: Use echo/cat to "\$worktree/identifier"
-
-**Note**: For temp worktrees (/tmp/*), always use filesystem operations. The merge-worktree agent will sync to MCP if configured.
+**Temp worktrees (/tmp/*)**: Always filesystem (MCP sync via merge-worktree agent)
 
 EOF
 
@@ -570,6 +566,13 @@ Load complete context from task and IDEAL-STI planning outputs using MODE-aware 
 ```bash
 echo "🔄 PHASE 3: Rehydrating task and architecture context..."
 
+# ============================================================================
+# MODE-AWARE OPERATIONS: All file operations check $MODE and use appropriate method
+# - If MODE=mcp: Use gas_cat, gas_write, MCP quality functions per $MCP_*_FUNCTIONS
+# - If MODE=filesystem: Use cat, grep, sed, echo, find
+# - Capabilities: $MCP_WRITE_CAPABLE, $MCP_WRITE_FUNCTIONS, $MCP_QUALITY_FUNCTIONS
+# ============================================================================
+
 # Append to context file (initialized in Phase 1, MODE determined in Phase 2)
 cat >> "$CONTEXT_FILE" << EOF
 
@@ -582,15 +585,11 @@ EOF
 if [ -f "$worktree/$task_file" ]; then
   echo "### Original Task Specification" >> "$CONTEXT_FILE"
 
-  # INTENT: Read task file content
-  # If MODE=mcp: Use MCP read function (gas_cat, mcp_read)
-  # Otherwise: Use cat with worktree prefix
+  # MODE-aware: read task file
   cat "$worktree/$task_file" >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
 
-  # INTENT: Extract task metadata (priority, effort, dependencies)
-  # If MODE=mcp AND quality functions available: Use MCP field extraction
-  # Otherwise: Use grep + cut pattern
+  # MODE-aware: extract task metadata
   priority=$(grep "^Priority:" "$worktree/$task_file" | cut -d: -f2 | xargs)
   effort=$(grep "^Effort:" "$worktree/$task_file" | cut -d: -f2 | xargs)
   dependencies=$(grep "^Dependencies:" "$worktree/$task_file" | cut -d: -f2- | xargs)
@@ -606,9 +605,7 @@ if [ -f "$PLANNING_DIR/architecture.md" ]; then
   echo "if Phase 1 infrastructure setup tasks ran. Reference these state values during implementation." >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
 
-  # INTENT: Read architecture.md content
-  # If MODE=mcp: Use MCP read function
-  # Otherwise: Use cat with PLANNING_DIR prefix
+  # MODE-aware: read architecture.md
   cat "$PLANNING_DIR/architecture.md" >> "$CONTEXT_FILE"
   echo "" >> "$CONTEXT_FILE"
   echo "✅ Architecture and infrastructure state loaded for implementation" >> "$CONTEXT_FILE"
@@ -622,10 +619,7 @@ echo "### Technology Stack" >> "$CONTEXT_FILE"
 if [ -f "$PLANNING_DIR/phase4-tech-research.md" ]; then
   echo "Technology stack from IDEAL-STI Phase 4:" >> "$CONTEXT_FILE"
 
-  # INTENT: Extract technology stack information from phase4-tech-research.md
-  # Search for sections containing: "technology stack", "framework", "library"
-  # If MODE=mcp AND quality functions available: Use MCP section extraction
-  # Otherwise: Use grep -A/-B context pattern
+  # MODE-aware: extract technology stack (search for: "technology stack", "framework", "library")
   grep -A 10 -B 2 -i "technology.*stack\|framework\|library" "$PLANNING_DIR/phase4-tech-research.md" >> "$CONTEXT_FILE"
 else
   echo "⚠️ No technology research found - will analyze project structure" >> "$CONTEXT_FILE"
@@ -637,9 +631,7 @@ echo "### Requirements Context" >> "$CONTEXT_FILE"
 if [ -f "$PLANNING_DIR/phase5-requirements.md" ]; then
   echo "Requirements from IDEAL-STI Phase 5:" >> "$CONTEXT_FILE"
 
-  # INTENT: Read requirements file
-  # If MODE=mcp: Use MCP read function
-  # Otherwise: Use cat
+  # MODE-aware: read requirements
   cat "$PLANNING_DIR/phase5-requirements.md" >> "$CONTEXT_FILE"
 else
   echo "⚠️ No requirements found - will work from task acceptance criteria" >> "$CONTEXT_FILE"
@@ -671,13 +663,11 @@ analyze_ui_requirements() {
   ui_type="none"
   ui_patterns=()
   ui_considerations=()
-  
-  # INTENT: Analyze task content for UI patterns and requirements
-  # If MODE=mcp AND quality functions available: Use MCP pattern analysis
-  # Otherwise: Read task file content
+
+  # MODE-aware: analyze task content for UI patterns
   task_content=$(cat "$worktree/$task_file" 2>/dev/null || echo "")
 
-  # INTENT: Detect UI patterns by searching for keywords:
+  # Detect UI patterns by searching for keywords:
   # - Dashboard patterns: "dashboard", "admin interface", "management console", "control panel"
   # - Form patterns: "form", "input", "submit", "validation", "register", "login"
   # - Data display: "list", "table", "grid", "search", "filter", "sort", "pagination"
@@ -732,9 +722,7 @@ analyze_ui_requirements() {
     ui_considerations+=("No UI components needed")
 
   else
-    # INTENT: Check architecture.md for UI framework hints
-    # If MODE=mcp: Use MCP search for "frontend", "ui framework", "react", "vue", "angular"
-    # Otherwise: Use grep on architecture file
+    # MODE-aware: check architecture for UI framework hints
     if [ -f "$architecture_context" ] && grep -qi -E "frontend|ui.*framework|react|vue|angular" "$architecture_context" 2>/dev/null; then
       ui_needed=true
       ui_complexity="low"
@@ -848,14 +836,11 @@ cat >> "$IMPLEMENTATION_PLAN" << EOF
 EOF
 
 # Analyze storage needs
-# INTENT: Check task file for data storage keywords
+# MODE-aware: check task for data storage keywords
 if grep -qi "data\|store\|save\|persist\|database\|storage" "$worktree/$task_file"; then
   storage_approach="JSON/JSONL" # Default
 
-  # INTENT: Extract storage approach from architecture.md
-  # Search for "storage" keyword and extract value after colon
-  # If MODE=mcp AND quality functions available: Use MCP field extraction
-  # Otherwise: Use grep + cut pattern
+  # MODE-aware: extract storage approach from architecture
   [ -f "$PLANNING_DIR/architecture.md" ] && storage_approach=$(grep -i "storage" "$PLANNING_DIR/architecture.md" | head -1 | cut -d: -f2 | xargs || echo "JSON/JSONL")
   
   cat >> "$IMPLEMENTATION_PLAN" << EOF

@@ -21,33 +21,32 @@ You are the QA Analyst ensuring quality through testing specific implementation 
 Accept parameters from feature-developer:
 - `target_file="$1"` (required - specific file/component to test)
 - `task_name="$2"` (required - for context)
-- `worktree_dir="$3"` (required - working directory from feature-developer)
+- `worktree="$3"` (required - isolated <worktree> directory from feature-developer)
 - `dryrun="${4:-false}"` (from feature-developer)
 - If dryrun=true: Create test plans only, no execution
 - If dryrun=false: Create and execute tests
 
 ```bash
 # CRITICAL: Never use cd/pushd - always use full paths or git -C
-if [ -z "$worktree_dir" ] || [ ! -d "$worktree_dir" ]; then
-  echo "❌ Worktree directory not provided or does not exist: $worktree_dir"
+if [ -z "$worktree" ] || [ ! -d "$worktree" ]; then
+  echo "❌ Worktree directory not provided or does not exist: $worktree"
   exit 1
 fi
 
-# Set working context (all operations use full paths)
-WORK_DIR="$worktree_dir"
-DOCS_DIR="$WORK_DIR/docs"
-PLANNING_DIR="$DOCS_DIR/planning"
+# Set working context (all operations use full paths with <worktree> prefix)
+DOCS_DIR="$worktree/docs"
+PLANNING_DIR="$worktree/docs/planning"
 TEST_PLANS_DIR="$PLANNING_DIR/test-plans"
 QA_MANIFESTS_DIR="$PLANNING_DIR/qa-manifests"
 
 echo "🧠 THINKING: I need to analyze $target_file and create comprehensive test plans that align with existing test infrastructure"
 echo "🎯 INTENT: I will research existing test patterns, identify test strategies, and create actionable test plans"
-echo "🧪 QA Analyst processing: $target_file in worktree: $WORK_DIR"
+echo "🧪 QA Analyst processing: $target_file in <worktree>: $worktree"
 ```
 
 # Extract context from task information
 if [ -n "$task_name" ]; then
-  task_file="$WORK_DIR/tasks/in-progress/${task_name}.md"
+  task_file="$worktree/tasks/in-progress/${task_name}.md"
   if [ -f "$task_file" ]; then
     epic_id=$(grep "^Epic:" "$task_file" | cut -d: -f2 | xargs)
     story_id=$(grep "^Story:" "$task_file" | cut -d: -f2 | xargs)
@@ -61,6 +60,69 @@ file_name="$(basename "$target_file" .${file_extension})"
 echo "🧠 THINKING: File type is $file_extension, which will determine my testing approach and framework selection"
 echo "🎯 INTENT: I will create file-type specific test strategies and leverage existing project test infrastructure"
 echo "Creating QA strategy for: $target_file (File: $file_name)"
+```
+
+## PHASE 0.5: DETERMINE CONTENT ADDRESSING MODE
+Detect MCP configuration to determine file operation approach:
+
+```bash
+echo "🔧 Determining content addressing mode..."
+
+# Initialize addressing mode
+MODE="filesystem"
+MCP_SERVER_NAME=""
+MCP_WRITE_CAPABLE="false"
+MCP_WRITE_FUNCTIONS=""
+MCP_QUALITY_FUNCTIONS=""
+MCP_SOURCE="none"
+
+# PRIORITY 1: Check task file for MCP server directive
+if [ -f "$task_file" ]; then
+  task_mcp_server=$(grep -i "^MCP-Server:" "$task_file" 2>/dev/null | cut -d: -f2 | xargs)
+  if [ -n "$task_mcp_server" ]; then
+    MCP_SERVER_NAME="$task_mcp_server"
+    MCP_SOURCE="task_file"
+    echo "✅ MCP server from task file: $MCP_SERVER_NAME"
+  fi
+fi
+
+# PRIORITY 2: Check architecture.md Infrastructure State (if not in task)
+if [ -z "$MCP_SERVER_NAME" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
+  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
+    arch_mcp_server=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    if [ -n "$arch_mcp_server" ]; then
+      MCP_SERVER_NAME="$arch_mcp_server"
+      MCP_SOURCE="architecture"
+      echo "✅ MCP server from architecture.md: $MCP_SERVER_NAME"
+    fi
+  fi
+fi
+
+# Extract capabilities if MCP server found
+if [ -n "$MCP_SERVER_NAME" ]; then
+  MODE="mcp"
+  if [ -f "$PLANNING_DIR/architecture.md" ]; then
+    MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+  fi
+  echo "   - Write capable: ${MCP_WRITE_CAPABLE}"
+  echo "   - MODE: mcp"
+else
+  echo "✅ Filesystem mode (no MCP configured)"
+fi
+
+# SAFETY: Force filesystem mode for temp worktrees
+if [[ "$worktree" =~ ^/tmp/ ]] && [ "$MODE" = "mcp" ]; then
+  echo "⚠️ Temp worktree detected - forcing filesystem mode"
+  MODE="filesystem"
+fi
+
+echo "📍 FINAL MODE: $MODE"
+
+# MODE-AWARE OPERATIONS: All file operations check $MODE and use appropriate method
+# - If MODE=mcp: Use gas_cat, gas_write, MCP quality functions per $MCP_*_FUNCTIONS
+# - If MODE=filesystem: Use cat, grep, sed, echo, find with <worktree> prefix
 ```
 
 ## PHASE 1: COMPREHENSIVE IDEAL-STI CONTEXT REHYDRATION  
@@ -205,32 +267,32 @@ fi
 
 # Analyze current project testing patterns
 echo "### Current Project Testing Analysis" >> "$FULL_QA_CONTEXT"
-if [ -d "$WORK_DIR" ]; then
+if [ -d "$worktree" ]; then
   # Detect testing framework
   testing_framework="unknown"
-  [ -f "$WORK_DIR/package.json" ] && grep -q "jest" "$WORK_DIR/package.json" && testing_framework="Jest"
-  [ -f "$WORK_DIR/package.json" ] && grep -q "mocha" "$WORK_DIR/package.json" && testing_framework="Mocha"
-  [ -f "$WORK_DIR/package.json" ] && grep -q "vitest" "$WORK_DIR/package.json" && testing_framework="Vitest"
-  [ -f "$WORK_DIR/pytest.ini" ] && testing_framework="pytest"
-  [ -f "$WORK_DIR/go.mod" ] && testing_framework="Go testing"
-  
+  [ -f "$worktree/package.json" ] && grep -q "jest" "$worktree/package.json" && testing_framework="Jest"
+  [ -f "$worktree/package.json" ] && grep -q "mocha" "$worktree/package.json" && testing_framework="Mocha"
+  [ -f "$worktree/package.json" ] && grep -q "vitest" "$worktree/package.json" && testing_framework="Vitest"
+  [ -f "$worktree/pytest.ini" ] && testing_framework="pytest"
+  [ -f "$worktree/go.mod" ] && testing_framework="Go testing"
+
   echo "- **Detected Testing Framework**: $testing_framework" >> "$FULL_QA_CONTEXT"
-  
+
   # Check for existing test files
-  test_files=$(find "$WORK_DIR" -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | head -5)
+  test_files=$(find "$worktree" -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | head -5)
   if [ -n "$test_files" ]; then
     echo "- **Existing Test Files**:" >> "$FULL_QA_CONTEXT"
     echo "$test_files" | while read test_file; do
-      echo "  - $(echo "$test_file" | sed "s|$WORK_DIR/||")" >> "$FULL_QA_CONTEXT"
+      echo "  - $(echo "$test_file" | sed "s|$worktree/||")" >> "$FULL_QA_CONTEXT"
     done
   fi
-  
+
   # Check for test directories
   echo "- **Test Directory Structure**:" >> "$FULL_QA_CONTEXT"
-  [ -d "$WORK_DIR/tests" ] && echo "  - tests/ directory found" >> "$FULL_QA_CONTEXT"
-  [ -d "$WORK_DIR/test" ] && echo "  - test/ directory found" >> "$FULL_QA_CONTEXT"  
-  [ -d "$WORK_DIR/__tests__" ] && echo "  - __tests__/ directory found" >> "$FULL_QA_CONTEXT"
-  [ -d "$WORK_DIR/spec" ] && echo "  - spec/ directory found" >> "$FULL_QA_CONTEXT"
+  [ -d "$worktree/tests" ] && echo "  - tests/ directory found" >> "$FULL_QA_CONTEXT"
+  [ -d "$worktree/test" ] && echo "  - test/ directory found" >> "$FULL_QA_CONTEXT"
+  [ -d "$worktree/__tests__" ] && echo "  - __tests__/ directory found" >> "$FULL_QA_CONTEXT"
+  [ -d "$worktree/spec" ] && echo "  - spec/ directory found" >> "$FULL_QA_CONTEXT"
 fi
 
 # Create summary of key QA decisions from rehydrated context
@@ -257,7 +319,7 @@ Validate inputs and analyze existing project testing patterns:
 echo "🔍 Validating inputs and analyzing project testing context..."
 
 # Verify target file exists or will be created
-full_target_path="$WORK_DIR/$target_file"
+full_target_path="$worktree/$target_file"
 if [ -f "$full_target_path" ]; then
   echo "✅ Target file exists: $full_target_path"
   file_type=$(file "$full_target_path" | cut -d: -f2)
@@ -267,7 +329,7 @@ else
 fi
 
 # Load additional QA knowledge from knowledge discovery pattern
-for knowledge_path in "$WORK_DIR/knowledge" "$WORK_DIR/../knowledge" "$WORK_DIR/../../knowledge" "~/knowledge"; do
+for knowledge_path in "$worktree/knowledge" "$worktree/../knowledge" "$worktree/../../knowledge" "~/knowledge"; do
   if [ -d "$knowledge_path" ]; then
     echo "Loading additional QA knowledge from: $knowledge_path"
     [ -f "$knowledge_path/test-patterns.md" ] && cat "$knowledge_path/test-patterns.md"
@@ -277,7 +339,7 @@ for knowledge_path in "$WORK_DIR/knowledge" "$WORK_DIR/../knowledge" "$WORK_DIR/
 done
 
 # Check for existing test utilities and patterns in project
-for test_dir in "$WORK_DIR/tests" "$WORK_DIR/test" "$WORK_DIR/spec" "$WORK_DIR/__tests__"; do
+for test_dir in "$worktree/tests" "$worktree/test" "$worktree/spec" "$worktree/__tests__"; do
   if [ -d "$test_dir" ]; then
     echo "Analyzing existing test patterns in: $test_dir"
     find "$test_dir" -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | head -5
@@ -341,9 +403,9 @@ EOF
 echo "🔍 Analyzing existing test infrastructure..."
 
 # Analyze existing test setup
-if [ -f "$WORK_DIR/package.json" ]; then
+if [ -f "$worktree/package.json" ]; then
   echo "### Existing Test Framework Detection" >> "$TEST_RESEARCH_FILE"
-  test_frameworks=$(grep -E "jest|mocha|vitest|cypress|playwright|testing-library" "$WORK_DIR/package.json" | head -10)
+  test_frameworks=$(grep -E "jest|mocha|vitest|cypress|playwright|testing-library" "$worktree/package.json" | head -10)
   if [ -n "$test_frameworks" ]; then
     echo "**Detected Test Dependencies**:" >> "$TEST_RESEARCH_FILE"
     echo "$test_frameworks" | sed 's/^/- /' >> "$TEST_RESEARCH_FILE"
@@ -355,7 +417,7 @@ fi
 
 # Check for existing test directories and patterns
 echo "### Existing Test Structure Analysis" >> "$TEST_RESEARCH_FILE"
-test_dirs=("$WORK_DIR/tests" "$WORK_DIR/test" "$WORK_DIR/__tests__" "$WORK_DIR/src/__tests__")
+test_dirs=("$worktree/tests" "$worktree/test" "$worktree/__tests__" "$worktree/src/__tests__")
 existing_test_structure=""
 
 for test_dir in "${test_dirs[@]}"; do
@@ -754,7 +816,7 @@ cat > "$qa_manifest" << EOF
   "status": "$([ "$dryrun" = "true" ] && echo "planned" || echo "implemented")",
   "context_rehydrated": true,
   "ideal_sti_compliant": true,
-  "worktree_dir": "$WORK_DIR"
+  "worktree_dir": "$worktree"
 }
 EOF
 
@@ -765,7 +827,7 @@ echo "QA manifest created: $qa_manifest"
 Capture testing knowledge for this file type:
 
 ```bash
-ask subagent knowledge-aggregator to capture testing learnings from file "$target_file" with context "qa-file-testing" and dryrun "$dryrun" and worktree_dir "$WORK_DIR"
+ask subagent knowledge-aggregator to capture testing learnings from file "$target_file" with context "qa-file-testing" and dryrun "$dryrun" and worktree_dir "$worktree"
 ```
 
 ## PHASE 10: RETURN STATUS TO FEATURE-DEVELOPER
@@ -806,9 +868,9 @@ EOF
 ```
 
 **CRITICAL WORKTREE-AWARE QA INTEGRATION NOTES**:
-- Always uses full paths with `$WORK_DIR` prefix - NEVER changes directories
-- All file operations use full paths within `$WORK_DIR` worktree
-- Receives `worktree_dir` parameter from feature-developer to maintain working context
+- Always uses full paths with `$worktree` prefix - NEVER changes directories
+- All file operations use full paths within `$worktree` worktree
+- Receives `worktree` parameter from feature-developer to maintain working context
 - Comprehensive IDEAL-STI context rehydration from all planning phases
 - Creates file-specific test plans based on target file analysis and full context
 - Maps task acceptance criteria directly to test cases with architectural awareness

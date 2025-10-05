@@ -20,23 +20,22 @@ You are a comprehensive UI/UX design specialist who rehydrates task use cases, m
 ## PHASE 0: CHECK EXECUTION MODE AND WORKTREE
 Accept parameters from feature-developer:
 - `target_file="$1"` (required - specific UI file/component to design)
-- `task_name="$2"` (required - for context)  
-- `worktree_dir="$3"` (required - working directory from feature-developer)
+- `task_name="$2"` (required - for context)
+- `worktree="$3"` (required - isolated <worktree> directory from feature-developer)
 - `dryrun="${4:-false}"` (from feature-developer)
 - If dryrun=true: Create design specifications only
 - If dryrun=false: Create detailed design specs with implementation guidance
 
 ```bash
 # CRITICAL: Never use cd/pushd - always use full paths or git -C
-if [ -z "$worktree_dir" ] || [ ! -d "$worktree_dir" ]; then
-  echo "❌ Worktree directory not provided or does not exist: $worktree_dir"
+if [ -z "$worktree" ] || [ ! -d "$worktree" ]; then
+  echo "❌ Worktree directory not provided or does not exist: $worktree"
   exit 1
 fi
 
-# Set working context (all operations use full paths)
-WORK_DIR="$worktree_dir"
-DOCS_DIR="$WORK_DIR/docs"
-PLANNING_DIR="$DOCS_DIR/planning"
+# Set working context (all operations use full paths with <worktree> prefix)
+DOCS_DIR="$worktree/docs"
+PLANNING_DIR="$worktree/docs/planning"
 UI_SPECS_DIR="$PLANNING_DIR/ui-specs"
 
 # Enhanced dependency validation
@@ -65,12 +64,12 @@ progress_tracker() {
 
 echo "🧠 THINKING: I need to design UI specifications for $target_file within the context of $task_name"
 echo "🎯 INTENT: I will analyze the target file, rehydrate context, research best practices, and create comprehensive UI specs"
-echo "🎨 UI Designer processing: $target_file in worktree: $WORK_DIR"
+echo "🎨 UI Designer processing: $target_file in <worktree>: $worktree"
 ```
 
-# Extract context from task information  
+# Extract context from task information
 if [ -n "$task_name" ]; then
-  task_file="$WORK_DIR/tasks/in-progress/${task_name}.md"
+  task_file="$worktree/tasks/in-progress/${task_name}.md"
   if [ -f "$task_file" ]; then
     epic_id=$(grep "^Epic:" "$task_file" | cut -d: -f2 | xargs)
     story_id=$(grep "^Story:" "$task_file" | cut -d: -f2 | xargs)
@@ -84,6 +83,69 @@ component_name="$(basename "$target_file" .${file_extension})"
 echo "🧠 THINKING: Component type detected as $file_extension, component name is $component_name"
 echo "🎯 INTENT: I will analyze this as a $file_extension component and design appropriate UI patterns"
 echo "Designing UI for: $target_file (Component: $component_name)"
+```
+
+## PHASE 0.5: DETERMINE CONTENT ADDRESSING MODE
+Detect MCP configuration to determine file operation approach:
+
+```bash
+echo "🔧 Determining content addressing mode..."
+
+# Initialize addressing mode
+MODE="filesystem"
+MCP_SERVER_NAME=""
+MCP_WRITE_CAPABLE="false"
+MCP_WRITE_FUNCTIONS=""
+MCP_QUALITY_FUNCTIONS=""
+MCP_SOURCE="none"
+
+# PRIORITY 1: Check task file for MCP server directive
+if [ -f "$task_file" ]; then
+  task_mcp_server=$(grep -i "^MCP-Server:" "$task_file" 2>/dev/null | cut -d: -f2 | xargs)
+  if [ -n "$task_mcp_server" ]; then
+    MCP_SERVER_NAME="$task_mcp_server"
+    MCP_SOURCE="task_file"
+    echo "✅ MCP server from task file: $MCP_SERVER_NAME"
+  fi
+fi
+
+# PRIORITY 2: Check architecture.md Infrastructure State (if not in task)
+if [ -z "$MCP_SERVER_NAME" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
+  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
+    arch_mcp_server=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    if [ -n "$arch_mcp_server" ]; then
+      MCP_SERVER_NAME="$arch_mcp_server"
+      MCP_SOURCE="architecture"
+      echo "✅ MCP server from architecture.md: $MCP_SERVER_NAME"
+    fi
+  fi
+fi
+
+# Extract capabilities if MCP server found
+if [ -n "$MCP_SERVER_NAME" ]; then
+  MODE="mcp"
+  if [ -f "$PLANNING_DIR/architecture.md" ]; then
+    MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+    MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+  fi
+  echo "   - Write capable: ${MCP_WRITE_CAPABLE}"
+  echo "   - MODE: mcp"
+else
+  echo "✅ Filesystem mode (no MCP configured)"
+fi
+
+# SAFETY: Force filesystem mode for temp worktrees
+if [[ "$worktree" =~ ^/tmp/ ]] && [ "$MODE" = "mcp" ]; then
+  echo "⚠️ Temp worktree detected - forcing filesystem mode"
+  MODE="filesystem"
+fi
+
+echo "📍 FINAL MODE: $MODE"
+
+# MODE-AWARE OPERATIONS: All file operations check $MODE and use appropriate method
+# - If MODE=mcp: Use gas_cat, gas_write, MCP quality functions per $MCP_*_FUNCTIONS
+# - If MODE=filesystem: Use cat, grep, sed, echo, find with <worktree> prefix
 ```
 
 ## PHASE 1: COMPREHENSIVE IDEAL-STI CONTEXT REHYDRATION  
@@ -245,41 +307,41 @@ fi
 
 # Analyze current project UI patterns
 echo "### Current Project UI Analysis" >> "$FULL_CONTEXT"
-if [ -d "$WORK_DIR/src" ]; then
+if [ -d "$worktree/src" ]; then
   # Detect UI framework
   ui_framework="unknown"
-  [ -f "$WORK_DIR/package.json" ] && grep -q "react" "$WORK_DIR/package.json" && ui_framework="React"
-  [ -f "$WORK_DIR/package.json" ] && grep -q "vue" "$WORK_DIR/package.json" && ui_framework="Vue"  
-  [ -f "$WORK_DIR/package.json" ] && grep -q "angular" "$WORK_DIR/package.json" && ui_framework="Angular"
-  
+  [ -f "$worktree/package.json" ] && grep -q "react" "$worktree/package.json" && ui_framework="React"
+  [ -f "$worktree/package.json" ] && grep -q "vue" "$worktree/package.json" && ui_framework="Vue"
+  [ -f "$worktree/package.json" ] && grep -q "angular" "$worktree/package.json" && ui_framework="Angular"
+
   echo "- **Detected UI Framework**: $ui_framework" >> "$FULL_CONTEXT"
-  
+
   # Check for existing component patterns
-  component_files=$(find "$WORK_DIR/src" -name "*.jsx" -o -name "*.tsx" -o -name "*.vue" 2>/dev/null | head -5)
+  component_files=$(find "$worktree/src" -name "*.jsx" -o -name "*.tsx" -o -name "*.vue" 2>/dev/null | head -5)
   if [ -n "$component_files" ]; then
     echo "- **Existing Component Files**:" >> "$FULL_CONTEXT"
     echo "$component_files" | while read comp_file; do
-      echo "  - $(echo "$comp_file" | sed "s|$WORK_DIR/||")" >> "$FULL_CONTEXT"
+      echo "  - $(echo "$comp_file" | sed "s|$worktree/||")" >> "$FULL_CONTEXT"
     done
   fi
-  
+
   # Check for styling approach
-  if [ -f "$WORK_DIR/package.json" ]; then
+  if [ -f "$worktree/package.json" ]; then
     styling_approach="CSS"
-    grep -q "styled-components" "$WORK_DIR/package.json" && styling_approach="Styled Components"
-    grep -q "tailwindcss" "$WORK_DIR/package.json" && styling_approach="Tailwind CSS"
-    grep -q "@emotion" "$WORK_DIR/package.json" && styling_approach="Emotion"
-    grep -q "sass\|scss" "$WORK_DIR/package.json" && styling_approach="SCSS/Sass"
-    
+    grep -q "styled-components" "$worktree/package.json" && styling_approach="Styled Components"
+    grep -q "tailwindcss" "$worktree/package.json" && styling_approach="Tailwind CSS"
+    grep -q "@emotion" "$worktree/package.json" && styling_approach="Emotion"
+    grep -q "sass\|scss" "$worktree/package.json" && styling_approach="SCSS/Sass"
+
     echo "- **Styling Approach**: $styling_approach" >> "$FULL_CONTEXT"
   fi
-  
+
   # Check for existing design patterns
   echo "- **Existing Design Patterns**:" >> "$FULL_CONTEXT"
-  [ -d "$WORK_DIR/src/components" ] && echo "  - Components directory found" >> "$FULL_CONTEXT"
-  [ -d "$WORK_DIR/src/styles" ] && echo "  - Styles directory found" >> "$FULL_CONTEXT" 
-  [ -d "$WORK_DIR/src/assets" ] && echo "  - Assets directory found" >> "$FULL_CONTEXT"
-  [ -f "$WORK_DIR/src/index.css" ] && echo "  - Global styles found" >> "$FULL_CONTEXT"
+  [ -d "$worktree/src/components" ] && echo "  - Components directory found" >> "$FULL_CONTEXT"
+  [ -d "$worktree/src/styles" ] && echo "  - Styles directory found" >> "$FULL_CONTEXT"
+  [ -d "$worktree/src/assets" ] && echo "  - Assets directory found" >> "$FULL_CONTEXT"
+  [ -f "$worktree/src/index.css" ] && echo "  - Global styles found" >> "$FULL_CONTEXT"
 fi
 
 # Create summary of key UI decisions from rehydrated context
@@ -504,39 +566,39 @@ existing_framework="none"
 existing_styling="none"
 project_size="small"
 
-if [ -f "$WORK_DIR/package.json" ]; then
+if [ -f "$worktree/package.json" ]; then
   echo "**Existing Dependencies Analysis:**" >> "$ARCH_DECISIONS"
-  
+
   # Detect existing framework
-  if grep -q '"react"' "$WORK_DIR/package.json"; then
+  if grep -q '"react"' "$worktree/package.json"; then
     existing_framework="React"
     echo "- Existing framework: React (detected in package.json)" >> "$ARCH_DECISIONS"
-  elif grep -q '"vue"' "$WORK_DIR/package.json"; then
+  elif grep -q '"vue"' "$worktree/package.json"; then
     existing_framework="Vue"
     echo "- Existing framework: Vue (detected in package.json)" >> "$ARCH_DECISIONS"
-  elif grep -q '"@angular"' "$WORK_DIR/package.json"; then
+  elif grep -q '"@angular"' "$worktree/package.json"; then
     existing_framework="Angular"
     echo "- Existing framework: Angular (detected in package.json)" >> "$ARCH_DECISIONS"
   else
     echo "- Existing framework: None detected" >> "$ARCH_DECISIONS"
   fi
-  
+
   # Detect existing styling approach
-  if grep -q 'tailwindcss' "$WORK_DIR/package.json"; then
+  if grep -q 'tailwindcss' "$worktree/package.json"; then
     existing_styling="Tailwind CSS"
-  elif grep -q 'styled-components' "$WORK_DIR/package.json"; then
+  elif grep -q 'styled-components' "$worktree/package.json"; then
     existing_styling="Styled Components"
-  elif grep -q '@emotion' "$WORK_DIR/package.json"; then
+  elif grep -q '@emotion' "$worktree/package.json"; then
     existing_styling="Emotion CSS-in-JS"
-  elif grep -q 'sass\|scss' "$WORK_DIR/package.json"; then
+  elif grep -q 'sass\|scss' "$worktree/package.json"; then
     existing_styling="SCSS/Sass"
   else
     existing_styling="CSS Modules"
   fi
   echo "- Existing styling: $existing_styling" >> "$ARCH_DECISIONS"
-  
+
   # Estimate project size
-  dep_count=$(grep -c '".*":' "$WORK_DIR/package.json" || echo 0)
+  dep_count=$(grep -c '".*":' "$worktree/package.json" || echo 0)
   if [ "$dep_count" -gt 50 ]; then
     project_size="large"
   elif [ "$dep_count" -gt 20 ]; then
@@ -1140,8 +1202,8 @@ cat >> "$RESEARCH_RESULTS" << EOF
 EOF
 
 # Analyze existing dependencies for reusable components
-if [ -f "$WORK_DIR/package.json" ]; then
-  existing_deps=$(grep -E "react|vue|angular|styled|css|ui" "$WORK_DIR/package.json" | head -5)
+if [ -f "$worktree/package.json" ]; then
+  existing_deps=$(grep -E "react|vue|angular|styled|css|ui" "$worktree/package.json" | head -5)
   if [ -n "$existing_deps" ]; then
     echo "- **Existing Dependencies to Leverage**:" >> "$RESEARCH_RESULTS"
     echo "$existing_deps" | sed 's/^/  /' >> "$RESEARCH_RESULTS"
@@ -2104,7 +2166,7 @@ cat > "$ui_manifest" << EOF
   "status": "$([ "$dryrun" = "true" ] && echo "specified" || echo "ready_for_implementation")",
   "architectural_decisions_applied": true,
   "follows_existing_patterns": true,
-  "worktree_dir": "$WORK_DIR"
+  "worktree_dir": "$worktree"
 }
 EOF
 
@@ -2116,7 +2178,7 @@ Capture UI design knowledge for this component type:
 
 ```bash
 # Call knowledge aggregator to capture learnings
-ask subagent knowledge-aggregator to capture ui design learnings from file "$target_file" with context "ui-component-design-architecture" and dryrun "$dryrun" and worktree_dir "$WORK_DIR"
+ask subagent knowledge-aggregator to capture ui design learnings from file "$target_file" with context "ui-component-design-architecture" and dryrun "$dryrun" and worktree_dir "$worktree"
 ```
 
 ## PHASE 16: RETURN STATUS TO FEATURE-DEVELOPER
@@ -2385,9 +2447,9 @@ EOF
 ```
 
 **CRITICAL WORKTREE-AWARE UI DESIGN INTEGRATION NOTES**:
-- Always uses full paths with `$WORK_DIR` prefix - NEVER changes directories
-- All file operations use full paths within `$WORK_DIR` worktree
-- Receives `worktree_dir` parameter from feature-developer to maintain working context
+- Always uses full paths with `$worktree` prefix - NEVER changes directories
+- All file operations use full paths within `$worktree` worktree
+- Receives `worktree` parameter from feature-developer to maintain working context
 - Loads architectural decisions from IDEAL-STI Phase 7 to inform UI choices
 - Creates component-specific design specifications based on target file analysis
 - Maps task acceptance criteria directly to UI requirements
