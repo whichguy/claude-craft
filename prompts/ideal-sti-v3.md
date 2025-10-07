@@ -294,10 +294,10 @@ TYPE_DETECTION_AND_BASELINE:
 2. BASELINE DISCOVERY (DELTA projects only):
    IF project_type == DELTA:
 
-     A. Check for existing baseline file:
-        IF exists(<worktree>/planning/epic-baseline.md):
-          BASELINE_SOURCE = "existing file"
-          BASELINE_CONTENT = read(<worktree>/planning/epic-baseline.md)
+     A. Check for existing epic file:
+        IF exists(<worktree>/planning/epic.md):
+          BASELINE_SOURCE = "existing epic.md"
+          BASELINE_CONTENT = read(<worktree>/planning/epic.md)
 
         ELSE:
           # Discovery process
@@ -312,10 +312,10 @@ TYPE_DETECTION_AND_BASELINE:
           BASELINE_CONTENT = aggregate(discover_from_sources(SOURCES_TO_CHECK))
           BASELINE_SOURCE = "discovered from: {list_of_files_found}"
 
-          # Save discovered baseline
+          # Save discovered baseline to epic-delta.md
 
           EXECUTE WRITE COMMAND:
-            Write(<worktree>/planning/epic-baseline.md)  ← Use EXACTLY this path
+            Write(<worktree>/planning/epic-delta.md)  ← Use EXACTLY this path
             Content: {BASELINE_CONTENT}
 
           EXECUTE WRITE COMMAND:
@@ -341,16 +341,16 @@ TYPE_DETECTION_AND_BASELINE:
         - ⚠ "Partially correct" → user edits inline
 
    ELSE (NEW project):
-     BASELINE_CONTENT = "" (empty)
+     BASELINE_CONTENT = "" (empty - greenfield project)
 
      EXECUTE WRITE COMMAND:
-       Write(<worktree>/planning/epic-baseline.md)  ← Use EXACTLY this path
-       Content: (empty - NEW project has no baseline)
+       Write(<worktree>/planning/epic-delta.md)  ← Use EXACTLY this path
+       Content: (empty - greenfield baseline)
 
 3. OUTPUT:
-   - epic-baseline.md created (empty for NEW, populated for DELTA)
-   - baseline-discovery.md created (DELTA only, documents discovery process)
-   - Ready for Stage 2 with baseline as context
+   - DELTA: epic-delta.md created with baseline content (for modification)
+   - NEW: epic-delta.md created empty (greenfield)
+   - Ready for Stage 2 with epic-delta.md as working file
 ```
 
 ### Stage 2: Progressive Epic Elaboration Loop
@@ -1556,12 +1556,12 @@ Review your drafted response. It MUST NOT contain any of these patterns:
 
 **🚨 CRITICAL DISPLAY REQUIREMENT 🚨**
 
-After writing epic to planning/epic.md, you MUST display the complete epic text in your response to the user.
+After writing epic to planning/epic-delta.md, you MUST display the complete epic text in your response to the user.
 
 **✅ REQUIRED WORKFLOW**:
 1. Use Write tool with EXACT command:
 
-   Write(<worktree>/planning/epic.md)  ← Copy this exactly
+   Write(<worktree>/planning/epic-delta.md)  ← Copy this exactly
 
    This applies to ALL project types (NEW and DELTA).
    DO NOT modify this path or use any other filename.
@@ -1573,7 +1573,7 @@ After writing epic to planning/epic.md, you MUST display the complete epic text 
 
 **❌ ABSOLUTELY FORBIDDEN - FILE REFERENCE WITHOUT CONTENT**:
 - Writing to file then only showing "Wrote X lines (ctrl+o to expand)"
-- Saying "Complete epic saved to planning/epic.md" without displaying the full text
+- Saying "Complete epic saved to planning/epic-delta.md" without displaying the full text
 - Showing summary bullets like "Key Decisions Made:" or "Complete Epic Includes:" instead of actual epic sections
 - Referencing the file content without echoing it to console
 - Assuming user will open the file to read the epic
@@ -1610,8 +1610,8 @@ Option B: 🔄 Revise Epic
 
 **✅ Example of CORRECT behavior**:
 ```
-Write(planning/epic.md)
-⎿ Wrote 300 lines to planning/epic.md
+Write(planning/epic-delta.md)
+⎿ Wrote 300 lines to planning/epic-delta.md
 
 Now presenting the complete epic for your review:
 
@@ -2127,7 +2127,7 @@ Decision Point:
 1. Uses "PHASE 1 OUTPUT" header instead of "ELABORATED EPIC - Round {N}"
 2. Shows "Key Elaborations" bullet summaries instead of complete epic text
 3. Missing complete ## Overview, ## System Architecture, ## Primary Users sections
-4. Doesn't show the full epic text that will be written to planning/epic.md
+4. Doesn't show the full epic text that will be written to planning/epic-delta.md
 5. Uses "Decision Point: 1. / 2." numbered format (forbidden pattern)
 6. No "ORIGINAL REQUEST" section showing user's input
 7. No "ADDITIONS THIS ROUND" section with rationale
@@ -2136,7 +2136,7 @@ Decision Point:
 **✅ CORRECT**: Show the COMPLETE epic using "ELABORATED EPIC - Round N" template with:
 - Full paragraph sections for Overview, Architecture, Users, Integration, Performance, etc.
 - Not bullet point summaries
-- Complete text that matches what will be in planning/epic.md
+- Complete text that matches what will be in planning/epic-delta.md
 - Standard confirmation prompt
 
 ---
@@ -2633,7 +2633,7 @@ IF overall_confidence >= 92% AND no_contradictions AND no_critical_gaps:
   - All vague terms quantified for LLM implementation
 
   This epic is ready for Phase 2 (Use Case Expansion). If you confirm, we'll write
-  the epic to planning/epic.md and proceed.
+  the epic to planning/epic-delta.md and proceed.
 
   ---
 
@@ -2642,21 +2642,21 @@ IF overall_confidence >= 92% AND no_contradictions AND no_critical_gaps:
   Does this epic definition capture your intention correctly?
 
   **Response options**:
-  - **"yes" / "correct" / "looks good"** → Write epic.md and proceed to Phase 2
+  - **"yes" / "correct" / "looks good"** → Write epic-delta.md and proceed to Phase 2
   - **"no, change X to Y"** → Incorporate correction and continue iteration
   - **"add Z"** → Incorporate addition and continue iteration
   - **"research X"** → Deep dive on specific topic
   - **Provide clarifications/corrections** → Incorporate and continue
 
   **What we'll do next**:
-  - If you confirm: Write complete epic to <worktree>/planning/epic.md and proceed to Phase 2
+  - If you confirm: Write complete epic to <worktree>/planning/epic-delta.md and proceed to Phase 2
   - If you request changes: Incorporate feedback and continue iteration
 
   ACTION:
     🛑 STOP AND WAIT - You MUST wait for user response before doing anything:
       IF user confirms ("yes", "correct", "looks good"):
         EXECUTE WRITE COMMAND:
-          Write(<worktree>/planning/epic.md)  ← Use EXACTLY this path
+          Write(<worktree>/planning/epic-delta.md)  ← Use EXACTLY this path
           Content: Complete epic with all actors, outcomes, edge cases, quantified metrics
         EXIT LOOP
         PROCEED TO PHASE 2 (Only after user confirms - NOT automatically)
@@ -2715,7 +2715,7 @@ ELIF overall_confidence >= 60% AND overall_confidence < 92%:
     WAIT for user choice:
       IF "continue":
         EXECUTE WRITE COMMAND:
-          Write(<worktree>/planning/epic.md)  ← Use EXACTLY this path
+          Write(<worktree>/planning/epic-delta.md)  ← Use EXACTLY this path
         EXIT LOOP
         PROCEED TO PHASE 2
       ELSE:
@@ -2787,7 +2787,7 @@ Before presenting your response, verify you followed the correct branch:
 - [ ] Offered continue option when confidence <60%
 - [ ] Mixed elements from multiple branches
 - [ ] Improvised response format instead of using branch template
-- [ ] Used wrong epic filename (epic-new.md instead of epic.md)
+- [ ] Used wrong epic filename (epic-new.md instead of epic-delta.md)
 
 IF ANY FORBIDDEN BEHAVIOR DETECTED: Rewrite response using correct branch template.
 
@@ -2926,7 +2926,7 @@ EXIT LOOP when ALL of the following are true:
 ✓ All vague terms quantified
 ✓ All critical failure modes have fallbacks
 
-Then: Write epic.md and proceed to Stage 3
+Then: Write epic-delta.md and proceed to Stage 3
 ```
 
 ---
@@ -2940,67 +2940,41 @@ Write the NEW epic and prepare for Phase 2:
 
 🚨 **MANDATORY - USE EXACT COMMAND** 🚨
 
-Write(<worktree>/planning/epic.md)  ← Use this EXACT path, no substitutions
+Write(<worktree>/planning/epic-delta.md)  ← Use this EXACT path, no substitutions
 
 DO NOT use any other filename:
 - ❌ NOT epic-new.md
 - ❌ NOT epic-new-v1.md
+- ❌ NOT epic.md (that's the baseline)
 - ❌ NOT any variation
 
-The path MUST be: <worktree>/planning/epic.md
+The path MUST be: <worktree>/planning/epic-delta.md
 
 Content: {expanded_epic_content}
-
-# 2. Compute delta (informational only, for reference)
-IF project_type == DELTA:
-  # Generate delta analysis comparing baseline to new
-
-  EXECUTE WRITE COMMAND:
-    Write(<worktree>/planning/epic-delta.md)  ← Use EXACTLY this path
-    Content: |
-      # Epic Delta Analysis
-
-      ## Summary
-      Project Type: DELTA
-      Baseline: {baseline_summary}
-      Target: {new_epic_summary}
-
-      ## Key Changes
-      - Preserved: {list_preserved_features}
-      - Added: {list_new_features}
-      - Deprecated: {list_deprecated_features}
-
-      ## Migration Implications
-      {migration_considerations}
-
-      ## Backward Compatibility
-      {compatibility_notes}
 ```
 
 **Files Created**:
-- ✓ `epic.md` - Canonical NEW/target epic
-- ✓ `epic-baseline.md` - Previous state (created in Stage 1)
-- ✓ `epic-delta.md` - Computed diff (DELTA only, optional)
-- ✓ `baseline-discovery.md` - Discovery log (DELTA only, if discovered)
+- ✓ `epic-delta.md` - Working epic (all iterations overwrite this)
+- ✓ `baseline-discovery.md` - Discovery log (DELTA only, if baseline was discovered from epic.md)
 
 **Proceed to Phase 2** with NEW epic ready for use case generation.
 
 ## PHASE 1 OUTPUT
 
 The output of Phase 1 is:
-1. **CONTINUE**: Expanded NEW epic with ≥92% confidence → `epic.md` created → proceed to Phase 2
+1. **CONTINUE**: Expanded epic with ≥92% confidence → `epic-delta.md` created → proceed to Phase 2
 2. **REVISE**: Specific feedback on gaps → user revises → loop back to Stage 2
 
 This ensures all epics entering Phase 2 are sufficiently detailed and clear for LLM processing.
 
-**Key Principle**: Phase 1 generates the TARGET/NEW epic (desired end state), with baseline serving as reference context for DELTA projects.
+**Key Principle**: Phase 1 generates the working epic in `epic-delta.md`. For DELTA projects, baseline `epic.md` serves as reference context.
 
 ---
 
 ⚠️ **PREREQUISITE VALIDATION FOR PHASE 1**:
 ✓ Epic confidence ≥ 92% or user approval to proceed
 ✓ User explicitly confirmed epic with "yes" / "correct" / "looks good"
-✓ <worktree>/planning/epic.md created and validated for LLM use case generation
+✓ <worktree>/planning/epic-delta.md created and validated for LLM use case generation
 ✓ Business context documentation complete
 ✓ Quality gates addressed adequately for project risk level
 
@@ -3128,24 +3102,24 @@ OTHERWISE:
 
 Execute use case generation:
 
-**INVOKE**: `ask subagent use-case-expander "<worktree>" "" "<worktree>/planning/epic.md"`
+**INVOKE**: `ask subagent use-case-expander "<worktree>" "" "<worktree>/planning/epic-delta.md"`
 
 **Parameter Mapping** (Universal Worktree Isolation Pattern):
 - $1 (parent_worktree): `<worktree>` - Parent worktree to fork from
 - $2 (user_worktree_name): `""` - Use default "use-case-expander" prefix
-- $3 (prompt-arguments): `<worktree>/planning/epic.md` - Epic file path for agent to read
+- $3 (prompt-arguments): `<worktree>/planning/epic-delta.md` - Epic file path for agent to read
 
 **Agent Auto-Discovery** (from parent worktree):
 - Input: Read epic from path in $3
-- Baseline: Auto-discover from `<parent_worktree>/planning/use-cases-baseline.md` (may be empty for NEW)
-- Output: Write to `<worktree>/planning/use-cases.md` (nested worktree)
-- Delta: Write to `<worktree>/planning/use-cases-delta.md` (nested worktree)
+- Baseline: Auto-discover from `<parent_worktree>/planning/use-cases.md` (may be empty for NEW)
+- Output: Write to `<worktree>/planning/use-cases-delta.md` (nested worktree - TARGET state)
+- Diff: Write to `<worktree>/planning/use-cases-diff.md` (nested worktree - optional A/M/R/U analysis)
 
 **Subagent Responsibilities**:
-1. Read target epic from `epic.md` (NEW/target state)
-2. Read baseline use cases from `use-cases-baseline.md` (may be empty for NEW projects)
-3. Generate target use cases in `use-cases.md`
-4. Compute delta in `use-cases-delta.md` with A/M/R/U classification:
+1. Read target epic from `epic-delta.md` (target state)
+2. Read baseline use cases from `use-cases.md` in parent worktree (may be empty for NEW projects)
+3. Generate NEW target use cases → write to `use-cases-delta.md` (target state)
+4. Optionally compute diff in `use-cases-diff.md` with A/M/R/U classification:
    - **ADDED**: New use cases not in baseline
    - **MODIFIED**: Use cases that changed from baseline
    - **REMOVED**: Baseline use cases no longer needed
@@ -3318,27 +3292,25 @@ OTHERWISE:
 
 Execute requirements generation:
 
-**INVOKE**: `ask subagent requirements-generator "<worktree>" "" "<worktree>/planning/use-cases.md"`
+**INVOKE**: `ask subagent requirements-generator "<worktree>" "" "<worktree>/planning/use-cases-delta.md"`
 
 **Parameter Mapping** (Universal Worktree Isolation Pattern):
 - $1 (parent_worktree): `<worktree>` - Parent worktree to fork from
 - $2 (user_worktree_name): `""` - Use default "requirements-generator" prefix
-- $3 (prompt-arguments): `<worktree>/planning/use-cases.md` - Use cases file path for agent to read
+- $3 (prompt-arguments): `<worktree>/planning/use-cases-delta.md` - Use cases file path (target state)
 
 **Agent Auto-Discovery** (from parent worktree):
-- Input: Read use cases from path in $3
-- Baseline: Auto-discover from `<parent_worktree>/planning/requirements-baseline.md` (may be empty for NEW)
-- Delta Context: Auto-discover from `<parent_worktree>/planning/use-cases-delta.md` (understand what use cases changed)
-- Output: Write to `<worktree>/planning/requirements.md` (nested worktree)
-- Delta: Write to `<worktree>/planning/requirements-delta.md` (nested worktree)
+- Input: Read use cases from path in $3 (use-cases-delta.md = target state)
+- Baseline: Auto-discover from `<parent_worktree>/planning/requirements.md` (may be empty for NEW)
+- Output: Write to `<worktree>/planning/requirements-delta.md` (nested worktree - TARGET state)
+- Diff: Write to `<worktree>/planning/requirements-diff.md` (nested worktree - optional A/M/R/U analysis)
 
 **Subagent Responsibilities**:
-1. Read target use cases from `use-cases.md`
-2. Read use case delta from `use-cases-delta.md` (understand what changed)
-3. Read baseline requirements from `requirements-baseline.md` (may be empty for NEW projects)
-4. Generate target requirements in `requirements.md`
-5. Compute requirements delta in `requirements-delta.md` with A/M/R/U classification
-6. Use semantic component matching (80% threshold) to detect renames vs new requirements
+1. Read target use cases from `use-cases-delta.md` (target state)
+2. Read baseline requirements from `requirements.md` in parent worktree (may be empty for NEW projects)
+3. Generate NEW target requirements → write to `requirements-delta.md` (target state)
+4. Optionally compute diff in `requirements-diff.md` with A/M/R/U classification
+5. Use semantic component matching (80% threshold) to detect renames vs new requirements
 
 ### 8. Quality Iteration Loop
 
@@ -3507,26 +3479,24 @@ OTHERWISE:
 
 Execute architecture generation via progressive technology research:
 
-**INVOKE**: `ask subagent recommend-tech "<worktree>" "" "<worktree>/planning/requirements.md"`
+**INVOKE**: `ask subagent recommend-tech "<worktree>" "" "<worktree>/planning/requirements-delta.md"`
 
 **Parameter Mapping** (Universal Worktree Isolation Pattern):
 - $1 (parent_worktree): `<worktree>` - Parent worktree to fork from
 - $2 (user_worktree_name): `""` - Use default "recommend-tech" prefix
-- $3 (prompt-arguments): `<worktree>/planning/requirements.md` - Requirements file path for agent to read
+- $3 (prompt-arguments): `<worktree>/planning/requirements-delta.md` - Requirements file path (target state)
 
 **Agent Auto-Discovery** (from parent worktree):
-- Input: Read requirements from path in $3
-- Baseline: Auto-discover from `<parent_worktree>/planning/architecture-baseline.md` (may be empty for NEW)
-- Delta Context: Auto-discover from `<parent_worktree>/planning/requirements-delta.md` (understand what requirements changed)
-- Output: Write to `<worktree>/planning/architecture.md` (nested worktree)
-- Delta: Write to `<worktree>/planning/architecture-delta.md` (nested worktree)
+- Input: Read requirements from path in $3 (requirements-delta.md = target state)
+- Baseline: Auto-discover from `<parent_worktree>/planning/architecture.md` (may be empty for NEW)
+- Output: Write to `<worktree>/planning/architecture-delta.md` (nested worktree - TARGET state)
+- Diff: Write to `<worktree>/planning/architecture-diff.md` (nested worktree - optional A/M/R/U analysis)
 
 **Subagent Responsibilities**:
-1. Read target requirements from `requirements.md`
-2. Read requirements delta from `requirements-delta.md` (understand what requirements changed)
-3. Read baseline architecture from `architecture-baseline.md` (may be empty for NEW projects)
-4. Generate target architecture in `architecture.md`
-5. Compute architecture delta in `architecture-delta.md`:
+1. Read target requirements from `requirements-delta.md` (target state)
+2. Read baseline architecture from `architecture.md` in parent worktree (may be empty for NEW projects)
+3. Generate NEW target architecture → write to `architecture-delta.md` (target state)
+4. Optionally compute diff in `architecture-diff.md`:
    - **ADDED**: New components, services, or technologies
    - **MODIFIED**: Changed architectural patterns or tech stack elements
    - **REMOVED**: Deprecated components or technologies
@@ -3703,7 +3673,7 @@ OTHERWISE:
 Execute task generation, dependency analysis, and parallel execution planning:
 
 **STEP 1 - Generate Tasks with Delta Awareness**:
-**INVOKE**: `ask subagent feature-task-creator with current-epic from "<worktree>/planning/epic.md" and current-use-cases from "<worktree>/planning/use-cases.md" and current-requirements from "<worktree>/planning/requirements.md" and current-architecture from "<worktree>/planning/architecture.md" and baseline-use-cases from "<worktree>/planning/use-cases-baseline.md" and baseline-requirements from "<worktree>/planning/requirements-baseline.md" and baseline-architecture from "<worktree>/planning/architecture-baseline.md" and use-cases-delta from "<worktree>/planning/use-cases-delta.md" and requirements-delta from "<worktree>/planning/requirements-delta.md" and architecture-delta from "<worktree>/planning/architecture-delta.md" using worktree "<worktree>" output tasks to "<worktree>/planning/pending/" with wave-based grouping to "<worktree>/planning/tasks.md"`
+**INVOKE**: `ask subagent feature-task-creator with current-epic from "<worktree>/planning/epic-delta.md" and current-use-cases from "<worktree>/planning/use-cases-delta.md" and current-requirements from "<worktree>/planning/requirements-delta.md" and current-architecture from "<worktree>/planning/architecture-delta.md" and baseline-epic from "<worktree>/planning/epic.md" and baseline-use-cases from "<worktree>/planning/use-cases.md" and baseline-requirements from "<worktree>/planning/requirements.md" and baseline-architecture from "<worktree>/planning/architecture.md" using worktree "<worktree>" output tasks to "<worktree>/planning/pending/" with wave-based grouping to "<worktree>/planning/tasks.md"`
 
 **Subagent Responsibilities - Task Deduplication**:
 
@@ -4638,41 +4608,22 @@ fi
 
 echo "✅ All validations passed"
 
-# Step 2: Create Snapshot Archive
-echo "=== Creating Snapshot Archive ==="
-mkdir -p "$PLANNING/snapshots/$TIMESTAMP"
-mkdir -p "$PLANNING/snapshots/$TIMESTAMP/tasks"
+# Step 2: Promote All Delta Files to Baseline
+echo "=== Promoting Delta Files to Baseline ==="
 
-# Archive current artifacts
-cp "$PLANNING/epic.md" "$PLANNING/snapshots/$TIMESTAMP/" 2>/dev/null
-cp "$PLANNING/use-cases.md" "$PLANNING/snapshots/$TIMESTAMP/" 2>/dev/null
-cp "$PLANNING/requirements.md" "$PLANNING/snapshots/$TIMESTAMP/" 2>/dev/null
-cp "$PLANNING/architecture.md" "$PLANNING/snapshots/$TIMESTAMP/" 2>/dev/null
-cp "$PLANNING/tasks.md" "$PLANNING/snapshots/$TIMESTAMP/" 2>/dev/null
+# Promote all working files to baseline (for next iteration)
+# All *-delta.md files contain TARGET state (what we want)
+mv "$PLANNING/epic-delta.md" "$PLANNING/epic.md" 2>/dev/null && echo "  ✅ epic-delta.md → epic.md"
+mv "$PLANNING/use-cases-delta.md" "$PLANNING/use-cases.md" 2>/dev/null && echo "  ✅ use-cases-delta.md → use-cases.md"
+mv "$PLANNING/requirements-delta.md" "$PLANNING/requirements.md" 2>/dev/null && echo "  ✅ requirements-delta.md → requirements.md"
+mv "$PLANNING/architecture-delta.md" "$PLANNING/architecture.md" 2>/dev/null && echo "  ✅ architecture-delta.md → architecture.md"
 
-# Archive completed tasks
-cp -r "$WORKTREE/planning/completed"/* "$WORKTREE/planning/snapshots/$TIMESTAMP/tasks/" 2>/dev/null
+echo "✅ All delta files promoted to baseline"
 
-echo "✅ Snapshot created: snapshots/$TIMESTAMP/"
-
-# Step 3: Merge Current to Baseline
-echo "=== Merging Current → Baseline ==="
-
-# Promote artifacts to baseline
-cp "$WORKTREE/planning/epic.md" "$WORKTREE/planning/epic-baseline.md"
-cp "$WORKTREE/planning/use-cases.md" "$WORKTREE/planning/use-cases-baseline.md"
-cp "$WORKTREE/planning/requirements.md" "$WORKTREE/planning/requirements-baseline.md"
-cp "$WORKTREE/planning/architecture.md" "$WORKTREE/planning/architecture-baseline.md"
-
-echo "✅ Current artifacts promoted to baseline"
-
-# Step 4: Clean Temporary Files
+# Step 3: Clean Temporary Files
 echo "=== Cleaning Temporary Artifacts ==="
 
-# Remove delta files
-rm -f "$WORKTREE/planning"/*-delta.md
-
-# Remove completed tasks (archived in snapshot)
+# Remove completed tasks
 rm -rf "$WORKTREE/planning/completed"/*
 
 # Ensure pending is empty (should already be)
@@ -4680,89 +4631,67 @@ rm -rf "$WORKTREE/planning/pending"/*
 
 echo "✅ Temporary files cleaned"
 
-# Step 5: Log Merge
-echo "=== Logging Merge ==="
-cat >> "$PLANNING/merge-log.md" << EOF
+# Step 4: Log Iteration Completion
+echo "=== Logging Iteration Completion ==="
+cat >> "$PLANNING/iteration-log.md" << EOF
 
-## Merge: $TIMESTAMP
+## Iteration Completed: $TIMESTAMP
 
-**Artifacts Merged**:
-- epic.md → epic-baseline.md
-- use-cases.md → use-cases-baseline.md
-- requirements.md → requirements-baseline.md
-- architecture.md → architecture-baseline.md
+**Baseline Artifacts (promoted from delta files)**:
+- epic.md
+- use-cases.md
+- requirements.md
+- architecture.md
 
-**Tasks Completed**: $(find "$PLANNING/snapshots/$TIMESTAMP/tasks" -name "TASK-*.md" 2>/dev/null | wc -l) tasks
-
-**Snapshot Location**: snapshots/$TIMESTAMP/
+**Tasks Completed**: $(find "$PLANNING/completed/tasks" -name "TASK-*.md" 2>/dev/null | wc -l) tasks
 
 **Status**: SUCCESS
 
 ---
 EOF
 
-echo "✅ Merge logged to merge-log.md"
+echo "✅ Iteration logged to iteration-log.md"
 
-# Step 6: Cleanup Old Snapshots (optional, keep last 10)
-echo "=== Cleaning Old Snapshots ==="
-SNAPSHOT_COUNT=$(ls -1 "$PLANNING/snapshots" | wc -l)
-if [ "$SNAPSHOT_COUNT" -gt 10 ]; then
-  echo "Keeping 10 most recent snapshots, removing older..."
-  ls -1t "$PLANNING/snapshots" | tail -n +11 | xargs -I {} rm -rf "$PLANNING/snapshots/{}"
-fi
-
-echo "✅ Merge process complete"
+echo "✅ Iteration completion process finished"
 echo ""
 echo "📋 Summary:"
-echo "  - Current artifacts promoted to baseline"
-echo "  - Snapshot archived: snapshots/$TIMESTAMP/"
-echo "  - Temporary delta files cleaned"
+echo "  - Delta files promoted to baseline"
+echo "  - Artifacts ready as baseline for next iteration"
+echo "  - Temporary files cleaned"
 echo "  - System ready for next iteration"
 ```
 
-### Post-Merge State
+### Post-Iteration State
 
-After merge, the planning directory structure is:
+After iteration completion, the planning directory structure is:
 
 ```
 <worktree>/planning/
-├── epic.md                      # Current (same as baseline after merge)
-├── epic-baseline.md             # NEW BASELINE (promoted from epic.md)
-├── use-cases.md                 # Current
-├── use-cases-baseline.md        # NEW BASELINE
-├── requirements.md              # Current
-├── requirements-baseline.md     # NEW BASELINE
-├── architecture.md              # Current
-├── architecture-baseline.md     # NEW BASELINE
+├── epic.md                      # Baseline (promoted from epic-delta.md)
+├── use-cases.md                 # Baseline (promoted from use-cases-delta.md)
+├── requirements.md              # Baseline (promoted from requirements-delta.md)
+├── architecture.md              # Baseline (promoted from architecture-delta.md)
 ├── tasks.md                     # Task summary (current iteration)
-├── merge-log.md                 # Merge history
+├── iteration-log.md             # Iteration history
 
 ├── pending/                     # Empty (ready for next iteration)
-├── completed/                   # Empty (archived to snapshot)
-
-└── snapshots/
-    └── YYYYMMDD-HHMMSS/
-        ├── epic.md
-        ├── use-cases.md
-        ├── requirements.md
-        ├── architecture.md
-        ├── tasks.md
-        └── tasks/
-            ├── TASK-001.md
-            ├── TASK-002.md
-            └── ...
+└── completed/                   # Empty (cleaned after iteration)
 ```
 
 ### Next Iteration
 
 When starting a new iteration:
 
-1. **Phase 1** will detect DELTA project (baseline files exist)
-2. Baseline files serve as previous state reference
-3. New epic generation uses baseline as context
-4. Delta computation compares new target vs current baseline
-5. Task generation only creates tasks for actual changes
-6. After completion, merge process repeats
+1. **Phase 1** will detect DELTA project (epic.md exists with content)
+2. epic.md serves as baseline (previous state reference)
+3. Phase 1 creates new epic-delta.md (working file)
+4. Phases 2-4 use *-delta.md files (working versions)
+5. Phase 5 generates tasks based on delta changes (A/M/R/U)
+6. After completion, delta files are promoted to baseline:
+   - epic-delta.md → epic.md (overwrite)
+   - use-cases-delta.md → use-cases.md
+   - requirements-delta.md → requirements.md
+   - architecture-delta.md → architecture.md
 
 This creates a continuous improvement cycle where each iteration builds on the previous one.
 

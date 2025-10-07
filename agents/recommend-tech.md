@@ -23,7 +23,7 @@ model: inherit
 1. Accept parent worktree as "branch" to fork from
 2. Create nested isolated worktree via `create-worktree` agent
 3. Execute comprehensive technology research in isolation
-4. Write complete architecture to `<worktree>/planning/architecture.md`
+4. Write complete architecture to `<worktree>/planning/architecture-delta.md`
 5. Merge back to parent worktree via `merge-worktree` agent
 6. Return concise summary to caller
 
@@ -781,7 +781,7 @@ ELSE:
 
 ##### Write Concise Architecture.md
 
-Write the complete architecture specification to `<worktree>/planning/architecture.md` using this concise format:
+Write the complete architecture specification to `<worktree>/planning/architecture-delta.md` using this concise format:
 
 ```markdown
 # Architecture Decision Record

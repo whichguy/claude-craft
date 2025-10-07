@@ -21,7 +21,7 @@ model: inherit
 1. Accept parent worktree as "branch" to fork from
 2. Create nested isolated worktree via `create-worktree` agent
 3. Execute comprehensive requirements generation in isolation
-4. Write complete requirements to `<worktree>/planning/requirements.md`
+4. Write complete requirements to `<worktree>/planning/requirements-delta.md`
 5. Merge back to parent worktree via `merge-worktree` agent
 6. Return concise summary to caller
 
@@ -55,7 +55,7 @@ Analyze <prompt-arguments> for content extraction:
      Extract relevant content contextually
 ```
 
-Write complete requirements to `<worktree>/planning/requirements.md` and return a concise summary.
+Write complete requirements to `<worktree>/planning/requirements-delta.md` and return a concise summary.
 
 ## Framework Initialization
 
@@ -1373,9 +1373,9 @@ echo "🔄 Computing delta analysis between baseline and target requirements..."
 
      delta_summary = "Changes detected: +${count(added)} new, ~${count(modified)} modified, -${count(removed)} removed, =${count(unchanged)} unchanged"
 
-4. **Generate delta file**:
-   delta_file_path = "<worktree>/planning/requirements-delta.md"
-   Write comprehensive delta analysis with A/M/R/U classification
+4. **Generate diff file** (optional - for analysis only):
+   diff_file_path = "<worktree>/planning/requirements-diff.md"
+   Write comprehensive diff analysis with A/M/R/U classification
 
 5. **Store delta summary for documentation**:
    <GLOBAL_DELTA_SUMMARY> = delta_summary

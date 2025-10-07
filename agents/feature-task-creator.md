@@ -134,45 +134,210 @@ WHEN starting the feature task creation process:
    mkdir -p "<worktree>/docs"                 # Documentation
    echo "📁 Directories initialized"
 
-4. DOCUMENT DISCOVERY & LOADING:
-   # Detect available source documents based on <prompt-arguments>
-   echo "📚 Loading source documents..."
+4. PARAMETER PARSING:
+   # Parse "with X from Y" structured parameter syntax (used by IDEAL-STI Phase 5)
+   echo "🔍 Parsing parameters..."
 
-   # Check for use cases (from <prompt-arguments> or conventions)
-   IF <prompt-arguments> contains use cases content OR path THEN:
+   # Initialize parameter storage
+   <current_epic_path> = ""
+   <current_use_cases_path> = ""
+   <current_requirements_path> = ""
+   <current_architecture_path> = ""
+   <baseline_epic_path> = ""
+   <baseline_use_cases_path> = ""
+   <baseline_requirements_path> = ""
+   <baseline_architecture_path> = ""
+
+   # Parse "with X from Y and Z from W" syntax from <prompt-arguments>
+   IF <prompt-arguments> matches pattern "with .* from .* and .* from":
+     # Extract current-* parameters (target state - what we want)
+     IF <prompt-arguments> matches "current-epic from \"([^\"]+)\"":
+       <current_epic_path> = match_group_1
+       echo "  ✓ current-epic: ${current_epic_path}"
+     END IF
+
+     IF <prompt-arguments> matches "current-use-cases from \"([^\"]+)\"":
+       <current_use_cases_path> = match_group_1
+       echo "  ✓ current-use-cases: ${current_use_cases_path}"
+     END IF
+
+     IF <prompt-arguments> matches "current-requirements from \"([^\"]+)\"":
+       <current_requirements_path> = match_group_1
+       echo "  ✓ current-requirements: ${current_requirements_path}"
+     END IF
+
+     IF <prompt-arguments> matches "current-architecture from \"([^\"]+)\"":
+       <current_architecture_path> = match_group_1
+       echo "  ✓ current-architecture: ${current_architecture_path}"
+     END IF
+
+     # Extract baseline-* parameters (old state - for migration detection)
+     IF <prompt-arguments> matches "baseline-epic from \"([^\"]+)\"":
+       <baseline_epic_path> = match_group_1
+       echo "  ✓ baseline-epic: ${baseline_epic_path}"
+     END IF
+
+     IF <prompt-arguments> matches "baseline-use-cases from \"([^\"]+)\"":
+       <baseline_use_cases_path> = match_group_1
+       echo "  ✓ baseline-use-cases: ${baseline_use_cases_path}"
+     END IF
+
+     IF <prompt-arguments> matches "baseline-requirements from \"([^\"]+)\"":
+       <baseline_requirements_path> = match_group_1
+       echo "  ✓ baseline-requirements: ${baseline_requirements_path}"
+     END IF
+
+     IF <prompt-arguments> matches "baseline-architecture from \"([^\"]+)\"":
+       <baseline_architecture_path> = match_group_1
+       echo "  ✓ baseline-architecture: ${baseline_architecture_path}"
+     END IF
+
+     echo "✅ Structured parameters parsed successfully"
+   ELSE:
+     echo "📝 No structured parameters - using convention-based discovery"
+   END IF
+
+5. DOCUMENT DISCOVERY & LOADING:
+   # Load current (target) documents based on parameters or conventions
+   echo "📚 Loading current (target) documents..."
+
+   # Load CURRENT epic (target state)
+   IF <current_epic_path> is not empty AND file exists at <current_epic_path> THEN:
+     <epic> = read(<current_epic_path>)
+     echo "  ✓ Epic from parameter: ${current_epic_path}"
+   ELIF <prompt-arguments> contains epic content OR path THEN:
+     <epic> = extracted/loaded content
+     echo "  ✓ Epic from prompt arguments"
+   ELIF file exists at "<worktree>/planning/epic-delta.md" THEN:
+     <epic> = read("<worktree>/planning/epic-delta.md")
+     echo "  ✓ Epic from convention: epic-delta.md"
+   ELIF file exists at "<worktree>/planning/epic.md" THEN:
+     <epic> = read("<worktree>/planning/epic.md")
+     echo "  ✓ Epic from fallback: epic.md"
+   ELSE:
+     echo "⚠️ No epic found"
+     <epic> = ""
+   END IF
+
+   # Load CURRENT use cases (target state)
+   IF <current_use_cases_path> is not empty AND file exists at <current_use_cases_path> THEN:
+     <use_cases> = read(<current_use_cases_path>)
+     echo "  ✓ Use cases from parameter: ${current_use_cases_path}"
+   ELIF <prompt-arguments> contains use cases content OR path THEN:
      <use_cases> = extracted/loaded content
+     echo "  ✓ Use cases from prompt arguments"
+   ELIF file exists at "<worktree>/planning/use-cases-delta.md" THEN:
+     <use_cases> = read("<worktree>/planning/use-cases-delta.md")
+     echo "  ✓ Use cases from convention: use-cases-delta.md"
    ELIF file exists at "<worktree>/planning/use-cases.md" THEN:
      <use_cases> = read("<worktree>/planning/use-cases.md")
+     echo "  ✓ Use cases from fallback: use-cases.md"
    ELIF file exists at "<worktree>/docs/use-cases.md" THEN:
      <use_cases> = read("<worktree>/docs/use-cases.md")
+     echo "  ✓ Use cases from docs: docs/use-cases.md"
    ELSE:
-     echo "⚠️ No use cases found - will generate tasks from requirements only"
+     echo "⚠️ No use cases found"
      <use_cases> = ""
    END IF
 
-   # Check for requirements (from <prompt-arguments> or conventions)
-   IF <prompt-arguments> contains requirements content OR path THEN:
+   # Load CURRENT requirements (target state)
+   IF <current_requirements_path> is not empty AND file exists at <current_requirements_path> THEN:
+     <requirements> = read(<current_requirements_path>)
+     echo "  ✓ Requirements from parameter: ${current_requirements_path}"
+   ELIF <prompt-arguments> contains requirements content OR path THEN:
      <requirements> = extracted/loaded content
+     echo "  ✓ Requirements from prompt arguments"
+   ELIF file exists at "<worktree>/planning/requirements-delta.md" THEN:
+     <requirements> = read("<worktree>/planning/requirements-delta.md")
+     echo "  ✓ Requirements from convention: requirements-delta.md"
    ELIF file exists at "<worktree>/planning/requirements.md" THEN:
      <requirements> = read("<worktree>/planning/requirements.md")
+     echo "  ✓ Requirements from fallback: requirements.md"
    ELIF file exists at "<worktree>/docs/requirements.md" THEN:
      <requirements> = read("<worktree>/docs/requirements.md")
+     echo "  ✓ Requirements from docs: docs/requirements.md"
    ELSE:
-     echo "⚠️ No requirements found - will generate from use cases"
+     echo "⚠️ No requirements found"
      <requirements> = ""
    END IF
 
-   # Check for architecture (from <prompt-arguments> or conventions)
-   IF <prompt-arguments> contains architecture content OR path THEN:
+   # Load CURRENT architecture (target state)
+   IF <current_architecture_path> is not empty AND file exists at <current_architecture_path> THEN:
+     <architecture> = read(<current_architecture_path>)
+     echo "  ✓ Architecture from parameter: ${current_architecture_path}"
+   ELIF <prompt-arguments> contains architecture content OR path THEN:
      <architecture> = extracted/loaded content
+     echo "  ✓ Architecture from prompt arguments"
+   ELIF file exists at "<worktree>/planning/architecture-delta.md" THEN:
+     <architecture> = read("<worktree>/planning/architecture-delta.md")
+     echo "  ✓ Architecture from convention: architecture-delta.md"
    ELIF file exists at "<worktree>/planning/architecture.md" THEN:
      <architecture> = read("<worktree>/planning/architecture.md")
+     echo "  ✓ Architecture from fallback: architecture.md"
    ELSE:
-     echo "📝 No architecture found - tasks will lack technology guidance"
+     echo "⚠️ No architecture found"
      <architecture> = ""
    END IF
 
-5. PATH DISCIPLINE (Critical for safety):
+   # Load BASELINE documents (old state) for delta/migration detection
+   echo "📚 Loading baseline (old state) documents for migration detection..."
+
+   IF <baseline_epic_path> is not empty AND file exists at <baseline_epic_path> THEN:
+     <baseline_epic> = read(<baseline_epic_path>)
+     echo "  ✓ Baseline epic from parameter: ${baseline_epic_path}"
+   ELIF file exists at "<worktree>/planning/epic.md" THEN:
+     <baseline_epic> = read("<worktree>/planning/epic.md")
+     echo "  ✓ Baseline epic from convention: epic.md"
+   ELSE:
+     <baseline_epic> = ""
+     echo "  📝 No baseline epic - greenfield project"
+   END IF
+
+   IF <baseline_use_cases_path> is not empty AND file exists at <baseline_use_cases_path> THEN:
+     <baseline_use_cases> = read(<baseline_use_cases_path>)
+     echo "  ✓ Baseline use cases from parameter: ${baseline_use_cases_path}"
+   ELIF file exists at "<worktree>/planning/use-cases.md" THEN:
+     <baseline_use_cases> = read("<worktree>/planning/use-cases.md")
+     echo "  ✓ Baseline use cases from convention: use-cases.md"
+   ELSE:
+     <baseline_use_cases> = ""
+     echo "  📝 No baseline use cases"
+   END IF
+
+   IF <baseline_requirements_path> is not empty AND file exists at <baseline_requirements_path> THEN:
+     <baseline_requirements> = read(<baseline_requirements_path>)
+     echo "  ✓ Baseline requirements from parameter: ${baseline_requirements_path}"
+   ELIF file exists at "<worktree>/planning/requirements.md" THEN:
+     <baseline_requirements> = read("<worktree>/planning/requirements.md")
+     echo "  ✓ Baseline requirements from convention: requirements.md"
+   ELSE:
+     <baseline_requirements> = ""
+     echo "  📝 No baseline requirements"
+   END IF
+
+   IF <baseline_architecture_path> is not empty AND file exists at <baseline_architecture_path> THEN:
+     <baseline_architecture> = read(<baseline_architecture_path>)
+     echo "  ✓ Baseline architecture from parameter: ${baseline_architecture_path}"
+   ELIF file exists at "<worktree>/planning/architecture.md" THEN:
+     <baseline_architecture> = read("<worktree>/planning/architecture.md")
+     echo "  ✓ Baseline architecture from convention: architecture.md"
+   ELSE:
+     <baseline_architecture> = ""
+     echo "  📝 No baseline architecture"
+   END IF
+
+   # Detect project mode based on baseline presence
+   IF <baseline_architecture> is not empty OR <baseline_requirements> is not empty THEN:
+     <DELTA_MODE> = "DELTA"
+     <BASELINE_STATE> = "EXISTS"
+     echo "🔄 DELTA MODE - will generate migration/update tasks"
+   ELSE:
+     <DELTA_MODE> = "NEW"
+     <BASELINE_STATE> = "EMPTY"
+     echo "🆕 NEW MODE - will generate greenfield implementation tasks"
+   END IF
+
+6. PATH DISCIPLINE (Critical for safety):
    # NEVER use cd, pushd, popd, or directory changing commands
    # ALWAYS use absolute paths: "<worktree>/planning/pending/task-001.md"
    # ALWAYS use git -C "<worktree>" for ALL git operations

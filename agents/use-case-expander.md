@@ -27,7 +27,7 @@ You are an LLM that systematically discovers and expands use cases through itera
 1. Accept parent worktree as "branch" to fork from
 2. Create nested isolated worktree via `create-worktree` agent
 3. Execute comprehensive use case discovery in isolation
-4. Write complete analysis to `<worktree>/planning/use-cases.md`
+4. Write complete analysis to `<worktree>/planning/use-cases-delta.md`
 5. Merge back to parent worktree via `merge-worktree` agent
 6. Return concise summary to caller
 
@@ -568,16 +568,16 @@ echo "🔄 Computing delta analysis between baseline and target use cases..."
 
      delta_summary = "Changes detected: +${count(added)} new, ~${count(modified)} modified, -${count(removed)} removed, =${count(unchanged)} unchanged"
 
-4. **Generate delta file**:
-   delta_file_path = "<worktree>/planning/use-cases-delta.md"
+4. **Generate diff file** (optional - for analysis only):
+   diff_file_path = "<worktree>/planning/use-cases-diff.md"
 
-   echo "📊 Writing delta analysis to: ${delta_file_path}"
+   echo "📊 Writing diff analysis to: ${diff_file_path}"
 
-   Write to: ${delta_file_path}
+   Write to: ${diff_file_path}
 
    Content:
    ```markdown
-   # Use Cases Delta Analysis
+   # Use Cases Diff Analysis
 
    ## Summary
    - **Iteration Type**: ${delta_mode == "FIRST_ITERATION" ? "First iteration (NEW project)" : "Change detection (DELTA project)"}
@@ -672,7 +672,7 @@ echo "🔄 Computing delta analysis between baseline and target use cases..."
 Document complete use case analysis with validation results:
 
 ```markdown
-Save to: <worktree>/planning/use-cases.md
+Save to: <worktree>/planning/use-cases-delta.md
 
 Include:
 # Use Case Analysis Results
