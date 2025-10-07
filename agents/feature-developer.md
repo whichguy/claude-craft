@@ -441,10 +441,14 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
 
 ### Discovery Process
 
-**Step 0: Worktree Safety Check**
-- If `<worktree>` path starts with `/tmp/`: **Force filesystem mode for ALL operations**
-- Reason: Temporary worktrees are git-merged later; MCP servers don't track them
-- If temp worktree detected: Skip to Step 3 with MODE=filesystem
+**Step 0: Parameter and Worktree Validation**
+- **Parameter check**: If worktree is empty/unset AND no MCP-Server in task:
+  - ERROR: "Cannot determine content addressing - no worktree or MCP server specified"
+  - Cannot proceed without addressing context
+- **Temp worktree check**: If `<worktree>` path starts with `/tmp/`:
+  - **Force filesystem mode for ALL operations**
+  - Reason: Temporary worktrees are git-merged later; MCP servers don't track them
+  - Skip to Step 3 with MODE=filesystem
 
 **Step 1: Discover MCP Server Name (Priority Order)**
 
@@ -457,14 +461,21 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
      - No MCP-Server field → Continue to step 2
 
 2. **Architecture Definition** (fallback):
-   - If architecture.md exists at `<worktree>/planning/architecture.md`, read it
+   - Check for architecture.md at:
+     * `<worktree>/planning/architecture.md` (standard location), OR
+     * `<worktree>/docs/planning/architecture.md` (alternate location)
    - Look for `## Infrastructure State` section
    - Extract: `mcp.server.name: <name>`
    - If not found or file doesn't exist: MODE=filesystem
 
 **Step 2: Discover MCP Capabilities (Only if server found in Step 1)**
-- Read `<worktree>/planning/architecture.md` → `## Infrastructure State` section
-- Extract configuration for the discovered server:
+- Check for architecture.md at standard or alternate location (same as Step 1.2)
+- Read `## Infrastructure State` section
+- **If architecture.md doesn't exist OR has no Infrastructure State section**:
+  - Report error: "MCP server '<name>' specified but no capability configuration found"
+  - Suggest: "Add ## Infrastructure State section to architecture.md with server capabilities"
+  - Fallback: MODE=filesystem (with warning logged)
+- **Otherwise, extract configuration** for the discovered server:
   - `mcp.server.writeCapable: true/false`
   - `mcp.server.writeFunctions: <list>` (e.g., "gas_write, gas_raw_write")
   - `mcp.server.readFunctions: <list>` (e.g., "gas_cat, gas_raw_cat")
@@ -1205,6 +1216,13 @@ echo "✅ Plan review completed and refinements applied"
 ```
 
 ## PHASE 7: GET QA TEST CASE RECOMMENDATIONS
+
+**REMINDER: Content Addressing - Refer to Phase 2 Directive**
+- Check if MCP server configured (task → architecture → none)
+- Use appropriate file access method (MCP functions vs filesystem)
+- Apply per-operation tool selection (read/write/search/test)
+- Verify temp worktree handling if applicable
+
 Get comprehensive functional test case recommendations:
 
 ```bash
@@ -1281,6 +1299,12 @@ echo "✅ Final implementation plan ready: $FINAL_PLAN"
 ```
 
 ## PHASE 9: IMPLEMENT CODE
+
+**REMINDER: Content Addressing - Refer to Phase 2 Directive**
+- For each file implementation, verify addressing mode
+- Use MCP functions if configured, filesystem otherwise
+- Check temp worktree status before operations
+
 Implement all code files according to the final plan:
 
 ```bash
