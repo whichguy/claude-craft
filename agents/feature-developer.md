@@ -435,142 +435,111 @@ PLANNING_DIR="$worktree/planning"   # Planning is directly under worktree
 CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context file path
 ```
 
-## PHASE 2: DETERMINE CONTENT ADDRESSING MODE
-Bootstrap content addressing by detecting MCP configuration before any file operations:
+## PHASE 2: CONTENT ADDRESSING DIRECTIVE
 
-```bash
-echo "🔧 PHASE 2: Bootstrap - Determining content addressing mode..."
+**You MUST determine content access methods before performing ANY file operations. This determination is made fresh for EACH task using pure LLM reasoning.**
 
-# ============================================================================
-# MCP DETECTION: Task File + Architecture Discovery
-# ============================================================================
-# CRITICAL: This must happen BEFORE any file read operations to determine
-# whether to use MCP functions or filesystem commands for content access
-# ============================================================================
+### Discovery Process
 
-echo "🧠 Detecting MCP server configuration..."
+**Step 0: Worktree Safety Check**
+- If `<worktree>` path starts with `/tmp/`: **Force filesystem mode for ALL operations**
+- Reason: Temporary worktrees are git-merged later; MCP servers don't track them
+- If temp worktree detected: Skip to Step 3 with MODE=filesystem
 
-# Initialize addressing mode
-MODE="filesystem"
-MCP_SERVER_NAME=""
-MCP_WRITE_CAPABLE="false"
-MCP_WRITE_FUNCTIONS=""
-MCP_QUALITY_FUNCTIONS=""
-MCP_SOURCE="none"
+**Step 1: Discover MCP Server Name (Priority Order)**
 
-# PRIORITY 1: Check task file for MCP server directive
-# Format in task: "MCP-Server: gas-project" or "## MCP Configuration"
-if [ -f "$worktree/$task_file" ]; then
-  task_mcp_server=$(grep -i "^MCP-Server:" "$worktree/$task_file" 2>/dev/null | cut -d: -f2 | xargs)
+1. **Task Definition** (highest priority):
+   - Read `<worktree>/tasks/in-progress/<task-name>.md`
+   - Look for `MCP-Server: <name>` in frontmatter or body
+   - Special values:
+     - `MCP-Server: <name>` → Use this server (overrides architecture)
+     - `MCP-Server: none` or `MCP-Server: filesystem` → Force filesystem mode
+     - No MCP-Server field → Continue to step 2
 
-  if [ -n "$task_mcp_server" ]; then
-    MCP_SERVER_NAME="$task_mcp_server"
-    MCP_SOURCE="task_file"
-    echo "✅ MCP server specified in task file: $MCP_SERVER_NAME"
-  fi
-fi
+2. **Architecture Definition** (fallback):
+   - If architecture.md exists at `<worktree>/planning/architecture.md`, read it
+   - Look for `## Infrastructure State` section
+   - Extract: `mcp.server.name: <name>`
+   - If not found or file doesn't exist: MODE=filesystem
 
-# PRIORITY 2: Check architecture.md Infrastructure State (if not in task)
-if [ -z "$MCP_SERVER_NAME" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
-  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
-    arch_mcp_server=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
+**Step 2: Discover MCP Capabilities (Only if server found in Step 1)**
+- Read `<worktree>/planning/architecture.md` → `## Infrastructure State` section
+- Extract configuration for the discovered server:
+  - `mcp.server.writeCapable: true/false`
+  - `mcp.server.writeFunctions: <list>` (e.g., "gas_write, gas_raw_write")
+  - `mcp.server.readFunctions: <list>` (e.g., "gas_cat, gas_raw_cat")
+  - `mcp.server.searchFunctions: <list>` (e.g., "gas_ripgrep, gas_grep, gas_sed")
+  - `mcp.server.webTestingCapable: true/false`
+  - `mcp.server.testingMethod: <method>` (e.g., "gas_run")
 
-    if [ -n "$arch_mcp_server" ]; then
-      MCP_SERVER_NAME="$arch_mcp_server"
-      MCP_SOURCE="architecture"
-      echo "✅ MCP server from architecture.md: $MCP_SERVER_NAME"
-    fi
-  fi
-fi
+**Step 3: Determine Access Method Per Operation Type**
 
-# If MCP server found, extract capabilities
-if [ -n "$MCP_SERVER_NAME" ]; then
-  MODE="mcp"
+**For File Reading**:
+- If MCP server found AND `readFunctions` defined:
+  - Use: `ask mcp <server> <read-function> "<identifier>"`
+  - Example: `ask mcp gas gas_cat "src/main.js"`
+  - Pass identifier as-is (no worktree prefix)
+- Otherwise:
+  - Use: `cat <worktree>/<identifier>`
+  - Example: `cat $worktree/src/main.js`
 
-  # Extract capabilities from architecture.md Infrastructure State
-  if [ -f "$PLANNING_DIR/architecture.md" ]; then
-    MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-    MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-    MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-  fi
+**For File Writing**:
+- If MCP server found AND `writeCapable: true` AND `writeFunctions` defined:
+  - Use: `ask mcp <server> <write-function> "<identifier>" "<content>"`
+  - Example: `ask mcp gas gas_write "src/main.js" "content"`
+  - Pass identifier as-is (no worktree prefix)
+- Otherwise:
+  - Use: `echo "<content>" > <worktree>/<identifier>`
 
-  echo "   - Write capable: ${MCP_WRITE_CAPABLE}"
-  echo "   - Write functions: ${MCP_WRITE_FUNCTIONS:-none}"
-  echo "   - Quality functions: ${MCP_QUALITY_FUNCTIONS:-none}"
-  echo "   - Source: $MCP_SOURCE"
-else
-  echo "✅ Filesystem mode (no MCP server configured)"
-fi
+**For File Searching/Pattern Matching**:
+- If MCP server found AND `searchFunctions` defined:
+  - Use: `ask mcp <server> <search-function> "<pattern>" "<path>"`
+  - Example: `ask mcp gas gas_ripgrep "TODO" "src/"`
+  - Pass paths as-is (no worktree prefix)
+- Otherwise:
+  - Use: `ripgrep <pattern> <worktree>/<path>`
 
-# SAFETY: Force filesystem mode for temp worktrees
-# Even if MCP configured, temp worktrees should use filesystem
-if [[ "$worktree" =~ ^/tmp/ ]] && [ "$MODE" = "mcp" ]; then
-  echo "⚠️ Temp worktree detected ($worktree) - forcing filesystem mode"
-  echo "   (MCP operations deferred to merge-worktree agent)"
-  MODE="filesystem"
-fi
+**For Web/UI Testing**:
+- If MCP server found AND `webTestingCapable: true`:
+  - Use: `ask mcp <server> <testing-method> "<test-code>"`
+  - Example: `ask mcp gas gas_run "require('tests/integration').runAll()"`
+  - This is for environments with native web APIs (SpreadsheetApp, DocumentApp)
+- Otherwise:
+  - Use: `playwright test <test-file>`
 
-echo "📍 FINAL ADDRESSING MODE: $MODE"
-echo "📍 WORKING DIRECTORY: $worktree"
+### Error Handling
 
-# Write execution context for LLM to understand capabilities
-cat > "$CONTEXT_FILE" << EOF
+**If MCP operation fails** (server unavailable, permission denied, function not found):
+1. Report the error clearly to the user
+2. DO NOT silently fall back to filesystem (could cause data inconsistency)
+3. Suggest checking:
+   - Is MCP server running?
+   - Is architecture.md configuration correct?
+   - Does the specified function exist?
 
----
+### Reminder Checkpoints
 
-## EXECUTION ENVIRONMENT CONTEXT
+**At the start of each major phase** (before file operations):
+- ✓ I checked worktree location (temp vs normal)
+- ✓ I discovered MCP server name (task → architecture → none)
+- ✓ I know available functions for each operation type
+- ✓ I will use correct addressing (MCP with bare identifiers vs filesystem with worktree prefix)
 
-### Addressing Mode
-- **MODE**: $MODE
-- **MCP Server**: ${MCP_SERVER_NAME:-none}
-- **MCP Source**: $MCP_SOURCE (task_file takes precedence over architecture)
-- **Working Directory**: $worktree
-
-### MCP Capabilities (if MODE=mcp)
-- **Write Capable**: ${MCP_WRITE_CAPABLE}
-- **Write Functions**: ${MCP_WRITE_FUNCTIONS:-none}
-  - Available for content creation: cat, write, save, create, delete
-- **Quality Functions**: ${MCP_QUALITY_FUNCTIONS:-none}
-  - Available for analysis: grep, sed, cut, extract_section, validate, lint, test
-
-### Content Addressing Pattern
-- **STATE**: MODE ($MODE) + MCP capabilities
-- **PARENT**: Worktree ($worktree)
-- **IDENTIFIER**: Relative path from worktree (e.g., src/main.js, tasks/pending/TASK-001.md)
-
-### MODE-Aware Operations Guide
-
-**When MODE=mcp**:
-- Read: gas_cat(identifier) or MCP read functions
-- Write: gas_write(identifier, content) if MCP_WRITE_CAPABLE=true
-- Pattern: MCP quality functions (if available per MCP_QUALITY_FUNCTIONS)
-- Extract: MCP field functions (if available per MCP_QUALITY_FUNCTIONS)
-
-**When MODE=filesystem**:
-- Read: cat "\$worktree/identifier"
-- Write: echo/cat > "\$worktree/identifier"
-- Pattern: grep/sed "\$worktree/identifier"
-- Extract: grep|cut|xargs pipeline
-
-**Temp worktrees (/tmp/*)**: Always filesystem (MCP sync via merge-worktree agent)
-
-EOF
-
-echo "✅ Execution context written to $CONTEXT_FILE"
-echo "✅ PHASE 2 Complete: Content addressing mode determined - MODE=$MODE"
-```
+**This directive applies throughout all phases below.**
 
 ## PHASE 3: REHYDRATE TASK AND ARCHITECTURE CONTEXT
-Load complete context from task and IDEAL-STI planning outputs using MODE-aware operations:
+Load complete context from task and IDEAL-STI planning outputs.
+
+**REMINDER: Apply Content Addressing Directive from Phase 2 for all file operations.**
 
 ```bash
 echo "🔄 PHASE 3: Rehydrating task and architecture context..."
 
 # ============================================================================
-# MODE-AWARE OPERATIONS: All file operations check $MODE and use appropriate method
-# - If MODE=mcp: Use gas_cat, gas_write, MCP quality functions per $MCP_*_FUNCTIONS
-# - If MODE=filesystem: Use cat, grep, sed, echo, find
-# - Capabilities: $MCP_WRITE_CAPABLE, $MCP_WRITE_FUNCTIONS, $MCP_QUALITY_FUNCTIONS
+# CONTENT ADDRESSING: Follow Phase 2 directive to determine:
+# - Check worktree location (temp → filesystem)
+# - Discover MCP server (task → architecture → none)
+# - Use appropriate method per operation type (read/write/search/test)
 # ============================================================================
 
 # Append to context file (initialized in Phase 1, MODE determined in Phase 2)

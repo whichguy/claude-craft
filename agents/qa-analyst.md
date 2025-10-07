@@ -62,68 +62,85 @@ echo "🎯 INTENT: I will create file-type specific test strategies and leverage
 echo "Creating QA strategy for: $target_file (File: $file_name)"
 ```
 
-## PHASE 0.5: DETERMINE CONTENT ADDRESSING MODE
-Detect MCP configuration to determine file operation approach:
+## PHASE 0.5: CONTENT ADDRESSING DIRECTIVE
 
-```bash
-echo "🔧 Determining content addressing mode..."
+**You MUST determine content access methods before performing ANY file operations. This determination is made fresh for EACH testing task using pure LLM reasoning.**
 
-# Initialize addressing mode
-MODE="filesystem"
-MCP_SERVER_NAME=""
-MCP_WRITE_CAPABLE="false"
-MCP_WRITE_FUNCTIONS=""
-MCP_QUALITY_FUNCTIONS=""
-MCP_SOURCE="none"
+### Discovery Process
 
-# PRIORITY 1: Check task file for MCP server directive
-if [ -f "$task_file" ]; then
-  task_mcp_server=$(grep -i "^MCP-Server:" "$task_file" 2>/dev/null | cut -d: -f2 | xargs)
-  if [ -n "$task_mcp_server" ]; then
-    MCP_SERVER_NAME="$task_mcp_server"
-    MCP_SOURCE="task_file"
-    echo "✅ MCP server from task file: $MCP_SERVER_NAME"
-  fi
-fi
+**Step 0: Worktree Safety Check**
+- If `<worktree>` path starts with `/tmp/`: **Force filesystem mode for ALL operations**
+- Reason: Temporary worktrees are git-merged later; MCP servers don't track them
+- If temp worktree detected: Skip to Step 3 with MODE=filesystem
 
-# PRIORITY 2: Check architecture.md Infrastructure State (if not in task)
-if [ -z "$MCP_SERVER_NAME" ] && [ -f "$PLANNING_DIR/architecture.md" ]; then
-  if grep -q "## Infrastructure State" "$PLANNING_DIR/architecture.md" 2>/dev/null; then
-    arch_mcp_server=$(grep -oP '^\s*-\s*mcp\.server\.name:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-    if [ -n "$arch_mcp_server" ]; then
-      MCP_SERVER_NAME="$arch_mcp_server"
-      MCP_SOURCE="architecture"
-      echo "✅ MCP server from architecture.md: $MCP_SERVER_NAME"
-    fi
-  fi
-fi
+**Step 1: Discover MCP Server Name (Priority Order)**
 
-# Extract capabilities if MCP server found
-if [ -n "$MCP_SERVER_NAME" ]; then
-  MODE="mcp"
-  if [ -f "$PLANNING_DIR/architecture.md" ]; then
-    MCP_WRITE_CAPABLE=$(grep -oP '^\s*-\s*mcp\.server\.writeCapable:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-    MCP_WRITE_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.writeFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-    MCP_QUALITY_FUNCTIONS=$(grep -oP '^\s*-\s*mcp\.server\.qualityFunctions:\s*\K.*' "$PLANNING_DIR/architecture.md" 2>/dev/null | head -1 | xargs)
-  fi
-  echo "   - Write capable: ${MCP_WRITE_CAPABLE}"
-  echo "   - MODE: mcp"
-else
-  echo "✅ Filesystem mode (no MCP configured)"
-fi
+1. **Task Definition** (highest priority):
+   - Read `<worktree>/tasks/in-progress/<task-name>.md`
+   - Look for `MCP-Server: <name>` in frontmatter or body
+   - Special values:
+     - `MCP-Server: <name>` → Use this server (overrides architecture)
+     - `MCP-Server: none` or `MCP-Server: filesystem` → Force filesystem mode
+     - No MCP-Server field → Continue to step 2
 
-# SAFETY: Force filesystem mode for temp worktrees
-if [[ "$worktree" =~ ^/tmp/ ]] && [ "$MODE" = "mcp" ]; then
-  echo "⚠️ Temp worktree detected - forcing filesystem mode"
-  MODE="filesystem"
-fi
+2. **Architecture Definition** (fallback):
+   - If architecture.md exists at `<worktree>/planning/architecture.md`, read it
+   - Look for `## Infrastructure State` section
+   - Extract: `mcp.server.name: <name>`
+   - If not found or file doesn't exist: MODE=filesystem
 
-echo "📍 FINAL MODE: $MODE"
+**Step 2: Discover MCP Capabilities (Only if server found in Step 1)**
+- Read `<worktree>/planning/architecture.md` → `## Infrastructure State` section
+- Extract configuration for the discovered server:
+  - `mcp.server.writeCapable: true/false`
+  - `mcp.server.writeFunctions: <list>` (e.g., "gas_write, gas_raw_write")
+  - `mcp.server.readFunctions: <list>` (e.g., "gas_cat, gas_raw_cat")
+  - `mcp.server.searchFunctions: <list>` (e.g., "gas_ripgrep, gas_grep, gas_sed")
+  - `mcp.server.webTestingCapable: true/false`
+  - `mcp.server.testingMethod: <method>` (e.g., "gas_run")
 
-# MODE-AWARE OPERATIONS: All file operations check $MODE and use appropriate method
-# - If MODE=mcp: Use gas_cat, gas_write, MCP quality functions per $MCP_*_FUNCTIONS
-# - If MODE=filesystem: Use cat, grep, sed, echo, find with <worktree> prefix
-```
+**Step 3: Determine Access Method Per Operation Type**
+
+**For File Reading**:
+- If MCP server found AND `readFunctions` defined:
+  - Use: `ask mcp <server> <read-function> "<identifier>"`
+  - Example: `ask mcp gas gas_cat "src/main.js"`
+  - Pass identifier as-is (no worktree prefix)
+- Otherwise:
+  - Use: `cat <worktree>/<identifier>`
+
+**For File Writing**:
+- If MCP server found AND `writeCapable: true` AND `writeFunctions` defined:
+  - Use: `ask mcp <server> <write-function> "<identifier>" "<content>"`
+  - Example: `ask mcp gas gas_write "tests/integration.js" "content"`
+  - Pass identifier as-is (no worktree prefix)
+- Otherwise:
+  - Use: `echo "<content>" > <worktree>/<identifier>`
+
+**For Test Execution**:
+- If MCP server found AND `webTestingCapable: true`:
+  - Use: `ask mcp <server> <testing-method> "<test-code>"`
+  - Example: `ask mcp gas gas_run "require('tests/integration').runAll()"`
+  - This is for environments with native web APIs (SpreadsheetApp, DocumentApp)
+- Otherwise:
+  - Use: `playwright test <test-file>` or appropriate test runner
+
+### Error Handling
+
+**If MCP operation fails** (server unavailable, permission denied, function not found):
+1. Report the error clearly
+2. DO NOT silently fall back to filesystem (could cause data inconsistency)
+3. Suggest checking MCP server status and configuration
+
+### Reminder Checkpoints
+
+**Before test creation and execution**:
+- ✓ I checked worktree location (temp vs normal)
+- ✓ I discovered MCP server name (task → architecture → none)
+- ✓ I know available functions for each operation type
+- ✓ I will use correct addressing (MCP with bare identifiers vs filesystem with worktree prefix)
+
+**This directive applies throughout all testing phases below.**
 
 ## PHASE 1: COMPREHENSIVE IDEAL-STI CONTEXT REHYDRATION  
 Load all relevant IDEAL-STI planning context that affects QA testing:
