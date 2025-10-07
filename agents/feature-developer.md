@@ -451,29 +451,24 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
   - Reason: Temporary worktrees are git-merged later; MCP servers don't track them
   - Skip to Step 3 with MODE=filesystem
 
-- **Mode determination**:
-  - Read task file: `<worktree>/tasks/in-progress/<task-name>.md`
-  - Check for `MCP-Server:` field in task frontmatter
-  - If MCP-Server field present → Proceed to Step 1 for MCP discovery
-  - Otherwise → MODE=filesystem (mainline case)
-
 **Step 1: Discover MCP Server Name (Priority Order)**
 
 1. **Task Definition** (highest priority):
-   - Read `<worktree>/tasks/in-progress/<task-name>.md`
-   - Look for `MCP-Server: <name>` in frontmatter or body
-   - Special values:
-     - `MCP-Server: <name>` → Use this server (overrides architecture)
-     - `MCP-Server: none` or `MCP-Server: filesystem` → Force filesystem mode
-     - No MCP-Server field → Continue to step 2
+   - Try to read `<worktree>/tasks/in-progress/<task-name>.md`
+   - **If file doesn't exist**: Continue to step 2 (check architecture)
+   - **If file exists**: Look for `MCP-Server: <name>` in frontmatter or body
+     - `MCP-Server: <name>` → Use this server (proceed to Step 2)
+     - `MCP-Server: none` or `MCP-Server: filesystem` → MODE=filesystem (skip to Step 3)
+     - No MCP-Server field → Continue to step 2 (check architecture)
 
 2. **Architecture Definition** (fallback):
    - Check for architecture.md at:
      * `<worktree>/planning/architecture.md` (standard location), OR
      * `<worktree>/docs/planning/architecture.md` (alternate location)
-   - Look for `## Infrastructure State` section
-   - Extract: `mcp.server.name: <name>`
-   - If not found or file doesn't exist: MODE=filesystem
+   - **If architecture.md exists**: Look for `## Infrastructure State` section
+     - Extract: `mcp.server.name: <name>`
+     - If found: Use this server (proceed to Step 2)
+   - **If not found in either location**: MODE=filesystem (skip to Step 3)
 
 **Step 2: Discover MCP Capabilities (Only if server found in Step 1)**
 - Check for architecture.md at:
