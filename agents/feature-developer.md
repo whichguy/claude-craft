@@ -441,30 +441,21 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
 
 ### Discovery Process
 
-**Step 0: Parameter and Worktree Validation**
-- **Temp worktree check** (highest priority): If `<worktree>` path starts with `/tmp/`:
+**Step 0: Working Directory Resolution**
+- **Resolve working directory**:
+  - If `<worktree>` parameter provided and non-empty: use as-is
+  - Otherwise: `<worktree>` = "." (current directory)
+
+- **Temp worktree check**: If `<worktree>` starts with `/tmp/`:
   - **Force filesystem mode for ALL operations**
   - Reason: Temporary worktrees are git-merged later; MCP servers don't track them
   - Skip to Step 3 with MODE=filesystem
 
 - **Mode determination**:
-  - Read task file: `<worktree>/tasks/in-progress/<task-name>.md` (if worktree provided)
+  - Read task file: `<worktree>/tasks/in-progress/<task-name>.md`
   - Check for `MCP-Server:` field in task frontmatter
-
-- **Validation rules**:
-  1. **Pure filesystem mode (mainline)**: No MCP-Server field in task
-     - Worktree REQUIRED
-     - If worktree empty/unset: ERROR "Worktree required for filesystem operations"
-     - Proceed with filesystem mode (Step 1 will skip MCP discovery)
-
-  2. **MCP mode**: MCP-Server field present in task
-     - Worktree is OPTIONAL
-     - If worktree provided: Can use for architecture.md lookup (hybrid mode)
-     - If worktree empty: Use pure MCP mode, get config from task or defaults
-     - Proceed to Step 1 for MCP discovery
-
-  3. **Invalid case**: Worktree empty AND cannot read task file
-     - ERROR: "Cannot determine content addressing - no worktree to read task configuration"
+  - If MCP-Server field present → Proceed to Step 1 for MCP discovery
+  - Otherwise → MODE=filesystem (mainline case)
 
 **Step 1: Discover MCP Server Name (Priority Order)**
 
@@ -485,33 +476,21 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
    - If not found or file doesn't exist: MODE=filesystem
 
 **Step 2: Discover MCP Capabilities (Only if server found in Step 1)**
-- **If worktree is empty** (pure MCP mode):
-  - Cannot read architecture.md from filesystem
-  - Options:
-    1. **Get full config from task**: Check for MCP capability fields in task frontmatter
-       - `mcp.server.writeCapable`, `mcp.server.readFunctions`, etc.
-    2. **Use safe defaults**: Assume read-only MCP with standard functions
-       - readFunctions: ["gas_cat", "gas_raw_cat"]
-       - writeCapable: false
-       - searchFunctions: ["gas_ripgrep", "gas_grep"]
-    3. **Error if critical operations needed**: Writing/testing requires capabilities
-  - Log warning: "Pure MCP mode - using defaults or task-specified capabilities"
-  - Skip architecture.md lookup, proceed to Step 3
-
-- **If worktree provided** (hybrid mode):
-  - Check for architecture.md at standard or alternate location (same as Step 1.2)
-  - Read `## Infrastructure State` section
-  - **If architecture.md doesn't exist OR has no Infrastructure State section**:
-    - Report error: "MCP server '<name>' specified but no capability configuration found"
-    - Suggest: "Add ## Infrastructure State section to architecture.md with server capabilities"
-    - Fallback: MODE=filesystem (with warning logged)
-  - **Otherwise, extract configuration** for the discovered server:
-    - `mcp.server.writeCapable: true/false`
-    - `mcp.server.writeFunctions: <list>` (e.g., "gas_write, gas_raw_write")
-    - `mcp.server.readFunctions: <list>` (e.g., "gas_cat, gas_raw_cat")
-    - `mcp.server.searchFunctions: <list>` (e.g., "gas_ripgrep, gas_grep, gas_sed")
-    - `mcp.server.webTestingCapable: true/false`
-    - `mcp.server.testingMethod: <method>` (e.g., "gas_run")
+- Check for architecture.md at:
+  - `<worktree>/planning/architecture.md` (standard location), OR
+  - `<worktree>/docs/planning/architecture.md` (alternate location)
+- Read `## Infrastructure State` section
+- **If architecture.md doesn't exist OR has no Infrastructure State section**:
+  - Report error: "MCP server '<name>' specified but no capability configuration found"
+  - Suggest: "Add ## Infrastructure State section to architecture.md with server capabilities"
+  - Fallback: MODE=filesystem (with warning logged)
+- **Otherwise, extract configuration** for the discovered server:
+  - `mcp.server.writeCapable: true/false`
+  - `mcp.server.writeFunctions: <list>` (e.g., "gas_write, gas_raw_write")
+  - `mcp.server.readFunctions: <list>` (e.g., "gas_cat, gas_raw_cat")
+  - `mcp.server.searchFunctions: <list>` (e.g., "gas_ripgrep, gas_grep, gas_sed")
+  - `mcp.server.webTestingCapable: true/false`
+  - `mcp.server.testingMethod: <method>` (e.g., "gas_run")
 
 **Step 3: Determine Access Method Per Operation Type**
 
@@ -522,7 +501,7 @@ CONTEXT_FILE="$PLANNING_DIR/feature-context-$task_name.md"  # Initialize context
   - Pass identifier as-is (no worktree prefix)
 - Otherwise:
   - Use: `cat <worktree>/<identifier>`
-  - Example: `cat $worktree/src/main.js`
+  - Example: `cat <worktree>/src/main.js`
 
 **For File Writing**:
 - If MCP server found AND `writeCapable: true` AND `writeFunctions` defined:
