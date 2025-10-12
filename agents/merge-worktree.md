@@ -142,13 +142,45 @@ merge-worktree /path/to/worktree "" "feat: implement new feature"
 merge-worktree /path/to/worktree /path/to/original "feat: implement new feature" feature-developer
 ```
 
+**Nested Worktree Merging** (Stacking):
+
+When a worktree was created from another worktree (not main), merge-worktree automatically detects the parent relationship via `.worktree-parent` file and merges to the parent worktree instead of main. This enables hierarchical development:
+
+```bash
+# Create nested worktrees
+create-worktree wt1 /path/to/main     # wt1 created FROM main
+create-worktree wt2 /path/to/wt1      # wt2 created FROM wt1 (parent tracked)
+
+# Work in wt2, add file2.txt, commit
+# Work in wt1, add file1.txt, commit
+
+# Merge stack (reverse order - innermost first)
+merge-worktree /path/to/wt2  # Auto-detects wt1 as parent → merges wt2 → wt1
+merge-worktree /path/to/wt1  # Auto-detects main as target → merges wt1 → main
+
+# Result: Linear history with both files in main
+# Git log shows: wt2 changes → wt1 changes → main
+```
+
+**How It Works**:
+- create-worktree records parent path in `.worktree-parent` file when SOURCE_PATH is a worktree
+- merge-worktree checks `.worktree-parent` FIRST during auto-discovery
+- If found and valid, merges to parent worktree instead of main repository
+- This creates a natural commit flow: innermost → ... → outermost → main
+
 ## CORE PRINCIPLES
 
 **Prompt-as-Code Architecture**: Use natural language decision trees and runtime intelligence
-**NO cd/pushd**: All operations use full absolute paths and git -C commands  
+**NO cd/pushd**: All operations use full absolute paths and git -C commands
 **Safe Merging**: Intelligent change analysis and conflict detection
 **Context Awareness**: Agent-specific commit messages and branch handling
 **Comprehensive Cleanup**: Thorough worktree and branch removal with validation
+
+## EXECUTION INSTRUCTIONS
+
+When invoked, execute this process using the Bash tool. **DO NOT try to call any external commands named "merge-worktree".**
+
+Extract parameters from the user's prompt, then execute each phase below as separate Bash tool calls, passing variables between phases as needed.
 
 ## EXECUTION PROCESS
 
@@ -188,8 +220,21 @@ EOF
   if [ -z "$source_path" ]; then
     echo "🧠 THINKING: source_path not provided, attempting auto-discovery from worktree"
 
-    # Check if worktree has .git file (not directory)
-    if [ -f "$worktree_path/.git" ]; then
+    # PRIORITY 1: Check for .worktree-parent file (nested worktree indicator)
+    if [ -f "$worktree_path/.worktree-parent" ]; then
+      parent_path=$(cat "$worktree_path/.worktree-parent" 2>/dev/null)
+      if [ -n "$parent_path" ] && [ -d "$parent_path" ]; then
+        source_path="$parent_path"
+        echo "🎯 DECISION: Found nested worktree parent: $source_path"
+        echo "🔗 NESTED MERGE: This worktree will merge to its parent worktree, not main repo"
+      else
+        echo "⚠️ WARNING: .worktree-parent file exists but path is invalid"
+        # Fall through to standard discovery
+      fi
+    fi
+
+    # PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
+    if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
       # Extract gitdir path from worktree's .git file
       gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
 
@@ -197,7 +242,8 @@ EOF
         # Navigate up from .git/worktrees/name to main .git then to repo root
         main_git_dir=$(dirname $(dirname "$gitdir"))
         source_path=$(dirname "$main_git_dir")
-        echo "🎯 DECISION: Auto-discovered source_path = $source_path"
+        echo "🎯 DECISION: Auto-discovered main repo: $source_path"
+        echo "📍 STANDARD MERGE: This worktree will merge to main repository"
       else
         echo "❌ DECISION: Failed to parse worktree .git file"
         cat << EOF
@@ -210,7 +256,10 @@ EOF
 EOF
         exit 1
       fi
-    else
+    fi
+
+    # PRIORITY 3: Error if still not found
+    if [ -z "$source_path" ]; then
       echo "❌ DECISION: Worktree .git file not found, cannot auto-discover source"
       cat << EOF
 {
@@ -690,21 +739,24 @@ cleanup_worktree_intelligently() {
     # Intelligent branch cleanup
     if [ -n "$branch_name" ] && [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
       echo "🎯 DECISION: Cleaning up branch: $branch_name"
-      if git -C "$ORIGINAL_ABS_PATH" branch -d "$branch_name" 2>/dev/null; then
-        branch_deleted=true
-        echo "✅ Branch deleted successfully"
-      else
-        echo "⚠️ DECISION: Branch deletion failed - may be unmerged or protected"
-        # Try force delete for worktree branches
-        if echo "$branch_name" | grep -q "^worktree/"; then
-          if git -C "$ORIGINAL_ABS_PATH" branch -D "$branch_name" 2>/dev/null; then
-            branch_deleted=true
-            echo "✅ Branch force-deleted successfully"
-          else
-            branch_deleted=false
-            echo "⚠️ Branch force-delete failed"
-          fi
+
+      # For worktree branches or squash-merged branches, use force delete directly
+      if echo "$branch_name" | grep -q "^worktree/"; then
+        echo "🎯 DECISION: Worktree branch detected - using force delete"
+        if git -C "$ORIGINAL_ABS_PATH" branch -D "$branch_name" 2>/dev/null; then
+          branch_deleted=true
+          echo "✅ Branch force-deleted successfully"
         else
+          branch_deleted=false
+          echo "⚠️ Branch force-delete failed"
+        fi
+      else
+        # For other branches, try regular delete first
+        if git -C "$ORIGINAL_ABS_PATH" branch -d "$branch_name" 2>/dev/null; then
+          branch_deleted=true
+          echo "✅ Branch deleted successfully"
+        else
+          echo "⚠️ DECISION: Branch deletion failed - may be unmerged"
           branch_deleted=false
         fi
       fi

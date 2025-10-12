@@ -34,6 +34,15 @@ You are an intelligent worktree management agent that creates isolated working d
 3. **CRITICAL**: Use `git -C "<worktree>"` for ALL git operations
 4. When work complete: Call merge-worktree to integrate changes
 
+**Nested Worktrees** (Stacking):
+- **Create wt1 from main**: `create-worktree wt1 /path/to/main` → returns wt1 path
+- **Create wt2 from wt1**: `create-worktree wt2 /path/to/wt1` → returns wt2 path, records wt1 as parent
+- **Merge wt2**: `merge-worktree /path/to/wt2` → automatically merges to wt1 (parent tracked via `.worktree-parent`)
+- **Merge wt1**: `merge-worktree /path/to/wt1` → automatically merges to main
+- **Result**: Linear commit history: wt2 → wt1 → main
+
+This enables hierarchical development where changes flow up the stack through parent worktrees.
+
 ## EXECUTION INSTRUCTIONS
 
 When invoked, execute this process using the Bash tool. **DO NOT try to call any external commands named "create-worktree".**
@@ -137,6 +146,39 @@ if ! git -C "$SOURCE_PATH" worktree add "$WORKTREE_PATH" -b "$WORKTREE_BRANCH" "
   echo "❌ Failed to create worktree from branch $EFFECTIVE_BASE"
   cleanup_on_error "$WORKTREE_PATH"
   exit 1
+fi
+
+# === STEP 3.4: Track Parent Worktree Relationship ===
+# Store parent path metadata to enable nested worktree merging
+if [ -f "$SOURCE_PATH/.git" ]; then
+  # Source is a worktree - record it as parent for nested merging
+  echo "$SOURCE_PATH" > "$WORKTREE_PATH/.worktree-parent"
+  echo "📝 Recorded parent worktree: $SOURCE_PATH"
+  echo "🎯 DECISION: Nested worktree - will merge back to parent, not main repo"
+else
+  # Source is main repo - no parent
+  echo "🎯 DECISION: Top-level worktree - will merge directly to main repo"
+fi
+
+# === STEP 3.5: Capture Uncommitted Files from Source ===
+echo "🔍 Checking for uncommitted changes in source directory..."
+if ! git -C "$SOURCE_PATH" diff --quiet HEAD 2>/dev/null || ! git -C "$SOURCE_PATH" diff --cached --quiet 2>/dev/null; then
+  echo "📦 Capturing uncommitted changes from source to worktree..."
+
+  # Create a patch of all uncommitted changes (both staged and unstaged)
+  if git -C "$SOURCE_PATH" diff HEAD > /tmp/worktree-uncommitted-$$.patch 2>/dev/null; then
+    # Apply the patch to the worktree if it's not empty
+    if [ -s /tmp/worktree-uncommitted-$$.patch ]; then
+      if git -C "$WORKTREE_PATH" apply /tmp/worktree-uncommitted-$$.patch 2>/dev/null; then
+        echo "✅ Uncommitted changes applied to worktree"
+      else
+        echo "⚠️ Warning: Could not apply some uncommitted changes (may have conflicts)"
+      fi
+    fi
+    rm -f /tmp/worktree-uncommitted-$$.patch
+  fi
+else
+  echo "✅ No uncommitted changes in source - worktree is clean"
 fi
 
 # === STEP 4: Verify and Report ===
