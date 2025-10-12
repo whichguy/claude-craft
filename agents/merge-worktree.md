@@ -513,10 +513,10 @@ EOF
   
   # Execute merge based on strategy
   echo "🎯 DECISION: Executing $merge_strategy merge strategy with squash"
-  echo "🔧 Running: git -C $ORIGINAL_ABS_PATH merge $branch_name --squash"
-  
+  echo "🔧 Running: git -C $ORIGINAL_ABS_PATH merge --squash $branch_name"
+
   # Squash merge stages changes but doesn't commit automatically
-  if git -C "$ORIGINAL_ABS_PATH" merge "$branch_name" --squash 2>/dev/null; then
+  if git -C "$ORIGINAL_ABS_PATH" merge --squash "$branch_name" 2>/dev/null; then
     # Check if there are actually changes to commit
     if git -C "$ORIGINAL_ABS_PATH" diff --cached --quiet; then
       merge_completed=true
