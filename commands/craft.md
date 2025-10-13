@@ -466,6 +466,106 @@ This is learning, not failure. Explicitly acknowledge: "What I just learned in S
 **Trust the Process:**
 Six stages might seem like a lot, but each one adds crucial understanding. Rushing through them means building on a shaky foundation. Taking time here saves massive rework during implementation.
 
+## Material Changes: When to Jump Back
+
+Sometimes user feedback reveals a **material change** - feedback that fundamentally contradicts or invalidates decisions from earlier confirmed phases/stages. When this happens, we need to decide whether to jump back and re-execute affected work, or document the alternative and continue forward.
+
+**Detect Material Changes by asking:**
+1. **Does this contradict a confirmed stage?** - User says "actually, external customers need access" when Stage 1 assumed internal-only
+2. **Would this require re-architecting?** - Feedback assumes GraphQL when Stage 3 decided on REST
+3. **Would this invalidate planning decisions?** - New actor type requires different data models, APIs, security
+4. **Would this require significant refactoring?** - Implementation approach based on invalidated assumptions
+
+**Material vs Non-Material Examples:**
+
+**Material Changes** (require jump-back consideration):
+- "Wait, this needs to work for external customers too" → Stage 1 actors changed
+- "I thought we'd use GraphQL, but you've assumed REST" → Stage 3 architecture invalidated
+- "This needs real-time updates, not polling" → Stage 3 integration pattern wrong
+- "Actually this is for mobile, not desktop" → Requirements and UI assumptions invalid
+
+**Non-Material Changes** (continue forward):
+- "Can we add a tooltip here?" → UI refinement, not fundamental change
+- "Let's use blue instead of green" → Aesthetic choice
+- "Can we add logging to this function?" → Enhancement, doesn't change core behavior
+- "This error message should be clearer" → Improvement, not architectural change
+
+**When Material Change Detected:**
+
+**Present consequences clearly:**
+```
+⚠️ MATERIAL CHANGE DETECTED
+
+Your feedback indicates a fundamental change to [Stage/Phase X].
+
+If we make this change now, we'll need to:
+- Revisit: [affected stages/phases]
+- Update: [affected planning artifacts]
+- Refactor: [completed implementation work if any]
+- Re-execute: [subsequent phases that built on invalidated assumptions]
+
+Estimated rework: [X hours/days]
+
+Options:
+1. Jump back now and make the change (recommended if timeline allows)
+2. Document as future enhancement and continue with current approach
+3. Let me think about it (explain more consequences)
+
+What would you like to do?
+```
+
+**If user confirms jump-back:**
+1. **Update GUIDE.md** with jump-back rationale:
+   ```markdown
+   ## [Date] - Jump Back: [Current Phase] → [Target Stage]
+
+   **Reason:** [User feedback that revealed material change]
+
+   **What Changed:** [Specific contradiction or invalidated assumption]
+
+   **Affected Work:**
+   - Stages to revisit: [list]
+   - Planning artifacts to update: [list]
+   - Implementation to refactor: [list]
+
+   **Lessons:** [What this taught us about requirements gathering]
+   ```
+
+2. **Mark subsequent work as "needs-review"** in affected files
+
+3. **Jump to the affected stage** and re-execute with new understanding
+
+4. **Re-confirm subsequent stages** as you progress forward again
+
+5. **Commit with descriptive message:**
+   ```
+   Jump back to [stage]: [brief reason]
+
+   User feedback revealed [material change]. Reverting to [stage]
+   to incorporate new understanding: [details]
+   ```
+
+**If user declines jump-back:**
+1. **Document alternative approach** in GUIDE.md Decision History:
+   ```markdown
+   ## [Date] - Alternative Approach Not Taken
+
+   **User Feedback:** [what they suggested]
+
+   **Why It's Material:** [what it would change]
+
+   **Decision:** Continue with current approach because [timeline/scope/priority]
+
+   **Document for Future:** This could be addressed in [future work/phase/version]
+   ```
+
+2. **Continue forward** with current approach
+
+3. **Note the trade-off** in relevant planning docs
+
+**Quality Gates Check:**
+At each stage quality gate and phase transition, explicitly check for material changes before proceeding. This prevents building on faulty foundations and makes the cost of rework visible to users so they can make informed decisions.
+
 ## ⚠️ Critical Operational Rules: Directory Isolation
 
 **ABSOLUTE RULES - NO EXCEPTIONS:**
@@ -820,6 +920,42 @@ After all searches complete, I'll consolidate findings...
 Present discoveries conversationally to user
 → Ask Quality Gate Question
 → **[WAIT for user response]**
+
+**Check for Material Changes:**
+
+Before accepting confirmation, evaluate if user feedback reveals a material change to earlier confirmed stages:
+
+**IF user feedback contradicts earlier confirmed stages:**
+  → Identify which stage(s) are affected
+  → Present consequences clearly:
+    ```
+    ⚠️ MATERIAL CHANGE DETECTED
+
+    Your feedback indicates a fundamental change to [Stage/Phase X].
+
+    If we make this change now, we'll need to:
+    - Revisit: [affected stages]
+    - Update: [affected artifacts]
+    - Refactor: [any completed work]
+
+    Estimated rework: [assessment]
+
+    Options:
+    1. Jump back now and make the change (recommended if timeline allows)
+    2. Document as future enhancement and continue
+    3. Let me think about it (explain more)
+
+    What would you like to do?
+    ```
+  → **IF user chooses jump-back:**
+     * Update GUIDE.md with jump-back rationale (see "Material Changes" section)
+     * Mark subsequent stages as "needs-review"
+     * Jump to affected stage and re-execute
+     * Re-confirm subsequent stages as you progress forward
+  → **IF user chooses to continue:**
+     * Document alternative approach in GUIDE.md Decision History
+     * Note trade-off in relevant planning docs
+     * Continue with current approach
 
 **Process User Response:**
 
@@ -4827,7 +4963,36 @@ This is the shared understanding I'll implement against. All 6 layers validated 
 
 **[WAIT for EXPLICIT user confirmation]**
 
-→ IF "PROCEED": Document final confirmation, update GUIDE.md with Phase 1→II transition, announce completion, move to Phase 2
+**Check for Material Changes Before Phase Transition:**
+
+Before transitioning to Phase 2, check if user feedback reveals material changes to Phase 1 stages:
+
+**IF user feedback contradicts confirmed stages:**
+  → Identify which stage(s) are affected
+  → Present consequences:
+    ```
+    ⚠️ MATERIAL CHANGE DETECTED at Phase 1→2 Transition
+
+    Your feedback indicates a change to [Stage X].
+
+    To accommodate this change:
+    - Revisit: Stage [X] through Stage 6
+    - Update: [affected artifacts]
+    - Re-synthesize: task-definition.md
+
+    This affects our Phase 1 foundation.
+
+    Options:
+    1. Jump back to Stage [X] and rebuild (recommended)
+    2. Document as future work and proceed
+    3. Explain more about the impact
+
+    What would you like to do?
+    ```
+  → **IF jump-back chosen:** Update GUIDE.md, jump to affected stage, re-execute through Stage 6, return to this gate
+  → **IF continue chosen:** Document alternative in GUIDE.md, proceed to Phase 2
+
+→ IF "PROCEED": Document final confirmation, update GUIDE.md with Phase 1→2 transition, announce completion, move to Phase 2
 → IF issues: Determine which stage needs revision, revert to that stage, progress forward again through subsequent stages
 
 ---
@@ -7002,6 +7167,37 @@ When implementing tasks within phases:
 ```
 
 ### Step 2: Create Task Files for Each Feature
+
+**Check for Material Changes Before Task Creation:**
+
+Before decomposing features into tasks, verify features still align with confirmed Stage 1 use cases:
+
+**Review Stage 1 use cases** in `<worktree>/planning/use-cases.md` and compare with task breakdown plan.
+
+**IF task breakdown reveals features not in Stage 1 OR misses Stage 1 features:**
+  → Identify discrepancies
+  → Present consequences:
+    ```
+    ⚠️ MATERIAL CHANGE DETECTED in Phase 2-D Task Creation
+
+    Task breakdown doesn't align with Stage 1 use cases:
+    [Description: e.g., "Creating task for admin dashboard, but Stage 1 only covered user workflows"]
+
+    This means:
+    - Missing use case analysis in Stage 1
+    - Additional features creeping into scope
+    - OR: Features in Stage 1 not being implemented
+
+    Options:
+    1. Jump back to Stage 1 and add missing use cases (recommended if new features needed)
+    2. Remove extra tasks not in Stage 1 (strict scope adherence)
+    3. Document as Phase 2 expansion with rationale
+
+    What would you like to do?
+    ```
+  → **IF jump-back chosen:** Return to Stage 1, add use cases, re-confirm, return to Phase 2-D
+  → **IF remove tasks chosen:** Only create tasks for confirmed Stage 1 use cases
+  → **IF document expansion:** Add to GUIDE.md explaining why scope expanded, proceed with tasks
 
 **For each feature/use case from Stage 1**, create a task file in `<worktree>/planning/tasks-pending/`.
 
@@ -9451,6 +9647,36 @@ C. If boundary violation: User decides - keep and document, or delete and follow
 
 **When all items verified ✅:**
 
+**Check for Material Changes Before Phase Transition:**
+
+Before transitioning from Phase 2 to Phase 3, verify no material changes to earlier phases are needed:
+
+**IF during gate verification you discover inconsistencies that reveal earlier phase issues:**
+  → Identify affected phase/stage
+  → Present consequences:
+    ```
+    ⚠️ MATERIAL CHANGE DETECTED at Phase 2→3 Transition
+
+    Gate verification revealed an issue with [Phase/Stage X]:
+    [Description of inconsistency]
+
+    To fix this:
+    - Revisit: [affected phases/stages]
+    - Update: [affected planning artifacts]
+    - Re-verify: Updated artifacts align with all requirements
+
+    This should be fixed before implementation begins.
+
+    Options:
+    1. Jump back and fix now (recommended)
+    2. Document as known limitation and proceed
+    3. Explain impact in more detail
+
+    What would you like to do?
+    ```
+  → **IF jump-back chosen:** Update GUIDE.md, return to affected phase/stage, complete updates, re-run gate
+  → **IF continue chosen:** Document limitation in GUIDE.md Decision History, note technical debt, proceed to Phase 3
+
 1. **Final GUIDE.md update**:
    ```markdown
    ## Pre-Implementation Quality Gate: PASSED
@@ -9599,6 +9825,37 @@ TASK_FILE="<worktree>/planning/tasks-pending/task-NNN-[name].md"
 - Architecture patterns to apply
 
 #### Stage 2: Plan the Work
+
+**Check for Material Changes Before Implementation:**
+
+Before planning implementation, verify task still aligns with earlier confirmed planning:
+
+**Review task requirements** and compare with Phase 1-2 planning artifacts.
+
+**IF task implementation approach conflicts with confirmed architecture/requirements:**
+  → Identify the conflict
+  → Present consequences:
+    ```
+    ⚠️ MATERIAL CHANGE DETECTED at Task Implementation Start
+
+    Task {task_number} requires an approach that conflicts with earlier planning:
+    [Description: e.g., "Task needs real-time updates but Stage 3 architecture uses polling"]
+
+    This means:
+    - Architecture decision may be wrong for this use case
+    - Task spec may not reflect architectural constraints
+    - Implementation will diverge from planning
+
+    Options:
+    1. Jump back to Stage 3 and revise architecture (if pattern needed for multiple tasks)
+    2. Update this task's approach to match architecture (if task-specific issue)
+    3. Document architectural exception with rationale (technical debt)
+
+    What would you like to do?
+    ```
+  → **IF revise architecture:** Return to Stage 3, update architecture, re-confirm, return to task
+  → **IF update task:** Modify task approach to align with architecture, proceed
+  → **IF document exception:** Add to GUIDE.md Technical Debt, note in task completion, proceed
 
 **Determine what files to create or modify:**
 - Implementation files in `<worktree>/src/`
@@ -10716,6 +10973,36 @@ REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
 
 **ELSE (tasks-pending/ is empty):**
   All tasks complete!
+
+  **Check for Material Changes Before Phase Transition:**
+
+  Before transitioning from Phase 3 to Phase 4, verify implementation aligned with planning:
+
+  **IF implementation revealed issues with earlier planning:**
+    → Identify affected planning artifact
+    → Present consequences:
+      ```
+      ⚠️ MATERIAL CHANGE DETECTED at Phase 3→4 Transition
+
+      Implementation revealed an issue with [planning artifact]:
+      [Description: e.g., "Architecture assumed REST but implementation uses GraphQL"]
+
+      This means:
+      - Planning docs don't match implementation
+      - Future maintainers will be confused
+      - Technical debt documented
+
+      Options:
+      1. Update planning docs to match implementation (recommended)
+      2. Refactor implementation to match planning (expensive)
+      3. Document mismatch as technical debt and proceed
+
+      What would you like to do?
+      ```
+    → **IF update planning chosen:** Update affected artifacts, document why implementation diverged, proceed to Phase 4
+    → **IF refactor chosen:** Create new task, implement fix, re-run this check
+    → **IF document as debt:** Add to GUIDE.md Technical Debt section, proceed to Phase 4
+
   → **Update GUIDE.md** for Phase 3 → Phase 4 transition:
      * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 3 complete - all {tasks_total_count} tasks implemented successfully"
