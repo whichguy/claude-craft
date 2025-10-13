@@ -626,9 +626,10 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 
 **Knowledge Files (Timeless Understanding - no prefix):**
 - `<worktree>/planning/use-cases.md` - Primary + related use cases, anti-cases, interactions (Stage 1)
-- `<worktree>/planning/p1-stage-1-disambiguation.md` - Terminology clarifications, acronyms, scope boundaries (Stage 1.1)
-- `<worktree>/planning/p1-stage-1-research.md` - Dependencies, external services, actors, technical context (Stage 1.2)
-- `<worktree>/planning/p1-stage-1-constraints.md` - Contradictions resolved, constraints, assumptions (Stage 1.3)
+- `<worktree>/planning/p1-stage-1-disambiguation.md` - Terminology clarifications, acronyms, scope boundaries (Stage 1 Step 1)
+- `<worktree>/planning/p1-stage-1-deep-discovery.md` - System/library/repo deep discovery with loop, MCP exploration (Stage 1 Step 1.5)
+- `<worktree>/planning/p1-stage-1-research.md` - Dependencies, external services, actors, technical context (Stage 1 Step 3)
+- `<worktree>/planning/p1-stage-1-constraints.md` - Contradictions resolved, constraints, assumptions (Stage 1 Step 4)
 - `<worktree>/planning/requirements.md` - Functional + non-functional requirements with research and traceability (Stage 2)
 - `<worktree>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies (Stage 3)
 - `<worktree>/planning/tooling.md` - MCP servers, APIs, subagents, discovery + integration (Stage 3)
@@ -647,7 +648,7 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 - `<worktree>/README.md` - Project overview, setup, usage (updated with each feature in Phase 3)
 
 **Journal Files (Phase Activity Tracking - p<N>- prefix):**
-- `<worktree>/planning/p1-stage1-journal.md` - Stage 1 complete exploration: disambiguation, research, constraints, use cases
+- `<worktree>/planning/p1-stage1-journal.md` - Stage 1 complete exploration: disambiguation, deep discovery loop, research, constraints, use cases
 - `<worktree>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery: quality attributes, domain research, gaps
 - `<worktree>/planning/p1-stage3-journal.md` - Stage 3 architecture research and decisions
 - `<worktree>/planning/p1-stage4-journal.md` - Stage 4 assumption validation experiments
@@ -1135,9 +1136,10 @@ At stage/phase end, verify completion:
 **📤 Output Files:**
 - `<worktree>/planning/use-cases.md` (knowledge file - primary + related use cases with complete access paths, entry points, prerequisites, runtime lifecycle, exit points, API interaction lifecycle, anti-cases, and interactions)
 - `<worktree>/planning/p1-stage-1-disambiguation.md` (knowledge file - terminology clarifications)
+- `<worktree>/planning/p1-stage-1-deep-discovery.md` (knowledge file - deep system/library/repository discovery with iteration loop, MCP exploration)
 - `<worktree>/planning/p1-stage-1-research.md` (knowledge file - technical context, dependencies, actors)
 - `<worktree>/planning/p1-stage-1-constraints.md` (knowledge file - contradictions resolved, constraints)
-- `<worktree>/planning/p1-stage1-journal.md` (journal file - complete exploration: disambiguation, research, constraints, use cases)
+- `<worktree>/planning/p1-stage1-journal.md` (journal file - complete exploration: disambiguation, deep discovery loop, research, constraints, use cases)
 - `<worktree>/planning/GUIDE.md` (updated with Stage 1 confirmation and transition log)
 
 ---
@@ -1233,11 +1235,620 @@ IF user provides corrections:
 
 IF user confirms:
   → Mark disambiguations as validated in journal
-  → Proceed to Initial Research
+  → Proceed to Deep System Discovery Loop
 
 ---
 
-#### Step 2: Initial Research & Technical Context Discovery
+#### Step 1.5: Deep System Discovery Loop
+
+**With terminology clarified, systematically discover all referenced systems, libraries, repositories, and services.**
+
+This step goes deeper than high-level research - we clone repositories, read source code, explore MCP servers for remote system access, and loop until we've built comprehensive understanding of the ecosystem.
+
+**🎯 Purpose:** Build deep knowledge of all systems our epic depends on or integrates with, using actual source code analysis and iterative discovery rather than just documentation review.
+
+**📥 Input:**
+- `<worktree>/planning/p1-stage-1-disambiguation.md` (systems/libraries/services mentioned)
+- Epic description and user requirements
+- Existing codebase references
+
+**📤 Output:**
+- `<worktree>/planning/p1-stage-1-deep-discovery.md` (comprehensive system knowledge)
+- Cloned repositories in `/tmp/discovery-*` directories (ephemeral)
+- Updated journal with discovery iterations and findings
+
+---
+
+##### Phase A: System Identification
+
+**Scan all sources for system references:**
+
+**Sources to examine:**
+1. **Disambiguation document:** Read `p1-stage-1-disambiguation.md`
+   - Entity relationships often reveal system dependencies
+   - Scope boundaries identify external systems
+   - Domain terms may reference specific services/libraries
+
+2. **Epic description:** Re-read user's original request
+   - Explicit mentions of technologies, services, APIs
+   - Implicit references ("we need authentication" → auth services)
+
+3. **Existing codebase:** Search for patterns
+   ```bash
+   # Find import/require statements
+   rg "^(import|require|from|use)" --type js --type py --type go
+
+   # Find service/API references
+   rg "(api\.|service\.|client\.)" -i
+
+   # Find external service URLs/endpoints
+   rg "https?://" --type js --type json
+   ```
+
+4. **User's environment:** Ask about existing systems
+   - "What systems/services do you currently use that this might integrate with?"
+   - "Are there existing codebases I should be aware of?"
+   - "Do you have any internal libraries or frameworks I should review?"
+
+**Categorize discoveries:**
+
+**1. External Systems/Services:**
+- SaaS platforms (Stripe, Auth0, SendGrid, Twilio, AWS services)
+- APIs (REST, GraphQL, gRPC endpoints)
+- Databases (PostgreSQL, MongoDB, Redis instances)
+- Message queues (RabbitMQ, Kafka, SQS)
+
+**2. Libraries/Frameworks:**
+- npm packages, gems, PyPI packages mentioned
+- Framework choices implied (React, Express, FastAPI)
+- Utility libraries referenced
+
+**3. Local Repositories:**
+- Related codebases in organization
+- Legacy systems to integrate with or migrate from
+- Shared libraries or internal packages
+- Reference implementations
+
+**4. MCP Servers:**
+- Check Claude Code configured MCP servers (review available tools)
+- Identify MCP servers that provide access to remote systems
+- MCP servers that offer source code reading capabilities
+- Domain-specific MCP servers (mcp-stripe, mcp-database-tools, etc.)
+
+**Document to discovery file:**
+
+Write initial list to `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+
+```markdown
+# Deep System Discovery: [Epic Name]
+
+## Discovery Scope
+
+### External Systems/Services Identified
+- **[System Name]**: [Where mentioned, why relevant]
+
+### Libraries/Frameworks Identified
+- **[Library Name]**: [Where mentioned, purpose]
+
+### Local Repositories Identified
+- **[Repo Name/Path]**: [Where mentioned, relationship to epic]
+
+### MCP Servers Available
+- **[MCP Server Name]**: [What it provides access to]
+
+---
+
+## Discovery Iteration 1
+
+[To be populated in Phase B]
+```
+
+---
+
+##### Phase B: Key Questions Framework
+
+**For each discovered system, generate systematic questions:**
+
+**Question Categories (adapt based on system type):**
+
+**For External Systems/Services:**
+1. **Purpose & Capabilities**
+   - What is this system's primary responsibility?
+   - What operations/APIs does it expose?
+   - What data does it manage?
+
+2. **Integration Requirements**
+   - What authentication/authorization is required?
+   - What are the API patterns (REST, GraphQL, webhooks)?
+   - Are there SDKs or must we use raw HTTP?
+
+3. **Constraints & Limitations**
+   - What are rate limits (requests/second, daily quotas)?
+   - What are pricing tiers and their feature differences?
+   - What are known reliability issues or downtime patterns?
+
+4. **Version & Compatibility**
+   - What API version should we use?
+   - Are there breaking changes between versions?
+   - What's the deprecation timeline for old versions?
+
+5. **Patterns & Best Practices**
+   - How do others integrate with this system?
+   - What are common pitfalls or anti-patterns?
+   - Are there reference implementations we can study?
+
+**For Libraries/Frameworks:**
+1. **Core Functionality**
+   - What problem does this library solve?
+   - What are the core APIs and usage patterns?
+   - What's the learning curve and documentation quality?
+
+2. **Compatibility & Dependencies**
+   - Does it work with our chosen tech stack?
+   - What are its dependencies (potential conflicts)?
+   - What Node/Python/Go version is required?
+
+3. **Quality & Maintenance**
+   - Is it actively maintained (recent commits)?
+   - What's the community size (stars, downloads)?
+   - Are there open issues or security vulnerabilities?
+
+4. **Alternatives**
+   - Are there better alternatives we should consider?
+   - Why is this library recommended over others?
+   - What are trade-offs vs. alternatives?
+
+**For Local Repositories:**
+1. **Architecture & Structure**
+   - What does this codebase implement?
+   - What patterns and conventions does it follow?
+   - How is code organized (directory structure)?
+
+2. **Integration Points**
+   - Where would our epic connect to this codebase?
+   - What APIs or interfaces does it expose?
+   - What data formats does it expect/produce?
+
+3. **Reusability Analysis**
+   - What components can we reuse?
+   - What patterns should we follow?
+   - What should we avoid (technical debt areas)?
+
+4. **Maintenance & Ownership**
+   - Who maintains this codebase?
+   - What's the update frequency?
+   - Are there planned changes that might affect us?
+
+**For MCP Servers:**
+1. **Access & Capabilities**
+   - What remote systems does this MCP server access?
+   - What operations/tools does it provide?
+   - Does it offer source code reading capabilities?
+
+2. **Setup Requirements**
+   - Is it already configured in Claude Code?
+   - What authentication is needed?
+   - Are there usage limits or constraints?
+
+3. **Discoverability**
+   - What systems can we explore through this MCP server?
+   - Can we read configuration files or documentation?
+   - Can we analyze remote codebases?
+
+**Document questions to discovery file:**
+
+Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+
+```markdown
+## Discovery Iteration 1
+
+### Key Questions Generated
+
+**[System Name]:**
+- [Question 1]
+- [Question 2]
+- [Question 3]
+...
+
+**[Library Name]:**
+- [Question 1]
+- [Question 2]
+...
+
+[Repeat for all identified systems]
+```
+
+---
+
+##### Phase C: Parallel Discovery Execution
+
+**Execute discovery tasks in parallel for maximum efficiency.**
+
+Launch multiple discovery operations simultaneously - WebSearch, repository cloning, MCP server exploration, source code analysis - then consolidate findings.
+
+**🔄 Parallel Discovery Operations:**
+
+**1. External System/Service Discovery:**
+
+```bash
+# Web research (use WebSearch tool in parallel)
+# - "[Service name] API documentation latest version"
+# - "[Service name] integration best practices [current year]"
+# - "[Service name] rate limits and pricing tiers"
+# - "site:github.com [service name] [language] integration example"
+# - "[Service name] common issues stackoverflow"
+
+# MCP server exploration (if service-specific MCP server available)
+# - Use MCP server to query service configuration
+# - Read service documentation via MCP tools
+# - Explore service APIs through MCP access
+```
+
+**Document findings:**
+- Official API documentation URLs
+- Rate limits, quotas, pricing tiers
+- Authentication requirements (OAuth, API keys, etc.)
+- Integration patterns found in examples
+- Known issues or limitations discovered
+
+**2. Library/Framework Analysis:**
+
+```bash
+# Web research (use WebSearch in parallel)
+# - "[Library name] official documentation"
+# - "[Library name] npm/PyPI/cargo/etc latest version"
+# - "site:github.com [library name] repo"
+# - "[Library name] vs [alternative] comparison"
+# - "[Library name] production issues [current year]"
+
+# Package registry check
+npm view [package-name] versions
+npm view [package-name] dependencies
+# Or: pip show, cargo search, gem list, etc.
+```
+
+**Document findings:**
+- Current stable version and release notes
+- Core APIs and usage patterns
+- Dependencies and compatibility requirements
+- Community health (stars, downloads, recent activity)
+- Known issues or security vulnerabilities
+- Recommended alternatives and trade-offs
+
+**3. Local Repository Deep Dive:**
+
+**🔍 This is where we go DEEP - actually clone and analyze source code.**
+
+```bash
+# Clone repository (use appropriate path/URL)
+git clone [repo-url] /tmp/discovery-[repo-name]
+# Or for local repos: cp -r /path/to/repo /tmp/discovery-[repo-name]
+
+cd /tmp/discovery-[repo-name]
+
+# Understand structure
+tree -L 3 -I 'node_modules|.git|dist|build'
+
+# Find entry points
+rg "^(export function|export class|module.exports|def |class |public )" --type js --type py
+
+# Identify key patterns
+rg "[pattern-of-interest]" -A 3 -B 3 --type [lang]
+
+# Check dependencies
+cat package.json | jq '.dependencies'
+cat requirements.txt
+cat go.mod
+
+# Find integration points
+rg "(api|service|client|interface|endpoint)" -i --type [lang]
+
+# Find configuration
+cat .env.example 2>/dev/null || cat config/*.json 2>/dev/null || echo "No config found"
+
+# Check documentation
+cat README.md | head -100
+find . -name "*.md" -type f | head -10
+```
+
+**Document findings:**
+- **Architecture**: Directory structure, main components
+- **Entry Points**: Main files, exported APIs/functions
+- **Patterns**: Code organization, naming conventions, design patterns used
+- **Dependencies**: External libraries used, version requirements
+- **Integration Points**: APIs exposed, data formats, communication patterns
+- **Configuration**: Environment variables, config files, setup requirements
+- **Technical Debt**: TODOs, FIXMEs, deprecated code warnings
+- **Documentation**: README content, inline docs, architecture diagrams found
+
+**4. MCP Server Exploration:**
+
+```bash
+# Check available MCP servers in Claude Code
+# (This happens through Claude Code's interface, not bash)
+
+# For each relevant MCP server:
+# 1. Test connectivity
+# 2. List available tools/operations
+# 3. Use tools to explore remote systems
+# 4. Read remote source code if available
+# 5. Query remote configuration/documentation
+```
+
+**Document findings:**
+- **MCP Server**: Name and capabilities
+- **Remote System Access**: What systems we can explore
+- **Operations Available**: Tools/commands provided
+- **Source Code Access**: Can we read remote codebases? Which ones?
+- **Configurations Found**: Remote system settings discovered
+- **Integration Opportunities**: How MCP server can help in implementation
+
+---
+
+##### Phase D: Findings Consolidation
+
+**Synthesize all parallel discovery results into structured knowledge.**
+
+For each system/library/repo/MCP server, consolidate discovery findings into a coherent understanding.
+
+**Update discovery file:**
+
+Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+
+```markdown
+## Discovery Iteration 1
+
+### Discovery Findings
+
+**[System/Library/Repo Name]:**
+
+**Purpose & Role:**
+[What it does in the ecosystem, why it's relevant to our epic]
+
+**Key Capabilities:**
+- [Capability 1]: [Description]
+- [Capability 2]: [Description]
+
+**Integration Patterns Discovered:**
+[How we'll interact with it - API calls, SDK usage, direct integration]
+- **Pattern**: [Specific approach]
+- **Example**: [Code example or reference from discovery]
+
+**Constraints & Limitations:**
+- **Rate Limits**: [If applicable]
+- **Compatibility**: [Version requirements, platform restrictions]
+- **Licensing**: [License type if relevant]
+- **Pricing**: [Cost considerations if SaaS]
+
+**Risks & Concerns:**
+- **[Risk]**: [Description and potential impact]
+- **[Concern]**: [Description and mitigation approach]
+
+**Dependencies:**
+- **Depends On**: [What this system needs]
+- **Depended On By**: [What depends on this system]
+
+**Code Patterns Found:** *(for repositories)*
+- **[Pattern Name]**: [Description, file:line references]
+- **Reusable Components**: [What we can leverage]
+- **Anti-Patterns**: [What to avoid]
+
+**Source Code Insights:** *(for repositories)*
+- **Architecture**: [High-level structure]
+- **Key Files**: [Important files with line numbers]
+- **Integration APIs**: [Functions/classes we'll use]
+
+**MCP Access Insights:** *(for MCP servers)*
+- **Remote Systems Accessible**: [List]
+- **Operations Performed**: [What we learned]
+- **Source Code Read**: [Files/repos examined via MCP]
+
+**Documentation References:**
+- [URL 1]: [Brief description]
+- [URL 2]: [Brief description]
+- [File path if local repo]: [Description]
+
+**Open Questions:**
+- [Question 1 still unanswered]
+- [Question 2 requiring deeper investigation]
+
+---
+
+[Repeat for all systems discovered in this iteration]
+```
+
+**Consolidation tips:**
+- Link related systems (e.g., "Service A uses Library B")
+- Note conflicts (e.g., "Library X conflicts with Library Y")
+- Identify patterns across multiple systems
+- Highlight surprises or unexpected discoveries
+
+---
+
+##### Phase E: Loop Decision Point
+
+**Analyze consolidated findings to determine if another discovery iteration is needed.**
+
+**🔍 Loop Triggers (Continue to Iteration 2 if YES to any):**
+
+1. **New Systems Discovered:**
+   - Did source code analysis reveal additional libraries/services not previously identified?
+   - Did MCP server exploration uncover related remote systems to investigate?
+   - Did external service documentation reference other services we depend on?
+
+   **Example:** "Analyzed payment-service repo, found it uses Kafka message queue (not previously known). Need to research Kafka integration."
+
+2. **Integration Dependencies Found:**
+   - Do discovered systems have dependencies we haven't researched yet?
+   - Are there middleware or gateway systems between us and external services?
+
+   **Example:** "Stripe integration requires webhook handling via AWS Lambda (not in original scope). Need to research Lambda setup."
+
+3. **Code Pattern Discoveries:**
+   - Did repository analysis reveal framework or library usage not documented?
+   - Are there internal abstractions or wrappers we should understand?
+
+   **Example:** "Legacy codebase uses custom ORM wrapper around Sequelize. Need to analyze wrapper code to understand patterns."
+
+4. **MCP Server New Leads:**
+   - Did MCP server provide access to additional systems worth exploring?
+   - Can we use MCP to read source code of newly discovered dependencies?
+
+   **Example:** "MCP server showed remote config references Redis cache. Can use MCP to read Redis setup scripts."
+
+5. **Significant Knowledge Gaps:**
+   - Are there critical unknowns that block architectural decisions?
+   - Do we need deeper understanding before proceeding to use case definition?
+
+   **Example:** "Don't understand auth0 tenant configuration strategy. Need to research auth0 multi-tenant patterns."
+
+**Decision Logic:**
+
+```
+**IF any loop triggers are TRUE:**
+  → Document new systems in "New Systems Discovered This Iteration" section
+  → Generate key questions for new systems
+  → Execute parallel discovery for new systems (return to Phase C)
+  → Consolidate new findings (Phase D)
+  → Re-evaluate loop decision (Phase E)
+
+**IF no significant loop triggers:**
+  → Mark deep discovery complete
+  → Update journal with final iteration count and summary
+  → Proceed to Step 3 (Initial Research - renumbered from Step 2)
+```
+
+**Loop Safeguard:**
+
+Maximum 3 iterations to prevent infinite discovery loops.
+
+After 3 iterations:
+- Document remaining unknowns in "Remaining Gaps" section
+- Mark these gaps as assumptions to validate in Stage 4
+- Proceed to Step 3 with accumulated knowledge
+
+**Document loop decision:**
+
+Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+
+```markdown
+### Iteration 1 Loop Decision
+
+**New Systems Discovered:**
+- [System name]: [Why we need to investigate]
+- [System name]: [Reason]
+
+**Decision:** CONTINUE to Iteration 2
+
+---
+
+## Discovery Iteration 2
+
+[Repeat Phases B, C, D, E for new systems]
+
+---
+
+### Final Loop Decision
+
+**New Systems Discovered:** None significant
+
+**Remaining Gaps:**
+- [Gap 1]: [Will address as assumption in Stage 4]
+- [Gap 2]: [Will validate in Stage 3 architecture research]
+
+**Decision:** COMPLETE - Proceed to Step 3 (Initial Research)
+```
+
+**Update journal:**
+
+Write to `<worktree>/planning/p1-stage1-journal.md`:
+
+```markdown
+### Deep System Discovery Loop (Step 1.5) - COMPLETE
+
+**Iteration Count:** [1-3]
+
+**Systems Discovered Across All Iterations:**
+- External Systems: [Count] - [List key ones]
+- Libraries/Frameworks: [Count] - [List key ones]
+- Local Repositories: [Count] - [List repos analyzed]
+- MCP Servers Used: [Count] - [List servers that provided access]
+
+**Repositories Cloned & Analyzed:**
+- `/tmp/discovery-[repo1]`: [Key findings summary]
+- `/tmp/discovery-[repo2]`: [Key findings summary]
+
+**MCP Server Exploration:**
+- **[MCP Server Name]**: Provided access to [systems/source code]
+- **Key Discovery**: [Major finding via MCP]
+
+**Major Findings:**
+1. [Finding 1 that impacts planning]
+2. [Finding 2 that changes approach]
+3. [Finding 3 that reveals risk]
+
+**Integration Map Developed:**
+[Brief description of how all discovered systems relate]
+
+**Remaining Gaps (To Address Later):**
+- [Gap 1] - Will validate in Stage 4
+- [Gap 2] - Will research in Stage 3
+
+**Time Investment:** [Honest estimate of discovery effort]
+
+**Value Delivered:** [How this discovery will prevent issues later]
+```
+
+---
+
+**Present discovery summary to user:**
+
+"🔍 **Stage 1.5: Deep System Discovery** (Complete after [X] iterations)
+
+I've conducted deep discovery of all systems, libraries, and repositories relevant to this epic:
+
+**Systems Explored:**
+- **External Services**: [Count] services researched (Stripe, Auth0, etc.)
+- **Libraries/Frameworks**: [Count] libraries analyzed (versions, compatibility)
+- **Local Repositories**: [Count] codebases cloned and analyzed
+- **MCP Servers**: [Count] servers used to access remote systems
+
+**Key Discoveries:**
+1. [Major finding 1 - e.g., "Legacy checkout codebase uses Stripe API v2019, we'll need to upgrade"]
+2. [Major finding 2 - e.g., "Found internal authentication wrapper that we should reuse"]
+3. [Major finding 3 - e.g., "Kafka message queue required for async order processing"]
+
+**Integration Patterns Found:**
+[Describe key patterns discovered in source code analysis that will guide our implementation]
+
+**Risks Identified:**
+[Call out potential integration challenges discovered during deep dive]
+
+**Remaining Questions:**
+[List gaps we'll address in subsequent stages]
+
+**Quality Gate:** Based on this deep discovery, do these findings match your understanding? Are there other systems I should investigate?"
+
+**Confirmation Loop:**
+
+IF user identifies additional systems:
+  → Add to discovery list
+  → Execute one more discovery iteration
+  → Re-present findings
+  → LOOP until user satisfied
+
+IF user confirms:
+  → Mark deep discovery complete in journal
+  → Update GUIDE.md with discovery summary
+  → Proceed to Step 3 (Initial Research)
+
+---
+
+#### Step 3: Initial Research & Technical Context Discovery
+
+**NOTE:** This step is now lighter than before, as Step 1.5 handled deep discovery.
+
+**Now that we have deep system knowledge, synthesize high-level technical context.**
 
 **Now that terminology is clear, research the technical landscape.**
 
@@ -1433,7 +2044,7 @@ IF user confirms:
 
 ---
 
-#### Step 3: Constraint Detection & Conflict Resolution
+#### Step 4: Constraint Detection & Conflict Resolution
 
 **With research complete, analyze for contradictions before designing use cases.**
 
@@ -1556,7 +2167,7 @@ IF no contradictions OR all resolved:
 
 ---
 
-#### Step 4: Use Case Extraction & Documentation
+#### Step 5: Use Case Extraction & Documentation
 
 **With clarity established and conflicts resolved, now extract use cases.**
 
@@ -1695,7 +2306,7 @@ UI Style Decision:
 
 ---
 
-#### Step 5: Use Case Research & Expansion
+#### Step 6: Use Case Research & Expansion
 
 **With initial use cases identified, research to discover the complete use case landscape.**
 
@@ -5742,7 +6353,13 @@ Based on technologies chosen in Stage 3 architecture.md, research official and c
    - "how to organize multiple [language] repositories"
    - Look for: cross-repo communication patterns, shared code strategies
 
-5. **Reconcile conventions with poly repo strategy:**
+5. **Research MCP server organization patterns (use WebSearch):**
+   - "[framework] MCP server deployment patterns"
+   - "MCP server repository organization best practices"
+   - "MCP server co-location vs standalone repository"
+   - Look for: service-specific vs shared server patterns, versioning strategies
+
+6. **Reconcile conventions with poly repo strategy:**
    - Identify conflicts between framework conventions and poly repo needs
    - Determine which conventions to follow vs. adapt
    - Document rationale for deviations
@@ -5801,6 +6418,21 @@ This project follows a **poly repo approach** (multiple related repositories, ea
   - What shared libraries or dependencies exist across repositories?
   - How will services communicate? (APIs, events, shared databases?)
   - What documentation lives in each repository vs. centralized?
+
+- **MCP server organization:**
+  - **Co-located pattern**: MCP server code lives in same repository as service it supports
+    * Benefits: Version coupling, easier development, single deployment unit
+    * Use when: MCP server is tightly coupled to specific service/API
+    * Example structure: `<worktree>/mcp/` alongside `<worktree>/src/`
+  - **Standalone pattern**: Dedicated repository per MCP server
+    * Benefits: Independent versioning, reusable across projects, clear boundaries
+    * Use when: MCP server provides general-purpose functionality
+    * Example: Separate repo `mcp-database-tools` used by multiple services
+  - **Shared server pattern**: Single repository hosting multiple related MCP servers
+    * Benefits: Reduced repo overhead, shared infrastructure, cohesive tooling
+    * Use when: Multiple small MCP servers share common dependencies
+    * Example: `mcp-cloud-tools` repo hosting AWS/Azure/GCP tool servers
+  - **Decision factors:** Development workflow, deployment strategy, versioning needs, reusability, team ownership
 
 **Document the structure** to `<worktree>/planning/project-structure.md`:
 
@@ -5867,6 +6499,37 @@ This project structure follows [framework/language] conventions with specific ad
 - [API endpoints exposed to other repositories]
 - [Shared data models or contracts]
 - [Events published/subscribed across repositories]
+
+## MCP Server Organization
+
+**MCP Server Strategy:** [Co-located | Standalone | Shared]
+
+**Rationale:** [Why this organization chosen - development workflow, deployment needs, reusability, team ownership]
+
+**MCP Server Location (if co-located):**
+\`\`\`
+<worktree>/
+├── src/                    # Service implementation code
+├── mcp/                    # MCP server code (if co-located)
+│   ├── server.js          # MCP server entry point
+│   ├── tools/             # MCP tool implementations
+│   │   ├── tool-one.js
+│   │   └── tool-two.js
+│   ├── config/            # MCP server configuration
+│   └── README.md          # MCP server documentation
+├── test/                   # Tests (including MCP tool tests)
+└── ...
+\`\`\`
+
+**Related MCP Server Repositories (if standalone/shared):**
+- [Repository name]: [Purpose and capabilities]
+- [How this service integrates with MCP servers in other repos]
+
+**MCP Server Integration Points:**
+- [Which operations this service exposes via MCP tools]
+- [Which MCP tools in other repos this service uses]
+- [Versioning strategy for MCP server APIs]
+- [Authentication/authorization for MCP tool access]
 
 ## Task-Based Development Structure
 \`\`\`
@@ -6070,6 +6733,13 @@ How this repository's layout integrates with other repositories:
 
 **This Repository's Role:**
 [Describe what this specific repository handles in the poly repo architecture and how structure reflects that]
+
+**MCP Server Organization:**
+- MCP server location strategy: [co-located with service, standalone repo, shared repo - document choice with rationale]
+- MCP server structure: [where server code lives if co-located: mcp/, tools/, servers/]
+- MCP server versioning: [how MCP server versions relate to service versions]
+- MCP server dependencies: [shared dependencies between MCP servers if applicable]
+- Integration points: [which service operations exposed via MCP, which external MCP tools consumed]
 
 ### Deviations from Standard Conventions
 [If deviating from official/community conventions, explain why]
@@ -6668,6 +7338,8 @@ Review automation tools for quality validation:
 ### [Server Name 1]
 - **Capabilities**: [What it provides]
 - **When Used**: [Which phases/iterations]
+- **Repository Organization**: [Co-located in this repo at ./mcp/ | Standalone repo at <URL> | Part of shared server repo at <URL>]
+- **Organization Rationale**: [Why this organization - matches project-structure.md MCP Server Strategy]
 - **Setup Required**:
   - Installation: [npm install command or instructions]
   - Configuration: [Config files, environment variables]
@@ -9439,6 +10111,358 @@ Tier Final: ░░░░░░░░░░░░░░░░░ 0% (waiting for 
 
 **Present to user as part of task roadmap**:
 This execution strategy shows how tasks can be executed in parallel to dramatically reduce total implementation time.
+
+---
+
+### Step 3c: Holistic Quality Review
+
+**Purpose**: Perform comprehensive quality review of all created tasks to ensure they work together as a coherent, consistent, complete whole before presenting to user.
+
+**🔍 This review goes beyond coverage** (Step 3 verified all use cases/requirements are covered). Now we verify the tasks work together logically, are consistent in quality, and form a sensible implementation plan.
+
+---
+
+#### Quality Review Dimensions
+
+**Review all tasks systematically across 8 dimensions:**
+
+**1. Logical Coherence**
+
+Do tasks flow logically and build on each other sensibly?
+
+**Check for:**
+- Foundation → features → integration progression makes sense
+- No conceptual gaps (e.g., creates users but no authentication?)
+- Tasks build on each other in intuitive order
+- No logical contradictions between tasks
+
+**Example Issues:**
+- "Task 003 creates invoices, but no task creates products to invoice"
+- "Task 010 references 'user sessions' but no task establishes session management"
+
+**2. Consistency Verification**
+
+Are all tasks documented with similar quality and format?
+
+**Check for:**
+- Task descriptions: Similar style, tone, level of detail
+- Acceptance criteria: Consistent format (all use checklists, or all use bullets)
+- Test requirements: Consistent specificity (all reference test-plan.md)
+- Quality gates: All reference same criteria thresholds
+- Language: Consistent terminology throughout
+
+**Example Issues:**
+- "Tasks 001-005 have 10-line descriptions; Tasks 006-010 have 2-line descriptions"
+- "Task 003 says 'users', Task 007 says 'accounts' - inconsistent terminology"
+
+**3. Completeness Beyond Coverage**
+
+Does each task feel complete as a vertical slice?
+
+**Check for:**
+- Implementation scopes well-defined (UI/API/Schema/Service/Data layers specified)
+- Edge cases from requirements addressed in relevant tasks
+- Error handling approaches specified
+- Each task has entry/exit conditions clear
+
+**Example Issues:**
+- "Task 005 mentions 'data validation' but doesn't specify what validates or where"
+- "Task 008 creates API endpoint but doesn't specify authentication requirements"
+
+**4. Dependency Logic**
+
+Are dependencies necessary, minimal, and logical?
+
+**Check for:**
+- Dependencies reflect actual technical constraints (not arbitrary)
+- No unnecessary dependencies blocking parallelization
+- No circular dependencies
+- Dependencies documented with clear reasons
+
+**Example Issues:**
+- "Task 010 depends on Task 009, but they touch completely different code"
+- "Task 005 → Task 006 → Task 005 circular dependency"
+
+**5. Scope Balance**
+
+Are tasks roughly similar in size and complexity?
+
+**Check for:**
+- Tasks range from 1-3 days of work (similar magnitude)
+- No tasks obviously too large (need splitting)
+- No tasks obviously too small (could merge with others)
+- Complexity reasonably distributed across tasks
+
+**Example Issues:**
+- "Task 003 implements entire auth system (too large, split into 3-4 tasks)"
+- "Task 012 just adds one field to form (too small, merge with Task 011)"
+
+**6. User Value Verification**
+
+Does each task deliver tangible user value?
+
+**Check for:**
+- Value proposition clear for each task
+- No purely "technical debt" tasks (should be absorbed into feature tasks)
+- Each task represents a testable, demonstrable feature
+- Tasks map to user-visible capabilities
+
+**Example Issues:**
+- "Task 007 'Refactor database layer' - no user value, should be part of feature task"
+- "Task 014 description doesn't explain what user can do after completion"
+
+**7. Integration Points**
+
+Are integration points between tasks clearly specified?
+
+**Check for:**
+- Tasks specify what they export/provide to other tasks
+- Shared resources (DB schemas, APIs, contracts) documented
+- Data contracts between tasks defined
+- Integration assumptions explicit
+
+**Example Issues:**
+- "Task 003 and Task 010 both mention 'user API' but don't specify contract"
+- "Task 006 expects 'validated data' from Task 005 but validation rules not specified"
+
+**8. Cross-Cutting Concerns**
+
+Are cross-cutting concerns consistently addressed?
+
+**Check for:**
+- **Authentication/Authorization**: Addressed in relevant tasks?
+- **Logging/Monitoring**: Mentioned where needed?
+- **Error Handling**: Consistent approach across tasks?
+- **Performance**: Addressed in performance-sensitive tasks?
+- **Security**: Addressed in security-sensitive tasks?
+- **Accessibility**: Mentioned in UI tasks?
+- **Internationalization**: Mentioned if required?
+
+**Example Issues:**
+- "Tasks 003, 007, 011 create API endpoints but only Task 003 mentions auth"
+- "No tasks mention logging, monitoring, or observability"
+
+---
+
+#### Quality Review Process
+
+**Step-by-step review procedure:**
+
+**1. Sequential Read-Through:**
+```bash
+# Read all task files in order
+for file in "<worktree>/planning/tasks-pending/"*.md; do
+    echo "=== Reviewing: $file ==="
+    cat "$file" | grep -E "^#|Feature Description|Implementation Scope|Dependencies|Quality Gates"
+done
+```
+
+Read through ALL task files sequentially, taking notes on issues.
+
+**2. Issue Categorization:**
+
+For each issue found, categorize by severity:
+
+- **🚫 BLOCKER**: Prevents implementation
+  * Missing integration point/contract
+  * Circular dependency
+  * Contradictory requirements
+  * Missing critical task
+
+- **⚠️ MAJOR**: Reduces quality significantly
+  * Inconsistent formats
+  * Unclear scope
+  * Unbalanced task sizes
+  * Missing cross-cutting concern
+
+- **ℹ️ MINOR**: Polish issue
+  * Typo in description
+  * Formatting inconsistency
+  * Minor clarity improvement needed
+
+**3. Fix Issues:**
+
+- **BLOCKER issues**: Fix immediately, update task files
+- **MAJOR issues**: Fix before user presentation
+- **MINOR issues**: Document for optional post-presentation cleanup
+
+**4. Document Review:**
+
+Append to `<worktree>/planning/p2d-task-breakdown-journal.md`:
+
+```markdown
+## Holistic Quality Review
+
+**Review Date**: [ISO 8601 timestamp]
+**Tasks Reviewed**: [N] tasks
+**Reviewer**: Claude (craft workflow)
+
+### Review Results by Dimension
+
+**1. Logical Coherence**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: logical flow verified, no conceptual gaps found]
+[Or: Issues found and fixed: ...]
+
+**2. Consistency**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: all tasks use consistent format and terminology]
+[Or: Issues found and fixed: ...]
+
+**3. Completeness**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: all tasks feel complete as vertical slices]
+[Or: Issues found and fixed: ...]
+
+**4. Dependencies**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: dependencies logical and minimal, no circular deps]
+[Or: Issues found and fixed: ...]
+
+**5. Scope Balance**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: tasks range 1-3 days, reasonable distribution]
+[Or: Issues found and fixed: ...]
+
+**6. User Value**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: each task delivers clear user value]
+[Or: Issues found and fixed: ...]
+
+**7. Integration Points**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: contracts clear between dependent tasks]
+[Or: Issues found and fixed: ...]
+
+**8. Cross-Cutting Concerns**: ✅ PASS / ⚠️ ISSUES FOUND
+[Notes: auth, logging, error handling consistently addressed]
+[Or: Issues found and fixed: ...]
+
+### Issues Found and Resolved
+
+**BLOCKER Issues Fixed:**
+- [None] / [List specific issues and how fixed]
+
+**MAJOR Issues Fixed:**
+- [None] / [List specific issues and how fixed]
+
+**MINOR Issues Deferred:**
+- [None] / [List issues to address later if needed]
+
+### Quality Assessment
+
+**Overall Result**: ✅ READY FOR USER REVIEW / ⚠️ NEEDS REWORK
+
+[If READY]: All dimensions pass or have only minor issues. Task breakdown is coherent, consistent, and complete.
+
+[If NEEDS REWORK]: Critical issues remain. Re-running quality review after fixes.
+```
+
+**5. Quality Gate Decision:**
+
+```markdown
+**IF all dimensions pass (✅) or have MINOR issues only (ℹ️):**
+  → Document quality review results in journal
+  → Mark quality review complete
+  → Proceed to Step 4: Present Task Roadmap to User
+
+**IF any BLOCKER (🚫) or MAJOR (⚠️) issues remain:**
+  → Fix all BLOCKER and MAJOR issues
+  → Update affected task files
+  → Re-run quality review from step 1
+  → LOOP until all dimensions pass
+  → Then proceed to Step 4
+```
+
+---
+
+#### Example Quality Issues & Resolutions
+
+**Example 1: Missing Integration Contract (BLOCKER)**
+
+**Issue Found:**
+- Task 003 (User Authentication) exports "authenticated user object"
+- Task 010 (User Profile) expects "user data"
+- Contract not specified: What fields? What format? What authentication state?
+
+**Resolution:**
+- Add to Task 003: "Exports: User object with fields {id, email, roles[], token, sessionId}"
+- Update Task 010: "Depends on: Task 003 authenticated user object (see Task 003 for schema)"
+- Document contract in integration points section
+
+**Example 2: Inconsistent Detail Level (MAJOR)**
+
+**Issue Found:**
+- Tasks 001-005: Detailed 10-line feature descriptions with context
+- Tasks 006-010: Brief 2-line descriptions with no context
+
+**Resolution:**
+- Expand Tasks 006-010 feature descriptions to match detail level
+- Add context explaining why each task matters
+- Ensure consistent section structure across all tasks
+
+**Example 3: Unbalanced Scope (MAJOR)**
+
+**Issue Found:**
+- Task 007: "Implement complete invoice management system" (too large - 2 weeks)
+- Task 008: "Add tooltip to button" (too small - 30 minutes)
+
+**Resolution:**
+- Split Task 007 into:
+  * Task 007a: Invoice creation
+  * Task 007b: Invoice editing
+  * Task 007c: Invoice listing
+  * Task 007d: Invoice deletion
+- Merge Task 008 into larger UI refinement task with other small UI improvements
+
+**Example 4: Missing Cross-Cutting Concern (MAJOR)**
+
+**Issue Found:**
+- Tasks 003, 007, 011, 015 all create API endpoints
+- Only Task 003 mentions authentication
+- No consistency on error handling, logging
+
+**Resolution:**
+- Add authentication section to Tasks 007, 011, 015 referencing Task 003 auth approach
+- Add error handling section to all API tasks specifying format (using problem details RFC 7807)
+- Add logging requirement to all tasks: "Use structured logging with correlation IDs"
+
+**Example 5: Logical Gap (BLOCKER)**
+
+**Issue Found:**
+- Task 010 creates "invoice approval workflow"
+- No task creates "invoice status state machine" that approval workflow depends on
+
+**Resolution:**
+- Insert new Task 009b: "Invoice Status State Machine"
+- Update Task 010 to depend on Task 009b
+- Renumber subsequent tasks
+- Document state transitions in Task 009b
+
+**Example 6: Circular Dependency (BLOCKER)**
+
+**Issue Found:**
+- Task 012 depends on Task 015 (user notifications)
+- Task 015 depends on Task 012 (invoice events trigger notifications)
+
+**Resolution:**
+- Identify actual sequence: Invoice events → Notification system
+- Remove Task 015 dependency on Task 012
+- Task 012 exports events, Task 015 subscribes to them
+- Document event contract in both tasks
+
+---
+
+**After Quality Review Completes:**
+
+Mark in journal:
+```markdown
+## Quality Review Complete
+
+**Status**: ✅ READY FOR USER PRESENTATION
+**Tasks Reviewed**: [N]
+**Issues Resolved**: [M]
+**Date**: [timestamp]
+
+All [N] task files have been reviewed across 8 quality dimensions. Tasks are logically coherent, consistently documented, complete as vertical slices, with clear integration points and appropriate coverage of cross-cutting concerns.
+
+Ready to present task breakdown to user for confirmation.
+```
+
+Proceed to Step 4: Present Task Roadmap to User.
 
 ---
 
