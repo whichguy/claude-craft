@@ -214,6 +214,43 @@ We started with an epic or task description, seeking to understand what needs to
 
 ## Current Session State
 
+**🗺️ Visual Workflow Map**
+
+```mermaid
+graph TD
+    Start[🌱 Start: Task Description] --> P1[Phase 1: Understanding]
+    P1 --> S1[Stage 1: Use Cases]
+    S1 --> S2[Stage 2: Requirements]
+    S2 --> S3[Stage 3: Architecture]
+    S3 --> S4[Stage 4: Assumptions]
+    S4 --> S5[Stage 5: Effects & Boundaries]
+    S5 --> S6[Stage 6: Synthesis]
+    S6 --> P2[Phase 2: Planning]
+    P2 --> P2A[Phase 2: Quality Criteria]
+    P2A --> P2B[Phase 2-B: Test Plan]
+    P2B --> P2C[Phase 2-C: Infrastructure]
+    P2C --> P2D[Phase 2-D: Task Breakdown]
+    P2D --> Gate[🚪 Pre-Implementation Gate]
+    Gate -->|Pass| P3[Phase 3: Implementation]
+    Gate -->|Fail| Review[Review & Fix Issues]
+    Review --> P1
+    P3 --> Loop[Task Loop: Plan→Experiment→TDD→Verify]
+    Loop -->|More Tasks| Loop
+    Loop -->|All Complete| P4[Phase 4: Delivery]
+    P4 --> Done[✅ Complete]
+
+    style Start fill:#e1f5e1
+    style Done fill:#e1f5e1
+    style Gate fill:#fff3cd
+    style P3 fill:#cfe2ff
+```
+
+**⚠️ DIRECTIVE: Update this chart when workflow changes**
+- Add/remove stages or phases as they evolve
+- Highlight current position with `style CurrentNode fill:#ffcccc`
+- Update connections if dependencies or gates change
+- Keep visual representation synchronized with actual progress
+
 **📊 Overall Progress Tracking**
 
 **Completion Metrics:**
@@ -429,6 +466,41 @@ This is learning, not failure. Explicitly acknowledge: "What I just learned in S
 **Trust the Process:**
 Six stages might seem like a lot, but each one adds crucial understanding. Rushing through them means building on a shaky foundation. Taking time here saves massive rework during implementation.
 
+## ⚠️ Critical Operational Rules: Directory Isolation
+
+**ABSOLUTE RULES - NO EXCEPTIONS:**
+
+**🚫 NEVER change directories:**
+- ❌ DO NOT use `cd` command
+- ❌ DO NOT use `pushd` or `popd` commands
+- ❌ DO NOT change working directory in any way
+
+**✅ ALWAYS use full paths with `<worktree>` prefix:**
+- ✅ File operations: `"<worktree>/planning/file.md"`
+- ✅ Git operations: `git -C "<worktree>" [command]`
+- ✅ All paths must be absolute, never relative
+
+**Why this matters:**
+- Prevents directory state corruption
+- Maintains isolation from original project location
+- Enables safe parallel operations
+- Ensures all operations target correct worktree
+
+**Examples:**
+```bash
+# CORRECT - Always use <worktree> prefix
+Write: "<worktree>/planning/requirements.md"
+Read: "<worktree>/src/module.js"
+Git: git -C "<worktree>" status
+
+# WRONG - Never do this
+cd <worktree>           # ❌ NEVER
+git status              # ❌ NEVER (missing -C "<worktree>")
+../planning/file.md     # ❌ NEVER (relative path)
+```
+
+**Every command. Every file. Every operation. Use `<worktree>` prefix and `git -C`.**
+
 ## If You Feel Lost
 
 **First, Take a Breath:**
@@ -470,6 +542,7 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 - `<worktree>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials (Phase 2-C)
 - `<worktree>/planning/execution-strategy.md` - Parallel execution strategy, tier-based task organization, timeline estimates (Phase 2-C)
 - `<worktree>/planning/implementation-steps.md` - Task ordering, dependency phases (Phase 2-D)
+- `<worktree>/planning/feature-tasks.md` - Visual feature dependency map with Mermaid chart, groupings, relationships (Phase 2-D)
 - `<worktree>/planning/learnings.md` - Cumulative insights from completed tasks (Phase 3)
 - `<worktree>/README.md` - Project overview, setup, usage (updated with each feature in Phase 3)
 
@@ -591,22 +664,63 @@ This section shows all files created during the craft process, organized by type
 
 **Total Files:** 15 knowledge + 10 journals + 1 GUIDE + N tasks + 2 delivery docs = 28+ files
 
-## Remember
+## Remember: The Craft Mindset
 
-This is iterative quality-driven development. The goal isn't to complete phases quickly - it's to build something that works and makes sense, grounded in deep understanding. Take the time to understand deeply. The code will come easier when the understanding is clear.
+This is iterative quality-driven development. The goal isn't to complete phases quickly - it's to build something that works and makes sense, grounded in deep understanding.
+
+**Take your time. Be thorough. Be thoughtful.**
+
+- **Understanding comes first:** Deep comprehension enables elegant solutions. Rushing through stages creates technical debt.
+- **Iteration is strength:** Revisiting decisions with new insights is growth, not failure.
+- **Quality gates protect you:** They catch gaps before they become costly mistakes.
+- **The user is your partner:** When uncertain, ask. Their domain knowledge is irreplaceable.
+- **Trust the process:** Each stage builds on the last. The structure exists to help you think clearly.
+
+The code will come easier when the understanding is clear. Take the time to understand deeply.
 ```
 
-**⚠️  PATH DISCIPLINE REMINDER:**
-All file operations MUST use `<worktree>` as the path prefix.
-All git operations MUST use: `git -C "<worktree>" [command]`
+---
 
-Examples:
-- Write file: `"<worktree>/planning/task-definition.md"`
-- Create directory: `"<worktree>/src/"`
-- Git command: `git -C "<worktree>" status`
-- Read file: `"<worktree>/test/module.test.js"`
+## ⚠️ CRITICAL: Directory Isolation & Path Discipline
 
-Never use relative paths. Never use `cd`. Always specify full paths with `<worktree>`.
+**ABSOLUTE RULES - NO EXCEPTIONS:**
+
+**🚫 NEVER change directories:**
+- ❌ DO NOT use `cd`
+- ❌ DO NOT use `pushd` or `popd`
+- ❌ DO NOT change working directory in any way
+
+**✅ ALWAYS use full paths:**
+- ✅ All file operations MUST prefix with `<worktree>`
+- ✅ All git operations MUST use: `git -C "<worktree>" [command]`
+- ✅ All paths MUST be absolute, never relative
+
+**Why this matters:**
+- Prevents directory state corruption across operations
+- Enables parallel operations without conflicts
+- Ensures operations target correct worktree
+- Maintains isolation from original project location
+
+**Examples:**
+```bash
+# File operations - ALWAYS prefix with <worktree>
+Write: "<worktree>/planning/task-definition.md"
+Read: "<worktree>/test/module.test.js"
+Mkdir: "<worktree>/src/"
+
+# Git operations - ALWAYS use git -C "<worktree>"
+git -C "<worktree>" status
+git -C "<worktree>" add planning/
+git -C "<worktree>" commit -m "message"
+git -C "<worktree>" log --oneline
+
+# WRONG - Never do this:
+cd <worktree>  # ❌ NEVER
+git status     # ❌ NEVER (missing -C)
+./src/file.js  # ❌ NEVER (relative path)
+```
+
+**Every command. Every file. Every time. Use `<worktree>` prefix and `git -C`.**
 
 ---
 
@@ -1527,6 +1641,151 @@ Research related patterns, anti-patterns, and edge cases across multiple domains
 - "[use-case] security considerations checklist"
 - "[use-case] user experience research findings"
 
+5. **Identify Secondary and Third Order Unstated Expectations**
+
+   **Primary use cases trigger ripple effects that users implicitly expect but rarely state explicitly. Systematically discover these hidden expectations:**
+
+   **Secondary Order Expectations** (immediate consequences of primary use case):
+
+   - **UI Elements** (what interface components must exist):
+     * Buttons, forms, dropdowns, modals users expect to see
+     * Navigation elements (breadcrumbs, back buttons, menu items)
+     * Data displays (tables, cards, lists showing created/updated items)
+     * Input controls (text fields, checkboxes, date pickers)
+     * Visual feedback elements (progress bars, status indicators)
+
+     Example: "Create Invoice" implies → Invoice form with customer dropdown, line item table, tax calculator, save/cancel buttons
+
+   - **UI Behaviors** (how interface must respond):
+     * Hover states, focus indicators, active states
+     * Loading indicators during async operations
+     * Confirmation dialogs before destructive actions
+     * Validation feedback (inline errors, success messages)
+     * Optimistic UI updates (show change immediately, sync in background)
+     * Disabled states (buttons disabled until form valid)
+     * Tooltips and contextual help
+
+     Example: "Delete User" implies → Confirmation modal, loading spinner, success toast, redirect to user list, disabled delete button during operation
+
+   - **System Calls** (what backend operations must execute):
+     * Database queries (inserts, updates, deletes, lookups)
+     * API calls to external services
+     * File operations (read, write, upload, download)
+     * Cache operations (invalidate, update, refresh)
+     * Search index updates
+     * Session state modifications
+
+     Example: "Update Profile" implies → Validate input, check username uniqueness, update database, invalidate cache, update session, log audit trail
+
+   - **Subsequent Behaviors** (cascade effects and side effects):
+     * Related data updates (update modified timestamps, increment counters)
+     * Notifications sent (email, SMS, push, in-app)
+     * Audit logs written
+     * Analytics events tracked
+     * Webhook triggers sent to external systems
+     * Search indexes updated
+     * Cache invalidations
+     * Related records updated (cascade updates, orphan cleanup)
+
+     Example: "Approve Document" implies → Update document status, notify author via email, log approval in audit trail, trigger downstream workflow, update dashboard counts
+
+   **Third Order Expectations** (delayed and asynchronous consequences):
+
+   - **Scheduled Activities** (time-based follow-up actions):
+     * Cron jobs triggered by primary action
+     * Batch processes scheduled to run later
+     * Recurring reports generated on schedule
+     * Periodic data syncs initiated
+     * Scheduled reminders sent
+     * Auto-expiration cleanup tasks
+
+     Example: "Schedule Report" implies → Create schedule entry, set up cron job, store report parameters, send report via email tomorrow at configured time, handle failures with retries
+
+   - **Async Event Use Cases** (background processing triggered):
+     * Message queue processing
+     * Webhook deliveries to external systems
+     * Email queue processing and delivery
+     * Image/video processing pipelines
+     * Data export generation
+     * PDF rendering and storage
+
+     Example: "Upload Video" implies → Queue video for transcoding, process in background, generate thumbnails, extract metadata, update database when complete, notify user
+
+   - **Background Processing** (system maintenance and optimization):
+     * Data synchronization between systems
+     * Cache warming and precomputation
+     * Analytics aggregation
+     * Search index rebuilding
+     * Backup operations
+     * Data archival
+
+     Example: "Import CSV" implies → Parse file in background, validate data, detect duplicates, batch insert records, update statistics, send completion email with summary
+
+   - **Time-Based Triggers** (future events initiated by primary action):
+     * Reminder emails (trial expiring, payment due, subscription renewal)
+     * Expiration cleanup (delete old sessions, purge expired tokens)
+     * Recurring workflows (monthly invoices, weekly reports, daily backups)
+     * Escalation triggers (unresponded tickets, overdue tasks)
+     * Status transitions (move to archive after 90 days)
+
+     Example: "Start Free Trial" implies → Schedule trial expiration reminder (7 days before), schedule trial end notification, schedule account downgrade (at expiration), schedule follow-up email sequence
+
+   **Discovery Process:**
+
+   For each primary use case, systematically ask:
+
+   1. **UI Impact**: "What must the user see and interact with?"
+      - What forms, buttons, displays are implied?
+      - How should interface respond to actions?
+      - What loading states, errors, confirmations needed?
+
+   2. **System Impact**: "What must the system do immediately?"
+      - What database operations execute?
+      - What external APIs get called?
+      - What data gets validated, created, updated, deleted?
+      - What caches get invalidated?
+
+   3. **Cascade Impact**: "What happens as a consequence?"
+      - What notifications get sent?
+      - What logs get written?
+      - What related data updates?
+      - What webhooks fire?
+
+   4. **Temporal Impact**: "What happens later?"
+      - What gets scheduled to run later?
+      - What background jobs get queued?
+      - What emails get sent tomorrow/next week?
+      - What expires and needs cleanup?
+
+   5. **User Expectation**: "What would frustrate users if missing?"
+      - What feedback do they expect to see?
+      - What confirmations do they need?
+      - What notifications should they receive?
+      - What can they do next?
+
+   **Document these as related use cases:**
+   - UI behaviors → document in main use case flow
+   - System calls → document in main use case implementation notes
+   - Significant side effects → create separate related use cases
+   - Delayed/async operations → create separate related use cases with timing information
+
+   **Example Discovery:**
+   ```
+   Primary Use Case: "User Creates Invoice"
+
+   Secondary Order (immediate):
+   ✓ UI Elements: Invoice form, customer dropdown, line items table, tax calculator, save button
+   ✓ UI Behaviors: Inline validation, autosave draft, loading spinner on save, success message
+   ✓ System Calls: Validate data, generate invoice number, insert database record, update customer balance
+   ✓ Subsequent: Send invoice notification email, log audit entry, update dashboard count, invalidate customer cache
+
+   Third Order (delayed):
+   ✓ Scheduled: If payment terms are NET30, schedule payment reminder for day 25
+   ✓ Async: Generate PDF invoice in background, store in S3, send download link via email
+   ✓ Background: Update monthly revenue aggregates, recalculate customer lifetime value
+   ✓ Time-Based: Schedule overdue notice (NET30 + 7 days), schedule collection escalation (NET30 + 30 days)
+   ```
+
 **Consolidate parallel research:** Synthesize findings from related use cases, interactions, anti-cases, and external research into enhanced use-cases.md.
 
 **Document expanded use cases:**
@@ -1548,6 +1807,48 @@ Update `<worktree>/planning/use-cases.md` with:
   - **External Trigger**: [e.g., "Webhook from external system", "Scheduled job", "Email link"]
   - **API Endpoint**: [e.g., "POST /api/v1/users"]
 - **Discovery Method**: [How users learn this feature exists - menu, search, documentation, onboarding]
+
+- **⚠️ REQUIRED: Access Journey Illustration**
+
+  **Document the complete step-by-step journey showing how this specific actor gained access to this scenario:**
+
+  Example for UI access:
+  ```
+  1. Actor opens application → lands on login page
+  2. Actor enters credentials → authenticates successfully
+  3. Actor views dashboard → sees "Settings" in main navigation
+  4. Actor clicks "Settings" → settings panel opens
+  5. Actor selects "User Management" → user list loads
+  6. Actor clicks "Create User" button → this use case begins
+  ```
+
+  Example for API access:
+  ```
+  1. External system administrator generates API key → receives key + secret
+  2. System stores credentials → configures API client
+  3. System initiates daily sync job → triggers at 2am UTC
+  4. System authenticates to API → includes Bearer token in Authorization header
+  5. System validates token → checks scopes and rate limits
+  6. System calls POST /api/v1/users → this use case begins
+  ```
+
+  Example for scheduled/automated access:
+  ```
+  1. System administrator configures trigger → sets schedule in admin panel
+  2. System registers trigger → stores configuration in database
+  3. Scheduler daemon checks schedule → identifies job ready to run
+  4. Scheduler acquires service account token → validates permissions
+  5. Scheduler invokes function → this use case begins
+  ```
+
+  **This illustration must show:**
+  - Starting point (where actor begins, what state they're in)
+  - Each authentication/authorization step taken
+  - Each navigation or system action performed
+  - Any intermediate states or screens encountered
+  - The exact trigger point where this use case begins
+
+  **Purpose:** Makes explicit how actors actually reach this scenario, reveals hidden assumptions about navigation, authentication flows, and system states.
 
 **Access Requirements**:
 - **Authentication**: [Required auth level - logged in, anonymous, service account]
@@ -1599,6 +1900,48 @@ Update `<worktree>/planning/use-cases.md` with:
   - **External Trigger**: [e.g., "Webhook from external system", "Scheduled job", "Email link"]
   - **API Endpoint**: [e.g., "POST /api/v1/users"]
 - **Discovery Method**: [How users learn this feature exists - menu, search, documentation, onboarding]
+
+- **⚠️ REQUIRED: Access Journey Illustration**
+
+  **Document the complete step-by-step journey showing how this specific actor gained access to this scenario:**
+
+  Example for UI access:
+  ```
+  1. Actor opens application → lands on login page
+  2. Actor enters credentials → authenticates successfully
+  3. Actor views dashboard → sees "Settings" in main navigation
+  4. Actor clicks "Settings" → settings panel opens
+  5. Actor selects "User Management" → user list loads
+  6. Actor clicks "Create User" button → this use case begins
+  ```
+
+  Example for API access:
+  ```
+  1. External system administrator generates API key → receives key + secret
+  2. System stores credentials → configures API client
+  3. System initiates daily sync job → triggers at 2am UTC
+  4. System authenticates to API → includes Bearer token in Authorization header
+  5. System validates token → checks scopes and rate limits
+  6. System calls POST /api/v1/users → this use case begins
+  ```
+
+  Example for scheduled/automated access:
+  ```
+  1. System administrator configures trigger → sets schedule in admin panel
+  2. System registers trigger → stores configuration in database
+  3. Scheduler daemon checks schedule → identifies job ready to run
+  4. Scheduler acquires service account token → validates permissions
+  5. Scheduler invokes function → this use case begins
+  ```
+
+  **This illustration must show:**
+  - Starting point (where actor begins, what state they're in)
+  - Each authentication/authorization step taken
+  - Each navigation or system action performed
+  - Any intermediate states or screens encountered
+  - The exact trigger point where this use case begins
+
+  **Purpose:** Makes explicit how actors actually reach this scenario, reveals hidden assumptions about navigation, authentication flows, and system states.
 
 **Access Requirements**:
 - **Authentication**: [Required auth level - logged in, anonymous, service account]
@@ -1763,6 +2106,19 @@ For every use case (primary and related), document the complete user journey fro
    - API endpoints (for programmatic access)
    - Discovery methods (how users learn this exists)
 
+   **⚠️ MANDATORY: Access Journey Illustration**
+
+   For EVERY use case, document a complete step-by-step narrative showing how the actor gains access:
+   - Start with actor's initial state (logged out, on homepage, in external system, etc.)
+   - Document each authentication/authorization step
+   - Show each navigation action or system trigger
+   - Include intermediate screens/states encountered
+   - End with the exact point where this use case begins
+
+   Example: "1. User opens app → 2. Enters credentials → 3. Views dashboard → 4. Clicks Settings → 5. Selects User Management → 6. Clicks Create User → THIS USE CASE BEGINS"
+
+   This reveals hidden assumptions about authentication flows, navigation patterns, and system states that must exist for access.
+
 2. **Access Requirements**: What must be true before user can access this?
    - Authentication requirements (logged in, anonymous, service account)
    - Authorization requirements (roles, permissions, ownership)
@@ -1790,6 +2146,7 @@ For every use case (primary and related), document the complete user journey fro
    Document complete request-response flow (see "API and Authentication Considerations" section above for detailed guidance on: request initialization, processing, response generation, connection management, state management, monitoring)
 
 **Why this matters:**
+- **Missing access journey illustration** → implementation misses authentication gates, navigation flows, or required system states
 - Incomplete access paths → users can't find features
 - Missing prerequisites → runtime errors and frustration
 - Undocumented lifecycle → memory leaks, connection issues, data loss
@@ -5189,7 +5546,59 @@ Update `<worktree>/planning/tooling.md` with integration patterns:
 
 ### Step 1: Define Project Structure
 
-**Map out the directory structure** based on Stage 3 architecture:
+**⚠️ MANDATORY: Research Technology-Specific Source Code Layout Conventions**
+
+**Before defining directory structure, research conventions for the chosen technology stack:**
+
+Based on technologies chosen in Stage 3 architecture.md, research official and community conventions to ensure project structure follows best practices.
+
+**Research Process:**
+
+1. **Identify technology stack from architecture.md:**
+   - Read `<worktree>/planning/architecture.md`
+   - Extract: programming language, framework, runtime, build tools
+   - Example: "Node.js + Express + TypeScript" or "Python + FastAPI" or "Go + standard library"
+
+2. **Research official conventions (use WebSearch):**
+   - "[language] official project structure guide"
+   - "[framework] official directory layout conventions"
+   - "[framework] style guide and best practices"
+   - Look for: official documentation, GitHub repos, framework creators' recommendations
+
+3. **Research community conventions (use WebSearch):**
+   - "[framework] project structure best practices [current year]"
+   - "[language] directory organization patterns production"
+   - "popular [framework] open source project structures"
+   - Look for: widely-adopted patterns, repo templates, production examples
+
+4. **Research poly repo patterns (use WebSearch):**
+   - "[framework] poly repo structure patterns"
+   - "[framework] microservices directory organization"
+   - "how to organize multiple [language] repositories"
+   - Look for: cross-repo communication patterns, shared code strategies
+
+5. **Reconcile conventions with poly repo strategy:**
+   - Identify conflicts between framework conventions and poly repo needs
+   - Determine which conventions to follow vs. adapt
+   - Document rationale for deviations
+   - Plan cross-repository integration points
+
+**Questions to answer through research:**
+- What directory structure does this technology officially recommend?
+- Where should source code live? (src/, lib/, app/, cmd/, internal/?)
+- How should modules be organized? (by feature, by layer, by domain?)
+- Where do tests belong? (alongside code, separate tree, __tests__?)
+- What file naming conventions? (camelCase, snake_case, kebab-case, PascalCase?)
+- What configuration files are standard? (package.json, pyproject.toml, go.mod, Cargo.toml?)
+- How does this technology handle imports/dependencies?
+- Are there specific patterns for the chosen framework? (Next.js app/, Rails MVC, Django apps/)
+- How do poly repos typically organize code in this technology?
+
+**Document findings in architecture.md** (update architecture.md with "Source Code Layout Conventions" section - see template below in this step)
+
+---
+
+**Map out the directory structure** based on Stage 3 architecture AND conventions researched above:
 
 **Consider the existing structure first:**
 - Is there already a repository structure in place?
@@ -5232,6 +5641,23 @@ This project follows a **poly repo approach** (multiple related repositories, ea
 
 ```markdown
 # Project Structure
+
+## Technology Convention Alignment
+
+**⚠️ CRITICAL: This structure implements conventions documented in:**
+`<worktree>/planning/architecture.md` § Source Code Layout Conventions
+
+**Before implementing tasks, review architecture.md for:**
+- Official and community conventions researched
+- Technology-specific directory organization decisions
+- File naming conventions and rationale
+- Import/module patterns
+- Poly repo integration strategies
+- Any deviations from standard conventions with rationale
+
+This project structure follows [framework/language] conventions with specific adaptations for poly repo architecture.
+
+---
 
 ## Existing Structure Assessment
 - [Describe any existing repository structure]
@@ -5427,6 +5853,83 @@ Ask these questions to classify:
 **If starting fresh (no migration needed):**
 Skip the migration section - you're building on a clean foundation.
 
+---
+
+**Update architecture.md with Source Code Layout Conventions**
+
+Based on research completed above, update `<worktree>/planning/architecture.md` with a new section documenting source code layout decisions:
+
+```markdown
+## Source Code Layout Conventions
+
+**⚠️ This section documents conventions researched in Phase 2-C - becomes canonical reference for all task implementation**
+
+### Official Convention Sources
+[List URLs and key points from official guides researched]
+- Official documentation: [URL and key takeaways]
+- Style guides: [URL and key conventions]
+- Framework conventions: [URL and specific patterns]
+
+### Community Practice Research
+[Summarize community patterns discovered through WebSearch]
+- Common patterns observed: [Describe consensus approaches]
+- Production examples reviewed: [Notable repos if helpful]
+- Widely-adopted practices: [What most projects do]
+
+### Technology-Specific Decisions
+Based on research above, this project follows these conventions:
+
+**Directory Organization:**
+- Source code location: [src/, lib/, app/, cmd/, etc. - state choice with rationale]
+- Module organization: [by feature, by layer, by domain - explain why this approach chosen]
+- Test location: [alongside code, separate __tests__, separate test/ - explain rationale]
+- Configuration files: [location and purpose - config/, root-level, etc.]
+
+**File Naming Conventions:**
+- Source files: [camelCase, snake_case, kebab-case, PascalCase - document pattern with rationale]
+- Test files: [*.test.js, *_test.py, *_spec.rb - document pattern]
+- Configuration files: [naming patterns and locations]
+
+**Import/Module Conventions:**
+- Import style: [relative imports, absolute imports, path aliases - document approach]
+- Module exports: [default vs named exports, module.exports vs exports - document pattern]
+- Dependency organization: [how external vs internal imports organized]
+
+### Poly Repo Integration
+How this repository's layout integrates with other repositories:
+
+**Cross-Repository Conventions:**
+- Shared code strategy: [npm packages, git submodules, copy/paste, no sharing - document approach with rationale]
+- API contract location: [where interfaces/types/schemas defined that cross repo boundaries]
+- Common patterns: [conventions consistent across all repos in poly repo structure]
+
+**This Repository's Role:**
+[Describe what this specific repository handles in the poly repo architecture and how structure reflects that]
+
+### Deviations from Standard Conventions
+[If deviating from official/community conventions, explain why]
+
+**Deviation 1:** [What we're doing differently from standard]
+- **Rationale:** [Why this makes sense for our poly repo/project context]
+- **Trade-offs:** [What we gain vs what we lose by deviating]
+
+[Repeat for each significant deviation]
+
+### ⚠️ Task Implementation Directive
+**Every feature task MUST review this section before implementation** to ensure:
+- New files follow established directory conventions
+- New modules placed in appropriate locations per technology conventions
+- File naming matches documented patterns
+- Cross-repository integration follows documented strategies
+- Imports/requires use documented patterns and path styles
+
+**Reference in task files:** Each task file includes "Source Code Layout Compliance" section that requires reviewing this section.
+```
+
+**Add to architecture.md index:** Update the index at top of architecture.md with entry for "Source Code Layout Conventions" section with line numbers and character offsets.
+
+---
+
 ### Step 1b: Establish Task-Based Development Workflow
 
 **Create task folders and learnings file:**
@@ -5474,6 +5977,31 @@ For each feature from Stage 1 use cases, create a task file in `<worktree>/plann
 
 ## Feature Description
 [Brief description from Stage 1 use case]
+
+## Source Code Layout Compliance
+
+**⚠️ MANDATORY: Review BEFORE implementing any code**
+
+**Read and verify compliance with:**
+1. `<worktree>/planning/architecture.md` § Source Code Layout Conventions
+   - Technology-specific directory organization decisions
+   - File naming conventions and rationale
+   - Import/module patterns documented
+   - Poly repo integration strategies
+
+2. `<worktree>/planning/project-structure.md` § Directory Layout
+   - Where this feature's code should live
+   - Module organization within this repository
+   - Test location relative to source
+
+**Pre-Implementation Checklist:**
+- [ ] Identified correct directory for new files per conventions
+- [ ] Verified file naming follows technology conventions (camelCase/snake_case/kebab-case/PascalCase)
+- [ ] Confirmed import paths follow documented patterns (relative/absolute/aliases)
+- [ ] Checked cross-repository integration approach if feature touches other repos
+- [ ] Reviewed any deviations from standard conventions and understood rationale
+
+**If unclear:** Re-read architecture.md § Source Code Layout Conventions and ask user for clarification before proceeding.
 
 ## Implementation Scope
 
@@ -6098,6 +6626,14 @@ I've documented the complete infrastructure foundation for development:
 **Project Structure:**
 [Summarize directory organization and module layout]
 
+**Source Code Layout Conventions:**
+✓ Technology-specific conventions researched from official sources
+✓ Community practices reviewed and documented
+✓ Poly repo integration patterns considered
+✓ Layout decisions documented in architecture.md § Source Code Layout Conventions
+✓ Rationale provided for any deviations from standard conventions
+✓ Task template includes mandatory layout review directive
+
 **Technology Integration:**
 [Summarize how systems connect and authenticate]
 
@@ -6109,7 +6645,8 @@ All configuration identifiers documented in `<worktree>/planning/infrastructure-
 [Summarize MCP servers, subagents, APIs, quality tools and when they'll be used]
 
 **Key Infrastructure Documents:**
-- `<worktree>/planning/project-structure.md` - Directory layout and organization
+- `<worktree>/planning/architecture.md` - Technology decisions AND source code layout conventions
+- `<worktree>/planning/project-structure.md` - Directory layout and organization (references architecture.md)
 - `<worktree>/planning/tech-relationships.md` - System integration map
 - `<worktree>/planning/infrastructure-ids.md` - Central ID/config registry
 - `<worktree>/planning/tooling.md` - How discovered tools will be integrated
@@ -6145,12 +6682,13 @@ IF the user requests changes:
 
 **📤 Output Files:**
 - `<worktree>/planning/implementation-steps.md` (knowledge file - task ordering, dependency phases, prioritization)
+- `<worktree>/planning/feature-tasks.md` (knowledge file - visual feature dependency map with Mermaid chart, groupings, relationships)
 - `<worktree>/planning/tasks-pending/task-NNN-[name].md` (multiple task files - one per atomic feature)
 - `<worktree>/planning/p2d-task-breakdown-journal.md` (journal file - decomposition process, dependency analysis)
 - `<worktree>/planning/GUIDE.md` (updated with Phase 2-D confirmation and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/implementation-steps.md`, `<worktree>/planning/tasks-pending/task-NNN-[name].md` (one per feature)
+- **Files Created:** `<worktree>/planning/implementation-steps.md`, `<worktree>/planning/feature-tasks.md`, `<worktree>/planning/tasks-pending/task-NNN-[name].md` (one per feature)
 - **Purpose:** Decompose use cases into discrete, implementable tasks with dependencies, scope, quality gates, and **detailed TDD test specifications written during task creation**
 - **Referenced By:** Phase 3 (task selection and execution order using TDD specs), Phase 4 (retrospective on completed tasks)
 
@@ -6239,83 +6777,224 @@ Think about logical groupings and dependencies:
 - What can be built independently?
 - What requires integration testing?
 
-**Plan serialized implementation order** - document phases to `<worktree>/planning/implementation-steps.md`:
+**Create comprehensive implementation plan** - document to `<worktree>/planning/implementation-steps.md`:
 
 ```markdown
-# Implementation Steps
+# Implementation Steps & Feature Dependencies
 
-**Purpose:** Define the serialized order for implementing tasks, grouping them into logical phases
-based on dependencies and complexity.
+**Purpose:** Complete implementation plan combining visual dependency map with phased execution order. This ensures proper sequencing, reveals integration points, and enables parallel work where possible.
 
-## Phase 1: Foundation (Tasks 001-NNN)
-**Goal:** Establish core data structures and utilities
+## 🗺️ Visual Feature Dependency Map
+
+**⚠️ DIRECTIVE: Update this chart as features are added, dependencies change, or tasks are completed**
+
+```mermaid
+graph TD
+    %% Foundation Phase
+    T001[Task 001: Database Schema & Models] --> T005[Task 005: User Service Layer]
+    T001 --> T006[Task 006: Invoice Data Layer]
+
+    %% Service Integration Phase
+    T005 --> T010[Task 010: User Authentication]
+    T005 --> T011[Task 011: User Authorization]
+
+    %% Business Logic Phase
+    T006 --> T012[Task 012: Invoice Creation API]
+    T012 --> T013[Task 013: Invoice Editing API]
+    T012 --> T014[Task 014: Invoice Deletion API]
+
+    T010 --> T015[Task 015: Protected Routes Middleware]
+    T015 --> T012
+    T015 --> T013
+
+    %% UI Layer Phase
+    T012 --> T020[Task 020: Invoice List UI Component]
+    T012 --> T021[Task 021: Invoice Form UI Component]
+    T013 --> T021
+
+    %% Quality Phase
+    T020 --> T030[Task 030: End-to-End Integration Tests]
+    T021 --> T030
+    T012 --> T030
+
+    %% Related Features (dotted lines = share resources)
+    T012 -.shares Invoice model.- T013
+    T012 -.shares Invoice model.- T014
+    T020 -.shares UI components.- T021
+    T015 -.cross-cutting concern.- T012
+    T015 -.cross-cutting concern.- T013
+
+    %% Styling
+    classDef foundation fill:#e1f5e1
+    classDef service fill:#cfe2ff
+    classDef business fill:#fff3cd
+    classDef ui fill:#f8d7da
+    classDef quality fill:#d1ecf1
+
+    class T001,T005,T006 foundation
+    class T010,T011,T015 service
+    class T012,T013,T014 business
+    class T020,T021 ui
+    class T030 quality
+```
+
+**Legend:**
+- **Solid arrows (→):** Hard dependency - target requires source to be complete
+- **Dotted lines (-.->):** Related features - share data models, UI, APIs, or cross-cutting concerns
+- **Colors:** Indicate phase groupings (see sections below)
+
+**Chart Update Rules:**
+- When task added: Insert node in appropriate phase group, draw dependencies
+- When dependency discovered: Add arrow from prerequisite to dependent task
+- When relationship found: Add dotted line with label describing relationship
+- When task completed: Consider adding styling `style T001 stroke:#28a745,stroke-width:3px`
+
+## Phase 1: Foundation (Tasks 001-009)
+
+**Goal:** Establish core data structures, models, and base utilities
 
 **Tasks:**
-- Task 001: Core data models with validation
-- Task 002: Shared utility functions and error handling
-- Task 003: Logging infrastructure
+- Task 001: Database Schema & Models (no dependencies)
+- Task 005: User Service Layer (depends on: Task 001)
+- Task 006: Invoice Data Layer (depends on: Task 001)
 
 **Exit Criteria:** Core models tested and validated, utilities available for use
 
-**Rationale:** Foundation must exist before building features that depend on it
+**Rationale:** Foundation must exist before building features that depend on it. Database schema changes are expensive later.
 
-## Phase 2: Service Integration (Tasks NNN-NNN)
-**Goal:** Connect to external systems
+**Parallel Work Opportunities:** Tasks 005 and 006 can be built in parallel (both depend only on Task 001)
+
+## Phase 2: Service Integration (Tasks 010-019)
+
+**Goal:** Connect authentication, authorization, external services
 
 **Tasks:**
-- Task NNN: Authentication setup and credential management
-- Task NNN: External service client implementations
-- Task NNN: Database connection and error handling
+- Task 010: User Authentication (depends on: Task 005)
+- Task 011: User Authorization (depends on: Task 005)
+- Task 015: Protected Routes Middleware (depends on: Task 010)
 
 **Exit Criteria:** Can authenticate and make basic API calls to all required services
 
-**Rationale:** Service integration provides the external connections needed for business logic
+**Rationale:** Service integration provides the external connections needed for business logic. Business logic needs these services, but services need foundation first.
 
-## Phase 3: Business Logic (Tasks NNN-NNN)
-**Goal:** Implement core use cases from Stage 1
+**Parallel Work Opportunities:** Tasks 010 and 011 can be built in parallel (both depend only on Task 005)
+
+## Phase 3: Business Logic (Tasks 020-029)
+
+**Goal:** Implement core use cases and API endpoints
 
 **Tasks:**
-- Task NNN: Primary use case - [Use case name from Stage 1]
-- Task NNN: Alternative flow - [Alternative scenario]
-- Task NNN: Error handling - [Exception flows from Stage 1]
+- Task 012: Invoice Creation API (depends on: Task 006, Task 015)
+- Task 013: Invoice Editing API (depends on: Task 012, Task 015)
+- Task 014: Invoice Deletion API (depends on: Task 012, Task 015)
 
 **Exit Criteria:** All use cases working with passing tests
 
-**Rationale:** Business logic delivers user value and fulfills project requirements
+**Rationale:** Business logic delivers user value and fulfills project requirements. This is the core value delivery. Requires both foundation and services.
 
-## Phase 4: Quality & Integration (Tasks NNN-NNN)
-**Goal:** Achieve quality criteria and full integration
+**Parallel Work Opportunities:** Tasks 013 and 014 can be built in parallel (both depend on Task 012)
 
-**Tasks:**
-- Task NNN: Code quality refactoring based on reviews
-- Task NNN: End-to-end integration testing
-- Task NNN: Performance optimization for NFRs
+**Related Features Coordination:**
+- Tasks 012, 013, 014 all share Invoice data model
+- Implement Task 012 first to establish stable schema, then build editing/deletion on top
+- Schema changes in Task 012 affect Task 013 and Task 014
 
-**Exit Criteria:** Quality score ≥ [threshold from Phase 2], all integration points working
+## Phase 4: UI Layer (Tasks 030-039)
 
-**Rationale:** Quality work ensures maintainability and production readiness
-
-## Phase 5: Finalization (Tasks NNN-NNN)
-**Goal:** Polish and delivery preparation
+**Goal:** User-facing components and screens
 
 **Tasks:**
-- Task NNN: Edge case coverage and error path validation
-- Task NNN: Documentation (usage guide, API docs, deployment)
-- Task NNN: Final integration validation
+- Task 020: Invoice List UI Component (depends on: Task 012)
+- Task 021: Invoice Form UI Component (depends on: Task 012, Task 013)
 
-**Exit Criteria:** All tests passing, documentation complete, ready for deployment
+**Exit Criteria:** UI components render correctly, handle user interactions, integrate with APIs
 
-**Rationale:** Finalization ensures complete delivery with no loose ends
+**Rationale:** UI consumes APIs. APIs must exist and be stable first.
+
+**Related Features Coordination:**
+- Tasks 020 and 021 share UI components
+- Task 020 establishes component library patterns that Task 021 should follow for consistency
+
+## Phase 5: Quality & Integration (Tasks 040-049)
+
+**Goal:** Achieve quality criteria and full integration validation
+
+**Tasks:**
+- Task 030: End-to-End Integration Tests (depends on: Task 020, Task 021, Task 012)
+
+**Exit Criteria:** Quality score ≥ [threshold from Phase 2], all integration points working, all tests passing
+
+**Rationale:** Quality work ensures maintainability and production readiness. Integration tests require complete feature stack from database → API → UI.
+
+## Critical Path Analysis
+
+**Longest Dependency Chain (Foundation → Delivery):**
+1. Task 001: Database Schema (0 dependencies)
+2. Task 006: Invoice Data Layer (depends on Task 001)
+3. Task 012: Invoice Creation API (depends on Task 006, Task 015)
+4. Task 021: Invoice Form UI (depends on Task 012, Task 013)
+5. Task 030: Integration Tests (depends on Task 021)
+
+**Total chain length:** 5 tasks
+
+**Critical Path Tasks:** Any delay in Tasks 001, 006, 012, 021 directly delays final delivery.
+
+## Implementation Order Recommendation
+
+**Serial Order Respecting All Dependencies:**
+
+**Week 1:**
+1. Task 001: Database Schema (no blockers)
+2. Task 005: User Service Layer + Task 006: Invoice Data Layer (parallel, both after Task 001)
+
+**Week 2:**
+3. Task 010: User Authentication + Task 011: User Authorization (parallel, both after Task 005)
+4. Task 015: Protected Routes (after Task 010)
+
+**Week 3:**
+5. Task 012: Invoice Creation API (after Task 006, Task 015)
+6. Task 013: Invoice Editing + Task 014: Invoice Deletion (parallel, both after Task 012)
+
+**Week 4:**
+7. Task 020: Invoice List UI (after Task 012)
+8. Task 021: Invoice Form UI (after Task 012, Task 013)
+
+**Week 5:**
+9. Task 030: Integration Tests (after all above complete)
+
+**Why This Order:**
+- Respects all hard dependencies
+- Maximizes parallel work (Tasks 005/006, 010/011, 013/014)
+- Critical path tasks prioritized
+- Related features (012/013/014) implemented close together for consistency
+
+## Cross-Cutting Concerns
+
+**Task 015 (Protected Routes Middleware):**
+- Affects: Task 012, Task 013, Task 014
+- Coordination Need: Authentication middleware must be stable before business logic relies on it
+- Impact: Changes to auth affect all protected endpoints
 
 ## Task Prioritization Principles
 
-When implementing tasks in Phase 3:
-1. **Dependencies first**: Tasks with no pending prerequisites
-2. **Foundation before features**: Core utilities before features that use them
-3. **High-risk first**: Complex or uncertain tasks tackled early
-4. **User value**: Prioritize tasks that deliver visible user value
+When implementing tasks within phases:
+1. **Dependencies first:** Tasks with no pending prerequisites
+2. **Foundation before features:** Core utilities before features that use them
+3. **High-risk first:** Complex or uncertain tasks tackled early
+4. **User value:** Prioritize tasks that deliver visible user value
+5. **Related features together:** Implement related features close in time for consistency
+
+## Why This Comprehensive Plan Matters
+
+- **Visual comprehension:** See entire project scope and dependencies at a glance
+- **Proper sequencing:** Ensures foundation built before features that depend on it
+- **Parallel work identification:** Reveals features that can be built concurrently
+- **Related feature awareness:** Documents which tasks share data/UI/APIs
+- **Critical path visibility:** Highlights bottleneck tasks that delay delivery if blocked
+- **Coordination planning:** Shows where teams need to coordinate schema/API changes
 
 ## References
+- Task Details: `<worktree>/planning/tasks-pending/task-NNN-[name].md`
 - Use Cases: `<worktree>/planning/task-definition.md`
 - Architecture: `<worktree>/planning/architecture.md`
 - Infrastructure: `<worktree>/planning/infrastructure-ids.md`
@@ -6330,18 +7009,186 @@ When implementing tasks in Phase 3:
 - NNN is zero-padded task number (001, 002, 003...)
 - feature-name is kebab-case description (e.g., "user-authentication", "data-export")
 
-**Task Creation Process - Write TDD Specs Immediately:**
+**Task Creation Process - Research, Define Scope, Write TDD Specs:**
 
 For each task file you create:
 
-1. **Define task scope** (Feature Description, Implementation Scope sections)
-2. **Immediately write TDD specs** (Test Specifications section)
+1. **Define initial task scope** (Feature Description, high-level Implementation Scope)
+2. **⚠️ RESEARCH UI EXPECTATIONS & PATTERNS (For UI-related tasks)**
+
+   **Before finalizing implementation scope, conduct parallel research to discover common UI patterns and user expectations:**
+
+   **Research Strategy - Use WebSearch tool with parallel queries:**
+
+   **Query 1: Technology-Specific UI Patterns**
+   ```
+   "[technology stack] [component type] best practices [current year]"
+   Example: "React data table best practices 2025"
+   Example: "Vue.js form validation patterns 2025"
+   ```
+   - **What to look for:**
+     - Official framework documentation on this component type
+     - Recommended patterns from framework maintainers
+     - Common pitfalls and anti-patterns
+     - Performance considerations specific to this framework
+
+   **Query 2: Community Techniques & Real-World Solutions**
+   ```
+   "site:reddit.com [component type] [technology] implementation"
+   "site:stackoverflow.com [component type] [technology] best approach"
+   Example: "site:reddit.com invoice form React implementation"
+   Example: "site:stackoverflow.com data grid Vue best approach"
+   ```
+   - **What to look for:**
+     - Real developers solving similar problems
+     - Common challenges and how they were overcome
+     - Performance issues and solutions
+     - Library recommendations (data tables, form libraries, state management)
+     - Edge cases discovered in production
+
+   **Query 3: User Experience Expectations**
+   ```
+   "[feature type] UI user expectations [current year]"
+   "[feature type] UX best practices"
+   Example: "invoice creation UI user expectations 2025"
+   Example: "data grid UX best practices"
+   ```
+   - **What to look for:**
+     - What users expect from this type of interface
+     - Common UX patterns for this feature type
+     - Accessibility requirements (WCAG standards, screen reader support)
+     - Mobile vs desktop considerations
+     - Loading states, error handling, empty states users expect
+
+   **Query 4: Component Behavior Patterns**
+   ```
+   "[component behavior] UI patterns examples"
+   "[interaction type] best practices"
+   Example: "inline editing UI patterns examples"
+   Example: "bulk selection best practices"
+   Example: "optimistic update patterns"
+   ```
+   - **What to look for:**
+     - How this specific behavior is typically implemented
+     - Animation and transition patterns
+     - Confirmation flows (are they needed?)
+     - Undo/redo patterns
+     - Multi-step workflows
+
+   **Parallel Execution:**
+   ```bash
+   # Launch all 4 queries in parallel (use single message with multiple WebSearch calls)
+   # This research takes 30-60 seconds total vs 2-4 minutes sequential
+   ```
+
+   **Document Research Findings:**
+   ```markdown
+   ### UI Research Findings for This Task
+
+   **Technology-Specific Patterns ([Technology]):**
+   - Pattern 1: [Finding from official docs/guides]
+   - Pattern 2: [Recommended approach from framework]
+   - Pitfall to avoid: [Anti-pattern or common mistake]
+   - Performance consideration: [Framework-specific optimization]
+
+   **Community Techniques (Reddit/Stack Overflow):**
+   - Real-world solution 1: [How developers solve this problem]
+   - Challenge discovered: [Common issue and resolution]
+   - Recommended library: [Popular library for this use case with justification]
+   - Edge case to handle: [Production issue others encountered]
+
+   **User Expectations:**
+   - Expected behavior 1: [What users assume this feature will do]
+   - Expected feedback: [Loading states, confirmations, notifications users expect]
+   - Accessibility requirement: [WCAG guideline or screen reader support needed]
+   - Mobile consideration: [How behavior differs on mobile]
+
+   **Component Behavior Patterns:**
+   - Interaction pattern: [How this behavior is typically implemented]
+   - Confirmation needed: [Yes/No and why]
+   - Animation pattern: [Standard transition/animation for this interaction]
+   - Undo/recovery: [How users can recover from mistakes]
+
+   **Synthesis - Implementation Decisions Based on Research:**
+   - Decision 1: [Implementation choice] - Rationale: [Based on findings above]
+   - Decision 2: [Implementation choice] - Rationale: [Based on findings above]
+   - Decision 3: [Implementation choice] - Rationale: [Based on findings above]
+
+   **Deviations from Common Patterns:**
+   - Deviation 1: [Where we differ from standard pattern]
+     - **Why:** [Specific requirement or constraint justifying deviation]
+     - **Risk:** [What we might lose by deviating]
+     - **Mitigation:** [How we address the risk]
+   ```
+
+   **Why this research matters:**
+   - **Discovers proven patterns** - leverage battle-tested solutions rather than inventing from scratch
+   - **Reveals user expectations** - understand what users implicitly expect based on similar UIs they've used
+   - **Identifies pitfalls early** - avoid common mistakes others have made
+   - **Informs library choices** - find established libraries that solve this problem well
+   - **Ensures accessibility** - discover accessibility requirements specific to this component type
+   - **Validates approach** - confirm planned approach aligns with community best practices or justifies deviations
+   - **Saves implementation time** - reuse proven patterns rather than trial-and-error
+
+   **When to skip this research:**
+   - Task is not UI-related (backend service, API, data processing)
+   - Pattern is well-established within this project (follow existing pattern)
+   - Previous task already researched this component type (reference prior findings)
+   - Component is trivial (simple button, basic text display)
+
+   **For non-trivial UI tasks, this research (30-60 seconds parallel) prevents hours of rework from wrong assumptions about user expectations or missed best practices.**
+
+   **🎨 UX Enhancement Philosophy:**
+
+   **Bias toward modern, polished, enhanced user experiences** while respecting architectural and technical constraints:
+
+   **Favor Enhanced UX When:**
+   - ✅ Modern UI libraries/components available that match tech stack
+   - ✅ Animations/transitions improve clarity without performance cost
+   - ✅ Progressive enhancement possible (works without JS, better with it)
+   - ✅ Accessibility enhancements available (ARIA, keyboard nav, screen readers)
+   - ✅ Responsive design patterns well-supported by framework
+   - ✅ Loading states, skeleton screens, optimistic updates feasible
+   - ✅ Micro-interactions provide feedback (hover effects, active states, focus rings)
+   - ✅ Error recovery patterns improve user confidence (undo, retry, clear messages)
+
+   **Respect Constraints:**
+   - ⚠️ Architecture decisions override aesthetic preferences (e.g., if REST chosen over GraphQL, work within REST patterns)
+   - ⚠️ Performance budgets respected (bundle size, load time, runtime performance)
+   - ⚠️ Browser support requirements honored (polyfills if needed, graceful degradation)
+   - ⚠️ Security requirements non-negotiable (XSS prevention, CSRF tokens, input sanitization)
+   - ⚠️ Existing design system followed if one exists (consistency over novelty)
+
+   **Ask During Research:**
+   - "What's the most polished, delightful way users experience this interaction?"
+   - "What modern libraries or patterns make this feel professional?"
+   - "How can we add polish without violating architectural decisions?"
+   - "What small enhancements create outsized UX improvement?"
+
+   **Example Enhancements (when feasible):**
+   - Toast notifications instead of alert() dialogs
+   - Skeleton screens instead of blank loading states
+   - Inline validation with helpful messaging instead of submit-only validation
+   - Optimistic updates with rollback instead of blocking every action
+   - Smooth transitions between states instead of jarring changes
+   - Keyboard shortcuts for power users alongside mouse interactions
+   - Empty states with helpful guidance instead of just "No data"
+   - Progress indicators for multi-step workflows instead of mystery waits
+
+   **Document Your Choices:**
+   In "Synthesis - Implementation Decisions", explicitly note:
+   - "Enhanced UX: [feature] - Rationale: [modern pattern], respects [constraint]"
+   - "Constraint-based decision: [simpler approach] - Why: [architectural/technical limitation]"
+
+3. **Finalize implementation scope** (Incorporate research findings into Implementation Scope sections)
+4. **Immediately write TDD specs** (Test Specifications section)
    - Review test-plan.md for strategy and approach
    - Write complete Given/When/Then for this task's scope
    - Don't defer spec writing - do it now while task scope is clear
    - Verify all implementation scope items have corresponding tests
-3. **Document dependencies** (Dependencies section)
-4. **Save the task file** to tasks-pending/
+   - Include tests for patterns discovered in research (accessibility, edge cases, behavior expectations)
+5. **Document dependencies** (Dependencies section)
+6. **Save the task file** to tasks-pending/
 
 **Why write specs during task creation?**
 - Task scope is clear in your mind right now
@@ -6370,6 +7217,867 @@ EOF
 ```
 
 Don't create all task files first, then come back to write specs. Create task + write specs + move to next task.
+
+---
+
+**⚠️ COMPREHENSIVE FEATURE TASK GENERATION DIRECTIVES**
+
+**Before creating each task file, systematically consider all dimensions of the feature to ensure nothing is overlooked:**
+
+### 1. Core Feature Aspects
+
+For every feature task, explicitly document:
+
+**Actor Consideration:**
+- **Who** interacts with this feature? (end user, admin, system, external service, scheduled job)
+- **What permissions** does the actor need? (roles, scopes, ownership requirements)
+- **What context** does the actor bring? (session state, workspace, selected items, external triggers)
+- **How does the actor discover** this feature? (navigation, notification, webhook, scheduled invocation)
+
+**API Changes:**
+- **New endpoints** required? (REST routes, GraphQL mutations/queries, WebSocket events)
+- **Modified endpoints** impacted? (request/response schema changes, backward compatibility)
+- **API contracts** established? (request validation, response formats, error codes, pagination)
+- **Versioning** strategy? (v1 vs v2, deprecation timeline, migration path)
+
+**Data Storage:**
+- **Schema changes** needed? (new tables, columns, indexes, constraints)
+- **Migrations** required? (data transformation, backfill, rollback strategy)
+- **Data relationships** impacted? (foreign keys, denormalization, cascade behaviors)
+- **Storage patterns** used? (RDBMS, NoSQL, blob storage, cache layers)
+
+**User Interface (if applicable):**
+- **UI components** needed? (forms, modals, tables, cards, navigation elements)
+- **Screens/pages** created or modified? (routes, layouts, responsive behaviors)
+- **UI framework integration** considered? (component library, design system, theming)
+
+**Use Cases & Requirements Mapping:**
+- **Which use cases** from Phase 1 Stage 1 does this task implement? (UC-1, UC-5, etc.)
+- **Which requirements** from Phase 1 Stage 2 does this satisfy? (FR-001, NFR-005, etc.)
+- **Traceability established** from requirements → use cases → tasks → tests?
+
+### 2. UI Element Lifecycle (for any UI components)
+
+**⚠️ MANDATORY for tasks with UI components - systematically address each aspect:**
+
+**Enablement:**
+- **Initial state:** When does this UI element become enabled/disabled? (page load, authentication, permission check)
+- **Dynamic enablement:** What conditions toggle enabled/disabled state? (form validation, prerequisite selection, async operation completion)
+- **Visual feedback:** How is disabled state communicated? (opacity, cursor style, tooltip explaining why disabled)
+
+**Animation (if any):**
+- **Entrance animations:** How do elements appear? (fade in, slide in, scale up, no animation)
+- **Exit animations:** How do elements disappear? (fade out, slide out, scale down, immediate removal)
+- **Transition animations:** How do state changes animate? (smooth transitions, loading spinners, skeleton screens)
+- **Performance considerations:** Are animations performant on low-end devices? (GPU acceleration, frame rate, reduced motion preference)
+
+**Placement for Purpose:**
+- **Visual hierarchy:** Where does this element sit in the layout? (primary action, secondary action, tertiary action)
+- **Proximity to related elements:** Is it near the data it operates on? (inline actions, contextual menus, grouped controls)
+- **Responsive behavior:** How does placement adapt to screen sizes? (desktop layout, tablet layout, mobile layout, reordering)
+- **Accessibility:** Is placement logical for screen readers and keyboard navigation? (tab order, semantic HTML, ARIA labels)
+
+**Input Validation:**
+- **Client-side validation:** What rules enforce valid input? (required fields, format constraints, length limits, pattern matching)
+- **Validation timing:** When is validation triggered? (on blur, on change, on submit, debounced)
+- **Error display:** How are validation errors shown? (inline messages, field highlighting, summary panel, toast notifications)
+- **Error recovery:** Can users easily fix errors? (clear messages, examples of valid input, auto-correction suggestions)
+
+**Output Display:**
+- **Dynamic display:** How is output updated in real-time? (WebSocket updates, polling, optimistic updates, refresh button)
+- **Static display:** How is final result presented? (tables, cards, charts, formatted text, downloadable files)
+- **Empty states:** What is shown when there's no data? (helpful message, illustration, call-to-action to create data)
+- **Loading states:** What indicates data is being fetched? (spinners, skeleton screens, progress bars, load more buttons)
+
+**User Notifications:**
+- **Success notifications:** How is successful completion communicated? (toast message, inline confirmation, redirect with message)
+- **Error notifications:** How are errors presented? (error banner, modal dialog, inline alert, toast with retry)
+- **Progress notifications:** How is long-running progress shown? (progress bar, step indicator, status messages, cancellation option)
+- **Notification persistence:** How long do notifications stay visible? (auto-dismiss after N seconds, persist until dismissed, permanent until action)
+
+**Waiting Patterns:**
+- **Blocking waits:** When must the user wait and why? (synchronous save, file upload, payment processing)
+- **Non-blocking waits:** What can the user do while waiting? (continue editing, navigate away, cancel operation)
+- **Wait indicators:** What visual feedback indicates waiting? (loading spinner, progress bar, disabled state, overlay)
+- **Timeout handling:** What happens if operation takes too long? (timeout message, retry option, cancel option, background processing)
+
+**Multiple Languages (i18n):**
+- **Text externalization:** Are all user-facing strings externalized? (no hardcoded strings, translation keys, pluralization rules)
+- **Date/number formatting:** Are formats locale-aware? (date formats, currency, number separators, timezone handling)
+- **Text expansion:** Does layout accommodate longer translated text? (German/French can be 30% longer, flexible layouts, truncation strategies)
+- **RTL support (if applicable):** Does layout work for right-to-left languages? (Arabic, Hebrew - mirrored layouts, logical properties)
+- **Language switching:** Can users change language? (language picker, preference persistence, dynamic reload)
+
+### 3. UI Interaction Patterns & Component Relationships
+
+**⚠️ CRITICAL: Think deeply about how UI components interact, what CRUD operations they perform, and what events they generate/receive**
+
+Before implementing any UI feature, systematically analyze component interactions, relationships, data operations, and event flows.
+
+#### 3.1 Component Relationship Mapping
+
+**Identify all component relationships for this feature:**
+
+**Parent-Child Relationships:**
+- **What is the parent component?** (layout, page, container)
+- **What are the child components?** (forms, tables, modals, cards)
+- **How does parent control children?** (props passed down, context provided, configuration)
+- **How do children communicate with parent?** (callback functions, events bubbling up, context updates)
+- **What data flows parent → child?** (initial data, configuration, permissions, theme)
+- **What events flow child → parent?** (form submissions, item selections, error notifications)
+
+**Sibling Relationships:**
+- **What components are siblings?** (multiple forms on same page, tabs in tab set, cards in dashboard)
+- **Do siblings need to coordinate?** (one selection affects another, shared state, mutual exclusivity)
+- **How do siblings communicate?** (through parent, shared state, event bus, pub-sub)
+- **What triggers sibling updates?** (user actions in one sibling, external events, data changes)
+
+**Dependency Graph:**
+```markdown
+### Component Dependency Graph for This Feature
+
+**Primary Component:** [Name of main component this task implements]
+
+**Depends On (Upstream):**
+- [Component A]: Provides [data/configuration/context]
+- [Component B]: Emits [events] this component listens to
+- [Component C]: Manages [shared state] this component reads
+
+**Used By (Downstream):**
+- [Component X]: Receives [data/events] from this component
+- [Component Y]: Responds to [state changes] in this component
+- [Component Z]: Displays [results] from this component's actions
+
+**Peer Components (Same Level):**
+- [Component P]: Shares [state/context] with this component
+- [Component Q]: Coordinates with this component via [mechanism]
+
+**Integration Points:**
+- Parent container: [How parent controls this component]
+- Child components: [What children this component manages]
+- Global state: [What global state this component reads/writes]
+- External systems: [APIs, WebSockets, browser APIs this component uses]
+```
+
+**Why this matters:**
+- Reveals hidden dependencies that must be implemented or mocked
+- Identifies integration testing needs
+- Prevents breaking changes to upstream/downstream components
+- Ensures state management is consistent across component tree
+
+#### 3.2 CRUD Operations Analysis
+
+**For each UI component, identify all CRUD operations it performs:**
+
+**CREATE Operations (Add/Insert/New):**
+- **What can be created through this UI?** (new records, list items, form fields, uploaded files)
+- **Where is "Create" triggered?** (+ button, "Add New" link, drag-drop, keyboard shortcut, API event)
+- **What's the creation flow?**
+  1. User initiates (button click, menu selection)
+  2. UI shows creation interface (modal, inline form, new page)
+  3. User enters data (form fields, file upload, wizard steps)
+  4. Validation occurs (client-side, server-side)
+  5. Creation succeeds/fails (optimistic update, confirmation, error handling)
+  6. UI updates (new item appears, list refreshes, redirect to detail page)
+- **What validation is required?** (required fields, format checks, uniqueness, business rules)
+- **What happens on success?** (item added to list, modal closes, notification shown, focus moved)
+- **What happens on failure?** (error message shown, form state preserved, retry option, rollback if optimistic)
+- **Can multiple items be created at once?** (bulk create, batch import, duplicate/clone)
+
+**READ Operations (View/Display/Query):**
+- **What data does this UI display?** (list of items, detail view, summary stats, relationships)
+- **How is data loaded?** (initial page load, lazy loading, infinite scroll, on-demand)
+- **What queries/filters are available?** (search, filter dropdowns, date ranges, sort options)
+- **How is data refreshed?** (auto-refresh, manual refresh button, WebSocket updates, polling)
+- **What's the display format?** (table, cards, list, tree, graph, chart)
+- **Are there multiple views?** (list vs grid, compact vs detailed, different user roles see different data)
+- **What happens when data is empty?** (empty state message, call-to-action, suggestions)
+- **What happens on load failure?** (error message, retry button, offline indicator, cached data)
+
+**UPDATE Operations (Edit/Modify/Change):**
+- **What can be edited through this UI?** (record fields, settings, configurations, relationships)
+- **Where is "Edit" triggered?** (edit button, inline editing, double-click, right-click menu)
+- **What's the editing flow?**
+  1. User initiates edit (button, gesture, keyboard shortcut)
+  2. UI enters edit mode (modal, inline, separate page, expandable section)
+  3. User modifies data (form fields, toggles, selectors)
+  4. Validation occurs (real-time, on blur, on save)
+  5. Update succeeds/fails (optimistic, pessimistic, with confirmation)
+  6. UI updates (changes reflected, edit mode exits, notification shown)
+- **Is editing inline or modal?** (edit in place vs popup form)
+- **Can multiple items be edited at once?** (bulk edit, batch update, multi-select edit)
+- **What's the save strategy?** (explicit save button, auto-save, save on blur, save on navigation)
+- **What happens to unsaved changes?** (prompt on navigation, draft saved, changes discarded)
+- **What happens on conflict?** (concurrent edits by multiple users - last-write-wins, pessimistic lock, merge)
+
+**DELETE Operations (Remove/Archive/Deactivate):**
+- **What can be deleted through this UI?** (records, list items, uploaded files, relationships)
+- **Where is "Delete" triggered?** (delete button, trash icon, swipe gesture, keyboard shortcut, context menu)
+- **What's the deletion flow?**
+  1. User initiates delete (button, gesture, menu)
+  2. Confirmation requested (modal dialog, inline confirmation, undo toast)
+  3. User confirms or cancels
+  4. Deletion succeeds/fails (optimistic, pessimistic)
+  5. UI updates (item removed, list refreshes, notification shown)
+- **Is confirmation required?** (always, only for important items, never for trivial items, configurable)
+- **What confirmation UI?** (modal "Are you sure?", inline confirmation, red warning, item details shown)
+- **Is deletion permanent or reversible?** (hard delete, soft delete/archive, trash bin with restore)
+- **Can deletion be undone?** (undo toast, restore from trash, version history)
+- **Can multiple items be deleted at once?** (bulk delete, multi-select delete, delete all filtered)
+- **What happens to related data?** (cascade delete, orphan warning, require manual cleanup)
+
+**CRUD Orchestration:**
+```markdown
+### CRUD Operations Matrix for This Feature
+
+| Operation | UI Trigger | User Flow | Validation | Success State | Failure State | Bulk Support |
+|-----------|-----------|-----------|------------|---------------|---------------|--------------|
+| CREATE | "+ New" button | Modal form → Submit → List updates | Required fields, format | Toast + item appears | Error inline, form preserved | Import CSV (Y/N) |
+| READ | Page load, filters | Query → Render list | N/A | Items displayed | Error message + retry | N/A |
+| UPDATE | "Edit" icon | Inline edit → Auto-save | Real-time validation | Item updates in place | Error toast + rollback | Multi-select edit (Y/N) |
+| DELETE | Trash icon | Confirm modal → Delete | Confirm dialog | Toast + item disappears | Error modal + stays | Multi-select delete (Y/N) |
+```
+
+**Why this matters:**
+- Ensures all CRUD operations are designed before implementation
+- Reveals where confirmation, validation, error handling needed
+- Identifies bulk operations that improve UX
+- Prevents incomplete implementations (can create but not edit, can delete but no undo)
+
+#### 3.3 Event-Driven Architecture Patterns
+
+**For each UI component, identify its role in event-driven system:**
+
+**Event Generation (Publisher/Emitter Role):**
+- **What events does this component generate?** (user actions, state changes, lifecycle events)
+- **When are events emitted?** (button click, form submit, selection change, data loaded, error occurred)
+- **What data is included in events?** (event payload, context, metadata, timestamps)
+- **Who should receive these events?** (parent component, siblings, global listeners, external systems)
+- **What's the event naming convention?** (onUserCreated, user:created, USER_CREATED, userCreatedEvent)
+- **Are events synchronous or asynchronous?** (immediate callbacks, queued, debounced, throttled)
+
+**Event Reception (Subscriber/Listener Role):**
+- **What events does this component listen for?** (user actions elsewhere, data updates, system events)
+- **Where do these events come from?** (parent, siblings, global event bus, WebSocket, browser)
+- **How does component respond to events?** (update state, re-render, trigger API call, show notification)
+- **What's the subscription lifecycle?** (subscribe on mount, unsubscribe on unmount, conditional subscription)
+- **How are multiple events handled?** (event queue, debounce, throttle, latest-only, batch processing)
+- **What happens on event error?** (error boundary, fallback, retry, ignore)
+
+**Event Patterns:**
+
+**1. Direct Event Passing (Parent ↔ Child):**
+```javascript
+// Parent passes callback to child
+<ChildComponent onItemSelected={handleItemSelected} />
+
+// Child emits event by calling callback
+const handleClick = (item) => {
+  props.onItemSelected(item); // Emit event upward
+};
+```
+- **When to use:** Simple parent-child communication, tight coupling acceptable
+- **Pros:** Explicit, type-safe, easy to trace
+- **Cons:** Only works for direct relationships, props drilling for deep hierarchies
+
+**2. Event Bubbling (Child → Parent → Grandparent):**
+```javascript
+// Child emits event
+const childButton = <button onClick={() => emitEvent('item:selected', item)}>
+
+// Parent bubbles event up
+const handleChildEvent = (event) => {
+  // Process or transform event
+  props.onEvent(event); // Bubble to grandparent
+};
+```
+- **When to use:** Events need to propagate through component tree
+- **Pros:** Flexible event routing, intermediate processing
+- **Cons:** Can be hard to trace, potential performance issues
+
+**3. Global Event Bus (Pub-Sub Pattern):**
+```javascript
+// Component A publishes event
+eventBus.publish('invoice:created', { invoiceId: 123 });
+
+// Component B subscribes to event
+useEffect(() => {
+  const unsubscribe = eventBus.subscribe('invoice:created', handleInvoiceCreated);
+  return unsubscribe; // Cleanup on unmount
+}, []);
+```
+- **When to use:** Components far apart in tree, many-to-many communication
+- **Pros:** Decoupled components, flexible subscriptions
+- **Cons:** Hard to trace, memory leaks if not unsubscribed, implicit dependencies
+
+**4. State Management Events (Redux/Context Pattern):**
+```javascript
+// Component dispatches action (event)
+dispatch({ type: 'USER_LOGGED_IN', payload: { userId: 123 } });
+
+// Reducer handles event and updates state
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'USER_LOGGED_IN':
+      return { ...state, user: action.payload };
+  }
+};
+
+// Other components react to state changes
+const user = useSelector(state => state.user);
+```
+- **When to use:** Complex state management, many components depend on same state
+- **Pros:** Centralized state, time-travel debugging, predictable updates
+- **Cons:** Boilerplate, learning curve, may be overkill for simple apps
+
+**5. Custom Event System (Browser Events):**
+```javascript
+// Component A dispatches custom event
+const event = new CustomEvent('invoice:created', {
+  detail: { invoiceId: 123 },
+  bubbles: true
+});
+element.dispatchEvent(event);
+
+// Component B listens for custom event
+element.addEventListener('invoice:created', (e) => {
+  console.log('Invoice created:', e.detail.invoiceId);
+});
+```
+- **When to use:** Web components, micro-frontends, library interop
+- **Pros:** Standard browser API, works across frameworks
+- **Cons:** String-based (no type safety), manual cleanup, less common in modern frameworks
+
+**Event Flow Mapping:**
+```markdown
+### Event Flow Diagram for This Feature
+
+**Events Generated by This Component:**
+1. `item:selected` - When user selects item from list
+   - **Payload:** `{ itemId: string, item: Object }`
+   - **Recipients:** Parent container (to update detail view), Analytics service (to track selection)
+   - **Pattern:** Direct callback to parent + global event bus for analytics
+
+2. `item:created` - When user successfully creates new item
+   - **Payload:** `{ itemId: string, item: Object, timestamp: number }`
+   - **Recipients:** Parent container (to refresh list), Notification service (to show toast), WebSocket (to notify other users)
+   - **Pattern:** State management dispatch (Redux action)
+
+3. `validation:error` - When form validation fails
+   - **Payload:** `{ field: string, error: string, severity: 'error'|'warning' }`
+   - **Recipients:** Form component (to display inline error), Parent (to disable submit button)
+   - **Pattern:** Direct callback
+
+**Events Received by This Component:**
+1. `data:refreshed` - When data source is updated externally
+   - **Source:** WebSocket server, Parent container, Global state
+   - **Response:** Re-fetch data, update list, show "New items available" notification
+   - **Pattern:** WebSocket listener + global state subscription
+
+2. `user:permissions:changed` - When user's permissions change
+   - **Source:** Auth service (global state)
+   - **Response:** Re-evaluate which CRUD operations are enabled, hide/show UI elements
+   - **Pattern:** Context subscription
+
+3. `filter:applied` - When user applies filter in sibling component
+   - **Source:** Filter sidebar (sibling)
+   - **Response:** Re-query data with filter params, update displayed items
+   - **Pattern:** Event bubbling through parent
+```
+
+**Why this matters:**
+- Reveals event-driven dependencies between components
+- Ensures proper subscription/unsubscription lifecycle (prevent memory leaks)
+- Identifies which event pattern to use (direct vs pub-sub vs state management)
+- Prevents event storms (too many events causing performance issues)
+- Documents event contracts (payload structure, naming, recipients)
+
+#### 3.4 State Management Patterns
+
+**Component-Level State:**
+- **What state is local to this component?** (form values, loading flags, error messages, UI toggle states)
+- **When is local state sufficient?** (doesn't need to be shared, ephemeral, UI-only state)
+- **How is local state initialized?** (default values, from props, from API)
+- **When is local state reset?** (on mount, on props change, on user action, on unmount)
+
+**Shared State (Lifted State):**
+- **What state is shared with other components?** (selected items, filters, sort order, pagination)
+- **Where should shared state live?** (nearest common ancestor, global store, context)
+- **How do components access shared state?** (props, context, store selectors)
+- **How do components update shared state?** (callbacks, dispatch actions, context setters)
+
+**Global State:**
+- **What state is global to entire application?** (user authentication, theme, language, feature flags)
+- **What global state management is used?** (Redux, Context API, MobX, Zustand, Recoil)
+- **How does this component read global state?** (useSelector, useContext, hooks)
+- **How does this component update global state?** (dispatch, context setter, store methods)
+
+**Server State (API Data):**
+- **What data comes from API?** (user data, business entities, configuration)
+- **How is server state cached?** (React Query, SWR, Apollo Client, manual cache)
+- **When is server state refreshed?** (on mount, on focus, on interval, on event)
+- **How are optimistic updates handled?** (update cache immediately, rollback on error)
+
+**URL State (Routing State):**
+- **What state is stored in URL?** (page number, filters, selected item ID, view mode)
+- **Why store in URL?** (shareable links, browser back/forward, bookmarkable)
+- **How is URL state read?** (useParams, useSearchParams, query string parsing)
+- **How is URL state updated?** (navigate, push, replace)
+
+**Form State:**
+- **What form library is used?** (React Hook Form, Formik, uncontrolled forms, controlled components)
+- **How is form state managed?** (library handles state, manual useState, form action)
+- **How is validation handled?** (schema validation, manual validation, server validation)
+- **How are form errors displayed?** (inline, summary, toast)
+
+**State Synchronization:**
+```markdown
+### State Management Strategy for This Feature
+
+**Component State (Local):**
+- `isModalOpen` - Boolean controlling modal visibility (ephemeral UI state)
+- `validationErrors` - Object containing field-level validation errors (form state)
+
+**Lifted State (Shared with Siblings via Parent):**
+- `selectedItemId` - String ID of currently selected item (shared with detail view)
+- `filters` - Object containing active filters (shared with filter sidebar)
+
+**Global State (Application-Wide):**
+- `user` - Current user object with permissions (auth state)
+- `theme` - Current theme (dark/light) (UI preference)
+
+**Server State (Cached API Data):**
+- `items` - Array of items from API (React Query cache)
+- `itemDetails` - Individual item details (SWR cache)
+
+**URL State (Router State):**
+- `page` - Current page number (query param: ?page=2)
+- `sortBy` - Sort field (query param: ?sortBy=name)
+
+**State Flow:**
+1. User changes filter → Update lifted state → Parent passes to this component → Re-query server state
+2. User selects item → Update lifted state → Update URL state → Notify siblings
+3. Item created → Optimistic update to server state cache → API call → Rollback on failure
+```
+
+**Why this matters:**
+- Ensures state is stored at appropriate level (not too high, not too low)
+- Prevents props drilling (too many levels of prop passing)
+- Identifies which state management library to use
+- Reveals state synchronization needs (keep multiple states in sync)
+
+#### 3.5 Component-to-API Interaction
+
+**API Call Triggers:**
+- **What user actions trigger API calls?** (button clicks, form submissions, infinite scroll, auto-save)
+- **What non-user events trigger API calls?** (component mount, timer, WebSocket message, external event)
+- **Are API calls immediate or debounced?** (instant, debounced 500ms, throttled, batched)
+
+**Request Lifecycle:**
+- **How are API requests managed?** (loading states, cancellation on unmount, retry logic, concurrent request handling)
+- **What loading indicators are shown?** (spinner, skeleton screen, progress bar, disabled state)
+- **Can requests be cancelled?** (on unmount, on user action, on new request)
+- **How many concurrent requests?** (unlimited, max 5, queue remaining)
+
+**Response Handling:**
+- **How are API responses processed?** (success updates, error handling, optimistic updates with rollback, cache invalidation)
+- **What happens on success?** (update UI, show notification, redirect, trigger next action)
+- **What happens on error?** (show error message, retry option, rollback optimistic update, log error)
+- **How is cache updated?** (invalidate cache, update cache, append to cache)
+
+**Real-Time Updates:**
+- **Are real-time updates needed?** (polling interval, WebSocket connection management, reconnection strategy)
+- **What triggers real-time updates?** (server push, peer action, data change)
+- **How are conflicts handled?** (last-write-wins, merge, prompt user)
+
+**Why this matters:**
+- Ensures API interactions are well-designed (not too chatty, not too slow)
+- Identifies loading and error states that need UI design
+- Reveals caching and invalidation strategies
+- Prevents race conditions and stale data issues
+
+---
+
+### Application to Task Creation (Enhanced)
+
+**When creating each task file, for UI features:**
+
+1. **Map component relationships** - Create dependency graph showing parent/child/sibling relationships
+2. **Analyze CRUD operations** - Document all create/read/update/delete operations with UI flows
+3. **Design event flows** - Identify what events component generates/receives and which pattern to use
+4. **Plan state management** - Determine what state is local/shared/global and how it's synchronized
+5. **Design API interactions** - Specify triggers, lifecycle, responses, and real-time update strategy
+
+**Complete the CRUD matrix** to ensure no operations are missed:
+```markdown
+### CRUD Operations Matrix
+
+| Operation | UI Trigger | User Flow | Validation | Success State | Failure State | Bulk Support |
+|-----------|-----------|-----------|------------|---------------|---------------|--------------|
+| CREATE | [Trigger] | [Flow] | [Rules] | [Success UI] | [Error UI] | [Yes/No/N/A] |
+| READ | [Trigger] | [Flow] | [Rules] | [Success UI] | [Error UI] | [Yes/No/N/A] |
+| UPDATE | [Trigger] | [Flow] | [Rules] | [Success UI] | [Error UI] | [Yes/No/N/A] |
+| DELETE | [Trigger] | [Flow] | [Rules] | [Success UI] | [Error UI] | [Yes/No/N/A] |
+```
+
+**Complete the event flow diagram** to ensure all events are designed:
+```markdown
+### Event Flow Diagram
+
+**Events Generated:**
+1. [Event name] - [When emitted] - [Payload] - [Recipients] - [Pattern]
+
+**Events Received:**
+1. [Event name] - [Source] - [Response] - [Pattern]
+```
+
+**Document state management strategy:**
+```markdown
+### State Management Strategy
+
+**Component State:** [List with justification]
+**Lifted State:** [List with justification]
+**Global State:** [List with justification]
+**Server State:** [List with justification]
+**URL State:** [List with justification]
+```
+
+**Why this deep thinking matters:**
+- **Missing CRUD operations** → incomplete features (can create but not edit, can delete but no undo)
+- **Missing event patterns** → components can't communicate, state gets out of sync
+- **Missing component relationships** → integration failures, tight coupling, difficult testing
+- **Missing state management** → props drilling, duplicate state, inconsistencies
+- **Missing API interaction design** → race conditions, stale data, poor UX
+
+**This comprehensive analysis ensures:**
+- ✅ Complete UI implementations with all CRUD operations
+- ✅ Well-designed event-driven architecture
+- ✅ Proper component relationships and dependencies
+- ✅ Appropriate state management at each level
+- ✅ Efficient and robust API interactions
+
+### 4. Data Interaction & Integrity
+
+**Actor Data Interaction:**
+- **Read access:** How do actors query/view data? (list views, detail views, search, filters, exports)
+- **Write access:** How do actors create/update/delete data? (forms, bulk operations, imports, API endpoints)
+- **Access control:** How is data access restricted by actor? (row-level security, field-level permissions, ownership checks, team boundaries)
+- **Audit trails:** Is actor data interaction logged? (who accessed what when, change history, compliance requirements)
+
+**Data Integrity While Providing Rich Experience:**
+- **Optimistic updates:** How are immediate UI updates reconciled with server state? (rollback on failure, conflict resolution, version tracking)
+- **Validation layers:** Where is data validated? (client-side for UX, server-side for security, database constraints for integrity)
+- **Transaction boundaries:** What operations must be atomic? (multi-step processes, rollback strategies, saga patterns for distributed transactions)
+- **Referential integrity:** How are data relationships enforced? (foreign keys, cascade deletes, orphan prevention, soft deletes)
+- **Conflict resolution:** How are concurrent edits handled? (last-write-wins, optimistic locking, pessimistic locking, CRDTs)
+
+### 5. Data Lifecycle
+
+**Creation:**
+- **Data origin:** Where does data come from? (user input, external API, file upload, scheduled import, system-generated)
+- **Initial validation:** What rules govern data creation? (required fields, format validation, uniqueness checks, business rules)
+- **Default values:** What defaults are applied? (timestamps, status fields, derived values, system assignments)
+
+**Transformation:**
+- **Processing stages:** How is data transformed? (enrichment, normalization, aggregation, encryption)
+- **Intermediate states:** What temporary states exist? (pending, processing, validated, failed)
+- **Side effects:** What other systems are notified? (webhooks, message queues, external services, caches)
+
+**Storage Duration:**
+- **Retention policies:** How long is data kept? (permanent, time-limited, lifecycle tiers - hot/warm/cold)
+- **Archival strategies:** When is data archived? (age-based, size-based, compliance-driven)
+- **Backup strategies:** How is data protected? (frequency, retention, restoration testing)
+
+**Deletion/Expiration:**
+- **Soft delete vs hard delete:** Is data truly deleted or marked inactive? (recoverability requirements, compliance constraints)
+- **Cascade effects:** What happens to related data? (cascade deletes, orphan handling, archive before delete)
+- **Compliance requirements:** Are there legal obligations? (GDPR right to erasure, data retention laws, audit preservation)
+
+### 6. Security Considerations
+
+**Authentication Requirements:**
+- **Authentication level:** What authentication is required? (anonymous, authenticated user, verified account, MFA)
+- **Session management:** How are sessions validated? (token validation, session timeout, concurrent session limits)
+- **Credential handling:** How are credentials managed? (OAuth flows, API keys, service accounts, credential rotation)
+
+**Authorization Checks:**
+- **Permission model:** What permissions control access? (RBAC roles, ABAC attributes, resource ownership, team membership)
+- **Authorization points:** Where are checks enforced? (API gateway, service layer, data layer, UI layer)
+- **Privilege escalation prevention:** How is unauthorized access prevented? (input validation, resource isolation, audit logging)
+
+**Input Security:**
+- **Injection prevention:** How is malicious input blocked? (parameterized queries, input sanitization, content security policy)
+- **File upload security:** How are uploaded files validated? (file type checking, size limits, virus scanning, sandboxed processing)
+- **Rate limiting:** How is abuse prevented? (request throttling, CAPTCHA, IP blocking, account lockout)
+
+**Data Protection:**
+- **Encryption at rest:** What data is encrypted when stored? (PII, credentials, sensitive business data, encryption algorithms used)
+- **Encryption in transit:** How is data protected during transmission? (TLS/SSL, API authentication, secure WebSockets)
+- **Data masking:** Is sensitive data masked in logs/UI? (PII redaction, credential masking, partial display)
+
+**Audit & Compliance:**
+- **Audit logging:** What actions are logged? (access attempts, data changes, permission changes, security events)
+- **Compliance requirements:** What regulations apply? (GDPR, HIPAA, SOC2, PCI-DSS, industry-specific)
+- **Security testing:** What security validation is needed? (penetration testing, vulnerability scanning, dependency audits)
+
+### 7. Observability & Monitoring
+
+**Logging Requirements:**
+- **Log levels:** What should be logged at each level? (DEBUG, INFO, WARN, ERROR - avoid over-logging sensitive data)
+- **Structured logging:** Are logs machine-readable? (JSON format, consistent field names, correlation IDs)
+- **Contextual information:** What context is included? (user ID, request ID, trace ID, timestamp, environment)
+
+**Metrics Collection:**
+- **Performance metrics:** What should be measured? (latency, throughput, error rate, resource utilization)
+- **Business metrics:** What indicates feature success? (usage count, conversion rate, feature adoption, user engagement)
+- **Custom metrics:** What feature-specific metrics matter? (specific to this task's domain - e.g., search query latency, payment success rate)
+
+**Actor-Specific Observability:**
+- **Admin observability:** What do admins need to see? (system health, user activity, error trends, performance dashboards)
+- **Developer observability:** What do developers need for debugging? (detailed traces, error context, reproduction steps, stack traces)
+- **End-user observability:** What do users need to see? (operation status, error messages, progress indicators, history/audit trails)
+- **Support team observability:** What helps support troubleshoot issues? (user session playback, action history, system state at error time)
+
+**Alerting & Incident Response:**
+- **Alert conditions:** When should alerts fire? (error rate thresholds, performance degradation, security events, business anomalies)
+- **Alert routing:** Who gets notified? (on-call rotation, escalation policies, severity-based routing)
+- **Runbook references:** What documentation helps respond? (common issues, remediation steps, escalation procedures)
+
+### Application to Task Creation
+
+**When creating each task file:**
+
+1. **Review this entire directive** before filling out the task template
+2. **For each section above**, ask: "Does this feature task involve this aspect?"
+3. **Document applicable aspects** in the task file's Implementation Scope section
+4. **Write test specifications** that verify each aspect is correctly implemented
+5. **Update acceptance criteria** to include verification of security, observability, and data integrity
+6. **Cross-reference** to use cases (Phase 1 Stage 1) and requirements (Phase 1 Stage 2) that justify each aspect
+7. **⚠️ IDENTIFY AND CROSS-REFERENCE RELATED TASKS**
+
+   **Before finalizing each task file, systematically identify related tasks that should be considered during implementation:**
+
+   **Related Task Discovery Process:**
+
+   **Step 1: Identify Tasks That Share Common Elements**
+
+   Review all other tasks in `<worktree>/planning/tasks-pending/` and identify relationships based on:
+
+   **Shared Data Models:**
+   - **Same database tables/collections:** Tasks operating on same data structures
+   - **Related entities:** Tasks handling parent/child or associated records (User → Invoice, Order → OrderItem)
+   - **Shared data transformations:** Tasks that process data through similar pipelines
+
+   Example: Task 015 "Create Invoice" and Task 018 "Edit Invoice" both operate on invoices table
+
+   **Shared UI Components:**
+   - **Common component libraries:** Tasks using same form components, tables, modals
+   - **Layout containers:** Tasks rendering in same parent container or page
+   - **Shared UI state:** Tasks managing overlapping UI state (filters, selections, view modes)
+
+   Example: Task 020 "Invoice List" and Task 021 "Invoice Detail" share InvoiceCard component
+
+   **Shared APIs/Services:**
+   - **Same API endpoints:** Tasks calling same REST endpoints or GraphQL queries
+   - **Common service layer:** Tasks using same business logic services
+   - **Shared external integrations:** Tasks interacting with same third-party APIs
+
+   Example: Task 025 "Payment Processing" and Task 026 "Refund Processing" both use PaymentService
+
+   **Sequential Workflows:**
+   - **Process steps:** Tasks representing consecutive steps in user workflow
+   - **Data pipelines:** Tasks in data transformation pipeline (extract → transform → load)
+   - **Approval chains:** Tasks in approval/review workflow
+
+   Example: Task 030 "Submit Timesheet" → Task 031 "Manager Approval" → Task 032 "Payroll Processing"
+
+   **Conflicting Changes:**
+   - **Overlapping functionality:** Tasks that might implement similar features differently
+   - **Competing patterns:** Tasks that need consistent approach (all use same validation library)
+   - **Shared resources:** Tasks accessing same limited resources (API rate limits, database connections)
+
+   Example: Task 040 "Email Notifications" and Task 041 "SMS Notifications" should use consistent messaging templates
+
+   **Cross-Cutting Concerns:**
+   - **Authentication/Authorization:** Tasks requiring same permission checks
+   - **Logging/Monitoring:** Tasks needing consistent observability patterns
+   - **Error Handling:** Tasks sharing error recovery strategies
+
+   Example: All admin tasks (Task 050-055) require "admin" role permission
+
+   **Step 2: Document Related Tasks in Task File**
+
+   Add "Related Tasks" section to task file:
+
+   ```markdown
+   ## Related Tasks
+
+   **⚠️ CRITICAL: Review these related tasks before and during implementation to ensure consistency and avoid conflicts**
+
+   ### Tasks Operating on Same Data (Coordinate Schema Changes)
+
+   **Task 015: Create Invoice**
+   - **Relationship:** Both operate on `invoices` table
+   - **Coordination needed:** Schema changes must be compatible
+   - **Review for:** Field names, validation rules, default values
+   - **Implementation consideration:** If Task 015 adds new invoice fields, this task must handle them
+
+   **Task 019: Invoice Reporting**
+   - **Relationship:** Queries invoices created/edited by this task
+   - **Coordination needed:** Ensure query performance not degraded
+   - **Review for:** Index requirements, query patterns
+   - **Implementation consideration:** If adding complex invoice states, update reporting filters
+
+   ### Tasks Sharing UI Components (Maintain Consistency)
+
+   **Task 020: Invoice List**
+   - **Relationship:** Uses same InvoiceCard component
+   - **Coordination needed:** Component API must support both use cases
+   - **Review for:** Props interface, event handlers, styling
+   - **Implementation consideration:** Changes to InvoiceCard props affect both tasks
+
+   **Task 022: Invoice Search**
+   - **Relationship:** Renders in same page layout, shares filter state
+   - **Coordination needed:** Filter state synchronization
+   - **Review for:** Filter format, URL state management
+   - **Implementation consideration:** Filter changes must update both list and search results
+
+   ### Tasks in Sequential Workflow (Handoff Points)
+
+   **Task 030: Submit Timesheet** (Prerequisite)
+   - **Relationship:** This task processes output from Task 030
+   - **Coordination needed:** Data format contract
+   - **Review for:** Status transitions, validation rules
+   - **Implementation consideration:** Must handle all timesheet states Task 030 can produce
+
+   **Task 032: Payroll Processing** (Downstream)
+   - **Relationship:** Task 032 consumes this task's approval decisions
+   - **Coordination needed:** Approval status format
+   - **Review for:** Approval data structure, notification triggers
+   - **Implementation consideration:** Approval changes must be compatible with payroll expectations
+
+   ### Tasks with Conflicting Patterns (Align Approaches)
+
+   **Task 040: Email Notifications**
+   - **Relationship:** Both implement notification delivery
+   - **Coordination needed:** Use consistent template format and sending patterns
+   - **Review for:** Template structure, retry logic, error handling
+   - **Implementation consideration:** Follow same template variable naming ({{user.name}} vs {user_name})
+
+   ### Tasks with Cross-Cutting Concerns (Share Standards)
+
+   **Task 050: User Management** (Also requires "admin" role)
+   - **Relationship:** Both are admin-only features
+   - **Coordination needed:** Consistent permission check implementation
+   - **Review for:** Permission checking pattern, error messages for unauthorized access
+   - **Implementation consideration:** Use same authorization middleware/decorator pattern
+
+   **Task 055: Audit Logging** (Logs all admin actions)
+   - **Relationship:** This task's admin actions should be logged by Task 055
+   - **Coordination needed:** Event emission for audit trail
+   - **Review for:** Event format, required metadata (user ID, timestamp, action)
+   - **Implementation consideration:** Emit audit events in consistent format
+   ```
+
+   **Step 3: Review Related Tasks During Implementation**
+
+   **Before writing any code:**
+   1. **Read related task files** to understand their implementation plans
+   2. **Check for conflicts** - Are both tasks planning different approaches to same problem?
+   3. **Identify coordination points** - Where do tasks need to agree on contracts?
+   4. **Look for reuse opportunities** - Can shared code/components be extracted?
+
+   **During implementation:**
+   1. **Validate against related tasks** - Does this implementation work with related tasks?
+   2. **Test integration points** - If Task A is complete, test this task against it
+   3. **Update related tasks** - If discovering shared needs, note in related task files
+
+   **After implementation:**
+   1. **Update related task files** - Document what was implemented for their reference
+   2. **Note breaking changes** - If interface changed, warn related tasks
+   3. **Suggest coordination** - If found better approach, recommend to related tasks
+
+   **Step 4: Handle Task Ordering Based on Relationships**
+
+   **If related tasks have dependencies, document in implementation-steps.md:**
+
+   ```markdown
+   ## Task Ordering Considerations
+
+   **Task 015 (Create Invoice) must complete before Task 018 (Edit Invoice)**
+   - Reason: Edit requires create API and data model to exist
+   - Impact: Task 018 blocked until Task 015 complete
+
+   **Task 020 (Invoice List) and Task 021 (Invoice Detail) can run in parallel**
+   - Reason: Both read-only, operate on existing invoice model
+   - Coordination: Both teams should agree on InvoiceCard component API upfront
+   - Meeting needed: Yes - initial component API design session
+
+   **Task 040 (Email) and Task 041 (SMS) should be serialized**
+   - Reason: Need to establish common notification pattern from first implementation
+   - Approach: Implement Task 040 first, extract pattern, apply to Task 041
+   ```
+
+   **Why Related Task Cross-Referencing Matters:**
+
+   - **Prevents inconsistencies** - Tasks implement same feature differently, creating confusion
+   - **Reveals dependencies** - Task B needs output from Task A (must serialize)
+   - **Enables parallel work** - Tasks with no conflicts can be implemented concurrently
+   - **Identifies shared code** - Multiple tasks need same utility → extract to shared module
+   - **Catches conflicts early** - Two tasks modifying same table differently → resolve before coding
+   - **Improves coordination** - Developers working on related tasks can collaborate
+   - **Reduces rework** - Task A changes API, Task B unaware → breaks Task B
+   - **Documents rationale** - Why this task designed this way (to align with Task X)
+
+   **Template for Related Tasks Section:**
+
+   ```markdown
+   ## Related Tasks
+
+   ### Same Data/Schema
+   - Task XXX: [Name] - [How it relates] - [Coordination needed]
+
+   ### Same UI Components
+   - Task YYY: [Name] - [How it relates] - [Coordination needed]
+
+   ### Same APIs/Services
+   - Task ZZZ: [Name] - [How it relates] - [Coordination needed]
+
+   ### Sequential Workflow
+   - Task AAA (Before): [Name] - [What it provides to this task]
+   - Task BBB (After): [Name] - [What this task provides to it]
+
+   ### Conflicting Patterns
+   - Task CCC: [Name] - [How to align approaches]
+
+   ### Cross-Cutting Concerns
+   - Task DDD: [Name] - [Shared standards to follow]
+   ```
+
+   **This cross-referencing ensures:**
+   - ✅ All related tasks are identified before implementation
+   - ✅ Coordination points are explicit and acted upon
+   - ✅ Dependencies dictate implementation order
+   - ✅ Parallel tasks avoid conflicts through upfront agreement
+   - ✅ Shared patterns emerge and get reused
+   - ✅ Breaking changes are communicated to affected tasks
+
+**Why this matters:**
+- **Missing actor consideration** → features that don't match actual user permissions or workflows
+- **Missing API design** → inconsistent interfaces, breaking changes, poor client integration
+- **Missing data lifecycle** → data leaks, orphaned records, compliance violations
+- **Missing UI lifecycle** → confusing interfaces, poor accessibility, broken responsive layouts
+- **Missing security considerations** → vulnerabilities, unauthorized access, data breaches
+- **Missing observability** → production issues that can't be diagnosed, silent failures, poor user experience
+
+**This comprehensive approach ensures:**
+- ✅ Complete features that consider all dimensions
+- ✅ Secure implementations that protect data and users
+- ✅ Observable systems that can be monitored and debugged
+- ✅ Maintainable code that respects data integrity
+- ✅ Excellent user experiences across all UI interactions
+
+---
 
 **Task File Template Structure:**
 
@@ -7973,6 +9681,459 @@ Include architecture patterns and tool usage in your implementation plan.
 3. [Third step with file references]
 4. [Tooling: Which tools will be used and when]
 ..."
+
+#### Stage 2b: Experimental Planning Loop (Answer Key Questions)
+
+**⚠️ CRITICAL: Enter exploration loop before committing to full implementation**
+
+Before proceeding to TDD implementation (Stage 3), enter an iterative loop to answer key questions about your approach through small, focused experiments. This prevents false starts and validates assumptions early.
+
+**Loop Condition:** Continue WHILE key questions remain OR plan revisions are needed
+
+**Quality Gate:** Exit loop ONLY when satisfied that:
+- All critical questions have answers
+- Approach is validated through experiments
+- Plan is complete and ready for TDD implementation
+
+---
+
+**🔁 EXPERIMENTAL LOOP - Iterate Until Satisfied:**
+
+### Step 1: Identify Key Questions (or Refine from Previous Iteration)
+
+**Based on your plan from Stage 2 (or revised plan from previous loop iteration), identify questions that create uncertainty:**
+
+**Technical Feasibility Questions:**
+- "Can library X handle use case Y?" (performance, edge cases, compatibility)
+- "Does API Z support the operation we need?" (rate limits, response format, error handling)
+- "Will pattern A work with constraint B?" (memory limits, concurrency, latency)
+- "Is approach C compatible with existing code D?" (integration points, breaking changes)
+
+**Implementation Approach Questions:**
+- "Should we use strategy X or strategy Y?" (comparing alternatives)
+- "What's the best way to handle edge case Z?" (data validation, error recovery)
+- "How should we structure module A for extensibility?" (design patterns, abstraction level)
+- "Which data structure optimizes for our access patterns?" (trade-offs, complexity)
+
+**Integration Questions:**
+- "How does external service X actually behave?" (real-world vs documented behavior)
+- "What happens when system Y fails or times out?" (failure modes, cascading effects)
+- "Can we rely on assumption Z about the environment?" (OS capabilities, network conditions)
+- "What's the actual performance of operation W?" (benchmark vs theoretical)
+
+**Requirements Clarity Questions:**
+- "What should happen in ambiguous scenario X?" (user expectations, business rules)
+- "How do users expect feature Y to behave?" (UX patterns, mental models)
+- "What constitutes 'acceptable performance' for operation Z?" (response time, throughput)
+- "Which error conditions must we handle vs can gracefully fail?" (priority, impact)
+
+**Document questions in format:**
+```markdown
+### Key Questions for This Task
+
+**Question 1: [Specific question]**
+- **Why it matters:** [Impact on implementation approach]
+- **Current assumption:** [What we think is true]
+- **Risk if wrong:** [Consequences of incorrect assumption]
+- **Experiment needed:** [How we'll answer this]
+
+**Question 2: [Specific question]**
+- **Why it matters:** [Impact on implementation approach]
+- **Current assumption:** [What we think is true]
+- **Risk if wrong:** [Consequences of incorrect assumption]
+- **Experiment needed:** [How we'll answer this]
+
+[Continue for all questions...]
+```
+
+**Prioritize questions:**
+- **MUST answer:** Questions that block implementation (architectural decisions, critical unknowns)
+- **SHOULD answer:** Questions that significantly affect approach (optimization strategies, error handling)
+- **NICE to answer:** Questions that refine details (cosmetic choices, minor optimizations)
+
+**Focus on MUST and SHOULD questions first.**
+
+---
+
+### Step 2: Design Targeted Experiments
+
+**For each key question, design a small, focused experiment that efficiently answers the question:**
+
+**Experiment Design Principles:**
+- **Minimal scope:** Test only what's needed to answer the question (avoid over-building)
+- **Realistic conditions:** Use actual APIs, real data, production-like environment
+- **Measurable outcomes:** Define clear success/failure criteria
+- **Time-boxed:** Set maximum time limit (15-30 minutes per experiment)
+- **Isolated:** Experiment should not affect existing code or state
+
+**Experiment Types:**
+
+**1. API Exploration Experiment:**
+```javascript
+// Question: "Does API X support operation Y with our constraints?"
+// Experiment: Make actual API call with realistic payload
+
+const experiment_api_capability = async () => {
+  const testPayload = { /* realistic data */ };
+  try {
+    const response = await apiClient.operation(testPayload);
+    console.log('Success:', response);
+    console.log('Response time:', response.timing);
+    console.log('Supports our use case:', checkCriteria(response));
+  } catch (error) {
+    console.log('Failure:', error.message, error.code);
+    console.log('Can we handle this error?:', analyzeError(error));
+  }
+};
+```
+
+**2. Performance Benchmark Experiment:**
+```javascript
+// Question: "Is approach X fast enough for requirement Y?"
+// Experiment: Benchmark critical path with realistic data volume
+
+const experiment_performance = () => {
+  const testData = generateRealisticDataset(1000); // Production scale
+  const start = Date.now();
+
+  for (let i = 0; i < 100; i++) {
+    performOperation(testData);
+  }
+
+  const avgTime = (Date.now() - start) / 100;
+  console.log('Average operation time:', avgTime, 'ms');
+  console.log('Meets requirement (<50ms):', avgTime < 50);
+  console.log('Scaling factor:', predictScaling(avgTime));
+};
+```
+
+**3. Integration Compatibility Experiment:**
+```javascript
+// Question: "Can new module X integrate with existing module Y?"
+// Experiment: Test integration points with minimal implementation
+
+const experiment_integration = () => {
+  const existingModule = require('../src/existing-module');
+  const newModuleMock = { /* minimal interface */ };
+
+  try {
+    const result = existingModule.processWithNew(newModuleMock);
+    console.log('Integration successful:', result);
+    console.log('Interface compatible:', validateInterface(result));
+  } catch (error) {
+    console.log('Integration issue:', error.message);
+    console.log('Interface mismatch:', identifyMismatch(error));
+  }
+};
+```
+
+**4. Edge Case Behavior Experiment:**
+```javascript
+// Question: "How does library X handle edge case Y?"
+// Experiment: Test boundary conditions and error cases
+
+const experiment_edge_cases = () => {
+  const edgeCases = [
+    { input: null, expected: 'graceful null handling' },
+    { input: [], expected: 'empty array handling' },
+    { input: hugeArray, expected: 'large data handling' },
+    { input: malformed, expected: 'error detection' }
+  ];
+
+  edgeCases.forEach(testCase => {
+    try {
+      const result = library.operation(testCase.input);
+      console.log(`Case ${testCase.expected}:`, result);
+    } catch (error) {
+      console.log(`Case ${testCase.expected} error:`, error.message);
+    }
+  });
+};
+```
+
+**5. Architectural Pattern Experiment:**
+```javascript
+// Question: "Should we use pattern X or pattern Y for requirement Z?"
+// Experiment: Implement minimal version of both patterns and compare
+
+const experiment_pattern_comparison = () => {
+  // Pattern X: Strategy A
+  const resultX = implementPatternX(sampleData);
+  console.log('Pattern X complexity:', analyzeComplexity(resultX));
+  console.log('Pattern X extensibility:', analyzeExtensibility(resultX));
+
+  // Pattern Y: Strategy B
+  const resultY = implementPatternY(sampleData);
+  console.log('Pattern Y complexity:', analyzeComplexity(resultY));
+  console.log('Pattern Y extensibility:', analyzeExtensibility(resultY));
+
+  console.log('Recommendation:', comparePatterns(resultX, resultY));
+};
+```
+
+**Document experiment design:**
+```markdown
+### Experiments for This Task
+
+**Experiment 1: [Purpose - answers Question N]**
+- **Type:** [API/Performance/Integration/EdgeCase/Pattern]
+- **Setup:** [What needs to be prepared]
+- **Execution:** [What will be run/tested]
+- **Success criteria:** [What indicates answer is "yes"]
+- **Failure criteria:** [What indicates answer is "no"]
+- **Time limit:** [Maximum time to spend]
+
+**Experiment 2: [Purpose - answers Question M]**
+[Same structure...]
+```
+
+---
+
+### Step 3: Execute Experiments and Capture Findings
+
+**Create experiment workspace** (separate from main implementation):
+```bash
+# Create temporary experiment directory
+mkdir -p "<worktree>/experiments/task-NNN-exploration"
+cd "<worktree>/experiments/task-NNN-exploration"
+
+# Create experiment files
+touch experiment-1-api-capability.js
+touch experiment-2-performance-benchmark.js
+touch experiment-3-integration-test.js
+```
+
+**Run each experiment and document results immediately:**
+
+**Execution Pattern:**
+1. **Set up experiment environment** (install test dependencies, configure API clients)
+2. **Run experiment** (execute code, capture output, measure results)
+3. **Observe behavior** (note actual behavior vs expected, identify surprises)
+4. **Document findings** (write down what you learned, even if unexpected)
+
+**Capture findings in structured format:**
+```markdown
+### Experiment Results
+
+**Experiment 1: [Name]**
+- **Question addressed:** [Which question this answers]
+- **Execution date:** [Timestamp]
+- **Outcome:** [Success/Failure/Partial/Unexpected]
+- **Key findings:**
+  * [Specific observation 1]
+  * [Specific observation 2]
+  * [Unexpected behavior observed]
+- **Performance metrics:** [If applicable: timing, memory, error rate]
+- **Answer to question:** [Direct answer with confidence level]
+- **Supporting evidence:** [Log excerpts, measurements, error messages]
+- **Implications for plan:** [How this affects implementation approach]
+
+**Experiment 2: [Name]**
+[Same structure...]
+```
+
+**Handle unexpected results:**
+- **Don't ignore surprises** - they reveal faulty assumptions
+- **Investigate anomalies** - understand why actual ≠ expected
+- **Adjust hypotheses** - revise your mental model based on evidence
+- **Consider follow-up experiments** - if results raise new questions
+
+**Time management:**
+- **Respect time boxes** - don't get stuck perfecting experiments
+- **Prioritize learning** - goal is answers, not perfect code
+- **Parallel experiments** - run independent experiments concurrently if possible
+- **Know when to stop** - sufficient confidence to proceed ≠ perfect certainty
+
+---
+
+### Step 4: Consolidate Findings and Map to Key Questions
+
+**Review all experiment results and map findings back to original questions:**
+
+```markdown
+### Findings Consolidation
+
+**Question 1: [Original question]**
+- **Answered by:** Experiment 1, Experiment 3
+- **Answer:** [Clear, evidence-based answer]
+- **Confidence level:** [High/Medium/Low]
+- **Evidence summary:**
+  * Experiment 1 showed: [Key finding]
+  * Experiment 3 confirmed: [Supporting finding]
+- **Decision:** [What we'll do based on this answer]
+- **Rationale:** [Why this decision given the evidence]
+
+**Question 2: [Original question]**
+- **Answered by:** Experiment 2
+- **Answer:** [Clear, evidence-based answer]
+- **Confidence level:** [High/Medium/Low]
+- **Evidence summary:**
+  * Experiment 2 demonstrated: [Key finding]
+- **Decision:** [What we'll do based on this answer]
+- **Rationale:** [Why this decision given the evidence]
+
+**Question 3: [Original question]**
+- **Status:** UNANSWERED or PARTIALLY ANSWERED
+- **Remaining uncertainty:** [What we still don't know]
+- **Why not answered:** [Experiment failed, time limit, need different approach]
+- **Next steps:** [New experiment needed, or acceptable to proceed with assumption]
+```
+
+**Identify patterns and insights:**
+- **Consistent findings:** Multiple experiments pointing to same conclusion
+- **Conflicting findings:** Experiments suggesting different answers (investigate why)
+- **Emergent patterns:** Insights that weren't questions but discovered through experiments
+- **New questions:** Additional questions raised by experiment results
+
+**Assess completion:**
+- **All MUST-answer questions:** Resolved with high confidence?
+- **Most SHOULD-answer questions:** Resolved with medium+ confidence?
+- **Acceptable uncertainty:** Remaining unknowns won't block implementation?
+
+---
+
+### Step 5: Reconcile Findings and Update Plan (Quality Gate Decision)
+
+**Based on consolidated findings, make quality gate decision:**
+
+**✅ PROCEED to Stage 3 (TDD Implementation) IF:**
+- All MUST-answer questions have clear, evidence-based answers
+- Implementation approach is validated by experiments
+- Key risks are understood and mitigated
+- Confidence level is sufficient to begin TDD without major unknowns
+- Plan from Stage 2 is still valid OR has been updated based on findings
+
+**🔁 LOOP BACK to Step 1 (Revise Plan) IF:**
+- Critical questions remain unanswered
+- Experiments revealed approach is not viable
+- New questions emerged that are blocking
+- Plan needs significant revision based on findings
+- Confidence level is too low to proceed responsibly
+
+**Quality Gate Evaluation Checklist:**
+```markdown
+### Quality Gate: Ready to Proceed to TDD Implementation?
+
+**Critical Questions Status:**
+- [ ] All MUST-answer questions resolved
+- [ ] Answers are evidence-based (not assumptions)
+- [ ] Confidence level ≥ High for architectural decisions
+- [ ] Confidence level ≥ Medium for implementation details
+
+**Plan Validity:**
+- [ ] Original plan still viable OR updated plan documented
+- [ ] Implementation approach validated by experiments
+- [ ] Integration points confirmed to work
+- [ ] Performance validated against requirements
+- [ ] Edge cases understood and have handling strategy
+
+**Risk Assessment:**
+- [ ] Known risks are documented and mitigated
+- [ ] Unknowns are acceptable (won't block progress)
+- [ ] Failure modes are understood
+- [ ] Rollback/recovery strategies defined if needed
+
+**Ready to proceed:** YES / NO (if NO, loop back with revised plan)
+```
+
+---
+
+**If LOOPING BACK - Revise Plan and Re-enter Loop:**
+
+**Update your implementation plan based on experimental findings:**
+
+1. **Document what changed:**
+```markdown
+### Plan Revision (Loop Iteration N)
+
+**Original approach:** [What we planned in Stage 2 or previous iteration]
+
+**Why revision needed:**
+- Finding: [Experiment result that invalidates original approach]
+- Finding: [New insight that suggests better approach]
+- Finding: [Risk discovered that must be addressed]
+
+**Revised approach:** [Updated implementation strategy]
+
+**New assumptions:** [What we're now assuming based on evidence]
+
+**Residual questions:** [New questions that emerged]
+```
+
+2. **Identify new key questions** (return to Step 1 with updated questions)
+
+3. **Design new experiments** to answer residual questions (return to Step 2)
+
+4. **Execute experiments** and capture findings (return to Step 3)
+
+5. **Consolidate** and re-evaluate quality gate (return to Step 4-5)
+
+**Loop termination:**
+- Maximum 3-4 iterations typical for most tasks
+- If stuck in loop >4 iterations, escalate: may need user input, architectural change, or task decomposition
+
+---
+
+**If PROCEEDING to Stage 3 - Document Validated Plan:**
+
+**Update task file's "Implementation Plan (Pre-Implementation)" section with validated approach:**
+
+```markdown
+## Implementation Plan (Pre-Implementation)
+
+**Approach validated through experiments:** [Date]
+
+**Key Questions Resolved:**
+1. Question: [Original question] → Answer: [Evidence-based answer from experiments]
+2. Question: [Original question] → Answer: [Evidence-based answer from experiments]
+
+**Validated Implementation Strategy:**
+- Approach: [Confirmed approach with rationale]
+- Technology choices: [Confirmed based on experiments]
+- Integration patterns: [Validated integration points]
+- Performance expectations: [Benchmarked and realistic]
+- Edge case handling: [Tested strategies]
+
+**Lessons from Experiments:**
+- [Key insight from experimentation]
+- [Pitfall avoided through testing]
+- [Optimization opportunity discovered]
+
+**Ready for TDD implementation with confidence.**
+```
+
+**Clean up experiment workspace:**
+```bash
+# Archive experiments for future reference
+mv "<worktree>/experiments/task-NNN-exploration" \
+   "<worktree>/experiments/archive/task-NNN-$(date +%Y%m%d)"
+
+# Or delete if experiments have no lasting value
+rm -rf "<worktree>/experiments/task-NNN-exploration"
+```
+
+---
+
+**🎯 Benefits of Experimental Planning Loop:**
+- ✅ **Validates assumptions** before committing to full implementation
+- ✅ **Discovers issues early** when they're cheap to fix
+- ✅ **Reduces rework** by testing approaches with minimal code
+- ✅ **Builds confidence** through evidence rather than guesswork
+- ✅ **Documents decisions** with rationale based on experiments
+- ✅ **Prevents false starts** that waste time on wrong approach
+- ✅ **Reveals edge cases** and failure modes before production
+- ✅ **Optimizes approach** by comparing alternatives empirically
+
+**When to skip this stage:**
+- Task is trivial (simple utility function, minor refactor)
+- Approach is well-established (proven pattern, similar to previous tasks)
+- No uncertainty exists (clear requirements, known technologies)
+- Experiments would take longer than just implementing
+- Prior tasks have already validated the approach
+
+**For most non-trivial tasks, experimental planning loop significantly improves implementation quality and reduces iteration time in Stage 3.**
+
+---
 
 #### Stage 3: Craft the Solution (Test-Driven Development)
 
