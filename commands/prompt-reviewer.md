@@ -1257,14 +1257,28 @@ Think deeply: What's the most efficient path to improving this prompt?
 
 **Categorize all findings from all phases:**
 
-Ultrathink: What has the highest impact on prompt effectiveness vs. implementation effort?
+Ultrathink: What has the highest benefit while managing risk and complexity?
+
+**LLM-Centric Metrics (Not Human Time-Based):**
+
+Each finding is assessed on four dimensions:
+1. **Benefit**: What is gained by fixing this? (HIGH/MEDIUM/LOW)
+2. **Risk if not fixed**: What breaks or degrades if not addressed? (HIGH/MEDIUM/LOW)
+3. **Complexity**: How difficult for Claude to implement? (Simple/Moderate/Complex)
+4. **Confidence**: How certain are we this is an issue? (90-100% / 60-89% / <60%)
+
+**Priority Assignment Logic:**
+
+- **Priority 1 (P1)**: HIGH risk if not fixed OR (HIGH benefit AND simple complexity)
+- **Priority 2 (P2)**: MEDIUM risk if not fixed OR (MEDIUM/HIGH benefit AND moderate complexity)
+- **Priority 3 (P3)**: LOW risk if not fixed AND (LOW benefit OR exploratory)
 
 **Special Consideration - Research Quality Gates (from Phase 4.4):**
 
 Research patterns without quality gates should be prioritized as:
-- **Priority 1 (P1)** if: Research informs critical architectural/design decisions AND one-shot (no iteration mechanism)
-- **Priority 2 (P2)** if: Research informs important decisions OR has partial iteration logic
-- **Priority 3 (P3)** if: Research is exploratory/informational only
+- **Priority 1 (P1)** if: Research informs critical architectural/design decisions AND one-shot (no iteration mechanism) → HIGH risk
+- **Priority 2 (P2)** if: Research informs important decisions OR has partial iteration logic → MEDIUM risk
+- **Priority 3 (P3)** if: Research is exploratory/informational only → LOW risk
 
 ```markdown
 ## Implementation Roadmap
@@ -1432,29 +1446,37 @@ Structural improvements worth the investment.
 
 ### Implementation Sequence
 
-**Think deeply: What order minimizes rework and maximizes value?**
+**Think deeply: What order maximizes benefit while managing risk and complexity?**
 
 **Recommended sequence:**
 
-1. **Phase 1**: Quick wins (do these first for immediate benefit)
-2. **Phase 2**: Priority 1 critical issues (especially research quality gates for critical decisions)
-3. **Phase 3**: Refactoring if it simplifies remaining work (e.g., universal pattern extraction)
-4. **Phase 4**: Priority 2 important enhancements
-5. **Phase 5**: Priority 3 nice-to-haves (as time permits)
+1. **Phase 1**: Quick wins (high benefit, simple complexity - immediate value)
+2. **Phase 2**: Priority 1 critical issues (high risk if not fixed, start with simple ones)
+3. **Phase 3**: Refactoring if it simplifies remaining work (e.g., universal pattern extraction prevents duplication)
+4. **Phase 4**: Priority 2 important enhancements (medium benefit/risk, manageable complexity)
+5. **Phase 5**: Priority 3 nice-to-haves (low benefit/risk, implement if confident)
 
 **Dependencies:**
 - If universal pattern refactoring identified, do before implementing individual instances
 - Fix structural issues (Phase 1 findings) before adding quality gates (Phase 5)
 - Establish state management before adding cross-phase validation
 
-**Effort Estimation:**
-- Total P1 issues: [count] (~[hours] estimated)
-- Total P2 issues: [count] (~[hours] estimated)
-- Total P3 issues: [count] (~[hours] estimated)
-- Quick wins: [count] (~[minutes] estimated)
-- Refactorings: [count] (~[hours] estimated)
+**Benefit/Risk Summary:**
+- Total P1 issues: [count] - HIGH risk if not addressed
+- Total P2 issues: [count] - MEDIUM risk if not addressed
+- Total P3 issues: [count] - LOW risk if not addressed
+- Quick wins: [count] - HIGH benefit, Simple complexity (do first!)
+- Refactorings: [count] - HIGH long-term benefit, Moderate complexity
 
-**Overall Timeline**: [Total hours] of work estimated
+**Complexity Distribution:**
+- Simple: [count] issues - Can implement immediately
+- Moderate: [count] issues - Require structural changes
+- Complex: [count] issues - Require careful planning and validation
+
+**Confidence Assessment:**
+- High confidence (≥90%): [count] issues - Implement without hesitation
+- Medium confidence (60-89%): [count] issues - Consider user validation before implementing
+- Low confidence (<60%): [count] issues - Flag for user review, provide alternatives
 ```
 
 ---
