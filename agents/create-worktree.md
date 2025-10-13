@@ -53,32 +53,38 @@ When invoked, execute this process using the Bash tool. **DO NOT try to call any
 
 Before executing bash commands, analyze the user's prompt to identify:
 
-1. **task_name** - Extract from phrases like:
-   - "create worktree for [name]"
-   - "working on [name]"
-   - "Task name: [name]"
-   - Default: "default-task"
+1. **task_name** (prefix) - Extract from keyword "as":
+   - "as [prefix]" or "as <prefix>"
+   - Examples: "as feature-xyz", "as bugfix-auth"
+   - Default if omitted: Use basename of source_path (PWD)
 
-2. **source_path** - Extract from phrases like:
-   - "in directory [path]"
-   - "from [path]"
-   - "source directory [path]"
-   - Default: current working directory (use `pwd -P` to resolve symlinks)
+2. **source_path** - Extract from keyword "from":
+   - "from [path]" or "from <path>"
+   - Examples: "from /Users/me/project", "from ~/src/app"
+   - Default if omitted: Current working directory (use `pwd -P` to resolve symlinks)
 
-3. **base_branch** - Extract from phrases like:
+3. **base_branch** - Extract from keyword "based on":
    - "based on [branch]"
-   - "from branch [branch]"
-   - "Base branch: [branch]"
-   - Default: "main"
+   - Examples: "based on main", "based on develop"
+   - Default if omitted: Current branch in source_path (or "main" if can't detect)
+
+4. **worktree_folder** - Extract from keyword "in folder":
+   - "in folder [path]" or "in folder <path>"
+   - Examples: "in folder /tmp/my-worktrees", "in folder ~/worktrees"
+   - Default if omitted: `/tmp/worktrees`
+   - Purpose: Parent directory where timestamped worktree will be created
 
 **Example Extraction**:
-- User says: "Create a worktree for gas-claude-api-client in /tmp/my-project based on develop"
-- Extract: task_name="gas-claude-api-client", source_path="/tmp/my-project", base_branch="develop"
+- User says: "Create a worktree as gas-claude-api-client from /tmp/my-project based on develop in folder /tmp/craft-worktrees"
+- Extract: task_name="gas-claude-api-client", source_path="/tmp/my-project", base_branch="develop", worktree_folder="/tmp/craft-worktrees"
+
+- User says: "Create a worktree from ~/src/myapp"
+- Extract: task_name="myapp" (from basename), source_path="/Users/me/src/myapp", base_branch="main" (default), worktree_folder="/tmp/worktrees" (default)
 
 **After extraction, announce your findings:**
 ```
-✅ EXTRACTED: task='[task_name]', source='[source_path]', branch='[base_branch]'
-🎯 DECISION: Will create isolated worktree for '[task_name]' from [base_branch] branch
+✅ EXTRACTED: task='[task_name]', source='[source_path]', branch='[base_branch]', folder='[worktree_folder]'
+🎯 DECISION: Will create isolated worktree for '[task_name]' from [base_branch] branch in [worktree_folder]
 💡 REASONING: This enables parallel development without affecting the main workspace
 ```
 
@@ -100,15 +106,23 @@ set -e
 TASK_NAME="[EXTRACTED_TASK_NAME]"
 SOURCE_PATH="[EXTRACTED_SOURCE_PATH]"
 BASE_BRANCH="[EXTRACTED_BASE_BRANCH]"
+WORKTREE_FOLDER="[EXTRACTED_WORKTREE_FOLDER]"
 
 echo "📋 Creating worktree with parameters:"
 echo "   Task: $TASK_NAME"
 echo "   Source: $SOURCE_PATH"
 echo "   Branch: $BASE_BRANCH"
+echo "   Folder: $WORKTREE_FOLDER"
 
 # Resolve symlinks to avoid /private/tmp issues
 if [ -d "$SOURCE_PATH" ]; then
   SOURCE_PATH=$(cd "$SOURCE_PATH" && pwd -P)
+fi
+
+# Apply PWD basename intelligence if TASK_NAME is empty or "default-task"
+if [ -z "$TASK_NAME" ] || [ "$TASK_NAME" = "default-task" ]; then
+  TASK_NAME=$(basename "$SOURCE_PATH")
+  echo "💡 INTELLIGENCE: Using source directory basename as task name: $TASK_NAME"
 fi
 
 # === CLEANUP FUNCTION ===
@@ -145,11 +159,13 @@ else
 fi
 
 # === STEP 2: Generate Unique Worktree Path ===
-mkdir -p /tmp/worktrees
+# Use provided folder or default to /tmp/worktrees
+WORKTREE_FOLDER="${WORKTREE_FOLDER:-/tmp/worktrees}"
+mkdir -p "$WORKTREE_FOLDER"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 RANDOM_ID=$(openssl rand -hex 3)
 TASK_SLUG="${TASK_NAME// /-}"
-WORKTREE_PATH="/tmp/worktrees/${TASK_SLUG}-worktree-${TIMESTAMP}-${RANDOM_ID}"
+WORKTREE_PATH="${WORKTREE_FOLDER}/${TASK_SLUG}-worktree-${TIMESTAMP}-${RANDOM_ID}"
 
 echo "Generated worktree path: $WORKTREE_PATH"
 
@@ -261,7 +277,7 @@ else
 fi
 ```
 
-**IMPORTANT**: Replace `[EXTRACTED_TASK_NAME]`, `[EXTRACTED_SOURCE_PATH]`, and `[EXTRACTED_BASE_BRANCH]` with the actual values extracted from the user's prompt in Step 1.
+**IMPORTANT**: Replace `[EXTRACTED_TASK_NAME]`, `[EXTRACTED_SOURCE_PATH]`, `[EXTRACTED_BASE_BRANCH]`, and `[EXTRACTED_WORKTREE_FOLDER]` with the actual values extracted from the user's prompt in Step 1. If worktree_folder was not provided, use `/tmp/worktrees` as the default.
 
 ### Step 3: Parse and Return Results
 
@@ -286,7 +302,8 @@ After bash execution completes, extract the XML tags from the output and present
 
 ## IMPORTANT NOTES
 
-- **ALWAYS use /tmp for worktree paths**, never /private/tmp
+- **Default worktree location**: `/tmp/worktrees` (configurable via "in folder" parameter)
+- **ALWAYS use canonical paths**, never /private/tmp (use `pwd -P` to resolve symlinks)
 - Use `$(pwd -P)` to resolve symlinks and get canonical paths
 - All git operations MUST use `git -C "<path>"` syntax
 - Never use `cd` commands

@@ -12,7 +12,84 @@ Transform a task description into a complete, tested implementation through iter
 
 ---
 
+## Quality Gate Philosophy: Two-Tier System
+
+**craft.md uses a two-tier quality gate system balancing user control with execution efficiency:**
+
+### Tier 1: Mandatory User Confirmation (Stages 1-3)
+
+**Where**: Foundation stages defining WHAT to build
+- Stage 1: Use Cases (user needs, system interactions)
+- Stage 2: Requirements (quality attributes, constraints)
+- Stage 3: Architecture (technical approach, integration)
+
+**Why mandatory**: These define problem space and strategic direction. Errors cascade through all subsequent work. User domain knowledge is irreplaceable.
+
+**Interaction**: 3-question confirmation recap required before proceeding.
+
+### Tier 2: Automated Quality Gates (Stages 4-5, Phase 2-3)
+
+**Where**: Execution stages refining HOW to build
+- Stage 4: Assumptions (7-item checklist with % scoring)
+- Stage 5: Effects & Boundaries (7-item checklist with % scoring)
+- Phase 2-D: Task Breakdown (per-task acceptance criteria)
+- Phase 3: Task Execution (tests + acceptance criteria)
+
+**Why automated**: These validate/refine confirmed foundation. LLM self-assesses using objective checklists.
+
+**Automation**: 3-tier scoring
+- ≥90% (6-7 items ✅): Proceed automatically
+- 70-89% (5 items ✅): Iterate to improve
+- <70% (<5 items ✅): Escalate to user
+
+### Tier 3: Pre-Implementation Gate (Phase 2→3)
+
+**Where**: Planning → Implementation transition
+
+**Why comprehensive**: Last checkpoint before code. Validates ALL prior work (Stages 1-6 + Phase 2).
+
+**Structure**: 23-item checklist. Binary gate: ALL must pass, ANY failure blocks.
+
+### When to Escalate Automated Gates
+
+Automatic escalation even if score ≥90%:
+- Conflicting requirements (Stage N contradicts confirmed Stage M)
+- Multiple high-risk assumptions without mitigation
+- Novel/untested technologies in architecture
+- Scope expansion vs. Stage 5 boundaries
+- Resource needs exceed constraints
+
+**User override**: Request manual review anytime with "validate stage N"
+
+---
+
 ## Global Start - Framework Initialization
+
+### Claude-Specific Optimizations
+
+**This framework leverages Claude's strengths:**
+
+**XML Tags for Long Context**: Structure knowledge artifacts with XML tags for 200K token navigation:
+- `<use_cases>`, `<requirements>`, `<architecture>`, `<assumptions>`, `<effects_boundaries>`, `<task_definition>`
+- `<current_phase>`, `<confirmed_stages>`, `<gate_result>`, `<confidence_score>`
+
+**Thinking Prompts**: Before major decisions, use structured thinking:
+```xml
+<thinking>
+What have we learned? What assumptions am I making?
+What might I be missing? How does this connect to prior knowledge?
+</thinking>
+```
+
+**Long Context Advantage**: Claude's 200K context means:
+- No summarization needed - all stage outputs remain accessible
+- Continuous cross-validation across all 13 stages
+- Holistic Pre-Implementation Gate analysis without compression
+- No external memory systems required
+
+**Explicit State Management**: Each stage declares input state, processing, output state, and transition logic for coherent reasoning chains.
+
+---
 
 **Capture the starting point:**
 Store the current working directory as `original_location`. This is where we'll return after crafting is complete.
@@ -20,9 +97,13 @@ Store the current working directory as `original_location`. This is where we'll 
 **Create isolated workspace:**
 Ask the create-worktree subagent to establish a new git worktree for this crafting session.
 
-Provide these parameters:
-- task_name: Derive a short kebab-case name from the task description
-- base_branch: Current branch name from `original_location`
+Provide this natural language instruction:
+"Create a worktree as [task-name-kebab-case] from [original_location] based on [current_branch_name]"
+
+Where:
+- **as [task-name-kebab-case]**: Task prefix derived from description (omit to use directory basename)
+- **from [original_location]**: The captured original directory (omit to use PWD)
+- **based on [current_branch_name]**: Current branch from `original_location` (omit to use current branch)
 
 Tell the subagent to be verbose about what it does - we need to know:
 - The exact worktree path that was created
@@ -133,6 +214,42 @@ We started with an epic or task description, seeking to understand what needs to
 
 ## Current Session State
 
+**📊 Overall Progress Tracking**
+
+**Completion Metrics:**
+- **Phase 1 (Understanding)**: [X/6 stages confirmed] = [Y%]
+  * Stage 1 - Use Cases: [✅ Confirmed / ⏳ In Progress / ⬜ Not Started]
+  * Stage 2 - Requirements: [✅ / ⏳ / ⬜]
+  * Stage 3 - Architecture: [✅ / ⏳ / ⬜]
+  * Stage 4 - Assumptions: [✅ / ⏳ / ⬜]
+  * Stage 5 - Effects & Boundaries: [✅ / ⏳ / ⬜]
+  * Stage 6 - Synthesis: [✅ / ⏳ / ⬜]
+
+- **Phase 2 (Planning)**: [X/4 sub-phases complete] = [Y%]
+  * Phase 2: Quality Criteria: [✅ / ⏳ / ⬜]
+  * Phase 2-B: Test Plan: [✅ / ⏳ / ⬜]
+  * Phase 2-C: Infrastructure: [✅ / ⏳ / ⬜]
+  * Phase 2-D: Task Breakdown: [✅ / ⏳ / ⬜]
+
+- **Phase 3 (Implementation)**: [X/N tasks complete] = [Y%]
+  * Tasks in planning/tasks-pending/: [count]
+  * Tasks in planning/tasks-completed/: [count]
+  * Current task: task-NNN-[name].md
+  * Tests passing: [X/N] = [Y%]
+
+- **Phase 4 (Delivery)**: [⬜ Not Started]
+  * Validation checklist: [0/5 items]
+
+**Overall Session Progress**: [X%]
+
+**Time Tracking:**
+- **Session started**: [ISO timestamp]
+- **Time in Phase 1**: [X hours Y minutes]
+- **Time in Phase 2**: [X hours Y minutes]
+- **Time in Phase 3**: [X hours Y minutes]
+- **Total elapsed**: [X hours Y minutes]
+- **Estimated completion**: [timestamp or "unknown"]
+
 **Phase & Stage Tracking:**
 - **Current Phase:** [Phase 1 / Phase 2 / Phase 2-B / Phase 2-C / Phase 2-D / Phase 3 / Phase 4]
 - **Current Stage/Step:** [Stage N / Planning Step / Task Loop Step / Delivery Step]
@@ -148,6 +265,11 @@ We started with an epic or task description, seeking to understand what needs to
 
 **Blockers or Open Questions:**
 [List any items preventing progress or needing clarification]
+
+**Velocity Metrics** (Phase 3 only):
+- Tasks completed per hour: [X tasks/hr]
+- Average task completion time: [X minutes]
+- Estimated time remaining: [X hours Y minutes]
 
 ---
 
@@ -206,21 +328,36 @@ Check journal files (p<N>- prefix) to see the exploration process:
 These aren't just milestones - they're moments where understanding crystallized.
 
 **Stage 1 - Use Cases: What Users Will Experience**
-- **Knowledge File:** `<worktree>/planning/use-cases.md`
+- **Knowledge Files:**
+  * `<worktree>/planning/use-cases.md` (primary + related use cases, anti-cases, interactions)
+  * `<worktree>/planning/p1-stage-1-disambiguation.md` (terminology clarifications)
+  * `<worktree>/planning/p1-stage-1-research.md` (technical context, dependencies, actors, external services)
+  * `<worktree>/planning/p1-stage-1-constraints.md` (contradictions resolved, constraints identified)
 - **Journal File:** `<worktree>/planning/p1-stage1-journal.md` (exploration process)
 - Confirmed: [date/time stamp when user confirmed]
-- Core insight: [the key thing we learned about user needs]
-- What surprised us: [unexpected discoveries]
-- User's clarifications: [important feedback they provided]
-- This shaped our understanding by: [how it influenced our mental model]
+- **Disambiguation**: [Key terms clarified, acronyms expanded, scope boundaries defined]
+- **Research Findings**: [Dependencies discovered, external services mapped, actors identified, implied requirements]
+- **Constraints Resolved**: [Contradictions found and how resolved - with user decision]
+- **Use Cases**: [N primary + M related use cases, P anti-cases]
+- **Interactions**: [Key dependency chains, concurrent flows, shared sub-flows]
+- Core insight: [the key thing we learned about user needs and technical context]
+- What surprised us: [unexpected discoveries about domain, conflicts, or user journeys]
+- User's clarifications: [important feedback they provided during disambiguation and constraint resolution]
+- This shaped our understanding by: [how research and constraint resolution influenced our mental model]
 
 **Stage 2 - Requirements: What Quality Means Here**
-- **Knowledge File:** `<worktree>/planning/requirements.md` (functional + non-functional)
+- **Knowledge File:** `<worktree>/planning/requirements.md` (functional + non-functional with research)
 - **Journal File:** `<worktree>/planning/p1-stage2-journal.md` (requirements discovery)
 - Confirmed: [date/time]
-- Core insight: [key learning about constraints and quality attributes]
+- **Requirements Research**: [Quality attributes researched, domain standards consulted, gaps identified]
+- **Functional Requirements**: [N functional requirements derived from use cases]
+- **Non-Functional Requirements**: [M NFRs across performance, security, scalability, reliability, compliance, usability, maintainability, operational]
+- **Traceability**: [Use cases → FRs, Anti-cases → Security/Reliability NFRs]
+- **Priorities**: [Must-have count, should-have count, nice-to-have count]
+- Core insight: [key learning about constraints and quality attributes from research]
 - Trade-offs identified: [competing concerns we need to balance]
-- This constrained our options by: [how it narrowed the solution space]
+- Gaps resolved: [User answers to requirement gaps]
+- This constrained our options by: [how requirements research narrowed the solution space]
 
 **Stage 3 - Architecture: How This Fits the World**
 - **Knowledge File:** `<worktree>/planning/architecture.md`
@@ -316,8 +453,11 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 ## Key Documents Reference
 
 **Knowledge Files (Timeless Understanding - no prefix):**
-- `<worktree>/planning/use-cases.md` - User journeys, actors, triggers, flows, outcomes (Stage 1)
-- `<worktree>/planning/requirements.md` - Functional + non-functional requirements (Stage 2)
+- `<worktree>/planning/use-cases.md` - Primary + related use cases, anti-cases, interactions (Stage 1)
+- `<worktree>/planning/p1-stage-1-disambiguation.md` - Terminology clarifications, acronyms, scope boundaries (Stage 1.1)
+- `<worktree>/planning/p1-stage-1-research.md` - Dependencies, external services, actors, technical context (Stage 1.2)
+- `<worktree>/planning/p1-stage-1-constraints.md` - Contradictions resolved, constraints, assumptions (Stage 1.3)
+- `<worktree>/planning/requirements.md` - Functional + non-functional requirements with research and traceability (Stage 2)
 - `<worktree>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies (Stage 3)
 - `<worktree>/planning/tooling.md` - MCP servers, APIs, subagents, discovery + integration (Stage 3)
 - `<worktree>/planning/assumptions.md` - Risk assessment, confidence levels, validation needs (Stage 4)
@@ -328,13 +468,14 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 - `<worktree>/planning/project-structure.md` - Directory layout, code organization (Phase 2-C)
 - `<worktree>/planning/tech-relationships.md` - Component dependencies, data flow (Phase 2-C)
 - `<worktree>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials (Phase 2-C)
+- `<worktree>/planning/execution-strategy.md` - Parallel execution strategy, tier-based task organization, timeline estimates (Phase 2-C)
 - `<worktree>/planning/implementation-steps.md` - Task ordering, dependency phases (Phase 2-D)
 - `<worktree>/planning/learnings.md` - Cumulative insights from completed tasks (Phase 3)
 - `<worktree>/README.md` - Project overview, setup, usage (updated with each feature in Phase 3)
 
 **Journal Files (Phase Activity Tracking - p<N>- prefix):**
-- `<worktree>/planning/p1-stage1-journal.md` - Stage 1 use case exploration process
-- `<worktree>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery activities
+- `<worktree>/planning/p1-stage1-journal.md` - Stage 1 complete exploration: disambiguation, research, constraints, use cases
+- `<worktree>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery: quality attributes, domain research, gaps
 - `<worktree>/planning/p1-stage3-journal.md` - Stage 3 architecture research and decisions
 - `<worktree>/planning/p1-stage4-journal.md` - Stage 4 assumption validation experiments
 - `<worktree>/planning/p1-stage5-journal.md` - Stage 5 effects analysis and boundary discussions
@@ -516,6 +657,34 @@ Each stage in Phase 1 follows this approach. When you reach a stage, follow this
 
 **📖 Context Grounding:**
 If uncertain where you are or context slips, reference GUIDE.md → "How to Progress Through This Journey"
+
+**🔍 Research Execution Modes:**
+
+**Serial Research** (sequential) - Use when:
+- Topics have dependencies (need results from one to inform another)
+- Building on previous findings in a logical sequence
+- Each discovery informs the next investigation
+
+**Parallel Research** (concurrent) - Use when:
+- Topics are independent and can be investigated simultaneously
+- Multiple web searches on different domains
+- Analyzing different quality attributes or technology categories
+- Exploring multiple use case patterns
+
+**How to Execute Parallel Research:**
+1. Identify independent research tasks (see 🔍 sections in stage guidance)
+2. Launch multiple WebSearch, Grep, or Ripgrep operations in a single message
+3. Execute file reads and external searches concurrently
+4. Wait for all results to complete
+5. Consolidate findings from all parallel streams
+
+**Example Parallel Execution:**
+```
+I'll research these 5 topics in parallel using WebSearch:
+[Launch 5 WebSearch tool calls in single message]
+
+After all searches complete, I'll consolidate findings...
+```
 
 **Position Yourself:**
 - **Progress:** Stage X of 6 - [Phase name]
@@ -714,8 +883,11 @@ At stage/phase end, verify completion:
 - `<worktree>/planning/GUIDE.md` (if resuming session)
 
 **📤 Output Files:**
-- `<worktree>/planning/use-cases.md` (knowledge file - user journeys, actors, triggers, flows, outcomes)
-- `<worktree>/planning/p1-stage1-journal.md` (journal file - exploration process, decisions, user feedback)
+- `<worktree>/planning/use-cases.md` (knowledge file - primary + related use cases, anti-cases, interactions)
+- `<worktree>/planning/p1-stage-1-disambiguation.md` (knowledge file - terminology clarifications)
+- `<worktree>/planning/p1-stage-1-research.md` (knowledge file - technical context, dependencies, actors)
+- `<worktree>/planning/p1-stage-1-constraints.md` (knowledge file - contradictions resolved, constraints)
+- `<worktree>/planning/p1-stage1-journal.md` (journal file - complete exploration: disambiguation, research, constraints, use cases)
 - `<worktree>/planning/GUIDE.md` (updated with Stage 1 confirmation and transition log)
 
 ---
@@ -737,6 +909,406 @@ If the file doesn't exist, this is your first exploration of Stage 1.
 - You're at the very beginning - transforming abstract goals into concrete user stories
 - This reveals the *experience* we're creating, not just features
 - Foundation for everything that follows - quality, architecture, assumptions, boundaries
+
+---
+
+#### Step 1: Disambiguation & Terminology Clarification
+
+**Before diving into use cases, ensure we understand the user's language.**
+
+Think about ambiguity in the epic description:
+- **Acronyms**: What does each acronym mean in this context? (e.g., "API" - REST API? GraphQL? Internal API?)
+- **Domain terms**: What does this term mean specifically? (e.g., "user" - end user? admin? service account?)
+- **Implied relationships**: Who/what connects to what? How do entities relate?
+- **Scope boundaries**: What's included vs. excluded? Where do system boundaries lie?
+- **Technical terms**: What specific technology or pattern is implied? (e.g., "authentication" - OAuth? JWT? Session-based?)
+
+**Document your findings:**
+
+Write to `<worktree>/planning/p1-stage-1-disambiguation.md`:
+
+```markdown
+# Disambiguation & Terminology: [Epic Name]
+
+## Acronyms Found
+- **[ACRONYM]**: [Expansion] - [Context and meaning in this project]
+
+## Domain Terms Defined
+- **[Term]**: [Precise definition for this project]
+  * **Context**: [How this term is used]
+  * **Scope**: [What's included, what's not]
+  * **Examples**: [Concrete examples]
+
+## Entity Relationships
+[Diagram or list showing how key entities relate]
+- **[Entity A]** → **[Entity B]**: [Nature of relationship]
+
+## Scope Clarifications
+- **In Scope**: [What this epic explicitly includes]
+- **Out of Scope**: [What this epic explicitly excludes]
+- **Boundary Conditions**: [Where system responsibility ends]
+
+## Assumptions Made
+- **Assumption**: [What you're inferring from the epic]
+  * **Basis**: [Why you made this assumption]
+  * **Validation Needed**: [Whether user should confirm]
+```
+
+**Present to user for validation:**
+
+"📋 **Stage 1.1: Terminology Clarification**
+
+I want to ensure I understand your language correctly. Here's what I've interpreted:
+
+**Acronyms & Terms:**
+[Present each acronym/term with your interpretation]
+
+**Key Relationships:**
+[Present how you understand entities relate]
+
+**Scope Understanding:**
+[Present what you think is in/out of scope]
+
+**Assumptions I'm Making:**
+[Present assumptions for validation]
+
+**Quality Gate:** Have I understood your terminology correctly? Are there any terms I've misinterpreted or assumptions that need correction?"
+
+**Confirmation Loop:**
+
+IF user provides corrections:
+  → Update `<worktree>/planning/p1-stage-1-disambiguation.md` with corrections
+  → Re-present updated understanding
+  → LOOP until user confirms
+
+IF user confirms:
+  → Mark disambiguations as validated in journal
+  → Proceed to Initial Research
+
+---
+
+#### Step 2: Initial Research & Technical Context Discovery
+
+**Now that terminology is clear, research the technical landscape.**
+
+Think about what we need to know:
+- **What dependencies are implied?** Libraries, frameworks, services mentioned or required?
+- **What external services are involved?** SaaS platforms, APIs, third-party integrations?
+- **What existing implementation exists?** Current codebase that might conflict or integrate?
+- **Who are the actors?** Users, systems, services - what roles do they play?
+- **What are the technical requirements implied?** Performance, security, scalability needs?
+
+**Conduct research:**
+
+🔍 **Parallel Research Strategy**
+
+The following 5 research activities are independent and can be executed in parallel for maximum efficiency. Launch multiple WebSearch, Grep, or Read operations simultaneously, then consolidate findings.
+
+**Execute these research tasks in parallel:**
+
+1. **Dependency Discovery**
+   - Search codebase for related functionality: `rg "related-term" --type js`
+   - Identify existing libraries/frameworks in package.json or imports
+   - Research mentioned technologies: versions, compatibility, limitations
+   - Document findings with version numbers and compatibility notes
+
+2. **External Service Mapping**
+   - Identify SaaS services mentioned (Stripe, Auth0, SendGrid, AWS, etc.)
+   - Research service capabilities and API patterns
+   - Identify authentication requirements (API keys, OAuth, etc.)
+   - Check rate limits, pricing tiers, and feature constraints
+   - Document service roles and integration points
+
+3. **Current Implementation Conflicts**
+   - Search for existing code that might conflict: `rg "similar-pattern" .`
+   - Identify areas requiring refactoring or deprecation
+   - Note breaking changes that might be required
+   - Document migration considerations and affected components
+
+4. **Actor & Role Analysis (Software System Focus)**
+   - **Human Actors**: End users, admins, operators, support staff
+     * Define each actor's responsibilities and permissions
+     * Identify authentication/authorization needs
+   - **System Actors**: Services, background jobs, webhooks, APIs
+     * Define each system's role and interfaces
+     * Identify service-to-service communication patterns
+   - **External Actors**: Third-party services, partner systems
+     * Define integration contracts and dependencies
+   - Document actor relationships and interaction patterns
+
+5. **Implied Requirements Discovery**
+   - **Security**: Authentication, authorization, data protection, encryption
+   - **Performance**: Response times, throughput, concurrency needs
+   - **Scalability**: User growth, data volume, traffic patterns
+   - **Compliance**: GDPR, HIPAA, SOC2, industry regulations
+   - **Reliability**: Uptime requirements, fault tolerance, disaster recovery
+
+**Web research opportunities (use WebSearch in parallel):**
+- "site:github.com [technology] [language] integration examples"
+- "[SaaS-service] API documentation and rate limits"
+- "[compliance-standard] requirements for [industry]"
+- "authentication best practices for [use-case]"
+- "[service] vs [alternative] comparison production experience"
+
+**Consolidate parallel research:** After all 5 research tasks complete, synthesize findings into research.md document.
+
+**Document research findings:**
+
+Write to `<worktree>/planning/p1-stage-1-research.md`:
+
+```markdown
+# Initial Research: [Epic Name]
+
+## Dependencies Discovered
+- **Existing**: [Current dependencies that will be leveraged]
+  * **[Library/Framework]** v[X.Y.Z]: [How it's used, why it fits]
+- **Required**: [New dependencies needed]
+  * **[Library/Framework]**: [Purpose, evaluation criteria, alternatives considered]
+- **Conflicts**: [Dependencies that conflict with existing code]
+  * **[Conflict]**: [Description, resolution strategy]
+
+## External Services & SaaS Integrations
+- **[Service Name]** ([Provider]):
+  * **Role**: [What this service provides]
+  * **API Type**: [REST, GraphQL, gRPC, etc.]
+  * **Authentication**: [API keys, OAuth 2.0, etc.]
+  * **Rate Limits**: [Requests/minute, monthly quotas]
+  * **Pricing Tier**: [Free tier limits, paid tier considerations]
+  * **Integration Points**: [Where/how system interacts]
+  * **Failure Handling**: [What happens if service unavailable]
+
+## Current Implementation Analysis
+- **Related Code**: [Existing functionality that relates to epic]
+  * **File**: `[path/to/file.js:line]` - [What it does]
+- **Conflicts Identified**: [Code that will break or need refactoring]
+  * **[Component/Pattern]**: [Why it conflicts, refactor approach]
+- **Reusable Components**: [Existing code that can be leveraged]
+  * **[Component]**: [How it fits into new implementation]
+- **Migration Needs**: [Changes required to existing implementation]
+  * **[Change]**: [Scope, risk, timeline consideration]
+
+## Actors & Roles in System (Software Defined)
+
+### Human Actors
+- **[Actor Name]** ([Role]):
+  * **Responsibilities**: [What they do in the system]
+  * **Permissions**: [What they can access/modify]
+  * **Access Patterns**: [How they interact - UI, API, mobile]
+  * **Authentication**: [Login method, MFA requirements]
+
+### System Actors
+- **[Service Name]**:
+  * **Role**: [Purpose in system architecture]
+  * **Interfaces**: [APIs exposed, protocols used]
+  * **Triggers**: [What causes this system to act]
+  * **Dependencies**: [What this system depends on]
+  * **Communication**: [Sync/async, message formats]
+
+### External Actors
+- **[Third-party System]**:
+  * **Integration Type**: [Webhook, API polling, event stream]
+  * **Contract**: [Expected request/response formats]
+  * **Reliability**: [SLA, fallback if unavailable]
+
+### Actor Interaction Patterns
+[Diagram or description of how actors communicate]
+- **[Actor A]** → **[Actor B]**: [Interaction type, data flow, frequency]
+
+## Implied Technical Requirements
+- **Security**:
+  * **Authentication**: [Method, factors, session management]
+  * **Authorization**: [Model - RBAC, ABAC, resource-based]
+  * **Data Protection**: [Encryption at rest/transit, PII handling]
+  * **Compliance**: [Regulations that apply - GDPR, HIPAA, etc.]
+
+- **Performance**:
+  * **Response Time**: [Expected latency - <200ms, <1s, etc.]
+  * **Throughput**: [Requests/second, concurrent users]
+  * **Resource Usage**: [Memory, CPU, storage constraints]
+
+- **Scalability**:
+  * **User Growth**: [Current vs. projected users]
+  * **Data Volume**: [Current vs. projected data size]
+  * **Traffic Patterns**: [Peak times, seasonal variations]
+
+- **Reliability**:
+  * **Uptime Requirements**: [Target availability - 99%, 99.9%, etc.]
+  * **Fault Tolerance**: [Single point of failure analysis]
+  * **Disaster Recovery**: [RPO, RTO targets]
+
+## Research Sources
+- **Codebase Files**: [Files examined - path:line references]
+- **Documentation**: [Internal docs, wikis, API specs reviewed]
+- **External Resources**: [URLs, papers, standards consulted]
+- **Similar Systems**: [Reference implementations studied]
+```
+
+**Present research summary:**
+
+"📋 **Stage 1.2: Technical Context Research**
+
+I've researched the technical landscape for this epic:
+
+**Dependencies & Technologies:**
+[Summarize key dependencies, versions, compatibility]
+
+**External Services:**
+[List SaaS integrations with key constraints like rate limits]
+
+**Existing Implementation:**
+[Summarize conflicts and reusable components]
+
+**Actors in the System:**
+[List key human and system actors with roles]
+
+**Implied Requirements:**
+[Highlight critical security, performance, or compliance needs]
+
+**Key Findings:**
+[Call out surprises, risks, or important constraints discovered]
+
+**Quality Gate:** Based on this research, are there any surprises or concerns? Should we proceed with this understanding?"
+
+**Confirmation Loop:**
+
+IF user raises concerns:
+  → Conduct additional research as directed
+  → Update `<worktree>/planning/p1-stage-1-research.md`
+  → Re-present findings
+  → LOOP until user satisfied
+
+IF user confirms:
+  → Mark research as validated in journal
+  → Proceed to Constraint Detection
+
+---
+
+#### Step 3: Constraint Detection & Conflict Resolution
+
+**With research complete, analyze for contradictions before designing use cases.**
+
+Look for conflicts between:
+- **Requirements vs. Existing Implementation**: Does epic require patterns that conflict with current architecture?
+- **External Service Constraints**: Do SaaS limitations conflict with epic requirements? (rate limits, features, pricing)
+- **Security vs. Usability**: Do security requirements make usability requirements impossible?
+- **Performance vs. Features**: Do performance requirements conflict with feature richness?
+- **Scalability vs. Simplicity**: Does scale requirement force complexity that conflicts with maintainability?
+- **Compliance vs. Functionality**: Do regulatory requirements restrict functionality?
+- **Time/Resource Constraints**: Does timeline conflict with technical complexity?
+
+**Think through contradiction patterns:**
+- "Epic requires X, but current implementation assumes Y"
+- "Epic requires integration with Service A, but Service A doesn't support Feature B which is also required"
+- "Epic requires <1s response time, but also requires processing that takes 5s"
+- "Epic requires user convenience (no login), but also requires user-specific data"
+- "Epic requires real-time updates to all users, but SaaS plan limits to 100 API calls/hour"
+
+**Document constraints and conflicts:**
+
+Write to `<worktree>/planning/p1-stage-1-constraints.md`:
+
+```markdown
+# Constraints & Conflicts: [Epic Name]
+
+## Detected Contradictions
+
+### Contradiction 1: [Brief Descriptive Title]
+**Conflict**: [Describe the contradiction clearly in one sentence]
+
+**Evidence**:
+[Why this is a conflict - technical reasons, research findings]
+- [Specific finding from research that reveals conflict]
+- [Quote from requirement or external service documentation]
+
+**Impact**:
+[What happens if not resolved - risks, blockers, technical debt]
+
+**Resolution Options**:
+1. **[Option A]**: [Approach]
+   - ✅ Pros: [Advantages]
+   - ❌ Cons: [Trade-offs and costs]
+   - 📊 Impact: [Complexity, timeline, maintenance]
+
+2. **[Option B]**: [Approach]
+   - ✅ Pros: [Advantages]
+   - ❌ Cons: [Trade-offs and costs]
+   - 📊 Impact: [Complexity, timeline, maintenance]
+
+3. **[Option C]**: [Approach]
+   - ✅ Pros: [Advantages]
+   - ❌ Cons: [Trade-offs and costs]
+   - 📊 Impact: [Complexity, timeline, maintenance]
+
+**Question for User**:
+[Clear, specific question to resolve contradiction]
+
+---
+
+[Repeat structure for each contradiction]
+
+## Technical Constraints (Non-Contradictory)
+
+These are constraints that don't conflict but do shape design:
+
+- **[Constraint Category]**: [Description]
+  * **Implication**: [How this affects design/implementation]
+  * **Mitigation**: [How we'll work within this constraint]
+
+## Assumptions Requiring Validation
+
+These assumptions from research/disambiguation need user confirmation before proceeding:
+
+- **Assumption**: [What we're assuming based on epic description]
+  * **Basis**: [Why we made this assumption]
+  * **Risk if Wrong**: [What breaks if assumption is false]
+  * **Validation Method**: [How to verify - ask user, prototype, research]
+  * **Priority**: [Must validate before Stage X]
+```
+
+**Present contradictions to user:**
+
+"📋 **Stage 1.3: Constraint Detection & Conflict Resolution**
+
+I've analyzed the epic against research findings and found [N] contradictions that need resolution:
+
+**Contradiction 1: [Title]**
+[Present conflict clearly]
+
+[Present resolution options with pros/cons]
+
+**Question**: [Specific question for user decision]
+
+---
+
+[Repeat for each contradiction]
+
+**Assumptions to Validate:**
+[List assumptions needing confirmation]
+
+**Quality Gate:** How should we resolve these contradictions? Are my assumptions correct?"
+
+**Resolution Loop:**
+
+IF contradictions found:
+  → Present each contradiction with options clearly
+  → Get user decision for each
+  → Document resolution in `<worktree>/planning/p1-stage-1-constraints.md`
+  → IF resolution affects dependencies/services:
+    - Update `<worktree>/planning/p1-stage-1-research.md`
+  → IF resolution changes terminology:
+    - Update `<worktree>/planning/p1-stage-1-disambiguation.md`
+  → LOOP until all contradictions resolved
+
+IF no contradictions OR all resolved:
+  → Mark constraints as analyzed and resolved in journal
+  → Update GUIDE.md Decision History with constraint resolutions
+  → Proceed to Use Case Extraction
+
+---
+
+#### Step 4: Use Case Extraction & Documentation
+
+**With clarity established and conflicts resolved, now extract use cases.**
 
 **Think like a user, not a developer.** Put yourself in their shoes. Walk through their day.
 
@@ -841,9 +1413,248 @@ UI Style Decision:
 → Present options to user for preference
 ```
 
+---
+
+#### Step 5: Use Case Research & Expansion
+
+**With initial use cases identified, research to discover the complete use case landscape.**
+
+Think about what we might be missing:
+- **Related workflows**: What adjacent processes should be included?
+- **Integration touch points**: What external systems trigger or depend on these use cases?
+- **User journey completeness**: What happens before/after the primary use cases?
+- **Error and edge scenarios**: What can go wrong? What unusual paths exist?
+- **Anti-cases (what should NOT happen)**: What should the system prevent or reject?
+
+**Research activities:**
+
+🔍 **Parallel Use Case Pattern Research**
+
+Research related patterns, anti-patterns, and edge cases across multiple domains in parallel. Execute domain research, competitor analysis, and failure mode investigations concurrently.
+
+**Execute these research tasks in parallel:**
+
+1. **Explore Related Use Cases**
+   - Review `<worktree>/planning/p1-stage-1-research.md` actors: What use cases does each actor need?
+   - Check `<worktree>/planning/p1-stage-1-disambiguation.md` relationships: Do entity relationships suggest use cases?
+   - Search existing codebase for related workflows: `rg "similar-feature" --type js`
+   - Consider data lifecycle: Create → Read → Update → Delete → Archive flows
+   - Think through temporal sequences: What happens next? What came before?
+
+2. **Identify Use Case Interactions**
+   - Which use cases depend on others? (prerequisites, triggers)
+   - Which use cases conflict with others? (mutually exclusive states)
+   - Which use cases compose into larger workflows? (orchestration)
+   - Which use cases run in parallel? (concurrency considerations)
+   - Which use cases share common sub-flows? (opportunities for reuse)
+
+3. **Research Anti-Cases (Prevention Scenarios)**
+
+   Think about what the system must prevent:
+
+   - **Security violations**:
+     * Unauthorized access attempts (viewing/editing without permission)
+     * Privilege escalation (normal user accessing admin functions)
+     * Injection attacks (SQL, XSS, command injection)
+     * Authentication bypass attempts
+
+   - **Data integrity violations**:
+     * Duplicate records (same entity created twice)
+     * Orphaned data (references to deleted entities)
+     * Inconsistent state (contradictory data)
+     * Invalid state transitions (skipping required steps)
+
+   - **Business rule violations**:
+     * Constraint violations (age < 0, invalid dates, negative prices)
+     * Invalid workflows (deleting item that's in use)
+     * Exceeding limits (max file size, quota violations)
+     * Timing violations (actions outside allowed time windows)
+
+   - **Resource abuse**:
+     * Denial of Service (excessive requests, resource exhaustion)
+     * Quota violations (exceeding API limits, storage limits)
+     * Rate limit evasion attempts
+     * Bulk operations without safeguards
+
+   - **Misuse patterns**:
+     * Feature abuse (legitimate features used maliciously)
+     * Unintended use cases (workflows not designed for)
+     * Workarounds that should be prevented
+
+4. **External Research**
+   - Search for similar systems: How do they handle this problem domain?
+   - Review SaaS service docs from research.md: Do external services suggest additional use cases?
+   - Check domain standards: Are there industry-standard workflows we should include?
+   - Consult existing documentation: Product specs, user guides, support tickets
+   - Research common user pain points in this domain
+
+**Web research opportunities (use WebSearch in parallel):**
+- "[domain] [use-case] best practices and patterns"
+- "[use-case] common failure modes and edge cases"
+- "how [competitor/company] implements [use-case]"
+- "[use-case] anti-patterns to avoid"
+- "[domain] workflow standards and conventions"
+- "[use-case] security considerations checklist"
+- "[use-case] user experience research findings"
+
+**Consolidate parallel research:** Synthesize findings from related use cases, interactions, anti-cases, and external research into enhanced use-cases.md.
+
+**Document expanded use cases:**
+
+Update `<worktree>/planning/use-cases.md` with:
+
+```markdown
+# Use Cases: [Epic Name]
+
+## Primary Use Cases (From Epic)
+
+### UC-1: [Primary Use Case Name]
+**Actor**: [Who performs this]
+**Trigger**: [What initiates this use case]
+**Preconditions**: [System state before this starts]
+**Main Flow**:
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+
+**Postconditions**: [System state after completion]
+**Alternative Flows**: [Variations of this use case]
+**Exception Flows**: [Error paths and recovery]
+
+[Repeat for each primary use case from initial extraction]
+
+---
+
+## Related Use Cases (Discovered Through Research)
+
+### UC-[N]: [Related Use Case Name]
+**Actor**: [Who performs this]
+**Trigger**: [What initiates this use case]
+**Relationship**: [How this relates to primary use cases]
+  - **Prerequisite for**: [Which use cases need this to run first]
+  - **Triggered by**: [Which use cases trigger this]
+  - **Alternative to**: [Which use cases this substitutes]
+**Rationale**: [Why this use case is necessary]
+  - **Discovered via**: [Which research activity revealed this]
+  - **Source**: [Codebase pattern, similar system, domain standard, etc.]
+**Priority**: [Essential for MVP / Should-have / Nice-to-have]
+
+[Repeat for each discovered related use case]
+
+---
+
+## Use Case Interactions & Dependencies
+
+**Dependency Chains** (must execute in order):
+- UC-X → UC-Y → UC-Z: [Description of workflow]
+
+**Mutually Exclusive** (cannot both be active):
+- UC-A ⊕ UC-B: [Reason for exclusion]
+
+**Concurrent Execution** (can run in parallel):
+- UC-M ∥ UC-N: [Concurrency considerations]
+
+**Shared Sub-Flows** (common patterns):
+- [Sub-flow name]: Used by UC-X, UC-Y, UC-Z
+  * [Description of shared behavior]
+
+**Interaction Diagram**:
+[ASCII or description of how use cases interact]
+
+---
+
+## Anti-Cases (Prevention Scenarios)
+
+### AC-1: [Anti-Case Name - What Should NOT Happen]
+**Category**: [Security / Data Integrity / Business Rule / Resource Abuse / Misuse]
+**Description**: [What malicious or erroneous behavior to prevent]
+**Risk**: [What damage could occur if not prevented]
+  - **Impact Severity**: [Critical / High / Medium / Low]
+  - **Likelihood**: [High / Medium / Low]
+**Prevention Strategy**:
+  - **Validation**: [Input validation, business rules]
+  - **Authorization**: [Permission checks required]
+  - **Rate Limiting**: [Request throttling, quotas]
+  - **Monitoring**: [What to log, alert on]
+**Related Use Cases**: [Which use cases must implement this prevention]
+**Test Strategy**: [How to verify prevention works]
+
+[Repeat for each anti-case identified]
+
+---
+
+## Research Notes
+
+**Sources Consulted**:
+- **Codebase Analysis**: [Files examined, patterns found]
+- **External Documentation**: [Standards, similar systems reviewed]
+- **SaaS Service Capabilities**: [Relevant features from services in research.md]
+- **Domain Research**: [Industry standards, best practices]
+
+**Patterns Discovered**:
+- [Common patterns in similar systems]
+- [Standard workflows in this domain]
+- [Reusable interaction patterns]
+
+**Gaps Identified**:
+[Areas where we lack information and need user input]
+- **[Gap topic]**: [What we don't know, why it matters]
+  * **Question for User**: [Specific question to resolve]
+```
+
+**Present expanded use cases to user:**
+
+"📋 **Stage 1.4: Use Case Research & Expansion**
+
+Based on research, I've expanded the use case model:
+
+**Related Use Cases Discovered** ([N] additional):
+[For each related use case discovered]
+- **UC-X**: [Brief description]
+  * **Why needed**: [Rationale]
+  * **Priority**: [Essential/Should-have/Nice-to-have]
+
+**Use Case Interactions**:
+[Describe key dependency chains and relationships]
+- [Example]: UC-A must complete before UC-B can start
+- [Example]: UC-X and UC-Y can run concurrently
+
+**Anti-Cases Identified** ([M] prevention scenarios):
+[For each anti-case]
+- **AC-1**: [What to prevent]
+  * **Risk**: [Why this matters - severity and likelihood]
+  * **Prevention**: [How we'll stop this]
+
+**Research Findings**:
+[Call out interesting patterns or standards discovered]
+
+**Gaps Requiring Clarification**:
+[List specific questions for user]
+
+**Quality Gate:** Are these use cases complete? Should we add, remove, or modify any? Can you help resolve the gaps identified?"
+
+**Confirmation Loop:**
+
+IF user identifies gaps or changes:
+  → Add/modify use cases based on feedback
+  → Update `<worktree>/planning/use-cases.md`
+  → Update `<worktree>/planning/p1-stage1-journal.md` with user feedback
+  → Re-present for confirmation
+  → LOOP until user satisfied
+
+IF user confirms:
+  → Mark use cases as complete and validated in journal
+  → Update GUIDE.md Knowledge Checkpoints with:
+    - Total use case count (primary + related)
+    - Anti-case count
+    - Key interaction patterns discovered
+  → Proceed to Final Documentation and Presentation
+
+---
+
 **Document (Knowledge File)** to `<worktree>/planning/use-cases.md`:
 - Tell user's story with vivid, concrete scenarios (use Given-When-Then if helpful)
-- Include: actors, triggers, flows, outcomes, variations, exceptions
+- Include: actors, triggers, flows, outcomes, variations, exceptions, relationships, anti-cases
 - Document reasoning: Why these use cases? Confidence level? Uncertainties?
 
 **Document (Journal File)** to `<worktree>/planning/p1-stage1-journal.md`:
@@ -862,10 +1673,28 @@ Create journal at stage START, update DURING exploration, finalize at stage END.
 
 [Present primary use case, alternative flows, exception handling]
 
-**Quality Gate:** Do these use cases capture what you want to build?"
+---
+
+**🚦 MANDATORY USER CONFIRMATION GATE**
+
+**Recap Key Decisions:**
+- Primary use case: [summarize main user journey]
+- Alternative flows: [list key variations]
+- Scope boundaries: [what's in/out of scope]
+- User value: [core benefit statement]
+
+**Questions for Confirmation:**
+1. Do these use cases accurately capture what you want to build?
+2. Are there any missing user journeys or workflows?
+3. Is the scope boundary correct (not too broad or narrow)?
+
+**⚠️ STOP: Do not proceed to Stage 2 until user explicitly confirms.**
+
+Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 
 → Follow Stage Execution Pattern for confirmation/feedback processing
 → Update GUIDE.md per standard protocol (add transition log entry with timestamp and confirmation)
+→ **WAIT for explicit user confirmation before proceeding**
 
 ---
 
@@ -957,17 +1786,364 @@ Document in NFR file which quality attributes need tooling support. Stage 3 will
 
 Mark tooling needs as HIGH/MEDIUM/LOW priority based on automation value.
 
+---
+
+#### Non-Functional Requirements Research
+
+**With initial NFRs identified, research to ensure completeness and discover missing requirements.**
+
+Think about requirement categories we might have missed:
+- **Quality attributes**: What makes this system "good"?
+- **Operational requirements**: How will this run in production?
+- **Environmental constraints**: What environment must this work in?
+- **Regulatory requirements**: What compliance needs exist?
+- **Cross-cutting concerns**: What applies to all use cases?
+
+**Research activities:**
+
+🔍 **Parallel NFR Research Strategy**
+
+The 8 quality attribute categories are independent and can be researched in parallel. Execute multiple web searches and analyses concurrently, then consolidate into requirements.md.
+
+**Execute these 4 research tasks in parallel:**
+
+1. **Review Quality Attribute Checklist (8 categories - can analyze in parallel)**
+
+   Go through each category systematically:
+
+   **Performance**:
+   - Response times: What are user expectations? Industry benchmarks? SLA requirements?
+   - Throughput: Requests per second? Concurrent operations?
+   - Latency: Network latency tolerance? Database query time limits?
+   - Resource usage: Memory footprint? CPU utilization targets?
+   - Check existing system: What are current performance baselines from `<worktree>/planning/p1-stage-1-research.md`?
+
+   **Scalability**:
+   - User growth: What are business projections? Expected load increases?
+   - Data volume: Current vs. 1 year / 5 year projections?
+   - Traffic patterns: Peak times? Seasonal variations? Geographic distribution?
+   - Check constraints: What are service tier limits from research.md (database, SaaS, hosting)?
+   - Horizontal vs vertical scaling: Which approach fits the architecture?
+
+   **Reliability**:
+   - Uptime: What are downtime cost implications? User tolerance? Business impact?
+   - Error recovery: Automatic retry strategies? Fallback mechanisms?
+   - Fault tolerance: Single points of failure? Redundancy needs?
+   - Check dependencies: What are external service SLAs from research.md?
+   - Disaster recovery: Backup frequency? Recovery time objectives (RTO/RPO)?
+
+   **Security**:
+   - Authentication: Methods appropriate for actors from research.md? MFA requirements?
+   - Authorization: RBAC? ABAC? Resource-based? Aligns with actors' permission needs?
+   - Data protection: What data classification applies? Encryption at rest/transit?
+   - Privacy: PII handling requirements? Data residency laws?
+   - Threat model: Attack vectors specific to this domain? OWASP Top 10 considerations?
+   - Check compliance: GDPR? HIPAA? SOC2? PCI-DSS? Industry regulations?
+
+   **Usability**:
+   - Ease of use: Who are end users from research.md actors? Technical sophistication level?
+   - Accessibility: WCAG compliance level (A, AA, AAA)? Specific disability accommodations?
+   - Learnability: First-time user experience? Onboarding needs?
+   - Check patterns: Existing UI conventions from codebase? Design system to follow?
+   - Internationalization: Multiple languages? Localization requirements?
+
+   **Maintainability**:
+   - Code quality: Who maintains this from research.md? Team skill levels?
+   - Documentation: API docs? Architecture diagrams? Runbooks?
+   - Testability: Unit test coverage targets? Integration test strategy?
+   - Check standards: Coding standards from codebase? Architectural patterns to follow?
+   - Technical debt: Refactoring budget? Long-term sustainability?
+
+   **Portability**:
+   - Platform independence: What environments from research.md? Cloud, on-prem, hybrid?
+   - Deployment targets: Containers? Serverless? VMs? Kubernetes?
+   - Check constraints: OS requirements? Browser compatibility? Device support?
+   - Migration path: Can users move data? Export/import capabilities?
+
+   **Compatibility**:
+   - Integration points: What systems integrate from research.md? APIs to maintain?
+   - API stability: Versioning strategy? Backwards compatibility requirements?
+   - Check versions: Dependency version constraints from research.md?
+   - Legacy support: Deprecated features to maintain? Sunset timelines?
+
+2. **Analyze Use Case Implications**
+
+   Review each use case and anti-case from `<worktree>/planning/use-cases.md`:
+   - What NFRs does this use case imply? (UC requires real-time updates → performance requirement)
+   - What performance characteristics are needed? (Batch processing vs. interactive)
+   - What security requirements emerge? (Handling PII → encryption, audit logging)
+   - What error handling requirements exist? (Payment processing → idempotency, retry logic)
+   - What anti-cases create requirements? (AC prevents injection → input validation NFR)
+
+3. **Research Domain-Specific Requirements**
+
+   - Search for industry standards in this domain: Healthcare? Finance? E-commerce?
+   - Review similar systems' documented requirements: What do competitors require?
+   - Check regulatory bodies for compliance requirements: Industry-specific regulations?
+   - Consult existing system documentation for inherited requirements: Must maintain parity?
+   - Research common failure modes: What goes wrong in systems like this?
+
+4. **Identify Requirement Gaps**
+
+   Look for missing information:
+   - **Quantitative targets lacking**: "Fast" → How fast (ms)? "Scalable" → How many users?
+   - **Unclear priorities**: Which NFRs are must-have vs. nice-to-have? What's negotiable?
+   - **Missing context**: Under what conditions? What percentile (p50, p95, p99)?
+   - **Undefined terms**: What does "secure" mean specifically? What does "reliable" mean?
+   - **Conflicting requirements**: Do any NFRs contradict each other? (Like Stage 1 constraints)
+
+**Web research opportunities (use WebSearch in parallel):**
+- "industry standard response times for [domain]"
+- "[compliance-standard] requirements checklist for [industry]"
+- "scalability best practices for [technology-stack]"
+- "WCAG [level] compliance implementation guide"
+- "disaster recovery RTO/RPO standards for [industry]"
+- "[technology] performance benchmarks production"
+- "security threat model for [use-case] applications"
+- "[domain] maintainability best practices"
+
+**Consolidate parallel research:** Synthesize findings from all 4 tasks + 8 quality attribute categories into comprehensive requirements.md.
+
+**Document research findings:**
+
+Update `<worktree>/planning/requirements.md` with comprehensive structure:
+
+```markdown
+# Requirements: [Epic Name]
+
+## Functional Requirements
+
+**FR-1**: [Requirement Statement]
+  * **Derived From**: UC-[N] - [Use Case Name]
+  * **Rationale**: [Why this requirement exists]
+  * **Acceptance Criteria**: [How to verify this requirement is met]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for each functional requirement from use cases]
+
+---
+
+## Non-Functional Requirements
+
+### Performance Requirements
+**NFR-P1**: [Specific Performance Requirement]
+  * **Metric**: [Measurable target - e.g., "<200ms response time at p95"]
+  * **Rationale**: [Research finding or user need that drives this]
+  * **Measurement Method**: [Tool/approach to verify - load testing, APM, profiling]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+  * **Derived From**: [UC-X or research finding]
+
+[Repeat for throughput, latency, resource usage, etc.]
+
+### Scalability Requirements
+**NFR-S1**: [Specific Scalability Requirement]
+  * **Metric**: [e.g., "Support 10,000 concurrent users with <5% degradation"]
+  * **Rationale**: [Business projection or research finding]
+  * **Constraint**: [Service limits, architectural limits from research.md]
+  * **Scaling Strategy**: [Horizontal/vertical, caching, sharding]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for data volume, traffic patterns, growth targets, etc.]
+
+### Security Requirements
+**NFR-SE1**: [Specific Security Requirement]
+  * **Control**: [Authentication method, encryption standard, access control]
+  * **Rationale**: [Threat model, compliance need, anti-case prevention]
+  * **Standard**: [OAuth 2.0, AES-256, OWASP ASVS Level X, etc.]
+  * **Verification**: [Security scan, penetration test, code review]
+  * **Priority**: Must-have (security is non-negotiable)
+  * **Related Anti-Case**: AC-[N] - [Which anti-case this prevents]
+
+[Repeat for authentication, authorization, encryption, privacy, audit, etc.]
+
+### Reliability Requirements
+**NFR-R1**: [Specific Reliability Requirement]
+  * **Metric**: [e.g., "99.9% uptime", "RTO <4 hours, RPO <1 hour"]
+  * **Rationale**: [Business impact, user expectation from research]
+  * **Recovery Strategy**: [Automatic failover, backup restore, retry logic]
+  * **Monitoring**: [Health checks, alerts, SLO tracking]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for uptime, fault tolerance, error recovery, disaster recovery, etc.]
+
+### Compliance & Regulatory Requirements
+**NFR-C1**: [Specific Compliance Requirement]
+  * **Regulation**: [GDPR, HIPAA, SOC2, PCI-DSS, industry regulation]
+  * **Applicability**: [Why this regulation applies - data type, industry, geography]
+  * **Specific Requirements**: [Specific obligations - data retention, right to erasure, etc.]
+  * **Evidence**: [Regulation citation, legal requirement, audit standard]
+  * **Verification**: [Compliance audit, certification, legal review]
+  * **Impact**: [What this means for design - data encryption, audit logs, consent management]
+  * **Priority**: Must-have (compliance is non-negotiable)
+
+[Repeat for each applicable regulation]
+
+### Usability Requirements
+**NFR-U1**: [Specific Usability Requirement]
+  * **Standard**: [WCAG 2.1 AA, Nielsen heuristics, industry UX standard]
+  * **Rationale**: [User population needs, legal requirement]
+  * **Acceptance Criteria**: [Specific testable criteria]
+  * **Verification**: [Usability testing, accessibility audit, user feedback]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for accessibility, learnability, efficiency, error prevention, etc.]
+
+### Maintainability Requirements
+**NFR-M1**: [Specific Maintainability Requirement]
+  * **Metric**: [e.g., "80% test coverage", "Cyclomatic complexity <10", "API documentation complete"]
+  * **Rationale**: [Team capability, longevity needs from research.md]
+  * **Verification**: [Code coverage tool, static analysis, documentation review]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for code quality, documentation, testability, modularity, etc.]
+
+### Operational Requirements
+**NFR-O1**: [Specific Operational Requirement]
+  * **Capability**: [Monitoring, logging, deployment, backup, configuration management]
+  * **Rationale**: [Operations team needs, incident response, debugging]
+  * **Tools**: [Specific tools/systems to use or integrate]
+  * **Verification**: [Operational readiness review, runbook testing]
+  * **Priority**: Must-have / Should-have / Nice-to-have
+
+[Repeat for monitoring, logging, deployment, backup/recovery, configuration, etc.]
+
+---
+
+## Requirements Research Sources
+- **Industry Standards**: [ISO, NIST, OWASP, domain standards consulted]
+- **Similar Systems**: [Systems researched for NFR patterns]
+- **Compliance Documentation**: [Regulations reviewed, legal guidance]
+- **Existing System Metrics**: [Baseline measurements from current system in research.md]
+- **User Research**: [User interviews, surveys, feedback]
+- **Service Provider Docs**: [SaaS service documentation from research.md]
+
+---
+
+## Requirement Gaps & Questions for User
+
+### Gap 1: [Requirement Category]
+**What We Know**: [Current understanding from epic/research]
+**What We Need**: [Missing quantitative target or clarification]
+**Question for User**: [Specific question to resolve gap]
+**Impact if Not Resolved**: [Why this matters for design - blocking decisions, risk if assumed wrong]
+**Default Assumption**: [What we'll assume if user doesn't respond - with rationale]
+
+[Repeat for each gap identified]
+
+---
+
+## Requirements Traceability
+
+**Use Cases → Functional Requirements**:
+- **UC-1** → FR-1, FR-2, FR-3: [Use case fulfilled by these FRs]
+- **UC-2** → FR-4, FR-5: [Use case fulfilled by these FRs]
+
+**Use Cases → Non-Functional Requirements**:
+- **UC-1** (real-time updates) → NFR-P1 (response time), NFR-R1 (uptime)
+- **UC-5** (handle payments) → NFR-SE1 (PCI compliance), NFR-SE2 (encryption)
+
+**Anti-Cases → Non-Functional Requirements**:
+- **AC-1** (prevent injection) → NFR-SE3 (input validation), NFR-SE4 (parameterized queries)
+- **AC-2** (prevent DoS) → NFR-P2 (rate limiting), NFR-S1 (horizontal scaling)
+
+---
+
+## Requirements Priority Matrix
+
+**Must-Have** (blocking launch):
+[List of must-have FRs and NFRs]
+
+**Should-Have** (important but not blocking):
+[List of should-have FRs and NFRs]
+
+**Nice-to-Have** (can defer to v2):
+[List of nice-to-have FRs and NFRs]
+```
+
+**Present research findings and gaps to user:**
+
+"⚙️ **Stage 2: Requirements Research & Validation**
+
+I've researched requirements across all quality attribute categories:
+
+**Functional Requirements** ([N] total):
+[Summarize key functional requirements derived from use cases]
+
+**Non-Functional Requirements Discovered**:
+
+**Performance** ([N] requirements):
+- [Key finding with metric]
+- [Key finding with metric]
+
+**Security** ([N] requirements):
+- [Key finding - compliance, threat, anti-case prevention]
+- [Key finding - compliance, threat, anti-case prevention]
+
+**Scalability** ([N] requirements):
+- [Key finding with growth projection]
+
+**[Other Categories]**:
+[Summarize key findings]
+
+**Research Findings**:
+- Industry standard for [domain] suggests [specific requirement]
+- Similar systems typically require [specific NFR]
+- Compliance requirement [regulation] applies because [reason]
+- Anti-case AC-[N] necessitates [specific security/reliability NFR]
+
+**Requirements Traceability**:
+- [N] use cases generate [M] functional requirements
+- [P] anti-cases drive [Q] security/reliability requirements
+
+**Gaps Requiring Your Input** ([N] questions):
+
+1. **Gap: [Category]**
+   - **What we know**: [Current understanding]
+   - **What we need**: [Specific missing information]
+   - **Question**: [Specific question for user]
+   - **Why it matters**: [Impact on design]
+   - **Default assumption**: [What we'll assume if no answer]
+
+[Repeat for each gap]
+
+**Quality Gate:** Are these requirements complete? Should we add or adjust any? Can you provide answers for the gaps identified?"
+
+**Confirmation Loop:**
+
+IF user identifies missing requirements:
+  → Add/modify requirements based on feedback
+  → Update `<worktree>/planning/requirements.md`
+  → Update `<worktree>/planning/p1-stage2-journal.md` with user feedback
+  → Re-present for confirmation
+  → LOOP until user satisfied
+
+IF user provides gap answers:
+  → Update requirements.md with user input
+  → Move from gaps section to appropriate requirement category
+  → Mark as confirmed with user
+
+IF user confirms:
+  → Mark requirements as complete and validated in journal
+  → Update GUIDE.md Knowledge Checkpoints with:
+    - Total FR and NFR counts by category
+    - Key compliance/security requirements
+    - Priority distribution (must/should/nice-to-have)
+  → Proceed to Final Documentation and Presentation
+
+---
+
 **Document (Knowledge File)** to `<worktree>/planning/requirements.md`:
 
 **Functional Requirements Section:**
 - Requirements derived directly from Stage 1 use cases
 - What the system must do to fulfill each use case
-- Clear, testable statements
+- Clear, testable statements with traceability
 
 **Non-Functional Requirements Section:**
 - Make quality attributes concrete and measurable ("200ms 95th percentile", not "fast")
-- Organize by: Performance, Security, Reliability, Maintainability, Scalability
+- Organize by: Performance, Security, Reliability, Maintainability, Scalability, Compliance, Usability, Operational
 - Document reasoning: Why these thresholds? What trade-offs?
+- Include gaps and questions for user clarification
 
 **Document (Journal File)** to `<worktree>/planning/p1-stage2-journal.md`:
 
@@ -985,10 +2161,28 @@ Create journal at stage START, update DURING requirements analysis, finalize at 
 
 [Present Functional Requirements first, then Performance, Security, Reliability, Maintainability, Scalability requirements]
 
-**Quality Gate:** Are these the right requirements and constraints?"
+---
+
+**🚦 MANDATORY USER CONFIRMATION GATE**
+
+**Recap Key Decisions:**
+- Functional requirements: [list 3-5 key capabilities]
+- Performance constraints: [response time, throughput, scale targets]
+- Security requirements: [authentication, authorization, data protection]
+- Quality attributes: [reliability, maintainability, scalability needs]
+
+**Questions for Confirmation:**
+1. Are these the right functional requirements for your use cases?
+2. Are the performance and quality constraints realistic and necessary?
+3. Are there any critical requirements missing?
+
+**⚠️ STOP: Do not proceed to Stage 3 until user explicitly confirms.**
+
+Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 
 → Follow Stage Execution Pattern for confirmation/feedback processing
 → Update GUIDE.md per standard protocol (add transition log entry with timestamp and confirmation)
+→ **WAIT for explicit user confirmation before proceeding**
 → If requirements significantly affect Stage 1, may need to revert and update use cases
 
 ---
@@ -1033,6 +2227,31 @@ If files don't exist, this is your first exploration of Stage 3.
 - Discovery here shapes design decisions in Phase 2
 
 **Think like an archaeologist, not an architect.** You're discovering what exists before you design what's new.
+
+---
+
+**⚠️ ARCHITECTURE IS DISCOVERY AND DECISIONS, NOT IMPLEMENTATION**
+
+**This stage focuses on**:
+- ✅ Researching technology options (GitHub, Reddit, NPM, documentation)
+- ✅ Scoring and comparing alternatives using Quality/Trending/Philosophy framework
+- ✅ Using grep/ripgrep to discover existing patterns in codebase
+- ✅ Reading files to understand integration points
+- ✅ Documenting architecture decisions in architecture.md
+- ✅ Identifying tooling needs (MCP servers, APIs, frameworks)
+
+**This stage does NOT include**:
+- ❌ Writing code in `<worktree>/src/`
+- ❌ Installing npm packages or dependencies
+- ❌ Creating configuration files (package.json, tsconfig.json, etc.)
+- ❌ Implementing integrations or prototypes
+- ❌ Setting up build tools or development environment
+
+**Exception**: Stage 4+ may run time-boxed experiments (see below) with mandatory cleanup.
+
+**All implementation happens in Phase 3** after all design decisions are finalized.
+
+---
 
 **Analyze the systems landscape - what's already out there?**
 - What existing systems will this interact with? What are their contracts and expectations?
@@ -1107,6 +2326,12 @@ cat "<worktree>/planning/requirements.md"
 
 **Research available technology options:**
 
+🔍 **Parallel Technology Research Strategy**
+
+For each technology gap identified, research across multiple sources in parallel. Execute GitHub, NPM, Reddit, and documentation searches concurrently.
+
+**Per technology gap, launch these research tasks in parallel:**
+
 **1. GitHub Research:**
 Search GitHub for relevant projects and libraries:
 ```
@@ -1173,6 +2398,17 @@ For each technology option discovered, assign scores (0-10) for:
 - **Complexity:** 0=steep learning, 5=moderate, 10=simple API
 
 **Total Score = (Quality × 0.4) + (Trending × 0.3) + (Philosophy × 0.3)**
+
+**Web research opportunities (use WebSearch in parallel):**
+- "site:github.com [technology-need] [language] stars:>1000"
+- "site:reddit.com r/[subreddit] [technology] vs [alternative] recommendations"
+- "[technology] performance benchmarks 2024 comparison"
+- "[technology] production gotchas and lessons learned"
+- "best [technology] for [use-case] detailed comparison"
+- "[technology] bundle size and dependencies analysis"
+- "[alternative-1] vs [alternative-2] vs [alternative-3] feature comparison"
+
+**Consolidate parallel research:** Score all discovered options using Quality + Trending + Philosophy framework, rank by total score, document in architecture.md.
 
 **Document research findings:**
 
@@ -1372,6 +2608,199 @@ Apply the **necessary-but-sufficient principle**: Include only what's required t
 **Satisfied by:** [Existing databases] **Needs investigation:** [Backup strategy, replication, scaling plan]
 ```
 
+**5. Quality Testing Architecture (Runtime Determination):**
+
+**Evaluate quality testing requirements from use cases and NFRs:**
+- What types of testing are needed? (Unit, integration, e2e, performance, security)
+- What quality gates must be met? (Coverage thresholds, performance budgets, security standards)
+- What test data is required? (Fixtures, mocks, synthetic data, production-like datasets)
+- What are the testing limitations? (Budget constraints, time constraints, environment access)
+- What's the minimal quality bar? (What MUST pass vs. what's nice-to-have)
+
+**Philosophy: Runtime Decision Making Over Predetermined Choices**
+
+Rather than prescribing a fixed testing approach, determine the testing strategy based on:
+- **Codebase discovery:** What testing frameworks already exist?
+- **Technology stack:** What test tools integrate best?
+- **Use case complexity:** How much testing is actually needed?
+- **Team preferences:** What testing style is the team familiar with?
+
+**Decision framework (discover at runtime):**
+
+**Step 1: Discover Existing Testing Patterns**
+```bash
+# Search for existing test files and frameworks
+find . -name "*.test.js" -o -name "*.spec.js" -o -name "*.test.ts" -o -name "*.spec.ts"
+grep -r "describe\|it\|test\|expect" . --include="*.js" --include="*.ts"
+
+# Check for testing dependencies
+cat package.json | grep -E "jest|mocha|chai|vitest|playwright|cypress"
+
+# Look for test configuration files
+ls -la | grep -E "jest.config|mocha.opts|vitest.config|playwright.config"
+```
+
+**Step 2: Analyze Use Case Testing Needs**
+
+For each use case from Stage 1, determine testing requirements:
+- **Critical path:** Must have high-coverage automated tests (financial transactions, authentication, data mutations)
+- **Standard features:** Moderate coverage, focus on integration tests (CRUD operations, workflows)
+- **Low-risk features:** Minimal tests, rely on manual testing (cosmetic changes, internal tools)
+
+**Step 3: Define Testing Approach Based on Discoveries**
+
+**If existing tests use Mocha/Chai:**
+```markdown
+### Quality Testing Architecture
+
+**Testing Framework:** Mocha + Chai (align with existing codebase)
+- **Why:** Project already uses Mocha/Chai, maintain consistency
+- **Confidence:** HIGH - established pattern in codebase
+
+**Test Categories:**
+1. **Unit Tests** (Mocha + Chai)
+   - **Coverage target:** 80% for business logic, 60% for utilities
+   - **Mocking strategy:** Sinon for stubs/spies, proxyquire for module mocks
+   - **Test data:** JSON fixtures in test/fixtures/
+   - **Run frequency:** Every commit (pre-commit hook)
+
+2. **Integration Tests** (Mocha + Chai + Supertest for APIs)
+   - **Coverage target:** 70% of API endpoints and database interactions
+   - **Test environment:** Dedicated test database (SQLite in-memory or PostgreSQL test instance)
+   - **Test data:** Database seeding scripts in test/seeds/
+   - **Run frequency:** Pre-push hook, CI/CD pipeline
+
+3. **End-to-End Tests** (Playwright preferred, Cypress fallback)
+   - **Coverage target:** Critical user journeys only (authentication, checkout, core workflows)
+   - **Test environment:** Staging environment with production-like data
+   - **Test data:** Synthetic user accounts, anonymized production data subset
+   - **Run frequency:** CI/CD on main branch, nightly for full suite
+   - **Limitations:** No tests for admin-only features (manual QA), no performance testing in e2e
+
+4. **Performance Tests** (k6 or Artillery - decide based on existing infrastructure)
+   - **Coverage target:** API endpoints under expected load + 2x surge capacity
+   - **Performance budgets:**
+     * API response time: p95 < 200ms, p99 < 500ms
+     * Page load: First Contentful Paint < 1.5s, Time to Interactive < 3.5s
+   - **Test data:** Load testing data generator (faker.js or custom scripts)
+   - **Run frequency:** Weekly on staging, before major releases
+   - **Limitations:** Limited to staging environment, not production traffic patterns
+
+5. **Security Tests** (npm audit, Snyk, OWASP dependency check)
+   - **Coverage target:** All dependencies scanned, critical vulnerabilities blocked
+   - **Security standards:** OWASP Top 10 awareness, dependency vulnerability scanning
+   - **Run frequency:** Every CI/CD build, weekly full security scans
+   - **Limitations:** Automated tools only (no manual penetration testing), focus on dependencies
+
+**Minimal Quality Bar (Must Pass):**
+- ✅ Unit tests: >70% coverage on business logic
+- ✅ Integration tests: All critical API endpoints tested
+- ✅ E2E tests: Authentication + primary user journey working
+- ✅ No high/critical security vulnerabilities in dependencies
+- ✅ Performance: API p95 < 500ms (relaxed from ideal)
+
+**Nice-to-Have (Not Blocking):**
+- 🎯 80% overall code coverage (aspirational)
+- 🎯 Visual regression tests (nice for UI-heavy apps)
+- 🎯 Accessibility audits (WCAG AA compliance)
+- 🎯 Load testing beyond 2x expected capacity
+
+**Test Data Strategy:**
+- **Fixtures:** JSON files in test/fixtures/ for deterministic unit tests
+- **Factories:** faker.js + factory pattern for dynamic test data generation
+- **Seeding:** Database seed scripts for integration/e2e environments
+- **Production data:** NEVER use in tests; anonymize/synthesize if needed
+- **Limitations:** No access to production data, synthetic data may miss edge cases
+
+**Testing Dependencies & Setup:**
+```json
+{
+  "devDependencies": {
+    "mocha": "^10.x",
+    "chai": "^4.x",
+    "sinon": "^17.x",
+    "supertest": "^6.x",
+    "@playwright/test": "^1.40.x",
+    "k6": "^0.48.x",
+    "faker": "^5.x"
+  }
+}
+```
+
+**Setup Requirements:**
+- Test database: PostgreSQL test instance or SQLite in-memory
+- CI/CD integration: GitHub Actions or equivalent
+- Staging environment: Must mirror production architecture
+- Test data generators: Seeding scripts + faker integration
+
+**Quality Gates in CI/CD:**
+1. **Pre-commit:** Unit tests must pass (git hooks via husky)
+2. **Pre-push:** Integration tests must pass
+3. **PR validation:** All tests + coverage check + security scan
+4. **Pre-deployment:** E2E tests + performance validation on staging
+5. **Post-deployment:** Smoke tests on production
+
+**Testing Limitations ("Too Far"):**
+- ❌ Do NOT test framework internals (trust Express/React/etc.)
+- ❌ Do NOT aim for 100% coverage (diminishing returns after 80%)
+- ❌ Do NOT write tests for trivial getters/setters
+- ❌ Do NOT duplicate tests across layers (e.g., unit + integration for same logic)
+- ❌ Do NOT test external APIs directly (mock them instead)
+- ❌ Do NOT perform load testing on production (staging only)
+
+**Confidence Levels:**
+- **Framework choice (Mocha/Chai):** HIGH - already in use
+- **Coverage targets:** MEDIUM - need to validate with team
+- **Performance budgets:** MEDIUM - need to measure current baselines
+- **Test data strategy:** HIGH - standard practice
+- **Security scanning:** HIGH - industry standard tools
+```
+```
+
+**If NO existing tests found:**
+```markdown
+### Quality Testing Architecture
+
+**Testing Framework:** Vitest (modern, fast, ESM-first) OR Jest (battle-tested, wide ecosystem)
+- **Decision:** Runtime choice based on project structure:
+  * **Use Vitest if:** ESM modules, Vite/Vue/React project, prefer speed
+  * **Use Jest if:** CJS modules, established ecosystem, team familiarity
+- **Confidence:** MEDIUM - need to validate module system and team preference
+
+**Test Categories:** [Same structure as Mocha/Chai above, adapted for Jest/Vitest]
+
+[Continue with same sections: coverage targets, test data, dependencies, quality gates, limitations]
+```
+
+**Step 4: Validate Testing Strategy**
+
+Before finalizing, confirm:
+- ✅ Does this testing approach cover all critical use cases?
+- ✅ Are coverage targets realistic given timeline and resources?
+- ✅ Is test data strategy sufficient to catch edge cases?
+- ✅ Are quality gates enforceable in CI/CD pipeline?
+- ✅ Are limitations clearly communicated (what won't be tested)?
+- ✅ Is the minimal quality bar achievable?
+
+**Document to architecture.md:**
+
+Add a "Quality Testing Architecture" section with:
+1. Discovered testing patterns (existing frameworks, coverage, practices)
+2. Testing requirements derived from use cases (what must be tested vs. nice-to-have)
+3. Chosen frameworks and rationale (why this combination fits project)
+4. Test categories with coverage targets and data strategies
+5. Quality gates and CI/CD integration points
+6. Explicit limitations (testing boundaries, "too far" scenarios)
+7. Minimal quality bar (must-pass criteria)
+8. Dependencies and setup requirements
+
+**Rationale for runtime determination:**
+- Projects vary widely in existing infrastructure
+- Use case complexity determines testing depth needed
+- Team familiarity affects framework choice effectiveness
+- Resource constraints influence achievable coverage
+- Discovering existing patterns maintains consistency
+
 **Architecture Decision Summary:**
 
 After defining all architectural layers, create a summary in `architecture.md`:
@@ -1385,6 +2814,7 @@ After defining all architectural layers, create a summary in `architecture.md`:
 | Service | [Yes/No] | [Service pattern] | [Business logic needs] | [Handles current + projected load] | [Satisfied/Needs investigation] |
 | API | [Yes/No] | [API style] | [Consumer requirements] | [All consumers can integrate] | [Satisfied/Needs investigation] |
 | Data | [Yes/No] | [Storage choices] | [Persistence needs] | [Scale + query patterns covered] | [Satisfied/Needs investigation] |
+| Quality Testing | Yes | [Testing framework + strategy] | [Quality requirements from NFRs] | [Covers critical paths + minimal bar] | [Satisfied/Needs investigation] |
 
 ### Items Satisfied
 [List architectural decisions that are clear and final]
@@ -1394,6 +2824,282 @@ After defining all architectural layers, create a summary in `architecture.md`:
 - [Decision]: [What needs to be investigated and why]
 - [Decision]: [What's the risk if we get this wrong]
 ```
+
+**Visual Architecture Documentation with Mermaid:**
+
+**Include Mermaid diagrams throughout architecture.md to visualize system structure, flows, and relationships.**
+
+**Why Mermaid?**
+- Renders directly in Markdown (GitHub, VSCode, documentation sites)
+- Version-controlled as text (no binary image files)
+- Easy to update as architecture evolves
+- Multiple diagram types for different perspectives
+
+**Diagram Types & When to Use:**
+
+**1. System Architecture Diagrams (graph/flowchart)**
+Use for: High-level component relationships, system topology, deployment architecture
+
+```mermaid
+graph TB
+    subgraph "Frontend"
+        UI[Web UI<br/>Next.js + shadcn]
+    end
+
+    subgraph "Backend Services"
+        API[API Server<br/>Express]
+        Auth[Auth Service<br/>OAuth 2.0]
+        Worker[Background Workers<br/>BullMQ]
+    end
+
+    subgraph "Data Layer"
+        DB[(PostgreSQL<br/>Primary DB)]
+        Cache[(Redis<br/>Cache)]
+        S3[S3<br/>File Storage]
+    end
+
+    subgraph "External Services"
+        Stripe[Stripe API]
+        SendGrid[SendGrid API]
+    end
+
+    UI -->|HTTPS| API
+    UI -->|WebSocket| API
+    API -->|Query| DB
+    API -->|Cache| Cache
+    API -->|Store Files| S3
+    API -->|Auth| Auth
+    API -->|Enqueue Jobs| Worker
+    Worker -->|Process| DB
+    API -->|Payments| Stripe
+    Worker -->|Email| SendGrid
+```
+
+**2. Sequence Diagrams**
+Use for: API flows, authentication flows, complex interactions, error handling scenarios
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant UI as Web UI
+    participant API as API Server
+    participant Auth as Auth Service
+    participant DB as Database
+    participant Queue as Job Queue
+    participant Worker as Background Worker
+
+    Note over U,Worker: User Registration Flow
+
+    U->>UI: Submit registration form
+    UI->>API: POST /api/auth/register
+    API->>Auth: Validate credentials
+    Auth->>DB: Check existing user
+    DB-->>Auth: No conflict
+    Auth->>DB: Create user record
+    DB-->>Auth: User created
+    Auth->>Queue: Enqueue welcome email job
+    Queue-->>Auth: Job queued
+    Auth-->>API: Registration success + JWT
+    API-->>UI: 201 Created + token
+    UI-->>U: Redirect to dashboard
+
+    Note over Queue,Worker: Async Email Processing
+    Queue->>Worker: Dequeue welcome email job
+    Worker->>DB: Load user details
+    DB-->>Worker: User data
+    Worker->>SendGrid: Send welcome email
+    SendGrid-->>Worker: Email sent
+    Worker->>DB: Log email sent
+```
+
+**3. State Diagrams**
+Use for: Entity lifecycle, workflow states, feature flags, deployment states
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: Create task
+    Draft --> UnderReview: Submit for review
+    UnderReview --> InProgress: Approve
+    UnderReview --> Draft: Request changes
+    InProgress --> Blocked: Dependency issue
+    Blocked --> InProgress: Dependency resolved
+    InProgress --> Testing: Complete development
+    Testing --> InProgress: Tests fail
+    Testing --> Deployed: Tests pass
+    Deployed --> [*]: Close task
+
+    note right of Blocked
+        Requires external dependency
+        or design clarification
+    end note
+```
+
+**4. Entity-Relationship Diagrams**
+Use for: Database schema, data model relationships, normalized structures
+
+```mermaid
+erDiagram
+    USER ||--o{ ORDER : places
+    USER ||--o{ REVIEW : writes
+    USER {
+        uuid id PK
+        string email UK
+        string hashed_password
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ORDER ||--|{ ORDER_ITEM : contains
+    ORDER {
+        uuid id PK
+        uuid user_id FK
+        decimal total_amount
+        string status
+        timestamp created_at
+    }
+
+    ORDER_ITEM }o--|| PRODUCT : references
+    ORDER_ITEM {
+        uuid id PK
+        uuid order_id FK
+        uuid product_id FK
+        int quantity
+        decimal unit_price
+    }
+
+    PRODUCT ||--o{ REVIEW : receives
+    PRODUCT {
+        uuid id PK
+        string name
+        text description
+        decimal price
+        int stock_quantity
+    }
+
+    REVIEW {
+        uuid id PK
+        uuid user_id FK
+        uuid product_id FK
+        int rating
+        text comment
+        timestamp created_at
+    }
+```
+
+**5. Class Diagrams**
+Use for: Object-oriented architecture, service layer design, domain model structure
+
+```mermaid
+classDiagram
+    class UserService {
+        +createUser(data)
+        +getUser(id)
+        +updateUser(id, data)
+        +deleteUser(id)
+        -validateUserData(data)
+        -hashPassword(password)
+    }
+
+    class AuthService {
+        +register(credentials)
+        +login(credentials)
+        +refreshToken(token)
+        +logout(token)
+        -generateJWT(user)
+        -validateToken(token)
+    }
+
+    class EmailService {
+        +sendWelcomeEmail(user)
+        +sendResetEmail(user, token)
+        +sendNotification(user, message)
+        -getTemplate(type)
+        -renderTemplate(template, data)
+    }
+
+    class User {
+        +UUID id
+        +String email
+        +String hashedPassword
+        +DateTime createdAt
+        +DateTime updatedAt
+        +validate()
+        +toJSON()
+    }
+
+    UserService --> User : manages
+    AuthService --> UserService : uses
+    AuthService --> EmailService : uses
+    EmailService ..> User : references
+```
+
+**6. Deployment Diagrams**
+Use for: Infrastructure topology, cloud architecture, network boundaries, security zones
+
+```mermaid
+graph TB
+    subgraph "AWS Cloud - Production"
+        subgraph "Public Subnet"
+            ALB[Application Load Balancer]
+            NAT[NAT Gateway]
+        end
+
+        subgraph "Private Subnet - Compute"
+            ECS1[ECS Task<br/>API Server 1]
+            ECS2[ECS Task<br/>API Server 2]
+            ECS3[ECS Task<br/>Worker 1]
+        end
+
+        subgraph "Private Subnet - Data"
+            RDS[(RDS PostgreSQL<br/>Primary)]
+            RDS_R[(RDS PostgreSQL<br/>Read Replica)]
+            ElastiCache[(ElastiCache Redis<br/>Cluster Mode)]
+        end
+
+        subgraph "Managed Services"
+            S3[S3 Buckets<br/>Static Assets + Files]
+            SES[Amazon SES<br/>Email Service]
+        end
+    end
+
+    Internet[Internet] -->|HTTPS| ALB
+    ALB --> ECS1
+    ALB --> ECS2
+    ECS1 -->|Read/Write| RDS
+    ECS2 -->|Read/Write| RDS
+    ECS1 -->|Read Only| RDS_R
+    ECS2 -->|Read Only| RDS_R
+    ECS1 --> ElastiCache
+    ECS2 --> ElastiCache
+    ECS3 -->|Process| RDS
+    ECS1 -->|Store Files| S3
+    ECS2 -->|Store Files| S3
+    ECS3 -->|Send Email| SES
+    ECS3 -->|Internet Access| NAT
+```
+
+**Where to Include Mermaid Diagrams in architecture.md:**
+
+**Required Diagrams:**
+1. **System Architecture Overview** - Include after "Architecture Decision Matrix" showing all major components
+2. **Data Flow Sequence Diagram** - Include in "Data Storage Architecture" section showing typical CRUD operations
+3. **Authentication Flow Sequence** - Include in "API Architecture" or "Service Architecture" if auth is involved
+4. **Entity-Relationship Diagram** - Include in "Data Storage Architecture" showing database schema
+
+**Optional Diagrams (include if applicable):**
+5. **State Diagrams** - Include if your system has complex entity lifecycles or workflows
+6. **Class Diagrams** - Include in "Service Architecture" if object-oriented design is significant
+7. **Deployment Diagram** - Include after decision matrix if infrastructure topology is complex
+8. **Component Interaction Diagrams** - Include for microservices or complex service interactions
+
+**Mermaid Diagram Best Practices:**
+- **Keep diagrams focused**: One concept per diagram, avoid overcrowding
+- **Use subgraphs**: Group related components for visual clarity
+- **Add notes**: Explain non-obvious relationships or constraints
+- **Version alongside code**: Update diagrams when architecture changes
+- **Test rendering**: Verify diagrams render correctly in GitHub/VSCode before committing
+- **Use consistent naming**: Match component names in code to diagram labels
+- **Include legends**: If using colors or line styles, explain what they mean
 
 **Validation checkpoint:**
 - Is each architectural layer justified by use case requirements?
@@ -1457,6 +3163,44 @@ For each tool category, evaluate access patterns:
 - What happens to existing data or functionality during the transition?
 
 **Document architectural findings** to `<worktree>/planning/architecture.md`:
+
+**CRITICAL: Architecture.md Index Requirement**
+
+**Always maintain a document index at the top of architecture.md.** This index enables efficient navigation and context management for large architecture documents.
+
+**Index Format:**
+```markdown
+# Architecture Index
+
+**Keep this index updated as you add/modify sections below.**
+
+| Section | Line Start | Char Offset Start | Char Offset End |
+|---------|------------|-------------------|-----------------|
+| Technology Gap Analysis | 15 | 450 | 2340 |
+| Pre-Decided Technologies | 20 | 580 | 1250 |
+| UI Architecture | 65 | 2500 | 4800 |
+| Service Architecture | 110 | 4850 | 7200 |
+| API Architecture | 155 | 7250 | 9500 |
+| Data Storage Architecture | 200 | 9550 | 12800 |
+| System Architecture Diagram | 250 | 12850 | 14200 |
+| Architecture Decision Matrix | 280 | 14250 | 15600 |
+| Tier 0 Foundation Results | 310 | 15650 | 18900 |
+```
+
+**Why Index Matters:**
+- **Large documents**: Architecture files often grow to 500+ lines, 15,000+ characters
+- **Efficient navigation**: LLMs can read specific sections using line offsets without loading entire file
+- **Context management**: Character offsets enable precise section extraction
+- **Quick updates**: Find and update specific sections without reading everything
+- **Parallel work**: Multiple agents can work on different sections using offsets
+
+**Index Maintenance:**
+- Update line numbers and character offsets whenever you add/modify major sections
+- Recalculate offsets after insertions (character counts shift)
+- Use `wc -l` and `wc -c` or editor tools to get accurate counts
+- Index maintenance is mandatory, not optional
+
+**Content Structure:**
 - Systems involved with capabilities/limitations and failure modes
 - Dependencies required with version constraints and justification
 - Technology decisions with questions, options, trade-offs, and rationale
@@ -1502,24 +3246,69 @@ For each tool category, evaluate access patterns:
    - **LOOP:** Return to architecture research, update architecture.md, re-verify
    - **DO NOT PROCEED** to Stage 4 until all use cases/requirements are covered
 
-4. **IF NO GAPS:** Present architecture with verification summary to user
+4. **IF NO GAPS:** Finalize architecture decisions and present to user
+
+**CRITICAL: Update architecture.md with final decisions:**
+
+Before presenting to user, ensure `<worktree>/planning/architecture.md` contains:
+- **All technology choices** with rationale (database, framework, language, runtime)
+- **Integration patterns** for external services (authentication, storage, APIs)
+- **System dependencies** and their versions
+- **Data flow architecture** (how components communicate)
+- **Deployment architecture** (containers, serverless, monolith, microservices)
+- **Scoring results** from quality/trending/philosophy evaluation
+
+Write comprehensive final decisions to architecture.md - this becomes the canonical reference.
+
+---
+
+**🚦 MANDATORY USER CONFIRMATION GATE**
+
+**Present conversationally:**
+"🏗️ **Stage 3: Architecture & Technology Decisions** (Progress: 3/6)
+
+[Present architecture summary with verification that all use cases/requirements are covered]
+
+---
+
+**Recap Key Decisions:**
+- Core technologies: [database, framework, language, runtime]
+- Integration approach: [how external services connect]
+- System architecture: [monolith/microservices/serverless/etc]
+- Key dependencies: [critical libraries and versions]
+- Deployment strategy: [hosting, containerization, scaling]
+
+**Verification Summary:**
+✓ All use cases from Stage 1 are architecturally supported
+✓ All requirements from Stage 2 are met by chosen technologies
+✓ Scoring: Quality [X/10], Trending [X/10], Philosophy [X/10]
+
+**Questions for Confirmation:**
+1. Do these technology choices align with your preferences and constraints?
+2. Is the architectural approach appropriate for your scale and complexity?
+3. Are there any concerns about the selected technologies or patterns?
+
+**⚠️ STOP: Do not proceed to Stage 4 until user explicitly confirms.**
+
+Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 
 → Follow Stage Execution Pattern for confirmation/feedback processing
-→ Update GUIDE.md per standard protocol with verification results
+→ Update GUIDE.md per standard protocol with verification results and final architecture
+→ **WAIT for explicit user confirmation before proceeding**
 → If architectural constraints fundamentally change use cases or requirements, may need to revert to Stage 1 or 2
 → **Note:** Architectural discoveries may reveal better tooling options than initially identified
    - If better MCP servers, APIs, or tools are found, update `tooling.md`
    - Re-evaluate integration approaches based on architectural patterns discovered
    - This is learning, not failure - document why the new tooling choice is better
 
-  **📖 Context Reminder:**
-  If you've lost context, read `<worktree>/planning/GUIDE.md` to understand:
-  - What phase we're in
-  - What's been confirmed
-  - Layer dependencies
+**📖 Context Reminder:**
+If you've lost context, read `<worktree>/planning/GUIDE.md` to understand:
+- What phase we're in
+- What's been confirmed
+- Layer dependencies
 
-  → Re-present Stage 3 with updated understanding (including any tooling revisions)
-  → Stay at Stage 3 until confirmed
+→ Re-present Stage 3 with updated understanding (including any tooling revisions)
+→ Stay at Stage 3 until confirmed
 
 ---
 
@@ -1606,11 +3395,593 @@ For each assumption you've identified, ask yourself:
 
 [Present: SOLID Assumptions (count), WORKING Assumptions (count), RISKY Assumptions (count)]
 
-**Quality Gate:** Are these assumptions reasonable? What did I get wrong?"
+---
 
-→ Follow Stage Execution Pattern for confirmation/feedback processing
-→ Update GUIDE.md per standard protocol
+**🎯 Quality Gate: Assumption Assessment**
+
+### Self-Evaluation Checklist
+
+- [ ] All assumptions identified and documented in assumptions.md
+- [ ] Each assumption classified (SOLID/WORKING/RISKY) with clear rationale
+- [ ] Supporting evidence provided for SOLID/WORKING assumptions
+- [ ] Risk assessment completed for each RISKY assumption
+- [ ] Mitigation strategies identified for high-risk assumptions
+- [ ] No hidden/undocumented assumptions remaining
+- [ ] RISKY assumptions flagged for Stage 4+ validation (if needed)
+
+**Score**: [X/7 items complete = Y%]
+
+### Decision Logic
+
+**IF Score ≥ 90% (6-7 items ✅)**: Proceed automatically
+→ Update GUIDE.md: Mark Stage 4 complete with assumption summary
+→ If no RISKY assumptions OR user accepted risks: Proceed automatically to Stage 5
+→ If RISKY assumptions need validation: Proceed automatically to Stage 4+ (Experimental Validation)
+→ **No user confirmation required** - quality threshold met
+
+**IF Score 70-89% (5 items ✅)**: Iterate to improve
+**Iteration Instructions**:
+- Review unchecked items - what's missing?
+- For incomplete classification: Re-examine each assumption, assign proper category
+- For missing evidence: Add supporting documentation, code references, or research
+- For incomplete risk assessment: Evaluate impact if wrong, likelihood of being wrong
+- For hidden assumptions: Review architecture decisions - what did you take for granted?
+**After improvements**: Re-evaluate checklist and re-score
+→ **Loop**: Return to self-evaluation, recalculate score, apply decision logic again
+→ Maximum 3 iterations before forcing escalation
+
+**IF Score <70% (<5 items ✅) OR Ambiguous**: Escalate to user
+**Present to user**:
+"⚠️ **Stage 4 requires your input**
+
+**Current situation**: Assumption analysis incomplete or ambiguous (Score: X%)
+
+**What's complete**: [List checked items]
+**What's missing**: [List unchecked items]
+
+**Questions**:
+1. Are the documented assumptions reasonable?
+2. Did I miss any critical assumptions?
+3. Should any assumptions be reclassified?
+4. For RISKY assumptions: proceed to experiments OR accept risk?
+
+Please provide feedback so I can complete Stage 4."
+
+→ Wait for user response
+→ Based on feedback: update assumptions.md, re-run self-evaluation, apply decision logic
 → If assumptions invalidated, may cascade back to Stage 1/2/3 depending on what assumption supports
+
+---
+
+### Stage 4+: Experimental Validation Loop (Optional)
+
+**📥 Input Files:**
+- `<worktree>/planning/assumptions.md` (Stage 4 output - RISKY assumptions to validate)
+- `<worktree>/planning/architecture.md` + `tooling.md` (Stage 3 output - technologies to test)
+- All previous stage outputs for context
+- `<worktree>/planning/GUIDE.md` (session state)
+
+**📤 Output Files:**
+- `<worktree>/planning/experiments.md` (knowledge file - experiment results, validated assumptions, confidence levels)
+- `<worktree>/planning/p1-stage4plus-journal.md` (journal file - experimental process, findings, decisions)
+- `/tmp/craft-experiments/[timestamp]-[description]/` (throw-away experiment workspace - DELETED after validation)
+- `<worktree>/planning/GUIDE.md` (updated with Stage 4+ completion and findings)
+
+---
+
+**⚠️ WHEN TO USE THIS STAGE**
+
+Use Stage 4+ Experimental Validation Loop when:
+- ✅ Stage 4 identified RISKY assumptions that need validation
+- ✅ Architecture decisions depend on uncertain technical capabilities
+- ✅ Need to test integration patterns before committing to approach
+- ✅ Multiple technology options scored similarly - need empirical comparison
+- ✅ Performance, compatibility, or API behavior is unclear from documentation
+
+**Skip this stage if:**
+- ❌ All assumptions are SOLID or WORKING (well-supported)
+- ❌ Architecture decisions are based on established, proven technologies
+- ❌ Team has deep experience with chosen stack
+
+---
+
+**🎯 Purpose of Experimental Validation**
+
+Quick, time-boxed experiments to **de-risk assumptions** and **validate architectural decisions** before implementation:
+
+- **Not prototypes**: These are throw-away validation experiments, not production code
+- **Not implementation**: Code is deleted after validation - findings inform actual implementation
+- **Not comprehensive**: Test only the specific uncertainty, not full features
+- **Time-boxed**: 15-60 minutes per experiment, force termination if longer
+
+**Philosophy**: Invest 2-3 hours experimenting now to avoid days of rework later.
+
+---
+
+### Iterative Experiment Loop
+
+This stage loops through 5 steps until sufficient confidence is achieved:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Stage 4+ Experimental Validation Loop                      │
+│                                                              │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ 1. Identify Key Questions                          │    │
+│  │    (Prioritized queue of uncertainties)            │    │
+│  └────────────────┬───────────────────────────────────┘    │
+│                   ↓                                          │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ 2. Design Experiment Execution Plans               │    │
+│  │    (Detailed plans for top 3-5 questions)          │    │
+│  └────────────────┬───────────────────────────────────┘    │
+│                   ↓                                          │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ 3. Execute Experiments                             │    │
+│  │    (Sequential execution with learning)            │    │
+│  └────────────────┬───────────────────────────────────┘    │
+│                   ↓                                          │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ 4. Aggregate Learnings                             │    │
+│  │    (Synthesize findings, update confidence)        │    │
+│  └────────────────┬───────────────────────────────────┘    │
+│                   ↓                                          │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ 5. Quality Gate Decision                           │    │
+│  │    • FINALIZE: Proceed to Stage 5                  │    │
+│  │    • CONTINUE: Loop back to Step 1 with new Qs     │    │
+│  │    • ESCALATE: User input needed                   │    │
+│  └────────────────┬───────────────────────────────────┘    │
+│                   │                                          │
+│                   ↓                                          │
+│              Decision Point                                  │
+│         ┌─────────┴─────────┐                               │
+│         ↓                   ↓                                │
+│    CONTINUE           FINALIZE/ESCALATE                      │
+│    (loop back)        (exit to Stage 5)                      │
+│         │                                                    │
+│         └──────────┐                                         │
+│                    ↓                                         │
+│              [Return to Step 1]                              │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Step 1: Identify Key Questions (Question Queue)
+
+**Goal**: Build a prioritized queue of uncertainties that need experimental validation.
+
+**Sources for questions:**
+1. **Stage 4 RISKY assumptions**: High-risk assumptions that need validation
+2. **Architecture uncertainties**: Technology capabilities not confirmed by docs
+3. **Integration unknowns**: How external services actually behave
+4. **Performance questions**: Will it be fast enough? Scale sufficiently?
+5. **Compatibility concerns**: Will dependencies work together?
+
+**Question Format:**
+
+For each uncertainty, document:
+
+```markdown
+### Question [N]: [Short description]
+
+**Source**: [Stage 4 assumption #X | Architecture decision | Integration concern]
+
+**Why it matters**: [What decision depends on this answer?]
+
+**Uncertainty type**: [Performance | Integration | Compatibility | Capability | API behavior]
+
+**Risk if wrong**: [HIGH | MEDIUM | LOW] - What happens if we're wrong?
+
+**Current confidence**: [0-100%] - How certain are we without experiments?
+
+**Target confidence**: [0-100%] - How certain do we need to be?
+
+**Priority**: [CRITICAL | HIGH | MEDIUM | LOW]
+- CRITICAL: Blocks architecture decisions
+- HIGH: Affects multiple components
+- MEDIUM: Affects single component
+- LOW: Nice to know, not blocking
+```
+
+**Example Question:**
+
+```markdown
+### Question 1: Can Firebase Auth integrate with custom PostgreSQL user table?
+
+**Source**: Stage 4 assumption #3 (RISKY) + Architecture decision (auth layer)
+
+**Why it matters**: Architecture assumes Firebase Auth for authentication but user profile data in PostgreSQL. Need to confirm they can be linked without duplicating user management.
+
+**Uncertainty type**: Integration
+
+**Risk if wrong**: HIGH - May need to redesign entire auth system or choose different auth provider
+
+**Current confidence**: 40% - Firebase docs mention "custom claims" but unclear if sufficient
+
+**Target confidence**: 85% - Need high confidence before committing to this architecture
+
+**Priority**: CRITICAL - Blocks finalization of auth architecture
+```
+
+**Document to** `<worktree>/planning/experiments.md`:
+
+Create "Question Queue" section with all questions, sorted by priority (CRITICAL → HIGH → MEDIUM → LOW).
+
+**Decide on experiment batch size**: Select top 3-5 CRITICAL/HIGH priority questions for immediate experimentation.
+
+**If no questions identified**: Skip to Stage 5 (no experiments needed).
+
+---
+
+### Step 2: Design Experiment Execution Plans
+
+**Goal**: Create detailed execution plans for top 3-5 priority questions BEFORE executing any experiments.
+
+**Why design upfront?** Planning all experiments before execution:
+- Reveals dependencies (Question 2 might answer part of Question 3)
+- Identifies shared setup (multiple questions might use same test environment)
+- Prevents rabbit holes (explicit success criteria and time limits)
+- Enables learning transfer (later experiments benefit from earlier findings)
+
+**Experiment Plan Format:**
+
+For each selected question, create detailed plan:
+
+```markdown
+## Experiment [N]: [Question being tested]
+
+### Hypothesis
+What we expect to find and why.
+
+**Predicted answer**: [What we think is true]
+**Rationale**: [Why we think this based on docs/experience]
+
+### Success Criteria
+**Experiment succeeds if**: [Specific measurable outcome]
+**Experiment fails if**: [Specific measurable outcome]
+**Inconclusive if**: [What might make results ambiguous]
+
+### Time Limit
+**Maximum duration**: [15-60 minutes]
+**Force termination**: Yes - if hitting time limit, document findings and move on
+
+### Environment Setup
+**Location**: `/tmp/craft-experiments/[timestamp]-[description]/`
+**Dependencies**: [Packages to install, services to mock, APIs to access]
+**Test data**: [What data/config needed]
+**Cleanup strategy**: [What to delete afterward]
+
+### Execution Steps
+1. [Specific action]
+2. [Specific action]
+3. [Verification step]
+4. [Documentation of findings]
+
+### Expected Findings
+**If hypothesis correct**: [What we'll observe]
+**If hypothesis wrong**: [What alternative we'll observe]
+**Edge cases to check**: [Boundary conditions]
+
+### Decision Impact
+**If experiment validates hypothesis**: [How this affects architecture]
+**If experiment invalidates hypothesis**: [What we need to reconsider]
+**If inconclusive**: [What follow-up questions arise]
+```
+
+**Document to** `<worktree>/planning/experiments.md`:
+
+Add "Experiment Plans" section with all detailed plans before executing any.
+
+**Review all plans together**: Look for:
+- Dependencies between experiments (execute in dependency order)
+- Shared setup (combine where efficient)
+- Redundant tests (merge overlapping experiments)
+
+---
+
+### Step 3: Execute Experiments (Sequential with Learning)
+
+**Goal**: Run experiments sequentially, learning from each before starting next.
+
+**Execution Protocol:**
+
+**For each experiment in priority order:**
+
+1. **Create isolated workspace**:
+   ```bash
+   EXPERIMENT_DIR="/tmp/craft-experiments/$(date +%Y%m%d-%H%M%S)-[description]"
+   mkdir -p "$EXPERIMENT_DIR"
+   cd "$EXPERIMENT_DIR"
+   ```
+
+2. **Document start**:
+   Update `<worktree>/planning/p1-stage4plus-journal.md`:
+   - Timestamp experiment start
+   - Note which question being tested
+   - Record initial hypothesis
+
+3. **Execute experiment steps**:
+   - Follow execution plan precisely
+   - Start timer (enforce time limit)
+   - Run setup, execute test, verify results
+   - Document observations in journal file as you go
+
+4. **Capture findings**:
+   When experiment completes (success/failure/inconclusive):
+   - **Answer to question**: [Validated | Invalidated | Partially validated | Inconclusive]
+   - **Evidence**: [What did we observe? Screenshots, output, errors, performance metrics]
+   - **Confidence change**: [Before: X% → After: Y%]
+   - **New questions discovered**: [List any new uncertainties that arose]
+   - **Architecture implications**: [What decisions does this affect?]
+
+5. **Clean up experiment**:
+   ```bash
+   cd /tmp
+   rm -rf "$EXPERIMENT_DIR"
+   ```
+   **CRITICAL**: Delete throw-away code - it's not production quality.
+
+6. **Update experiments.md**:
+   Move experiment from "Plans" to "Results" section with findings.
+
+7. **Learn and adapt**:
+   - Did this experiment answer other questions in queue?
+   - Did it reveal new questions to add to queue?
+   - Should we re-prioritize remaining experiments based on findings?
+
+**Sequential execution rationale**: Each experiment informs the next. Don't parallelize.
+
+**Time limit enforcement**: If experiment exceeds time limit:
+- Force stop and document "inconclusive - exceeded time budget"
+- Note what was learned in the time available
+- Decide: escalate question to user OR continue with partial information
+
+---
+
+### Step 4: Aggregate Learnings
+
+**Goal**: Synthesize all experimental findings and update confidence levels.
+
+**After completing experiment batch**, create synthesis:
+
+**Document to** `<worktree>/planning/experiments.md` in "Synthesis" section:
+
+```markdown
+## Experiment Synthesis (Iteration [N])
+
+### Questions Tested This Iteration
+- Question 1: [Short description] → [VALIDATED | INVALIDATED | PARTIAL | INCONCLUSIVE]
+- Question 2: [Short description] → [VALIDATED | INVALIDATED | PARTIAL | INCONCLUSIVE]
+- Question 3: [Short description] → [VALIDATED | INVALIDATED | PARTIAL | INCONCLUSIVE]
+
+### Key Findings
+
+#### Validated Assumptions
+[List assumptions that experiments confirmed - promote from RISKY to SOLID]
+
+#### Invalidated Assumptions
+[List assumptions experiments disproved - need architecture revision]
+
+#### New Discoveries
+[Unexpected findings that change our understanding]
+
+### Architecture Implications
+
+**Decisions confirmed**: [List architectural choices validated by experiments]
+
+**Decisions requiring revision**: [List architectural choices that need reconsideration]
+
+**New options discovered**: [Alternative approaches revealed by experiments]
+
+### Confidence Updates
+
+| Question | Before Experiments | After Experiments | Change |
+|----------|-------------------|-------------------|--------|
+| Q1: [...] | 40% | 85% | +45% |
+| Q2: [...] | 30% | 70% | +40% |
+| Q3: [...] | 50% | 60% | +10% |
+
+### Remaining Uncertainties
+
+**Questions still below target confidence**:
+- [Question]: Currently X%, need Y%, gap Z%
+
+**New questions discovered during experiments**:
+- [New question 1]
+- [New question 2]
+
+### Time Investment
+**Total experiment time**: [X minutes/hours]
+**Experiments run**: [N]
+**Average time per experiment**: [Y minutes]
+```
+
+---
+
+### Step 5: Quality Gate Decision
+
+**Goal**: Decide whether to finalize and proceed to Stage 5, continue iterating, or escalate to user.
+
+**Decision Framework:**
+
+**Evaluate experiment iteration:**
+
+```markdown
+## Quality Gate Evaluation (Iteration [N])
+
+### Coverage Assessment
+- [ ] All CRITICAL questions answered to target confidence?
+- [ ] All HIGH priority questions addressed?
+- [ ] Architecture decisions validated?
+- [ ] Integration patterns confirmed?
+- [ ] Performance constraints verified?
+
+### Confidence Assessment
+
+**Overall confidence score**: [0-100%]
+
+Calculate as weighted average:
+- CRITICAL questions: weight 3x
+- HIGH questions: weight 2x
+- MEDIUM questions: weight 1x
+- LOW questions: weight 0.5x
+
+Formula:
+```
+Overall = (Σ confidence_i × weight_i) / (Σ weight_i)
+```
+
+### Risk Assessment
+- [ ] No blocking uncertainties remain?
+- [ ] All RISKY assumptions validated or revised?
+- [ ] Fallback options identified for remaining uncertainties?
+
+### Decision Criteria
+
+**FINALIZE** (Proceed to Stage 5) IF:
+- Overall confidence ≥ 80% AND
+- All CRITICAL questions ≥ 85% confidence AND
+- All HIGH questions ≥ 70% confidence AND
+- No blocking uncertainties
+
+**CONTINUE** (Another iteration) IF:
+- Overall confidence 60-79% OR
+- Some CRITICAL/HIGH questions below threshold BUT
+- New experiments likely to improve confidence AND
+- Time investment justified (< 4 hours total)
+
+**ESCALATE** (User decision needed) IF:
+- Overall confidence < 60% OR
+- Experiments invalidated core architecture assumptions OR
+- Conflicting experimental results OR
+- Time budget exhausted (≥ 4 hours) without resolution OR
+- Experiments revealed fundamental design flaw
+```
+
+**Execution based on decision:**
+
+**IF FINALIZE:**
+1. Update `<worktree>/planning/assumptions.md`:
+   - Promote validated RISKY assumptions to SOLID
+   - Update confidence levels for all assumptions
+   - Document experimental evidence
+
+2. Update `<worktree>/planning/architecture.md` if needed:
+   - Incorporate validated findings
+   - Revise any decisions based on experimental results
+   - Document experimental validation in decision rationale
+
+3. Update GUIDE.md:
+   - Mark Stage 4+ complete
+   - Note experiment summary (N experiments, X hours, key findings)
+   - Add transition to Stage 5
+
+4. Announce: "✓✓ Experimental validation complete. Confidence sufficient to proceed to Stage 5."
+
+5. **Proceed to Stage 5**
+
+**IF CONTINUE:**
+1. Document iteration in journal:
+   - Why continuing (which questions need more validation)
+   - What new experiments planned
+   - Updated time budget
+
+2. Update question queue:
+   - Add new questions discovered
+   - Re-prioritize based on learnings
+   - Remove answered questions
+
+3. **Return to Step 1** (Identify Key Questions) with updated queue
+
+4. Enforce cumulative time limit: If total experiment time > 4 hours, force ESCALATE
+
+**IF ESCALATE:**
+1. Document escalation reason in `<worktree>/planning/experiments.md`
+
+2. Present to user:
+   ```
+   🚨 **Experimental Validation Requires Your Input**
+
+   **Situation**: [Describe why escalating]
+
+   **What we tested**: [Summary of experiments]
+
+   **What we learned**: [Key findings]
+
+   **The problem**: [Why we can't proceed automatically]
+
+   **Options**:
+   A. [Option 1 with tradeoffs]
+   B. [Option 2 with tradeoffs]
+   C. Continue experiments with [specific direction]
+   D. Proceed with current understanding (accept risk)
+
+   **Your decision**: [Wait for user input]
+   ```
+
+3. Based on user response:
+   - If user provides direction → Update plans, return to Step 1
+   - If user accepts risk → Document in assumptions.md, FINALIZE to Stage 5
+   - If user wants architecture revision → Return to Stage 3 with findings
+
+---
+
+### Experiment Best Practices
+
+**Time Management:**
+- Single experiment: 15-60 minutes maximum
+- Total stage budget: 2-4 hours recommended, 6 hours absolute maximum
+- If experiments consistently exceed time limits, escalate to user
+
+**Workspace Isolation:**
+- Always use `/tmp/craft-experiments/[timestamp]-[description]/`
+- Never write experiment code to `<worktree>/`
+- Always delete experiment workspace after capturing findings
+- Exception: If experiment reveals useful code pattern, document pattern (not code) in architecture.md
+
+**Learning Transfer:**
+- Execute experiments sequentially (not parallel)
+- Each experiment informs the next
+- Update question queue after each experiment
+- Don't repeat experiments - if unclear, escalate
+
+**Documentation Discipline:**
+- Journal file updated during execution (not after)
+- Findings documented immediately upon completion
+- Evidence captured (output, errors, metrics) before cleanup
+- Architecture implications noted for each experiment
+
+**Failure Handling:**
+- Experiment failure ≠ bad outcome (it's learning!)
+- Invalidated assumptions are valuable findings
+- Inconclusive results → escalate or revise experiment
+- Technical failures (bugs in experiment code) → note in journal, fix, retry once
+
+---
+
+**Present to user after Stage 4+ completion (if executed):**
+
+"🔬 **Stage 4+: Experimental Validation Complete** (Optional stage)
+
+**Experiments Run**: [N experiments]
+**Time Invested**: [X hours]
+**Confidence Improvement**: [Average increase in confidence levels]
+
+**Key Findings**:
+- [Finding 1]
+- [Finding 2]
+- [Finding 3]
+
+**Validated**: [List assumptions/decisions confirmed]
+**Revised**: [List assumptions/decisions changed based on findings]
+
+**Result**: Ready to proceed to Stage 5 with [X%] confidence in architecture decisions."
+
+→ Update GUIDE.md per standard protocol with experiment summary
+→ Proceed to Stage 5
 
 ---
 
@@ -1694,10 +4065,60 @@ If the file doesn't exist, this is your first exploration of Stage 5.
 
 [Present: Impacts on Existing Systems, Operational Implications, Future Considerations, Anti-Cases]
 
-**Quality Gate:** Have I thought through the consequences? Are the boundaries right?"
+---
 
-→ Follow Stage Execution Pattern for confirmation/feedback processing
-→ Update GUIDE.md per standard protocol
+**🎯 Quality Gate: Effects & Boundaries Assessment**
+
+### Self-Evaluation Checklist
+
+- [ ] All second-order effects identified and documented in effects-boundaries.md
+- [ ] Impact on existing systems/workflows analyzed
+- [ ] Operational implications (deployment, monitoring, support) considered
+- [ ] Future flexibility evaluated (what doors open/close)
+- [ ] Anti-cases defined (what must NOT happen)
+- [ ] Misuse scenarios identified (adversarial thinking applied)
+- [ ] Scope boundaries clearly documented with rationale
+
+**Score**: [X/7 items complete = Y%]
+
+### Decision Logic
+
+**IF Score ≥ 90% (6-7 items ✅)**: Proceed automatically
+→ Update GUIDE.md: Mark Stage 5 complete with effects summary
+→ Proceed automatically to Stage 6 (Final Synthesis)
+→ **No user confirmation required** - quality threshold met
+
+**IF Score 70-89% (5 items ✅)**: Iterate to improve
+**Iteration Instructions**:
+- Review unchecked items - what's incomplete?
+- For missing effects: Think broader - what did you miss? Ask "what changes?" for each component
+- For incomplete operational analysis: Consider deployment, monitoring, support, training needs
+- For missing future implications: Think 6-12 months ahead - what becomes easier/harder?
+- For incomplete anti-cases: Think adversarially - how could this be misused or break?
+- For unclear boundaries: Define what's explicitly out of scope and why
+**After improvements**: Re-evaluate checklist and re-score
+→ **Loop**: Return to self-evaluation, recalculate score, apply decision logic again
+→ Maximum 3 iterations before forcing escalation
+
+**IF Score <70% (<5 items ✅) OR Ambiguous**: Escalate to user
+**Present to user**:
+"⚠️ **Stage 5 requires your input**
+
+**Current situation**: Effects analysis incomplete or boundaries unclear (Score: X%)
+
+**What's complete**: [List checked items]
+**What's missing**: [List unchecked items]
+
+**Questions**:
+1. Have I identified all the ripple effects?
+2. Are the operational implications realistic?
+3. Are the scope boundaries appropriate?
+4. Did I miss any critical anti-cases or misuse scenarios?
+
+Please provide feedback so I can complete Stage 5."
+
+→ Wait for user response
+→ Based on feedback: update effects-boundaries.md, re-run self-evaluation, apply decision logic
 → If ripple effects reveal missing use cases or challenge assumptions, may need to revert to affected stage
 
 ---
@@ -1816,6 +4237,22 @@ This is the shared understanding I'll implement against. All 6 layers validated 
 - **Files Created:** `<worktree>/planning/quality-criteria.md`
 - **Purpose:** Define measurable success criteria across functional completeness, code quality, and integration dimensions
 - **Referenced By:** Phase 2-B (test planning), Phase 3 (quality verification in each task), Phase 4 (final validation)
+
+---
+
+📖 **Context Refresh: Review GUIDE.md Before Starting**
+
+Before defining success criteria, refresh your understanding:
+- Read `<worktree>/planning/GUIDE.md` to understand current phase state
+- Review Phase 1 outputs: use-cases.md, requirements.md, task-definition.md
+- Check what's been confirmed and what decisions were made
+- Verify you understand the complete context from Phase 1
+
+**If context is unclear**, GUIDE.md contains:
+- Phase/Stage transition history
+- User confirmations and feedback
+- Key decisions and rationale
+- Layer dependencies and how stages build on each other
 
 ---
 
@@ -2247,45 +4684,80 @@ IF the user requests changes:
   → Re-present and get confirmation
   → Then proceed
 
-### Implement Tests
+### Finalize Test Specifications
 
-Once test design is confirmed, write actual Mocha/Chai tests in `<worktree>/test/`.
+Once test design is confirmed, finalize the test specifications in `<worktree>/planning/test-plan.md`.
 
-These become your specification - implementation will make them pass.
+**These specifications become the contract** - Phase 3 implementation will:
+1. Create actual test files based on these specifications
+2. Write implementation code to make tests pass
 
-**Test Structure:**
-```javascript
-describe('FeatureName', () => {
-  describe('happy path', () => {
-    it('should handle typical input correctly', () => {
-      // Arrange, Act, Assert
-    });
-  });
+**Test Specification Format (Given/When/Then):**
 
-  describe('edge cases', () => {
-    it('should handle boundary condition X', () => {
-      // Test
-    });
-  });
+For each test scenario, document:
 
-  describe('error paths', () => {
-    it('should reject invalid input with clear message', () => {
-      // Test error handling
-    });
-  });
-});
+```markdown
+#### Test: [Descriptive Name]
+
+**Category:** [Unit | Integration | Edge Case | Error Path]
+
+**Given:** Initial conditions and setup
+- What state the system starts in
+- What dependencies are mocked/configured
+- What test data is prepared
+
+**When:** The action being tested
+- What function is called
+- What parameters are provided
+- What external events occur
+
+**Then:** Expected outcomes
+- What the return value should be
+- What state changes should occur
+- What side effects are expected
+- What error messages should appear (if error path)
+
+**Assertions:**
+- Specific equality checks
+- Type validations
+- Error message patterns
+- State verification steps
 ```
 
-**Verify tests fail initially** (no implementation yet):
-Run: `cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec`
+**Example Test Specification:**
 
-All tests should fail with clear messages showing what's missing.
+```markdown
+#### Test: Handle negative balance withdrawal
 
-**Update GUIDE.md** with test implementation complete:
+**Category:** Error Path
+
+**Given:**
+- Account with balance of $50
+- Withdrawal amount of $100
+- Account is active and not frozen
+
+**When:**
+- `account.withdraw(100)` is called
+
+**Then:**
+- Function throws `InsufficientFundsError`
+- Error message contains "Insufficient funds: balance $50, attempted withdrawal $100"
+- Account balance remains $50 (unchanged)
+- No transaction record is created
+
+**Assertions:**
+- `expect(() => account.withdraw(100)).to.throw(InsufficientFundsError)`
+- `expect(error.message).to.include("Insufficient funds")`
+- `expect(account.balance).to.equal(50)`
+- `expect(account.transactions).to.have.lengthOf(0)`
+```
+
+**Update GUIDE.md** with test specifications complete:
 - Mark Phase 2-B fully complete in "Current State of Understanding"
-- Note test file locations
+- Note that test specifications are documented in test-plan.md
+- Note that actual test implementation will happen in Phase 3
 
-Announce: "✓✓ Tests written and failing as expected. Ready for Phase 3 implementation..."
+Announce: "✓✓ Test specifications finalized. Actual test files will be created in Phase 3..."
 
 ---
 
@@ -2331,6 +4803,122 @@ implementation. This phase answers "what infrastructure do we need?" before Phas
 
 Think through the infrastructure needed to support the complete journey from empty directory
 to working, tested, integrated solution.
+
+---
+
+**⚠️ INFRASTRUCTURE PLANNING IS DOCUMENTATION, NOT CREATION**
+
+**This phase documents**:
+- ✅ Project structure in planning/project-structure.md (DOCUMENTATION)
+- ✅ Component relationships in planning/tech-relationships.md (DIAGRAMS)
+- ✅ Infrastructure IDs in planning/infrastructure-ids.md (REFERENCE)
+- ✅ Tooling integration strategy in planning/tooling.md (PLANS)
+
+**This phase does NOT create**:
+- ❌ Actual directories (`src/`, `test/`, `config/`, etc.)
+- ❌ Package files (package.json, requirements.txt, etc.)
+- ❌ Configuration files (tsconfig.json, .eslintrc, etc.)
+- ❌ Build tool setup (webpack, vite, rollup, etc.)
+- ❌ Development environment initialization
+- ❌ Git repository initialization
+
+**Directory and file creation happens in Phase 3**:
+- **Task 001 (Tier 0)**: Create project structure, initialize package.json, install base dependencies
+- **Subsequent tasks**: Add files as features are implemented
+
+---
+
+### Step 0: Tooling Integration Research (Optional Enhancement)
+
+**If Stage 3 identified tooling gaps or new tools are needed, research integration patterns.**
+
+🔍 **Parallel Tooling Research (if applicable)**
+
+Research how to integrate discovered tools effectively. Execute multiple tool research streams concurrently.
+
+**Execute these research tasks in parallel:**
+
+1. **MCP Server Integration Patterns**
+   - Search for MCP server setup guides and best practices
+   - Review configuration examples and common patterns
+   - Identify authentication and permission requirements
+   - Check for known limitations or gotchas
+
+2. **Subagent Orchestration Patterns**
+   - Research when to use subagents vs. direct implementation
+   - Identify coordination patterns for parallel subagent execution
+   - Review context management strategies
+   - Document input/output patterns
+
+3. **External API Integration Patterns**
+   - Research error handling strategies (retries, circuit breakers, fallbacks)
+   - Identify rate limiting approaches (token bucket, exponential backoff)
+   - Review authentication patterns (API keys, OAuth flows, JWT)
+   - Document pagination and bulk operation patterns
+
+4. **Testing Tool Integration**
+   - Research test runners and configuration
+   - Identify coverage tools and quality gates
+   - Review mocking strategies for external dependencies
+   - Document CI/CD integration patterns
+
+5. **Deployment and Quality Tool Integration**
+   - Research deployment automation approaches
+   - Identify quality scanning tools (security, performance, accessibility)
+   - Review monitoring and observability patterns
+   - Document rollback and disaster recovery approaches
+
+**Web research opportunities (use WebSearch in parallel):**
+- "[MCP-server-name] setup guide and configuration best practices"
+- "[tool-name] integration with [framework] examples"
+- "[tool-name] production deployment patterns and gotchas"
+- "error handling patterns for [API-name] integration"
+- "rate limiting strategies for [service] API"
+- "[testing-tool] CI/CD integration examples"
+- "monitoring and observability for [technology-stack]"
+
+**Consolidate parallel research:** Update tooling.md with integration approaches, configuration examples, and implementation patterns discovered.
+
+**Document tooling integration findings:**
+
+Update `<worktree>/planning/tooling.md` with integration patterns:
+
+```markdown
+# Tooling Integration: [Epic Name]
+
+## MCP Server Integration
+- **[Server Name]**:
+  * **Setup**: [Configuration steps]
+  * **Authentication**: [How to authenticate]
+  * **Integration Pattern**: [How to use in code]
+  * **Best Practices**: [Patterns discovered]
+
+## Subagent Orchestration
+- **[Agent Type]**:
+  * **When to Use**: [Scenarios where this agent adds value]
+  * **Context Required**: [What context to provide]
+  * **Coordination**: [How to orchestrate multiple agents]
+
+## External API Integration
+- **[API Name]**:
+  * **Error Handling**: [Retry strategy, fallbacks]
+  * **Rate Limiting**: [Approach to avoid hitting limits]
+  * **Authentication**: [OAuth flow, API key management]
+
+## Testing & Quality Tools
+- **[Tool Name]**:
+  * **Purpose**: [What this tool validates]
+  * **Integration**: [How to run in workflow]
+  * **Quality Gates**: [Pass/fail criteria]
+
+## Deployment & Monitoring
+- **[Tool/Service]**:
+  * **Deployment Pattern**: [How to deploy]
+  * **Monitoring**: [What to observe]
+  * **Alerting**: [When to notify]
+```
+
+---
 
 ### Step 1: Define Project Structure
 
@@ -3159,8 +5747,20 @@ IF the user requests changes:
 
 ---
 
-📖 **Context Reminder:** With infrastructure planned, now decompose features into implementable tasks.
-Review GUIDE.md and reference Phase 1 use cases plus infrastructure documents from Phase 2-C.
+📖 **Context Refresh: Review GUIDE.md Before Task Decomposition**
+
+Before breaking work into tasks, refresh your understanding:
+- Read `<worktree>/planning/GUIDE.md` to understand current state
+- Review all Phase 1 outputs (understanding), Phase 2 outputs (criteria), Phase 2-B (tests), Phase 2-C (infrastructure)
+- Check quality-criteria.md for success definitions
+- Review execution-strategy.md for parallel execution approach
+- Verify you understand tier-based task organization (Tier 0, Batches, Tier Final)
+
+**If context is unclear**, GUIDE.md contains:
+- Complete phase progression history
+- All confirmations and key decisions
+- Infrastructure foundation from Phase 2-C
+- Test specifications from Phase 2-B
 
 **Where We Are in the Journey:**
 
@@ -3179,6 +5779,38 @@ effort, identify dependencies, and present a clear roadmap before implementation
 
 Transform each use case into one or more tasks, ensuring each task is independently testable and
 delivers tangible user value.
+
+---
+
+**⚠️ TASK DECOMPOSITION CREATES TASK DEFINITIONS, NOT IMPLEMENTATIONS**
+
+**This phase creates**:
+- ✅ Task definition files in `<worktree>/planning/tasks-pending/` (SPECIFICATIONS)
+- ✅ Implementation order in planning/implementation-steps.md (SEQUENCE)
+- ✅ Dependency analysis in p2d-task-breakdown-journal.md (ANALYSIS)
+- ✅ Task templates with objectives, acceptance criteria, verification steps
+
+**Each task file contains**:
+- ✅ Task description and user value
+- ✅ Acceptance criteria (what defines "done")
+- ✅ Test requirements (what must pass)
+- ✅ Dependencies (what must exist first)
+- ✅ Quality gates (how to verify completion)
+
+**This phase does NOT include**:
+- ❌ Writing implementation code in `<worktree>/src/`
+- ❌ Creating actual test files
+- ❌ Installing dependencies or packages
+- ❌ Configuring build tools
+- ❌ Setting up development environment
+- ❌ Writing example code or prototypes in task files
+
+**Implementation happens in Phase 3**:
+- Phase 3 reads task files and executes them one-by-one
+- Each task results in actual code, tests, and configuration
+- Quality verification happens after each task completes
+
+---
 
 ### Step 1: Review Use Cases and Plan Implementation Order
 
@@ -3297,8 +5929,33 @@ Each task file should follow this comprehensive structure (reference the templat
 ```markdown
 # Task 001: [Feature Name]
 
+## Tier & Batch Information
+**Tier**: [0-Linear-Foundation / Batch-N / Final-Linear-Finalization]
+**Batch Number**: [N if in Batch tier, N/A otherwise]
+**Parallelizable With**: [List task numbers that can run concurrently - all tasks in same batch]
+**Execution Order**: [When this can start - "After Tier 0 complete" / "After Batch N complete" / "After all batches complete"]
+**Estimated Time**: [Hours/days to complete]
+
 ## Feature Description
 [Brief description from Stage 1 use case - what user value does this deliver?]
+
+## Dependencies
+
+### Tier 0 Requirements (from architecture.md)
+Reference foundation established in Tier 0 tasks:
+- **Identifiers**: [Database names, service IDs, resource ARNs needed]
+- **Credentials**: [How to access secrets/keys]
+- **Patterns**: [Which established patterns to follow - error handling, logging, etc.]
+- **Access Methods**: [Connection strings, API clients to use]
+- **Topology**: [How to connect to infrastructure]
+
+### Task Dependencies
+- **Prerequisite Tasks**: [Task NNN must complete before this starts]
+  * Task [NNN]: [What this task produces that we need]
+  * Task [MMM]: [What this task produces that we need]
+- **Blocks These Tasks**: [Tasks that depend on this completing]
+  * Task [XXX]: [How this task's output is used]
+  * Task [YYY]: [How this task's output is used]
 
 ## Implementation Scope
 
@@ -3374,15 +6031,323 @@ From `<worktree>/planning/learnings.md` (if exists from previous tasks):
 - Key learnings: [Insights from implementation]
 - Issues encountered: [Problems solved]
 - Quality score achieved: [Final score]
+
+### Outputs Produced for Downstream Tasks
+[Document what this task creates that other tasks will consume]
+- **Files Created**: [List key files with paths]
+- **Identifiers/Credentials** (if Tier 0): [Document in architecture.md]
+- **Patterns Established** (if Tier 0): [Document in architecture.md]
+- **API Contracts**: [Interfaces, function signatures, endpoints created]
+- **Database Schema**: [Tables, columns, indexes created]
+- **Configuration**: [Env vars, config keys added]
+
+### Architecture.md Updates (if Tier 0)
+[What was documented in architecture.md under "Tier 0 Foundation Results"]
+- Section added: [Which section of architecture.md]
+- Identifiers documented: [Yes/No]
+- Patterns documented: [Yes/No]
+- Access methods documented: [Yes/No]
 ```
+
+---
+
+### Task Organization & Dependency Model
+
+**Parallel Execution Philosophy:**
+
+Tasks are organized into dependency tiers that maximize parallelization while respecting necessary sequencing. This enables multiple developers or AI agents to work concurrently, dramatically reducing total implementation time.
+
+**Four-Tier Execution Model:**
+
+#### Tier 0: Linear Foundation (Sequential Setup)
+
+**Characteristics:**
+- Must execute in strict order, each task blocking the next
+- Master setup and initialization tasks
+- Single-threaded execution required (no parallelization possible)
+- Results documented in architecture.md for all downstream tasks
+
+**Task Types:**
+- Project scaffolding and directory structure creation
+- Master configuration files (package.json, tsconfig.json, .env templates, build config)
+- Core infrastructure provisioning (database creation, cloud resources, authentication systems)
+- Authentication/authorization framework setup
+- Shared library/utility foundation (base classes, error handling, logging)
+- CommonJS or module system initialization
+
+**Critical Documentation Requirement:**
+
+Each Tier 0 task MUST document outputs in `<worktree>/planning/architecture.md` under a dedicated section:
+
+```markdown
+## Tier 0 Foundation Results
+
+**NOTE:** Remember to add this section to the architecture.md index at the top of the file with line numbers and character offsets.
+
+### Task 001: [Task Name]
+
+**Identifiers Created:**
+- Database name: `prod_db_main`
+- Connection pool ID: `pool_primary`
+- API Gateway ID: `apigw-xyz123`
+- Service account: `svc-app-worker@project.iam`
+
+**Credentials & Access:**
+- **Location**: AWS Secrets Manager secret: `arn:aws:secretsmanager:region:account:secret:db-creds-abc123`
+- **Access Pattern**: `const creds = await getSecret('db-creds')` from `src/config/secrets.js`
+- **Rotation**: Automatic 90-day rotation enabled
+- **Permissions**: Service account has read-only access
+
+**Patterns Established:**
+- **Error Handling**: All errors inherit from `AppError` base class in `src/errors/base.js`
+- **Database Connection**: Singleton connection pool pattern in `src/db/connection.js`
+- **Logging**: Structured JSON logging via `src/utils/logger.js` with correlation IDs
+- **Module Exports**: CommonJS with `module.exports = {...}` pattern
+
+**Access Methods:**
+- **Database**: Connection string via `DATABASE_URL` env var, pooled connections (max 20)
+- **External API**: OAuth 2.0 client credentials flow via `src/clients/external-api.js`
+- **Message Queue**: AMQP connection to RabbitMQ at `RABBITMQ_URL`
+
+**Topology:**
+- **Database**: Primary (writes) at endpoint A, read replica (reads) at endpoint B
+- **Cache**: Redis cluster (3 nodes) for session storage and rate limiting
+- **API**: REST API at `/api/v1`, WebSocket at `/ws` for real-time features
+- **Message Flow**: HTTP → API Gateway → Lambda → SQS → Worker → Database
+```
+
+**Why Tier 0 Documentation Matters:**
+- Prevents downstream tasks from reinventing patterns
+- Provides single source of truth for identifiers and credentials
+- Enables all parallel batches to reference same foundation
+- Reduces errors from inconsistent connection patterns or error handling
+
+#### Tier 1-N: Parallel Batches (Concurrent Execution Within Batch)
+
+**Characteristics:**
+- Multiple batches, numbered Batch 1, Batch 2, Batch 3, etc.
+- Tasks within the same batch can execute 100% concurrently (no conflicts)
+- Tasks across batches must execute sequentially (Batch 2 waits for Batch 1 complete)
+- Minor code duplication between tasks is acceptable for independence
+
+**Batch Design Principles:**
+
+**Within-Batch Independence:**
+- Tasks in same batch modify completely different files
+- No shared state or resources between tasks
+- Each task can commit to git without merge conflicts
+- Tests for each task are independent
+
+**Cross-Batch Dependencies:**
+- Batch N+1 depends on outputs from Batch N
+- Later batches build on earlier batch results
+- Dependencies flow forward, never backward
+
+**Minor Duplication OK:**
+- Better to duplicate 10 lines of utility code than create cross-task dependency
+- Duplicate small helpers to maintain task independence
+- Refactor common patterns into shared utilities in Tier Final
+
+**Shared Foundation:**
+- All batches depend on Tier 0 results (patterns, identifiers, infrastructure)
+- All batches reference architecture.md for foundation details
+- No batch depends on another batch's in-progress work
+
+**Example Batch Organization:**
+
+**Batch 1: Independent Domain Models**
+- Task 010: User model (`src/models/User.js`)
+- Task 011: Product model (`src/models/Product.js`)
+- Task 012: Order model (`src/models/Order.js`)
+- Task 013: Payment model (`src/models/Payment.js`)
+
+*Why same batch?* Each creates a completely independent file in `src/models/`. No model references another model yet (foreign keys added in Batch 2 services). All use Tier 0 database connection pattern.
+
+**Batch 2: Services Using Models**
+- Task 020: UserService (`src/services/UserService.js`) - uses Task 010 User model
+- Task 021: ProductService (`src/services/ProductService.js`) - uses Task 011 Product model
+- Task 022: OrderService (`src/services/OrderService.js`) - uses Task 012 Order + Task 013 Payment models
+- Task 023: PaymentService (`src/services/PaymentService.js`) - uses Task 013 Payment model
+
+*Why same batch?* Each service file is independent. Services don't call each other yet. All use Tier 0 error handling and logging patterns. Depends on Batch 1 models.
+
+**Batch 3: API Endpoints**
+- Task 030: User API (`src/api/users.js`) - calls Task 020 UserService
+- Task 031: Product API (`src/api/products.js`) - calls Task 021 ProductService
+- Task 032: Order API (`src/api/orders.js`) - calls Task 022 OrderService + Task 023 PaymentService
+
+*Why same batch?* Each API file is independent. No API endpoint calls another API endpoint. Depends on Batch 2 services.
+
+#### Tier Final: Linear Finalization (Sequential Cleanup)
+
+**Characteristics:**
+- Must execute in strict order after ALL batches complete
+- Requires all prior work finished
+- Infrastructure finalization, data migration, deployment pipeline
+- Single-threaded execution (no parallelization)
+
+**Task Types:**
+- Data migration from old system (requires all models/services exist)
+- Cross-cutting refactoring (extract common patterns from batch duplications)
+- Database indexes and optimization (after schema stable from all batches)
+- Comprehensive integration tests (requires all components working)
+- CI/CD pipeline setup (requires all code complete and tested)
+- Infrastructure finalization (DNS, SSL certificates, monitoring dashboards)
+- Production deployment preparation and runbooks
+
+**Example Tier Final Tasks:**
+- Task 090: Data migration script (requires all models/services from Batch 1-2)
+- Task 091: Database index creation (after migration, optimizes queries)
+- Task 092: Refactor common utilities (extract duplicated code from batches)
+- Task 093: End-to-end integration test suite (requires all APIs from Batch 3)
+- Task 094: CI/CD pipeline with automated testing and deployment
+- Task 095: Production infrastructure (DNS, SSL, CDN, monitoring)
+- Task 096: Deployment runbook and rollback procedures
+
+---
+
+### Identifying Task Tiers & Batches
+
+**Step-by-step process for assigning tasks to tiers:**
+
+#### 1. Identify Tier 0 Tasks (Linear Foundation)
+
+For each potential task, ask these questions:
+- **Pattern establishment?** Does this create a pattern others will follow?
+  * Examples: Base error class, logging utility, connection pooling, auth middleware
+- **Identifier/credential creation?** Does this produce IDs others need?
+  * Examples: Database name, API keys, service endpoints, resource ARNs
+- **Infrastructure provisioning?** Does this create resources others depend on?
+  * Examples: Database server, message queue, cloud storage buckets, auth service
+- **Race condition risk?** Would parallel execution cause conflicts?
+  * Examples: Database schema init, git repo setup, package.json creation
+
+**If answer is "yes" to ANY question → Tier 0**
+
+Document what it produces in architecture.md for downstream consumption.
+
+#### 2. Identify Parallel Batches (Tier 1-N)
+
+Use this algorithm to assign remaining tasks to batches:
+
+```
+Initialize: batch_number = 1, unassigned_tasks = [all non-Tier-0, non-Tier-Final tasks]
+
+While unassigned_tasks not empty:
+  current_batch = []
+
+  For each task in unassigned_tasks:
+    dependencies = get_task_dependencies(task)
+
+    # Check if all dependencies satisfied
+    if all dependencies in (Tier 0 OR batches < batch_number):
+      # Check for conflicts with current batch tasks
+      conflicts = check_file_conflicts(task, current_batch)
+
+      if no conflicts:
+        add task to current_batch
+        remove task from unassigned_tasks
+
+  if current_batch not empty:
+    assign current_batch to Batch [batch_number]
+    batch_number += 1
+  else:
+    # All remaining tasks have circular dependencies or belong in Tier Final
+    break
+```
+
+**File Conflict Detection:**
+- Task A and Task B conflict if they modify the same file path
+- Task A and Task B conflict if they modify related schema (same database table)
+- No conflict if tasks work on completely independent files/resources
+
+**Dependency Detection:**
+- Task B depends on Task A if B imports code from A
+- Task B depends on Task A if B requires A's database schema
+- Task B depends on Task A if B calls A's API endpoints
+- Document dependencies explicitly in task file's "Dependencies" section
+
+#### 3. Identify Tier Final Tasks (Linear Finalization)
+
+For each remaining task, ask:
+- **Requires everything complete?** Does this need all prior features working?
+  * Examples: Full integration test suite, data migration, system-wide refactoring
+- **Cross-cutting concern?** Does this touch code from multiple batches?
+  * Examples: Extract common utilities, performance optimization, security audit
+- **Infrastructure finalization?** Does this finalize deployment/operations?
+  * Examples: CI/CD pipeline, production DNS/SSL, monitoring dashboards
+- **Sequential execution required?** Must this run after another Tier Final task?
+  * Examples: Migrate data → Create indexes → Validate integrity
+
+**If answer is "yes" to ANY question → Tier Final**
+
+Order Tier Final tasks explicitly: Task 090, 091, 092 (sequential dependencies)
+
+---
+
+### Task File Naming Convention
+
+Use tier-based numbering for instant dependency visualization:
+
+**Tier 0 (Linear Foundation): 001-009**
+- `task-001-project-scaffolding.md` - Create directory structure, package.json, git init
+- `task-002-database-provisioning.md` - Provision PostgreSQL, create connection pool
+- `task-003-auth-framework.md` - Setup JWT auth, middleware, session management
+- `task-004-base-utilities.md` - Logger, error classes, config loader
+
+**Batch 1 (First Parallel): 010-019**
+- `task-010-user-model.md` - User model with authentication fields
+- `task-011-product-model.md` - Product catalog model
+- `task-012-order-model.md` - Order model with line items
+- `task-013-payment-model.md` - Payment transaction model
+
+**Batch 2 (Second Parallel): 020-029**
+- `task-020-user-service.md` - User CRUD operations and authentication logic
+- `task-021-product-service.md` - Product management and inventory logic
+- `task-022-order-service.md` - Order processing and fulfillment logic
+- `task-023-payment-service.md` - Payment processing integration
+
+**Batch 3 (Third Parallel): 030-039**
+- `task-030-user-api.md` - REST endpoints for user management
+- `task-031-product-api.md` - REST endpoints for product catalog
+- `task-032-order-api.md` - REST endpoints for order management
+- `task-033-payment-api.md` - REST endpoints for payment processing
+
+**Batch N+1: 040-049, 050-059, etc.**
+- Continue numbering for additional batches
+- Each batch increments by 10 to allow up to 10 tasks per batch
+
+**Tier Final (Linear Finalization): 090-099**
+- `task-090-data-migration.md` - Migrate data from legacy system
+- `task-091-database-indexes.md` - Create indexes for query optimization
+- `task-092-integration-tests.md` - End-to-end test suite
+- `task-093-cicd-pipeline.md` - GitHub Actions workflow with automated deployment
+- `task-094-production-infrastructure.md` - DNS, SSL, CDN, monitoring
+- `task-095-deployment-runbook.md` - Production deployment procedures
+
+**Numbering Benefits:**
+- Instant visualization of dependencies (010-019 all parallel, 020-029 depend on 010-019)
+- Room for expansion (10 tasks per tier/batch, extend to 100-109 if needed)
+- Clear execution order (Tier 0 → Batch 1 → Batch 2 → ... → Tier Final)
+- Easy to identify parallelization opportunities (all tasks in same decade run concurrently)
+
+---
 
 **Create task files systematically:**
 
-Work through use cases from task-definition.md:
-1. Primary use case → Task 001
-2. Related features → Tasks 002, 003, etc.
-3. Alternative flows → Additional tasks
-4. Quality/polish work → Final phase tasks
+**Process:**
+1. **Identify Tier 0 tasks** from infrastructure needs → Number 001-009
+2. **Group remaining tasks into batches** using dependency algorithm → Number 010-019, 020-029, etc.
+3. **Identify Tier Final tasks** from finalization needs → Number 090-099
+4. **Create task files** in `<worktree>/planning/tasks-pending/` with tier-based naming
+5. **Document Tier 0 outputs** in architecture.md as each Tier 0 task is defined
+
+Work through use cases from task-definition.md, but organize by tier:
+1. Foundation needs → Tier 0 tasks (001-009)
+2. Independent features → Batch 1 tasks (010-019)
+3. Features depending on Batch 1 → Batch 2 tasks (020-029)
+4. Features depending on Batch 2 → Batch 3 tasks (030-039)
+5. Finalization needs → Tier Final tasks (090-099)
 
 **Example task creation process:**
 
@@ -3667,6 +6632,320 @@ ls "<worktree>/planning/tasks-pending/" | sort
 ...
 ```
 
+---
+
+### Step 3b: Document Parallel Execution Strategy
+
+**Create execution strategy document** that shows how tasks can be parallelized:
+
+Write to `<worktree>/planning/execution-strategy.md`:
+
+```markdown
+# Execution Strategy: [Epic Name]
+
+## Task Organization Summary
+
+**Total Tasks**: [N]
+- **Tier 0** (Linear Foundation): [Count] tasks - MUST execute sequentially
+- **Parallel Batches**: [Count] batches containing [Count] total tasks
+- **Tier Final** (Linear Finalization): [Count] tasks - MUST execute sequentially
+
+## Tier 0: Linear Foundation (Sequential Execution Required)
+
+**Critical Path**: All Tier 0 tasks must complete before ANY Batch 1 task can start.
+
+| Task | Name | Estimated Time | Architecture.md Updates | Blocks |
+|------|------|----------------|-------------------------|--------|
+| 001 | [Task Name] | [Hours/days] | Identifiers, patterns, access methods | All batches |
+| 002 | [Task Name] | [Hours/days] | Database topology, connection patterns | All batches |
+| 003 | [Task Name] | [Hours/days] | Auth patterns, credential access | All batches |
+| ... | | | | |
+
+**Tier 0 Completion Gate**: Before starting Batch 1, verify:
+- [ ] All Tier 0 tasks marked complete in tasks-completed/
+- [ ] Architecture.md contains "Tier 0 Foundation Results" section with all outputs documented
+- [ ] All identifiers, credentials, patterns, access methods, topology documented
+
+**Estimated Tier 0 Duration**: [Sum of task times] hours/days (sequential)
+
+---
+
+## Parallel Batch Execution
+
+### Batch 1: [Description - e.g., "Independent Domain Models"]
+
+**Can Start When**: All Tier 0 tasks complete AND architecture.md documentation verified
+
+**Parallelism**: All [N] tasks can execute 100% concurrently
+- No file conflicts (each task modifies independent files)
+- No resource conflicts (each task works on independent data)
+- No git merge conflicts (completely independent code paths)
+
+**Resource Requirements**: [N] parallel workers (developers or AI agents)
+
+| Task | Name | Estimated Time | Files Modified | Concurrent With |
+|------|------|----------------|----------------|-----------------|
+| 010 | [Name] | [Hours] | src/models/User.js | 011, 012, 013, ... |
+| 011 | [Name] | [Hours] | src/models/Product.js | 010, 012, 013, ... |
+| 012 | [Name] | [Hours] | src/models/Order.js | 010, 011, 013, ... |
+| ... | | | | |
+
+**Batch Outputs for Next Batch**:
+- [What Batch 2 will import/use from Batch 1]
+- Example: User, Product, Order models exported from src/models/
+
+**Batch 1 Completion Gate**: Before starting Batch 2, verify:
+- [ ] All Batch 1 tasks marked complete in tasks-completed/
+- [ ] All Batch 1 files committed to git (no merge conflicts)
+- [ ] All Batch 1 tests passing
+- [ ] Batch 1 outputs available for import by Batch 2
+
+**Estimated Batch 1 Duration**: [Max task time] hours/days (parallel execution)
+
+**Sequential Execution Comparison**: Would take [Sum of task times] hours/days
+
+---
+
+### Batch 2: [Description - e.g., "Services Using Models"]
+
+**Can Start When**: All Batch 1 tasks complete AND Batch 1 completion gate passed
+
+**Parallelism**: All [M] tasks can execute 100% concurrently
+
+**Dependencies on Prior Batch**:
+- Imports models from Batch 1
+- Uses Tier 0 patterns and infrastructure
+
+| Task | Name | Estimated Time | Depends On | Files Modified | Concurrent With |
+|------|------|----------------|------------|----------------|-----------------|
+| 020 | [Name] | [Hours] | Task 010 | src/services/UserService.js | 021, 022, 023, ... |
+| 021 | [Name] | [Hours] | Task 011 | src/services/ProductService.js | 020, 022, 023, ... |
+| 022 | [Name] | [Hours] | Task 012, 013 | src/services/OrderService.js | 020, 021, 023, ... |
+| ... | | | | | |
+
+**Batch Outputs for Next Batch**:
+- [What Batch 3 will import/use from Batch 2]
+
+**Batch 2 Completion Gate**: [Same structure as Batch 1]
+
+**Estimated Batch 2 Duration**: [Max task time] hours/days (parallel execution)
+
+---
+
+[Repeat structure for Batch 3, 4, 5, etc.]
+
+---
+
+## Tier Final: Linear Finalization (Sequential Execution Required)
+
+**Can Start When**: ALL parallel batches complete
+
+**Critical Path**: Tier Final tasks must execute in strict order.
+
+| Task | Name | Estimated Time | Requires Complete | Sequential After |
+|------|------|----------------|-------------------|------------------|
+| 090 | [Name] | [Hours/days] | All batches | - (first in Tier Final) |
+| 091 | [Name] | [Hours/days] | All batches + Task 090 | Task 090 |
+| 092 | [Name] | [Hours/days] | All batches + Task 091 | Task 091 |
+| ... | | | | |
+
+**Tier Final Completion**: Marks end of implementation phase, ready for Phase 4 (Reflection & Delivery)
+
+**Estimated Tier Final Duration**: [Sum of task times] hours/days (sequential)
+
+---
+
+## Timeline Estimates
+
+### Sequential Execution (Traditional)
+If all tasks executed one after another:
+- Tier 0: [X] hours
+- All Batches: [Y] hours (sum of all batch task times)
+- Tier Final: [Z] hours
+- **Total**: [X + Y + Z] hours = [Days/weeks]
+
+### Parallel Execution (This Strategy)
+With tasks parallelized within batches:
+- Tier 0: [X] hours (sequential)
+- Batch 1: [B1] hours (max task time, not sum)
+- Batch 2: [B2] hours (max task time, not sum)
+- Batch 3: [B3] hours (max task time, not sum)
+- ... (additional batches)
+- Tier Final: [Z] hours (sequential)
+- **Total**: [X + B1 + B2 + B3 + ... + Z] hours = [Days/weeks]
+
+**Speedup Factor**: [Sequential / Parallel] = **[Ratio]x faster** with parallelization
+
+**Example**: If 30 tasks @ 2 hours each:
+- Sequential: 60 hours (7.5 days)
+- Parallel (3 batches of 10): 3 + (2×3) + 3 = 12 hours (1.5 days)
+- Speedup: 5x faster
+
+---
+
+## Resource Allocation Plan
+
+### Parallel Workers Needed
+
+**Tier 0 Phase**: 1 worker (sequential execution)
+
+**Batch 1**: [N] parallel workers recommended
+- Minimum: [N/2] workers (doubled duration)
+- Optimal: [N] workers (one per task)
+- Can scale up/down based on resource availability
+
+**Batch 2**: [M] parallel workers recommended
+
+**Batch 3**: [P] parallel workers recommended
+
+**Tier Final Phase**: 1 worker (sequential execution)
+
+### Human + AI Agent Mix
+
+**Recommended Strategy**:
+- Tier 0: Human developer (critical foundation, requires judgment)
+- Parallel Batches: Mix of human developers and AI agents
+  - AI agents handle well-defined tasks (CRUD operations, API endpoints, models)
+  - Humans handle complex business logic or novel algorithms
+- Tier Final: Human developer (integration, deployment, production concerns)
+
+---
+
+## Risk Mitigation
+
+### Merge Conflict Prevention
+
+**By Design**:
+- Tasks within same batch modify independent files → no conflicts
+- Batch boundaries prevent cross-batch work-in-progress dependencies
+- Each task commits to separate feature branch → merge after completion
+
+**Process**:
+1. Each task works on feature branch: `task-NNN-feature-name`
+2. Task completes → PR created → reviewed → merged to main
+3. All tasks in batch merge before next batch starts
+
+### Dependency Violation Prevention
+
+**Enforcement**:
+- Tier 0 completion gate blocks Batch 1 start
+- Batch N completion gate blocks Batch N+1 start
+- architecture.md updates verified before batch transitions
+
+**Monitoring**:
+- Check task files in tasks-pending/ respect tier numbering
+- Verify no Batch 2 task (020-029) starts before all Batch 1 tasks (010-019) complete
+
+### Quality Gate Enforcement
+
+**Per-Task Quality**:
+- Each task has independent quality verification (tests, review, criteria)
+- Task cannot move to tasks-completed/ until quality gates pass
+- Failing quality in one task doesn't block other parallel tasks
+
+**Batch-Level Quality**:
+- Batch completion gate requires ALL tasks in batch pass quality
+- Integration tests at batch boundaries verify batch outputs work together
+
+### Parallel Execution Coordination
+
+**For Human Teams**:
+- Assign tasks from same batch to different team members
+- Daily standup: "I'm working on task 010, who's on 011?"
+- Use project management tool (Jira, Linear) to track task assignment
+
+**For AI Agents**:
+- Spawn multiple agent instances, each assigned to one task
+- Each agent works in isolated git worktree (no directory conflicts)
+- Agents report completion, coordinator verifies quality gates
+- Coordinator triggers next batch when current batch completes
+
+---
+
+## Execution Checklist
+
+### Before Starting Implementation
+
+- [ ] All task files created in tasks-pending/
+- [ ] Tasks numbered by tier (001-009, 010-019, etc.)
+- [ ] Dependencies documented in each task file
+- [ ] Execution strategy reviewed and understood
+- [ ] Resources allocated (developers/agents assigned)
+- [ ] Git branching strategy confirmed
+
+### Tier 0 Execution
+
+- [ ] Execute tasks 001-009 in sequential order
+- [ ] Document outputs in architecture.md after each task
+- [ ] Verify architecture.md has complete "Tier 0 Foundation Results"
+- [ ] All Tier 0 tasks in tasks-completed/
+- [ ] **Gate passed** → Can proceed to Batch 1
+
+### Batch N Execution
+
+- [ ] All prior batches complete (or Tier 0 for Batch 1)
+- [ ] Spawn parallel workers (one per task in batch)
+- [ ] Each worker executes their assigned task independently
+- [ ] Monitor progress, assist with blockers
+- [ ] Each task moves to tasks-completed/ when quality gates pass
+- [ ] Verify all tasks in batch complete
+- [ ] Run batch-level integration tests
+- [ ] **Gate passed** → Can proceed to Batch N+1
+
+### Tier Final Execution
+
+- [ ] All batches complete
+- [ ] Execute tasks 090-099 in sequential order
+- [ ] Each task waits for prior task completion
+- [ ] Verify final integration and deployment readiness
+- [ ] All tasks in tasks-completed/
+- [ ] **Phase 3 complete** → Proceed to Phase 4 (Reflection & Delivery)
+
+---
+
+## Monitoring & Progress Tracking
+
+### Key Metrics
+
+- **Tasks Complete**: [N completed] / [Total tasks]
+- **Current Phase**: [Tier 0 / Batch N / Tier Final]
+- **Parallel Efficiency**: [Actual duration vs. estimated parallel duration]
+- **Quality Pass Rate**: [Tasks passing quality gates on first attempt]
+
+### Progress Visualization
+
+```
+Tier 0: ████████████████████ 100% (4/4 tasks complete)
+Batch 1: ████████░░░░░░░░░░░ 40% (4/10 tasks complete)
+Batch 2: ░░░░░░░░░░░░░░░░░░░ 0% (waiting for Batch 1)
+Batch 3: ░░░░░░░░░░░░░░░░░░░ 0% (waiting for Batch 2)
+Tier Final: ░░░░░░░░░░░░░░░░░ 0% (waiting for all batches)
+```
+
+### Bottleneck Identification
+
+- **If Tier 0 takes longer than estimated**: Foundation complexity underestimated
+- **If a batch task blocks batch completion**: Reassign resources to bottleneck task
+- **If batches have uneven completion**: Rebalance future batch task assignments
+
+---
+
+## Adaptation & Flexibility
+
+**This strategy is adaptive**:
+- If resources unavailable: Serialize tasks within batch (still faster than full sequential)
+- If task dependencies discovered mid-batch: Move task to next batch, don't block current batch
+- If quality issues in parallel task: Fix and verify independently, don't block other tasks
+- If new tasks emerge: Add to appropriate tier/batch, renumber if needed
+
+**Key Principle**: Maximize parallelization while respecting necessary dependencies.
+```
+
+**Present to user as part of task roadmap**:
+This execution strategy shows how tasks can be executed in parallel to dramatically reduce total implementation time.
+
+---
+
 ### Step 4: Present Task Roadmap to User
 
 **Present the complete task decomposition:**
@@ -3729,6 +7008,207 @@ IF the user requests changes:
   → Revise task files or implementation-steps.md based on feedback
   → Re-present and get confirmation
   → Then proceed to Phase 3
+
+---
+
+## Pre-Implementation Quality Gate (Phase 2 → Phase 3 Checkpoint)
+
+**🚦 COMPREHENSIVE CHECKPOINT: All Design Decisions Must Be Complete**
+
+Before proceeding to Phase 3 implementation, verify that ALL design and planning work is finalized. This gate prevents starting implementation with incomplete specifications.
+
+---
+
+### Verification Checklist
+
+**Complete this checklist - ALL items must be ✅ before implementation:**
+
+#### Phase 1: Understanding (6 Stages)
+
+- [ ] **Stage 1 (Use Cases)**: Primary and alternative use cases documented in use-cases.md
+- [ ] **Stage 2 (Requirements)**: Functional and non-functional requirements in requirements.md
+- [ ] **Stage 3 (Architecture)**: All technology choices finalized in architecture.md with scoring
+- [ ] **Stage 4 (Assumptions)**: All assumptions classified (SOLID/WORKING/RISKY) in assumptions.md
+- [ ] **Stage 4+ (Experiments)**: All RISKY assumptions validated OR accepted by user
+- [ ] **Stage 5 (Effects)**: Second-order effects and boundaries documented in effects-boundaries.md
+- [ ] **Stage 6 (Synthesis)**: Complete understanding synthesized in task-definition.md
+- [ ] **GUIDE.md**: Phase 1 marked complete with all stage confirmations
+
+#### Phase 2: Criteria & Planning
+
+- [ ] **Phase 2 (Acceptance Criteria)**: Success criteria defined in quality-criteria.md
+- [ ] **Phase 2-B (Test Specifications)**: All test scenarios specified in test-plan.md (Given/When/Then format)
+- [ ] **Phase 2-C (Infrastructure)**: Project structure, tech relationships, infrastructure IDs documented
+- [ ] **Phase 2-D (Task Decomposition)**: All tasks defined in tasks-pending/ with dependencies, acceptance criteria, verification steps
+- [ ] **implementation-steps.md**: Task execution order and phases documented
+- [ ] **GUIDE.md**: Phase 2 marked complete with task count
+
+#### Cross-Verification
+
+- [ ] **Architecture supports use cases**: Verified that all Stage 1 use cases can be built with Stage 3 architecture
+- [ ] **Architecture meets requirements**: Verified that all Stage 2 requirements satisfied by Stage 3 technology choices
+- [ ] **Tests cover requirements**: Verified that Phase 2-B test specifications cover all functional requirements
+- [ ] **Tasks cover use cases**: Verified that Phase 2-D tasks implement all use cases from Stage 1
+- [ ] **No implementation yet**: Confirmed no code in `<worktree>/src/`, no tests in `<worktree>/test/`
+
+#### User Confirmations
+
+- [ ] **Stage 1 confirmed**: User explicitly approved use cases
+- [ ] **Stage 2 confirmed**: User explicitly approved requirements
+- [ ] **Stage 3 confirmed**: User explicitly approved architecture decisions
+- [ ] **Phase 2-D confirmed**: User explicitly approved task breakdown
+
+---
+
+### Decision Logic
+
+**Evaluate checkpoint completion:**
+
+**IF ALL CHECKBOXES ✅:**
+
+```
+✅ **PRE-IMPLEMENTATION QUALITY GATE: PASSED**
+
+All design decisions are complete and confirmed. Ready for implementation.
+
+**Summary:**
+- Use Cases: [N] primary + [M] alternative flows
+- Requirements: [N] functional + [M] non-functional
+- Architecture: [Key technologies] with [X/10] average score
+- Assumptions: [N] SOLID, [M] WORKING, [P] RISKY (all validated)
+- Test Specifications: [N] test scenarios across [M] categories
+- Tasks: [N] tasks in [M] implementation phases
+
+**PROCEED TO PHASE 3**
+```
+
+→ Update GUIDE.md: Add "Pre-Implementation Quality Gate: PASSED" to transition log
+→ Continue to Phase 3: Task Execution Loop
+
+**IF ANY CHECKBOX ❌:**
+
+```
+❌ **PRE-IMPLEMENTATION QUALITY GATE: BLOCKED**
+
+Cannot proceed to implementation with incomplete design decisions.
+
+**Missing items:**
+[List all unchecked items]
+
+**Required actions:**
+```
+
+**For each missing item, take action:**
+
+**Missing Phase 1 stages:**
+- Return to incomplete stage
+- Complete missing documentation
+- Get user confirmation
+- Re-run this quality gate
+
+**Missing Phase 2 outputs:**
+- Return to incomplete phase
+- Complete missing planning artifacts
+- Get user confirmation
+- Re-run this quality gate
+
+**Missing cross-verification:**
+- Perform gap analysis
+- Identify use cases/requirements not supported by architecture/tasks
+- Either:
+  - A. Revise architecture/tasks to support all use cases/requirements, OR
+  - B. Revise use cases/requirements if over-specified (user approval required), OR
+  - C. Document as future enhancement (user approval required)
+- Re-run this quality gate
+
+**Missing user confirmations:**
+- Re-present completed stage/phase to user
+- Wait for explicit confirmation
+- Update GUIDE.md with confirmation
+- Re-run this quality gate
+
+**Implementation exists (src/ or test/ not empty):**
+
+```
+⚠️ **ALERT: Implementation found before Phase 3**
+
+Code detected in <worktree>/src/ or <worktree>/test/ but we haven't started Phase 3 yet.
+
+**Possible causes:**
+1. Files left over from previous run (need cleanup)
+2. User provided starting codebase (need to document as baseline)
+3. Implementation accidentally started during planning phases (violation of boundaries)
+
+**What to do:**
+A. If leftover files: `rm -rf <worktree>/src/ <worktree>/test/` and re-run gate
+B. If baseline code: Document in GUIDE.md "Starting Baseline" section, note what exists
+C. If boundary violation: User decides - keep and document, or delete and follow process
+```
+
+---
+
+### After Gate Passes
+
+**When all items verified ✅:**
+
+1. **Final GUIDE.md update**:
+   ```markdown
+   ## Pre-Implementation Quality Gate: PASSED
+
+   **Timestamp**: [ISO 8601 timestamp]
+
+   **Verification Results**:
+   - Phase 1: ✅ Complete (6 stages, all confirmed)
+   - Phase 2: ✅ Complete (criteria, tests, infrastructure, tasks)
+   - Cross-verification: ✅ All use cases/requirements covered
+   - User confirmations: ✅ All stages confirmed
+
+   **Design Summary**:
+   - Use Cases: [N] primary + [M] alternative
+   - Requirements: [N] functional + [M] non-functional
+   - Architecture: [Technologies] scored [X/10]
+   - Test Scenarios: [N] tests
+   - Implementation Tasks: [N] tasks in [M] phases
+
+   **🚀 BEGIN IMPLEMENTATION** → Phase 3: Task Execution Loop
+   ```
+
+2. **Announce to user**:
+   ```
+   🎯 **Pre-Implementation Quality Gate: PASSED**
+
+   All design decisions complete and verified:
+   ✅ Use cases confirmed and synthesized
+   ✅ Requirements documented and validated
+   ✅ Architecture finalized with [X/10] scores
+   ✅ Test specifications complete
+   ✅ [N] tasks ready for execution
+
+   **🚀 Ready to begin implementation**
+
+   Phase 3 will execute [N] tasks in [M] phases:
+   - Tier 0: Foundation ([X] tasks)
+   - Batch 1-N: Features ([Y] tasks)
+   - Tier Final: Integration & Polish ([Z] tasks)
+
+   Starting with Task 001...
+   ```
+
+3. **Proceed to Phase 3**
+
+---
+
+### Gate Philosophy
+
+**Why this checkpoint exists:**
+
+- **Prevents half-baked implementation**: All decisions made before writing code
+- **Reduces rework**: Changes to design are cheap, changes to code are expensive
+- **Ensures user alignment**: All major decisions confirmed before significant time investment
+- **Validates completeness**: Cross-verification catches gaps before implementation reveals them
+- **Enforces boundaries**: Confirms planning phases stayed in planning (no early implementation)
+
+**This is the last chance** to revise design decisions cheaply. After this gate, implementation begins and changes become increasingly expensive.
 
 ---
 
@@ -4356,6 +7836,23 @@ REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
 
 ---
 
+📖 **Context Refresh: Review GUIDE.md for Complete Journey**
+
+Before reflection and delivery, refresh your understanding of the complete journey:
+- Read `<worktree>/planning/GUIDE.md` to see all phase transitions
+- Review all completed tasks in tasks-completed/
+- Check learnings.md for cumulative insights
+- Verify all quality criteria from Phase 2 were met
+- Review the complete progression: Phase 1 understanding → Phase 2 criteria → Phase 3 execution
+
+**If context is unclear**, GUIDE.md contains:
+- Complete session history from start to finish
+- All phase confirmations and user feedback
+- Decision rationale across all phases
+- What was learned at each stage
+
+---
+
 The crafting is complete. Now we consolidate, validate, and deliver.
 
 ### Step 1: Retrospective Analysis
@@ -4498,12 +7995,12 @@ Task tool parameters:
 {
   "subagent_type": "merge-worktree",
   "description": "Merge worktree to source branch",
-  "prompt": "Merge the worktree at `<worktree>` back to the source branch with a squash commit.
+  "prompt": "Merge the worktree from {actual_worktree_path_from_create_agent} with message 'feat: [task name] - crafted over {iteration_number} iterations'
 
-  Worktree path: `<worktree>`
-  Target branch: {original branch from original_location}
-  Squash commits: yes (consolidate all iteration commits into one)
-  Commit message: 'feat: [task name] - crafted over {iteration_number} iterations'
+  Additional context:
+  - Target branch: {original branch from original_location}
+  - Squash commits: yes (consolidate all iteration commits into one)
+  - Destination: auto-discovered from worktree (no need to specify)
 
   Please provide detailed output including:
   - Merge success status

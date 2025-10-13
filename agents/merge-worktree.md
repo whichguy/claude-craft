@@ -180,44 +180,54 @@ merge-worktree /path/to/wt1  # Auto-detects main as target → merges wt1 → ma
 
 When invoked, execute this process using the Bash tool. **DO NOT try to call any external commands named "merge-worktree".**
 
-The user will provide parameters using XML tags in their prompt:
-- `<worktree>path</worktree>` - Required: Path to worktree to merge
-- `<desttree>path</desttree>` - Optional: Destination path (empty = auto-discover)
-- `<commit_message>msg</commit_message>` - Optional: Custom commit message
+The user will provide parameters using natural language keywords in their prompt:
+- **"from <worktree_path>"** - Required: Path to worktree to merge
+- **"with message '<commit_message>'"** - Optional: Custom commit message
+- **Destination is ALWAYS auto-discovered** via .worktree-parent or .git parsing (no longer user-provided)
 
-Extract these values and execute each phase below as separate Bash tool calls.
+Extract these values using natural language parsing and execute each phase below as separate Bash tool calls.
 
 ## EXECUTION PROCESS
 
 ### PHASE 1: ARGUMENT ANALYSIS AND VALIDATION
 
-Before executing bash, extract parameters from the user's prompt:
+Before executing bash, extract parameters from the user's natural language prompt:
 
-1. **worktree_path** - Extract from `<worktree>path</worktree>` tag (REQUIRED)
-2. **source_path** - Extract from `<desttree>path</desttree>` tag (optional - empty means auto-discover)
-3. **commit_message** - Extract from `<commit_message>msg</commit_message>` tag (optional)
+1. **worktree_path** - Extract from keyword **"from"**:
+   - Look for: "from <path>", "from <worktree_path>"
+   - Examples: "from /tmp/worktrees/feature-xyz-...", "from ~/worktrees/my-task"
+   - This is REQUIRED - fail if not found
+
+2. **commit_message** - Extract from keyword **"with message"**:
+   - Look for: "with message '<msg>'", "with message \"<msg>\""
+   - Examples: "with message 'feat: new feature'", "with message \"fix: bug\""
+   - Optional - empty string if not provided
+
+3. **source_path** - NOT user-provided, ALWAYS auto-discovered by script
+   - Script checks .worktree-parent first (nested worktrees)
+   - Falls back to .git parsing for standard worktrees
+   - User no longer needs to provide destination
 
 Then execute this bash block with substituted values:
 
 ```bash
 # === PARAMETERS (substitute with extracted values) ===
 worktree_path="[EXTRACTED_WORKTREE_PATH]"
-source_path="[EXTRACTED_SOURCE_PATH]"  # Empty string if not provided
 commit_message="[EXTRACTED_COMMIT_MESSAGE]"  # Empty string if not provided
 
-echo "🧠 THINKING: Validating extracted parameters from prompt"
-echo "🔍 worktree_path: $worktree_path"
-echo "🔍 source_path: $source_path"
-echo "🔍 commit_message: $commit_message"
+echo "🧠 THINKING: Validating extracted parameters from natural language prompt"
+echo "🔍 worktree_path (from): $worktree_path"
+echo "🔍 commit_message (with message): $commit_message"
 
 # Validate mandatory worktree_path
 if [ -z "$worktree_path" ]; then
-  echo "❌ DECISION: Missing mandatory <worktree> tag in prompt"
+  echo "❌ DECISION: Missing mandatory 'from' keyword in prompt"
   cat << EOF
 {
   "status": "error",
-  "error": "Missing mandatory parameter: <worktree>path</worktree> tag is required in prompt",
-  "usage": "Provide <worktree>/path/to/worktree</worktree> in your prompt"
+  "error": "Missing mandatory parameter: 'from <worktree_path>' keyword is required in prompt",
+  "usage": "Provide 'from /path/to/worktree' in your prompt",
+  "example": "Merge the worktree from /tmp/worktrees/feature-xyz-20250112 with message 'feat: new feature'"
 }
 EOF
   exit 1
@@ -225,63 +235,60 @@ fi
 
 echo "🎯 DECISION: worktree_path = $worktree_path"
 
-# Auto-discover source_path if not provided
-if [ -z "$source_path" ]; then
-  echo "🧠 THINKING: <desttree> not provided, attempting auto-discovery from worktree"
+# Auto-discover source_path (destination) - ALWAYS required
+echo "🧠 THINKING: Auto-discovering destination (source_path) from worktree"
+source_path=""
 
-  # PRIORITY 1: Check for .worktree-parent file (nested worktree indicator)
-  if [ -f "$worktree_path/.worktree-parent" ]; then
-    parent_path=$(cat "$worktree_path/.worktree-parent" 2>/dev/null)
-    if [ -n "$parent_path" ] && [ -d "$parent_path" ]; then
-      source_path="$parent_path"
-      echo "🎯 DECISION: Found nested worktree parent: $source_path"
-      echo "🔗 NESTED MERGE: This worktree will merge to its parent worktree, not main repo"
-    else
-      echo "⚠️ WARNING: .worktree-parent file exists but path is invalid"
-      # Fall through to standard discovery
-    fi
+# PRIORITY 1: Check for .worktree-parent file (nested worktree indicator)
+if [ -f "$worktree_path/.worktree-parent" ]; then
+  parent_path=$(cat "$worktree_path/.worktree-parent" 2>/dev/null)
+  if [ -n "$parent_path" ] && [ -d "$parent_path" ]; then
+    source_path="$parent_path"
+    echo "🎯 DECISION: Found nested worktree parent: $source_path"
+    echo "🔗 NESTED MERGE: This worktree will merge to its parent worktree, not main repo"
+  else
+    echo "⚠️ WARNING: .worktree-parent file exists but path is invalid"
+    # Fall through to standard discovery
   fi
+fi
 
-  # PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
-  if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
-    # Extract gitdir path from worktree's .git file
-    gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
+# PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
+if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
+  # Extract gitdir path from worktree's .git file
+  gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
 
-    if [ -n "$gitdir" ]; then
-      # Navigate up from .git/worktrees/name to main .git then to repo root
-      main_git_dir=$(dirname $(dirname "$gitdir"))
-      source_path=$(dirname "$main_git_dir")
-      echo "🎯 DECISION: Auto-discovered main repo: $source_path"
-      echo "📍 STANDARD MERGE: This worktree will merge to main repository"
-    else
-      echo "❌ DECISION: Failed to parse worktree .git file"
-      cat << EOF
-{
-  "status": "error",
-  "error": "Could not auto-discover source_path from worktree .git file",
-  "worktree_path": "$worktree_path",
-  "hint": "Provide <desttree>/path/to/dest</desttree> in prompt"
-}
-EOF
-      exit 1
-    fi
-  fi
-
-  # PRIORITY 3: Error if still not found
-  if [ -z "$source_path" ]; then
-    echo "❌ DECISION: Worktree .git file not found, cannot auto-discover source"
+  if [ -n "$gitdir" ]; then
+    # Navigate up from .git/worktrees/name to main .git then to repo root
+    main_git_dir=$(dirname $(dirname "$gitdir"))
+    source_path=$(dirname "$main_git_dir")
+    echo "🎯 DECISION: Auto-discovered main repo: $source_path"
+    echo "📍 STANDARD MERGE: This worktree will merge to main repository"
+  else
+    echo "❌ DECISION: Failed to parse worktree .git file"
     cat << EOF
 {
   "status": "error",
-  "error": "Cannot auto-discover source_path: worktree .git file not found",
+  "error": "Could not auto-discover destination from worktree .git file",
   "worktree_path": "$worktree_path",
-  "hint": "Provide <desttree>/path/to/dest</desttree> in prompt"
+  "hint": "Ensure worktree was created via git worktree add command"
 }
 EOF
     exit 1
   fi
-else
-  echo "🎯 DECISION: source_path provided explicitly = $source_path"
+fi
+
+# PRIORITY 3: Error if still not found
+if [ -z "$source_path" ]; then
+  echo "❌ DECISION: Worktree .git file not found, cannot auto-discover destination"
+  cat << EOF
+{
+  "status": "error",
+  "error": "Cannot auto-discover destination: worktree .git file not found",
+  "worktree_path": "$worktree_path",
+  "hint": "Ensure path points to a valid git worktree directory"
+}
+EOF
+  exit 1
 fi
 
 if [ -n "$commit_message" ]; then
@@ -812,6 +819,25 @@ echo "<worktree_removed>$WORKSPACE_ABS_PATH</worktree_removed>"
 echo "<branch_deleted>$branch_name</branch_deleted>"
 echo ""
 
+# Critical directive to calling agent about XML reference usage
+echo ""
+echo "🎯 CRITICAL DIRECTIVE TO CALLING AGENT:"
+echo "========================================"
+echo "The worktree has been MERGED and REMOVED from the filesystem."
+echo "Changes are now in the destination directory (source repository)."
+echo ""
+echo "✅ EXTRACT: <working_directory> XML tag value from output above"
+echo "✅ UPDATE CONTEXT: Use <working_directory> as your new working directory"
+echo "✅ All file operations: <working_directory>/path/to/file"
+echo "✅ All git operations: git -C \"<working_directory>\""
+echo "❌ NEVER reference the old <worktree> path - it no longer exists!"
+echo ""
+echo "💡 EXAMPLE: If <working_directory>$ORIGINAL_ABS_PATH</working_directory>"
+echo "  - Read: Read(file_path=\"$ORIGINAL_ABS_PATH/src/file.js\")"
+echo "  - Write: Write(file_path=\"$ORIGINAL_ABS_PATH/src/file.js\", content=...)"
+echo "  - Git: git -C \"$ORIGINAL_ABS_PATH\" status"
+echo ""
+
 # Generate comprehensive success response with operational instructions
 cat << EOF
 {
@@ -858,6 +884,41 @@ EOF
 
 echo "✅ OUTCOME: Worktree merger complete - returning comprehensive status"
 ```
+
+### CRITICAL POST-EXECUTION DIRECTIVE
+
+**After bash execution completes, YOU MUST:**
+
+1. **Parse the XML tags** from the bash output:
+   - `<working_directory>` - This is your NEW working directory (source repository)
+   - `<worktree_removed>` - Path that was removed (now invalid)
+   - `<branch_deleted>` - Branch that was cleaned up
+
+2. **Update your working context immediately**:
+   ```
+   🎯 CRITICAL: Working directory has changed!
+   OLD: <worktree> path (now removed from filesystem)
+   NEW: <working_directory> value from XML output
+
+   ✅ All subsequent operations MUST use: <working_directory>
+   ✅ Use git -C "<working_directory>" for ALL git operations
+   ✅ Use "<working_directory>/path/to/file" for ALL file operations
+   ❌ NEVER reference the old <worktree> path - it no longer exists!
+   ```
+
+3. **Announce the context change**:
+   ```
+   🔄 CONTEXT TRANSITION: Worktree merged and removed
+   📍 NEW WORKING DIRECTORY: [value from <working_directory> XML tag]
+   💡 REASONING: Worktree was isolated workspace - now integrated to source
+   🎯 NEXT OPERATIONS: Continue work in source directory at above path
+   ```
+
+**Example:**
+If bash outputs `<working_directory>/tmp/my-project</working_directory>`, then:
+- ✅ Read files: `Read(file_path="/tmp/my-project/src/file.js")`
+- ✅ Git commands: `git -C "/tmp/my-project" status`
+- ❌ DON'T use old worktree path - it's been removed!
 
 ## USAGE EXAMPLES
 

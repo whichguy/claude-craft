@@ -55,49 +55,82 @@ WHEN starting ANY prompt using this framework:
    echo "🧠 THINKING: Creating isolated worktree for technology research"
    echo "🧠 THINKING: Parent worktree (branch): <parent_worktree>"
 
-   # Verify git repository exists in parent worktree
-   if ! git -C "<parent_worktree>" rev-parse --git-dir >/dev/null 2>&1; then
-     echo "📝 Initializing git repository in parent worktree"
-     git -C "<parent_worktree>" init
-     git -C "<parent_worktree>" add -A
-     git -C "<parent_worktree>" commit -m "Initial commit for technology research"
-   fi
+   PATTERN: Verify git repository exists before worktree creation
+   NOTE: Parent worktree must have git initialized for worktree isolation to work
 
-   # Use create-worktree agent for robust worktree creation with auto-initialization
-   # Agent handles: collision-resistant naming, branch creation, uncommitted changes
-   # Pass user_worktree_name if provided, otherwise use default "recommend-tech"
-   worktree_prefix="${user_worktree_name:-recommend-tech}"
-   echo "🔧 Calling create-worktree agent with prefix: ${worktree_prefix}"
-   ask create-worktree "<parent_worktree>" "${worktree_prefix}" "recommend-tech"
+   VERIFY git repository in parent worktree:
+     CHECK if git repository exists at parent worktree path
 
-   # Extract agent return values from XML tags
-   extracted_worktree=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<worktree>\K[^<]+')
-   extracted_branch=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<branch>\K[^<]+')
-   extracted_source=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<source>\K[^<]+')
+     IF git repository not found:
+       ANNOUNCE: "Initializing git repository in parent worktree"
+       EXECUTE: Initialize git repository at parent worktree path
+       EXECUTE: Stage all files for initial commit
+       EXECUTE: Create initial commit with message "Initial commit for technology research"
+       NOTE: Repository now ready for worktree creation
+     ELSE:
+       NOTE: Git repository already initialized, proceeding with worktree creation
 
-   # Validate agent returned valid worktree path
-   if [ -z "$extracted_worktree" ] || [ ! -d "$extracted_worktree" ]; then
-     echo "❌ FAILED: create-worktree agent did not return valid worktree path"
-     echo "Agent output:"
-     echo "$LAST_AGENT_OUTPUT"
-     exit 1
-   fi
+   PATTERN: Delegate worktree creation to create-worktree specialist agent
+   NOTE: Agent handles collision-resistant naming, branch creation, uncommitted changes
 
-   # ⚠️ CRITICAL: Reassign framework <worktree> variable to agent's returned path
-   # ALL subsequent technology research operations will use this path
-   <worktree> = ${extracted_worktree}
-   <worktree_created> = true
-   <worktree_branch> = ${extracted_branch}
-   <worktree_name> = $(basename "${extracted_worktree}")
+   PREPARE worktree creation parameters:
+     DETERMINE worktree prefix: Use user-provided name OR default to "recommend-tech"
+     SET parent_worktree_path: <parent_worktree>
+     SET purpose: "recommend-tech" (agent identification)
 
-   echo "✅ Nested worktree ready for isolated execution"
-   echo "⚠️  ALL file operations must use <worktree> as the base path"
+   ANNOUNCE worktree creation:
+     OUTPUT: "Calling create-worktree agent with prefix: {worktree_prefix}"
+
+   INVOKE create-worktree specialist agent:
+     EXECUTE: ask create-worktree with parameters:
+       - parent_worktree: <parent_worktree>
+       - worktree_prefix: {determined prefix}
+       - purpose: "recommend-tech"
+
+   EXTRACT agent response from XML-tagged return value:
+     PARSE agent output for structured result tags
+     EXTRACT worktree_path from <worktree> tag
+     EXTRACT branch_name from <branch> tag
+     EXTRACT source_reference from <source> tag
+     NOTE: These XML tags contain the isolated worktree details
+
+   VALIDATE agent response and worktree creation:
+     CHECK extracted worktree path validity
+
+     IF worktree_path is empty OR worktree directory does not exist:
+       ESCALATE: "create-worktree agent failed to return valid worktree path"
+       OUTPUT: "Agent response details for debugging:"
+       OUTPUT: Full agent response content
+       HALT: Exit with error status - cannot proceed without valid worktree
+       NOTE: This is a critical failure requiring investigation
+
+     ELSE:
+       NOTE: Worktree path validated successfully, proceeding with framework initialization
+
+   ASSIGN framework variables with validated agent response:
+     CRITICAL: Reassign framework <worktree> variable to agent's returned path
+     NOTE: ALL subsequent technology research operations will use this path
+
+     SET <worktree> = extracted worktree_path
+     SET <worktree_created> = true
+     SET <worktree_branch> = extracted branch_name
+     SET <worktree_name> = directory name from worktree_path
+
+   ANNOUNCE worktree readiness:
+     OUTPUT: "Nested worktree ready for isolated execution"
+     OUTPUT: "ALL file operations must use <worktree> as the base path"
+     NOTE: Path discipline is critical for isolation and parallel execution safety
 
 4. CREATE DIRECTORY STRUCTURE:
-   mkdir -p "<worktree>/planning"        # Phase documentation
-   mkdir -p "<worktree>/docs"            # Final deliverables
-   mkdir -p "<worktree>/requirements"    # Requirements if provided
-   mkdir -p "<worktree>/use-cases"       # Use cases if provided
+   PATTERN: Establish standard directory layout for research artifacts
+   NOTE: All directories use <worktree> prefix for isolation
+
+   CREATE planning directories for research artifacts:
+     EXECUTE: Create "<worktree>/planning" directory for phase documentation
+     EXECUTE: Create "<worktree>/docs" directory for final deliverables
+     EXECUTE: Create "<worktree>/requirements" directory for requirements if provided
+     EXECUTE: Create "<worktree>/use-cases" directory for use cases if provided
+     NOTE: Directory structure ready for progressive research artifacts
 
 5. ESTABLISH PATH DISCIPLINE:
    - NEVER use cd, pushd, popd, or directory changing commands
@@ -581,6 +614,62 @@ Document final priority level for each category with justification from requirem
 
 ---
 
+##### 🚪 Knowledge Gate 1: Priority Assessment Validation
+
+**Gate Purpose**: Validate priority level decisions before technology discovery
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Requirements complexity drivers identified
+  - All 9 categories have assigned priority levels (0-9)
+  - Total complexity score calculated
+  - Hard constraints documented
+  - Architectural minimalism principles applied
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 50-60%):
+
+  requirements_clarity = completeness of requirements analysis (0-100%)
+  priority_justification = evidence quality for each priority assignment (0-100%)
+  constraint_coverage = percentage of constraints identified (0-100%)
+  minimalism_adherence = percentage of categories starting at 0-1 (0-100%)
+
+  CONFIDENCE = (
+    (requirements_clarity * 0.30) +
+    (priority_justification * 0.35) +
+    (constraint_coverage * 0.20) +
+    (minimalism_adherence * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 50%:
+  PASS: "Priority assessment sufficient - proceeding to technology discovery"
+  NOTE: Proceed to Sub-Phase 3
+
+ELSE IF CONFIDENCE >= 40%:
+  CONDITIONAL_PASS: "Marginal confidence - proceeding with monitoring"
+  NOTE: Flag weak areas for extra validation in Sub-Phase 4
+  PROCEED: To Sub-Phase 3 with heightened scrutiny
+
+ELSE:
+  FAIL: "Insufficient priority justification - cannot proceed"
+  ESCALATION_PATH:
+    1. Review requirements for missing complexity drivers
+    2. Challenge unjustified priority escalations
+    3. Seek additional constraints or requirements
+    4. Return to Sub-Phase 1 or 2 as needed
+  HALT: Do not proceed until confidence >= 40%
+```
+
+**Gate Output**: Confidence score, pass/fail status, weak areas flagged for attention
+
+---
+
 #### Sub-Phase 3: Technology Discovery & Stack Research
 
 **Priority Focus**: Identify technology candidates for each category based on priority levels
@@ -635,10 +724,429 @@ migration_path: [From prior tech if changing]
 
 ---
 
+##### 🚪 Knowledge Gate 2: Technology Candidate Validation
+
+**Gate Purpose**: Validate technology candidate selections before deep comparative analysis
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Technology decision cards created for all 9 categories
+  - Preliminary candidates shortlisted per category
+  - Alternative technologies documented
+  - Priority level alignment confirmed
+  - Initial trade-offs identified
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 60-70%):
+
+  candidate_coverage = percentage of categories with valid candidates (0-100%)
+  priority_alignment = candidates match assigned priority levels (0-100%)
+  alternative_breadth = number of alternatives per category (0-100%)
+  minimalism_consistency = candidates respect architectural minimalism (0-100%)
+
+  CONFIDENCE = (
+    (candidate_coverage * 0.35) +
+    (priority_alignment * 0.30) +
+    (alternative_breadth * 0.20) +
+    (minimalism_consistency * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 60%:
+  PASS: "Technology candidates sufficient - proceeding to comparative analysis"
+  NOTE: Proceed to Sub-Phase 4
+
+ELSE IF CONFIDENCE >= 50%:
+  CONDITIONAL_PASS: "Weak candidate pool - proceeding with expanded research"
+  NOTE: Flag categories with limited alternatives for deep dive in Sub-Phase 4
+  PROCEED: To Sub-Phase 4 with research expansion directive
+
+ELSE:
+  FAIL: "Insufficient technology candidate quality - cannot proceed"
+  ESCALATION_PATH:
+    1. Expand research sources for weak categories
+    2. Reconsider priority levels if candidates too complex
+    3. Challenge technology choices against requirements
+    4. Add alternative technologies to shortlist
+    5. Return to Sub-Phase 3 with refined criteria
+  HALT: Do not proceed until confidence >= 50%
+```
+
+**Gate Output**: Confidence score, pass/fail status, categories flagged for research expansion
+
+---
+
+#### Sub-Phase 3.5: Parallel Deep Research Delegation (Optional)
+
+**Priority Focus**: Delegate category-specific deep research to specialist agents for parallel execution
+**Purpose**: Enable parallel deep analysis for high-priority or complex technology categories
+**Target Confidence**: N/A (delegation orchestration, not research itself)
+
+**Delegation Decision Criteria:**
+
+```yaml
+DETERMINE if parallel delegation is warranted:
+
+  DELEGATE_IF:
+    - Priority 4+ categories exist (significant complexity)
+    - OR: 5+ categories require deep research
+    - OR: Knowledge Gate 2 flagged categories for research expansion
+    - OR: Timeline pressures require parallel execution
+    - OR: Multiple technology domains need specialist expertise
+
+  SKIP_DELEGATION_IF:
+    - All categories are Priority 0-3 (straightforward choices)
+    - Fewer than 3 categories need deep research
+    - Rapid research mode (coordin costs > research time)
+```
+
+**Parallel Agent Orchestration Pattern:**
+
+IF delegation criteria met THEN:
+
+```markdown
+PATTERN: Launch tech-research-analyst agents in parallel for deep research
+NOTE: Each analyst works in isolated worktree for conflict-free parallel execution
+
+ANNOUNCE parallel research initiation:
+  OUTPUT: "Launching parallel deep research for {category_count} technology categories"
+  OUTPUT: "Each specialist agent will conduct comprehensive 6-phase research"
+
+IDENTIFY categories for parallel research:
+  EXTRACT categories from Gate 2 flagged list OR Priority 4+ categories
+  CREATE category research list with:
+    - Category name (Execution Environment, Storage System, etc.)
+    - Priority level (4-9 for complex categories)
+    - Candidate technologies from Sub-Phase 3
+    - Specific research focus areas
+    - Requirements driving this category's complexity
+
+  NOTE: Each category becomes an independent research stream
+
+PREPARE parallel agent invocation:
+  FOR EACH category in research list:
+
+    COMPOSE research context for tech-research-analyst:
+      ```yaml
+      technology_area: "{category name}"
+      priority_level: {X}
+      candidates: [List from Sub-Phase 3 decision cards]
+
+      # Requirements Context
+      requirements_subset:
+        functional_requirements:
+          - [Requirements specific to this category with REQ-IDs]
+          - [Feature requirements driving technology choice]
+        non_functional_requirements:
+          - [Performance requirements with specific metrics]
+          - [Scalability requirements with scale targets]
+          - [Security requirements with compliance standards]
+          - [Reliability requirements with availability targets]
+
+      # Use Case Context
+      use_cases:
+        primary_use_cases:
+          - id: [UC-XXX]
+            name: "[Use case name]"
+            complexity_driver: "[How this UC drives category complexity]"
+            technical_implications: "[What this UC requires technically]"
+        supporting_use_cases:
+          - id: [UC-YYY]
+            name: "[Supporting use case]"
+            integration_needs: "[How this UC affects category choice]"
+
+      # Use Case → Requirements → Technology Mapping
+      use_case_requirements_mapping:
+        - use_case: [UC-XXX]
+          requirements: [REQ-001, REQ-002]
+          complexity_justification: "[Why this drives Priority X]"
+          technical_need: "[Specific capability needed]"
+
+      # Prior Architecture Context (if exists)
+      prior_architecture:
+        previous_technology: "[Technology used before, or 'None' for greenfield]"
+        change_reason: "[Why changing, or 'N/A' for greenfield]"
+        migration_considerations: "[Data/compatibility concerns, or 'N/A']"
+        lessons_learned: "[Issues with prior tech, or 'N/A']"
+
+      # Integration Requirements
+      integration_context:
+        upstream_categories:
+          - category: "[Category that calls this one]"
+            integration_pattern: "[How they integrate]"
+            data_flow: "[What data is exchanged]"
+        downstream_categories:
+          - category: "[Category this one calls]"
+            integration_pattern: "[How they integrate]"
+            data_flow: "[What data is exchanged]"
+        cross_category_constraints:
+          - "[Technology compatibility requirements]"
+          - "[Version compatibility requirements]"
+          - "[Protocol/format requirements]"
+
+      # Complexity Justification
+      complexity_drivers:
+        scale_requirements:
+          concurrent_users: [X]
+          data_volume: "[GB/TB]"
+          throughput: "[requests/sec]"
+        performance_requirements:
+          response_time: "[<Xms]"
+          availability: "[XX.XX%]"
+          consistency: "[strong/eventual]"
+        feature_complexity:
+          real_time: [true/false]
+          distributed: [true/false]
+          multi_tenant: [true/false]
+        priority_justification: "[Why Priority X vs X-1 or X+1]"
+
+      # Constraints
+      constraints:
+        platform_constraints:
+          - [Cloud provider restrictions]
+          - [Runtime environment limitations]
+          - [License/cost restrictions]
+        team_constraints:
+          - [Current skill levels]
+          - [Training timeline]
+          - [Support availability]
+        business_constraints:
+          - [Budget limits]
+          - [Timeline pressures]
+          - [Compliance requirements]
+
+      # Research Parameters
+      research_depth: "comprehensive"  # 6-phase full evaluation
+      confidence_target: "95%+"  # Minimum acceptable confidence
+      deliverable: "tech-research-{category}.md + tech-decision-{category}.md"
+      ```
+
+    SET agent_purpose: "tech-research-{category}"
+    SET agent_worktree_prefix: "tech-research-{category-shortname}"
+
+    NOTE: Each agent receives comprehensive context including use cases, requirements mapping, prior architecture, and integration needs
+
+LAUNCH all agents in parallel (single invocation):
+  PATTERN: Use single Task tool call with multiple agents for true parallelism
+  NOTE: Do NOT launch agents sequentially - use parallel invocation pattern
+
+  INVOKE multiple tech-research-analyst agents concurrently:
+    EXECUTE: Single message containing multiple Task tool invocations:
+
+      FOR EACH category_context in prepared_contexts:
+        Task tool use:
+          subagent_type: "tech-research-analyst"
+          description: "Deep research for {category}"
+          prompt: "
+            Conduct comprehensive technology research for {category_context.technology_area}.
+
+            ## Research Context
+
+            **Technology Category**: {category_context.technology_area}
+            **Priority Level**: {category_context.priority_level} (0-9 scale)
+            **Candidate Technologies**: {category_context.candidates}
+
+            ### Requirements Context
+
+            **Functional Requirements** (with IDs):
+            {category_context.requirements_subset.functional_requirements}
+
+            **Non-Functional Requirements** (with metrics):
+            {category_context.requirements_subset.non_functional_requirements}
+
+            ### Use Case Context
+
+            **Primary Use Cases Driving This Category**:
+            {category_context.use_cases.primary_use_cases}
+            - Each use case includes: ID, name, complexity driver, and technical implications
+
+            **Supporting Use Cases**:
+            {category_context.use_cases.supporting_use_cases}
+            - Each includes: ID, name, and integration needs
+
+            **Use Case → Requirements → Technology Mapping**:
+            {category_context.use_case_requirements_mapping}
+            - Shows how use cases link to requirements and drive technology choice
+            - Includes complexity justification for priority level
+            - Specifies technical capabilities needed
+
+            ### Prior Architecture Context
+
+            {category_context.prior_architecture.previous_technology}
+            - Previous technology used (or 'None' for greenfield)
+            - Reason for change (or 'N/A' for greenfield)
+            - Migration considerations and lessons learned
+
+            ### Integration Requirements
+
+            **Upstream Integration** (categories that call this one):
+            {category_context.integration_context.upstream_categories}
+            - Integration patterns and data flow requirements
+
+            **Downstream Integration** (categories this one calls):
+            {category_context.integration_context.downstream_categories}
+            - Integration patterns and data flow requirements
+
+            **Cross-Category Constraints**:
+            {category_context.integration_context.cross_category_constraints}
+            - Technology compatibility requirements
+            - Version and protocol requirements
+
+            ### Complexity Justification
+
+            **Scale Requirements**:
+            - Concurrent users: {category_context.complexity_drivers.scale_requirements.concurrent_users}
+            - Data volume: {category_context.complexity_drivers.scale_requirements.data_volume}
+            - Throughput: {category_context.complexity_drivers.scale_requirements.throughput}
+
+            **Performance Requirements**:
+            - Response time: {category_context.complexity_drivers.performance_requirements.response_time}
+            - Availability: {category_context.complexity_drivers.performance_requirements.availability}
+            - Consistency model: {category_context.complexity_drivers.performance_requirements.consistency}
+
+            **Feature Complexity**:
+            - Real-time features: {category_context.complexity_drivers.feature_complexity.real_time}
+            - Distributed system: {category_context.complexity_drivers.feature_complexity.distributed}
+            - Multi-tenant: {category_context.complexity_drivers.feature_complexity.multi_tenant}
+
+            **Priority Justification**: {category_context.complexity_drivers.priority_justification}
+
+            ### Constraints
+
+            **Platform Constraints**: {category_context.constraints.platform_constraints}
+            **Team Constraints**: {category_context.constraints.team_constraints}
+            **Business Constraints**: {category_context.constraints.business_constraints}
+
+            ## Research Scope
+
+            Execute all 6 phases of tech-research-analyst methodology:
+            1. **Market Landscape Analysis** - Current trends and adoption patterns
+            2. **Technical Evaluation** - Architecture, performance, developer experience
+            3. **Business Analysis** - Costs, talent availability, risk assessment
+            4. **Comparative Analysis** - Weighted scoring and trade-off analysis
+            5. **Contextual Recommendation** - Primary and alternative recommendations
+            6. **Reference Compilation** - Documentation, tutorials, case studies
+
+            ## Deliverables
+
+            1. **Main Research Document**: {category_context.deliverable}
+               - Complete 6-phase research documentation
+               - Evidence-based technology recommendations
+
+            2. **Primary Recommendation**:
+               - Specific technology choice with detailed rationale
+               - How it satisfies requirements and use cases
+               - Integration approach with other categories
+               - Migration strategy (if applicable)
+
+            3. **Alternative Options**:
+               - Alternative technologies with selection criteria
+               - When to choose each alternative
+               - Trade-off analysis
+
+            4. **Implementation Guidance**:
+               - Actionable implementation roadmap
+               - Risk mitigation strategies
+               - Integration patterns and code examples
+
+            ## Success Criteria
+
+            - Confidence ≥ {category_context.confidence_target} for final recommendation
+            - All candidate technologies evaluated with evidence
+            - Clear when-to-use decision framework
+            - Requirements and use cases fully addressed
+            - Integration requirements satisfied
+            - Prior architecture lessons incorporated
+            - Actionable implementation roadmap provided
+
+            ## Execution Instructions
+
+            Execute research in your isolated worktree and return complete findings including:
+            - Recommendation confidence score
+            - Requirements and use case coverage validation
+            - Integration compatibility confirmation
+            - Implementation roadmap with dependencies
+            - Risk assessment and mitigations
+          "
+
+  NOTE: All agents execute simultaneously, each in isolated worktree
+
+WAIT for all parallel agents to complete:
+  PATTERN: Agents run asynchronously, results collected when all finish
+  NOTE: Claude handles parallel execution and result collection
+
+COLLECT and CONSOLIDATE agent results:
+
+  FOR EACH completed agent result:
+
+    EXTRACT from agent return:
+      - Primary technology recommendation
+      - Alternative technologies with conditions
+      - Confidence score (target ≥ 95%)
+      - Key trade-offs and decision criteria
+      - Implementation roadmap
+      - Risk assessment and mitigations
+
+    VALIDATE agent output quality:
+      CHECK confidence score ≥ 90%
+      CHECK primary recommendation clearly stated
+      CHECK alternatives documented with criteria
+
+      IF validation fails:
+        ESCALATE: "Agent research for {category} below quality threshold"
+        NOTE: May need manual review or re-research
+
+    STORE validated results in category decision cards:
+      UPDATE decision card from Sub-Phase 3 with:
+        - technology: [Agent's primary recommendation]
+        - confidence: [Agent's confidence score]
+        - alternatives_considered: [Agent's alternatives list]
+        - selection_rationale: [Agent's detailed rationale]
+        - trade_offs: [Agent's trade-off analysis]
+        - implementation_guidance: [Agent's roadmap]
+        - risk_mitigation: [Agent's risk strategies]
+
+  NOTE: Decision cards now contain specialist-level research depth
+
+SYNTHESIZE cross-category findings:
+
+  ANALYZE integration patterns:
+    - Validate technology compatibility across categories
+    - Identify integration risks between recommended technologies
+    - Ensure consistency in architecture patterns
+
+  CALCULATE aggregate confidence:
+    - Average confidence scores across all categories
+    - Flag any categories with confidence < 90%
+    - Document confidence-weighted recommendation strength
+
+  NOTE: Synthesis prepares for Sub-Phase 5 (Architecture Design)
+
+ANNOUNCE parallel research completion:
+  OUTPUT: "Parallel research complete for {category_count} categories"
+  OUTPUT: "Average confidence: {aggregate_confidence}%"
+  OUTPUT: "Proceeding to architecture integration design"
+
+ELSE (delegation not warranted):
+  ANNOUNCE: "Proceeding with orchestrator-led research (all categories Priority 0-3)"
+  NOTE: Continue to Sub-Phase 4 without parallel delegation
+```
+
+**Output**: Enhanced decision cards with specialist research depth for delegated categories
+
+**Integration Note**: Sub-Phase 4 synthesis work is significantly reduced when parallel delegation is used, as specialist agents provide pre-analyzed recommendations.
+
+---
+
 #### Sub-Phase 4: Deep Analysis & Comparative Evaluation
 
-**Priority Focus**: Deep evaluation of top technology candidates across all categories
-**Purpose**: Conduct detailed analysis of shortlisted technologies and create comparison matrices
+**Priority Focus**: Synthesize findings and validate technology integration across categories
+**Purpose**: Consolidate research (from parallel agents or self-research) and validate stack coherence
 **Target Confidence**: 80-90%
 
 ##### Multi-Source Validation & Research
@@ -671,6 +1179,65 @@ Compare use case complexity drivers with technology stack complexity:
 
 ---
 
+##### 🚪 Knowledge Gate 3: Deep Analysis Quality Validation
+
+**Gate Purpose**: Validate research depth and comparative analysis quality before architecture design
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Head-to-head technology comparisons completed
+  - Performance benchmarks collected and analyzed
+  - Developer experience evaluations documented
+  - Multi-source validation findings synthesized
+  - Use case complexity alignment validated
+  - Trade-off analysis completed for top candidates
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 80-90%):
+
+  research_depth = multi-source validation completeness (0-100%)
+  comparison_quality = benchmark data strength and relevance (0-100%)
+  evidence_strength = real-world case studies and production data (0-100%)
+  alignment_validation = use case complexity vs stack complexity ratio (0-100%)
+
+  CONFIDENCE = (
+    (research_depth * 0.30) +
+    (comparison_quality * 0.25) +
+    (evidence_strength * 0.30) +
+    (alignment_validation * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 80%:
+  PASS: "Deep analysis sufficient - proceeding to architecture design"
+  NOTE: Proceed to Sub-Phase 5
+
+ELSE IF CONFIDENCE >= 70%:
+  CONDITIONAL_PASS: "Weak analysis areas detected - proceeding with targeted research"
+  NOTE: Flag weak categories for additional research in Sub-Phase 5
+  PROCEED: To Sub-Phase 5 with research debt markers
+
+ELSE:
+  FAIL: "Insufficient research depth - cannot proceed to architecture design"
+  ESCALATION_PATH:
+    1. Identify categories with weak comparative analysis
+    2. Expand multi-source research for flagged categories
+    3. Add performance benchmarks or production case studies
+    4. Validate use case complexity alignment ratio (target 0.7-1.5)
+    5. Re-run comparative evaluation for weak categories
+    6. Return to Sub-Phase 4 with expanded research criteria
+  HALT: Do not proceed until confidence >= 70%
+```
+
+**Gate Output**: Confidence score, pass/fail status, research debt markers for architecture design
+
+---
+
 #### Sub-Phase 5: Architecture Design & Integration Planning
 
 **Priority Focus**: Design integrated architecture using selected technologies
@@ -694,6 +1261,65 @@ Compare use case complexity drivers with technology stack complexity:
 - Platform-specific limitations
 
 **Output**: Complete architecture design with integration specifications
+
+---
+
+##### 🚪 Knowledge Gate 4: Architecture Design Quality Validation
+
+**Gate Purpose**: Validate integrated architecture design quality before final quality validation
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Complete architecture design created
+  - Cross-category integration compatibility validated
+  - Architecture patterns selected and documented
+  - Data flow and deployment architecture designed
+  - Security boundaries and controls planned
+  - Integration risk assessment completed
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 85-95%):
+
+  design_completeness = all architecture components specified (0-100%)
+  integration_coherence = technology stack compatibility validated (0-100%)
+  pattern_appropriateness = architecture patterns match priority levels (0-100%)
+  risk_mitigation = integration risks identified with mitigations (0-100%)
+
+  CONFIDENCE = (
+    (design_completeness * 0.30) +
+    (integration_coherence * 0.30) +
+    (pattern_appropriateness * 0.25) +
+    (risk_mitigation * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 85%:
+  PASS: "Architecture design sufficient - proceeding to quality validation"
+  NOTE: Proceed to Sub-Phase 6
+
+ELSE IF CONFIDENCE >= 75%:
+  CONDITIONAL_PASS: "Weak design areas detected - proceeding with validation scrutiny"
+  NOTE: Flag integration concerns for deep validation in Sub-Phase 6
+  PROCEED: To Sub-Phase 6 with design debt markers
+
+ELSE:
+  FAIL: "Insufficient architecture design quality - cannot proceed to validation"
+  ESCALATION_PATH:
+    1. Identify incomplete or underspecified architecture components
+    2. Validate technology stack integration compatibility
+    3. Review architecture patterns for priority level appropriateness
+    4. Expand integration risk assessment with specific mitigations
+    5. Validate data flow and deployment architecture completeness
+    6. Return to Sub-Phase 5 with design refinement criteria
+  HALT: Do not proceed until confidence >= 75%
+```
+
+**Gate Output**: Confidence score, pass/fail status, design debt markers for quality validation
 
 ---
 
@@ -726,6 +1352,273 @@ Map each requirement to architecture components:
 - Vendor lock-in
 
 **Output**: Risk-validated architecture with mitigation strategies
+
+---
+
+##### 🚪 Knowledge Gate 5: Quality Validation & Risk Assessment Confirmation
+
+**Gate Purpose**: Validate requirements satisfaction and risk mitigation before implementation planning
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Requirements validation matrix completed
+  - All functional requirements mapped to architecture
+  - Non-functional requirements validated
+  - Technical and business risks documented
+  - Risk mitigation strategies defined
+  - Over/under-engineering challenges addressed
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 90-95%):
+
+  requirements_coverage = all requirements mapped to solutions (0-100%)
+  nfr_satisfaction = non-functional requirements met (0-100%)
+  risk_identification = comprehensive risk assessment completed (0-100%)
+  mitigation_quality = actionable mitigation strategies defined (0-100%)
+
+  CONFIDENCE = (
+    (requirements_coverage * 0.35) +
+    (nfr_satisfaction * 0.30) +
+    (risk_identification * 0.20) +
+    (mitigation_quality * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 90%:
+  PASS: "Quality validation sufficient - proceeding to implementation planning"
+  NOTE: Proceed to Sub-Phase 7
+
+ELSE IF CONFIDENCE >= 80%:
+  CONDITIONAL_PASS: "Weak validation areas detected - proceeding with risk monitoring"
+  NOTE: Flag unmitigated risks for continued monitoring during implementation
+  PROCEED: To Sub-Phase 7 with validation debt markers
+
+ELSE:
+  FAIL: "Insufficient quality validation - cannot proceed to implementation"
+  ESCALATION_PATH:
+    1. Review requirements coverage gaps and map missing requirements
+    2. Validate non-functional requirements satisfaction with evidence
+    3. Expand risk assessment for incomplete risk categories
+    4. Develop concrete mitigation strategies for identified risks
+    5. Challenge over/under-engineering concerns with data
+    6. Return to Sub-Phase 6 with validation expansion criteria
+  HALT: Do not proceed until confidence >= 80%
+```
+
+**Gate Output**: Confidence score, pass/fail status, validation debt markers for technology quality validation
+
+---
+
+##### 🚪 Knowledge Gate 5.5: Technology Quality & Production Readiness Validation
+
+**Gate Purpose**: Validate technology quality metrics and production readiness before implementation planning
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Technology maturity levels assessed for all selected technologies
+  - Community support metrics collected (GitHub stars, contributors, issues)
+  - Documentation quality evaluated (completeness, clarity, examples)
+  - Ecosystem health indicators measured (package downloads, update frequency)
+  - Production readiness validated (stability, breaking changes, LTS support)
+  - Long-term viability assessed (maintainer activity, roadmap, funding)
+  - Technology adoption patterns in similar projects analyzed
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 92-95%):
+
+  technology_maturity = selected technologies meet maturity thresholds (0-100%)
+    # Scoring criteria:
+    # - Version stability (1.0+, semantic versioning followed)
+    # - Years in production (2+ years = high score)
+    # - Breaking change frequency (low = high score)
+    # - LTS/stable release availability
+
+  community_support = community health and activity metrics (0-100%)
+    # Scoring criteria:
+    # - GitHub stars/watchers (relative to category average)
+    # - Active contributors (10+ recent contributors = high score)
+    # - Issue response time (<7 days average = high score)
+    # - Stack Overflow questions/answers availability
+
+  documentation_quality = documentation completeness and accessibility (0-100%)
+    # Scoring criteria:
+    # - Getting started guides available
+    # - API reference complete
+    # - Code examples abundant (10+ examples = high score)
+    # - Migration guides for version upgrades
+    # - Community tutorials and courses available
+
+  ecosystem_health = package ecosystem vitality (0-100%)
+    # Scoring criteria:
+    # - Weekly/monthly download trends (growing = high score)
+    # - Plugin/extension ecosystem size
+    # - Integration with other selected technologies
+    # - Security vulnerability response time (<30 days = high score)
+
+  production_readiness = deployment and operational maturity (0-100%)
+    # Scoring criteria:
+    # - Production usage by Fortune 500 companies
+    # - Performance benchmarks available
+    # - Monitoring/observability tool integration
+    # - Deployment automation support (Docker, K8s, etc.)
+    # - Security audit/certification availability
+
+  long_term_viability = sustainability and future outlook (0-100%)
+    # Scoring criteria:
+    # - Maintainer diversity (not single-person project)
+    # - Funding/sponsorship sustainability
+    # - Roadmap clarity and execution history
+    # - Technology trend trajectory (growing/stable vs declining)
+    # - Corporate backing or foundation support
+
+  CONFIDENCE = (
+    (technology_maturity * 0.25) +
+    (community_support * 0.20) +
+    (documentation_quality * 0.15) +
+    (ecosystem_health * 0.15) +
+    (production_readiness * 0.15) +
+    (long_term_viability * 0.10)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 92%:
+  PASS: "Technology quality excellent - proceeding to implementation planning"
+  NOTE: All selected technologies meet production-grade quality standards
+  NOTE: Proceed to Sub-Phase 7
+
+ELSE IF CONFIDENCE >= 85%:
+  CONDITIONAL_PASS: "Technology quality concerns detected - proceeding with monitoring"
+  NOTE: Flag technologies with quality issues for enhanced monitoring during implementation
+  NOTE: Consider fallback technologies for weak areas
+  PROCEED: To Sub-Phase 7 with technology quality debt markers
+
+ELSE:
+  FAIL: "Insufficient technology quality - cannot proceed to implementation"
+  ESCALATION_PATH:
+    1. Identify technologies with quality scores below thresholds:
+       - Maturity score < 70%: Technology too immature for production use
+       - Community support < 60%: Risk of abandonment or slow issue resolution
+       - Documentation quality < 65%: Team onboarding and troubleshooting risks
+       - Ecosystem health < 60%: Limited integration options and plugin availability
+       - Production readiness < 70%: Operational risk and deployment complexity
+       - Long-term viability < 50%: Technology sustainability concerns
+
+    2. For each flagged technology, evaluate alternatives:
+       - Return to Sub-Phase 3 decision cards for alternative technologies
+       - Re-evaluate next-best candidate from comparative analysis
+       - Assess impact of technology substitution on architecture
+       - Validate replacement technology integration with rest of stack
+
+    3. Update affected decision cards with quality-driven technology changes
+
+    4. Re-validate architecture integration with substituted technologies
+
+    5. Return to Knowledge Gate 5 if significant architecture changes made
+
+  HALT: Do not proceed until confidence >= 85%
+```
+
+**Technology Quality Metrics Report:**
+
+Generate technology quality report for `<worktree>/planning/technology-quality-assessment.md`:
+
+```yaml
+FOR EACH technology in technology_stack:
+  GENERATE quality scorecard:
+    Technology: [Name and version]
+    Category: [Technology category 1-9]
+    Priority: [0-9 priority level]
+
+    Quality Metrics:
+      Maturity Score: [X%]
+        - Version: [Semantic version, release date]
+        - Stability: [Stable/Beta/Alpha]
+        - Breaking changes: [Frequency assessment]
+        - LTS support: [Available/Not available]
+
+      Community Support Score: [X%]
+        - GitHub stars: [Count, percentile in category]
+        - Contributors: [Active contributor count]
+        - Issue resolution: [Average response time]
+        - Stack Overflow: [Question count, answer rate]
+
+      Documentation Quality Score: [X%]
+        - Getting started: [Available/Missing]
+        - API reference: [Complete/Partial/Missing]
+        - Code examples: [Count and quality assessment]
+        - Migration guides: [Available/Not available]
+        - Video tutorials: [Available/Not available]
+
+      Ecosystem Health Score: [X%]
+        - Download trend: [Growing/Stable/Declining]
+        - Package count: [Plugin/extension ecosystem size]
+        - Integration support: [With other stack technologies]
+        - Security alerts: [Open vulnerabilities, response time]
+
+      Production Readiness Score: [X%]
+        - Enterprise usage: [Known production deployments]
+        - Performance data: [Benchmarks available]
+        - Monitoring tools: [Integration options]
+        - Deployment support: [Container, cloud, automation]
+        - Security certification: [Audits, compliance]
+
+      Long-term Viability Score: [X%]
+        - Maintainer health: [Single vs diverse team]
+        - Funding: [Sustainable/At risk]
+        - Roadmap: [Clear direction, execution history]
+        - Market trend: [Growing/Stable/Declining adoption]
+        - Backing: [Corporate/Foundation/Community]
+
+    Overall Technology Quality: [Weighted average score]
+    Recommendation: [Proceed/Monitor/Replace]
+    Monitoring Requirements: [Specific areas requiring attention]
+    Fallback Technology: [Alternative if quality deteriorates]
+```
+
+**Quality-Driven Learning Capture:**
+
+Document technology quality insights for future research:
+
+```yaml
+CAPTURE technology quality lessons:
+  quality_signals_discovered:
+    - [Quality indicators that proved most predictive]
+    - [Warning signs successfully identified early]
+    - [Metrics that distinguished production-ready from immature technologies]
+
+  quality_assessment_methods:
+    - [Research techniques that uncovered quality issues]
+    - [Data sources that provided reliable quality signals]
+    - [Community evaluation approaches that worked well]
+
+  quality_trade_offs_observed:
+    - [How maturity traded off with innovation]
+    - [Community size vs responsiveness patterns]
+    - [Documentation quality vs technology complexity relationships]
+    - [Ecosystem size vs integration simplicity findings]
+
+  quality_red_flags_identified:
+    - [Technology quality issues that became deal-breakers]
+    - [Warning signs that predicted future problems]
+    - [Quality gaps that would block production deployment]
+
+  quality_best_practices:
+    - [Validation approaches that ensured production readiness]
+    - [Due diligence steps that prevented poor technology choices]
+    - [Quality thresholds that proved appropriate for this project type]
+```
+
+**Gate Output**: Confidence score, pass/fail status, technology quality report, quality-driven learning capture, validation debt markers for implementation planning
 
 ---
 
@@ -1043,6 +1936,67 @@ Confidence: [X%]
 **Output**: Complete concise technology architecture specification written to <worktree>/planning/architecture.md
 
 **Activity 4 Complete**: All 8 sub-phases executed, progressive research documented, architecture specification generated
+
+---
+
+##### 🚪 Knowledge Gate 6: Final Specification Readiness Validation
+
+**Gate Purpose**: Validate complete specification readiness before final deliverable handoff
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Complete architecture.md specification written
+  - All 9 technology categories fully documented
+  - Visual architecture diagrams generated
+  - Implementation roadmap with phases defined
+  - Requirements traceability matrix completed
+  - Risk mitigation strategies documented
+  - Integration patterns and code examples included
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 98-100%):
+
+  specification_completeness = architecture.md contains all required sections (0-100%)
+  documentation_quality = all sections complete with actionable detail (0-100%)
+  implementation_clarity = roadmap clear with dependencies and timelines (0-100%)
+  traceability_completeness = all requirements mapped to technology decisions (0-100%)
+
+  CONFIDENCE = (
+    (specification_completeness * 0.30) +
+    (documentation_quality * 0.25) +
+    (implementation_clarity * 0.25) +
+    (traceability_completeness * 0.20)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 98%:
+  PASS: "Final specification excellent - ready for implementation handoff"
+  NOTE: Proceed to Activity 5 (Planning meta-activity)
+
+ELSE IF CONFIDENCE >= 95%:
+  CONDITIONAL_PASS: "Minor specification gaps - acceptable for handoff with notes"
+  NOTE: Document incomplete areas for follow-up during implementation
+  PROCEED: To Activity 5 with documentation debt markers
+
+ELSE:
+  FAIL: "Specification incomplete - cannot handoff for implementation"
+  ESCALATION_PATH:
+    1. Review architecture.md for missing or incomplete sections
+    2. Validate all 9 technology categories have complete decision records
+    3. Ensure visual diagrams accurately reflect architecture
+    4. Verify implementation roadmap has clear dependencies and timelines
+    5. Confirm all requirements trace to specific technology decisions
+    6. Complete integration patterns and configuration examples
+    7. Return to Sub-Phase 8 with completion checklist
+  HALT: Do not proceed until confidence >= 95%
+```
+
+**Gate Output**: Confidence score, pass/fail status, specification completeness markers for planning
 
 ---
 
@@ -1370,79 +2324,136 @@ Quality Assessment:
 ### WORKTREE CONSOLIDATION
 
 ```markdown
-# Universal pattern: ALWAYS merge back to parent worktree (worktree isolation)
-echo "🧠 THINKING: Technology research complete - merging back to parent worktree"
-echo "🧠 THINKING: Parent worktree (branch): <parent_worktree>"
+PATTERN: Universal isolation pattern - ALWAYS merge back to parent worktree
+NOTE: This consolidation step completes the nested worktree lifecycle
 
-# CRITICAL SAFETY CHECK - never delete if we're inside it
-<current_location> = $(pwd)
+ANNOUNCE consolidation intent:
+  OUTPUT: "Technology research complete - merging back to parent worktree"
+  OUTPUT: "Parent worktree (branch): <parent_worktree>"
 
-IF "<worktree>" != "<current_location>" THEN:
-  echo "✅ Safe to consolidate - not inside nested worktree"
+PATTERN: Critical safety check before consolidation
+NOTE: Never delete worktree if we're currently inside it - would cause system errors
 
-  # Gather technology research metrics
-  tech_categories=$(grep -c "^### Category" "${worktree}/planning/architecture.md" 2>/dev/null || echo "0")
-  total_complexity=$(grep "Total Complexity Score:" "${worktree}/planning/architecture.md" 2>/dev/null | awk '{print $NF}' || echo "unknown")
-  quality_score="${ARCHITECTURE_QUALITY_SCORE:-unknown}"
+CAPTURE current working directory:
+  SET current_location to present working directory
 
-  # Construct detailed commit message preserving architecture context
-  commit_msg="merge(architecture): Consolidate technology research and architecture
+VERIFY safe consolidation conditions:
+  CHECK if current location is outside nested worktree
 
-Source: ${worktree_branch}
-Categories addressed: ${tech_categories}
-Total complexity: ${total_complexity}
-Quality: ${quality_score}/10
-Framework: Progressive 8-phase technology research
+  IF current_location is inside nested worktree (current_location equals worktree path):
+    ESCALATE: "SAFETY ERROR: Currently inside nested worktree - cannot merge"
+    OUTPUT: "Current location: {current_location}"
+    OUTPUT: "Nested worktree: <worktree>"
+    HALT: Exit with error status - directory safety violation
+    NOTE: This prevents catastrophic deletion of current working directory
 
-This merge includes comprehensive architecture specification ready for implementation."
+  ELSE:
+    ANNOUNCE: "Safe to consolidate - not inside nested worktree"
+    NOTE: Proceeding with merge-back workflow
 
-  # Use merge-worktree agent for consolidation with auto-discovery
-  # Agent handles: commit, squash merge, cleanup with git atomicity
-  # Merges FROM nested worktree TO parent worktree (universal isolation pattern)
-  echo "🔧 Calling merge-worktree agent to consolidate to parent"
-  ask merge-worktree "<worktree>" "" "${commit_msg}" "recommend-tech"
+PATTERN: Gather technology research metrics for commit message
+NOTE: Metrics preserve architecture context in git history
 
-  # Check merge status from agent JSON output
-  merge_status=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '"status"\s*:\s*"\K[^"]+')
+EXTRACT research metrics from architecture document:
+  COUNT technology categories addressed:
+    SEARCH "<worktree>/planning/architecture.md" for category headers
+    EXTRACT category count OR default to "0" if not found
+    SET tech_categories = extracted count
 
-  if [ "$merge_status" = "success" ]; then
-    # merge-worktree agent already printed compact summary
-    # Add research-specific context
-    echo "RESEARCH: Architecture with ${tech_categories} categories ready for implementation"
-    echo ""
-  elif [ "$merge_status" = "conflict" ]; then
-    echo "⚠️ MERGE CONFLICTS DETECTED"
-    echo "⚠️ Worktree preserved for manual conflict resolution"
-    echo ""
-    echo "Technology research details:"
-    echo "- Worktree: ${worktree_name}"
-    echo "- Branch: ${worktree_branch}"
-    echo "- Categories: ${tech_categories}"
-    echo ""
-    echo "To resolve conflicts and consolidate:"
-    echo "1. Review conflicts in worktree"
-    echo "2. Resolve conflicts in affected files"
-    echo "3. After resolution, run: ask merge-worktree '<worktree>' '' '\${commit_msg}' 'recommend-tech'"
-    exit 1
-  else
-    echo "❌ MERGE FAILED - unexpected status: ${merge_status}"
-    echo "Agent output:"
-    echo "$LAST_AGENT_OUTPUT"
-    echo ""
-    echo "To consolidate manually:"
-    echo "1. cd '<parent_worktree>'"
-    echo "2. git merge '${worktree_branch}' --squash"
-    echo "3. git commit -m 'merge: Consolidate technology research'"
-    echo "4. git worktree remove '<worktree>' --force"
-    echo "5. git branch -D '${worktree_branch}'"
-    exit 1
-  fi
-ELSE:
-  echo "❌ SAFETY ERROR: Currently inside nested worktree - cannot merge"
-  echo "Current location: ${current_location}"
-  echo "Nested worktree: <worktree>"
-  exit 1
-FI
+  EXTRACT total complexity score:
+    SEARCH "<worktree>/planning/architecture.md" for "Total Complexity Score:" line
+    PARSE final number from matching line
+    EXTRACT complexity value OR default to "unknown" if not found
+    SET total_complexity = extracted value
+
+  RETRIEVE quality score:
+    USE ARCHITECTURE_QUALITY_SCORE variable OR default to "unknown"
+    SET quality_score = retrieved value
+
+PATTERN: Construct structured commit message preserving architecture context
+NOTE: Detailed commit message enables future architecture archaeology
+
+COMPOSE commit message with research metadata:
+  STRUCTURE commit message as:
+    "merge(architecture): Consolidate technology research and architecture
+
+    Source: {worktree_branch}
+    Categories addressed: {tech_categories}
+    Total complexity: {total_complexity}
+    Quality: {quality_score}/10
+    Framework: Progressive 8-phase technology research
+
+    This merge includes comprehensive architecture specification ready for implementation."
+
+  SET commit_msg = composed message
+
+PATTERN: Delegate merge operation to merge-worktree specialist agent
+NOTE: Agent handles commit, squash merge, cleanup with git atomicity
+NOTE: Merges FROM nested worktree TO parent worktree (universal isolation pattern)
+
+ANNOUNCE merge delegation:
+  OUTPUT: "Calling merge-worktree agent to consolidate to parent"
+
+INVOKE merge-worktree specialist agent:
+  EXECUTE: ask merge-worktree with parameters:
+    - worktree_path: <worktree>
+    - target_branch: "" (auto-discovery from parent)
+    - commit_message: {commit_msg}
+    - purpose: "recommend-tech"
+
+PATTERN: Parse merge agent response and handle consolidation outcomes
+NOTE: Agent returns structured JSON with status and diagnostic information
+
+EXTRACT merge status from agent response:
+  PARSE LAST_AGENT_OUTPUT for JSON structure
+  EXTRACT status field value from response
+  SET merge_status = extracted status value
+
+EVALUATE merge outcome and take appropriate action:
+
+  CASE merge_status equals "success":
+    NOTE: Merge completed successfully, worktree cleaned up automatically
+    ANNOUNCE: "RESEARCH: Architecture with {tech_categories} categories ready for implementation"
+    OUTPUT: Empty line for formatting
+    NOTE: merge-worktree agent already printed compact summary
+
+  CASE merge_status equals "conflict":
+    ESCALATE: "MERGE CONFLICTS DETECTED"
+    ANNOUNCE: "Worktree preserved for manual conflict resolution"
+    OUTPUT: Empty line for formatting
+
+    OUTPUT conflict resolution details:
+      OUTPUT: "Technology research details:"
+      OUTPUT: "- Worktree: {worktree_name}"
+      OUTPUT: "- Branch: {worktree_branch}"
+      OUTPUT: "- Categories: {tech_categories}"
+      OUTPUT: Empty line for formatting
+
+    OUTPUT resolution instructions:
+      OUTPUT: "To resolve conflicts and consolidate:"
+      OUTPUT: "1. Review conflicts in worktree"
+      OUTPUT: "2. Resolve conflicts in affected files"
+      OUTPUT: "3. After resolution, run: ask merge-worktree '<worktree>' '' '${commit_msg}' 'recommend-tech'"
+
+    HALT: Exit with error status - manual intervention required
+    NOTE: Preserving worktree for conflict resolution workflow
+
+  CASE merge_status is unexpected value:
+    ESCALATE: "MERGE FAILED - unexpected status: {merge_status}"
+    OUTPUT: "Agent output:"
+    OUTPUT: Full LAST_AGENT_OUTPUT content for debugging
+    OUTPUT: Empty line for formatting
+
+    OUTPUT manual consolidation fallback:
+      OUTPUT: "To consolidate manually:"
+      OUTPUT: "1. cd '<parent_worktree>'"
+      OUTPUT: "2. git merge '{worktree_branch}' --squash"
+      OUTPUT: "3. git commit -m 'merge: Consolidate technology research'"
+      OUTPUT: "4. git worktree remove '<worktree>' --force"
+      OUTPUT: "5. git branch -D '{worktree_branch}'"
+
+    HALT: Exit with error status - unexpected merge outcome
+    NOTE: Providing manual recovery instructions for unknown failure modes
 ```
 
 ### Return Summary

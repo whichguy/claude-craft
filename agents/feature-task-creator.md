@@ -1366,19 +1366,57 @@ Benefits of unified state:
 
 4. WORKTREE CONSOLIDATION (if created):
    IF <worktree_created> == true THEN:
-     echo "📦 Consolidating results back to main environment"
+     PATTERN: Delegate worktree merge to merge-worktree specialist agent
+     NOTE: Agent handles commit, squash merge, cleanup with git atomicity
 
-     # Copy generated tasks to original location
-     cp -r "<worktree>/planning/pending" "<original_pwd>/planning/pending"
+     ANNOUNCE consolidation intent:
+       OUTPUT: "Consolidating task generation results back to parent worktree"
 
-     # Commit results in worktree
-     git -C "<worktree>" add -A
-     git -C "<worktree>" commit -m "Generated tasks from requirements"
+     COMPOSE commit message with task generation context:
+       STRUCTURE commit message as:
+         "merge(tasks): Consolidate feature task generation
 
-     # Create patch for review
-     git -C "<worktree>" format-patch -1 --stdout > "<original_pwd>/task-generation.patch"
+         Source: {worktree_branch}
+         Tasks generated: {task_count}
+         Global quality score: {GLOBAL_QUALITY_SCORE}/10.0
+         Framework: LLM-executable task decomposition with delta detection
 
-     echo "✅ Tasks generated and patch created for review"
+         This merge includes feature tasks ready for feature-developer execution."
+
+       SET commit_msg = composed message
+
+     INVOKE merge-worktree specialist agent:
+       EXECUTE: ask merge-worktree with parameters:
+         - worktree_path: <worktree>
+         - target_branch: "" (auto-discovery from parent)
+         - commit_message: {commit_msg}
+         - purpose: "feature-task-creator"
+
+     EXTRACT merge status from agent response:
+       PARSE LAST_AGENT_OUTPUT for JSON structure
+       EXTRACT status field value from response
+       SET merge_status = extracted status value
+
+     EVALUATE merge outcome:
+       CASE merge_status equals "success":
+         ANNOUNCE: "Tasks generated and consolidated successfully"
+         NOTE: merge-worktree agent already printed compact summary
+
+       CASE merge_status equals "conflict":
+         ESCALATE: "MERGE CONFLICTS DETECTED"
+         ANNOUNCE: "Worktree preserved for manual conflict resolution"
+         OUTPUT: "Task generation details:"
+         OUTPUT: "- Worktree: {worktree_name}"
+         OUTPUT: "- Branch: {worktree_branch}"
+         OUTPUT: "Resolution: Review conflicts in worktree, resolve, then re-run merge-worktree"
+         HALT: Exit with error status - manual intervention required
+
+       CASE merge_status is unexpected value:
+         ESCALATE: "MERGE FAILED - unexpected status: {merge_status}"
+         OUTPUT: "Agent output:"
+         OUTPUT: Full LAST_AGENT_OUTPUT content
+         HALT: Exit with error status - unexpected merge outcome
+
    END IF
 
 GLOBAL_END complete - task generation finalized

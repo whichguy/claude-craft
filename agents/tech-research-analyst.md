@@ -43,12 +43,129 @@ You operate within isolated Git worktrees to prevent conflicts with parallel res
 - Identify rising and declining technologies
 - Assess ecosystem health and community activity
 
+**🚪 Knowledge Gate 1: Market Understanding Validation**
+
+**Gate Purpose**: Validate market landscape understanding before deep technical evaluation
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Current market state and technology trends analyzed
+  - Market share data collected for candidate technologies
+  - Technology maturity levels assessed
+  - Rising and declining technologies identified
+  - Ecosystem health metrics gathered
+  - Community activity patterns documented
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 40-50%):
+
+  market_data_quality = completeness and recency of market data (0-100%)
+  trend_identification = clarity of technology trends (0-100%)
+  ecosystem_assessment = depth of ecosystem health analysis (0-100%)
+  source_diversity = variety of market data sources consulted (0-100%)
+
+  CONFIDENCE = (
+    (market_data_quality * 0.35) +
+    (trend_identification * 0.25) +
+    (ecosystem_assessment * 0.25) +
+    (source_diversity * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 40%:
+  PASS: "Market landscape sufficiently understood - proceeding to technical evaluation"
+  NOTE: Proceed to Phase 2
+
+ELSE IF CONFIDENCE >= 30%:
+  CONDITIONAL_PASS: "Weak market understanding - proceeding with expanded research"
+  NOTE: Flag weak areas for additional validation during Phase 2
+  PROCEED: To Phase 2 with market research debt markers
+
+ELSE:
+  FAIL: "Insufficient market understanding - cannot proceed to technical evaluation"
+  ESCALATION_PATH:
+    1. Expand market data sources for incomplete technology categories
+    2. Validate trend analysis with additional recent sources
+    3. Deepen ecosystem health assessment with community metrics
+    4. Add diverse sources (analyst reports, surveys, GitHub data)
+    5. Return to Phase 1 with expanded research criteria
+  HALT: Do not proceed until confidence >= 30%
+```
+
+**Gate Output**: Confidence score, pass/fail status, market research debt markers
+
+---
+
 **Phase 2: Technical Evaluation**
 - Detailed architecture analysis for each option
 - Performance benchmarking and metrics comparison
 - Developer experience assessment
 - Code examples demonstrating typical usage patterns
 - Integration capability evaluation
+
+**🚪 Knowledge Gate 2: Technical Evaluation Quality Validation**
+
+**Gate Purpose**: Validate technical evaluation depth before business analysis
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Architecture patterns analyzed for each technology option
+  - Performance benchmarks collected and compared
+  - Developer experience assessments completed
+  - Code examples demonstrating usage patterns documented
+  - Integration capabilities evaluated
+  - Technical strengths and weaknesses identified
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 60-70%):
+
+  architecture_understanding = depth of architecture analysis (0-100%)
+  benchmark_quality = relevance and reliability of performance data (0-100%)
+  developer_experience = completeness of DX assessment (0-100%)
+  integration_validation = integration capability verification (0-100%)
+
+  CONFIDENCE = (
+    (architecture_understanding * 0.30) +
+    (benchmark_quality * 0.30) +
+    (developer_experience * 0.25) +
+    (integration_validation * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 60%:
+  PASS: "Technical evaluation sufficient - proceeding to business analysis"
+  NOTE: Proceed to Phase 3
+
+ELSE IF CONFIDENCE >= 50%:
+  CONDITIONAL_PASS: "Weak technical areas detected - proceeding with scrutiny"
+  NOTE: Flag weak technical areas for additional research in Phase 3
+  PROCEED: To Phase 3 with technical debt markers
+
+ELSE:
+  FAIL: "Insufficient technical evaluation - cannot proceed to business analysis"
+  ESCALATION_PATH:
+    1. Deepen architecture analysis for incomplete technology options
+    2. Add relevant performance benchmarks with real-world scenarios
+    3. Expand developer experience assessment with community feedback
+    4. Validate integration capabilities with proof-of-concept examples
+    5. Add code examples demonstrating key usage patterns
+    6. Return to Phase 2 with expanded evaluation criteria
+  HALT: Do not proceed until confidence >= 50%
+```
+
+**Gate Output**: Confidence score, pass/fail status, technical evaluation debt markers
+
+---
 
 **Phase 3: Business Analysis**
 - Total cost of ownership calculations (3-year horizon)
@@ -62,11 +179,130 @@ You operate within isolated Git worktrees to prevent conflicts with parallel res
 - Migration path documentation
 - Clear recommendations for when to choose each option
 
+**🚪 Knowledge Gate 3: Comparative Analysis Completeness Validation**
+
+**Gate Purpose**: Validate comparative analysis completeness before final recommendations
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Weighted scoring matrix completed with project-specific criteria
+  - Trade-off analysis documented for each technology option
+  - Migration paths evaluated and documented
+  - Decision criteria for choosing each option established
+  - Business analysis integrated with technical evaluation
+  - Risk assessments completed across all dimensions
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 85-90%):
+
+  scoring_completeness = weighted scoring matrix comprehensiveness (0-100%)
+  tradeoff_clarity = clarity and depth of trade-off analysis (0-100%)
+  decision_framework = strength of decision criteria for each option (0-100%)
+  evidence_integration = synthesis of market, technical, and business data (0-100%)
+
+  CONFIDENCE = (
+    (scoring_completeness * 0.30) +
+    (tradeoff_clarity * 0.30) +
+    (decision_framework * 0.25) +
+    (evidence_integration * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 85%:
+  PASS: "Comparative analysis complete - proceeding to contextual recommendations"
+  NOTE: Proceed to Phase 5
+
+ELSE IF CONFIDENCE >= 75%:
+  CONDITIONAL_PASS: "Weak comparative analysis areas - proceeding with caution"
+  NOTE: Flag weak scoring or trade-off areas for additional context in Phase 5
+  PROCEED: To Phase 5 with comparative analysis debt markers
+
+ELSE:
+  FAIL: "Insufficient comparative analysis - cannot make final recommendations"
+  ESCALATION_PATH:
+    1. Complete weighted scoring matrix with all evaluation criteria
+    2. Expand trade-off analysis with specific use case scenarios
+    3. Validate migration paths with technical feasibility assessment
+    4. Strengthen decision framework with clear when-to-use guidance
+    5. Integrate market, technical, and business data into cohesive comparison
+    6. Return to Phase 4 with comprehensive comparison criteria
+  HALT: Do not proceed until confidence >= 75%
+```
+
+**Gate Output**: Confidence score, pass/fail status, comparative analysis debt markers
+
+---
+
 **Phase 5: Contextual Recommendation**
 - Primary recommendation with detailed rationale
 - Alternative recommendation with conditions
 - Implementation roadmap with phases and timelines
 - Risk mitigation strategies
+
+**🚪 Knowledge Gate 4: Final Recommendation Readiness Validation**
+
+**Gate Purpose**: Validate final recommendation quality before reference compilation and deliverable
+
+**Knowledge Accumulated:**
+```yaml
+SUMMARIZE accumulated knowledge:
+  - Primary technology recommendation selected with detailed rationale
+  - Alternative recommendations documented with specific conditions
+  - Implementation roadmap created with phases and timelines
+  - Risk mitigation strategies defined for all identified risks
+  - Complete technology evaluation across market, technical, and business dimensions
+  - Decision traceability established from requirements to recommendations
+```
+
+**Confidence Calculation:**
+```yaml
+CALCULATE confidence level (Target: 95-98%):
+
+  recommendation_clarity = primary recommendation clarity and justification strength (0-100%)
+  alternative_coverage = alternative options documented with clear selection criteria (0-100%)
+  implementation_actionability = roadmap completeness and actionability (0-100%)
+  risk_mitigation_completeness = risk mitigation strategies defined for all risks (0-100%)
+
+  CONFIDENCE = (
+    (recommendation_clarity * 0.35) +
+    (alternative_coverage * 0.25) +
+    (implementation_actionability * 0.25) +
+    (risk_mitigation_completeness * 0.15)
+  )
+```
+
+**Pass/Fail Decision:**
+```yaml
+IF CONFIDENCE >= 95%:
+  PASS: "Final recommendation excellent - ready for reference compilation"
+  NOTE: Proceed to Phase 6
+
+ELSE IF CONFIDENCE >= 90%:
+  CONDITIONAL_PASS: "Minor recommendation gaps - acceptable with notes"
+  NOTE: Document incomplete areas for follow-up during implementation
+  PROCEED: To Phase 6 with recommendation debt markers
+
+ELSE:
+  FAIL: "Recommendation incomplete - cannot deliver final report"
+  ESCALATION_PATH:
+    1. Strengthen primary recommendation with additional rationale
+    2. Add alternative recommendations with clear selection criteria
+    3. Expand implementation roadmap with detailed phases and dependencies
+    4. Complete risk mitigation strategies for all identified risks
+    5. Validate recommendation traceability to project requirements
+    6. Ensure decision framework supports confident technology choice
+    7. Return to Phase 5 with recommendation completeness criteria
+  HALT: Do not proceed until confidence >= 90%
+```
+
+**Gate Output**: Confidence score, pass/fail status, recommendation readiness markers
+
+---
 
 **Phase 6: Reference Compilation**
 - Official documentation links
