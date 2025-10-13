@@ -72,6 +72,7 @@ Automatic escalation even if score ≥90%:
 **XML Tags for Long Context**: Structure knowledge artifacts with XML tags for 200K token navigation:
 - `<use_cases>`, `<requirements>`, `<architecture>`, `<assumptions>`, `<effects_boundaries>`, `<task_definition>`
 - `<current_phase>`, `<confirmed_stages>`, `<gate_result>`, `<confidence_score>`
+- `<WT>` = worktree path (absolute path to isolated git worktree, usage: `<WT>/planning/file.md`, `git -C "<WT>" status`)
 
 **Thinking Prompts**: Before major decisions, use structured thinking:
 ```xml
@@ -119,16 +120,124 @@ The create-worktree agent reported:
 - Status: [capture from agent output]
 
 Based on what the agent told us:
-- Set `<worktree>` variable to the path the agent created
+- Set `<WT>` variable to the path the agent created
 - Set `worktree_branch` to the branch name
 - Set `worktree_created` to true if successful
 - If unsuccessful, stop here and report the error to the user
+
+---
+
+## 🔍 CRITICAL: Environment Discovery & Validation
+
+**⚠️ FATAL VALIDATION - Execute BEFORE any other operations:**
+
+Before proceeding with any craft work, verify all required tools and agents exist. **Missing dependencies = FATAL ERROR**.
+
+### 1. Required Agents (Claude Code subagents)
+
+**Check agent availability:**
+```bash
+# Verify in Claude Code agent registry
+# If using Task tool, test with minimal prompt
+```
+
+**Required agents:**
+- ✅ `create-worktree` - Creates isolated git worktrees for parallel development
+- ✅ `merge-worktree` - Safely merges worktree changes back with validation
+
+**If agent missing:**
+```
+❌ FATAL: Required agent '[agent-name]' not available.
+
+   This craft.md workflow requires Claude Code subagents:
+   - create-worktree (for worktree creation)
+   - merge-worktree (for safe merge operations)
+
+   Please verify:
+   1. Claude Code version supports these agents
+   2. Agent definitions exist in your configuration
+   3. No agent name changes occurred
+
+   CANNOT proceed without these agents.
+```
+
+### 2. Required Command-Line Tools
+
+**Check tool availability:**
+```bash
+git --version        # REQUIRED - Git for version control
+npm --version        # REQUIRED - npm for package management
+```
+
+**Required tools:**
+- ✅ `git` - Version control (worktree operations, commits, branches)
+- ✅ `npm` - Package management (install, test, build)
+
+**If tool missing:**
+```
+❌ FATAL: Required command '[tool]' not found in PATH.
+
+   Please install missing tools:
+   - git: https://git-scm.com/downloads
+   - npm: https://nodejs.org/ (includes npm)
+
+   Verify installation with: [tool] --version
+
+   CANNOT proceed without these tools.
+```
+
+### 3. Required MCP Servers (Optional but Recommended)
+
+**Check MCP server availability:**
+```bash
+# Verify in Claude Code MCP registry
+# Check ~/.claude_desktop_config.json
+```
+
+**Recommended MCP servers:**
+- 🔧 `mcp_gas` - Google Apps Script development (if working with GAS projects)
+
+**If MCP server recommended but missing:**
+```
+⚠️ WARNING: Recommended MCP server 'mcp_gas' not available.
+
+   This is not fatal, but limits capabilities:
+   - Cannot use gas_* tools for GAS development
+   - Cannot execute remote GAS operations
+
+   To enable: Configure in ~/.claude_desktop_config.json
+
+   Proceeding without mcp_gas support...
+```
+
+### 4. Validation Checklist
+
+Before proceeding to "Check for existing session":
+
+- [ ] `create-worktree` agent available (FATAL if missing)
+- [ ] `merge-worktree` agent available (FATAL if missing)
+- [ ] `git` command available (FATAL if missing)
+- [ ] `npm` command available (FATAL if missing)
+- [ ] `mcp_gas` MCP server available (WARNING if missing, proceed anyway)
+
+**If any FATAL item missing:**
+- **STOP immediately**
+- **Report missing dependencies to user**
+- **DO NOT proceed with worktree creation**
+- **DO NOT create any directories**
+
+**If all FATAL items present:**
+- ✅ Environment validated
+- ✅ Safe to proceed with craft workflow
+- ✅ Continue to "Check for existing session" below
+
+---
 
 **Check for existing session (Context Rehydration):**
 
 Before initializing new directories, check if we're resuming existing work:
 
-Look for `<worktree>/planning/GUIDE.md`. If it exists, this is a resume/update situation:
+Look for `<WT>/planning/GUIDE.md`. If it exists, this is a resume/update situation:
 
 1. **Read GUIDE.md** to understand current state:
    - What stages have been confirmed? (check "Knowledge Checkpoints" section)
@@ -137,8 +246,8 @@ Look for `<worktree>/planning/GUIDE.md`. If it exists, this is a resume/update s
    - What files exist? (check "Key Documents Reference" section)
 
 2. **Read all existing knowledge files** mentioned in GUIDE.md:
-   - Read confirmed knowledge files: `<worktree>/planning/*.md` (use-cases, requirements, architecture, tooling, assumptions, effects-boundaries, task-definition)
-   - Read journal files if needed for context: `<worktree>/planning/p1-*.md`, `<worktree>/planning/p2*.md`
+   - Read confirmed knowledge files: `<WT>/planning/*.md` (use-cases, requirements, architecture, tooling, assumptions, effects-boundaries, task-definition)
+   - Read journal files if needed for context: `<WT>/planning/p1-*.md`, `<WT>/planning/p2*.md`
    - Bring confirmed knowledge back into working context
    - Note: You're updating/adding to this work, not starting fresh
 
@@ -160,32 +269,32 @@ If GUIDE.md doesn't exist, this is greenfield - proceed with directory initializ
 
 **Establish directory structure:**
 Create these directories in the worktree:
-- `<worktree>/src/` - Implementation code
-- `<worktree>/test/` - Mocha/Chai test files
-- `<worktree>/planning/` - All planning artifacts (mostly FLAT structure)
-- `<worktree>/planning/tasks-pending/` - Pending task files
-- `<worktree>/planning/tasks-completed/` - Completed task files
-- `<worktree>/docs/` - Documentation
+- `<WT>/src/` - Implementation code
+- `<WT>/test/` - Mocha/Chai test files
+- `<WT>/planning/` - All planning artifacts (mostly FLAT structure)
+- `<WT>/planning/tasks-pending/` - Pending task files
+- `<WT>/planning/tasks-completed/` - Completed task files
+- `<WT>/docs/` - Documentation
 
 **File organization principles:**
 
 **Knowledge Files** (no prefix - timeless understanding):
-- `<worktree>/planning/*.md` - Core knowledge: use-cases, requirements, architecture, tooling, assumptions, effects-boundaries, quality-criteria, test-plan, etc.
+- `<WT>/planning/*.md` - Core knowledge: use-cases, requirements, architecture, tooling, assumptions, effects-boundaries, quality-criteria, test-plan, etc.
 - These capture WHAT we understand and are referenced by later phases
 
 **Journal Files** (p<N>- prefix - phase activity tracking):
-- `<worktree>/planning/p1-*.md` - Phase 1 stage journals documenting exploration process
-- `<worktree>/planning/p2*.md` - Phase 2/2-B/2-C/2-D planning journals
+- `<WT>/planning/p1-*.md` - Phase 1 stage journals documenting exploration process
+- `<WT>/planning/p2*.md` - Phase 2/2-B/2-C/2-D planning journals
 - These capture HOW we got there and are historical records
 
 **Task Files** (organized in folders):
-- `<worktree>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
-- `<worktree>/planning/tasks-completed/task-NNN-[name].md` - Tasks finished (moved from pending)
+- `<WT>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
+- `<WT>/planning/tasks-completed/task-NNN-[name].md` - Tasks finished (moved from pending)
 
 **State Tracking**:
-- `<worktree>/planning/GUIDE.md` - Records all phase/stage transitions with timestamps and confirmations
+- `<WT>/planning/GUIDE.md` - Records all phase/stage transitions with timestamps and confirmations
 
-**Create the master navigation guide** at `<worktree>/planning/GUIDE.md`:
+**Create the master navigation guide** at `<WT>/planning/GUIDE.md`:
 
 ```markdown
 # Craft Session Guide: Your Knowledge Companion
@@ -294,8 +403,8 @@ graph TD
 - **Last Updated:** [ISO timestamp]
 
 **Active Files Being Worked On:**
-- Primary: `<worktree>/planning/[filename]` - [brief status]
-- Secondary: `<worktree>/planning/[filename]` - [brief status]
+- Primary: `<WT>/planning/[filename]` - [brief status]
+- Secondary: `<WT>/planning/[filename]` - [brief status]
 
 **Next Action Required:**
 [Clear description of what needs to happen next - user review, agent work, iteration, etc.]
@@ -334,31 +443,31 @@ This section records every transition between phases and stages with timestamps 
 
 **Where We Are Right Now:**
 Check the most recent knowledge file to see which phase we're working on:
-- `<worktree>/planning/use-cases.md` → Understanding who will use this and what they'll do (Phase 1 Stage 1)
-- `<worktree>/planning/requirements.md` → Understanding quality and functional requirements (Phase 1 Stage 2)
-- `<worktree>/planning/architecture.md` → Understanding the existing landscape and how this fits (Phase 1 Stage 3)
-- `<worktree>/planning/assumptions.md` → Making our assumptions explicit and validating them (Phase 1 Stage 4)
-- `<worktree>/planning/effects-boundaries.md` → Understanding ripple effects and what we won't do (Phase 1 Stage 5)
-- `<worktree>/planning/task-definition.md` → Bringing everything together into shared understanding (Phase 1 Stage 6)
+- `<WT>/planning/use-cases.md` → Understanding who will use this and what they'll do (Phase 1 Stage 1)
+- `<WT>/planning/requirements.md` → Understanding quality and functional requirements (Phase 1 Stage 2)
+- `<WT>/planning/architecture.md` → Understanding the existing landscape and how this fits (Phase 1 Stage 3)
+- `<WT>/planning/assumptions.md` → Making our assumptions explicit and validating them (Phase 1 Stage 4)
+- `<WT>/planning/effects-boundaries.md` → Understanding ripple effects and what we won't do (Phase 1 Stage 5)
+- `<WT>/planning/task-definition.md` → Bringing everything together into shared understanding (Phase 1 Stage 6)
 
 If we're past Phase 1 (all stages confirmed):
-- `<worktree>/planning/quality-criteria.md` exists → We've defined how to measure success (Phase 2)
-- `<worktree>/planning/test-plan.md` exists → We've designed our test strategy (Phase 2-B)
-- `<worktree>/planning/infrastructure-ids.md` exists → We've identified infrastructure needs (Phase 2-C)
-- `<worktree>/planning/tasks-pending/task-*.md` exist → We've broken down work into tasks (Phase 2-D)
-- `<worktree>/planning/tasks-completed/task-*.md` exist → We're executing and completing tasks (Phase 3)
-- `<worktree>/planning/learnings.md` exists → We're capturing insights from completed tasks (Phase 3)
+- `<WT>/planning/quality-criteria.md` exists → We've defined how to measure success (Phase 2)
+- `<WT>/planning/test-plan.md` exists → We've designed our test strategy (Phase 2-B)
+- `<WT>/planning/infrastructure-ids.md` exists → We've identified infrastructure needs (Phase 2-C)
+- `<WT>/planning/tasks-pending/task-*.md` exist → We've broken down work into tasks (Phase 2-D)
+- `<WT>/planning/tasks-completed/task-*.md` exist → We're executing and completing tasks (Phase 3)
+- `<WT>/planning/learnings.md` exists → We're capturing insights from completed tasks (Phase 3)
 
 **Latest Confirmed Knowledge:**
 Look for "✓ CONFIRMED" markers in knowledge files to see what's been validated.
 
 **Phase/Stage Journals:**
 Check journal files (p<N>- prefix) to see the exploration process:
-- `<worktree>/planning/p1-stage1-journal.md` through `p1-stage6-journal.md` → Phase 1 stage exploration
-- `<worktree>/planning/p2-planning-journal.md` → Phase 2 planning process
-- `<worktree>/planning/p2b-test-design-journal.md` → Phase 2-B test design thinking
-- `<worktree>/planning/p2c-infra-planning-journal.md` → Phase 2-C infrastructure planning
-- `<worktree>/planning/p2d-task-breakdown-journal.md` → Phase 2-D task decomposition process
+- `<WT>/planning/p1-stage1-journal.md` through `p1-stage6-journal.md` → Phase 1 stage exploration
+- `<WT>/planning/p2-planning-journal.md` → Phase 2 planning process
+- `<WT>/planning/p2b-test-design-journal.md` → Phase 2-B test design thinking
+- `<WT>/planning/p2c-infra-planning-journal.md` → Phase 2-C infrastructure planning
+- `<WT>/planning/p2d-task-breakdown-journal.md` → Phase 2-D task decomposition process
 
 ## Knowledge Checkpoints
 
@@ -366,11 +475,11 @@ These aren't just milestones - they're moments where understanding crystallized.
 
 **Stage 1 - Use Cases: What Users Will Experience**
 - **Knowledge Files:**
-  * `<worktree>/planning/use-cases.md` (primary + related use cases, anti-cases, interactions)
-  * `<worktree>/planning/p1-stage-1-disambiguation.md` (terminology clarifications)
-  * `<worktree>/planning/p1-stage-1-research.md` (technical context, dependencies, actors, external services)
-  * `<worktree>/planning/p1-stage-1-constraints.md` (contradictions resolved, constraints identified)
-- **Journal File:** `<worktree>/planning/p1-stage1-journal.md` (exploration process)
+  * `<WT>/planning/use-cases.md` (primary + related use cases, anti-cases, interactions)
+  * `<WT>/planning/p1-stage-1-disambiguation.md` (terminology clarifications)
+  * `<WT>/planning/p1-stage-1-research.md` (technical context, dependencies, actors, external services)
+  * `<WT>/planning/p1-stage-1-constraints.md` (contradictions resolved, constraints identified)
+- **Journal File:** `<WT>/planning/p1-stage1-journal.md` (exploration process)
 - Confirmed: [date/time stamp when user confirmed]
 - **Disambiguation**: [Key terms clarified, acronyms expanded, scope boundaries defined]
 - **Research Findings**: [Dependencies discovered, external services mapped, actors identified, implied requirements]
@@ -383,8 +492,8 @@ These aren't just milestones - they're moments where understanding crystallized.
 - This shaped our understanding by: [how research and constraint resolution influenced our mental model]
 
 **Stage 2 - Requirements: What Quality Means Here**
-- **Knowledge File:** `<worktree>/planning/requirements.md` (functional + non-functional with research)
-- **Journal File:** `<worktree>/planning/p1-stage2-journal.md` (requirements discovery)
+- **Knowledge File:** `<WT>/planning/requirements.md` (functional + non-functional with research)
+- **Journal File:** `<WT>/planning/p1-stage2-journal.md` (requirements discovery)
 - Confirmed: [date/time]
 - **Requirements Research**: [Quality attributes researched, domain standards consulted, gaps identified]
 - **Functional Requirements**: [N functional requirements derived from use cases]
@@ -397,9 +506,9 @@ These aren't just milestones - they're moments where understanding crystallized.
 - This constrained our options by: [how requirements research narrowed the solution space]
 
 **Stage 3 - Architecture: How This Fits the World**
-- **Knowledge File:** `<worktree>/planning/architecture.md`
-- **Tooling File:** `<worktree>/planning/tooling.md` (discovery + integration)
-- **Journal File:** `<worktree>/planning/p1-stage3-journal.md` (research and decisions)
+- **Knowledge File:** `<WT>/planning/architecture.md`
+- **Tooling File:** `<WT>/planning/tooling.md` (discovery + integration)
+- **Journal File:** `<WT>/planning/p1-stage3-journal.md` (research and decisions)
 - Confirmed: [date/time]
 - Core insight: [key learning about existing systems and integration]
 - Patterns discovered: [what already exists that we can use or must work with]
@@ -409,27 +518,27 @@ These aren't just milestones - they're moments where understanding crystallized.
 - **Reference**: See "Tooling Philosophy" section in craft.md for methodology used during discovery
 
 **Stage 4 - Assumptions: What We Think We Know**
-- **Knowledge File:** `<worktree>/planning/assumptions.md`
-- **Journal File:** `<worktree>/planning/p1-stage4-journal.md` (validation activities)
+- **Knowledge File:** `<WT>/planning/assumptions.md`
+- **Journal File:** `<WT>/planning/p1-stage4-journal.md` (validation activities)
 - Confirmed: [date/time]
 - Core insight: [key learning about our confidence and risks]
 - Critical assumptions: [the ones that matter most]
 - This exposed: [where we might be wrong]
 
 **Stage 5 - Effects & Boundaries: Ripples and Limits**
-- **Knowledge File:** `<worktree>/planning/effects-boundaries.md`
-- **Journal File:** `<worktree>/planning/p1-stage5-journal.md` (effects analysis)
+- **Knowledge File:** `<WT>/planning/effects-boundaries.md`
+- **Journal File:** `<WT>/planning/p1-stage5-journal.md` (effects analysis)
 - Confirmed: [date/time]
 - Core insight: [key learning about second-order effects]
 - Boundaries set: [what we explicitly won't do]
 - This protected us from: [scope creep or unintended consequences]
 
 **Stage 6 - Synthesis: The Complete Picture**
-- **Knowledge File:** `<worktree>/planning/task-definition.md` (synthesized understanding)
-- **Journal File:** `<worktree>/planning/p1-stage6-journal.md` (synthesis process)
+- **Knowledge File:** `<WT>/planning/task-definition.md` (synthesized understanding)
+- **Journal File:** `<WT>/planning/p1-stage6-journal.md` (synthesis process)
 - Confirmed: [date/time]
 - Core insight: [the integrated understanding]
-- Complete task definition created: `<worktree>/planning/task-definition.md`
+- Complete task definition created: `<WT>/planning/task-definition.md`
 - Ready for implementation: [yes/no and why]
 
 ## Decision History & Rationale
@@ -575,31 +684,27 @@ At each stage quality gate and phase transition, explicitly check for material c
 - ❌ DO NOT use `pushd` or `popd` commands
 - ❌ DO NOT change working directory in any way
 
-**✅ ALWAYS use full paths with `<worktree>` prefix:**
-- ✅ File operations: `"<worktree>/planning/file.md"`
-- ✅ Git operations: `git -C "<worktree>" [command]`
+**✅ ALWAYS use full paths with `<WT>` prefix:**
+- ✅ File operations: `"<WT>/planning/file.md"`
+- ✅ Git operations: `git -C "<WT>" [command]`
 - ✅ All paths must be absolute, never relative
 
-**Why this matters:**
-- Prevents directory state corruption
-- Maintains isolation from original project location
-- Enables safe parallel operations
-- Ensures all operations target correct worktree
+**Why:** Prevents directory corruption, maintains isolation, enables parallel ops, ensures correct worktree targeting.
 
 **Examples:**
 ```bash
-# CORRECT - Always use <worktree> prefix
-Write: "<worktree>/planning/requirements.md"
-Read: "<worktree>/src/module.js"
-Git: git -C "<worktree>" status
+# CORRECT - Always use <WT> prefix
+Write: "<WT>/planning/requirements.md"
+Read: "<WT>/src/module.js"
+Git: git -C "<WT>" status
 
 # WRONG - Never do this
-cd <worktree>           # ❌ NEVER
-git status              # ❌ NEVER (missing -C "<worktree>")
+cd <WT>           # ❌ NEVER
+git status              # ❌ NEVER (missing -C "<WT>")
 ../planning/file.md     # ❌ NEVER (relative path)
 ```
 
-**Every command. Every file. Every operation. Use `<worktree>` prefix and `git -C`.**
+**All commands/files/operations: Use `<WT>` prefix and `git -C`.**
 
 ## If You Feel Lost
 
@@ -625,50 +730,50 @@ You have enough context now. Trust what you've documented. Trust the process. Ke
 ## Key Documents Reference
 
 **Knowledge Files (Timeless Understanding - no prefix):**
-- `<worktree>/planning/use-cases.md` - Primary + related use cases, anti-cases, interactions (Stage 1)
-- `<worktree>/planning/p1-stage-1-disambiguation.md` - Terminology clarifications, acronyms, scope boundaries (Stage 1 Step 1)
-- `<worktree>/planning/p1-stage-1-deep-discovery.md` - System/library/repo deep discovery with loop, MCP exploration (Stage 1 Step 1.5)
-- `<worktree>/planning/p1-stage-1-research.md` - Dependencies, external services, actors, technical context (Stage 1 Step 3)
-- `<worktree>/planning/p1-stage-1-constraints.md` - Contradictions resolved, constraints, assumptions (Stage 1 Step 4)
-- `<worktree>/planning/requirements.md` - Functional + non-functional requirements with research and traceability (Stage 2)
-- `<worktree>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies (Stage 3)
-- `<worktree>/planning/tooling.md` - MCP servers, APIs, subagents, discovery + integration (Stage 3)
-- `<worktree>/planning/assumptions.md` - Risk assessment, confidence levels, validation needs (Stage 4)
-- `<worktree>/planning/effects-boundaries.md` - Second-order effects, scope limits, anti-cases (Stage 5)
-- `<worktree>/planning/task-definition.md` - Complete synthesized understanding (Stage 6)
-- `<worktree>/planning/quality-criteria.md` - Measurable success criteria (Phase 2)
-- `<worktree>/planning/test-plan.md` - Test specifications and strategy (Phase 2-B)
-- `<worktree>/planning/project-structure.md` - Directory layout, code organization (Phase 2-C)
-- `<worktree>/planning/tech-relationships.md` - Component dependencies, data flow (Phase 2-C)
-- `<worktree>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials (Phase 2-C)
-- `<worktree>/planning/execution-strategy.md` - Parallel execution strategy, tier-based task organization, timeline estimates (Phase 2-C)
-- `<worktree>/planning/implementation-steps.md` - Task ordering, dependency phases (Phase 2-D)
-- `<worktree>/planning/feature-tasks.md` - Visual feature dependency map with Mermaid chart, groupings, relationships (Phase 2-D)
-- `<worktree>/planning/learnings.md` - Cumulative insights from completed tasks (Phase 3)
-- `<worktree>/README.md` - Project overview, setup, usage (updated with each feature in Phase 3)
+- `<WT>/planning/use-cases.md` - Primary + related use cases, anti-cases, interactions (Stage 1)
+- `<WT>/planning/p1-stage-1-disambiguation.md` - Terminology clarifications, acronyms, scope boundaries (Stage 1 Step 1)
+- `<WT>/planning/p1-stage-1-deep-discovery.md` - System/library/repo deep discovery with loop, MCP exploration (Stage 1 Step 1.5)
+- `<WT>/planning/p1-stage-1-research.md` - Dependencies, external services, actors, technical context (Stage 1 Step 3)
+- `<WT>/planning/p1-stage-1-constraints.md` - Contradictions resolved, constraints, assumptions (Stage 1 Step 4)
+- `<WT>/planning/requirements.md` - Functional + non-functional requirements with research and traceability (Stage 2)
+- `<WT>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies (Stage 3)
+- `<WT>/planning/tooling.md` - MCP servers, APIs, subagents, discovery + integration (Stage 3)
+- `<WT>/planning/assumptions.md` - Risk assessment, confidence levels, validation needs (Stage 4)
+- `<WT>/planning/effects-boundaries.md` - Second-order effects, scope limits, anti-cases (Stage 5)
+- `<WT>/planning/task-definition.md` - Complete synthesized understanding (Stage 6)
+- `<WT>/planning/quality-criteria.md` - Measurable success criteria (Phase 2)
+- `<WT>/planning/test-plan.md` - Test specifications and strategy (Phase 2-B)
+- `<WT>/planning/project-structure.md` - Directory layout, code organization (Phase 2-C)
+- `<WT>/planning/tech-relationships.md` - Component dependencies, data flow (Phase 2-C)
+- `<WT>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials (Phase 2-C)
+- `<WT>/planning/execution-strategy.md` - Parallel execution strategy, tier-based task organization, timeline estimates (Phase 2-C)
+- `<WT>/planning/implementation-steps.md` - Task ordering, dependency phases (Phase 2-D)
+- `<WT>/planning/feature-tasks.md` - Visual feature dependency map with Mermaid chart, groupings, relationships (Phase 2-D)
+- `<WT>/planning/learnings.md` - Cumulative insights from completed tasks (Phase 3)
+- `<WT>/README.md` - Project overview, setup, usage (updated with each feature in Phase 3)
 
 **Journal Files (Phase Activity Tracking - p<N>- prefix):**
-- `<worktree>/planning/p1-stage1-journal.md` - Stage 1 complete exploration: disambiguation, deep discovery loop, research, constraints, use cases
-- `<worktree>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery: quality attributes, domain research, gaps
-- `<worktree>/planning/p1-stage3-journal.md` - Stage 3 architecture research and decisions
-- `<worktree>/planning/p1-stage4-journal.md` - Stage 4 assumption validation experiments
-- `<worktree>/planning/p1-stage5-journal.md` - Stage 5 effects analysis and boundary discussions
-- `<worktree>/planning/p1-stage6-journal.md` - Stage 6 synthesis process and integration
-- `<worktree>/planning/p2-planning-journal.md` - Phase 2 criteria definition process
-- `<worktree>/planning/p2b-test-design-journal.md` - Phase 2-B test design thinking
-- `<worktree>/planning/p2c-infra-planning-journal.md` - Phase 2-C infrastructure decisions
-- `<worktree>/planning/p2d-task-breakdown-journal.md` - Phase 2-D task decomposition process
+- `<WT>/planning/p1-stage1-journal.md` - Stage 1 complete exploration: disambiguation, deep discovery loop, research, constraints, use cases
+- `<WT>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery: quality attributes, domain research, gaps
+- `<WT>/planning/p1-stage3-journal.md` - Stage 3 architecture research and decisions
+- `<WT>/planning/p1-stage4-journal.md` - Stage 4 assumption validation experiments
+- `<WT>/planning/p1-stage5-journal.md` - Stage 5 effects analysis and boundary discussions
+- `<WT>/planning/p1-stage6-journal.md` - Stage 6 synthesis process and integration
+- `<WT>/planning/p2-planning-journal.md` - Phase 2 criteria definition process
+- `<WT>/planning/p2b-test-design-journal.md` - Phase 2-B test design thinking
+- `<WT>/planning/p2c-infra-planning-journal.md` - Phase 2-C infrastructure decisions
+- `<WT>/planning/p2d-task-breakdown-journal.md` - Phase 2-D task decomposition process
 
 **Task Files (Organized in Folders):**
-- `<worktree>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
-- `<worktree>/planning/tasks-completed/task-NNN-[name].md` - Completed tasks with outcomes
+- `<WT>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
+- `<WT>/planning/tasks-completed/task-NNN-[name].md` - Completed tasks with outcomes
 
 **State Tracking:**
-- `<worktree>/planning/GUIDE.md` - Phase/stage transitions, session state, navigation aid
+- `<WT>/planning/GUIDE.md` - Phase/stage transitions, session state, navigation aid
 
 **Delivery Files:**
-- `<worktree>/docs/delivery-summary.md` - Final delivery package (Phase 4)
-- `<worktree>/docs/crafting-wisdom.md` - Reusable patterns and recommendations (Phase 4)
+- `<WT>/docs/delivery-summary.md` - Final delivery package (Phase 4)
+- `<WT>/docs/crafting-wisdom.md` - Reusable patterns and recommendations (Phase 4)
 
 **Tooling Methodology:**
 - See "Tooling Philosophy" section in craft.md for discovery and evaluation methodology
@@ -701,7 +806,7 @@ This section shows all files created during the craft process, organized by type
 
 **Directory Structure:**
 ```
-<worktree>/
+<WT>/
 ├── src/              # Implementation code
 ├── test/             # Test files
 ├── docs/             # Final delivery docs
@@ -719,40 +824,40 @@ This section shows all files created during the craft process, organized by type
 ```
 
 **Knowledge Files (15 files - no prefix, timeless understanding):**
-1. `<worktree>/planning/use-cases.md` - User journeys, actors, triggers, flows, outcomes
-2. `<worktree>/planning/requirements.md` - Functional requirements (from use-cases) + Non-functional requirements (performance, security, reliability, maintainability, scalability)
-3. `<worktree>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies, state transitions
-4. `<worktree>/planning/tooling.md` - MCP servers, APIs, subagents, external services, integration approaches (combines discovery + integration)
-5. `<worktree>/planning/assumptions.md` - Risk assessment, confidence levels, validation needs, what could be wrong
-6. `<worktree>/planning/effects-boundaries.md` - Second-order effects, scope limits, anti-cases, what we explicitly won't do
-7. `<worktree>/planning/task-definition.md` - Complete synthesized understanding (Stage 6 output)
-8. `<worktree>/planning/quality-criteria.md` - Measurable success criteria, exit thresholds
-9. `<worktree>/planning/test-plan.md` - Test specifications, categories, strategies
-10. `<worktree>/planning/project-structure.md` - Directory layout, code organization, migration strategy
-11. `<worktree>/planning/tech-relationships.md` - Component dependencies, data flow, interaction patterns
-12. `<worktree>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials, rate limits, timeouts
-13. `<worktree>/planning/implementation-steps.md` - Task ordering, dependency phases, prioritization principles
-14. `<worktree>/planning/learnings.md` - Cumulative insights, reusable patterns, recommendations for future tasks
-15. `<worktree>/README.md` - **ALWAYS updated** in Phase 3 Step 5 with each feature completion
+1. `<WT>/planning/use-cases.md` - User journeys, actors, triggers, flows, outcomes
+2. `<WT>/planning/requirements.md` - Functional requirements (from use-cases) + Non-functional requirements (performance, security, reliability, maintainability, scalability)
+3. `<WT>/planning/architecture.md` - Technology decisions, integration patterns, system dependencies, state transitions
+4. `<WT>/planning/tooling.md` - MCP servers, APIs, subagents, external services, integration approaches (combines discovery + integration)
+5. `<WT>/planning/assumptions.md` - Risk assessment, confidence levels, validation needs, what could be wrong
+6. `<WT>/planning/effects-boundaries.md` - Second-order effects, scope limits, anti-cases, what we explicitly won't do
+7. `<WT>/planning/task-definition.md` - Complete synthesized understanding (Stage 6 output)
+8. `<WT>/planning/quality-criteria.md` - Measurable success criteria, exit thresholds
+9. `<WT>/planning/test-plan.md` - Test specifications, categories, strategies
+10. `<WT>/planning/project-structure.md` - Directory layout, code organization, migration strategy
+11. `<WT>/planning/tech-relationships.md` - Component dependencies, data flow, interaction patterns
+12. `<WT>/planning/infrastructure-ids.md` - Service IDs, endpoints, credentials, rate limits, timeouts
+13. `<WT>/planning/implementation-steps.md` - Task ordering, dependency phases, prioritization principles
+14. `<WT>/planning/learnings.md` - Cumulative insights, reusable patterns, recommendations for future tasks
+15. `<WT>/README.md` - **ALWAYS updated** in Phase 3 Step 5 with each feature completion
 
 **Journal Files (10 files - p<N>- prefix, phase activity tracking):**
-1. `<worktree>/planning/p1-stage1-journal.md` - Stage 1 use case exploration process, decisions, user feedback
-2. `<worktree>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery, tooling needs analysis
-3. `<worktree>/planning/p1-stage3-journal.md` - Stage 3 architecture research, technology scoring, alternatives considered
-4. `<worktree>/planning/p1-stage4-journal.md` - Stage 4 assumption validation activities, experiments run
-5. `<worktree>/planning/p1-stage5-journal.md` - Stage 5 effects analysis process, boundary discussions
-6. `<worktree>/planning/p1-stage6-journal.md` - Stage 6 synthesis process, integration challenges
-7. `<worktree>/planning/p2-planning-journal.md` - Phase 2 criteria definition process, scoring decisions
-8. `<worktree>/planning/p2b-test-design-journal.md` - Phase 2-B test design thinking, edge case discovery
-9. `<worktree>/planning/p2c-infra-planning-journal.md` - Phase 2-C infrastructure decisions, tooling integration planning
-10. `<worktree>/planning/p2d-task-breakdown-journal.md` - Phase 2-D task decomposition process, dependency analysis
+1. `<WT>/planning/p1-stage1-journal.md` - Stage 1 use case exploration process, decisions, user feedback
+2. `<WT>/planning/p1-stage2-journal.md` - Stage 2 requirements discovery, tooling needs analysis
+3. `<WT>/planning/p1-stage3-journal.md` - Stage 3 architecture research, technology scoring, alternatives considered
+4. `<WT>/planning/p1-stage4-journal.md` - Stage 4 assumption validation activities, experiments run
+5. `<WT>/planning/p1-stage5-journal.md` - Stage 5 effects analysis process, boundary discussions
+6. `<WT>/planning/p1-stage6-journal.md` - Stage 6 synthesis process, integration challenges
+7. `<WT>/planning/p2-planning-journal.md` - Phase 2 criteria definition process, scoring decisions
+8. `<WT>/planning/p2b-test-design-journal.md` - Phase 2-B test design thinking, edge case discovery
+9. `<WT>/planning/p2c-infra-planning-journal.md` - Phase 2-C infrastructure decisions, tooling integration planning
+10. `<WT>/planning/p2d-task-breakdown-journal.md` - Phase 2-D task decomposition process, dependency analysis
 
 **Task Files (organized in folders, state in folder name):**
-- `<worktree>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
-- `<worktree>/planning/tasks-completed/task-NNN-[name].md` - Completed tasks (moved from pending on completion)
+- `<WT>/planning/tasks-pending/task-NNN-[name].md` - Tasks awaiting implementation
+- `<WT>/planning/tasks-completed/task-NNN-[name].md` - Completed tasks (moved from pending on completion)
 
 **Navigation & State Tracking:**
-- `<worktree>/planning/GUIDE.md` - Records all phase/stage transitions with timestamps, confirmations, and state tracking
+- `<WT>/planning/GUIDE.md` - Records all phase/stage transitions with timestamps, confirmations, and state tracking
 
 **File Relationships:**
 - use-cases.md → requirements.md (use cases drive functional requirements)
@@ -792,45 +897,41 @@ The code will come easier when the understanding is clear. Take the time to unde
 - ❌ DO NOT change working directory in any way
 
 **✅ ALWAYS use full paths:**
-- ✅ All file operations MUST prefix with `<worktree>`
-- ✅ All git operations MUST use: `git -C "<worktree>" [command]`
+- ✅ All file operations MUST prefix with `<WT>`
+- ✅ All git operations MUST use: `git -C "<WT>" [command]`
 - ✅ All paths MUST be absolute, never relative
 
-**Why this matters:**
-- Prevents directory state corruption across operations
-- Enables parallel operations without conflicts
-- Ensures operations target correct worktree
-- Maintains isolation from original project location
+**Why:** Prevents directory corruption, enables parallel ops without conflicts, ensures correct worktree targeting, maintains isolation.
 
 **Examples:**
 ```bash
-# File operations - ALWAYS prefix with <worktree>
-Write: "<worktree>/planning/task-definition.md"
-Read: "<worktree>/test/module.test.js"
-Mkdir: "<worktree>/src/"
+# File operations - ALWAYS prefix with <WT>
+Write: "<WT>/planning/task-definition.md"
+Read: "<WT>/test/module.test.js"
+Mkdir: "<WT>/src/"
 
-# Git operations - ALWAYS use git -C "<worktree>"
-git -C "<worktree>" status
-git -C "<worktree>" add planning/
-git -C "<worktree>" commit -m "message"
-git -C "<worktree>" log --oneline
+# Git operations - ALWAYS use git -C "<WT>"
+git -C "<WT>" status
+git -C "<WT>" add planning/
+git -C "<WT>" commit -m "message"
+git -C "<WT>" log --oneline
 
 # WRONG - Never do this:
-cd <worktree>  # ❌ NEVER
+cd <WT>  # ❌ NEVER
 git status     # ❌ NEVER (missing -C)
 ./src/file.js  # ❌ NEVER (relative path)
 ```
 
-**Every command. Every file. Every time. Use `<worktree>` prefix and `git -C`.**
+**All commands/files: Use `<WT>` prefix and `git -C`.**
 
 ---
 
 ## Phase 1: Progressive Understanding Through Quality Gates
 
 **📝 Documentation Output:**
-- **Knowledge Files Created:** `<worktree>/planning/use-cases.md`, `<worktree>/planning/requirements.md`, `<worktree>/planning/architecture.md`, `<worktree>/planning/tooling.md`, `<worktree>/planning/assumptions.md`, `<worktree>/planning/effects-boundaries.md`, `<worktree>/planning/task-definition.md`
-- **Journal Files Created:** `<worktree>/planning/p1-stage1-journal.md` through `p1-stage6-journal.md`
-- **State Tracking:** `<worktree>/planning/GUIDE.md` updated with stage transitions and confirmations
+- **Knowledge Files Created:** `<WT>/planning/use-cases.md`, `<WT>/planning/requirements.md`, `<WT>/planning/architecture.md`, `<WT>/planning/tooling.md`, `<WT>/planning/assumptions.md`, `<WT>/planning/effects-boundaries.md`, `<WT>/planning/task-definition.md`
+- **Journal Files Created:** `<WT>/planning/p1-stage1-journal.md` through `p1-stage6-journal.md`
+- **State Tracking:** `<WT>/planning/GUIDE.md` updated with stage transitions and confirmations
 - **Purpose:** Build deep understanding of user needs, quality requirements, technical landscape, risks, and boundaries through 6 progressive stages
 - **Referenced By:** Phase 2 (quality criteria, test planning), Phase 2-C (infrastructure), Phase 2-D (task decomposition), Phase 3 (implementation planning)
 
@@ -911,7 +1012,7 @@ After all searches complete, I'll consolidate findings...
 [Each stage provides specific exploration questions and considerations below]
 
 **Document with Reasoning:**
-**Document to Knowledge File** (`<worktree>/planning/[stage-name].md`) and **Journal File** (`<worktree>/planning/p1-stageN-journal.md`):
+**Document to Knowledge File** (`<WT>/planning/[stage-name].md`) and **Journal File** (`<WT>/planning/p1-stageN-journal.md`):
 - Core findings and discoveries
 - **Your reasoning:** Not just conclusions, but WHY you reached them
 - Confidence levels: HIGH/MEDIUM/LOW for assumptions
@@ -977,7 +1078,7 @@ Before accepting confirmation, evaluate if user feedback reveals a material chan
 
 ## GUIDE.md Update Protocol
 
-When a stage is confirmed, update `<worktree>/planning/GUIDE.md`:
+When a stage is confirmed, update `<WT>/planning/GUIDE.md`:
 
 **Section: "The Story So Far" → "What We've Learned":**
 Add line using stage-appropriate verb:
@@ -1122,7 +1223,7 @@ At stage/phase end, verify completion:
 **Journal File Naming:**
 - Phase 1 stages: `p1-stage[N]-journal.md` (e.g., `p1-stage1-journal.md`)
 - Phase 2 variants: `p2-planning-journal.md`, `p2b-test-design-journal.md`, `p2c-infra-planning-journal.md`, `p2d-task-decomp-journal.md`
-- Phase 3: Task-specific journals in task completion notes (stored in `<worktree>/planning/tasks-completed/task-NNN-[name].md`)
+- Phase 3: Task-specific journals in task completion notes (stored in `<WT>/planning/tasks-completed/task-NNN-[name].md`)
 - Phase 4: `p4-reflection-journal.md`
 
 ---
@@ -1131,22 +1232,22 @@ At stage/phase end, verify completion:
 
 **📥 Input Files:**
 - User's epic/task description (from initial request)
-- `<worktree>/planning/GUIDE.md` (if resuming session)
+- `<WT>/planning/GUIDE.md` (if resuming session)
 
 **📤 Output Files:**
-- `<worktree>/planning/use-cases.md` (knowledge file - primary + related use cases with complete access paths, entry points, prerequisites, runtime lifecycle, exit points, API interaction lifecycle, anti-cases, and interactions)
-- `<worktree>/planning/p1-stage-1-disambiguation.md` (knowledge file - terminology clarifications)
-- `<worktree>/planning/p1-stage-1-deep-discovery.md` (knowledge file - deep system/library/repository discovery with iteration loop, MCP exploration)
-- `<worktree>/planning/p1-stage-1-research.md` (knowledge file - technical context, dependencies, actors)
-- `<worktree>/planning/p1-stage-1-constraints.md` (knowledge file - contradictions resolved, constraints)
-- `<worktree>/planning/p1-stage1-journal.md` (journal file - complete exploration: disambiguation, deep discovery loop, research, constraints, use cases)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 1 confirmation and transition log)
+- `<WT>/planning/use-cases.md` (knowledge file - primary + related use cases with complete access paths, entry points, prerequisites, runtime lifecycle, exit points, API interaction lifecycle, anti-cases, and interactions)
+- `<WT>/planning/p1-stage-1-disambiguation.md` (knowledge file - terminology clarifications)
+- `<WT>/planning/p1-stage-1-deep-discovery.md` (knowledge file - deep system/library/repository discovery with iteration loop, MCP exploration)
+- `<WT>/planning/p1-stage-1-research.md` (knowledge file - technical context, dependencies, actors)
+- `<WT>/planning/p1-stage-1-constraints.md` (knowledge file - contradictions resolved, constraints)
+- `<WT>/planning/p1-stage1-journal.md` (journal file - complete exploration: disambiguation, deep discovery loop, research, constraints, use cases)
+- `<WT>/planning/GUIDE.md` (updated with Stage 1 confirmation and transition log)
 
 ---
 
 **Rehydrate Stage Context (if file exists):**
 
-Check for `<worktree>/planning/use-cases.md`. If it exists:
+Check for `<WT>/planning/use-cases.md`. If it exists:
 - Read the file to recall existing use case exploration
 - Note what user journeys were already identified
 - Note what variations and edge cases were documented
@@ -1177,7 +1278,7 @@ Think about ambiguity in the epic description:
 
 **Document your findings:**
 
-Write to `<worktree>/planning/p1-stage-1-disambiguation.md`:
+Write to `<WT>/planning/p1-stage-1-disambiguation.md`:
 
 ```markdown
 # Disambiguation & Terminology: [Epic Name]
@@ -1229,7 +1330,7 @@ I want to ensure I understand your language correctly. Here's what I've interpre
 **Confirmation Loop:**
 
 IF user provides corrections:
-  → Update `<worktree>/planning/p1-stage-1-disambiguation.md` with corrections
+  → Update `<WT>/planning/p1-stage-1-disambiguation.md` with corrections
   → Re-present updated understanding
   → LOOP until user confirms
 
@@ -1248,12 +1349,12 @@ This step goes deeper than high-level research - we clone repositories, read sou
 **🎯 Purpose:** Build deep knowledge of all systems our epic depends on or integrates with, using actual source code analysis and iterative discovery rather than just documentation review.
 
 **📥 Input:**
-- `<worktree>/planning/p1-stage-1-disambiguation.md` (systems/libraries/services mentioned)
+- `<WT>/planning/p1-stage-1-disambiguation.md` (systems/libraries/services mentioned)
 - Epic description and user requirements
 - Existing codebase references
 
 **📤 Output:**
-- `<worktree>/planning/p1-stage-1-deep-discovery.md` (comprehensive system knowledge)
+- `<WT>/planning/p1-stage-1-deep-discovery.md` (comprehensive system knowledge)
 - Cloned repositories in `/tmp/discovery-*` directories (ephemeral)
 - Updated journal with discovery iterations and findings
 
@@ -1317,7 +1418,7 @@ This step goes deeper than high-level research - we clone repositories, read sou
 
 **Document to discovery file:**
 
-Write initial list to `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+Write initial list to `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 ```markdown
 # Deep System Discovery: [Epic Name]
@@ -1437,7 +1538,7 @@ Write initial list to `<worktree>/planning/p1-stage-1-deep-discovery.md`:
 
 **Document questions to discovery file:**
 
-Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 ```markdown
 ## Discovery Iteration 1
@@ -1593,7 +1694,7 @@ For each system/library/repo/MCP server, consolidate discovery findings into a c
 
 **Update discovery file:**
 
-Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 ```markdown
 ## Discovery Iteration 1
@@ -1729,7 +1830,7 @@ After 3 iterations:
 
 **Document loop decision:**
 
-Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
+Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 ```markdown
 ### Iteration 1 Loop Decision
@@ -1761,7 +1862,7 @@ Update `<worktree>/planning/p1-stage-1-deep-discovery.md`:
 
 **Update journal:**
 
-Write to `<worktree>/planning/p1-stage1-journal.md`:
+Write to `<WT>/planning/p1-stage1-journal.md`:
 
 ```markdown
 ### Deep System Discovery Loop (Step 1.5) - COMPLETE
@@ -1915,7 +2016,7 @@ The following 5 research activities are independent and can be executed in paral
 
 **Document research findings:**
 
-Write to `<worktree>/planning/p1-stage-1-research.md`:
+Write to `<WT>/planning/p1-stage-1-research.md`:
 
 ```markdown
 # Initial Research: [Epic Name]
@@ -2034,7 +2135,7 @@ I've researched the technical landscape for this epic:
 
 IF user raises concerns:
   → Conduct additional research as directed
-  → Update `<worktree>/planning/p1-stage-1-research.md`
+  → Update `<WT>/planning/p1-stage-1-research.md`
   → Re-present findings
   → LOOP until user satisfied
 
@@ -2066,7 +2167,7 @@ Look for conflicts between:
 
 **Document constraints and conflicts:**
 
-Write to `<worktree>/planning/p1-stage-1-constraints.md`:
+Write to `<WT>/planning/p1-stage-1-constraints.md`:
 
 ```markdown
 # Constraints & Conflicts: [Epic Name]
@@ -2153,11 +2254,11 @@ I've analyzed the epic against research findings and found [N] contradictions th
 IF contradictions found:
   → Present each contradiction with options clearly
   → Get user decision for each
-  → Document resolution in `<worktree>/planning/p1-stage-1-constraints.md`
+  → Document resolution in `<WT>/planning/p1-stage-1-constraints.md`
   → IF resolution affects dependencies/services:
-    - Update `<worktree>/planning/p1-stage-1-research.md`
+    - Update `<WT>/planning/p1-stage-1-research.md`
   → IF resolution changes terminology:
-    - Update `<worktree>/planning/p1-stage-1-disambiguation.md`
+    - Update `<WT>/planning/p1-stage-1-disambiguation.md`
   → LOOP until all contradictions resolved
 
 IF no contradictions OR all resolved:
@@ -2326,8 +2427,8 @@ Research related patterns, anti-patterns, and edge cases across multiple domains
 **Execute these research tasks in parallel:**
 
 1. **Explore Related Use Cases**
-   - Review `<worktree>/planning/p1-stage-1-research.md` actors: What use cases does each actor need?
-   - Check `<worktree>/planning/p1-stage-1-disambiguation.md` relationships: Do entity relationships suggest use cases?
+   - Review `<WT>/planning/p1-stage-1-research.md` actors: What use cases does each actor need?
+   - Check `<WT>/planning/p1-stage-1-disambiguation.md` relationships: Do entity relationships suggest use cases?
    - Search existing codebase for related workflows: `rg "similar-feature" --type js`
    - Consider data lifecycle: Create → Read → Update → Delete → Archive flows
    - Think through temporal sequences: What happens next? What came before?
@@ -2537,7 +2638,7 @@ Research related patterns, anti-patterns, and edge cases across multiple domains
 
 **Document expanded use cases:**
 
-Update `<worktree>/planning/use-cases.md` with:
+Update `<WT>/planning/use-cases.md` with:
 
 ```markdown
 # Use Cases: [Epic Name]
@@ -2822,8 +2923,8 @@ Based on research, I've expanded the use case model:
 
 IF user identifies gaps or changes:
   → Add/modify use cases based on feedback
-  → Update `<worktree>/planning/use-cases.md`
-  → Update `<worktree>/planning/p1-stage1-journal.md` with user feedback
+  → Update `<WT>/planning/use-cases.md`
+  → Update `<WT>/planning/p1-stage1-journal.md` with user feedback
   → Re-present for confirmation
   → LOOP until user satisfied
 
@@ -2837,7 +2938,7 @@ IF user confirms:
 
 ---
 
-**Document (Knowledge File)** to `<worktree>/planning/use-cases.md`:
+**Document (Knowledge File)** to `<WT>/planning/use-cases.md`:
 - Tell user's story with vivid, concrete scenarios (use Given-When-Then if helpful)
 - Include: actors, triggers, flows, outcomes, variations, exceptions, relationships, anti-cases
 - Document reasoning: Why these use cases? Confidence level? Uncertainties?
@@ -2901,7 +3002,7 @@ For every use case (primary and related), document the complete user journey fro
 
 Use the use case templates provided (UC-1 for primary, UC-[N] for related) which include all these sections with examples.
 
-**Document (Journal File)** to `<worktree>/planning/p1-stage1-journal.md`:
+**Document (Journal File)** to `<WT>/planning/p1-stage1-journal.md`:
 
 **Follow the standard Journal File Pattern** (see "Journal File Pattern" section above) with Stage 1 focus:
 - Exploration questions about user needs and use cases
@@ -2985,19 +3086,19 @@ Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 ### Stage 2: Functional and Non-Functional Requirements
 
 **📥 Input Files:**
-- `<worktree>/planning/use-cases.md` (Stage 1 output - use cases drive requirements)
-- `<worktree>/planning/GUIDE.md` (session state and Stage 1 confirmation)
+- `<WT>/planning/use-cases.md` (Stage 1 output - use cases drive requirements)
+- `<WT>/planning/GUIDE.md` (session state and Stage 1 confirmation)
 
 **📤 Output Files:**
-- `<worktree>/planning/requirements.md` (knowledge file - functional + non-functional requirements)
-- `<worktree>/planning/p1-stage2-journal.md` (journal file - requirements discovery process, tooling needs)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 2 confirmation and transition log)
+- `<WT>/planning/requirements.md` (knowledge file - functional + non-functional requirements)
+- `<WT>/planning/p1-stage2-journal.md` (journal file - requirements discovery process, tooling needs)
+- `<WT>/planning/GUIDE.md` (updated with Stage 2 confirmation and transition log)
 
 ---
 
 **Rehydrate Stage Context (if file exists):**
 
-Check for `<worktree>/planning/requirements.md`. If it exists:
+Check for `<WT>/planning/requirements.md`. If it exists:
 - Read the file to recall existing requirements analysis (both functional and non-functional)
 - Note what functional requirements were derived from use cases
 - Note what quality attributes (NFRs) were already identified
@@ -3100,7 +3201,7 @@ The 8 quality attribute categories are independent and can be researched in para
    - Throughput: Requests per second? Concurrent operations?
    - Latency: Network latency tolerance? Database query time limits?
    - Resource usage: Memory footprint? CPU utilization targets?
-   - Check existing system: What are current performance baselines from `<worktree>/planning/p1-stage-1-research.md`?
+   - Check existing system: What are current performance baselines from `<WT>/planning/p1-stage-1-research.md`?
 
    **Scalability**:
    - User growth: What are business projections? Expected load increases?
@@ -3152,7 +3253,7 @@ The 8 quality attribute categories are independent and can be researched in para
 
 2. **Analyze Use Case Implications**
 
-   Review each use case and anti-case from `<worktree>/planning/use-cases.md`:
+   Review each use case and anti-case from `<WT>/planning/use-cases.md`:
    - What NFRs does this use case imply? (UC requires real-time updates → performance requirement)
    - What performance characteristics are needed? (Batch processing vs. interactive)
    - What security requirements emerge? (Handling PII → encryption, audit logging)
@@ -3190,7 +3291,7 @@ The 8 quality attribute categories are independent and can be researched in para
 
 **Document research findings:**
 
-Update `<worktree>/planning/requirements.md` with comprehensive structure:
+Update `<WT>/planning/requirements.md` with comprehensive structure:
 
 ```markdown
 # Requirements: [Epic Name]
@@ -3396,8 +3497,8 @@ I've researched requirements across all quality attribute categories:
 
 IF user identifies missing requirements:
   → Add/modify requirements based on feedback
-  → Update `<worktree>/planning/requirements.md`
-  → Update `<worktree>/planning/p1-stage2-journal.md` with user feedback
+  → Update `<WT>/planning/requirements.md`
+  → Update `<WT>/planning/p1-stage2-journal.md` with user feedback
   → Re-present for confirmation
   → LOOP until user satisfied
 
@@ -3416,7 +3517,7 @@ IF user confirms:
 
 ---
 
-**Document (Knowledge File)** to `<worktree>/planning/requirements.md`:
+**Document (Knowledge File)** to `<WT>/planning/requirements.md`:
 
 **Functional Requirements Section:**
 - Requirements derived directly from Stage 1 use cases
@@ -3429,7 +3530,7 @@ IF user confirms:
 - Document reasoning: Why these thresholds? What trade-offs?
 - Include gaps and questions for user clarification
 
-**Document (Journal File)** to `<worktree>/planning/p1-stage2-journal.md`:
+**Document (Journal File)** to `<WT>/planning/p1-stage2-journal.md`:
 
 **Follow the standard Journal File Pattern** (see "Journal File Pattern" section above) with Stage 2 focus:
 - Requirements discovery process: questions asked, analysis performed
@@ -3548,21 +3649,21 @@ Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 ### Stage 3: Architectural Research & Context
 
 **📥 Input Files:**
-- `<worktree>/planning/use-cases.md` (Stage 1 output - what needs to be built)
-- `<worktree>/planning/requirements.md` (Stage 2 output - functional + quality requirements)
-- `<worktree>/planning/GUIDE.md` (session state and Stage 1-2 confirmations)
+- `<WT>/planning/use-cases.md` (Stage 1 output - what needs to be built)
+- `<WT>/planning/requirements.md` (Stage 2 output - functional + quality requirements)
+- `<WT>/planning/GUIDE.md` (session state and Stage 1-2 confirmations)
 
 **📤 Output Files:**
-- `<worktree>/planning/architecture.md` (knowledge file - technology decisions, integration patterns, system dependencies)
-- `<worktree>/planning/tooling.md` (knowledge file - MCP servers, APIs, subagents, discovery + integration approaches)
-- `<worktree>/planning/p1-stage3-journal.md` (journal file - research process, alternatives considered, scoring)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 3 confirmation and transition log)
+- `<WT>/planning/architecture.md` (knowledge file - technology decisions, integration patterns, system dependencies)
+- `<WT>/planning/tooling.md` (knowledge file - MCP servers, APIs, subagents, discovery + integration approaches)
+- `<WT>/planning/p1-stage3-journal.md` (journal file - research process, alternatives considered, scoring)
+- `<WT>/planning/GUIDE.md` (updated with Stage 3 confirmation and transition log)
 
 ---
 
 **Rehydrate Stage Context (if files exist):**
 
-Check for `<worktree>/planning/architecture.md` and `<worktree>/planning/tooling.md`:
+Check for `<WT>/planning/architecture.md` and `<WT>/planning/tooling.md`:
 - If architecture file exists: Read to recall systems, patterns, technologies, integration points
 - If tooling file exists: Read to recall MCP servers, subagents, APIs, quality tools discovered + integration approaches
 - Note what was documented and what confidence levels were assigned
@@ -3599,7 +3700,7 @@ If files don't exist, this is your first exploration of Stage 3.
 - ✅ Identifying tooling needs (MCP servers, APIs, frameworks)
 
 **This stage does NOT include**:
-- ❌ Writing code in `<worktree>/src/`
+- ❌ Writing code in `<WT>/src/`
 - ❌ Installing npm packages or dependencies
 - ❌ Creating configuration files (package.json, tsconfig.json, etc.)
 - ❌ Implementing integrations or prototypes
@@ -3664,10 +3765,10 @@ Review Stage 1 use cases and Stage 2 requirements to identify technology gaps:
 
 ```bash
 # Review use cases to identify technology needs
-cat "<worktree>/planning/use-cases.md"
+cat "<WT>/planning/use-cases.md"
 
 # Review requirements for quality and functional requirements
-cat "<worktree>/planning/requirements.md"
+cat "<WT>/planning/requirements.md"
 ```
 
 **For each use case, determine:**
@@ -3770,7 +3871,7 @@ For each technology option discovered, assign scores (0-10) for:
 
 **Document research findings:**
 
-Create a technology comparison table in `<worktree>/planning/architecture.md`:
+Create a technology comparison table in `<WT>/planning/architecture.md`:
 
 ```markdown
 ## Technology Gap Analysis
@@ -4004,6 +4105,10 @@ For each use case from Stage 1, determine testing requirements:
 - **Critical path:** Must have high-coverage automated tests (financial transactions, authentication, data mutations)
 - **Standard features:** Moderate coverage, focus on integration tests (CRUD operations, workflows)
 - **Low-risk features:** Minimal tests, rely on manual testing (cosmetic changes, internal tools)
+
+---
+📖 **Lost Context?** Read `<WT>/planning/GUIDE.md` for current phase state, confirmed stages, and key decisions.
+---
 
 **Step 3: Define Testing Approach Based on Discoveries**
 
@@ -4584,7 +4689,7 @@ After all 5 queries complete, synthesize findings into structured platform UI ar
 **If no platform detected or generic web app:**
 Skip platform UI research. Standard web app patterns (routing, components, state management) are covered in technology stack section.
 
-**Document architectural findings** to `<worktree>/planning/architecture.md`:
+**Document architectural findings** to `<WT>/planning/architecture.md`:
 
 **CRITICAL: Architecture.md Index Requirement**
 
@@ -4769,7 +4874,7 @@ Skip platform UI research. Standard web app patterns (routing, components, state
 - [Official documentation links]
 ```
 
-**Document tooling discoveries** to `<worktree>/planning/tooling.md`:
+**Document tooling discoveries** to `<WT>/planning/tooling.md`:
 - **MCP Servers discovered**: Capabilities, setup requirements, integration approach, confidence level
 - **Claude Code Subagents identified**: When to use, what context they need, parallel execution opportunities
 - **External APIs & Services**: Which APIs support use cases, authentication needs, integration patterns
@@ -4789,12 +4894,12 @@ Skip platform UI research. Standard web app patterns (routing, components, state
 **BEFORE user confirmation, perform architecture validation:**
 
 1. **Verify architecture supports ALL use cases from Stage 1:**
-   - Read `<worktree>/planning/use-cases.md`
+   - Read `<WT>/planning/use-cases.md`
    - For each use case, confirm architecture provides necessary capabilities
    - Document verification: "Use case [X] → Architecture component [Y] → Capability [Z]"
 
 2. **Verify architecture satisfies ALL requirements from Stage 2:**
-   - Read `<worktree>/planning/requirements.md`
+   - Read `<WT>/planning/requirements.md`
    - Check functional requirements: Architecture provides needed functionality
    - Check non-functional requirements: Architecture meets performance/security/reliability constraints
 
@@ -4811,7 +4916,7 @@ Skip platform UI research. Standard web app patterns (routing, components, state
 
 **CRITICAL: Update architecture.md with final decisions:**
 
-Before presenting to user, ensure `<worktree>/planning/architecture.md` contains:
+Before presenting to user, ensure `<WT>/planning/architecture.md` contains:
 - **All technology choices** with rationale (database, framework, language, runtime)
 - **Integration patterns** for external services (authentication, storage, APIs)
 - **System dependencies** and their versions
@@ -4863,7 +4968,7 @@ Type "yes" or "confirmed" to proceed, or provide feedback for revision."
    - This is learning, not failure - document why the new tooling choice is better
 
 **📖 Context Reminder:**
-If you've lost context, read `<worktree>/planning/GUIDE.md` to understand:
+If you've lost context, read `<WT>/planning/GUIDE.md` to understand:
 - What phase we're in
 - What's been confirmed
 - Layer dependencies
@@ -4876,21 +4981,21 @@ If you've lost context, read `<worktree>/planning/GUIDE.md` to understand:
 ### Stage 4: Assumptions & Risk Assessment
 
 **📥 Input Files:**
-- `<worktree>/planning/use-cases.md` (Stage 1 output)
-- `<worktree>/planning/requirements.md` (Stage 2 output)
-- `<worktree>/planning/architecture.md` + `tooling.md` (Stage 3 output)
-- `<worktree>/planning/GUIDE.md` (session state and Stage 1-3 confirmations)
+- `<WT>/planning/use-cases.md` (Stage 1 output)
+- `<WT>/planning/requirements.md` (Stage 2 output)
+- `<WT>/planning/architecture.md` + `tooling.md` (Stage 3 output)
+- `<WT>/planning/GUIDE.md` (session state and Stage 1-3 confirmations)
 
 **📤 Output Files:**
-- `<worktree>/planning/assumptions.md` (knowledge file - risk assessment, confidence levels, validation needs)
-- `<worktree>/planning/p1-stage4-journal.md` (journal file - validation activities, experiments run)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 4 confirmation and transition log)
+- `<WT>/planning/assumptions.md` (knowledge file - risk assessment, confidence levels, validation needs)
+- `<WT>/planning/p1-stage4-journal.md` (journal file - validation activities, experiments run)
+- `<WT>/planning/GUIDE.md` (updated with Stage 4 confirmation and transition log)
 
 ---
 
 **Rehydrate Stage Context (if file exists):**
 
-Check for `<worktree>/planning/assumptions.md`. If it exists:
+Check for `<WT>/planning/assumptions.md`. If it exists:
 - Read the file to recall existing assumption analysis
 - Note what assumptions were identified and validated
 - Note risk classifications (SOLID/WORKING/RISKY)
@@ -4976,7 +5081,7 @@ For each assumption you've identified, ask yourself:
 
 ---
 
-**Document** to `<worktree>/planning/assumptions.md`:
+**Document** to `<WT>/planning/assumptions.md`:
 - List all assumptions with classification (SOLID/WORKING/RISKY)
 - Supporting evidence (or lack thereof)
 - Risk assessment: What happens if wrong?
@@ -5048,16 +5153,16 @@ Please provide feedback so I can complete Stage 4."
 ### Stage 4+: Experimental Validation Loop (Optional)
 
 **📥 Input Files:**
-- `<worktree>/planning/assumptions.md` (Stage 4 output - RISKY assumptions to validate)
-- `<worktree>/planning/architecture.md` + `tooling.md` (Stage 3 output - technologies to test)
+- `<WT>/planning/assumptions.md` (Stage 4 output - RISKY assumptions to validate)
+- `<WT>/planning/architecture.md` + `tooling.md` (Stage 3 output - technologies to test)
 - All previous stage outputs for context
-- `<worktree>/planning/GUIDE.md` (session state)
+- `<WT>/planning/GUIDE.md` (session state)
 
 **📤 Output Files:**
-- `<worktree>/planning/experiments.md` (knowledge file - experiment results, validated assumptions, confidence levels)
-- `<worktree>/planning/p1-stage4plus-journal.md` (journal file - experimental process, findings, decisions)
+- `<WT>/planning/experiments.md` (knowledge file - experiment results, validated assumptions, confidence levels)
+- `<WT>/planning/p1-stage4plus-journal.md` (journal file - experimental process, findings, decisions)
 - `/tmp/craft-experiments/[timestamp]-[description]/` (throw-away experiment workspace - DELETED after validation)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 4+ completion and findings)
+- `<WT>/planning/GUIDE.md` (updated with Stage 4+ completion and findings)
 
 ---
 
@@ -5198,7 +5303,7 @@ For each uncertainty, document:
 **Priority**: CRITICAL - Blocks finalization of auth architecture
 ```
 
-**Document to** `<worktree>/planning/experiments.md`:
+**Document to** `<WT>/planning/experiments.md`:
 
 Create "Question Queue" section with all questions, sorted by priority (CRITICAL → HIGH → MEDIUM → LOW).
 
@@ -5263,7 +5368,7 @@ What we expect to find and why.
 **If inconclusive**: [What follow-up questions arise]
 ```
 
-**Document to** `<worktree>/planning/experiments.md`:
+**Document to** `<WT>/planning/experiments.md`:
 
 Add "Experiment Plans" section with all detailed plans before executing any.
 
@@ -5290,7 +5395,7 @@ Add "Experiment Plans" section with all detailed plans before executing any.
    ```
 
 2. **Document start**:
-   Update `<worktree>/planning/p1-stage4plus-journal.md`:
+   Update `<WT>/planning/p1-stage4plus-journal.md`:
    - Timestamp experiment start
    - Note which question being tested
    - Record initial hypothesis
@@ -5339,7 +5444,7 @@ Add "Experiment Plans" section with all detailed plans before executing any.
 
 **After completing experiment batch**, create synthesis:
 
-**Document to** `<worktree>/planning/experiments.md` in "Synthesis" section:
+**Document to** `<WT>/planning/experiments.md` in "Synthesis" section:
 
 ```markdown
 ## Experiment Synthesis (Iteration [N])
@@ -5456,12 +5561,12 @@ Overall = (Σ confidence_i × weight_i) / (Σ weight_i)
 **Execution based on decision:**
 
 **IF FINALIZE:**
-1. Update `<worktree>/planning/assumptions.md`:
+1. Update `<WT>/planning/assumptions.md`:
    - Promote validated RISKY assumptions to SOLID
    - Update confidence levels for all assumptions
    - Document experimental evidence
 
-2. Update `<worktree>/planning/architecture.md` if needed:
+2. Update `<WT>/planning/architecture.md` if needed:
    - Incorporate validated findings
    - Revise any decisions based on experimental results
    - Document experimental validation in decision rationale
@@ -5491,7 +5596,7 @@ Overall = (Σ confidence_i × weight_i) / (Σ weight_i)
 4. Enforce cumulative time limit: If total experiment time > 4 hours, force ESCALATE
 
 **IF ESCALATE:**
-1. Document escalation reason in `<worktree>/planning/experiments.md`
+1. Document escalation reason in `<WT>/planning/experiments.md`
 
 2. Present to user:
    ```
@@ -5530,7 +5635,7 @@ Overall = (Σ confidence_i × weight_i) / (Σ weight_i)
 
 **Workspace Isolation:**
 - Always use `/tmp/craft-experiments/[timestamp]-[description]/`
-- Never write experiment code to `<worktree>/`
+- Never write experiment code to `<WT>/`
 - Always delete experiment workspace after capturing findings
 - Exception: If experiment reveals useful code pattern, document pattern (not code) in architecture.md
 
@@ -5581,18 +5686,18 @@ Overall = (Σ confidence_i × weight_i) / (Σ weight_i)
 
 **📥 Input Files:**
 - All previous stage outputs: `use-cases.md`, `requirements.md`, `architecture.md`, `tooling.md`, `assumptions.md`
-- `<worktree>/planning/GUIDE.md` (session state and Stage 1-4 confirmations)
+- `<WT>/planning/GUIDE.md` (session state and Stage 1-4 confirmations)
 
 **📤 Output Files:**
-- `<worktree>/planning/effects-boundaries.md` (knowledge file - second-order effects, scope limits, anti-cases)
-- `<worktree>/planning/p1-stage5-journal.md` (journal file - effects analysis process, boundary discussions)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 5 confirmation and transition log)
+- `<WT>/planning/effects-boundaries.md` (knowledge file - second-order effects, scope limits, anti-cases)
+- `<WT>/planning/p1-stage5-journal.md` (journal file - effects analysis process, boundary discussions)
+- `<WT>/planning/GUIDE.md` (updated with Stage 5 confirmation and transition log)
 
 ---
 
 **Rehydrate Stage Context (if file exists):**
 
-Check for `<worktree>/planning/effects-boundaries.md`. If it exists:
+Check for `<WT>/planning/effects-boundaries.md`. If it exists:
 - Read the file to recall existing effects analysis
 - Note what impacts and ripple effects were identified
 - Note what anti-cases and boundaries were defined
@@ -5693,7 +5798,7 @@ If the file doesn't exist, this is your first exploration of Stage 5.
 
 ---
 
-**Document** to `<worktree>/planning/effects-boundaries.md`:
+**Document** to `<WT>/planning/effects-boundaries.md`:
 - Impacts: Existing use cases, operations, future work (what changes?)
 - Anti-cases: Misuse, anti-patterns, out-of-scope (what must NOT happen?)
 - Reasoning: Why these boundaries? What risks managed?
@@ -5766,18 +5871,18 @@ Please provide feedback so I can complete Stage 5."
 **📥 Input Files:**
 - All 5 previous stage outputs: `use-cases.md`, `requirements.md`, `architecture.md`, `tooling.md`, `assumptions.md`, `effects-boundaries.md`
 - All 5 previous stage journals: `p1-stage1-journal.md` through `p1-stage5-journal.md`
-- `<worktree>/planning/GUIDE.md` (complete session state and all Stage 1-5 confirmations)
+- `<WT>/planning/GUIDE.md` (complete session state and all Stage 1-5 confirmations)
 
 **📤 Output Files:**
-- `<worktree>/planning/task-definition.md` (knowledge file - complete synthesized understanding, ready for implementation)
-- `<worktree>/planning/p1-stage6-journal.md` (journal file - synthesis process, integration challenges resolved)
-- `<worktree>/planning/GUIDE.md` (updated with Stage 6 confirmation, Phase 1 complete transition log)
+- `<WT>/planning/task-definition.md` (knowledge file - complete synthesized understanding, ready for implementation)
+- `<WT>/planning/p1-stage6-journal.md` (journal file - synthesis process, integration challenges resolved)
+- `<WT>/planning/GUIDE.md` (updated with Stage 6 confirmation, Phase 1 complete transition log)
 
 ---
 
 **Rehydrate Stage Context (if file exists):**
 
-Check for `<worktree>/planning/task-definition.md`. If it exists:
+Check for `<WT>/planning/task-definition.md`. If it exists:
 - Read the file to recall existing synthesis work
 - Note what integrations were made across all stages
 - Note what coherence or gaps were identified
@@ -5804,7 +5909,7 @@ If the file doesn't exist, this is your first exploration of Stage 6.
 - Assumptions from Stage 4 (confirmed)
 - Effects and boundaries from Stage 5 (confirmed)
 
-**Create the comprehensive task definition** at `<worktree>/planning/task-definition.md`:
+**Create the comprehensive task definition** at `<WT>/planning/task-definition.md`:
 
 ```markdown
 # Task Definition: [Task Name]
@@ -5831,7 +5936,7 @@ If the file doesn't exist, this is your first exploration of Stage 6.
 [Anything still uncertain after 5 layers]
 ```
 
-**Document** to `<worktree>/planning/task-definition.md`:
+**Document** to `<WT>/planning/task-definition.md`:
 A readable narrative integrating all confirmed stages into complete understanding
 
 **Present conversationally:**
@@ -5840,8 +5945,8 @@ A readable narrative integrating all confirmed stages into complete understandin
 [Present: The Vision, Core Capabilities (Stage 1), Quality Constraints (Stage 2), Technical Approach (Stage 3), Confidence Level (Stage 4), Boundaries (Stage 5)]
 
 **Complete Documentation:**
-- Task definition: `<worktree>/planning/task-definition.md`
-- All 6 stage confirmations: Knowledge files in `<worktree>/planning/` and journals in `<worktree>/planning/p1-*.md`
+- Task definition: `<WT>/planning/task-definition.md`
+- All 6 stage confirmations: Knowledge files in `<WT>/planning/` and journals in `<WT>/planning/p1-*.md`
 
 ---
 
@@ -5891,17 +5996,17 @@ Before transitioning to Phase 2, check if user feedback reveals material changes
 ## Phase 2: Criteria Definition
 
 **📥 Input Files:**
-- `<worktree>/planning/task-definition.md` (Phase 1 Stage 6 output - complete synthesized understanding)
-- `<worktree>/planning/requirements.md` (quality attributes and functional requirements)
-- `<worktree>/planning/GUIDE.md` (Phase 1 complete confirmation)
+- `<WT>/planning/task-definition.md` (Phase 1 Stage 6 output - complete synthesized understanding)
+- `<WT>/planning/requirements.md` (quality attributes and functional requirements)
+- `<WT>/planning/GUIDE.md` (Phase 1 complete confirmation)
 
 **📤 Output Files:**
-- `<worktree>/planning/quality-criteria.md` (knowledge file - measurable success criteria, exit thresholds)
-- `<worktree>/planning/p2-planning-journal.md` (journal file - criteria definition process, scoring decisions)
-- `<worktree>/planning/GUIDE.md` (updated with Phase 2 confirmation and transition log)
+- `<WT>/planning/quality-criteria.md` (knowledge file - measurable success criteria, exit thresholds)
+- `<WT>/planning/p2-planning-journal.md` (journal file - criteria definition process, scoring decisions)
+- `<WT>/planning/GUIDE.md` (updated with Phase 2 confirmation and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/quality-criteria.md`
+- **Files Created:** `<WT>/planning/quality-criteria.md`
 - **Purpose:** Define measurable success criteria across functional completeness, code quality, and integration dimensions
 - **Referenced By:** Phase 2-B (test planning), Phase 3 (quality verification in each task), Phase 4 (final validation)
 
@@ -5910,7 +6015,7 @@ Before transitioning to Phase 2, check if user feedback reveals material changes
 📖 **Context Refresh: Review GUIDE.md Before Starting**
 
 Before defining success criteria, refresh your understanding:
-- Read `<worktree>/planning/GUIDE.md` to understand current phase state
+- Read `<WT>/planning/GUIDE.md` to understand current phase state
 - Review Phase 1 outputs: use-cases.md, requirements.md, task-definition.md
 - Check what's been confirmed and what decisions were made
 - Verify you understand the complete context from Phase 1
@@ -5967,7 +6072,7 @@ For each criterion, specify HOW to verify:
 - **Quality score**: Must be ≥80 (weighted: functional 40% + code review 35% + completeness 25%)
 - **Blocking issues**: Must be zero (no critical bugs, security issues, or architectural violations)
 
-**Document criteria** to `<worktree>/planning/quality-criteria.md`:
+**Document criteria** to `<WT>/planning/quality-criteria.md`:
 
 ```markdown
 # Quality Criteria for [Task Name]
@@ -6001,6 +6106,10 @@ For each criterion, specify HOW to verify:
 - Blocking issues: 0
 ```
 
+---
+📖 **Lost Context?** Read `<WT>/planning/GUIDE.md` for current phase state, confirmed stages, and key decisions.
+---
+
 **Present the quality criteria to the user:**
 
 "I've defined the quality criteria for this task. Here's how we'll measure success:
@@ -6025,13 +6134,13 @@ I'll work through up to 10 iterations, with each iteration:
 3. Verifying quality against criteria
 4. Learning and adapting
 
-The complete criteria document is at `<worktree>/planning/quality-criteria.md`.
+The complete criteria document is at `<WT>/planning/quality-criteria.md`.
 
 **May I proceed with the crafting iterations?**"
 
 [WAIT for user confirmation]
 
-If the user requests changes to the criteria, update `<worktree>/planning/quality-criteria.md` and repeat the presentation until confirmed.
+If the user requests changes to the criteria, update `<WT>/planning/quality-criteria.md` and repeat the presentation until confirmed.
 
 If the user declines or wants to stop, exit gracefully and preserve the worktree for manual work.
 
@@ -6040,18 +6149,18 @@ If the user declines or wants to stop, exit gracefully and preserve the worktree
 ## Phase 2-B: Understanding Through Test Design
 
 **📥 Input Files:**
-- `<worktree>/planning/task-definition.md` (Phase 1 complete understanding)
-- `<worktree>/planning/use-cases.md` + `requirements.md` (what to test)
-- `<worktree>/planning/quality-criteria.md` (Phase 2 output - success criteria)
-- `<worktree>/planning/GUIDE.md` (Phase 2 confirmation)
+- `<WT>/planning/task-definition.md` (Phase 1 complete understanding)
+- `<WT>/planning/use-cases.md` + `requirements.md` (what to test)
+- `<WT>/planning/quality-criteria.md` (Phase 2 output - success criteria)
+- `<WT>/planning/GUIDE.md` (Phase 2 confirmation)
 
 **📤 Output Files:**
-- `<worktree>/planning/test-plan.md` (knowledge file - test specifications, categories, strategies)
-- `<worktree>/planning/p2b-test-design-journal.md` (journal file - test design thinking, edge case discovery)
-- `<worktree>/planning/GUIDE.md` (updated with Phase 2-B confirmation and transition log)
+- `<WT>/planning/test-plan.md` (knowledge file - test specifications, categories, strategies)
+- `<WT>/planning/p2b-test-design-journal.md` (journal file - test design thinking, edge case discovery)
+- `<WT>/planning/GUIDE.md` (updated with Phase 2-B confirmation and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/test-plan.md`
+- **Files Created:** `<WT>/planning/test-plan.md`
 - **Purpose:** Design tests as specifications of understanding before implementation; clarify requirements through test thinking
 - **Referenced By:** Phase 2-D (task test requirements), Phase 3 (test implementation in each task), Phase 4 (test execution validation)
 
@@ -6071,6 +6180,19 @@ any implementation code.
 Tests aren't afterthoughts - they're specifications. By designing tests first, we
 discover ambiguities in requirements, edge cases we haven't considered, and gaps
 in our understanding. This saves massive rework later.
+
+---
+
+**⚠️ PATH DISCIPLINE FOR TEST FILES:**
+
+Test specifications will become real test files in Phase 3. All paths must use `<WT>`:
+- Test files: `<WT>/test/feature.test.js`
+- Source references: `<WT>/src/feature.js`
+- Git operations: `git -C "<WT>" [command]`
+
+Never use relative paths in test specifications. They become literal code.
+
+---
 
 **Your Approach:**
 
@@ -6329,7 +6451,7 @@ const oldInvoice = createInvoiceEmail({ date: '2020-01-01' });
 
 ### Document Test Plan
 
-Write to `<worktree>/planning/test-plan.md`:
+Write to `<WT>/planning/test-plan.md`:
 - Test categories (Unit, Integration, Edge Case, Error Path)
 - For each test: name, setup, input, expected output, assertions
 
@@ -6346,9 +6468,9 @@ Use natural language first, not code:
 - "Do the error messages make sense?"
 
 IF the user confirms the test plan:
-  → Document confirmation to `<worktree>/planning/test-plan.md`
+  → Document confirmation to `<WT>/planning/test-plan.md`
   → **Update GUIDE.md** with test plan completion:
-     * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
+     * Edit `<WT>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 2-B complete: Test plan confirmed with [X] test scenarios"
      * Add note about test categories to "The Story So Far"
   → Announce: "✓ Test plan confirmed. Writing actual tests..."
@@ -6361,7 +6483,7 @@ IF the user requests changes:
 
 ### Document Test Strategy and Example Specifications
 
-Once test design is confirmed, document the test strategy and representative examples in `<worktree>/planning/test-plan.md`.
+Once test design is confirmed, document the test strategy and representative examples in `<WT>/planning/test-plan.md`.
 
 **These are EXAMPLES and STRATEGY, not a complete test catalog.**
 
@@ -6444,27 +6566,27 @@ Announce: "✓✓ Test strategy finalized. Detailed test specifications will be 
 ## Phase 2-C: Infrastructure Planning
 
 **📥 Input Files:**
-- `<worktree>/planning/architecture.md` + `tooling.md` (Phase 1 Stage 3 - technology decisions)
-- `<worktree>/planning/test-plan.md` (Phase 2-B output - test requirements)
-- `<worktree>/planning/GUIDE.md` (Phase 2-B confirmation)
+- `<WT>/planning/architecture.md` + `tooling.md` (Phase 1 Stage 3 - technology decisions)
+- `<WT>/planning/test-plan.md` (Phase 2-B output - test requirements)
+- `<WT>/planning/GUIDE.md` (Phase 2-B confirmation)
 
 **📤 Output Files:**
-- `<worktree>/planning/project-structure.md` (knowledge file - directory layout, code organization)
-- `<worktree>/planning/tech-relationships.md` (knowledge file - component dependencies, data flow)
-- `<worktree>/planning/infrastructure-ids.md` (knowledge file - service IDs, endpoints, credentials, rate limits)
-- `<worktree>/planning/tooling.md` (updated with integration workflow details)
-- `<worktree>/planning/p2c-infra-planning-journal.md` (journal file - infrastructure decisions, tooling integration planning)
-- `<worktree>/planning/GUIDE.md` (updated with Phase 2-C confirmation and transition log)
+- `<WT>/planning/project-structure.md` (knowledge file - directory layout, code organization)
+- `<WT>/planning/tech-relationships.md` (knowledge file - component dependencies, data flow)
+- `<WT>/planning/infrastructure-ids.md` (knowledge file - service IDs, endpoints, credentials, rate limits)
+- `<WT>/planning/tooling.md` (updated with integration workflow details)
+- `<WT>/planning/p2c-infra-planning-journal.md` (journal file - infrastructure decisions, tooling integration planning)
+- `<WT>/planning/GUIDE.md` (updated with Phase 2-C confirmation and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/project-structure.md`, `<worktree>/planning/tech-relationships.md`, `<worktree>/planning/infrastructure-ids.md`, `<worktree>/planning/tooling.md`
+- **Files Created:** `<WT>/planning/project-structure.md`, `<WT>/planning/tech-relationships.md`, `<WT>/planning/infrastructure-ids.md`, `<WT>/planning/tooling.md`
 - **Purpose:** Establish code organization, component dependencies, infrastructure IDs/endpoints, and tooling integration strategy before task decomposition
 - **Referenced By:** Phase 2-D (task dependencies and infrastructure refs), Phase 3 (implementation planning and tooling usage), Phase 4 (integration validation)
 
 ---
 
 📖 **Context Reminder:** Before task decomposition, establish the infrastructure foundation.
-Review GUIDE.md and reference `<worktree>/planning/architecture.md` for technical context.
+Review GUIDE.md and reference `<WT>/planning/architecture.md` for technical context.
 
 **Where We Are in the Journey:**
 
@@ -6561,7 +6683,7 @@ Research how to integrate discovered tools effectively. Execute multiple tool re
 
 **Document tooling integration findings:**
 
-Update `<worktree>/planning/tooling.md` with integration patterns:
+Update `<WT>/planning/tooling.md` with integration patterns:
 
 ```markdown
 # Tooling Integration: [Epic Name]
@@ -6611,7 +6733,7 @@ Based on technologies chosen in Stage 3 architecture.md, research official and c
 **Research Process:**
 
 1. **Identify technology stack from architecture.md:**
-   - Read `<worktree>/planning/architecture.md`
+   - Read `<WT>/planning/architecture.md`
    - Extract: programming language, framework, runtime, build tools
    - Example: "Node.js + Express + TypeScript" or "Python + FastAPI" or "Go + standard library"
 
@@ -6703,7 +6825,7 @@ This project follows a **poly repo approach** (multiple related repositories, ea
   - **Co-located pattern**: MCP server code lives in same repository as service it supports
     * Benefits: Version coupling, easier development, single deployment unit
     * Use when: MCP server is tightly coupled to specific service/API
-    * Example structure: `<worktree>/mcp/` alongside `<worktree>/src/`
+    * Example structure: `<WT>/mcp/` alongside `<WT>/src/`
   - **Standalone pattern**: Dedicated repository per MCP server
     * Benefits: Independent versioning, reusable across projects, clear boundaries
     * Use when: MCP server provides general-purpose functionality
@@ -6714,7 +6836,7 @@ This project follows a **poly repo approach** (multiple related repositories, ea
     * Example: `mcp-cloud-tools` repo hosting AWS/Azure/GCP tool servers
   - **Decision factors:** Development workflow, deployment strategy, versioning needs, reusability, team ownership
 
-**Document the structure** to `<worktree>/planning/project-structure.md`:
+**Document the structure** to `<WT>/planning/project-structure.md`:
 
 ```markdown
 # Project Structure
@@ -6722,7 +6844,7 @@ This project follows a **poly repo approach** (multiple related repositories, ea
 ## Technology Convention Alignment
 
 **⚠️ CRITICAL: This structure implements conventions documented in:**
-`<worktree>/planning/architecture.md` § Source Code Layout Conventions
+`<WT>/planning/architecture.md` § Source Code Layout Conventions
 
 **Before implementing tasks, review architecture.md for:**
 - Official and community conventions researched
@@ -6750,7 +6872,7 @@ This project structure follows [framework/language] conventions with specific ad
 
 ## Directory Layout (This Repository)
 \`\`\`
-<worktree>/
+<WT>/
 ├── src/                    # Implementation code
 │   ├── core/              # Core business logic
 │   ├── services/          # External service integrations
@@ -6788,7 +6910,7 @@ This project structure follows [framework/language] conventions with specific ad
 
 **MCP Server Location (if co-located):**
 \`\`\`
-<worktree>/
+<WT>/
 ├── src/                    # Service implementation code
 ├── mcp/                    # MCP server code (if co-located)
 │   ├── server.js          # MCP server entry point
@@ -6813,7 +6935,7 @@ This project structure follows [framework/language] conventions with specific ad
 
 ## Task-Based Development Structure
 \`\`\`
-<worktree>/
+<WT>/
 ├── planning/
 │   ├── tasks-pending/      # End-to-end feature tasks awaiting implementation
 │   ├── tasks-completed/    # Completed feature tasks with outcomes
@@ -6836,13 +6958,13 @@ If working with an existing codebase, add a migration section to `project-struct
 **Examine existing system:**
 ```bash
 # Review current directory structure
-ls -la "<worktree>"
+ls -la "<WT>"
 
 # Identify existing source files
-find "<worktree>" -type f -name "*.js" -o -name "*.ts" -o -name "*.py" | head -20
+find "<WT>" -type f -name "*.js" -o -name "*.ts" -o -name "*.py" | head -20
 
 # Check existing dependencies
-cat "<worktree>/package.json" 2>/dev/null || echo "No package.json found"
+cat "<WT>/package.json" 2>/dev/null || echo "No package.json found"
 ```
 
 **Document current state:**
@@ -6923,7 +7045,7 @@ Ask these questions to classify:
 
 **IF REPEATABLE:**
 - Migration framework: [Framework name, e.g., "Prisma Migrate"]
-- Migration location: `<worktree>/migrations/` or `<worktree>/src/migrations/`
+- Migration location: `<WT>/migrations/` or `<WT>/src/migrations/`
 - Version tracking: [How migrations are tracked and ordered]
 - Rollback strategy: [How to undo failed migrations]
 - CI/CD integration: Migrations run automatically before deployment
@@ -6965,7 +7087,7 @@ Skip the migration section - you're building on a clean foundation.
 
 **Update architecture.md with Source Code Layout Conventions**
 
-Based on research completed above, update `<worktree>/planning/architecture.md` with a new section documenting source code layout decisions:
+Based on research completed above, update `<WT>/planning/architecture.md` with a new section documenting source code layout decisions:
 
 ```markdown
 ## Source Code Layout Conventions
@@ -7049,12 +7171,12 @@ How this repository's layout integrates with other repositories:
 
 **Create task folders and learnings file:**
 ```bash
-mkdir -p "<worktree>/planning/tasks-pending"
-mkdir -p "<worktree>/planning/tasks-completed"
-touch "<worktree>/planning/learnings.md"
+mkdir -p "<WT>/planning/tasks-pending"
+mkdir -p "<WT>/planning/tasks-completed"
+touch "<WT>/planning/learnings.md"
 ```
 
-Initialize `<worktree>/planning/learnings.md` with:
+Initialize `<WT>/planning/learnings.md` with:
 ```markdown
 # Implementation Learnings
 
@@ -7084,9 +7206,9 @@ A task is a self-contained feature implementation that includes:
 
 **Creating Task Files:**
 
-For each feature from Stage 1 use cases, create a task file in `<worktree>/planning/tasks-pending/`:
+For each feature from Stage 1 use cases, create a task file in `<WT>/planning/tasks-pending/`:
 
-`<worktree>/planning/tasks-pending/task-001-[feature-name].md`:
+`<WT>/planning/tasks-pending/task-001-[feature-name].md`:
 ```markdown
 # Task 001: [Feature Name]
 
@@ -7098,13 +7220,13 @@ For each feature from Stage 1 use cases, create a task file in `<worktree>/plann
 **⚠️ MANDATORY: Review BEFORE implementing any code**
 
 **Read and verify compliance with:**
-1. `<worktree>/planning/architecture.md` § Source Code Layout Conventions
+1. `<WT>/planning/architecture.md` § Source Code Layout Conventions
    - Technology-specific directory organization decisions
    - File naming conventions and rationale
    - Import/module patterns documented
    - Poly repo integration strategies
 
-2. `<worktree>/planning/project-structure.md` § Directory Layout
+2. `<WT>/planning/project-structure.md` § Directory Layout
    - Where this feature's code should live
    - Module organization within this repository
    - Test location relative to source
@@ -7145,6 +7267,12 @@ For each feature from Stage 1 use cases, create a task file in `<worktree>/plann
 - [ ] Quality criteria score ≥ [threshold from Phase 2]
 - [ ] All integration points tested
 - [ ] Security validation complete
+
+### Path Discipline Verification
+- [ ] All code uses `<WT>` prefix (grep codebase for relative paths: `./`, `../`)
+- [ ] All git commands use `git -C "<WT>"` (no bare `git` commands)
+- [ ] No standalone `cd` commands in code/scripts (only in subshells: `cd "<WT>" && cmd`)
+- [ ] Test files reference correct absolute paths
 
 ### Test Specifications (Write During Task Creation)
 
@@ -7411,15 +7539,15 @@ Before moving to the next task file, verify this task's test specifications:
 - Blocks: [Tasks that depend on this one]
 
 ## Infrastructure References
-From `<worktree>/planning/infrastructure-ids.md`:
+From `<WT>/planning/infrastructure-ids.md`:
 - [List relevant IDs, endpoints, config values needed]
 
 ## Architecture References
-From `<worktree>/planning/architecture.md`:
+From `<WT>/planning/architecture.md`:
 - [Relevant architectural decisions and patterns]
 
 ## Learnings References
-From `<worktree>/planning/learnings.md` (if exists):
+From `<WT>/planning/learnings.md` (if exists):
 - [Relevant lessons from previous tasks]
 - [Patterns that worked well]
 - [Pitfalls to avoid]
@@ -7459,7 +7587,7 @@ WHILE tasks exist in tasks-pending/:
      "📋 Starting Task [N]: [Feature Name]"
 
   3. PLAN this specific task implementation:
-     → Read `<worktree>/planning/learnings.md` if it exists
+     → Read `<WT>/planning/learnings.md` if it exists
      → Consider lessons from previous tasks:
         * What patterns worked well?
         * What pitfalls were discovered?
@@ -7513,13 +7641,13 @@ WHILE tasks exist in tasks-pending/:
         * New architectural patterns discovered?
         * Integration approaches that worked well?
         * Technology choices that should be documented?
-        * IF YES: Update `<worktree>/planning/architecture.md`
+        * IF YES: Update `<WT>/planning/architecture.md`
      → Check if new lessons emerged:
         * Insights not apparent when we started?
         * Patterns that would help future tasks?
         * Pitfalls to avoid in similar situations?
         * Testing strategies that proved valuable?
-        * IF YES: Append to `<worktree>/planning/learnings.md`:
+        * IF YES: Append to `<WT>/planning/learnings.md`:
 
      ```markdown
      ## [Date] - Task [N]: [Feature Name]
@@ -7540,7 +7668,7 @@ WHILE tasks exist in tasks-pending/:
      ```
 
      → Commit learnings if captured:
-        `git -C "<worktree>" commit -am "Learnings: Task [N] - [Brief insight]"`
+        `git -C "<WT>" commit -am "Learnings: Task [N] - [Brief insight]"`
 
   9. ANNOUNCE task completion:
      "✓ Task [N] Complete: [Feature Name] ([X] iterations, quality score [Y])"
@@ -7608,7 +7736,7 @@ Think about:
 - What data flows between systems? (Format, validation, transformation?)
 - What are the integration boundaries? (Network calls, database queries, file I/O?)
 
-**Document technology relationships** to `<worktree>/planning/tech-relationships.md`:
+**Document technology relationships** to `<WT>/planning/tech-relationships.md`:
 
 ```markdown
 # Technology Relationships
@@ -7634,11 +7762,11 @@ Think about:
 
 ### Step 3: Document Infrastructure Identifiers
 
-**⚠️ IMPORTANT:** Create `<worktree>/planning/infrastructure-ids.md` to centralize all IDs, credentials references, and configuration values.
+**⚠️ IMPORTANT:** Create `<WT>/planning/infrastructure-ids.md` to centralize all IDs, credentials references, and configuration values.
 
 This file serves as the single source of truth for infrastructure configuration that implementation phases will reference.
 
-**Document all identifiers** to `<worktree>/planning/infrastructure-ids.md`:
+**Document all identifiers** to `<WT>/planning/infrastructure-ids.md`:
 
 ```markdown
 # Infrastructure Identifiers
@@ -7677,14 +7805,14 @@ This file serves as the single source of truth for infrastructure configuration 
 
 ### Step 3b: Plan Tooling Integration Strategy
 
-**⚠️ IMPORTANT:** Reference the tooling discoveries from `<worktree>/planning/tooling.md` and plan their integration into the development workflow.
+**⚠️ IMPORTANT:** Reference the tooling discoveries from `<WT>/planning/tooling.md` and plan their integration into the development workflow.
 
 This step ensures discovered tools (MCP servers, subagents, APIs, quality tools) are intentionally
 integrated rather than ad-hoc adopted.
 
 **Review Discovered Tools:**
 
-Read `<worktree>/planning/tooling.md` to identify what was discovered during Stage 3 tooling research.
+Read `<WT>/planning/tooling.md` to identify what was discovered during Stage 3 tooling research.
 
 **For Each Tool Category:**
 
@@ -7717,7 +7845,7 @@ Review automation tools for quality validation:
 - Security scanning for vulnerability detection?
 - When in workflow will each run?
 
-**Document Tooling Integration Plan** to `<worktree>/planning/tooling.md`:
+**Document Tooling Integration Plan** to `<WT>/planning/tooling.md`:
 
 ```markdown
 # Tooling Integration Plan
@@ -7823,10 +7951,10 @@ Before starting Phase 3 implementation, verify:
 - [ ] Tooling integration documented in this file
 
 ## References
-- Stage 3 Architecture: `<worktree>/planning/architecture.md` (technical decisions)
-- Stage 3 Tooling: `<worktree>/planning/tooling.md` (discovered tools)
-- Infrastructure IDs: `<worktree>/planning/infrastructure-ids.md` (credentials, endpoints)
-- Quality Criteria: `<worktree>/planning/quality-criteria.md` (quality thresholds, tool targets)
+- Stage 3 Architecture: `<WT>/planning/architecture.md` (technical decisions)
+- Stage 3 Tooling: `<WT>/planning/tooling.md` (discovered tools)
+- Infrastructure IDs: `<WT>/planning/infrastructure-ids.md` (credentials, endpoints)
+- Quality Criteria: `<WT>/planning/quality-criteria.md` (quality thresholds, tool targets)
 ```
 
 **Present Tooling Plan to User:**
@@ -7841,7 +7969,7 @@ I've documented how the tools discovered in Stage 3 will be integrated:
 **External APIs:** [List APIs and integration patterns]
 **Quality Tools:** [List testing/validation tools and when they run]
 
-Setup checklist created in `<worktree>/planning/tooling.md` to verify readiness before Phase 3."
+Setup checklist created in `<WT>/planning/tooling.md` to verify readiness before Phase 3."
 
 ### Step 4: Present Planning to User
 
@@ -7866,18 +7994,18 @@ I've documented the complete infrastructure foundation for development:
 [Summarize how systems connect and authenticate]
 
 **Infrastructure Setup:**
-All configuration identifiers documented in `<worktree>/planning/infrastructure-ids.md`
+All configuration identifiers documented in `<WT>/planning/infrastructure-ids.md`
 - Reference this file during implementation for IDs, endpoints, credentials
 
 **Tooling Integration Strategy:**
 [Summarize MCP servers, subagents, APIs, quality tools and when they'll be used]
 
 **Key Infrastructure Documents:**
-- `<worktree>/planning/architecture.md` - Technology decisions AND source code layout conventions
-- `<worktree>/planning/project-structure.md` - Directory layout and organization (references architecture.md)
-- `<worktree>/planning/tech-relationships.md` - System integration map
-- `<worktree>/planning/infrastructure-ids.md` - Central ID/config registry
-- `<worktree>/planning/tooling.md` - How discovered tools will be integrated
+- `<WT>/planning/architecture.md` - Technology decisions AND source code layout conventions
+- `<WT>/planning/project-structure.md` - Directory layout and organization (references architecture.md)
+- `<WT>/planning/tech-relationships.md` - System integration map
+- `<WT>/planning/infrastructure-ids.md` - Central ID/config registry
+- `<WT>/planning/tooling.md` - How discovered tools will be integrated
 
 **Ready to proceed to task decomposition?**"
 
@@ -7885,7 +8013,7 @@ All configuration identifiers documented in `<worktree>/planning/infrastructure-
 
 IF the user confirms:
   → **Update GUIDE.md** with infrastructure planning completion:
-     * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
+     * Edit `<WT>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 2-C complete: Infrastructure planning established"
      * Update "Key Documents Reference" to include infrastructure docs
 
@@ -7899,24 +8027,43 @@ IF the user requests changes:
 
 ---
 
+**⚠️ PATH DISCIPLINE IN TASK FILES:**
+
+Task files contain file paths that LLMs will copy during Phase 3 implementation.
+
+**ALL paths in task files MUST use `<WT>` prefix:**
+- Source files: `<WT>/src/module.js`
+- Test files: `<WT>/test/module.test.js`
+- Planning docs: `<WT>/planning/architecture.md`
+- Git commands: `git -C "<WT>" status`
+
+**Never write:**
+- ❌ `./src/file.js` (relative)
+- ❌ `src/file.js` (implicit relative)
+- ❌ `cd <WT>` (directory change)
+
+Task files become templates. Incorrect paths propagate to all implementations.
+
+---
+
 ## Phase 2-D: Feature Task Decomposition
 
 **📥 Input Files:**
-- `<worktree>/planning/use-cases.md` (Phase 1 Stage 1 - features to decompose)
-- `<worktree>/planning/requirements.md` (Phase 1 Stage 2 - functional requirements)
-- `<worktree>/planning/task-definition.md` (Phase 1 Stage 6 - synthesized understanding)
-- `<worktree>/planning/project-structure.md` + `tech-relationships.md` + `infrastructure-ids.md` (Phase 2-C - infrastructure context)
-- `<worktree>/planning/GUIDE.md` (Phase 2-C confirmation)
+- `<WT>/planning/use-cases.md` (Phase 1 Stage 1 - features to decompose)
+- `<WT>/planning/requirements.md` (Phase 1 Stage 2 - functional requirements)
+- `<WT>/planning/task-definition.md` (Phase 1 Stage 6 - synthesized understanding)
+- `<WT>/planning/project-structure.md` + `tech-relationships.md` + `infrastructure-ids.md` (Phase 2-C - infrastructure context)
+- `<WT>/planning/GUIDE.md` (Phase 2-C confirmation)
 
 **📤 Output Files:**
-- `<worktree>/planning/implementation-steps.md` (knowledge file - task ordering, dependency phases, prioritization)
-- `<worktree>/planning/feature-tasks.md` (knowledge file - visual feature dependency map with Mermaid chart, groupings, relationships)
-- `<worktree>/planning/tasks-pending/task-NNN-[name].md` (multiple task files - one per atomic feature)
-- `<worktree>/planning/p2d-task-breakdown-journal.md` (journal file - decomposition process, dependency analysis)
-- `<worktree>/planning/GUIDE.md` (updated with Phase 2-D confirmation and transition log)
+- `<WT>/planning/implementation-steps.md` (knowledge file - task ordering, dependency phases, prioritization)
+- `<WT>/planning/feature-tasks.md` (knowledge file - visual feature dependency map with Mermaid chart, groupings, relationships)
+- `<WT>/planning/tasks-pending/task-NNN-[name].md` (multiple task files - one per atomic feature)
+- `<WT>/planning/p2d-task-breakdown-journal.md` (journal file - decomposition process, dependency analysis)
+- `<WT>/planning/GUIDE.md` (updated with Phase 2-D confirmation and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/implementation-steps.md`, `<worktree>/planning/feature-tasks.md`, `<worktree>/planning/tasks-pending/task-NNN-[name].md` (one per feature)
+- **Files Created:** `<WT>/planning/implementation-steps.md`, `<WT>/planning/feature-tasks.md`, `<WT>/planning/tasks-pending/task-NNN-[name].md` (one per feature)
 - **Purpose:** Decompose use cases into discrete, implementable tasks with dependencies, scope, quality gates, and **detailed TDD test specifications written during task creation**
 - **Referenced By:** Phase 3 (task selection and execution order using TDD specs), Phase 4 (retrospective on completed tasks)
 
@@ -7925,7 +8072,7 @@ IF the user requests changes:
 📖 **Context Refresh: Review GUIDE.md Before Task Decomposition**
 
 Before breaking work into tasks, refresh your understanding:
-- Read `<worktree>/planning/GUIDE.md` to understand current state
+- Read `<WT>/planning/GUIDE.md` to understand current state
 - Review all Phase 1 outputs (understanding), Phase 2 outputs (criteria), Phase 2-B (tests), Phase 2-C (infrastructure)
 - Check quality-criteria.md for success definitions
 - Review execution-strategy.md for parallel execution approach
@@ -7957,10 +8104,14 @@ delivers tangible user value.
 
 ---
 
+---
+📖 **Lost Context?** Read `<WT>/planning/GUIDE.md` for current phase state, confirmed stages, and key decisions.
+---
+
 **⚠️ TASK DECOMPOSITION CREATES TASK DEFINITIONS, NOT IMPLEMENTATIONS**
 
 **This phase creates**:
-- ✅ Task definition files in `<worktree>/planning/tasks-pending/` (SPECIFICATIONS)
+- ✅ Task definition files in `<WT>/planning/tasks-pending/` (SPECIFICATIONS)
 - ✅ Implementation order in planning/implementation-steps.md (SEQUENCE)
 - ✅ Dependency analysis in p2d-task-breakdown-journal.md (ANALYSIS)
 - ✅ Task templates with objectives, acceptance criteria, verification steps
@@ -7973,7 +8124,7 @@ delivers tangible user value.
 - ✅ Quality gates (how to verify completion)
 
 **This phase does NOT include**:
-- ❌ Writing implementation code in `<worktree>/src/`
+- ❌ Writing implementation code in `<WT>/src/`
 - ❌ Creating actual test files
 - ❌ Installing dependencies or packages
 - ❌ Configuring build tools
@@ -7989,7 +8140,7 @@ delivers tangible user value.
 
 ### Step 1: Review Use Cases and Plan Implementation Order
 
-**Read Stage 1 use cases** from `<worktree>/planning/task-definition.md`:
+**Read Stage 1 use cases** from `<WT>/planning/task-definition.md`:
 
 Review the primary and alternative use cases identified during understanding phase:
 - What are the core user workflows?
@@ -8005,7 +8156,7 @@ Think about logical groupings and dependencies:
 - What can be built independently?
 - What requires integration testing?
 
-**Create comprehensive implementation plan** - document to `<worktree>/planning/implementation-steps.md`:
+**Create comprehensive implementation plan** - document to `<WT>/planning/implementation-steps.md`:
 
 ```markdown
 # Implementation Steps & Feature Dependencies
@@ -8222,11 +8373,11 @@ When implementing tasks within phases:
 - **Coordination planning:** Shows where teams need to coordinate schema/API changes
 
 ## References
-- Task Details: `<worktree>/planning/tasks-pending/task-NNN-[name].md`
-- Use Cases: `<worktree>/planning/task-definition.md`
-- Architecture: `<worktree>/planning/architecture.md`
-- Infrastructure: `<worktree>/planning/infrastructure-ids.md`
-- Quality Criteria: `<worktree>/planning/quality-criteria.md`
+- Task Details: `<WT>/planning/tasks-pending/task-NNN-[name].md`
+- Use Cases: `<WT>/planning/task-definition.md`
+- Architecture: `<WT>/planning/architecture.md`
+- Infrastructure: `<WT>/planning/infrastructure-ids.md`
+- Quality Criteria: `<WT>/planning/quality-criteria.md`
 ```
 
 ### Step 2: Create Task Files for Each Feature
@@ -8235,7 +8386,7 @@ When implementing tasks within phases:
 
 Before decomposing features into tasks, verify features still align with confirmed Stage 1 use cases:
 
-**Review Stage 1 use cases** in `<worktree>/planning/use-cases.md` and compare with task breakdown plan.
+**Review Stage 1 use cases** in `<WT>/planning/use-cases.md` and compare with task breakdown plan.
 
 **IF task breakdown reveals features not in Stage 1 OR misses Stage 1 features:**
   → Identify discrepancies
@@ -8262,7 +8413,7 @@ Before decomposing features into tasks, verify features still align with confirm
   → **IF remove tasks chosen:** Only create tasks for confirmed Stage 1 use cases
   → **IF document expansion:** Add to GUIDE.md explaining why scope expanded, proceed with tasks
 
-**For each feature/use case from Stage 1**, create a task file in `<worktree>/planning/tasks-pending/`.
+**For each feature/use case from Stage 1**, create a task file in `<WT>/planning/tasks-pending/`.
 
 **Task File Naming Convention:** `task-NNN-[feature-name].md` where:
 - NNN is zero-padded task number (001, 002, 003...)
@@ -9120,7 +9271,7 @@ element.addEventListener('invoice:created', (e) => {
 
    **Step 1: Identify Tasks That Share Common Elements**
 
-   Review all other tasks in `<worktree>/planning/tasks-pending/` and identify relationships based on:
+   Review all other tasks in `<WT>/planning/tasks-pending/` and identify relationships based on:
 
    **Shared Data Models:**
    - **Same database tables/collections:** Tasks operating on same data structures
@@ -9342,7 +9493,7 @@ element.addEventListener('invoice:created', (e) => {
 
 Each task file should follow this comprehensive structure (reference the template from Phase 2-C Step 1b):
 
-`<worktree>/planning/tasks-pending/task-001-[feature-name].md`:
+`<WT>/planning/tasks-pending/task-001-[feature-name].md`:
 ```markdown
 # Task 001: [Feature Name]
 
@@ -9646,15 +9797,15 @@ Before moving to the next task file, verify this task's test specifications:
 - Blocks: [Tasks that depend on this one completing]
 
 ## Infrastructure References
-From `<worktree>/planning/infrastructure-ids.md`:
+From `<WT>/planning/infrastructure-ids.md`:
 - [List relevant IDs, endpoints, config values needed]
 
 ## Architecture References
-From `<worktree>/planning/architecture.md`:
+From `<WT>/planning/architecture.md`:
 - [Relevant architectural decisions and patterns]
 
 ## Learnings References
-From `<worktree>/planning/learnings.md` (if exists from previous tasks):
+From `<WT>/planning/learnings.md` (if exists from previous tasks):
 - [Relevant lessons that might apply]
 - [Patterns that worked well]
 - [Pitfalls to avoid]
@@ -9726,7 +9877,7 @@ Tasks are organized into dependency tiers that maximize parallelization while re
 
 **Critical Documentation Requirement:**
 
-Each Tier 0 task MUST document outputs in `<worktree>/planning/architecture.md` under a dedicated section:
+Each Tier 0 task MUST document outputs in `<WT>/planning/architecture.md` under a dedicated section:
 
 ```markdown
 ## Tier 0 Foundation Results
@@ -9956,6 +10107,10 @@ Use tier-based numbering for instant dependency visualization:
 - `task-022-order-service.md` - Order processing and fulfillment logic
 - `task-023-payment-service.md` - Payment processing integration
 
+---
+📖 **Lost Context?** Read `<WT>/planning/GUIDE.md` for current phase state, confirmed stages, and key decisions.
+---
+
 **Batch 3 (Third Parallel): 030-039**
 - `task-030-user-api.md` - REST endpoints for user management
 - `task-031-product-api.md` - REST endpoints for product catalog
@@ -9988,7 +10143,7 @@ Use tier-based numbering for instant dependency visualization:
 1. **Identify Tier 0 tasks** from infrastructure needs → Number 001-009
 2. **Group remaining tasks into batches** using dependency algorithm → Number 010-019, 020-029, etc.
 3. **Identify Tier Final tasks** from finalization needs → Number 090-099
-4. **Create task files** in `<worktree>/planning/tasks-pending/` with tier-based naming
+4. **Create task files** in `<WT>/planning/tasks-pending/` with tier-based naming
 5. **Document Tier 0 outputs** in architecture.md as each Tier 0 task is defined
 
 Work through use cases from task-definition.md, but organize by tier:
@@ -10002,7 +10157,7 @@ Work through use cases from task-definition.md, but organize by tier:
 
 ```bash
 # Create first task for primary use case
-cat > "<worktree>/planning/tasks-pending/task-001-user-authentication.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-001-user-authentication.md" << 'EOF'
 # Task 001: User Authentication
 
 ## Feature Description
@@ -10014,7 +10169,7 @@ From Stage 1 primary use case: "User authenticates to access protected features"
 EOF
 
 # Create second task for dependent feature
-cat > "<worktree>/planning/tasks-pending/task-002-session-management.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-002-session-management.md" << 'EOF'
 # Task 002: Session Management
 
 ## Feature Description
@@ -10038,7 +10193,7 @@ Create CI/CD tasks to handle migration and deployment automation. The CI/CD task
 **For ONE-TIME Migrations:**
 ```bash
 # Create runbook documentation task (no automation needed)
-cat > "<worktree>/planning/tasks-pending/task-[NNN]-migration-runbook.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-[NNN]-migration-runbook.md" << 'EOF'
 # Task [NNN]: Migration Runbook Documentation
 
 ## Feature Description
@@ -10053,7 +10208,7 @@ Migration will run once in dev, once in staging, once in prod.
 - [ ] Document environment-specific considerations
 
 ## Deliverables
-- `<worktree>/docs/MIGRATION_RUNBOOK.md` with complete instructions
+- `<WT>/docs/MIGRATION_RUNBOOK.md` with complete instructions
 - Verification scripts for each migration phase
 - Rollback scripts if migration fails
 
@@ -10068,7 +10223,7 @@ EOF
 **For REPEATABLE Migrations:**
 ```bash
 # Create migration framework task (if custom framework needed)
-cat > "<worktree>/planning/tasks-pending/task-[NNN]-migration-framework.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-[NNN]-migration-framework.md" << 'EOF'
 # Task [NNN]: Migration Framework Implementation
 
 ## Feature Description
@@ -10095,7 +10250,7 @@ Framework will run automatically before every deployment via CI/CD.
 - Blocks: All feature tasks requiring migrations
 
 ## Infrastructure References
-From `<worktree>/planning/infrastructure-ids.md`:
+From `<WT>/planning/infrastructure-ids.md`:
 - Database connection configuration
 - Migration history storage location
 
@@ -10108,7 +10263,7 @@ From `<worktree>/planning/infrastructure-ids.md`:
 EOF
 
 # Create first migration task using the framework
-cat > "<worktree>/planning/tasks-pending/task-[NNN+1]-initial-schema-migration.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-[NNN+1]-initial-schema-migration.md" << 'EOF'
 # Task [NNN+1]: Initial Schema Migration
 
 ## Feature Description
@@ -10140,7 +10295,7 @@ This migration demonstrates the framework working with a real use case.
 EOF
 
 # Create CI/CD pipeline task
-cat > "<worktree>/planning/tasks-pending/task-[NNN+2]-cicd-pipeline.md" << 'EOF'
+cat > "<WT>/planning/tasks-pending/task-[NNN+2]-cicd-pipeline.md" << 'EOF'
 # Task [NNN+2]: CI/CD Pipeline with Migration Integration
 
 ## Feature Description
@@ -10188,7 +10343,7 @@ CI/CD loop: migration (if any) → deployment → verification.
 - Blocks: All deployment workflows
 
 ## Infrastructure References
-From `<worktree>/planning/infrastructure-ids.md`:
+From `<WT>/planning/infrastructure-ids.md`:
 - CI/CD platform (GitHub Actions, GitLab CI, Jenkins)
 - Deployment targets per environment
 - Migration execution credentials
@@ -10232,10 +10387,10 @@ EOF
 **Count and verify tasks:**
 ```bash
 # Count total tasks
-ls "<worktree>/planning/tasks-pending/" | wc -l
+ls "<WT>/planning/tasks-pending/" | wc -l
 
 # Verify numbering is sequential
-ls "<worktree>/planning/tasks-pending/" | sort
+ls "<WT>/planning/tasks-pending/" | sort
 ```
 
 **Check for gaps:**
@@ -10248,12 +10403,12 @@ ls "<worktree>/planning/tasks-pending/" | sort
 **BEFORE user presentation, perform task completeness validation:**
 
 1. **Verify ALL use cases from Stage 1 are covered by tasks:**
-   - Read `<worktree>/planning/use-cases.md`
+   - Read `<WT>/planning/use-cases.md`
    - For each use case, identify which task(s) implement it
    - Document verification: "Use case [X] → Task(s) [NNN, NNN] → Implementation covered"
 
 2. **Verify ALL requirements from Stage 2 are addressed:**
-   - Read `<worktree>/planning/requirements.md`
+   - Read `<WT>/planning/requirements.md`
    - Check functional requirements: Each requirement mapped to at least one task
    - Check non-functional requirements: Each NFR mapped to specific task(s) or implementation approach
 
@@ -10287,7 +10442,7 @@ ls "<worktree>/planning/tasks-pending/" | sort
 
 **Create execution strategy document** that shows how tasks can be parallelized:
 
-Write to `<worktree>/planning/execution-strategy.md`:
+Write to `<WT>/planning/execution-strategy.md`:
 
 ```markdown
 # Execution Strategy: [Epic Name]
@@ -10732,7 +10887,7 @@ Are cross-cutting concerns consistently addressed?
 **1. Sequential Read-Through:**
 ```bash
 # Read all task files in order
-for file in "<worktree>/planning/tasks-pending/"*.md; do
+for file in "<WT>/planning/tasks-pending/"*.md; do
     echo "=== Reviewing: $file ==="
     cat "$file" | grep -E "^#|Feature Description|Implementation Scope|Dependencies|Quality Gates"
 done
@@ -10769,7 +10924,7 @@ For each issue found, categorize by severity:
 
 **4. Document Review:**
 
-Append to `<worktree>/planning/p2d-task-breakdown-journal.md`:
+Append to `<WT>/planning/p2d-task-breakdown-journal.md`:
 
 ```markdown
 ## Holistic Quality Review
@@ -10975,14 +11130,14 @@ I've broken down all features into [N] implementable tasks:
 **Total: [N] tasks to implement**
 
 **Task Files Created:**
-All [N] task files are in `<worktree>/planning/tasks-pending/`:
+All [N] task files are in `<WT>/planning/tasks-pending/`:
 - Each task is a complete end-to-end vertical slice
 - Each has clear acceptance criteria and test requirements
 - Dependencies are documented for proper ordering
 - Quality gates ensure standards are met
 
 **Implementation Order:**
-`<worktree>/planning/implementation-steps.md` defines the serialized execution order
+`<WT>/planning/implementation-steps.md` defines the serialized execution order
 across 5 phases, respecting dependencies and building from foundation to features.
 
 **Ready to begin Phase 3 task execution?**"
@@ -10991,14 +11146,14 @@ across 5 phases, respecting dependencies and building from foundation to feature
 
 IF the user confirms:
   → **Update GUIDE.md** with task decomposition completion:
-     * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
+     * Edit `<WT>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 2-D complete: [N] tasks created and ordered for implementation"
      * Update "Key Documents Reference" to include implementation-steps.md and task files location
 
   → **Update GUIDE.md** for Phase 2 → Phase 3 transition:
-     * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
+     * Edit `<WT>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 2 complete - quality criteria defined, tests written, infrastructure planned, tasks decomposed"
-     * Edit `<worktree>/planning/GUIDE.md` section "The Story So Far"
+     * Edit `<WT>/planning/GUIDE.md` section "The Story So Far"
        Add: "**Phase 2 → Phase 3 Transition**: Planning complete. We have [N] tasks ready for execution. Each task is a complete vertical slice with tests, quality gates, and acceptance criteria. Now we execute tasks one by one until pending folder is empty."
      * Reference implementation-steps.md in "Key Documents Reference"
 
@@ -11050,7 +11205,7 @@ Before proceeding to Phase 3 implementation, verify that ALL design and planning
 - [ ] **Architecture meets requirements**: Verified that all Stage 2 requirements satisfied by Stage 3 technology choices
 - [ ] **Tests cover requirements**: Verified that Phase 2-B test specifications cover all functional requirements
 - [ ] **Tasks cover use cases**: Verified that Phase 2-D tasks implement all use cases from Stage 1
-- [ ] **No implementation yet**: Confirmed no code in `<worktree>/src/`, no tests in `<worktree>/test/`
+- [ ] **No implementation yet**: Confirmed no code in `<WT>/src/`, no tests in `<WT>/test/`
 
 #### User Confirmations
 
@@ -11133,7 +11288,7 @@ Cannot proceed to implementation with incomplete design decisions.
 ```
 ⚠️ **ALERT: Implementation found before Phase 3**
 
-Code detected in <worktree>/src/ or <worktree>/test/ but we haven't started Phase 3 yet.
+Code detected in <WT>/src/ or <WT>/test/ but we haven't started Phase 3 yet.
 
 **Possible causes:**
 1. Files left over from previous run (need cleanup)
@@ -11141,7 +11296,7 @@ Code detected in <worktree>/src/ or <worktree>/test/ but we haven't started Phas
 3. Implementation accidentally started during planning phases (violation of boundaries)
 
 **What to do:**
-A. If leftover files: `rm -rf <worktree>/src/ <worktree>/test/` and re-run gate
+A. If leftover files: `rm -rf <WT>/src/ <WT>/test/` and re-run gate
 B. If baseline code: Document in GUIDE.md "Starting Baseline" section, note what exists
 C. If boundary violation: User decides - keep and document, or delete and follow process
 ```
@@ -11246,33 +11401,33 @@ Before transitioning from Phase 2 to Phase 3, verify no material changes to earl
 ## Phase 3: Task Execution Loop
 
 **📥 Input Files (per task iteration):**
-- `<worktree>/planning/tasks-pending/task-NNN-[name].md` (current task specification)
-- `<worktree>/planning/quality-criteria.md` (Phase 2 - success criteria)
-- `<worktree>/planning/test-plan.md` (Phase 2-B - test specifications)
-- `<worktree>/planning/architecture.md` + `tooling.md` (Phase 1 Stage 3 - technical decisions)
-- `<worktree>/planning/infrastructure-ids.md` (Phase 2-C - IDs, endpoints, credentials)
-- `<worktree>/planning/learnings.md` (cumulative insights from previous tasks)
-- `<worktree>/planning/GUIDE.md` (session state)
+- `<WT>/planning/tasks-pending/task-NNN-[name].md` (current task specification)
+- `<WT>/planning/quality-criteria.md` (Phase 2 - success criteria)
+- `<WT>/planning/test-plan.md` (Phase 2-B - test specifications)
+- `<WT>/planning/architecture.md` + `tooling.md` (Phase 1 Stage 3 - technical decisions)
+- `<WT>/planning/infrastructure-ids.md` (Phase 2-C - IDs, endpoints, credentials)
+- `<WT>/planning/learnings.md` (cumulative insights from previous tasks)
+- `<WT>/planning/GUIDE.md` (session state)
 
 **📤 Output Files (per task iteration):**
-- `<worktree>/src/[implementation-files]` (code implementing the feature)
-- `<worktree>/test/[test-files]` (tests for the feature)
-- `<worktree>/README.md` (ALWAYS updated with feature summary)
-- `<worktree>/planning/learnings.md` (updated with new insights)
-- `<worktree>/planning/tasks-completed/task-NNN-[name].md` (moved from pending with completion notes)
-- `<worktree>/planning/GUIDE.md` (updated with task completion and transition log)
+- `<WT>/src/[implementation-files]` (code implementing the feature)
+- `<WT>/test/[test-files]` (tests for the feature)
+- `<WT>/README.md` (ALWAYS updated with feature summary)
+- `<WT>/planning/learnings.md` (updated with new insights)
+- `<WT>/planning/tasks-completed/task-NNN-[name].md` (moved from pending with completion notes)
+- `<WT>/planning/GUIDE.md` (updated with task completion and transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/planning/learnings.md`, `<worktree>/planning/tasks-completed/task-NNN-[name].md` (moved from pending after completion)
+- **Files Created:** `<WT>/planning/learnings.md`, `<WT>/planning/tasks-completed/task-NNN-[name].md` (moved from pending after completion)
 - **Purpose:** Execute each task with quality verification, capture learnings, and move completed tasks from pending to completed folder
 - **Referenced By:** Phase 4 (retrospective analysis, final validation, delivery summary)
 
 ---
 
-This is where the work happens. We execute tasks one by one until `<worktree>/planning/tasks-pending/` is empty.
+This is where the work happens. We execute tasks one by one until `<WT>/planning/tasks-pending/` is empty.
 
 **⚠️ CRITICAL LOOP CONDITION:**
-Phase 3 continues WHILE tasks exist in `<worktree>/planning/tasks-pending/`.
+Phase 3 continues WHILE tasks exist in `<WT>/planning/tasks-pending/`.
 The phase only completes when the pending folder is empty (all tasks moved to completed).
 
 **Initialize execution state:**
@@ -11282,16 +11437,16 @@ The phase only completes when the pending folder is empty (all tasks moved to co
 
 ### The Task Execution Loop
 
-WHILE tasks exist in `<worktree>/planning/tasks-pending/`:
+WHILE tasks exist in `<WT>/planning/tasks-pending/`:
 
 **⚠️  PATH DISCIPLINE REMINDER:**
-All file operations MUST use `<worktree>` as the path prefix.
-All git operations MUST use: `git -C "<worktree>" [command]`
+All file operations MUST use `<WT>` as the path prefix.
+All git operations MUST use: `git -C "<WT>" [command]`
 
-Never use relative paths. Never use `cd`. Always specify full paths with `<worktree>`.
+Never use relative paths. Never use `cd`. Always specify full paths with `<WT>`.
 
 **📖 Context Reminder at start of each task:**
-If you've lost context during task execution, read `<worktree>/planning/GUIDE.md` to understand:
+If you've lost context during task execution, read `<WT>/planning/GUIDE.md` to understand:
 - What we're building (check task-definition.md)
 - What quality criteria we're meeting (check quality-criteria.md)
 - What tasks are completed (check tasks-completed/)
@@ -11304,12 +11459,12 @@ If you've lost context during task execution, read `<worktree>/planning/GUIDE.md
 
 **List pending tasks:**
 ```bash
-ls "<worktree>/planning/tasks-pending/" | sort
+ls "<WT>/planning/tasks-pending/" | sort
 ```
 
 **Choose next task respecting dependencies:**
 
-Review `<worktree>/planning/implementation-steps.md` to understand task ordering and phases:
+Review `<WT>/planning/implementation-steps.md` to understand task ordering and phases:
 - **Dependencies first**: Select tasks with no pending prerequisites
 - **Foundation before features**: Core utilities before features that use them
 - **High-risk first**: Complex or uncertain tasks tackled early (within phase)
@@ -11318,7 +11473,7 @@ Review `<worktree>/planning/implementation-steps.md` to understand task ordering
 **Select task file:**
 ```bash
 # Identify next task from pending folder
-TASK_FILE="<worktree>/planning/tasks-pending/task-NNN-[name].md"
+TASK_FILE="<WT>/planning/tasks-pending/task-NNN-[name].md"
 ```
 
 **Read the selected task file** to understand:
@@ -11363,9 +11518,9 @@ Before planning implementation, verify task still aligns with earlier confirmed 
   → **IF document exception:** Add to GUIDE.md Technical Debt, note in task completion, proceed
 
 **Determine what files to create or modify:**
-- Implementation files in `<worktree>/src/`
-- Test files in `<worktree>/test/`
-- Documentation files in `<worktree>/docs/`
+- Implementation files in `<WT>/src/`
+- Test files in `<WT>/test/`
+- Documentation files in `<WT>/docs/`
 
 **Decide your approach:**
 - What pattern will you use?
@@ -11376,21 +11531,21 @@ Before planning implementation, verify task still aligns with earlier confirmed 
 Before planning implementation details, review these authorized materials:
 
 **1. Architecture Reference:**
-Read `<worktree>/planning/architecture.md` to recall:
+Read `<WT>/planning/architecture.md` to recall:
 - Technology decisions and rationale
 - Integration patterns discovered in codebase
 - System dependencies and failure modes
 - State transition requirements
 
 **2. Tooling Integration Plan:**
-Read `<worktree>/planning/tooling.md` to understand:
+Read `<WT>/planning/tooling.md` to understand:
 - Which MCP servers are available for this iteration's work?
 - Which subagents should be invoked? (code review, testing support)
 - How are external APIs integrated? (direct vs. abstraction patterns)
 - What testing/quality tools verify this iteration?
 
 **3. Infrastructure Identifiers:**
-Reference `<worktree>/planning/infrastructure-ids.md` for:
+Reference `<WT>/planning/infrastructure-ids.md` for:
 - Service IDs, endpoints, and configuration values
 - Environment variables and credential references
 - Rate limits and timeout values
@@ -11402,10 +11557,10 @@ Before planning this task's implementation, evaluate what already exists in the 
 **Examine existing source code structure:**
 ```bash
 # Review existing folder structure
-ls -la "<worktree>/src/"
+ls -la "<WT>/src/"
 
 # Find existing modules and utilities
-find "<worktree>/src/" -name "*.js" -o -name "*.ts"
+find "<WT>/src/" -name "*.js" -o -name "*.ts"
 ```
 
 **Analyze existing code patterns:**
@@ -11415,8 +11570,8 @@ find "<worktree>/src/" -name "*.js" -o -name "*.ts"
 - Are there similar features already implemented that can serve as templates?
 
 **Review existing tooling:**
-- What npm packages are already installed? (check `<worktree>/package.json`)
-- What testing utilities exist? (check `<worktree>/test/` for helpers, mocks, fixtures)
+- What npm packages are already installed? (check `<WT>/package.json`)
+- What testing utilities exist? (check `<WT>/test/` for helpers, mocks, fixtures)
 - What configuration is already set up? (build tools, linters, formatters)
 
 **Identify reuse opportunities:**
@@ -11656,8 +11811,8 @@ const experiment_pattern_comparison = () => {
 **Create experiment workspace** (separate from main implementation):
 ```bash
 # Create temporary experiment directory
-mkdir -p "<worktree>/experiments/task-NNN-exploration"
-cd "<worktree>/experiments/task-NNN-exploration"
+mkdir -p "<WT>/experiments/task-NNN-exploration"
+cd "<WT>/experiments/task-NNN-exploration"
 
 # Create experiment files
 touch experiment-1-api-capability.js
@@ -11867,11 +12022,11 @@ touch experiment-3-integration-test.js
 **Clean up experiment workspace:**
 ```bash
 # Archive experiments for future reference
-mv "<worktree>/experiments/task-NNN-exploration" \
-   "<worktree>/experiments/archive/task-NNN-$(date +%Y%m%d)"
+mv "<WT>/experiments/task-NNN-exploration" \
+   "<WT>/experiments/archive/task-NNN-$(date +%Y%m%d)"
 
 # Or delete if experiments have no lasting value
-rm -rf "<worktree>/experiments/task-NNN-exploration"
+rm -rf "<WT>/experiments/task-NNN-exploration"
 ```
 
 ---
@@ -11908,27 +12063,27 @@ This step implements Test-Driven Development: write failing tests first (Red), w
 Before writing any code, review the context from planning phases:
 
 **1. Architecture Reference:**
-Read `<worktree>/planning/architecture.md` to recall:
+Read `<WT>/planning/architecture.md` to recall:
 - What technology decisions guide this implementation?
 - What integration patterns exist in the codebase?
 - What are the system dependencies and their failure modes?
 - What state transitions must this code handle?
 
 **2. Tooling Integration:**
-Read `<worktree>/planning/tooling.md` to understand:
+Read `<WT>/planning/tooling.md` to understand:
 - Which MCP servers are available for this task?
 - Which subagents should be invoked?
 - How are external APIs integrated?
 - What testing/quality tools verify this task?
 
 **3. Infrastructure Identifiers:**
-Reference `<worktree>/planning/infrastructure-ids.md` for:
+Reference `<WT>/planning/infrastructure-ids.md` for:
 - Service IDs, endpoints, configuration values
 - Environment variables and credential references
 - Rate limits and timeout values
 
 **4. Task Test Specifications:**
-Read `<worktree>/planning/tasks-pending/task-NNN-[name].md` section "Test Specifications"
+Read `<WT>/planning/tasks-pending/task-NNN-[name].md` section "Test Specifications"
 - These were written during Phase 2-D task creation
 - Complete Given/When/Then specs for this task
 - These specs are your contract - implement them exactly
@@ -11939,7 +12094,7 @@ Read `<worktree>/planning/tasks-pending/task-NNN-[name].md` section "Test Specif
 
 **Step 3a: Implement Test Specifications as Mocha/Chai Tests**
 
-Create test file: `<worktree>/test/[module-name].test.js`
+Create test file: `<WT>/test/[module-name].test.js`
 
 **Read the task file's "Test Specifications" section.** It contains complete Given/When/Then specifications written during Phase 2-D. Your job: translate them into executable Mocha/Chai tests.
 
@@ -11976,6 +12131,35 @@ describe('[Module Name from task]', () => {
 });
 ```
 
+---
+
+**⚠️ TDD EXECUTION - PATH DISCIPLINE CRITICAL:**
+
+You are about to write code and run tests. **Every command must follow these rules:**
+
+**File operations:**
+- Write: `Write("<WT>/src/feature.js", content)`
+- Read: `Read("<WT>/test/feature.test.js")`
+- All operations: Absolute paths with `<WT>` prefix
+
+**Git operations:**
+- Status: `git -C "<WT>" status`
+- Add: `git -C "<WT>" add src/ test/`
+- Commit: `git -C "<WT>" commit -m "msg"`
+
+**Test execution:**
+- Run: `cd "<WT>" && npx mocha test/**/*.test.js`
+- Note: `cd "<WT>"` allowed ONLY in subshell (&&), never standalone
+
+**NEVER:**
+- ❌ `cd <WT>` as standalone command
+- ❌ `git status` without `-C "<WT>"`
+- ❌ `./src/` or `../` relative paths
+
+One wrong command corrupts session. Triple-check every path.
+
+---
+
 3. **Implement ALL test specs from task file**
    - Unit tests → describe blocks for each function
    - Integration tests → describe blocks for workflows
@@ -11984,7 +12168,7 @@ describe('[Module Name from task]', () => {
 
 **Run tests - they MUST FAIL (Red):**
 ```bash
-cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+cd "<WT>" && npx mocha test/**/*.test.js --reporter spec
 ```
 
 **Expected output:** All tests fail with errors like:
@@ -11996,8 +12180,8 @@ This is GOOD - tests are red because implementation doesn't exist yet.
 
 **Commit test specifications (Red):**
 ```bash
-git -C "<worktree>" add test/
-git -C "<worktree>" commit -m "test: Add failing tests for [task-name] (RED)"
+git -C "<WT>" add test/
+git -C "<WT>" commit -m "test: Add failing tests for [task-name] (RED)"
 ```
 
 ---
@@ -12006,7 +12190,7 @@ git -C "<worktree>" commit -m "test: Add failing tests for [task-name] (RED)"
 
 **Step 3b: Write Implementation Code to Pass Tests**
 
-Create implementation file: `<worktree>/src/[module-name].js`
+Create implementation file: `<WT>/src/[module-name].js`
 
 **Goal:** Write the MINIMAL code needed to make tests green.
 
@@ -12021,7 +12205,7 @@ Create implementation file: `<worktree>/src/[module-name].js`
 ```bash
 # 1. Write minimal implementation for first test
 # 2. Run tests
-cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+cd "<WT>" && npx mocha test/**/*.test.js --reporter spec
 
 # 3. See first test pass (others still fail)
 # 4. Write implementation for next test
@@ -12062,7 +12246,7 @@ module.exports = { AuthenticationService };
 
 **Run tests frequently - watch them turn GREEN:**
 ```bash
-cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+cd "<WT>" && npx mocha test/**/*.test.js --reporter spec
 ```
 
 As you implement, tests pass one by one. Continue until all tests are green.
@@ -12120,7 +12304,7 @@ async _validateCredentials(username, password) {
 
 **Run tests after refactoring:**
 ```bash
-cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+cd "<WT>" && npx mocha test/**/*.test.js --reporter spec
 ```
 
 All tests still green? Refactoring successful.
@@ -12139,8 +12323,8 @@ Update documentation if this task adds user-facing features or APIs:
 **Step 3e: Commit Implementation (Green)**
 
 ```bash
-git -C "<worktree>" add .
-git -C "<worktree>" commit -m "feat: Implement [task-name] (GREEN - all tests passing)"
+git -C "<WT>" add .
+git -C "<WT>" commit -m "feat: Implement [task-name] (GREEN - all tests passing)"
 ```
 
 **TDD Cycle Complete:**
@@ -12164,21 +12348,21 @@ Work through all quality issues without prompting the user. Fix failing tests, a
 **Build Verification (if applicable):**
 
 IF there's a build step:
-  Run: `cd "<worktree>" && npm run build`
+  Run: `cd "<WT>" && npm run build`
 
   WHILE build fails:
     1. Analyze build errors - what do they reveal about your code?
     2. Fix syntax, import, or type issues
     3. Rebuild
-    4. Commit fix: `git -C "<worktree>" commit -am "Fix: [what you fixed and why]"`
+    4. Commit fix: `git -C "<WT>" commit -am "Fix: [what you fixed and why]"`
   END WHILE
 
   Only proceed when build succeeds without errors or warnings.
 
 **Test Iteration Loop:**
 
-Run test suite: `cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec`
-Save results: `cd "<worktree>" && npx mocha test/**/*.test.js --reporter json > planning/test-results/tests-iteration-{iteration_number}.json`
+Run test suite: `cd "<WT>" && npx mocha test/**/*.test.js --reporter spec`
+Save results: `cd "<WT>" && npx mocha test/**/*.test.js --reporter json > planning/test-results/tests-iteration-{iteration_number}.json`
 
 WHILE tests are failing:
   1. **Analyze failures**: What do they teach you?
@@ -12195,7 +12379,7 @@ WHILE tests are failing:
   3. **Re-run tests**: Verify the fix worked and didn't break anything else
 
   4. **Commit the fix**:
-     `git -C "<worktree>" commit -am "Fix: [what you learned and fixed]"`
+     `git -C "<WT>" commit -am "Fix: [what you learned and fixed]"`
 
   5. **Continue iterating** until all tests pass
 END WHILE
@@ -12204,10 +12388,10 @@ Only proceed when all tests pass. Green tests = specifications met.
 
 **Code Review Iteration:**
 
-Ask code-reviewer subagent to review `<worktree>/src/`
+Ask code-reviewer subagent to review `<WT>/src/`
 
 Provide these parameters:
-- path: `<worktree>/src/`
+- path: `<WT>/src/`
 - iteration: {iteration_number}
 - focus: [quality dimensions from criteria]
 
@@ -12230,18 +12414,18 @@ WHILE blocking issues exist:
   3. **Re-run tests**: Ensure refactoring didn't break functionality
 
   4. **Commit the refactor**:
-     `git -C "<worktree>" commit -am "Refactor: [what you improved and why]"`
+     `git -C "<WT>" commit -am "Refactor: [what you improved and why]"`
 
   5. **Re-run code-reviewer**: Verify issues are resolved
 END WHILE
 
-Save final review to `<worktree>/planning/reviews/review-iteration-{iteration_number}.json`.
+Save final review to `<WT>/planning/reviews/review-iteration-{iteration_number}.json`.
 
 Only proceed when no blocking issues remain. Minor issues can be noted for later.
 
 **Criteria Verification:**
 
-Read `<worktree>/planning/quality-criteria.md` and evaluate each criterion objectively.
+Read `<WT>/planning/quality-criteria.md` and evaluate each criterion objectively.
 
 For each primary criterion:
 - Is it complete? (yes/no)
@@ -12273,7 +12457,7 @@ Only proceed when quality score ≥80 AND all primary criteria complete.
 
 **Integration Verification:**
 
-Test each integration point from `<worktree>/planning/architecture.md`:
+Test each integration point from `<WT>/planning/architecture.md`:
 
 For each external system integration:
 - Test successful interaction (happy path)
@@ -12290,7 +12474,7 @@ END IF
 
 **State Transition Verification:**
 
-Review state transition plan from `<worktree>/planning/architecture.md`:
+Review state transition plan from `<WT>/planning/architecture.md`:
 - Has system transitioned from current → future state?
 - Are all migration steps complete?
 - Does old functionality still work? (backward compatibility)
@@ -12310,7 +12494,7 @@ Only then proceed to Step 5: Complete This Task.
 
 #### Step 5: Complete This Task
 
-**Fill out task completion section** in the task file (`<worktree>/planning/tasks-pending/task-NNN-[name].md`):
+**Fill out task completion section** in the task file (`<WT>/planning/tasks-pending/task-NNN-[name].md`):
 
 Update the "## Completion Notes (Post-Implementation)" section:
 
@@ -12321,8 +12505,8 @@ Update the "## Completion Notes (Post-Implementation)" section:
 [Brief overview of what was implemented]
 
 ### Files Created/Modified
-- `<worktree>/src/[file]` - [Purpose]
-- `<worktree>/test/[file]` - [Test coverage]
+- `<WT>/src/[file]` - [Purpose]
+- `<WT>/test/[file]` - [Test coverage]
 - [Additional files...]
 
 ### Quality Verification Results
@@ -12356,7 +12540,7 @@ Update the "## Completion Notes (Post-Implementation)" section:
 **If README.md update needed:**
 ```bash
 # Read current README
-cat "<worktree>/README.md"
+cat "<WT>/README.md"
 
 # Update relevant sections (examples below)
 ```
@@ -12386,15 +12570,15 @@ const result = newFeature(params);
 ```
 
 **Update other documentation if needed:**
-- `<worktree>/docs/API.md` - For API changes
-- `<worktree>/docs/ARCHITECTURE.md` - For architectural patterns
-- `<worktree>/docs/CONFIGURATION.md` - For config changes
+- `<WT>/docs/API.md` - For API changes
+- `<WT>/docs/ARCHITECTURE.md` - For architectural patterns
+- `<WT>/docs/CONFIGURATION.md` - For config changes
 - Task file itself documents implementation details (already done above)
 
 **Commit documentation updates:**
 ```bash
-git -C "<worktree>" add README.md docs/
-git -C "<worktree>" commit -m "docs: Update documentation for [task-name]"
+git -C "<WT>" add README.md docs/
+git -C "<WT>" commit -m "docs: Update documentation for [task-name]"
 ```
 
 **If no documentation update needed:**
@@ -12402,8 +12586,8 @@ Skip this step - not every task requires user-facing documentation changes.
 
 **Move task file to completed folder:**
 ```bash
-mv "<worktree>/planning/tasks-pending/task-NNN-[name].md" \
-   "<worktree>/planning/tasks-completed/task-NNN-[name].md"
+mv "<WT>/planning/tasks-pending/task-NNN-[name].md" \
+   "<WT>/planning/tasks-completed/task-NNN-[name].md"
 ```
 
 **Increment completion counter:**
@@ -12413,7 +12597,7 @@ tasks_completed_count = tasks_completed_count + 1
 
 #### Step 6: Capture Learnings
 
-**Read** `<worktree>/planning/learnings.md` (create if doesn't exist).
+**Read** `<WT>/planning/learnings.md` (create if doesn't exist).
 
 **Append new learnings** from this task:
 
@@ -12442,34 +12626,33 @@ tasks_completed_count = tasks_completed_count + 1
 ```
 
 **IF significant architectural insights emerged:**
-Also update `<worktree>/planning/architecture.md` to reflect new understanding.
+Also update `<WT>/planning/architecture.md` to reflect new understanding.
 
 ---
 
 ### ⛔ BLOCKING QUALITY GATE: Task Reconciliation Complete
 
-**⚠️ CRITICAL:** You CANNOT proceed to Step 7 (Announce Completion) or start the next task until ALL checklist items below are ✅.
+**⚠️ CRITICAL:** CANNOT proceed to Step 7 or start next task until ALL items below ✅.
 
 **Why this gate blocks:** If you skip reconciliation, learnings from this task won't propagate to future tasks, causing repeated mistakes and architectural drift.
 
 **Mandatory Actions Checklist:**
 
-**1. Learnings Captured:**
-- [ ] Updated `learnings.md` with Technical Insights section
-- [ ] Updated `learnings.md` with Reusable Patterns section
-- [ ] Updated `learnings.md` with Architecture Updates section
-- [ ] Updated `learnings.md` with Recommendations for Future Tasks section
-- [ ] If architectural: Updated `architecture.md` with new understanding
+**1. Learnings Captured:** Update `learnings.md` with:
+- [ ] Technical Insights section
+- [ ] Reusable Patterns section
+- [ ] Architecture Updates section
+- [ ] Recommendations for Future Tasks section
+- [ ] If architectural: Update `architecture.md` with new understanding
 
 **2. Planning Artifacts Updated:**
 - [ ] Reviewed all task files in `tasks-pending/` for impact from this task's learnings
-- [ ] Updated affected task files with new insights (approach changes, new dependencies, complexity adjustments)
-- [ ] If implementation revealed planning gaps: Updated relevant Phase 2 documents (requirements.md, architecture.md, etc.)
-- [ ] If scope changed: Updated GUIDE.md with deviation documentation and rationale
+- [ ] Updated affected task files with new insights (approach changes, dependencies, complexity)
+- [ ] If planning gaps: Updated relevant Phase 2 docs (requirements.md, architecture.md, etc.)
+- [ ] If scope changed: Updated GUIDE.md with deviation docs and rationale
 
 **3. Next Task Prepared:**
-- [ ] Identified next task from `tasks-pending/`
-- [ ] Read next task file completely
+- [ ] Identified next task from `tasks-pending/` and read completely
 - [ ] Confirmed next task doesn't depend on undiscovered learnings from THIS task
 - [ ] If dependencies discovered: Updated next task file with new prerequisites
 
@@ -12477,7 +12660,7 @@ Also update `<worktree>/planning/architecture.md` to reflect new understanding.
 - [ ] All tests passing (unit + integration)
 - [ ] Code review checklist complete (from Gate 13)
 - [ ] No blocking issues remain
-- [ ] Quality score ≥80%
+- [ ] Quality score ≥80% (calculated from `<WT>/planning/quality-criteria.md`, Phase 2 output, see line 5897)
 
 **5. Escalation Check:**
 - [ ] IF architectural issues discovered: Raised to user for Phase 2 revision approval
@@ -12556,7 +12739,7 @@ Also update `<worktree>/planning/architecture.md` to reflect new understanding.
 
 Check if more tasks remain:
 ```bash
-REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
+REMAINING_TASKS=$(ls "<WT>/planning/tasks-pending/" | wc -l)
 ```
 
 **IF REMAINING_TASKS > 0:**
@@ -12595,9 +12778,9 @@ REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
     → **IF document as debt:** Add to GUIDE.md Technical Debt section, proceed to Phase 4
 
   → **Update GUIDE.md** for Phase 3 → Phase 4 transition:
-     * Edit `<worktree>/planning/GUIDE.md` section "Current State of Understanding"
+     * Edit `<WT>/planning/GUIDE.md` section "Current State of Understanding"
        Add: "Phase 3 complete - all {tasks_total_count} tasks implemented successfully"
-     * Edit `<worktree>/planning/GUIDE.md` section "The Story So Far"
+     * Edit `<WT>/planning/GUIDE.md` section "The Story So Far"
        Add: "**Phase 3 → Phase 4 Transition**: All feature tasks complete. {tasks_total_count} vertical slices delivered with quality verification. Captured learnings in learnings.md. Now we reflect on the overall journey and prepare final delivery."
 
   Exit the Task Execution Loop. Proceed to Phase 4: Reflection & Delivery.
@@ -12609,19 +12792,19 @@ REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
 ## Phase 4: Reflection & Delivery
 
 **📥 Input Files:**
-- All `<worktree>/planning/tasks-completed/*.md` (all completed tasks)
-- `<worktree>/planning/learnings.md` (cumulative insights)
-- `<worktree>/planning/quality-criteria.md` (Phase 2 - success criteria to validate against)
-- `<worktree>/src/` + `<worktree>/test/` (all implementation and tests)
-- `<worktree>/planning/GUIDE.md` (complete session history and decisions)
+- All `<WT>/planning/tasks-completed/*.md` (all completed tasks)
+- `<WT>/planning/learnings.md` (cumulative insights)
+- `<WT>/planning/quality-criteria.md` (Phase 2 - success criteria to validate against)
+- `<WT>/src/` + `<WT>/test/` (all implementation and tests)
+- `<WT>/planning/GUIDE.md` (complete session history and decisions)
 
 **📤 Output Files:**
-- `<worktree>/docs/DELIVERY_SUMMARY.md` (delivery package - what was built, how it works, key decisions)
-- `<worktree>/docs/CRAFTING_WISDOM.md` (lessons learned, reusable patterns, recommendations)
-- `<worktree>/planning/GUIDE.md` (final Phase 4 confirmation and completion transition log)
+- `<WT>/docs/DELIVERY_SUMMARY.md` (delivery package - what was built, how it works, key decisions)
+- `<WT>/docs/CRAFTING_WISDOM.md` (lessons learned, reusable patterns, recommendations)
+- `<WT>/planning/GUIDE.md` (final Phase 4 confirmation and completion transition log)
 
 **📝 Documentation Output:**
-- **Files Created:** `<worktree>/docs/DELIVERY_SUMMARY.md`, `<worktree>/docs/CRAFTING_WISDOM.md`
+- **Files Created:** `<WT>/docs/DELIVERY_SUMMARY.md`, `<WT>/docs/CRAFTING_WISDOM.md`
 - **Purpose:** Retrospective analysis, final validation, and delivery package with lessons learned
 - **Referenced By:** User (delivery documentation), future projects (wisdom and patterns)
 
@@ -12630,7 +12813,7 @@ REMAINING_TASKS=$(ls "<worktree>/planning/tasks-pending/" | wc -l)
 📖 **Context Refresh: Review GUIDE.md for Complete Journey**
 
 Before reflection and delivery, refresh your understanding of the complete journey:
-- Read `<worktree>/planning/GUIDE.md` to see all phase transitions
+- Read `<WT>/planning/GUIDE.md` to see all phase transitions
 - Review all completed tasks in tasks-completed/
 - Check learnings.md for cumulative insights
 - Verify all quality criteria from Phase 2 were met
@@ -12649,7 +12832,7 @@ The crafting is complete. Now we consolidate, validate, and deliver.
 ### Step 1: Retrospective Analysis
 
 **Review the journey:**
-Read all completed task files from `<worktree>/planning/tasks-completed/` and learnings from `<worktree>/planning/learnings.md`.
+Read all completed task files from `<WT>/planning/tasks-completed/` and learnings from `<WT>/planning/learnings.md`.
 
 **Synthesize the learning:**
 - What patterns emerged across tasks?
@@ -12662,11 +12845,11 @@ Read all completed task files from `<worktree>/planning/tasks-completed/` and le
 
 **Run the complete test suite one final time:**
 ```bash
-cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+cd "<WT>" && npx mocha test/**/*.test.js --reporter spec
 ```
 
 **Verify all criteria:**
-Go through `<worktree>/planning/quality-criteria.md` one more time:
+Go through `<WT>/planning/quality-criteria.md` one more time:
 - Every primary criterion: ✓
 - Quality score: {final_score}
 - Blocking issues: 0
@@ -12676,7 +12859,7 @@ If there are integration tests, performance tests, or other validation steps, ru
 
 ### Step 3: Assemble Delivery Package
 
-**Create a summary document** at `<worktree>/docs/DELIVERY_SUMMARY.md`:
+**Create a summary document** at `<WT>/docs/DELIVERY_SUMMARY.md`:
 
 ```markdown
 # Delivery Summary: [Task Name]
@@ -12714,7 +12897,7 @@ If there are integration tests, performance tests, or other validation steps, ru
 
 ### Step 4: Capture Wisdom
 
-**Distill the most important lessons** to `<worktree>/docs/CRAFTING_WISDOM.md`:
+**Distill the most important lessons** to `<WT>/docs/CRAFTING_WISDOM.md`:
 
 ```markdown
 # Crafting Wisdom: [Task Name]
@@ -12734,9 +12917,9 @@ If there are integration tests, performance tests, or other validation steps, ru
 
 ### Step 5: Present to User
 
-**ALWAYS Update README.md:**
+**ALWAYS Update README.md** (reminder from file manifest line 733):
 
-Before presenting to the user, **ALWAYS** update `<worktree>/README.md` with:
+Every task completion MUST update `<WT>/README.md` with:
 - Feature/task summary added to appropriate section
 - Usage examples if user-facing
 - Setup/configuration changes if any
@@ -12751,8 +12934,8 @@ This is REQUIRED for every completed task - README.md must reflect the current s
 
 **Implementation:**
 - [Brief summary of what was built]
-- Location: `<worktree>/src/`
-- Tests: `<worktree>/test/` ({test_count} tests, all passing)
+- Location: `<WT>/src/`
+- Tests: `<WT>/test/` ({test_count} tests, all passing)
 
 **Quality achieved:**
 - Primary criteria: 100% complete ✓
@@ -12763,13 +12946,13 @@ This is REQUIRED for every completed task - README.md must reflect the current s
 **Key files:**
 - Implementation: [list main files]
 - Tests: [list test files]
-- Docs: `<worktree>/docs/DELIVERY_SUMMARY.md`
+- Docs: `<WT>/docs/DELIVERY_SUMMARY.md`
 - **README.md updated** ✓
 
 **Notable decisions:**
 - [Highlight 1-2 important technical decisions]
 
-The complete work is in the isolated worktree at `<worktree>`. Would you like me to merge this back to `{original_location}` now?"
+The complete work is in the isolated worktree at `<WT>`. Would you like me to merge this back to `{original_location}` now?"
 
 [WAIT for user confirmation]
 
@@ -12825,24 +13008,24 @@ ELSE IF conflicts occurred:
 "⚠️  Merge completed with conflicts. The following files need manual resolution:
 {list of conflicted files}
 
-The worktree at `<worktree>` has been preserved so you can resolve conflicts.
+The worktree at `<WT>` has been preserved so you can resolve conflicts.
 
 To resolve:
 1. Edit the conflicted files in `{original_location}`
 2. Run: git add {files}
 3. Run: git commit
-4. The worktree can then be removed with: git worktree remove <worktree>"
+4. The worktree can then be removed with: git worktree remove <WT>"
 
 ELSE (merge failed):
 "❌ Merge failed: {error_message}
 
-The worktree at `<worktree>` has been preserved with all your work.
+The worktree at `<WT>` has been preserved with all your work.
 
 To manually merge:
 1. cd {original_location}
 2. git merge {worktree_branch}
 3. Resolve any issues
-4. git worktree remove <worktree> when done"
+4. git worktree remove <WT> when done"
 
 **Final summary:**
 "🎯 Crafting session complete.
