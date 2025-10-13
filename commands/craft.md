@@ -2030,6 +2030,14 @@ The following 5 research activities are independent and can be executed in paral
 
 **Consolidate parallel research:** After all 5 research tasks complete, synthesize findings into research.md document.
 
+**Think deeply about research completeness:**
+
+Did this research provide sufficient information for architectural and requirements decisions ahead?
+- Did we find enough options for each technology gap? (Looking for 3+ viable options)
+- Do we understand trade-offs and constraints for each dependency/service?
+- What critical questions remain unanswered? (List them explicitly)
+- Confidence level in this research? (HIGH if comprehensive, MEDIUM if gaps exist, LOW if significant unknowns)
+
 **Document research findings:**
 
 Write to `<WT>/planning/p1-stage-1-research.md`:
@@ -2165,7 +2173,22 @@ IF user confirms:
 
 **With research complete, analyze for contradictions before designing use cases.**
 
-Look for conflicts between:
+Systematically identify conflicts using three-pass analysis:
+
+**Pass 1 - Requirements vs. Implementation:**
+- Search codebase for patterns: `rg "[pattern-from-requirements]" .`
+- Document conflicts: "Epic requires [X], current implementation uses [Y] → [conflict type]"
+
+**Pass 2 - Service Constraints vs. Requirements:**
+- Review each external service from research.md
+- Check service documentation for feature limitations
+- Document: "Epic requires [Feature B], Service A constraint: [limitation] → [impact]"
+
+**Pass 3 - Performance vs. Functionality:**
+- Estimate processing time for required functionality
+- Document: "Epic requires [<1s response], feature needs [5s process] → async architecture needed"
+
+Identify conflicts between:
 - **Requirements vs. Existing Implementation**: Does epic require patterns that conflict with current architecture?
 - **External Service Constraints**: Do SaaS limitations conflict with epic requirements? (rate limits, features, pricing)
 - **Security vs. Usability**: Do security requirements make usability requirements impossible?
@@ -2288,9 +2311,16 @@ IF no contradictions OR all resolved:
 
 **With clarity established and conflicts resolved, now extract use cases.**
 
-**Think like a user, not a developer.** Put yourself in their shoes. Walk through their day.
+**Adopt user perspective - focus on goals and pain points, not implementation details.**
 
-**Start with the primary user journey - the canonical happy path:**
+For each use case, ask these questions:
+- **Trigger**: What event or need initiates this for the user?
+- **Mental Model**: How does the user think about this problem (their language, not technical terms)?
+- **Success Indicator**: What tells the user they accomplished their goal (not what system does internally)?
+
+**Extract primary user journey - the canonical happy path:**
+
+Document each step focusing on user experience:
 - What event or need triggers this workflow? (e.g., "User receives invoice email")
 - What sequence of actions does the user take? (e.g., "Opens email, clicks 'Process', reviews details")
 - What information do they see and interact with at each step?
@@ -2309,17 +2339,21 @@ IF no contradictions OR all resolved:
 - What recovery options make sense? (Undo? Resume? Reset?)
 - What should be explicitly prevented or rejected? (Invalid states, security violations)
 
-**Consider automation and tooling opportunities - what could help?**
+**Identify automation and tooling opportunities:**
 
-Think about tooling categories that might assist with this use case:
+Scan use case steps for tool-assistable operations. Document potential tools by category for Stage 3 research:
 
-- Are there domain-specific APIs involved? (GitHub, Slack, databases, cloud services)
-- Would browser automation help test or validate this workflow?
-- Does this involve file operations that could benefit from AI assistance?
-- Are there specialized operations that existing tools handle well?
-- What manual steps could be automated to improve quality or speed?
+**Scan for tool opportunities:**
+- **Domain APIs**: GitHub API, Slack API, cloud services, databases → Document as "API Integration" category
+- **Browser workflows**: User interactions in web UIs → Document as "Browser Automation" category
+- **File operations**: Data transforms, file processing → Document as "File Operations" category
+- **Specialized ops**: Code analysis, testing, deployment → Document as "Specialized Tools" category
 
-If you identify tooling needs during use case exploration, note them with categories (browser automation, file operations, database access, API integration). Stage 3 (Architecture) will research specific tools and document integration approaches.
+**For each opportunity identified:**
+- Document in use-cases.md § Tooling Needs: "[Category]: [Specific operation needing tool support]"
+- Note: Stage 3 will research specific tools and integration approaches
+
+**If 0 tooling opportunities found:** Validate with "Ultrathink: Are there really no automation opportunities? Review use case steps for repetitive actions, data transformations, or integration points."
 
 **Expand with inferred use cases - think through what's implied but not stated:**
 
@@ -2393,6 +2427,32 @@ Many use cases imply additional functionality that users expect but may not expl
    - **Notifications:** When should users be notified? Email? In-app? Push?
    - **Help and Guidance:** Tooltips? Documentation? Onboarding flows?
    - **Accessibility:** Screen readers? Keyboard navigation? High contrast modes?
+
+6. **Actor-Specific Interfaces:**
+   - **Multiple User Types:** If system has admins, users, and guests:
+     - What does each actor see? (Different dashboards, filtered data, role-specific features)
+     - What can each actor do? (Create, Read, Update, Delete with role restrictions)
+     - How do actors switch contexts? (Organization switcher, Workspace selector, Role impersonation)
+
+   - **Admin Capabilities:** If admins exist:
+     - User management? (Create, deactivate, reset passwords, assign roles)
+     - System configuration? (Settings, integrations, billing, security)
+     - Monitoring and audit? (Logs, activity feeds, usage reports)
+
+   - **API Consumers:** If external APIs exist:
+     - Authentication approach? (API keys, OAuth 2.0, JWT tokens)
+     - Authorization model? (Scoped permissions, Rate limits, Quotas)
+     - Developer experience? (Documentation, SDKs, Sandbox environment)
+
+   - **Cross-Actor Workflows:** How do different actors interact?
+     - Admin provisions user → User receives invite → User activates account
+     - User creates resource → System processes → Admin reviews → User notified
+     - External API creates data → System validates → User sees in UI
+
+7. **Interface Consistency:**
+   - **Unified vs Separate:** Should admin interface be separate or integrated?
+   - **API-First:** Should web UI consume same API as external callers?
+   - **Mobile Parity:** Should mobile apps have feature parity with web?
 
 **For each inferred use case identified:**
 - Document it explicitly in use-cases.md with "Inferred from [primary use case]"
@@ -2680,7 +2740,9 @@ After consolidating parallel research, evaluate if use case landscape is fully u
 
 **4. Completeness Validated:**
 - [ ] No obvious missing use cases based on epic scope?
-- [ ] All actor types covered (users, systems, scheduled jobs)?
+- [ ] All actor types covered (end users, admins, API callers, systems, scheduled jobs)?
+- [ ] Actor interfaces specified (UI, API, CLI, system-to-system)?
+- [ ] Actor capabilities and permissions clear for each role?
 - [ ] All access paths identified (UI, API, webhooks, etc.)?
 - [ ] Error handling and failure scenarios included?
 
@@ -2755,6 +2817,18 @@ Update `<WT>/planning/use-cases.md` with:
 
 ### UC-1: [Primary Use Case Name]
 **Actor**: [Who performs this]
+
+**Actor Profile & Interface:**
+- **Actor Type**: [End User / Admin / API Caller / System Service / Scheduled Job]
+- **Actor Role**: [Specific role - "Organization Admin", "Team Member", "External API Consumer", "Background Processor"]
+- **Actor Capabilities**: [What this actor can do in the system - "Manage users", "View reports", "Process invoices"]
+- **Actor Interface**: [How this actor interacts with system]
+  - **UI Interface**: [If applicable - Admin dashboard, User portal, Mobile app]
+  - **API Interface**: [If applicable - REST endpoints, GraphQL schema, Webhook receivers]
+  - **CLI Interface**: [If applicable - Command-line tools, Scripts]
+  - **System Interface**: [If applicable - Service-to-service APIs, Message queues]
+- **Actor Permissions Model**: [How permissions are assigned - RBAC roles, Resource-based, Claims-based]
+- **Actor Context**: [What information defines this actor's session - User ID, Organization, Tenant, API Key scope]
 
 **Entry Point & Access Path**:
 - **How User Gets Here**:
@@ -2848,6 +2922,18 @@ Update `<WT>/planning/use-cases.md` with:
 
 ### UC-[N]: [Related Use Case Name]
 **Actor**: [Who performs this]
+
+**Actor Profile & Interface:**
+- **Actor Type**: [End User / Admin / API Caller / System Service / Scheduled Job]
+- **Actor Role**: [Specific role - "Organization Admin", "Team Member", "External API Consumer", "Background Processor"]
+- **Actor Capabilities**: [What this actor can do in the system - "Manage users", "View reports", "Process invoices"]
+- **Actor Interface**: [How this actor interacts with system]
+  - **UI Interface**: [If applicable - Admin dashboard, User portal, Mobile app]
+  - **API Interface**: [If applicable - REST endpoints, GraphQL schema, Webhook receivers]
+  - **CLI Interface**: [If applicable - Command-line tools, Scripts]
+  - **System Interface**: [If applicable - Service-to-service APIs, Message queues]
+- **Actor Permissions Model**: [How permissions are assigned - RBAC roles, Resource-based, Claims-based]
+- **Actor Context**: [What information defines this actor's session - User ID, Organization, Tenant, API Key scope]
 
 **Entry Point & Access Path**:
 - **How User Gets Here**:
@@ -3856,6 +3942,26 @@ Type "yes" or "confirmed" to proceed, or provide feedback for revision."
 → **WAIT for explicit user confirmation before proceeding**
 → If requirements significantly affect Stage 1, may need to revert and update use cases
 
+**Cross-Validation Check (Advisory):**
+
+Read `<WT>/planning/use-cases.md`. Verify requirements completeness:
+- [ ] Every primary use case from Stage 1 has corresponding functional requirements?
+- [ ] Every alternative flow addressed in requirements?
+- [ ] Every error/exception scenario has corresponding reliability/security requirement?
+
+**IF inconsistencies found:**
+→ ⚠️ Warning: "Stage 1 use case '[name]' has no corresponding functional requirement"
+→ Options: (1) Add missing requirement (recommended), (2) Document as out-of-scope, (3) User review
+→ **Advisory only - does not block Stage 2 confirmation**
+
+**Reflect on Stage 2 completion:**
+
+Think deeply: Did we identify all quality attributes that matter for this epic?
+- Are all requirements measurable and testable?
+- What trade-offs will we face during implementation?
+- What requirements are most likely to change or expand?
+- Confidence level in our requirements understanding? (HIGH/MEDIUM/LOW)
+
 ---
 
 ### Stage 3: Architectural Research & Context
@@ -4040,6 +4146,13 @@ After all forum discovery searches complete, synthesize:
 ---
 
 ### Step 1: Execute Parallel Technology Research
+
+**Ultrathink before technology selection:**
+
+These technology choices have long-term consequences (3+ year maintenance, learning curve, migration difficulty). Before researching:
+- What's our confidence that we've identified the right technology gaps?
+- Are we solving the right problems with technology?
+- What's the cost if we choose wrong (lock-in, migration effort)?
 
 **Per technology gap, launch these research tasks in parallel:**
 
@@ -5352,6 +5465,26 @@ If you've lost context, read `<WT>/planning/GUIDE.md` to understand:
 → Re-present Stage 3 with updated understanding (including any tooling revisions)
 → Stay at Stage 3 until confirmed
 
+**Cross-Validation Check (Advisory):**
+
+Read `<WT>/planning/use-cases.md` and `<WT>/planning/requirements.md`. Verify architecture alignment:
+- [ ] Architecture supports all primary use cases from Stage 1?
+- [ ] Technology choices satisfy all NFRs from Stage 2 (performance, security, scalability)?
+- [ ] Integration patterns address all external service dependencies?
+
+**IF gaps found:**
+→ ⚠️ Warning: "Use case '[name]' requires '[capability]' but architecture doesn't provide this"
+→ Options: (1) Add architectural component (recommended), (2) Revise use case, (3) Document as future enhancement
+→ **Advisory only - does not block Stage 3 confirmation**
+
+**Reflect on Stage 3 completion:**
+
+Think deeply: Does our architecture truly support all use cases from Stage 1?
+- How does this architecture satisfy every use case within our requirements (Stage 2)?
+- What integration risks remain? What could go wrong?
+- What's our confidence in these technology choices? (HIGH/MEDIUM/LOW)
+- If we discover a showstopper during implementation, what's our backup plan?
+
 ---
 
 ### Stage 4: Assumptions & Risk Assessment
@@ -6311,6 +6444,14 @@ If the file doesn't exist, this is your first exploration of Stage 6.
 ## Open Questions
 [Anything still uncertain after 5 layers]
 ```
+
+**Reflect on Phase 1 completion:**
+
+Think deeply about the complete understanding we've built:
+- Do we truly understand what we're building? (Review task-definition.md)
+- Is this feasible within our constraints? (Review assumptions.md, effects-boundaries.md)
+- What's most likely to cause problems during implementation?
+- What's our overall confidence level? (HIGH/MEDIUM/LOW)
 
 **Document** to `<WT>/planning/task-definition.md`:
 A readable narrative integrating all confirmed stages into complete understanding
@@ -11789,6 +11930,26 @@ IF the user requests changes:
 
 Before proceeding to Phase 3 implementation, verify that ALL design and planning work is finalized. This gate prevents starting implementation with incomplete specifications.
 
+**Ultrathink: Last checkpoint before code.**
+
+This is the final opportunity to catch gaps before implementation begins. Reflect carefully:
+- Have we truly validated our assumptions from Stages 1-4?
+- Does our architecture (Stage 3) support all use cases (Stage 1) within requirements (Stage 2)?
+- What could we discover during implementation that would force major rework?
+- What's our confidence level that we understand what we're building?
+
+**Cross-Validation Check (Advisory):**
+
+Verify coherence across all phases:
+- [ ] Read `test-plan.md` and `tasks-pending/*.md`: Every test has corresponding task? Every task has test?
+- [ ] Read `task-definition.md` and task files: Tasks collectively implement the complete vision?
+- [ ] Read `quality-criteria.md` and task acceptance criteria: Criteria measurable via task tests?
+
+**IF gaps found:**
+→ ⚠️ Warning: "Test '[name]' in test-plan.md has no corresponding task" or "Task [N] has no test specification"
+→ Options: (1) Add missing task/test (recommended), (2) Remove orphaned item, (3) Document intentional gap
+→ **Advisory only - gate can still pass with documented gaps**
+
 ---
 
 ### Verification Checklist
@@ -12040,11 +12201,31 @@ Before transitioning from Phase 2 to Phase 3, verify no material changes to earl
 
 ---
 
-This is where the work happens. We execute tasks one by one until `<WT>/planning/tasks-pending/` is empty.
+This is where the work happens. We execute tasks one by one until all completion criteria are met.
 
-**⚠️ CRITICAL LOOP CONDITION:**
-Phase 3 continues WHILE tasks exist in `<WT>/planning/tasks-pending/`.
-The phase only completes when the pending folder is empty (all tasks moved to completed).
+**⚠️ PHASE 3 EXIT CRITERIA:**
+
+Phase 3 completes when ALL core criteria met:
+
+**Core Criteria (Must Pass):**
+- [ ] `tasks-pending/` directory empty (all planned tasks addressed)
+- [ ] No critical blockers or unresolved errors in implementation code
+
+**Quality Criteria (Recommended - 3+ should pass):**
+- [ ] Test pass rate ≥ 95% (critical tests 100%, flaky tests documented in `learnings.md`)
+- [ ] `README.md` updated with all feature documentation
+- [ ] No critical TODOs/FIXMEs in code (nice-to-have TODOs acceptable)
+- [ ] Quality criteria from `quality-criteria.md` scored ≥ 80%
+
+**Completion Scoring:**
+- Core + All Quality (6/6): ✅ Ready for Phase 4 delivery
+- Core + Most Quality (≥5/6): ✅ Acceptable, document known issues in `learnings.md`
+- Core only (2/6): ⚠️ User decision needed
+
+**IF Core + Most Quality met:** Proceed to Phase 4
+**IF Core only:** Present status - "Implementation complete but [quality gaps]. Options: (1) Address gaps now, (2) Deliver with documented known issues, (3) Defer and revisit"
+
+**User can override and proceed at any score** with documented acceptance of gaps.
 
 **Initialize execution state:**
 - tasks_completed_count = 0
@@ -12106,7 +12287,16 @@ TASK_FILE="<WT>/planning/tasks-pending/task-NNN-[name].md"
 
 Before planning implementation, verify task still aligns with earlier confirmed planning:
 
-**Review task requirements** and compare with Phase 1-2 planning artifacts.
+**Validate task alignment with planning artifacts:**
+
+Execute validation checks:
+- [ ] Read task acceptance criteria - are they clear and measurable?
+- [ ] Check dependencies in task file - are prerequisite tasks complete?
+- [ ] Review `architecture.md` - does task approach match architectural patterns?
+- [ ] Review `quality-criteria.md` - understand quality expectations for this task
+- [ ] Check `learnings.md` - apply insights from previous tasks
+
+Document validation in task planning notes.
 
 **IF task implementation approach conflicts with confirmed architecture/requirements:**
   → Identify the conflict
@@ -13251,6 +13441,14 @@ Also update `<WT>/planning/architecture.md` to reflect new understanding.
 **⚠️ CRITICAL:** CANNOT proceed to Step 7 or start next task until ALL items below ✅.
 
 **Why this gate blocks:** If you skip reconciliation, learnings from this task won't propagate to future tasks, causing repeated mistakes and architectural drift.
+
+**Reflect on task completion:**
+
+Think deeply: What did we learn from implementing this task?
+- What worked well? What was harder than expected?
+- What patterns emerged that could help with remaining tasks?
+- Did we discover anything that changes our understanding from Phase 1-2?
+- How does this inform our approach to the next tasks?
 
 **Mandatory Actions Checklist:**
 
