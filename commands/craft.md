@@ -883,7 +883,7 @@ At stage/phase end, verify completion:
 - `<worktree>/planning/GUIDE.md` (if resuming session)
 
 **📤 Output Files:**
-- `<worktree>/planning/use-cases.md` (knowledge file - primary + related use cases, anti-cases, interactions)
+- `<worktree>/planning/use-cases.md` (knowledge file - primary + related use cases with complete access paths, entry points, prerequisites, runtime lifecycle, exit points, API interaction lifecycle, anti-cases, and interactions)
 - `<worktree>/planning/p1-stage-1-disambiguation.md` (knowledge file - terminology clarifications)
 - `<worktree>/planning/p1-stage-1-research.md` (knowledge file - technical context, dependencies, actors)
 - `<worktree>/planning/p1-stage-1-constraints.md` (knowledge file - contradictions resolved, constraints)
@@ -1363,6 +1363,36 @@ Many use cases imply additional functionality that users expect but may not expl
      - API versioning? (v1, v2, deprecation strategy)
    - **Third-party Integration:** OAuth flows? Webhook handlers? Token refresh?
 
+   - **API Interaction Lifecycle:** Document the complete request-response flow:
+     - **Request Initialization:**
+       - How does client obtain credentials? (signup flow, API key generation, OAuth authorization)
+       - Token/credential validation approach? (JWT validation, database lookup, cache check)
+       - Request authentication order? (validate token → check expiry → verify permissions)
+     - **Request Processing:**
+       - Input validation strategy? (schema validation, sanitization, type checking)
+       - Authorization checks? (check resource ownership, verify role permissions, validate scopes)
+       - Business logic execution? (synchronous processing, async job queue, event triggers)
+       - Transaction boundaries? (database transaction scope, rollback strategy, idempotency)
+     - **Response Generation:**
+       - Response format? (JSON, XML, Protocol Buffers)
+       - Status code strategy? (200 success, 4xx client errors, 5xx server errors)
+       - Error response structure? (error codes, messages, details, debug info in dev mode)
+       - Pagination approach? (cursor-based, offset-based, page numbers)
+     - **Connection Management:**
+       - Timeout configuration? (connection timeout, read timeout, total request timeout)
+       - Retry strategy? (exponential backoff, max retries, which status codes to retry)
+       - Connection pooling? (keep-alive settings, max connections per host)
+       - Circuit breaker? (failure threshold, recovery timeout, fallback response)
+     - **State Management:**
+       - Stateless or stateful? (REST stateless, WebSocket stateful, session handling)
+       - Session lifecycle? (session creation, renewal, expiration, cleanup)
+       - Token refresh flow? (refresh token rotation, silent refresh, re-authentication)
+       - Cache strategy? (cache-control headers, ETags, conditional requests)
+     - **Monitoring and Observability:**
+       - Request logging? (request ID, correlation ID, distributed tracing)
+       - Metrics collection? (latency, error rate, throughput, quota usage)
+       - Audit trail? (who accessed what, when, from where, what changed)
+
 3. **Server Architecture and Scale:**
    - **Immediate vs Scale:** Critical decision about user experience:
      - **Immediate responses** (< 200ms): Limits scale but maximizes experience (good for prototypes, MVP, small user base)
@@ -1510,7 +1540,34 @@ Update `<worktree>/planning/use-cases.md` with:
 
 ### UC-1: [Primary Use Case Name]
 **Actor**: [Who performs this]
-**Trigger**: [What initiates this use case]
+
+**Entry Point & Access Path**:
+- **How User Gets Here**:
+  - **UI Navigation**: [e.g., "Dashboard → Settings → User Management → Create User button"]
+  - **Direct URL**: [e.g., "/admin/users/create"]
+  - **External Trigger**: [e.g., "Webhook from external system", "Scheduled job", "Email link"]
+  - **API Endpoint**: [e.g., "POST /api/v1/users"]
+- **Discovery Method**: [How users learn this feature exists - menu, search, documentation, onboarding]
+
+**Access Requirements**:
+- **Authentication**: [Required auth level - logged in, anonymous, service account]
+- **Authorization**: [Required permissions - "admin role", "user.create permission", "organization owner"]
+- **Prerequisites**: [Must exist before this can run - "Account must be verified", "Payment method on file"]
+- **Session State**: [Required session context - "Active workspace selected", "OAuth token valid"]
+- **Data Context**: [Required data - "At least one project exists", "Form partially filled"]
+
+**User Journey Context**:
+- **Previous Step**: [What typically happens before this? - "User just completed onboarding", "User reviewed invoice list"]
+- **User Goal**: [What is the user ultimately trying to achieve? - "Manage team", "Process monthly invoices"]
+- **Workflow Position**: [Where this fits - "Step 2 of 5 in invoice processing workflow", "One-time setup", "Recurring daily task"]
+
+**Runtime Lifecycle**:
+- **Initialization**: [What loads/initializes when feature starts - "Fetch user list", "Load form schema", "Initialize state"]
+- **Active State**: [What's maintained during execution - "Form validation state", "WebSocket connection", "Draft autosave"]
+- **Cleanup**: [What happens on exit - "Close connections", "Clear temp files", "Save draft state"]
+- **Timeout/Expiry**: [Session/state lifetime - "Form expires after 30 min", "Lock released after 5 min"]
+
+**Trigger**: [What initiates this specific use case - "User clicks Submit button", "External event received"]
 **Preconditions**: [System state before this starts]
 **Main Flow**:
 1. [Step 1]
@@ -1521,6 +1578,11 @@ Update `<worktree>/planning/use-cases.md` with:
 **Alternative Flows**: [Variations of this use case]
 **Exception Flows**: [Error paths and recovery]
 
+**Exit Points**:
+- **Success Exit**: [Where user goes on success - "Redirected to user list", "Returns to dashboard"]
+- **Cancel Exit**: [Where user goes if they cancel - "Returns to previous page", "Draft saved, returns to inbox"]
+- **Error Exit**: [Where user goes on error - "Stays on form with errors highlighted", "Redirected to error page"]
+
 [Repeat for each primary use case from initial extraction]
 
 ---
@@ -1529,7 +1591,40 @@ Update `<worktree>/planning/use-cases.md` with:
 
 ### UC-[N]: [Related Use Case Name]
 **Actor**: [Who performs this]
+
+**Entry Point & Access Path**:
+- **How User Gets Here**:
+  - **UI Navigation**: [e.g., "Dashboard → Settings → User Management → Create User button"]
+  - **Direct URL**: [e.g., "/admin/users/create"]
+  - **External Trigger**: [e.g., "Webhook from external system", "Scheduled job", "Email link"]
+  - **API Endpoint**: [e.g., "POST /api/v1/users"]
+- **Discovery Method**: [How users learn this feature exists - menu, search, documentation, onboarding]
+
+**Access Requirements**:
+- **Authentication**: [Required auth level - logged in, anonymous, service account]
+- **Authorization**: [Required permissions - "admin role", "user.create permission", "organization owner"]
+- **Prerequisites**: [Must exist before this can run - "Account must be verified", "Payment method on file"]
+- **Session State**: [Required session context - "Active workspace selected", "OAuth token valid"]
+- **Data Context**: [Required data - "At least one project exists", "Form partially filled"]
+
+**User Journey Context**:
+- **Previous Step**: [What typically happens before this? - "User just completed onboarding", "User reviewed invoice list"]
+- **User Goal**: [What is the user ultimately trying to achieve? - "Manage team", "Process monthly invoices"]
+- **Workflow Position**: [Where this fits - "Step 2 of 5 in invoice processing workflow", "One-time setup", "Recurring daily task"]
+
+**Runtime Lifecycle**:
+- **Initialization**: [What loads/initializes when feature starts - "Fetch user list", "Load form schema", "Initialize state"]
+- **Active State**: [What's maintained during execution - "Form validation state", "WebSocket connection", "Draft autosave"]
+- **Cleanup**: [What happens on exit - "Close connections", "Clear temp files", "Save draft state"]
+- **Timeout/Expiry**: [Session/state lifetime - "Form expires after 30 min", "Lock released after 5 min"]
+
 **Trigger**: [What initiates this use case]
+
+**Exit Points**:
+- **Success Exit**: [Where user goes on success - "Redirected to user list", "Returns to dashboard"]
+- **Cancel Exit**: [Where user goes if they cancel - "Returns to previous page", "Draft saved, returns to inbox"]
+- **Error Exit**: [Where user goes on error - "Stays on form with errors highlighted", "Redirected to error page"]
+
 **Relationship**: [How this relates to primary use cases]
   - **Prerequisite for**: [Which use cases need this to run first]
   - **Triggered by**: [Which use cases trigger this]
@@ -1657,6 +1752,51 @@ IF user confirms:
 - Include: actors, triggers, flows, outcomes, variations, exceptions, relationships, anti-cases
 - Document reasoning: Why these use cases? Confidence level? Uncertainties?
 
+**CRITICAL: Document Complete Access Paths and Lifecycle for Each Use Case**
+
+For every use case (primary and related), document the complete user journey from entry to exit:
+
+1. **Entry Point & Access Path**: How do users discover and navigate to this feature?
+   - UI navigation paths (menu hierarchies, button flows)
+   - Direct URLs or deep links
+   - External triggers (webhooks, emails, scheduled jobs)
+   - API endpoints (for programmatic access)
+   - Discovery methods (how users learn this exists)
+
+2. **Access Requirements**: What must be true before user can access this?
+   - Authentication requirements (logged in, anonymous, service account)
+   - Authorization requirements (roles, permissions, ownership)
+   - Prerequisites (verified account, payment on file, data exists)
+   - Session state requirements (active workspace, valid tokens)
+   - Data context requirements (form partially filled, project selected)
+
+3. **User Journey Context**: Where does this fit in the larger workflow?
+   - Previous step (what typically happens before this)
+   - User's ultimate goal (what they're trying to achieve)
+   - Workflow position (step N of M, one-time setup, recurring task)
+
+4. **Runtime Lifecycle**: What happens during execution?
+   - Initialization (data loading, state setup, connections established)
+   - Active state (what's maintained during execution - form state, connections, autosave)
+   - Cleanup (connection close, temp file removal, draft save)
+   - Timeout/expiry (session lifetime, lock duration, state expiration)
+
+5. **Exit Points**: Where can users go from here?
+   - Success exit (redirect to list, return to dashboard, confirmation page)
+   - Cancel exit (return to previous page, save draft, discard changes)
+   - Error exit (stay on form with errors, redirect to error page, show inline errors)
+
+6. **API Interaction Lifecycle** (for API/integration use cases):
+   Document complete request-response flow (see "API and Authentication Considerations" section above for detailed guidance on: request initialization, processing, response generation, connection management, state management, monitoring)
+
+**Why this matters:**
+- Incomplete access paths → users can't find features
+- Missing prerequisites → runtime errors and frustration
+- Undocumented lifecycle → memory leaks, connection issues, data loss
+- Unclear exit points → users get stuck or lose work
+
+Use the use case templates provided (UC-1 for primary, UC-[N] for related) which include all these sections with examples.
+
 **Document (Journal File)** to `<worktree>/planning/p1-stage1-journal.md`:
 
 **Follow the standard Journal File Pattern** (see "Journal File Pattern" section above) with Stage 1 focus:
@@ -1677,11 +1817,51 @@ Create journal at stage START, update DURING exploration, finalize at stage END.
 
 **🚦 MANDATORY USER CONFIRMATION GATE**
 
-**Recap Key Decisions:**
-- Primary use case: [summarize main user journey]
-- Alternative flows: [list key variations]
-- Scope boundaries: [what's in/out of scope]
-- User value: [core benefit statement]
+**Comprehensive Stage 1 Recap** (fill with actual discoveries from your analysis):
+
+### Primary Use Cases Identified
+[List each primary use case with 2-3 sentence description]
+- **UC-001: [Name]**: [Description of user journey, actors involved, key steps]
+- **UC-002: [Name]**: [Description of user journey, actors involved, key steps]
+- [Continue for all primary use cases]
+
+### Alternative Flows & Variations
+[For each primary use case, list key alternative paths]
+- UC-001 alternatives: [Guest checkout, Express checkout, Bulk processing]
+- UC-002 alternatives: [Manual entry, CSV import, API integration]
+
+### Anti-Cases (What We Won't Do)
+[List scenarios explicitly out of scope]
+- **AC-001**: [Scenario we're preventing/excluding and why]
+- **AC-002**: [Scenario we're preventing/excluding and why]
+
+### Key User Interactions
+[Describe how use cases interact or depend on each other]
+- UC-001 → UC-003: [How first enables/requires second]
+- UC-002 ⊕ UC-004: [Why these are mutually exclusive]
+
+### Scope Boundaries Defined
+**In Scope**: [Specific features/capabilities included]
+**Out of Scope**: [Specific features/capabilities excluded]
+**Deferred to v2**: [Features acknowledged but postponed]
+
+### User Value Proposition
+[1-2 sentences summarizing core benefit users will get]
+
+### Disambiguation & Terminology
+[Key terms clarified during Stage 1]
+- **[Term]**: [Definition in this project context]
+- **[Acronym]**: [Expansion and meaning]
+
+### Research Findings
+[Key technical context discovered]
+- Dependencies identified: [List]
+- External services involved: [List]
+- Actors mapped: [List roles/systems]
+
+### Uncertainties Resolved
+[Questions that came up and how they were answered]
+- [Uncertainty] → [Resolution based on user feedback/research]
 
 **Questions for Confirmation:**
 1. Do these use cases accurately capture what you want to build?
@@ -2165,11 +2345,85 @@ Create journal at stage START, update DURING requirements analysis, finalize at 
 
 **🚦 MANDATORY USER CONFIRMATION GATE**
 
-**Recap Key Decisions:**
-- Functional requirements: [list 3-5 key capabilities]
-- Performance constraints: [response time, throughput, scale targets]
-- Security requirements: [authentication, authorization, data protection]
-- Quality attributes: [reliability, maintainability, scalability needs]
+**Comprehensive Stage 2 Recap** (fill with actual requirements from your analysis):
+
+### Functional Requirements Summary
+[Total count and categorization]
+- **Total Functional Requirements**: [N] requirements
+- **Must-Have**: [X] requirements blocking launch
+- **Should-Have**: [Y] requirements important for v1
+- **Nice-to-Have**: [Z] requirements deferrable to v2
+
+**Key Functional Requirements**:
+- **FR-001**: [Name] - [Detailed description with acceptance criteria]
+- **FR-002**: [Name] - [Detailed description with acceptance criteria]
+- **FR-003**: [Name] - [Detailed description with acceptance criteria]
+[List top 5-7 most critical FRs]
+
+### Non-Functional Requirements by Category
+
+**Performance Requirements** ([N] total):
+- **Response Time**: [Specific threshold - e.g., "<200ms for 95th percentile"]
+- **Throughput**: [Specific capacity - e.g., "1000 requests/second sustained"]
+- **Concurrency**: [Specific load - e.g., "500 concurrent users"]
+- **Data Volume**: [Specific scale - e.g., "Handle 1M records efficiently"]
+
+**Security Requirements** ([N] total):
+- **Authentication**: [Specific mechanism - e.g., "OAuth 2.0 with JWT tokens"]
+- **Authorization**: [Specific model - e.g., "RBAC with 3 roles: Admin/Editor/Viewer"]
+- **Data Protection**: [Specific controls - e.g., "AES-256 encryption at rest, TLS 1.3 in transit"]
+- **Compliance**: [Specific regulations - e.g., "GDPR-compliant data handling"]
+
+**Reliability Requirements** ([N] total):
+- **Availability**: [Specific uptime - e.g., "99.9% uptime (8.76 hours downtime/year)"]
+- **Error Rate**: [Specific threshold - e.g., "<0.1% error rate"]
+- **Recovery**: [Specific RTO/RPO - e.g., "RTO: 1 hour, RPO: 15 minutes"]
+
+**Scalability Requirements** ([N] total):
+- **User Growth**: [Specific projection - e.g., "10K users at launch → 50K in 12 months"]
+- **Data Growth**: [Specific projection - e.g., "1GB/month data accumulation"]
+- **Scaling Strategy**: [Specific approach - e.g., "Horizontal scaling to 10 instances"]
+
+**Usability Requirements** ([N] total):
+- [Specific usability standards or metrics]
+
+**Maintainability Requirements** ([N] total):
+- **Code Quality**: [Specific standards - e.g., "Test coverage >80%"]
+- **Documentation**: [Specific requirements - e.g., "API docs for all endpoints"]
+
+**Operational Requirements** ([N] total):
+- **Monitoring**: [Specific needs - e.g., "APM with <5min alert latency"]
+- **Logging**: [Specific approach - e.g., "Structured logging with retention"]
+
+### Requirements Traceability
+**Use Cases → Functional Requirements**:
+- UC-001 → FR-001, FR-002, FR-003
+- UC-002 → FR-004, FR-005
+[Map all primary use cases to FRs]
+
+**Anti-Cases → Security/Reliability Requirements**:
+- AC-001 (prevent SQL injection) → NFR-SEC-003 (parameterized queries)
+- AC-002 (prevent DoS) → NFR-REL-001 (rate limiting)
+
+### Research Findings That Informed Requirements
+[Key insights from research that shaped requirements]
+- Industry standard for [domain]: [Finding that led to specific NFR]
+- Similar systems typically: [Finding that informed requirement thresholds]
+- Compliance research revealed: [Specific requirement from regulations]
+
+### Requirements Priority Matrix
+**Must-Have (Blocking Launch)**: [X] requirements
+- [List critical must-haves with justification]
+
+**Should-Have (Important for v1)**: [Y] requirements
+- [List important should-haves]
+
+**Nice-to-Have (Deferrable)**: [Z] requirements
+- [List nice-to-haves]
+
+### Gaps & Assumptions
+[Requirements where we made assumptions or need validation]
+- **Gap**: [What we're uncertain about] → **Assumption**: [What we assumed] → **Validation needed**: [yes/no]
 
 **Questions for Confirmation:**
 1. Are these the right functional requirements for your use cases?
@@ -4410,6 +4664,14 @@ in our understanding. This saves massive rework later.
 Think through each requirement from Phase 2 criteria. For each one, ask:
 "How would I know this works?" Then express that knowledge as a test case.
 
+**Important:** Phase 2-B defines the test strategy and approach, NOT detailed test specifications for every feature. You don't know task boundaries yet - those come in Phase 2-D. This phase establishes:
+- What test categories we'll use (unit, integration, edge case, error path)
+- How we'll structure tests (Mocha/Chai with Given/When/Then)
+- General test principles (mock external services, test happy/sad paths, etc.)
+- Example scenarios to illustrate the approach
+
+Detailed test specifications will be written in Phase 2-D as part of task creation.
+
 ### Design Test Scenarios
 
 **Start with happy path tests** - the canonical examples of success:
@@ -4684,13 +4946,17 @@ IF the user requests changes:
   → Re-present and get confirmation
   → Then proceed
 
-### Finalize Test Specifications
+### Document Test Strategy and Example Specifications
 
-Once test design is confirmed, finalize the test specifications in `<worktree>/planning/test-plan.md`.
+Once test design is confirmed, document the test strategy and representative examples in `<worktree>/planning/test-plan.md`.
 
-**These specifications become the contract** - Phase 3 implementation will:
-1. Create actual test files based on these specifications
-2. Write implementation code to make tests pass
+**These are EXAMPLES and STRATEGY, not a complete test catalog.**
+
+The Given/When/Then format shown here will be used in Phase 2-D when writing detailed specs for each task. For now, provide representative examples that demonstrate the test approach.
+
+**Phase 2-D will create detailed specifications** - when creating each task file, detailed test specs will be written for that task's scope. Phase 3 implementation will then:
+1. Create actual test files from task-specific specifications (written in Phase 2-D)
+2. Write implementation code to make those tests pass
 
 **Test Specification Format (Given/When/Then):**
 
@@ -4752,12 +5018,13 @@ For each test scenario, document:
 - `expect(account.transactions).to.have.lengthOf(0)`
 ```
 
-**Update GUIDE.md** with test specifications complete:
+**Update GUIDE.md** with test strategy complete:
 - Mark Phase 2-B fully complete in "Current State of Understanding"
-- Note that test specifications are documented in test-plan.md
+- Note that test strategy and approach are documented in test-plan.md
+- Note that detailed test specifications will be written in Phase 2-D (per task)
 - Note that actual test implementation will happen in Phase 3
 
-Announce: "✓✓ Test specifications finalized. Actual test files will be created in Phase 3..."
+Announce: "✓✓ Test strategy finalized. Detailed test specifications will be written in Phase 2-D as part of task creation..."
 
 ---
 
@@ -5236,12 +5503,154 @@ For each feature from Stage 1 use cases, create a task file in `<worktree>/plann
 - [ ] All integration points tested
 - [ ] Security validation complete
 
-### Test Requirements
-From `<worktree>/planning/test-plan.md` for this feature:
-- [ ] Unit tests: [List key unit tests]
-- [ ] Integration tests: [List integration test scenarios]
-- [ ] Edge cases: [List edge cases to cover]
-- [ ] Error paths: [List error scenarios]
+### Test Specifications (Write During Task Creation)
+
+**⚠️ CRITICAL: Write Detailed TDD Specs NOW (During Phase 2-D)**
+
+When creating this task file, immediately write the complete test specifications for this task. Don't leave placeholders. These specs will drive Phase 3 implementation.
+
+**Process:**
+1. Review this task's scope (Feature Description, Implementation Scope above)
+2. Review test-plan.md for test strategy and approach (from Phase 2-B)
+3. Write detailed Given/When/Then specifications for ALL tests this task needs
+4. Include happy path, edge cases, and error paths specific to this task
+
+**Reference test-plan.md for:**
+- Test category guidance (what makes a good unit vs integration test)
+- Mocha/Chai patterns to follow
+- Given/When/Then format structure
+- Example test specifications for similar scenarios
+
+**DO NOT:**
+- Copy generic examples from test-plan.md (write specific to THIS task)
+- Leave placeholder text like "[List unit tests]"
+- Write vague descriptions like "test happy path"
+
+**DO:**
+- Write complete Given/When/Then for each test
+- Include specific inputs, expected outputs, assertions
+- Cover happy path, edge cases, error paths for THIS task's scope
+- Provide enough detail that Phase 3 can implement tests without guessing
+
+---
+
+#### Unit Tests for This Task
+
+##### Test: [Specific test name for this task's functionality]
+
+**Category:** Unit
+
+**Given:**
+- [Specific initial conditions for this task]
+- [What dependencies are mocked/configured]
+- [What test data is prepared]
+
+**When:**
+- [Specific function/method this task implements]
+- [Specific parameters being tested]
+
+**Then:**
+- [Specific expected return value]
+- [Specific state changes expected]
+- [Specific side effects]
+
+**Assertions:**
+```javascript
+// Specific assertions for this test
+expect(result.property).to.equal(expectedValue);
+expect(result).to.have.property('specificField');
+expect(mockService.wasCalled).to.be.true;
+```
+
+**Mocha/Chai Implementation Pattern:**
+```javascript
+describe('[Module this task implements]', () => {
+  it('[this specific test name]', () => {
+    // Arrange: implement Given above
+    const input = { /* specific test data */ };
+    const mockDep = createMock({ /* specific mock config */ });
+
+    // Act: implement When above
+    const result = functionThisTaskImplements(input, mockDep);
+
+    // Assert: implement Then above
+    expect(result).to.equal(expectedValue);
+    expect(mockDep.method).to.have.been.calledOnce;
+  });
+});
+```
+
+[Repeat for EACH unit test this task needs - don't leave blanks]
+
+---
+
+#### Integration Tests for This Task
+
+[Same detailed Given/When/Then format for each integration test this task needs]
+
+---
+
+#### Edge Cases for This Task
+
+##### Test: [Specific edge case for this task]
+
+**Category:** Edge Case
+
+**Given:**
+- [Boundary condition specific to this task]
+
+**When:**
+- [Action with edge case input]
+
+**Then:**
+- [Expected behavior at boundary]
+
+**Assertions:**
+```javascript
+expect(result).to.handle(edgeCase);
+```
+
+[Repeat for EACH edge case this task needs]
+
+---
+
+#### Error Paths for This Task
+
+##### Test: [Specific error scenario for this task]
+
+**Category:** Error Path
+
+**Given:**
+- [Invalid input or error condition specific to this task]
+
+**When:**
+- [Action that should trigger error]
+
+**Then:**
+- [Expected error type and message]
+- [Expected error handling behavior]
+
+**Assertions:**
+```javascript
+expect(() => functionThisTaskImplements(invalidInput))
+  .to.throw(SpecificErrorType, 'specific error message pattern');
+expect(systemState).to.remain.unchanged;
+```
+
+[Repeat for EACH error path this task needs]
+
+---
+
+**Completeness Check Before Finishing Task File:**
+
+Before moving to the next task file, verify this task's test specifications:
+- ✅ Every implementation scope item above has corresponding tests
+- ✅ All Given/When/Then sections have specific details (no placeholders)
+- ✅ All assertions show specific expect() statements
+- ✅ Happy path, edge cases, and error paths all covered
+- ✅ No vague descriptions like "[List tests]" remain
+
+**Phase 3 Dependency:** Phase 3 will implement these exact specifications as Mocha/Chai tests (red), then write code to pass them (green). If specs are incomplete/vague, Phase 3 will have to guess - breaking TDD.
 
 ## Dependencies
 - Prerequisites: [Other tasks that must complete first]
@@ -5742,8 +6151,8 @@ IF the user requests changes:
 
 **📝 Documentation Output:**
 - **Files Created:** `<worktree>/planning/implementation-steps.md`, `<worktree>/planning/tasks-pending/task-NNN-[name].md` (one per feature)
-- **Purpose:** Decompose use cases into discrete, implementable tasks with dependencies, scope, quality gates, and test requirements
-- **Referenced By:** Phase 3 (task selection and execution order), Phase 4 (retrospective on completed tasks)
+- **Purpose:** Decompose use cases into discrete, implementable tasks with dependencies, scope, quality gates, and **detailed TDD test specifications written during task creation**
+- **Referenced By:** Phase 3 (task selection and execution order using TDD specs), Phase 4 (retrospective on completed tasks)
 
 ---
 
@@ -5921,6 +6330,47 @@ When implementing tasks in Phase 3:
 - NNN is zero-padded task number (001, 002, 003...)
 - feature-name is kebab-case description (e.g., "user-authentication", "data-export")
 
+**Task Creation Process - Write TDD Specs Immediately:**
+
+For each task file you create:
+
+1. **Define task scope** (Feature Description, Implementation Scope sections)
+2. **Immediately write TDD specs** (Test Specifications section)
+   - Review test-plan.md for strategy and approach
+   - Write complete Given/When/Then for this task's scope
+   - Don't defer spec writing - do it now while task scope is clear
+   - Verify all implementation scope items have corresponding tests
+3. **Document dependencies** (Dependencies section)
+4. **Save the task file** to tasks-pending/
+
+**Why write specs during task creation?**
+- Task scope is clear in your mind right now
+- Tests define "done" for this task
+- Phase 3 needs complete specs to implement TDD properly
+- Deferring spec writing loses context
+
+**Example workflow:**
+```bash
+# 1. Create task file with scope
+cat > "tasks-pending/task-010-user-authentication.md" <<'EOF'
+# Task 010: User Authentication
+## Feature Description
+Implement JWT-based authentication with login/logout
+EOF
+
+# 2. IMMEDIATELY write TDD specs (while scope is fresh)
+# Add detailed Given/When/Then for:
+# - Login with valid credentials (happy path)
+# - Login with invalid credentials (error path)
+# - Logout and token invalidation (happy path)
+# - Token expiration handling (edge case)
+# [Continue editing task-010 file with complete specs]
+
+# 3. Save and move to next task
+```
+
+Don't create all task files first, then come back to write specs. Create task + write specs + move to next task.
+
 **Task File Template Structure:**
 
 Each task file should follow this comprehensive structure (reference the template from Phase 2-C Step 1b):
@@ -5985,12 +6435,154 @@ Reference foundation established in Tier 0 tasks:
 - [ ] All integration points tested
 - [ ] Security validation complete
 
-### Test Requirements
-From `<worktree>/planning/test-plan.md` for this feature:
-- [ ] Unit tests: [List key unit tests]
-- [ ] Integration tests: [List integration test scenarios]
-- [ ] Edge cases: [List edge cases to cover]
-- [ ] Error paths: [List error scenarios]
+### Test Specifications (Write During Task Creation)
+
+**⚠️ CRITICAL: Write Detailed TDD Specs NOW (During Phase 2-D)**
+
+When creating this task file, immediately write the complete test specifications for this task. Don't leave placeholders. These specs will drive Phase 3 implementation.
+
+**Process:**
+1. Review this task's scope (Feature Description, Implementation Scope above)
+2. Review test-plan.md for test strategy and approach (from Phase 2-B)
+3. Write detailed Given/When/Then specifications for ALL tests this task needs
+4. Include happy path, edge cases, and error paths specific to this task
+
+**Reference test-plan.md for:**
+- Test category guidance (what makes a good unit vs integration test)
+- Mocha/Chai patterns to follow
+- Given/When/Then format structure
+- Example test specifications for similar scenarios
+
+**DO NOT:**
+- Copy generic examples from test-plan.md (write specific to THIS task)
+- Leave placeholder text like "[List unit tests]"
+- Write vague descriptions like "test happy path"
+
+**DO:**
+- Write complete Given/When/Then for each test
+- Include specific inputs, expected outputs, assertions
+- Cover happy path, edge cases, error paths for THIS task's scope
+- Provide enough detail that Phase 3 can implement tests without guessing
+
+---
+
+#### Unit Tests for This Task
+
+##### Test: [Specific test name for this task's functionality]
+
+**Category:** Unit
+
+**Given:**
+- [Specific initial conditions for this task]
+- [What dependencies are mocked/configured]
+- [What test data is prepared]
+
+**When:**
+- [Specific function/method this task implements]
+- [Specific parameters being tested]
+
+**Then:**
+- [Specific expected return value]
+- [Specific state changes expected]
+- [Specific side effects]
+
+**Assertions:**
+```javascript
+// Specific assertions for this test
+expect(result.property).to.equal(expectedValue);
+expect(result).to.have.property('specificField');
+expect(mockService.wasCalled).to.be.true;
+```
+
+**Mocha/Chai Implementation Pattern:**
+```javascript
+describe('[Module this task implements]', () => {
+  it('[this specific test name]', () => {
+    // Arrange: implement Given above
+    const input = { /* specific test data */ };
+    const mockDep = createMock({ /* specific mock config */ });
+
+    // Act: implement When above
+    const result = functionThisTaskImplements(input, mockDep);
+
+    // Assert: implement Then above
+    expect(result).to.equal(expectedValue);
+    expect(mockDep.method).to.have.been.calledOnce;
+  });
+});
+```
+
+[Repeat for EACH unit test this task needs - don't leave blanks]
+
+---
+
+#### Integration Tests for This Task
+
+[Same detailed Given/When/Then format for each integration test this task needs]
+
+---
+
+#### Edge Cases for This Task
+
+##### Test: [Specific edge case for this task]
+
+**Category:** Edge Case
+
+**Given:**
+- [Boundary condition specific to this task]
+
+**When:**
+- [Action with edge case input]
+
+**Then:**
+- [Expected behavior at boundary]
+
+**Assertions:**
+```javascript
+expect(result).to.handle(edgeCase);
+```
+
+[Repeat for EACH edge case this task needs]
+
+---
+
+#### Error Paths for This Task
+
+##### Test: [Specific error scenario for this task]
+
+**Category:** Error Path
+
+**Given:**
+- [Invalid input or error condition specific to this task]
+
+**When:**
+- [Action that should trigger error]
+
+**Then:**
+- [Expected error type and message]
+- [Expected error handling behavior]
+
+**Assertions:**
+```javascript
+expect(() => functionThisTaskImplements(invalidInput))
+  .to.throw(SpecificErrorType, 'specific error message pattern');
+expect(systemState).to.remain.unchanged;
+```
+
+[Repeat for EACH error path this task needs]
+
+---
+
+**Completeness Check Before Finishing Task File:**
+
+Before moving to the next task file, verify this task's test specifications:
+- ✅ Every implementation scope item above has corresponding tests
+- ✅ All Given/When/Then sections have specific details (no placeholders)
+- ✅ All assertions show specific expect() statements
+- ✅ Happy path, edge cases, and error paths all covered
+- ✅ No vague descriptions like "[List tests]" remain
+
+**Phase 3 Dependency:** Phase 3 will implement these exact specifications as Mocha/Chai tests (red), then write code to pass them (green). If specs are incomplete/vague, Phase 3 will have to guess - breaking TDD.
 
 ## Dependencies
 - Prerequisites: [Other tasks that must complete first, if any]
@@ -7382,98 +7974,258 @@ Include architecture patterns and tool usage in your implementation plan.
 4. [Tooling: Which tools will be used and when]
 ..."
 
-#### Stage 3: Craft the Solution
+#### Stage 3: Craft the Solution (Test-Driven Development)
 
-**🔧 Apply Progressive Knowledge - Architecture & Tooling:**
+**🔧 TDD Cycle: Red → Green → Refactor**
 
-**Reference Stage 3 Architecture (Confirmed Knowledge):**
-Before writing code, recall `<worktree>/planning/architecture.md`:
+This step implements Test-Driven Development: write failing tests first (Red), write minimal code to pass (Green), then improve code quality (Refactor).
+
+**Prerequisites - Read These First:**
+
+Before writing any code, review the context from planning phases:
+
+**1. Architecture Reference:**
+Read `<worktree>/planning/architecture.md` to recall:
 - What technology decisions guide this implementation?
 - What integration patterns exist in the codebase?
 - What are the system dependencies and their failure modes?
 - What state transitions must this code handle?
 
-**Leverage Discovered Tools (From Tooling Integration Plan):**
-Reference `<worktree>/planning/tooling.md` for tool usage:
+**2. Tooling Integration:**
+Read `<worktree>/planning/tooling.md` to understand:
+- Which MCP servers are available for this task?
+- Which subagents should be invoked?
+- How are external APIs integrated?
+- What testing/quality tools verify this task?
 
-- **MCP Servers**: Use for domain operations documented in the plan
-  - File operations → use discovered filesystem MCP server
-  - Database queries → use discovered database MCP server
-  - Browser testing → use discovered browser automation MCP server
-  - API calls → use discovered API MCP servers
+**3. Infrastructure Identifiers:**
+Reference `<worktree>/planning/infrastructure-ids.md` for:
+- Service IDs, endpoints, configuration values
+- Environment variables and credential references
+- Rate limits and timeout values
 
-- **External APIs**: Follow integration patterns from the plan
-  - Direct API calls for simple, stable integrations
-  - Abstraction layer for testability and flexibility
-  - Use authentication from infrastructure-ids.md
+**4. Task Test Specifications:**
+Read `<worktree>/planning/tasks-pending/task-NNN-[name].md` section "Test Specifications"
+- These were written during Phase 2-D task creation
+- Complete Given/When/Then specs for this task
+- These specs are your contract - implement them exactly
 
-- **Subagents**: Can be invoked for specialized help
-  - Note: Code review typically happens in Stage 4, but other subagents available if needed
+---
 
-**Write implementation code** in `<worktree>/src/`:
-- Follow architectural patterns from Stage 3 (confirmed during Phase 1)
-- Apply integration patterns discovered in codebase research
-- Use MCP servers and APIs per tooling integration plan
-- Apply learned wisdom from previous iterations (if iteration > 1)
-- Include clear comments for complex logic
-- Structure code for maintainability and testability
+### RED: Write Failing Tests First
 
-**Write Mocha/Chai tests** in `<worktree>/test/`:
+**Step 3a: Implement Test Specifications as Mocha/Chai Tests**
 
-Use this pattern:
+Create test file: `<worktree>/test/[module-name].test.js`
+
+**Read the task file's "Test Specifications" section.** It contains complete Given/When/Then specifications written during Phase 2-D. Your job: translate them into executable Mocha/Chai tests.
+
+**For each test specification in the task file:**
+
+1. **Read Given/When/Then specification**
+   - Given = Arrange (setup, mocks, test data)
+   - When = Act (call the function)
+   - Then = Assert (verify outcomes)
+
+2. **Create Mocha describe/it block:**
 ```javascript
 const { expect } = require('chai');
-const { ModuleUnderTest } = require('../src/module-name');
 
-describe('Module Name', () => {
-  describe('functionName', () => {
+describe('[Module Name from task]', () => {
+  describe('[Function Name from task]', () => {
 
-    it('should handle typical case correctly', () => {
-      // Arrange
-      const input = 'test input';
-      const expectedOutput = 'expected output';
+    it('[test name from task spec]', () => {
+      // ARRANGE: Implement the Given section
+      const input = /* specific test data from spec */;
+      const mockDep = /* mock setup from spec */;
+      const expectedOutput = /* expected value from spec */;
 
-      // Act
-      const result = ModuleUnderTest.functionName(input);
+      // ACT: Implement the When section
+      const result = functionName(input, mockDep);
 
-      // Assert
+      // ASSERT: Implement the Then section
       expect(result).to.equal(expectedOutput);
-    });
-
-    it('should handle edge case: null input', () => {
-      // Arrange
-      const input = null;
-
-      // Act & Assert
-      expect(() => ModuleUnderTest.functionName(input))
-        .to.throw('Must provide valid input');
-    });
-
-    it('should handle edge case: empty input', () => {
-      // Arrange
-      const input = '';
-
-      // Act
-      const result = ModuleUnderTest.functionName(input);
-
-      // Assert
-      expect(result).to.equal('');
+      expect(result).to.have.property('field');
+      expect(mockDep.method).to.have.been.calledOnce;
     });
 
   });
 });
 ```
 
-**Write documentation** in `<worktree>/docs/` if needed:
-- README for overall usage
+3. **Implement ALL test specs from task file**
+   - Unit tests → describe blocks for each function
+   - Integration tests → describe blocks for workflows
+   - Edge cases → nested it blocks with boundary conditions
+   - Error paths → it blocks with expect().to.throw()
+
+**Run tests - they MUST FAIL (Red):**
+```bash
+cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+```
+
+**Expected output:** All tests fail with errors like:
+- "ReferenceError: functionName is not defined"
+- "TypeError: Cannot read property of undefined"
+- Module import errors
+
+This is GOOD - tests are red because implementation doesn't exist yet.
+
+**Commit test specifications (Red):**
+```bash
+git -C "<worktree>" add test/
+git -C "<worktree>" commit -m "test: Add failing tests for [task-name] (RED)"
+```
+
+---
+
+### GREEN: Write Minimal Implementation
+
+**Step 3b: Write Implementation Code to Pass Tests**
+
+Create implementation file: `<worktree>/src/[module-name].js`
+
+**Goal:** Write the MINIMAL code needed to make tests green.
+
+**Implementation Approach:**
+- Follow architectural patterns from `architecture.md`
+- Use MCP servers and APIs per `tooling.md`
+- Apply integration patterns discovered in codebase research
+- Apply learned wisdom from `learnings.md` (if exists)
+- Focus: Make tests pass, don't add features not covered by tests
+
+**Development cycle:**
+```bash
+# 1. Write minimal implementation for first test
+# 2. Run tests
+cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+
+# 3. See first test pass (others still fail)
+# 4. Write implementation for next test
+# 5. Run tests again
+# 6. Repeat until all tests pass
+```
+
+**Example implementation:**
+```javascript
+// src/authentication.js
+class AuthenticationService {
+  constructor(tokenService, userRepository) {
+    this.tokenService = tokenService;
+    this.userRepository = userRepository;
+  }
+
+  async login(username, password) {
+    // Minimal implementation to pass tests
+    const user = await this.userRepository.findByUsername(username);
+
+    if (!user || user.password !== password) {
+      throw new AuthenticationError('Invalid credentials');
+    }
+
+    const token = await this.tokenService.generateToken(user.id);
+    return { user, token };
+  }
+
+  async logout(token) {
+    // Minimal implementation to pass tests
+    await this.tokenService.invalidateToken(token);
+    return { success: true };
+  }
+}
+
+module.exports = { AuthenticationService };
+```
+
+**Run tests frequently - watch them turn GREEN:**
+```bash
+cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+```
+
+As you implement, tests pass one by one. Continue until all tests are green.
+
+**All tests passing? Move to refactor phase.**
+
+---
+
+### REFACTOR: Improve Code Quality
+
+**Step 3c: Refactor (While Keeping Tests Green)**
+
+Once all tests pass, improve code quality without changing behavior:
+
+**Refactoring opportunities:**
+- Extract duplicated code into helper functions
+- Improve variable and function names
+- Simplify complex logic (reduce cyclomatic complexity)
+- Add comments for non-obvious code
+- Improve error messages
+- Optimize performance (if measurably slow)
+
+**Refactoring rules:**
+- ✅ Run tests after EVERY refactoring step
+- ✅ Tests must stay green throughout refactoring
+- ✅ If tests fail, undo refactoring and try different approach
+- ❌ Don't add new features during refactoring
+- ❌ Don't change test expectations
+
+**Example refactoring:**
+```javascript
+// Before refactoring (works but duplicated)
+async login(username, password) {
+  const user = await this.userRepository.findByUsername(username);
+  if (!user || user.password !== password) {
+    throw new AuthenticationError('Invalid credentials');
+  }
+  // ... rest
+}
+
+// After refactoring (extracted validation)
+async login(username, password) {
+  const user = await this._validateCredentials(username, password);
+  // ... rest
+}
+
+async _validateCredentials(username, password) {
+  const user = await this.userRepository.findByUsername(username);
+  if (!user || user.password !== password) {
+    throw new AuthenticationError('Invalid credentials');
+  }
+  return user;
+}
+```
+
+**Run tests after refactoring:**
+```bash
+cd "<worktree>" && npx mocha test/**/*.test.js --reporter spec
+```
+
+All tests still green? Refactoring successful.
+
+---
+
+### DOCUMENT & COMMIT
+
+**Step 3d: Write Documentation (if needed)**
+
+Update documentation if this task adds user-facing features or APIs:
+- README.md usage examples
 - API documentation for public interfaces
 - Architecture notes for complex designs
 
-**Commit your work** to the worktree:
+**Step 3e: Commit Implementation (Green)**
+
 ```bash
 git -C "<worktree>" add .
-git -C "<worktree>" commit -m "Iteration {iteration_number}: [brief description of work]"
+git -C "<worktree>" commit -m "feat: Implement [task-name] (GREEN - all tests passing)"
 ```
+
+**TDD Cycle Complete:**
+- ✅ Tests written first from task specifications (RED)
+- ✅ Implementation added to pass tests (GREEN)
+- ✅ Code refactored for quality (still GREEN)
+
+Proceed to Stage 4: Verify Quality.
 
 #### Stage 4: Verify Quality - Iterative Until Right
 
