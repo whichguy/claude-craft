@@ -1770,7 +1770,7 @@ Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 **Analyze consolidated findings to determine if another discovery iteration is needed.**
 
-**🔍 Loop Triggers (Continue to Iteration 2 if YES to any):**
+**🔍 Loop Triggers (Continue to Next Iteration if YES to any):**
 
 1. **New Systems Discovered:**
    - Did source code analysis reveal additional libraries/services not previously identified?
@@ -1803,6 +1803,16 @@ Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
    **Example:** "Don't understand auth0 tenant configuration strategy. Need to research auth0 multi-tenant patterns."
 
+6. **Research Questions Unanswered:**
+   - Are there critical questions about discovered systems still unanswered?
+   - Did research reveal gaps in our understanding of how systems work?
+   - Do we have conflicting information that needs resolution?
+   - Are there integration points we don't fully understand?
+
+   **Example:** "Found Redis cache usage but don't understand their caching strategy (TTL, invalidation, warming). Need to research Redis configuration patterns and cache invalidation approach."
+
+   **Example:** "Documentation says service uses OAuth2 but code shows mix of OAuth and API keys. Need to research actual authentication flow used."
+
 **Decision Logic:**
 
 ```
@@ -1821,11 +1831,17 @@ Update `<WT>/planning/p1-stage-1-deep-discovery.md`:
 
 **Loop Safeguard:**
 
-Maximum 3 iterations to prevent infinite discovery loops.
+Maximum 5 iterations to prevent infinite discovery loops.
 
-After 3 iterations:
+**Progressive escalation:**
+- **After 2 iterations:** Review if broad enough discovery, consider narrowing scope
+- **After 3 iterations:** Escalate unknown complexity, document high-risk areas
+- **After 5 iterations:** MUST proceed with best available information
+
+After max iterations reached:
 - Document remaining unknowns in "Remaining Gaps" section
-- Mark these gaps as assumptions to validate in Stage 4
+- Mark gaps as "Assumptions to Validate in Stage 4"
+- Flag high-risk areas for early Phase 3 validation
 - Proceed to Step 3 with accumulated knowledge
 
 **Document loop decision:**
@@ -2636,7 +2652,99 @@ Research related patterns, anti-patterns, and edge cases across multiple domains
 
 **Consolidate parallel research:** Synthesize findings from related use cases, interactions, anti-cases, and external research into enhanced use-cases.md.
 
-**Document expanded use cases:**
+---
+
+**🔁 Use Case Research Quality Gate - Evaluate Completeness:**
+
+After consolidating parallel research, evaluate if use case landscape is fully understood:
+
+**Completeness Checklist:**
+
+**1. Use Case Coverage:**
+- [ ] All primary use cases from epic identified?
+- [ ] Related use cases discovered through research?
+- [ ] Anti-cases and failure modes documented?
+- [ ] Edge cases and boundary conditions identified?
+
+**2. Interaction Patterns Understood:**
+- [ ] UI/UX flows clear for each use case?
+- [ ] System interactions mapped (what talks to what)?
+- [ ] Data flows understood (inputs, outputs, transformations)?
+- [ ] Timing and sequencing clear (synchronous vs async)?
+
+**3. Domain Patterns Researched:**
+- [ ] Similar use cases in other systems researched?
+- [ ] Common patterns and anti-patterns identified?
+- [ ] Best practices discovered from external sources?
+- [ ] User expectations understood?
+
+**4. Completeness Validated:**
+- [ ] No obvious missing use cases based on epic scope?
+- [ ] All actor types covered (users, systems, scheduled jobs)?
+- [ ] All access paths identified (UI, API, webhooks, etc.)?
+- [ ] Error handling and failure scenarios included?
+
+**Critical Gaps Identified:**
+```markdown
+### Use Case Research Gaps (Iteration [N])
+
+**Gap 1: [Uncertainty about use case or interaction]**
+- **Why it matters:** [Impact on requirements or architecture]
+- **Current assumption:** [What we think happens]
+- **Targeted research needed:** [Specific investigation to resolve]
+
+**Gap 2: [Uncertainty about domain pattern]**
+- **Why it matters:** [Impact on design decisions]
+- **Current assumption:** [What we think is standard]
+- **Targeted research needed:** [Specific queries or analysis]
+```
+
+**Research Iteration Decision:**
+
+**✅ PROCEED to Stage 2 (Requirements) IF:**
+- All primary and related use cases identified
+- Interaction patterns clear enough for NFR definition
+- Domain understanding sufficient for requirements elicitation
+- Remaining unknowns won't block requirements analysis
+
+**🔁 ITERATE (return to parallel research) IF:**
+- Critical use cases missing or unclear
+- Interaction patterns need deeper investigation
+- Domain research incomplete (missing common patterns)
+- Found new related use cases that need exploration
+- Iteration count < 5
+
+**Loop Logic:**
+```
+IF gaps identified AND iteration_count < 5:
+  1. Document targeted research questions
+  2. Design specific investigations (focused use case analysis, domain research)
+  3. Execute targeted research (return to parallel research phase)
+  4. Consolidate new findings with existing use cases
+  5. Re-evaluate quality gate
+
+IF iteration_count >= 5:
+  1. Document remaining gaps in "Assumptions to Validate"
+  2. Mark unclear use cases for early Phase 3 validation
+  3. Proceed to Stage 2 with best understanding
+```
+
+**Track Iterations:**
+```markdown
+### Use Case Research Iteration History
+
+**Iteration 1: Initial Discovery**
+- Use cases identified: [count]
+- Related patterns found: [summary]
+- Gaps remaining: [critical unknowns]
+- Decision: ITERATE / PROCEED
+
+[Continue up to 5 iterations if needed]
+```
+
+---
+
+**Document expanded use cases (when quality gate passes):**
 
 Update `<WT>/planning/use-cases.md` with:
 
@@ -3289,7 +3397,111 @@ The 8 quality attribute categories are independent and can be researched in para
 
 **Consolidate parallel research:** Synthesize findings from all 4 tasks + 8 quality attribute categories into comprehensive requirements.md.
 
-**Document research findings:**
+---
+
+**🔁 NFR Research Quality Gate - Evaluate Completeness:**
+
+After consolidating all parallel research, evaluate if non-functional requirements are sufficiently understood:
+
+**Completeness Checklist:**
+
+**1. Quality Attributes Researched:**
+- [ ] All 8 quality attribute categories explored (Performance, Scalability, Security, Reliability, Usability, Maintainability, Observability, Deployability)?
+- [ ] Each category has clear thresholds or targets?
+- [ ] Trade-offs between attributes understood?
+- [ ] Industry standards and benchmarks researched?
+
+**2. Functional Requirements Clear:**
+- [ ] All use cases mapped to functional requirements?
+- [ ] Requirements are specific and testable (not vague)?
+- [ ] Dependencies between requirements identified?
+- [ ] Priority/criticality assigned (must-have/should-have/nice-to-have)?
+
+**3. Measurability Defined:**
+- [ ] Metrics identified for each NFR (how to measure)?
+- [ ] Measurement approaches clear (tools, methods)?
+- [ ] Thresholds are realistic based on research?
+- [ ] Validation strategy defined (how to verify requirements met)?
+
+**4. Technical Constraints Understood:**
+- [ ] System constraints researched (hardware, network, quotas)?
+- [ ] Integration requirements clear (APIs, protocols, formats)?
+- [ ] Compliance requirements identified (regulatory, legal)?
+- [ ] Compatibility requirements understood (browsers, OS, devices)?
+
+**Critical Gaps Identified:**
+```markdown
+### NFR Research Gaps (Iteration [N])
+
+**Gap 1: [Missing requirement clarity]**
+- **Category:** [Performance/Security/etc.]
+- **Why it matters:** [Impact on architecture or implementation]
+- **Current assumption:** [What threshold we're assuming]
+- **Targeted research needed:** [Specific investigation to resolve]
+
+**Gap 2: [Unclear measurement approach]**
+- **Requirement:** [NFR-X]
+- **Why it matters:** [Can't validate without clear measurement]
+- **Targeted research needed:** [Tool/method research needed]
+```
+
+**Research Iteration Decision:**
+
+**✅ PROCEED to Stage 3 (Architecture) IF:**
+- All 8 quality attributes have clear requirements (or explicitly marked as "not applicable")
+- Thresholds/targets are specific and measurable
+- Trade-offs understood (can make informed architecture decisions)
+- Measurement approaches defined
+- Confidence level sufficient for architectural commitments
+
+**🔁 ITERATE (return to parallel research) IF:**
+- Critical NFRs undefined or too vague ("fast", "secure" without metrics)
+- Missing quality attribute categories that matter for this epic
+- Thresholds unrealistic or unresearched (guessing)
+- Unclear how to measure/validate requirements
+- Conflicting requirements need resolution
+- Iteration count < 5
+
+**Loop Logic:**
+```
+IF gaps identified AND iteration_count < 5:
+  1. Document targeted research questions (specific NFR areas)
+  2. Design focused research (benchmark studies, standard research, measurement tool investigation)
+  3. Execute targeted research (don't repeat all 8 categories, just fill gaps)
+  4. Consolidate new findings with existing requirements
+  5. Re-evaluate quality gate
+
+IF iteration_count >= 5:
+  1. Document remaining gaps in "Assumptions to Validate"
+  2. Mark vague NFRs for early Phase 3 performance/load testing
+  3. Proceed to Stage 3 with best understanding
+  4. Plan rapid feedback loops to establish real-world thresholds
+```
+
+**Track Iterations:**
+```markdown
+### NFR Research Iteration History
+
+**Iteration 1: Initial 8-Category Research**
+- Categories researched: [8/8]
+- FRs identified: [count]
+- NFRs identified: [count by category]
+- Gaps remaining: [vague thresholds, unmeasurable requirements]
+- Decision: ITERATE / PROCEED
+
+**Iteration 2: Targeted Threshold Research** (if needed)
+- Focused areas: [specific quality attributes needing depth]
+- Benchmark research: [findings from industry standards]
+- Measurement tools: [approaches identified]
+- Gaps remaining: [reduced set]
+- Decision: ITERATE / PROCEED
+
+[Continue up to 5 iterations if needed]
+```
+
+---
+
+**Document research findings (when quality gate passes):**
 
 Update `<WT>/planning/requirements.md` with comprehensive structure:
 
@@ -3787,7 +3999,47 @@ cat "<WT>/planning/requirements.md"
 
 🔍 **Parallel Technology Research Strategy**
 
-For each technology gap identified, research across multiple sources in parallel. Execute GitHub, NPM, Reddit, and documentation searches concurrently.
+For each technology gap identified, research across multiple sources in parallel following discover → consolidate → research → consolidate → quality gate pattern.
+
+---
+
+**🔁 RESEARCH LOOP - Iterate Until Satisfied (Max 5 iterations):**
+
+### Step 0: Discover Relevant Forums (parallel WebSearch)
+
+Before researching specific technologies, identify which forums/communities are most active for this domain:
+
+**Launch parallel WebSearch queries:**
+- "[technology domain] best developer forums and communities 2025"
+- "[programming language] where developers discuss [topic area]"
+- "[framework/ecosystem] most active discussion platforms"
+- "where do [technology] developers share [topic] experiences"
+
+**What to discover:**
+- Which forums have highest activity for this tech? (Reddit, Discourse, Slack, Discord, Stack Overflow?)
+- Which specific subreddits are most relevant? (r/javascript, r/node, r/webdev, r/rust, etc.)
+- Are there specialized forums? (Rust Users Forum, Elixir Forum, Vue Forum, etc.)
+- Active Stack Overflow tags?
+- Discord/Slack communities?
+
+**Consolidate forum discoveries:**
+After all forum discovery searches complete, synthesize:
+- Top 3-5 most active forums for this domain
+- Subreddit names if Reddit is relevant
+- Specialized forum URLs if applicable
+- Stack Overflow tags if active
+
+**Document discovered forums:**
+```markdown
+### Forums Discovered for [Technology Domain]
+- Forum 1: [Name] - [Activity level] - [URL if applicable]
+- Forum 2: [Name] - [Activity level] - [URL if applicable]
+- Forum 3: [Name] - [Activity level] - [URL if applicable]
+```
+
+---
+
+### Step 1: Execute Parallel Technology Research
 
 **Per technology gap, launch these research tasks in parallel:**
 
@@ -3809,15 +4061,16 @@ Examples:
 - **Size:** Check repository size and bundle size
 - **TypeScript support:** Native TypeScript or quality type definitions?
 
-**2. Reddit Research:**
-Search relevant subreddits for real-world experiences:
+**2. Forum Research (based on Step 0 discoveries):**
+Search discovered forums for real-world experiences:
 ```
-Communities: r/javascript, r/typescript, r/node, r/webdev, r/programming
-Search: "[technology need] recommendations"
-Look for: Recent discussions (last 6-12 months), user experiences, gotchas, alternatives
+Use forums identified in Step 0:
+- If Reddit discovered: "site:reddit.com r/[discovered-subreddit] [technology] recommendations"
+- If Stack Overflow active: "site:stackoverflow.com [technology] [discovered-tag]"
+- If Discourse/specialized forum: appropriate search strategy
 ```
 
-**What to extract from Reddit:**
+**What to extract from forums:**
 - **Real-world pain points:** What issues do developers actually encounter?
 - **Alternatives mentioned:** What options do practitioners recommend?
 - **Trending technologies:** What's gaining mindshare in the community?
@@ -3832,7 +4085,7 @@ npm search [technology-need] --parseable
 npm view [package-name] --json | jq '{name,version,dependencies,devDependencies,license}'
 ```
 
-**Score and rank options:**
+**4. Scoring Framework:**
 
 For each technology option discovered, assign scores (0-10) for:
 
@@ -3846,7 +4099,7 @@ For each technology option discovered, assign scores (0-10) for:
 **Trending Score:**
 - **GitHub stars growth:** Check star history (accelerating vs. declining)
 - **Download trends:** npm downloads trending up or down?
-- **Recent mentions:** Reddit/Twitter/blogs discussing recently?
+- **Recent mentions:** Forums/Twitter/blogs discussing recently?
 - **Adoption:** Major companies/projects using it?
 - **Momentum:** 0=declining, 5=stable, 10=rapidly growing
 
@@ -3858,16 +4111,139 @@ For each technology option discovered, assign scores (0-10) for:
 
 **Total Score = (Quality × 0.4) + (Trending × 0.3) + (Philosophy × 0.3)**
 
-**Web research opportunities (use WebSearch in parallel):**
+**Web research queries (use WebSearch in parallel):**
 - "site:github.com [technology-need] [language] stars:>1000"
-- "site:reddit.com r/[subreddit] [technology] vs [alternative] recommendations"
-- "[technology] performance benchmarks 2024 comparison"
+- "site:[discovered-forum] [technology] vs [alternative] recommendations"
+- "[technology] performance benchmarks 2025 comparison"
 - "[technology] production gotchas and lessons learned"
 - "best [technology] for [use-case] detailed comparison"
 - "[technology] bundle size and dependencies analysis"
 - "[alternative-1] vs [alternative-2] vs [alternative-3] feature comparison"
 
-**Consolidate parallel research:** Score all discovered options using Quality + Trending + Philosophy framework, rank by total score, document in architecture.md.
+---
+
+### Step 2: Consolidate Parallel Research Findings
+
+**After all parallel searches complete, synthesize:**
+- Common recommendations across sources (GitHub + forums + NPM + docs)
+- Conflicting opinions and reasoning (why do sources disagree?)
+- Consensus on best-in-class solutions
+- Warnings and anti-patterns mentioned across sources
+- Score all discovered options using Quality + Trending + Philosophy framework
+- Rank by total score
+
+---
+
+### Step 3: Research Quality Gate - Evaluate Completeness
+
+**🔍 Technology Research Completeness Checklist:**
+
+**1. Technology Options Evaluated:**
+- [ ] Found 3+ viable options for each technology gap?
+- [ ] Understand trade-offs between options (pros/cons clear)?
+- [ ] Have sufficient data for scoring framework (all 3 scores computable)?
+- [ ] Identified clear winner(s) or valid alternatives?
+
+**2. Key Questions Answered:**
+- [ ] Performance characteristics understood for top options?
+- [ ] Integration complexity clear (APIs, configuration, setup)?
+- [ ] Community support verified (active maintenance, good docs)?
+- [ ] Production readiness assessed (battle-tested, stable releases)?
+- [ ] License compatibility checked (MIT, Apache, GPL implications)?
+- [ ] Bundle size and dependency impact acceptable?
+
+**3. Risk Areas Explored:**
+- [ ] Gotchas and pitfalls identified from forum experiences?
+- [ ] Breaking changes or deprecations noted?
+- [ ] Alternative approaches researched if primary option has issues?
+- [ ] Migration paths understood if switching later needed?
+
+**4. Confidence Level:**
+- [ ] Confidence ≥ HIGH for technology decisions that affect architecture
+- [ ] Confidence ≥ MEDIUM for technology decisions that are easily reversible
+- [ ] All LOW confidence items have mitigation plans or are marked for early validation
+
+**Critical Gaps Identified:**
+```markdown
+### Research Gaps Remaining (Iteration [N])
+
+**Gap 1: [Question/uncertainty]**
+- **Why it matters:** [Impact on architecture or implementation]
+- **Current assumption:** [What we think but aren't sure]
+- **Risk if wrong:** [Consequences]
+- **Targeted research needed:** [Specific queries to resolve this]
+
+**Gap 2: [Question/uncertainty]**
+- **Why it matters:** [Impact on architecture or implementation]
+- **Current assumption:** [What we think but aren't sure]
+- **Risk if wrong:** [Consequences]
+- **Targeted research needed:** [Specific queries to resolve this]
+
+[Continue for all critical gaps...]
+```
+
+---
+
+### Step 4: Research Iteration Decision
+
+**✅ PROCEED to documenting findings IF:**
+- All critical questions answered with sufficient confidence
+- Have enough information to make informed technology decisions
+- Top 1-3 options clearly identified with understood trade-offs
+- Remaining unknowns are acceptable (won't block architecture decisions)
+- Confidence level sufficient for commitments being made
+
+**🔁 ITERATE (return to Step 1) IF:**
+- Critical questions remain unanswered
+- Found new technology gaps during research
+- Insufficient data for scoring/comparison (can't distinguish options)
+- Forum discoveries revealed better sources to search
+- Conflicting information needs resolution
+- Confidence too low for decisions being made
+
+**Loop Logic:**
+```
+IF gaps identified AND iteration_count < 5:
+  1. Document new targeted questions based on gaps
+  2. Design specific research queries to fill gaps (don't repeat broad searches)
+  3. Execute targeted parallel research (return to Step 1 with focused queries)
+  4. Consolidate new findings with previous findings
+  5. Re-evaluate quality gate (return to Step 3)
+
+IF iteration_count >= 5:
+  1. Document remaining gaps in "Assumptions to Validate" section
+  2. Mark high-risk technology decisions for early validation in Phase 3 experiments
+  3. Proceed with best available information
+  4. Plan rapid feedback loops to validate assumptions
+```
+
+**Track Research Iterations:**
+```markdown
+### Technology Research Iteration History
+
+**Iteration 1: Initial Broad Research**
+- Forums discovered: [list]
+- Technologies evaluated: [count]
+- Findings: [key discoveries]
+- Gaps remaining: [critical unknowns]
+- Decision: ITERATE / PROCEED
+
+**Iteration 2: Targeted Gap Research** (if needed)
+- Focused questions: [specific gaps from iteration 1]
+- Additional research: [targeted queries executed]
+- New findings: [what we learned]
+- Gaps remaining: [reduced set]
+- Decision: ITERATE / PROCEED
+
+[Continue up to 5 iterations if needed]
+
+**Final iteration count:** [N]
+**Final decision:** PROCEED with [X] options identified
+```
+
+---
+
+### Step 5: Document Research Findings (When Quality Gate Passes)
 
 **Document research findings:**
 
@@ -6128,7 +6504,7 @@ For each criterion, specify HOW to verify:
 - Zero blocking issues
 
 **Crafting Process:**
-I'll work through up to 10 iterations, with each iteration:
+I'll work through up to 5 iterations, with each iteration:
 1. Setting clear intentions
 2. Implementing code and tests
 3. Verifying quality against criteria
@@ -6679,9 +7055,111 @@ Research how to integrate discovered tools effectively. Execute multiple tool re
 - "[testing-tool] CI/CD integration examples"
 - "monitoring and observability for [technology-stack]"
 
-**Consolidate parallel research:** Update tooling.md with integration approaches, configuration examples, and implementation patterns discovered.
+**After all parallel searches complete, consolidate findings:** Update tooling.md with integration approaches, configuration examples, and implementation patterns discovered.
 
-**Document tooling integration findings:**
+---
+
+**🔁 Tooling Research Quality Gate - Evaluate Completeness:**
+
+After consolidating parallel research, evaluate if tooling integration is sufficiently understood:
+
+**Completeness Checklist:**
+
+**1. Integration Patterns Clear:**
+- [ ] MCP server integration patterns researched (if applicable)?
+- [ ] Subagent orchestration approaches understood?
+- [ ] External API integration patterns clear (authentication, error handling, rate limiting)?
+- [ ] Testing tool integration documented?
+
+**2. Configuration Requirements Known:**
+- [ ] Setup/installation steps identified for each tool?
+- [ ] Configuration examples found (environment variables, config files)?
+- [ ] Authentication mechanisms understood (OAuth, API keys, tokens)?
+- [ ] Dependencies and prerequisites documented?
+
+**3. Error Handling and Resilience:**
+- [ ] Error handling patterns researched for each integration?
+- [ ] Retry strategies identified?
+- [ ] Fallback approaches documented?
+- [ ] Rate limiting strategies clear?
+
+**4. Quality and Monitoring:**
+- [ ] Quality gate enforcement approaches identified?
+- [ ] Monitoring and observability patterns researched?
+- [ ] Rollback strategies documented?
+- [ ] Testing approaches for integrations clear?
+
+**Critical Gaps Identified:**
+```markdown
+### Tooling Research Gaps (Iteration [N])
+
+**Gap 1: [Integration pattern unclear]**
+- **Tool:** [Tool/MCP server/API name]
+- **Why it matters:** [Impact on implementation]
+- **Current assumption:** [What integration approach we're assuming]
+- **Targeted research needed:** [Specific investigation]
+
+**Gap 2: [Configuration unclear]**
+- **Tool:** [Tool name]
+- **Why it matters:** [Can't set up without this]
+- **Targeted research needed:** [Specific documentation or examples needed]
+```
+
+**Research Iteration Decision:**
+
+**✅ PROCEED to Phase 2-D (Task Breakdown) IF:**
+- All required tooling integrations have clear patterns
+- Configuration requirements understood
+- Error handling strategies identified
+- Quality gates enforceable with available tools
+- Confidence sufficient for task creation
+
+**🔁 ITERATE (return to parallel research) IF:**
+- Critical tool integration patterns unclear
+- Missing configuration examples for complex setups
+- Error handling strategies undefined
+- Quality gate enforcement approach unclear
+- Found new tool requirements during research
+- Iteration count < 5
+
+**Loop Logic:**
+```
+IF gaps identified AND iteration_count < 5:
+  1. Document targeted research questions (specific tool/integration areas)
+  2. Design focused research (integration examples, configuration guides, best practices)
+  3. Execute targeted research (don't repeat all tools, just fill gaps)
+  4. Consolidate new findings with existing tooling documentation
+  5. Re-evaluate quality gate
+
+IF iteration_count >= 5:
+  1. Document remaining gaps in "Assumptions to Validate"
+  2. Mark complex integrations for early Phase 3 experimentation
+  3. Proceed to Phase 2-D with best understanding
+  4. Plan rapid feedback loops for integration validation
+```
+
+**Track Iterations:**
+```markdown
+### Tooling Research Iteration History
+
+**Iteration 1: Initial Tooling Research**
+- Tools researched: [count and names]
+- Integration patterns found: [summary]
+- Gaps remaining: [configuration, error handling, etc.]
+- Decision: ITERATE / PROCEED
+
+**Iteration 2: Targeted Integration Research** (if needed)
+- Focused areas: [specific tools or patterns needing depth]
+- Additional examples found: [summary]
+- Gaps remaining: [reduced set]
+- Decision: ITERATE / PROCEED
+
+[Continue up to 5 iterations if needed]
+```
+
+---
+
+**Document tooling integration findings (when quality gate passes):**
 
 Update `<WT>/planning/tooling.md` with integration patterns:
 
@@ -8430,6 +8908,43 @@ For each task file you create:
 
    **Research Strategy - Use WebSearch tool with parallel queries:**
 
+   ---
+
+   **🔁 UI RESEARCH LOOP - Iterate Until Satisfied (Max 5 iterations):**
+
+   **Pre-Step: Identify Relevant Communities (parallel WebSearch)**
+
+   Before component-specific research, discover which forums are most active for this technology stack:
+
+   **Launch parallel queries:**
+   - "[framework] UI component developer communities 2025"
+   - "[framework] best forums for component patterns"
+   - "where do [framework] developers discuss UI implementation"
+   - "[component type] discussion forums [framework]"
+
+   **What to discover:**
+   - Most active forums for this framework? (Reddit, Stack Overflow, Discourse, Discord, GitHub Discussions, etc.)
+   - Specific subreddits or tags relevant? (r/reactjs, r/vuejs, stackoverflow [react] tag, etc.)
+   - Framework-specific forums? (Vue Forum, Svelte Discord, React Community Discord, etc.)
+   - Component library communities? (Material-UI, Chakra UI, Ant Design forums)
+
+   **Consolidate community discoveries:**
+   After forum discovery searches complete, synthesize:
+   - Top 3-5 most active communities for this framework
+   - Subreddit names if Reddit is relevant
+   - Stack Overflow tags if active
+   - Discord/Slack channels if applicable
+
+   **Document discovered forums:**
+   ```markdown
+   ### Communities Discovered for [Framework] UI Development
+   - Forum 1: [Name] - [Activity level] - [URL/tag if applicable]
+   - Forum 2: [Name] - [Activity level] - [URL/tag if applicable]
+   - Forum 3: [Name] - [Activity level] - [URL/tag if applicable]
+   ```
+
+   ---
+
    **Query 1: Technology-Specific UI Patterns**
    ```
    "[technology stack] [component type] best practices [current year]"
@@ -8442,12 +8957,15 @@ For each task file you create:
      - Common pitfalls and anti-patterns
      - Performance considerations specific to this framework
 
-   **Query 2: Community Techniques & Real-World Solutions**
+   **Query 2: Community Techniques & Real-World Solutions (discovered forums)**
    ```
-   "site:reddit.com [component type] [technology] implementation"
-   "site:stackoverflow.com [component type] [technology] best approach"
-   Example: "site:reddit.com invoice form React implementation"
-   Example: "site:stackoverflow.com data grid Vue best approach"
+   Use forums identified in Pre-Step:
+   - "site:[discovered-forum] [component type] [technology] implementation"
+   - "site:[discovered-forum] [component type] [technology] best approach"
+
+   Examples (if Reddit discovered): "site:reddit.com r/reactjs invoice form implementation"
+   Examples (if Stack Overflow active): "site:stackoverflow.com [react] data grid best approach"
+   Examples (if Discord/specialized forum): appropriate search strategy for that platform
    ```
    - **What to look for:**
      - Real developers solving similar problems
@@ -8491,7 +9009,105 @@ For each task file you create:
    # This research takes 30-60 seconds total vs 2-4 minutes sequential
    ```
 
-   **Document Research Findings:**
+   ---
+
+   **Consolidate Parallel Research Findings:**
+
+   **After all 4 queries complete, synthesize:**
+   - Cross-reference findings from Query 1 (official) vs Query 2 (community)
+   - Identify consensus patterns vs outlier approaches
+   - Note where official docs and community practices diverge
+   - Prioritize findings: critical vs nice-to-have
+
+   ---
+
+   **🔁 UI Research Quality Gate - Evaluate Completeness:**
+
+   **Completeness Checklist:**
+
+   **1. Pattern Coverage:**
+   - [ ] Technology-specific patterns clear for this component type?
+   - [ ] Community techniques and real-world solutions identified?
+   - [ ] User expectations understood (UX patterns, accessibility)?
+   - [ ] Component behavior patterns documented (interactions, animations)?
+
+   **2. Implementation Clarity:**
+   - [ ] Clear recommended approach based on research?
+   - [ ] Library recommendations with justification (if applicable)?
+   - [ ] Common pitfalls and anti-patterns identified?
+   - [ ] Performance considerations understood?
+
+   **3. User Experience:**
+   - [ ] Accessibility requirements clear (WCAG, screen readers)?
+   - [ ] Mobile vs desktop considerations documented?
+   - [ ] Loading states, error handling patterns identified?
+   - [ ] User expectations aligned with planned implementation?
+
+   **4. Confidence Level:**
+   - [ ] Confidence ≥ HIGH for component architecture decisions?
+   - [ ] Confidence ≥ MEDIUM for interaction patterns?
+   - [ ] Low confidence items have validation plans?
+
+   **Critical Gaps Identified:**
+   ```markdown
+   ### UI Research Gaps (Iteration [N])
+
+   **Gap 1: [Pattern or expectation unclear]**
+   - **Component aspect:** [Interaction/accessibility/performance]
+   - **Why it matters:** [Impact on implementation]
+   - **Current assumption:** [What we think users expect]
+   - **Targeted research needed:** [Specific investigation]
+   ```
+
+   **Research Iteration Decision:**
+
+   **✅ PROCEED to finalizing task scope IF:**
+   - All 4 query categories have clear findings
+   - Implementation approach validated by research
+   - User expectations understood
+   - No blocking unknowns about component behavior
+   - Confidence sufficient for task creation
+
+   **🔁 ITERATE (return to parallel queries) IF:**
+   - Critical UI patterns unclear (don't know how to implement)
+   - User expectations ambiguous (risk building wrong interface)
+   - Accessibility requirements undefined
+   - Community research revealed conflicting approaches needing resolution
+   - Found better forums/sources during research
+   - Iteration count < 5
+
+   **Loop Logic:**
+   ```
+   IF gaps identified AND iteration_count < 5:
+     1. Document targeted research questions (specific UI aspects)
+     2. Design focused queries (don't repeat all 4, target gaps)
+     3. Execute targeted research (may include discovered forums)
+     4. Consolidate new findings with existing research
+     5. Re-evaluate quality gate
+
+   IF iteration_count >= 5:
+     1. Document remaining gaps in "Assumptions to Validate"
+     2. Mark unclear patterns for early Phase 3 UI experimentation
+     3. Proceed with best understanding
+     4. Plan rapid UI prototyping for validation
+   ```
+
+   **Track Iterations:**
+   ```markdown
+   ### UI Research Iteration History
+
+   **Iteration 1: Initial 4-Query Research**
+   - Forums discovered: [communities identified]
+   - Patterns found: [summary across 4 queries]
+   - Gaps remaining: [unclear aspects]
+   - Decision: ITERATE / PROCEED
+
+   [Continue up to 5 iterations if needed]
+   ```
+
+   ---
+
+   **Document Research Findings (when quality gate passes):**
    ```markdown
    ### UI Research Findings for This Task
 
