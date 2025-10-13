@@ -1,7 +1,7 @@
 ---
 name: merge-worktree
 description: Safely merge worktree changes back to source branch with squash commit, comprehensive validation, and automatic cleanup. Handles conflicts gracefully with detailed resolution guidance.
-model: haiku
+model: claude-sonnet-4.5
 color: green
 ---
 
@@ -180,124 +180,118 @@ merge-worktree /path/to/wt1  # Auto-detects main as target → merges wt1 → ma
 
 When invoked, execute this process using the Bash tool. **DO NOT try to call any external commands named "merge-worktree".**
 
-Extract parameters from the user's prompt, then execute each phase below as separate Bash tool calls, passing variables between phases as needed.
+The user will provide parameters using XML tags in their prompt:
+- `<worktree>path</worktree>` - Required: Path to worktree to merge
+- `<desttree>path</desttree>` - Optional: Destination path (empty = auto-discover)
+- `<commit_message>msg</commit_message>` - Optional: Custom commit message
+
+Extract these values and execute each phase below as separate Bash tool calls.
 
 ## EXECUTION PROCESS
 
 ### PHASE 1: ARGUMENT ANALYSIS AND VALIDATION
 
-```bash
-echo "🧠 THINKING: I need to intelligently analyze worktree changes and determine optimal merge strategy"
-echo "🎯 INTENT: I will use prompt-as-code patterns to ensure safe and effective worktree integration"
+Before executing bash, extract parameters from the user's prompt:
 
-# Intelligent parameter processing using positional parameters
-parse_merger_parameters() {
-  echo "🧠 THINKING: Processing positional parameters for worktree merge operation"
-  
-  # Process positional parameters with validation
-  worktree_path="${1:-}"
-  source_path="${2:-}"
-  commit_message="${3:-}"
-  agent_context="${4:-}"
-  branch_name="${5:-}"
-  
-  # Validate mandatory worktree_path
-  if [ -z "$worktree_path" ]; then
-    echo "❌ DECISION: Missing mandatory worktree_path parameter"
-    cat << EOF
+1. **worktree_path** - Extract from `<worktree>path</worktree>` tag (REQUIRED)
+2. **source_path** - Extract from `<desttree>path</desttree>` tag (optional - empty means auto-discover)
+3. **commit_message** - Extract from `<commit_message>msg</commit_message>` tag (optional)
+
+Then execute this bash block with substituted values:
+
+```bash
+# === PARAMETERS (substitute with extracted values) ===
+worktree_path="[EXTRACTED_WORKTREE_PATH]"
+source_path="[EXTRACTED_SOURCE_PATH]"  # Empty string if not provided
+commit_message="[EXTRACTED_COMMIT_MESSAGE]"  # Empty string if not provided
+
+echo "🧠 THINKING: Validating extracted parameters from prompt"
+echo "🔍 worktree_path: $worktree_path"
+echo "🔍 source_path: $source_path"
+echo "🔍 commit_message: $commit_message"
+
+# Validate mandatory worktree_path
+if [ -z "$worktree_path" ]; then
+  echo "❌ DECISION: Missing mandatory <worktree> tag in prompt"
+  cat << EOF
 {
   "status": "error",
-  "error": "Missing mandatory parameter: worktree_path is required",
-  "usage": "merge-worktree <worktree_path> [source_path] [commit_message] [agent_context] [branch_name]"
+  "error": "Missing mandatory parameter: <worktree>path</worktree> tag is required in prompt",
+  "usage": "Provide <worktree>/path/to/worktree</worktree> in your prompt"
 }
 EOF
-    exit 1
+  exit 1
+fi
+
+echo "🎯 DECISION: worktree_path = $worktree_path"
+
+# Auto-discover source_path if not provided
+if [ -z "$source_path" ]; then
+  echo "🧠 THINKING: <desttree> not provided, attempting auto-discovery from worktree"
+
+  # PRIORITY 1: Check for .worktree-parent file (nested worktree indicator)
+  if [ -f "$worktree_path/.worktree-parent" ]; then
+    parent_path=$(cat "$worktree_path/.worktree-parent" 2>/dev/null)
+    if [ -n "$parent_path" ] && [ -d "$parent_path" ]; then
+      source_path="$parent_path"
+      echo "🎯 DECISION: Found nested worktree parent: $source_path"
+      echo "🔗 NESTED MERGE: This worktree will merge to its parent worktree, not main repo"
+    else
+      echo "⚠️ WARNING: .worktree-parent file exists but path is invalid"
+      # Fall through to standard discovery
+    fi
   fi
 
-  echo "🎯 DECISION: worktree_path = $worktree_path"
+  # PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
+  if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
+    # Extract gitdir path from worktree's .git file
+    gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
 
-  # Auto-discover source_path if not provided
-  if [ -z "$source_path" ]; then
-    echo "🧠 THINKING: source_path not provided, attempting auto-discovery from worktree"
-
-    # PRIORITY 1: Check for .worktree-parent file (nested worktree indicator)
-    if [ -f "$worktree_path/.worktree-parent" ]; then
-      parent_path=$(cat "$worktree_path/.worktree-parent" 2>/dev/null)
-      if [ -n "$parent_path" ] && [ -d "$parent_path" ]; then
-        source_path="$parent_path"
-        echo "🎯 DECISION: Found nested worktree parent: $source_path"
-        echo "🔗 NESTED MERGE: This worktree will merge to its parent worktree, not main repo"
-      else
-        echo "⚠️ WARNING: .worktree-parent file exists but path is invalid"
-        # Fall through to standard discovery
-      fi
-    fi
-
-    # PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
-    if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
-      # Extract gitdir path from worktree's .git file
-      gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
-
-      if [ -n "$gitdir" ]; then
-        # Navigate up from .git/worktrees/name to main .git then to repo root
-        main_git_dir=$(dirname $(dirname "$gitdir"))
-        source_path=$(dirname "$main_git_dir")
-        echo "🎯 DECISION: Auto-discovered main repo: $source_path"
-        echo "📍 STANDARD MERGE: This worktree will merge to main repository"
-      else
-        echo "❌ DECISION: Failed to parse worktree .git file"
-        cat << EOF
+    if [ -n "$gitdir" ]; then
+      # Navigate up from .git/worktrees/name to main .git then to repo root
+      main_git_dir=$(dirname $(dirname "$gitdir"))
+      source_path=$(dirname "$main_git_dir")
+      echo "🎯 DECISION: Auto-discovered main repo: $source_path"
+      echo "📍 STANDARD MERGE: This worktree will merge to main repository"
+    else
+      echo "❌ DECISION: Failed to parse worktree .git file"
+      cat << EOF
 {
   "status": "error",
   "error": "Could not auto-discover source_path from worktree .git file",
   "worktree_path": "$worktree_path",
-  "hint": "Provide source_path explicitly as second parameter"
-}
-EOF
-        exit 1
-      fi
-    fi
-
-    # PRIORITY 3: Error if still not found
-    if [ -z "$source_path" ]; then
-      echo "❌ DECISION: Worktree .git file not found, cannot auto-discover source"
-      cat << EOF
-{
-  "status": "error",
-  "error": "Cannot auto-discover source_path: worktree .git file not found",
-  "worktree_path": "$worktree_path",
-  "hint": "Provide source_path explicitly as second parameter"
+  "hint": "Provide <desttree>/path/to/dest</desttree> in prompt"
 }
 EOF
       exit 1
     fi
-  else
-    echo "🎯 DECISION: source_path provided explicitly = $source_path"
   fi
-  
-  if [ -n "$commit_message" ]; then
-    echo "🎯 DECISION: commit_message = $commit_message"
-  else
-    echo "🎯 DECISION: No commit_message provided, will auto-generate"
-  fi
-  
-  if [ -n "$agent_context" ]; then
-    echo "🎯 DECISION: agent_context = $agent_context"
-  else
-    echo "🎯 DECISION: No agent_context provided, will use generic context"
-  fi
-  
-  if [ -n "$branch_name" ]; then
-    echo "🎯 DECISION: branch_name = $branch_name"
-  else
-    echo "🎯 DECISION: No branch_name provided, will auto-detect"
-  fi
-  
-  echo "✅ OUTCOME: Parameters processed - merging $worktree_path to $source_path"
-}
 
-# Execute parameter processing
-parse_merger_parameters "$@"
+  # PRIORITY 3: Error if still not found
+  if [ -z "$source_path" ]; then
+    echo "❌ DECISION: Worktree .git file not found, cannot auto-discover source"
+    cat << EOF
+{
+  "status": "error",
+  "error": "Cannot auto-discover source_path: worktree .git file not found",
+  "worktree_path": "$worktree_path",
+  "hint": "Provide <desttree>/path/to/dest</desttree> in prompt"
+}
+EOF
+    exit 1
+  fi
+else
+  echo "🎯 DECISION: source_path provided explicitly = $source_path"
+fi
+
+if [ -n "$commit_message" ]; then
+  echo "🎯 DECISION: commit_message = $commit_message"
+else
+  echo "🎯 DECISION: No commit_message provided, will auto-generate"
+  commit_message=""
+fi
+
+echo "✅ OUTCOME: Parameters processed - merging $worktree_path to $source_path"
 ```
 
 ### PHASE 2: PATH VALIDATION AND CONTEXT DISCOVERY
@@ -431,11 +425,8 @@ create_intelligent_commit() {
   if [ -n "$commit_message" ]; then
     final_message="$commit_message"
     echo "🎯 DECISION: Using provided commit message"
-  elif [ -n "$agent_context" ]; then
-    final_message="feat($agent_context): Worktree changes from $agent_context execution"
-    echo "🎯 DECISION: Generated agent-specific commit message"
   else
-    final_message="feat(worktree): Auto-commit from worktree execution"
+    final_message="feat(worktree): Merge worktree changes"
     echo "🎯 DECISION: Generated generic commit message"
   fi
 
@@ -559,7 +550,11 @@ EOF
   else
     echo "🎯 DECISION: No uncommitted changes in original directory - safe to proceed"
   fi
-  
+
+  # NOTE: .worktree-parent is gitignored by create-worktree, so it won't interfere with merge
+  # Each worktree keeps its own .worktree-parent file for tracking its parent relationship
+  echo "🎯 DECISION: .worktree-parent is gitignored - no cleanup needed before merge"
+
   # Execute merge based on strategy
   echo "🎯 DECISION: Executing $merge_strategy merge strategy with squash"
   echo "🔧 Running: git -C $ORIGINAL_ABS_PATH merge --squash $branch_name"
@@ -842,7 +837,6 @@ cat << EOF
   },
   "source_path": "$ORIGINAL_ABS_PATH",
   "final_commit_message": "$final_message",
-  "agent_context": "${agent_context:-none}",
   "thinking_process": "Analyzed changes → Created commit → Executed merge → Cleaned worktree → Validated results",
   "message": "Successfully processed $final_files_processed changes from worktree, merged with $merge_strategy strategy, and cleaned up",
   "operational_instructions": {

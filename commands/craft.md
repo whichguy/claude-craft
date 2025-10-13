@@ -4491,29 +4491,37 @@ The complete work is in the isolated worktree at `<worktree>`. Would you like me
 
 **Merge the crafted work** back to the original location.
 
-Ask the merge-worktree subagent to consolidate the worktree.
+Use the Task tool to invoke the merge-worktree subagent:
 
-Provide these parameters:
-- worktree_path: `<worktree>`
-- target_branch: {original branch from original_location}
-- squash: true (consolidate all iteration commits into one)
-- commit_message: "feat: [task name] - crafted over {iteration_number} iterations"
+```
+Task tool parameters:
+{
+  "subagent_type": "merge-worktree",
+  "description": "Merge worktree to source branch",
+  "prompt": "Merge the worktree at `<worktree>` back to the source branch with a squash commit.
 
-Tell the subagent to be verbose about what it does - we need to know:
-- Whether the merge was successful
-- If there were any conflicts
-- What files were changed
-- The final commit hash
-- Whether the worktree was cleaned up
+  Worktree path: `<worktree>`
+  Target branch: {original branch from original_location}
+  Squash commits: yes (consolidate all iteration commits into one)
+  Commit message: 'feat: [task name] - crafted over {iteration_number} iterations'
 
-[WAIT for merge-worktree completion]
+  Please provide detailed output including:
+  - Merge success status
+  - Any conflicts encountered
+  - List of files changed
+  - Final commit hash
+  - Worktree cleanup status"
+}
+```
 
-The merge-worktree agent reported:
-- Merge status: [capture from agent output]
-- Conflicts: [capture conflict details if any]
-- Files changed: [capture file list]
-- Commit hash: [capture hash]
-- Cleanup status: [capture cleanup status]
+[WAIT for merge-worktree agent completion]
+
+The merge-worktree agent will report:
+- Merge status (success/conflicts/failure)
+- Conflict details if any (specific files and locations)
+- Files changed (complete list)
+- Commit hash (for successful merge)
+- Cleanup status (worktree removed or preserved)
 
 **Handle the merge result:**
 

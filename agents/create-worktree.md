@@ -1,7 +1,7 @@
 ---
 name: create-worktree
 description: Create isolated git worktrees for parallel development, enabling multiple subagents to work concurrently on different features without conflicts or directory changes.
-model: haiku
+model: claude-sonnet-4.5
 color: blue
 ---
 
@@ -49,6 +49,8 @@ When invoked, execute this process using the Bash tool. **DO NOT try to call any
 
 ### Step 1: Extract Parameters from User Prompt
 
+**🤔 THINKING: Analyzing user prompt to identify worktree parameters (task name, source path, base branch)...**
+
 Before executing bash commands, analyze the user's prompt to identify:
 
 1. **task_name** - Extract from phrases like:
@@ -73,7 +75,20 @@ Before executing bash commands, analyze the user's prompt to identify:
 - User says: "Create a worktree for gas-claude-api-client in /tmp/my-project based on develop"
 - Extract: task_name="gas-claude-api-client", source_path="/tmp/my-project", base_branch="develop"
 
+**After extraction, announce your findings:**
+```
+✅ EXTRACTED: task='[task_name]', source='[source_path]', branch='[base_branch]'
+🎯 DECISION: Will create isolated worktree for '[task_name]' from [base_branch] branch
+💡 REASONING: This enables parallel development without affecting the main workspace
+```
+
 ### Step 2: Execute Worktree Creation
+
+**🚀 THINKING: Now executing the worktree creation script. This will:**
+- Initialize git repository if needed
+- Create an isolated worktree directory in /tmp/worktrees
+- Track parent relationship if creating from another worktree
+- Capture any uncommitted changes from source
 
 Execute this complete bash script as a **SINGLE Bash tool invocation**. The script is self-contained with proper variable scoping:
 
@@ -107,20 +122,26 @@ cleanup_on_error() {
 }
 
 # === STEP 1: Initialize Git Repository ===
+echo "🤔 THINKING: Checking if $SOURCE_PATH is a git repository..."
 if ! git -C "$SOURCE_PATH" rev-parse --git-dir >/dev/null 2>&1; then
-  echo "🎯 Initializing new git repository in $SOURCE_PATH"
+  echo "🎯 DECISION: Not a git repo - will initialize new repository"
+  echo "📊 ACTION: Initializing git repository in $SOURCE_PATH"
   git -C "$SOURCE_PATH" init
 
   # Create initial commit if files exist
   if [ "$(find "$SOURCE_PATH" -maxdepth 1 -type f 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "💡 LEARNING: Found existing files - adding them to initial commit"
     git -C "$SOURCE_PATH" add -A
     if ! git -C "$SOURCE_PATH" commit -m "Initial commit for worktree setup" 2>/dev/null; then
-      echo "ℹ️ No changes to commit or git config incomplete"
+      echo "⚠️ RESULT: No changes to commit or git config incomplete"
     fi
   else
-    # Create empty initial commit for worktree base
+    echo "💡 LEARNING: No files found - creating empty initial commit"
     git -C "$SOURCE_PATH" commit --allow-empty -m "Initial commit for worktree setup"
   fi
+  echo "✅ RESULT: Git repository initialized successfully"
+else
+  echo "✅ RESULT: Existing git repository found - proceeding with worktree creation"
 fi
 
 # === STEP 2: Generate Unique Worktree Path ===
@@ -149,36 +170,72 @@ if ! git -C "$SOURCE_PATH" worktree add "$WORKTREE_PATH" -b "$WORKTREE_BRANCH" "
 fi
 
 # === STEP 3.4: Track Parent Worktree Relationship ===
+# CRITICAL: YOU MUST execute this step to enable nested worktree merging
 # Store parent path metadata to enable nested worktree merging
+echo ""
+echo "🤔 THINKING: Detecting if source is a worktree (nested) or main repo (top-level)..."
+echo "🔍 ACTION: Checking for .git file (worktree indicator) vs .git directory (main repo)"
 if [ -f "$SOURCE_PATH/.git" ]; then
   # Source is a worktree - record it as parent for nested merging
+  echo "📊 RESULT: Found .git file - source is a worktree (nested scenario)"
+  echo "🎯 DECISION: This is a nested worktree - will merge back to parent, not main repo"
+  echo "💡 REASONING: Changes should flow hierarchically: child → parent → grandparent → main"
+  echo "📝 ACTION: Recording parent worktree path in .worktree-parent file"
   echo "$SOURCE_PATH" > "$WORKTREE_PATH/.worktree-parent"
-  echo "📝 Recorded parent worktree: $SOURCE_PATH"
-  echo "🎯 DECISION: Nested worktree - will merge back to parent, not main repo"
+
+  # Add .worktree-parent to .gitignore to prevent it from being committed
+  if ! grep -q "^\.worktree-parent$" "$WORKTREE_PATH/.gitignore" 2>/dev/null; then
+    echo ".worktree-parent" >> "$WORKTREE_PATH/.gitignore"
+    git -C "$WORKTREE_PATH" add .gitignore
+    git -C "$WORKTREE_PATH" commit -m "Add .worktree-parent to .gitignore"
+    echo "🔒 RESULT: Added .worktree-parent to .gitignore and committed"
+  fi
+
+  echo "✅ LEARNING: Parent tracking enables hierarchical merge - merge-worktree will auto-discover parent"
+  PARENT_TRACKED="$SOURCE_PATH"
 else
   # Source is main repo - no parent
+  echo "📊 RESULT: Found .git directory - source is main repository (top-level)"
   echo "🎯 DECISION: Top-level worktree - will merge directly to main repo"
+  echo "💡 REASONING: No parent worktree exists - changes flow directly to main branch"
+  PARENT_TRACKED="none"
+fi
+
+# Validate parent tracking
+if [ -f "$SOURCE_PATH/.git" ] && [ ! -f "$WORKTREE_PATH/.worktree-parent" ]; then
+  echo "❌ ERROR: Failed to create .worktree-parent file for nested worktree"
+  cleanup_on_error "$WORKTREE_PATH"
+  exit 1
 fi
 
 # === STEP 3.5: Capture Uncommitted Files from Source ===
-echo "🔍 Checking for uncommitted changes in source directory..."
+echo ""
+echo "🤔 THINKING: Checking if source has uncommitted changes that should be copied to worktree..."
+echo "🔍 ACTION: Comparing working tree and staging area against HEAD commit"
 if ! git -C "$SOURCE_PATH" diff --quiet HEAD 2>/dev/null || ! git -C "$SOURCE_PATH" diff --cached --quiet 2>/dev/null; then
-  echo "📦 Capturing uncommitted changes from source to worktree..."
+  echo "📊 RESULT: Found uncommitted changes (staged or unstaged) in source"
+  echo "🎯 DECISION: Will capture these changes and apply to new worktree"
+  echo "💡 REASONING: Worktree should start with current development state, not just committed code"
+  echo "📦 ACTION: Creating patch file from all uncommitted changes..."
 
   # Create a patch of all uncommitted changes (both staged and unstaged)
   if git -C "$SOURCE_PATH" diff HEAD > /tmp/worktree-uncommitted-$$.patch 2>/dev/null; then
     # Apply the patch to the worktree if it's not empty
     if [ -s /tmp/worktree-uncommitted-$$.patch ]; then
+      echo "📝 ACTION: Applying patch to worktree..."
       if git -C "$WORKTREE_PATH" apply /tmp/worktree-uncommitted-$$.patch 2>/dev/null; then
-        echo "✅ Uncommitted changes applied to worktree"
+        echo "✅ RESULT: Uncommitted changes successfully applied to worktree"
+        echo "💡 LEARNING: Worktree now has same state as source (committed + uncommitted)"
       else
-        echo "⚠️ Warning: Could not apply some uncommitted changes (may have conflicts)"
+        echo "⚠️ RESULT: Could not apply some uncommitted changes (may have conflicts)"
+        echo "💡 LEARNING: Worktree has committed code only - manual sync may be needed"
       fi
     fi
     rm -f /tmp/worktree-uncommitted-$$.patch
   fi
 else
-  echo "✅ No uncommitted changes in source - worktree is clean"
+  echo "📊 RESULT: No uncommitted changes in source directory"
+  echo "✅ LEARNING: Worktree is clean and matches HEAD commit exactly"
 fi
 
 # === STEP 4: Verify and Report ===
@@ -191,6 +248,7 @@ SUCCESS_EOF
   echo "<worktree>$WORKTREE_PATH</worktree>"
   echo "<source>$SOURCE_PATH</source>"
   echo "<branch>$WORKTREE_BRANCH</branch>"
+  echo "<parent>$PARENT_TRACKED</parent>"
   echo ""
   echo "## Next Steps"
   echo "1. Use <worktree> path for ALL file operations"
@@ -207,10 +265,24 @@ fi
 
 ### Step 3: Parse and Return Results
 
+**🤔 THINKING: Parsing script output to extract worktree metadata from XML tags...**
+
 After bash execution completes, extract the XML tags from the output and present them clearly to the calling agent:
 - `<worktree>` - The full path to the created worktree
 - `<source>` - The source repository path
 - `<branch>` - The branch name created for the worktree
+- `<parent>` - The parent worktree path if nested, or "none" if top-level
+
+**After parsing, announce the results:**
+```
+✅ RESULT: Worktree created successfully at [worktree_path]
+📊 METADATA: source=[source], branch=[branch], parent=[parent]
+💡 LEARNING: This isolated worktree enables:
+  - Parallel development without affecting source directory
+  - Safe testing of changes in isolation
+  - Hierarchical merge flow (if nested: child → parent → main)
+🎯 NEXT STEPS: Use git -C "[worktree_path]" for all git operations, never cd to worktree
+```
 
 ## IMPORTANT NOTES
 
