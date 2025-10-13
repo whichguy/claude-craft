@@ -4520,6 +4520,70 @@ For each tool category, evaluate access patterns:
 - Is this a breaking change requiring careful rollout?
 - What happens to existing data or functionality during the transition?
 
+**Research Platform UI Integration Patterns - how do users access features?**
+
+**For platform-specific deployments (not generic web apps):**
+
+**Detect platform context from prior stages:**
+- Scan use-cases.md and tech stack for platform keywords: "Google Apps Script", "Salesforce", "ServiceNow", "Slack", "Microsoft Teams", "VSCode extension"
+- Check for container keywords: "Sheets", "Docs", "sidebar", "modal", "Lightning", "panel", "dialog"
+- Identify deployment mode: container-bound, standalone, extension, web app
+
+**If platform detected, search for existing knowledge files:**
+```bash
+find ~/.claude/references ~/knowledge ./knowledge -type f \
+  -iname "*[platform]*ui*" -o \
+  -iname "*[platform]*integration*" -o \
+  -iname "*[platform]*patterns*"
+```
+
+**If knowledge file found:** Read and use as baseline for research
+**If no knowledge file:** Proceed with discovery-only research
+
+**Launch 5 parallel WebSearch queries:**
+
+**Query 1: Entry Point Discovery**
+```
+"[platform] [container-type] entry point menu navigation integration [year]"
+Example: "Google Apps Script sidebar entry point menu navigation integration 2025"
+```
+**Extract:** How users access/launch features (menu creation, command registration, navigation patterns, initialization code)
+
+**Query 2: Lifecycle & Initialization Patterns**
+```
+"[platform] lifecycle hooks initialization triggers startup [year]"
+Example: "Google Apps Script lifecycle hooks initialization triggers startup 2025"
+```
+**Extract:** When features activate (onOpen, onLoad, onInstall, event handlers, trigger patterns)
+
+**Query 3: UI Container APIs**
+```
+"[platform] [container-type] API reference implementation [year]"
+Example: "Google Apps Script sidebar API reference implementation 2025"
+```
+**Extract:** How to create UI elements (API methods, sizing options, styling approaches, configuration patterns)
+
+**Query 4: Platform Constraints & Limitations**
+```
+"[platform] execution limits security policies sandbox restrictions [year]"
+Example: "Google Apps Script execution limits security policies sandbox restrictions 2025"
+```
+**Extract:** Technical limitations (timeouts, quotas, rate limits, CSP rules, CORS policies, iframe restrictions, permission scopes)
+
+**Query 5: Production Best Practices**
+```
+"[platform] [container-type] production patterns best practices [year]"
+Example: "Google Apps Script sidebar production patterns best practices 2025"
+```
+**Extract:** Recommended patterns, anti-patterns, common pitfalls, performance tips, error handling approaches
+
+**Consolidate parallel research findings:**
+
+After all 5 queries complete, synthesize findings into structured platform UI architecture documentation.
+
+**If no platform detected or generic web app:**
+Skip platform UI research. Standard web app patterns (routing, components, state management) are covered in technology stack section.
+
 **Document architectural findings** to `<worktree>/planning/architecture.md`:
 
 **CRITICAL: Architecture.md Index Requirement**
@@ -4565,6 +4629,145 @@ For each tool category, evaluate access patterns:
 - State transition plan (current → future) with migration strategy
 - Integration points and patterns discovered in codebase
 - Risk assessment and alternatives considered
+- **Platform UI Integration Architecture** (if platform-specific deployment detected)
+
+**If Platform UI Integration research was performed, add this section to architecture.md:**
+
+```markdown
+## Platform UI Integration Architecture
+
+### Platform Context
+- **Platform:** [Detected platform name]
+- **Deployment Mode:** [Container-bound | Standalone | Extension | Web App]
+- **Host Application:** [Google Sheets | Docs | Forms | Salesforce Lightning | etc.]
+- **Detection Confidence:** [HIGH | MEDIUM | LOW]
+
+### Entry Point Strategy
+**How users discover and launch features:**
+
+**Discovery Mechanism:** [Menu system | Navigation bar | Command palette | App launcher]
+
+**Initialization Pattern:** [When entry points are registered]
+```
+[Code example from research showing initialization]
+```
+
+**Launch Pattern:** [How features are triggered]
+```
+[Code example from research showing launch mechanism]
+```
+
+### UI Container Patterns
+**Where feature UIs appear:**
+
+**Primary Container:** [Sidebar | Modal Dialog | Full Page | Panel]
+- **Creation Pattern:** [API methods to instantiate]
+- **Sizing Conventions:** [Standard dimensions, responsive behavior]
+- **Styling Approach:** [CSS framework, inline styles, theming]
+
+**Example Implementation:**
+```
+[Code example from research showing container creation]
+```
+
+**Secondary Containers:** [Alerts, toasts, confirmation dialogs]
+
+### Lifecycle & Trigger Architecture
+**When features activate:**
+
+**User-Initiated Triggers:**
+- [Menu selections, button clicks, link navigation]
+
+**System-Triggered Events:**
+- [Lifecycle hooks: onOpen, onLoad, onInstall, onUpdate]
+- [Scheduled triggers: time-driven, cron patterns]
+
+**Event-Driven Activation:**
+- [Data events: onChange, onEdit, onSubmit]
+- [External events: webhooks, API calls, message queues]
+
+**Example Patterns:**
+```
+[Code examples showing trigger implementations]
+```
+
+### Platform Constraints & Policies
+**Technical limitations affecting ALL features:**
+
+**Execution Limits:**
+- Timeouts: [Maximum execution time]
+- Quotas: [Daily limits, rate limits]
+- Resource constraints: [Memory, CPU, storage]
+
+**Security Policies:**
+- Content Security Policy: [CSP rules, allowed sources]
+- Cross-Origin: [CORS restrictions, iframe policies]
+- Sandbox restrictions: [What's blocked, what's allowed]
+
+**Authentication & Authorization:**
+- Required scopes: [OAuth scopes, permissions]
+- Service account needs: [Special credentials]
+- User authorization patterns: [How to handle auth]
+
+### Standard Implementation Patterns
+**Code patterns ALL features MUST follow:**
+
+**Entry Point Template:**
+```
+[Standard code pattern for entry points]
+```
+
+**Container Creation Template:**
+```
+[Standard code pattern for UI containers]
+```
+
+**Error Handling Pattern:**
+```
+[Standard error handling approach]
+```
+
+### Platform-Specific APIs Available
+**Platform services accessible to features:**
+- **[API Category 1]:** [Purpose, usage pattern, limitations]
+- **[API Category 2]:** [Purpose, usage pattern, limitations]
+- **[API Category 3]:** [Purpose, usage pattern, limitations]
+
+### Test Strategy for Platform Integration
+**How to validate entry points and platform integration:**
+
+**Entry Point Tests:**
+- Validate initialization: [Test pattern]
+- Validate menu/navigation: [Test pattern]
+- Validate trigger activation: [Test pattern]
+
+**Container Tests:**
+- Validate UI display: [Test pattern]
+- Validate sizing/styling: [Test pattern]
+- Validate user interaction: [Test pattern]
+
+**Lifecycle Tests:**
+- Validate initialization: [Test pattern]
+- Validate cleanup: [Test pattern]
+- Validate state management: [Test pattern]
+
+**Constraint Tests:**
+- Validate execution limits: [Test pattern]
+- Validate security policies: [Test pattern]
+- Validate error handling: [Test pattern]
+
+### Common Pitfalls & Anti-Patterns
+**Known issues from research:**
+- [Pitfall 1]: [Why it happens, how to avoid]
+- [Pitfall 2]: [Why it happens, how to avoid]
+- [Anti-pattern 1]: [What not to do, recommended approach]
+
+### References
+- [Research source 1]
+- [Research source 2]
+- [Knowledge file used, if any]
+- [Official documentation links]
+```
 
 **Document tooling discoveries** to `<worktree>/planning/tooling.md`:
 - **MCP Servers discovered**: Capabilities, setup requirements, integration approach, confidence level
@@ -4741,6 +4944,37 @@ For each assumption you've identified, ask yourself:
 - **SOLID**: Well-supported by evidence, low risk if wrong (e.g., "The standard library has this function")
 - **WORKING**: Reasonable but should be validated, medium risk (e.g., "The API probably handles retries")
 - **RISKY**: Needs explicit user confirmation, high risk if wrong (e.g., "Users have stable 10Mbps connections")
+
+---
+
+### Key Questions Before Assumption Assessment
+
+**Answer these questions systematically:**
+
+1. **What did I assume in Stage 3 architecture decisions?**
+   - About technology capabilities? (performance, features, compatibility)
+   - About existing systems? (behavior, APIs, data formats)
+   - About team/environment? (expertise, infrastructure, access)
+
+2. **What evidence supports each assumption?**
+   - Official documentation (SOLID)
+   - Testing/benchmarks (SOLID)
+   - Reasonable inference from docs (WORKING)
+   - Guessing or hope (RISKY)
+
+3. **What happens if each assumption is wrong?**
+   - Minor adjustment (SOLID acceptable)
+   - Significant rework (WORKING - should validate)
+   - Architecture invalidated (RISKY - must validate)
+
+**Classification criteria:**
+- **SOLID**: Verified through testing OR official docs OR direct experience
+- **WORKING**: Based on documentation but not verified
+- **RISKY**: Assumptions without evidence OR conflicting information OR new/unproven technology
+
+**Proceed to quality gate checklist with these answers in mind.**
+
+---
 
 **Document** to `<worktree>/planning/assumptions.md`:
 - List all assumptions with classification (SOLID/WORKING/RISKY)
@@ -5412,6 +5646,52 @@ If the file doesn't exist, this is your first exploration of Stage 5.
 - What problems will we explicitly NOT solve? (What's tempting but out of scope?)
 - What features should we defer? (What's "nice to have" but not "must have"?)
 - What complexity should we avoid? (What makes this harder without proportional value?)
+
+---
+
+### Key Questions Before Effects Assessment
+
+**Answer these questions systematically:**
+
+1. **System Impacts:**
+   - What existing systems does this touch? (list each)
+   - What operations on each system? (read/write/delete/trigger)
+   - What could go wrong at each integration point? (timeout/error/corruption)
+   - What monitoring is needed? (metrics/logs/alerts)
+
+2. **User Workflow Changes:**
+   - How do users do this today? (current steps)
+   - How will they do it after our change? (new steps)
+   - What must they learn? What must they unlearn?
+   - What training/documentation is needed?
+
+3. **Data Flow Changes:**
+   - What new data sources? (origin, format, sensitivity)
+   - What transformations? (validation, enrichment, normalization)
+   - What destinations? (storage, external systems, consumers)
+   - What lifecycle? (retention, archival, deletion)
+
+4. **Security Implications:**
+   - What new attack surfaces? (endpoints, data, external systems)
+   - What security controls? (auth, authorization, validation, secrets)
+
+5. **Performance Impacts:**
+   - What resource consumption? (CPU, memory, storage, network)
+   - What bottlenecks? (expensive operations, degradation points)
+   - What caching strategy?
+
+6. **Operational Changes:**
+   - How deployed? What dependencies? What rollback plan?
+   - What monitoring? What logs? What runbooks?
+
+7. **Scope Boundaries:**
+   - What's explicitly IN scope? (use cases, requirements, features)
+   - What's explicitly OUT of scope? (deferred, rejected, other team)
+   - Where do we integrate with out-of-scope systems? (contracts, coordination)
+
+**Proceed to quality gate checklist with these answers documented in effects-boundaries.md.**
+
+---
 
 **Document** to `<worktree>/planning/effects-boundaries.md`:
 - Impacts: Existing use cases, operations, future work (what changes?)
@@ -6875,14 +7155,21 @@ When creating this task file, immediately write the complete test specifications
 **Process:**
 1. Review this task's scope (Feature Description, Implementation Scope above)
 2. Review test-plan.md for test strategy and approach (from Phase 2-B)
-3. Write detailed Given/When/Then specifications for ALL tests this task needs
-4. Include happy path, edge cases, and error paths specific to this task
+3. **Review architecture.md § Platform UI Integration Architecture** (if platform-specific task)
+4. Write detailed Given/When/Then specifications for ALL tests this task needs
+5. Include happy path, edge cases, error paths, AND platform integration tests
 
 **Reference test-plan.md for:**
 - Test category guidance (what makes a good unit vs integration test)
 - Mocha/Chai patterns to follow
 - Given/When/Then format structure
 - Example test specifications for similar scenarios
+
+**Reference architecture.md for (if platform-specific):**
+- Platform integration test requirements: `architecture.md § Test Strategy for Platform Integration`
+- Entry point test patterns
+- Container test patterns
+- Constraint test patterns
 
 **DO NOT:**
 - Copy generic examples from test-plan.md (write specific to THIS task)
@@ -6893,7 +7180,60 @@ When creating this task file, immediately write the complete test specifications
 - Write complete Given/When/Then for each test
 - Include specific inputs, expected outputs, assertions
 - Cover happy path, edge cases, error paths for THIS task's scope
+- Include platform integration tests if task has entry points/containers/platform APIs
 - Provide enough detail that Phase 3 can implement tests without guessing
+
+---
+
+#### Platform Integration Tests (If Platform-Specific Task)
+
+**Reference:** `architecture.md § Test Strategy for Platform Integration`
+
+##### Test: [Entry Point Activation]
+
+**Category:** Platform Integration
+
+**Given:**
+- [Platform initialized per architecture pattern]
+- [User/system in state to trigger entry point]
+
+**When:**
+- [Entry point trigger occurs - menu click, lifecycle hook, etc.]
+
+**Then:**
+- [Entry point activates per architecture pattern]
+- [Expected UI container appears / function executes]
+- [Platform APIs called correctly]
+
+**Assertions:**
+```javascript
+expect(entryPointFunction).to.have.been.called;
+expect(containerDisplayed).to.be.true;
+expect(platformApiCalls).to.match.architecturePattern;
+```
+
+##### Test: [Platform Constraint Compliance]
+
+**Category:** Platform Integration
+
+**Given:**
+- [Feature operating near platform limit]
+- [Architecture constraint defined in architecture.md]
+
+**When:**
+- [Feature executes operation approaching limit]
+
+**Then:**
+- [Feature handles limit gracefully per architecture error pattern]
+- [No platform errors thrown]
+- [User receives appropriate feedback]
+
+**Assertions:**
+```javascript
+expect(executionTime).to.be.lessThan(platformTimeout);
+expect(errorHandling).to.follow.architecturePattern;
+expect(userFeedback).to.be.present;
+```
 
 ---
 
@@ -7014,6 +7354,57 @@ Before moving to the next task file, verify this task's test specifications:
 - ✅ No vague descriptions like "[List tests]" remain
 
 **Phase 3 Dependency:** Phase 3 will implement these exact specifications as Mocha/Chai tests (red), then write code to pass them (green). If specs are incomplete/vague, Phase 3 will have to guess - breaking TDD.
+
+---
+
+### Pre-Completion Self-Check
+
+**Before marking this task complete, verify:**
+
+**Code Review:**
+- [ ] Code follows style guidelines (CLAUDE.md)
+- [ ] No anti-patterns introduced
+- [ ] Error handling comprehensive
+- [ ] Code documented (JSDoc on public functions)
+- [ ] No debug code (console.log, commented code, hardcoded test data)
+
+**Quality Criteria (from quality-criteria.md):**
+- [ ] Functional completeness: 100% (all primary criteria met)
+- [ ] Code review quality: ≥80%
+- [ ] Integration completeness: 100% (all integration points working)
+- [ ] Overall quality score: ≥80%
+- [ ] Blocking issues: 0
+
+**Integration Points:**
+- [ ] All external systems tested (real calls OR mocked with justification)
+- [ ] Data flow verified end-to-end (input → processing → output)
+- [ ] Error paths tested (timeouts, errors, unavailable, invalid data)
+- [ ] Edge cases handled (empty, large, invalid, concurrent)
+
+**Security:**
+- [ ] No new vulnerabilities (ran security linter)
+- [ ] Input validation in place (all user inputs)
+- [ ] Auth/authorization working (tested with different roles)
+- [ ] Sensitive data secure (encrypted, not logged, access controlled)
+
+**Tests:**
+- [ ] All tests passing (ran full test suite)
+- [ ] Unit tests cover business logic
+- [ ] Integration tests cover endpoints
+- [ ] Edge case tests written and passing
+- [ ] Error path tests written and passing
+- [ ] Coverage meets standards (check coverage report)
+
+**Documentation:**
+- [ ] README updated if API changed
+- [ ] Complex logic commented
+- [ ] GUIDE.md updated if deviated from plan
+- [ ] learnings.md ready for update (will do in Task Reconciliation)
+
+**IF ALL ✅:** Move to tasks-completed/ and proceed to Task Reconciliation
+**IF ANY ❌:** Fix issues, re-verify, then move
+
+---
 
 ## Dependencies
 - Prerequisites: [Other tasks that must complete first]
@@ -8985,9 +9376,31 @@ Reference foundation established in Tier 0 tasks:
 
 ## Implementation Scope
 
+### Architecture Compliance Check
+**⚠️ MANDATORY: Review architecture.md before implementing**
+
+**Platform UI Integration:** `architecture.md § Platform UI Integration Architecture` (if exists)
+
+Verify this task follows established patterns:
+- [ ] Entry point pattern identified: [Which pattern from architecture, or N/A]
+- [ ] UI container pattern identified: [Which pattern from architecture, or N/A]
+- [ ] Lifecycle hooks identified: [Which hooks from architecture, or N/A]
+- [ ] Platform constraints understood: [Which limits apply to this task, or N/A]
+
+### Entry Points & Access Methods (If Platform-Specific)
+**Pattern Reference:** `architecture.md § Entry Point Strategy` (skip if generic web app)
+
+Feature-specific implementation:
+- [ ] [Menu item / navigation / command]: [What it does]
+- [ ] [Initialization code]: [Where it goes, what it registers]
+- [ ] [Launch function]: [What it's called, what it does]
+
 ### UI Components (if applicable)
-- [ ] Component 1: [Description]
-- [ ] Component 2: [Description]
+**Pattern Reference:** `architecture.md § UI Container Patterns` (if platform-specific)
+
+- [ ] Primary container: [Sidebar | Modal | Component | Page] - [Specific purpose]
+- [ ] Container sizing: [Dimensions per architecture standards, or responsive]
+- [ ] Container content: [What displays, how it's structured]
 
 ### API Endpoints (if applicable)
 - [ ] POST /api/endpoint1 - [Purpose]
@@ -9005,6 +9418,14 @@ Reference foundation established in Tier 0 tasks:
 - [ ] Repository method 1: [Query description]
 - [ ] Repository method 2: [Persistence description]
 
+### Platform Integration Compliance (If Platform-Specific)
+**Pattern Reference:** `architecture.md § Platform Constraints` (skip if generic web app)
+
+Feature-specific considerations:
+- [ ] Execution limit handling: [How this feature respects timeouts/quotas]
+- [ ] Security policy compliance: [How this feature respects CSP/CORS/sandbox]
+- [ ] Error handling: [How this feature handles platform errors]
+
 ### Quality Gates
 - [ ] Code review passed (no blocking issues)
 - [ ] Quality criteria score ≥ [threshold from Phase 2]
@@ -9020,14 +9441,21 @@ When creating this task file, immediately write the complete test specifications
 **Process:**
 1. Review this task's scope (Feature Description, Implementation Scope above)
 2. Review test-plan.md for test strategy and approach (from Phase 2-B)
-3. Write detailed Given/When/Then specifications for ALL tests this task needs
-4. Include happy path, edge cases, and error paths specific to this task
+3. **Review architecture.md § Platform UI Integration Architecture** (if platform-specific task)
+4. Write detailed Given/When/Then specifications for ALL tests this task needs
+5. Include happy path, edge cases, error paths, AND platform integration tests
 
 **Reference test-plan.md for:**
 - Test category guidance (what makes a good unit vs integration test)
 - Mocha/Chai patterns to follow
 - Given/When/Then format structure
 - Example test specifications for similar scenarios
+
+**Reference architecture.md for (if platform-specific):**
+- Platform integration test requirements: `architecture.md § Test Strategy for Platform Integration`
+- Entry point test patterns
+- Container test patterns
+- Constraint test patterns
 
 **DO NOT:**
 - Copy generic examples from test-plan.md (write specific to THIS task)
@@ -9038,7 +9466,60 @@ When creating this task file, immediately write the complete test specifications
 - Write complete Given/When/Then for each test
 - Include specific inputs, expected outputs, assertions
 - Cover happy path, edge cases, error paths for THIS task's scope
+- Include platform integration tests if task has entry points/containers/platform APIs
 - Provide enough detail that Phase 3 can implement tests without guessing
+
+---
+
+#### Platform Integration Tests (If Platform-Specific Task)
+
+**Reference:** `architecture.md § Test Strategy for Platform Integration`
+
+##### Test: [Entry Point Activation]
+
+**Category:** Platform Integration
+
+**Given:**
+- [Platform initialized per architecture pattern]
+- [User/system in state to trigger entry point]
+
+**When:**
+- [Entry point trigger occurs - menu click, lifecycle hook, etc.]
+
+**Then:**
+- [Entry point activates per architecture pattern]
+- [Expected UI container appears / function executes]
+- [Platform APIs called correctly]
+
+**Assertions:**
+```javascript
+expect(entryPointFunction).to.have.been.called;
+expect(containerDisplayed).to.be.true;
+expect(platformApiCalls).to.match.architecturePattern;
+```
+
+##### Test: [Platform Constraint Compliance]
+
+**Category:** Platform Integration
+
+**Given:**
+- [Feature operating near platform limit]
+- [Architecture constraint defined in architecture.md]
+
+**When:**
+- [Feature executes operation approaching limit]
+
+**Then:**
+- [Feature handles limit gracefully per architecture error pattern]
+- [No platform errors thrown]
+- [User receives appropriate feedback]
+
+**Assertions:**
+```javascript
+expect(executionTime).to.be.lessThan(platformTimeout);
+expect(errorHandling).to.follow.architecturePattern;
+expect(userFeedback).to.be.present;
+```
 
 ---
 
@@ -11962,6 +12443,92 @@ tasks_completed_count = tasks_completed_count + 1
 
 **IF significant architectural insights emerged:**
 Also update `<worktree>/planning/architecture.md` to reflect new understanding.
+
+---
+
+### ⛔ BLOCKING QUALITY GATE: Task Reconciliation Complete
+
+**⚠️ CRITICAL:** You CANNOT proceed to Step 7 (Announce Completion) or start the next task until ALL checklist items below are ✅.
+
+**Why this gate blocks:** If you skip reconciliation, learnings from this task won't propagate to future tasks, causing repeated mistakes and architectural drift.
+
+**Mandatory Actions Checklist:**
+
+**1. Learnings Captured:**
+- [ ] Updated `learnings.md` with Technical Insights section
+- [ ] Updated `learnings.md` with Reusable Patterns section
+- [ ] Updated `learnings.md` with Architecture Updates section
+- [ ] Updated `learnings.md` with Recommendations for Future Tasks section
+- [ ] If architectural: Updated `architecture.md` with new understanding
+
+**2. Planning Artifacts Updated:**
+- [ ] Reviewed all task files in `tasks-pending/` for impact from this task's learnings
+- [ ] Updated affected task files with new insights (approach changes, new dependencies, complexity adjustments)
+- [ ] If implementation revealed planning gaps: Updated relevant Phase 2 documents (requirements.md, architecture.md, etc.)
+- [ ] If scope changed: Updated GUIDE.md with deviation documentation and rationale
+
+**3. Next Task Prepared:**
+- [ ] Identified next task from `tasks-pending/`
+- [ ] Read next task file completely
+- [ ] Confirmed next task doesn't depend on undiscovered learnings from THIS task
+- [ ] If dependencies discovered: Updated next task file with new prerequisites
+
+**4. Quality Verification:**
+- [ ] All tests passing (unit + integration)
+- [ ] Code review checklist complete (from Gate 13)
+- [ ] No blocking issues remain
+- [ ] Quality score ≥80%
+
+**5. Escalation Check:**
+- [ ] IF architectural issues discovered: Raised to user for Phase 2 revision approval
+- [ ] IF scope significantly changed: Documented in GUIDE.md and informed user
+- [ ] IF blockers exist for future tasks: Identified and documented in affected task files
+
+---
+
+**Decision Point:**
+
+**IF ALL ✅ above:**
+  ✅ Reconciliation complete. Proceed to Step 7 (Announce Task Completion).
+
+**IF ANY ❌ above:**
+  ⛔ STOP. Complete missing actions before proceeding.
+  - Update learnings.md if missing insights
+  - Review and update affected task files if dependencies changed
+  - Update GUIDE.md if plan deviated
+  - Escalate to user if architectural issues exist
+
+**Why enforcement matters:** Without this gate, the system degrades:
+- Task 1 learns "X doesn't work" → forgets to update Task 5 that assumes X
+- Task 5 fails → wastes time rediscovering Task 1's learning
+- Architecture drifts → planning documents become stale
+
+**Template for learnings.md update:**
+```markdown
+## Task NNN: [Task Name] (Completed YYYY-MM-DD)
+
+### Technical Insights
+- [Specific technology behavior discovered]
+- [Pattern that worked well with evidence]
+- [Approach that failed and why - prevent repetition]
+
+### Reusable Patterns
+- [New utility function: where it lives, what it does]
+- [Design pattern established: when to use, examples]
+- [Testing approach: what worked, metrics achieved]
+
+### Architecture Updates
+- [Discovery affecting system architecture]
+- [Integration pattern learned with implications]
+- [Performance characteristic: numbers, bottlenecks]
+
+### Recommendations for Future Tasks
+- [Specific advice for similar implementations]
+- [Pitfall to avoid with detection method]
+- [Tool/resource discovered with use case]
+```
+
+---
 
 #### Step 7: Announce Task Completion
 
