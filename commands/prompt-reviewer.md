@@ -1393,7 +1393,7 @@ Changes with significant benefit and simple implementation.
 
 [List all quick wins]
 
-### Refactoring Candidates (Moderate Effort, High Long-term Value)
+### Refactoring Candidates (Moderate Complexity, High Long-term Benefit)
 Structural improvements worth the investment.
 
 **Examples:**
@@ -1408,8 +1408,10 @@ Structural improvements worth the investment.
 - **Refactoring**: [Description]
   **Current Issue**: [What's problematic about current structure]
   **Proposed Structure**: [How to reorganize]
-  **Benefits**: [Long-term value gained]
-  **Effort**: [Time estimate]
+  **Benefit**: [HIGH/MEDIUM/LOW] - [Long-term value gained]
+  **Risk if not done**: [LOW/VERY LOW] - [What technical debt accumulates]
+  **Complexity**: [Moderate/Complex] - [Structural changes required]
+  **Confidence**: [90-100% / 60-89%] - [How certain this improves prompt]
   **Prerequisite**: [Any dependencies]
 
 **Example - Research Quality Gates as Universal Pattern:**
@@ -1420,11 +1422,10 @@ Structural improvements worth the investment.
     1. Define universal pattern once (Phase 4.4 template)
     2. At each research location: "Apply universal research quality gate (§ Research Quality Gates)"
     3. Include type-specific checklist reference
-  **Benefits**:
-    - Reduced token overhead (5 lines vs 40-50 per location)
-    - Consistent research validation across all research types
-    - Easier to update pattern once vs. multiple locations
-  **Effort**: 1-2 hours (define pattern + update all research locations)
+  **Benefit**: HIGH - Reduced token overhead (5 lines vs 40-50 per location), consistent validation, easier maintenance
+  **Risk if not done**: LOW - Pattern duplication increases maintenance burden
+  **Complexity**: Moderate - Requires identifying all research locations, creating pattern definition, updating references
+  **Confidence**: 90% - DRY principle applies, pattern extraction is proven refactoring
   **Prerequisite**: Identify all research locations (Phase 4.4 detection)
 
 [List all refactoring candidates]
