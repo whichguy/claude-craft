@@ -1388,7 +1388,7 @@ Optimizations and polish that improve experience but aren't essential.
 [List all P3 issues]
 
 ### Quick Wins (High Benefit, Low Complexity)
-Changes with significant benefit and simple implementation.
+Changes with significant benefit and simple complexity.
 
 **Examples:**
 - Adding single thinking directive before critical decision
@@ -1595,9 +1595,9 @@ Reflect on this analysis:
 3. [Issue with specific impact]
 
 **Top 3 Quick Wins:**
-1. [High-impact, low-effort improvement]
-2. [High-impact, low-effort improvement]
-3. [High-impact, low-effort improvement]
+1. [High-benefit, simple-complexity improvement]
+2. [High-benefit, simple-complexity improvement]
+3. [High-benefit, simple-complexity improvement]
 
 **Analysis Mode:** [Brief/Standard/Comprehensive]
 **Confidence:** [HIGH/MEDIUM/LOW]
@@ -1633,7 +1633,7 @@ This prompt review succeeds when:
 - ✅ Failure handling is specified for all critical paths
 - ✅ Claude Sonnet 4.5 capabilities leveraged (thinking directives, long context)
 - ✅ Prompt-as-code principles applied (runtime decisions, modularity, error handling)
-- ✅ Implementation roadmap is prioritized by impact/effort
+- ✅ Implementation roadmap is prioritized by benefit/risk/complexity
 - ✅ Self-validation confirms analysis quality ≥4/5 criteria
 
 ---
