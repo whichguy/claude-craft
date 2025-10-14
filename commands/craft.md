@@ -4513,6 +4513,16 @@ Apply the **necessary-but-sufficient principle**: Include only what's required t
 
 **4. Data Storage Architecture:**
 
+**Ultrathink about storage complexity:**
+
+Most developers reach for databases too quickly. Before choosing storage:
+- Can you avoid persistence entirely? (Stateless operations, read-only transformations)
+- What's the simplest storage that works? (Client-side, files, in-memory, then databases)
+- What forces you to add complexity? (Concurrency? Scale? Queries? Relationships?)
+- What's the cost of this complexity? (Operations, migrations, learning curve)
+
+Start simple. Add complexity only when simpler options fail to meet requirements.
+
 **Evaluate data storage requirements:**
 - What data needs to be stored? (User data, transactions, logs, files, etc.)
 - Data model: Relational, document, key-value, graph, time-series?
@@ -4520,18 +4530,29 @@ Apply the **necessary-but-sufficient principle**: Include only what's required t
 - Consistency needs: Immediate consistency or eventual consistency ok?
 - Query patterns: Simple lookups, complex joins, full-text search, analytics?
 
-**Decision framework:**
-- **Structured data + relationships:** PostgreSQL / MySQL (battle-tested, reliable)
-- **Flexible schema:** MongoDB / Firebase (document model, fast iteration)
-- **Key-value + caching:** Redis (ephemeral data, sessions, rate limiting)
-- **File storage:** S3 / Cloud Storage (images, documents, backups)
-- **Search:** Elasticsearch / Typesense (full-text search, faceted filters)
-- **Analytics:** ClickHouse / BigQuery (if heavy analytical queries needed)
+**Storage Complexity Prioritization:**
 
-**Decision framework (necessary but sufficient):**
-- **Start simple:** Single PostgreSQL covers 80% of use cases
-- **Add complexity only if needed:** Redis for caching, S3 for files, etc.
-- **Avoid premature optimization:** Don't add databases you don't need yet
+Evaluate storage needs from simplest → most complex:
+
+1. **Stateless**: No storage (pure computation, API proxy, transformations)
+2. **Client-side**: Browser storage, session storage, IndexedDB
+3. **PaaS storage**: Platform-specific storage (GAS PropertiesService, Salesforce objects, Cloudflare Workers KV) *if building on a platform*
+4. **Files**: JSON files, CSV, local filesystem
+5. **In-memory**: Server variables, caching, session stores
+6. **Embedded DB**: SQLite, LevelDB (single-server)
+7. **Managed cache**: Redis, Memcached (distributed caching)
+8. **Managed DB**: PostgreSQL, MongoDB, DynamoDB (full database)
+9. **Specialized**: Elasticsearch, graph DBs, time-series (only if generic DB insufficient)
+
+**Decision process:**
+- Start at #1 (Stateless) - try to avoid storage
+- Move down list only when you hit clear limitations
+- Document why each simpler option is insufficient
+
+**Concurrency considerations by level:**
+- Levels 1-3: Minimal (single-user, client-side isolated, or platform-managed)
+- Levels 4-6: Moderate (file-locking, process-level, or SQLite WAL mode)
+- Levels 7-9: High (distributed locking, transactions, ACID guarantees)
 
 **Document data storage decision:**
 ```markdown
@@ -4539,21 +4560,27 @@ Apply the **necessary-but-sufficient principle**: Include only what's required t
 
 **Requirements:** [What data needs to be persisted]
 
-**Approach:** [Database choices and rationale]
-- Primary datastore: [PostgreSQL / MongoDB / MySQL / SQLite]
-- Caching layer: [Redis / Memcached / None]
-- File storage: [S3 / Cloud Storage / Local filesystem]
-- Search engine: [Elasticsearch / Typesense / Database full-text / None]
-- Analytics: [Same DB / Separate warehouse / None]
+**Storage Complexity Chosen:** [Level 1-9 from prioritization list above]
 
-**Data model:** [Relational tables / Document collections / Hybrid]
-**Scale estimate:** [Current: X records, 1-year: Y records, 5-year: Z records]
+**Approach:** [Specific implementation]
+- Primary: [Technology name - SQLite, S3, PostgreSQL, Redis, etc.]
+- Rationale: [Why this level of complexity is necessary]
+- Simpler options rejected: [Why stateless/files/etc. are insufficient]
 
-**Rationale:** [Why this combination is necessary and sufficient]
-- Necessary: [Each component solves specific use case requirement]
-- Sufficient: [No over-engineering, covers projected scale]
+**Concurrency approach:** [Based on level - none needed, file locks, optimistic locking, transactions]
+- Concurrent access patterns: [Single-user, read-heavy, write-heavy, multi-user edits]
+- Conflict resolution: [N/A, last-write-wins, transactions, queues, optimistic locking]
+- State management: [Where state lives - client, server, database]
 
-**Satisfied by:** [Existing databases] **Needs investigation:** [Backup strategy, replication, scaling plan]
+**Scale estimate:** [Current: X, 1-year: Y, 5-year: Z]
+
+**Rationale:**
+- Necessary: [What requirements force this complexity level]
+- Sufficient: [Why more complexity isn't needed yet]
+- Upgrade trigger: [What would force moving to next complexity level]
+
+**Satisfied by:** [Existing infrastructure]
+**Needs setup:** [New infrastructure to provision]
 ```
 
 **5. Quality Testing Architecture (Runtime Determination):**
