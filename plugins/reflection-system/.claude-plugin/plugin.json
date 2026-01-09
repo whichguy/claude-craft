@@ -1,0 +1,8 @@
+{
+  "name": "reflection-system",
+  "description": "Self-improving context through session reflection. Analyzes sessions for learning signals and generates skills.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Claude Code"
+  }
+}

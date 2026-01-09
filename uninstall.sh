@@ -20,6 +20,7 @@ FORCE_YES=false
 REMOVE_REPO=true
 REMOVE_COMMANDS=true
 REMOVE_SYMLINKS=true
+REMOVE_PLUGINS=true
 REMOVE_HOOKS=false
 RESTORE_BACKUP=false
 CLEAN_BACKUPS=false
@@ -47,6 +48,10 @@ while [[ $# -gt 0 ]]; do
             REMOVE_HOOKS=true
             shift
             ;;
+        --keep-plugins)
+            REMOVE_PLUGINS=false
+            shift
+            ;;
         --restore-backup)
             RESTORE_BACKUP=true
             shift
@@ -63,6 +68,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --yes, -y           Skip confirmation prompts"
             echo "  --keep-repo         Don't remove ~/claude-craft repository"
             echo "  --keep-commands     Don't remove global commands"
+            echo "  --keep-plugins      Don't remove plugin symlinks"
             echo "  --remove-hooks      Also remove git security hooks"
             echo "  --restore-backup    Restore from latest backup before uninstalling"
             echo "  --clean-backups     Remove claude-craft backup files"
@@ -192,12 +198,33 @@ show_removal_plan() {
         echo ""
     fi
     
+    if [ "$REMOVE_PLUGINS" = true ]; then
+        echo -e "${RED}🔌 Plugin removal:${NC}"
+        local plugin_count=0
+        if [ -d "$CLAUDE_DIR/plugins" ]; then
+            for plugin in "$CLAUDE_DIR/plugins"/*; do
+                if [ -L "$plugin" ]; then
+                    local target
+                    target=$(readlink "$plugin" 2>/dev/null || true)
+                    if [[ "$target" == *"claude-craft/plugins/"* ]]; then
+                        echo "  • Remove plugin: $(basename "$plugin")"
+                        plugin_count=$((plugin_count + 1))
+                    fi
+                fi
+            done
+        fi
+        if [ "$plugin_count" -eq 0 ]; then
+            echo "  • No claude-craft plugins found"
+        fi
+        echo ""
+    fi
+
     if [ "$REMOVE_HOOKS" = true ]; then
         echo -e "${RED}🪝 Git hooks removal:${NC}"
         echo "  • Remove git security hooks from ~/claude-craft/.git/hooks/"
         echo ""
     fi
-    
+
     if [ "$CLEAN_BACKUPS" = true ]; then
         echo -e "${RED}💾 Backup cleanup:${NC}"
         echo "  • Remove claude-craft backup files"
@@ -375,12 +402,48 @@ remove_symlinks() {
     fi
 }
 
+# Remove plugins
+remove_plugins() {
+    if [ "$REMOVE_PLUGINS" != true ]; then
+        return 0
+    fi
+
+    echo -e "${YELLOW}🔌 Removing plugin symlinks...${NC}"
+
+    local removed_count=0
+
+    # Find and remove claude-craft plugin symlinks
+    if [ -d "$CLAUDE_DIR/plugins" ]; then
+        for plugin in "$CLAUDE_DIR/plugins"/*; do
+            if [ -L "$plugin" ]; then
+                local target
+                target=$(readlink "$plugin" 2>/dev/null || true)
+                if [[ "$target" == "$REPO_DIR/plugins/"* ]] || [[ "$target" == *"claude-craft/plugins/"* ]]; then
+                    if [ "$DRY_RUN" = false ]; then
+                        rm -f "$plugin" || {
+                            log_action "remove plugin" "$(basename "$plugin")" "failed"
+                            continue
+                        }
+                    fi
+
+                    log_action "remove plugin" "$(basename "$plugin")" "success"
+                    removed_count=$((removed_count + 1))
+                fi
+            fi
+        done
+    fi
+
+    if [ "$removed_count" -eq 0 ]; then
+        echo -e "${YELLOW}  No claude-craft plugin symlinks found to remove${NC}"
+    fi
+}
+
 # Remove git hooks
 remove_git_hooks() {
     if [ "$REMOVE_HOOKS" != true ]; then
         return 0
     fi
-    
+
     echo -e "${YELLOW}🪝 Removing git hooks...${NC}"
     
     local hooks_dir="$REPO_DIR/.git/hooks"
@@ -472,6 +535,7 @@ main() {
     # Execute removal steps
     restore_from_backup
     remove_symlinks
+    remove_plugins
     remove_global_commands
     remove_git_hooks
     remove_repository

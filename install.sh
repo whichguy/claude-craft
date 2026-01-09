@@ -77,6 +77,23 @@ sync_directory() {
     fi
 }
 
+install_plugins() {
+    if [ -d "$REPO_DIR/plugins" ]; then
+        echo -e "${YELLOW}🔌 Installing plugins...${NC}"
+        mkdir -p "$CLAUDE_DIR/plugins"
+        for plugin in "$REPO_DIR/plugins"/*; do
+            if [ -d "$plugin" ]; then
+                plugin_name=$(basename "$plugin")
+                # Remove existing plugin symlink
+                rm -f "$CLAUDE_DIR/plugins/$plugin_name"
+                # Create symlink to plugin directory
+                ln -sf "$plugin" "$CLAUDE_DIR/plugins/$plugin_name"
+                echo -e "${GREEN}✅ Installed plugin: $plugin_name${NC}"
+            fi
+        done
+    fi
+}
+
 safe_merge_configs() {
     echo -e "${YELLOW}🔧 Safely merging configurations...${NC}"
     
@@ -173,6 +190,9 @@ main() {
 
     # Safe merge of single-file configurations
     safe_merge_configs
+
+    # Install plugins
+    install_plugins
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"
