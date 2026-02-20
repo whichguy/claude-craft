@@ -1,1 +1,0 @@
-look up the weather for <prompt-arguments>
