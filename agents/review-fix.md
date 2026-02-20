@@ -4,8 +4,9 @@ description: >
   Iterative review-fix loop using agent teams: spawns parallel code-reviewer subagents
   per file, applies Critical and Advisory fixes, re-reviews until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, or any code change
-  before committing. **AUTOMATICALLY INVOKE** after every plan approval (ExitPlanMode) —
-  run on the files specified in the plan without waiting to be asked.
+  before committing. **AUTOMATICALLY INVOKE** after plan implementation is complete — when
+  a user approved a plan and Claude has finished making all code changes, run on the
+  modified files without waiting to be asked.
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
   and when code-reviewer returns NEEDS_REVISION.
   Trigger phrases: "review and fix", "polish this", "clean this up", "make sure this is
