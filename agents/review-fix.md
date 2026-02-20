@@ -5,8 +5,8 @@ description: >
   per file, applies Critical and Advisory fixes, re-reviews until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, or any code change
   before committing. **AUTOMATICALLY INVOKE** after plan implementation is complete — when
-  a user approved a plan and Claude has finished making all code changes, run on the
-  modified files without waiting to be asked.
+  a user approved a plan and Claude has finished making all code changes, without waiting
+  to be asked.
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
   and when code-reviewer returns NEEDS_REVISION.
   Trigger phrases: "review and fix", "polish this", "clean this up", "make sure this is
