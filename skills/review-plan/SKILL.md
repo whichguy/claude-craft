@@ -345,8 +345,8 @@ Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
 
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
-| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? | never |
-| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? | never |
+| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? Merge strategy specified (squash / rebase / merge commit)? Push-to-remote step included? | never |
+| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Commit messages follow project conventions (e.g. conventional commits)? | never |
 | Q-C3 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
 
 **Gate 2 — Important (weight 2):**

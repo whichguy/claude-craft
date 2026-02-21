@@ -343,10 +343,13 @@ Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G]
 ### Git & Version Control
 
 **Q1: Is there a branching/merging strategy?** (3, GAS, never N/A)
-All changes get a branch. Plan must name the branch, merge target, and PR workflow.
+All changes get a branch. Plan must name the branch, merge target, PR workflow, and merge
+strategy (squash / rebase / merge commit). Push-to-remote step must be explicit.
 
 **Q2: Do the plan steps actually use branching?** (3, GAS, never N/A)
-Steps must create a feature branch and commit incrementally. Risky changes must include a git rollback path.
+Steps must create a feature branch and commit incrementally. Commit messages must follow
+project conventions (conventional commits: feat/fix/chore/docs etc.). Risky changes must
+include a git rollback path.
 
 ---
 
