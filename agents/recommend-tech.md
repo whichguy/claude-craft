@@ -1,6 +1,18 @@
 ---
 name: recommend-tech
-description: Progressive technology research through comprehensive 8-phase analysis with priority-based complexity scoring. Use for systematic technology stack decisions.
+description: |
+  Researches and compares technology options with structured analysis.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "which tech", "compare options", "technology stack", "what should I use"
+  - "framework comparison", "library choice", "tech recommendation"
+  - Choosing between multiple technologies or frameworks
+
+  **STRONGLY RECOMMENDED** for:
+  - Technology stack decisions
+  - Framework selection
+  - Tool comparisons
+  - Architecture planning
 model: inherit
 ---
 

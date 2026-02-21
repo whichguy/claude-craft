@@ -1,16 +1,16 @@
 ---
-description: "Comprehensive prompt analysis and enhancement using phased development framework"
-argument-hint: "<file-path-or-prompt-content>"
-allowed-tools: "all"
-examples:
-  - "prompt-reviewer ./prompts/my-agent.md"
-  - "prompt-reviewer \"You are an AI assistant that helps with code review. Analyze code and suggest improvements.\""
-hints:
-  - "Pass a file path to an existing prompt file for analysis"
-  - "Or pass the full prompt content directly as arguments"
-  - "Agent will automatically detect file paths vs direct content"
-  - "Uses phased-prompt framework for exhaustive analysis"
-  - "Outputs complete verbose results without summarization"
+name: prompt-reviewer
+description: |
+  Comprehensive prompt analysis and enhancement using phased development framework.
+
+  **AUTOMATICALLY INVOKE** this agent when user mentions "review prompt", "improve prompt", "analyze prompt", or when editing agent/skill markdown files. **STRONGLY RECOMMENDED** for new agent creation, prompt optimization, and LLM instruction refinement.
+
+  **NOT for:**
+  - Quick technique check (use /prompt-critique — faster, produces scorecard)
+  - A/B prompt comparison with execution (use /compare-prompts)
+  - GAS system prompt optimization (use /optimize-system-prompt)
+model: sonnet
+tools: Read, Glob, Grep, Bash, Write, Edit
 ---
 
 # Prompt Reviewer Agent

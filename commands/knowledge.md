@@ -1,7 +1,7 @@
 ---
+argument-hint: "[scan|list|read] [path]"
 description: Discover and integrate knowledge files from project and user directories
 allowed-tools: Read, Glob, Bash(find:*)
-argument-hint: [scan|list|read] [path]
 ---
 
 # Knowledge Discovery Command

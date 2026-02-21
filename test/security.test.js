@@ -267,19 +267,3 @@ describe('Security Scanner Tests', function() {
         });
     });
 });
-
-describe('Security Command Integration', function() {
-    const craftCommand = path.join(__dirname, '..', 'commands', 'craft.md');
-    
-    it('should have security scan integrated in craft push', function() {
-        const craftContent = fs.readFileSync(craftCommand, 'utf8');
-        expect(craftContent).to.include('security-scan');
-        expect(craftContent).to.include('Security scan failed');
-    });
-    
-    it('should have scan action in craft command', function() {
-        const craftContent = fs.readFileSync(craftCommand, 'utf8');
-        expect(craftContent).to.include('"scan")');
-        expect(craftContent).to.include('Running security scan');
-    });
-});

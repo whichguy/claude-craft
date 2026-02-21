@@ -9,6 +9,11 @@
 
 set -euo pipefail
 
+# Skip subagent events (defensive — SessionStart shouldn't fire for subagents, but guard anyway)
+HOOK_INPUT=$(cat)
+AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
+[[ -n "$AGENT_ID" ]] && exit 0
+
 SKILLS_DIR="$HOME/claude-craft/skills"
 STATE_DIR="$HOME/.claude/plugins/reflection-system/state"
 STATE_FILE="$STATE_DIR/notification-state.json"
@@ -103,7 +108,7 @@ elif [[ "$SKILL_COUNT" -gt 5 ]]; then
   MSG="$MSG: $FIRST_FIVE (+$((SKILL_COUNT - 5)) more)"
 fi
 
-MSG="$MSG. Run 'skills-list' for details."
+MSG="$MSG."
 
 # ============================================
 # STEP 5: Update state file (atomic write)

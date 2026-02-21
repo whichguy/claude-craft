@@ -1,6 +1,17 @@
 ---
 name: feature-task-creator
-description: Transform use cases and requirements into atomic, LLM-executable tasks through intelligent decomposition with delta detection. Use for comprehensive task generation.
+description: |
+  Breaks down features into step-by-step implementation tasks.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "break down", "decompose", "create tasks", "task list", "what steps"
+  - "plan implementation", "how do I implement this"
+  - Large feature requests without clear action items
+
+  **STRONGLY RECOMMENDED** for:
+  - Complex features spanning multiple files
+  - Features with unclear scope
+  - Sprint planning
 model: inherit
 ---
 

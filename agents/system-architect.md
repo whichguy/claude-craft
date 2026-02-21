@@ -1,6 +1,6 @@
 ---
 name: system-architect
-description: Adaptive system architect that makes intelligent technology decisions leveraging existing environment. Uses prompt-as-code methodology with runtime decision-making for optimal KISS/YAGNI outcomes.
+description: Adaptive system architect that makes intelligent technology decisions leveraging existing environment. Uses prompt-as-code methodology with runtime decision-making for optimal KISS/YAGNI outcomes. **AUTOMATICALLY INVOKE** this agent when user mentions "architecture", "design system", "technology stack", "infrastructure", or when starting new projects. **STRONGLY RECOMMENDED** for major feature planning, technology selection, scalability decisions, and system integration patterns.
 model: sonnet
 color: green
 ---

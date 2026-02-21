@@ -1,7 +1,7 @@
 ---
 name: merge-worktree
-description: Safely merge worktree changes back to source branch with squash commit, comprehensive validation, and automatic cleanup. Handles conflicts gracefully with detailed resolution guidance.
-model: claude-sonnet-4.5
+description: Safely merge worktree changes back to source branch with squash commit, comprehensive validation, and automatic cleanup. Handles conflicts gracefully with detailed resolution guidance. **AUTOMATICALLY INVOKE** this agent when user mentions "merge worktree", "integrate worktree", or when worktree feature work is complete. **STRONGLY RECOMMENDED** after create-worktree operations and before cleanup.
+model: haiku
 color: green
 ---
 
@@ -255,11 +255,11 @@ fi
 # PRIORITY 2: Standard git worktree discovery (for non-nested or fallback)
 if [ -z "$source_path" ] && [ -f "$worktree_path/.git" ]; then
   # Extract gitdir path from worktree's .git file
-  gitdir=$(awk '{print $2}' "$worktree_path/.git" 2>/dev/null)
+  gitdir=$(sed 's/^gitdir:[[:space:]]*//' "$worktree_path/.git" 2>/dev/null)
 
   if [ -n "$gitdir" ]; then
     # Navigate up from .git/worktrees/name to main .git then to repo root
-    main_git_dir=$(dirname $(dirname "$gitdir"))
+    main_git_dir=$(dirname "$(dirname "$gitdir")")
     source_path=$(dirname "$main_git_dir")
     echo "🎯 DECISION: Auto-discovered main repo: $source_path"
     echo "📍 STANDARD MERGE: This worktree will merge to main repository"
@@ -605,7 +605,7 @@ EOF
     fi
   else
     # Check if it's a conflict or other error
-    if git -C "$ORIGINAL_ABS_PATH" status --porcelain | grep -q "^U\\|^AA\\|^DD"; then
+    if git -C "$ORIGINAL_ABS_PATH" status --porcelain | grep -qE "^(UU|AA|DD|AU|UA|UD|DU)"; then
       merge_completed=false
       merge_conflicts=true
       echo "⚠️ DECISION: Merge conflicts detected - EXCEPTION to atomicity (preserve for resolution)"

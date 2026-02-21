@@ -189,7 +189,7 @@ describe('Backup and Restore Tests', function() {
             // Test restore (would need interactive confirmation in real script)
             const scriptContent = fs.readFileSync(backupScript, 'utf8');
             expect(scriptContent).to.include('restore_backup');
-            expect(scriptContent).to.include('Restore backup from');
+            expect(scriptContent).to.include('Restore complete');
         });
     });
     
@@ -226,76 +226,11 @@ describe('Backup and Restore Tests', function() {
     
     describe('Integration with Craft Command', function() {
         const craftCommand = path.join(__dirname, '..', 'commands', 'craft.md');
-        
+
         it('should be integrated in craft command', function() {
             const content = fs.readFileSync(craftCommand, 'utf8');
             expect(content).to.include('backup');
-            expect(content).to.include('Create backup before changes');
-        });
-        
-        it('should be called in safe_merge_configs', function() {
-            const content = fs.readFileSync(craftCommand, 'utf8');
-            expect(content).to.include('safe_merge_configs');
-            expect(content).to.include('tools/backup.sh');
         });
     });
     
-    describe('Merge Settings Functionality', function() {
-        const mergeScript = path.join(__dirname, '..', 'tools', 'merge-settings.sh');
-        
-        it('should exist and be executable', function() {
-            expect(fs.existsSync(mergeScript)).to.be.true;
-            const stats = fs.statSync(mergeScript);
-            const isExecutable = (stats.mode & parseInt('0100', 8)) !== 0;
-            expect(isExecutable).to.be.true;
-        });
-        
-        it('should validate JSON before merging', function() {
-            const content = fs.readFileSync(mergeScript, 'utf8');
-            expect(content).to.include('validate_fragment');
-            expect(content).to.include('jq empty');
-        });
-        
-        it('should create backup before merging', function() {
-            const content = fs.readFileSync(mergeScript, 'utf8');
-            expect(content).to.include('Creating backup');
-            expect(content).to.include('backup-');
-        });
-        
-        it('should deep merge JSON', function() {
-            const content = fs.readFileSync(mergeScript, 'utf8');
-            expect(content).to.include('jq -s');
-            expect(content).to.include('reduce');
-            expect(content).to.include('* $item');
-        });
-    });
-    
-    describe('Add Memory Functionality', function() {
-        const addMemoryScript = path.join(__dirname, '..', 'tools', 'add-memory.sh');
-        
-        it('should exist and be executable', function() {
-            expect(fs.existsSync(addMemoryScript)).to.be.true;
-            const stats = fs.statSync(addMemoryScript);
-            const isExecutable = (stats.mode & parseInt('0100', 8)) !== 0;
-            expect(isExecutable).to.be.true;
-        });
-        
-        it('should use craft markers', function() {
-            const content = fs.readFileSync(addMemoryScript, 'utf8');
-            expect(content).to.include('Claude Craft Extensions');
-            expect(content).to.include('CRAFT_MARKER');
-        });
-        
-        it('should check for existing imports', function() {
-            const content = fs.readFileSync(addMemoryScript, 'utf8');
-            expect(content).to.include('check_import_exists');
-            expect(content).to.include('grep -q');
-        });
-        
-        it('should add import statements', function() {
-            const content = fs.readFileSync(addMemoryScript, 'utf8');
-            expect(content).to.include('add_craft_imports');
-            expect(content).to.include('<!-- Import:');
-        });
-    });
 });

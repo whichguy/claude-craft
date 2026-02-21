@@ -332,9 +332,50 @@ TeamDelete();
 
 ---
 
+## Phase 5: Git Commit Suggestion
+
+After teardown, output a commit suggestion when the review succeeded and files were changed.
+
+**Conditions to trigger:**
+- `files_changed` is non-empty
+- `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
+- Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
+
+**Output after the Phase 4 summary block. Do not call `AskUserQuestion` — output the block
+below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks the user.**
+
+**Output template:**
+
+### Suggested Next Step: Commit
+
+**Files changed this session:**
+[List each path in `files_changed`]
+
+**Suggested commit message:**
+```
+<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_resolved.length] advisory resolved)
+```
+
+**To stage and commit:**
+```bash
+git add [files_changed joined by space]
+git commit -m "$(cat <<'EOF'
+[suggested commit message]
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+EOF
+)"
+```
+
+> Would you like to stage and commit these changes now?
+
+<!-- COMMIT_SUGGESTED -->
+
 ## Design Constraints
 
-**Proceed immediately after Phase 4 — no pause for user input.** Teardown is automatic.
+**The review loop (Phases 1–4) proceeds without user input.** Teardown is automatic. Phase 5
+outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
+`AskUserQuestion`. The calling agent acts on the marker.
 
 **Both Critical and Advisory auto-fix when a Fix block exists.** Without a Fix block, Advisory records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
 

@@ -10,7 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 npm test
 
 # Run specific test suites
-npm run test:security    # Tests security scanning patterns in tools/security-scan.sh
+npm run test:sync        # Tests sync infrastructure (33 tests)
+npm run test:security    # Tests security scanning patterns
 npm run test:knowledge   # Tests knowledge discovery system
 npm run test:backup      # Tests backup/restore functionality
 
@@ -19,9 +20,6 @@ npm run test:watch
 
 # Coverage report
 npm run test:coverage
-
-# Run a single test file
-mocha test/security.test.js
 ```
 
 ### Installation & Setup
@@ -30,7 +28,7 @@ mocha test/security.test.js
 ./install.sh
 
 # Install from remote (one-liner)
-curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash
 
 # Uninstall with options
 ./uninstall.sh --dry-run    # Preview what will be removed
@@ -43,17 +41,16 @@ curl -sSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.s
 
 ### Key Management Scripts
 ```bash
+# Sync engine (core)
+./tools/sync-status.sh [status|sync|add|publish]     # All 6 extension types
+
 # Security scanning
 ./tools/security-scan.sh [directory] [type] [verbose]  # Pattern-based scanner
 ./tools/simple-secrets-scan.sh                        # Quick credential detection
 
-# Configuration management
-./tools/merge-settings.sh                            # Deep JSON merge preserving user customizations
-./tools/add-memory.sh                                # Append memory fragments to CLAUDE.md
-
 # Backup and sync
 ./tools/backup.sh [list|backup|restore]              # Manage timestamped tar archives
-./tools/auto-sync.sh                                 # Probabilistic sync (3.7% chance per prompt)
+./tools/auto-sync.sh [prompt-check|force]             # Probabilistic sync (3.7% chance per prompt)
 ```
 
 ## Architecture & Core Concepts
@@ -66,21 +63,18 @@ Claude Craft uses symlinks instead of copying files to ~/.claude/, providing:
 - **Version control** for all extensions
 - **Easy rollback** via automatic backups
 
-Directory structure:
+Directory structure (6 extension types):
 ```
 ~/claude-craft/              # Repository location
-├── commands/               # Slash commands (symlinked to ~/.claude/commands/)
-├── prompts/               # Prompt templates (symlinked to ~/.claude/prompts/)
-├── agents/                # Agent definitions (symlinked to ~/.claude/agents/)
-├── hooks/                 # Hook scripts (symlinked to ~/.claude/hooks/)
-├── settings/fragments/    # JSON fragments for merging
+├── agents/                # Agent definitions (.md) → ~/.claude/agents/
+├── commands/              # Slash commands (.md) → ~/.claude/commands/
+├── skills/                # Skill directories → ~/.claude/skills/
+├── prompts/               # Prompt templates (.md) → ~/.claude/prompts/
+├── references/            # Reference docs (.md) → ~/.claude/references/
+├── plugins/               # Plugin directories → ~/.claude/plugins/
+│   ├── craft-hooks/       # Core hooks (security + auto-sync)
+│   └── reflection-system/ # Session reflection and knowledge
 └── tools/                 # Management scripts (not symlinked)
-
-~/.claude/                 # Claude Code configuration
-├── commands/             # Symlinks to ~/claude-craft/commands/
-├── prompts/              # Symlinks to ~/claude-craft/prompts/
-├── CLAUDE.md             # Imports memory fragments
-└── backups/              # Timestamped tar archives
 ```
 
 ### Prompt-as-Code Pattern
@@ -138,32 +132,28 @@ Multi-layered security implementation:
    - `pre-commit`: Scans staged files for secrets
    - Symlinked to `.git/hooks/` during installation
 
-3. **Hook Scripts** (`hooks/scripts/`):
+3. **Hook Plugins** (`plugins/craft-hooks/`):
    - `pre-execution-security.sh`: Validates commands before execution
-   - `validate-bash.sh`: Checks for command injection patterns
+   - `prompt-sync-check.sh`: Probabilistic auto-sync trigger
+   - Uses `${CLAUDE_PLUGIN_ROOT}` paths — loaded natively by Claude Code
 
-### Configuration Management
+### Sync Architecture
 
-**Smart Merging Strategy**:
-- **Settings files**: Deep JSON merge preserving user customizations
-- **Memory files**: Append-only imports using fragment system
-- **Commands/Agents**: Direct symlinks (no merging)
-
-The `tools/merge-settings.sh` script implements intelligent JSON merging:
-- Preserves existing user values
-- Adds new keys from fragments
-- Deep merges nested objects
-- Never overwrites user customizations
+All sync operations use `tools/sync-status.sh` — a single data-driven script handling all 6 extension types:
+- **File-based** (agents, commands, prompts, references): Per-file symlinks
+- **Directory-based** (skills, plugins): Per-directory symlinks
+- TYPES array defined in `tools/shared-types.sh` (shared by sync-status.sh and uninstall.sh)
+- Skip patterns exclude legacy files (`old-do-not-use-*`) and global commands (`alias.md`, `unalias.md`)
+- Local-only files are never overwritten by sync
 
 ### Auto-Sync Mechanism
 
-Controlled via `settings/fragments/auto-sync-settings.json`:
 - **Probability**: 1/27 chance (~3.7%) per user prompt
 - **Debounce**: 5-second minimum intervals
 - **Conflict Handling**: Automatic stash/merge/restore
 - **Background Operation**: Never interrupts workflow
 
-Implementation in `hooks/userPrompt.sh` and `tools/auto-sync.sh`.
+Implementation in `tools/auto-sync.sh`.
 
 ## Critical Implementation Notes
 
@@ -180,9 +170,9 @@ Implementation in `hooks/userPrompt.sh` and `tools/auto-sync.sh`.
 
 ### Testing Approach
 - Tests use Mocha/Chai with fixture-based validation
-- No mocking - tests run against actual file operations
-- Fixtures in `test/fixtures/` contain sample data
-- Focus on security scanning and backup integrity
+- No mocking - tests run against actual file operations in temp directories
+- `test/sync.test.js`: 33 tests covering all 4 sync actions + error paths + install/uninstall/plugin validation
+- Fixtures in `test/fixtures/` contain sample data for security tests
 
 ## Prompt Template Development
 
@@ -244,7 +234,7 @@ The `/alias` command dynamically creates new commands:
 1. Create file in `prompts/` directory
 2. Use `<prompt-arguments>` placeholder
 3. Test with `/prompt template-name [context]`
-4. Sync to profile: `/prompt sync template-name`
+4. Run `/agent-sync sync` to symlink to ~/.claude/prompts/
 
 ### Debugging Installation Issues
 ```bash

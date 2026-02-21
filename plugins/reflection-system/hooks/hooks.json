@@ -1,5 +1,5 @@
 {
-  "description": "Reflection system hooks: auto-reflection on stop, skill notifications on start",
+  "description": "Reflection system hooks: queue sessions on stop, process queue + notify on start",
   "hooks": {
     "SessionStart": [
       {
@@ -8,17 +8,49 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/check-skills-changed.sh",
+            "async": true,
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/session-start-processor.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/precompact-hook.sh",
+            "timeout": 10
           }
         ]
       }
     ],
     "Stop": [
       {
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-hook.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/stop-hook.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks-handlers/session-end-hook.sh",
+            "timeout": 5
           }
         ]
       }

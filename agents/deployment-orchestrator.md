@@ -1,6 +1,17 @@
 ---
 name: deployment-orchestrator
-description: Deploys approved stories using existing deployment infrastructure. Should be invoked after stories are approved with dryrun flag.
+description: |
+  Deploys code through the deployment pipeline.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "deploy", "release", "ship", "launch", "go live", "push to prod"
+  - "promote to staging", "promote to production"
+  - After feature merge to main branch
+
+  **STRONGLY RECOMMENDED** for:
+  - Feature releases
+  - Hotfix deployments
+  - Rollbacks
 model: sonnet
 color: orange
 ---
@@ -196,6 +207,36 @@ echo "📁 Deployment directory structure ready at: $DEPLOYMENT_DIR"
 Load and validate all deployment context from IDEAL-STI and architecture decisions:
 
 ```bash
+echo "🔍 Phase 1: Input Validation..."
+
+# 1a) Story approval check
+APPROVAL_STATUS_FILE="$TASKS_DIR/planning/in-progress/${epic_id}.md"
+if [ ! -f "$APPROVAL_STATUS_FILE" ]; then
+    echo "❌ Story approval file not found: $APPROVAL_STATUS_FILE"
+    exit 1
+fi
+if ! grep -qi "status.*approved\|approved.*status" "$APPROVAL_STATUS_FILE"; then
+    echo "❌ Story not approved for deployment"
+    exit 1
+fi
+
+# 1b) Review manifests check
+REVIEW_MANIFEST_DIR="$DOCS_DIR/planning/review-manifests"
+PENDING_REVISIONS=$(grep -rl '"approval_status": "NEEDS_REVISION"' "$REVIEW_MANIFEST_DIR" 2>/dev/null | wc -l)
+if [ "$PENDING_REVISIONS" -gt 0 ]; then
+    echo "❌ $PENDING_REVISIONS review manifest(s) require revision before deployment"
+    exit 1
+fi
+
+# 1c) Tests check
+if [ -f "$DEPLOYMENT_DIR/logs/test-results.log" ]; then
+    if grep -qi "failing\|failed\|error" "$DEPLOYMENT_DIR/logs/test-results.log"; then
+        echo "❌ Test failures detected — resolve before deploying"
+        exit 1
+    fi
+fi
+
+echo "✅ All input validations passed"
 echo "🔄 Rehydrating comprehensive deployment context..."
 
 # Create deployment context file
@@ -284,21 +325,21 @@ if [ -f "$CICD_REQUIREMENTS" ] && [ -s "$CICD_REQUIREMENTS" ]; then
     echo "📋 Using feature-developer CI/CD requirements classification..."
     
     # Extract feature classifications from CI/CD requirements JSON
-    jq -r '.features | to_entries[] | select(.key != "_template") | "\(.key) \(.value.deploymentStrategy)"' "$CICD_REQUIREMENTS" 2>/dev/null | while read feature_name strategy; do
+    while read feature_name strategy; do
         echo "- $feature_name: $strategy (from CI/CD requirements)" >> "$CLASSIFICATION_FILE"
-        
+
         case "$strategy" in
             "seamless")
                 SEAMLESS_FEATURES+=("$feature_name")
                 ;;
-            "upgrade") 
+            "upgrade")
                 UPGRADE_FEATURES+=("$feature_name")
                 ;;
             "batch")
                 BATCH_FEATURES+=("$feature_name")
                 ;;
         esac
-    done
+    done < <(jq -r '.features | to_entries[] | select(.key != "_template") | "\(.key) \(.value.deploymentStrategy)"' "$CICD_REQUIREMENTS" 2>/dev/null)
     
     echo "✅ Classification loaded from central CI/CD requirements"
 else
@@ -479,10 +520,10 @@ case $DEPLOYMENT_STRATEGY in
         mkdir -p "$DEPLOYMENT_DIR/migrations"
         
         # Look for migration files in completed tasks
-        find "$TASKS_DIR/planning/completed" -name "*.md" -exec grep -l "migration\|schema" {} \; | while read task; do
+        while read -r task; do
             task_name=$(basename "$task" .md)
             echo "Migration required for: $task_name" >> "$DEPLOYMENT_DIR/migrations/migration-plan.md"
-        done
+        done < <(find "$TASKS_DIR/planning/completed" -name "*.md" -exec grep -l "migration\|schema" {} \;)
         
         # Create backup script
         cat > "$DEPLOYMENT_DIR/scripts/pre-deployment-backup.sh" << 'BACKUP_EOF'
@@ -612,9 +653,9 @@ cat > "$DEPLOYMENT_MANIFEST" << EOF
   "deployment_strategy": "$DEPLOYMENT_STRATEGY",
   "working_directory": "$MAIN_DIR",
   "features_deployed": {
-    "seamless": [$(printf '"%s",' "${SEAMLESS_FEATURES[@]}" | sed 's/,$//')]"",
-    "upgrade": [$(printf '"%s",' "${UPGRADE_FEATURES[@]}" | sed 's/,$//')]"",
-    "batch": [$(printf '"%s",' "${BATCH_FEATURES[@]}" | sed 's/,$//')]""
+    "seamless": $([ ${#SEAMLESS_FEATURES[@]} -eq 0 ] && echo '[]' || printf '%s\n' "${SEAMLESS_FEATURES[@]}" | jq -R . | jq -sc .),
+    "upgrade": $([ ${#UPGRADE_FEATURES[@]} -eq 0 ] && echo '[]' || printf '%s\n' "${UPGRADE_FEATURES[@]}" | jq -R . | jq -sc .),
+    "batch": $([ ${#BATCH_FEATURES[@]} -eq 0 ] && echo '[]' || printf '%s\n' "${BATCH_FEATURES[@]}" | jq -R . | jq -sc .)
   },
   "total_features": $TOTAL_FEATURES,
   "infrastructure": {
@@ -640,27 +681,29 @@ echo "🧠 Invoking knowledge aggregator with deployment context..."
 
 # Use Task tool to invoke knowledge-aggregator subagent  
 # Pass comprehensive deployment context for knowledge capture
-ask subagent knowledge-aggregator "deployment-context" "$dryrun" "
-Deployment Orchestrator Knowledge Capture
-
-**Context**: CI/CD deployment execution
-**Strategy**: $DEPLOYMENT_STRATEGY  
-**Features**: $TOTAL_FEATURES total
-**Mode**: $([ "$dryrun" = "true" ] && echo "Planning" || echo "Execution")
-**Working Directory**: $MAIN_DIR
-
-**Key Artifacts**:
-- Deployment Manifest: $DEPLOYMENT_MANIFEST
-- Feature Classification: $CLASSIFICATION_FILE  
-- Build Manifest: $BUILD_MANIFEST
-- Context File: $CONTEXT_FILE
-
-**Patterns Discovered**:
-- Deployment strategy selection based on feature analysis
-- Central build operations coordination
-- Full path and git -C usage patterns
-- Integration with IDEAL-STI Phase 14 workflow
-"
+# NOTE TO AGENT: Use the Task tool (not bash) to invoke knowledge-aggregator.
+# Do NOT execute the following as a shell command — treat it as a Task invocation spec.
+# Task(subagent_type="knowledge-aggregator", prompt="
+# Deployment Orchestrator Knowledge Capture
+#
+# Context: CI/CD deployment execution
+# Strategy: $DEPLOYMENT_STRATEGY
+# Features: $TOTAL_FEATURES total
+# Mode: $([ "$dryrun" = "true" ] && echo "Planning" || echo "Execution")
+# Working Directory: $MAIN_DIR
+#
+# Key Artifacts:
+# - Deployment Manifest: $DEPLOYMENT_MANIFEST
+# - Feature Classification: $CLASSIFICATION_FILE
+# - Build Manifest: $BUILD_MANIFEST
+# - Context File: $CONTEXT_FILE
+#
+# Patterns Discovered:
+# - Deployment strategy selection based on feature analysis
+# - Central build operations coordination
+# - Full path and git -C usage patterns
+# - Integration with IDEAL-STI Phase 14 workflow
+# ")
 
 echo "✅ Knowledge aggregation complete"
 ```
@@ -727,7 +770,7 @@ else
 LIVE_NEXT_EOF
 fi
 
-cat << FINAL_EOF
+cat << STATUS_EOF
 
 **PARENT CONTEXT**: IDEAL-STI Phase 14 (Deployment Execution) COMPLETE
 **NEXT PHASE**: Phase 15 (Post-Deployment Validation)

@@ -1,6 +1,6 @@
 ---
 name: ui-designer
-description: Creates UI/UX design specifications for specific interface components and views. Should be invoked by feature-developer when implementing UI/frontend files that require interface design and user experience considerations.
+description: Creates UI/UX design specifications for specific interface components and views. Should be invoked by feature-developer when implementing UI/frontend files that require interface design and user experience considerations. **AUTOMATICALLY INVOKE** this agent when user mentions "UI", "UX", "design", "layout", "component", "sidebar", "dialog", or when implementing HTML/CSS files. **STRONGLY RECOMMENDED** for user-facing interfaces, form designs, dashboard layouts, and accessibility requirements.
 model: sonnet
 color: pink
 ---

@@ -1,3 +1,9 @@
+---
+argument-hint: "<epic-file-or-text> [--output <dir>] [--concise]"
+description: "Transform epics into comprehensive use case specs via progressive discovery"
+allowed-tools: "Read, Write, Glob, Grep, WebSearch, WebFetch, Task"
+---
+
 # Use Case Expansion Through Progressive Discovery
 
 Transform high-level epics into comprehensive use case specifications by uncovering explicit, implicit, and cascading use cases with deep focus on UI interaction patterns.

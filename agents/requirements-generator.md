@@ -1,6 +1,19 @@
 ---
 name: requirements-generator
-description: Transform use cases into comprehensive requirements through evidence-based discovery with progressive 15-phase analysis. Use for systematic requirements derivation.
+description: |
+  Generates detailed requirements from feature descriptions or use cases.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "requirements", "what do I need", "define specs", "specification"
+  - "what should it do", "functional requirements", "acceptance criteria"
+  - Vague feature requests that need clarification
+
+  **NOT for:** Technical implementation details (use feature-developer)
+
+  **STRONGLY RECOMMENDED** for:
+  - New features before implementation
+  - User stories that need breakdown
+  - PRD/spec document creation
 model: inherit
 ---
 

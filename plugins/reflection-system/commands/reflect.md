@@ -1,350 +1,309 @@
 ---
-description: Analyze recent sessions for learning signals (corrections, friction, successes)
-argument-hint: "[mode:auto|interactive] [--scope:last|today|week]"
-allowed-tools: Bash, Read, Glob, Grep
+description: "Retrieve knowledge from session history by topic, or process pending session queue"
+argument-hint: "<topic> | --process-queue"
+allowed-tools: Task, Read, Write, Edit, Glob, Grep, Bash
 ---
 
-# Session Reflection - Phase 1: Audit
+# /reflect — Knowledge Retrieval & Session Processing
 
-Analyze recent Claude Code sessions to extract learning signals for skill generation.
+Single entry point for the reflection system. Two modes:
+
+1. **Topic query**: `/reflect <topic>` — search and synthesize knowledge on a topic
+2. **Queue processing**: `/reflect --process-queue` — summarize pending sessions into knowledge
 
 ## Arguments
-- `$1` = mode: `auto` (silent) or `interactive` (show findings, ask confirmation)
-- `$2` = scope: `last` (most recent session), `today`, or `week`
 
-Default: `mode:auto --scope:last`
+- `$ARGUMENTS` contains either:
+  - A topic string (e.g., `mcp design`, `permission errors`, `git workflows`)
+  - `--process-queue` to process pending session queue entries
+  - Empty/no args — show status and available topics
 
-## Step 1: Pre-flight Checks
+## Step 1: Pre-flight
 
-First, verify the environment:
+1. **Kill switch**: If `~/.claude/REFLECT_OFF` exists → "Reflection disabled. Remove `~/.claude/REFLECT_OFF` to enable." and stop.
+2. **Knowledge directory**: Ensure `~/.claude/reflection-knowledge/sessions/` and `~/.claude/reflection-knowledge/topics/` exist. Create if missing.
 
-1. **Kill switch**: Check if `~/.claude/REFLECT_OFF` exists
-   - If exists: Output "Reflection disabled (REFLECT_OFF exists). Run `reflect-on` to enable." and stop.
+## Step 2: Route by Mode
 
-2. **Sessions directory**: Check if `~/.claude/sessions/` exists and has JSONL files
-   - If missing or empty: Output helpful setup instructions and stop:
-     ```
-     No session data found. Session journaling may not be configured.
+Parse `$ARGUMENTS`:
+- If starts with `--process-queue` → go to **Queue Processing Mode** (Step 3)
+- If starts with `--` but is not `--process-queue` → output "Unknown flag: {flag}. Usage: `/reflect <topic>` or `/reflect --process-queue`" and stop.
+- If non-empty text → go to **Topic Retrieval Mode** (Step 4)
+- If empty → go to **Status Mode** (Step 5)
 
-     To enable session journaling, ensure hooks are configured in ~/.claude/settings.json:
+---
 
-     "hooks": {
-       "UserPromptSubmit": [{"command": "~/.claude/journal/journal_writer.sh UserPromptSubmit"}],
-       "AssistantResponse": [{"command": "~/.claude/journal/journal_writer.sh AssistantResponse"}],
-       "Stop": [{"command": "~/.claude/journal/journal_writer.sh Stop"}]
-     }
-     ```
+## Step 3: Queue Processing Mode (`--process-queue`)
 
-## Step 2: Determine Scope
+Process pending session queue entries and generate session summary files.
 
-Based on the scope argument (`$2` or default `last`):
-
-- **last**: Find the most recent session directory and JSONL file
-  ```bash
-  LATEST_DIR=$(ls -td ~/.claude/sessions/*/ 2>/dev/null | head -1)
-  SESSION_FILES=$(ls -t "$LATEST_DIR"/*.jsonl 2>/dev/null | head -1)
-  # Note: SESSION_FILES contains single file for 'last' scope, multiple for 'today'/'week'
-  ```
-
-- **today**: All sessions from today's date
-  ```bash
-  TODAY=$(date +%Y-%m-%d)
-  SESSION_FILES=$(find ~/.claude/sessions/$TODAY -name "*.jsonl" 2>/dev/null)
-  ```
-
-- **week**: All sessions from the last 7 days
-  ```bash
-  SESSION_FILES=$(find ~/.claude/sessions -name "*.jsonl" -mtime -7 2>/dev/null)
-  ```
-
-## Step 3: Extract Evidence
-
-Search for three categories of learning signals in the session files:
-
-### 3.1 Explicit Corrections
-User explicitly corrected Claude's behavior. **IMPORTANT**: For each correction, also capture what Claude said BEFORE the correction to understand the anti-pattern.
+### 3.1: Find Pending Queue Entries
 
 ```bash
-# Patterns: "No,", "Actually,", "Use X instead", "Don't do", "Wrong", "Not that"
-# Enhanced: For each correction, find the preceding Claude response to capture the mistake
-
-# Step 1: Find correction indices and their context
-jq -s '
-  # Flatten all entries with their index
-  to_entries |
-
-  # Find user messages matching correction patterns
-  map(select(
-    .value.eventType == "user" and
-    ((.value.content.raw // .value.content) | test("(?i)^no[,.]|actually[,.]|use .* instead|don'\''t do|wrong|not that|should be"))
-  )) |
-
-  # For each correction, extract context
-  map({
-    index: .key,
-    correction: (.value.content.raw // .value.content),
-    session: .value.sessionId,
-    timestamp: .value.timestamp
-  })
-' "$SESSION_FILES" > /tmp/corrections_indices.json
-
-# Step 2: For each correction, get the preceding assistant message
-jq -s --slurpfile corr /tmp/corrections_indices.json '
-  . as $all |
-  $corr[0] | map(
-    . as $c |
-    # Find the most recent assistant message before this correction
-    ($all[0:$c.index] | reverse | map(select(.eventType == "assistant")) | first) as $prev |
-    {
-      correction: $c.correction,
-      claude_mistake: (($prev.content.raw // $prev.content // "[no prior response found]") | .[0:500]),
-      session: $c.session,
-      timestamp: $c.timestamp
-    }
-  )
-' "$SESSION_FILES"
+QUEUE_DIR="$HOME/.claude/reflection-queue"
+# Find all pending entries
+for QUEUE_FILE in "$QUEUE_DIR"/*.json; do
+  [[ ! -f "$QUEUE_FILE" ]] && continue
+  STATUS=$(jq -r '.status' "$QUEUE_FILE" 2>/dev/null)
+  [[ "$STATUS" != "pending" ]] && continue
+  # This is a pending entry
+done
 ```
 
-**Why capture claude_mistake**: This becomes the "What NOT to Do" section in generated skills, showing what behavior triggered the correction.
+If no pending entries: output "No pending sessions to process." and stop.
 
-### 3.2 Friction Points
-Signs of repeated attempts or user frustration:
+### 3.2: For Each Pending Entry, Generate Session Summary
+
+For each pending queue entry:
+
+1. **Read the queue entry** to get `session_id` and `transcript_path`
+2. **Verify the transcript file exists**. If `transcript_path` is empty or the file doesn't exist, mark the queue entry as `"status": "error"` and skip to the next entry.
+3. **Read the session JSONL** (the transcript file). Session JSONL files can be very large. To avoid blowing the context window:
+   - Read only the last 2000 lines of the JSONL file (use the Read tool with offset/limit, or `tail -2000`)
+   - Focus on extracting user messages (`"type":"human"`) and assistant messages (`"type":"assistant"`)
+   - Skip tool use details, system messages, and base64/binary content
+   - Target: pass ~50KB of conversation text to the subagent, not the entire file
+4. **Spawn a Haiku subagent** to extract a compact session summary
+
+**Subagent prompt** (use `model: "haiku"` for cost efficiency):
+
+```
+subagent_type: "general-purpose"
+model: "haiku"
+```
+
+Prompt for the subagent:
+
+```
+You are a session summarizer. Read the provided session transcript and extract a structured summary.
+
+## Session Transcript
+{read the JSONL file and extract human-readable conversation — assistant messages and user messages}
+
+## Instructions
+
+Produce a Markdown summary with these sections:
+
+### Session Info
+- Session ID: {session_id}
+- Date: {extracted from timestamps}
+- Project/CWD: {from queue entry}
+
+### Key Decisions
+Bullet list of significant decisions made during the session. Focus on:
+- Architecture choices
+- Technology selections
+- Design trade-offs
+- Approach changes
+
+### Corrections & Learnings
+Bullet list of any corrections the user made to Claude's behavior/output. For each:
+- What Claude did wrong
+- What the user corrected it to
+- The underlying principle
+
+### Outcomes
+What was accomplished in this session.
+
+### Topic Keywords
+Comma-separated list of 3-8 topic keywords that describe what this session covered.
+Examples: mcp-design, gas-permissions, git-workflow, testing, refactoring
+
+## Rules
+- Be concise — aim for 50-150 lines total
+- Focus on transferable knowledge, not session-specific details
+- Omit routine operations (file reads, basic edits) unless they revealed something interesting
+- Capture the "why" behind decisions, not just the "what"
+- Do NOT include any API keys, tokens, passwords, or credentials
+- Do NOT include full file contents — summarize what was changed
+```
+
+5. **Write the summary** to `~/.claude/reflection-knowledge/sessions/{session_id}.md`
+
+6. **Update the index** (`~/.claude/reflection-knowledge/index.json`):
+   - Add session entry: `{ "date": "<ISO8601>", "keywords": ["<kw1>", ...], "summary_path": "sessions/<session_id>.md" }`
+   - The entry key is the `session_id` string, nested under the `"sessions"` object
+
+7. **Mark queue entry as completed**:
+   ```bash
+   jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+     '.status = "completed" | .processed_at = $ts' "$QUEUE_FILE" > "${QUEUE_FILE}.tmp" \
+     && mv "${QUEUE_FILE}.tmp" "$QUEUE_FILE"
+   ```
+
+### 3.3: Summary Output
+
+After processing all entries:
+
+```
+Processed {N} session(s):
+- {session_id_1}: {2-3 word description from keywords} → sessions/{session_id_1}.md
+- {session_id_2}: {2-3 word description from keywords} → sessions/{session_id_2}.md
+
+Knowledge base: {total_sessions} session summaries, {total_topics} topic files
+```
+
+---
+
+## Step 4: Topic Retrieval Mode (`/reflect <topic>`)
+
+Search the knowledge base for information on the given topic.
+
+### 4.1: Search Topic Files First
+
+Check if a consolidated topic file exists:
+
 ```bash
-# Patterns: "Again", "Like I said", "Already told", "Still not", "Keep getting"
-jq -r 'select(.eventType == "user") | .content.raw // .content' "$SESSION_FILES" | \
-  grep -iE "again|like I said|already told|still not|keep getting|one more time"
+# Search topic files for matching names/content
+TOPIC_DIR="$HOME/.claude/reflection-knowledge/topics"
 ```
 
-### 3.3 Successes
-Positive confirmations worth reinforcing:
+Use Grep to search topic file names and content for the query terms. A topic file matches if:
+- Its filename contains any query word (e.g., `mcp-design.md` matches "mcp")
+- Its content contains the query terms
+
+If a matching topic file exists and its `updated` frontmatter field (or file modification time as fallback) is within the last 30 days:
+- Read and return the topic file content
+- Append: "Source: consolidated from {N} sessions. Last updated: {date}."
+- Stop here (topic file is the synthesized answer).
+
+### 4.2: Search Session Summaries
+
+If no topic file matched (or it's stale), search session summaries:
+
 ```bash
-# Patterns: "Perfect", "Exactly", "Works great", "That's right", "Good"
-jq -r 'select(.eventType == "user") | .content.raw // .content' "$SESSION_FILES" | \
-  grep -iE "perfect|exactly|works great|that's right|^good$|nice work|excellent"
+SESSION_DIR="$HOME/.claude/reflection-knowledge/sessions"
 ```
 
-## Step 4: Structure Evidence
+Use Grep to search all session summary files for the query terms. Rank results by:
+1. **Keyword match** — query terms appear in the Topic Keywords section
+2. **Content match** — query terms appear in the body
+3. **Recency** — newer sessions rank higher
 
-Aggregate findings into a structured format:
+Select top 5 matching session summaries.
 
-```json
-{
-  "audit_timestamp": "ISO8601",
-  "scope": "last|today|week",
-  "sessions_analyzed": N,
-  "files_scanned": N,
-  "evidence": {
-    "explicit_corrections": [
-      {
-        "correction": "User's correction text",
-        "claude_mistake": "What Claude said/did before correction (truncated to 500 chars)",
-        "session": "session-id",
-        "timestamp": "ISO8601"
-      }
-    ],
-    "friction_points": [
-      {"text": "...", "session": "...", "timestamp": "..."}
-    ],
-    "successes": [
-      {"text": "...", "session": "...", "timestamp": "..."}
-    ]
-  },
-  "summary": {
-    "total_signals": N,
-    "correction_count": N,
-    "friction_count": N,
-    "success_count": N
-  }
-}
+### 4.3: Synthesize
+
+If matching sessions found, spawn a subagent to synthesize:
+
+```
+subagent_type: "general-purpose"
+model: "haiku"
 ```
 
-**Note**: The `claude_mistake` field is critical for Phase 2 analysis. It provides context for:
-1. The "What NOT to Do" section in generated skills
-2. The `anti_patterns` field in skill recommendations
-3. The "Before (incorrect)" example in skill templates
+Prompt:
 
-## Step 5: Output Based on Mode
-
-### If mode = `auto`:
-- Output the structured evidence as JSON (for passing to Phase 2)
-- No user interaction
-
-### If mode = `interactive`:
-- Display a formatted summary:
-  ```
-  Session Reflection - Audit Results
-  ==================================
-  Scope: {scope}
-  Sessions analyzed: {N}
-
-  CORRECTIONS FOUND ({N}):
-  - "{text}" (session: {id})
-  ...
-
-  FRICTION POINTS ({N}):
-  - "{text}" (session: {id})
-  ...
-
-  SUCCESSES ({N}):
-  - "{text}" (session: {id})
-  ...
-  ```
-
-- If no signals found: "No learning signals detected in recent sessions."
-
-- If signals found, ask: "Proceed to analysis phase? (This will spawn a subagent to identify skill recommendations)"
-
-## Step 6: Pass to Phase 2 (if proceeding)
-
-If in auto mode or user confirmed, the evidence should be passed to `/analyze-sessions` via the prompt (not written to a file).
-
-Output format for auto mode (can be piped to next command):
 ```
-REFLECTION_EVIDENCE_START
-{json evidence}
-REFLECTION_EVIDENCE_END
+You are a knowledge synthesizer. The user asked about: "{topic}"
+
+Here are relevant session summaries:
+
+{paste top 5 matching session summary contents}
+
+## Instructions
+
+Synthesize the relevant knowledge into a coherent response. Structure as:
+
+### What I Know About: {topic}
+
+**Key Principles:**
+- Bullet list of consolidated principles/rules
+
+**Decisions Made:**
+- Previous decisions related to this topic and their rationale
+
+**Anti-Patterns:**
+- Things to avoid, learned from corrections
+
+**Open Questions:**
+- Any unresolved aspects or areas needing more exploration
+
+## Rules
+- Only include information supported by the session summaries
+- Prioritize actionable guidance over historical narrative
+- If sessions contradict each other, note the contradiction and which is more recent
+- Keep response under 100 lines
 ```
+
+### 4.4: Display Results
+
+Output the synthesized knowledge to the user.
+
+Then ask: "Save as topic file? This consolidates {N} sessions into a reusable knowledge entry."
+
+If user confirms, write to `~/.claude/reflection-knowledge/topics/{topic-slug}.md` with:
+- YAML frontmatter: `topic`, `created`, `updated`, `sources` (session IDs), `keywords`, `confidence`
+- The synthesized content as the body
+
+Also update `~/.claude/reflection-knowledge/index.json`:
+- Add/update topic entry under `"topics"` with `file`, `keywords`, `source_sessions`, `created`, `updated`
+
+### 4.5: No Results
+
+If no matching sessions or topics found:
+
+```
+No knowledge found for "{topic}".
+
+Available topics:
+{list topic filenames from topics/ directory}
+
+Recent sessions cover:
+{list unique keywords from last 10 session summaries}
+
+Tip: Run `/reflect --process-queue` to process any pending sessions first.
+```
+
+---
+
+## Step 5: Status Mode (no arguments)
+
+Display current knowledge base status:
+
+```
+Reflection Knowledge Base
+=========================
+
+Session summaries: {count files in sessions/}
+Topic files: {count files in topics/}
+Pending queue entries: {count pending in reflection-queue/}
+
+Topics:
+{list all .md files in topics/ with first line}
+
+Recent sessions:
+{list last 5 .md files in sessions/ with date and keywords}
+
+Commands:
+  /reflect <topic>          Search for knowledge on a topic
+  /reflect --process-queue  Process pending session queue
+  /consolidate [topic]      Merge sessions into topic file
+```
+
+---
 
 ## Error Handling
 
 | Condition | Response |
 |-----------|----------|
-| REFLECT_OFF exists | "Reflection disabled. Run `reflect-on` to enable." |
-| No sessions directory | Display setup instructions |
-| No JSONL files | "No session data found for scope: {scope}" |
-| jq not installed | Fallback to grep-only patterns |
-| Parse errors | Skip malformed entries, continue |
+| REFLECT_OFF exists | "Reflection disabled. Remove `~/.claude/REFLECT_OFF` to enable." |
+| No knowledge directory | Create it automatically |
+| No session summaries exist | "No sessions summarized yet. Run `/reflect --process-queue` first." |
+| Queue entry has no transcript | Skip entry, log warning |
+| Transcript file missing | Skip entry, mark as "error" in queue |
+| Subagent fails | Log error, continue with next entry |
 
-## Phase Boundary Contract: Phase 1 → Phase 2
+## Security
 
-**This contract MUST be honored. Changes to this schema require updates to `/analyze-sessions` validation.**
-
-### Output Schema (JSON Schema Draft-07)
-
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "reflection-phase1-output",
-  "title": "Phase 1 Audit Evidence",
-  "type": "object",
-  "required": ["audit_timestamp", "scope", "sessions_analyzed", "evidence", "summary"],
-  "properties": {
-    "audit_timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO8601 timestamp when audit was performed"
-    },
-    "scope": {
-      "type": "string",
-      "enum": ["last", "today", "week"],
-      "description": "Audit scope parameter"
-    },
-    "sessions_analyzed": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Number of session directories scanned"
-    },
-    "files_scanned": {
-      "type": "integer",
-      "minimum": 0,
-      "description": "Number of JSONL files processed"
-    },
-    "evidence": {
-      "type": "object",
-      "required": ["explicit_corrections", "friction_points", "successes"],
-      "properties": {
-        "explicit_corrections": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["correction", "session", "timestamp"],
-            "properties": {
-              "correction": {"type": "string", "minLength": 1},
-              "claude_mistake": {"type": "string", "maxLength": 500},
-              "session": {"type": "string"},
-              "timestamp": {"type": "string", "format": "date-time"}
-            }
-          }
-        },
-        "friction_points": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["text", "session", "timestamp"],
-            "properties": {
-              "text": {"type": "string", "minLength": 1},
-              "session": {"type": "string"},
-              "timestamp": {"type": "string", "format": "date-time"}
-            }
-          }
-        },
-        "successes": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["text", "session", "timestamp"],
-            "properties": {
-              "text": {"type": "string", "minLength": 1},
-              "session": {"type": "string"},
-              "timestamp": {"type": "string", "format": "date-time"}
-            }
-          }
-        }
-      }
-    },
-    "summary": {
-      "type": "object",
-      "required": ["total_signals", "correction_count", "friction_count", "success_count"],
-      "properties": {
-        "total_signals": {"type": "integer", "minimum": 0},
-        "correction_count": {"type": "integer", "minimum": 0},
-        "friction_count": {"type": "integer", "minimum": 0},
-        "success_count": {"type": "integer", "minimum": 0}
-      }
-    }
-  }
-}
-```
-
-### Validation (for consumers)
-
-Phase 2 (`/analyze-sessions`) MUST validate incoming evidence:
-
-```bash
-# Validate Phase 1 output structure
-validate_phase1_output() {
-  local json="$1"
-
-  # Required top-level fields
-  echo "$json" | jq -e '
-    has("audit_timestamp") and
-    has("scope") and
-    has("sessions_analyzed") and
-    has("evidence") and
-    has("summary")
-  ' >/dev/null 2>&1 || return 1
-
-  # Required evidence fields
-  echo "$json" | jq -e '
-    .evidence | has("explicit_corrections") and
-    has("friction_points") and
-    has("successes")
-  ' >/dev/null 2>&1 || return 1
-
-  # Required summary fields
-  echo "$json" | jq -e '
-    .summary | has("total_signals") and
-    has("correction_count") and
-    has("friction_count") and
-    has("success_count")
-  ' >/dev/null 2>&1 || return 1
-
-  return 0
-}
-```
+When reading session JSONL files for summarization:
+- The Haiku subagent prompt explicitly instructs not to include credentials
+- Session summaries should contain behavioral patterns, not raw data
+- If a summary contains obvious credential patterns (sk-, Bearer, etc.), warn the user
 
 ## Notes
 
-- This command does NOT write any files
-- Evidence is passed via prompt to Phase 2
-- Filtering excludes reflection sessions (containing "CLAUDE_REFLECTION_MODE")
+- Session summaries are compact Markdown (50-150 lines), not full transcripts
+- Topic files consolidate knowledge from multiple sessions
+- The index.json tracks relationships but is not required for basic operation
+- Queue processing is idempotent — re-running won't re-process completed entries
+- This replaces the old 3-phase pipeline (reflect → analyze-sessions → reconcile-skills)

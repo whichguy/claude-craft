@@ -1,6 +1,18 @@
 ---
 name: knowledge-aggregator
-description: Captures patterns, learnings, and environmental discoveries from IDEAL-STI phases. Should be invoked after significant planning milestones and implementation work.
+description: |
+  Captures patterns, learnings, and discoveries for future reference.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "save this pattern", "document learning", "remember this"
+  - "capture this", "note this down", "save for later"
+  - After significant debugging or implementation discoveries
+
+  **STRONGLY RECOMMENDED** for:
+  - After solving complex bugs
+  - After discovering useful patterns
+  - During architecture discussions
+  - After planning milestones and implementation work
 model: sonnet
 color: yellow
 ---

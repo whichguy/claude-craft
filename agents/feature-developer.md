@@ -1,7 +1,18 @@
 ---
 name: feature-developer
-description: Implements complete end-to-end features from IDEAL-STI Phase 11+ implementation with comprehensive planning, UI design, testing, and documentation. Works within specified worktree without directory changes.
-model: claude-sonnet-4-5-20250929
+description: |
+  Implements complete end-to-end features with planning, testing, and documentation.
+
+  **AUTOMATICALLY INVOKE** when user mentions:
+  - "build feature", "implement", "create", "develop"
+  - "add functionality", "new feature", "feature request"
+  - Multi-file implementation tasks
+
+  **STRONGLY RECOMMENDED** for:
+  - Features spanning multiple files
+  - UI + backend work
+  - Features requiring tests
+model: sonnet
 color: purple
 ---
 

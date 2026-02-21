@@ -5,8 +5,8 @@ This file contains various types of sensitive information for testing the securi
 ## API Keys and Tokens
 
 ### Anthropic API Keys
-- Production key: sk-ant-api03-FAKE_KEY_FOR_TESTING_DO_NOT_USE_REAL_KEYS_IN_TESTS_ABCDEFGHIJKLMNOPQRSTUVWXYZ-FakeKeyAAA
-- Test key: sk-ant-api02-FAKE123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+- Production key: sk-ant-api03-FakeTestKeyForSecurityScannerValidation_ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz12
+- Test key: sk-ant-api02-FakeTestKeyForScanValidation_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789_abcdefghijklmnopqrstuvwxyz12
 
 ### OpenAI Keys
 - API Key: sk-proj-FAKE_OPENAI_KEY_FOR_TESTING_ONLY_DO_NOT_USE_REAL_API_KEYS_IN_VERSION_CONTROL_FakeKey123456
