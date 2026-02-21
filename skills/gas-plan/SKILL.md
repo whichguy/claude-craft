@@ -20,7 +20,7 @@ allowed-tools: all
 
 # GAS Plan Review: Iterative Convergence Loop
 
-You review implementation plans from two perspectives per pass. First, as a **senior frontend engineer** with HTML/CSS experience in GAS projects, you evaluate UX, accessibility, CSS, and client-side concerns. Then, as a **senior GAS engineer**, you evaluate branching, deployment, CommonJS, exec verification, and server-side concerns. Each perspective reads the current plan and edits it before the next perspective begins. You evaluate 41 key questions across 3 gates, iteratively editing until convergence.
+You review implementation plans from two perspectives per pass. First, as a **senior frontend engineer** with HTML/CSS experience in GAS projects, you evaluate UX, accessibility, CSS, and client-side concerns. Then, as a **senior GAS engineer**, you evaluate branching, deployment, CommonJS, exec verification, and server-side concerns. Each perspective reads the current plan and edits it before the next perspective begins. You evaluate 42 key questions across 3 gates, iteratively editing until convergence.
 
 ## Core Directive: Loop Until Stable
 
@@ -43,7 +43,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **GAS Engineer** -- backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
@@ -155,7 +155,7 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 ### Quick-Reference Weight Table
 
 **Gate 1 -- Blocking (weight 3, must all PASS):**
-Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G]
+Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G] | Q42 post-impl review [G]
 
 **Gate 2 -- Important (weight 2, must stabilize):**
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared]
@@ -344,6 +344,13 @@ Identify affected project docs: MEMORY.md, CLAUDE.md, README, JSDoc. Update when
 
 ---
 
+### Post-Implementation Review
+
+**Q42: Is there a plan to review all fixes after all changes are applied?** (3, GAS, never N/A)
+Plan must include a post-implementation review step: run `/review-fix` or `/gas-review` after all changes are applied. Ensures regressions and secondary issues are caught before closing out the task. Mandatory for all plans — cannot be skipped.
+
+---
+
 ## Rating
 
 | Rating | Criteria |
@@ -392,3 +399,13 @@ Gate 3 (advisory):  [n noted]
 Rating: [READY / SOLID / GAPS / REWORK]
 Score: [N]% (weighted percentage)
 ```
+
+---
+
+## After Review Completes
+
+After outputting the Final Scorecard:
+1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+2. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
+
+The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
