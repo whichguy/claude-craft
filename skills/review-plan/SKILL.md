@@ -201,6 +201,8 @@ DO:
     node-evaluator's more specific Node/TS framing)
   APPLY all NEEDS_UPDATE edits to plan; mark <!-- review-plan -->
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
+  REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
+    removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
@@ -264,6 +266,8 @@ DO:
 
   APPLY all L2 NEEDS_UPDATE edits to plan; mark <!-- review-plan -->
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
+  REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
+    removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
   RE-READ the full consolidated plan
 
   l2_changes = count of L2 NEEDS_UPDATE edits applied

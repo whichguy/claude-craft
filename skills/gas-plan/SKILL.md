@@ -313,6 +313,7 @@ After edits, consolidate. Specific criteria:
 - Each finding adds at most 2-3 sentences. Consolidation removes at least as much text as it adds (from pass 2 onward; pass 1 focuses on additions only).
 - If plan is growing, prioritize: keep blocking findings, summarize important, drop advisory notes
 - Plan gets cleaner each pass, not longer
+- **Regression check (before RE-READ):** Verify no key flow, corner case, or condition was removed during this pass. If any was dropped — even to reduce length — restore it and annotate with `<!-- keep: [reason] -->`. Trimming prose is fine; removing logic is not.
 
 ---
 
