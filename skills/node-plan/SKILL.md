@@ -199,6 +199,12 @@ DO:
         Shared (TS lens): N8
 
       Triage: If plan has no TypeScript/package changes → bulk N/A N2, N3, N4, N5, N11, N12.
+              If plan has no new async code → bulk N/A N6, N7.
+              If plan has no new tests → N/A N19.
+              If plan has no file path operations → N/A N29.
+              If plan is not a monorepo/workspace → N/A N30.
+              If plan has no packages with native bindings → N/A N32.
+              If plan is not a published library → N/A N37.
               Evaluate N1 if any TS files are involved, regardless of triage.
               Evaluate shared N8 regardless.
 
@@ -247,7 +253,8 @@ DO:
       Triage: If plan has no env var changes → bulk N/A N9, N10.
               If plan has no new resources/schema changes → bulk N/A N13, N14, N18.
               If plan has no framework changes → bulk N/A N15, N16, N17.
-              If plan has no async code → bulk N/A N22, N23, N24, N25, N26, N27, N28, N35.
+              If plan has no async code → bulk N/A N22, N23, N24, N25, N27, N28, N35.
+              If plan has no new timers → N/A N26.
               If plan has no deployment/containers → bulk N/A N31, N36.
               If plan has no secrets/credentials → bulk N/A N33.
               If plan has no API endpoint changes → bulk N/A N34.
@@ -531,6 +538,10 @@ Long-lived timers `.unref()`'d to prevent blocking process exit. N/A: no new tim
 Workers/child processes have `error` event handlers. Terminated in shutdown path. No
 orphan processes on parent exit. N/A: no `child_process` or `worker_threads` usage.
 
+**N28: Do outbound HTTP calls configure timeouts?** (2, NR)
+Outbound HTTP/HTTPS calls set connect and response timeouts. Connection pooling and
+keep-alive configured for high-throughput paths. N/A: no outbound HTTP calls.
+
 ---
 
 ### Framework & Infrastructure
@@ -555,10 +566,6 @@ order explicit. N/A: no schema changes.
 ---
 
 ### Containers & Deployment
-
-**N28: Do outbound HTTP calls configure timeouts?** (2, NR)
-Outbound HTTP/HTTPS calls set connect and response timeouts. Connection pooling and
-keep-alive configured for high-throughput paths. N/A: no outbound HTTP calls.
 
 **N31: Are Docker/container concerns addressed?** (1, NR)
 Non-root user in Dockerfile. Signal forwarding via exec form CMD. `.dockerignore` excludes

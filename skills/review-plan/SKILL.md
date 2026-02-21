@@ -305,7 +305,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
-| Q-G5 | Scope focus | Plan stays on target, no scope creep? | — |
+| Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Agent teams & Task usage | Does the plan make maximal use of agent teams and parallel Task calls for independent work? Flag: sequential steps that could run in parallel, missing TeamCreate for multi-agent coordination, evaluations that could be parallelized, or sub-tasks that would benefit from specialized subagents. | plan involves only a single atomic change with no parallelizable steps |
 
 **Gate 3 — Advisory (weight 1):**
