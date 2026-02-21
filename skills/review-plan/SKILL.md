@@ -1,9 +1,9 @@
 ---
 name: review-plan
 description: |
-  Universal plan review: 3 layers (general quality, code change quality, GAS specialization).
-  All plans are assumed to involve code changes. Invokes gas-plan conditionally when GAS
-  patterns detected.
+  Universal plan review: 3 layers (general quality, code change quality, ecosystem
+  specialization). Invokes gas-plan for GAS plans or node-plan for Node.js/TypeScript
+  plans, conditionally based on detected patterns.
 
   AUTOMATICALLY INVOKE when:
   - MANDATORY_PRE_EXIT_PLAN directive applies (before ExitPlanMode)
@@ -43,6 +43,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
             google.script.run | createGasServer | appsscript.json | "Apps Script" |
             "Google Apps Script"
 
+   IS_NODE = (NOT IS_GAS) AND any of: package.json | tsconfig.json | .ts refs |
+             npm | yarn | pnpm | bun | Express | Fastify | NestJS | Next.js |
+             TypeScript | "Node.js" | jest | vitest | mocha | webpack | esbuild |
+             tsc | node_modules
+
    HAS_UI = any of: sidebar | dialog | HTML | CSS | UI | frontend | client-side
 
    [future: IS_SEC, HAS_API]
@@ -54,17 +59,17 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    timestamp = Date.now()
    ```
 
-5. **Team setup (IS_GAS only):**
+5. **Team setup (IS_GAS or IS_NODE):**
    ```
-   IF IS_GAS:
+   IF IS_GAS OR IS_NODE:
      team_name = "review-plan-" + timestamp
-     TeamCreate({team_name, description: "review-plan — parallel L1/L2/gas evaluators"})
+     TeamCreate({team_name, description: "review-plan — parallel L1/L2/ecosystem evaluators"})
    ```
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
    IF any unrecoverable error during convergence loop:
-     IF IS_GAS: Send shutdown_request to any active evaluators, then TeamDelete
+     IF IS_GAS OR IS_NODE: Send shutdown_request to any active evaluators, then TeamDelete
      Surface error to user via AskUserQuestion
      Do NOT leave orphaned team processes.
    ```
@@ -73,7 +78,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 ## Convergence Loop
 
-### Mode: IS_GAS (Team mode — 3 parallel evaluators per pass)
+### Mode: IS_GAS or IS_NODE (Team mode — 3 parallel evaluators per pass)
 
 ```
 DO:
@@ -82,6 +87,7 @@ DO:
   l1_changes = 0
   l2_changes = 0
   gas_plan_changes = 0
+  node_plan_changes = 0
 
   Print: "Pass [pass_count/5]: evaluating..."
 
@@ -101,7 +107,8 @@ DO:
 
       Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8
       Apply triage (mark N/A per the N/A column).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->.
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM l1-evaluator
@@ -131,7 +138,8 @@ DO:
 
       Evaluate ALL L2 questions: Q-C1 through Q-C25
       Apply triage shortcuts (bulk N/A per the triage table in the SKILL.md).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->.
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM l2-evaluator
@@ -147,39 +155,61 @@ DO:
     """
   )
 
-  --- GAS Evaluator ---
-  Task(
-    subagent_type = "gas-plan",
-    team_name = <team_name>,
-    name = "gas-evaluator",
-    prompt = """
-      Review plan at <plan_path>. mode=evaluate.
+  IF IS_GAS:
+    --- GAS Evaluator ---
+    Task(
+      subagent_type = "gas-plan",
+      team_name = <team_name>,
+      name = "gas-evaluator",
+      prompt = """
+        Review plan at <plan_path>. mode=evaluate.
 
-      You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
-      specialization (all 42 GAS questions, both perspectives). Return findings via SendMessage
-      to team-lead.
+        You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
+        specialization (all 42 GAS questions, both perspectives). Return findings via SendMessage
+        to team-lead.
 
-      Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
-    """
-  )
+        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
+      """
+    )
+  ELSE (IS_NODE):
+    --- Node Evaluator ---
+    Task(
+      subagent_type = "node-plan",
+      team_name = <team_name>,
+      name = "node-evaluator",
+      prompt = """
+        Review plan at <plan_path>. mode=evaluate.
+
+        You are the node-evaluator running inside review-plan's team. Evaluate the plan for
+        Node.js/TypeScript specialization (all 35 Node questions, both perspectives). Return
+        findings via SendMessage to team-lead.
+
+        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
+      """
+    )
 
   Wait for all 3 evaluator messages (90s reminder; after 120s mark ⚠️ Evaluator Incomplete for
   any non-responding evaluator and proceed with available findings).
 
   -- Merge & Apply --
-  COLLECT all NEEDS_UPDATE findings from L1, L2, and gas-evaluator messages
-  Remove true duplicates (same concern raised by both L2 and gas-evaluator — keep gas-evaluator's
-  more specific GAS framing)
+  COLLECT all NEEDS_UPDATE findings from L1, L2, and ecosystem evaluator messages
+  IF IS_GAS:
+    Remove true duplicates (same concern raised by both L2 and gas-evaluator — keep
+    gas-evaluator's more specific GAS framing)
+  IF IS_NODE:
+    Remove true duplicates (same concern raised by both L2 and node-evaluator — keep
+    node-evaluator's more specific Node/TS framing)
   APPLY all NEEDS_UPDATE edits to plan; mark <!-- review-plan -->
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
   l2_changes = count of L2 NEEDS_UPDATE edits applied
-  gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
-  changes_this_pass = l1_changes + l2_changes + gas_plan_changes
+  IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
+  IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
+  changes_this_pass = l1_changes + l2_changes + gas_plan_changes + node_plan_changes
 
-  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes])"
+  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes])"
 
 WHILE changes_this_pass > 0 AND pass_count < 5
 
@@ -220,7 +250,8 @@ DO:
 
       Evaluate ALL L2 questions: Q-C1 through Q-C25
       Apply triage shortcuts (bulk N/A per the triage table).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->.
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
 
       Return your findings as a plain text list (not via SendMessage — no team in non-GAS mode):
         Q-C1: PASS | NEEDS_UPDATE | N/A — [finding]
@@ -247,7 +278,8 @@ OUTPUT final scorecard
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
-Do NOT re-evaluate content already marked `<!-- review-plan -->` or `<!-- gas-plan -->`.
+Do NOT re-evaluate content already marked `<!-- review-plan -->`, `<!-- gas-plan -->`, or
+`<!-- node-plan -->`.
 
 ---
 
@@ -345,20 +377,34 @@ Count L2 edits → `l2_changes += count`; `changes_this_pass += l2_changes`
 
 ## Key Questions: Sub-Skill Invocations
 
-### Q-GAS: GAS Specialization
+### Q-GAS / Q-NODE: Ecosystem Specialization
 
-In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means:
+In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
+Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
 - Returns all 42-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
-In non-GAS mode, gas-plan is not invoked.
+In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
+evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate`, which means:
+- node-plan runs a SINGLE evaluation pass (no internal convergence loop)
+- Returns all 35-question findings via SendMessage to team-lead
+- Does NOT edit the plan or call ExitPlanMode
+- The outer review-plan loop handles convergence
 
-**Deduplication:** After collecting gas-evaluator findings, remove true duplicates where both L2 and gas-evaluator flag the same concern. Keep gas-plan's more specific GAS framing where both are present.
+In neither-GAS-nor-Node mode, no ecosystem evaluator is invoked (simple mode).
+
+**Deduplication (IS_GAS):** After collecting gas-evaluator findings, remove true duplicates
+where both L2 and gas-evaluator flag the same concern. Keep gas-plan's more specific GAS
+framing where both are present.
+
+**Deduplication (IS_NODE):** After collecting node-evaluator findings, remove true duplicates
+where both L2 and node-evaluator flag the same concern. Keep node-plan's more specific Node/TS
+framing where both are present.
 
 ### Q-SEC, Q-UI (future)
-Reserved slots — follow same pattern as Q-GAS when implemented.
+Reserved slots — follow same pattern as Q-GAS / Q-NODE when implemented.
 
 ---
 
@@ -401,6 +447,13 @@ OR
 OR
 [N NEEDS_UPDATE remaining]
 
+### Node Specialization (node-plan)
+[NOT INVOKED — no Node.js/TypeScript patterns detected]
+OR
+[PASS — converged after N node-plan passes]
+OR
+[N NEEDS_UPDATE remaining]
+
 ### Rating
 READY   — Gate 1 + Gate 2 all PASS
 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
@@ -414,7 +467,7 @@ REWORK  — any Gate 1 NEEDS_UPDATE
 
 After outputting the Final Scorecard:
 1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-2. **Team teardown (IS_GAS mode only):** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+2. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
 3. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
