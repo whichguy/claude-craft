@@ -186,7 +186,7 @@ DO:
 WHILE changes_this_pass > 0 AND pass_count < 5
 
 OUTPUT final scorecard
-TEARDOWN: Send shutdown_request to all evaluator agents, then TeamDelete
+(Teardown and ExitPlanMode handled in "After Review Completes" section below.)
 ```
 
 ### Mode: non-GAS (Simple mode — L1 inline + L2 Task per pass)

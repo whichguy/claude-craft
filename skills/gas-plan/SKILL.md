@@ -61,23 +61,28 @@ Two operating modes:
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
    - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions
+     Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
 3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
 4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
-5. Send **ONE** message to team-lead with all findings using this exact format:
+5. Call the **SendMessage** tool exactly once:
+   ```
+   type: "message"
+   recipient: "team-lead"
+   summary: "gas-plan evaluation complete — N NEEDS_UPDATE"  (fill in count)
+   content: |
+     FINDINGS FROM gas-plan
 
-```
-FINDINGS FROM gas-evaluator
+     [Triage] Frontend domain: [ACTIVE | SKIPPED — reason]
+     [Triage] GAS domain: [ACTIVE | SKIPPED — reason]
 
-[Triage] Frontend domain: [ACTIVE | SKIPPED — reason]
-[Triage] GAS domain: [ACTIVE | SKIPPED — reason]
-
-Q1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-[EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
-Q2: ...
-...
-Q42: ...
-```
+     Q1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+     [EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
+     Q2: ...
+     ...
+     Q42: ...
+   ```
+   Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
 6. **STOP.** Do not loop. Do not edit the plan. Do not touch `.plan-reviewed`. Do not call ExitPlanMode.
 
@@ -122,6 +127,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording.
 
 **Triage shortcut:** No UI/HTML/CSS changes → skip frontend evaluator (bulk N/A; shared evaluated by GAS evaluator). No .gs/deployment/common-js changes → skip GAS evaluator (shared evaluated by frontend evaluator).
+**Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
 
 ### Execution Flow
 
@@ -162,17 +168,23 @@ DO:
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
 
-      Output contract — send ONE message to team-lead with:
-        FINDINGS FROM frontend-evaluator
-        [Triage] ...
-        Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        (one entry per evaluated question)
+      Output contract — call the SendMessage tool exactly once:
+        type: "message"
+        recipient: "team-lead"
+        summary: "Frontend evaluation complete — N NEEDS_UPDATE"  (fill in count)
+        content: |
+          FINDINGS FROM frontend-evaluator
+          [Triage] ...
+          Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+          [EDIT: instruction if NEEDS_UPDATE]
+          (one entry per evaluated question)
+
+      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
       - Do NOT call ExitPlanMode or touch any marker files
-      - Send exactly ONE message to team-lead with all findings
+      - Call SendMessage exactly once with all findings
     """
   )
 
@@ -200,17 +212,23 @@ DO:
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
 
-      Output contract — send ONE message to team-lead with:
-        FINDINGS FROM gas-evaluator
-        [Triage] ...
-        Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        (one entry per evaluated question)
+      Output contract — call the SendMessage tool exactly once:
+        type: "message"
+        recipient: "team-lead"
+        summary: "GAS evaluation complete — N NEEDS_UPDATE"  (fill in count)
+        content: |
+          FINDINGS FROM gas-evaluator
+          [Triage] ...
+          Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+          [EDIT: instruction if NEEDS_UPDATE]
+          (one entry per evaluated question)
+
+      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
       - Do NOT call ExitPlanMode or touch any marker files
-      - Send exactly ONE message to team-lead with all findings
+      - Call SendMessage exactly once with all findings
     """
   )
 
@@ -232,9 +250,9 @@ WHILE exit criteria not met (max 15 passes)
 OUTPUT final scorecard
 
 TEARDOWN:
+  Bash: touch ~/.claude/.plan-reviewed
   Send shutdown_request to all team agents
   TeamDelete
-  Bash: touch ~/.claude/.plan-reviewed
   Call ExitPlanMode
 ```
 
