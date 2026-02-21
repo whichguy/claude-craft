@@ -20,7 +20,7 @@ allowed-tools: all
 
 # GAS Plan Review: Iterative Convergence Loop
 
-You review implementation plans from two perspectives per pass. First, as a **senior frontend engineer** with HTML/CSS experience in GAS projects, you evaluate UX, accessibility, CSS, and client-side concerns. Then, as a **senior GAS engineer**, you evaluate branching, deployment, CommonJS, exec verification, and server-side concerns. Each perspective reads the current plan and edits it before the next perspective begins. You evaluate 39 key questions across 3 gates, iteratively editing until convergence.
+You review implementation plans from two perspectives per pass. First, as a **senior frontend engineer** with HTML/CSS experience in GAS projects, you evaluate UX, accessibility, CSS, and client-side concerns. Then, as a **senior GAS engineer**, you evaluate branching, deployment, CommonJS, exec verification, and server-side concerns. Each perspective reads the current plan and edits it before the next perspective begins. You evaluate 41 key questions across 3 gates, iteratively editing until convergence.
 
 ## Core Directive: Loop Until Stable
 
@@ -40,13 +40,13 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 
 **Frontend Engineer** -- HTML/CSS/UX focus:
 - Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
-- Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38
+- Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **GAS Engineer** -- backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39
-- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39, Q40
+- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
-**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
+**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
 
 **Triage shortcut:** No UI/HTML/CSS changes -> skip frontend sub-pass entirely (bulk N/A frontend-owned questions, shared questions evaluated by GAS only). No .gs/deployment/common-js changes -> skip GAS sub-pass entirely (shared evaluated by frontend only).
 
@@ -132,6 +132,9 @@ Content added by this review (branching sections, deployment steps, test notes) 
 - Impact analysis (Q18) -- review additions don't have callers
 - Implementation (Q19) -- review additions aren't stubs
 - Dead code removal (Q20) -- review additions aren't replacing anything
+- Duplication check (Q39) -- review additions are not new production logic; they cannot duplicate existing implementations
+- State edge case check (Q40) -- review additions are not new production code; they cannot have uninitialized or misformatted state
+- Integration check (Q41) -- review additions are meta-content for the plan, not new architecture components
 
 ## Consolidation Rules (Every Pass)
 
@@ -155,7 +158,7 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G]
 
 **Gate 2 -- Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication+state [G]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared]
 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G]
@@ -239,6 +242,9 @@ All callers identified and updated, return formats match siblings, __events__ co
 **Q17: Are step ordering and sequencing dependencies explicit?** (2, GAS)
 Clear DAG. Flag: refs to uncreated files, deploy before push, `require()` targets pushed after importers. N/A: single step.
 
+**Q41: Is the proposed change integrated into existing architecture or bolted on as an isolated addition?** (2, Shared)
+New code should extend existing modules, reuse existing patterns, and follow established data flows. Flag: new utility when an existing one covers the use case or could be extended; new file when an existing file handles the concern; new pattern when existing conventions already address it; additions that don't connect to the codebase's module structure or data flow. N/A: change is purely additive with no existing structure to integrate into.
+
 ---
 
 ### Impact & Cleanup
@@ -255,8 +261,8 @@ Old implementation marked for removal when replaced? Flag orphaned exports, unus
 **Q38: Are there unintended consequences from this plan that need to be addressed?** (2, Shared)
 Side effects beyond the stated goal: breaking existing workflows, changing user-facing behavior unintentionally, introducing performance regressions, altering data formats consumed by other systems, or shifting security boundaries. Flag anything the plan doesn't explicitly acknowledge. N/A: trivial isolated change with no external touchpoints.
 
-**Q39: Does the plan introduce logic duplicating existing implementations, and is existing stored state accounted for if data structures change?** (2, GAS)
-Before adding new functions or modules, verify no equivalent already exists (grep callers, scan module registry). If Properties keys, Cache schemas, or sheet schemas change, flag whether existing data needs migration, a backward-compatible read path, or is confirmed safe to discard. When PASS is determined by static analysis alone (no exec confirmation of live stored data), note the assumption in the Notes column. N/A: no new logic added and no changes to stored data structures.
+**Q39: Does the plan introduce logic duplicating existing implementations?** (2, GAS)
+Before adding new functions or modules, verify no equivalent already exists (grep callers, scan module registry). Flag plans that reimplement logic already in common-js or sibling modules without justification. N/A: no new functions or modules introduced.
 
 ---
 
@@ -279,6 +285,9 @@ UrlFetch 20K/day, Properties 50 reads/min, runtime 6min, triggers 90min. N/A: no
 
 **Q26: Are Properties/Cache payloads within size limits?** (1, GAS)
 Properties: 9KB/key, 500KB total. Cache: 100KB/key. N/A: no new stored data.
+
+**Q40: Does the plan account for both state-exists and state-absent edge cases in persistent storage?** (2, GAS)
+State-exists risk: code that reads ConfigManager/Properties/Cache/Sheets and misinterprets values left by a prior version — old schema format, stale cache entry, conflicting user config from an earlier install. State-absent risk: code that reads state before it has ever been written — uninitialized ConfigManager/Properties key, cold Cache, missing sheet row or named range, first-run user. Flag: reads without null/existence check; writes that assume stored data is in the expected schema; feature paths with no initialization guard for first-run. N/A: plan introduces no reads from or writes to ConfigManager, Properties, Cache, Sheets, or any shared persistent storage.
 
 ---
 
