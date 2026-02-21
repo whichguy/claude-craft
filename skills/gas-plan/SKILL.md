@@ -14,99 +14,252 @@ description: |
 
   **NOT for:** Code review (use /gas-review), test review (use /gas-test-review),
   prompt analysis (use /prompt-critique), non-GAS plans
+
+  **mode parameter:**
+  - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
+  - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
+    team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
 model: opus
 allowed-tools: all
 ---
 
 # GAS Plan Review: Iterative Convergence Loop
 
-You review implementation plans from two perspectives per pass. First, as a **senior frontend engineer** with HTML/CSS experience in GAS projects, you evaluate UX, accessibility, CSS, and client-side concerns. Then, as a **senior GAS engineer**, you evaluate branching, deployment, CommonJS, exec verification, and server-side concerns. Each perspective reads the current plan and edits it before the next perspective begins. You evaluate 42 key questions across 3 gates, iteratively editing until convergence.
+You review implementation plans from two perspectives per pass: **frontend engineer** (HTML/CSS/UX) and **GAS engineer** (backend/infrastructure). In standalone mode, both perspectives evaluate in parallel each convergence pass via spawned evaluator agents. In evaluate mode, you do a single-pass evaluation yourself and return findings to the calling skill.
+
+## Mode Parameter
+
+Two operating modes:
+- **`standalone`** (default): Creates an evaluator team, runs parallel frontend + GAS evaluators each pass, merges findings, applies edits, converges, outputs final scorecard, calls ExitPlanMode.
+- **`evaluate`**: Single-pass read-only evaluation run inside another skill's team. Evaluates all applicable questions (both perspectives), sends findings via SendMessage to team-lead, then stops. No plan edits. No ExitPlanMode. No team creation.
+
+**How to detect mode:** Scan the invocation prompt for `mode=evaluate`. If found, set MODE=evaluate. Otherwise MODE=standalone.
 
 ## Core Directive: Loop Until Stable
 
-**You MUST loop. NEVER output the final scorecard until exit criteria are met. NEVER stop after one pass.**
+**In standalone mode: You MUST loop. NEVER output the final scorecard until exit criteria are met. NEVER stop after one pass.**
 
 ## Step 0: Locate Plan and Load Context
 
-1. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
-2. **Standards context** (cache for all passes):
+1. **Check mode:** Scan invoking prompt for `mode=evaluate`. Set MODE accordingly.
+2. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
+3. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
-3. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
+4. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
+5. **Branch on mode:** If MODE=evaluate → jump to [Mode: evaluate]. If MODE=standalone → jump to [Mode: standalone].
 
-## Perspective Assignments
+---
+
+## Mode: evaluate
+
+*Single-pass, read-only. Returns findings via SendMessage. No edits. No ExitPlanMode.*
+
+**You are running inside another review skill's team. Your only output is a SendMessage to the team-lead.**
+
+1. Read the plan file (done in Step 0).
+2. Apply triage: bulk-mark N/A for irrelevant domains.
+   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
+   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions
+   - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
+3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
+4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
+5. Send **ONE** message to team-lead with all findings using this exact format:
+
+```
+FINDINGS FROM gas-evaluator
+
+[Triage] Frontend domain: [ACTIVE | SKIPPED — reason]
+[Triage] GAS domain: [ACTIVE | SKIPPED — reason]
+
+Q1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+[EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
+Q2: ...
+...
+Q42: ...
+```
+
+6. **STOP.** Do not loop. Do not edit the plan. Do not touch `.plan-reviewed`. Do not call ExitPlanMode.
+
+---
+
+## Mode: standalone
+
+*Creates evaluator team, runs convergence loop, applies edits, outputs scorecard, calls ExitPlanMode.*
+
+### Team Setup
+
+At the start of standalone mode (before the loop):
+```
+timestamp = Date.now()
+team_name = "gas-plan-" + timestamp
+TeamCreate({team_name, description: "GAS plan review — parallel frontend + GAS evaluators"})
+```
+
+### Error Handling
+
+Wrap the entire convergence loop in error handling:
+```
+IF any unrecoverable error occurs during the convergence loop:
+  1. Send shutdown_request to any active evaluator agents
+  2. TeamDelete
+  3. Surface the error to the user via AskUserQuestion
+  Do NOT leave orphaned team processes.
+```
+
+### Perspective Assignments
 
 Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G]` = GAS, `[Shared]` = both.
 
-**Frontend Engineer** -- HTML/CSS/UX focus:
+**Frontend evaluator** — HTML/CSS/UX focus:
 - Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
-**GAS Engineer** -- backend/infrastructure focus:
+**GAS evaluator** — backend/infrastructure focus:
 - Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
-**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
+**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording.
 
-**Triage shortcut:** No UI/HTML/CSS changes → skip frontend sub-pass (bulk N/A; shared evaluated by GAS). No .gs/deployment/common-js changes → skip GAS sub-pass (shared evaluated by frontend).
+**Triage shortcut:** No UI/HTML/CSS changes → skip frontend evaluator (bulk N/A; shared evaluated by GAS evaluator). No .gs/deployment/common-js changes → skip GAS evaluator (shared evaluated by frontend evaluator).
 
-## Execution Flow
+### Execution Flow
 
 ```
-STEP 0: Locate plan and load context (see above)
+STEP 0: (done — plan loaded, team created)
+  plan_path = <absolute filesystem path resolved in Step 0>
+  team_name = <team_name created above>
+  Substitute plan_path and team_name into all evaluator prompts below before spawning.
+
 DO:
   Print: "Pass [N/15]: evaluating..."
-  TRIAGE: Bulk-mark N/A by domain; skip sub-pass if perspective has no applicable questions.
+  TRIAGE: Determine which evaluators are active based on domain analysis.
 
-  -- Sub-pass A: Frontend Engineer --
-  Print: "  [Frontend] evaluating..."
-  READ current plan (as updated by previous pass or Step 0)
-  EVALUATE frontend-owned + shared questions through frontend lens
-  FOR each question:
-    IF clearly PASS or clearly NEEDS_UPDATE -> record
-    IF ambiguous -> ASK USER via AskUserQuestion
-  IF any NEEDS_UPDATE: EDIT plan with frontend findings (targeted insertions, 2-3 sentences each)
+  [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
+  [Substitute the actual resolved plan_path value into each prompt before spawning]
 
-  -- Sub-pass B: GAS Engineer --
-  Print: "  [GAS] evaluating..."
-  RE-READ plan (now includes any frontend edits from sub-pass A)
-  EVALUATE GAS-owned + shared questions through GAS lens
-  FOR each question:
-    IF clearly PASS or clearly NEEDS_UPDATE -> record
-    IF ambiguous -> ASK USER via AskUserQuestion
-  IF any NEEDS_UPDATE: EDIT plan with GAS findings (targeted insertions, 2-3 sentences each)
+  --- Frontend Evaluator Task ---
+  Task(
+    subagent_type = "general-purpose",
+    model = "haiku",
+    team_name = <team_name>,
+    name = "frontend-evaluator",
+    prompt = """
+      You are a senior frontend engineer evaluating a GAS implementation plan.
+
+      Your inputs:
+      - Plan file: <plan_path> — read it with the Read tool
+      - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
+        table (questions marked [F] and [Shared])
+      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+
+      Evaluate these questions through the FRONTEND lens:
+        Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
+        Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+
+      Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36.
+              Evaluate shared Qs regardless.
+
+      Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
+
+      Output contract — send ONE message to team-lead with:
+        FINDINGS FROM frontend-evaluator
+        [Triage] ...
+        Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+        [EDIT: instruction if NEEDS_UPDATE]
+        (one entry per evaluated question)
+
+      Constraints:
+      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
+      - Do NOT call ExitPlanMode or touch any marker files
+      - Send exactly ONE message to team-lead with all findings
+    """
+  )
+
+  --- GAS Evaluator Task ---
+  Task(
+    subagent_type = "general-purpose",
+    model = "sonnet",
+    team_name = <team_name>,
+    name = "gas-evaluator",
+    prompt = """
+      You are a senior GAS backend engineer evaluating a GAS implementation plan.
+
+      Your inputs:
+      - Plan file: <plan_path> — read it with the Read tool
+      - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
+        table (questions marked [G] and [Shared])
+      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+
+      Evaluate these questions through the GAS engineering lens:
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
+        Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+
+      Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
+              Evaluate shared Qs regardless.
+
+      Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
+
+      Output contract — send ONE message to team-lead with:
+        FINDINGS FROM gas-evaluator
+        [Triage] ...
+        Q{N}: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
+        [EDIT: instruction if NEEDS_UPDATE]
+        (one entry per evaluated question)
+
+      Constraints:
+      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
+      - Do NOT call ExitPlanMode or touch any marker files
+      - Send exactly ONE message to team-lead with all findings
+    """
+  )
+
+  Wait for all active evaluator messages (90s reminder; after 120s total mark ⚠️ Evaluator Incomplete for any non-responding evaluator and proceed with available findings).
 
   -- Merge & Consolidate --
-  COLLECT all NEEDS_UPDATE results (union of both sub-passes)
-  For shared questions flagged by both: combine into single finding, keep the more actionable wording
-  CONSOLIDATE plan (see rules below)
+  COLLECT all NEEDS_UPDATE from both evaluator messages
+  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41) flagged by both:
+    Combine into single finding; keep the more actionable wording
+  APPLY all NEEDS_UPDATE edits to plan (targeted insertions, 2-3 sentences each), mark <!-- gas-plan -->
+  CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
   TRACK prev_needs_update_count and prev_needs_update_set between passes
   PLATEAU = same count AND same Q numbers as previous pass
   Print pass summary using per-pass template
+
 WHILE exit criteria not met (max 15 passes)
+
 OUTPUT final scorecard
+
+TEARDOWN:
+  Send shutdown_request to all team agents
+  TeamDelete
+  Bash: touch ~/.claude/.plan-reviewed
+  Call ExitPlanMode
 ```
 
 ### Worked Example
 
 ```
 Pass 1/15: evaluating...
-  [Frontend] 1 NEEDS_UPDATE (Q34) -- CSS class `.btn` conflicts with Google add-on styles
-  -> Frontend edit: add CSS namespace note to plan step 4
-  [GAS] 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no deploy target, stub function
-  -> GAS edit: add branching section, deployment target, implementation spec
+  [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
+  [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
+  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no deploy target, stub function
+  -> Merge: shared Qs all PASS in both — no merge needed
+  -> Edits: add CSS namespace note (Q34), add branching section + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
 Pass 2/15: evaluating...
-  [Frontend] 0 NEEDS_UPDATE
-  [GAS] 1 NEEDS_UPDATE (Q12) -- incremental verification missing for new deployment steps
-  -> GAS edit: add exec checkpoint after each push step
+  [frontend-evaluator findings]: 0 NEEDS_UPDATE
+  [gas-evaluator findings]: 1 NEEDS_UPDATE (Q12) -- incremental verification missing
+  -> Edit: add exec checkpoint after each push step
   -> Consolidate: no duplicates found
 Pass 3/15: evaluating...
-  [Frontend] 0 NEEDS_UPDATE
-  [GAS] 0 NEEDS_UPDATE
+  [frontend-evaluator findings]: 0 NEEDS_UPDATE
+  [gas-evaluator findings]: 0 NEEDS_UPDATE
   -> CONVERGED at pass 3. Output final scorecard.
 ```
+
+---
 
 ## Exit Criteria (Gate-Based)
 
@@ -377,11 +530,11 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 
 N/A: [count] | Stable PASS: [count]
 
-| Perspective | Q# | Question | Status | Notes |
-|-------------|-----|----------|--------|-------|
-| Frontend | Q34 | CSS conflicts | NEEDS_UPDATE | `.btn` conflicts with Google CSS |
-| GAS | Q1 | Branching strategy | NEEDS_UPDATE | No branch named |
-| GAS | Q12 | Incremental verify | PASS (was NEEDS_UPDATE) | exec checkpoint added |
+| Evaluator | Q# | Question | Status | Notes |
+|-----------|-----|----------|--------|-------|
+| Frontend  | Q34 | CSS conflicts | NEEDS_UPDATE | `.btn` conflicts with Google CSS |
+| GAS       | Q1  | Branching strategy | NEEDS_UPDATE | No branch named |
+| GAS       | Q12 | Incremental verify | PASS (was NEEDS_UPDATE) | exec checkpoint added |
 
 **Result:** [count] NEEDS_UPDATE ([Q numbers]) -- Frontend: [n], GAS: [n]
 **Frontend edits:** [list]
@@ -402,10 +555,11 @@ Score: [N]% (weighted percentage)
 
 ---
 
-## After Review Completes
+## After Review Completes (standalone mode only)
 
 After outputting the Final Scorecard:
 1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-2. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
+2. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+3. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
