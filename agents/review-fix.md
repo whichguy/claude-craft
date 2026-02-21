@@ -3,10 +3,8 @@ name: review-fix
 description: >
   Iterative review-fix loop using agent teams: spawns parallel code-reviewer subagents
   per file, applies Critical and Advisory fixes, re-reviews until clean, produces a summary.
-  **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, or any code change
-  before committing. **AUTOMATICALLY INVOKE** after plan implementation is complete — when
-  a user approved a plan and Claude has finished making all code changes, without waiting
-  to be asked.
+  **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
+  or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
   and when code-reviewer returns NEEDS_REVISION.
   Trigger phrases: "review and fix", "polish this", "clean this up", "make sure this is
@@ -17,8 +15,7 @@ color: orange
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
 all Critical and Advisory findings are resolved, then produce a structured summary. Both
-severities are auto-applied when a Fix block is present; Advisory findings without a Fix
-block are recorded as stuck and surfaced for human review.
+severities auto-apply when a Fix block exists; Advisory without Fix records as stuck and surfaces for human review.
 
 ## Input Contract
 
@@ -41,10 +38,10 @@ run_id = Date.now() + '-' + Math.random().toString(36).substr(2, 8)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_resolved = []     # { file, line, q_number, description }
-stuck_findings = []        # Critical findings that survived all rounds (no Fix block / ambiguous)
-advisory_stuck = []        # Advisory findings that survived all rounds (no Fix block / ambiguous)
-introduced_by_fix = []     # New Criticals appearing in round N that weren't in N-1
-files_changed = []         # files actually modified by Edit
+stuck_findings = []        # Critical unresolved (no Fix block)
+advisory_stuck = []        # Advisory unresolved (no Fix block)
+introduced_by_fix = []     # New Criticals not in prior round
+files_changed = []
 final_status = pending
 ```
 
@@ -85,8 +82,8 @@ review_mode="${review_mode}"`
 
 Collect full output. Parse for Critical findings, Advisory findings, and Status.
 
-If `APPROVED` (zero findings) → skip to Phase 4.
-If `APPROVED_WITH_NOTES` (Advisory present) OR `NEEDS_REVISION` → proceed to Phase 2.
+- `APPROVED` → Phase 4
+- `APPROVED_WITH_NOTES` or `NEEDS_REVISION` → Phase 2
 
 ### Team Mode (2+ files)
 
@@ -140,12 +137,11 @@ Wait for SendMessage deliveries from all reviewers. For each incoming message:
 
 Track: which files are APPROVED vs NEEDS_REVISION.
 
-**Timeout**: If a reviewer has not reported back within ~90 seconds of being spawned,
-send them a reminder message. If still no response after 30 more seconds, mark that
-file as `⚠️ Review Incomplete` in the Phase 4 summary and continue — do not hang.
+**Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
+seconds with no response, mark the file `⚠️ Review Incomplete` and continue.
 
-If all files `APPROVED` (zero findings) → skip to Phase 4 (keep team for teardown).
-If any `APPROVED_WITH_NOTES` (Advisory present) OR any `NEEDS_REVISION` → proceed to Phase 2.
+- All files `APPROVED` → Phase 4 (keep team for teardown)
+- Any `APPROVED_WITH_NOTES` or any `NEEDS_REVISION` → Phase 2
 
 ---
 
@@ -242,9 +238,8 @@ When complete, send your full Phase 4 output to team-lead via SendMessage:
 Collect new findings. Compare with previous round:
 - New Critical not present in prior round → record in `introduced_by_fix`
 
-**Timeout**: If a reviewer has not reported back within ~90 seconds of being spawned,
-send them a reminder message. If still no response after 30 more seconds, mark that
-file as `⚠️ Review Incomplete` in the Phase 4 summary and continue — do not hang.
+**Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
+seconds with no response, mark the file `⚠️ Review Incomplete` and continue.
 
 **Loop decision:**
 
@@ -339,16 +334,11 @@ TeamDelete();
 
 ## Design Constraints
 
-**After Phase 4 summary, proceed immediately. Do NOT pause for user input.**
-In team mode, teardown is automatic — there is no decision to make once the summary is produced.
+**Proceed immediately after Phase 4 — no pause for user input.** Teardown is automatic.
 
-**Both Critical and Advisory findings are auto-fixed** when a Fix block is present.
-Advisory findings without a Fix block are recorded in `advisory_stuck` and surfaced for
-human review — they are never invented. Advisory stuck findings produce `APPROVED_WITH_NOTES`
-rather than `NEEDS_REVISION`.
+**Both Critical and Advisory auto-fix when a Fix block exists.** Without a Fix block, Advisory records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
 
-**Fix source is code-reviewer's Fix block.** Do not generate alternatives. If the Fix
-block is absent or ambiguous, the finding is stuck and flagged for human resolution.
+**Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
 
 **Max rounds prevents infinite loops.** A fix that introduces a new Critical is detected
 and looped (up to max_rounds). After max_rounds, stuck findings are surfaced — not silently
@@ -357,6 +347,4 @@ dropped.
 **Team lead holds Edit permissions; reviewers are read-only.** Reviewers report via
 SendMessage; team lead applies all fixes using Edit tool directly.
 
-**Teammate naming is unique per file per round.** `reviewer-{basename}-r{round}` prevents
-name collisions across re-review passes. Round-1 reviewers use `reviewer-{basename}`
-(no round suffix) for initial review.
+**Teammate naming is unique per file per round.** Reviewer names: `reviewer-{basename}` (round 1), `reviewer-{basename}-r{round}` (re-reviews).

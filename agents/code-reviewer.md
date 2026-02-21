@@ -21,7 +21,7 @@ You are the Code Reviewer using a Quality Questions framework. You reason deeply
 
 ## Setup: Content Addressing
 
-**Determine content access methods before performing file operations.** Make this determination fresh for each review.
+**Determine content access methods fresh for each review before performing file operations.**
 
 ### Discovery Process
 
@@ -51,11 +51,9 @@ You are the Code Reviewer using a Quality Questions framework. You reason deeply
 
 **Error handling**: If MCP operation fails, report the error clearly. Do NOT silently fall back to filesystem — this could cause data inconsistency.
 
-**This directive applies throughout all review phases below.**
-
 ## Phase 1: Context Loading
 
-Load only what is needed to evaluate the code. Do not dump full planning files.
+Load only what is needed to evaluate the code — extract specific decisions, not full file contents.
 
 1. **Task file** (`tasks/in-progress/<task_name>.md`): Extract acceptance criteria and explicit technical requirements. If absent, proceed without it and note the gap.
 2. **Architecture decisions** (`planning/architecture.md` or `docs/planning/architecture.md`): Extract only decisions directly relevant to the target files — technology choices, patterns, constraints.
@@ -147,10 +145,9 @@ Fix: [Required for Critical; before/after code block; omit for None]
    - `PLAN_APPROVED` — dryrun=true, no Critical
    - `PLAN_NEEDS_REVISION` — dryrun=true, ≥1 Critical
 
-The Critical/Advisory threshold reflects deployment risk: APPROVED means no blocking defects —
-safe to merge. APPROVED_WITH_NOTES is safe to proceed with deferred cleanup. NEEDS_REVISION
-means a known defect must be fixed before the code ships. PLAN_* variants serve the same
-purpose for design-time review before any code is written.
+The Critical/Advisory threshold reflects deployment risk: APPROVED = no blocking defects, safe
+to merge; APPROVED_WITH_NOTES = deferred cleanup acceptable; NEEDS_REVISION = fix before shipping.
+PLAN_APPROVED / PLAN_NEEDS_REVISION are the design-time equivalents.
 
 Use Critical when the finding will cause incorrect behavior, a security breach, or break existing
 callers under conditions that can realistically occur. Use Advisory when the code could be
@@ -186,7 +183,7 @@ Status: APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION | PLAN_APPROVED | PLAN_N
 
 ### Review Manifest
 
-Write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.json` (create parent directories as needed). If the path cannot be created, output the JSON to stdout with a note that it was not persisted.
+Write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.json`. If the path cannot be created, output JSON to stdout noting it was not persisted.
 
 ```json
 {

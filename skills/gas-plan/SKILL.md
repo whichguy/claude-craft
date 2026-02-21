@@ -48,7 +48,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
 
-**Triage shortcut:** No UI/HTML/CSS changes -> skip frontend sub-pass entirely (bulk N/A frontend-owned questions, shared questions evaluated by GAS only). No .gs/deployment/common-js changes -> skip GAS sub-pass entirely (shared evaluated by frontend only).
+**Triage shortcut:** No UI/HTML/CSS changes → skip frontend sub-pass (bulk N/A; shared evaluated by GAS). No .gs/deployment/common-js changes → skip GAS sub-pass (shared evaluated by frontend).
 
 ## Execution Flow
 
@@ -56,7 +56,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 STEP 0: Locate plan and load context (see above)
 DO:
   Print: "Pass [N/15]: evaluating..."
-  TRIAGE: Bulk-mark N/A by domain. Skip entire sub-pass if perspective has no applicable questions.
+  TRIAGE: Bulk-mark N/A by domain; skip sub-pass if perspective has no applicable questions.
 
   -- Sub-pass A: Frontend Engineer --
   Print: "  [Frontend] evaluating..."
@@ -141,7 +141,7 @@ Content added by this review (branching sections, deployment steps, test notes) 
 After edits, consolidate. Specific criteria:
 - Merge sections covering the same concern (e.g., separate "Deployment" and "Rollback" into one section)
 - Remove redundant notes that repeat what the plan already says
-- Each finding adds at most 2-3 sentences. From pass 2 onward, consolidation removes at least as much text as it adds. Pass 1 focuses on minimal targeted additions
+- Each finding adds at most 2-3 sentences. Consolidation removes at least as much text as it adds (from pass 2 onward; pass 1 focuses on additions only).
 - If plan is growing, prioritize: keep blocking findings, summarize important, drop advisory notes
 - Plan gets cleaner each pass, not longer
 
@@ -173,7 +173,7 @@ Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G]
 All changes get a branch. Plan must name the branch, merge target, and PR workflow.
 
 **Q2: Do the plan steps actually use branching?** (3, GAS, never N/A)
-Steps must create a feature branch, commit incrementally, and not work directly on main. Risky changes must include a git rollback path.
+Steps must create a feature branch and commit incrementally. Risky changes must include a git rollback path.
 
 ---
 
@@ -202,7 +202,7 @@ Each `exec()` has isolated global state -- no persistence between calls. Data mu
 ### Deployment & Rollback
 
 **Q9: Is the deployment defined with target environment?** (2, GAS)
-GAS changes need push/deploy steps: write/raw_write/rsync, exec verification, target env (dev/staging/prod). Specify which environment and deployment method. N/A: local-only files.
+GAS changes need push/deploy steps: write/raw_write/rsync, exec verification, target env (dev/staging/prod). N/A: local-only files.
 
 **Q10: Is there a rollback plan if deployment goes wrong?** (2, GAS)
 Recovery path: revert commit + redeploy, versioned rollback, or hold previous deployment. Flag doGet/doPost/__events__ changes without rollback note. N/A: no deployment.
@@ -256,7 +256,7 @@ Cross-ref changed modules against callers (grep `require()`, call sites, `__even
 Flag stubs, TODOs, "implement later" without full spec. Allow explicitly phased delivery. N/A: no placeholders.
 
 **Q20: Is there dead code that should be removed?** (2, GAS)
-Old implementation marked for removal when replaced? Flag orphaned exports, unused handlers. Scope to plan's modules. N/A: nothing replaced.
+Old implementation marked for removal when replaced? Flag orphaned exports, unused handlers in changed modules. N/A: nothing replaced.
 
 **Q38: Are there unintended consequences from this plan that need to be addressed?** (2, Shared)
 Side effects beyond the stated goal: breaking existing workflows, changing user-facing behavior unintentionally, introducing performance regressions, altering data formats consumed by other systems, or shifting security boundaries. Flag anything the plan doesn't explicitly acknowledge. N/A: trivial isolated change with no external touchpoints.
