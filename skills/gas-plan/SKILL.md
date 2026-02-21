@@ -263,9 +263,9 @@ TEARDOWN:
 Pass 1/15: evaluating...
   [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
   [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
-  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no deploy target, stub function
+  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no merge strategy, no push-to-remote step; no deploy target; stub function
   -> Merge: shared Qs all PASS in both — no merge needed
-  -> Edits: add CSS namespace note (Q34), add branching section + deployment target + implementation spec (Q1, Q9, Q19)
+  -> Edits: add CSS namespace note (Q34), add branching section + merge strategy + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
 Pass 2/15: evaluating...
   [frontend-evaluator findings]: 0 NEEDS_UPDATE
