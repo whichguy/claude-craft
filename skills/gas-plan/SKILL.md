@@ -135,9 +135,11 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 STEP 0: (done — plan loaded, team created)
   plan_path = <absolute filesystem path resolved in Step 0>
   team_name = <team_name created above>
+  prev_needs_update_count = null; prev_needs_update_set = []
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []
   Print: "Pass [N/15]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
@@ -242,8 +244,10 @@ DO:
     Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
-  TRACK prev_needs_update_count and prev_needs_update_set between passes
-  PLATEAU = same count AND same Q numbers as previous pass
+  SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
+  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)
+  prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
 WHILE exit criteria not met (max 15 passes)
@@ -263,9 +267,9 @@ TEARDOWN:
 Pass 1/15: evaluating...
   [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
   [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
-  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no deploy target, stub function
+  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no merge strategy, no push-to-remote step; no deploy target; stub function
   -> Merge: shared Qs all PASS in both — no merge needed
-  -> Edits: add CSS namespace note (Q34), add branching section + deployment target + implementation spec (Q1, Q9, Q19)
+  -> Edits: add CSS namespace note (Q34), add branching section + merge strategy + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
 Pass 2/15: evaluating...
   [frontend-evaluator findings]: 0 NEEDS_UPDATE
@@ -343,10 +347,13 @@ Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G]
 ### Git & Version Control
 
 **Q1: Is there a branching/merging strategy?** (3, GAS, never N/A)
-All changes get a branch. Plan must name the branch, merge target, and PR workflow.
+All changes get a branch. Plan must name the branch, merge target, PR workflow, and merge
+strategy (squash / rebase / merge commit). Push-to-remote step must be explicit.
 
 **Q2: Do the plan steps actually use branching?** (3, GAS, never N/A)
-Steps must create a feature branch and commit incrementally. Risky changes must include a git rollback path.
+Steps must create a feature branch and commit incrementally. Commit messages must follow
+project conventions (conventional commits: feat/fix/chore/docs etc.). Risky changes must
+include a git rollback path.
 
 ---
 

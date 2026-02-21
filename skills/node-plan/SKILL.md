@@ -170,9 +170,11 @@ involves any TypeScript files, regardless of triage.
 STEP 0: (done — plan loaded, team created)
   plan_path = <absolute filesystem path resolved in Step 0>
   team_name = <team_name created above>
+  prev_needs_update_count = null; prev_needs_update_set = []
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []
   Print: "Pass [N/15]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
@@ -296,8 +298,10 @@ DO:
     Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
-  TRACK prev_needs_update_count and prev_needs_update_set between passes
-  PLATEAU = same count AND same Q numbers as previous pass
+  SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
+  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)
+  prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
 WHILE exit criteria not met (max 15 passes)
