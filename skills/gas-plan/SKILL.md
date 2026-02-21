@@ -236,7 +236,10 @@ DO:
   COLLECT all NEEDS_UPDATE from both evaluator messages
   For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41) flagged by both:
     Combine into single finding; keep the more actionable wording
-  APPLY all NEEDS_UPDATE edits to plan (targeted insertions, 2-3 sentences each), mark <!-- gas-plan -->
+  APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
+    Call the Edit tool on the plan file to insert/modify the specified content.
+    Mark each insertion <!-- gas-plan -->.
+    Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
   TRACK prev_needs_update_count and prev_needs_update_set between passes

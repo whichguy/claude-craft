@@ -199,7 +199,10 @@ DO:
   IF IS_NODE:
     Remove true duplicates (same concern raised by both L2 and node-evaluator — keep
     node-evaluator's more specific Node/TS framing)
-  APPLY all NEEDS_UPDATE edits to plan; mark <!-- review-plan -->
+  APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
+    Call the Edit tool on the plan file to insert/modify the specified content.
+    Mark each insertion <!-- review-plan -->.
+    Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
   REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
     removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
@@ -264,7 +267,10 @@ DO:
 
   Wait for L2 evaluator result.
 
-  APPLY all L2 NEEDS_UPDATE edits to plan; mark <!-- review-plan -->
+  APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
+    Call the Edit tool on the plan file to insert/modify the specified content.
+    Mark each insertion <!-- review-plan -->.
+    Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
   REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
     removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
@@ -485,6 +491,11 @@ After outputting the Final Scorecard:
    Task(
      subagent_type = "review-fix",
      prompt = """
+       target_files="<plan_path>"
+       task_name="review-plan-quality-check"
+       worktree="<worktree or ~ if not set>"
+       max_rounds=1
+
        Quality-review all changes applied to the plan at <plan_path>.
        Check: no key flows removed, no regressions introduced by consolidation,
        all edits are clear and actionable, no contradictions between sections.
