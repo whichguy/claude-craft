@@ -485,6 +485,11 @@ After outputting the Final Scorecard:
    Task(
      subagent_type = "review-fix",
      prompt = """
+       target_files="<plan_path>"
+       task_name="review-plan-quality-check"
+       worktree="<worktree or ~ if not set>"
+       max_rounds=1
+
        Quality-review all changes applied to the plan at <plan_path>.
        Check: no key flows removed, no regressions introduced by consolidation,
        all edits are clear and actionable, no contradictions between sections.
