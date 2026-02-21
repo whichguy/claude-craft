@@ -90,7 +90,6 @@ DO:
   --- L1 Evaluator ---
   Task(
     subagent_type = "general-purpose",
-    model = "haiku",
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
@@ -121,7 +120,6 @@ DO:
   --- L2 Evaluator ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
     team_name = <team_name>,
     name = "l2-evaluator",
     prompt = """
@@ -213,7 +211,6 @@ DO:
   --- L2 Evaluator ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
     prompt = """
       You are evaluating a plan for code change quality (Layer 2: 25 questions).
 
