@@ -73,7 +73,7 @@ the team-lead.**
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No TypeScript/package changes → bulk N/A N2, N3, N4, N5, N11, N12
-   - No async code changes → bulk N/A N6, N7, N8
+   - No async code changes → bulk N/A N6, N7
    - No env var changes → bulk N/A N9, N10
    - No framework changes → bulk N/A N15, N16, N17
    - No new resources/connections → bulk N/A N13, N14, N18
@@ -307,9 +307,9 @@ TEARDOWN:
 ```
 Pass 1/15: evaluating...
   [Spawning ts-evaluator + node-evaluator in parallel]
-  [ts-evaluator findings]: 2 NEEDS_UPDATE (N1, N4) -- no tsc step, untyped return values
-  [node-evaluator findings]: 3 NEEDS_UPDATE (N6, N9, N13) -- route handler no try/catch,
-    new env var undocumented, no SIGTERM handler
+  [ts-evaluator findings]: 3 NEEDS_UPDATE (N1, N4, N6) -- no tsc step, untyped return values,
+    route handler no try/catch
+  [node-evaluator findings]: 2 NEEDS_UPDATE (N9, N13) -- new env var undocumented, no SIGTERM handler
   -> Merge: N8 both PASS — no merge needed
   -> Edits: add tsc --noEmit step (N1), type annotations for new fn (N4), wrap handler
     in try/catch (N6), document env var in .env.example (N9), add graceful shutdown (N13)

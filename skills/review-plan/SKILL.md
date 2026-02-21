@@ -231,7 +231,7 @@ DO:
   [ Layer 1: Evaluate inline ]
   Evaluate all 8 L1 questions yourself (fast — no agent overhead for 8 questions).
   Apply triage (mark N/A per the N/A column).
-  Skip content marked <!-- review-plan -->.
+  Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
   IF any NEEDS_UPDATE: edit plan, mark <!-- review-plan -->
   l1_changes = count of L1 edits
   changes_this_pass += l1_changes
