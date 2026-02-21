@@ -43,7 +43,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **GAS Engineer** -- backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39, Q40
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both perspectives evaluate. NEEDS_UPDATE if either flags it. Combine findings into single edit.
@@ -264,6 +264,9 @@ Side effects beyond the stated goal: breaking existing workflows, changing user-
 **Q39: Does the plan introduce logic duplicating existing implementations?** (2, GAS)
 Before adding new functions or modules, verify no equivalent already exists (grep callers, scan module registry). Flag plans that reimplement logic already in common-js or sibling modules without justification. N/A: no new functions or modules introduced.
 
+**Q40: Does the plan account for both state-exists and state-absent edge cases in persistent storage?** (2, GAS)
+State-exists risk: code that reads ConfigManager/Properties/Cache/Sheets and misinterprets values left by a prior version — old schema format, stale cache entry, conflicting user config from an earlier install. State-absent risk: code that reads state before it has ever been written — uninitialized ConfigManager/Properties key, cold Cache, missing sheet row or named range, first-run user. Flag: reads without null/existence check; writes that assume stored data is in the expected schema; feature paths with no initialization guard for first-run. N/A: plan introduces no reads from or writes to ConfigManager, Properties, Cache, Sheets, or any shared persistent storage.
+
 ---
 
 ### Concurrency, Quotas & Runtime
@@ -285,9 +288,6 @@ UrlFetch 20K/day, Properties 50 reads/min, runtime 6min, triggers 90min. N/A: no
 
 **Q26: Are Properties/Cache payloads within size limits?** (1, GAS)
 Properties: 9KB/key, 500KB total. Cache: 100KB/key. N/A: no new stored data.
-
-**Q40: Does the plan account for both state-exists and state-absent edge cases in persistent storage?** (2, GAS)
-State-exists risk: code that reads ConfigManager/Properties/Cache/Sheets and misinterprets values left by a prior version — old schema format, stale cache entry, conflicting user config from an earlier install. State-absent risk: code that reads state before it has ever been written — uninitialized ConfigManager/Properties key, cold Cache, missing sheet row or named range, first-run user. Flag: reads without null/existence check; writes that assume stored data is in the expected schema; feature paths with no initialization guard for first-run. N/A: plan introduces no reads from or writes to ConfigManager, Properties, Cache, Sheets, or any shared persistent storage.
 
 ---
 
