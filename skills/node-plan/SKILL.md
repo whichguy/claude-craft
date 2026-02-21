@@ -72,11 +72,21 @@ the team-lead.**
 
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
-   - No TypeScript/package changes → bulk N/A N1, N2, N3, N4, N5, N11, N12
+   - No TypeScript/package changes → bulk N/A N2, N3, N4, N5, N11, N12
    - No async code changes → bulk N/A N6, N7, N8
    - No env var changes → bulk N/A N9, N10
    - No framework changes → bulk N/A N15, N16, N17
    - No new resources/connections → bulk N/A N13, N14, N18
+   - No async code → bulk N/A N22, N23, N24, N25, N27, N28, N35
+   - No new timers → bulk N/A N26
+   - No deployment/containers → bulk N/A N31, N36
+   - No secrets/credentials → bulk N/A N33
+   - No API endpoint changes → bulk N/A N34
+   - Not a monorepo → bulk N/A N30
+   - No native addon packages → bulk N/A N32
+   - Not a published library → bulk N/A N37
+   - No new tests → bulk N/A N19
+   - No file path operations → bulk N/A N29
    - Exception: N1 (tsc check) — evaluate regardless if plan involves any TS files.
    - For shared question (N8): evaluate from both lenses, combine findings.
 3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
@@ -235,9 +245,12 @@ DO:
         Shared (runtime lens): N8
 
       Triage: If plan has no env var changes → bulk N/A N9, N10.
-              If plan has no new resources → bulk N/A N13, N14.
+              If plan has no new resources/schema changes → bulk N/A N13, N14, N18.
               If plan has no framework changes → bulk N/A N15, N16, N17.
               If plan has no async code → bulk N/A N22, N23, N24, N25, N26, N27, N28, N35.
+              If plan has no deployment/containers → bulk N/A N31, N36.
+              If plan has no secrets/credentials → bulk N/A N33.
+              If plan has no API endpoint changes → bulk N/A N34.
               Evaluate shared N8 regardless.
 
       Self-referential protection: Skip content marked <!-- node-plan --> or <!-- review-plan -->.

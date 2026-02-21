@@ -298,7 +298,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives considered? Not over/under-engineered? | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? | never |
-| Q-G3 | Post-impl review | Plan includes `/review-fix` (or `/gas-review` for GAS) step after all changes? | never |
+| Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (general/Node), `/gas-review` (GAS). Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
 
 **Gate 2 — Important (weight 2):**
 
@@ -427,7 +427,7 @@ Reserved slots — follow same pattern as Q-GAS / Q-NODE when implemented.
 [PASS] or [N NEEDS_UPDATE remaining]
 - Q-G1 Approach soundness: [status]
 - Q-G2 Standards compliance: [status]
-- Q-G3 Post-impl review: [status]
+- Q-G3 Quality review changes: [status]
 - Q-C1 Branching strategy: [status]
 - Q-C2 Branching usage: [status]
 - Q-C3 Impact analysis: [status]
@@ -467,7 +467,10 @@ REWORK  — any Gate 1 NEEDS_UPDATE
 
 After outputting the Final Scorecard:
 1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-2. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+2. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents by name
+   (`l1-evaluator`, `l2-evaluator`, and `gas-evaluator` if IS_GAS or `node-evaluator` if IS_NODE),
+   then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for
+   TeamDelete is not available after exiting plan mode.)
 3. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
