@@ -44,7 +44,7 @@ Single-pass read-only UI plan evaluation. No edits. No ExitPlanMode. No team cre
 4. Return findings via the method specified in the invoking prompt:
    - Team mode (IS_GAS or IS_NODE caller): send ONE message to team-lead via SendMessage
    - Simple mode (non-GAS/non-NODE caller): return as plain text (no SendMessage — no team)
-   - Default when not specified: send ONE message to team-lead
+   - Default when not specified: return as plain text
 
    Format (both modes):
    ```
