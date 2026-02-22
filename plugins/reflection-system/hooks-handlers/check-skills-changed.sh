@@ -15,6 +15,8 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 [[ -n "$AGENT_ID" ]] && exit 0
 
 SKILLS_DIR="$HOME/claude-craft/skills"
+COMMANDS_DIR="$HOME/claude-craft/commands"
+AGENTS_DIR="$HOME/claude-craft/agents"
 STATE_DIR="$HOME/.claude/plugins/reflection-system/state"
 STATE_FILE="$STATE_DIR/notification-state.json"
 
@@ -35,8 +37,15 @@ mkdir -p "$STATE_DIR"
 # STEP 1: Compute current skill manifest hash
 # ============================================
 
-# Find all SKILL.md files once (reused in Step 4)
-SKILL_FILES=$(find "$SKILLS_DIR" -name "SKILL.md" -type f 2>/dev/null | sort)
+# Find all skill-bearing files: SKILL.md in skills/, flat .md in commands/ and agents/
+# Exclude infrastructure commands that are not skills
+SKILL_FILES=$(
+  find "$SKILLS_DIR" -name "SKILL.md" -type f 2>/dev/null
+  find "$COMMANDS_DIR" -maxdepth 1 -name "*.md" -type f \
+    ! -name "alias.md" ! -name "unalias.md" ! -name "prompt.md" 2>/dev/null
+  find "$AGENTS_DIR" -maxdepth 1 -name "*.md" -type f 2>/dev/null
+)
+SKILL_FILES=$(echo "$SKILL_FILES" | sort -u)
 
 # Generate manifest: list of skill names + their last modified times
 # This creates a stable fingerprint of the current skill state
@@ -44,7 +53,11 @@ MANIFEST=""
 SKILL_NAMES=""
 while IFS= read -r skill_md; do
   if [[ -n "$skill_md" ]]; then
-    skill_name=$(dirname "$skill_md" | xargs basename)
+    if [[ "$(basename "$skill_md")" == "SKILL.md" ]]; then
+      skill_name=$(dirname "$skill_md" | xargs basename)
+    else
+      skill_name=$(basename "$skill_md" .md)
+    fi
     # Cross-platform stat: macOS (-f "%m") fallback to Linux (-c "%Y")
     skill_mtime=$(stat -f "%m" "$skill_md" 2>/dev/null || stat -c "%Y" "$skill_md" 2>/dev/null || echo "0")
     MANIFEST="${MANIFEST}${skill_name}:${skill_mtime}\n"

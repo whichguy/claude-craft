@@ -86,4 +86,4 @@ for part in "${CONTEXT_PARTS[@]}"; do
   fi
 done
 
-jq -n --arg ctx "$COMBINED" '{"additionalContext": $ctx}'
+jq -n --arg ctx "$COMBINED" '{"systemMessage": $ctx}'
