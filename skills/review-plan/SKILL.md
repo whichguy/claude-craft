@@ -578,12 +578,6 @@ SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
 GAPS    — Gate 1 PASS, > 2 Gate 2 NEEDS_UPDATE
 REWORK  — any Gate 1 NEEDS_UPDATE
 
-### Post-convergence Quality Check
-[Pending — review-fix Task spawned after scorecard]
-OR
-[CLEAN — no Critical findings]
-OR
-[N Critical applied, M Advisory noted]
 ```
 
 ---
@@ -592,37 +586,13 @@ OR
 
 After outputting the Final Scorecard:
 
-1. **Post-convergence quality review (separate Task context):**
-   Spawn a review-fix Task on the plan file in its own context — clean of convergence
-   history, focused only on the final plan state:
-   ```
-   Task(
-     subagent_type = "review-fix",
-     prompt = """
-       target_files="<plan_path>"
-       task_name="review-plan-quality-check"
-       worktree="<worktree or ~ if not set>"
-       max_rounds=1
+1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
-       Quality-review all changes applied to the plan at <plan_path>.
-       Check: no key flows removed, no regressions introduced by consolidation,
-       all edits are clear and actionable, no contradictions between sections.
-       Self-referential protection: skip content marked <!-- review-plan -->,
-       <!-- gas-plan -->, or <!-- node-plan -->.
-     """
-   )
-   ```
-   Collect the result and append a **Post-convergence Quality Check** section to the
-   scorecard output. If the review-fix Task finds Critical issues, apply them before
-   proceeding. Advisory findings are noted only.
-
-2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-
-3. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents by name
+2. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents by name
    (`l1-evaluator`, `l2-evaluator`, `gas-evaluator` if IS_GAS, `node-evaluator` if IS_NODE,
    and `ui-evaluator` if HAS_UI), then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
-4. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+3. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
