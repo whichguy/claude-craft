@@ -35,6 +35,8 @@ Two operating modes:
 
 **How to detect mode:** Scan the invocation prompt for `mode=evaluate`. If found, set MODE=evaluate. Otherwise MODE=standalone.
 
+**WARNING:** If invoked inside an existing team (team_name present in invocation context), check for `mode=evaluate` before proceeding. Running standalone inside an existing team creates nested team conflicts and a circular ExitPlanMode race condition. When in doubt: if a team_name is present, force MODE=evaluate.
+
 ## Core Directive: Loop Until Stable
 
 **In standalone mode: You MUST loop. NEVER output the final scorecard until exit criteria are met. NEVER stop after one pass.**
@@ -56,6 +58,8 @@ Two operating modes:
 *Single-pass, read-only. Returns findings via SendMessage. No edits. No ExitPlanMode.*
 
 **You are running inside another review skill's team. Your only output is a SendMessage to the team-lead.**
+
+**Nested team constraint:** Do NOT call TeamCreate in evaluate mode — you are already inside a team. Creating a nested team causes agent isolation and message delivery failures. If you detect you are being invoked inside an existing team (team_name present in context), evaluate mode is mandatory.
 
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
@@ -126,8 +130,15 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording.
 
-**Triage shortcut:** No UI/HTML/CSS changes → skip frontend evaluator (bulk N/A; shared evaluated by GAS evaluator). No .gs/deployment/common-js changes → skip GAS evaluator (shared evaluated by frontend evaluator).
+**Triage shortcut — evaluator skip:**
+- No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary. Shared question coverage: GAS evaluator evaluates all 7 shared Qs from both lenses (see GAS evaluator prompt fallback instruction).
+- No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 shared Qs.
+
+**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. Shared questions are NEVER bulk-N/A'd.
+
 **Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
+
+**Shared Q fallback (in question-cross-reference.md):** See `~/.claude/skills/shared/question-cross-reference.md` for the full shared question list and fallback rules. If shared file is not found, use inline policy above.
 
 ### Execution Flow
 
@@ -140,7 +151,7 @@ STEP 0: (done — plan loaded, team created)
 
 DO:
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []
-  Print: "Pass [N/15]: evaluating..."
+  Print: "Pass [N/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
@@ -158,7 +169,8 @@ DO:
       - Plan file: <plan_path> — read it with the Read tool
       - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
         table (questions marked [F] and [Shared])
-      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+      - Standards: Read only the GAS Development and GAS Client-Server Patterns sections of
+        ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the FRONTEND lens:
         Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
@@ -201,7 +213,8 @@ DO:
       - Plan file: <plan_path> — read it with the Read tool
       - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
         table (questions marked [G] and [Shared])
-      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+      - Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
+        Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the GAS engineering lens:
         GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
@@ -209,6 +222,11 @@ DO:
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
               Evaluate shared Qs regardless.
+
+      IMPORTANT — if frontend evaluator was skipped this pass (no UI/HTML/CSS changes):
+        Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the FRONTEND lens.
+        Output each shared question twice: first your GAS finding, then your frontend finding.
+        Label clearly: "[GAS lens]" and "[Frontend lens]". Team-lead merges both.
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
 
@@ -233,11 +251,16 @@ DO:
   )
 
   Wait for all active evaluator messages (90s reminder; after 120s total mark ⚠️ Evaluator Incomplete for any non-responding evaluator and proceed with available findings).
+  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO changes and ZERO findings
+  to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
+  Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
+  evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
   For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41) flagged by both:
-    Combine into single finding; keep the more actionable wording
+    Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
+    wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- gas-plan -->.
@@ -250,7 +273,22 @@ DO:
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
-WHILE exit criteria not met (max 15 passes)
+  -- CONVERGENCE CHECK --
+  Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q42 (all weight-3 questions)
+  IF pass_count >= 5:
+    IF Gate1_unresolved > 0:
+      AskUserQuestion to resolve Gate 1 issues, then BREAK
+    ELSE:
+      Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
+      BREAK
+  IF Gate1_unresolved > 0:
+    CONTINUE (never exit with Gate 1 open, even if PLATEAU)
+  IF PLATEAU OR current_needs_update_count == 0:
+    Print: "✅ Converged."
+    BREAK
+  -- END CHECK --
+
+WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
 
@@ -264,19 +302,19 @@ TEARDOWN:
 ### Worked Example
 
 ```
-Pass 1/15: evaluating...
+Pass 1/5: evaluating...
   [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
   [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
   [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no merge strategy, no push-to-remote step; no deploy target; stub function
   -> Merge: shared Qs all PASS in both — no merge needed
   -> Edits: add CSS namespace note (Q34), add branching section + merge strategy + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
-Pass 2/15: evaluating...
+Pass 2/5: evaluating...
   [frontend-evaluator findings]: 0 NEEDS_UPDATE
   [gas-evaluator findings]: 1 NEEDS_UPDATE (Q12) -- incremental verification missing
   -> Edit: add exec checkpoint after each push step
   -> Consolidate: no duplicates found
-Pass 3/15: evaluating...
+Pass 3/5: evaluating...
   [frontend-evaluator findings]: 0 NEEDS_UPDATE
   [gas-evaluator findings]: 0 NEEDS_UPDATE
   -> CONVERGED at pass 3. Output final scorecard.
@@ -291,7 +329,7 @@ Pass 3/15: evaluating...
 - **Gate 3** (advisory, weight 1): Note findings but do NOT loop on them.
 - N/A counts as PASS for gate evaluation. A weight-3 question marked N/A does not block.
 - **Plateau:** NEEDS_UPDATE count unchanged between passes = stop (Gate 2 only; Gate 1 uses ask-user).
-- **Safety cap:** 15 passes.
+- **Safety cap:** 5 passes.
 
 ## Ambiguity Handling
 
@@ -301,16 +339,9 @@ Pass 3/15: evaluating...
 
 ## Self-Referential Protection
 
-Mark review additions with `<!-- gas-plan -->` suffix. Use this marker to skip self-referential re-evaluation in subsequent passes.
+See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
 
-Content added by this review (branching sections, deployment steps, test notes) is **plan metadata, not implementation scope**. Do NOT flag review-added sections as needing:
-- Tests (Q11) -- review additions don't need test coverage
-- Impact analysis (Q18) -- review additions don't have callers
-- Implementation (Q19) -- review additions aren't stubs
-- Dead code removal (Q20) -- review additions aren't replacing anything
-- Duplication check (Q39) -- review additions are not new production logic; they cannot duplicate existing implementations
-- State edge case check (Q40) -- review additions are not new production code; they cannot have uninitialized or misformatted state
-- Integration check (Q41) -- review additions are meta-content for the plan, not new architecture components
+If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do NOT flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
 
 ## Consolidation Rules (Every Pass)
 
@@ -320,6 +351,8 @@ After edits, consolidate. Specific criteria:
 - Each finding adds at most 2-3 sentences. Consolidation removes at least as much text as it adds (from pass 2 onward; pass 1 focuses on additions only).
 - If plan is growing, prioritize: keep blocking findings, summarize important, drop advisory notes
 - Plan gets cleaner each pass, not longer
+- **Keep-exemption:** Content annotated with `<!-- keep: [reason] -->` is EXEMPT from consolidation removal. Never remove or trim `<!-- keep: -->` content based on length heuristics.
+- **"Key flow" definition:** Any implementation step, ordering dependency, error path, rollback step, or verification checkpoint. Prose trimming is OK. Removing or merging steps is NOT.
 - **Regression check (before RE-READ):** Verify no key flow, corner case, or condition was removed during this pass. If any was dropped — even to reduce length — restore it and annotate with `<!-- keep: [reason] -->`. Trimming prose is fine; removing logic is not.
 
 ---
@@ -340,7 +373,8 @@ Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G]
 
-**Triage shortcut:** Bulk-mark N/A for entire domains when clearly irrelevant (no UI changes -> skip UX & Frontend, no new files -> skip folder/ordering, no deployment -> skip rollback).
+**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
 
 ---
 
@@ -553,7 +587,7 @@ Plan must include a post-implementation review step: run `/review-fix` or `/gas-
 Show only NEEDS_UPDATE items and status changes since last pass. Summarize stable/N/A as counts.
 
 ```
-## Pass [N]/15
+## Pass [N]/5
 
 N/A: [count] | Stable PASS: [count]
 
@@ -572,7 +606,7 @@ N/A: [count] | Stable PASS: [count]
 ### Final Scorecard
 
 ```
-Converged: [Yes pass N / No max 15 reached]
+Converged: [Yes pass N / No max 5 reached]
 Gate 1 (blocking):  [PASS / n NEEDS_UPDATE remaining]
 Gate 2 (important): [PASS / n NEEDS_UPDATE remaining]
 Gate 3 (advisory):  [n noted]
@@ -585,8 +619,15 @@ Score: [N]% (weighted percentage)
 ## After Review Completes (standalone mode only)
 
 After outputting the Final Scorecard:
-1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-2. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
-3. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
+
+1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
+   AskUserQuestion listing the unresolved Gate 1 questions. User must explicitly resolve each
+   issue or override before proceeding. Do NOT write the marker or call ExitPlanMode until the
+   user responds. If user resolves: apply edits and re-evaluate. If user overrides: note override
+   in scorecard and proceed.
+
+2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+3. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+4. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.

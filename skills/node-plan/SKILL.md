@@ -43,6 +43,8 @@ Two operating modes:
 **How to detect mode:** Scan the invocation prompt for `mode=evaluate`. If found, set
 MODE=evaluate. Otherwise MODE=standalone.
 
+**WARNING:** If invoked inside an existing team (team_name present in invocation context), check for `mode=evaluate` before proceeding. Running standalone inside an existing team creates nested team conflicts and a circular ExitPlanMode race condition. When in doubt: if a team_name is present, force MODE=evaluate.
+
 ## Core Directive: Loop Until Stable
 
 **In standalone mode: You MUST loop. NEVER output the final scorecard until exit criteria
@@ -69,6 +71,8 @@ are met. NEVER stop after one pass.**
 
 **You are running inside another review skill's team. Your only output is a SendMessage to
 the team-lead.**
+
+**Nested team constraint:** Do NOT call TeamCreate in evaluate mode — you are already inside a team. Creating a nested team causes agent isolation and message delivery failures. If you detect you are being invoked inside an existing team (team_name present in context), evaluate mode is mandatory.
 
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
@@ -158,9 +162,12 @@ Each question is owned by one perspective or shared. Tags: `[TS]` = TypeScript/A
 **Shared question** (N8: Concurrency safety): Both evaluators report on N8. Team-lead
 merges: combine findings, keep the more actionable wording.
 
-**Triage shortcut:** No TS/package changes → skip TypeScript evaluator (bulk N/A; N8
-shared evaluated by Node runtime evaluator). No runtime/env/framework changes → skip
-Node runtime evaluator (N8 evaluated by TypeScript evaluator).
+**Triage shortcut — evaluator skip:**
+- No TS/package changes → skip TypeScript evaluator entirely. Mark all TS-owned questions N/A in pass summary. Shared question coverage: Node runtime evaluator evaluates N8.
+- No runtime/env/framework changes → skip Node runtime evaluator entirely. Mark all NR-owned questions N/A in pass summary. Shared question coverage: TypeScript evaluator evaluates N8.
+
+**Triage shortcut — question-level bulk N/A:** No new timers → mark N26 N/A without individual evaluation. No file path operations → mark N29 N/A. Shared questions are NEVER bulk-N/A'd.
+
 **Never-N/A exception:** N1 (TypeScript build check) MUST be evaluated whenever the plan
 involves any TypeScript files, regardless of triage.
 
@@ -175,7 +182,7 @@ STEP 0: (done — plan loaded, team created)
 
 DO:
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []
-  Print: "Pass [N/15]: evaluating..."
+  Print: "Pass [N/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
@@ -194,7 +201,8 @@ DO:
       - Plan file: <plan_path> — read it with the Read tool
       - Question definitions: Read ~/.claude/skills/node-plan/SKILL.md for the full question
         table (questions marked [TS] and [Shared])
-      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+      - Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
+        ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the TYPESCRIPT/API lens:
         TS-owned: N1, N2, N3, N4, N5, N6, N7, N11, N12, N19, N29, N30, N32, N37
@@ -245,7 +253,8 @@ DO:
       - Plan file: <plan_path> — read it with the Read tool
       - Question definitions: Read ~/.claude/skills/node-plan/SKILL.md for the full question
         table (questions marked [NR] and [Shared])
-      - Standards: Read ~/.claude/CLAUDE.md and project MEMORY.md as needed
+      - Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
+        ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the NODE RUNTIME lens:
         NR-owned: N9, N10, N13, N14, N15, N16, N17, N18, N22, N23, N24, N25, N26, N27, N28,
@@ -287,11 +296,16 @@ DO:
   Wait for all active evaluator messages (90s reminder; after 120s total mark
   ⚠️ Evaluator Incomplete for any non-responding evaluator and proceed with
   available findings).
+  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO changes and ZERO findings
+  to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
+  Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
+  evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
   For shared question (N8) flagged by both:
-    Combine into single finding; keep the more actionable wording
+    Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
+    wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- node-plan -->.
@@ -304,7 +318,22 @@ DO:
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
-WHILE exit criteria not met (max 15 passes)
+  -- CONVERGENCE CHECK --
+  Gate1_unresolved = count of NEEDS_UPDATE on N1 (all weight-3 questions)
+  IF pass_count >= 5:
+    IF Gate1_unresolved > 0:
+      AskUserQuestion to resolve Gate 1 issues, then BREAK
+    ELSE:
+      Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
+      BREAK
+  IF Gate1_unresolved > 0:
+    CONTINUE (never exit with Gate 1 open, even if PLATEAU)
+  IF PLATEAU OR current_needs_update_count == 0:
+    Print: "✅ Converged."
+    BREAK
+  -- END CHECK --
+
+WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
 
@@ -318,7 +347,7 @@ TEARDOWN:
 ### Worked Example
 
 ```
-Pass 1/15: evaluating...
+Pass 1/5: evaluating...
   [Spawning ts-evaluator + node-evaluator in parallel]
   [ts-evaluator findings]: 3 NEEDS_UPDATE (N1, N4, N6) -- no tsc step, untyped return values,
     route handler no try/catch
@@ -327,13 +356,13 @@ Pass 1/15: evaluating...
   -> Edits: add tsc --noEmit step (N1), type annotations for new fn (N4), wrap handler
     in try/catch (N6), document env var in .env.example (N9), add graceful shutdown (N13)
   -> Consolidate: merge async error + shutdown into single section
-Pass 2/15: evaluating...
+Pass 2/5: evaluating...
   [ts-evaluator findings]: 0 NEEDS_UPDATE
   [node-evaluator findings]: 1 NEEDS_UPDATE (N35) -- no unhandledRejection handler for
     new async path
   -> Edit: add process.on('unhandledRejection') note
   -> Consolidate: no duplicates found
-Pass 3/15: evaluating...
+Pass 3/5: evaluating...
   [ts-evaluator findings]: 0 NEEDS_UPDATE
   [node-evaluator findings]: 0 NEEDS_UPDATE
   -> CONVERGED at pass 3. Output final scorecard.
@@ -351,7 +380,7 @@ Pass 3/15: evaluating...
 - N/A counts as PASS for gate evaluation. A weight-3 question marked N/A does not block.
 - **Plateau:** NEEDS_UPDATE count unchanged between passes = stop (Gate 2 only; Gate 1
   uses ask-user).
-- **Safety cap:** 15 passes.
+- **Safety cap:** 5 passes.
 
 ## Ambiguity Handling
 
@@ -362,15 +391,9 @@ Pass 3/15: evaluating...
 
 ## Self-Referential Protection
 
-Mark review additions with `<!-- node-plan -->` suffix. Use this marker to skip
-self-referential re-evaluation in subsequent passes.
+See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
 
-Content added by this review (branching sections, build steps, security notes) is
-**plan metadata, not implementation scope**. Do NOT flag review-added sections as needing:
-- Tests (N19) — review additions don't need test coverage
-- Impact analysis — review additions don't have callers
-- Dead code removal — review additions aren't replacing anything
-- Duplication check — review additions are not new production logic
+If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do NOT flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 
 ## Consolidation Rules (Every Pass)
 
@@ -382,6 +405,8 @@ After edits, consolidate. Specific criteria:
   it adds (from pass 2 onward; pass 1 focuses on additions only).
 - If plan is growing, prioritize: keep blocking findings, summarize important, drop advisory
 - Plan gets cleaner each pass, not longer
+- **Keep-exemption:** Content annotated with `<!-- keep: [reason] -->` is EXEMPT from consolidation removal. Never remove or trim `<!-- keep: -->` content based on length heuristics.
+- **"Key flow" definition:** Any implementation step, ordering dependency, error path, rollback step, or verification checkpoint. Prose trimming is OK. Removing or merging steps is NOT.
 - **Regression check (before RE-READ):** Verify no key flow, corner case, or condition was
   removed during this pass. If any was dropped — even to reduce length — restore it and
   annotate with `<!-- keep: [reason] -->`. Trimming prose is fine; removing logic is not.
@@ -414,9 +439,8 @@ N19 test isolation [TS] | N26 timer cleanup [NR] | N29 path handling [TS] |
 N31 Docker/container concerns [NR] | N32 native addon compat [TS] |
 N34 API contract drift [NR] | N37 TS declaration output [TS]
 
-**Triage shortcut:** Bulk-mark N/A for entire domains when clearly irrelevant (no TS files
-→ skip type questions, no async code → skip async/runtime safety, no deployment → skip
-container/shutdown, no packages → skip dep hygiene).
+**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36). Shared questions are NEVER bulk-N/A'd.
 
 ---
 
@@ -633,7 +657,7 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 counts.
 
 ```
-## Pass [N]/15
+## Pass [N]/5
 
 N/A: [count] | Stable PASS: [count]
 
@@ -652,7 +676,7 @@ N/A: [count] | Stable PASS: [count]
 ### Final Scorecard
 
 ```
-Converged: [Yes pass N / No max 15 reached]
+Converged: [Yes pass N / No max 5 reached]
 Gate 1 (blocking):  [PASS / n NEEDS_UPDATE remaining]
 Gate 2 (important): [PASS / n NEEDS_UPDATE remaining]
 Gate 3 (advisory):  [n noted]
@@ -665,11 +689,18 @@ Score: [N]% (weighted percentage)
 ## After Review Completes (standalone mode only)
 
 After outputting the Final Scorecard:
-1. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so
+
+1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
+   AskUserQuestion listing the unresolved Gate 1 questions. User must explicitly resolve each
+   issue or override before proceeding. Do NOT write the marker or call ExitPlanMode until the
+   user responds. If user resolves: apply edits and re-evaluate. If user overrides: note override
+   in scorecard and proceed.
+
+2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so
    ExitPlanMode will pass
-2. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete.
+3. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete.
    (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete
    is not available after exiting plan mode.)
-3. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
+4. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
