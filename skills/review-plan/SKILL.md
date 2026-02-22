@@ -88,6 +88,8 @@ DO:
     BREAK → proceed to OUTPUT final scorecard
   -- END GUARD --
 
+  -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
+
   pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
