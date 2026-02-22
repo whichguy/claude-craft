@@ -37,7 +37,9 @@ mkdir -p "$STATE_DIR"
 # STEP 1: Compute current skill manifest hash
 # ============================================
 
-# Find all skill-bearing files: SKILL.md in skills/, flat .md in commands/ and agents/
+# Find all skill-bearing files:
+#   - SKILL.md in skills/ (mandatory — checked above, exits if missing)
+#   - flat .md in commands/ and agents/ (optional — silent no-op if missing)
 # Exclude infrastructure commands that are not skills
 SKILL_FILES=$(
   find "$SKILLS_DIR" -name "SKILL.md" -type f 2>/dev/null
