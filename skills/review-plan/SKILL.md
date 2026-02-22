@@ -82,6 +82,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 ```
 DO:
+  -- HARD STOP GUARD --
+  IF pass_count >= 5:
+    Print: "⛔ HARD STOP — max 5 passes reached. Exiting loop."
+    BREAK → proceed to OUTPUT final scorecard
+  -- END GUARD --
+
   pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
@@ -216,7 +222,13 @@ DO:
 
   Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes])"
 
-WHILE changes_this_pass > 0 AND pass_count < 5
+  -- CONVERGENCE CHECK --
+  IF changes_this_pass == 0:
+    Print: "✅ Converged — no changes this pass."
+    BREAK → proceed to OUTPUT final scorecard
+  -- END CHECK --
+
+WHILE TRUE
 
 OUTPUT final scorecard
 (Teardown and ExitPlanMode handled in "After Review Completes" section below.)
@@ -226,6 +238,12 @@ OUTPUT final scorecard
 
 ```
 DO:
+  -- HARD STOP GUARD --
+  IF pass_count >= 5:
+    Print: "⛔ HARD STOP — max 5 passes reached. Exiting loop."
+    BREAK → proceed to OUTPUT final scorecard
+  -- END GUARD --
+
   pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
@@ -281,7 +299,13 @@ DO:
 
   Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes])"
 
-WHILE changes_this_pass > 0 AND pass_count < 5
+  -- CONVERGENCE CHECK --
+  IF changes_this_pass == 0:
+    Print: "✅ Converged — no changes this pass."
+    BREAK → proceed to OUTPUT final scorecard
+  -- END CHECK --
+
+WHILE TRUE
 
 OUTPUT final scorecard
 (no team teardown needed in simple mode)
@@ -420,9 +444,9 @@ Reserved slots — follow same pattern as Q-GAS / Q-NODE when implemented.
 
 ## Exit Criteria
 
-**Converge** when ANY of:
-- `changes_this_pass == 0` (all layers + sub-skills quiet in same pass)
-- `pass_count == 5` (max reached)
+**Converge** when:
+- `pass_count >= 5` → explicit BREAK at loop top (hard stop)
+- `changes_this_pass == 0` → explicit BREAK after apply (no edits this pass)
 
 ---
 
