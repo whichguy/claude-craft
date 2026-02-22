@@ -51,6 +51,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    HAS_UI = any of: sidebar | dialog | HTML | CSS | UI | frontend | client-side
 
    [future: IS_SEC, HAS_API]
+   HAS_UI is active — triggers ui-evaluator in the convergence loop
    ```
 
 4. **Initialize tracking:**
@@ -96,10 +97,11 @@ DO:
   l2_changes = 0
   gas_plan_changes = 0
   node_plan_changes = 0
+  ui_plan_changes = 0
 
   Print: "Pass [pass_count/5]: evaluating..."
 
-  [In a SINGLE message, spawn 3 parallel Task calls]:
+  [In a SINGLE message, spawn up to 4 parallel Task calls (L1 + L2 always; ecosystem evaluator if IS_GAS or IS_NODE; ui-evaluator if HAS_UI)]:
 
   --- L1 Evaluator ---
   Task(
@@ -196,17 +198,37 @@ DO:
       """
     )
 
-  Wait for all 3 evaluator messages (90s reminder; after 120s mark ⚠️ Evaluator Incomplete for
-  any non-responding evaluator and proceed with available findings).
+  IF HAS_UI:
+    --- UI Evaluator ---
+    Task(
+      subagent_type = "ui-designer",
+      team_name = <team_name>,
+      name = "ui-evaluator",
+      prompt = """
+        Review plan at <plan_path>. mode=evaluate.
+
+        You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
+        UI specialization (Q-U1 through Q-U6). Return findings via SendMessage to team-lead.
+
+        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
+      """
+    )
+
+  Wait for all evaluator messages (up to 4 when HAS_UI — 90s reminder; after 120s mark ⚠️ Evaluator
+  Incomplete for any non-responding evaluator and proceed with available findings).
 
   -- Merge & Apply --
-  COLLECT all NEEDS_UPDATE findings from L1, L2, and ecosystem evaluator messages
+  COLLECT all NEEDS_UPDATE findings from L1, L2, ecosystem evaluator, and ui-evaluator messages
   IF IS_GAS:
     Remove true duplicates (same concern raised by both L2 and gas-evaluator — keep
     gas-evaluator's more specific GAS framing)
   IF IS_NODE:
     Remove true duplicates (same concern raised by both L2 and node-evaluator — keep
     node-evaluator's more specific Node/TS framing)
+  IF HAS_UI:
+    Remove true duplicates between ui-evaluator and L2 (keep ui-evaluator's more specific
+    UI framing); remove duplicates between ui-evaluator and gas-evaluator if IS_GAS
+    (keep gas-evaluator's GAS-specific framing for GAS UI concerns)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
@@ -220,9 +242,10 @@ DO:
   l2_changes = count of L2 NEEDS_UPDATE edits applied
   IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
-  changes_this_pass = l1_changes + l2_changes + gas_plan_changes + node_plan_changes
+  IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
+  changes_this_pass = l1_changes + l2_changes + gas_plan_changes + node_plan_changes + ui_plan_changes
 
-  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes])"
+  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
 
   -- CONVERGENCE CHECK --
   IF changes_this_pass == 0:
@@ -250,6 +273,7 @@ DO:
   changes_this_pass = 0
   l1_changes = 0
   l2_changes = 0
+  ui_plan_changes = 0
 
   Print: "Pass [pass_count/5]: evaluating..."
 
@@ -261,7 +285,7 @@ DO:
   l1_changes = count of L1 edits
   changes_this_pass += l1_changes
 
-  [In a SINGLE message, spawn 1 parallel Task call]:
+  [In a SINGLE message, spawn 1–2 parallel Task calls]:
 
   --- L2 Evaluator ---
   Task(
@@ -285,12 +309,34 @@ DO:
     """
   )
 
-  Wait for L2 evaluator result.
+  IF HAS_UI:
+    --- UI Evaluator ---
+    Task(
+      subagent_type = "ui-designer",
+      prompt = """
+        Review plan at <plan_path>. mode=evaluate.
 
-  APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
+        You are the ui-evaluator running inside review-plan's simple mode. Evaluate the plan for
+        UI specialization (Q-U1 through Q-U6). Return findings as plain text (no SendMessage —
+        no team in simple mode).
+
+        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
+
+        Return your findings as a plain text list:
+          Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
+          [EDIT: instruction if NEEDS_UPDATE]
+          ... (all 6 questions)
+      """
+    )
+
+  Wait for all evaluator results (L2 always; ui-evaluator if HAS_UI).
+
+  APPLY edits — for each [EDIT: ...] instruction in any evaluator result:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
     Each Edit call = 1 change. Do NOT count findings you only described in text.
+  IF HAS_UI: remove true duplicates between ui-evaluator and L2 results
+    (keep ui-evaluator's more specific UI framing)
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
   REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
     removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
@@ -298,8 +344,10 @@ DO:
 
   l2_changes = count of L2 NEEDS_UPDATE edits applied
   changes_this_pass += l2_changes
+  IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
+  changes_this_pass += ui_plan_changes
 
-  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes])"
+  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], ui-plan: [ui_plan_changes])"
 
   -- CONVERGENCE CHECK --
   IF changes_this_pass == 0:
@@ -439,8 +487,27 @@ framing where both are present.
 where both L2 and node-evaluator flag the same concern. Keep node-plan's more specific Node/TS
 framing where both are present.
 
-### Q-SEC, Q-UI (future)
-Reserved slots — follow same pattern as Q-GAS / Q-NODE when implemented.
+### Q-UI: UI Specialization
+
+In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
+above). The ui-evaluator Task is spawned with `mode=evaluate`, which means:
+- ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
+- Returns all 6-question findings (Q-U1 through Q-U6) via SendMessage to team-lead (Team mode)
+  or as plain text (Simple mode)
+- Does NOT edit the plan or call ExitPlanMode
+- The outer review-plan loop handles convergence
+
+HAS_UI is orthogonal to IS_GAS/IS_NODE: a GAS project with a sidebar will have
+IS_GAS=true, HAS_UI=true → 4 parallel evaluators (L1, L2, gas-evaluator, ui-evaluator).
+
+**Deduplication (HAS_UI + IS_GAS):** GAS UI concerns (sidebar, dialog) may overlap between
+gas-evaluator and ui-evaluator. Keep gas-evaluator's GAS-specific framing in those cases.
+
+**Deduplication (HAS_UI + L2):** Remove duplicates between ui-evaluator and L2; keep
+ui-evaluator's more specific UI framing.
+
+### Q-SEC (future)
+Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 
 ---
 
@@ -490,6 +557,21 @@ OR
 OR
 [N NEEDS_UPDATE remaining]
 
+### UI Specialization (ui-designer)
+[NOT INVOKED — no UI patterns detected]
+OR
+[PASS — converged after N passes]
+OR
+[N NEEDS_UPDATE remaining]
+OR
+[DEDUPLICATED — gas-evaluator covered [topic]] <!-- review-plan -->
+- Q-U1 Component structure: [status]
+- Q-U2 State coverage: [status]
+- Q-U3 User feedback: [status]
+- Q-U4 Accessibility: [status]
+- Q-U5 Responsive/layout: [status]
+- Q-U6 Error display: [status]
+
 ### Rating
 READY   — Gate 1 + Gate 2 all PASS
 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
@@ -537,9 +619,9 @@ After outputting the Final Scorecard:
 2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
 3. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents by name
-   (`l1-evaluator`, `l2-evaluator`, and `gas-evaluator` if IS_GAS or `node-evaluator` if IS_NODE),
-   then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for
-   TeamDelete is not available after exiting plan mode.)
+   (`l1-evaluator`, `l2-evaluator`, `gas-evaluator` if IS_GAS, `node-evaluator` if IS_NODE,
+   and `ui-evaluator` if HAS_UI), then call TeamDelete. (Teardown must complete before ExitPlanMode —
+   the session context needed for TeamDelete is not available after exiting plan mode.)
 
 4. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
