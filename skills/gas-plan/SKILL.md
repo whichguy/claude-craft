@@ -63,7 +63,7 @@ Two operating modes:
 
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
-   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
+   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43
    - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
@@ -121,7 +121,7 @@ IF any unrecoverable error occurs during the convergence loop:
 Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G]` = GAS, `[Shared]` = both.
 
 **Frontend evaluator** — HTML/CSS/UX focus:
-- Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
+- Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36, Q43
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **GAS evaluator** — backend/infrastructure focus:
@@ -173,10 +173,10 @@ DO:
         ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the FRONTEND lens:
-        Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
+        Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36, Q43
         Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
-      Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36.
+      Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43.
               Evaluate shared Qs regardless.
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
@@ -269,12 +269,12 @@ DO:
   RE-READ consolidated plan
   SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)  # set equality: order-independent
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
   -- CONVERGENCE CHECK --
-  Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q42 (all weight-3 questions)
+  Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q18, Q42 (all weight-3 questions)
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
       AskUserQuestion to resolve Gate 1 issues, then BREAK
@@ -366,15 +366,16 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 
 **Gate 1 -- Blocking (weight 3, must all PASS):**
 Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G] | Q42 post-impl review [G]
+*(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by L1, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared]
 
 **Gate 3 -- Advisory (weight 1, note only):**
-Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G]
+Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q30-Q36, Q43; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
 
 ---
 
@@ -551,6 +552,13 @@ WHY something exists: workarounds, undocumented behavior, intentional oddities. 
 
 ---
 
+### Plan Legibility
+
+**Q43: Would any update materially improve plan legibility when run in Claude Code?** (1, Frontend)
+As a senior UI engineer running this plan in Claude Code: are steps numbered, are code blocks properly fenced, are section headers scannable, and are conditional branches (IF/ELSE) visually distinct? Flag plans with walls of prose, unnumbered multi-step sequences, or deeply nested logic that becomes hard to follow during execution. N/A: plan is a single atomic step or is already well-structured.
+
+---
+
 ### Documentation
 
 **Q37: Does project documentation need updating?** (1, GAS)
@@ -560,8 +568,14 @@ Identify affected project docs: MEMORY.md, CLAUDE.md, README, JSDoc. Update when
 
 ### Post-Implementation Review
 
-**Q42: Is there a plan to review all fixes after all changes are applied?** (3, GAS, never N/A)
-Plan must include a post-implementation review step: run `/review-fix` or `/gas-review` after all changes are applied. Ensures regressions and secondary issues are caught before closing out the task. Mandatory for all plans — cannot be skipped.
+**Q42: Is there a plan to review all changes after all code is applied?** (3, GAS, never N/A)
+Plan must include a post-implementation section after all implementation steps:
+(1) run `/review-fix` or `/gas-review` — loop until clean,
+(2) run build/compile if applicable,
+(3) run tests.
+Steps 4–5 of CLAUDE.md POST_IMPLEMENT (fail recovery and COMMIT_SUGGESTED deferral) apply at runtime regardless of plan text — plan does not need to restate them.
+Ensures regressions and secondary issues are caught before closing out the task.
+Mandatory for all plans — cannot be skipped.
 
 ---
 

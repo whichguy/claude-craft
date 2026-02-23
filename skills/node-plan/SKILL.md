@@ -314,7 +314,7 @@ DO:
   RE-READ consolidated plan
   SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)  # set equality: order-independent
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 

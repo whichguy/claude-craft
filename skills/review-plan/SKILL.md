@@ -36,29 +36,42 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - Read `~/.claude/CLAUDE.md` for directives and conventions
    - Read `~/.claude/projects/-Users-jameswiese/memory/MEMORY.md` for patterns
 
-3. **Set context flags** (deterministic grep — use Bash tool):
-   ```bash
-   # IS_GAS
-   grep -qiE '\.gs["\s]|mcp__gas__|scriptId|SpreadsheetApp|DriveApp|GmailApp|ScriptApp|
-              HtmlService|__events__|__global__|google\.script\.run|createGasServer|
-              appsscript\.json|Apps Script|Google Apps Script' <plan_path> \
-     && IS_GAS=true || IS_GAS=false
+3. **Set context flags** (Haiku classification):
+   Task(
+     subagent_type = "general-purpose",
+     model = "haiku",
+     prompt = """
+       Read the plan at <plan_path>.
 
-   # IS_NODE (only if IS_GAS=false)
-   if [ "$IS_GAS" = "false" ]; then
-     grep -qiE 'package\.json|tsconfig\.json|\.ts["\s]|npm |yarn |pnpm |bun |TypeScript|
-                Node\.js|Express|Fastify|NestJS|Next\.js|jest|vitest|webpack|esbuild|
-                node_modules' <plan_path> \
-       && IS_NODE=true || IS_NODE=false
-   else
-     IS_NODE=false
-   fi
+       Classify based on what files the plan CREATES or MODIFIES — not what it
+       mentions in descriptions, evaluator prompts, or documentation.
 
-   # HAS_UI
-   grep -qiE 'sidebar|dialog|\.html|CSS|frontend|client-side' <plan_path> \
-     && HAS_UI=true || HAS_UI=false
-   ```
-   Print detected flags: `IS_GAS=[value] IS_NODE=[value] HAS_UI=[value]`
+       IS_GAS: true if plan creates/modifies .gs files, appsscript.json, GAS
+               CommonJS modules, or GAS HTML service files.
+               False if plan only references GAS concepts in prose or skill metadata.
+       IS_NODE: true if plan creates/modifies .ts/.js application files, package.json
+                dependencies, or Node.js server code. Always false if IS_GAS is true.
+                False if plan only runs npm test for verification or mentions Node
+                tooling in passing.
+       HAS_UI: true if plan creates/modifies HTML/CSS files, sidebar code, dialog
+               implementations, or client-side JavaScript.
+               False if plan only describes UI concepts in evaluator questions or
+               architectural context.
+
+       Key: "modifies code in that domain" vs "mentions that domain in prose."
+       Example: a plan editing .md files that runs npm test → IS_NODE=false.
+
+       Output ONLY (no explanation):
+       IS_GAS=true|false
+       IS_NODE=true|false
+       HAS_UI=true|false
+     """
+   )
+   Parse output → set IS_GAS, IS_NODE, HAS_UI
+   IF Haiku timeout or malformed output → all flags false (simple mode)
+   Print: "🏷️ Triage: IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]"
+   Flags are set once and do NOT change between passes (evaluator set changes mid-loop
+   would invalidate convergence state tracking).
    [future: IS_SEC, HAS_API]
    HAS_UI is active — triggers ui-evaluator in the convergence loop
 
@@ -108,7 +121,7 @@ DO:
   node_plan_changes = 0
   ui_plan_changes = 0
 
-  Print: "Pass [pass_count/5]: evaluating..."
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
 
   [In a SINGLE message, spawn up to 4 parallel Task calls (L1 + L2 always; ecosystem evaluator if IS_GAS or IS_NODE; ui-evaluator if HAS_UI)]:
 
@@ -188,14 +201,14 @@ DO:
         or alter this string.
 
         You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
-        specialization (all 42 GAS questions, both perspectives). Return findings via SendMessage
+        specialization (all 43 GAS questions, both perspectives). Return findings via SendMessage
         to team-lead.
 
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
         Do NOT call TeamCreate — you are already inside a team.
       """
     )
-  ELSE (IS_NODE):
+  ELSE IF IS_NODE:
     --- Node Evaluator ---
     Task(
       subagent_type = "node-plan",
@@ -240,6 +253,14 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
+  Print receipt for each evaluator response received:
+    Print: "  ✅ l1-evaluator — [n] NEEDS_UPDATE"
+    Print: "  ✅ l2-evaluator — [n] NEEDS_UPDATE"
+    Print: "  ✅ gas-evaluator — [n] NEEDS_UPDATE"  (if IS_GAS)
+    Print: "  ✅ node-evaluator — [n] NEEDS_UPDATE"  (if IS_NODE)
+    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"  (if HAS_UI)
+    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"     (if incomplete)
+
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, L2, ecosystem evaluator, and ui-evaluator messages
   IF IS_GAS:
@@ -271,14 +292,21 @@ DO:
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
   changes_this_pass = l1_changes + l2_changes + gas_plan_changes + node_plan_changes + ui_plan_changes
 
-  current_needs_update_set = [list of Q/N numbers with NEEDS_UPDATE this pass across all evaluators]
+  current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
-  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
 
   -- CONVERGENCE CHECK (gate-aware) --
-  Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
-                     (plus any gate-1 questions from ecosystem evaluators)
-  Gate2_stable = (prev_needs_update_set == current_needs_update_set)
+  IF IS_GAS:
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3,
+                       Q1, Q2, Q13, Q15, Q18, Q42
+                       (Q-C1, Q-C2, Q-C3 are N/A-superseded by gas-evaluator Q1, Q2, Q18)
+  ELSE IF IS_NODE:
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3,
+                       N1
+  ELSE (simple):
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
+  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
@@ -317,7 +345,7 @@ DO:
   l2_changes = 0
   ui_plan_changes = 0
 
-  Print: "Pass [pass_count/5]: evaluating..."
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
 
   [ Layer 1: Evaluate inline ]
   Evaluate all 9 L1 questions yourself (Q-G1 through Q-G8 + Q-NEW; fast — no agent overhead).
@@ -396,13 +424,13 @@ DO:
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
   changes_this_pass += ui_plan_changes
 
-  current_needs_update_set = [list of Q/N numbers with NEEDS_UPDATE this pass]
+  current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass}
 
-  Print: "Pass [pass_count] complete — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], ui-plan: [ui_plan_changes])"
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], ui-plan: [ui_plan_changes])"
 
   -- CONVERGENCE CHECK (gate-aware) --
   Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
-  Gate2_stable = (prev_needs_update_set == current_needs_update_set)
+  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
@@ -456,7 +484,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Agent teams & Task usage | Does the plan make maximal use of agent teams and parallel Task calls for independent work? Flag: sequential steps that could run in parallel, missing TeamCreate for multi-agent coordination, evaluations that could be parallelized, or sub-tasks that would benefit from specialized subagents. | plan involves only a single atomic change with no parallelizable steps |
-| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) implement all changes, (2) run review-fix or gas-review on all modified files, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Implement all plan changes\n2. Run review-fix on all modified files\n3. Run tests]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) | never |
+| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) | never |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -532,7 +560,7 @@ Count L2 edits → `l2_changes += count`; `changes_this_pass += l2_changes`
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
 Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 42-question findings via SendMessage to team-lead
+- Returns all 43-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
@@ -551,8 +579,12 @@ framing where both are present. (Rationale: "specialization wins" — ecosystem 
 superior domain context vs L2 generic questions.)
 
 IS_GAS — suppress these L2 questions (covered by gas-evaluator with more specificity):
-  Q-C1 (→Q1), Q-C2 (→Q2), Q-C3 (→Q18), Q-C5 (→Q12), Q-C16 (→Q28),
-  Q-C18 (→Q21), Q-C19 (→Q24), Q-C20 (→Q29), Q-C21 (→Q22), Q-C22 (→Q23)
+  Q-C1 (→Q1), Q-C2 (→Q2), Q-C3 (→Q18), Q-C4 (→Q11), Q-C5 (→Q12),
+  Q-C6 (→Q9), Q-C7 (→Q10), Q-C8 (→Q16), Q-C9 (→Q17), Q-C10 (→Q19),
+  Q-C11 (→Q20), Q-C12 (→Q39), Q-C13 (→Q40), Q-C14 (→Q41), Q-C15 (→Q27),
+  Q-C16 (→Q28), Q-C18 (→Q21), Q-C19 (→Q24), Q-C20 (→Q29), Q-C21 (→Q22),
+  Q-C22 (→Q23), Q-C23 (→Q25), Q-C24 (→Q3)
+  Q-C17 (→Q32) and Q-C25 (→Q33) — suppressed only when HAS_UI=true (frontend-owned equivalents)
 Mark suppressed questions as N/A-superseded in the L2 section of the scorecard.
 Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
 
@@ -602,26 +634,24 @@ Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 ## Output: Unified Scorecard
 
 ```
-## review-plan Scorecard
+## review-plan Scorecard — Pass [N]
 
-### Passes: [N] (converged / max reached)
+### 🔴 Gate 1 — Blocking
+[✅ PASS] or [❌ N NEEDS_UPDATE remaining]
+- Q-G1 Approach soundness: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-G2 Standards compliance: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-G3 Quality review changes: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-C1 Branching strategy: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
+- Q-C2 Branching usage: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
+- Q-C3 Impact analysis: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
 
-### Gate 1 — Blocking
-[PASS] or [N NEEDS_UPDATE remaining]
-- Q-G1 Approach soundness: [status]
-- Q-G2 Standards compliance: [status]
-- Q-G3 Quality review changes: [status]
-- Q-C1 Branching strategy: [status] (N/A-superseded when IS_GAS)
-- Q-C2 Branching usage: [status] (N/A-superseded when IS_GAS)
-- Q-C3 Impact analysis: [status]
-
-### Gate 2 — Important
-[PASS] or [N NEEDS_UPDATE remaining]
-- Q-NEW Post-implementation workflow: [status]
+### 🟡 Gate 2 — Important
+[✅ PASS] or [❌ N NEEDS_UPDATE remaining]
+- Q-NEW Post-implementation workflow: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
 [list other applicable questions with status]
 
-### Gate 3 — Advisory
-[N noted]
+### 💡 Gate 3 — Advisory
+[[n] noted]
 [list applicable questions]
 
 ### GAS Specialization (gas-plan)
@@ -646,18 +676,18 @@ OR
 [N NEEDS_UPDATE remaining]
 OR
 [DEDUPLICATED — gas-evaluator covered [topic]] <!-- review-plan -->
-- Q-U1 Component structure: [status]
-- Q-U2 State coverage: [status]
-- Q-U3 User feedback: [status]
-- Q-U4 Accessibility: [status]
-- Q-U5 Responsive/layout: [status]
-- Q-U6 Error display: [status]
+- Q-U1 Component structure: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-U2 State coverage: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-U3 User feedback: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-U4 Accessibility: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-U5 Responsive/layout: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+- Q-U6 Error display: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
 
 ### Rating
-READY   — Gate 1 + Gate 2 all PASS
-SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
-GAPS    — Gate 1 PASS, > 2 Gate 2 NEEDS_UPDATE
-REWORK  — any Gate 1 NEEDS_UPDATE
+🟢 READY   — Gate 1 + Gate 2 all PASS
+🟡 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
+🟠 GAPS    — Gate 1 PASS, > 2 Gate 2 NEEDS_UPDATE
+🔴 REWORK  — any Gate 1 NEEDS_UPDATE
 
 ```
 
