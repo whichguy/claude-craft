@@ -171,6 +171,9 @@ DO:
     name = "l2-evaluator",
     prompt = """
       You are evaluating a plan for code change quality (Layer 2: 25 questions).
+      Prioritize practical production implications over theoretical concerns.
+      Flag real-world risks (deployment failures, data loss, breaking changes)
+      that a checklist review would miss.
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
@@ -394,6 +397,9 @@ DO:
     subagent_type = "general-purpose",
     prompt = """
       You are evaluating a plan for code change quality (Layer 2: 25 questions).
+      Prioritize practical production implications over theoretical concerns.
+      Flag real-world risks (deployment failures, data loss, breaking changes)
+      that a checklist review would miss.
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
