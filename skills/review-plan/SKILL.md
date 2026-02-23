@@ -69,7 +69,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    )
    Parse output → set IS_GAS, IS_NODE, HAS_UI
    IF Haiku timeout or malformed output → all flags false (simple mode)
-   Print: "🏷️ Triage: IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]"
+   Print mode based on flags:
+     All false:           "📋 Review mode: Standard (general + code quality)"
+     IS_GAS only:         "📋 Review mode: GAS (general + code + 43-question GAS specialization)"
+     IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (4 parallel evaluators, ~90s/pass)"
+     IS_NODE only:        "📋 Review mode: Node.js (general + code + 35-question Node/TS)"
+     IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI (4 parallel evaluators, ~90s/pass)"
+     HAS_UI only:         "📋 Review mode: Standard + UI (general + code + UI evaluation)"
+   (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]" is printed only when pass_count >= 3,
+   as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
    would invalidate convergence state tracking).
    [future: IS_SEC, HAS_API]
@@ -273,6 +281,19 @@ DO:
     Remove true duplicates between ui-evaluator and L2 (keep ui-evaluator's more specific
     UI framing); remove duplicates between ui-evaluator and gas-evaluator if IS_GAS
     (keep gas-evaluator's GAS-specific framing for GAS UI concerns)
+
+  Before applying edits, print a summary using this exact format:
+    Print: "Applying [N] changes:"
+    Print: "  1. [question short name] ([ID]): [verb] [object]"
+    Print: "  2. ..."
+    Then proceed with Edit calls.
+  Example:
+    Applying 3 changes:
+      1. Branching strategy (Q-C1): adding feature branch section
+      2. Step ordering (Q-C9): reordering steps 3-4 for dependency correctness
+      3. Post-implementation (Q-NEW): adding exec verification after push steps
+  (If changes_this_pass == 0, skip the summary entirely.)
+
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
@@ -315,9 +336,20 @@ DO:
       Print: "✅ Converged (max passes reached, Gate 1 clear)."
       BREAK → proceed to OUTPUT final scorecard
   IF Gate1_unresolved > 0:
+    Print using this exact format:
+      "⚠️ Gate 1 still open — [Gate1_unresolved] blocking:"
+      "  - [question short name] ([ID]): [first sentence of evaluator finding]"
+      (one line per unresolved Gate 1 question)
+      "Looping for pass [pass_count + 1]..."
+    Example:
+      ⚠️ Gate 1 still open — 2 blocking:
+        - Branching strategy (Q-C1): no feature branch or merge target defined
+        - Branching usage (Q-C2): steps don't reference a branch or include commits
+      Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
-    Print: "✅ Converged — no changes this pass."
+    elapsed = Math.round((Date.now() - timestamp) / 1000)
+    Print: "✅ Converged — no changes this pass ([elapsed]s total)"
     BREAK → proceed to OUTPUT final scorecard
 
   prev_needs_update_set = current_needs_update_set
@@ -405,6 +437,18 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
+  Before applying edits, print a summary using this exact format:
+    Print: "Applying [N] changes:"
+    Print: "  1. [question short name] ([ID]): [verb] [object]"
+    Print: "  2. ..."
+    Then proceed with Edit calls.
+  Example:
+    Applying 3 changes:
+      1. Branching strategy (Q-C1): adding feature branch section
+      2. Step ordering (Q-C9): reordering steps 3-4 for dependency correctness
+      3. Post-implementation (Q-NEW): adding exec verification after push steps
+  (If changes_this_pass == 0, skip the summary entirely.)
+
   APPLY edits — for each [EDIT: ...] instruction in any evaluator result:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
@@ -439,9 +483,20 @@ DO:
       Print: "✅ Converged (max passes reached, Gate 1 clear)."
       BREAK → proceed to OUTPUT final scorecard
   IF Gate1_unresolved > 0:
+    Print using this exact format:
+      "⚠️ Gate 1 still open — [Gate1_unresolved] blocking:"
+      "  - [question short name] ([ID]): [first sentence of evaluator finding]"
+      (one line per unresolved Gate 1 question)
+      "Looping for pass [pass_count + 1]..."
+    Example:
+      ⚠️ Gate 1 still open — 2 blocking:
+        - Branching strategy (Q-C1): no feature branch or merge target defined
+        - Branching usage (Q-C2): steps don't reference a branch or include commits
+      Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
-    Print: "✅ Converged — no changes this pass."
+    elapsed = Math.round((Date.now() - timestamp) / 1000)
+    Print: "✅ Converged — no changes this pass ([elapsed]s total)"
     BREAK → proceed to OUTPUT final scorecard
 
   prev_needs_update_set = current_needs_update_set
@@ -513,8 +568,8 @@ Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
 
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
-| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? Merge strategy specified (squash / rebase / merge commit)? Push-to-remote step included? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q1 |
-| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Commit messages follow project conventions (e.g. conventional commits)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q2 |
+| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? Merge strategy specified (squash / rebase / merge commit)? Push-to-remote step included? PR creation step included (e.g. `gh pr create`)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q1 |
+| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q2 |
 | Q-C3 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
 
 **Gate 2 — Important (weight 2):**
@@ -633,55 +688,49 @@ Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 
 ## Output: Unified Scorecard
 
+The scorecard is generated by the team-lead (or inline evaluator in simple mode) after merging
+all evaluator findings. N/A items are collapsed to a count — only PASS and NEEDS_UPDATE questions
+appear as line items. Question IDs appear as a suffix for referenceability (user can say "fix Q-C1").
+
+Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list every question
+individually with IDs. The collapsing happens only in this final user-facing scorecard.
+
 ```
 ## review-plan Scorecard — Pass [N]
 
 ### 🔴 Gate 1 — Blocking
-[✅ PASS] or [❌ N NEEDS_UPDATE remaining]
-- Q-G1 Approach soundness: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-G2 Standards compliance: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-G3 Quality review changes: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-C1 Branching strategy: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
-- Q-C2 Branching usage: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
-- Q-C3 Impact analysis: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A (N/A-superseded when IS_GAS)
+[✅ PASS (M applicable, K triaged N/A)] or [❌ N NEEDS_UPDATE remaining (M applicable, K triaged N/A)]
+[list only PASS and NEEDS_UPDATE questions — omit N/A items]
+Example line: Branching strategy (Q-C1): ✅ PASS
+Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
 
 ### 🟡 Gate 2 — Important
-[✅ PASS] or [❌ N NEEDS_UPDATE remaining]
-- Q-NEW Post-implementation workflow: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-[list other applicable questions with status]
+[✅ PASS (M applicable, K triaged N/A)] or [❌ N NEEDS_UPDATE remaining (M applicable, K triaged N/A)]
+[list only PASS and NEEDS_UPDATE questions — omit N/A items]
 
 ### 💡 Gate 3 — Advisory
-[[n] noted]
-[list applicable questions]
+[N noted (M applicable, K flagged)] or [0 noted (M applicable, 0 flagged)]
+[list only flagged advisory questions — omit N/A and non-flagged PASS]
 
-### GAS Specialization (gas-plan)
-[NOT INVOKED — no GAS patterns detected]
+[Only render the following specialization sections when the corresponding flag is TRUE.
+ Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
+
+### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
+[PASS — converged after N passes (43 questions, K triaged N/A)]
 OR
-[PASS — converged after N gas-plan passes]
+[N NEEDS_UPDATE remaining (43 questions, K triaged N/A)]
+
+### Node Specialization (node-plan)  ← render only when IS_NODE=true
+[PASS — converged after N passes (35 questions, K triaged N/A)]
+OR
+[N NEEDS_UPDATE remaining (35 questions, K triaged N/A)]
+
+### UI Specialization (ui-designer)  ← render only when HAS_UI=true
+[PASS — converged after N passes (6 questions, K triaged N/A)]
 OR
 [N NEEDS_UPDATE remaining]
-
-### Node Specialization (node-plan)
-[NOT INVOKED — no Node.js/TypeScript patterns detected]
-OR
-[PASS — converged after N node-plan passes]
-OR
-[N NEEDS_UPDATE remaining]
-
-### UI Specialization (ui-designer)
-[NOT INVOKED — no UI patterns detected]
-OR
-[PASS — converged after N passes]
-OR
-[N NEEDS_UPDATE remaining]
-OR
-[DEDUPLICATED — gas-evaluator covered [topic]] <!-- review-plan -->
-- Q-U1 Component structure: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-U2 State coverage: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-U3 User feedback: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-U4 Accessibility: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-U5 Responsive/layout: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
-- Q-U6 Error display: ✅ PASS | ❌ NEEDS_UPDATE | ⬜ N/A
+[list only PASS and NEEDS_UPDATE UI questions — omit N/A items]
+Example line: Component structure (Q-U1): ✅ PASS
 
 ### Rating
 🟢 READY   — Gate 1 + Gate 2 all PASS
@@ -700,8 +749,20 @@ After outputting the Final Scorecard:
 1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
    AskUserQuestion with the Gate 1 issues listed. User must explicitly resolve each issue or
    override before proceeding. Do NOT call ExitPlanMode or write the marker until the user
-   responds. If user resolves: apply edits and re-evaluate Gate 1 questions. If user overrides:
-   note override in scorecard and proceed.
+   responds.
+   If user resolves: apply edits and re-evaluate Gate 1 questions only (Layer 2 and ecosystem
+     evaluators do not re-run in this step). Recompute Rating using the standard thresholds.
+     If new Rating is READY, SOLID, or GAPS: proceed to step 1.5 (step 4 will apply for SOLID/GAPS).
+     If Gate 1 is still not resolved: return to AskUserQuestion.
+   If user overrides: note override in scorecard and proceed.
+
+1.5. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
+   strip all self-referential markers that served their purpose during the convergence loop:
+   - `" <!-- review-plan -->"` → `""` (remove)
+   - `" <!-- gas-plan -->"` → `""` (remove)
+   - `" <!-- node-plan -->"` → `""` (remove)
+   This delivers a clean plan file to the user for implementation (no stray HTML comments).
+   Only strip the markers — do NOT remove the content they annotated.
 
 2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
@@ -710,6 +771,22 @@ After outputting the Final Scorecard:
    and `ui-evaluator` if HAS_UI), then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
-4. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+4. **Remaining issues summary (non-READY ratings):**
+   ```
+   IF Rating == READY:
+     Proceed to ExitPlanMode immediately (plan is fully clean)
+   IF Rating == SOLID or GAPS:
+     Print: "ℹ️ [N] Gate 2 issues remaining (not blocking):"
+     For each remaining Gate 2 NEEDS_UPDATE question:
+       Print: "  - [question short name] ([ID]): [one-sentence summary of finding]"
+     Print: "These are advisory — reject the plan approval to address them."
+     Proceed to ExitPlanMode (user can reject ExitPlanMode if they want to fix issues first)
+   IF Rating == REWORK:
+     Handled in step 1 above (AskUserQuestion before reaching this point)
+   ```
+   This is a single approval point: the user sees remaining issues in printed text, then
+   ExitPlanMode is the one decision point. No double-approval friction.
+
+5. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
