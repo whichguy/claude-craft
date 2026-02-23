@@ -259,6 +259,15 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
+  -- Never-N/A Fallback (GAS evaluator skipped) --
+  IF GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
+    Team-lead directly evaluates Q1, Q2, Q42 before the merge step:
+    - Q1: Does the plan name a branch and include a push-to-remote step? (blocking)
+    - Q2: Do the plan steps actually create a feature branch with incremental commits? (blocking)
+    - Q42: Does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
+    Add findings to current_needs_update_set as if from gas-evaluator.
+    These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
+
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
   For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) flagged by both:
@@ -369,7 +378,7 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 
 **Gate 1 -- Blocking (weight 3, must all PASS):**
 Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G] | Q42 post-impl review [G]
-*(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by L1, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
+*(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-general-reviewer, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [Shared] | Q48 trigger coverage [G]

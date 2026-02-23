@@ -70,6 +70,7 @@ Build a per-file reviewer mapping before Phase 1. This enables GAS-aware reviewe
 // For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
 // gas-code-review coverage for those files requires a separate manual pass (see note below).
 reviewer_map = {}
+cardservice_files = []  // tracked for Phase 4 warning
 
 for (const file of file_list) {
   const ext = file.split('.').pop()
@@ -82,8 +83,7 @@ for (const file of file_list) {
     )
     if (hasCardService) {
       reviewer_map[file] = 'gas-gmail-cards'
-      // Note: gas-code-review is NOT run for CardService files in the automated loop.
-      // For full coverage, run /gas-review separately after this loop completes.
+      cardservice_files.push(file)
     } else {
       reviewer_map[file] = 'gas-code-review'
     }
@@ -321,6 +321,10 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 **Target files**: [list]
 **Rounds run**: [N] of [max_rounds] maximum
 **Files changed**: [list, or "none"]
+
+[If cardservice_files is non-empty:]
+> ⚠️ **CardService coverage note**: The following files were routed to `gas-gmail-cards` (Gmail add-on specialist) instead of `gas-code-review` (general GAS quality). General GAS code quality checks were **not** run for these files in the automated loop. For full dual coverage, run `/gas-review` separately:
+> [list each file in cardservice_files]
 
 ### Critical Findings — Resolved ([count])
 
