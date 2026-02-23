@@ -346,7 +346,7 @@ DO:
       "Looping for pass [pass_count + 1]..."
     Example:
       ⚠️ Gate 1 still open — 2 blocking:
-        - Branching strategy (Q-C1): no feature branch or merge target defined
+        - Branching strategy (Q-C1): no feature branch or merge-to-main step defined
         - Branching usage (Q-C2): steps don't reference a branch or include commits
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
@@ -496,7 +496,7 @@ DO:
       "Looping for pass [pass_count + 1]..."
     Example:
       ⚠️ Gate 1 still open — 2 blocking:
-        - Branching strategy (Q-C1): no feature branch or merge target defined
+        - Branching strategy (Q-C1): no feature branch or merge-to-main step defined
         - Branching usage (Q-C2): steps don't reference a branch or include commits
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
@@ -574,7 +574,7 @@ Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
 
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
-| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? Merge strategy specified (squash / rebase / merge commit)? Push-to-remote step included? PR creation step included (e.g. `gh pr create`)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q1 |
+| Q-C1 | Branching strategy | Branch named? Push-to-remote step included? Merge-to-main step included? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q1 |
 | Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q2 |
 | Q-C3 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
 

@@ -305,9 +305,9 @@ TEARDOWN:
 Pass 1/5: evaluating...
   [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
   [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
-  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no merge strategy, no push-to-remote step; no deploy target; stub function
+  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no push-to-remote step; no deploy target; stub function
   -> Merge: shared Qs all PASS in both — no merge needed
-  -> Edits: add CSS namespace note (Q34), add branching section + merge strategy + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
+  -> Edits: add CSS namespace note (Q34), add branching section + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
 Pass 2/5: evaluating...
   [frontend-evaluator findings]: 0 NEEDS_UPDATE
@@ -382,8 +382,8 @@ Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G]
 ### Git & Version Control
 
 **Q1: Is there a branching/merging strategy?** (3, GAS, never N/A)
-All changes get a branch. Plan must name the branch, merge target, PR workflow, and merge
-strategy (squash / rebase / merge commit). Push-to-remote step must be explicit.
+All changes get a branch. Plan must name the branch and include a merge-to-main step.
+Push-to-remote step must be explicit.
 
 **Q2: Do the plan steps actually use branching?** (3, GAS, never N/A)
 Steps must create a feature branch and commit incrementally. Commit messages must follow
