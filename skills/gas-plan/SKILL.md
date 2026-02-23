@@ -66,6 +66,8 @@ Two operating modes:
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43
    - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
+   - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
+     Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
    - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
 3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
 4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
@@ -125,16 +127,16 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
-- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
+- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47
 
-**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording.
+**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording. Exception: Q47 is a Gmail-domain shared question — bulk N/A when no Gmail add-on/CardService patterns are present (see triage shortcut below).
 
 **Triage shortcut — evaluator skip:**
 - No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary. Shared question coverage: GAS evaluator evaluates all 7 shared Qs from both lenses (see GAS evaluator prompt fallback instruction).
 - No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 shared Qs.
 
-**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is a Gmail-domain exception to the shared-question rule). All other shared questions are NEVER bulk-N/A'd.
 
 **Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
 
@@ -217,11 +219,12 @@ DO:
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42
-        Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
+        Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
-              Evaluate shared Qs regardless.
+              If plan has no Gmail add-on/CardService patterns → bulk N/A Q44, Q45, Q46, Q47, Q48.
+              Evaluate shared Qs regardless (except Q47 when no Gmail — Gmail-domain exception).
 
       IMPORTANT — if frontend evaluator was skipped this pass (no UI/HTML/CSS changes):
         Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the FRONTEND lens.
@@ -258,7 +261,7 @@ DO:
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
-  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41) flagged by both:
+  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) flagged by both:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
@@ -303,7 +306,7 @@ TEARDOWN:
 
 ```
 Pass 1/5: evaluating...
-  [Spawning frontend-evaluator (haiku) + gas-evaluator (sonnet) in parallel]
+  [Spawning frontend-evaluator (general-purpose) + gas-evaluator (general-purpose) in parallel]
   [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
   [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no push-to-remote step; no deploy target; stub function
   -> Merge: shared Qs all PASS in both — no merge needed
@@ -369,7 +372,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by L1, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [Shared] | Q48 trigger coverage [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F]
@@ -556,6 +559,25 @@ WHY something exists: workarounds, undocumented behavior, intentional oddities. 
 
 **Q43: Would any update materially improve plan legibility when run in Claude Code?** (1, Frontend)
 As a senior UI engineer running this plan in Claude Code: are steps numbered, are code blocks properly fenced, are section headers scannable, and are conditional branches (IF/ELSE) visually distinct? Flag plans with walls of prose, unnumbered multi-step sequences, or deeply nested logic that becomes hard to follow during execution. N/A: plan is a single atomic step or is already well-structured.
+
+---
+
+### Gmail Add-On / CardService
+
+**Q44: Does the card structure follow stateless best practices?** (2, GAS)
+Cards must be rebuilt from scratch on each trigger invocation — CardService has no persistent card objects between calls. Evaluate: (a) State stored in PropertiesService or CacheService, not in card object references; (b) Cache keys use message-scoped prefixes (`ctx_` + messageId, `chat_` + messageId); (c) CacheService TTL appropriate to data lifetime (6 hours for classification, 1 hour for chat, 10 min for temp async state); (d) Async trigger pattern planned for long-running ops (LLM calls, external APIs) — saves state to PropertiesService, creates time-based trigger after 500ms, returns processing card with "Check Response" button, background fn saves result to CacheService, trigger cleaned up in `finally` block; (e) Trigger cleanup strategy explicit (user limit: 20 triggers; accumulation causes quota errors). Flag: mutable card references across invocations, global card caches, `card.update()` anti-patterns, missing trigger cleanup, LLM calls blocking the 30-second response limit without async pattern. N/A: no CardService usage in plan.
+
+**Q45: Are all card action handlers wired and exported?** (2, GAS)
+Every `setOnClickAction`, `setOnChangeAction`, `setOnClickOpenLinkAction` must reference a function that is globally visible or registered via `__events__`. Evaluate: (a) Action string in `setFunctionName()` matches an exported function name exactly (case-sensitive); (b) Handler functions in `module.exports` with `__events__: true`; (c) Parameters passed via `setParameters({key: 'value'})` — strings only, objects must be JSON-serialized; (d) Parameter extraction uses `e.commonEventObject.parameters.key`; (e) Form inputs extracted safely: `e.commonEventObject.formInputs[field]?.stringInputs?.value?.[0]` with defaults; (f) Switch widgets set BOTH `setValue('true')` (submitted value) AND `setSelected(boolean)` (UI state); (g) ActionResponse pattern matches intent: pushCard for drill-down (adds back button), updateCard for refresh (no navigation change), popCard for back/cancel, popToRoot for reset after major action, setNotification for toast (mutually exclusive with navigation — navigation wins if both set). Flag: action string references non-exported function, handler names don't match any function in plan's file set, missing `__events__: true`, notification + navigation combined. N/A: no card actions in plan.
+
+**Q46: Is Gmail message access token handled correctly?** (2, GAS)
+`GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken)` must be called as the FIRST line in every contextual trigger handler before any `GmailApp.getMessageById()` call. Evaluate: (a) Token set before ALL GmailApp operations in contextual handlers; (b) Token NOT cached across separate trigger invocations (isolated GAS state — caching breaks on new invocations); (c) Token NOT needed in homepage handlers (no `e.gmail` available there — accessing it crashes); (d) Draft creation uses `message.createDraftReply()` or `message.createDraftReplyAll()` for replies — NOT `thread.createDraft()` (creates new message, not reply); (e) Label operations use getOrCreate pattern: `getUserLabelByName()` then `createLabel()` if null (silent failure if label missing); (f) OAuth scopes in appsscript.json match actual operations: `gmail.addons.execute`, `gmail.addons.current.message.readonly`, `gmail.modify` (for drafts/labels/archive). Flag: missing token set before message access, token stored in Properties/global var for reuse across invocations, `thread.createDraft()` for replies, label ops without existence check, missing OAuth scopes for planned GmailApp operations. N/A: no Gmail message access in plan.
+
+**Q47: Is card navigation balanced (push/pop)?** (2, Shared)
+Every `pushCard` path must have a corresponding `popCard`, `popToRoot`, or explicit navigation reset path. Evaluate: (a) Detail/settings cards pushed via `pushCard` include a back button using `popCard`; (b) Navigation depth stays reasonable (3-4 cards max; ~10 card practical limit); (c) Major actions (send, archive, delete) use `popToRoot` to reset stack; (d) `updateCard` used for real-time refresh within a view (does not change navigation stack); (e) Error cards include back button — never dead-end the user; (f) No notification + navigation combined (navigation supersedes notification if both set). Flag: unbounded push depth without back navigation, pushed cards with no back button, orphaned card stacks (pushCard with no pop path), popCard called from card that was never pushed, using pushCard where updateCard is semantically correct (chat message refresh). N/A: single-card add-on with no navigation, or all interactions are updateCard only.
+
+**Q48: Are homepage and contextual triggers both covered?** (2, GAS)
+`appsscript.json` must declare both `homepageTrigger` (in `addOns.common`) and `contextualTriggers` (in `addOns.gmail`) when the add-on needs both entry points. Evaluate: (a) `homepageTrigger.runFunction` references an existing handler that does NOT access `e.gmail` (unavailable in homepage context); (b) Contextual trigger `onTriggerFunction` references an existing handler that calls `setCurrentMessageAccessToken` before any GmailApp use; (c) Handler functions check for `e.gmail` presence/absence when serving both contexts; (d) appsscript.json `oauthScopes` array includes all scopes needed by both trigger paths; (e) If compose trigger needed: `composeTrigger` section in `addOns.gmail` with `selectActions`; (f) If universal actions needed: `universalActions` section in `addOns.gmail`. Flag: missing trigger type in manifest for a planned entry point, homepage handler that crashes on missing `e.gmail`, contextual handler missing token set, function names in manifest don't match any planned function, OAuth scopes don't cover all planned Gmail operations. N/A: not a Gmail add-on (web app or Sheets-only).
 
 ---
 

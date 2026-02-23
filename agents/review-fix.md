@@ -34,7 +34,7 @@ Maintain these values across all phases:
 
 ```
 round = 0
-run_id = Date.now() + '-' + Math.random().toString(36).substr(2, 8)
+run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_resolved = []     # { file, line, q_number, description }
@@ -60,6 +60,63 @@ file_count = file_list.length
 
 ---
 
+## Phase 0.5: Reviewer Map (File-Type Triage)
+
+Build a per-file reviewer mapping before Phase 1. This enables GAS-aware reviewers for `.gs` and GAS HTML files.
+
+```javascript
+// Build reviewer_map: file → subagent_type
+// Note: reviewer_map maps each file to ONE primary reviewer.
+// For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
+// gas-code-review coverage for those files requires a separate manual pass (see note below).
+reviewer_map = {}
+
+for (const file of file_list) {
+  const ext = file.split('.').pop()
+
+  if (ext === 'gs') {
+    // Triage: detect CardService patterns to route to gas-gmail-cards
+    const gsContent = readFile(file)  // Read file content for pattern detection
+    const hasCardService = gsContent.match(
+      /CardService|buildContextualCard|buildHomepageCard|GmailApp\.setCurrentMessageAccessToken|setOnClickAction|pushCard|popCard|updateCard/
+    )
+    if (hasCardService) {
+      reviewer_map[file] = 'gas-gmail-cards'
+      // Note: gas-code-review is NOT run for CardService files in the automated loop.
+      // For full coverage, run /gas-review separately after this loop completes.
+    } else {
+      reviewer_map[file] = 'gas-code-review'
+    }
+  }
+  else if (ext === 'html') {
+    // Haiku triage: determine if HTML is GAS-related
+    const result = Task({
+      subagent_type: "general-purpose",
+      model: "haiku",
+      prompt: `Read the file at ${file}. Does it contain GAS HTML patterns?
+        Look for: HtmlService, google.script.run, <?=, <?!=, createGasServer,
+        exec_api, or GAS scriptlet delimiters (<? ?>).
+        Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
+    })
+    if (result includes 'IS_GAS_HTML: true') {
+      reviewer_map[file] = 'gas-ui-review'
+    } else {
+      reviewer_map[file] = 'code-reviewer'
+    }
+    // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
+  }
+  else {
+    reviewer_map[file] = 'code-reviewer'
+  }
+}
+```
+
+**Fallback rule:** If a file is not in `reviewer_map` (e.g., Haiku triage failed or timed out), default to `'code-reviewer'`.
+
+**CardService note:** `.gs` files routed to `gas-gmail-cards` receive specialized Gmail add-on validation (Phase 1-6: card structure, action handlers, Gmail integration, state, navigation, security). General GAS code quality (`gas-code-review`) is not run in the automated loop for these files. For full dual coverage of CardService files, run `/gas-review` separately after this loop completes.
+
+---
+
 ## Phase 1: Initial Review
 
 ### Single-Agent Mode (1 file)
@@ -68,7 +125,7 @@ Launch one Task call directly:
 
 ```javascript
 Task({
-  subagent_type: "code-reviewer",
+  subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
   description: "Review file for Critical findings",
   prompt: `Review this file:
 target_files="${file_list[0]}"
@@ -104,7 +161,7 @@ All Task calls in a SINGLE message:
 ```javascript
 // Spawn reviewer-{basename} for each file
 Task({
-  subagent_type: "code-reviewer",
+  subagent_type: reviewer_map[file] || 'code-reviewer',
   team_name: team_name,
   name: `reviewer-${basename(file)}`,
   description: `Review ${file}`,
@@ -138,7 +195,7 @@ Wait for SendMessage deliveries from all reviewers. For each incoming message:
 Track: which files are APPROVED vs NEEDS_REVISION.
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
-seconds with no response, mark the file `⚠️ Review Incomplete` and continue.
+seconds with no response, mark the file `[Review Incomplete]` and continue.
 
 - All files `APPROVED` → Phase 4 (keep team for teardown)
 - Any `APPROVED_WITH_NOTES` or any `NEEDS_REVISION` → Phase 2
@@ -184,7 +241,7 @@ Spawn reviewer(s) with round-qualified names to detect whether fixes resolved al
 
 ```javascript
 Task({
-  subagent_type: "code-reviewer",
+  subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
   description: "Re-review after fixes",
   prompt: `Review this file:
 target_files="${file_list[0]}"
@@ -207,7 +264,7 @@ Spawn parallel reviewers with round-qualified names:
 
 ```javascript
 Task({
-  subagent_type: "code-reviewer",
+  subagent_type: reviewer_map[file] || 'code-reviewer',
   team_name: team_name,
   name: `reviewer-${basename(file)}-r${round}`,
   description: `Re-review ${file} round ${round}`,
@@ -239,16 +296,18 @@ Collect new findings. Compare with previous round:
 - New Critical not present in prior round → record in `introduced_by_fix`
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
-seconds with no response, mark the file `⚠️ Review Incomplete` and continue.
+seconds with no response, mark the file `[Review Incomplete]` and continue.
 
 **Loop decision:**
 
 | Condition | Action |
 |-----------|--------|
 | Zero Critical AND zero Advisory findings | Proceed to Phase 4 |
-| (Critical OR Advisory) remain AND `round < max_rounds` | Return to Phase 2 |
+| (Critical OR Advisory with Fix block) remain AND `round < max_rounds` | Return to Phase 2 |
 | `round >= max_rounds` AND Critical remain | Record in `stuck_findings`, proceed to Phase 4 |
 | `round >= max_rounds` AND Advisory remain (no Critical) | Record in `advisory_stuck`, proceed to Phase 4 |
+
+*Note: "remain" means the finding re-appeared in the re-review after a Fix was applied. Advisory findings without a Fix block are recorded in `advisory_stuck` in Phase 2 and do NOT drive the loop — they never re-enter Phase 2.*
 
 ---
 
