@@ -138,7 +138,7 @@ if (htmlFilesNeedingTriage.length > 0) {
         Look for: HtmlService, google.script.run, <?=, <?!=, createGasServer,
         exec_api, or GAS scriptlet delimiters (<? ?>).
         Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
-    })
+    }).catch(() => null)
   ))
 
   // Collect results and build reviewer_map entries for html files
@@ -201,7 +201,9 @@ review_mode="${review_mode}"`
 Collect full output. Parse for Critical findings, Advisory findings, and Status.
 
 - `APPROVED` → Phase 5
-- `APPROVED_WITH_NOTES` or `NEEDS_REVISION` → Phase 3
+- `NEEDS_REVISION` → Phase 3
+- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
+- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
 
 ### Team Mode (2+ files)
 
@@ -260,7 +262,9 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 `timed_out_reviewers`, and continue.
 
 - All files `APPROVED` → Phase 5 (keep team for teardown)
-- Any `APPROVED_WITH_NOTES` or any `NEEDS_REVISION` → Phase 3
+- Any `NEEDS_REVISION` → Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
 
 ### Phase 2 Print: Reviewer Receipts
 
