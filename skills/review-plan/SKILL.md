@@ -213,7 +213,7 @@ DO:
   --- L1 Evaluator ---
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
@@ -254,7 +254,7 @@ DO:
       CONTINUE to next cluster
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "<cluster_name>-evaluator",
     prompt = """
@@ -336,7 +336,7 @@ DO:
     --- UI Evaluator ---
     Task(
       subagent_type = "ui-designer",
-      model = "opus",
+      model = "sonnet",
       team_name = <team_name>,
       name = "ui-evaluator",
       prompt = """

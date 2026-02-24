@@ -206,7 +206,7 @@ DO:
   --- TypeScript/API Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "ts-evaluator-p" + pass_count,
     prompt = """
@@ -268,7 +268,7 @@ DO:
   --- Node Runtime Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "node-evaluator-p" + pass_count,
     prompt = """

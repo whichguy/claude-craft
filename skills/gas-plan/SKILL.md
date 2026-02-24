@@ -184,7 +184,7 @@ DO:
   --- Frontend Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "frontend-evaluator-p" + pass_count,
     prompt = """
@@ -240,7 +240,7 @@ DO:
   --- GAS Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     team_name = <team_name>,
     name = "gas-evaluator-p" + pass_count,
     prompt = """
