@@ -193,12 +193,15 @@ STEP 0: (done — plan loaded, team created)
 
 DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  _recovered_this_pass = false
   IF memo_file exists AND node_memoized_questions is empty AND pass_count > 1:
     Read memo_file → restore node_memoized_questions, prev_needs_update_count,
-                     prev_needs_update_set, pass_count (do not increment again this pass)
+                     prev_needs_update_set, pass_count
+    _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint"
 
-  pass_count = pass_count + 1
+  IF NOT _recovered_this_pass:
+    pass_count = pass_count + 1
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.

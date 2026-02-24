@@ -204,12 +204,15 @@ DO:
   -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
 
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count > 1):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
-                     prev_needs_update_set, pass1_needs_update_set, total_changes_all_passes
+                     prev_needs_update_set, pass1_needs_update_set, total_changes_all_passes, pass_count
+    _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
-  pass_count += 1
+  IF NOT _recovered_this_pass:
+    pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
   cluster_changes_total = 0
@@ -449,6 +452,9 @@ DO:
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
+  IF pass_count == 1:
+    pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
+
   -- Checkpoint: persist memoized state for context-compression resilience --
   Write memo_file with JSON: {
     pass_count, memoized_clusters: [...memoized_clusters],
@@ -457,8 +463,6 @@ DO:
     pass1_needs_update_set: [...pass1_needs_update_set],
     total_changes_all_passes
   }
-  IF pass_count == 1:
-    pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
 
   # Build breakdown suffix — only include ecosystem counts when that evaluator ran
   breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
