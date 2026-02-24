@@ -159,11 +159,12 @@ STEP 0: (done — plan loaded, team created)
   spawned_evaluators = []          # names of agents actually launched (for precise teardown)
   results = {}                     # maps Q-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   user_already_asked_gate1 = false # prevents asking user twice at pass_count >= 5
+  incomplete_had_needs_update_last_pass = false # set per-pass; prevents false convergence when Incomplete evaluator had NEEDS_UPDATE last pass
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
   pass_count = pass_count + 1
-  CLEAR: current_needs_update_count = 0; current_needs_update_set = []
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
@@ -203,6 +204,11 @@ DO:
 
       Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36.
               Evaluate shared Qs regardless.
+
+      IMPORTANT — if GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
+        Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the GAS engineering lens.
+        Output each shared question twice: first your frontend finding, then your GAS finding.
+        Label clearly: "[Frontend lens]" and "[GAS lens]". Team-lead merges both.
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
 
@@ -290,6 +296,11 @@ DO:
   to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
+  Incomplete state tracking:
+  IF any evaluator was marked ⚠️ Evaluator Incomplete this pass:
+    incomplete_evaluator_qs = [questions owned by the incomplete evaluator(s)]
+    IF any q in incomplete_evaluator_qs is in prev_needs_update_set:
+      incomplete_had_needs_update_last_pass = true
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
@@ -359,7 +370,7 @@ DO:
       BREAK
   IF Gate1_unresolved > 0:
     CONTINUE (never exit with Gate 1 open, even if PLATEAU)
-  IF PLATEAU OR current_needs_update_count == 0:
+  IF (PLATEAU OR current_needs_update_count == 0) AND NOT incomplete_had_needs_update_last_pass:
     Print: "✅ Converged."
     BREAK
   -- END CHECK --

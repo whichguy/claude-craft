@@ -180,6 +180,7 @@ STEP 0: (done — plan loaded, team created)
   prev_needs_update_count = null; prev_needs_update_set = []
   pass_count = 0
   user_already_asked_gate1 = false
+  incomplete_had_needs_update_last_pass = false # set per-pass; prevents false convergence when Incomplete evaluator had NEEDS_UPDATE last pass
   spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
   node_memoized_questions = set()   # N1 once confirmed stable PASS/N/A
   results = {}                      # maps N-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
@@ -187,7 +188,7 @@ STEP 0: (done — plan loaded, team created)
 
 DO:
   pass_count = pass_count + 1
-  CLEAR: current_needs_update_count = 0; current_needs_update_set = []
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
@@ -324,6 +325,11 @@ DO:
   to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
+  Incomplete state tracking:
+  IF any evaluator was marked ⚠️ Evaluator Incomplete this pass:
+    incomplete_evaluator_qs = [questions owned by the incomplete evaluator(s)]
+    IF any q in incomplete_evaluator_qs is in prev_needs_update_set:
+      incomplete_had_needs_update_last_pass = true
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
@@ -382,7 +388,7 @@ DO:
       BREAK
   IF Gate1_unresolved > 0:
     CONTINUE (never exit with Gate 1 open, even if PLATEAU)
-  IF PLATEAU OR current_needs_update_count == 0:
+  IF (PLATEAU OR current_needs_update_count == 0) AND NOT incomplete_had_needs_update_last_pass:
     Print: "✅ Converged."
     BREAK
   -- END CHECK --
