@@ -63,7 +63,8 @@ Two operating modes:
 
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
-   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43
+   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
+     (Q43 is a post-loop question — not evaluated in this mode)
    - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40; Gmail Qs Q44-Q48 follow the Gmail rule below)
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
@@ -88,6 +89,7 @@ Two operating modes:
      Q2: ...
      ...
      Q42: ...
+     (Q43 not applicable in evaluate mode — post-loop only)
    ```
    Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
@@ -338,11 +340,10 @@ WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
 
-TEARDOWN:
-  Bash: touch ~/.claude/.plan-reviewed
-  Send shutdown_request to all team agents
-  TeamDelete
-  Call ExitPlanMode
+# ⚠️ Do NOT execute teardown from here. Jump to "After Review Completes" section below.
+# That section handles: Q43 post-loop evaluation → gate marker → teardown → ExitPlanMode.
+# The TEARDOWN pseudo-block below is a conceptual placeholder only.
+TEARDOWN: (see "After Review Completes" steps 2–5 for the actual teardown sequence)
 ```
 
 ### Worked Example
@@ -699,11 +700,11 @@ Score: [N]% (weighted percentage)
 
 After outputting the Final Scorecard:
 
-1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
-   AskUserQuestion listing the unresolved Gate 1 questions. User must explicitly resolve each
-   issue or override before proceeding. Do NOT write the marker or call ExitPlanMode until the
-   user responds. If user resolves: apply edits and re-evaluate. If user overrides: note override
-   in scorecard and proceed.
+1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): Gate 1 is
+   resolved by the `pass_count >= 5` branch inside the loop. By the time the loop exits, Gate 1
+   is either clean or the user has been asked and responded. If Rating is REWORK when the loop
+   exits (user override or unresolvable): note the override in the scorecard. Do NOT re-run the
+   REWORK check here — it was already handled inside the loop.
 
 2. **Q43 post-loop evaluation (plan legibility / organization):**
    Spawn a single Task (general-purpose, current team_name):
