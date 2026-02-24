@@ -162,8 +162,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    ```
    pass_count = 0
    timestamp = Date.now()
-   prev_needs_update_set = {}
-   pass1_needs_update_set = {}     # snapshot of NEEDS_UPDATE set after pass 1 (for resolved_questions)
+   prev_needs_update_set = set()
+   pass1_needs_update_set = set()  # snapshot of NEEDS_UPDATE set after pass 1 (for resolved_questions)
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
@@ -919,6 +919,7 @@ After the convergence loop exits (scorecard not yet printed):
    - If IS_GAS: `gas-evaluator`
    - If IS_NODE: `node-evaluator`
    - If HAS_UI: `ui-evaluator`
+   - If Q-G9 ran (plan had >= 3 implementation steps): `q-g9-evaluator`
    Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
