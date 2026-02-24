@@ -90,7 +90,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | `architectural` | Q4 + Q5 + Q11 | Public APIs, shared utilities, stable-interface changes |
 | `full` (default) | Q1–Q5 + all triggered | Production-bound code; PR to main branch |
 
-Context-specific questions (Q6–Q11) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
+Context-specific questions (Q6–Q12) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
 
 ### Universal Questions
 
@@ -114,6 +114,7 @@ Context-specific questions (Q6–Q11) are always added when their trigger patter
 | Q9 | `describe\|it\(\|expect\(` | Do tests verify behavior (correct outputs, error paths) or just execution (no throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | Are all query parameters parameterized? Could string interpolation lead to injection? |
 | Q11 | `dryrun=true` + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? Are there backwards-incompatible signature or behavior changes? |
+| Q12 | `.md` files containing question tables (`\| Q`) or evaluator prompt patterns (`Evaluate ALL\|evaluate.*questions\|FINDINGS FROM`) | Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables? Are all Q-IDs defined in question tables present in IS_GAS/IS_NODE suppression tables where those tables exist? Flag stale counts, orphaned Q-ID references, and missing suppression entries as Critical. |
 
 ### Answer Format
 
