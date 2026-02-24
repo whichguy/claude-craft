@@ -180,6 +180,7 @@ STEP 0: (done — plan loaded, team created)
   prev_needs_update_count = null; prev_needs_update_set = []
   pass_count = 0
   user_already_asked_gate1 = false
+  spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -190,6 +191,7 @@ DO:
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
   [Substitute the actual resolved plan_path value into each prompt before spawning]
+  [After spawning each evaluator, append its name to spawned_evaluators]
 
   --- TypeScript/API Evaluator Task ---
   Task(
@@ -319,7 +321,7 @@ DO:
   RE-READ consolidated plan
   SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)  # set equality: order-independent
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sameQNumbers(current_needs_update_set, prev_needs_update_set))  # set equality: order-independent; sameQNumbers = both arrays contain identical Q-number strings regardless of order
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
@@ -328,7 +330,10 @@ DO:
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
       user_already_asked_gate1 = true
-      AskUserQuestion to resolve Gate 1 issues, then BREAK
+      AskUserQuestion listing the unresolved Gate 1 questions.
+      Wait for user response.
+      IF user resolves: apply edits, re-evaluate (one final pass), update scorecard, then BREAK
+      IF user overrides: annotate scorecard with override, then BREAK
     ELSE:
       Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
       BREAK
@@ -342,18 +347,14 @@ DO:
 WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
-
--- REWORK GATE CHECK --
-IF Rating == REWORK AND NOT user_already_asked_gate1:
-  AskUserQuestion listing the unresolved Gate 1 questions.
-  Wait for user response. If user resolves: apply edits, re-evaluate, update scorecard.
-  If user overrides: annotate scorecard with override.
--- END REWORK CHECK --
+# Note: REWORK (Gate 1 NEEDS_UPDATE) is resolved inside the loop above via the
+# pass_count >= 5 branch. No post-loop REWORK gate check is needed — by the time
+# the loop exits, Gate 1 is either clean or the user has been asked and responded.
 
 TEARDOWN:
   Bash: touch ~/.claude/.plan-reviewed
-  Send shutdown_request to ts-evaluator-p1 through ts-evaluator-p[pass_count]
-  Send shutdown_request to node-evaluator-p1 through node-evaluator-p[pass_count]
+  For each name in spawned_evaluators: Send shutdown_request to that agent
+    (Only agents in spawned_evaluators are shut down — triage-skipped evaluators are never targeted)
   TeamDelete
   Call ExitPlanMode
 ```
@@ -705,15 +706,17 @@ Score: [N]% (weighted percentage)
 ## After Review Completes (standalone mode only)
 
 The canonical post-scorecard sequence is encoded in the execution flow pseudo-code above
-(REWORK GATE CHECK block → TEARDOWN block). Summary for reference:
+(convergence loop BREAK → TEARDOWN block). Summary for reference:
 
-1. **REWORK gate** (in execution flow): If Rating is REWORK, AskUserQuestion listing
-   unresolved Gate 1 questions before writing the marker or calling ExitPlanMode.
+1. **REWORK gate** (inside convergence loop): If `pass_count >= 5` with Gate 1 still open,
+   AskUserQuestion listing unresolved Gate 1 questions. If user resolves: apply edits,
+   run one final evaluation pass, update scorecard. If user overrides: annotate scorecard.
+   Gate 1 is never left silently open — it is handled inside the loop, not post-loop.
 2. **Write gate marker**: `touch ~/.claude/.plan-reviewed` — allows ExitPlanMode to pass.
-3. **Team teardown**: Send shutdown_request to all pass-qualified evaluator agents
-   (ts-evaluator-p1..pN, node-evaluator-p1..pN), then TeamDelete. Teardown must complete
-   before ExitPlanMode — the session context needed for TeamDelete is not available after
-   exiting plan mode.
+3. **Team teardown**: Send shutdown_request to all agents in `spawned_evaluators` (only
+   agents that were actually launched — triage-skipped evaluators are not in this list),
+   then TeamDelete. Teardown must complete before ExitPlanMode — the session context needed
+   for TeamDelete is not available after exiting plan mode.
 4. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
