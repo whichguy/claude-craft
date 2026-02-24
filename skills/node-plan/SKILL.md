@@ -178,11 +178,14 @@ STEP 0: (done — plan loaded, team created)
   plan_path = <absolute filesystem path resolved in Step 0>
   team_name = <team_name created above>
   prev_needs_update_count = null; prev_needs_update_set = []
+  pass_count = 0
+  user_already_asked_gate1 = false
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
+  pass_count = pass_count + 1
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []
-  Print: "Pass [N/5]: evaluating..."
+  Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
@@ -193,7 +196,7 @@ DO:
     subagent_type = "general-purpose",
     model = "opus",
     team_name = <team_name>,
-    name = "ts-evaluator",
+    name = "ts-evaluator-p" + pass_count,
     prompt = """
       You are a senior TypeScript/API engineer evaluating a Node.js/TypeScript implementation
       plan.
@@ -246,7 +249,7 @@ DO:
     subagent_type = "general-purpose",
     model = "opus",
     team_name = <team_name>,
-    name = "node-evaluator",
+    name = "node-evaluator-p" + pass_count,
     prompt = """
       You are a senior Node.js runtime engineer evaluating a Node.js/TypeScript implementation
       plan.
@@ -321,9 +324,10 @@ DO:
   Print pass summary using per-pass template
 
   -- CONVERGENCE CHECK --
-  Gate1_unresolved = count of NEEDS_UPDATE on N1 (all weight-3 questions)
+  Gate1_unresolved = count of NEEDS_UPDATE on N1 (the sole weight-3 question; Gate 1 = N1 only)
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
+      user_already_asked_gate1 = true
       AskUserQuestion to resolve Gate 1 issues, then BREAK
     ELSE:
       Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
@@ -339,9 +343,17 @@ WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
 
+-- REWORK GATE CHECK --
+IF Rating == REWORK AND NOT user_already_asked_gate1:
+  AskUserQuestion listing the unresolved Gate 1 questions.
+  Wait for user response. If user resolves: apply edits, re-evaluate, update scorecard.
+  If user overrides: annotate scorecard with override.
+-- END REWORK CHECK --
+
 TEARDOWN:
   Bash: touch ~/.claude/.plan-reviewed
-  Send shutdown_request to all team agents
+  Send shutdown_request to ts-evaluator-p1 through ts-evaluator-p[pass_count]
+  Send shutdown_request to node-evaluator-p1 through node-evaluator-p[pass_count]
   TeamDelete
   Call ExitPlanMode
 ```
@@ -350,23 +362,25 @@ TEARDOWN:
 
 ```
 Pass 1/5: evaluating...
-  [Spawning ts-evaluator + node-evaluator in parallel]
-  [ts-evaluator findings]: 3 NEEDS_UPDATE (N1, N4, N6) -- no tsc step, untyped return values,
+  [Spawning ts-evaluator-p1 + node-evaluator-p1 in parallel]
+  [ts-evaluator-p1 findings]: 3 NEEDS_UPDATE (N1, N4, N6) -- no tsc step, untyped return values,
     route handler no try/catch
-  [node-evaluator findings]: 2 NEEDS_UPDATE (N9, N13) -- new env var undocumented, no SIGTERM handler
+  [node-evaluator-p1 findings]: 2 NEEDS_UPDATE (N9, N13) -- new env var undocumented, no SIGTERM handler
   -> Merge: N8 both PASS — no merge needed
   -> Edits: add tsc --noEmit step (N1), type annotations for new fn (N4), wrap handler
     in try/catch (N6), document env var in .env.example (N9), add graceful shutdown (N13)
   -> Consolidate: merge async error + shutdown into single section
 Pass 2/5: evaluating...
-  [ts-evaluator findings]: 0 NEEDS_UPDATE
-  [node-evaluator findings]: 1 NEEDS_UPDATE (N35) -- no unhandledRejection handler for
+  [Spawning ts-evaluator-p2 + node-evaluator-p2 in parallel]
+  [ts-evaluator-p2 findings]: 0 NEEDS_UPDATE
+  [node-evaluator-p2 findings]: 1 NEEDS_UPDATE (N35) -- no unhandledRejection handler for
     new async path
   -> Edit: add process.on('unhandledRejection') note
   -> Consolidate: no duplicates found
 Pass 3/5: evaluating...
-  [ts-evaluator findings]: 0 NEEDS_UPDATE
-  [node-evaluator findings]: 0 NEEDS_UPDATE
+  [Spawning ts-evaluator-p3 + node-evaluator-p3 in parallel]
+  [ts-evaluator-p3 findings]: 0 NEEDS_UPDATE
+  [node-evaluator-p3 findings]: 0 NEEDS_UPDATE
   -> CONVERGED at pass 3. Output final scorecard.
 ```
 
@@ -690,19 +704,16 @@ Score: [N]% (weighted percentage)
 
 ## After Review Completes (standalone mode only)
 
-After outputting the Final Scorecard:
+The canonical post-scorecard sequence is encoded in the execution flow pseudo-code above
+(REWORK GATE CHECK block → TEARDOWN block). Summary for reference:
 
-1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
-   AskUserQuestion listing the unresolved Gate 1 questions. User must explicitly resolve each
-   issue or override before proceeding. Do NOT write the marker or call ExitPlanMode until the
-   user responds. If user resolves: apply edits and re-evaluate. If user overrides: note override
-   in scorecard and proceed.
-
-2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so
-   ExitPlanMode will pass
-3. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete.
-   (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete
-   is not available after exiting plan mode.)
+1. **REWORK gate** (in execution flow): If Rating is REWORK, AskUserQuestion listing
+   unresolved Gate 1 questions before writing the marker or calling ExitPlanMode.
+2. **Write gate marker**: `touch ~/.claude/.plan-reviewed` — allows ExitPlanMode to pass.
+3. **Team teardown**: Send shutdown_request to all pass-qualified evaluator agents
+   (ts-evaluator-p1..pN, node-evaluator-p1..pN), then TeamDelete. Teardown must complete
+   before ExitPlanMode — the session context needed for TeamDelete is not available after
+   exiting plan mode.
 4. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
