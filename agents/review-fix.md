@@ -229,7 +229,7 @@ Task({
   team_name: team_name,
   name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}`,
   description: `Review ${file}`,
-  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')} on team ${team_name}.
+  prompt: `mode=evaluate
 
 Review this file:
 target_files="${file}"
@@ -237,14 +237,7 @@ task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
 related_files=auto
-review_mode="${review_mode}"
-
-When complete, send your full Phase 4 output (the markdown block starting with
-"## Code Review:") to team-lead via SendMessage:
-- type: "message"
-- recipient: "team-lead"
-- content: your full review output
-- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
+review_mode="${review_mode}"`
 });
 // Repeat for each file in file_list
 ```
@@ -394,7 +387,7 @@ Task({
   team_name: team_name,
   name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round}`,
   description: `Re-review ${file} round ${round}`,
-  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round} on team ${team_name}.
+  prompt: `mode=evaluate
 
 Re-review this file after fixes were applied:
 target_files="${file}"
@@ -413,13 +406,7 @@ For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all pha
 full file — these reviewers perform whole-file phase scans with no line-scoping capability.
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
-as-is and include them in your output.
-
-When complete, send the markdown block starting with "## Code Review:" to team-lead via SendMessage:
-- type: "message"
-- recipient: "team-lead"
-- content: your full review output
-- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
+as-is and include them in your output.`
 });
 // Repeat for each file that was modified (appears in files_changed)
 //   OR had Critical findings (fix may introduce regressions elsewhere)
