@@ -181,6 +181,7 @@ STEP 0: (done — plan loaded, team created)
   pass_count = 0
   user_already_asked_gate1 = false
   spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
+  node_memoized_questions = set()   # N1 once confirmed stable PASS/N/A
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -189,8 +190,15 @@ DO:
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
+  -- Memoized directive construction --
+  memoized_directive = ""
+  IF node_memoized_questions is non-empty:
+    ids = comma-sep sorted N-IDs from node_memoized_questions (e.g. "N1")
+    memoized_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nTreat as PASS in your output — do not re-evaluate."
+
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
   [Substitute the actual resolved plan_path value into each prompt before spawning]
+  [If memoized_directive is non-empty, inject it into each evaluator prompt before the Constraints section]
   [After spawning each evaluator, append its name to spawned_evaluators]
 
   --- TypeScript/API Evaluator Task ---
@@ -238,6 +246,8 @@ DO:
           (one entry per evaluated question)
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -293,6 +303,8 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
       - Do NOT call ExitPlanMode or touch any marker files
@@ -324,6 +336,11 @@ DO:
   PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sameQNumbers(current_needs_update_set, prev_needs_update_set))  # set equality: order-independent; sameQNumbers = both arrays contain identical Q-number strings regardless of order
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
+
+  -- Post-pass memoization update --
+  # N1: tsc --noEmit step (additive-only — once present in plan, never removed)
+  IF results["N1"] in [PASS, N/A] AND "N1" NOT in node_memoized_questions:
+    node_memoized_questions.add("N1")
 
   -- CONVERGENCE CHECK --
   Gate1_unresolved = count of NEEDS_UPDATE on N1 (the sole weight-3 question; Gate 1 = N1 only)
