@@ -106,7 +106,7 @@ Team-lead merges: combine findings, keep the more actionable wording.
 |------|---------------------------|
 | IS_GAS | Q-G1, Q-G2, Q-G3, Q1, Q2, Q13, Q15, Q18, Q42 |
 | IS_NODE | Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3, N1 |
-| Simple | Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3 |
+| Standard | Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3 |
 
 ---
 

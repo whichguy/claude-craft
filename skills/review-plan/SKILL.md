@@ -57,6 +57,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                implementations, or client-side JavaScript.
                False if plan only describes UI concepts in evaluator questions or
                architectural context.
+       HAS_DEPLOYMENT: true if plan includes push/deploy/release steps, target
+                       environments, or release process. False for local-only changes.
+       HAS_STATE: true if plan modifies persistent storage, databases, config files,
+                  state schemas, or stateful operations. False for read-only or
+                  ephemeral changes.
 
        Key: "modifies code in that domain" vs "mentions that domain in prose."
        Example: a plan editing .md files that runs npm test → IS_NODE=false.
@@ -65,23 +70,40 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        IS_GAS=true|false
        IS_NODE=true|false
        HAS_UI=true|false
+       HAS_DEPLOYMENT=true|false
+       HAS_STATE=true|false
      """
    )
-   Parse output → set IS_GAS, IS_NODE, HAS_UI
-   IF Haiku timeout or malformed output → all flags false (simple mode)
+   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE
+   IF Haiku timeout or malformed output → all flags false
+     (fallback activates git, impact, testing, security clusters unconditionally)
+
+   Compute cluster activation:
+   ```
+   IF IS_GAS:
+     # All L2 clusters superseded by gas-evaluator except state (for Q-C26 only)
+     active_clusters = ["state"] if HAS_STATE else []
+   ELSE:
+     active_clusters = ["git", "impact", "testing"]  # always active
+     if HAS_STATE:       active_clusters.append("state")
+     active_clusters.append("security")              # always active (3 questions, low overhead)
+     if HAS_DEPLOYMENT:  active_clusters.append("operations")
+     if HAS_UI:          active_clusters.append("client")
+   ```
+
    Print mode based on flags:
-     All false:           "📋 Review mode: Standard (general + code quality, 2 parallel Tasks/pass)"
-     IS_GAS only:         "📋 Review mode: GAS (general + code + 43-question GAS specialization)"
-     IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (4 parallel evaluators, ~90s/pass)"
-     IS_NODE only:        "📋 Review mode: Node.js (general + code + 35-question Node/TS)"
-     IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI (4 parallel evaluators, ~90s/pass)"
-     HAS_UI only:         "📋 Review mode: Standard + UI (general + code + UI evaluation)"
-   (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]" is printed only when pass_count >= 3,
-   as a diagnostic aid for slow-convergence reviews.)
+     IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-evaluator + state cluster, [N] active)"
+     IS_GAS only:         "📋 Review mode: GAS (all L2 clusters superseded by gas-evaluator)"
+     IS_NODE only:        "📋 Review mode: Node.js ([N] clusters: [names] + node-evaluator)"
+     IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-evaluator + ui-evaluator)"
+     HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
+     All false:           "📋 Review mode: Standard ([N] clusters: [names])"
+   (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_DEPLOYMENT=[v] HAS_STATE=[v]"
+   is printed only when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
    would invalidate convergence state tracking).
    [future: IS_SEC, HAS_API]
-   HAS_UI is active — triggers ui-evaluator in the convergence loop
+   HAS_UI is active — triggers client cluster and/or ui-evaluator in the convergence loop
 
 4. **Initialize tracking:**
    ```
@@ -90,17 +112,16 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_needs_update_set = {}
    ```
 
-5. **Team setup (IS_GAS or IS_NODE):**
+5. **Team setup (always):**
    ```
-   IF IS_GAS OR IS_NODE:
-     team_name = "review-plan-" + timestamp
-     TeamCreate({team_name, description: "review-plan — parallel L1/L2/ecosystem evaluators"})
+   team_name = "review-plan-" + timestamp
+   TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
    ```
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
    IF any unrecoverable error during convergence loop:
-     IF IS_GAS OR IS_NODE: Send shutdown_request to any active evaluators, then TeamDelete
+     Send shutdown_request to any active evaluators, then TeamDelete
      Surface error to user via AskUserQuestion
      Do NOT leave orphaned team processes.
    ```
@@ -109,8 +130,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 ## Convergence Loop
 
-### Mode: IS_GAS or IS_NODE (Team mode — 3 parallel evaluators per pass)
-
 ```
 DO:
   -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
@@ -118,14 +137,18 @@ DO:
   pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
-  l2_changes = 0
+  cluster_changes_total = 0
   gas_plan_changes = 0
   node_plan_changes = 0
   ui_plan_changes = 0
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
 
-  [In a SINGLE message, spawn up to 4 parallel Task calls (L1 + L2 always; ecosystem evaluator if IS_GAS or IS_NODE; ui-evaluator if HAS_UI)]:
+  [In a SINGLE message, spawn all evaluators in parallel:
+   L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
+   Practical maximums: IS_GAS mode = L1 + state cluster + gas-evaluator + UI = 4.
+   Non-GAS full-stack (all 7 clusters) = L1 + 7 + UI = 9.
+   If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
 
   --- L1 Evaluator ---
   Task(
@@ -134,7 +157,7 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 8 questions).
+      You are evaluating a plan for general quality (Layer 1: 9 questions).
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
@@ -159,33 +182,34 @@ DO:
     """
   )
 
-  --- L2 Evaluator ---
+  --- Cluster Evaluators (one Task per active cluster) ---
+  For each cluster_name in active_clusters:
   Task(
     subagent_type = "general-purpose",
     model = "opus",
     team_name = <team_name>,
-    name = "l2-evaluator",
+    name = "<cluster_name>-evaluator",
     prompt = """
-      You are evaluating a plan for code change quality (Layer 2: 26 questions).
-      Prioritize practical production implications over theoretical concerns.
-      Flag real-world risks (deployment failures, data loss, breaking changes)
-      that a checklist review would miss.
+      You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
 
-      Plan file: <plan_path> — read it with the Read tool
-      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
-      Standards: Read ~/.claude/CLAUDE.md as needed
+      Plan file: <plan_path> — read it with the Read tool.
+      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md,
+        section "### Cluster <N>: <cluster_name>".
 
-      Evaluate ALL L2 questions: Q-C1 through Q-C26
-      Apply triage shortcuts (bulk N/A per the triage table in the SKILL.md).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
-      or <!-- node-plan -->.
+      Evaluate all questions in this cluster. Apply N/A per the N/A column in that section.
+      Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
+
+      IS_NODE suppression (apply if IS_NODE=true):
+        Q-C16 (Security cluster, →N6), Q-C18 (State cluster, →N8), Q-C21 (Operations cluster, →N22)
+        are N/A-superseded when IS_NODE=true.
+      IS_GAS note: if you are the state-evaluator in IS_GAS mode, evaluate Q-C26 only;
+        Q-C13, Q-C18, Q-C19, Q-C24 are N/A-superseded (covered by gas-evaluator).
 
       Output contract — send ONE message to team-lead:
-        FINDINGS FROM l2-evaluator
-        Q-C1: PASS | NEEDS_UPDATE | N/A — [finding]
+        FINDINGS FROM <cluster_name>-evaluator
+        <Q-ID>: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
-        Q-C2: ...
-        ... (all 25 questions)
+        ... (all questions in this cluster)
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only
@@ -254,33 +278,40 @@ DO:
       """
     )
 
-  Wait for all evaluator messages (up to 4 when HAS_UI — 90s reminder; after 120s mark ⚠️ Evaluator
-  Incomplete for any non-responding evaluator and proceed with available findings).
-  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO changes and ZERO findings
-  to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
-  Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
-  evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
+  Wait for all evaluator messages (90s reminder; after 120s mark ⚠️ Evaluator Incomplete
+  for any non-responding evaluator and proceed with available findings).
+  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO findings for its
+  questions only. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND
+  the Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the
+  Incomplete evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
+  Incomplete cluster evaluator: its cluster's questions treated as same NEEDS_UPDATE status
+  as their previous pass (other cluster evaluators' findings are unaffected).
 
-  Print receipt for each evaluator response received:
+  Print receipt for each evaluator:
     Print: "  ✅ l1-evaluator — [n] NEEDS_UPDATE"
-    Print: "  ✅ l2-evaluator — [n] NEEDS_UPDATE"
-    Print: "  ✅ gas-evaluator — [n] NEEDS_UPDATE"  (if IS_GAS)
+    For each cluster_name in active_clusters:
+      If responded:   Print: "  ✅ <cluster_name>-evaluator — [n] NEEDS_UPDATE"
+      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator — INCOMPLETE (timeout)"
+    For each skipped cluster (not in active_clusters):
+      Print: "  ⏭️ <cluster_name>-evaluator — SKIPPED (<reason>)"
+      Reasons: HAS_STATE=false | HAS_DEPLOYMENT=false | HAS_UI=false | IS_GAS superseded
+    Print: "  ✅ gas-evaluator — [n] NEEDS_UPDATE"   (if IS_GAS)
     Print: "  ✅ node-evaluator — [n] NEEDS_UPDATE"  (if IS_NODE)
-    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"  (if HAS_UI)
-    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"     (if incomplete)
+    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"    (if HAS_UI)
+    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"      (if incomplete)
 
   -- Merge & Apply --
-  COLLECT all NEEDS_UPDATE findings from L1, L2, ecosystem evaluator, and ui-evaluator messages
+  COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
   IF IS_GAS:
-    Remove true duplicates (same concern raised by both L2 and gas-evaluator — keep
-    gas-evaluator's more specific GAS framing)
+    Remove true duplicates (same concern raised by both cluster evaluator and gas-evaluator —
+    keep gas-evaluator's more specific GAS framing)
   IF IS_NODE:
-    Remove true duplicates (same concern raised by both L2 and node-evaluator — keep
-    node-evaluator's more specific Node/TS framing)
+    Remove true duplicates (same concern raised by both cluster evaluator and node-evaluator —
+    keep node-evaluator's more specific Node/TS framing)
   IF HAS_UI:
-    Remove true duplicates between ui-evaluator and L2 (keep ui-evaluator's more specific
-    UI framing); remove duplicates between ui-evaluator and gas-evaluator if IS_GAS
-    (keep gas-evaluator's GAS-specific framing for GAS UI concerns)
+    Remove true duplicates between ui-evaluator and cluster evaluators (keep ui-evaluator's
+    more specific UI framing); remove duplicates between ui-evaluator and gas-evaluator if
+    IS_GAS (keep gas-evaluator's GAS-specific framing for GAS UI concerns)
 
   Before applying edits, print a summary using this exact format:
     Print: "Applying [N] changes:"
@@ -307,25 +338,25 @@ DO:
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
-  l2_changes = count of L2 NEEDS_UPDATE edits applied
+  cluster_changes_total = sum of all cluster evaluator NEEDS_UPDATE edits applied
   IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
-  changes_this_pass = l1_changes + l2_changes + gas_plan_changes + node_plan_changes + ui_plan_changes
+  changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], clusters: [cluster_changes_total], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
 
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3,
                        Q1, Q2, Q13, Q15, Q18, Q42
-                       (Q-C1, Q-C2, Q-C3 are N/A-superseded by gas-evaluator Q1, Q2, Q18)
+                       (L2 cluster questions are N/A-superseded by gas-evaluator)
   ELSE IF IS_NODE:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3,
                        N1
-  ELSE (simple):
+  ELSE:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
@@ -359,182 +390,6 @@ WHILE TRUE
 
 OUTPUT final scorecard
 (Teardown and ExitPlanMode handled in "After Review Completes" section below.)
-```
-
-### Mode: non-GAS (Simple mode — L1 + L2 parallel Tasks per pass)
-
-```
-DO:
-  pass_count += 1
-  changes_this_pass = 0
-  l1_changes = 0
-  l2_changes = 0
-  ui_plan_changes = 0
-
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
-
-  [In a SINGLE message, spawn 2–3 parallel Task calls: L1 always; L2 always; UI if HAS_UI]
-
-  --- L1 Evaluator ---
-  Task(
-    subagent_type = "general-purpose",
-    model = "opus",
-    prompt = """
-      You are evaluating a plan for general quality (Layer 1: 9 questions).
-
-      Plan file: <plan_path> — read it with the Read tool
-      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
-      Standards: Read ~/.claude/CLAUDE.md as needed
-
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW
-      Apply triage (mark N/A per the N/A column).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
-      or <!-- node-plan -->.
-
-      Return your findings as a plain text list (not via SendMessage — no team in simple mode):
-        Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        Q-G2: ...
-        ... (all 9 questions including Q-NEW)
-
-      Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only
-      - Do NOT call ExitPlanMode or touch marker files
-    """
-  )
-
-  --- L2 Evaluator ---
-  Task(
-    subagent_type = "general-purpose",
-    model = "opus",
-    prompt = """
-      You are evaluating a plan for code change quality (Layer 2: 26 questions).
-      Prioritize practical production implications over theoretical concerns.
-      Flag real-world risks (deployment failures, data loss, breaking changes)
-      that a checklist review would miss.
-
-      Plan file: <plan_path> — read it with the Read tool
-      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
-      Standards: Read ~/.claude/CLAUDE.md as needed
-
-      Evaluate ALL L2 questions: Q-C1 through Q-C26
-      Apply triage shortcuts (bulk N/A per the triage table).
-      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
-      or <!-- node-plan -->.
-
-      Return your findings as a plain text list (not via SendMessage — no team in non-GAS mode):
-        Q-C1: PASS | NEEDS_UPDATE | N/A — [finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        ... (all 26 questions)
-
-      Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only
-      - Do NOT call ExitPlanMode or touch marker files
-    """
-  )
-
-  IF HAS_UI:
-    --- UI Evaluator ---
-    Task(
-      subagent_type = "ui-designer",
-      model = "opus",
-      prompt = """
-        Review plan at <plan_path>. mode=evaluate.
-
-        You are the ui-evaluator running inside review-plan's simple mode. Evaluate the plan for
-        UI specialization (Q-U1 through Q-U6). Return findings as plain text (no SendMessage —
-        no team in simple mode).
-
-        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
-
-        Return your findings as a plain text list:
-          Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
-          [EDIT: instruction if NEEDS_UPDATE]
-          ... (all 6 questions)
-      """
-    )
-
-  Wait for all evaluator results (L1 + L2 always; ui-evaluator if HAS_UI).
-  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO changes and ZERO findings
-  to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
-  Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
-  evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
-
-  Print receipt for each evaluator result received:
-    Print: "  ✅ l1-evaluator — [n] NEEDS_UPDATE"
-    Print: "  ✅ l2-evaluator — [n] NEEDS_UPDATE"
-    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"  (if HAS_UI)
-    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"     (if incomplete)
-
-  Before applying edits, print a summary using this exact format:
-    Print: "Applying [N] changes:"
-    Print: "  1. [question short name] ([ID]): [verb] [object]"
-    Print: "  2. ..."
-    Then proceed with Edit calls.
-  Example:
-    Applying 3 changes:
-      1. Branching strategy (Q-C1): adding feature branch section
-      2. Step ordering (Q-C9): reordering steps 3-4 for dependency correctness
-      3. Post-implementation (Q-NEW): adding exec verification after push steps
-  (If changes_this_pass == 0, skip the summary entirely.)
-
-  APPLY edits — for each [EDIT: ...] instruction in any evaluator result:
-    Call the Edit tool on the plan file to insert/modify the specified content.
-    Mark each insertion <!-- review-plan -->.
-    Each Edit call = 1 change. Do NOT count findings you only described in text.
-  IF HAS_UI: remove true duplicates between ui-evaluator and L2 results
-    (keep ui-evaluator's more specific UI framing)
-  CONSOLIDATE: merge overlapping findings, remove duplicate annotations
-    Keep-exemption: content annotated <!-- keep: [reason] --> is EXEMPT from consolidation removal.
-    "Key flow" = any implementation step, ordering dependency, error path, rollback step, or
-    verification checkpoint. Prose trimming is OK. Removing or merging steps is NOT.
-  REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
-    removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
-  RE-READ the full consolidated plan
-
-  l1_changes = count of L1 NEEDS_UPDATE edits applied
-  l2_changes = count of L2 NEEDS_UPDATE edits applied
-  IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
-  changes_this_pass = l1_changes + l2_changes + ui_plan_changes
-
-  current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass}
-
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], L2: [l2_changes], ui-plan: [ui_plan_changes])"
-
-  -- CONVERGENCE CHECK (gate-aware) --
-  Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
-  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
-
-  IF pass_count >= 5:
-    IF Gate1_unresolved > 0:
-      AskUserQuestion to resolve Gate 1 issues, then BREAK
-    ELSE:
-      Print: "✅ Converged (max passes reached, Gate 1 clear)."
-      BREAK → proceed to OUTPUT final scorecard
-  IF Gate1_unresolved > 0:
-    Print using this exact format:
-      "⚠️ Gate 1 still open — [Gate1_unresolved] blocking:"
-      "  - [question short name] ([ID]): [first sentence of evaluator finding]"
-      (one line per unresolved Gate 1 question)
-      "Looping for pass [pass_count + 1]..."
-    Example:
-      ⚠️ Gate 1 still open — 2 blocking:
-        - Branching strategy (Q-C1): no feature branch or merge-to-main step defined
-        - Branching usage (Q-C2): steps don't reference a branch or include commits
-      Looping for pass 2...
-    CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
-  IF changes_this_pass == 0 OR Gate2_stable:
-    elapsed = Math.round((Date.now() - timestamp) / 1000)
-    Print: "✅ Converged — no changes this pass ([elapsed]s total)"
-    BREAK → proceed to OUTPUT final scorecard
-
-  prev_needs_update_set = current_needs_update_set
-  -- END CHECK --
-
-WHILE TRUE
-
-OUTPUT final scorecard
-(no team teardown needed in simple mode)
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
@@ -624,59 +479,111 @@ multi-file features where cross-file consistency needs a coordinator.
 
 ## Layer 2: Code Change Quality
 
-*25 questions. Applies to every plan (code changes assumed).*
+*26 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
+computed in Step 0.*
 
-**Triage shortcuts — mark N/A proactively:**
-- no UI/client logic → N/A Q-C17, Q-C25
-- no deployment → N/A Q-C6, Q-C7
-- single atomic change → N/A Q-C5, Q-C9
-- read-only ops → N/A Q-C18, Q-C19
-- no new APIs/services → N/A Q-C22, Q-C23
-- local-only changes → N/A Q-C24
-- no change to existing data formats/state → N/A Q-C26
+### Cluster 1: Git & Branching
 
-**Gate 1 — Blocking (weight 3):**
+*2 questions. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
+*IS_NODE: not superseded — evaluate normally.*
 
-| Q | Question | Criteria | N/A |
-|---|----------|----------|-----|
-| Q-C1 | Branching strategy | Branch named? Push-to-remote step included? Merge-to-main step included? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q1 |
-| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never (IS_NODE); N/A-superseded when IS_GAS — covered by gas-evaluator Q2 |
-| Q-C3 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C1 | 1 | Branching strategy | Branch named? Push-to-remote step included? Merge-to-main step included? | never |
+| Q-C2 | 1 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never |
 
-**Gate 2 — Important (weight 2):**
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q1, Q2).
+IS_NODE: not superseded — evaluate normally.
 
-| Q | Question | Criteria | N/A |
-|---|----------|----------|-----|
-| Q-C4 | Tests updated | Interface/bug/new-function changes have matching test updates? | pure visual |
-| Q-C5 | Incremental verification | Each step has a checkpoint (not all-testing-at-end)? | single atomic |
-| Q-C6 | Deployment defined | Push steps, target env, verification specified? | local-only |
-| Q-C7 | Rollback plan | Recovery path if deployment fails? | no deployment |
-| Q-C8 | Interface consistency | Modified signatures consistent with siblings; callers updated? | no sig changes |
-| Q-C9 | Step ordering | Explicit DAG; no refs to uncreated files, no deploy-before-push? | single step |
-| Q-C10 | Empty code | No stubs/TODOs without full spec (phased OK if explicit)? | no placeholders |
-| Q-C11 | Dead code | Old implementations marked for removal? | nothing replaced |
-| Q-C12 | Duplication | No reimplementation of existing utilities? | no new functions |
-| Q-C13 | State edge cases | State-exists AND state-absent cases covered for persistent storage? | no storage |
-| Q-C14 | Bolt-on vs integrated | New code extends existing modules; not isolated additions? | purely additive |
-| Q-C15 | Input validation | Untrusted inputs sanitized at trust boundaries? | no untrusted input |
-| Q-C16 | Error handling | Try/catch on external calls; actionable messages; fail-loud noted? | no new error paths |
-| Q-C17 | Event listener cleanup | Listeners removed to prevent accumulation/leaks? | no new listeners |
-| Q-C18 | Concurrency | Shared state locked; background tasks have concurrency plan? | read-only |
-| Q-C19 | Idempotency | Operations safe to retry; data mutations deduped? | read-only |
-| Q-C20 | Logging | Informative but compact; no sensitive data? | no server changes |
-| Q-C21 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? | bounded ops |
-| Q-C22 | Auth/permission additions | New scopes or permissions noted with user impact? | no new services |
-| Q-C24 | Local↔remote sync | Sync strategy explicit for local→remote pushes? Stale reads avoided? | local-only |
-| Q-C26 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
+### Cluster 2: Impact & Architecture
 
-**Gate 3 — Advisory (weight 1):**
+*4 questions. Always active.*
 
-| Q | Question | Criteria | N/A |
-|---|----------|----------|-----|
-| Q-C23 | External rate limits | API quotas/throttling accounted for? | no new API calls |
-| Q-C25 | UI error boundary | Client-side error handler for silent failures? (window.onerror, try/catch around init) | no new client logic |
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C3 | 1 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
+| Q-C8 | 2 | Interface consistency | Modified signatures consistent with siblings; callers updated? | no sig changes |
+| Q-C12 | 3 | Duplication | No reimplementation of existing utilities? | no new functions |
+| Q-C14 | 2 | Bolt-on vs integrated | New code extends existing modules; not isolated additions? | purely additive |
 
-Count L2 edits → `l2_changes += count`; `changes_this_pass += l2_changes`
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q18, Q16, Q39, Q41).
+IS_NODE: not superseded — evaluate normally.
+
+### Cluster 3: Testing & Plan Quality
+
+*5 questions. Always active.*
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C4 | 2 | Tests updated | Interface/bug/new-function changes have matching test updates? | pure visual |
+| Q-C5 | 2 | Incremental verification | Each step has a checkpoint (not all-testing-at-end)? | single atomic |
+| Q-C9 | 2 | Step ordering | Explicit DAG; no refs to uncreated files, no deploy-before-push? | single step |
+| Q-C10 | 2 | Empty code | No stubs/TODOs without full spec (phased OK if explicit)? | no placeholders |
+| Q-C11 | 3 | Dead code | Old implementations marked for removal? | nothing replaced |
+
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20).
+IS_NODE: not superseded — evaluate normally.
+
+### Cluster 4: State & Data Integrity
+
+*5 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C13 | 2 | State edge cases | State-exists AND state-absent cases covered for persistent storage? | no storage |
+| Q-C18 | 2 | Concurrency | Shared state locked; background tasks have concurrency plan? | read-only |
+| Q-C19 | 2 | Idempotency | Operations safe to retry; data mutations deduped? | read-only |
+| Q-C24 | 2 | Local↔remote sync | Sync strategy explicit for local→remote pushes? Stale reads avoided? | local-only |
+| Q-C26 | 2 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
+
+IS_GAS: **partially superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24), Q-C24 (→Q3) are
+  superseded. **Q-C26 has no gas equivalent — evaluate Q-C26 normally when HAS_STATE=true.**
+  Spawn state cluster evaluator only if HAS_STATE=true, and only to evaluate Q-C26.
+IS_NODE: **Q-C18 → N/A-superseded** (covered by node-evaluator N8).
+
+### Cluster 5: Security & Reliability
+
+*3 questions. Always active (low overhead).*
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C15 | 2 | Input validation | Untrusted inputs sanitized at trust boundaries? | no untrusted input |
+| Q-C16 | 2 | Error handling | Try/catch on external calls; actionable messages; fail-loud noted? | no new error paths |
+| Q-C22 | 2 | Auth/permission additions | New scopes or permissions noted with user impact? | no new services |
+
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q27, Q28, Q23).
+IS_NODE: **Q-C16 → N/A-superseded** (covered by node-evaluator N6).
+
+### Cluster 6: Operations & Deployment
+
+*5 questions. Active when HAS_DEPLOYMENT=true. Skip entire cluster when HAS_DEPLOYMENT=false.*
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C6 | 2 | Deployment defined | Push steps, target env, verification specified? | local-only |
+| Q-C7 | 2 | Rollback plan | Recovery path if deployment fails? | no deployment |
+| Q-C20 | 3 | Logging | Informative but compact; no sensitive data? | no server changes |
+| Q-C21 | 2 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? | bounded ops |
+| Q-C23 | 3 | External rate limits | API quotas/throttling accounted for? | no new API calls |
+
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25).
+IS_NODE: **Q-C21 → N/A-superseded** (covered by node-evaluator N22).
+
+### Cluster 7: Client & UI
+
+*2 questions. Active when HAS_UI=true. Skip entire cluster when HAS_UI=false.*
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C17 | 2 | Event listener cleanup | Listeners removed to prevent accumulation/leaks? | no new listeners |
+| Q-C25 | 3 | UI error boundary | Client-side error handler for silent failures? (window.onerror, try/catch around init) | no new client logic |
+
+IS_GAS: **fully superseded when HAS_UI=true** (gas-evaluator Q32, Q33).
+  When HAS_UI=false and IS_GAS=true, no cluster evaluator is spawned for this cluster.
+IS_NODE: not superseded — evaluate normally.
+
+Count cluster edits → `cluster_changes_total += count`; `changes_this_pass += cluster_changes_total`
 
 ---
 
@@ -698,30 +605,37 @@ evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
-In neither-GAS-nor-Node mode, no ecosystem evaluator is invoked (simple mode).
+When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
+
+**IS_GAS Cluster Suppression:**
+
+| Cluster | Superseded? | Gas-evaluator equivalents |
+|---------|-------------|--------------------------|
+| Git (1) | **fully** | Q1, Q2 |
+| Impact (2) | **fully** | Q18, Q16, Q39, Q41 |
+| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20 |
+| State (4) | **partially** — Q-C26 has no gas equivalent | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
+| Security (5) | **fully** | Q27, Q28, Q23 |
+| Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25 |
+| Client (7) | **fully** (only when HAS_UI) | Q32, Q33 |
+
+Result: When IS_GAS=true, skip ALL cluster evaluators except State cluster (only for Q-C26,
+only if HAS_STATE=true). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
+
+**IS_NODE Individual Suppressions (3 questions span multiple clusters):**
+Cluster-level suppression does not apply for IS_NODE. Mark these 3 questions N/A-superseded
+within their respective cluster evaluators when IS_NODE=true:
+  Q-C16 (Security cluster, →N6), Q-C18 (State cluster, →N8), Q-C21 (Operations cluster, →N22)
 
 **Deduplication (IS_GAS):** After collecting gas-evaluator findings, remove true duplicates
-where both L2 and gas-evaluator flag the same concern. Keep gas-plan's more specific GAS
-framing where both are present. (Rationale: "specialization wins" — ecosystem evaluator has
-superior domain context vs L2 generic questions.)
-
-IS_GAS — suppress these L2 questions (covered by gas-evaluator with more specificity):
-  Q-C1 (→Q1), Q-C2 (→Q2), Q-C3 (→Q18), Q-C4 (→Q11), Q-C5 (→Q12),
-  Q-C6 (→Q9), Q-C7 (→Q10), Q-C8 (→Q16), Q-C9 (→Q17), Q-C10 (→Q19),
-  Q-C11 (→Q20), Q-C12 (→Q39), Q-C13 (→Q40), Q-C14 (→Q41), Q-C15 (→Q27),
-  Q-C16 (→Q28), Q-C18 (→Q21), Q-C19 (→Q24), Q-C20 (→Q29), Q-C21 (→Q22),
-  Q-C22 (→Q23), Q-C23 (→Q25), Q-C24 (→Q3)
-  Q-C17 (→Q32) and Q-C25 (→Q33) — suppressed only when HAS_UI=true (frontend-owned equivalents)
-Mark suppressed questions as N/A-superseded in the L2 section of the scorecard.
-Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
+where both a cluster evaluator and gas-evaluator flag the same concern. Keep gas-plan's more
+specific GAS framing where both are present. (Rationale: "specialization wins" — ecosystem
+evaluator has superior domain context vs cluster generic questions.)
 
 **Deduplication (IS_NODE):** After collecting node-evaluator findings, remove true duplicates
-where both L2 and node-evaluator flag the same concern. Keep node-plan's more specific Node/TS
-framing where both are present. (Rationale: "specialization wins" — same as IS_GAS.)
+where both a cluster evaluator and node-evaluator flag the same concern. Keep node-plan's more
+specific Node/TS framing where both are present. (Rationale: "specialization wins.")
 
-IS_NODE — suppress these L2 questions (covered by node-evaluator with more specificity):
-  Q-C16 (→N6), Q-C18 (→N8), Q-C21 (→N22)
-Mark suppressed questions as N/A-superseded in the L2 section of the scorecard.
 Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
 
 ### Q-UI: UI Specialization
@@ -729,19 +643,18 @@ Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
 above). The ui-evaluator Task is spawned with `mode=evaluate`, which means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 6-question findings (Q-U1 through Q-U6) via SendMessage to team-lead (Team mode)
-  or as plain text (Simple mode)
+- Returns all 6-question findings (Q-U1 through Q-U6) via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
 HAS_UI is orthogonal to IS_GAS/IS_NODE: a GAS project with a sidebar will have
-IS_GAS=true, HAS_UI=true → 4 parallel evaluators (L1, L2, gas-evaluator, ui-evaluator).
+IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + state cluster (if HAS_STATE) + ui-evaluator.
 
 **Deduplication (HAS_UI + IS_GAS):** GAS UI concerns (sidebar, dialog) may overlap between
 gas-evaluator and ui-evaluator. Keep gas-evaluator's GAS-specific framing in those cases.
 
-**Deduplication (HAS_UI + L2):** Remove duplicates between ui-evaluator and L2; keep
-ui-evaluator's more specific UI framing.
+**Deduplication (HAS_UI + cluster evaluators):** Remove duplicates between ui-evaluator and
+cluster evaluators; keep ui-evaluator's more specific UI framing.
 
 ### Q-SEC (future)
 Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
@@ -760,9 +673,9 @@ Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 
 ## Output: Unified Scorecard
 
-The scorecard is generated by the team-lead (or inline evaluator in simple mode) after merging
-all evaluator findings. N/A items are collapsed to a count — only PASS and NEEDS_UPDATE questions
-appear as line items. Question IDs appear as a suffix for referenceability (user can say "fix Q-C1").
+The scorecard is generated by the team-lead after merging all evaluator findings. N/A items are
+collapsed to a count — only PASS and NEEDS_UPDATE questions appear as line items. Question IDs
+appear as a suffix for referenceability (user can say "fix Q-C1").
 
 Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list every question
 individually with IDs. The collapsing happens only in this final user-facing scorecard.
@@ -822,7 +735,7 @@ After outputting the Final Scorecard:
    AskUserQuestion with the Gate 1 issues listed. User must explicitly resolve each issue or
    override before proceeding. Do NOT call ExitPlanMode or write the marker until the user
    responds.
-   If user resolves: apply edits and re-evaluate Gate 1 questions only (Layer 2 and ecosystem
+   If user resolves: apply edits and re-evaluate Gate 1 questions only (cluster and ecosystem
      evaluators do not re-run in this step). Recompute Rating using the standard thresholds.
      If new Rating is READY, SOLID, or GAPS: proceed to step 1.5 (step 4 will apply for SOLID/GAPS).
      If Gate 1 is still not resolved: return to AskUserQuestion.
@@ -838,9 +751,13 @@ After outputting the Final Scorecard:
 
 2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
-3. **Team teardown (IS_GAS or IS_NODE mode):** Send shutdown_request to all evaluator agents by name
-   (`l1-evaluator`, `l2-evaluator`, `gas-evaluator` if IS_GAS, `node-evaluator` if IS_NODE,
-   and `ui-evaluator` if HAS_UI), then call TeamDelete. (Teardown must complete before ExitPlanMode —
+3. **Team teardown (always):** Send shutdown_request to all evaluator agents:
+   - Always: `l1-evaluator`
+   - Each active cluster: `<cluster_name>-evaluator` for each cluster in active_clusters
+   - If IS_GAS: `gas-evaluator`
+   - If IS_NODE: `node-evaluator`
+   - If HAS_UI: `ui-evaluator`
+   Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
 4. **Remaining issues summary (non-READY ratings):**
