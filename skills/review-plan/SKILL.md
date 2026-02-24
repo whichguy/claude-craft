@@ -146,6 +146,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          # Do NOT jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
 
    Print mode based on flags:
+     IS_GAS + HAS_UI + HAS_STATE: "📋 Review mode: GAS + UI + State cluster (gas-evaluator + ui-evaluator + state cluster, [N] active)"
+     IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-evaluator + ui-evaluator, [N] active)"
      IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-evaluator + state cluster, [N] active)"
      IS_GAS only:         "📋 Review mode: GAS (all L2 clusters superseded by gas-evaluator)"
      IS_NODE only:        "📋 Review mode: Node.js ([N] clusters: [names] + node-evaluator)"
