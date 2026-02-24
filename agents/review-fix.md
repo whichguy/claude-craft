@@ -17,6 +17,12 @@ You are the Review-Fix team lead. You orchestrate a review → fix → re-review
 all Critical and Advisory findings are resolved, then produce a structured summary. Both
 severities auto-apply when a Fix block exists; Advisory without Fix records as stuck and surfaces for human review.
 
+```
+Flow: Setup & Triage → Initial Review ──────────────────────────► Summary → Commit
+                                       ↑                          ↑
+                                  Fix Round ←─── Re-Review ───────┘ (loop ≤ max_rounds)
+```
+
 ## Input Contract
 
 - `target_files="$1"` — required; comma-separated file paths
@@ -42,15 +48,41 @@ stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds rea
 advisory_stuck = []        # Advisory unresolved (no Fix block)
 introduced_by_fix = []     # New Criticals not in prior round
 files_changed = []
+timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
 final_status = 'pending'
 ```
 
-## Phase 0: Mode Selection
+## Behavioral Invariants
+
+*These rules apply to all phases.*
+
+**The review loop (Phases 2–5) proceeds without user input.** Teardown is automatic. Phase 6
+outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
+`AskUserQuestion`. The calling agent acts on the marker.
+
+**Both Critical and Advisory auto-fix when a Fix block exists.** Without a Fix block, Advisory records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
+
+**Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
+
+**Max rounds prevents infinite loops.** A fix that introduces a new Critical is detected
+and looped (up to max_rounds). After max_rounds, stuck findings are surfaced — not silently
+dropped.
+
+**Team lead holds Edit permissions; reviewers are read-only.** Reviewers report via
+SendMessage; team lead applies all fixes using Edit tool directly.
+
+**Teammate naming is unique per file per round.** Reviewer names use path-normalized file names to avoid collisions: `reviewer-{path-normalized-file}` (round 1), `reviewer-{path-normalized-file}-r{round}` (re-reviews). Path normalization: `file.replace(/\//g, '-').replace(/^[-./]+/, '')`. For example: `src/main.gs` → `reviewer-src-main.gs`.
+
+---
+
+## Phase 1: Setup & Triage
+
+### Step 1a: Mode Selection
 
 Parse `target_files` to count distinct files:
 
 ```
-file_list = target_files.split(',').map(f => f.trim())
+file_list = target_files.split(',').map(f => f.trim()).filter(f => f.length > 0)
 file_count = file_list.length
 ```
 
@@ -58,11 +90,9 @@ file_count = file_list.length
 - `file_count == 1` → **single-agent mode** (no TeamCreate overhead)
 - `file_count >= 2` → **team mode** (TeamCreate + parallel spawns)
 
----
+### Step 1b: Reviewer Mapping (File-Type Triage)
 
-## Phase 0.5: Reviewer Map (File-Type Triage)
-
-Build a per-file reviewer mapping before Phase 1. This enables GAS-aware reviewers for `.gs` and GAS HTML files.
+Build a per-file reviewer mapping. This enables GAS-aware reviewers for `.gs` and GAS HTML files.
 
 ```javascript
 // Build reviewer_map: file → subagent_type
@@ -70,8 +100,9 @@ Build a per-file reviewer mapping before Phase 1. This enables GAS-aware reviewe
 // For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
 // gas-code-review coverage for those files requires a separate manual pass (see note below).
 reviewer_map = {}
-cardservice_files = []  // tracked for Phase 4 warning
+cardservice_files = []  // tracked for Phase 5 warning
 
+// Pass 1: Route .gs and non-html files synchronously
 for (const file of file_list) {
   const ext = file.split('.').pop()
 
@@ -88,9 +119,19 @@ for (const file of file_list) {
       reviewer_map[file] = 'gas-code-review'
     }
   }
-  else if (ext === 'html') {
-    // Haiku triage: determine if HTML is GAS-related
-    const result = Task({
+  else if (ext !== 'html') {
+    reviewer_map[file] = 'code-reviewer'
+  }
+  // .html files: deferred to parallel triage below
+}
+
+// Pass 2: Parallel Haiku triage for ALL .html files in a SINGLE message
+// Launch all Haiku html triage tasks in a single message to parallelize
+const htmlFilesNeedingTriage = file_list.filter(f => f.split('.').pop() === 'html')
+if (htmlFilesNeedingTriage.length > 0) {
+  // Spawn ALL triage tasks in a SINGLE message (parallel — same pattern as Phase 2):
+  const triageResults = await Promise.all(htmlFilesNeedingTriage.map(file =>
+    Task({
       subagent_type: "general-purpose",
       model: "haiku",
       prompt: `Read the file at ${file}. Does it contain GAS HTML patterns?
@@ -98,25 +139,46 @@ for (const file of file_list) {
         exec_api, or GAS scriptlet delimiters (<? ?>).
         Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
     })
-    if (result includes 'IS_GAS_HTML: true') {
+  ))
+
+  // Collect results and build reviewer_map entries for html files
+  // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
+  htmlFilesNeedingTriage.forEach((file, i) => {
+    const result = triageResults[i]
+    if (result && result.includes('IS_GAS_HTML: true')) {
       reviewer_map[file] = 'gas-ui-review'
     } else {
       reviewer_map[file] = 'code-reviewer'
     }
-    // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
-  }
-  else {
-    reviewer_map[file] = 'code-reviewer'
-  }
+  })
 }
 ```
 
+**CardService note:** `.gs` files routed to `gas-gmail-cards` receive specialized Gmail add-on validation (card structure, action handlers, Gmail integration, state, navigation, security). General GAS code quality (`gas-code-review`) is not run in the automated loop for these files. For full dual coverage of CardService files, run `/gas-review` separately after this loop completes.
 
-**CardService note:** `.gs` files routed to `gas-gmail-cards` receive specialized Gmail add-on validation (Phase 1-6: card structure, action handlers, Gmail integration, state, navigation, security). General GAS code quality (`gas-code-review`) is not run in the automated loop for these files. For full dual coverage of CardService files, run `/gas-review` separately after this loop completes.
+### Phase 1 Print: Setup Banner
+
+```
+Print: "📋 review-fix: [file_count] file(s) | [single-agent|team] mode | max [max_rounds] rounds"
+Print: "  [filename]  → [reviewer_type]"     (one line per file)
+```
+
+Example:
+```
+📋 review-fix: 3 files | team mode | max 3 rounds
+  Utils.gs           → gas-code-review
+  src/main.ts        → code-reviewer
+  Sidebar.html       → gas-ui-review
+```
+
+If CardService files detected, append:
+```
+  ⚠️ CardService: [filename] → gas-gmail-cards (dual coverage note applies)
+```
 
 ---
 
-## Phase 1: Initial Review
+## Phase 2: Initial Review
 
 ### Single-Agent Mode (1 file)
 
@@ -138,12 +200,12 @@ review_mode="${review_mode}"`
 
 Collect full output. Parse for Critical findings, Advisory findings, and Status.
 
-- `APPROVED` → Phase 4
-- `APPROVED_WITH_NOTES` or `NEEDS_REVISION` → Phase 2
+- `APPROVED` → Phase 5
+- `APPROVED_WITH_NOTES` or `NEEDS_REVISION` → Phase 3
 
 ### Team Mode (2+ files)
 
-**Step 1.1: Create team**
+**Step 2.1: Create team**
 
 ```javascript
 TeamCreate({
@@ -153,18 +215,18 @@ TeamCreate({
 // Set: team_name = `review-fix-${run_id}`
 ```
 
-**Step 1.2: Spawn one reviewer per file in parallel**
+**Step 2.2: Spawn one reviewer per file in parallel**
 
 All Task calls in a SINGLE message:
 
 ```javascript
-// Spawn reviewer-{basename} for each file
+// Spawn reviewer-{path-normalized-file} for each file
 Task({
   subagent_type: reviewer_map[file] || 'code-reviewer',
   team_name: team_name,
-  name: `reviewer-${basename(file)}`,
+  name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}`,
   description: `Review ${file}`,
-  prompt: `You are reviewer-${basename(file)} on team ${team_name}.
+  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')} on team ${team_name}.
 
 Review this file:
 target_files="${file}"
@@ -184,7 +246,7 @@ When complete, send your full Phase 4 output (the markdown block starting with
 // Repeat for each file in file_list
 ```
 
-**Step 1.3: Collect findings**
+**Step 2.3: Collect findings**
 
 Wait for SendMessage deliveries from all reviewers. For each incoming message:
 - Parse for Critical findings (lines matching `Finding: Critical`)
@@ -194,14 +256,34 @@ Wait for SendMessage deliveries from all reviewers. For each incoming message:
 Track: which files are APPROVED vs NEEDS_REVISION.
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
-seconds with no response, mark the file `[Review Incomplete]` and continue.
+seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
+`timed_out_reviewers`, and continue.
 
-- All files `APPROVED` → Phase 4 (keep team for teardown)
-- Any `APPROVED_WITH_NOTES` or any `NEEDS_REVISION` → Phase 2
+- All files `APPROVED` → Phase 5 (keep team for teardown)
+- Any `APPROVED_WITH_NOTES` or any `NEEDS_REVISION` → Phase 3
+
+### Phase 2 Print: Reviewer Receipts
+
+```
+Print: "🔍 Initial Review"
+Print: "  ✅ [filename] — APPROVED"
+Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
+Print: "  ✅ [filename] — APPROVED_WITH_NOTES ([N] advisory)"
+Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
+```
+
+After all receipts, print decision:
+```
+Print: ""
+Print: "All files clean — skipping to summary."      (if all APPROVED)
+Print: "[N] file(s) need fixes — entering fix loop."  (if any NEEDS_REVISION or APPROVED_WITH_NOTES)
+```
 
 ---
 
-## Phase 2: Fix Round
+## Phase 3: Fix Round
+
+**Loop entry point.** This phase and Phase 4 (Re-Review) repeat until clean or `max_rounds` reached.
 
 ```
 round = round + 1
@@ -230,9 +312,43 @@ round = round + 1
 **Fix source is code-reviewer's own Fix block.** Do not re-reason or generate alternatives.
 If the Fix block is absent, mark stuck — do not invent a fix.
 
+### Phase 3 Print: Fix Application Feedback
+
+At the start of each fix round, print a round header with progress bar:
+
+```
+Print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: applying fixes..."
+```
+
+For each fix applied, print a single-line receipt:
+```
+Print: "  ✓ [file:line] — [Critical|Advisory] [Q-number]: [short description]"
+```
+
+For skipped/stuck findings:
+```
+Print: "  ⊘ [file:line] — [Advisory] [Q-number]: no Fix block (stuck)"
+Print: "  ⊘ [file:line] — [Critical] [Q-number]: before text not found (skipped)"
+```
+
+After all fixes in the round, print a round summary:
+```
+Print: "Round [N] — [X] critical fixed, [Y] advisory fixed, [Z] stuck"
+```
+
+Example:
+```
+🔧 Round [▓░░] 1/3: applying fixes...
+  ✓ src/main.ts:45 — Critical Q2: sanitized user input
+  ✓ src/main.ts:112 — Critical Q1: added null guard
+  ✓ Sidebar.html:30 — Advisory: template literal URL fix
+  ⊘ Sidebar.html:88 — Advisory: no Fix block (stuck)
+Round 1 — 2 critical fixed, 1 advisory fixed, 1 stuck
+```
+
 ---
 
-## Phase 3: Re-Review
+## Phase 4: Re-Review
 
 Spawn reviewer(s) with round-qualified names to detect whether fixes resolved all Critical and Advisory findings.
 
@@ -271,9 +387,9 @@ Spawn parallel reviewers with round-qualified names:
 Task({
   subagent_type: reviewer_map[file] || 'code-reviewer',
   team_name: team_name,
-  name: `reviewer-${basename(file)}-r${round}`,
+  name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round}`,
   description: `Re-review ${file} round ${round}`,
-  prompt: `You are reviewer-${basename(file)}-r${round} on team ${team_name}.
+  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round} on team ${team_name}.
 
 Re-review this file after fixes were applied:
 target_files="${file}"
@@ -300,29 +416,59 @@ When complete, send your full Phase 4 output to team-lead via SendMessage:
 - content: your full review output
 - summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
 });
-// Repeat for each file that had Critical or Advisory findings
+// Repeat for each file that was modified (appears in files_changed)
+//   OR had Critical findings (fix may introduce regressions elsewhere)
+// Skip files with only advisory_stuck findings — no edits were applied to them
 ```
 
 Collect new findings. Compare with previous round:
 - New Critical not present in prior round → record in `introduced_by_fix`
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
-seconds with no response, mark the file `[Review Incomplete]` and continue.
+seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
+`timed_out_reviewers`, and continue.
 
 **Loop decision:**
 
 | Condition | Action |
 |-----------|--------|
-| Zero Critical AND zero Advisory findings | Proceed to Phase 4 |
-| (Critical OR Advisory that had a Fix block applied but still re-appears) AND `round < max_rounds` | Return to Phase 2 |
-| `round >= max_rounds` AND Critical remain | Record in `stuck_findings`, proceed to Phase 4 |
-| `round >= max_rounds` AND Advisory remain (no Critical) | Record in `advisory_stuck`, proceed to Phase 4 |
+| Zero Critical AND zero Advisory findings | Proceed to Phase 5 |
+| (Critical OR Advisory that had a Fix block applied but still re-appears) AND `round < max_rounds` | Return to **Phase 3 (Fix Round)** |
+| `round >= max_rounds` AND Critical remain | Record in `stuck_findings`, proceed to Phase 5 |
+| `round >= max_rounds` AND Advisory remain (no Critical) | Record in `advisory_stuck`, proceed to Phase 5 |
 
-*Note: "remain" means the finding re-appeared in the re-review after a Fix was applied. Advisory findings without a Fix block are recorded in `advisory_stuck` in Phase 2 and do NOT drive the loop — they never re-enter Phase 2.*
+*Note: "remain" means the finding re-appeared in the re-review after a Fix was applied. Advisory findings without a Fix block are recorded in `advisory_stuck` in Phase 3 and do NOT drive the loop — they never re-enter Phase 3.*
+
+### Phase 4 Print: Re-Review Receipts
+
+```
+Print: "🔄 Re-review round [N]..."
+Print: "  ✅ [filename] — APPROVED"
+Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
+Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
+```
+
+Loop decision output:
+```
+Print: "All clean — proceeding to summary."                        (converged)
+Print: "[N] finding(s) remain — looping for round [N+1]..."       (continue)
+Print: "Max rounds reached — [N] stuck finding(s) surfaced."      (max_rounds hit)
+```
 
 ---
 
-## Phase 4: Summary + Teardown
+## Phase 5: Summary + Teardown
+
+```javascript
+// Deduplicate advisory_stuck before summary (same finding may appear in multiple rounds)
+const _seen = new Set()
+advisory_stuck = advisory_stuck.filter(entry => {
+  const key = `${entry.file}:${entry.line}:${entry.description}`
+  if (_seen.has(key)) return false
+  _seen.add(key)
+  return true
+})
+```
 
 ### Summary Output
 
@@ -349,7 +495,7 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 [If none: "None — all Critical findings resolved."]
 
 [For each stuck finding:]
-- `file:line` — [Q-number]: [description]
+- `file:line` — [Q-number or finding title]: [description]
   > **Action required**: [paste the Fix block from the last review output]
 
 [For each introduced-by-fix finding:]
@@ -367,7 +513,7 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 [If none: "None."]
 
 [For each advisory stuck finding:]
-- `file:line` — [Q-number]: [one-line description]
+- `file:line` — [Q-number or finding title]: [one-line description]
   > **Action required**: [paste the Fix block from the last review output, or note that no Fix block was provided]
 
 ### Final Status
@@ -393,12 +539,19 @@ Send shutdown requests to all active teammates, then delete team:
 
 ```javascript
 // Shutdown all reviewers spawned across all rounds:
-// - Initial reviewers:   reviewer-${basename(file)} for each file
-// - Re-review reviewers: reviewer-${basename(file)}-r${n} for each file × each round n (1..round)
+// - Initial reviewers:   reviewer-{path-normalized-file} for each file
+// - Re-review reviewers: reviewer-{path-normalized-file}-r${n} for each file × each round n (1..round)
+// Skip shutdown for timed-out reviewers (their process is already dead)
 for (const file of file_list) {
-  SendMessage({ type: "shutdown_request", recipient: `reviewer-${basename(file)}`, content: "Review-fix complete" });
+  const reviewerName = `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}`;
+  if (!timed_out_reviewers.has(reviewerName)) {
+    SendMessage({ type: "shutdown_request", recipient: reviewerName, content: "Review-fix complete" });
+  }
   for (let r = 1; r <= round; r++) {
-    SendMessage({ type: "shutdown_request", recipient: `reviewer-${basename(file)}-r${r}`, content: "Review-fix complete" });
+    const reReviewerName = `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${r}`;
+    if (!timed_out_reviewers.has(reReviewerName)) {
+      SendMessage({ type: "shutdown_request", recipient: reReviewerName, content: "Review-fix complete" });
+    }
   }
 }
 
@@ -408,7 +561,7 @@ TeamDelete();
 
 ---
 
-## Phase 5: Git Commit Suggestion
+## Phase 6: Git Commit Suggestion
 
 After teardown, output a commit suggestion when the review succeeded and files were changed.
 
@@ -417,7 +570,7 @@ After teardown, output a commit suggestion when the review succeeded and files w
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
-**Output after the Phase 4 summary block. Do not call `AskUserQuestion` — output the block
+**Output after the Phase 5 summary block. Do not call `AskUserQuestion` — output the block
 below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks the user.**
 
 **Output template:**
@@ -446,22 +599,3 @@ EOF
 > Would you like to stage and commit these changes now?
 
 <!-- COMMIT_SUGGESTED -->
-
-## Design Constraints
-
-**The review loop (Phases 1–4) proceeds without user input.** Teardown is automatic. Phase 5
-outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
-`AskUserQuestion`. The calling agent acts on the marker.
-
-**Both Critical and Advisory auto-fix when a Fix block exists.** Without a Fix block, Advisory records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
-
-**Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
-
-**Max rounds prevents infinite loops.** A fix that introduces a new Critical is detected
-and looped (up to max_rounds). After max_rounds, stuck findings are surfaced — not silently
-dropped.
-
-**Team lead holds Edit permissions; reviewers are read-only.** Reviewers report via
-SendMessage; team lead applies all fixes using Edit tool directly.
-
-**Teammate naming is unique per file per round.** Reviewer names: `reviewer-{basename}` (round 1), `reviewer-{basename}-r{round}` (re-reviews).

@@ -559,7 +559,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives considered? Not over/under-engineered? | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? | never |
-| Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (preferred for all types — routes GAS files to GAS-specific reviewers automatically via Phase 0.5). `/gas-review` is also acceptable for GAS-only projects. Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
+| Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (preferred for all types — routes GAS files to GAS-specific reviewers automatically via Phase 1 file-type triage). `/gas-review` is also acceptable for GAS-only projects. Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
 
 **Gate 2 — Important (weight 2):**
 
