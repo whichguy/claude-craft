@@ -167,7 +167,7 @@ Print: "  [filename]  → [reviewer_type]"     (one line per file)
 
 Example:
 ```
-📋 review-fix: 3 files | team mode | max 3 rounds
+📋 review-fix: 3 files | parallel-task mode | max 3 rounds
   Utils.gs           → gas-code-review
   src/main.ts        → code-reviewer
   Sidebar.html       → gas-ui-review
@@ -232,13 +232,8 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 ));
 ```
 
-Collect outputs. For each file's result, print a receipt then parse:
-
-```
-Print: "  ✅ [filename] — APPROVED"
-Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
-Print: "  ✅ [filename] — APPROVED_WITH_NOTES ([N] advisory)"
-```
+Collect outputs. Parse each file's result for Critical findings, Advisory findings, and Status.
+Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All Modes)" section below.
 
 - All files `APPROVED` → Phase 5
 - Any `NEEDS_REVISION` → Phase 3
@@ -431,7 +426,7 @@ but as parallel Tasks with no team):
 ```javascript
 const recheck_files = file_list.filter(f =>
   files_changed.includes(f) ||
-  prior_round_criticals.some(c => c.file === f)
+  stuck_findings.some(c => c.file === f)
 );
 
 const results = await Promise.all(recheck_files.map(file =>
