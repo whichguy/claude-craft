@@ -5,7 +5,10 @@
 ### review-plan (L1 + L2)
 **Layer 1 Gate 1 — Blocking (never N/A):** Q-G1, Q-G2, Q-G3
 **Layer 1 Gate 2 — Important (never N/A):** Q-G5, Q-NEW
+**Layer 1 Gate 2 — CAN be N/A:** Q-G4, Q-G8, Q-G10 (assumption exposure — N/A when no external calls, no environment-specific dependencies, no pre-existing data assumptions)
 **Layer 2 (never N/A):** Q-C1, Q-C2 *(see IS_GAS override below)*
+
+**Note on Q-G10 (Assumption Exposure, added L1):** NOT safe to individually memoize — assumptions evolve as the plan is edited, so it must be re-evaluated every convergence pass. No gas-plan or node-plan equivalent. Has a valid N/A path.
 
 ### gas-plan
 **Always evaluated regardless of domain triage:** Q1, Q2, Q42
@@ -52,6 +55,15 @@ review-plan **suppresses** these L2 questions in IS_GAS mode (gas-evaluator has 
 
 **Note on Q-C17 and Q-C25:** These have gas-plan equivalents (Q32, Q33) only under the frontend evaluator. Suppress in IS_GAS mode when HAS_UI=true. When HAS_UI=false and IS_GAS=true, L2 may still evaluate them (no frontend evaluator active to cover them).
 
+### IS_GAS N/A Suppressions (no gas-plan equivalent)
+
+These L2 questions have no gas-plan question covering the same concern. They are simply N/A in IS_GAS mode because the concern does not apply to GAS projects.
+
+| L2 Question | Gate | Coverage Topic | IS_GAS Treatment |
+|-------------|------|----------------|-----------------|
+| Q-C27 | 2 | Backward compatibility (external API consumers) | N/A — GAS projects lack external API consumers in the npm/HTTP sense |
+| Q-C28 | 3 | Observability / monitoring coverage | N/A — exec verification + gas-plan Q6/Q12 cover GAS observability |
+
 ## L1 ↔ gas-plan Overlap (1 confirmed overlap)
 
 | L1 Question | gas-plan Equivalent | Coverage Topic | Resolution |
@@ -87,6 +99,9 @@ Team-lead merges: combine findings, keep the more actionable wording.
 ## node-plan Shared Questions
 
 `N8` (Concurrency safety) — evaluated by both TS/API and Node runtime evaluators.
+
+**Gate 3 (advisory) node-plan questions:** N19, N26, N29, N31, N32, N34, N37, N38
+- **N38** (Health check endpoint, NR): Gate 3. N/A for non-HTTP services (CLI, library, background worker). Added alongside N36 (K8s/container shutdown) — triage shortcut: "no HTTP server → N/A N38".
 
 ---
 
