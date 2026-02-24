@@ -475,6 +475,50 @@ multi-file features where cross-file consistency needs a coordinator.
 - 2 independent files, no shared concerns → Level 2 (parallel Tasks, no team)
 - Purely additive changes with no cross-file dependencies → Level 2
 
+### Q-G9 Post-Convergence Organization Pass
+
+*Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
+*L1 per-pass count stays at 9 (Q-G1 through Q-G8 + Q-NEW). Q-G9 is not included in*
+*convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
+
+After convergence exits (and after step 1 REWORK gate if applicable), spawn:
+Task(
+  subagent_type = "general-purpose",
+  model = "opus",
+  team_name = <team_name>,
+  name = "q-g9-evaluator",
+  prompt = """
+    Read the plan at <plan_path>.
+
+    Evaluate 5 structural presentation questions (Q-G9a through Q-G9e).
+    This is a post-convergence organization check — focus on how well the plan
+    reads as execution instructions, not on content correctness.
+
+    Q-G9a: Sequential clarity — are implementation steps numbered and unambiguous in order?
+    Q-G9b: Concurrency labeling — are parallel steps explicitly marked (e.g. "[parallel]",
+           "In a SINGLE message", "spawn in parallel")?
+    Q-G9c: Scannability — does the plan use headers and bullets (no prose walls >5 sentences)?
+    Q-G9d: Conditional structure — are IF/ELSE branches visually distinct from sequential steps?
+    Q-G9e: Checkpoint visibility — are commit/verification checkpoints clearly visible
+           (not buried mid-paragraph)?
+
+    Output contract — send ONE message to team-lead:
+      FINDINGS FROM q-g9-evaluator
+      Q-G9a: PASS | NEEDS_UPDATE — [finding]
+      [EDIT: instruction if NEEDS_UPDATE]
+      Q-G9b: PASS | NEEDS_UPDATE — [finding]
+      [EDIT: instruction if NEEDS_UPDATE]
+      ... (all 5 sub-questions)
+
+    Constraints:
+    - Do NOT use Edit, Write, or Bash tools — read-only
+    - Do NOT call ExitPlanMode or touch marker files
+    - Send exactly ONE message to team-lead
+  """
+)
+Apply any NEEDS_UPDATE instructions from q-g9-evaluator. Mark changes <!-- review-plan -->.
+Add Q-G9 results to the scorecard (see Organization Quality section below).
+
 ---
 
 ## Layer 2: Code Change Quality
@@ -717,6 +761,13 @@ OR
 [list only PASS and NEEDS_UPDATE UI questions — omit N/A items]
 Example line: Component structure (Q-U1): ✅ PASS
 
+### Organization Quality (Q-G9)  ← render only when plan has ≥ 3 implementation steps
+[✅ PASS — no structural issues (5 sub-questions)]
+OR
+[N sub-questions flagged:]
+[list only flagged sub-questions — omit PASS items]
+Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps not labeled
+
 ### Rating
 🟢 READY   — Gate 1 + Gate 2 all PASS
 🟡 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
@@ -748,6 +799,12 @@ After outputting the Final Scorecard:
    - `" <!-- node-plan -->"` → `""` (remove)
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do NOT remove the content they annotated.
+
+1.75. **Q-G9 organization pass** (post-convergence structural check):
+   N/A if plan has fewer than 3 implementation steps — skip this step entirely.
+   Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
+   subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
+   Add Q-G9 results to the scorecard under "Organization Quality (Q-G9)".
 
 2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
