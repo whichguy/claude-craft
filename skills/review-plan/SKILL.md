@@ -70,7 +70,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    Parse output → set IS_GAS, IS_NODE, HAS_UI
    IF Haiku timeout or malformed output → all flags false (simple mode)
    Print mode based on flags:
-     All false:           "📋 Review mode: Standard (general + code quality)"
+     All false:           "📋 Review mode: Standard (general + code quality, 2 parallel Tasks/pass)"
      IS_GAS only:         "📋 Review mode: GAS (general + code + 43-question GAS specialization)"
      IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (4 parallel evaluators, ~90s/pass)"
      IS_NODE only:        "📋 Review mode: Node.js (general + code + 35-question Node/TS)"
@@ -130,6 +130,7 @@ DO:
   --- L1 Evaluator ---
   Task(
     subagent_type = "general-purpose",
+    model = "opus",
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
@@ -161,10 +162,11 @@ DO:
   --- L2 Evaluator ---
   Task(
     subagent_type = "general-purpose",
+    model = "opus",
     team_name = <team_name>,
     name = "l2-evaluator",
     prompt = """
-      You are evaluating a plan for code change quality (Layer 2: 25 questions).
+      You are evaluating a plan for code change quality (Layer 2: 26 questions).
       Prioritize practical production implications over theoretical concerns.
       Flag real-world risks (deployment failures, data loss, breaking changes)
       that a checklist review would miss.
@@ -173,7 +175,7 @@ DO:
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L2 questions: Q-C1 through Q-C25
+      Evaluate ALL L2 questions: Q-C1 through Q-C26
       Apply triage shortcuts (bulk N/A per the triage table in the SKILL.md).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -239,6 +241,7 @@ DO:
     --- UI Evaluator ---
     Task(
       subagent_type = "ui-designer",
+      model = "opus",
       team_name = <team_name>,
       name = "ui-evaluator",
       prompt = """
@@ -358,7 +361,7 @@ OUTPUT final scorecard
 (Teardown and ExitPlanMode handled in "After Review Completes" section below.)
 ```
 
-### Mode: non-GAS (Simple mode — L1 inline + L2 Task per pass)
+### Mode: non-GAS (Simple mode — L1 + L2 parallel Tasks per pass)
 
 ```
 DO:
@@ -370,21 +373,42 @@ DO:
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
 
-  [ Layer 1: Evaluate inline ]
-  Evaluate all 9 L1 questions yourself (Q-G1 through Q-G8 + Q-NEW; fast — no agent overhead).
-  Apply triage (mark N/A per the N/A column).
-  Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
-  IF any NEEDS_UPDATE: edit plan, mark <!-- review-plan -->
-  l1_changes = count of L1 edits
-  changes_this_pass += l1_changes
+  [In a SINGLE message, spawn 2–3 parallel Task calls: L1 always; L2 always; UI if HAS_UI]
 
-  [In a SINGLE message, spawn 1–2 parallel Task calls]:
+  --- L1 Evaluator ---
+  Task(
+    subagent_type = "general-purpose",
+    model = "opus",
+    prompt = """
+      You are evaluating a plan for general quality (Layer 1: 9 questions).
+
+      Plan file: <plan_path> — read it with the Read tool
+      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
+      Standards: Read ~/.claude/CLAUDE.md as needed
+
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW
+      Apply triage (mark N/A per the N/A column).
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
+
+      Return your findings as a plain text list (not via SendMessage — no team in simple mode):
+        Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
+        [EDIT: instruction if NEEDS_UPDATE]
+        Q-G2: ...
+        ... (all 9 questions including Q-NEW)
+
+      Constraints:
+      - Do NOT use Edit, Write, or Bash tools — read-only
+      - Do NOT call ExitPlanMode or touch marker files
+    """
+  )
 
   --- L2 Evaluator ---
   Task(
     subagent_type = "general-purpose",
+    model = "opus",
     prompt = """
-      You are evaluating a plan for code change quality (Layer 2: 25 questions).
+      You are evaluating a plan for code change quality (Layer 2: 26 questions).
       Prioritize practical production implications over theoretical concerns.
       Flag real-world risks (deployment failures, data loss, breaking changes)
       that a checklist review would miss.
@@ -393,7 +417,7 @@ DO:
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 2 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L2 questions: Q-C1 through Q-C25
+      Evaluate ALL L2 questions: Q-C1 through Q-C26
       Apply triage shortcuts (bulk N/A per the triage table).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -401,7 +425,11 @@ DO:
       Return your findings as a plain text list (not via SendMessage — no team in non-GAS mode):
         Q-C1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
-        ... (all 25 questions)
+        ... (all 26 questions)
+
+      Constraints:
+      - Do NOT use Edit, Write, or Bash tools — read-only
+      - Do NOT call ExitPlanMode or touch marker files
     """
   )
 
@@ -409,6 +437,7 @@ DO:
     --- UI Evaluator ---
     Task(
       subagent_type = "ui-designer",
+      model = "opus",
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -425,11 +454,17 @@ DO:
       """
     )
 
-  Wait for all evaluator results (L2 always; ui-evaluator if HAS_UI).
+  Wait for all evaluator results (L1 + L2 always; ui-evaluator if HAS_UI).
   Incomplete evaluator rule: An Incomplete evaluator contributes ZERO changes and ZERO findings
   to this pass. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND the
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
+
+  Print receipt for each evaluator result received:
+    Print: "  ✅ l1-evaluator — [n] NEEDS_UPDATE"
+    Print: "  ✅ l2-evaluator — [n] NEEDS_UPDATE"
+    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"  (if HAS_UI)
+    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"     (if incomplete)
 
   Before applying edits, print a summary using this exact format:
     Print: "Applying [N] changes:"
@@ -457,10 +492,10 @@ DO:
     removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
   RE-READ the full consolidated plan
 
+  l1_changes = count of L1 NEEDS_UPDATE edits applied
   l2_changes = count of L2 NEEDS_UPDATE edits applied
-  changes_this_pass += l2_changes
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
-  changes_this_pass += ui_plan_changes
+  changes_this_pass = l1_changes + l2_changes + ui_plan_changes
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass}
 
@@ -532,7 +567,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
-| Q-G8 | Agent teams & Task usage | Does the plan make maximal use of agent teams and parallel Task calls for independent work? Flag: sequential steps that could run in parallel, missing TeamCreate for multi-agent coordination, evaluations that could be parallelized, or sub-tasks that would benefit from specialized subagents. | plan involves only a single atomic change with no parallelizable steps |
+| Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
 
 **Gate 3 — Advisory (weight 1):**
@@ -543,6 +578,47 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G7 | Documentation | MEMORY.md / CLAUDE.md / README affected by this change? | no behavior changes |
 
 Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
+
+### Q-G8 Decision Framework: Task Calls & Agent Teams
+
+Evaluate plans against three levels. Each level subsumes the previous.
+
+**Level 1 — Task calls for context isolation**
+Use Task (no team) when a step is independent but would pollute the main context:
+- Broad codebase exploration or file reads (>5 files)
+- Output-heavy operations (large grep results, full file dumps)
+- Research/investigation that produces intermediate artifacts not needed in main context
+- Long-running operations where progress doesn't need real-time visibility
+
+Flag: plan runs heavy exploration or multi-file reads inline instead of via Task.
+Note: context isolation is a valid reason to use Task even for sequential (non-parallel) work.
+
+**Level 2 — Parallel Task calls for independent work**
+Use multiple Task calls in a single message when steps are independent:
+- Editing multiple independent files (each file in its own Task)
+- Running tests while continuing other work (run_in_background: true)
+- Exploration from multiple angles simultaneously (up to 3 Explore agents)
+- Independent verification steps (lint + test + type-check in parallel)
+
+Flag: sequential steps that could run in parallel; steps that wait for results
+they don't depend on.
+
+**Level 3 — Agent teams (TeamCreate/SendMessage) for coordinated work**
+Use TeamCreate when multiple agents need to share findings or coordinate:
+- Multi-concern implementations (e.g., backend agent + frontend agent, with
+  team-lead merging results and resolving conflicts)
+- Iterative convergence (multiple evaluators per pass, like review-plan itself)
+- Parallel hypothesis testing (debugging with competing theories)
+- Complex features spanning 5+ files with cross-cutting concerns
+
+Flag: plans with 3+ agents working on related concerns without team coordination;
+plans where Agent A's output feeds into Agent B's work but there's no team structure;
+multi-file features where cross-file consistency needs a coordinator.
+
+**When NOT to escalate:**
+- Single file, simple change → no agents needed (inline)
+- 2 independent files, no shared concerns → Level 2 (parallel Tasks, no team)
+- Purely additive changes with no cross-file dependencies → Level 2
 
 ---
 
@@ -557,6 +633,7 @@ Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
 - read-only ops → N/A Q-C18, Q-C19
 - no new APIs/services → N/A Q-C22, Q-C23
 - local-only changes → N/A Q-C24
+- no change to existing data formats/state → N/A Q-C26
 
 **Gate 1 — Blocking (weight 3):**
 
@@ -590,6 +667,7 @@ Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
 | Q-C21 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? | bounded ops |
 | Q-C22 | Auth/permission additions | New scopes or permissions noted with user impact? | no new services |
 | Q-C24 | Local↔remote sync | Sync strategy explicit for local→remote pushes? Stale reads avoided? | local-only |
+| Q-C26 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
 
 **Gate 3 — Advisory (weight 1):**
 
