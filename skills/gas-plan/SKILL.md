@@ -70,7 +70,7 @@ Two operating modes:
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
    - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
-     (Q47 is intentionally omitted here — it is a Gmail-domain shared question already handled by the Gmail bulk-N/A rule above)
+     (Q47 is intentionally omitted here — it is a Gmail-domain GAS-primary question already handled by the Gmail bulk-N/A rule above)
 3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
 4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
 5. Call the **SendMessage** tool exactly once:
@@ -131,16 +131,16 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
-- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+- Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
-**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 is a Gmail-domain shared question treated as GAS-primary: GAS evaluator covers it when active (bulk N/A when no Gmail); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
+**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 (card navigation) is a Gmail-domain GAS-primary question — not in the shared list above. GAS evaluator covers it when active (bulk N/A when no Gmail add-on); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
 
 **Triage shortcut — evaluator skip:**
 - No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary (Q14, Q30-Q36; Q43 is post-loop and not part of convergence pass scoring). Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
 - No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on; if Gmail add-on IS present and GAS evaluator is skipped, frontend evaluator also evaluates Q47 from both lenses; see frontend evaluator IMPORTANT block).
 
-**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is a Gmail-domain exception to the shared-question rule). All other shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are NEVER bulk-N/A'd.
 
 **Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
 
@@ -254,12 +254,12 @@ DO:
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
-        Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+        Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
               If plan has no Gmail add-on/CardService patterns → bulk N/A Q44, Q45, Q46, Q47, Q48.
-              Evaluate shared Qs regardless (except Q47 when no Gmail — Gmail-domain exception).
+              Evaluate shared Qs regardless (Q47 is GAS-primary, not shared — bulk N/A when no Gmail).
 
       IMPORTANT — if frontend evaluator was skipped this pass (no UI/HTML/CSS changes):
         Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the FRONTEND lens.
@@ -326,11 +326,15 @@ DO:
       Set results[q_id] = "PASS" or "NEEDS_UPDATE" based on the check above.
       IF results[q_id] == "NEEDS_UPDATE": never_na_findings.append(q_id)
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
-  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) — whether flagged by both
+  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41) — whether flagged by both
     evaluators or reported with dual labels ([GAS lens]/[Frontend lens]) by a single evaluator
     in the evaluator-skipped case:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
+  For Q47 (GAS-primary, Gmail-domain) — only in the evaluator-skipped + Gmail-present case:
+    If frontend evaluator was skipped and Gmail add-on is present, frontend evaluator reported
+    Q47 with dual labels ([GAS lens]/[Frontend lens]). Combine into single finding, same rule.
+    In all other cases (both evaluators active, or no Gmail): Q47 is a single GAS finding only.
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- gas-plan -->.
@@ -471,7 +475,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-general-reviewer, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [Shared] | Q48 trigger coverage [G]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop]
@@ -672,7 +676,7 @@ Every `setOnClickAction`, `setOnChangeAction`, `setOnClickOpenLinkAction` must r
 **Q46: Is Gmail message access token handled correctly?** (2, GAS)
 `GmailApp.setCurrentMessageAccessToken(e.gmail.accessToken)` must be called as the FIRST line in every contextual trigger handler before any `GmailApp.getMessageById()` call. Evaluate: (a) Token set before ALL GmailApp operations in contextual handlers; (b) Token NOT cached across separate trigger invocations (isolated GAS state — caching breaks on new invocations); (c) Token NOT needed in homepage handlers (no `e.gmail` available there — accessing it crashes); (d) Draft creation uses `message.createDraftReply()` or `message.createDraftReplyAll()` for replies — NOT `thread.createDraft()` (creates new message, not reply); (e) Label operations use getOrCreate pattern: `getUserLabelByName()` then `createLabel()` if null (silent failure if label missing); (f) OAuth scopes in appsscript.json match actual operations: `gmail.addons.execute`, `gmail.addons.current.message.readonly`, `gmail.modify` (for drafts/labels/archive). Flag: missing token set before message access, token stored in Properties/global var for reuse across invocations, `thread.createDraft()` for replies, label ops without existence check, missing OAuth scopes for planned GmailApp operations. N/A: no Gmail message access in plan.
 
-**Q47: Is card navigation balanced (push/pop)?** (2, Shared)
+**Q47: Is card navigation balanced (push/pop)?** (2, GAS)
 Every `pushCard` path must have a corresponding `popCard`, `popToRoot`, or explicit navigation reset path. Evaluate: (a) Detail/settings cards pushed via `pushCard` include a back button using `popCard`; (b) Navigation depth stays reasonable (3-4 cards max; ~10 card practical limit); (c) Major actions (send, archive, delete) use `popToRoot` to reset stack; (d) `updateCard` used for real-time refresh within a view (does not change navigation stack); (e) Error cards include back button — never dead-end the user; (f) No notification + navigation combined (navigation supersedes notification if both set). Flag: unbounded push depth without back navigation, pushed cards with no back button, orphaned card stacks (pushCard with no pop path), popCard called from card that was never pushed, using pushCard where updateCard is semantically correct (chat message refresh). N/A: single-card add-on with no navigation, or all interactions are updateCard only.
 
 **Q48: Are homepage and contextual triggers both covered?** (2, GAS)
