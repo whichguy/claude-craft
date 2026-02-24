@@ -69,6 +69,7 @@ Two operating modes:
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
    - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
+     (Q47 is intentionally omitted here — it is a Gmail-domain shared question already handled by the Gmail bulk-N/A rule above)
 3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
 4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
 5. Call the **SendMessage** tool exactly once:
@@ -148,12 +149,14 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 STEP 0: (done — plan loaded, team created)
   plan_path = <absolute filesystem path resolved in Step 0>
   team_name = <team_name created above>
+  pass_count = 0
   prev_needs_update_count = null; prev_needs_update_set = []
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
+  pass_count = pass_count + 1
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []
-  Print: "Pass [N/5]: evaluating..."
+  Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
@@ -281,8 +284,8 @@ DO:
     Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
-  SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
-  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
+  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass — from evaluator messages PLUS any findings added by the Never-N/A fallback above)
+  SET current_needs_update_count = len(current_needs_update_set)
   PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)  # set equality: order-independent
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
