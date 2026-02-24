@@ -632,7 +632,7 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 
 ## Layer 2: Code Change Quality
 
-*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*29 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
@@ -666,7 +666,7 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: Testing & Plan Quality
 
-*5 questions. Always active.*
+*6 questions. Always active.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -675,8 +675,9 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C9 | 2 | Step ordering | Explicit DAG; no refs to uncreated files, no deploy-before-push? | single step |
 | Q-C10 | 2 | Empty code | No stubs/TODOs without full spec (phased OK if explicit)? | no placeholders |
 | Q-C11 | 3 | Dead code | Old implementations marked for removal? | nothing replaced |
+| Q-C29 | 3 | Test strategy defined upfront | Does the plan state, prior to or alongside implementation steps, what tests will verify the change is correct? Acceptable: naming specific test cases, stating what behaviors the test suite must cover, or explicitly confirming existing tests cover the new behavior without modification. Flag: plan implements non-trivial logic changes with no pre-stated acceptance criteria or test scope — leaving "does this work?" undefined until post-implementation. | cosmetic/doc-only change; single-line fix where correctness is self-evident; existing test suite explicitly confirmed as sufficient |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20; Q-C29 N/A — test strategy covered by gas-evaluator Q11/Q12).
 IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 4: State & Data Integrity
@@ -768,7 +769,7 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 |---------|-------------|--------------------------|
 | Git (1) | **fully** | Q1, Q2 |
 | Impact (2) | **fully** | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects) |
-| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20 |
+| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
 | State (4) | **partially** — Q-C26 has no gas equivalent | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (5) | **fully** | Q27, Q28, Q23 |
 | Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
