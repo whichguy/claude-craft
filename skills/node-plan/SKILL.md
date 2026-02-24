@@ -163,8 +163,8 @@ Each question is owned by one perspective or shared. Tags: `[TS]` = TypeScript/A
 merges: combine findings, keep the more actionable wording.
 
 **Triage shortcut — evaluator skip:**
-- No TS/package changes → skip TypeScript evaluator entirely. Mark all TS-owned questions N/A in pass summary. Shared question coverage: Node runtime evaluator evaluates N8.
-- No runtime/env/framework changes → skip Node runtime evaluator entirely. Mark all NR-owned questions N/A in pass summary. Shared question coverage: TypeScript evaluator evaluates N8.
+- No TS/package changes → skip TypeScript evaluator entirely. Mark all TS-owned questions N/A in pass summary. Shared question coverage: Node runtime evaluator evaluates N8 from both lenses (see IMPORTANT block in evaluator prompt).
+- No runtime/env/framework changes → skip Node runtime evaluator entirely. Mark all NR-owned questions N/A in pass summary. Shared question coverage: TypeScript evaluator evaluates N8 from both lenses (see IMPORTANT block in evaluator prompt).
 
 **Triage shortcut — question-level bulk N/A:** No new timers → mark N26 N/A without individual evaluation. No file path operations → mark N29 N/A. Shared questions are NEVER bulk-N/A'd.
 
@@ -234,6 +234,11 @@ DO:
               Evaluate N1 if any TS files are involved, regardless of triage.
               Evaluate shared N8 regardless.
 
+      IMPORTANT — if Node Runtime evaluator was skipped this pass (no runtime/env/framework changes):
+        Also evaluate N8 from the NODE RUNTIME lens.
+        Output N8 twice: first your TS finding, then your NR finding.
+        Label clearly: "[TS lens]" and "[NR lens]". Team-lead merges both.
+
       Self-referential protection: Skip content marked <!-- node-plan --> or <!-- review-plan -->.
 
       Output contract — call the SendMessage tool exactly once:
@@ -292,6 +297,11 @@ DO:
               If plan has no API endpoint changes → bulk N/A N34.
               Evaluate shared N8 regardless.
 
+      IMPORTANT — if TypeScript evaluator was skipped this pass (no TS/package changes):
+        Also evaluate N8 from the TYPESCRIPT/API lens.
+        Output N8 twice: first your NR finding, then your TS finding.
+        Label clearly: "[NR lens]" and "[TS lens]". Team-lead merges both.
+
       Self-referential protection: Skip content marked <!-- node-plan --> or <!-- review-plan -->.
 
       Output contract — call the SendMessage tool exactly once:
@@ -349,7 +359,8 @@ DO:
       Team-lead directly evaluates N1: Does the plan include a `tsc --noEmit` or equivalent build step?
       Set results["N1"] = "PASS" or "NEEDS_UPDATE" accordingly.
       IF results["N1"] == "NEEDS_UPDATE": never_na_findings.append("N1")
-  For shared question (N8) flagged by both:
+  For shared question (N8) — whether flagged by both evaluators or reported with dual labels
+    ([TS lens]/[NR lens]) by a single evaluator in the evaluator-skipped case:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:

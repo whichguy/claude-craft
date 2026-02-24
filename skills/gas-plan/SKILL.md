@@ -134,11 +134,11 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47
 
-**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording. Exception: Q47 is a Gmail-domain shared question — bulk N/A when no Gmail add-on/CardService patterns are present (see triage shortcut below).
+**Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 is a Gmail-domain shared question treated as GAS-primary: GAS evaluator covers it when active (bulk N/A when no Gmail); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
 
 **Triage shortcut — evaluator skip:**
 - No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary (Q14, Q30-Q36; Q43 is post-loop and not part of convergence pass scoring). Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
-- No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on).
+- No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on; if Gmail add-on IS present and GAS evaluator is skipped, frontend evaluator also evaluates Q47 from both lenses; see frontend evaluator IMPORTANT block).
 
 **Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is a Gmail-domain exception to the shared-question rule). All other shared questions are NEVER bulk-N/A'd.
 
@@ -207,6 +207,7 @@ DO:
 
       IMPORTANT — if GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
         Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the GAS engineering lens.
+        If the plan also contains Gmail add-on/CardService patterns, also evaluate Q47 from both lenses.
         Output each shared question twice: first your frontend finding, then your GAS finding.
         Label clearly: "[Frontend lens]" and "[GAS lens]". Team-lead merges both.
 
@@ -325,7 +326,9 @@ DO:
       Set results[q_id] = "PASS" or "NEEDS_UPDATE" based on the check above.
       IF results[q_id] == "NEEDS_UPDATE": never_na_findings.append(q_id)
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
-  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) flagged by both:
+  For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) — whether flagged by both
+    evaluators or reported with dual labels ([GAS lens]/[Frontend lens]) by a single evaluator
+    in the evaluator-skipped case:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
