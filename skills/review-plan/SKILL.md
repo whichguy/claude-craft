@@ -814,8 +814,6 @@ evaluator has superior domain context vs cluster generic questions.)
 where both a cluster evaluator and node-evaluator flag the same concern. Keep node-plan's more
 specific Node/TS framing where both are present. (Rationale: "specialization wins.")
 
-Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
-
 ### Q-UI: UI Specialization
 
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop

@@ -19,7 +19,7 @@ description: |
   - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
   - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
     team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
-model: opus
+model: sonnet
 allowed-tools: all
 ---
 
@@ -143,8 +143,6 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 **Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are NEVER bulk-N/A'd.
 
 **Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
-
-**Shared Q fallback (in question-cross-reference.md):** See `~/.claude/skills/shared/question-cross-reference.md` for the full shared question list and fallback rules. If shared file is not found, use inline policy above.
 
 ### Execution Flow
 
@@ -472,7 +470,7 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 
 **Gate 1 -- Blocking (weight 3, must all PASS):**
 Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G] | Q42 post-impl review [G]
-*(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-general-reviewer, not gas-plan. See `~/.claude/skills/shared/question-cross-reference.md` Gate 1 Composition table.)*
+*(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-evaluator, not gas-plan.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G]
