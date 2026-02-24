@@ -788,11 +788,11 @@ After outputting the Final Scorecard:
    responds.
    If user resolves: apply edits and re-evaluate Gate 1 questions only (cluster and ecosystem
      evaluators do not re-run in this step). Recompute Rating using the standard thresholds.
-     If new Rating is READY, SOLID, or GAPS: proceed to step 1.5 (step 4 will apply for SOLID/GAPS).
+     If new Rating is READY, SOLID, or GAPS: proceed to step 2 (step 6 will apply for SOLID/GAPS).
      If Gate 1 is still not resolved: return to AskUserQuestion.
    If user overrides: note override in scorecard and proceed.
 
-1.5. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
+2. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
    strip all self-referential markers that served their purpose during the convergence loop:
    - `" <!-- review-plan -->"` → `""` (remove)
    - `" <!-- gas-plan -->"` → `""` (remove)
@@ -800,15 +800,15 @@ After outputting the Final Scorecard:
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do NOT remove the content they annotated.
 
-1.75. **Q-G9 organization pass** (post-convergence structural check):
+3. **Q-G9 organization pass** (post-convergence structural check):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
    subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
    Add Q-G9 results to the scorecard under "Organization Quality (Q-G9)".
 
-2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+4. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
-3. **Team teardown (always):** Send shutdown_request to all evaluator agents:
+5. **Team teardown (always):** Send shutdown_request to all evaluator agents:
    - Always: `l1-evaluator`
    - Each active cluster: `<cluster_name>-evaluator` for each cluster in active_clusters
    - If IS_GAS: `gas-evaluator`
@@ -817,7 +817,7 @@ After outputting the Final Scorecard:
    Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
-4. **Remaining issues summary (non-READY ratings):**
+6. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
      Proceed to ExitPlanMode immediately (plan is fully clean)
@@ -833,6 +833,6 @@ After outputting the Final Scorecard:
    This is a single approval point: the user sees remaining issues in printed text, then
    ExitPlanMode is the one decision point. No double-approval friction.
 
-5. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+7. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
