@@ -63,6 +63,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                   state schemas, or stateful operations. False for read-only or
                   ephemeral changes.
 
+       IS_TRIVIAL: true only if ALL of the following:
+         (1) Plan modifies exactly ONE file
+         (2) That file has no code extension (.md, .txt, .json are OK;
+             .gs/.ts/.js/.py/.html disqualify)
+         (3) The change is purely additive wording/description (no architectural
+             decisions, no removal of existing content, no new behavioral logic described)
+         (4) Plan contains no branching decisions or conditional implementation paths
+         False when uncertain — default to false (full review).
+
        Key: "modifies code in that domain" vs "mentions that domain in prose."
        Example: a plan editing .md files that runs npm test → IS_NODE=false.
 
@@ -72,10 +81,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        HAS_UI=true|false
        HAS_DEPLOYMENT=true|false
        HAS_STATE=true|false
+       IS_TRIVIAL=true|false
      """
    )
-   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE
-   IF Haiku timeout or malformed output → all flags false
+   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE, IS_TRIVIAL
+   IF Haiku timeout or malformed output → all flags false (IS_TRIVIAL=false)
      (fallback activates git, impact, testing, security clusters unconditionally)
 
    Compute cluster activation:
@@ -90,6 +100,50 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      if HAS_DEPLOYMENT:  active_clusters.append("operations")
      if HAS_UI:          active_clusters.append("client")
    ```
+
+   IF IS_TRIVIAL:
+     Print: "⚡ Trivial plan detected — running fast-path review (single pass, 6 questions)"
+     Run single Task(
+       subagent_type = "general-purpose",
+       model = "sonnet",
+       prompt = """
+         Read the plan at <plan_path>.
+         Read ~/.claude/CLAUDE.md for standards context.
+
+         Evaluate ONLY these 6 questions (definitions in ~/.claude/skills/review-plan/SKILL.md):
+           Q-G1 (Approach soundness — never N/A)
+           Q-G2 (Standards compliance — never N/A)
+           Q-G3 (Quality review step — never N/A)
+           Q-G5 (Scope focus — never N/A)
+           Q-NEW (Post-implementation workflow — never N/A)
+           Q-C1 (Branching strategy — never N/A)
+
+         Output for each: PASS | NEEDS_UPDATE — [finding]
+         If NEEDS_UPDATE: include [EDIT: instruction]
+         Do NOT use Edit/Write/Bash tools — read-only.
+       """
+     )
+
+     If all 6 PASS:
+       Write gate marker: Bash "touch ~/.claude/.plan-reviewed"
+       Output simplified scorecard:
+         ## review-plan Scorecard (Fast Path)
+         ⚡ IS_TRIVIAL: single .md file, additive change
+         [Q-G1/G2/G3/G5/NEW/C1 results — one line each]
+         ### Rating: 🟢 READY
+       Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
+       Call ExitPlanMode
+       STOP — skip convergence loop entirely
+
+     If any NEEDS_UPDATE:
+       Apply edits inline (no team).
+       Re-evaluate the same 6 questions once (same Task format above).
+       If all 6 now PASS:
+         Write gate marker, output simplified scorecard (Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
+       If still NEEDS_UPDATE:
+         Print: "⚡ Fast-path could not resolve all issues — falling through to full review"
+         IS_TRIVIAL = false  # force full convergence loop
+         CONTINUE to convergence loop below
 
    Print mode based on flags:
      IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-evaluator + state cluster, [N] active)"
@@ -110,6 +164,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    pass_count = 0
    timestamp = Date.now()
    prev_needs_update_set = {}
+   pass1_needs_update_set = {}     # snapshot of NEEDS_UPDATE set after pass 1 (for resolved_questions)
+   total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
+   memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
+   memoized_since = {}             # pass_count when each cluster was memoized
+   memoized_l1_questions = set()   # Q-G3 and/or Q-NEW once confirmed stable PASS
    ```
 
 5. **Team setup (always):**
@@ -167,6 +226,10 @@ DO:
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
+      [IF memoized_l1_questions is non-empty, append to prompt:]
+      Memoized questions — SKIP, already stable PASS: [comma-separated memoized_l1_questions]
+      These were confirmed PASS in a prior pass and are structurally stable.
+      Do not re-evaluate them; treat as PASS in your output.
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM l1-evaluator
@@ -184,6 +247,10 @@ DO:
 
   --- Cluster Evaluators (one Task per active cluster) ---
   For each cluster_name in active_clusters:
+    IF cluster_name in memoized_clusters:
+      Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+      # Carry forward prior pass PASS/N/A results for convergence tracking — do NOT spawn Task
+      CONTINUE to next cluster
   Task(
     subagent_type = "general-purpose",
     model = "opus",
@@ -288,16 +355,17 @@ DO:
   as their previous pass (other cluster evaluators' findings are unaffected).
 
   Print receipt for each evaluator:
-    Print: "  ✅ l1-evaluator — [n] NEEDS_UPDATE"
+    Print: "  ✅ l1-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
     For each cluster_name in active_clusters:
-      If responded:   Print: "  ✅ <cluster_name>-evaluator — [n] NEEDS_UPDATE"
-      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator — INCOMPLETE (timeout)"
+      If memoized:    Print: "  ⏭️ <cluster_name>-evaluator  MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+      If responded:   Print: "  ✅ <cluster_name>-evaluator  NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator  INCOMPLETE (timeout)"
     For each skipped cluster (not in active_clusters):
-      Print: "  ⏭️ <cluster_name>-evaluator — SKIPPED (<reason>)"
+      Print: "  ⏭️ <cluster_name>-evaluator  SKIPPED (<reason>)"
       Reasons: HAS_STATE=false | HAS_DEPLOYMENT=false | HAS_UI=false | IS_GAS superseded
-    Print: "  ✅ gas-evaluator — [n] NEEDS_UPDATE"   (if IS_GAS)
-    Print: "  ✅ node-evaluator — [n] NEEDS_UPDATE"  (if IS_NODE)
-    Print: "  ✅ ui-evaluator — [n] NEEDS_UPDATE"    (if HAS_UI)
+    If IS_GAS:   Print: "  ✅ gas-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+    If IS_NODE:  Print: "  ✅ node-evaluator    NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+    If HAS_UI:   Print: "  ✅ ui-evaluator      NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
     Print: "  ⚠️ [name] — INCOMPLETE (timeout)"      (if incomplete)
 
   -- Merge & Apply --
@@ -343,8 +411,23 @@ DO:
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
+  total_changes_all_passes += changes_this_pass
+
+  # Memoization update (post-pass, one-way — once memoized, never removed)
+  # Git cluster: safe to memoize (additive-only — branch + commit steps cannot be removed by edits)
+  IF "git" in active_clusters AND "git" NOT in memoized_clusters:
+    IF git-evaluator returned 0 NEEDS_UPDATE (all PASS or N/A):
+      memoized_clusters.add("git")
+      memoized_since["git"] = pass_count
+  # L1 Q-G3 and Q-NEW: safe to memoize individually (additive structural steps)
+  IF l1_results["Q-G3"] in [PASS, N/A] AND "Q-G3" NOT in memoized_l1_questions:
+    memoized_l1_questions.add("Q-G3")
+  IF l1_results["Q-NEW"] in [PASS, N/A] AND "Q-NEW" NOT in memoized_l1_questions:
+    memoized_l1_questions.add("Q-NEW")
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
+  IF pass_count == 1:
+    pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], clusters: [cluster_changes_total], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
 
@@ -380,7 +463,14 @@ DO:
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
     elapsed = Math.round((Date.now() - timestamp) / 1000)
-    Print: "✅ Converged — no changes this pass ([elapsed]s total)"
+    IF pass_count == 1:
+      Print: "✅ Converged — no issues found (pass 1, [elapsed]s)"
+    ELSE:
+      resolved_questions = pass1_needs_update_set - current_needs_update_set  # Q-IDs fixed since pass 1
+      Print: "✅ Converged after [pass_count] passes ([elapsed]s | [total_changes_all_passes] total changes)"
+      IF resolved_questions is non-empty:
+        Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
+      Print: "Gate 1: ✅ Clean | Gate 2: ✅ [count of Gate2 PASS] PASS | Advisory: [count of Gate3 noted] noted"
     BREAK → proceed to OUTPUT final scorecard
 
   prev_needs_update_set = current_needs_update_set
@@ -729,17 +819,17 @@ individually with IDs. The collapsing happens only in this final user-facing sco
 ## review-plan Scorecard — Pass [N]
 
 ### 🔴 Gate 1 — Blocking
-[✅ PASS (M applicable, K triaged N/A)] or [❌ N NEEDS_UPDATE remaining (M applicable, K triaged N/A)]
+[✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
 [list only PASS and NEEDS_UPDATE questions — omit N/A items]
 Example line: Branching strategy (Q-C1): ✅ PASS
 Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
 
 ### 🟡 Gate 2 — Important
-[✅ PASS (M applicable, K triaged N/A)] or [❌ N NEEDS_UPDATE remaining (M applicable, K triaged N/A)]
+[✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
 [list only PASS and NEEDS_UPDATE questions — omit N/A items]
 
 ### 💡 Gate 3 — Advisory
-[N noted (M applicable, K flagged)] or [0 noted (M applicable, 0 flagged)]
+[N noted (M applicable)] or [0 noted (M applicable)]
 [list only flagged advisory questions — omit N/A and non-flagged PASS]
 
 [Only render the following specialization sections when the corresponding flag is TRUE.
@@ -768,6 +858,11 @@ OR
 [N sub-questions flagged:]
 [list only flagged sub-questions — omit PASS items]
 Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps not labeled
+
+### Triaged N/A  ← omit this section entirely if total N/A count across all gates == 0
+[K questions skipped — not applicable to this plan:]
+- [Question name] ([Q-ID]): [one-phrase reason, e.g. "fully isolated change", "HAS_STATE=false"]
+[list all N/A questions across Gate 1, Gate 2, Gate 3; omit section when K == 0]
 
 ### Rating
 🟢 READY   — Gate 1 + Gate 2 all PASS
