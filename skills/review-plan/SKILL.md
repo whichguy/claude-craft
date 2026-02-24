@@ -267,10 +267,13 @@ DO:
       Evaluate all questions in this cluster. Apply N/A per the N/A column in that section.
       Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
 
-      IS_NODE suppression (apply if IS_NODE=true):
+      Context flags (substituted by team-lead at spawn time):
+        IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
+
+      IS_NODE suppression (apply only when IS_NODE=true above):
         Q-C16 (Security cluster, →N6), Q-C18 (State cluster, →N8), Q-C21 (Operations cluster, →N22)
         are N/A-superseded when IS_NODE=true.
-      IS_GAS note: if you are the state-evaluator in IS_GAS mode, evaluate Q-C26 only;
+      IS_GAS note: if you are the state-evaluator and IS_GAS=true above, evaluate Q-C26 only;
         Q-C13, Q-C18, Q-C19, Q-C24 are N/A-superseded (covered by gas-evaluator).
 
       Output contract — send ONE message to team-lead:
@@ -434,7 +437,7 @@ DO:
   breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
   if IS_GAS:   breakdown += f", gas-plan: {gas_plan_changes}"
   if IS_NODE:  breakdown += f", node-plan: {node_plan_changes}"
-  if HAS_UI:   breakdown += f", ui-plan: {ui_plan_changes}"
+  if HAS_UI:   breakdown += f", ui-evaluator: {ui_plan_changes}"
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([breakdown])"
 
   -- CONVERGENCE CHECK (gate-aware) --
@@ -888,8 +891,12 @@ After the convergence loop exits (scorecard not yet printed):
    AskUserQuestion with the Gate 1 issues listed. User must explicitly resolve each issue or
    override before proceeding. Do NOT call ExitPlanMode or write the marker until the user
    responds.
-   If user resolves: apply edits and re-evaluate Gate 1 questions only (cluster and ecosystem
-     evaluators do not re-run in this step). Recompute Rating using the standard thresholds.
+   If user resolves: apply edits and re-evaluate Gate 1 questions only. Spawn only the
+     evaluators that own Gate 1 questions: l1-evaluator (Q-G1, Q-G2, Q-G3) and, for non-GAS
+     plans, the git-evaluator (Q-C1, Q-C2) and impact-evaluator (Q-C3); for IS_GAS plans,
+     gas-evaluator (Q1, Q2, Q13, Q15, Q18, Q42); for IS_NODE plans, also node-evaluator (N1).
+     Non-Gate-1 cluster and ecosystem evaluators do not re-run. Recompute Rating using the
+     standard thresholds.
      If new Rating is READY, SOLID, or GAPS: proceed to step 2 (step 7 will apply for SOLID/GAPS).
      If Gate 1 is still not resolved: return to AskUserQuestion.
    If user overrides: note override in scorecard and proceed.
@@ -928,7 +935,7 @@ After the convergence loop exits (scorecard not yet printed):
 7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     Proceed to ExitPlanMode immediately (plan is fully clean)
+     No issues to print — proceed directly to step 8 (ExitPlanMode)
    IF Rating == SOLID or GAPS:
      Print: "ℹ️ [N] Gate 2 issues remaining (not blocking):"
      For each remaining Gate 2 NEEDS_UPDATE question:
