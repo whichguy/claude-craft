@@ -45,6 +45,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
        Classify based on what files the plan CREATES or MODIFIES — not what it
        mentions in descriptions, evaluator prompts, or documentation.
+       Scan the plan's implementation steps for file extension patterns (.gs, .ts,
+       .js, .html), API/framework names (SpreadsheetApp, Express, React, etc.), and
+       change types (schema migration, deployment, etc.) to determine flags. If the
+       plan's implementation steps reference GAS files, Node modules, or UI patterns
+       — set the corresponding flag regardless of what file type the plan document
+       itself is.
 
        IS_GAS: true if plan creates/modifies .gs files, appsscript.json, GAS
                CommonJS modules, or GAS HTML service files.
@@ -217,13 +223,13 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 9 questions).
+      You are evaluating a plan for general quality (Layer 1: 10 questions).
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -237,7 +243,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 9 questions including Q-NEW)
+        ... (all 10 questions including Q-NEW, Q-G10)
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only
@@ -324,7 +330,7 @@ DO:
         or alter this string.
 
         You are the node-evaluator running inside review-plan's team. Evaluate the plan for
-        Node.js/TypeScript specialization (all 35 Node questions, both perspectives). Return
+        Node.js/TypeScript specialization (all 36 Node questions, both perspectives). Return
         findings via SendMessage to team-lead.
 
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
@@ -428,6 +434,9 @@ DO:
     memoized_l1_questions.add("Q-G3")
   IF l1_results["Q-NEW"] in [PASS, N/A] AND "Q-NEW" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-NEW")
+  # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
+  # Q-C27, Q-C28: cluster-level memoization only (whole cluster, not individual questions)
+  # No new L1 questions added to memoized_l1_questions — only Q-G3 and Q-NEW are individually memoizable
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
   IF pass_count == 1:
@@ -499,7 +508,7 @@ If shared file is not found, use inline policy: mark all `<!-- skill-name -->` c
 
 ## Layer 1: General Quality
 
-*9 questions (Q-G1 through Q-G8 + Q-NEW). Applies to every plan, every domain.*
+*10 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -522,6 +531,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
+| Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. | no external calls, no environment-specific dependencies, no pre-existing data assumptions |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -576,13 +586,13 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 9 (Q-G1 through Q-G8 + Q-NEW). Q-G9 is not included in*
+*L1 per-pass count stays at 10 (Q-G1 through Q-G8 + Q-NEW + Q-G10). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits (and after step 1 REWORK gate if applicable), spawn:
 Task(
   subagent_type = "general-purpose",
-  model = "opus",
+  model = "sonnet",
   team_name = <team_name>,
   name = "q-g9-evaluator",
   prompt = """
@@ -622,7 +632,7 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 
 ## Layer 2: Code Change Quality
 
-*26 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
@@ -641,7 +651,7 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 2: Impact & Architecture
 
-*4 questions. Always active.*
+*5 questions. Always active.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -649,8 +659,9 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C8 | 2 | Interface consistency | Modified signatures consistent with siblings; callers updated? | no sig changes |
 | Q-C12 | 3 | Duplication | No reimplementation of existing utilities? | no new functions |
 | Q-C14 | 2 | Bolt-on vs integrated | New code extends existing modules; not isolated additions? | purely additive |
+| Q-C27 | 2 | Backward compatibility | If the change modifies public-facing APIs, CLI interfaces, published package exports, event schemas, or config formats consumed externally — does the plan flag the breaking change and include a migration path or versioning step (e.g. v2 endpoint, semver bump, deprecation notice)? | internal-only change, no external API consumers |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q18, Q16, Q39, Q41).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q18, Q16, Q39, Q41); Q-C27 N/A (no external API consumers in GAS projects).
 IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: Testing & Plan Quality
@@ -700,7 +711,7 @@ IS_NODE: **Q-C16 → N/A-superseded** (covered by node-evaluator N6).
 
 ### Cluster 6: Operations & Deployment
 
-*5 questions. Active when HAS_DEPLOYMENT=true. Skip entire cluster when HAS_DEPLOYMENT=false.*
+*6 questions. Active when HAS_DEPLOYMENT=true. Skip entire cluster when HAS_DEPLOYMENT=false.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -709,8 +720,9 @@ IS_NODE: **Q-C16 → N/A-superseded** (covered by node-evaluator N6).
 | Q-C20 | 3 | Logging | Informative but compact; no sensitive data? | no server changes |
 | Q-C21 | 2 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? | bounded ops |
 | Q-C23 | 3 | External rate limits | API quotas/throttling accounted for? | no new API calls |
+| Q-C28 | 3 | Observability | For deployments to shared or production environments: does the plan reference or add monitoring/alerting coverage for the deployed change? Acceptable: referencing existing dashboards, adding a log-based alert, or noting that existing monitoring covers the new behavior. | local-only or dev-environment-only deployment |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25); Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability).
 IS_NODE: **Q-C21 → N/A-superseded** (covered by node-evaluator N22).
 
 ### Cluster 7: Client & UI
@@ -744,7 +756,7 @@ Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means
 In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
 evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate`, which means:
 - node-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 35-question findings via SendMessage to team-lead
+- Returns all 36-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
@@ -755,11 +767,11 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 | Cluster | Superseded? | Gas-evaluator equivalents |
 |---------|-------------|--------------------------|
 | Git (1) | **fully** | Q1, Q2 |
-| Impact (2) | **fully** | Q18, Q16, Q39, Q41 |
+| Impact (2) | **fully** | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects) |
 | Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20 |
 | State (4) | **partially** — Q-C26 has no gas equivalent | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (5) | **fully** | Q27, Q28, Q23 |
-| Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25 |
+| Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
 | Client (7) | **fully** (only when HAS_UI) | Q32, Q33 |
 
 Result: When IS_GAS=true, skip ALL cluster evaluators except State cluster (only for Q-C26,
@@ -849,9 +861,9 @@ OR
 [N NEEDS_UPDATE remaining (43 questions, K triaged N/A)]
 
 ### Node Specialization (node-plan)  ← render only when IS_NODE=true
-[PASS — converged after N passes (35 questions, K triaged N/A)]
+[PASS — converged after N passes (36 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (35 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (36 questions, K triaged N/A)]
 
 ### UI Specialization (ui-designer)  ← render only when HAS_UI=true
 [PASS — converged after N passes (6 questions, K triaged N/A)]
