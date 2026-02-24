@@ -2,7 +2,7 @@
 name: node-plan
 description: |
   Dual-perspective Node.js/TypeScript plan review (TypeScript/API + Node runtime) with
-  iterative convergence loop. 35 Node/TS-specific questions (N20/N21 naming+docs deferred
+  iterative convergence loop. 36 Node/TS-specific questions (N20/N21 naming+docs deferred
   to L2's Q-G6/Q-G7 which cover these universally).
 
   **AUTOMATICALLY INVOKE** when:
@@ -18,7 +18,7 @@ description: |
   - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
   - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
     team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
-model: opus
+model: sonnet
 allowed-tools: all
 ---
 
@@ -89,6 +89,7 @@ the team-lead.**
    - Not a monorepo → bulk N/A N30
    - No native addon packages → bulk N/A N32
    - Not a published library → bulk N/A N37
+   - No HTTP server → bulk N/A N38
    - No new tests → bulk N/A N19
    - No file path operations → bulk N/A N29
    - Exception: N1 (tsc check) — evaluate regardless if plan involves any TS files.
@@ -111,7 +112,8 @@ the team-lead.**
      [EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
      N2: ...
      ...
-     N37: ... (N20, N21 not evaluated — covered by L2 Q-G6/Q-G7)
+     N37: ...
+     N38: ... (N20, N21 not evaluated — covered by L2 Q-G6/Q-G7)
    ```
    Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
@@ -156,7 +158,7 @@ Each question is owned by one perspective or shared. Tags: `[TS]` = TypeScript/A
 
 **Node runtime evaluator** — process, env, framework, security:
 - Primary: N9, N10, N13, N14, N15, N16, N17, N18, N22, N23, N24, N25, N26, N27, N28,
-           N31, N33, N34, N35, N36
+           N31, N33, N34, N35, N36, N38
 - Shared: N8
 
 **Shared question** (N8: Concurrency safety): Both evaluators report on N8. Team-lead
@@ -284,7 +286,7 @@ DO:
 
       Evaluate these questions through the NODE RUNTIME lens:
         NR-owned: N9, N10, N13, N14, N15, N16, N17, N18, N22, N23, N24, N25, N26, N27, N28,
-                  N31, N33, N34, N35, N36
+                  N31, N33, N34, N35, N36, N38
         Shared (runtime lens): N8
 
       Triage: If plan has no env var changes → bulk N/A N9, N10.
@@ -295,6 +297,7 @@ DO:
               If plan has no deployment/containers → bulk N/A N31, N36.
               If plan has no secrets/credentials → bulk N/A N33.
               If plan has no API endpoint changes → bulk N/A N34.
+              If plan has no HTTP server → N/A N38.
               Evaluate shared N8 regardless.
 
       IMPORTANT — if TypeScript evaluator was skipped this pass (no TS/package changes):
@@ -522,10 +525,10 @@ N35 process crash safety [NR] | N36 K8s/container shutdown [NR]
 **Gate 3 — Advisory (weight 1, note only):**
 N19 test isolation [TS] | N26 timer cleanup [NR] | N29 path handling [TS] |
 N31 Docker/container concerns [NR] | N32 native addon compat [TS] |
-N34 API contract drift [NR] | N37 TS declaration output [TS]
+N34 API contract drift [NR] | N37 TS declaration output [TS] | N38 health check endpoint [NR]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36). Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36; no HTTP server → skip N38). Shared questions are NEVER bulk-N/A'd.
 
 ---
 
@@ -680,6 +683,12 @@ Authentication/authorization applied. N/A: no new HTTP endpoints.
 **N18: Are database schema changes handled with migrations?** (2, NR)
 Schema changes include forward migration files. Rollback migration exists. Migration run
 order explicit. N/A: no schema changes.
+
+**N38: Does the HTTP service include a health/readiness endpoint?** (1, NR)
+If the plan creates or modifies an HTTP service (Express, Fastify, Koa, etc.): does it
+include or preserve a /health or /readiness endpoint suitable for load balancer or
+container orchestration readiness probes? N/A: non-HTTP service (CLI tool, library,
+background worker without HTTP interface).
 
 ---
 
