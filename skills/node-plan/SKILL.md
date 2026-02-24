@@ -3,7 +3,7 @@ name: node-plan
 description: |
   Dual-perspective Node.js/TypeScript plan review (TypeScript/API + Node runtime) with
   iterative convergence loop. 36 Node/TS-specific questions (N20/N21 naming+docs deferred
-  to L2's Q-G6/Q-G7 which cover these universally).
+  to L1's Q-G6/Q-G7 which cover these universally).
 
   **AUTOMATICALLY INVOKE** when:
   - Any plan exists for Node.js or TypeScript changes
@@ -114,7 +114,7 @@ the team-lead.**
      ...
      N37: ...
      N38: ...
-     (N20, N21 not evaluated — covered by L2 Q-G6/Q-G7)
+     (N20, N21 not evaluated — covered by L1 Q-G6/Q-G7)
    ```
    Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 

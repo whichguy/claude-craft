@@ -18,7 +18,7 @@
 
 ---
 
-## L2 ↔ gas-plan Overlap Map (25 confirmed overlaps)
+## L2 ↔ gas-plan Overlap Map (26 confirmed overlaps)
 
 When IS_GAS is detected, these L2 questions duplicate gas-plan coverage.
 review-plan **suppresses** these L2 questions in IS_GAS mode (gas-evaluator has superior domain context).
@@ -50,6 +50,7 @@ review-plan **suppresses** these L2 questions in IS_GAS mode (gas-evaluator has 
 | Q-C23 | Q25 | External rate limits / quotas | Suppressed |
 | Q-C24 | Q3 | Local↔remote sync | Suppressed |
 | Q-C25 | Q33 | UI error boundary | Suppressed only when HAS_UI (Q33 is frontend-owned) |
+| Q-C29 | Q11, Q12 | Test strategy defined upfront | Suppressed — gas-evaluator Q11/Q12 cover test strategy and incremental verification |
 
 **Note on Q-C1 and Q-C2:** These are "never N/A" in IS_NODE mode. When IS_GAS, they are superseded by gas-evaluator Q1/Q2 which have full domain-specific framing. Mark status `N/A-superseded` to distinguish from a true N/A skip.
 
