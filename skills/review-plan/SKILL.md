@@ -586,7 +586,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 9 (Q-G1 through Q-G8 + Q-NEW). Q-G9 is not included in*
+*L1 per-pass count stays at 10 (Q-G1 through Q-G8 + Q-NEW + Q-G10). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits (and after step 1 REWORK gate if applicable), spawn:
@@ -632,7 +632,7 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 
 ## Layer 2: Code Change Quality
 
-*26 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
@@ -756,7 +756,7 @@ Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means
 In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
 evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate`, which means:
 - node-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 35-question findings via SendMessage to team-lead
+- Returns all 36-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
