@@ -87,7 +87,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    ```
    pass_count = 0
    timestamp = Date.now()
-   prev_needs_update_set = []
+   prev_needs_update_set = {}
    ```
 
 5. **Team setup (IS_GAS or IS_NODE):**
@@ -113,12 +113,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 ```
 DO:
-  -- HARD STOP GUARD --
-  IF pass_count >= 5:
-    Print: "⛔ HARD STOP — max 5 passes reached. Exiting loop."
-    BREAK → proceed to OUTPUT final scorecard
-  -- END GUARD --
-
   -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
 
   pass_count += 1
@@ -368,12 +362,6 @@ OUTPUT final scorecard
 
 ```
 DO:
-  -- HARD STOP GUARD --
-  IF pass_count >= 5:
-    Print: "⛔ HARD STOP — max 5 passes reached. Exiting loop."
-    BREAK → proceed to OUTPUT final scorecard
-  -- END GUARD --
-
   pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
@@ -536,7 +524,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives considered? Not over/under-engineered? | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? | never |
-| Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (general/Node), `/gas-review` (GAS). Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
+| Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (preferred for all types — routes GAS files to GAS-specific reviewers automatically via Phase 0.5). `/gas-review` is also acceptable for GAS-only projects. Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
 
 **Gate 2 — Important (weight 2):**
 
@@ -545,7 +533,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Agent teams & Task usage | Does the plan make maximal use of agent teams and parallel Task calls for independent work? Flag: sequential steps that could run in parallel, missing TeamCreate for multi-agent coordination, evaluations that could be parallelized, or sub-tasks that would benefit from specialized subagents. | plan involves only a single atomic change with no parallelizable steps |
-| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) | never |
+| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
 
 **Gate 3 — Advisory (weight 1):**
 

@@ -1,6 +1,6 @@
 ---
 name: review-fix
-description: >
+description: |
   Iterative review-fix loop using agent teams: spawns parallel code-reviewer subagents
   per file, applies Critical and Advisory fixes, re-reviews until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
@@ -38,11 +38,11 @@ run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_resolved = []     # { file, line, q_number, description }
-stuck_findings = []        # Critical unresolved (no Fix block)
+stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # Advisory unresolved (no Fix block)
 introduced_by_fix = []     # New Criticals not in prior round
 files_changed = []
-final_status = pending
+final_status = 'pending'
 ```
 
 ## Phase 0: Mode Selection
@@ -111,7 +111,6 @@ for (const file of file_list) {
 }
 ```
 
-**Fallback rule:** If a file is not in `reviewer_map` (e.g., Haiku triage failed or timed out), default to `'code-reviewer'`.
 
 **CardService note:** `.gs` files routed to `gas-gmail-cards` receive specialized Gmail add-on validation (Phase 1-6: card structure, action handlers, Gmail integration, state, navigation, security). General GAS code quality (`gas-code-review`) is not run in the automated loop for these files. For full dual coverage of CardService files, run `/gas-review` separately after this loop completes.
 
@@ -180,7 +179,7 @@ When complete, send your full Phase 4 output (the markdown block starting with
 - type: "message"
 - recipient: "team-lead"
 - content: your full review output
-- summary: "APPROVED|NEEDS_REVISION — N critical, M advisory"`
+- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
 });
 // Repeat for each file in file_list
 ```
@@ -254,7 +253,13 @@ review_mode="${review_mode}"
 This is re-review round ${round}. Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.`
+Do NOT re-examine sections already APPROVED in a previous round.
+
+For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
+full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, they will not re-enter the fix loop — record them
+as-is and include them in your output.`
 });
 ```
 
@@ -283,11 +288,17 @@ This is re-review round ${round}. Focus ONLY on:
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
+For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
+full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, they will not re-enter the fix loop — record them
+as-is and include them in your output.
+
 When complete, send your full Phase 4 output to team-lead via SendMessage:
 - type: "message"
 - recipient: "team-lead"
 - content: your full review output
-- summary: "APPROVED|NEEDS_REVISION — N critical, M advisory"`
+- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
 });
 // Repeat for each file that had Critical or Advisory findings
 ```
@@ -303,7 +314,7 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 | Condition | Action |
 |-----------|--------|
 | Zero Critical AND zero Advisory findings | Proceed to Phase 4 |
-| (Critical OR Advisory with Fix block) remain AND `round < max_rounds` | Return to Phase 2 |
+| (Critical OR Advisory that had a Fix block applied but still re-appears) AND `round < max_rounds` | Return to Phase 2 |
 | `round >= max_rounds` AND Critical remain | Record in `stuck_findings`, proceed to Phase 4 |
 | `round >= max_rounds` AND Advisory remain (no Critical) | Record in `advisory_stuck`, proceed to Phase 4 |
 
@@ -329,7 +340,7 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 ### Critical Findings — Resolved ([count])
 
 [For each resolved finding:]
-- `file:line` — [Q-number]: [what was fixed]
+- `file:line` — [Q-number or finding title]: [what was fixed]
 
 [If none: "None — no Critical findings were present."]
 
@@ -347,7 +358,7 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 ### Advisory Findings — Resolved ([count])
 
 [For each resolved advisory:]
-- `file:line` — [Q-number]: [what was fixed]
+- `file:line` — [Q-number or finding title]: [what was fixed]
 
 [If none: "None — no Advisory findings were present."]
 
@@ -375,6 +386,8 @@ seconds with no response, mark the file `[Review Incomplete]` and continue.
 - `NEEDS_REVISION` — one or more Critical findings in `stuck_findings`
 
 ### Teardown (Team Mode Only)
+
+Skip this section entirely if in single-agent mode (no team was created).
 
 Send shutdown requests to all active teammates, then delete team:
 
