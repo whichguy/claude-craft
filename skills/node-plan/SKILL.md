@@ -247,7 +247,9 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
-      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
+       This directive OVERRIDES the question list above — memoized questions are PASS
+       regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -303,7 +305,9 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
-      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
+       This directive OVERRIDES the question list above — memoized questions are PASS
+       regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -320,8 +324,24 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
+  -- Never-N/A Fallback (TS evaluator skipped) --
+  IF TypeScript evaluator was skipped this pass AND plan involves TS files:
+    IF "N1" in node_memoized_questions:
+      results["N1"] = "PASS"  # already memoized — honour invariant, skip re-evaluation
+    ELSE:
+      Team-lead directly evaluates N1: Does the plan include a `tsc --noEmit` or equivalent build step?
+      Set results["N1"] = "PASS" or "NEEDS_UPDATE" accordingly.
+      IF results["N1"] == "NEEDS_UPDATE": add "N1" to current_needs_update_set (blocks Gate 1 exit)
+
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
+  BUILD results dict (used by memoization update below):
+    results = {}
+    For each question reported by any evaluator this pass:
+      results[n_id] = the status it reported ("PASS", "NEEDS_UPDATE", or "N/A")
+    For questions not covered by any active evaluator (triage-skipped evaluator):
+      results[n_id] = "N/A"
+    For already-memoized questions: results[n_id] = "PASS" (carried forward from node_memoized_questions)
   For shared question (N8) flagged by both:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
@@ -346,11 +366,16 @@ DO:
   Gate1_unresolved = count of NEEDS_UPDATE on N1 (the sole weight-3 question; Gate 1 = N1 only)
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
-      user_already_asked_gate1 = true
-      AskUserQuestion listing the unresolved Gate 1 questions.
-      Wait for user response.
-      IF user resolves: apply edits, re-evaluate (one final pass), update scorecard, then BREAK
-      IF user overrides: annotate scorecard with override, then BREAK
+      IF NOT user_already_asked_gate1:
+        user_already_asked_gate1 = true
+        AskUserQuestion listing the unresolved Gate 1 questions.
+        Wait for user response.
+        IF user resolves: apply edits, re-evaluate (one final pass), update scorecard, then BREAK
+        IF user overrides: annotate scorecard with override, then BREAK
+      ELSE:
+        # Already asked once — do not ask again; break with current state
+        Print: "⚠️ Gate 1 unresolved after user response — breaking with REWORK rating."
+        BREAK
     ELSE:
       Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
       BREAK
@@ -384,21 +409,29 @@ Pass 1/5: evaluating...
   [ts-evaluator-p1 findings]: 3 NEEDS_UPDATE (N1, N4, N6) -- no tsc step, untyped return values,
     route handler no try/catch
   [node-evaluator-p1 findings]: 2 NEEDS_UPDATE (N9, N13) -- new env var undocumented, no SIGTERM handler
+  -> Build results: {N1: NEEDS_UPDATE, N4: NEEDS_UPDATE, N6: NEEDS_UPDATE, N9: NEEDS_UPDATE, N13: NEEDS_UPDATE, ...}
   -> Merge: N8 both PASS — no merge needed
   -> Edits: add tsc --noEmit step (N1), type annotations for new fn (N4), wrap handler
     in try/catch (N6), document env var in .env.example (N9), add graceful shutdown (N13)
   -> Consolidate: merge async error + shutdown into single section
+  -> Memoize post-pass: N1 was NEEDS_UPDATE — NOT memoized yet
+  N/A: 18 | Stable PASS: 12 | ⏭️ Memoized: none
 Pass 2/5: evaluating...
   [Spawning ts-evaluator-p2 + node-evaluator-p2 in parallel]
-  [ts-evaluator-p2 findings]: 0 NEEDS_UPDATE
+  [ts-evaluator-p2 findings]: 0 NEEDS_UPDATE  (N1: PASS — tsc step now present)
   [node-evaluator-p2 findings]: 1 NEEDS_UPDATE (N35) -- no unhandledRejection handler for
     new async path
+  -> Build results: {N1: PASS, N4: PASS, N6: PASS, N9: PASS, N13: PASS, N35: NEEDS_UPDATE, ...}
   -> Edit: add process.on('unhandledRejection') note
   -> Consolidate: no duplicates found
+  -> Memoize post-pass: N1 PASS → node_memoized_questions={N1}
+  N/A: 18 | Stable PASS: 16 | ⏭️ Memoized: none (N1 just memoized, takes effect next pass)
 Pass 3/5: evaluating...
+  [Memoized directive injected: "Memoized questions — SKIP (stable PASS): N1 — Treat as PASS in your output."]
   [Spawning ts-evaluator-p3 + node-evaluator-p3 in parallel]
-  [ts-evaluator-p3 findings]: 0 NEEDS_UPDATE
+  [ts-evaluator-p3 findings]: 0 NEEDS_UPDATE  (N1: PASS, memoized — skipped)
   [node-evaluator-p3 findings]: 0 NEEDS_UPDATE
+  N/A: 18 | Stable PASS: 17 | ⏭️ Memoized: N1 (skipped in both evaluators)
   -> CONVERGED at pass 3. Output final scorecard.
 ```
 
@@ -693,7 +726,7 @@ counts.
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count]
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep N-IDs, or "none"] (skipped in both evaluators)
 
 | Evaluator | Q#  | Question              | Status       | Notes                      |
 |-----------|-----|-----------------------|--------------|----------------------------|

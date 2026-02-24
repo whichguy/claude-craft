@@ -156,6 +156,8 @@ STEP 0: (done — plan loaded, team created)
   prev_needs_update_count = null; prev_needs_update_set = []
   gas_memoized_questions = set()   # Q1, Q2, Q42 once confirmed stable PASS/N/A
   gas_memoized_since = {}          # pass_count when each was memoized
+  spawned_evaluators = []          # names of agents actually launched (for precise teardown)
+  results = {}                     # maps Q-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -175,6 +177,7 @@ DO:
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
   [Substitute the actual resolved plan_path value into each prompt before spawning]
   [If memoized_directive is non-empty, inject it into each evaluator prompt before the Constraints section]
+  [After spawning each evaluator, append its name to spawned_evaluators]
 
   --- Frontend Evaluator Task ---
   Task(
@@ -215,7 +218,9 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
-      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
+       This directive OVERRIDES the question list above — memoized questions are PASS
+       regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -268,7 +273,9 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
-      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
+       This directive OVERRIDES the question list above — memoized questions are PASS
+       regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -286,15 +293,27 @@ DO:
   -- Never-N/A Fallback (GAS evaluator skipped) --
   never_na_findings = []
   IF GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
-    Team-lead directly evaluates Q1, Q2, Q42 before the merge step:
-    - Q1: Does the plan name a branch and include a push-to-remote step? (blocking)
-    - Q2: Do the plan steps actually create a feature branch with incremental commits? (blocking)
-    - Q42: Does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
-    For each question that is NEEDS_UPDATE, append its Q number to never_na_findings.
+    FOR q_id IN ["Q1", "Q2", "Q42"]:
+      IF q_id in gas_memoized_questions:
+        results[q_id] = "PASS"  # already memoized — skip re-evaluation, honour invariant
+        CONTINUE
+      # Evaluate directly (not memoized):
+      IF q_id == "Q1": check — does the plan name a branch and include a push-to-remote step? (blocking)
+      IF q_id == "Q2": check — do the plan steps create a feature branch with incremental commits? (blocking)
+      IF q_id == "Q42": check — does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
+      Set results[q_id] = "PASS" or "NEEDS_UPDATE" based on the check above.
+      IF results[q_id] == "NEEDS_UPDATE": never_na_findings.append(q_id)
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
 
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
+  BUILD results dict (used by memoization update below):
+    results = {}
+    For each question reported by any evaluator this pass:
+      results[q_id] = the status it reported ("PASS", "NEEDS_UPDATE", or "N/A")
+    For questions not covered by any active evaluator (triage-skipped evaluator):
+      results[q_id] = "N/A"
+    For already-memoized questions: results[q_id] = "PASS" (carried forward from gas_memoized_questions)
   For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) flagged by both:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
@@ -350,21 +369,34 @@ TEARDOWN: (see "After Review Completes" steps 2–5 for the actual teardown sequ
 
 ```
 Pass 1/5: evaluating...
-  [Spawning frontend-evaluator (general-purpose) + gas-evaluator (general-purpose) in parallel]
-  [frontend-evaluator findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
-  [gas-evaluator findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no push-to-remote step; no deploy target; stub function
+  [Spawning frontend-evaluator-p1 + gas-evaluator-p1 in parallel]
+  [frontend-evaluator-p1 findings]: 1 NEEDS_UPDATE (Q34) -- `.btn` conflicts with Google CSS
+  [gas-evaluator-p1 findings]: 3 NEEDS_UPDATE (Q1, Q9, Q19) -- no branch named, no push-to-remote step; no deploy target; stub function
+  -> Build results: {Q34: NEEDS_UPDATE, Q1: NEEDS_UPDATE, Q9: NEEDS_UPDATE, Q19: NEEDS_UPDATE, Q2: PASS, Q42: PASS, ...}
   -> Merge: shared Qs all PASS in both — no merge needed
   -> Edits: add CSS namespace note (Q34), add branching section + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
+  -> Memoize post-pass: Q2 PASS → gas_memoized_questions={Q2}, Q42 PASS → gas_memoized_questions={Q2, Q42}
+  N/A: 12 | Stable PASS: 27 | ⏭️ Memoized: none (pass 1, nothing memoized yet)
 Pass 2/5: evaluating...
-  [frontend-evaluator findings]: 0 NEEDS_UPDATE
-  [gas-evaluator findings]: 1 NEEDS_UPDATE (Q12) -- incremental verification missing
+  [Memoized directive injected: "Memoized questions — SKIP (stable PASS since pass 1): Q2, Q42 (Q2 since pass 1, Q42 since pass 1) — Treat as PASS in your output."]
+  [Spawning frontend-evaluator-p2 + gas-evaluator-p2 in parallel]
+  [frontend-evaluator-p2 findings]: 0 NEEDS_UPDATE
+  [gas-evaluator-p2 findings]: 1 NEEDS_UPDATE (Q12) -- incremental verification missing; Q2, Q42: PASS (memoized, skipped)
+  -> Build results: {Q12: NEEDS_UPDATE, Q1: PASS, Q2: PASS (memoized), Q42: PASS (memoized), ...}
   -> Edit: add exec checkpoint after each push step
   -> Consolidate: no duplicates found
+  -> Memoize post-pass: Q1 PASS → gas_memoized_questions={Q1, Q2, Q42}
+  N/A: 12 | Stable PASS: 30 | ⏭️ Memoized: Q2, Q42 (skipped in both evaluators)
 Pass 3/5: evaluating...
-  [frontend-evaluator findings]: 0 NEEDS_UPDATE
-  [gas-evaluator findings]: 0 NEEDS_UPDATE
+  [Memoized directive injected: "Memoized questions — SKIP (stable PASS): Q1 (since pass 2), Q2 (since pass 1), Q42 (since pass 1)"]
+  [Spawning frontend-evaluator-p3 + gas-evaluator-p3 in parallel]
+  [frontend-evaluator-p3 findings]: 0 NEEDS_UPDATE
+  [gas-evaluator-p3 findings]: 0 NEEDS_UPDATE; Q1, Q2, Q42: PASS (memoized, skipped)
+  N/A: 12 | Stable PASS: 31 | ⏭️ Memoized: Q1, Q2, Q42 (skipped in both evaluators)
   -> CONVERGED at pass 3. Output final scorecard.
+[Post-loop] Q43 evaluator spawned → PASS — steps are numbered, code blocks fenced.
+Organization Quality (Q43): PASS
 ```
 
 ---
@@ -657,6 +689,7 @@ Mandatory for all plans — cannot be skipped.
 ### Score
 
 `(PASS_weight_sum) / (applicable_max_weight_sum) * 100` -- summary metric alongside gate rating.
+Q43 (weight 1) is included in applicable_max_weight_sum once evaluated post-loop; its result is appended to the scorecard separately under "Organization Quality (Q43)" but counts toward the score.
 
 ---
 
@@ -669,7 +702,7 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [Q-IDs or none] (skipped in both evaluators)
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (skipped in both evaluators)
 
 | Evaluator | Q# | Question | Status | Notes |
 |-----------|-----|----------|--------|-------|
@@ -709,6 +742,7 @@ After outputting the Final Scorecard:
 2. **Q43 post-loop evaluation (plan legibility / organization):**
    Spawn a single Task (general-purpose, current team_name):
    ```
+   name: "q43-evaluator"
    prompt: Read [plan_path]. Evaluate Q43 from ~/.claude/skills/gas-plan/SKILL.md.
            Q43 checks: Are steps numbered? Are code blocks fenced? Are section headers scannable?
            Are conditional branches (IF/ELSE) visually distinct? Are walls of prose present?
@@ -718,12 +752,18 @@ After outputting the Final Scorecard:
              NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
            Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
    ```
-   Wait for message. IF NEEDS_UPDATE: apply one round of edits to the plan file.
+   Append "q43-evaluator" to spawned_evaluators.
+   Wait for message (90s max). Timeout handling:
+     IF no response after 90s:
+       ⚠️ Q43 Evaluator Incomplete — proceed without Q43 evaluation.
+       Add to scorecard: `Organization Quality (Q43): ⚠️ Evaluator timed out — skipped`
+       Continue to step 3.
+   IF NEEDS_UPDATE: apply one round of edits to the plan file.
    Add Q43 result to the Final Scorecard output under a new line:
    `Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason]`
 
 3. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-4. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+4. **Team teardown:** Send shutdown_request to all agents in `spawned_evaluators` (only agents that were actually launched — triage-skipped evaluators and any agents not appended to spawned_evaluators are never targeted), then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
 5. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
