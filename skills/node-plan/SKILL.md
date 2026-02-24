@@ -187,10 +187,21 @@ STEP 0: (done — plan loaded, team created)
   spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
   node_memoized_questions = set()   # N1 once confirmed stable PASS/N/A
   results = {}                      # maps N-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
+  memo_file = "~/.claude/.node-plan-memo-" + Date.now() + ".json"
+  # memo_file: checkpoint written after each pass for context-compression resilience.
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
-  pass_count = pass_count + 1
+  -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  _recovered_this_pass = false
+  IF memo_file exists AND node_memoized_questions is empty AND pass_count > 1:
+    Read memo_file → restore node_memoized_questions, prev_needs_update_count,
+                     prev_needs_update_set, pass_count
+    _recovered_this_pass = true
+    Print: "⚠️ Context recovery: restored memoized state from checkpoint"
+
+  IF NOT _recovered_this_pass:
+    pass_count = pass_count + 1
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
@@ -384,6 +395,12 @@ DO:
   IF results["N1"] in [PASS, N/A] AND "N1" NOT in node_memoized_questions:
     node_memoized_questions.add("N1")
 
+  -- Checkpoint: persist memoized state for context-compression resilience --
+  Write memo_file with JSON: {
+    pass_count, node_memoized_questions: [...node_memoized_questions],
+    prev_needs_update_count, prev_needs_update_set: [...prev_needs_update_set]
+  }
+
   -- CONVERGENCE CHECK --
   Gate1_unresolved = count of NEEDS_UPDATE on N1 (the sole weight-3 question; Gate 1 = N1 only)
   IF pass_count >= 5:
@@ -416,7 +433,7 @@ OUTPUT final scorecard
 # the loop exits, Gate 1 is either clean or the user has been asked and responded.
 
 TEARDOWN:
-  Bash: touch ~/.claude/.plan-reviewed
+  Bash: touch ~/.claude/.plan-reviewed && rm -f <memo_file>
   For each name in spawned_evaluators: Send shutdown_request to that agent
     (Only agents in spawned_evaluators are shut down — triage-skipped evaluators are never targeted)
   TeamDelete
