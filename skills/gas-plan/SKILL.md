@@ -64,7 +64,7 @@ Two operating modes:
 1. Read the plan file (done in Step 0).
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43
-   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions
+   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40; Gmail Qs Q44-Q48 follow the Gmail rule below)
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
@@ -134,8 +134,8 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording. Exception: Q47 is a Gmail-domain shared question — bulk N/A when no Gmail add-on/CardService patterns are present (see triage shortcut below).
 
 **Triage shortcut — evaluator skip:**
-- No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary. Shared question coverage: GAS evaluator evaluates all 7 shared Qs from both lenses (see GAS evaluator prompt fallback instruction).
-- No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 shared Qs.
+- No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary. Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
+- No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on).
 
 **Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is a Gmail-domain exception to the shared-question rule). All other shared questions are NEVER bulk-N/A'd.
 
@@ -167,7 +167,7 @@ DO:
     subagent_type = "general-purpose",
     model = "opus",
     team_name = <team_name>,
-    name = "frontend-evaluator",
+    name = "frontend-evaluator-p" + pass_count,
     prompt = """
       You are a senior frontend engineer evaluating a GAS implementation plan.
 
@@ -212,7 +212,7 @@ DO:
     subagent_type = "general-purpose",
     model = "opus",
     team_name = <team_name>,
-    name = "gas-evaluator",
+    name = "gas-evaluator-p" + pass_count,
     prompt = """
       You are a senior GAS backend engineer evaluating a GAS implementation plan.
 
@@ -265,12 +265,13 @@ DO:
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
   -- Never-N/A Fallback (GAS evaluator skipped) --
+  never_na_findings = []
   IF GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
     Team-lead directly evaluates Q1, Q2, Q42 before the merge step:
     - Q1: Does the plan name a branch and include a push-to-remote step? (blocking)
     - Q2: Do the plan steps actually create a feature branch with incremental commits? (blocking)
     - Q42: Does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
-    Add findings to current_needs_update_set as if from gas-evaluator.
+    For each question that is NEEDS_UPDATE, append its Q number to never_na_findings.
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
 
   -- Merge & Consolidate --
@@ -284,9 +285,9 @@ DO:
     Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
-  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass — from evaluator messages PLUS any findings added by the Never-N/A fallback above)
+  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE from evaluator messages) UNION never_na_findings
   SET current_needs_update_count = len(current_needs_update_set)
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (current_needs_update_set == prev_needs_update_set)  # set equality: order-independent
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sort(current_needs_update_set) == sort(prev_needs_update_set))  # set equality: sort both before comparing
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
@@ -392,7 +393,7 @@ Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] 
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q30-Q36, Q43; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36, Q43; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
 
 ---
 
