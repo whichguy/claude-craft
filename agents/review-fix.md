@@ -494,7 +494,7 @@ Note: Advisory findings without a Fix block were recorded as stuck in a prior ro
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
 as-is and include them in your output.
 
-When complete, send your full Phase 4 output to team-lead via SendMessage:
+When complete, send the markdown block starting with "## Code Review:" to team-lead via SendMessage:
 - type: "message"
 - recipient: "team-lead"
 - content: your full review output

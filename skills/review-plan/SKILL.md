@@ -176,6 +176,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # Q-G3 and/or Q-NEW once confirmed stable PASS
+   memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
+   # memo_file: checkpoint written after each pass for context-compression resilience.
+   # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    ```
 
 5. **Team setup (always):**
@@ -199,6 +202,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 ```
 DO:
   -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
+
+  -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count > 1):
+    Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+                     prev_needs_update_set, pass1_needs_update_set, total_changes_all_passes
+    Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
   pass_count += 1
   changes_this_pass = 0
@@ -435,10 +444,19 @@ DO:
   IF l1_results["Q-NEW"] in [PASS, N/A] AND "Q-NEW" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-NEW")
   # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
-  # Q-C27, Q-C28: cluster-level memoization only (whole cluster, not individual questions)
+  # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
   # No new L1 questions added to memoized_l1_questions — only Q-G3 and Q-NEW are individually memoizable
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
+
+  -- Checkpoint: persist memoized state for context-compression resilience --
+  Write memo_file with JSON: {
+    pass_count, memoized_clusters: [...memoized_clusters],
+    memoized_since, memoized_l1_questions: [...memoized_l1_questions],
+    prev_needs_update_set: [...current_needs_update_set],
+    pass1_needs_update_set: [...pass1_needs_update_set],
+    total_changes_all_passes
+  }
   IF pass_count == 1:
     pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
 
@@ -933,7 +951,13 @@ After the convergence loop exits (scorecard not yet printed):
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do NOT remove the content they annotated.
 
-5. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+5. Use the Bash tool to run:
+   ```
+   touch ~/.claude/.plan-reviewed
+   rm -f <memo_file>
+   ```
+   First command writes the gate marker so ExitPlanMode will pass.
+   Second command removes the convergence checkpoint (no longer needed after loop exits).
 
 6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
    - Always: `l1-evaluator`
