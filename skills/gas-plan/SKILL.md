@@ -124,8 +124,9 @@ IF any unrecoverable error occurs during the convergence loop:
 Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G]` = GAS, `[Shared]` = both.
 
 **Frontend evaluator** — HTML/CSS/UX focus:
-- Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36, Q43
+- Primary: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
 - Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+- Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
 - Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q48
@@ -134,7 +135,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47): Both evaluators report on shared Qs. Team-lead merges: combine findings, keep the more actionable wording. Exception: Q47 is a Gmail-domain shared question — bulk N/A when no Gmail add-on/CardService patterns are present (see triage shortcut below).
 
 **Triage shortcut — evaluator skip:**
-- No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary. Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
+- No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary (Q14, Q30-Q36; Q43 is post-loop and not part of convergence pass scoring). Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
 - No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on).
 
 **Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is a Gmail-domain exception to the shared-question rule). All other shared questions are NEVER bulk-N/A'd.
@@ -151,6 +152,8 @@ STEP 0: (done — plan loaded, team created)
   team_name = <team_name created above>
   pass_count = 0
   prev_needs_update_count = null; prev_needs_update_set = []
+  gas_memoized_questions = set()   # Q1, Q2, Q42 once confirmed stable PASS/N/A
+  gas_memoized_since = {}          # pass_count when each was memoized
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -159,8 +162,17 @@ DO:
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
 
+  -- Memoized directive construction --
+  memoized_directive = ""
+  IF gas_memoized_questions is non-empty:
+    ids = comma-sep sorted Q-IDs from gas_memoized_questions (e.g. "Q1, Q2, Q42")
+    pass_notes = join([q + " (since pass " + gas_memoized_since[q] + ")" for q in sorted gas_memoized_questions])
+    memoized_directive = "Memoized questions — SKIP (stable PASS since pass [N]): " + ids + "\n(" + pass_notes + ")\nTreat as PASS in your output — do not re-evaluate."
+    (substitute actual pass numbers from gas_memoized_since[q_id] for each Q-ID before injecting)
+
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
   [Substitute the actual resolved plan_path value into each prompt before spawning]
+  [If memoized_directive is non-empty, inject it into each evaluator prompt before the Constraints section]
 
   --- Frontend Evaluator Task ---
   Task(
@@ -179,10 +191,11 @@ DO:
         ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
       Evaluate these questions through the FRONTEND lens:
-        Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36, Q43
+        Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
         Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
+        Note: Q43 (plan legibility) is evaluated post-loop — do NOT evaluate it here.
 
-      Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36, Q43.
+      Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36.
               Evaluate shared Qs regardless.
 
       Self-referential protection: Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
@@ -199,6 +212,8 @@ DO:
           (one entry per evaluated question)
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
@@ -251,6 +266,8 @@ DO:
 
       Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
 
+      [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty]
+
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only evaluation
       - Do NOT call ExitPlanMode or touch any marker files
@@ -290,6 +307,17 @@ DO:
   PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sort(current_needs_update_set) == sort(prev_needs_update_set))  # set equality: sort both before comparing
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
+
+  -- Post-pass memoization update --
+  # Q1 + Q2: branching (additive-only — once branch + commits present, never removed)
+  FOR q_id IN ["Q1", "Q2"]:
+    IF results[q_id] in [PASS, N/A] AND q_id NOT in gas_memoized_questions:
+      gas_memoized_questions.add(q_id)
+      gas_memoized_since[q_id] = pass_count
+  # Q42: post-impl review section (additive-only — same reasoning as Q-NEW in review-plan)
+  IF results["Q42"] in [PASS, N/A] AND "Q42" NOT in gas_memoized_questions:
+    gas_memoized_questions.add("Q42")
+    gas_memoized_since["Q42"] = pass_count
 
   -- CONVERGENCE CHECK --
   Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q18, Q42 (all weight-3 questions)
@@ -390,10 +418,10 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [Shared] | Q48 trigger coverage [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
-Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F]
+Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36, Q43; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
 
 ---
 
@@ -640,7 +668,7 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count]
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [Q-IDs or none] (skipped in both evaluators)
 
 | Evaluator | Q# | Question | Status | Notes |
 |-----------|-----|----------|--------|-------|
@@ -677,8 +705,24 @@ After outputting the Final Scorecard:
    user responds. If user resolves: apply edits and re-evaluate. If user overrides: note override
    in scorecard and proceed.
 
-2. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-3. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
-4. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
+2. **Q43 post-loop evaluation (plan legibility / organization):**
+   Spawn a single Task (general-purpose, current team_name):
+   ```
+   prompt: Read [plan_path]. Evaluate Q43 from ~/.claude/skills/gas-plan/SKILL.md.
+           Q43 checks: Are steps numbered? Are code blocks fenced? Are section headers scannable?
+           Are conditional branches (IF/ELSE) visually distinct? Are walls of prose present?
+           Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
+           Return one of:
+             PASS — [one-sentence reason]
+             NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
+           Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
+   ```
+   Wait for message. IF NEEDS_UPDATE: apply one round of edits to the plan file.
+   Add Q43 result to the Final Scorecard output under a new line:
+   `Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason]`
+
+3. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+4. **Team teardown:** Send shutdown_request to all evaluator agents, then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
+5. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
