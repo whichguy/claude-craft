@@ -182,6 +182,7 @@ STEP 0: (done — plan loaded, team created)
   user_already_asked_gate1 = false
   spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
   node_memoized_questions = set()   # N1 once confirmed stable PASS/N/A
+  results = {}                      # maps N-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -324,24 +325,24 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
-  -- Never-N/A Fallback (TS evaluator skipped) --
-  IF TypeScript evaluator was skipped this pass AND plan involves TS files:
-    IF "N1" in node_memoized_questions:
-      results["N1"] = "PASS"  # already memoized — honour invariant, skip re-evaluation
-    ELSE:
-      Team-lead directly evaluates N1: Does the plan include a `tsc --noEmit` or equivalent build step?
-      Set results["N1"] = "PASS" or "NEEDS_UPDATE" accordingly.
-      IF results["N1"] == "NEEDS_UPDATE": add "N1" to current_needs_update_set (blocks Gate 1 exit)
-
   -- Merge & Consolidate --
   COLLECT all NEEDS_UPDATE from both evaluator messages
-  BUILD results dict (used by memoization update below):
-    results = {}
+  BUILD results dict:
+    results = {}  # reset first — Never-N/A override runs after this, so its writes survive
     For each question reported by any evaluator this pass:
       results[n_id] = the status it reported ("PASS", "NEEDS_UPDATE", or "N/A")
     For questions not covered by any active evaluator (triage-skipped evaluator):
       results[n_id] = "N/A"
     For already-memoized questions: results[n_id] = "PASS" (carried forward from node_memoized_questions)
+  -- Never-N/A override (runs after BUILD so writes survive to memoization update) --
+  never_na_findings = []
+  IF TypeScript evaluator was skipped this pass AND plan involves TS files:
+    IF "N1" in node_memoized_questions:
+      results["N1"] = "PASS"  # already set by BUILD above; confirming invariant
+    ELSE:
+      Team-lead directly evaluates N1: Does the plan include a `tsc --noEmit` or equivalent build step?
+      Set results["N1"] = "PASS" or "NEEDS_UPDATE" accordingly.
+      IF results["N1"] == "NEEDS_UPDATE": never_na_findings.append("N1")
   For shared question (N8) flagged by both:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
@@ -351,8 +352,8 @@ DO:
     Each Edit call = 1 change. Do NOT count findings you only described in text.
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
-  SET current_needs_update_count = (total NEEDS_UPDATE from this pass's evaluator messages)
-  SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE this pass)
+  SET current_needs_update_set = (N numbers flagged NEEDS_UPDATE from evaluator messages) UNION never_na_findings
+  SET current_needs_update_count = len(current_needs_update_set)
   PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sameQNumbers(current_needs_update_set, prev_needs_update_set))  # set equality: order-independent; sameQNumbers = both arrays contain identical Q-number strings regardless of order
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template

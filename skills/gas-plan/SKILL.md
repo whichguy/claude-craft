@@ -158,6 +158,7 @@ STEP 0: (done — plan loaded, team created)
   gas_memoized_since = {}          # pass_count when each was memoized
   spawned_evaluators = []          # names of agents actually launched (for precise teardown)
   results = {}                     # maps Q-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
+  user_already_asked_gate1 = false # prevents asking user twice at pass_count >= 5
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
@@ -290,30 +291,29 @@ DO:
   Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the Incomplete
   evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
 
-  -- Never-N/A Fallback (GAS evaluator skipped) --
+  -- Merge & Consolidate --
+  COLLECT all NEEDS_UPDATE from both evaluator messages
+  BUILD results dict:
+    results = {}  # reset first — Never-N/A override runs after this, so its writes survive
+    For each question reported by any evaluator this pass:
+      results[q_id] = the status it reported ("PASS", "NEEDS_UPDATE", or "N/A")
+    For questions not covered by any active evaluator (triage-skipped evaluator):
+      results[q_id] = "N/A"
+    For already-memoized questions: results[q_id] = "PASS" (carried forward from gas_memoized_questions)
+  -- Never-N/A override (runs after BUILD so writes survive to memoization update) --
   never_na_findings = []
   IF GAS evaluator was skipped this pass (no .gs/deployment/common-js changes):
     FOR q_id IN ["Q1", "Q2", "Q42"]:
       IF q_id in gas_memoized_questions:
-        results[q_id] = "PASS"  # already memoized — skip re-evaluation, honour invariant
+        results[q_id] = "PASS"  # already set by BUILD above; confirming invariant
         CONTINUE
-      # Evaluate directly (not memoized):
+      # Not memoized — evaluate directly:
       IF q_id == "Q1": check — does the plan name a branch and include a push-to-remote step? (blocking)
       IF q_id == "Q2": check — do the plan steps create a feature branch with incremental commits? (blocking)
       IF q_id == "Q42": check — does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
       Set results[q_id] = "PASS" or "NEEDS_UPDATE" based on the check above.
       IF results[q_id] == "NEEDS_UPDATE": never_na_findings.append(q_id)
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
-
-  -- Merge & Consolidate --
-  COLLECT all NEEDS_UPDATE from both evaluator messages
-  BUILD results dict (used by memoization update below):
-    results = {}
-    For each question reported by any evaluator this pass:
-      results[q_id] = the status it reported ("PASS", "NEEDS_UPDATE", or "N/A")
-    For questions not covered by any active evaluator (triage-skipped evaluator):
-      results[q_id] = "N/A"
-    For already-memoized questions: results[q_id] = "PASS" (carried forward from gas_memoized_questions)
   For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41, Q47) flagged by both:
     Combine into single finding; keep the more actionable wording. (Rationale: "more actionable
     wins" — both perspectives have domain-appropriate framing; choose clearest for implementer.)
@@ -344,7 +344,16 @@ DO:
   Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q18, Q42 (all weight-3 questions)
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
-      AskUserQuestion to resolve Gate 1 issues, then BREAK
+      IF NOT user_already_asked_gate1:
+        user_already_asked_gate1 = true
+        AskUserQuestion listing the unresolved Gate 1 questions.
+        Wait for user response.
+        IF user resolves: apply edits, re-evaluate (one final pass), update scorecard, then BREAK
+        IF user overrides: annotate scorecard with override, then BREAK
+      ELSE:
+        # Already asked once — do not ask again; break with current state
+        Print: "⚠️ Gate 1 unresolved after user response — breaking with REWORK rating."
+        BREAK
     ELSE:
       Print: "✅ Hard stop — max 5 passes reached, Gate 1 clear."
       BREAK
