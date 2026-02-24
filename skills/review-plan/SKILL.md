@@ -143,7 +143,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve all issues — falling through to full review"
          IS_TRIVIAL = false  # force full convergence loop
-         CONTINUE to convergence loop below
+         # Do NOT jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
 
    Print mode based on flags:
      IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-evaluator + state cluster, [N] active)"
@@ -153,11 +153,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "📋 Review mode: Standard ([N] clusters: [names])"
    (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_DEPLOYMENT=[v] HAS_STATE=[v]"
-   is printed only when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
+   is printed during the convergence loop when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
    would invalidate convergence state tracking).
    [future: IS_SEC, HAS_API]
-   HAS_UI is active — triggers client cluster and/or ui-evaluator in the convergence loop
 
 4. **Initialize tracking:**
    ```
@@ -429,7 +428,12 @@ DO:
   IF pass_count == 1:
     pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
 
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  (L1: [l1_changes], clusters: [cluster_changes_total], gas-plan: [gas_plan_changes] | node-plan: [node_plan_changes] | ui-plan: [ui_plan_changes])"
+  # Build breakdown suffix — only include ecosystem counts when that evaluator ran
+  breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
+  if IS_GAS:   breakdown += f", gas-plan: {gas_plan_changes}"
+  if IS_NODE:  breakdown += f", node-plan: {node_plan_changes}"
+  if HAS_UI:   breakdown += f", ui-plan: {ui_plan_changes}"
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([breakdown])"
 
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
@@ -448,7 +452,7 @@ DO:
       AskUserQuestion to resolve Gate 1 issues, then BREAK
     ELSE:
       Print: "✅ Converged (max passes reached, Gate 1 clear)."
-      BREAK → proceed to OUTPUT final scorecard
+      BREAK → proceed to "After Review Completes"
   IF Gate1_unresolved > 0:
     Print using this exact format:
       "⚠️ Gate 1 still open — [Gate1_unresolved] blocking:"
@@ -471,15 +475,14 @@ DO:
       IF resolved_questions is non-empty:
         Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
       Print: "Gate 1: ✅ Clean | Gate 2: ✅ [count of Gate2 PASS] PASS | Advisory: [count of Gate3 noted] noted"
-    BREAK → proceed to OUTPUT final scorecard
+    BREAK → proceed to "After Review Completes"
 
   prev_needs_update_set = current_needs_update_set
   -- END CHECK --
 
 WHILE TRUE
 
-OUTPUT final scorecard
-(Teardown and ExitPlanMode handled in "After Review Completes" section below.)
+-- Convergence complete. Proceed to "After Review Completes" below: Q-G9 → scorecard output → marker cleanup → teardown → ExitPlanMode. --
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
@@ -522,7 +525,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G6 | Naming consistency | New identifiers follow codebase conventions? | no new names |
 | Q-G7 | Documentation | MEMORY.md / CLAUDE.md / README affected by this change? | no behavior changes |
 
-Count L1 edits → `l1_changes += count`; `changes_this_pass += l1_changes`
+Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G8 Decision Framework: Task Calls & Agent Teams
 
@@ -608,7 +611,7 @@ Task(
   """
 )
 Apply any NEEDS_UPDATE instructions from q-g9-evaluator. Mark changes <!-- review-plan -->.
-Add Q-G9 results to the scorecard (see Organization Quality section below).
+Q-G9 results are included in the scorecard output (step 3 of "After Review Completes"; see Organization Quality section below).
 
 ---
 
@@ -718,7 +721,7 @@ IS_GAS: **fully superseded when HAS_UI=true** (gas-evaluator Q32, Q33).
   When HAS_UI=false and IS_GAS=true, no cluster evaluator is spawned for this cluster.
 IS_NODE: not superseded — evaluate normally.
 
-Count cluster edits → `cluster_changes_total += count`; `changes_this_pass += cluster_changes_total`
+Count cluster edits → `cluster_changes_total += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ---
 
@@ -863,6 +866,7 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 [K questions skipped — not applicable to this plan:]
 - [Question name] ([Q-ID]): [one-phrase reason, e.g. "fully isolated change", "HAS_STATE=false"]
 [list all N/A questions across Gate 1, Gate 2, Gate 3; omit section when K == 0]
+[Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
 
 ### Rating
 🟢 READY   — Gate 1 + Gate 2 all PASS
@@ -876,7 +880,7 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 
 ## After Review Completes
 
-After outputting the Final Scorecard:
+After the convergence loop exits (scorecard not yet printed):
 
 1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
    AskUserQuestion with the Gate 1 issues listed. User must explicitly resolve each issue or
@@ -884,27 +888,32 @@ After outputting the Final Scorecard:
    responds.
    If user resolves: apply edits and re-evaluate Gate 1 questions only (cluster and ecosystem
      evaluators do not re-run in this step). Recompute Rating using the standard thresholds.
-     If new Rating is READY, SOLID, or GAPS: proceed to step 2 (step 6 will apply for SOLID/GAPS).
+     If new Rating is READY, SOLID, or GAPS: proceed to step 2 (step 7 will apply for SOLID/GAPS).
      If Gate 1 is still not resolved: return to AskUserQuestion.
    If user overrides: note override in scorecard and proceed.
 
-2. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
-   strip all self-referential markers that served their purpose during the convergence loop:
+2. **Q-G9 organization pass** (post-convergence structural check):
+   N/A if plan has fewer than 3 implementation steps — skip this step entirely.
+   Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
+   subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
+   Q-G9 results will be included in the scorecard output in step 3.
+
+3. **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
+   Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
+   when Q-G9 ran (plan had >= 3 implementation steps).
+
+4. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
+   strip all self-referential markers that served their purpose during the convergence loop
+   (including any added by Q-G9 in step 2):
    - `" <!-- review-plan -->"` → `""` (remove)
    - `" <!-- gas-plan -->"` → `""` (remove)
    - `" <!-- node-plan -->"` → `""` (remove)
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do NOT remove the content they annotated.
 
-3. **Q-G9 organization pass** (post-convergence structural check):
-   N/A if plan has fewer than 3 implementation steps — skip this step entirely.
-   Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
-   subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
-   Add Q-G9 results to the scorecard under "Organization Quality (Q-G9)".
+5. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
 
-4. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
-
-5. **Team teardown (always):** Send shutdown_request to all evaluator agents:
+6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
    - Always: `l1-evaluator`
    - Each active cluster: `<cluster_name>-evaluator` for each cluster in active_clusters
    - If IS_GAS: `gas-evaluator`
@@ -913,7 +922,7 @@ After outputting the Final Scorecard:
    Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
 
-6. **Remaining issues summary (non-READY ratings):**
+7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
      Proceed to ExitPlanMode immediately (plan is fully clean)
@@ -929,6 +938,6 @@ After outputting the Final Scorecard:
    This is a single approval point: the user sees remaining issues in printed text, then
    ExitPlanMode is the one decision point. No double-approval friction.
 
-7. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+8. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
