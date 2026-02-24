@@ -495,9 +495,7 @@ Task(
     reads as execution instructions, not on content correctness.
 
     Q-G9a: Sequential clarity — are implementation steps numbered and unambiguous in order?
-           Do steps follow valid dependency order (no forward references, no deploy-before-push,
-           no use-before-create)? Flag: any step that depends on an artifact or state not yet
-           established by a prior step.
+           Steps must be numbered sequentially; ordering must be legible at a glance.
     Q-G9b: Concurrency labeling — are parallel steps explicitly marked (e.g. "[parallel]",
            "In a SINGLE message", "spawn in parallel")?
     Q-G9c: Scannability — does the plan use headers and bullets (no prose walls >5 sentences)?
