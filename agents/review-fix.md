@@ -1,8 +1,9 @@
 ---
 name: review-fix
 description: |
-  Iterative review-fix loop using agent teams: spawns parallel code-reviewer subagents
-  per file, applies Critical and Advisory fixes, re-reviews until clean, produces a summary.
+  Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
+  for 1 file, parallel Tasks for 2–4 files, TeamCreate for 5+), applies Critical and Advisory
+  fixes, re-reviews until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -87,8 +88,9 @@ file_count = file_list.length
 ```
 
 **Threshold:**
-- `file_count == 1` → **single-agent mode** (no TeamCreate overhead)
-- `file_count >= 2` → **team mode** (TeamCreate + parallel spawns)
+- `file_count == 1`         → **single-agent mode** (direct Task call, no overhead)
+- `2 <= file_count <= 4`    → **parallel-task mode** (parallel Task() calls, no TeamCreate)
+- `file_count >= 5`         → **team mode** (TeamCreate + SendMessage + parallel spawns)
 
 ### Step 1b: Reviewer Mapping (File-Type Triage)
 
@@ -159,7 +161,7 @@ if (htmlFilesNeedingTriage.length > 0) {
 ### Phase 1 Print: Setup Banner
 
 ```
-Print: "📋 review-fix: [file_count] file(s) | [single-agent|team] mode | max [max_rounds] rounds"
+Print: "📋 review-fix: [file_count] file(s) | [single-agent|parallel-task|team] mode | max [max_rounds] rounds"
 Print: "  [filename]  → [reviewer_type]"     (one line per file)
 ```
 
@@ -205,7 +207,45 @@ Collect full output. Parse for Critical findings, Advisory findings, and Status.
 - `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
 - `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
 
-### Team Mode (2+ files)
+### Parallel-Task Mode (2–4 files)
+
+Launch all reviewers in a **single message** as parallel Task calls. No TeamCreate — outputs are
+collected from return values directly.
+
+```javascript
+// Spawn all reviewers in ONE message (parallel):
+const results = await Promise.all(file_list.map(file =>
+  Task({
+    subagent_type: reviewer_map[file] || 'code-reviewer',
+    description: `Review ${file}`,
+    prompt: `Review this file:
+target_files="${file}"
+task_name="${task_name}"
+worktree="${worktree}"
+dryrun=false
+related_files=auto
+review_mode="${review_mode}"
+
+Output your full review markdown starting with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
+  })
+));
+```
+
+Collect outputs. For each file's result, print a receipt then parse:
+
+```
+Print: "  ✅ [filename] — APPROVED"
+Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
+Print: "  ✅ [filename] — APPROVED_WITH_NOTES ([N] advisory)"
+```
+
+- All files `APPROVED` → Phase 5
+- Any `NEEDS_REVISION` → Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
+
+### Team Mode (5+ files)
 
 **Step 2.1: Create team**
 
@@ -266,7 +306,7 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 - Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
 - All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
 
-### Phase 2 Print: Reviewer Receipts
+### Phase 2 Print: Reviewer Receipts (All Modes)
 
 ```
 Print: "🔍 Initial Review"
@@ -383,7 +423,52 @@ as-is and include them in your output.`
 });
 ```
 
-### Team Mode
+### Parallel-Task Mode Re-Review (2–4 files)
+
+Spawn reviewers for files that were modified or had Critical findings (same logic as team mode,
+but as parallel Tasks with no team):
+
+```javascript
+const recheck_files = file_list.filter(f =>
+  files_changed.includes(f) ||
+  prior_round_criticals.some(c => c.file === f)
+);
+
+const results = await Promise.all(recheck_files.map(file =>
+  Task({
+    subagent_type: reviewer_map[file] || 'code-reviewer',
+    description: `Re-review ${file} round ${round}`,
+    prompt: `Review this file:
+target_files="${file}"
+task_name="${task_name}-round${round}"
+worktree="${worktree}"
+dryrun=false
+related_files=auto
+review_mode="${review_mode}"
+
+This is re-review round ${round}. Focus ONLY on:
+1. Lines modified by the fixes applied since round ${round - 1}
+2. Code that directly calls or is called by the modified sections
+Do NOT re-examine sections already APPROVED in a previous round.
+
+For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
+full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, record them as-is and include in your output.
+
+Output your full review markdown starting with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
+  })
+));
+```
+
+Print a receipt for each file with delta progress:
+```
+Print: "  ✅ [filename] — APPROVED (was: [N] critical → now: 0)"
+Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical remaining)"
+```
+
+### Team Mode Re-Review (5+ files)
 
 Spawn parallel reviewers with round-qualified names:
 
@@ -447,16 +532,16 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 
 ```
 Print: "🔄 Re-review round [N]..."
-Print: "  ✅ [filename] — APPROVED"
-Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
+Print: "  ✅ [filename] — APPROVED (was: [N] critical → now: 0)"
+Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical remaining)"
 Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
 ```
 
-Loop decision output:
+Loop decision output — print ONE of these convergence signal lines:
 ```
-Print: "All clean — proceeding to summary."                        (converged)
-Print: "[N] finding(s) remain — looping for round [N+1]..."       (continue)
-Print: "Max rounds reached — [N] stuck finding(s) surfaced."      (max_rounds hit)
+Print: "→ All clean after [round] round(s). ✅"                      (converged)
+Print: "→ [N] finding(s) remain — looping for round [N+1]/[max_rounds]..."  (continue)
+Print: "→ Max rounds reached — [N] finding(s) stuck."              (max_rounds hit)
 ```
 
 ---
@@ -535,9 +620,9 @@ advisory_stuck = advisory_stuck.filter(entry => {
 - `APPROVED_WITH_NOTES` — zero Critical remaining, Advisory stuck (no Fix block provided)
 - `NEEDS_REVISION` — one or more Critical findings in `stuck_findings`
 
-### Teardown (Team Mode Only)
+### Teardown (Team Mode Only — 5+ files)
 
-Skip this section entirely if in single-agent mode (no team was created).
+Skip this section entirely if in single-agent mode or parallel-task mode (no team was created).
 
 Send shutdown requests to all active teammates, then delete team:
 
