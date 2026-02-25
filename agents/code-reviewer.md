@@ -125,6 +125,8 @@ Context-specific questions (Q6–Q12) are always added when their trigger patter
 
 **Q5 — Minimal Change**: Are there abstractions, new dependencies, or indirection layers that the acceptance criteria don't justify? Could any new code be accomplished by extending existing modules or patterns instead of introducing new ones?
 
+> When Q5 identifies a speculative abstraction, premature generalization, or hypothetical future need with no evidence from the acceptance criteria, use `Finding: Advisory/YAGNI`. Use regular `Advisory` only when the over-engineering creates an actively observable problem (e.g., existing complexity misleads callers, or introduces real coupling).
+
 ### Context-Specific Questions
 
 | Q | Trigger | Question |
@@ -142,7 +144,7 @@ Context-specific questions (Q6–Q12) are always added when their trigger patter
 Apply to every selected question:
 
 ```
-**Q[N]: [Title]** | Finding: Critical / Advisory / None
+**Q[N]: [Title]** | Finding: Critical / Advisory / Advisory/YAGNI / None
 > [Definitive one-sentence answer]
 Evidence: [file:line — or "None found — [reasoning]"]
 Counter: [One reason this finding could be wrong — or "None identified"]
@@ -161,8 +163,8 @@ Fix: [Required for Critical; before/after code block; omit for None]
 1. Order findings: Critical first, Advisory second, None last (condense None answers into a single line, e.g. `Q1, Q3, Q5 — None (no correctness, propagation, or scope issues found)`)
 2. **Positive Observations**: Write ≥1 genuine positive observation. Never omit this section — even for fundamentally broken code, note what the intent was and what was correct in principle.
 3. **Approval status** (reasoning-based, not numeric):
-   - `APPROVED` — no Critical findings
-   - `APPROVED_WITH_NOTES` — no Critical; ≥1 Advisory present
+   - `APPROVED` — no Critical findings; `Advisory/YAGNI` findings do not block approval
+   - `APPROVED_WITH_NOTES` — no Critical; ≥1 non-YAGNI Advisory present
    - `NEEDS_REVISION` — ≥1 Critical finding
    - `PLAN_APPROVED` — dryrun=true, no Critical
    - `PLAN_NEEDS_REVISION` — dryrun=true, ≥1 Critical
@@ -202,6 +204,17 @@ Mode: [review_mode] | Context: [task_name]
 Status: APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION | PLAN_APPROVED | PLAN_NEEDS_REVISION
 [One sentence rationale]
 ```
+
+### LOOP_DIRECTIVE
+
+Append to the end of every review output (after the Decision block):
+
+```
+LOOP_DIRECTIVE: APPLY_AND_RECHECK   (when any Critical or non-YAGNI Advisory with Fix block exists)
+LOOP_DIRECTIVE: COMPLETE             (when APPROVED, or only Advisory/YAGNI or stuck-no-fix findings remain)
+```
+
+review-fix uses this to drive the per-file inner loop. Always emit exactly one of these two values.
 
 ### Review Manifest
 
