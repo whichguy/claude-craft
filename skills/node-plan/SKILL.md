@@ -480,7 +480,7 @@ Pass 3/5: evaluating...
   [Spawning ts-evaluator-p3 + node-evaluator-p3 in parallel]
   [ts-evaluator-p3 findings]: 0 NEEDS_UPDATE  (N1: PASS, memoized — skipped)
   [node-evaluator-p3 findings]: 0 NEEDS_UPDATE
-  N/A: 18 | Stable PASS: 17 | ⏭️ Memoized: N1 (skipped in both evaluators)
+  N/A: 18 | Stable PASS: 17 | ⏭️ Memoized: N1 (not re-evaluated this pass)
   -> CONVERGED at pass 3. Output final scorecard.
 ```
 
@@ -781,7 +781,7 @@ counts.
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep N-IDs, or "none"] (skipped in both evaluators)
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep N-IDs, or "none"] (not re-evaluated this pass)
 
   ✅ ts    ✗[tn] ✓[tm] —[tk]   (or: ⏭️ ts  skipped | ⚠️ ts  timeout)
   ✅ node  ✗[nn] ✓[nm] —[nk]   (or: ⏭️ node  skipped | ⚠️ node  timeout)

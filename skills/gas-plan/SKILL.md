@@ -358,7 +358,7 @@ DO:
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE from evaluator messages) UNION never_na_findings
   SET current_needs_update_count = len(current_needs_update_set)
   IF pass_count == 1: pass1_needs_update_set = current_needs_update_set[:]  # snapshot for resolved_questions
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sort(current_needs_update_set) == sort(prev_needs_update_set))  # set equality: sort both before comparing
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sameQNumbers(current_needs_update_set, prev_needs_update_set))  # set equality: order-independent; sameQNumbers = both arrays contain identical Q-number strings regardless of order
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
@@ -434,7 +434,7 @@ Pass 1/5: evaluating...
   -> Edits: add CSS namespace note (Q34), add branching section + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
   -> Memoize post-pass: Q2 PASS → gas_memoized_questions={Q2}, Q42 PASS → gas_memoized_questions={Q2, Q42}
-  N/A: 12 | Stable PASS: 27 | ⏭️ Memoized: none (pass 1, nothing memoized yet)
+  N/A: 12 | Stable PASS: 27 | ⏭️ Memoized: none
 Pass 2/5: evaluating...
   [Memoized directive injected: "Memoized questions — SKIP (stable PASS since pass 1): Q2, Q42 (Q2 since pass 1, Q42 since pass 1) — Treat as PASS in your output."]
   [Spawning frontend-evaluator-p2 + gas-evaluator-p2 in parallel]
@@ -444,13 +444,13 @@ Pass 2/5: evaluating...
   -> Edit: add exec checkpoint after each push step
   -> Consolidate: no duplicates found
   -> Memoize post-pass: Q1 PASS → gas_memoized_questions={Q1, Q2, Q42}
-  N/A: 12 | Stable PASS: 30 | ⏭️ Memoized: Q2, Q42 (skipped in both evaluators)
+  N/A: 12 | Stable PASS: 30 | ⏭️ Memoized: Q2, Q42 (not re-evaluated this pass)
 Pass 3/5: evaluating...
   [Memoized directive injected: "Memoized questions — SKIP (stable PASS): Q1 (since pass 2), Q2 (since pass 1), Q42 (since pass 1)"]
   [Spawning frontend-evaluator-p3 + gas-evaluator-p3 in parallel]
   [frontend-evaluator-p3 findings]: 0 NEEDS_UPDATE
   [gas-evaluator-p3 findings]: 0 NEEDS_UPDATE; Q1, Q2, Q42: PASS (memoized, skipped)
-  N/A: 12 | Stable PASS: 31 | ⏭️ Memoized: Q1, Q2, Q42 (skipped in both evaluators)
+  N/A: 12 | Stable PASS: 31 | ⏭️ Memoized: Q1, Q2, Q42 (not re-evaluated this pass)
   -> CONVERGED at pass 3. Output final scorecard.
 [Post-loop] Q43 evaluator spawned → PASS — steps are numbered, code blocks fenced.
 Organization Quality (Q43): PASS
@@ -759,7 +759,7 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (skipped in both evaluators)
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (not re-evaluated this pass)
 
   ✅ frontend  ✗[fn] ✓[fm] —[fk]   (or: ⏭️ frontend  skipped | ⚠️ frontend  timeout)
   ✅ gas       ✗[gn] ✓[gm] —[gk]   (or: ⏭️ gas  skipped | ⚠️ gas  timeout)
