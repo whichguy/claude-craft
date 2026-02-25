@@ -398,13 +398,16 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
 as-is and include them in your output.`
@@ -434,13 +437,16 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, record them as-is and include in your output.
 
@@ -476,13 +482,16 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
 as-is and include them in your output.`
