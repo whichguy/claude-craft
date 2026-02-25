@@ -108,7 +108,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    ```
 
    IF IS_TRIVIAL:
-     Print: "⚡ Trivial plan detected — running fast-path review (single pass, 6 questions)"
+     Print: "⚡ Trivial plan detected — running fast-path review (single pass, 7 questions)"
      Run single Task(
        subagent_type = "general-purpose",
        model = "sonnet",
@@ -116,13 +116,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
 
-         Evaluate ONLY these 6 questions (definitions in ~/.claude/skills/review-plan/SKILL.md):
+         Evaluate ONLY these 7 questions (definitions in ~/.claude/skills/review-plan/SKILL.md):
            Q-G1 (Approach soundness — never N/A)
            Q-G2 (Standards compliance — never N/A)
            Q-G3 (Quality review step — never N/A)
            Q-G5 (Scope focus — never N/A)
            Q-NEW (Post-implementation workflow — never N/A)
            Q-C1 (Branching strategy — never N/A)
+           Q-G11 (Existing code examined — N/A for doc-only plans)
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
          If NEEDS_UPDATE: include [EDIT: instruction]
@@ -130,12 +131,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        """
      )
 
-     If all 6 PASS:
+     If all 7 PASS:
        Write gate marker: Bash "touch ~/.claude/.plan-reviewed"
        Output simplified scorecard:
          ## review-plan Scorecard (Fast Path)
          ⚡ IS_TRIVIAL: single .md file, additive change
-         [Q-G1/G2/G3/G5/NEW/C1 results — one line each]
+         [Q-G1/G2/G3/G5/NEW/C1/G11 results — one line each]
          ### Rating: 🟢 READY
        Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
        Call ExitPlanMode
@@ -143,8 +144,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
-       Re-evaluate the same 6 questions once (same Task format above).
-       If all 6 now PASS:
+       Re-evaluate the same 7 questions once (same Task format above).
+       If all 7 now PASS:
          Write gate marker, output simplified scorecard (Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve all issues — falling through to full review"
@@ -176,6 +177,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # Q-G3 and/or Q-NEW once confirmed stable PASS
+   memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
+   # memo_file: checkpoint written after each pass for context-compression resilience.
+   # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    ```
 
 5. **Team setup (always):**
@@ -200,7 +204,16 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 DO:
   -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
 
-  pass_count += 1
+  -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  _recovered_this_pass = false
+  IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count > 1):
+    Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+                     prev_needs_update_set, pass1_needs_update_set, total_changes_all_passes, pass_count
+    _recovered_this_pass = true
+    Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
+
+  IF NOT _recovered_this_pass:
+    pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
   cluster_changes_total = 0
@@ -223,13 +236,13 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator",
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 10 questions).
+      You are evaluating a plan for general quality (Layer 1: 11 questions).
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -243,7 +256,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 10 questions including Q-NEW, Q-G10)
+        ... (all 11 questions including Q-NEW, Q-G10, Q-G11)
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only
@@ -434,13 +447,26 @@ DO:
     memoized_l1_questions.add("Q-G3")
   IF l1_results["Q-NEW"] in [PASS, N/A] AND "Q-NEW" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-NEW")
+  # L1 Q-G11: safe to memoize individually (cited file paths/function names don't regress during editing)
+  IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
+    memoized_l1_questions.add("Q-G11")
   # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
-  # Q-C27, Q-C28: cluster-level memoization only (whole cluster, not individual questions)
-  # No new L1 questions added to memoized_l1_questions — only Q-G3 and Q-NEW are individually memoizable
+  # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
+  # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
+
   IF pass_count == 1:
     pass1_needs_update_set = current_needs_update_set  # snapshot for resolved_questions computation
+
+  -- Checkpoint: persist memoized state for context-compression resilience --
+  Write memo_file with JSON: {
+    pass_count, memoized_clusters: [...memoized_clusters],
+    memoized_since, memoized_l1_questions: [...memoized_l1_questions],
+    prev_needs_update_set: [...current_needs_update_set],
+    pass1_needs_update_set: [...pass1_needs_update_set],
+    total_changes_all_passes
+  }
 
   # Build breakdown suffix — only include ecosystem counts when that evaluator ran
   breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
@@ -451,14 +477,14 @@ DO:
 
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3,
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11,
                        Q1, Q2, Q13, Q15, Q18, Q42
                        (L2 cluster questions are N/A-superseded by gas-evaluator)
   ELSE IF IS_NODE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3,
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11, Q-C1, Q-C2, Q-C3,
                        N1
   ELSE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-C1, Q-C2, Q-C3
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11, Q-C1, Q-C2, Q-C3
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
   IF pass_count >= 5:
@@ -508,7 +534,7 @@ If shared file is not found, use inline policy: mark all `<!-- skill-name -->` c
 
 ## Layer 1: General Quality
 
-*10 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10). Applies to every plan, every domain.*
+*11 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -522,6 +548,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives considered? Not over/under-engineered? | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? | never |
 | Q-G3 | Quality review changes | Plan includes an explicit step to quality review all changes after implementation? Use `/review-fix` (preferred for all types — routes GAS files to GAS-specific reviewers automatically via Phase 1 file-type triage). `/gas-review` is also acceptable for GAS-only projects. Step must be named "quality review changes" or equivalent, placed after **all** code changes are applied, and not bundled with or before implementation steps. | never |
+| Q-G11 | Existing code examined | Plan demonstrates the code being modified was read: specific file paths, function names, "currently does X" language. Flag: "update the module/handler/function" without specific names when modifying existing code. GAS: mcp_gas cat output cited or .gs function names referenced. | pure new-file work only |
 
 **Gate 2 — Important (weight 2):**
 
@@ -531,7 +558,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
-| Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. | no external calls, no environment-specific dependencies, no pre-existing data assumptions |
+| Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -632,7 +659,7 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 
 ## Layer 2: Code Change Quality
 
-*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*29 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
@@ -666,7 +693,7 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: Testing & Plan Quality
 
-*5 questions. Always active.*
+*6 questions. Always active.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -675,8 +702,9 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C9 | 2 | Step ordering | Explicit DAG; no refs to uncreated files, no deploy-before-push? | single step |
 | Q-C10 | 2 | Empty code | No stubs/TODOs without full spec (phased OK if explicit)? | no placeholders |
 | Q-C11 | 3 | Dead code | Old implementations marked for removal? | nothing replaced |
+| Q-C29 | 2 | Test strategy defined upfront | Does the plan state, prior to or alongside implementation steps, what tests will verify the change is correct? Acceptable: naming specific test cases, stating what behaviors the test suite must cover, or explicitly confirming existing tests cover the new behavior without modification. Flag: plan implements non-trivial logic changes with no pre-stated acceptance criteria or test scope — leaving "does this work?" undefined until post-implementation. | cosmetic/doc-only change; single-line fix where correctness is self-evident; existing test suite explicitly confirmed as sufficient |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20; Q-C29 N/A — test strategy covered by gas-evaluator Q11/Q12).
 IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 4: State & Data Integrity
@@ -768,7 +796,7 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 |---------|-------------|--------------------------|
 | Git (1) | **fully** | Q1, Q2 |
 | Impact (2) | **fully** | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects) |
-| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20 |
+| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
 | State (4) | **partially** — Q-C26 has no gas equivalent | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (5) | **fully** | Q27, Q28, Q23 |
 | Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
@@ -790,8 +818,6 @@ evaluator has superior domain context vs cluster generic questions.)
 **Deduplication (IS_NODE):** After collecting node-evaluator findings, remove true duplicates
 where both a cluster evaluator and node-evaluator flag the same concern. Keep node-plan's more
 specific Node/TS framing where both are present. (Rationale: "specialization wins.")
-
-Full overlap table: `~/.claude/skills/shared/question-cross-reference.md`
 
 ### Q-UI: UI Specialization
 
@@ -932,7 +958,13 @@ After the convergence loop exits (scorecard not yet printed):
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do NOT remove the content they annotated.
 
-5. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+5. Use the Bash tool to run:
+   ```
+   touch ~/.claude/.plan-reviewed
+   rm -f <memo_file>
+   ```
+   First command writes the gate marker so ExitPlanMode will pass.
+   Second command removes the convergence checkpoint (no longer needed after loop exits).
 
 6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
    - Always: `l1-evaluator`
