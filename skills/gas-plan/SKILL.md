@@ -65,7 +65,7 @@ Two operating modes:
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
      (Q43 is a post-loop question — not evaluated in this mode)
-   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40; Gmail Qs Q44-Q48 follow the Gmail rule below)
+   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q49, Q50; Gmail Qs Q44-Q48 follow the Gmail rule below)
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
@@ -131,7 +131,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 (card navigation) is a Gmail-domain GAS-primary question — not in the shared list above. GAS evaluator covers it when active (bulk N/A when no Gmail add-on); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
@@ -152,6 +152,8 @@ STEP 0: (done — plan loaded, team created)
   team_name = <team_name created above>
   pass_count = 0
   prev_needs_update_count = null; prev_needs_update_set = []
+  pass1_needs_update_set = []      # snapshot after pass 1 for resolved_questions computation
+  total_changes_all_passes = 0     # running sum; increment by changes_this_pass after each pass's edits
   gas_memoized_questions = set()   # Q1, Q2, Q42 once confirmed stable PASS/N/A
   gas_memoized_since = {}          # pass_count when each was memoized
   spawned_evaluators = []          # names of agents actually launched (for precise teardown)
@@ -174,9 +176,10 @@ DO:
 
   IF NOT _recovered_this_pass:
     pass_count = pass_count + 1
-  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
-  Print: "Pass [pass_count/5]: evaluating..."
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; changes_this_pass = 0; incomplete_had_needs_update_last_pass = false
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
+  Print: "  Spawning: " + (frontend active? "frontend" : "⏭️ frontend") + " · " + (gas active? "gas" : "⏭️ gas")
 
   -- Memoized directive construction --
   memoized_directive = ""
@@ -263,8 +266,31 @@ DO:
       - Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
+      ### GAS Plan Gotchas (reference for Q49, Q50, Q26)
+
+      **V8 File Parsing Order:**
+      - `loadNow: true` modules execute eagerly at parse time — they MUST be positioned LAST in
+        file order, after all their dependencies. If a dependency file is at a higher position
+        (lower number), `require()` will throw "Module not found" at startup.
+      - Rule: whenever a plan adds files or changes positions, check if any loadNow module now
+        has deps at higher positions.
+
+      **GAS Global Namespace Collisions:**
+      - GAS built-in globals: Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp,
+        UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService,
+        MailApp, GmailApp, CalendarApp, ContactsApp, DocumentApp, SlidesApp, FormApp, Maps,
+        Session, Browser, console, Xml, XmlService, Jdbc, ScriptProperties, UserProperties.
+      - A module-level `var Logger = ...` or `const Utilities = ...` in any file visible to GAS
+        top-level scope will shadow the built-in. loadNow modules are especially vulnerable
+        since they execute at parse time.
+
+      **Properties/Cache Actual Limits (for Q26):**
+      - PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max
+      - CacheService: 102,400 bytes/value, 250-char key max, eviction is FIFO (not LRU)
+      - Exceeding these silently fails or throws — validate before storing.
+
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
         Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
@@ -348,12 +374,14 @@ DO:
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- gas-plan -->.
-    Each Edit call = 1 change. Do NOT count findings you only described in text.
+    Each Edit call = 1 change (increment changes_this_pass). Do NOT count findings you only described in text.
+  total_changes_all_passes += changes_this_pass
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE from evaluator messages) UNION never_na_findings
   SET current_needs_update_count = len(current_needs_update_set)
-  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sort(current_needs_update_set) == sort(prev_needs_update_set))  # set equality: sort both before comparing
+  IF pass_count == 1: pass1_needs_update_set = current_needs_update_set[:]  # snapshot for resolved_questions
+  PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sameQNumbers(current_needs_update_set, prev_needs_update_set))  # set equality: order-independent; sameQNumbers = both arrays contain identical Q-number strings regardless of order
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
 
@@ -395,7 +423,15 @@ DO:
   IF Gate1_unresolved > 0:
     CONTINUE (never exit with Gate 1 open, even if PLATEAU)
   IF (PLATEAU OR current_needs_update_count == 0) AND NOT incomplete_had_needs_update_last_pass:
-    Print: "✅ Converged."
+    elapsed = Math.round((Date.now() - timestamp) / 1000)
+    IF pass_count == 1:
+      Print: "✅ Converged — no issues found (pass 1, [elapsed]s)"
+    ELSE:
+      resolved_questions = pass1_needs_update_set - current_needs_update_set
+      Print: "✅ Converged after [pass_count] passes ([elapsed]s | [total_changes_all_passes] total changes)"
+      IF resolved_questions is non-empty:
+        Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
+      Print: "Gate 1: ✅ Clean | Gate 2: ✅ [n Gate2 PASS] PASS | Advisory: [n noted] noted"
     BREAK
   -- END CHECK --
 
@@ -421,7 +457,7 @@ Pass 1/5: evaluating...
   -> Edits: add CSS namespace note (Q34), add branching section + push-to-remote + deployment target + implementation spec (Q1, Q9, Q19)
   -> Consolidate: merge deployment + rollback into single section
   -> Memoize post-pass: Q2 PASS → gas_memoized_questions={Q2}, Q42 PASS → gas_memoized_questions={Q2, Q42}
-  N/A: 12 | Stable PASS: 27 | ⏭️ Memoized: none (pass 1, nothing memoized yet)
+  N/A: 12 | Stable PASS: 27 | ⏭️ Memoized: none
 Pass 2/5: evaluating...
   [Memoized directive injected: "Memoized questions — SKIP (stable PASS since pass 1): Q2, Q42 (Q2 since pass 1, Q42 since pass 1) — Treat as PASS in your output."]
   [Spawning frontend-evaluator-p2 + gas-evaluator-p2 in parallel]
@@ -431,13 +467,13 @@ Pass 2/5: evaluating...
   -> Edit: add exec checkpoint after each push step
   -> Consolidate: no duplicates found
   -> Memoize post-pass: Q1 PASS → gas_memoized_questions={Q1, Q2, Q42}
-  N/A: 12 | Stable PASS: 30 | ⏭️ Memoized: Q2, Q42 (skipped in both evaluators)
+  N/A: 12 | Stable PASS: 30 | ⏭️ Memoized: Q2, Q42 (not re-evaluated this pass)
 Pass 3/5: evaluating...
   [Memoized directive injected: "Memoized questions — SKIP (stable PASS): Q1 (since pass 2), Q2 (since pass 1), Q42 (since pass 1)"]
   [Spawning frontend-evaluator-p3 + gas-evaluator-p3 in parallel]
   [frontend-evaluator-p3 findings]: 0 NEEDS_UPDATE
   [gas-evaluator-p3 findings]: 0 NEEDS_UPDATE; Q1, Q2, Q42: PASS (memoized, skipped)
-  N/A: 12 | Stable PASS: 31 | ⏭️ Memoized: Q1, Q2, Q42 (skipped in both evaluators)
+  N/A: 12 | Stable PASS: 31 | ⏭️ Memoized: Q1, Q2, Q42 (not re-evaluated this pass)
   -> CONVERGED at pass 3. Output final scorecard.
 [Post-loop] Q43 evaluator spawned → PASS — steps are numbered, code blocks fenced.
 Organization Quality (Q43): PASS
@@ -492,7 +528,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-evaluator, not gas-plan.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop]
@@ -535,6 +571,10 @@ CLAUDE.md: `COMMON-JS_SYNC`. Changes to shared modules must include dual updates
 **Q8: Does the plan account for GAS isolated execution state?** (1, GAS)
 Each `exec()` has isolated global state -- no persistence between calls. Data must go through Properties/Cache. N/A: no cross-exec state needed.
 
+**Q49: Does the plan respect V8 file parsing order?** (2, GAS)
+If any new file is added, or any file's position changes, verify that no loadNow module ends up with dependencies at higher file positions. loadNow modules must be positioned LAST, after all their transitive dependencies. Symptom of failure: "Module not found" at startup even though ls() shows the file exists.
+N/A: plan adds no new files AND changes no file positions AND no loadNow modules exist in the project.
+
 ---
 
 ### Deployment & Rollback
@@ -554,6 +594,7 @@ Interface changes need test updates. Bug fixes need regression tests. New functi
 
 **Q12: Is there incremental verification at each step?** (2, GAS)
 Each step must have a checkpoint (exec, test, manual check). Flag all-testing-at-end. N/A: single atomic change.
+For plans that modify sidebar/HTML files (sheets-sidebar/, common-js/html/): verification steps should reference the gas-sidebar skill procedures (launch sidebar → send prompt → wait for response → read response). A plan that says "open the sidebar and check it works" without citing the concrete gas-sidebar workflow is insufficient — the sidebar runs in a cross-origin iframe and requires specific DevTools automation patterns.
 
 ---
 
@@ -596,6 +637,10 @@ Flag stubs, TODOs, "implement later" without full spec. Allow explicitly phased 
 **Q20: Is there dead code that should be removed?** (2, GAS)
 Old implementation marked for removal when replaced? Flag orphaned exports, unused handlers in changed modules. N/A: nothing replaced.
 
+**Q50: Does the plan introduce any GAS global namespace collision?** (2, GAS)
+Check: do any new or modified modules declare top-level vars/consts whose names match GAS built-in globals (Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp, UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService, MailApp, GmailApp, etc.)? loadNow modules are highest risk since they run at parse time. Also check require() aliases — `const Logger = require(...)` at module top level is safe; `var Logger = ...` outside a function is not.
+N/A: plan adds no new modules AND no existing module is modified at its top-level scope.
+
 **Q38: Are there unintended consequences from this plan that need to be addressed?** (2, Shared)
 Side effects beyond the stated goal: breaking existing workflows, changing user-facing behavior unintentionally, introducing performance regressions, altering data formats consumed by other systems, or shifting security boundaries. Flag anything the plan doesn't explicitly acknowledge. N/A: trivial isolated change with no external touchpoints.
 
@@ -624,8 +669,8 @@ Triggers/web apps can fire twice. Data mutations need dedup or check-before-writ
 **Q25: Are quota and rate limits accounted for?** (1, GAS)
 UrlFetch 20K/day, Properties 50 reads/min, runtime 6min, triggers 90min. N/A: no API/batch/trigger additions.
 
-**Q26: Are Properties/Cache payloads within size limits?** (1, GAS)
-Properties: 9KB/key, 500KB total. Cache: 100KB/key. N/A: no new stored data.
+**Q26: Are Properties/Cache payloads within actual limits?** (1, GAS)
+PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max. CacheService: 102,400 bytes/value, 250-char key max, FIFO eviction (not LRU — hot keys can still be evicted). Exceeding these silently fails or throws with no clear error. N/A: plan does not read/write PropertiesService or CacheService.
 
 ---
 
@@ -746,7 +791,10 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 ```
 ## Pass [N]/5
 
-N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (skipped in both evaluators)
+N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (not re-evaluated this pass)
+
+  ✅ frontend  ✗[fn] ✓[fm] —[fk]   (or: ⏭️ frontend  skipped | ⚠️ frontend  timeout)
+  ✅ gas       ✗[gn] ✓[gm] —[gk]   (or: ⏭️ gas  skipped | ⚠️ gas  timeout)
 
 | Evaluator | Q# | Question | Status | Notes |
 |-----------|-----|----------|--------|-------|
@@ -763,12 +811,12 @@ N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "non
 ### Final Scorecard
 
 ```
+Rating: [🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK]  [N]%
 Converged: [Yes pass N / No max 5 reached]
-Gate 1 (blocking):  [PASS / n NEEDS_UPDATE remaining]
-Gate 2 (important): [PASS / n NEEDS_UPDATE remaining]
+Gate 1 (blocking):  [✅ PASS / ❌ n remaining]
+Gate 2 (important): [✅ PASS / ❌ n remaining]
 Gate 3 (advisory):  [n noted]
-Rating: [READY / SOLID / GAPS / REWORK]
-Score: [N]% (weighted percentage)
+Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason | ⚠️ timed out]  # appended by post-loop step 2; omit if N/A (< 3 steps)
 ```
 
 ---

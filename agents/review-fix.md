@@ -3,7 +3,8 @@ name: review-fix
 description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
   for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical and Advisory
-  fixes, re-reviews until clean, produces a summary.
+  fixes per-file until nothing changes (0 fixes applied), surfaces Advisory/YAGNI without
+  auto-applying, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -16,12 +17,15 @@ color: orange
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
 all Critical and Advisory findings are resolved, then produce a structured summary. Both
-severities auto-apply when a Fix block exists; Advisory without Fix records as stuck and surfaces for human review.
+Critical and Advisory (non-YAGNI) severities auto-apply when a Fix block exists; Advisory/YAGNI
+is surfaced but never auto-applied; Advisory without Fix records as stuck and surfaces for human review.
 
 ```
-Flow: Setup & Triage → Initial Review ──────────────────────────► Summary → Commit
-                                       ↑                          ↑
-                                  Fix Round ←─── Re-Review ───────┘ (loop ≤ max_rounds)
+Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Commit
+                                       ↑                             ↑
+                           Round-based parallel loop:                │
+                           fix all files (sequential) → re-review    │
+                           all in parallel → repeat until clean ─────┘
 ```
 
 ## Input Contract
@@ -40,15 +44,19 @@ Flow: Setup & Triage → Initial Review ─────────────�
 Maintain these values across all phases:
 
 ```
-round = 0
+global_round = 0           # global round counter for round-based parallel loop
 run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_resolved = []     # { file, line, q_number, description }
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
-advisory_stuck = []        # Advisory unresolved (no Fix block)
-introduced_by_fix = []     # New Criticals not in prior round
+advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
+advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
+introduced_by_fix = []     # { file, line, q_number, description } — new Criticals not in prior round
 files_changed = []
+files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or fixable APPROVED_WITH_NOTES
+current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
+per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
 final_status = 'pending'
 ```
@@ -57,11 +65,11 @@ final_status = 'pending'
 
 *These rules apply to all phases.*
 
-**The review loop (Phases 2–5) proceeds without user input.** Teardown is automatic. Phase 6
+**The review loop (Phases 2–4) proceeds without user input.** Teardown is automatic. Phase 5
 outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
 `AskUserQuestion`. The calling agent acts on the marker.
 
-**Both Critical and Advisory auto-fix when a Fix block exists.** Without a Fix block, Advisory records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
+**Critical and non-YAGNI Advisory auto-fix when a Fix block exists.** `Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]` and surfaced in the summary only. Advisory without a Fix block records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
 
 **Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
 
@@ -102,7 +110,7 @@ Build a per-file reviewer mapping. This enables GAS-aware reviewers for `.gs` an
 // For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
 // gas-code-review coverage for those files requires a separate manual pass (see note below).
 reviewer_map = {}
-cardservice_files = []  // tracked for Phase 5 warning
+cardservice_files = []  // tracked for Phase 4 summary warning
 
 // Pass 1: Route .gs and non-html files synchronously
 for (const file of file_list) {
@@ -127,32 +135,41 @@ for (const file of file_list) {
   // .html files: deferred to parallel triage below
 }
 
-// Pass 2: Parallel Haiku triage for ALL .html files in a SINGLE message
-// Launch all Haiku html triage tasks in a single message to parallelize
+// Pass 2: Route .html files — GAS fast-path when context is unambiguous, else Haiku triage
 const htmlFilesNeedingTriage = file_list.filter(f => f.split('.').pop() === 'html')
 if (htmlFilesNeedingTriage.length > 0) {
-  // Spawn ALL triage tasks in a SINGLE message (parallel — same pattern as Phase 2):
-  const triageResults = await Promise.all(htmlFilesNeedingTriage.map(file =>
-    Task({
-      subagent_type: "general-purpose",
-      model: "haiku",
-      prompt: `Read the file at ${file}. Does it contain GAS HTML patterns?
-        Look for: HtmlService, google.script.run, <?=, <?!=, createGasServer,
-        exec_api, or GAS scriptlet delimiters (<? ?>).
-        Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
-    }).catch(() => null)
-  ))
+  // GAS fast-path: if any .gs file is in the batch, all HTML is GAS HTML — skip Haiku
+  const is_gas_project = file_list.some(f => f.split('.').pop() === 'gs')
 
-  // Collect results and build reviewer_map entries for html files
-  // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
-  htmlFilesNeedingTriage.forEach((file, i) => {
-    const result = triageResults[i]
-    if (result && result.includes('IS_GAS_HTML: true')) {
+  if (is_gas_project) {
+    // All HTML in a GAS project context → gas-ui-review (no Haiku triage needed)
+    htmlFilesNeedingTriage.forEach(file => {
       reviewer_map[file] = 'gas-ui-review'
-    } else {
-      reviewer_map[file] = 'code-reviewer'
-    }
-  })
+    })
+  } else {
+    // Ambiguous context — spawn Haiku triage for ALL .html files in a SINGLE message (parallel):
+    const triageResults = await Promise.all(htmlFilesNeedingTriage.map(file =>
+      Task({
+        subagent_type: "general-purpose",
+        model: "haiku",
+        prompt: `Read the file at ${file}. Does it contain GAS HTML patterns?
+          Look for: HtmlService, google.script.run, <?=, <?!=, createGasServer,
+          exec_api, or GAS scriptlet delimiters (<? ?>).
+          Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
+      }).catch(() => null)
+    ))
+
+    // Collect results and build reviewer_map entries for html files
+    // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
+    htmlFilesNeedingTriage.forEach((file, i) => {
+      const result = triageResults[i]
+      if (result && result.includes('IS_GAS_HTML: true')) {
+        reviewer_map[file] = 'gas-ui-review'
+      } else {
+        reviewer_map[file] = 'code-reviewer'
+      }
+    })
+  }
 }
 ```
 
@@ -200,12 +217,14 @@ review_mode="${review_mode}"`
 });
 ```
 
-Collect full output. Parse for Critical findings, Advisory findings, and Status.
+Collect full output. Parse for Critical findings, Advisory findings, Advisory/YAGNI findings, Status, and LOOP_DIRECTIVE.
+Store output: `current_findings[file_list[0]] = <full review output>`
 
-- `APPROVED` → Phase 5
-- `NEEDS_REVISION` → Phase 3
-- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
+- `APPROVED` → Phase 4
+- `NEEDS_REVISION` → add file to `files_needing_fixes`; Phase 3
+- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add file to `files_needing_fixes`; Phase 3
+- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Parallel-Task Mode (2–4 files)
 
@@ -232,13 +251,15 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 ));
 ```
 
-Collect outputs. Parse each file's result for Critical findings, Advisory findings, and Status.
+Collect outputs. Parse each file's result for Critical findings, Advisory findings, Advisory/YAGNI findings, Status, and LOOP_DIRECTIVE.
+For each file: `current_findings[file] = <full review output for that file>`
 Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All Modes)" section below.
 
-- All files `APPROVED` → Phase 5
-- Any `NEEDS_REVISION` → Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
+- All files `APPROVED` → Phase 4
+- Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Team Mode (5+ files)
 
@@ -280,19 +301,22 @@ review_mode="${review_mode}"`
 
 Wait for SendMessage deliveries from all reviewers. For each incoming message:
 - Parse for Critical findings (lines matching `Finding: Critical`)
-- Parse for Advisory findings (lines matching `Finding: Advisory`)
+- Parse for Advisory findings (lines matching `Finding: Advisory` but NOT `Finding: Advisory/YAGNI`)
+- Parse for Advisory/YAGNI findings (lines matching `Finding: Advisory/YAGNI`)
 - Note per-file approval status
 
 Track: which files are APPROVED vs NEEDS_REVISION.
+For each file with a review result: `current_findings[file] = <full review output>`
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
 seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
 `timed_out_reviewers`, and continue.
 
-- All files `APPROVED` → Phase 5 (keep team for teardown)
-- Any `NEEDS_REVISION` → Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
+- All files `APPROVED` → Phase 4 (keep team for teardown)
+- Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
 
@@ -313,239 +337,241 @@ Print: "[N] file(s) need fixes — entering fix loop."  (if any NEEDS_REVISION o
 
 ---
 
-## Phase 3: Fix Round
+## Phase 3: Fix Loop (Round-Based Parallel)
 
-**Loop entry point.** This phase and Phase 4 (Re-Review) repeat until clean or `max_rounds` reached.
+Process all files needing fixes in **global rounds**. Each round applies fixes to all remaining
+files sequentially (team lead edits), then re-reviews them all **in parallel** (single message).
+Files that clean up exit early; the rest continue to the next round.
+
+```javascript
+remaining_files = [...files_needing_fixes]
+// global_round already initialized to 0 in State Tracking
+// Initialize per_file_rounds for all files needing fixes
+remaining_files.forEach(file => { per_file_rounds[file] = 0 })
+```
+
+### Global Fix Loop
 
 ```
-round = round + 1
+WHILE remaining_files.length > 0 AND global_round < max_rounds:
+  global_round += 1
+
+  print: "🔧 Round [global_round]/[max_rounds]: applying fixes to [remaining_files.length] file(s)..."
+
+  fixes_applied_per_file = {}
+
+  // Apply fixes for each file sequentially (team lead edits, one file at a time)
+  for each file in remaining_files:
+    per_file_rounds[file] += 1
+    fixes_applied_per_file[file] = 0
+
+    Apply Critical findings first (from current_findings[file], in evidence order):
+      1. Read the `Evidence: file:line` citation to locate the code
+      2. From the finding's `Fix:` section, extract `before` and `after` blocks
+      3. Apply via Edit tool:
+         - `old_string` = before block (verbatim, preserving indentation)
+         - `new_string` = after block (verbatim, preserving indentation)
+      4. If `before` text not found (prior fix already addressed it): skip (skipped_already_addressed)
+      5. If `Fix:` block absent or ambiguous: record in stuck_findings; DO NOT invent a fix
+      6. On success: record in critical_resolved; files_changed += file; fixes_applied_per_file[file] += 1
+
+    Apply Advisory findings after all Critical fixes (from current_findings[file]):
+      - `Finding: Advisory/YAGNI` → skip, record in advisory_yagni[], print ⊘ line;
+        does NOT count toward fixes_applied_per_file[file]
+      - Else (regular Advisory):
+        1–5. Same as Critical steps above
+        6. On success: record in advisory_resolved; files_changed += file; fixes_applied_per_file[file] += 1
+        No Fix block → record in advisory_stuck; do NOT invent a fix
+
+  // Files with 0 fixes this round are clean — exit them before re-review
+  files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
+  for each file in files_clean_this_round:
+    print: "  → [file] nothing changed — done"
+  remaining_files = remaining_files.filter(f => fixes_applied_per_file[f] > 0)
+
+  if remaining_files.length == 0: break
+
+  print: "  → Re-reviewing [remaining_files.length] file(s) in parallel..."
+
+  // PARALLEL re-reviews — all remaining files in a SINGLE message (same pattern as Phase 2)
+  [mode-specific spawn — see subsections below]
+  // re_review_results array order matches remaining_files order (Promise.all preserves insertion order)
+
+  // Process re-review results
+  for each (file, result) in zip(remaining_files, re_review_results):
+    if result is null:
+      // timed out — reviewer name already in timed_out_reviewers; continue
+      continue
+    new_criticals = parse Critical findings from result
+    old_criticals = parse Critical findings from current_findings[file]
+    introduced_by_fix.push(...new_criticals.filter(c => not in old_criticals))
+    current_findings[file] = result
+
+  // Enforce per-file max_rounds — remove files that have hit the limit
+  files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
+  for each file in files_over_limit:
+    unresolved_critical = parse remaining Critical findings from current_findings[file]
+    stuck_findings.push(...unresolved_critical)
+    unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
+    advisory_stuck.push(...unresolved_advisory_no_fix)
+    print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
+  remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
 ```
-
-**For each Critical finding (in evidence order, same file grouped together):**
-
-1. Read the `Evidence: file:line` citation to locate the code
-2. From the finding's `Fix:` section, extract `before` and `after` blocks
-3. Apply via Edit tool:
-   - `old_string` = before block (verbatim, preserving indentation)
-   - `new_string` = after block (verbatim, preserving indentation)
-4. If `before` text not found (prior fix in same round already addressed it): skip, note as `skipped_already_addressed`
-5. If `Fix:` block absent or ambiguous: treat as stuck, record in `stuck_findings` with the full finding text
-6. On success: record `{ file, line, q_number, description }` in `critical_resolved`; add file to `files_changed`
-
-**Then, for each Advisory finding (same apply logic, processed after all Critical fixes for a file):**
-
-1. Read the `Evidence: file:line` citation to locate the code
-2. From the finding's `Fix:` section, extract `before` and `after` blocks
-3. Apply via Edit tool (same as Critical)
-4. If `before` text not found: skip, note as `skipped_already_addressed`
-5. If `Fix:` block absent or ambiguous: record in `advisory_stuck` with the full finding text — do not invent a fix
-6. On success: record `{ file, line, q_number, description }` in `advisory_resolved`; add file to `files_changed`
 
 **Fix source is code-reviewer's own Fix block.** Do not re-reason or generate alternatives.
 If the Fix block is absent, mark stuck — do not invent a fix.
 
-### Phase 3 Print: Fix Application Feedback
+**Stop condition:** A file exits the loop naturally when `fixes_applied_per_file[file] == 0` —
+meaning no fixable findings remain (all are YAGNI, stuck, or already addressed). This is robust
+against malformed `LOOP_DIRECTIVE`: if a reviewer erroneously emits COMPLETE while providing
+fixable findings, `fixes_applied > 0` and the loop continues; if `APPLY_AND_RECHECK` is emitted
+with 0 fixes, the condition still fires and exits correctly.
 
-At the start of each fix round, print a round header with progress bar:
+### Re-Review: Single-Agent and Parallel-Task Mode (≤4 files total)
+
+Spawn all remaining files' re-reviews in a **single message** as parallel Task calls:
+
+```javascript
+const re_review_results = await Promise.all(remaining_files.map(file =>
+  Task({
+    subagent_type: reviewer_map[file] || 'code-reviewer',
+    description: `Re-review ${file} round ${per_file_rounds[file]}`,
+    prompt: `Review this file:
+target_files="${file}"
+task_name="${task_name}-round${per_file_rounds[file]}"
+worktree="${worktree}"
+dryrun=false
+related_files=auto
+review_mode="${review_mode}"
+
+This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
+1. Lines modified by the fixes applied since the previous round
+2. Code that directly calls or is called by the modified sections
+Do NOT re-examine sections already APPROVED in a previous round.
+
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, record them as-is and include them in your output.
+Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`
+with no Fix block — do not upgrade them to regular Advisory.
+
+Output your full review markdown starting with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
+  }).catch(() => null)
+))
+```
+
+### Re-Review: Team Mode (5+ files total)
+
+Spawn all remaining files' re-reviews in a **single message** as parallel Task calls with team membership:
+
+```javascript
+const re_review_results = await Promise.all(remaining_files.map(file =>
+  Task({
+    subagent_type: reviewer_map[file] || 'code-reviewer',
+    team_name: team_name,
+    name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${per_file_rounds[file]}`,
+    description: `Re-review ${file} round ${per_file_rounds[file]}`,
+    prompt: `mode=evaluate
+
+Re-review this file after fixes were applied:
+target_files="${file}"
+task_name="${task_name}-round${per_file_rounds[file]}"
+worktree="${worktree}"
+dryrun=false
+related_files=auto
+review_mode="${review_mode}"
+
+This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
+1. Lines modified by the fixes applied since the previous round
+2. Code that directly calls or is called by the modified sections
+Do NOT re-examine sections already APPROVED in a previous round.
+
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, they will not re-enter the fix loop — record them
+as-is and include them in your output.
+Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`
+with no Fix block — do not upgrade them to regular Advisory.`
+  }).catch(() => null)
+))
+```
+
+**Timeout (team mode)**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
+seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
+`timed_out_reviewers`, use `null` for that file's result, and continue.
+
+### Phase 3 Print Format
+
+At the start of each global round:
 
 ```
-Print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: applying fixes..."
+Print: "🔧 Round [global_round]/[max_rounds]: applying fixes to [N] file(s)..."
 ```
 
-For each fix applied, print a single-line receipt:
+For each fix applied or skipped (in evidence order, across all files in the round):
 ```
-Print: "  ✓ [file:line] — [Critical|Advisory] [Q-number]: [short description]"
-```
-
-For skipped/stuck findings:
-```
+Print: "  ✓ [file:line] — [Critical|Advisory] [Q-number or title]: [short description]"
+Print: "  ⊘ [file:line] — [Advisory/YAGNI] [title]: skipped (speculative)"
 Print: "  ⊘ [file:line] — [Advisory] [Q-number]: no Fix block (stuck)"
 Print: "  ⊘ [file:line] — [Critical] [Q-number]: before text not found (skipped)"
 ```
 
-After all fixes in the round, print a round summary:
+After applying all fixes in the round (per-file clean exits and re-review):
 ```
-Print: "Round [N] — [X] critical fixed, [Y] advisory fixed, [Z] stuck"
+Print: "  → [file] nothing changed — done"            (for each file with 0 fixes this round)
+Print: "  → Re-reviewing [N] file(s) in parallel..."  (before spawning re-reviews)
+Print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"  (after re-review results)
+```
+
+After a file's final exit (clean or max_rounds — print when file leaves remaining_files):
+```
+Print: "  ✅ [filename] — clean after [N] round(s)"
+Print: "  ❌ [filename] — [N] finding(s) stuck after [N] round(s)"
 ```
 
 Example:
 ```
-🔧 Round [▓░░] 1/3: applying fixes...
-  ✓ src/main.ts:45 — Critical Q2: sanitized user input
-  ✓ src/main.ts:112 — Critical Q1: added null guard
-  ✓ Sidebar.html:30 — Advisory: template literal URL fix
-  ⊘ Sidebar.html:88 — Advisory: no Fix block (stuck)
-Round 1 — 2 critical fixed, 1 advisory fixed, 1 stuck
+🔧 Round 1/3: applying fixes to 2 file(s)...
+  ✓ Utils.gs:45 — Critical Q2: sanitized user input
+  ✓ Utils.gs:112 — Critical Q1: added null guard
+  ✓ Main.ts:30 — Advisory: empty catch block fix
+  ⊘ Utils.gs:88 — [Advisory/YAGNI] Direct PropertiesService: skipped (speculative)
+  → Re-reviewing 2 file(s) in parallel...
+🔧 Round 2/3: applying fixes to 2 file(s)...
+  → Utils.gs nothing changed — done
+  ✅ Utils.gs — clean after 2 round(s)
+  → Main.ts nothing changed — done
+  ✅ Main.ts — clean after 2 round(s)
 ```
 
 ---
 
-## Phase 4: Re-Review
-
-Spawn reviewer(s) with round-qualified names to detect whether fixes resolved all Critical and Advisory findings.
-
-### Single-Agent Mode
+## Phase 4: Summary + Teardown
 
 ```javascript
-Task({
-  subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
-  description: "Re-review after fixes",
-  prompt: `Review this file:
-target_files="${file_list[0]}"
-task_name="${task_name}-round${round}"
-worktree="${worktree}"
-dryrun=false
-related_files=auto
-review_mode="${review_mode}"
-
-This is re-review round ${round}.
-
-**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
-1. Lines modified by the fixes applied since round ${round - 1}
-2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.
-
-**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
-the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
-
-Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
-If they re-appear in this re-review, they will not re-enter the fix loop — record them
-as-is and include them in your output.`
-});
-```
-
-### Parallel-Task Mode Re-Review (2–4 files)
-
-Spawn reviewers for files that were modified or had Critical findings (same logic as team mode,
-but as parallel Tasks with no team):
-
-```javascript
-const recheck_files = file_list.filter(f =>
-  files_changed.includes(f) ||
-  stuck_findings.some(c => c.file === f)
-);
-
-const results = await Promise.all(recheck_files.map(file =>
-  Task({
-    subagent_type: reviewer_map[file] || 'code-reviewer',
-    description: `Re-review ${file} round ${round}`,
-    prompt: `Review this file:
-target_files="${file}"
-task_name="${task_name}-round${round}"
-worktree="${worktree}"
-dryrun=false
-related_files=auto
-review_mode="${review_mode}"
-
-This is re-review round ${round}.
-
-**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
-1. Lines modified by the fixes applied since round ${round - 1}
-2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.
-
-**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
-the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
-
-Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
-If they re-appear in this re-review, record them as-is and include in your output.
-
-Output your full review markdown starting with "## Code Review:".
-Do NOT use SendMessage — your output is collected directly by the calling agent.`
-  })
-));
-```
-
-Print a receipt for each file with delta progress:
-```
-Print: "  ✅ [filename] — APPROVED (was: [N] critical → now: 0)"
-Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical remaining)"
-```
-
-### Team Mode Re-Review (5+ files)
-
-Spawn parallel reviewers with round-qualified names:
-
-```javascript
-Task({
-  subagent_type: reviewer_map[file] || 'code-reviewer',
-  team_name: team_name,
-  name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round}`,
-  description: `Re-review ${file} round ${round}`,
-  prompt: `mode=evaluate
-
-Re-review this file after fixes were applied:
-target_files="${file}"
-task_name="${task_name}-round${round}"
-worktree="${worktree}"
-dryrun=false
-related_files=auto
-review_mode="${review_mode}"
-
-This is re-review round ${round}.
-
-**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
-1. Lines modified by the fixes applied since round ${round - 1}
-2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.
-
-**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
-the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
-
-Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
-If they re-appear in this re-review, they will not re-enter the fix loop — record them
-as-is and include them in your output.`
-});
-// Repeat for each file that was modified (appears in files_changed)
-//   OR had Critical findings (fix may introduce regressions elsewhere)
-// Skip files with only advisory_stuck findings — no edits were applied to them
-```
-
-Collect new findings. Compare with previous round:
-- New Critical not present in prior round → record in `introduced_by_fix`
-
-**Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
-seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
-`timed_out_reviewers`, and continue.
-
-**Loop decision:**
-
-| Condition | Action |
-|-----------|--------|
-| Zero Critical AND zero Advisory findings | Proceed to Phase 5 |
-| (Critical OR Advisory that had a Fix block applied but still re-appears) AND `round < max_rounds` | Return to **Phase 3 (Fix Round)** |
-| `round >= max_rounds` AND Critical remain | Record in `stuck_findings`, proceed to Phase 5 |
-| `round >= max_rounds` AND Advisory remain (no Critical) | Record in `advisory_stuck`, proceed to Phase 5 |
-
-*Note: "remain" means the finding re-appeared in the re-review after a Fix was applied. Advisory findings without a Fix block are recorded in `advisory_stuck` in Phase 3 and do NOT drive the loop — they never re-enter Phase 3.*
-
-### Phase 4 Print: Re-Review Receipts
-
-```
-Print: "🔄 Re-review round [N]..."
-Print: "  ✅ [filename] — APPROVED (was: [N] critical → now: 0)"
-Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical remaining)"
-Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
-```
-
-Loop decision output — print ONE of these convergence signal lines:
-```
-Print: "→ All clean after [round] round(s). ✅"                      (converged)
-Print: "→ [N] finding(s) remain — looping for round [N+1]/[max_rounds]..."  (continue)
-Print: "→ Max rounds reached — [N] finding(s) stuck."              (max_rounds hit)
-```
-
----
-
-## Phase 5: Summary + Teardown
-
-```javascript
-// Deduplicate advisory_stuck before summary (same finding may appear in multiple rounds)
+// Deduplicate advisory_stuck and advisory_yagni before summary
+// Use line-agnostic keys: line numbers shift after fixes, causing spurious duplicates
 const _seen = new Set()
 advisory_stuck = advisory_stuck.filter(entry => {
-  const key = `${entry.file}:${entry.line}:${entry.description}`
+  const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
   if (_seen.has(key)) return false
   _seen.add(key)
+  return true
+})
+const _seenYagni = new Set()
+advisory_yagni = advisory_yagni.filter(entry => {
+  const key = `${entry.file}:${entry.title}`
+  if (_seenYagni.has(key)) return false
+  _seenYagni.add(key)
   return true
 })
 ```
@@ -578,8 +604,10 @@ advisory_stuck = advisory_stuck.filter(entry => {
 - `file:line` — [Q-number or finding title]: [description]
   > **Action required**: [paste the Fix block from the last review output]
 
-[For each introduced-by-fix finding:]
-- `file:line` — [Q-number]: [description] *(introduced by fix in round N)*
+[For each introduced_by_fix finding that is still unresolved (also in stuck_findings):]
+- `file:line` — [Q-number]: [description] *(introduced by fix in round N, unresolved)*
+
+Note: `introduced_by_fix` findings that were subsequently resolved appear in "Critical Findings — Resolved" above, not here.
 
 ### Advisory Findings — Resolved ([count])
 
@@ -596,6 +624,14 @@ advisory_stuck = advisory_stuck.filter(entry => {
 - `file:line` — [Q-number or finding title]: [one-line description]
   > **Action required**: [paste the Fix block from the last review output, or note that no Fix block was provided]
 
+### Advisory Findings — YAGNI Skipped ([count])
+
+[If none: "None."]
+
+[For each yagni finding:]
+- `file:line` — [title]: [one-line description]
+  > *Skipped: speculative improvement — apply only if this becomes a real need.*
+
 ### Final Status
 
 **Status**: [APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION]
@@ -607,8 +643,8 @@ advisory_stuck = advisory_stuck.filter(entry => {
 ```
 
 **Final status derivation:**
-- `APPROVED` — zero Critical remaining, zero Advisory remaining
-- `APPROVED_WITH_NOTES` — zero Critical remaining, Advisory stuck (no Fix block provided)
+- `APPROVED` — zero Critical remaining, zero non-YAGNI Advisory remaining (YAGNI-only is still APPROVED)
+- `APPROVED_WITH_NOTES` — zero Critical remaining, ≥1 non-YAGNI Advisory stuck (no Fix block provided)
 - `NEEDS_REVISION` — one or more Critical findings in `stuck_findings`
 
 ### Teardown (Team Mode Only — 5+ files)
@@ -620,14 +656,15 @@ Send shutdown requests to all active teammates, then delete team:
 ```javascript
 // Shutdown all reviewers spawned across all rounds:
 // - Initial reviewers:   reviewer-{path-normalized-file} for each file
-// - Re-review reviewers: reviewer-{path-normalized-file}-r${n} for each file × each round n (1..round)
+// - Re-review reviewers: reviewer-{path-normalized-file}-r${n} for each file × each per-file round n
 // Skip shutdown for timed-out reviewers (their process is already dead)
 for (const file of file_list) {
   const reviewerName = `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}`;
   if (!timed_out_reviewers.has(reviewerName)) {
     SendMessage({ type: "shutdown_request", recipient: reviewerName, content: "Review-fix complete" });
   }
-  for (let r = 1; r <= round; r++) {
+  const fileRounds = per_file_rounds[file] || 0;
+  for (let r = 1; r <= fileRounds; r++) {
     const reReviewerName = `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${r}`;
     if (!timed_out_reviewers.has(reReviewerName)) {
       SendMessage({ type: "shutdown_request", recipient: reReviewerName, content: "Review-fix complete" });
@@ -641,7 +678,7 @@ TeamDelete();
 
 ---
 
-## Phase 6: Git Commit Suggestion
+## Phase 5: Git Commit Suggestion
 
 After teardown, output a commit suggestion when the review succeeded and files were changed.
 
@@ -650,7 +687,7 @@ After teardown, output a commit suggestion when the review succeeded and files w
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
-**Output after the Phase 5 summary block. Do not call `AskUserQuestion` — output the block
+**Output after the Phase 4 summary block. Do not call `AskUserQuestion` — output the block
 below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks the user.**
 
 **Output template:**

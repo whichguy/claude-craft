@@ -176,7 +176,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G3, Q-NEW, and/or Q-G11 once confirmed stable PASS or N/A
+   memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12 are not memoizable)
+   spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
@@ -216,33 +217,36 @@ DO:
     pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
+  cluster_changes = {}            # maps cluster_name → change count this pass
   cluster_changes_total = 0
   gas_plan_changes = 0
   node_plan_changes = 0
   ui_plan_changes = 0
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
+  Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas") + (IS_NODE: " · node") + (HAS_UI: " · ui")
 
   [In a SINGLE message, spawn all evaluators in parallel:
    L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
    Practical maximums: IS_GAS mode = L1 + state cluster + gas-evaluator + UI = 4.
    Non-GAS full-stack (all 7 clusters) = L1 + 7 + UI = 9.
    If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
+  [After spawning each evaluator, append its name to spawned_evaluators]
 
   --- L1 Evaluator ---
   Task(
     subagent_type = "general-purpose",
     model = "sonnet",
     team_name = <team_name>,
-    name = "l1-evaluator",
+    name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 11 questions).
+      You are evaluating a plan for general quality (Layer 1: 12 questions).
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -256,7 +260,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 11 questions including Q-NEW, Q-G10, Q-G11)
+        ... (all 12 questions including Q-NEW, Q-G10, Q-G11, Q-G12)
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only
@@ -313,7 +317,7 @@ DO:
     Task(
       subagent_type = "gas-plan",
       team_name = <team_name>,
-      name = "gas-evaluator",
+      name = "gas-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -334,7 +338,7 @@ DO:
     Task(
       subagent_type = "node-plan",
       team_name = <team_name>,
-      name = "node-evaluator",
+      name = "node-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -357,7 +361,7 @@ DO:
       subagent_type = "ui-designer",
       model = "sonnet",
       team_name = <team_name>,
-      name = "ui-evaluator",
+      name = "ui-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -382,21 +386,28 @@ DO:
   as their previous pass (other cluster evaluators' findings are unaffected).
 
   Print receipt for each evaluator:
-    Print: "  ✅ l1-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+    # Symbol key: ✗ = NEEDS_UPDATE, ✓ = PASS, — = N/A
+    If l1 responded:   Print: "  ✅ l1      ✗[n] ✓[m] —[k]"
+    If l1 incomplete:  Print: "  ⚠️ l1      timeout"
     For each cluster_name in active_clusters:
-      If memoized:    Print: "  ⏭️ <cluster_name>-evaluator  MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
-      If responded:   Print: "  ✅ <cluster_name>-evaluator-p[pass_count]  NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator-p[pass_count]  INCOMPLETE (timeout)"
+      If responded:   Print: "  ✅ <cluster_name>  ✗[n] ✓[m] —[k]"
+      If memoized:    Print: "  ⏭️ <cluster_name>  ⏭️ p[memoized_since[cluster_name]]"
+      If incomplete:  Print: "  ⚠️ <cluster_name>  timeout"
     For each skipped cluster (not in active_clusters):
-      Print: "  ⏭️ <cluster_name>-evaluator  SKIPPED (<reason>)"
-      Reasons: HAS_STATE=false | HAS_DEPLOYMENT=false | HAS_UI=false | IS_GAS superseded
-    If IS_GAS:   Print: "  ✅ gas-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    If IS_NODE:  Print: "  ✅ node-evaluator    NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    If HAS_UI:   Print: "  ✅ ui-evaluator      NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"      (if incomplete)
+      Print: "  ⏭️ <cluster_name>  skipped"
+    If IS_GAS:
+      If gas responded:   Print: "  ✅ gas   ✗[n] ✓[m] —[k]"
+      If gas incomplete:  Print: "  ⚠️ gas   timeout"
+    If IS_NODE:
+      If node responded:  Print: "  ✅ node  ✗[n] ✓[m] —[k]"
+      If node incomplete: Print: "  ⚠️ node  timeout"
+    If HAS_UI:
+      If ui responded:    Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
+      If ui incomplete:   Print: "  ⚠️ ui    timeout"
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
+  l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A" line
   IF IS_GAS:
     Remove true duplicates (same concern raised by both cluster evaluator and gas-evaluator —
     keep gas-evaluator's more specific GAS framing)
@@ -433,6 +444,7 @@ DO:
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
+  cluster_changes = {cluster_name: count of edits applied for each active cluster}
   cluster_changes_total = sum of all cluster evaluator NEEDS_UPDATE edits applied
   IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
@@ -455,6 +467,7 @@ DO:
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
   # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
+  # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
   # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
 
@@ -472,13 +485,21 @@ DO:
     total_changes_all_passes
   }
 
-  # Build breakdown suffix — only include ecosystem counts when that evaluator ran
-  breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
-  if IS_GAS:   breakdown += f", gas-plan: {gas_plan_changes}"
-  if IS_NODE:  breakdown += f", node-plan: {node_plan_changes}"
-  if HAS_UI:   breakdown += f", ui-evaluator: {ui_plan_changes}"
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([breakdown])"
+  # Build breakdown suffix — only non-zero counts
+  breakdown_parts = []
+  if l1_changes > 0:        breakdown_parts.append(f"l1:{l1_changes}")
+  for c in active_clusters:
+    if cluster_changes.get(c, 0) > 0: breakdown_parts.append(f"{c}:{cluster_changes[c]}")
+  if IS_GAS and gas_plan_changes > 0:   breakdown_parts.append(f"gas:{gas_plan_changes}")
+  if IS_NODE and node_plan_changes > 0: breakdown_parts.append(f"node:{node_plan_changes}")
+  if HAS_UI and ui_plan_changes > 0:    breakdown_parts.append(f"ui:{ui_plan_changes}")
+  if not breakdown_parts:
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — 0 changes"
+  else:
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])"
 
+  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
+  prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11,
@@ -489,7 +510,6 @@ DO:
                        N1
   ELSE:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11, Q-C1, Q-C2, Q-C3
-  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
@@ -520,8 +540,6 @@ DO:
         Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
       Print: "Gate 1: ✅ Clean | Gate 2: ✅ [count of Gate2 PASS] PASS | Advisory: [count of Gate3 noted] noted"
     BREAK → proceed to "After Review Completes"
-
-  prev_needs_update_set = current_needs_update_set
   -- END CHECK --
 
 WHILE TRUE
@@ -538,7 +556,7 @@ If shared file is not found, use inline policy: mark all `<!-- skill-name -->` c
 
 ## Layer 1: General Quality
 
-*11 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11). Applies to every plan, every domain.*
+*12 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -563,6 +581,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
+| Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -617,7 +636,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 11 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11). Q-G9 is not included in*
+*L1 per-pass count stays at 12 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, spawn:
@@ -887,6 +906,17 @@ individually with IDs. The collapsing happens only in this final user-facing sco
 ```
 ## review-plan Scorecard — Pass [N]
 
+### Rating
+[🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK]  — [criterion phrase]
+
+| Gate | Status | Open |
+|------|--------|------|
+| 🔴 Gate 1 — Blocking  | ✅ PASS / ❌ n open | [n] |
+| 🟡 Gate 2 — Important | ✅ PASS / ⚠️ n open | [n] |
+| 💡 Gate 3 — Advisory  | [n] noted           | —  |
+
+---
+
 ### 🔴 Gate 1 — Blocking
 [✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
 [list only PASS and NEEDS_UPDATE questions — omit N/A items]
@@ -905,9 +935,9 @@ Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
 
 ### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
-[PASS — converged after N passes (43 questions, K triaged N/A)]
+[PASS — converged after N passes (45 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (43 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (45 questions, K triaged N/A)]
 
 ### Node Specialization (node-plan)  ← render only when IS_NODE=true
 [PASS — converged after N passes (36 questions, K triaged N/A)]
@@ -934,12 +964,6 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 [list all N/A questions across Gate 1, Gate 2, Gate 3; omit section when K == 0]
 [Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
 
-### Rating
-🟢 READY   — Gate 1 + Gate 2 all PASS
-🟡 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
-🟠 GAPS    — Gate 1 PASS, > 2 Gate 2 NEEDS_UPDATE
-🔴 REWORK  — any Gate 1 NEEDS_UPDATE
-
 ```
 
 ---
@@ -956,8 +980,8 @@ After the convergence loop exits (scorecard not yet printed):
 2. **Q-G9 organization pass** (post-convergence structural check):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
-   subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
-   Q-G9 results will be included in the scorecard output in step 3.
+   subsection in Layer 1. Append `q-g9-evaluator` to spawned_evaluators. Wait for response.
+   Apply any NEEDS_UPDATE instructions. Q-G9 results will be included in the scorecard output in step 3.
 
 3. **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
    Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
@@ -980,16 +1004,14 @@ After the convergence loop exits (scorecard not yet printed):
    First command writes the gate marker so ExitPlanMode will pass.
    Second command removes the convergence checkpoint (no longer needed after loop exits).
 
-6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
-   - Always: `l1-evaluator`
-   - Each active cluster: `<cluster_name>-evaluator-p<pass_count>` for each cluster in active_clusters
-     (use the final pass_count value; memoized clusters were not spawned last pass — skip them)
-   - If IS_GAS: `gas-evaluator`
-   - If IS_NODE: `node-evaluator`
-   - If HAS_UI: `ui-evaluator`
-   - If Q-G9 ran (plan had >= 3 implementation steps): `q-g9-evaluator`
-   Then call TeamDelete. (Teardown must complete before ExitPlanMode —
+6. **Team teardown (always):** Send shutdown_request to all agents in `spawned_evaluators`
+   (only agents that were actually launched — memoized clusters were not spawned and will not
+   be in spawned_evaluators). Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
+   Reference: spawned_evaluators will contain entries like `l1-evaluator-p<N>`,
+   `<cluster_name>-evaluator-p<N>`, `gas-evaluator-p<N>`, `node-evaluator-p<N>`,
+   `ui-evaluator-p<N>`, `q-g9-evaluator` (q-g9-evaluator is appended in step 2 above when it runs).
+   All per-pass evaluators use `-p<pass_count>` suffix to prevent name collisions on re-spawn.
 
 7. **Remaining issues summary (non-READY ratings):**
    ```
