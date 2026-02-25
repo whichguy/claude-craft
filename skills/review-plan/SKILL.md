@@ -216,12 +216,14 @@ DO:
     pass_count += 1
   changes_this_pass = 0
   l1_changes = 0
+  cluster_changes = {}            # maps cluster_name → change count this pass
   cluster_changes_total = 0
   gas_plan_changes = 0
   node_plan_changes = 0
   ui_plan_changes = 0
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
+  Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas") + (IS_NODE: " · node") + (HAS_UI: " · ui")
 
   [In a SINGLE message, spawn all evaluators in parallel:
    L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
@@ -382,18 +384,17 @@ DO:
   as their previous pass (other cluster evaluators' findings are unaffected).
 
   Print receipt for each evaluator:
-    Print: "  ✅ l1-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+    # Symbol key: ✗ = NEEDS_UPDATE, ✓ = PASS, — = N/A
+    Print: "  ✅ l1      ✗[n] ✓[m] —[k]"
     For each cluster_name in active_clusters:
-      If memoized:    Print: "  ⏭️ <cluster_name>-evaluator  MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
-      If responded:   Print: "  ✅ <cluster_name>-evaluator-p[pass_count]  NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator-p[pass_count]  INCOMPLETE (timeout)"
+      If responded:   Print: "  ✅ <cluster_name>  ✗[n] ✓[m] —[k]"
+      If memoized:    Print: "  ⏭️ <cluster_name>  ⏭️ p[memoized_since[cluster_name]]"
+      If incomplete:  Print: "  ⚠️ <cluster_name>  timeout"
     For each skipped cluster (not in active_clusters):
-      Print: "  ⏭️ <cluster_name>-evaluator  SKIPPED (<reason>)"
-      Reasons: HAS_STATE=false | HAS_DEPLOYMENT=false | HAS_UI=false | IS_GAS superseded
-    If IS_GAS:   Print: "  ✅ gas-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    If IS_NODE:  Print: "  ✅ node-evaluator    NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    If HAS_UI:   Print: "  ✅ ui-evaluator      NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-    Print: "  ⚠️ [name] — INCOMPLETE (timeout)"      (if incomplete)
+      Print: "  ⏭️ <cluster_name>  skipped"
+    If IS_GAS:  Print: "  ✅ gas   ✗[n] ✓[m] —[k]"
+    If IS_NODE: Print: "  ✅ node  ✗[n] ✓[m] —[k]"
+    If HAS_UI:  Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
@@ -433,6 +434,7 @@ DO:
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
+  cluster_changes = {cluster_name: count of edits applied for each active cluster}
   cluster_changes_total = sum of all cluster evaluator NEEDS_UPDATE edits applied
   IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
@@ -472,12 +474,18 @@ DO:
     total_changes_all_passes
   }
 
-  # Build breakdown suffix — only include ecosystem counts when that evaluator ran
-  breakdown = f"L1: {l1_changes}, clusters: {cluster_changes_total}"
-  if IS_GAS:   breakdown += f", gas-plan: {gas_plan_changes}"
-  if IS_NODE:  breakdown += f", node-plan: {node_plan_changes}"
-  if HAS_UI:   breakdown += f", ui-evaluator: {ui_plan_changes}"
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([breakdown])"
+  # Build breakdown suffix — only non-zero counts
+  breakdown_parts = []
+  if l1_changes > 0:        breakdown_parts.append(f"l1:{l1_changes}")
+  for c in active_clusters:
+    if cluster_changes.get(c, 0) > 0: breakdown_parts.append(f"{c}:{cluster_changes[c]}")
+  if IS_GAS and gas_plan_changes > 0:   breakdown_parts.append(f"gas:{gas_plan_changes}")
+  if IS_NODE and node_plan_changes > 0: breakdown_parts.append(f"node:{node_plan_changes}")
+  if HAS_UI and ui_plan_changes > 0:    breakdown_parts.append(f"ui:{ui_plan_changes}")
+  if not breakdown_parts:
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — 0 changes"
+  else:
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])"
 
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
@@ -887,6 +895,17 @@ individually with IDs. The collapsing happens only in this final user-facing sco
 ```
 ## review-plan Scorecard — Pass [N]
 
+### Rating
+[🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK]  — [criterion phrase]
+
+| Gate | Status | Open |
+|------|--------|------|
+| 🔴 Gate 1 — Blocking  | ✅ PASS / ❌ n open | [n] |
+| 🟡 Gate 2 — Important | ✅ PASS / ⚠️ n open | [n] |
+| 💡 Gate 3 — Advisory  | [n] noted           | —  |
+
+---
+
 ### 🔴 Gate 1 — Blocking
 [✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
 [list only PASS and NEEDS_UPDATE questions — omit N/A items]
@@ -933,12 +952,6 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 - [Question name] ([Q-ID]): [one-phrase reason, e.g. "fully isolated change", "HAS_STATE=false"]
 [list all N/A questions across Gate 1, Gate 2, Gate 3; omit section when K == 0]
 [Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
-
-### Rating
-🟢 READY   — Gate 1 + Gate 2 all PASS
-🟡 SOLID   — Gate 1 PASS, ≤ 2 Gate 2 NEEDS_UPDATE
-🟠 GAPS    — Gate 1 PASS, > 2 Gate 2 NEEDS_UPDATE
-🔴 REWORK  — any Gate 1 NEEDS_UPDATE
 
 ```
 
