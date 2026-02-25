@@ -50,10 +50,12 @@ team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_resolved = []     # { file, line, q_number, description }
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
-advisory_stuck = []        # Advisory unresolved (no Fix block)
-advisory_yagni = []        # Advisory/YAGNI findings: never auto-applied, surfaced only
-introduced_by_fix = []     # New Criticals not in prior round
+advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
+advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
+introduced_by_fix = []     # { file, line, q_number, description } — new Criticals not in prior round
 files_changed = []
+files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or fixable APPROVED_WITH_NOTES
+current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
 final_status = 'pending'
@@ -63,7 +65,7 @@ final_status = 'pending'
 
 *These rules apply to all phases.*
 
-**The review loop (Phases 2–5) proceeds without user input.** Teardown is automatic. Phase 6
+**The review loop (Phases 2–4) proceeds without user input.** Teardown is automatic. Phase 5
 outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
 `AskUserQuestion`. The calling agent acts on the marker.
 
@@ -108,7 +110,7 @@ Build a per-file reviewer mapping. This enables GAS-aware reviewers for `.gs` an
 // For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
 // gas-code-review coverage for those files requires a separate manual pass (see note below).
 reviewer_map = {}
-cardservice_files = []  // tracked for Phase 5 warning
+cardservice_files = []  // tracked for Phase 4 summary warning
 
 // Pass 1: Route .gs and non-html files synchronously
 for (const file of file_list) {
@@ -207,12 +209,13 @@ review_mode="${review_mode}"`
 ```
 
 Collect full output. Parse for Critical findings, Advisory findings, Advisory/YAGNI findings, Status, and LOOP_DIRECTIVE.
+Store output: `current_findings[file_list[0]] = <full review output>`
 
-- `APPROVED` → Phase 5
-- `NEEDS_REVISION` → Phase 3
-- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
-- Advisory/YAGNI-only (no Critical, no non-YAGNI Advisory) → Phase 5 (APPROVED)
+- `APPROVED` → Phase 4
+- `NEEDS_REVISION` → add file to `files_needing_fixes`; Phase 3
+- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add file to `files_needing_fixes`; Phase 3
+- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Parallel-Task Mode (2–4 files)
 
@@ -240,13 +243,14 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 ```
 
 Collect outputs. Parse each file's result for Critical findings, Advisory findings, Advisory/YAGNI findings, Status, and LOOP_DIRECTIVE.
+For each file: `current_findings[file] = <full review output for that file>`
 Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All Modes)" section below.
 
-- All files `APPROVED` → Phase 5
-- Any `NEEDS_REVISION` → Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
-- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 5 (APPROVED)
+- All files `APPROVED` → Phase 4
+- Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Team Mode (5+ files)
 
@@ -288,20 +292,22 @@ review_mode="${review_mode}"`
 
 Wait for SendMessage deliveries from all reviewers. For each incoming message:
 - Parse for Critical findings (lines matching `Finding: Critical`)
-- Parse for Advisory findings (lines matching `Finding: Advisory`)
+- Parse for Advisory findings (lines matching `Finding: Advisory` but NOT `Finding: Advisory/YAGNI`)
+- Parse for Advisory/YAGNI findings (lines matching `Finding: Advisory/YAGNI`)
 - Note per-file approval status
 
 Track: which files are APPROVED vs NEEDS_REVISION.
+For each file with a review result: `current_findings[file] = <full review output>`
 
 **Timeout**: If a reviewer doesn't respond within ~90 seconds, send a reminder. After 30 more
 seconds with no response, mark the file `[Review Incomplete]`, add the reviewer name to
 `timed_out_reviewers`, and continue.
 
-- All files `APPROVED` → Phase 5 (keep team for teardown)
-- Any `NEEDS_REVISION` → Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 5
-- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 5 (APPROVED)
+- All files `APPROVED` → Phase 4 (keep team for teardown)
+- Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
+- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
+- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
 
@@ -333,7 +339,7 @@ For each file in `files_needing_fixes` (sequential):
 
 ```javascript
 per_file_rounds[file] = 0
-// current_findings[file] = findings from Phase 2 for this file
+// current_findings[file] already set in Phase 2 — contains the initial review output
 ```
 
 **Inner loop for current file:**
@@ -377,11 +383,9 @@ If the Fix block is absent, mark stuck — do not invent a fix.
 
 ```
 IF fixes_applied_this_round == 0:
-  → exit inner loop (nothing changed — done with this file)
+  → exit inner loop (nothing changed — done with this file; also covers LOOP_DIRECTIVE: COMPLETE, which always co-occurs with 0 fixes)
   → print: "  → Nothing changed — moving on."
-IF LOOP_DIRECTIVE == COMPLETE:
-  → exit inner loop
-IF per_file_rounds[file] >= max_rounds:
+ELSE IF per_file_rounds[file] >= max_rounds:
   → exit inner loop (stuck, surface findings)
   → print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
 ELSE:
@@ -525,7 +529,7 @@ Example:
 
 ---
 
-## Phase 5: Summary + Teardown
+## Phase 4: Summary + Teardown
 
 ```javascript
 // Deduplicate advisory_stuck and advisory_yagni before summary
@@ -573,8 +577,10 @@ advisory_yagni = advisory_yagni.filter(entry => {
 - `file:line` — [Q-number or finding title]: [description]
   > **Action required**: [paste the Fix block from the last review output]
 
-[For each introduced-by-fix finding:]
-- `file:line` — [Q-number]: [description] *(introduced by fix in round N)*
+[For each introduced_by_fix finding that is still unresolved (also in stuck_findings):]
+- `file:line` — [Q-number]: [description] *(introduced by fix in round N, unresolved)*
+
+Note: `introduced_by_fix` findings that were subsequently resolved appear in "Critical Findings — Resolved" above, not here.
 
 ### Advisory Findings — Resolved ([count])
 
@@ -645,7 +651,7 @@ TeamDelete();
 
 ---
 
-## Phase 6: Git Commit Suggestion
+## Phase 5: Git Commit Suggestion
 
 After teardown, output a commit suggestion when the review succeeded and files were changed.
 
@@ -654,7 +660,7 @@ After teardown, output a commit suggestion when the review succeeded and files w
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
-**Output after the Phase 5 summary block. Do not call `AskUserQuestion` — output the block
+**Output after the Phase 4 summary block. Do not call `AskUserQuestion` — output the block
 below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks the user.**
 
 **Output template:**

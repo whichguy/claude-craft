@@ -32,7 +32,7 @@ the team-lead cannot collect.
 
 - `target_files="$1"` — required; comma-separated content identifiers
 - `task_name="$2"` — required; review context identifier
-- `<worktree>="$3"` — required for filesystem mode; absolute path
+- `worktree="$3"` — required for filesystem mode; absolute path
 - `dryrun="${4:-false}"` — review plan vs implementation
 - `related_files="${5:-auto}"` — optional; additional content to consider
 - `review_mode="${6:-full}"` — `quick` | `security` | `architectural` | `full`
@@ -149,7 +149,7 @@ Apply to every selected question:
 Evidence: [file:line — or "None found — [reasoning]"]
 Counter: [One reason this finding could be wrong — or "None identified"]
 Nuance: [Context affecting severity — mitigating factors, conditions]
-Fix: [Required for Critical; before/after code block; omit for None]
+Fix: [Required for Critical; recommended for Advisory (before/after code block); omit for None or Advisory/YAGNI]
 ```
 
 **Rules:**
