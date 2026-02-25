@@ -935,9 +935,9 @@ Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
 
 ### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
-[PASS — converged after N passes (45 questions, K triaged N/A)]
+[PASS — converged after N passes (46 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (45 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (46 questions, K triaged N/A)]
 
 ### Node Specialization (node-plan)  ← render only when IS_NODE=true
 [PASS — converged after N passes (36 questions, K triaged N/A)]
