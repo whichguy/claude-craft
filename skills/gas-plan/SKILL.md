@@ -65,7 +65,7 @@ Two operating modes:
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
      (Q43 is a post-loop question — not evaluated in this mode)
-   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40; Gmail Qs Q44-Q48 follow the Gmail rule below)
+   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q49, Q50; Gmail Qs Q44-Q48 follow the Gmail rule below)
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
@@ -131,7 +131,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 (card navigation) is a Gmail-domain GAS-primary question — not in the shared list above. GAS evaluator covers it when active (bulk N/A when no Gmail add-on); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
@@ -266,8 +266,31 @@ DO:
       - Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
+      ### GAS Plan Gotchas (reference for Q49, Q50, Q26)
+
+      **V8 File Parsing Order:**
+      - `loadNow: true` modules execute eagerly at parse time — they MUST be positioned LAST in
+        file order, after all their dependencies. If a dependency file is at a higher position
+        (lower number), `require()` will throw "Module not found" at startup.
+      - Rule: whenever a plan adds files or changes positions, check if any loadNow module now
+        has deps at higher positions.
+
+      **GAS Global Namespace Collisions:**
+      - GAS built-in globals: Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp,
+        UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService,
+        MailApp, GmailApp, CalendarApp, ContactsApp, DocumentApp, SlidesApp, FormApp, Maps,
+        Session, Browser, console, Xml, XmlService, Jdbc, ScriptProperties, UserProperties.
+      - A module-level `var Logger = ...` or `const Utilities = ...` in any file visible to GAS
+        top-level scope will shadow the built-in. loadNow modules are especially vulnerable
+        since they execute at parse time.
+
+      **Properties/Cache Actual Limits (for Q26):**
+      - PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max
+      - CacheService: 102,400 bytes/value, 250-char key max, eviction is FIFO (not LRU)
+      - Exceeding these silently fails or throws — validate before storing.
+
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
         Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
@@ -505,7 +528,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-evaluator, not gas-plan.)*
 
 **Gate 2 -- Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop]
@@ -548,6 +571,10 @@ CLAUDE.md: `COMMON-JS_SYNC`. Changes to shared modules must include dual updates
 **Q8: Does the plan account for GAS isolated execution state?** (1, GAS)
 Each `exec()` has isolated global state -- no persistence between calls. Data must go through Properties/Cache. N/A: no cross-exec state needed.
 
+**Q49: Does the plan respect V8 file parsing order?** (2, GAS)
+If any new file is added, or any file's position changes, verify that no loadNow module ends up with dependencies at higher file positions. loadNow modules must be positioned LAST, after all their transitive dependencies. Symptom of failure: "Module not found" at startup even though ls() shows the file exists.
+N/A: plan adds no new files AND changes no file positions AND no loadNow modules exist in the project.
+
 ---
 
 ### Deployment & Rollback
@@ -567,6 +594,7 @@ Interface changes need test updates. Bug fixes need regression tests. New functi
 
 **Q12: Is there incremental verification at each step?** (2, GAS)
 Each step must have a checkpoint (exec, test, manual check). Flag all-testing-at-end. N/A: single atomic change.
+For plans that modify sidebar/HTML files (sheets-sidebar/, common-js/html/): verification steps should reference the gas-sidebar skill procedures (launch sidebar → send prompt → wait for response → read response). A plan that says "open the sidebar and check it works" without citing the concrete gas-sidebar workflow is insufficient — the sidebar runs in a cross-origin iframe and requires specific DevTools automation patterns.
 
 ---
 
@@ -609,6 +637,10 @@ Flag stubs, TODOs, "implement later" without full spec. Allow explicitly phased 
 **Q20: Is there dead code that should be removed?** (2, GAS)
 Old implementation marked for removal when replaced? Flag orphaned exports, unused handlers in changed modules. N/A: nothing replaced.
 
+**Q50: Does the plan introduce any GAS global namespace collision?** (2, GAS)
+Check: do any new or modified modules declare top-level vars/consts whose names match GAS built-in globals (Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp, UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService, MailApp, GmailApp, etc.)? loadNow modules are highest risk since they run at parse time. Also check require() aliases — `const Logger = require(...)` at module top level is safe; `var Logger = ...` outside a function is not.
+N/A: plan adds no new modules AND no existing module is modified at its top-level scope.
+
 **Q38: Are there unintended consequences from this plan that need to be addressed?** (2, Shared)
 Side effects beyond the stated goal: breaking existing workflows, changing user-facing behavior unintentionally, introducing performance regressions, altering data formats consumed by other systems, or shifting security boundaries. Flag anything the plan doesn't explicitly acknowledge. N/A: trivial isolated change with no external touchpoints.
 
@@ -637,8 +669,8 @@ Triggers/web apps can fire twice. Data mutations need dedup or check-before-writ
 **Q25: Are quota and rate limits accounted for?** (1, GAS)
 UrlFetch 20K/day, Properties 50 reads/min, runtime 6min, triggers 90min. N/A: no API/batch/trigger additions.
 
-**Q26: Are Properties/Cache payloads within size limits?** (1, GAS)
-Properties: 9KB/key, 500KB total. Cache: 100KB/key. N/A: no new stored data.
+**Q26: Are Properties/Cache payloads within actual limits?** (1, GAS)
+PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max. CacheService: 102,400 bytes/value, 250-char key max, FIFO eviction (not LRU — hot keys can still be evicted). Exceeding these silently fails or throws with no clear error. N/A: plan does not read/write PropertiesService or CacheService.
 
 ---
 
