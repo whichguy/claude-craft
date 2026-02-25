@@ -274,7 +274,7 @@ DO:
     subagent_type = "general-purpose",
     model = "sonnet",
     team_name = <team_name>,
-    name = "<cluster_name>-evaluator",
+    name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
 
@@ -363,6 +363,9 @@ DO:
         You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
         UI specialization (Q-U1 through Q-U6). Return findings via SendMessage to team-lead.
 
+        Question definitions: Read ~/.claude/skills/review-plan/SKILL.md under
+        "## Layer 3: UI Specialization" (Q-U1 through Q-U6).
+
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
       """
     )
@@ -380,8 +383,8 @@ DO:
     Print: "  ✅ l1-evaluator     NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
     For each cluster_name in active_clusters:
       If memoized:    Print: "  ⏭️ <cluster_name>-evaluator  MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
-      If responded:   Print: "  ✅ <cluster_name>-evaluator  NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
-      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator  INCOMPLETE (timeout)"
+      If responded:   Print: "  ✅ <cluster_name>-evaluator-p[pass_count]  NEEDS_UPDATE: [n]  PASS: [m]  N/A: [k]"
+      If incomplete:  Print: "  ⚠️ <cluster_name>-evaluator-p[pass_count]  INCOMPLETE (timeout)"
     For each skipped cluster (not in active_clusters):
       Print: "  ⏭️ <cluster_name>-evaluator  SKIPPED (<reason>)"
       Reasons: HAS_STATE=false | HAS_DEPLOYMENT=false | HAS_UI=false | IS_GAS superseded
@@ -611,7 +614,7 @@ multi-file features where cross-file consistency needs a coordinator.
 *L1 per-pass count stays at 10 (Q-G1 through Q-G8 + Q-NEW + Q-G10). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
-After convergence exits (and after step 1 REWORK gate if applicable), spawn:
+After convergence exits, spawn:
 Task(
   subagent_type = "general-purpose",
   model = "sonnet",
@@ -762,6 +765,25 @@ IS_GAS: **fully superseded when HAS_UI=true** (gas-evaluator Q32, Q33).
 IS_NODE: not superseded — evaluate normally.
 
 Count cluster edits → `cluster_changes_total += count` (combined into `changes_this_pass` in Convergence Loop)
+
+---
+
+## Layer 3: UI Specialization
+
+*6 questions (Q-U1 through Q-U6). Active when HAS_UI=true. Evaluated by ui-evaluator each pass.*
+
+*For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A***
+
+| Q | Question | Criteria | N/A |
+|---|----------|----------|-----|
+| Q-U1 | Component structure | Is the UI decomposed into logical, reusable components? Flag: monolithic HTML blobs, duplicated UI patterns, no separation between layout, state, and interaction. | no new UI components |
+| Q-U2 | State management | Is UI state (loading, error, empty, data) handled explicitly? Loading spinner/skeleton, error display, empty-state copy all accounted for? | purely presentational changes with no dynamic state |
+| Q-U3 | Interaction feedback | Do user actions (form submission, button click, async calls) provide immediate feedback? Disable-during-submission, progress indicator, success/error toast. | no interactive elements |
+| Q-U4 | Responsive & layout constraints | Does the UI respect container constraints? GAS sidebars are 300px fixed; dialogs are 600px max. No overflow assumptions, no fixed pixel widths that break at sidebar dimensions. | no layout/sizing changes |
+| Q-U5 | Accessibility basics | Interactive elements have accessible labels (`aria-label`, `for`/`id` pairs on form inputs). Tab order is logical. Keyboard navigation not broken. | no new interactive elements |
+| Q-U6 | Visual consistency | New UI matches the existing design language (fonts, colors, spacing, button styles from the project's CSS baseline). No one-off inline styles that diverge from established patterns. | no visual changes or the project has no existing baseline |
+
+Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ---
 
@@ -920,19 +942,10 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 
 After the convergence loop exits (scorecard not yet printed):
 
-1. **REWORK gate:** If Rating is REWORK (any Gate 1 NEEDS_UPDATE remaining after convergence):
-   AskUserQuestion with the Gate 1 issues listed. User must explicitly resolve each issue or
-   override before proceeding. Do NOT call ExitPlanMode or write the marker until the user
-   responds.
-   If user resolves: apply edits and re-evaluate Gate 1 questions only. Spawn only the
-     evaluators that own Gate 1 questions: l1-evaluator (Q-G1, Q-G2, Q-G3) and, for non-GAS
-     plans, the git-evaluator (Q-C1, Q-C2) and impact-evaluator (Q-C3); for IS_GAS plans,
-     gas-evaluator (Q1, Q2, Q13, Q15, Q18, Q42); for IS_NODE plans, also node-evaluator (N1).
-     Non-Gate-1 cluster and ecosystem evaluators do not re-run. Recompute Rating using the
-     standard thresholds.
-     If new Rating is READY, SOLID, or GAPS: proceed to step 2 (step 7 will apply for SOLID/GAPS).
-     If Gate 1 is still not resolved: return to AskUserQuestion.
-   If user overrides: note override in scorecard and proceed.
+1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): Gate 1 is
+   resolved by the `pass_count >= 5` branch inside the loop. By the time the loop exits, Gate 1
+   is either clean or the user has been asked and responded (with edits applied or override noted).
+   Do NOT re-run the REWORK check here — it was already handled inside the loop.
 
 2. **Q-G9 organization pass** (post-convergence structural check):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
@@ -963,7 +976,8 @@ After the convergence loop exits (scorecard not yet printed):
 
 6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
    - Always: `l1-evaluator`
-   - Each active cluster: `<cluster_name>-evaluator` for each cluster in active_clusters
+   - Each active cluster: `<cluster_name>-evaluator-p<pass_count>` for each cluster in active_clusters
+     (use the final pass_count value; memoized clusters were not spawned last pass — skip them)
    - If IS_GAS: `gas-evaluator`
    - If IS_NODE: `node-evaluator`
    - If HAS_UI: `ui-evaluator`
