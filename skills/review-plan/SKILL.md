@@ -11,7 +11,7 @@ description: |
   - Any plan file needs review (GAS or non-GAS)
 
   NOT for: Code review of existing files (use /gas-review or /review-fix)
-model: opus
+model: sonnet
 allowed-tools: all
 ---
 
