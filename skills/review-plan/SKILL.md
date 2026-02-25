@@ -176,7 +176,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G3, Q-NEW, and/or Q-G11 once confirmed stable PASS or N/A
+   memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12 are not memoizable)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -240,13 +240,13 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 11 questions).
+      You are evaluating a plan for general quality (Layer 1: 12 questions).
 
       Plan file: <plan_path> — read it with the Read tool
       Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -260,7 +260,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 11 questions including Q-NEW, Q-G10, Q-G11)
+        ... (all 12 questions including Q-NEW, Q-G10, Q-G11, Q-G12)
 
       Constraints:
       - Do NOT use Edit, Write, or Bash tools — read-only
@@ -467,6 +467,7 @@ DO:
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
   # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
+  # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
   # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
 
@@ -555,7 +556,7 @@ If shared file is not found, use inline policy: mark all `<!-- skill-name -->` c
 
 ## Layer 1: General Quality
 
-*11 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11). Applies to every plan, every domain.*
+*12 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -580,6 +581,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
+| Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -634,7 +636,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 11 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11). Q-G9 is not included in*
+*L1 per-pass count stays at 12 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, spawn:
