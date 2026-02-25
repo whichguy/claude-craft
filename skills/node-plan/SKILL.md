@@ -432,12 +432,9 @@ OUTPUT final scorecard
 # pass_count >= 5 branch. No post-loop REWORK gate check is needed — by the time
 # the loop exits, Gate 1 is either clean or the user has been asked and responded.
 
-TEARDOWN:
-  Bash: touch ~/.claude/.plan-reviewed && rm -f <memo_file>
-  For each name in spawned_evaluators: Send shutdown_request to that agent
-    (Only agents in spawned_evaluators are shut down — triage-skipped evaluators are never targeted)
-  TeamDelete
-  Call ExitPlanMode
+TEARDOWN: (see "After Review Completes" steps 3–5 for the actual sequence)
+# ⚠️ Do NOT execute teardown from here. The "After Review Completes" section handles:
+#    org-evaluator (step 2) → gate marker + memo_file cleanup (step 3) → TeamDelete (step 4) → ExitPlanMode (step 5).
 ```
 
 ### Worked Example
@@ -800,8 +797,8 @@ Score: [N]% (weighted percentage)
 
 ## After Review Completes (standalone mode only)
 
-The canonical post-scorecard sequence is encoded in the execution flow pseudo-code above
-(convergence loop BREAK → TEARDOWN block). Summary for reference:
+The post-scorecard sequence below is the canonical reference. The TEARDOWN block in the
+execution flow pseudo-code is a placeholder only — it defers here. Summary:
 
 1. **REWORK gate** (inside convergence loop): If `pass_count >= 5` with Gate 1 still open,
    AskUserQuestion listing unresolved Gate 1 questions. If user resolves: apply edits,
@@ -826,7 +823,8 @@ The canonical post-scorecard sequence is encoded in the execution flow pseudo-co
    Wait (90s max; timeout → ⚠️ skipped, note in scorecard).
    Apply any NEEDS_UPDATE edits. Add result to Final Scorecard as:
    `Organization Quality: [PASS | NEEDS_UPDATE — reason]`
-3. **Write gate marker**: `touch ~/.claude/.plan-reviewed` — allows ExitPlanMode to pass.
+3. **Write gate marker and clean up**: Use the Bash tool to run:
+   `touch ~/.claude/.plan-reviewed && rm -f <memo_file>` — writes the gate marker so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits).
 4. **Team teardown**: Send shutdown_request to all agents in `spawned_evaluators` (only
    agents that were actually launched — triage-skipped evaluators are not in this list),
    then TeamDelete. Teardown must complete before ExitPlanMode — the session context needed
