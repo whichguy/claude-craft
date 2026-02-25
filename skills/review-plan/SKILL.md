@@ -238,7 +238,7 @@ DO:
     subagent_type = "general-purpose",
     model = "sonnet",
     team_name = <team_name>,
-    name = "l1-evaluator",
+    name = "l1-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for general quality (Layer 1: 11 questions).
 
@@ -317,7 +317,7 @@ DO:
     Task(
       subagent_type = "gas-plan",
       team_name = <team_name>,
-      name = "gas-evaluator",
+      name = "gas-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -338,7 +338,7 @@ DO:
     Task(
       subagent_type = "node-plan",
       team_name = <team_name>,
-      name = "node-evaluator",
+      name = "node-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -361,7 +361,7 @@ DO:
       subagent_type = "ui-designer",
       model = "sonnet",
       team_name = <team_name>,
-      name = "ui-evaluator",
+      name = "ui-evaluator-p" + pass_count,
       prompt = """
         Review plan at <plan_path>. mode=evaluate.
 
@@ -1006,9 +1006,10 @@ After the convergence loop exits (scorecard not yet printed):
    (only agents that were actually launched — memoized clusters were not spawned and will not
    be in spawned_evaluators). Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
-   Reference: spawned_evaluators will contain entries like `l1-evaluator`,
-   `<cluster_name>-evaluator-p<N>`, `gas-evaluator`, `node-evaluator`, `ui-evaluator`,
-   `q-g9-evaluator` (q-g9-evaluator is appended in step 2 above when it runs).
+   Reference: spawned_evaluators will contain entries like `l1-evaluator-p<N>`,
+   `<cluster_name>-evaluator-p<N>`, `gas-evaluator-p<N>`, `node-evaluator-p<N>`,
+   `ui-evaluator-p<N>`, `q-g9-evaluator` (q-g9-evaluator is appended in step 2 above when it runs).
+   All per-pass evaluators use `-p<pass_count>` suffix to prevent name collisions on re-spawn.
 
 7. **Remaining issues summary (non-READY ratings):**
    ```
