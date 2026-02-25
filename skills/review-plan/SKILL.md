@@ -398,6 +398,7 @@ DO:
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
+  l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A" line
   IF IS_GAS:
     Remove true duplicates (same concern raised by both cluster evaluator and gas-evaluator —
     keep gas-evaluator's more specific GAS framing)
