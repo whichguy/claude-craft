@@ -158,10 +158,22 @@ STEP 0: (done — plan loaded, team created)
   results = {}                     # maps Q-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   user_already_asked_gate1 = false # prevents asking user twice at pass_count >= 5
   incomplete_had_needs_update_last_pass = false # set per-pass; prevents false convergence when Incomplete evaluator had NEEDS_UPDATE last pass
+  memo_file = "~/.claude/.gas-plan-memo-" + timestamp + ".json"
+  # memo_file: checkpoint written after each pass for context-compression resilience.
+  # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
   Substitute plan_path and team_name into all evaluator prompts below before spawning.
 
 DO:
-  pass_count = pass_count + 1
+  -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
+  _recovered_this_pass = false
+  IF memo_file exists AND gas_memoized_questions is empty AND pass_count > 1:
+    Read memo_file → restore gas_memoized_questions, gas_memoized_since,
+                     prev_needs_update_count, prev_needs_update_set, pass_count
+    _recovered_this_pass = true
+    Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
+
+  IF NOT _recovered_this_pass:
+    pass_count = pass_count + 1
   CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
   Print: "Pass [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
@@ -355,6 +367,13 @@ DO:
   IF results["Q42"] in [PASS, N/A] AND "Q42" NOT in gas_memoized_questions:
     gas_memoized_questions.add("Q42")
     gas_memoized_since["Q42"] = pass_count
+
+  -- Checkpoint: persist memoized state for context-compression resilience --
+  Write memo_file with JSON: {
+    pass_count, gas_memoized_questions: [...gas_memoized_questions],
+    gas_memoized_since, prev_needs_update_count,
+    prev_needs_update_set: [...prev_needs_update_set]
+  }
 
   -- CONVERGENCE CHECK --
   Gate1_unresolved = count of NEEDS_UPDATE on Q1, Q2, Q13, Q15, Q18, Q42 (all weight-3 questions)
@@ -787,7 +806,7 @@ After outputting the Final Scorecard:
    Add Q43 result to the Final Scorecard output under a new line:
    `Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason]`
 
-3. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed` — writes the gate marker so ExitPlanMode will pass
+3. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed && rm -f <memo_file>` — writes the gate marker so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits)
 4. **Team teardown:** Send shutdown_request to all agents in `spawned_evaluators` (only agents that were actually launched — triage-skipped evaluators and any agents not appended to spawned_evaluators are never targeted), then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
 5. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
