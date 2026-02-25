@@ -152,6 +152,8 @@ STEP 0: (done — plan loaded, team created)
   team_name = <team_name created above>
   pass_count = 0
   prev_needs_update_count = null; prev_needs_update_set = []
+  pass1_needs_update_set = []      # snapshot after pass 1 for resolved_questions computation
+  total_changes_all_passes = 0     # running sum; increment by changes_this_pass after each pass's edits
   gas_memoized_questions = set()   # Q1, Q2, Q42 once confirmed stable PASS/N/A
   gas_memoized_since = {}          # pass_count when each was memoized
   spawned_evaluators = []          # names of agents actually launched (for precise teardown)
@@ -174,9 +176,10 @@ DO:
 
   IF NOT _recovered_this_pass:
     pass_count = pass_count + 1
-  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; incomplete_had_needs_update_last_pass = false
-  Print: "Pass [pass_count/5]: evaluating..."
+  CLEAR: current_needs_update_count = 0; current_needs_update_set = []; changes_this_pass = 0; incomplete_had_needs_update_last_pass = false
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
   TRIAGE: Determine which evaluators are active based on domain analysis.
+  Print: "  Spawning: " + (frontend active? "frontend" : "⏭️ frontend") + " · " + (gas active? "gas" : "⏭️ gas")
 
   -- Memoized directive construction --
   memoized_directive = ""
@@ -348,11 +351,13 @@ DO:
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- gas-plan -->.
-    Each Edit call = 1 change. Do NOT count findings you only described in text.
+    Each Edit call = 1 change (increment changes_this_pass). Do NOT count findings you only described in text.
+  total_changes_all_passes += changes_this_pass
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
   SET current_needs_update_set = (Q numbers flagged NEEDS_UPDATE from evaluator messages) UNION never_na_findings
   SET current_needs_update_count = len(current_needs_update_set)
+  IF pass_count == 1: pass1_needs_update_set = current_needs_update_set[:]  # snapshot for resolved_questions
   PLATEAU = (prev_needs_update_count != null) AND (current_needs_update_count == prev_needs_update_count) AND (sort(current_needs_update_set) == sort(prev_needs_update_set))  # set equality: sort both before comparing
   prev_needs_update_count = current_needs_update_count; prev_needs_update_set = current_needs_update_set
   Print pass summary using per-pass template
@@ -395,7 +400,15 @@ DO:
   IF Gate1_unresolved > 0:
     CONTINUE (never exit with Gate 1 open, even if PLATEAU)
   IF (PLATEAU OR current_needs_update_count == 0) AND NOT incomplete_had_needs_update_last_pass:
-    Print: "✅ Converged."
+    elapsed = Math.round((Date.now() - timestamp) / 1000)
+    IF pass_count == 1:
+      Print: "✅ Converged — no issues found (pass 1, [elapsed]s)"
+    ELSE:
+      resolved_questions = pass1_needs_update_set - current_needs_update_set
+      Print: "✅ Converged after [pass_count] passes ([elapsed]s | [total_changes_all_passes] total changes)"
+      IF resolved_questions is non-empty:
+        Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
+      Print: "Gate 1: ✅ Clean | Gate 2: ✅ [n Gate2 PASS] PASS | Advisory: [n noted] noted"
     BREAK
   -- END CHECK --
 
@@ -748,6 +761,9 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 
 N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (skipped in both evaluators)
 
+  ✅ frontend  ✗[fn] ✓[fm] —[fk]   (or: ⏭️ frontend  skipped)
+  ✅ gas       ✗[gn] ✓[gm] —[gk]   (or: ⏭️ gas  skipped)
+
 | Evaluator | Q# | Question | Status | Notes |
 |-----------|-----|----------|--------|-------|
 | Frontend  | Q34 | CSS conflicts | NEEDS_UPDATE | `.btn` conflicts with Google CSS |
@@ -763,12 +779,12 @@ N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "non
 ### Final Scorecard
 
 ```
+Rating: [🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK]  [N]%
 Converged: [Yes pass N / No max 5 reached]
-Gate 1 (blocking):  [PASS / n NEEDS_UPDATE remaining]
-Gate 2 (important): [PASS / n NEEDS_UPDATE remaining]
+Gate 1 (blocking):  [✅ PASS / ❌ n remaining]
+Gate 2 (important): [✅ PASS / ❌ n remaining]
 Gate 3 (advisory):  [n noted]
-Rating: [READY / SOLID / GAPS / REWORK]
-Score: [N]% (weighted percentage)
+Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason | ⚠️ timed out]  # appended by post-loop step 2; omit if N/A (< 3 steps)
 ```
 
 ---
