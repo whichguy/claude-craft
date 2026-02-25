@@ -326,7 +326,7 @@ DO:
         or alter this string.
 
         You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
-        specialization (all 43 GAS questions, both perspectives). Return findings via SendMessage
+        specialization (all 46 GAS questions, both perspectives). Return findings via SendMessage
         to team-lead.
 
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
@@ -935,9 +935,9 @@ Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
 
 ### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
-[PASS — converged after N passes (45 questions, K triaged N/A)]
+[PASS — converged after N passes (46 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (45 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (46 questions, K triaged N/A)]
 
 ### Node Specialization (node-plan)  ← render only when IS_NODE=true
 [PASS — converged after N passes (36 questions, K triaged N/A)]

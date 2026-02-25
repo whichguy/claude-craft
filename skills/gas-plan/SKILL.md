@@ -65,7 +65,7 @@ Two operating modes:
 2. Apply triage: bulk-mark N/A for irrelevant domains.
    - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
      (Q43 is a post-loop question — not evaluated in this mode)
-   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q49, Q50; Gmail Qs Q44-Q48 follow the Gmail rule below)
+   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q49, Q50, Q51; Gmail Qs Q44-Q48 follow the Gmail rule below)
      Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
    - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
      Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
@@ -131,7 +131,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 (card navigation) is a Gmail-domain GAS-primary question — not in the shared list above. GAS evaluator covers it when active (bulk N/A when no Gmail add-on); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
@@ -266,7 +266,7 @@ DO:
       - Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
 
-      ### GAS Plan Gotchas (reference for Q49, Q50, Q26)
+      ### GAS Plan Gotchas (reference for Q49, Q50, Q51, Q26)
 
       **V8 File Parsing Order:**
       - `loadNow: true` modules execute eagerly at parse time — they MUST be positioned LAST in
@@ -289,8 +289,16 @@ DO:
       - CacheService: 102,400 bytes/value, 250-char key max, eviction is FIFO (not LRU)
       - Exceeding these silently fails or throws — validate before storing.
 
+      **CommonJS Debug Logging Pattern (for Q51):**
+      - New modules should use the 3-param signature: `function _main(module, exports, log)`
+      - `log` is auto-injected by require.js — no-op by default, routes to Logger.log when enabled
+      - Enable per-module via exec(): `setModuleLogging('folder/ModuleName', true)` (script scope)
+      - Disable after debugging: `setModuleLogging('folder/ModuleName', false, 'script', true)`
+      - Pattern matching: exact name, folder wildcard (`folder/*`), global (`*`), exclusion beats inclusion
+      - Config stored in ConfigManager 'COMMONJS' namespace under '__Logging' key
+
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51
         Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.
@@ -531,7 +539,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G]
 
 **Gate 3 -- Advisory (weight 1, note only):**
-Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop]
+Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
 **Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
@@ -640,6 +648,12 @@ Old implementation marked for removal when replaced? Flag orphaned exports, unus
 **Q50: Does the plan introduce any GAS global namespace collision?** (2, GAS)
 Check: do any new or modified modules declare top-level vars/consts whose names match GAS built-in globals (Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp, UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService, MailApp, GmailApp, etc.)? loadNow modules are highest risk since they run at parse time. Also check require() aliases — `const Logger = require(...)` at module top level is safe; `var Logger = ...` outside a function is not.
 N/A: plan adds no new modules AND no existing module is modified at its top-level scope.
+
+**Q51: Do new modules use the 3-param _main signature for debug logging?** (1, GAS)
+Any new CommonJS module (_main factory) should use `function _main(module, exports, log)`. The `log` param is auto-injected by require.js and is a no-op when not enabled — zero runtime cost. Plans that include debugging/testing steps should also show how to enable it:
+  exec: setModuleLogging('folder/ModuleName', true)  // enable during test
+  exec: setModuleLogging('folder/ModuleName', false, 'script', true)  // disable after
+N/A: plan adds no new CommonJS modules (no new _main factory files).
 
 **Q38: Are there unintended consequences from this plan that need to be addressed?** (2, Shared)
 Side effects beyond the stated goal: breaking existing workflows, changing user-facing behavior unintentionally, introducing performance regressions, altering data formats consumed by other systems, or shifting security boundaries. Flag anything the plan doesn't explicitly acknowledge. N/A: trivial isolated change with no external touchpoints.
