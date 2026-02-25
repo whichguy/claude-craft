@@ -176,7 +176,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G3 and/or Q-NEW once confirmed stable PASS
+   memoized_l1_questions = set()   # Q-G3, Q-NEW, and/or Q-G11 once confirmed stable PASS or N/A
    memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
@@ -247,8 +247,8 @@ DO:
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
       [IF memoized_l1_questions is non-empty, append to prompt:]
-      Memoized questions — SKIP, already stable PASS: [comma-separated memoized_l1_questions]
-      These were confirmed PASS in a prior pass and are structurally stable.
+      Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated memoized_l1_questions]
+      These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
       Output contract — send ONE message to team-lead:
