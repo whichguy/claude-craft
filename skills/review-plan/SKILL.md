@@ -326,7 +326,7 @@ DO:
         or alter this string.
 
         You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
-        specialization (all 43 GAS questions, both perspectives). Return findings via SendMessage
+        specialization (all 46 GAS questions, both perspectives). Return findings via SendMessage
         to team-lead.
 
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
