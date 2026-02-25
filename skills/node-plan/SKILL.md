@@ -783,8 +783,8 @@ counts.
 
 N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep N-IDs, or "none"] (skipped in both evaluators)
 
-  ✅ ts    ✗[tn] ✓[tm] —[tk]   (or: ⏭️ ts  skipped)
-  ✅ node  ✗[nn] ✓[nm] —[nk]   (or: ⏭️ node  skipped)
+  ✅ ts    ✗[tn] ✓[tm] —[tk]   (or: ⏭️ ts  skipped | ⚠️ ts  timeout)
+  ✅ node  ✗[nn] ✓[nm] —[nk]   (or: ⏭️ node  skipped | ⚠️ node  timeout)
 
 | Evaluator | Q#  | Question              | Status       | Notes                      |
 |-----------|-----|-----------------------|--------------|----------------------------|

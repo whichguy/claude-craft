@@ -177,6 +177,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # Q-G3, Q-NEW, and/or Q-G11 once confirmed stable PASS or N/A
+   spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
@@ -230,6 +231,7 @@ DO:
    Practical maximums: IS_GAS mode = L1 + state cluster + gas-evaluator + UI = 4.
    Non-GAS full-stack (all 7 clusters) = L1 + 7 + UI = 9.
    If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
+  [After spawning each evaluator, append its name to spawned_evaluators]
 
   --- L1 Evaluator ---
   Task(
@@ -385,16 +387,23 @@ DO:
 
   Print receipt for each evaluator:
     # Symbol key: ✗ = NEEDS_UPDATE, ✓ = PASS, — = N/A
-    Print: "  ✅ l1      ✗[n] ✓[m] —[k]"
+    If l1 responded:   Print: "  ✅ l1      ✗[n] ✓[m] —[k]"
+    If l1 incomplete:  Print: "  ⚠️ l1      timeout"
     For each cluster_name in active_clusters:
       If responded:   Print: "  ✅ <cluster_name>  ✗[n] ✓[m] —[k]"
       If memoized:    Print: "  ⏭️ <cluster_name>  ⏭️ p[memoized_since[cluster_name]]"
       If incomplete:  Print: "  ⚠️ <cluster_name>  timeout"
     For each skipped cluster (not in active_clusters):
       Print: "  ⏭️ <cluster_name>  skipped"
-    If IS_GAS:  Print: "  ✅ gas   ✗[n] ✓[m] —[k]"
-    If IS_NODE: Print: "  ✅ node  ✗[n] ✓[m] —[k]"
-    If HAS_UI:  Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
+    If IS_GAS:
+      If gas responded:   Print: "  ✅ gas   ✗[n] ✓[m] —[k]"
+      If gas incomplete:  Print: "  ⚠️ gas   timeout"
+    If IS_NODE:
+      If node responded:  Print: "  ✅ node  ✗[n] ✓[m] —[k]"
+      If node incomplete: Print: "  ⚠️ node  timeout"
+    If HAS_UI:
+      If ui responded:    Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
+      If ui incomplete:   Print: "  ⚠️ ui    timeout"
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
@@ -488,6 +497,8 @@ DO:
   else:
     Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])"
 
+  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
+  prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11,
@@ -498,7 +509,6 @@ DO:
                        N1
   ELSE:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G3, Q-G11, Q-C1, Q-C2, Q-C3
-  Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
@@ -529,8 +539,6 @@ DO:
         Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
       Print: "Gate 1: ✅ Clean | Gate 2: ✅ [count of Gate2 PASS] PASS | Advisory: [count of Gate3 noted] noted"
     BREAK → proceed to "After Review Completes"
-
-  prev_needs_update_set = current_needs_update_set
   -- END CHECK --
 
 WHILE TRUE
@@ -970,8 +978,8 @@ After the convergence loop exits (scorecard not yet printed):
 2. **Q-G9 organization pass** (post-convergence structural check):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
-   subsection in Layer 1. Wait for response. Apply any NEEDS_UPDATE instructions.
-   Q-G9 results will be included in the scorecard output in step 3.
+   subsection in Layer 1. Append `q-g9-evaluator` to spawned_evaluators. Wait for response.
+   Apply any NEEDS_UPDATE instructions. Q-G9 results will be included in the scorecard output in step 3.
 
 3. **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
    Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
@@ -994,16 +1002,13 @@ After the convergence loop exits (scorecard not yet printed):
    First command writes the gate marker so ExitPlanMode will pass.
    Second command removes the convergence checkpoint (no longer needed after loop exits).
 
-6. **Team teardown (always):** Send shutdown_request to all evaluator agents:
-   - Always: `l1-evaluator`
-   - Each active cluster: `<cluster_name>-evaluator-p<pass_count>` for each cluster in active_clusters
-     (use the final pass_count value; memoized clusters were not spawned last pass — skip them)
-   - If IS_GAS: `gas-evaluator`
-   - If IS_NODE: `node-evaluator`
-   - If HAS_UI: `ui-evaluator`
-   - If Q-G9 ran (plan had >= 3 implementation steps): `q-g9-evaluator`
-   Then call TeamDelete. (Teardown must complete before ExitPlanMode —
+6. **Team teardown (always):** Send shutdown_request to all agents in `spawned_evaluators`
+   (only agents that were actually launched — memoized clusters were not spawned and will not
+   be in spawned_evaluators). Then call TeamDelete. (Teardown must complete before ExitPlanMode —
    the session context needed for TeamDelete is not available after exiting plan mode.)
+   Reference: spawned_evaluators will contain entries like `l1-evaluator`,
+   `<cluster_name>-evaluator-p<N>`, `gas-evaluator`, `node-evaluator`, `ui-evaluator`,
+   `q-g9-evaluator` (q-g9-evaluator is appended in step 2 above when it runs).
 
 7. **Remaining issues summary (non-READY ratings):**
    ```

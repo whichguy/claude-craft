@@ -761,8 +761,8 @@ Show only NEEDS_UPDATE items and status changes since last pass. Summarize stabl
 
 N/A: [count] | Stable PASS: [count] | ⏭️ Memoized: [comma-sep Q-IDs, or "none"] (skipped in both evaluators)
 
-  ✅ frontend  ✗[fn] ✓[fm] —[fk]   (or: ⏭️ frontend  skipped)
-  ✅ gas       ✗[gn] ✓[gm] —[gk]   (or: ⏭️ gas  skipped)
+  ✅ frontend  ✗[fn] ✓[fm] —[fk]   (or: ⏭️ frontend  skipped | ⚠️ frontend  timeout)
+  ✅ gas       ✗[gn] ✓[gm] —[gk]   (or: ⏭️ gas  skipped | ⚠️ gas  timeout)
 
 | Evaluator | Q# | Question | Status | Notes |
 |-----------|-----|----------|--------|-------|
