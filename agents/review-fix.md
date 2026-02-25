@@ -430,6 +430,8 @@ the full file — these reviewers perform whole-file phase scans with no line-sc
 
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, record them as-is and include them in your output.
+Advisory/YAGNI findings from prior rounds should still be emitted as `Finding: Advisory/YAGNI`
+with no Fix block — do not upgrade them to regular Advisory.
 
 Output your full review markdown starting with "## Code Review:".
 Do NOT use SendMessage — your output is collected directly by the calling agent.`
@@ -466,7 +468,9 @@ the full file — these reviewers perform whole-file phase scans with no line-sc
 
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
-as-is and include them in your output.`
+as-is and include them in your output.
+Advisory/YAGNI findings from prior rounds should still be emitted as `Finding: Advisory/YAGNI`
+with no Fix block — do not upgrade them to regular Advisory.`
 });
 ```
 
