@@ -2,7 +2,7 @@
 name: review-fix
 description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
-  for 1 file, parallel Tasks for 2–4 files, TeamCreate for 5+), applies Critical and Advisory
+  for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical and Advisory
   fixes, re-reviews until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
@@ -263,7 +263,7 @@ Task({
   team_name: team_name,
   name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}`,
   description: `Review ${file}`,
-  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')} on team ${team_name}.
+  prompt: `mode=evaluate
 
 Review this file:
 target_files="${file}"
@@ -271,14 +271,7 @@ task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
 related_files=auto
-review_mode="${review_mode}"
-
-When complete, send your full Phase 4 output (the markdown block starting with
-"## Code Review:") to team-lead via SendMessage:
-- type: "message"
-- recipient: "team-lead"
-- content: your full review output
-- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
+review_mode="${review_mode}"`
 });
 // Repeat for each file in file_list
 ```
@@ -405,13 +398,16 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
 as-is and include them in your output.`
@@ -441,13 +437,16 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, record them as-is and include in your output.
 
@@ -473,7 +472,7 @@ Task({
   team_name: team_name,
   name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round}`,
   description: `Re-review ${file} round ${round}`,
-  prompt: `You are reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${round} on team ${team_name}.
+  prompt: `mode=evaluate
 
 Re-review this file after fixes were applied:
 target_files="${file}"
@@ -483,22 +482,19 @@ dryrun=false
 related_files=auto
 review_mode="${review_mode}"
 
-This is re-review round ${round}. Focus ONLY on:
+This is re-review round ${round}.
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
 1. Lines modified by the fixes applied since round ${round - 1}
 2. Code that directly calls or is called by the modified sections
 Do NOT re-examine sections already APPROVED in a previous round.
 
-For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards): run all phases on the
-full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
 Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
 If they re-appear in this re-review, they will not re-enter the fix loop — record them
-as-is and include them in your output.
-
-When complete, send the markdown block starting with "## Code Review:" to team-lead via SendMessage:
-- type: "message"
-- recipient: "team-lead"
-- content: your full review output
-- summary: "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION — N critical, M advisory"`
+as-is and include them in your output.`
 });
 // Repeat for each file that was modified (appears in files_changed)
 //   OR had Critical findings (fix may introduce regressions elsewhere)
