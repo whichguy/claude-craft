@@ -791,6 +791,7 @@ Gate 2 (important): [PASS / n NEEDS_UPDATE remaining]
 Gate 3 (advisory):  [n noted]
 Rating: [READY / SOLID / GAPS / REWORK]
 Score: [N]% (weighted percentage)
+Organization Quality: [PASS | NEEDS_UPDATE — reason | ⚠️ timed out]  # appended by post-loop step 2; omit if N/A (< 3 steps)
 ```
 
 ---

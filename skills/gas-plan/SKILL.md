@@ -166,7 +166,7 @@ STEP 0: (done — plan loaded, team created)
 DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
-  IF memo_file exists AND gas_memoized_questions is empty AND pass_count > 1:
+  IF memo_file exists AND gas_memoized_questions is empty AND prev_needs_update_count == null:
     Read memo_file → restore gas_memoized_questions, gas_memoized_since,
                      prev_needs_update_count, prev_needs_update_set, pass_count
     _recovered_this_pass = true

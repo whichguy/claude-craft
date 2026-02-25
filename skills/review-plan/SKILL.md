@@ -368,6 +368,7 @@ DO:
         "## Layer 3: UI Specialization" (Q-U1 through Q-U6).
 
         Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
+        Do NOT call TeamCreate — you are already inside a team.
       """
     )
 
@@ -442,7 +443,7 @@ DO:
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Git cluster: safe to memoize (additive-only — branch + commit steps cannot be removed by edits)
   IF "git" in active_clusters AND "git" NOT in memoized_clusters:
-    IF git-evaluator returned 0 NEEDS_UPDATE (all PASS or N/A):
+    IF git-evaluator-p<pass_count> returned 0 NEEDS_UPDATE (all PASS or N/A):
       memoized_clusters.add("git")
       memoized_since["git"] = pass_count
   # L1 Q-G3 and Q-NEW: safe to memoize individually (additive structural steps)
