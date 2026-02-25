@@ -383,7 +383,14 @@ If the Fix block is absent, mark stuck — do not invent a fix.
 
 ```
 IF fixes_applied_this_round == 0:
-  → exit inner loop (nothing changed — done with this file; also covers LOOP_DIRECTIVE: COMPLETE, which always co-occurs with 0 fixes)
+  # Primary stop condition. LOOP_DIRECTIVE: COMPLETE is always co-occurring with
+  # fixes_applied == 0 by reviewer contract (COMPLETE only emitted when APPROVED
+  # or only YAGNI/no-Fix advisory remain — no fixable findings exist).
+  # Robust against malformed LOOP_DIRECTIVE in either direction: if a reviewer
+  # erroneously emits COMPLETE while providing fixable findings, fixes_applied > 0
+  # and the loop continues; if APPLY_AND_RECHECK is emitted with 0 fixes, this
+  # condition still fires and stops correctly.
+  → exit inner loop (nothing changed — done with this file)
   → print: "  → Nothing changed — moving on."
 ELSE IF per_file_rounds[file] >= max_rounds:
   → exit inner loop (stuck, surface findings)
