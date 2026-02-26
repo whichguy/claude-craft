@@ -39,9 +39,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      (skip gracefully if none found)
    - Path variables — derive now and cache as named variables; used in all evaluator spawning (fast-path and loop):
      - `plan_path` = absolute path of the plan file found in step 1
-     - `questions_path` = sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
-     - `gas_eval_path`  = peer skill — replace `review-plan/SKILL.md` with `gas-plan/EVALUATE.md` in this file's path
-     - `node_eval_path` = peer skill — replace `review-plan/SKILL.md` with `node-plan/EVALUATE.md` in this file's path
+     - `questions_path` = `~/.claude/skills/review-plan/QUESTIONS.md`
+     - `gas_eval_path`  = `~/.claude/skills/gas-plan/EVALUATE.md`
+     - `node_eval_path` = `~/.claude/skills/node-plan/EVALUATE.md`
+       (`~` makes all three portable across users — no hardcoded username.
+       Update here if the install base changes; all evaluator spawns below use these variables.)
 
 3. **Set context flags** (Haiku classification):
    Task(
@@ -562,8 +564,8 @@ WHILE TRUE
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
 Do not re-evaluate content already marked `<!-- review-plan -->`, `<!-- gas-plan -->`, or
-`<!-- node-plan -->`. Canonical policy: `shared/self-referential-protection.md` (sibling directory — derive: replace `review-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path).
-If shared file is not found, use inline policy: mark all `<!-- skill-name -->` content as review metadata, not production code.
+`<!-- node-plan -->`. Canonical policy: `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found).
+If not found, use inline policy: mark all `<!-- skill-name -->` content as review metadata, not production code.
 
 ---
 
