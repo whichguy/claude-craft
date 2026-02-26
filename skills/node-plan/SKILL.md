@@ -37,8 +37,8 @@ Do not stop after one pass.
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
-   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>` = `~/.claude/skills/node-plan/QUESTIONS.md` (update here if skill moves)
+   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
 3. **Read the plan** and identify domains present (new packages? async code? env vars?
    framework integration? deployment?) for triage.
 
@@ -109,7 +109,7 @@ STEP 0: (done — plan loaded, team created)
   results = {}                      # maps N-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   memo_file = "~/.claude/.node-plan-memo-" + Date.now() + ".json"
   # memo_file: checkpoint written after each pass for context-compression resilience.
-  Substitute plan_path and team_name into all evaluator prompts below before spawning.
+  Substitute plan_path, team_name, and questions_path (all derived in Step 0) into all evaluator prompts below before spawning.
 
 DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
@@ -425,7 +425,7 @@ Pass 3/5: evaluating...
 
 ## Self-Referential Protection
 
-See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` (sibling directory — derive: replace `node-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path) for the canonical protection policy. <!-- review-plan -->
 
 If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 

@@ -39,8 +39,8 @@ Loop until convergence. Do not output the final scorecard until exit criteria ar
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
-   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>` = `~/.claude/skills/gas-plan/QUESTIONS.md` (update here if skill moves)
+   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
 3. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
 
 ### Team Setup
@@ -105,7 +105,7 @@ STEP 0: (done — plan loaded, team created)
   memo_file = "~/.claude/.gas-plan-memo-" + timestamp + ".json"
   # memo_file: checkpoint written after each pass for context-compression resilience.
   # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
-  Substitute plan_path and team_name into all evaluator prompts below before spawning.
+  Substitute plan_path, team_name, and questions_path (all derived in Step 0) into all evaluator prompts below before spawning.
 
 DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
@@ -418,7 +418,7 @@ Organization Quality (Q43): PASS
 
 ## Self-Referential Protection
 
-See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` (sibling directory — derive: replace `gas-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path) for the canonical protection policy. <!-- review-plan -->
 
 If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
 

@@ -37,10 +37,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - Find and read the project memory file:
      `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
      (skip gracefully if none found)
-   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>` = `~/.claude/skills/review-plan/QUESTIONS.md` (update here if skill moves)
-     - `<gas_eval_path>`  = `~/.claude/skills/gas-plan/EVALUATE.md` (update here if skill moves)
-     - `<node_eval_path>` = `~/.claude/skills/node-plan/EVALUATE.md` (update here if skill moves)
+   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
+     - `<gas_eval_path>`:  peer skill — replace `review-plan/SKILL.md` with `gas-plan/EVALUATE.md` in this file's path
+     - `<node_eval_path>`: peer skill — replace `review-plan/SKILL.md` with `node-plan/EVALUATE.md` in this file's path
 
 3. **Set context flags** (Haiku classification):
    Task(
@@ -558,7 +558,7 @@ WHILE TRUE
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
 Do not re-evaluate content already marked `<!-- review-plan -->`, `<!-- gas-plan -->`, or
-`<!-- node-plan -->`. Canonical policy: `~/.claude/skills/shared/self-referential-protection.md`.
+`<!-- node-plan -->`. Canonical policy: `shared/self-referential-protection.md` (sibling directory — derive: replace `review-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path).
 If shared file is not found, use inline policy: mark all `<!-- skill-name -->` content as review metadata, not production code.
 
 ---
