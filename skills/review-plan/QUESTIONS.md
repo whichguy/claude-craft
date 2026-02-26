@@ -1,6 +1,6 @@
 <!-- ADDING A QUESTION: (1) add row here with gate weight, (2) update Gate1_unresolved
      formula in SKILL.md if weight=3, (3) add Q-ID to evaluator's assigned list in
-     SKILL.md loop body AND update active_questions table in SKILL.md. All 3 steps required. -->
+     SKILL.md loop body. All 3 steps required. -->
 
 # Review-Plan Question Definitions
 

@@ -42,10 +42,7 @@ Do not stop after one pass.
 
 ---
 
-## Mode: standalone
-
-*Creates evaluator team, runs convergence loop, applies edits, outputs scorecard, calls
-ExitPlanMode.*
+## Standalone Execution
 
 ### Team Setup
 
@@ -88,7 +85,7 @@ merges: combine findings, keep the more actionable wording.
 - No TS/package changes → skip TypeScript evaluator entirely. Mark all TS-owned questions N/A in pass summary. Shared question coverage: Node runtime evaluator evaluates N8 from both lenses (see IMPORTANT block in evaluator prompt).
 - No runtime/env/framework changes → skip Node runtime evaluator entirely. Mark all NR-owned questions N/A in pass summary. Shared question coverage: TypeScript evaluator evaluates N8 from both lenses (see IMPORTANT block in evaluator prompt).
 
-**Triage shortcut — question-level bulk N/A:** No new timers → mark N26 N/A without individual evaluation. No file path operations → mark N29 N/A. Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** No new timers → mark N26 N/A without individual evaluation. No file path operations → mark N29 N/A. Shared questions are never bulk-N/A'd.
 
 **Never-N/A exception:** N1 (TypeScript build check) is evaluated whenever the plan
 involves any TypeScript files, regardless of triage.
@@ -474,8 +471,8 @@ N19 test isolation [TS] | N26 timer cleanup [NR] | N29 path handling [TS] |
 N31 Docker/container concerns [NR] | N32 native addon compat [TS] |
 N34 API contract drift [NR] | N37 TS declaration output [TS] | N38 health check endpoint [NR]
 
-**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36; no HTTP server → skip N38). Shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are never bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36; no HTTP server → skip N38). Shared questions are never bulk-N/A'd.
 
 ---
 

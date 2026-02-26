@@ -19,8 +19,8 @@ Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] 
 **Gate 3 — Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
 
-**Triage shortcut — evaluator skip:** See Perspective Assignments in SKILL.md. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
+**Triage shortcut — evaluator skip:** See Perspective Assignments in SKILL.md. Shared questions are never bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are never bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
 
 ---
 

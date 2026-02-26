@@ -80,7 +80,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary (Q14, Q30-Q36; Q43 is post-loop and not part of convergence pass scoring). Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
 - No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on; if Gmail add-on IS present and GAS evaluator is skipped, frontend evaluator also evaluates Q47 from both lenses; see frontend evaluator IMPORTANT block).
 
-**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are never bulk-N/A'd.
 
 **Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and are evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
 
@@ -451,8 +451,8 @@ Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
 
-**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
+**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are never bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are never bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
 
 ---
 
@@ -759,7 +759,7 @@ After outputting the Final Scorecard:
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "q43-evaluator"
-   prompt: Read [plan_path]. Evaluate Q43 from ~/.claude/skills/gas-plan/QUESTIONS.md.
+   prompt: Evaluate Q43 from ~/.claude/skills/gas-plan/QUESTIONS.md.
            Q43 checks: Are steps numbered? Are code blocks fenced? Are section headers scannable?
            Are conditional branches (IF/ELSE) visually distinct? Are walls of prose present?
            Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
@@ -767,6 +767,8 @@ After outputting the Final Scorecard:
              PASS — [one-sentence reason]
              NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
            Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
+
+           Plan to evaluate: [plan_path] — read it with the Read tool, then evaluate Q43 above.
    ```
    Append "q43-evaluator" to spawned_evaluators.
    Wait for message (90s max). Timeout handling:

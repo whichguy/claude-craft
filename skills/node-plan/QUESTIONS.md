@@ -30,8 +30,11 @@ N19 test isolation [TS] | N26 timer cleanup [NR] | N29 path handling [TS] |
 N31 Docker/container concerns [NR] | N32 native addon compat [TS] |
 N34 API contract drift [NR] | N37 TS declaration output [TS] | N38 health check endpoint [NR]
 
-**Triage shortcut — evaluator skip:** If no TS/package changes, skip TypeScript evaluator entirely; mark all TS-owned questions N/A. If no runtime/env/framework changes, skip Node runtime evaluator entirely; mark all NR-owned questions N/A. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36; no HTTP server → skip N38). Shared questions are NEVER bulk-N/A'd.
+*N20 (naming conventions) and N21 (documentation) are not part of this question set —
+they are covered universally by L1 Q-G6 and Q-G7 in the review-plan L1 evaluator.*
+
+**Triage shortcut — evaluator skip:** If no TS/package changes, skip TypeScript evaluator entirely; mark all TS-owned questions N/A. If no runtime/env/framework changes, skip Node runtime evaluator entirely; mark all NR-owned questions N/A. Shared questions are never bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no TS files → skip N2-N5, N11, N12; no async code → skip N6, N7, N22-N25, N27, N28, N35; no deployment → skip N31, N36; no HTTP server → skip N38). Shared questions are never bulk-N/A'd.
 
 ---
 

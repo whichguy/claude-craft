@@ -21,6 +21,7 @@ Apply bulk-N/A before evaluating:
   (Q43 is a post-loop question — not evaluated in this mode)
 - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions:
   Q3–Q12, Q17–Q26, Q29, Q37, Q39–Q40, Q49, Q50, Q51
+  (Q42 is also GAS-owned but never N/A — see exception below)
   Gmail questions Q44–Q48 follow the Gmail rule below.
   **Exception: Q1, Q2, Q42 are never N/A — evaluate regardless of triage.**
 - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48

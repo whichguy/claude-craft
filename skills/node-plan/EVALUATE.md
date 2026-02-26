@@ -34,13 +34,17 @@ Apply bulk-N/A before evaluating:
 - No new tests → bulk N/A N19
 - No file path operations → bulk N/A N29
 - **Exception: N1 (tsc check) — evaluate regardless if plan involves any TS files**
-- **Exception: N8 (concurrency safety) — evaluate from both lenses, combine findings. Never bulk-N/A.**
+- **Exception: N8 (concurrency safety) — evaluate from both lenses, combine findings. never bulk-N/A.**
 
 ---
 
 ## Step 2 — Evaluate
 
 Evaluate ALL applicable questions from BOTH perspectives (TypeScript/API and Node runtime) in a single pass.
+
+For N8 specifically: even if the TypeScript domain was triaged out (bulk N/A'd), evaluate N8
+from BOTH the [TS lens] (async shared state, race conditions in TypeScript code) AND the
+[NR lens] (cluster workers, shared handles, native bindings). Label findings accordingly.
 
 Skip content marked `<!-- node-plan -->` or `<!-- review-plan -->` (self-referential protection).
 
