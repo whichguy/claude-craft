@@ -37,6 +37,8 @@ Do not stop after one pass.
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
+   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>` = `~/.claude/skills/node-plan/QUESTIONS.md` (update here if skill moves)
 3. **Read the plan** and identify domains present (new packages? async code? env vars?
    framework integration? deployment?) for triage.
 
@@ -146,7 +148,7 @@ DO:
       You are a senior TypeScript/API engineer evaluating a Node.js/TypeScript implementation
       plan.
 
-      Question definitions: Read ~/.claude/skills/node-plan/QUESTIONS.md for the full question
+      Question definitions: Read <questions_path> for the full question
         table (questions marked [TS] and [Shared]).
       Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
         ~/.claude/CLAUDE.md as needed (skip unrelated sections).
@@ -208,7 +210,7 @@ DO:
       You are a senior Node.js runtime engineer evaluating a Node.js/TypeScript implementation
       plan.
 
-      Question definitions: Read ~/.claude/skills/node-plan/QUESTIONS.md for the full question
+      Question definitions: Read <questions_path> for the full question
         table (questions marked [NR] and [Shared]).
       Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
         ~/.claude/CLAUDE.md as needed (skip unrelated sections).

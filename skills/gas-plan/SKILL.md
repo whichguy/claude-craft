@@ -39,6 +39,8 @@ Loop until convergence. Do not output the final scorecard until exit criteria ar
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
+   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>` = `~/.claude/skills/gas-plan/QUESTIONS.md` (update here if skill moves)
 3. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
 
 ### Team Setup
@@ -144,7 +146,7 @@ DO:
       You are a senior frontend engineer evaluating a GAS implementation plan.
 
       Your inputs:
-      - Question definitions: Read ~/.claude/skills/gas-plan/QUESTIONS.md for the full question
+      - Question definitions: Read <questions_path> for the full question
         table (questions marked [F] and [Shared])
       - Standards: Read only the GAS Development and GAS Client-Server Patterns sections of
         ~/.claude/CLAUDE.md as needed (skip unrelated sections)
@@ -200,7 +202,7 @@ DO:
     prompt = """
       You are a senior GAS backend engineer evaluating a GAS implementation plan.
 
-      Question definitions: Read ~/.claude/skills/gas-plan/QUESTIONS.md for the full question
+      Question definitions: Read <questions_path> for the full question
         table (questions marked [G] and [Shared]) — includes GAS Gotchas reference.
       Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections).
@@ -759,7 +761,7 @@ After outputting the Final Scorecard:
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "q43-evaluator"
-   prompt: Evaluate Q43 from ~/.claude/skills/gas-plan/QUESTIONS.md.
+   prompt: Evaluate Q43 from <questions_path>.
            Q43 checks: Are steps numbered? Are code blocks fenced? Are section headers scannable?
            Are conditional branches (IF/ELSE) visually distinct? Are walls of prose present?
            Skip content marked <!-- gas-plan --> or <!-- review-plan -->.

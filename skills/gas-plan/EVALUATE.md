@@ -8,7 +8,7 @@
 ## Step 0 — Read Inputs
 
 1. Read the plan at `<plan_path>` (the path is provided in the invoking prompt)
-2. Read `~/.claude/skills/gas-plan/QUESTIONS.md` for all question definitions (Q1–Q51+, criteria, N/A conditions, gate weights)
+2. Read QUESTIONS.md — it is a sibling of this EVALUATE.md. Derive its path: replace `EVALUATE.md` with `QUESTIONS.md` in the path your invoking prompt specifies for this file. Example: if invoking prompt references `~/.claude/skills/gas-plan/EVALUATE.md`, read `~/.claude/skills/gas-plan/QUESTIONS.md`. This file contains all question definitions (Q1–Q51+, criteria, N/A conditions, gate weights).
 3. Read the GAS Development and GAS Client-Server Patterns sections of `~/.claude/CLAUDE.md` as needed
 
 ---

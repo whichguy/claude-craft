@@ -8,7 +8,7 @@
 ## Step 0 — Read Inputs
 
 1. Read the plan at `<plan_path>` (the path is provided in the invoking prompt)
-2. Read `~/.claude/skills/node-plan/QUESTIONS.md` for all question definitions (N1–N38, criteria, N/A conditions, gate weights)
+2. Read QUESTIONS.md — it is a sibling of this EVALUATE.md. Derive its path: replace `EVALUATE.md` with `QUESTIONS.md` in the path your invoking prompt specifies for this file. Example: if invoking prompt references `~/.claude/skills/node-plan/EVALUATE.md`, read `~/.claude/skills/node-plan/QUESTIONS.md`. This file contains all question definitions (N1–N38, criteria, N/A conditions, gate weights).
 3. Read the Tool Preferences and relevant Node.js/TypeScript sections of `~/.claude/CLAUDE.md` as needed (skip unrelated sections)
 
 ---

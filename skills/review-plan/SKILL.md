@@ -34,7 +34,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
-   - Read `~/.claude/projects/-Users-jameswiese/memory/MEMORY.md` for patterns
+   - Find and read the project memory file:
+     `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
+     (skip gracefully if none found)
+   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>` = `~/.claude/skills/review-plan/QUESTIONS.md` (update here if skill moves)
+     - `<gas_eval_path>`  = `~/.claude/skills/gas-plan/EVALUATE.md` (update here if skill moves)
+     - `<node_eval_path>` = `~/.claude/skills/node-plan/EVALUATE.md` (update here if skill moves)
 
 3. **Set context flags** (Haiku classification):
    Task(
@@ -116,7 +122,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
 
-         Evaluate ONLY these 7 questions (definitions in ~/.claude/skills/review-plan/QUESTIONS.md):
+         Evaluate ONLY these 7 questions (definitions in <questions_path>):
            Q-G1 (Approach soundness — never N/A)
            Q-G2 (Standards compliance — never N/A)
            Q-G3 (Quality review step — never N/A)
@@ -242,7 +248,7 @@ DO:
     prompt = """
       You are evaluating a plan for general quality (Layer 1: 12 questions).
 
-      Question definitions: Read ~/.claude/skills/review-plan/QUESTIONS.md (Layer 1 section)
+      Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
       Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12
@@ -284,7 +290,7 @@ DO:
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
 
-      Question definitions: Read ~/.claude/skills/review-plan/QUESTIONS.md,
+      Question definitions: Read <questions_path>,
         section "### Cluster <N>: <cluster_name>".
       Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
 
@@ -321,7 +327,7 @@ DO:
       name = "gas-evaluator-p" + pass_count,
       prompt = """
         You are the gas-eval running inside review-plan's team. Follow the instructions in
-        ~/.claude/skills/gas-plan/EVALUATE.md exactly.
+        <gas_eval_path> exactly.
 
         Plan to evaluate: <plan_path>
 
@@ -338,7 +344,7 @@ DO:
       name = "node-evaluator-p" + pass_count,
       prompt = """
         You are the node-eval running inside review-plan's team. Follow the instructions in
-        ~/.claude/skills/node-plan/EVALUATE.md exactly.
+        <node_eval_path> exactly.
 
         Plan to evaluate: <plan_path>
 
@@ -358,7 +364,7 @@ DO:
         You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
         UI specialization (Q-U1 through Q-U6).
 
-        Question definitions: Read ~/.claude/skills/review-plan/QUESTIONS.md
+        Question definitions: Read <questions_path>
           (Layer 3: UI Specialization section, Q-U1 through Q-U6).
 
         Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
