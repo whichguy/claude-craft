@@ -25,81 +25,23 @@ allowed-tools: all
 
 # GAS Plan Review: Iterative Convergence Loop
 
-You review implementation plans from two perspectives per pass: **frontend engineer** (HTML/CSS/UX) and **GAS engineer** (backend/infrastructure). In standalone mode, both perspectives evaluate in parallel each convergence pass via spawned evaluator agents. In evaluate mode, you do a single-pass evaluation yourself and return findings to the calling skill.
+You review implementation plans from two perspectives per pass: **frontend engineer** (HTML/CSS/UX) and **GAS engineer** (backend/infrastructure). Both perspectives evaluate in parallel each convergence pass via spawned evaluator agents.
 
-## Mode Parameter
-
-Two operating modes:
-- **`standalone`** (default): Creates an evaluator team, runs parallel frontend + GAS evaluators each pass, merges findings, applies edits, converges, outputs final scorecard, calls ExitPlanMode.
-- **`evaluate`**: Single-pass read-only evaluation run inside another skill's team. Evaluates all applicable questions (both perspectives), sends findings via SendMessage to team-lead, then stops. No plan edits. No ExitPlanMode. No team creation.
-
-**How to detect mode:** Scan the invocation prompt for `mode=evaluate`. If found, set MODE=evaluate. Otherwise MODE=standalone.
-
-**WARNING:** If invoked inside an existing team (team_name present in invocation context), check for `mode=evaluate` before proceeding. Running standalone inside an existing team creates nested team conflicts and a circular ExitPlanMode race condition. When in doubt: if a team_name is present, force MODE=evaluate.
+*Evaluate mode (used internally by review-plan) is handled by EVALUATE.md — this file is standalone only.*
 
 ## Core Directive: Loop Until Stable
 
-**In standalone mode: You MUST loop. NEVER output the final scorecard until exit criteria are met. NEVER stop after one pass.**
+Loop until convergence. Do not output the final scorecard until exit criteria are met.
 
 ## Step 0: Locate Plan and Load Context
 
-1. **Check mode:** Scan invoking prompt for `mode=evaluate`. Set MODE accordingly.
-2. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
-3. **Standards context** (cache for all passes):
+1. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
+2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
-4. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
-5. **Branch on mode:** If MODE=evaluate → jump to [Mode: evaluate]. If MODE=standalone → jump to [Mode: standalone].
-
----
-
-## Mode: evaluate
-
-*Single-pass, read-only. Returns findings via SendMessage. No edits. No ExitPlanMode.*
-
-**You are running inside another review skill's team. Your only output is a SendMessage to the team-lead.**
-
-**Nested team constraint:** Do NOT call TeamCreate in evaluate mode — you are already inside a team. Creating a nested team causes agent isolation and message delivery failures. If you detect you are being invoked inside an existing team (team_name present in context), evaluate mode is mandatory.
-
-1. Read the plan file (done in Step 0).
-2. Apply triage: bulk-mark N/A for irrelevant domains.
-   - No UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36
-     (Q43 is a post-loop question — not evaluated in this mode)
-   - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions (Q3-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q49, Q50, Q51; Gmail Qs Q44-Q48 follow the Gmail rule below)
-     Exception: Q1, Q2, Q42 are never N/A — evaluate them regardless of triage.
-   - No Gmail add-on / CardService in plan → bulk N/A Q44, Q45, Q46, Q47, Q48
-     Detection: plan mentions CardService, Gmail add-on, contextualTriggers, or GmailApp.setCurrentMessageAccessToken.
-   - For shared questions (Q13, Q15, Q16, Q27, Q28, Q38, Q41): evaluate from both lenses, combine
-     (Q47 is intentionally omitted here — it is a Gmail-domain GAS-primary question already handled by the Gmail bulk-N/A rule above)
-3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
-4. Skip content marked `<!-- gas-plan -->` or `<!-- review-plan -->` (self-referential protection).
-5. Call the **SendMessage** tool exactly once:
-   ```
-   type: "message"
-   recipient: "team-lead"
-   summary: "gas-plan evaluation complete — N NEEDS_UPDATE"  (fill in count)
-   content: |
-     FINDINGS FROM gas-plan
-
-     [Triage] Frontend domain: [ACTIVE | SKIPPED — reason]
-     [Triage] GAS domain: [ACTIVE | SKIPPED — reason]
-
-     Q1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-     [EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
-     Q2: ...
-     ...
-     Q42: ...
-     (Q43 not applicable in evaluate mode — post-loop only)
-   ```
-   Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
-
-6. **STOP.** Do not loop. Do not edit the plan. Do not touch `.plan-reviewed`. Do not call ExitPlanMode.
-
----
-
-## Mode: standalone
-
-*Creates evaluator team, runs convergence loop, applies edits, outputs scorecard, calls ExitPlanMode.*
+   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>` = `~/.claude/skills/gas-plan/QUESTIONS.md` (update here if skill moves)
+3. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
 
 ### Team Setup
 
@@ -118,7 +60,7 @@ IF any unrecoverable error occurs during the convergence loop:
   1. Send shutdown_request to any active evaluator agents
   2. TeamDelete
   3. Surface the error to the user via AskUserQuestion
-  Do NOT leave orphaned team processes.
+  Do not leave orphaned team processes.
 ```
 
 ### Perspective Assignments
@@ -140,9 +82,9 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - No UI/HTML/CSS changes → skip frontend evaluator entirely. Mark all frontend-owned questions N/A in pass summary (Q14, Q30-Q36; Q43 is post-loop and not part of convergence pass scoring). Shared question coverage: GAS evaluator evaluates all 7 non-Gmail shared Qs from both lenses (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 only when Gmail add-on present; see GAS evaluator prompt fallback instruction).
 - No .gs/deployment/common-js changes → skip GAS evaluator entirely. Mark all GAS-owned questions N/A in pass summary. Shared question coverage: frontend evaluator evaluates all 7 non-Gmail shared Qs (Q13, Q15, Q16, Q27, Q28, Q38, Q41 — Q47 is Gmail-domain, skip when no Gmail add-on; if Gmail add-on IS present and GAS evaluator is skipped, frontend evaluator also evaluates Q47 from both lenses; see frontend evaluator IMPORTANT block).
 
-**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are NEVER bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** No new CSS → mark Q34 N/A without individual evaluation. No new interactive elements → mark Q31 N/A. No Gmail add-on/CardService patterns → bulk N/A Q44-Q48 (Q47 is GAS-primary, not a shared question — Gmail-domain bulk N/A applies here). All other shared questions are never bulk-N/A'd.
 
-**Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and MUST be evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
+**Never-N/A exception:** Q1, Q2, Q42 are marked "never N/A" and are evaluated regardless of domain triage. If the GAS evaluator is skipped, the team-lead evaluates Q1, Q2, Q42 directly before the merge step.
 
 ### Execution Flow
 
@@ -204,8 +146,7 @@ DO:
       You are a senior frontend engineer evaluating a GAS implementation plan.
 
       Your inputs:
-      - Plan file: <plan_path> — read it with the Read tool
-      - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
+      - Question definitions: Read <questions_path> for the full question
         table (questions marked [F] and [Shared])
       - Standards: Read only the GAS Development and GAS Client-Server Patterns sections of
         ~/.claude/CLAUDE.md as needed (skip unrelated sections)
@@ -213,7 +154,7 @@ DO:
       Evaluate these questions through the FRONTEND lens:
         Frontend-owned: Q14, Q30, Q31, Q32, Q33, Q34, Q35, Q36
         Shared (frontend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
-        Note: Q43 (plan legibility) is evaluated post-loop — do NOT evaluate it here.
+        Note: Q43 (plan legibility) is evaluated post-loop — do not evaluate it here.
 
       Triage: If plan has no UI/HTML/CSS changes → bulk N/A Q14, Q30-Q36.
               Evaluate shared Qs regardless.
@@ -237,16 +178,18 @@ DO:
           [EDIT: instruction if NEEDS_UPDATE]
           (one entry per evaluated question)
 
-      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+      Do not write findings to stdout — the team-lead only receives content via SendMessage.
 
       [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
        This directive OVERRIDES the question list above — memoized questions are PASS
        regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
-      - Do NOT call ExitPlanMode or touch any marker files
+      - Do not use Edit, Write, or Bash tools — read-only evaluation
+      - Do not call ExitPlanMode or touch any marker files
       - Call SendMessage exactly once with all findings
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
@@ -259,43 +202,10 @@ DO:
     prompt = """
       You are a senior GAS backend engineer evaluating a GAS implementation plan.
 
-      Your inputs:
-      - Plan file: <plan_path> — read it with the Read tool
-      - Question definitions: Read ~/.claude/skills/gas-plan/SKILL.md for the full question
-        table (questions marked [G] and [Shared])
-      - Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
-        Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections)
-
-      ### GAS Plan Gotchas (reference for Q49, Q50, Q51, Q26)
-
-      **V8 File Parsing Order:**
-      - `loadNow: true` modules execute eagerly at parse time — they MUST be positioned LAST in
-        file order, after all their dependencies. If a dependency file is at a higher position
-        (lower number), `require()` will throw "Module not found" at startup.
-      - Rule: whenever a plan adds files or changes positions, check if any loadNow module now
-        has deps at higher positions.
-
-      **GAS Global Namespace Collisions:**
-      - GAS built-in globals: Logger, Utilities, DriveApp, SpreadsheetApp, ScriptApp,
-        UrlFetchApp, CacheService, PropertiesService, LockService, HtmlService, ContentService,
-        MailApp, GmailApp, CalendarApp, ContactsApp, DocumentApp, SlidesApp, FormApp, Maps,
-        Session, Browser, console, Xml, XmlService, Jdbc, ScriptProperties, UserProperties.
-      - A module-level `var Logger = ...` or `const Utilities = ...` in any file visible to GAS
-        top-level scope will shadow the built-in. loadNow modules are especially vulnerable
-        since they execute at parse time.
-
-      **Properties/Cache Actual Limits (for Q26):**
-      - PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max
-      - CacheService: 102,400 bytes/value, 250-char key max, eviction is FIFO (not LRU)
-      - Exceeding these silently fails or throws — validate before storing.
-
-      **CommonJS Debug Logging Pattern (for Q51):**
-      - New modules should use the 3-param signature: `function _main(module, exports, log)`
-      - `log` is auto-injected by require.js — no-op by default, routes to Logger.log when enabled
-      - Enable per-module via exec(): `setModuleLogging('folder/ModuleName', true)` (script scope)
-      - Disable after debugging: `setModuleLogging('folder/ModuleName', false, 'script', true)`
-      - Pattern matching: exact name, folder wildcard (`folder/*`), global (`*`), exclusion beats inclusion
-      - Config stored in ConfigManager 'COMMONJS' namespace under '__Logging' key
+      Question definitions: Read <questions_path> for the full question
+        table (questions marked [G] and [Shared]) — includes GAS Gotchas reference.
+      Standards: Read only the GAS Development, MCP GAS Architecture, and GAS Client-Server
+        Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections).
 
       Evaluate these questions through the GAS engineering lens:
         GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51
@@ -305,7 +215,7 @@ DO:
               If plan has no Gmail add-on/CardService patterns → bulk N/A Q44, Q45, Q46, Q47, Q48.
               Evaluate shared Qs regardless (Q47 is GAS-primary, not shared — bulk N/A when no Gmail).
 
-      IMPORTANT — if frontend evaluator was skipped this pass (no UI/HTML/CSS changes):
+      If frontend evaluator was skipped this pass (no UI/HTML/CSS changes):
         Also evaluate Q13, Q15, Q16, Q27, Q28, Q38, Q41 from the FRONTEND lens.
         Output each shared question twice: first your GAS finding, then your frontend finding.
         Label clearly: "[GAS lens]" and "[Frontend lens]". Team-lead merges both.
@@ -323,16 +233,18 @@ DO:
           [EDIT: instruction if NEEDS_UPDATE]
           (one entry per evaluated question)
 
-      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+      Do not write findings to stdout — the team-lead only receives content via SendMessage.
 
       [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
        This directive OVERRIDES the question list above — memoized questions are PASS
        regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
-      - Do NOT call ExitPlanMode or touch any marker files
+      - Do not use Edit, Write, or Bash tools — read-only evaluation
+      - Do not call ExitPlanMode or touch any marker files
       - Call SendMessage exactly once with all findings
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
@@ -382,7 +294,7 @@ DO:
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- gas-plan -->.
-    Each Edit call = 1 change (increment changes_this_pass). Do NOT count findings you only described in text.
+    Each Edit call = 1 change (increment changes_this_pass). Do not count findings you only described in text.
   total_changes_all_passes += changes_this_pass
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
@@ -447,7 +359,7 @@ WHILE TRUE (loop controlled by convergence check above)
 
 OUTPUT final scorecard
 
-# ⚠️ Do NOT execute teardown from here. Jump to "After Review Completes" section below.
+# ⚠️ Do not execute teardown from here. Jump to "After Review Completes" section below.
 # That section handles: Q43 post-loop evaluation → gate marker → teardown → ExitPlanMode.
 # The TEARDOWN pseudo-block below is a conceptual placeholder only.
 TEARDOWN: (see "After Review Completes" steps 2–5 for the actual teardown sequence)
@@ -508,7 +420,7 @@ Organization Quality (Q43): PASS
 
 See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
 
-If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do NOT flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
+If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
 
 ## Consolidation Rules (Every Pass)
 
@@ -541,8 +453,8 @@ Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] 
 **Gate 3 -- Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
 
-**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are NEVER bulk-N/A'd.
-**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are NEVER bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
+**Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are never bulk-N/A'd.
+**Triage shortcut — question-level bulk N/A:** Bulk-mark specific questions N/A when clearly irrelevant (no UI changes → skip Q14, Q30-Q36; no new files → skip Q4; no deployment → skip Q10). Shared questions are never bulk-N/A'd. Note: Q43 is evaluated post-loop only — not during convergence passes.
 
 ---
 
@@ -842,14 +754,14 @@ After outputting the Final Scorecard:
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): Gate 1 is
    resolved by the `pass_count >= 5` branch inside the loop. By the time the loop exits, Gate 1
    is either clean or the user has been asked and responded. If Rating is REWORK when the loop
-   exits (user override or unresolvable): note the override in the scorecard. Do NOT re-run the
+   exits (user override or unresolvable): note the override in the scorecard. Do not re-run the
    REWORK check here — it was already handled inside the loop.
 
 2. **Q43 post-loop evaluation (plan legibility / organization):**
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "q43-evaluator"
-   prompt: Read [plan_path]. Evaluate Q43 from ~/.claude/skills/gas-plan/SKILL.md.
+   prompt: Evaluate Q43 from <questions_path>.
            Q43 checks: Are steps numbered? Are code blocks fenced? Are section headers scannable?
            Are conditional branches (IF/ELSE) visually distinct? Are walls of prose present?
            Skip content marked <!-- gas-plan --> or <!-- review-plan -->.
@@ -857,6 +769,8 @@ After outputting the Final Scorecard:
              PASS — [one-sentence reason]
              NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
            Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
+
+           Plan to evaluate: [plan_path] — read it with the Read tool, then evaluate Q43 above.
    ```
    Append "q43-evaluator" to spawned_evaluators.
    Wait for message (90s max). Timeout handling:

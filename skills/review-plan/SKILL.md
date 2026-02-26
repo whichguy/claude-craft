@@ -21,7 +21,7 @@ You apply a 3-layer quality review to any implementation plan: general quality, 
 quality, and conditional GAS specialization via gas-plan when GAS patterns are detected.
 You iterate until all layers and sub-skills report zero changes in the same pass.
 
-**You MUST loop. NEVER output the final scorecard until exit criteria are met.**
+**Loop until convergence. Do not output the final scorecard until exit criteria are met.**
 
 ---
 
@@ -34,7 +34,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
-   - Read `~/.claude/projects/-Users-jameswiese/memory/MEMORY.md` for patterns
+   - Find and read the project memory file:
+     `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
+     (skip gracefully if none found)
+   - Path variables — define once here, substitute into evaluator prompts at spawn time (same as `<plan_path>`):
+     - `<questions_path>` = `~/.claude/skills/review-plan/QUESTIONS.md` (update here if skill moves)
+     - `<gas_eval_path>`  = `~/.claude/skills/gas-plan/EVALUATE.md` (update here if skill moves)
+     - `<node_eval_path>` = `~/.claude/skills/node-plan/EVALUATE.md` (update here if skill moves)
 
 3. **Set context flags** (Haiku classification):
    Task(
@@ -116,7 +122,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
 
-         Evaluate ONLY these 7 questions (definitions in ~/.claude/skills/review-plan/SKILL.md):
+         Evaluate ONLY these 7 questions (definitions in <questions_path>):
            Q-G1 (Approach soundness — never N/A)
            Q-G2 (Standards compliance — never N/A)
            Q-G3 (Quality review step — never N/A)
@@ -127,7 +133,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
          If NEEDS_UPDATE: include [EDIT: instruction]
-         Do NOT use Edit/Write/Bash tools — read-only.
+         Do not use Edit/Write/Bash tools — read-only.
        """
      )
 
@@ -150,15 +156,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve all issues — falling through to full review"
          IS_TRIVIAL = false  # force full convergence loop
-         # Do NOT jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
+         # Do not jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
 
    Print mode based on flags:
-     IS_GAS + HAS_UI + HAS_STATE: "📋 Review mode: GAS + UI + State cluster (gas-evaluator + ui-evaluator + state cluster, [N] active)"
-     IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-evaluator + ui-evaluator, [N] active)"
-     IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-evaluator + state cluster, [N] active)"
-     IS_GAS only:         "📋 Review mode: GAS (all L2 clusters superseded by gas-evaluator)"
-     IS_NODE only:        "📋 Review mode: Node.js ([N] clusters: [names] + node-evaluator)"
-     IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-evaluator + ui-evaluator)"
+     IS_GAS + HAS_UI + HAS_STATE: "📋 Review mode: GAS + UI + State cluster (gas-eval + ui-evaluator + state cluster, [N] active)"
+     IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-eval + ui-evaluator, [N] active)"
+     IS_GAS + HAS_STATE:  "📋 Review mode: GAS + State cluster (gas-eval + state cluster, [N] active)"
+     IS_GAS only:         "📋 Review mode: GAS (all L2 clusters superseded by gas-eval)"
+     IS_NODE only:        "📋 Review mode: Node.js ([N] clusters: [names] + node-eval)"
+     IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-eval + ui-evaluator)"
      HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "📋 Review mode: Standard ([N] clusters: [names])"
    (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_DEPLOYMENT=[v] HAS_STATE=[v]"
@@ -194,7 +200,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    IF any unrecoverable error during convergence loop:
      Send shutdown_request to any active evaluators, then TeamDelete
      Surface error to user via AskUserQuestion
-     Do NOT leave orphaned team processes.
+     Do not leave orphaned team processes.
    ```
 
 ---
@@ -224,11 +230,11 @@ DO:
   ui_plan_changes = 0
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
-  Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas") + (IS_NODE: " · node") + (HAS_UI: " · ui")
+  Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas-eval") + (IS_NODE: " · node-eval") + (HAS_UI: " · ui")
 
   [In a SINGLE message, spawn all evaluators in parallel:
    L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
-   Practical maximums: IS_GAS mode = L1 + state cluster + gas-evaluator + UI = 4.
+   Practical maximums: IS_GAS mode = L1 + state cluster + gas-eval + UI = 4.
    Non-GAS full-stack (all 7 clusters) = L1 + 7 + UI = 9.
    If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
   [After spawning each evaluator, append its name to spawned_evaluators]
@@ -242,8 +248,7 @@ DO:
     prompt = """
       You are evaluating a plan for general quality (Layer 1: 12 questions).
 
-      Plan file: <plan_path> — read it with the Read tool
-      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md (Layer 1 section)
+      Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
       Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12
@@ -263,9 +268,11 @@ DO:
         ... (all 12 questions including Q-NEW, Q-G10, Q-G11, Q-G12)
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only
-      - Do NOT call ExitPlanMode or touch marker files
+      - Do not use Edit, Write, or Bash tools — read-only
+      - Do not call ExitPlanMode or touch marker files
       - Send exactly ONE message to team-lead
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
@@ -283,11 +290,8 @@ DO:
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
 
-      Plan file: <plan_path> — read it with the Read tool.
-      Question definitions: Read ~/.claude/skills/review-plan/SKILL.md,
+      Question definitions: Read <questions_path>,
         section "### Cluster <N>: <cluster_name>".
-
-      Evaluate all questions in this cluster. Apply N/A per the N/A column in that section.
       Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
 
       Context flags (substituted by team-lead at spawn time):
@@ -306,52 +310,46 @@ DO:
         ... (all questions in this cluster)
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only
-      - Do NOT call ExitPlanMode or touch marker files
+      - Do not use Edit, Write, or Bash tools — read-only
+      - Do not call ExitPlanMode or touch marker files
       - Send exactly ONE message to team-lead
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
   IF IS_GAS:
     --- GAS Evaluator ---
     Task(
-      subagent_type = "gas-plan",
+      subagent_type = "general-purpose",
+      model = "sonnet",
       team_name = <team_name>,
       name = "gas-evaluator-p" + pass_count,
       prompt = """
-        Review plan at <plan_path>. mode=evaluate.
+        You are the gas-eval running inside review-plan's team. Follow the instructions in
+        <gas_eval_path> exactly.
 
-        MODE=evaluate (MANDATORY). This string controls gas-plan's behavior. Its absence
-        triggers standalone mode and creates a circular ExitPlanMode conflict. Do not remove
-        or alter this string.
+        Plan to evaluate: <plan_path>
 
-        You are the gas-evaluator running inside review-plan's team. Evaluate the plan for GAS
-        specialization (all 46 GAS questions, both perspectives). Return findings via SendMessage
-        to team-lead.
-
-        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
-        Do NOT call TeamCreate — you are already inside a team.
+        Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
+        call TeamCreate. Send exactly ONE message to team-lead with all findings.
       """
     )
   ELSE IF IS_NODE:
     --- Node Evaluator ---
     Task(
-      subagent_type = "node-plan",
+      subagent_type = "general-purpose",
+      model = "sonnet",
       team_name = <team_name>,
       name = "node-evaluator-p" + pass_count,
       prompt = """
-        Review plan at <plan_path>. mode=evaluate.
+        You are the node-eval running inside review-plan's team. Follow the instructions in
+        <node_eval_path> exactly.
 
-        MODE=evaluate (MANDATORY). This string controls node-plan's behavior. Its absence
-        triggers standalone mode and creates a circular ExitPlanMode conflict. Do not remove
-        or alter this string.
+        Plan to evaluate: <plan_path>
 
-        You are the node-evaluator running inside review-plan's team. Evaluate the plan for
-        Node.js/TypeScript specialization (all 36 Node questions, both perspectives). Return
-        findings via SendMessage to team-lead.
-
-        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
-        Do NOT call TeamCreate — you are already inside a team.
+        Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
+        call TeamCreate. Send exactly ONE message to team-lead with all findings.
       """
     )
 
@@ -363,16 +361,27 @@ DO:
       team_name = <team_name>,
       name = "ui-evaluator-p" + pass_count,
       prompt = """
-        Review plan at <plan_path>. mode=evaluate.
-
         You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
-        UI specialization (Q-U1 through Q-U6). Return findings via SendMessage to team-lead.
+        UI specialization (Q-U1 through Q-U6).
 
-        Question definitions: Read ~/.claude/skills/review-plan/SKILL.md under
-        "## Layer 3: UI Specialization" (Q-U1 through Q-U6).
+        Question definitions: Read <questions_path>
+          (Layer 3: UI Specialization section, Q-U1 through Q-U6).
 
-        Do NOT edit the plan. Do NOT touch .plan-reviewed. Do NOT call ExitPlanMode.
-        Do NOT call TeamCreate — you are already inside a team.
+        Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+        or <!-- node-plan -->.
+
+        Output contract — send ONE message to team-lead:
+          FINDINGS FROM ui-evaluator
+          Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
+          [EDIT: instruction if NEEDS_UPDATE]
+          ... (all 6 questions)
+
+        Constraints:
+        - Do not use Edit, Write, or Bash tools — read-only
+        - Do not call ExitPlanMode or touch marker files
+        - Send exactly ONE message to team-lead
+
+        Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
       """
     )
 
@@ -396,11 +405,11 @@ DO:
     For each skipped cluster (not in active_clusters):
       Print: "  ⏭️ <cluster_name>  skipped"
     If IS_GAS:
-      If gas responded:   Print: "  ✅ gas   ✗[n] ✓[m] —[k]"
-      If gas incomplete:  Print: "  ⚠️ gas   timeout"
+      If gas responded:   Print: "  ✅ gas-eval   ✗[n] ✓[m] —[k]"
+      If gas incomplete:  Print: "  ⚠️ gas-eval   timeout"
     If IS_NODE:
-      If node responded:  Print: "  ✅ node  ✗[n] ✓[m] —[k]"
-      If node incomplete: Print: "  ⚠️ node  timeout"
+      If node responded:  Print: "  ✅ node-eval  ✗[n] ✓[m] —[k]"
+      If node incomplete: Print: "  ⚠️ node-eval  timeout"
     If HAS_UI:
       If ui responded:    Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
       If ui incomplete:   Print: "  ⚠️ ui    timeout"
@@ -434,7 +443,7 @@ DO:
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
-    Each Edit call = 1 change. Do NOT count findings you only described in text.
+    Each Edit call = 1 change. Do not count findings you only described in text.
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
     Keep-exemption: content annotated <!-- keep: [reason] --> is EXEMPT from consolidation removal.
     "Key flow" = any implementation step, ordering dependency, error path, rollback step, or
@@ -548,7 +557,7 @@ WHILE TRUE
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
-Do NOT re-evaluate content already marked `<!-- review-plan -->`, `<!-- gas-plan -->`, or
+Do not re-evaluate content already marked `<!-- review-plan -->`, `<!-- gas-plan -->`, or
 `<!-- node-plan -->`. Canonical policy: `~/.claude/skills/shared/self-referential-protection.md`.
 If shared file is not found, use inline policy: mark all `<!-- skill-name -->` content as review metadata, not production code.
 
@@ -639,43 +648,24 @@ multi-file features where cross-file consistency needs a coordinator.
 *L1 per-pass count stays at 12 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
-After convergence exits, spawn:
-Task(
-  subagent_type = "general-purpose",
-  model = "sonnet",
-  team_name = <team_name>,
-  name = "q-g9-evaluator",
-  prompt = """
-    Read the plan at <plan_path>.
+After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
+using the plan already in context):
 
-    Evaluate 5 structural presentation questions (Q-G9a through Q-G9e).
-    This is a post-convergence organization check — focus on how well the plan
-    reads as execution instructions, not on content correctness.
+Re-read the plan at <plan_path> if needed, then evaluate:
+  Q-G9a: Sequential clarity — are implementation steps numbered and unambiguous in order?
+         Steps must be numbered sequentially; ordering must be legible at a glance.
+  Q-G9b: Concurrency labeling — are parallel steps explicitly marked (e.g. "[parallel]",
+         "In a SINGLE message", "spawn in parallel")?
+  Q-G9c: Scannability — does the plan use headers and bullets (no prose walls >5 sentences)?
+  Q-G9d: Conditional structure — are IF/ELSE branches visually distinct from sequential steps?
+  Q-G9e: Checkpoint visibility — are commit/verification checkpoints clearly visible
+         (not buried mid-paragraph)?
 
-    Q-G9a: Sequential clarity — are implementation steps numbered and unambiguous in order?
-           Steps must be numbered sequentially; ordering must be legible at a glance.
-    Q-G9b: Concurrency labeling — are parallel steps explicitly marked (e.g. "[parallel]",
-           "In a SINGLE message", "spawn in parallel")?
-    Q-G9c: Scannability — does the plan use headers and bullets (no prose walls >5 sentences)?
-    Q-G9d: Conditional structure — are IF/ELSE branches visually distinct from sequential steps?
-    Q-G9e: Checkpoint visibility — are commit/verification checkpoints clearly visible
-           (not buried mid-paragraph)?
+For each NEEDS_UPDATE finding: apply the edit to the plan immediately. Mark <!-- review-plan -->.
+Print result after applying any edits:
+  Organization: ✅ inline (5/5)              ← all PASS
+  Organization: ⚠️ inline (N/5) — K flagged  ← K sub-questions had NEEDS_UPDATE
 
-    Output contract — send ONE message to team-lead:
-      FINDINGS FROM q-g9-evaluator
-      Q-G9a: PASS | NEEDS_UPDATE — [finding]
-      [EDIT: instruction if NEEDS_UPDATE]
-      Q-G9b: PASS | NEEDS_UPDATE — [finding]
-      [EDIT: instruction if NEEDS_UPDATE]
-      ... (all 5 sub-questions)
-
-    Constraints:
-    - Do NOT use Edit, Write, or Bash tools — read-only
-    - Do NOT call ExitPlanMode or touch marker files
-    - Send exactly ONE message to team-lead
-  """
-)
-Apply any NEEDS_UPDATE instructions from q-g9-evaluator. Mark changes <!-- review-plan -->.
 Q-G9 results are included in the scorecard output (step 3 of "After Review Completes"; see Organization Quality section below).
 
 ---
@@ -975,13 +965,13 @@ After the convergence loop exits (scorecard not yet printed):
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): Gate 1 is
    resolved by the `pass_count >= 5` branch inside the loop. By the time the loop exits, Gate 1
    is either clean or the user has been asked and responded (with edits applied or override noted).
-   Do NOT re-run the REWORK check here — it was already handled inside the loop.
+   Do not re-run the REWORK check here — it was already handled inside the loop.
 
-2. **Q-G9 organization pass** (post-convergence structural check):
+2. **Q-G9 organization pass** (post-convergence structural check, inline):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
-   Spawn q-g9-evaluator Task as specified in the "Q-G9 Post-Convergence Organization Pass"
-   subsection in Layer 1. Append `q-g9-evaluator` to spawned_evaluators. Wait for response.
-   Apply any NEEDS_UPDATE instructions. Q-G9 results will be included in the scorecard output in step 3.
+   Evaluate Q-G9 inline as specified in the "Q-G9 Post-Convergence Organization Pass"
+   subsection in Layer 1 (no Task spawn — team-lead evaluates directly). Apply any NEEDS_UPDATE
+   edits immediately. Q-G9 results will be included in the scorecard output in step 3.
 
 3. **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
    Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
@@ -994,7 +984,7 @@ After the convergence loop exits (scorecard not yet printed):
    - `" <!-- gas-plan -->"` → `""` (remove)
    - `" <!-- node-plan -->"` → `""` (remove)
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
-   Only strip the markers — do NOT remove the content they annotated.
+   Only strip the markers — do not remove the content they annotated.
 
 5. Use the Bash tool to run:
    ```
@@ -1010,8 +1000,8 @@ After the convergence loop exits (scorecard not yet printed):
    the session context needed for TeamDelete is not available after exiting plan mode.)
    Reference: spawned_evaluators will contain entries like `l1-evaluator-p<N>`,
    `<cluster_name>-evaluator-p<N>`, `gas-evaluator-p<N>`, `node-evaluator-p<N>`,
-   `ui-evaluator-p<N>`, `q-g9-evaluator` (q-g9-evaluator is appended in step 2 above when it runs).
-   All per-pass evaluators use `-p<pass_count>` suffix to prevent name collisions on re-spawn.
+   `ui-evaluator-p<N>`. All per-pass evaluators use `-p<pass_count>` suffix to prevent
+   name collisions on re-spawn. Q-G9 is inline (no agent to shut down).
 
 7. **Remaining issues summary (non-READY ratings):**
    ```
