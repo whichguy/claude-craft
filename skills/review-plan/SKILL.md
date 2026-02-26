@@ -232,6 +232,7 @@ DO:
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
   Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas-eval") + (IS_NODE: " · node-eval") + (HAS_UI: " · ui")
 
+  [Substitute plan_path, questions_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
   [In a SINGLE message, spawn all evaluators in parallel:
    L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
    Practical maximums: IS_GAS mode = L1 + state cluster + gas-eval + UI = 4.

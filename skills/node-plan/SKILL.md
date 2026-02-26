@@ -134,7 +134,7 @@ DO:
     memoized_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nTreat as PASS in your output — do not re-evaluate."
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
-  [Substitute the actual resolved plan_path value into each prompt before spawning]
+  [Substitute the actual resolved plan_path and questions_path values into each prompt before spawning]
   [If memoized_directive is non-empty, inject it into each evaluator prompt before the Constraints section]
   [After spawning each evaluator, append its name to spawned_evaluators]
 

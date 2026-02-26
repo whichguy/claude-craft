@@ -132,7 +132,7 @@ DO:
     (substitute actual pass numbers from gas_memoized_since[q_id] for each Q-ID before injecting)
 
   [In a SINGLE message, spawn active evaluators as PARALLEL Task calls]
-  [Substitute the actual resolved plan_path value into each prompt before spawning]
+  [Substitute the actual resolved plan_path and questions_path values into each prompt before spawning]
   [If memoized_directive is non-empty, inject it into each evaluator prompt before the Constraints section]
   [After spawning each evaluator, append its name to spawned_evaluators]
 
