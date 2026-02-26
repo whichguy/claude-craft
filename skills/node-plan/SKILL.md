@@ -14,10 +14,6 @@ description: |
 
   **NOT for:** GAS plans (use /gas-plan), code review (use /review-fix), non-Node plans
 
-  **mode parameter:**
-  - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
-  - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
-    team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
 model: sonnet
 allowed-tools: all
 ---
@@ -26,100 +22,23 @@ allowed-tools: all
 
 You review implementation plans from two perspectives per pass: **TypeScript/API evaluator**
 (types, async, packages, modules) and **Node runtime evaluator** (process, env, framework,
-security). In standalone mode, both perspectives evaluate in parallel each convergence pass
-via spawned evaluator agents. In evaluate mode, you do a single-pass evaluation yourself
-and return findings to the calling skill.
-
-## Mode Parameter
-
-Two operating modes:
-- **`standalone`** (default): Creates an evaluator team, runs parallel TypeScript + Node
-  runtime evaluators each pass, merges findings, applies edits, converges, outputs final
-  scorecard, calls ExitPlanMode.
-- **`evaluate`**: Single-pass read-only evaluation run inside another skill's team. Evaluates
-  all applicable questions (both perspectives), sends findings via SendMessage to team-lead,
-  then stops. No plan edits. No ExitPlanMode. No team creation.
-
-**How to detect mode:** Scan the invocation prompt for `mode=evaluate`. If found, set
-MODE=evaluate. Otherwise MODE=standalone.
-
-**WARNING:** If invoked inside an existing team (team_name present in invocation context), check for `mode=evaluate` before proceeding. Running standalone inside an existing team creates nested team conflicts and a circular ExitPlanMode race condition. When in doubt: if a team_name is present, force MODE=evaluate.
+security). Both perspectives evaluate in parallel each convergence pass via spawned evaluator
+agents.
 
 ## Core Directive: Loop Until Stable
 
-**In standalone mode: You MUST loop. NEVER output the final scorecard until exit criteria
-are met. NEVER stop after one pass.**
+Loop until convergence. Do not output the final scorecard until exit criteria are met.
+Do not stop after one pass.
 
 ## Step 0: Locate Plan and Load Context
 
-1. **Check mode:** Scan invoking prompt for `mode=evaluate`. Set MODE accordingly.
-2. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick
+1. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick
    the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
-3. **Standards context** (cache for all passes):
+2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
    - Read project MEMORY.md from the project memory directory
-4. **Read the plan** and identify domains present (new packages? async code? env vars?
+3. **Read the plan** and identify domains present (new packages? async code? env vars?
    framework integration? deployment?) for triage.
-5. **Branch on mode:** If MODE=evaluate → jump to [Mode: evaluate]. If MODE=standalone →
-   jump to [Mode: standalone].
-
----
-
-## Mode: evaluate
-
-*Single-pass, read-only. Returns findings via SendMessage. No edits. No ExitPlanMode.*
-
-**You are running inside another review skill's team. Your only output is a SendMessage to
-the team-lead.**
-
-**Nested team constraint:** Do NOT call TeamCreate in evaluate mode — you are already inside a team. Creating a nested team causes agent isolation and message delivery failures. If you detect you are being invoked inside an existing team (team_name present in context), evaluate mode is mandatory.
-
-1. Read the plan file (done in Step 0).
-2. Apply triage: bulk-mark N/A for irrelevant domains.
-   - No TypeScript/package changes → bulk N/A N2, N3, N4, N5, N11, N12
-   - No async code changes → bulk N/A N6, N7
-   - No env var changes → bulk N/A N9, N10
-   - No framework changes → bulk N/A N15, N16, N17
-   - No new resources/connections → bulk N/A N13, N14, N18
-   - No async code → bulk N/A N22, N23, N24, N25, N27, N28, N35
-   - No new timers → bulk N/A N26
-   - No deployment/containers → bulk N/A N31, N36
-   - No secrets/credentials → bulk N/A N33
-   - No API endpoint changes → bulk N/A N34
-   - Not a monorepo → bulk N/A N30
-   - No native addon packages → bulk N/A N32
-   - Not a published library → bulk N/A N37
-   - No HTTP server → bulk N/A N38
-   - No new tests → bulk N/A N19
-   - No file path operations → bulk N/A N29
-   - Exception: N1 (tsc check) — evaluate regardless if plan involves any TS files.
-   - For shared question (N8): evaluate from both lenses, combine findings.
-3. Evaluate ALL applicable questions from BOTH perspectives in a single pass.
-4. Skip content marked `<!-- node-plan -->` or `<!-- review-plan -->` (self-referential
-   protection).
-5. Call the **SendMessage** tool exactly once:
-   ```
-   type: "message"
-   recipient: "team-lead"
-   summary: "node-plan evaluation complete — N NEEDS_UPDATE"  (fill in count)
-   content: |
-     FINDINGS FROM node-plan
-
-     [Triage] TypeScript/API domain: [ACTIVE | SKIPPED — reason]
-     [Triage] Node runtime domain: [ACTIVE | SKIPPED — reason]
-
-     N1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-     [EDIT: specific instruction — where to add/change and what, if NEEDS_UPDATE]
-     N2: ...
-     ...
-     N37: ...
-     N38: ...
-     (N20, N21 not evaluated — covered by L1 Q-G6/Q-G7)
-   ```
-   Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
-
-6. **STOP.** Do not loop. Do not edit the plan. Do not touch `.plan-reviewed`. Do not call
-   ExitPlanMode.
 
 ---
 
@@ -145,7 +64,7 @@ IF any unrecoverable error occurs during the convergence loop:
   1. Send shutdown_request to any active evaluator agents
   2. TeamDelete
   3. Surface the error to the user via AskUserQuestion
-  Do NOT leave orphaned team processes.
+  Do not leave orphaned team processes.
 ```
 
 ### Perspective Assignments
@@ -171,7 +90,7 @@ merges: combine findings, keep the more actionable wording.
 
 **Triage shortcut — question-level bulk N/A:** No new timers → mark N26 N/A without individual evaluation. No file path operations → mark N29 N/A. Shared questions are NEVER bulk-N/A'd.
 
-**Never-N/A exception:** N1 (TypeScript build check) MUST be evaluated whenever the plan
+**Never-N/A exception:** N1 (TypeScript build check) is evaluated whenever the plan
 involves any TypeScript files, regardless of triage.
 
 ### Execution Flow
@@ -230,12 +149,10 @@ DO:
       You are a senior TypeScript/API engineer evaluating a Node.js/TypeScript implementation
       plan.
 
-      Your inputs:
-      - Plan file: <plan_path> — read it with the Read tool
-      - Question definitions: Read ~/.claude/skills/node-plan/SKILL.md for the full question
-        table (questions marked [TS] and [Shared])
-      - Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
-        ~/.claude/CLAUDE.md as needed (skip unrelated sections)
+      Question definitions: Read ~/.claude/skills/node-plan/QUESTIONS.md for the full question
+        table (questions marked [TS] and [Shared]).
+      Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
+        ~/.claude/CLAUDE.md as needed (skip unrelated sections).
 
       Evaluate these questions through the TYPESCRIPT/API lens:
         TS-owned: N1, N2, N3, N4, N5, N6, N7, N11, N12, N19, N29, N30, N32, N37
@@ -251,7 +168,7 @@ DO:
               Evaluate N1 if any TS files are involved, regardless of triage.
               Evaluate shared N8 regardless.
 
-      IMPORTANT — if Node Runtime evaluator was skipped this pass (no runtime/env/framework changes):
+      If Node Runtime evaluator was skipped this pass (no runtime/env/framework changes):
         Also evaluate N8 from the NODE RUNTIME lens.
         Output N8 twice: first your TS finding, then your NR finding.
         Label clearly: "[TS lens]" and "[NR lens]". Team-lead merges both.
@@ -269,16 +186,18 @@ DO:
           [EDIT: instruction if NEEDS_UPDATE]
           (one entry per evaluated question)
 
-      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+      Do not write findings to stdout — the team-lead only receives content via SendMessage.
 
       [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
        This directive OVERRIDES the question list above — memoized questions are PASS
        regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
-      - Do NOT call ExitPlanMode or touch any marker files
+      - Do not use Edit, Write, or Bash tools — read-only evaluation
+      - Do not call ExitPlanMode or touch any marker files
       - Call SendMessage exactly once with all findings
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
@@ -292,12 +211,10 @@ DO:
       You are a senior Node.js runtime engineer evaluating a Node.js/TypeScript implementation
       plan.
 
-      Your inputs:
-      - Plan file: <plan_path> — read it with the Read tool
-      - Question definitions: Read ~/.claude/skills/node-plan/SKILL.md for the full question
-        table (questions marked [NR] and [Shared])
-      - Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
-        ~/.claude/CLAUDE.md as needed (skip unrelated sections)
+      Question definitions: Read ~/.claude/skills/node-plan/QUESTIONS.md for the full question
+        table (questions marked [NR] and [Shared]).
+      Standards: Read only the Tool Preferences and relevant Node.js/TypeScript sections of
+        ~/.claude/CLAUDE.md as needed (skip unrelated sections).
 
       Evaluate these questions through the NODE RUNTIME lens:
         NR-owned: N9, N10, N13, N14, N15, N16, N17, N18, N22, N23, N24, N25, N26, N27, N28,
@@ -315,7 +232,7 @@ DO:
               If plan has no HTTP server → N/A N38.
               Evaluate shared N8 regardless.
 
-      IMPORTANT — if TypeScript evaluator was skipped this pass (no TS/package changes):
+      If TypeScript evaluator was skipped this pass (no TS/package changes):
         Also evaluate N8 from the TYPESCRIPT/API lens.
         Output N8 twice: first your NR finding, then your TS finding.
         Label clearly: "[NR lens]" and "[TS lens]". Team-lead merges both.
@@ -333,16 +250,18 @@ DO:
           [EDIT: instruction if NEEDS_UPDATE]
           (one entry per evaluated question)
 
-      Do NOT write findings to stdout — the team-lead only receives content via SendMessage.
+      Do not write findings to stdout — the team-lead only receives content via SendMessage.
 
       [MEMOIZED_DIRECTIVE — team-lead injects memoized_directive here if non-empty.
        This directive OVERRIDES the question list above — memoized questions are PASS
        regardless of what the plan says. Do not re-evaluate them.]
 
       Constraints:
-      - Do NOT use Edit, Write, or Bash tools — read-only evaluation
-      - Do NOT call ExitPlanMode or touch any marker files
+      - Do not use Edit, Write, or Bash tools — read-only evaluation
+      - Do not call ExitPlanMode or touch any marker files
       - Call SendMessage exactly once with all findings
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
@@ -384,7 +303,7 @@ DO:
   APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- node-plan -->.
-    Each Edit call = 1 change (increment changes_this_pass). Do NOT count findings you only described in text.
+    Each Edit call = 1 change (increment changes_this_pass). Do not count findings you only described in text.
   total_changes_all_passes += changes_this_pass
   CONSOLIDATE plan (see Consolidation Rules below)
   RE-READ consolidated plan
@@ -446,7 +365,7 @@ OUTPUT final scorecard
 # the loop exits, Gate 1 is either clean or the user has been asked and responded.
 
 TEARDOWN: (see "After Review Completes" steps 3–5 for the actual sequence)
-# ⚠️ Do NOT execute teardown from here. The "After Review Completes" section handles:
+# ⚠️ Do not execute teardown from here. The "After Review Completes" section handles:
 #    org-evaluator (step 2) → gate marker + memo_file cleanup (step 3) → TeamDelete (step 4) → ExitPlanMode (step 5).
 ```
 
@@ -509,7 +428,7 @@ Pass 3/5: evaluating...
 
 See `~/.claude/skills/shared/self-referential-protection.md` for the canonical protection policy. <!-- review-plan -->
 
-If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do NOT flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
+If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 
 ## Consolidation Rules (Every Pass)
 
