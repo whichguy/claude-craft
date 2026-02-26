@@ -38,9 +38,12 @@ Loop until convergence. Do not output the final scorecard until exit criteria ar
 1. **Plan file**: Check skill arg. If empty, use `Glob("~/.claude/plans/*.md")` and pick the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
-   - Read project MEMORY.md from the project memory directory
-   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
+   - Find and read the project memory file:
+     `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
+     (skip gracefully if none found)
+   - Path variables (substitute into evaluator prompts at spawn time, same as `<plan_path>`):
+     - `<questions_path>`: `~/.claude/skills/gas-plan/QUESTIONS.md`
+       (`~` makes this portable across users; update here if install base changes)
 3. **Read the plan** and identify domains present (UI changes? new files? deployment? common-js edits?) for triage.
 
 ### Team Setup
@@ -418,7 +421,7 @@ Organization Quality (Q43): PASS
 
 ## Self-Referential Protection
 
-See `shared/self-referential-protection.md` (sibling directory — derive: replace `gas-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path) for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy. <!-- review-plan -->
 
 If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
 
@@ -758,6 +761,7 @@ After outputting the Final Scorecard:
    REWORK check here — it was already handled inside the loop.
 
 2. **Q43 post-loop evaluation (plan legibility / organization):**
+   [Substitute plan_path and questions_path (resolved in Step 0) before spawning]
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "q43-evaluator"
@@ -770,7 +774,7 @@ After outputting the Final Scorecard:
              NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
            Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
 
-           Plan to evaluate: [plan_path] — read it with the Read tool, then evaluate Q43 above.
+           Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate Q43 above.
    ```
    Append "q43-evaluator" to spawned_evaluators.
    Wait for message (90s max). Timeout handling:

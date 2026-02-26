@@ -36,9 +36,12 @@ Do not stop after one pass.
    the most recently modified file. If no plan files exist, ask the user via AskUserQuestion.
 2. **Standards context** (cache for all passes):
    - Read `~/.claude/CLAUDE.md`
-   - Read project MEMORY.md from the project memory directory
-   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
+   - Find and read the project memory file:
+     `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
+     (skip gracefully if none found)
+   - Path variables (substitute into evaluator prompts at spawn time, same as `<plan_path>`):
+     - `<questions_path>`: `~/.claude/skills/node-plan/QUESTIONS.md`
+       (`~` makes this portable across users; update here if install base changes)
 3. **Read the plan** and identify domains present (new packages? async code? env vars?
    framework integration? deployment?) for triage.
 
@@ -425,7 +428,7 @@ Pass 3/5: evaluating...
 
 ## Self-Referential Protection
 
-See `shared/self-referential-protection.md` (sibling directory — derive: replace `node-plan/SKILL.md` with `shared/self-referential-protection.md` in this file's path) for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy. <!-- review-plan -->
 
 If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 
@@ -740,10 +743,11 @@ execution flow pseudo-code is a placeholder only — it defers here. Summary:
    Gate 1 is never left silently open — it is handled inside the loop, not post-loop.
 2. **Post-loop organization check:**
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
+   [Substitute plan_path (resolved in Step 0) before spawning]
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "node-org-evaluator"
-   prompt: Read [plan_path]. Evaluate plan organization for Node.js/TypeScript plans:
+   prompt: Read <plan_path>. Evaluate plan organization for Node.js/TypeScript plans:
            (a) Are implementation steps numbered sequentially?
            (b) Are parallel steps labeled ("[parallel]", "In a SINGLE message")?
            (c) Are section headers used? No prose walls >5 sentences?
