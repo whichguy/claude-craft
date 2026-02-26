@@ -758,6 +758,7 @@ After outputting the Final Scorecard:
    REWORK check here — it was already handled inside the loop.
 
 2. **Q43 post-loop evaluation (plan legibility / organization):**
+   [Substitute plan_path and questions_path (resolved in Step 0) before spawning]
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "q43-evaluator"
@@ -770,7 +771,7 @@ After outputting the Final Scorecard:
              NEEDS_UPDATE — [specific edit instruction: what to add/change and where]
            Send findings via SendMessage to team-lead (type: message, recipient: team-lead).
 
-           Plan to evaluate: [plan_path] — read it with the Read tool, then evaluate Q43 above.
+           Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate Q43 above.
    ```
    Append "q43-evaluator" to spawned_evaluators.
    Wait for message (90s max). Timeout handling:

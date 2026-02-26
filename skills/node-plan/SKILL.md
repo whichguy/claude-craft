@@ -740,10 +740,11 @@ execution flow pseudo-code is a placeholder only — it defers here. Summary:
    Gate 1 is never left silently open — it is handled inside the loop, not post-loop.
 2. **Post-loop organization check:**
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
+   [Substitute plan_path (resolved in Step 0) before spawning]
    Spawn a single Task (general-purpose, current team_name):
    ```
    name: "node-org-evaluator"
-   prompt: Read [plan_path]. Evaluate plan organization for Node.js/TypeScript plans:
+   prompt: Read <plan_path>. Evaluate plan organization for Node.js/TypeScript plans:
            (a) Are implementation steps numbered sequentially?
            (b) Are parallel steps labeled ("[parallel]", "In a SINGLE message")?
            (c) Are section headers used? No prose walls >5 sentences?

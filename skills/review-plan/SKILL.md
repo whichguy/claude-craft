@@ -152,7 +152,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
-       Re-evaluate the same 7 questions once (same Task format above).
+       Re-evaluate the same 7 questions once (same Task format above,
+       including substitution of plan_path and questions_path).
        If all 7 now PASS:
          Write gate marker, output simplified scorecard (Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
        If still NEEDS_UPDATE:
