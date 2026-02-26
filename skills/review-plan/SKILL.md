@@ -37,10 +37,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - Find and read the project memory file:
      `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
      (skip gracefully if none found)
-   - Path variables — derive at runtime from the path this file was read from; substitute into evaluator prompts at spawn time (same as `<plan_path>`):
-     - `<questions_path>`: sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
-     - `<gas_eval_path>`:  peer skill — replace `review-plan/SKILL.md` with `gas-plan/EVALUATE.md` in this file's path
-     - `<node_eval_path>`: peer skill — replace `review-plan/SKILL.md` with `node-plan/EVALUATE.md` in this file's path
+   - Path variables — derive now and cache as named variables; used in all evaluator spawning (fast-path and loop):
+     - `plan_path` = absolute path of the plan file found in step 1
+     - `questions_path` = sibling QUESTIONS.md — replace `SKILL.md` with `QUESTIONS.md` in this file's path
+     - `gas_eval_path`  = peer skill — replace `review-plan/SKILL.md` with `gas-plan/EVALUATE.md` in this file's path
+     - `node_eval_path` = peer skill — replace `review-plan/SKILL.md` with `node-plan/EVALUATE.md` in this file's path
 
 3. **Set context flags** (Haiku classification):
    Task(
@@ -115,6 +116,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
    IF IS_TRIVIAL:
      Print: "⚡ Trivial plan detected — running fast-path review (single pass, 7 questions)"
+     [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
        model = "sonnet",
