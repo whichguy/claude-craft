@@ -739,7 +739,18 @@ output a commit suggestion.
 If `advisory_surfaced[]` is empty, skip Phase 5a entirely — do not call `AskUserQuestion`
 and do not emit the Applied / Skipped / Failed report sections. Proceed directly to Step 5b.
 
-If `advisory_surfaced[]` is non-empty, present them to the user for selection:
+**AskUserQuestion gate — only invoke when genuinely uncertain.** Do NOT call
+`AskUserQuestion` for advisories that are clearly routine (obvious null-guard, trivial
+whitespace/formatting, one-liner with no semantic risk). For those, record them in
+`advisory_applied[]` and apply their Fix blocks silently. Only invoke `AskUserQuestion`
+when you cannot confidently assess the risk or intent of applying a finding — for example:
+- the Fix block modifies logic or control flow (not just style)
+- the advisory touches a section of code flagged as sensitive (auth, data handling)
+- the finding description is ambiguous or the Fix block interpretation is unclear
+If uncertain about whether to gate on a finding, gate on it. Prefer false positives
+(unnecessary questions) over false negatives (silent risky mutations).
+
+If `advisory_surfaced[]` is non-empty and any entries require gating, present them to the user for selection:
 
 **Build options list** (one option per entry in `advisory_surfaced[]`):
 - `label`: `[file:line] — [Q-number or title]` (short identifier, ≤60 chars)
