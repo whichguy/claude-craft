@@ -2,9 +2,9 @@
 name: review-fix
 description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
-  for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical and Advisory
-  fixes per-file until nothing changes (0 fixes applied), surfaces Advisory/YAGNI without
-  auto-applying, produces a summary.
+  for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical fixes
+  per-file until nothing changes (0 fixes applied), surfaces Advisory findings for human
+  review (never auto-applied), produces a summary with interactive advisory selection.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -16,9 +16,10 @@ color: orange
 ---
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
-all Critical and Advisory findings are resolved, then produce a structured summary. Both
-Critical and Advisory (non-YAGNI) severities auto-apply when a Fix block exists; Advisory/YAGNI
-is surfaced but never auto-applied; Advisory without Fix records as stuck and surfaces for human review.
+all Critical findings are resolved, then produce a structured summary. Critical findings
+auto-fix when a Fix block exists; Advisory findings are surfaced but never auto-applied —
+presented to the user for selection in Phase 5; Advisory/YAGNI is skipped; Advisory without
+a Fix block records as stuck and surfaces for human review.
 
 ```
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Commit
@@ -48,13 +49,14 @@ global_round = 0           # global round counter for round-based parallel loop
 run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
-advisory_resolved = []     # { file, line, q_number, description }
+advisory_surfaced = []     # { file, line, q_number, description, fix_block } — Advisory findings (with Fix block) surfaced for human review
+advisory_applied = []      # { file, line, q_number, description } — user-selected Advisory findings applied in Phase 5
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
 advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
 introduced_by_fix = []     # { file, line, q_number, description } — new Criticals not in prior round
 files_changed = []
-files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or fixable APPROVED_WITH_NOTES
+files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION (Critical findings)
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
@@ -66,10 +68,16 @@ final_status = 'pending'
 *These rules apply to all phases.*
 
 **The review loop (Phases 2–4) proceeds without user input.** Teardown is automatic. Phase 5
-outputs a commit suggestion with a `COMMIT_SUGGESTED` marker — it does not call
-`AskUserQuestion`. The calling agent acts on the marker.
+presents surfaced Advisory findings via `AskUserQuestion` for user selection, then outputs a
+commit suggestion with a `COMMIT_SUGGESTED` marker. The calling agent acts on the marker.
 
-**Critical and non-YAGNI Advisory auto-fix when a Fix block exists.** `Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]` and surfaced in the summary only. Advisory without a Fix block records stuck and surfaces (never invented), producing `APPROVED_WITH_NOTES`.
+**Critical** findings auto-fix when a Fix block exists.
+**Advisory** findings (including non-YAGNI Advisory) are **always surfaced but never
+auto-applied** — record in `advisory_surfaced[]`, emit in the Phase 5 report under
+"Advisory Findings — Surfaced (human review required)", and do NOT apply the Fix block.
+`Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]`
+and surfaced in the summary only. Advisory without a Fix block records in `advisory_stuck[]`
+(never invented), producing `APPROVED_WITH_NOTES`.
 
 **Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
 
@@ -222,8 +230,7 @@ Store output: `current_findings[file_list[0]] = <full review output>`
 
 - `APPROVED` → Phase 4
 - `NEEDS_REVISION` → add file to `files_needing_fixes`; Phase 3
-- `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add file to `files_needing_fixes`; Phase 3
-- `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Parallel-Task Mode (2–4 files)
@@ -257,8 +264,7 @@ Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All 
 
 - All files `APPROVED` → Phase 4
 - Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Team Mode (5+ files)
@@ -314,8 +320,7 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 
 - All files `APPROVED` → Phase 4 (keep team for teardown)
 - Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
-- Any `APPROVED_WITH_NOTES` where Advisory findings include Fix blocks → add that file to `files_needing_fixes`; Phase 3
-- All files `APPROVED_WITH_NOTES` where all Advisory findings have no Fix block → Phase 4
+- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
@@ -338,6 +343,10 @@ Print: "[N] file(s) need fixes — entering fix loop."  (if any NEEDS_REVISION o
 ---
 
 ## Phase 3: Fix Loop (Round-Based Parallel)
+
+<!-- TODO(architecture): consider running each review pass as a Task() and delegating
+     loop continuation + advisory gating to the calling facility (POST_IMPLEMENT or
+     skill invoker). This allows callers to gate on advisory findings before proceeding. -->
 
 Process all files needing fixes in **global rounds**. Each round applies fixes to all remaining
 files sequentially (team lead edits), then re-reviews them all **in parallel** (single message).
@@ -375,13 +384,15 @@ WHILE remaining_files.length > 0 AND global_round < max_rounds:
       5. If `Fix:` block absent or ambiguous: record in stuck_findings; DO NOT invent a fix
       6. On success: record in critical_resolved; files_changed += file; fixes_applied_per_file[file] += 1
 
-    Apply Advisory findings after all Critical fixes (from current_findings[file]):
+    Collect Advisory findings after all Critical fixes (from current_findings[file]):
       - `Finding: Advisory/YAGNI` → skip, record in advisory_yagni[], print ⊘ line;
         does NOT count toward fixes_applied_per_file[file]
-      - Else (regular Advisory):
-        1–5. Same as Critical steps above
-        6. On success: record in advisory_resolved; files_changed += file; fixes_applied_per_file[file] += 1
-        No Fix block → record in advisory_stuck; do NOT invent a fix
+      - Else (regular Advisory WITH Fix block):
+        Record in advisory_surfaced[] (include fix_block text); print ⊘ line;
+        does NOT count toward fixes_applied_per_file[file]; do NOT apply the Fix block.
+      - Else (regular Advisory WITHOUT Fix block):
+        Record in advisory_stuck[]; print ⊘ line;
+        does NOT count toward fixes_applied_per_file[file]; do NOT invent a fix.
 
   // Files with 0 fixes this round are clean — exit them before re-review
   files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
@@ -426,6 +437,10 @@ meaning no fixable findings remain (all are YAGNI, stuck, or already addressed).
 against malformed `LOOP_DIRECTIVE`: if a reviewer erroneously emits COMPLETE while providing
 fixable findings, `fixes_applied > 0` and the loop continues; if `APPLY_AND_RECHECK` is emitted
 with 0 fixes, the condition still fires and exits correctly.
+
+**Advisory-only rounds exit immediately:** A round that applies 0 fixes because all remaining
+findings are Advisory, YAGNI, or Stuck is a clean round — do NOT continue looping. Advisory
+findings pending human review are not a reason to re-run.
 
 ### Re-Review: Single-Agent and Parallel-Task Mode (≤4 files total)
 
@@ -519,9 +534,10 @@ Print: "🔧 Round [global_round]/[max_rounds]: applying fixes to [N] file(s)...
 
 For each fix applied or skipped (in evidence order, across all files in the round):
 ```
-Print: "  ✓ [file:line] — [Critical|Advisory] [Q-number or title]: [short description]"
+Print: "  ✓ [file:line] — Critical [Q-number or title]: [short description]"
+Print: "  ⊘ [file:line] — Advisory [Q-number or title]: surfaced for review"
 Print: "  ⊘ [file:line] — [Advisory/YAGNI] [title]: skipped (speculative)"
-Print: "  ⊘ [file:line] — [Advisory] [Q-number]: no Fix block (stuck)"
+Print: "  ⊘ [file:line] — [Advisory] [Q-number]: no Fix block (surfaced)"
 Print: "  ⊘ [file:line] — [Critical] [Q-number]: before text not found (skipped)"
 ```
 
@@ -543,7 +559,7 @@ Example:
 🔧 Round 1/3: applying fixes to 2 file(s)...
   ✓ Utils.gs:45 — Critical Q2: sanitized user input
   ✓ Utils.gs:112 — Critical Q1: added null guard
-  ✓ Main.ts:30 — Advisory: empty catch block fix
+  ⊘ Main.ts:30 — Advisory: empty catch block (surfaced for review)
   ⊘ Utils.gs:88 — [Advisory/YAGNI] Direct PropertiesService: skipped (speculative)
   → Re-reviewing 2 file(s) in parallel...
 🔧 Round 2/3: applying fixes to 2 file(s)...
@@ -558,8 +574,15 @@ Example:
 ## Phase 4: Summary + Teardown
 
 ```javascript
-// Deduplicate advisory_stuck and advisory_yagni before summary
+// Deduplicate advisory_surfaced, advisory_stuck, and advisory_yagni before summary
 // Use line-agnostic keys: line numbers shift after fixes, causing spurious duplicates
+const _seenSurfaced = new Set()
+advisory_surfaced = advisory_surfaced.filter(entry => {
+  const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
+  if (_seenSurfaced.has(key)) return false
+  _seenSurfaced.add(key)
+  return true
+})
 const _seen = new Set()
 advisory_stuck = advisory_stuck.filter(entry => {
   const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
@@ -609,12 +632,13 @@ advisory_yagni = advisory_yagni.filter(entry => {
 
 Note: `introduced_by_fix` findings that were subsequently resolved appear in "Critical Findings — Resolved" above, not here.
 
-### Advisory Findings — Resolved ([count])
+### Advisory Findings — Surfaced (human review required) ([count])
 
-[For each resolved advisory:]
-- `file:line` — [Q-number or finding title]: [what was fixed]
+[For each surfaced advisory:]
+- `file:line` — [Q-number or finding title]: [one-line description]
+  > Fix available: [Fix block summary]
 
-[If none: "None — no Advisory findings were present."]
+[If none: "None — no Advisory findings surfaced."]
 
 ### Advisory Findings — Stuck (no Fix block) ([count])
 
@@ -643,8 +667,8 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 ```
 
 **Final status derivation:**
-- `APPROVED` — zero Critical remaining, zero non-YAGNI Advisory remaining (YAGNI-only is still APPROVED)
-- `APPROVED_WITH_NOTES` — zero Critical remaining, ≥1 non-YAGNI Advisory stuck (no Fix block provided)
+- `APPROVED` — zero Critical remaining, zero non-YAGNI Advisory surfaced or stuck (YAGNI-only is still APPROVED)
+- `APPROVED_WITH_NOTES` — zero Critical remaining, ≥1 non-YAGNI Advisory surfaced or stuck
 - `NEEDS_REVISION` — one or more Critical findings in `stuck_findings`
 
 ### Teardown (Team Mode Only — 5+ files)
@@ -678,17 +702,64 @@ TeamDelete();
 
 ---
 
-## Phase 5: Git Commit Suggestion
+## Phase 5: Interactive Advisory Selection + Git Commit Suggestion
 
-After teardown, output a commit suggestion when the review succeeded and files were changed.
+After teardown, first present surfaced Advisory findings for user selection (if any), then
+output a commit suggestion.
+
+---
+
+### Step 5a: Interactive Advisory Selection
+
+If `advisory_surfaced[]` is non-empty, present them to the user for selection:
+
+**Build options list** (one option per entry in `advisory_surfaced[]`):
+- `label`: `[file:line] — [Q-number or title]` (short identifier, ≤60 chars)
+- `description`: one-sentence description + Fix block summary (e.g., "Adds null guard. Fix: wrap X in Y check.")
+
+**Present via `AskUserQuestion`** with `multiSelect: true`:
+- Question text: `"Which advisory findings would you like to apply?"`
+- ≤ 4 advisories: one call with all options
+- > 4 advisories: paginate in batches of ≤ 4; header: `"Advisories (batch N/M)"`, accumulate selections across batches
+
+**Apply selected advisories** — for each user-selected advisory:
+1. Locate using the Evidence citation (`file:line`)
+2. Apply Fix block via Edit tool (same logic as Critical fixes: `old_string` = before, `new_string` = after)
+3. If `before` text not found: skip and note in output
+4. Record in `advisory_applied[]`; add file to `files_changed`
+
+**Constraint note:** When review-fix runs as a `Task()` subagent, `AskUserQuestion` surfaces to
+the calling agent (team-lead or POST_IMPLEMENT). The calling facility must relay or handle the
+response. The TODO(architecture) above is the longer-term solution; this step adds the
+interaction at the Phase 5 boundary where it is safe regardless of calling context.
+
+**Output Phase 5 report sections** (after completing advisory selection):
+
+#### Advisory Findings — Applied (user-selected) ([advisory_applied.length])
+
+[For each applied advisory:]
+- `file:line` — [Q-number or finding title]: [what was fixed]
+
+[If none: "None selected."]
+
+#### Advisory Findings — Skipped (user declined) ([count of advisory_surfaced minus advisory_applied])
+
+[For each un-selected advisory from advisory_surfaced[]:]
+- `file:line` — [Q-number or finding title]: [one-line description]
+
+[If none: "None — all advisories were applied or no advisories were surfaced."]
+
+---
+
+### Step 5b: Git Commit Suggestion
+
+After the advisory selection sections, output a commit suggestion when the review succeeded
+and files were changed.
 
 **Conditions to trigger:**
 - `files_changed` is non-empty
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
-
-**Output after the Phase 4 summary block. Do not call `AskUserQuestion` — output the block
-below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks the user.**
 
 **Output template:**
 
@@ -699,7 +770,7 @@ below and stop. The calling agent reads the `COMMIT_SUGGESTED` marker and asks t
 
 **Suggested commit message:**
 ```
-<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_resolved.length] advisory resolved)
+<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
 ```
 
 **To stage and commit:**
