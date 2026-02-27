@@ -18,9 +18,10 @@ color: orange
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
 all Critical findings are resolved, then produce a structured summary. Critical findings
-auto-fix when a Fix block exists; Advisory findings are surfaced but never auto-applied —
-presented to the user for selection in Phase 5; Advisory/YAGNI is skipped; Advisory without
-a Fix block records as stuck and surfaces for human review.
+auto-fix when a Fix block exists; Advisory findings are recorded in `advisory_surfaced[]` —
+routine ones (≤3 lines, no new branches, single statement) auto-apply silently; non-routine
+ones are presented to the user for selection in Phase 5; Advisory/YAGNI is skipped; Advisory
+without a Fix block records as stuck and surfaces for human review.
 
 ```
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Commit
@@ -648,9 +649,9 @@ advisory_yagni = advisory_yagni.filter(entry => {
 
 Note: `introduced_by_fix` findings that were subsequently resolved appear in "Critical Findings — Resolved" above, not here.
 
-### Advisory Findings — Pending Human Review ([count])
+### Advisory Findings — Surfaced ([count])
 
-*(See "Advisory Findings — Applied" and "Advisory Findings — Skipped" sections in Phase 5 for final disposition.)*
+*(See "Advisory Findings — Applied" and "Advisory Findings — Skipped (not applied)" sections in Phase 5 for final disposition.)*
 
 [For each surfaced advisory:]
 - `file:line` — [Q-number or finding title]: [one-line description]
@@ -664,7 +665,7 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 
 [For each advisory stuck finding:]
 - `file:line` — [Q-number or finding title]: [one-line description]
-  > **Action required**: [paste the Fix block from the last review output, or note that no Fix block was provided]
+  > **Action required**: No Fix block was provided by the reviewer. Manual review required.
 
 ### Advisory Findings — YAGNI Skipped ([count])
 
@@ -751,7 +752,7 @@ apply this test to determine routing (all three conditions must pass to auto-app
 2. **No new branches** — Fix block adds no `if`, `else`, `switch`, `try`, `catch`, or `return`
 3. **Single statement** — Fix block is one statement (no compound mutations, no multi-step changes)
 
-**If all three pass** → record in `advisory_applied[]` with `source: 'auto'` and apply the Fix block silently.
+**If all three pass** → record in `advisory_applied[]` with `source: 'auto'`, apply the Fix block silently, and add the file to `files_changed`.
 **If any condition fails** → gate: record and present via `AskUserQuestion` for user selection.
 
 If uncertain about whether a condition applies, treat it as failing (gate). Prefer false positives
@@ -759,7 +760,7 @@ If uncertain about whether a condition applies, treat it as failing (gate). Pref
 
 If `advisory_surfaced[]` is non-empty and any entries require gating, present them to the user for selection:
 
-**Build options list** (one option per entry in `advisory_surfaced[]`):
+**Build options list** (one option per entry in `advisory_surfaced[]` that failed the gate — exclude entries already recorded in `advisory_applied[]`):
 - `label`: `[file:line] — [Q-number or title]` (short identifier, ≤60 chars)
 - `description`: one-sentence description + Fix block summary (e.g., "Adds null guard. Fix: wrap X in Y check.")
 
@@ -795,7 +796,7 @@ the response as `[]` (no selections) — skip advisory application and proceed t
 
 [If none: "None applied."]
 
-#### Advisory Findings — Skipped (user declined) ([count of advisory_surfaced minus advisory_applied minus advisory_failed])
+#### Advisory Findings — Skipped (not applied) ([count of advisory_surfaced minus advisory_applied minus advisory_failed])
 
 [For each un-selected advisory from advisory_surfaced[]:]
 - `file:line` — [Q-number or finding title]: [one-line description]
