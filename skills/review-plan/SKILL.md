@@ -193,7 +193,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12 are not memoizable)
+   memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G15, Q-G16 are not memoizable)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -492,6 +492,8 @@ DO:
   # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
   # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
   # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
+  # Q-G15 (Review-fix automation): NOT safe to memoize — post-implementation framing can change as the plan is revised; must re-evaluate every pass
+  # Q-G16 (LLM comment breadcrumbs): NOT safe to memoize — documentation intent can shift as plan scope and complexity evolve; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
   # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
 
