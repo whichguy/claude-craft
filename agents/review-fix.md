@@ -235,7 +235,9 @@ Store output: `current_findings[file_list[0]] = <full review output>`
 
 - `APPROVED` → Phase 4
 - `NEEDS_REVISION` → add file to `files_needing_fixes`; Phase 3
-- `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
+- `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block
+  into `advisory_surfaced[]` (extract full `Fix:` section text as `fix_block` field),
+  WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Parallel-Task Mode (2–4 files)
@@ -269,7 +271,7 @@ Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All 
 
 - All files `APPROVED` → Phase 4
 - Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
-- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
+- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]` (extract full `Fix:` section text as `fix_block` field), WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Team Mode (5+ files)
@@ -325,7 +327,7 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 
 - All files `APPROVED` → Phase 4 (keep team for teardown)
 - Any `NEEDS_REVISION` → add that file to `files_needing_fixes`; Phase 3
-- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]`, WITHOUT Fix block into `advisory_stuck[]`
+- Any `APPROVED_WITH_NOTES` → Phase 4; parse Advisory findings from review output → WITH Fix block into `advisory_surfaced[]` (extract full `Fix:` section text as `fix_block` field), WITHOUT Fix block into `advisory_stuck[]`
 - Advisory/YAGNI-only across all files (no Critical, no non-YAGNI Advisory) → Phase 4 (APPROVED)
 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
@@ -642,7 +644,9 @@ advisory_yagni = advisory_yagni.filter(entry => {
 
 Note: `introduced_by_fix` findings that were subsequently resolved appear in "Critical Findings — Resolved" above, not here.
 
-### Advisory Findings — Surfaced (human review required) ([count])
+### Advisory Findings — Pending Human Review ([count])
+
+*(See "Advisory Findings — Applied" and "Advisory Findings — Skipped" sections in Phase 5 for final disposition after user selection.)*
 
 [For each surfaced advisory:]
 - `file:line` — [Q-number or finding title]: [one-line description]
@@ -732,6 +736,9 @@ output a commit suggestion.
 
 ### Step 5a: Interactive Advisory Selection
 
+If `advisory_surfaced[]` is empty, skip Phase 5a entirely — do not call `AskUserQuestion`
+and do not emit the Applied / Skipped / Failed report sections. Proceed directly to Step 5b.
+
 If `advisory_surfaced[]` is non-empty, present them to the user for selection:
 
 **Build options list** (one option per entry in `advisory_surfaced[]`):
@@ -756,7 +763,10 @@ If `advisory_surfaced[]` is non-empty, present them to the user for selection:
 **Constraint note:** When review-fix runs as a `Task()` subagent, `AskUserQuestion` surfaces to
 the calling agent (team-lead or POST_IMPLEMENT). The calling facility must relay or handle the
 response. The TODO(architecture) above is the longer-term solution; this step adds the
-interaction at the Phase 5 boundary where it is safe regardless of calling context.
+interaction at the Phase 5 boundary where it is safe regardless of calling context. Until the
+TODO is resolved: the calling agent should relay the question verbatim to the user and pass the
+response back unchanged. If the caller is a non-interactive subagent that cannot relay, treat
+the response as `[]` (no selections) — skip advisory application and proceed to Step 5b.
 
 **Output Phase 5 report sections** (after completing advisory selection):
 
