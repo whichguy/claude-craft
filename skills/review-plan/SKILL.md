@@ -537,7 +537,8 @@ DO:
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
-      AskUserQuestion to resolve Gate 1 issues, then BREAK
+      Print: "⚠️ Max passes reached — [Gate1_unresolved] Gate 1 issue(s) still open. Proceeding to scorecard (Rating: 🔴 REWORK). Reject plan approval to continue fixing."
+      BREAK → proceed to "After Review Completes"
     ELSE:
       Print: "✅ Converged (max passes reached, Gate 1 clear)."
       BREAK → proceed to "After Review Completes"
@@ -895,7 +896,7 @@ Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 
 **Converge** when (gate-aware):
 - `pass_count >= 5` AND `Gate1_unresolved == 0` → BREAK (hard stop, clean)
-- `pass_count >= 5` AND `Gate1_unresolved > 0` → AskUserQuestion, then BREAK
+- `pass_count >= 5` AND `Gate1_unresolved > 0` → BREAK (hard stop, proceed to REWORK scorecard)
 - `Gate1_unresolved > 0` → CONTINUE regardless of change count (never exit with Gate 1 open)
 - `changes_this_pass == 0` OR `Gate2_stable` → BREAK (converged, Gate 1 already clear)
 
@@ -979,10 +980,10 @@ Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps 
 
 After the convergence loop exits (scorecard not yet printed):
 
-1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): Gate 1 is
-   resolved by the `pass_count >= 5` branch inside the loop. By the time the loop exits, Gate 1
-   is either clean or the user has been asked and responded (with edits applied or override noted).
-   Do not re-run the REWORK check here — it was already handled inside the loop.
+1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): By the time
+   the loop exits, Gate 1 is either clean (→ READY/SOLID/GAPS rating) or still has unresolved
+   issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 3)
+   and ExitPlanMode (step 8). Do not re-run the REWORK check here.
 
 2. **Q-G9 organization pass** (post-convergence structural check, inline):
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
@@ -1031,7 +1032,11 @@ After the convergence loop exits (scorecard not yet printed):
      Print: "These are advisory — reject the plan approval to address them."
      Proceed to ExitPlanMode (user can reject ExitPlanMode if they want to fix issues first)
    IF Rating == REWORK:
-     Handled in step 1 above (AskUserQuestion before reaching this point)
+     Print: "🔴 [N] Gate 1 issue(s) remaining after maximum passes:"
+     For each remaining Gate 1 NEEDS_UPDATE question:
+       Print: "  - [question short name] ([ID]): [one-sentence summary of finding]"
+     Print: "These are BLOCKING — reject plan approval to continue fixing before implementation."
+     Proceed to ExitPlanMode
    ```
    This is a single approval point: the user sees remaining issues in printed text, then
    ExitPlanMode is the one decision point. No double-approval friction.
