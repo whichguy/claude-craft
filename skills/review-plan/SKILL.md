@@ -603,7 +603,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
-| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
+| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies the appropriate one: **If section is absent entirely**, output `[EDIT: inject ## Post-Implementation Workflow\n1. /review-fix — loop until clean (run → fix → re-run until 0 findings)\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests (if any)\n4. If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing]`. **If section is present but missing step 4 only**, output `[EDIT: add to Post-Implementation Workflow: step 4 — "If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing"]`. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow including fix-test loop. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 | Q-G13 | Phased decomposition | For plans with >5 steps or multiple distinct concerns — are changes broken into named phases, each ending with an explicit validation gate (test run, exec check, UI verification), with phase dependencies declared and a testable go/no-go condition before the next phase begins? Flag: a large plan uses a flat step list with no phase boundaries, or a later step implicitly depends on an earlier step's success without an explicit checkpoint bridging them. | ≤5 steps targeting a single concern (one file, one feature) |
@@ -826,14 +826,14 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
 Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 43-question findings via SendMessage to team-lead
+- Returns all 51-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
 In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
 evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate`, which means:
 - node-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 36-question findings via SendMessage to team-lead
+- Returns all 38-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
@@ -942,14 +942,14 @@ Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
 
 ### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
-[PASS — converged after N passes (46 questions, K triaged N/A)]
+[PASS — converged after N passes (51 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (46 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (51 questions, K triaged N/A)]
 
 ### Node Specialization (node-plan)  ← render only when IS_NODE=true
-[PASS — converged after N passes (36 questions, K triaged N/A)]
+[PASS — converged after N passes (38 questions, K triaged N/A)]
 OR
-[N NEEDS_UPDATE remaining (36 questions, K triaged N/A)]
+[N NEEDS_UPDATE remaining (38 questions, K triaged N/A)]
 
 ### UI Specialization (ui-designer)  ← render only when HAS_UI=true
 [PASS — converged after N passes (6 questions, K triaged N/A)]
