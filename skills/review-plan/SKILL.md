@@ -476,6 +476,12 @@ DO:
   total_changes_all_passes += changes_this_pass
 
   # Memoization update (post-pass, one-way — once memoized, never removed)
+  # Memoization principle: memoize only criteria that check "additive-only" structural
+  # properties — once met, subsequent plan edits cannot make the criterion fail again.
+  # Memoizable: Q-G3 (review-fix step added), Q-G11 (file paths cited), git cluster (branch/commit steps).
+  # NOT memoizable: criteria that check evolving properties (scope, assumptions, phase structure, etc.)
+  # Q-G1 (Approach soundness): NOT memoizable — plan edits can alter approach scope/complexity
+  # Q-G2 (Standards compliance): NOT memoizable — new steps can introduce directive violations
   # Git cluster: safe to memoize (additive-only — branch + commit steps cannot be removed by edits)
   IF "git" in active_clusters AND "git" NOT in memoized_clusters:
     IF git-evaluator-p<pass_count> returned 0 NEEDS_UPDATE (all PASS or N/A):
