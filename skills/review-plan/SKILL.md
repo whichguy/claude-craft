@@ -131,6 +131,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
+         Read <questions_path> for question definitions (Layer 1 section).
 
          Evaluate ONLY these 7 questions (definitions in <questions_path>):
            Q-G1 (Approach soundness — never N/A)
@@ -493,7 +494,8 @@ DO:
   # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
   # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
   # Q-G16 (LLM comment breadcrumbs): NOT safe to memoize — documentation intent can shift as plan scope and complexity evolve; must re-evaluate every pass
-  # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
+  # Q-C27, Q-C28, Q-C29: not individually memoizable by design (their clusters — impact, operations,
+  # testing — are not currently added to memoized_clusters; only the git cluster is memoized)
   # Only Q-G3 and Q-G11 are individually memoizable L1 questions
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
