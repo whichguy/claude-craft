@@ -51,6 +51,7 @@ team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_surfaced = []     # { file, line, q_number, description, fix_block } — Advisory findings (with Fix block) surfaced for human review
 advisory_applied = []      # { file, line, q_number, description } — user-selected Advisory findings applied in Phase 5
+advisory_failed = []       # { file, line, q_number, description } — user-selected but Fix block could not be applied (before text not found)
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
 advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
@@ -78,6 +79,10 @@ auto-applied** — record in `advisory_surfaced[]`, emit in the Phase 5 report u
 `Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]`
 and surfaced in the summary only. Advisory without a Fix block records in `advisory_stuck[]`
 (never invented), producing `APPROVED_WITH_NOTES`.
+
+`advisory_surfaced[]` (WITH Fix block) and `advisory_stuck[]` (WITHOUT Fix block) are
+**mutually exclusive** per finding — each Advisory finding is appended to exactly one
+array, never both. The presence or absence of a Fix block is the sole routing criterion.
 
 **Fix source is code-reviewer's Fix block only — do not generate alternatives.** Absent or ambiguous → stuck.
 
@@ -336,8 +341,9 @@ Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
 After all receipts, print decision:
 ```
 Print: ""
-Print: "All files clean — skipping to summary."      (if all APPROVED)
-Print: "[N] file(s) need fixes — entering fix loop."  (if any NEEDS_REVISION or APPROVED_WITH_NOTES)
+Print: "All files clean — skipping to summary."                           (if all APPROVED with no NEEDS_REVISION)
+Print: "[N] file(s) need fixes — entering fix loop."                      (if any NEEDS_REVISION)
+Print: "[N] file(s) approved with advisory notes — skipping to summary."  (if APPROVED_WITH_NOTES but no NEEDS_REVISION)
 ```
 
 ---
@@ -393,6 +399,10 @@ WHILE remaining_files.length > 0 AND global_round < max_rounds:
       - Else (regular Advisory WITHOUT Fix block):
         Record in advisory_stuck[]; print ⊘ line;
         does NOT count toward fixes_applied_per_file[file]; do NOT invent a fix.
+
+    Advisory findings are collected from every review and re-review round in Phase 3;
+    deduplication happens in Phase 4. Do NOT suppress advisory collection in earlier
+    rounds — collect on every pass and let Phase 4 dedup handle duplicates.
 
   // Files with 0 fixes this round are clean — exit them before re-review
   files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
@@ -671,6 +681,17 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 - `APPROVED_WITH_NOTES` — zero Critical remaining, ≥1 non-YAGNI Advisory surfaced or stuck
 - `NEEDS_REVISION` — one or more Critical findings in `stuck_findings`
 
+```javascript
+// Assign final_status based on derivation above (MUST run before Phase 5)
+if (stuck_findings.length > 0) {
+  final_status = 'NEEDS_REVISION'
+} else if (advisory_surfaced.length > 0 || advisory_stuck.length > 0) {
+  final_status = 'APPROVED_WITH_NOTES'
+} else {
+  final_status = 'APPROVED'
+}
+```
+
 ### Teardown (Team Mode Only — 5+ files)
 
 Skip this section entirely if in single-agent mode or parallel-task mode (no team was created).
@@ -720,13 +741,17 @@ If `advisory_surfaced[]` is non-empty, present them to the user for selection:
 **Present via `AskUserQuestion`** with `multiSelect: true`:
 - Question text: `"Which advisory findings would you like to apply?"`
 - ≤ 4 advisories: one call with all options
-- > 4 advisories: paginate in batches of ≤ 4; header: `"Advisories (batch N/M)"`, accumulate selections across batches
+- > 4 advisories: compute `M = Math.ceil(advisory_surfaced.length / 4)`; paginate in
+  batches of ≤ 4; question header: `"Advisories (batch N/M) — which would you like to apply?"`;
+  accumulate selected labels into `selected_labels[]` across all batches before applying
+- If `AskUserQuestion` surfaces a free-text "Other" response, ignore it — only apply
+  findings that exactly match a label from `advisory_surfaced[]`
 
 **Apply selected advisories** — for each user-selected advisory:
 1. Locate using the Evidence citation (`file:line`)
 2. Apply Fix block via Edit tool (same logic as Critical fixes: `old_string` = before, `new_string` = after)
-3. If `before` text not found: skip and note in output
-4. Record in `advisory_applied[]`; add file to `files_changed`
+3. If `before` text not found: record in `advisory_failed[]`; do NOT add to `advisory_applied[]`
+4. On success: record in `advisory_applied[]`; add file to `files_changed`
 
 **Constraint note:** When review-fix runs as a `Task()` subagent, `AskUserQuestion` surfaces to
 the calling agent (team-lead or POST_IMPLEMENT). The calling facility must relay or handle the
@@ -742,12 +767,19 @@ interaction at the Phase 5 boundary where it is safe regardless of calling conte
 
 [If none: "None selected."]
 
-#### Advisory Findings — Skipped (user declined) ([count of advisory_surfaced minus advisory_applied])
+#### Advisory Findings — Skipped (user declined) ([count of advisory_surfaced minus advisory_applied minus advisory_failed])
 
 [For each un-selected advisory from advisory_surfaced[]:]
 - `file:line` — [Q-number or finding title]: [one-line description]
 
 [If none: "None — all advisories were applied or no advisories were surfaced."]
+
+#### Advisory Findings — Failed to Apply ([advisory_failed.length])
+
+[For each entry in advisory_failed[]:]
+- `file:line` — [Q-number or finding title]: user selected but `before` text not found (file may have been modified by a prior fix)
+
+[Omit this section entirely if advisory_failed is empty.]
 
 ---
 
