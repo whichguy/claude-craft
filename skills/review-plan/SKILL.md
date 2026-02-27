@@ -193,7 +193,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G15, Q-G16 are not memoizable)
+   memoized_l1_questions = set()   # Q-G3, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16; Q-NEW are not memoizable)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -258,12 +258,12 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 16 questions).
+      You are evaluating a plan for general quality (Layer 1: 15 questions).
 
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G15, Q-G16
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -277,7 +277,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 16 questions including Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G15, Q-G16)
+        ... (all 15 questions including Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16)
 
       Constraints:
       - Do not use Edit, Write, or Bash tools — read-only
@@ -480,11 +480,11 @@ DO:
     IF git-evaluator-p<pass_count> returned 0 NEEDS_UPDATE (all PASS or N/A):
       memoized_clusters.add("git")
       memoized_since["git"] = pass_count
-  # L1 Q-G3 and Q-NEW: safe to memoize individually (additive structural steps)
+  # L1 Q-G3: safe to memoize individually (additive structural steps)
   IF l1_results["Q-G3"] in [PASS, N/A] AND "Q-G3" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G3")
-  IF l1_results["Q-NEW"] in [PASS, N/A] AND "Q-NEW" NOT in memoized_l1_questions:
-    memoized_l1_questions.add("Q-NEW")
+  # Q-NEW becomes non-memoizable — mandatory framing (absorbed from Q-G15) can change as
+  # the plan is revised; must re-evaluate every pass
   # L1 Q-G11: safe to memoize individually (cited file paths/function names don't regress during editing)
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
@@ -492,10 +492,9 @@ DO:
   # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
   # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
   # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
-  # Q-G15 (Review-fix automation): NOT safe to memoize — post-implementation framing can change as the plan is revised; must re-evaluate every pass
   # Q-G16 (LLM comment breadcrumbs): NOT safe to memoize — documentation intent can shift as plan scope and complexity evolve; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
-  # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
+  # Only Q-G3 and Q-G11 are individually memoizable L1 questions
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
@@ -583,7 +582,7 @@ If not found, use inline policy: mark all `<!-- skill-name -->` content as revie
 
 ## Layer 1: General Quality
 
-*16 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G16). Applies to every plan, every domain.*
+*15 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -606,12 +605,11 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G4 | Unintended consequences | Side effects: broken workflows, behavior changes, regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Task & team usage | Does the plan use the right level of agent coordination? Evaluate against the Q-G8 Decision Framework below. Flag plans that: run heavy/independent work inline when Task calls would provide context isolation; use sequential Task calls when parallel would work; or miss TeamCreate for multi-agent coordination of interdependent concerns. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
-| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies the appropriate one: **If section is absent entirely**, output `[EDIT: inject ## Post-Implementation Workflow\n1. /review-fix — loop until clean (run → fix → re-run until 0 findings)\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests (if any)\n4. If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing]`. **If section is present but missing step 4 only**, output `[EDIT: add to Post-Implementation Workflow: step 4 — "If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing"]`. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow including fix-test loop. | never |
+| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies the appropriate one: **If section is absent entirely**, output `[EDIT: inject ## Post-Implementation Workflow\n1. /review-fix — loop until clean (run → fix → re-run until 0 findings)\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests (if any)\n4. If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing]`. **If section is present but missing step 4 only**, output `[EDIT: add to Post-Implementation Workflow: step 4 — "If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing"]`. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Each step in the post-implementation workflow must be an imperative instruction, not user-optional or user-triggered. Flag: workflow says "optionally run /review-fix", "ask user before running tests", or marks any post-implementation step as requiring user confirmation before proceeding. Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow including fix-test loop and mandatory framing. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 | Q-G13 | Phased decomposition | Are the plan's concerns organized into phases where each phase completes the full loop — implement → /review-fix (loop until clean) → test/verify → commit — before the next phase begins? Flag: (1) multiple distinct concerns in a flat step list with no phase boundaries; (2) phase commits placed before review-fix or testing for that phase; (3) later phases implicitly depend on earlier ones without an explicit go/no-go checkpoint. | single atomic concern with no cross-phase dependencies (e.g. fix exactly one bug, rename one identifier, add one isolated function) |
 | Q-G14 | Codebase style adherence | Do proposed code changes follow the existing codebase's patterns, idioms, and conventions? If the plan intentionally deviates (new error handling pattern, different module structure, new abstraction idiom), is the deviation explicitly stated with a reason? Flag: plan proposes a different pattern than comparable existing code (e.g. callbacks vs async/await, different state management approach, new module organization) without acknowledging the intentional change. | documentation-only change with no proposed code; or brand new project with no existing comparable code to inherit style from |
-| Q-G15 | Review-fix automation | Does the plan's post-implementation workflow frame /review-fix and the subsequent build/test steps as mandatory automatic actions (not user-optional or user-triggered)? Flag: workflow says "optionally run /review-fix", "ask user before running tests", or marks any post-implementation step as requiring user confirmation before proceeding. Each step must be an imperative instruction, not a suggestion. | plan has no post-implementation workflow section (Q-NEW handles absence; Q-G15 only evaluates framing of an existing workflow) |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -667,7 +665,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 16 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G16). Q-G9 is not included in*
+*L1 per-pass count stays at 15 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
