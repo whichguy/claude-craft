@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*14 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Applies to every plan, every domain.*
+*16 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G16). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -40,6 +40,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 | Q-G13 | Phased decomposition | Are the plan's concerns organized into logical phases, each ending with an explicit validation gate (test run, exec check, UI verification)? Flag: plan tackles multiple distinct concerns in a flat step list with no phase boundaries, or a later step implicitly depends on an earlier step's success without an explicit checkpoint bridging them. | single atomic concern with no cross-phase dependencies (e.g. fix exactly one bug, rename one identifier, add one isolated function) |
 | Q-G14 | Codebase style adherence | Do proposed code changes follow the existing codebase's patterns, idioms, and conventions? If the plan intentionally deviates (new error handling pattern, different module structure, new abstraction idiom), is the deviation explicitly stated with a reason? Flag: plan proposes a different pattern than comparable existing code (e.g. callbacks vs async/await, different state management approach, new module organization) without acknowledging the intentional change. | documentation-only change with no proposed code; or brand new project with no existing comparable code to inherit style from |
+| Q-G15 | Review-fix automation | Does the plan's post-implementation workflow frame /review-fix and the subsequent build/test steps as mandatory automatic actions (not user-optional or user-triggered)? Flag: workflow says "optionally run /review-fix", "ask user before running tests", or marks any post-implementation step as requiring user confirmation before proceeding. Each step must be an imperative instruction, not a suggestion. | plan has no post-implementation workflow section (Q-NEW handles absence; Q-G15 only evaluates framing of an existing workflow) |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -47,6 +48,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G6 | Naming consistency | New identifiers follow codebase conventions? | no new names |
 | Q-G7 | Documentation | MEMORY.md / CLAUDE.md / README affected by this change? | no behavior changes |
+| Q-G16 | LLM comment breadcrumbs | For plans that create or significantly modify non-trivial code (new modules, complex logic, architectural changes) — does the plan include a directive to add brief LLM-navigable comments at key locations? These orient future LLM sessions without requiring full re-reads: function entry points, module purpose lines, non-obvious decision branches. Acceptable: "add brief comments at function boundaries", "include navigation comments for key logic". Flag: plan proposes new or significantly modified complex logic with no mention of code documentation or navigation aids. | documentation-only change; configuration change; trivial single-line/single-function fix; or plan explicitly defers documentation to a separate task |
 
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
@@ -94,7 +96,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 14 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Q-G9 is not included in*
+*L1 per-pass count stays at 16 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G16). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 **Sub-question definitions:**
