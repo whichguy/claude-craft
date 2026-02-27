@@ -421,7 +421,7 @@ Organization Quality (Q43): PASS
 
 ## Self-Referential Protection
 
-See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy.
 
 If shared file is not found, use inline policy: mark all `<!-- gas-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (Q11), impact analysis (Q18), implementation (Q19), dead code removal (Q20), duplication checks (Q39), state edge cases (Q40), or integration checks (Q41).
 

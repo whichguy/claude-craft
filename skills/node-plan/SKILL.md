@@ -117,7 +117,7 @@ STEP 0: (done — plan loaded, team created)
 DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
-  IF memo_file exists AND node_memoized_questions is empty AND pass_count > 1:
+  IF memo_file exists AND node_memoized_questions is empty AND pass_count == 0:
     Read memo_file → restore node_memoized_questions, prev_needs_update_count,
                      prev_needs_update_set, pass_count
     _recovered_this_pass = true
@@ -428,7 +428,7 @@ Pass 3/5: evaluating...
 
 ## Self-Referential Protection
 
-See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy. <!-- review-plan -->
+See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy.
 
 If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 

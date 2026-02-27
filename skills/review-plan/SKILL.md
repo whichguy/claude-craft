@@ -218,7 +218,7 @@ DO:
 
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
-  IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count > 1):
+  IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
                      prev_needs_update_set, pass1_needs_update_set, total_changes_all_passes, pass_count
     _recovered_this_pass = true
@@ -286,7 +286,8 @@ DO:
   For each cluster_name in active_clusters:
     IF cluster_name in memoized_clusters:
       Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
-      # Carry forward prior pass PASS/N/A results for convergence tracking — do NOT spawn Task
+      # Memoized clusters have 0 NEEDS_UPDATE by definition — no carry-forward needed.
+      # NEEDS_UPDATE tracking is unaffected by PASS/N/A questions (they never enter the set).
       CONTINUE to next cluster
   Task(
     subagent_type = "general-purpose",
