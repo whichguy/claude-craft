@@ -4,8 +4,8 @@ description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
   for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical fixes
   per-file until nothing changes (0 fixes applied), surfaces Advisory findings for human
-  review (routine findings auto-applied silently; non-routine presented for user selection),
-  produces a summary with interactive advisory selection.
+  review via AskUserQuestion (never auto-applied); Advisory/YAGNI skipped; loops per-file
+  until clean, produces a summary.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -18,10 +18,10 @@ color: orange
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
 all Critical findings are resolved, then produce a structured summary. Critical findings
-auto-fix when a Fix block exists; Advisory findings are recorded in `advisory_surfaced[]` —
-routine ones (≤3 lines, no new branches, single statement) auto-apply silently; non-routine
-ones are presented to the user for selection in Phase 5; Advisory/YAGNI is skipped; Advisory
-without a Fix block records as stuck and surfaces for human review.
+auto-fix when a Fix block exists; Advisory findings are **never auto-applied** — all are
+recorded in `advisory_surfaced[]` and presented to the user for selection in Phase 5 via
+AskUserQuestion; Advisory/YAGNI is skipped; Advisory without a Fix block records as stuck
+and surfaces for human review.
 
 ```
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Commit
@@ -52,7 +52,7 @@ run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 team_name = null           # set in team mode
 critical_resolved = []     # { file, line, q_number, description }
 advisory_surfaced = []     # { file, line, q_number, description, fix_block } — Advisory findings (with Fix block) surfaced for human review
-advisory_applied = []      # { file, line, q_number, description, source } — Advisory findings applied in Phase 5; source: 'auto' (silently applied) | 'user' (user-selected)
+advisory_applied = []      # { file, line, q_number, description } — Advisory findings applied in Phase 5 (always user-selected)
 advisory_failed = []       # { file, line, q_number, description } — user-selected but Fix block could not be applied (before text not found)
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
@@ -75,11 +75,9 @@ presents surfaced Advisory findings via `AskUserQuestion` for user selection, th
 commit suggestion with a `COMMIT_SUGGESTED` marker. The calling agent acts on the marker.
 
 **Critical** findings auto-fix when a Fix block exists.
-**Advisory** findings (including non-YAGNI Advisory) are **always recorded in
-`advisory_surfaced[]`** and reported in Phase 5. Whether each advisory is applied silently
-or presented for user selection depends on the Phase 5a gate rule: routine advisories
-(obvious style, trivial null guards) auto-apply silently; non-routine ones (logic changes,
-sensitive sections, ambiguous Fix blocks) are presented via `AskUserQuestion`.
+**Advisory** findings (including non-YAGNI Advisory) are **always surfaced but never
+auto-applied** — record in `advisory_surfaced[]`, emit in the Phase 5 report under
+"Advisory Findings — Surfaced (human review required)", and do NOT apply the Fix block.
 `Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]`
 and surfaced in the summary only. Advisory without a Fix block records in `advisory_stuck[]`
 (never invented), producing `APPROVED_WITH_NOTES`.
@@ -745,22 +743,12 @@ output a commit suggestion.
 If `advisory_surfaced[]` is empty, skip Phase 5a entirely — do not call `AskUserQuestion`
 and do not emit the Applied / Skipped / Failed report sections. Proceed directly to Step 5b.
 
-**AskUserQuestion gate — 3-condition binary test.** For each advisory in `advisory_surfaced[]`,
-apply this test to determine routing (all three conditions must pass to auto-apply):
+Advisory findings are **never auto-applied**. All entries in `advisory_surfaced[]` are
+presented to the user via `AskUserQuestion` for explicit selection.
 
-1. **Fix block ≤ 3 lines** — count non-blank lines in the `after` block
-2. **No new branches** — Fix block adds no `if`, `else`, `switch`, `try`, `catch`, or `return`
-3. **Single statement** — Fix block is one statement (no compound mutations, no multi-step changes)
+If `advisory_surfaced[]` is non-empty, present all entries to the user for selection:
 
-**If all three pass** → record in `advisory_applied[]` with `source: 'auto'`, apply the Fix block silently, and add the file to `files_changed`.
-**If any condition fails** → gate: record and present via `AskUserQuestion` for user selection.
-
-If uncertain about whether a condition applies, treat it as failing (gate). Prefer false positives
-(unnecessary questions) over false negatives (silent risky mutations).
-
-If `advisory_surfaced[]` is non-empty and any entries require gating, present them to the user for selection:
-
-**Build options list** (one option per entry in `advisory_surfaced[]` that failed the gate — exclude entries already recorded in `advisory_applied[]`):
+**Build options list** (one option per entry in `advisory_surfaced[]`):
 - `label`: `[file:line] — [Q-number or title]` (short identifier, ≤60 chars)
 - `description`: one-sentence description + Fix block summary (e.g., "Adds null guard. Fix: wrap X in Y check.")
 
@@ -777,7 +765,7 @@ If `advisory_surfaced[]` is non-empty and any entries require gating, present th
 1. Locate using the Evidence citation (`file:line`)
 2. Apply Fix block via Edit tool (same logic as Critical fixes: `old_string` = before, `new_string` = after)
 3. If `before` text not found: record in `advisory_failed[]`; do NOT add to `advisory_applied[]`
-4. On success: record in `advisory_applied[]` with `source: 'user'`; add file to `files_changed`
+4. On success: record in `advisory_applied[]`; add file to `files_changed`
 
 **Constraint note:** When review-fix runs as a `Task()` subagent, `AskUserQuestion` surfaces to
 the calling agent (team-lead or POST_IMPLEMENT). The calling facility must relay or handle the
@@ -792,7 +780,7 @@ the response as `[]` (no selections) — skip advisory application and proceed t
 #### Advisory Findings — Applied ([advisory_applied.length])
 
 [For each applied advisory:]
-- `file:line` — [Q-number or finding title]: [what was fixed] *(auto)* or *(user-selected)*
+- `file:line` — [Q-number or finding title]: [what was fixed] *(user-selected)*
 
 [If none: "None applied."]
 
