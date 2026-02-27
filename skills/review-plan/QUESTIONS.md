@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*12 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Applies to every plan, every domain.*
+*14 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -38,6 +38,8 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies the appropriate one: **If section is absent entirely**, output `[EDIT: inject ## Post-Implementation Workflow\n1. /review-fix — loop until clean (run → fix → re-run until 0 findings)\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests (if any)\n4. If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing]`. **If section is present but missing step 4 only**, output `[EDIT: add to Post-Implementation Workflow: step 4 — "If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing"]`. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow including fix-test loop. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
+| Q-G13 | Phased decomposition | For plans with >5 steps or multiple distinct concerns — are changes broken into named phases, each ending with an explicit validation gate (test run, exec check, UI verification), with phase dependencies declared and a testable go/no-go condition before the next phase begins? Flag: a large plan uses a flat step list with no phase boundaries, or a later step implicitly depends on an earlier step's success without an explicit checkpoint bridging them. | ≤5 steps targeting a single concern (one file, one feature) |
+| Q-G14 | Codebase style adherence | Do proposed code changes follow the existing codebase's patterns, idioms, and conventions? If the plan intentionally deviates (new error handling pattern, different module structure, new abstraction idiom), is the deviation explicitly stated with a reason? Flag: plan proposes a different pattern than comparable existing code (e.g. callbacks vs async/await, different state management approach, new module organization) without acknowledging the intentional change. | documentation-only change with no proposed code; or brand new project with no existing comparable code to inherit style from |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -92,7 +94,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 12 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Q-G9 is not included in*
+*L1 per-pass count stays at 14 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 **Sub-question definitions:**
