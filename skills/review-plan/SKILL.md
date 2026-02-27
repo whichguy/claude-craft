@@ -39,6 +39,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      (skip gracefully if none found)
    - Path variables — derive now and cache as named variables; used in all evaluator spawning (fast-path and loop):
      - `plan_path` = absolute path of the plan file found in step 1
+     - `plan_slug` = filename stem of plan_path (no extension); scopes gate marker and memo file
+       ```
+       plan_slug = basename(plan_path, ".md")
+       # Example: /Users/jameswiese/.claude/plans/snug-jumping-yao.md → snug-jumping-yao
+       # Used to scope gate marker and memo file to this specific plan invocation.
+       ```
      - `questions_path` = `~/.claude/skills/review-plan/QUESTIONS.md`
      - `gas_eval_path`  = `~/.claude/skills/gas-plan/EVALUATE.md`
      - `node_eval_path` = `~/.claude/skills/node-plan/EVALUATE.md`
@@ -142,7 +148,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all 7 PASS:
-       Write gate marker: Bash "touch ~/.claude/.plan-reviewed"
+       Write gate marker: Bash "touch ~/.claude/.plan-reviewed-${plan_slug}"
        Output simplified scorecard:
          ## review-plan Scorecard (Fast Path)
          ⚡ IS_TRIVIAL: single .md file, additive change
@@ -189,7 +195,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # Q-G3, Q-NEW, Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12 are not memoizable)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
-   memo_file = "~/.claude/.review-plan-memo-" + timestamp + ".json"
+   memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    ```
@@ -252,12 +258,12 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 12 questions).
+      You are evaluating a plan for general quality (Layer 1: 14 questions).
 
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G3, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -271,7 +277,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 12 questions including Q-NEW, Q-G10, Q-G11, Q-G12)
+        ... (all 14 questions including Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14)
 
       Constraints:
       - Do not use Edit, Write, or Bash tools — read-only
@@ -484,6 +490,8 @@ DO:
     memoized_l1_questions.add("Q-G11")
   # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
   # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
+  # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
+  # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: cluster-level memoization only (whole cluster, not individual questions)
   # Only Q-G3, Q-NEW, and Q-G11 are individually memoizable L1 questions
 
@@ -572,7 +580,7 @@ If not found, use inline policy: mark all `<!-- skill-name -->` content as revie
 
 ## Layer 1: General Quality
 
-*12 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Applies to every plan, every domain.*
+*14 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -598,6 +606,8 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying: (1) run quality review changes (`/review-fix`) — loop until clean, (2) run build/compile if applicable, (3) run tests? Section must appear after all implementation steps and must not be bundled with or before them. If absent, output `[EDIT: inject ## Post-Implementation Workflow\n1. Run quality review changes (/review-fix) — loop until clean\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests\n(Steps 4–5 of CLAUDE.md POST_IMPLEMENT — fail recovery and COMMIT_SUGGESTED deferral — apply at runtime regardless of plan text.)]` — team-lead applies. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Q-NEW supplements Q-G3 — does not duplicate it; Q-G3 checks for the quality review step specifically, Q-NEW checks for the full build + test workflow. | never |
 | Q-G10 | Assumption exposure | Does the plan make high-risk implicit assumptions about environment state, external API availability, data pre-conditions, or third-party behavior? If so, are they stated explicitly? Flag: plan contains phrases like "should work", "assume X exists", or has unvalidated environmental dependencies that, if false, would cause silent failure or significant rework. Also flag open-question markers in implementation steps: "TBD", "will need to investigate", "will need to check", "if the API supports", "need to determine". These are unresolved decisions (not assumptions about known facts) — each must either become a numbered investigation step with a defined outcome, or be annotated as low-risk with a stated reason. (Evaluator note: "assume X" = known assumption, flag if high-risk; "TBD: X" = unknown decision, always flag regardless of risk.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to check) in implementation steps |
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated or unified as part of this work? If a consolidation opportunity exists, the plan must either include consolidation steps or explicitly defer with a noted reason. Flag: plan touches module A which has near-identical logic to module B, but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
+| Q-G13 | Phased decomposition | For plans with >5 steps or multiple distinct concerns — are changes broken into named phases, each ending with an explicit validation gate (test run, exec check, UI verification), with phase dependencies declared and a testable go/no-go condition before the next phase begins? Flag: a large plan uses a flat step list with no phase boundaries, or a later step implicitly depends on an earlier step's success without an explicit checkpoint bridging them. | ≤5 steps targeting a single concern (one file, one feature) |
+| Q-G14 | Codebase style adherence | Do proposed code changes follow the existing codebase's patterns, idioms, and conventions? If the plan intentionally deviates (new error handling pattern, different module structure, new abstraction idiom), is the deviation explicitly stated with a reason? Flag: plan proposes a different pattern than comparable existing code (e.g. callbacks vs async/await, different state management approach, new module organization) without acknowledging the intentional change. | documentation-only change with no proposed code; or brand new project with no existing comparable code to inherit style from |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -652,7 +662,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 12 (Q-G1 through Q-G8 + Q-NEW + Q-G10 + Q-G11 + Q-G12). Q-G9 is not included in*
+*L1 per-pass count stays at 14 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
@@ -995,7 +1005,7 @@ After the convergence loop exits (scorecard not yet printed):
 
 5. Use the Bash tool to run:
    ```
-   touch ~/.claude/.plan-reviewed
+   touch "~/.claude/.plan-reviewed-${plan_slug}"
    rm -f <memo_file>
    ```
    First command writes the gate marker so ExitPlanMode will pass.
