@@ -524,6 +524,7 @@ DO:
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
   total_changes_all_passes += changes_this_pass
+  newly_memoized = []  # collect items memoized THIS pass for milestone display
 
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Memoization principle: memoize only criteria that check "additive-only" structural
@@ -588,9 +589,8 @@ DO:
 
   # Memoization milestone output (Enhancement E)
   # Print individual lock events (cap at 3 per pass, then "+N more")
-  newly_memoized = []  # collect items memoized THIS pass for display
-  # (Populate newly_memoized during the memoization logic above: append each Q-ID or cluster
-  #  name when it is added to memoized_l1_questions or memoized_clusters this pass.)
+  # newly_memoized was initialized before the memoization update block above;
+  # .append() calls within that block populate it as items lock in.
   IF len(newly_memoized) > 0:
     shown = 0
     FOR each item in newly_memoized:
