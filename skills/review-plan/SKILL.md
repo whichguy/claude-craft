@@ -46,9 +46,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        # Used to scope gate marker and memo file to this specific plan invocation.
        ```
      - `questions_path` = `~/.claude/skills/review-plan/QUESTIONS.md`
+     - `questions_l3_path` = `~/.claude/skills/review-plan/QUESTIONS-L3.md`
      - `gas_eval_path`  = `~/.claude/skills/gas-plan/EVALUATE.md`
      - `node_eval_path` = `~/.claude/skills/node-plan/EVALUATE.md`
-       (`~` makes all three portable across users — no hardcoded username.
+       (`~` makes all four portable across users — no hardcoded username.
        Update here if the install base changes; all evaluator spawns below use these variables.)
 
 3. **Set context flags** (Haiku classification):
@@ -119,7 +120,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      if HAS_STATE:       active_clusters.append("state")
      active_clusters.append("security")              # always active (3 questions, low overhead)
      if HAS_DEPLOYMENT:  active_clusters.append("operations")
-     if HAS_UI:          active_clusters.append("client")
+     # Client cluster (Q-C17, Q-C25) merged into ui-evaluator when HAS_UI=true — no separate client-evaluator
    ```
 
    IF IS_TRIVIAL:
@@ -243,11 +244,12 @@ DO:
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
   Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas-eval") + (IS_NODE: " · node-eval") + (HAS_UI: " · ui")
 
-  [Substitute plan_path, questions_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
+  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
   [In a SINGLE message, spawn all evaluators in parallel:
    L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
    Practical maximums: IS_GAS mode = L1 + state cluster + gas-eval + UI = 4.
-   Non-GAS full-stack (all 7 clusters) = L1 + 7 + UI = 9.
+   Non-GAS full-stack (6 clusters + UI) = L1 + 6 + UI = 8.
+   (Client cluster merged into ui-evaluator — no separate agent.)
    If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
   [After spawning each evaluator, append its name to spawned_evaluators]
 
@@ -367,7 +369,7 @@ DO:
     )
 
   IF HAS_UI:
-    --- UI Evaluator ---
+    --- UI Evaluator (includes merged Client cluster: Q-C17, Q-C25) ---
     Task(
       subagent_type = "ui-designer",
       model = "sonnet",
@@ -375,10 +377,17 @@ DO:
       name = "ui-evaluator-p" + pass_count,
       prompt = """
         You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
-        UI specialization (Q-U1 through Q-U7).
+        UI specialization and client concerns (9 questions in this cluster).
 
-        Question definitions: Read <questions_path>
-          (Layer 3: UI Specialization section, Q-U1 through Q-U7).
+        Question definitions: Read <questions_l3_path>
+          (Q-U1 through Q-U7, plus Q-C17 and Q-C25 — merged from Client cluster).
+
+        Context flags (substituted by team-lead at spawn time):
+          IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
+
+        IS_GAS note: if IS_GAS=true above, Q-C17 and Q-C25 are N/A-superseded
+          (gas-evaluator Q32, Q33 cover these). Still evaluate Q-U1 through Q-U7 normally.
+        IS_NODE note: Q-C17 and Q-C25 are not superseded — evaluate normally.
 
         Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
         or <!-- node-plan -->.
@@ -387,7 +396,7 @@ DO:
           FINDINGS FROM ui-evaluator
           Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
           [EDIT: instruction if NEEDS_UPDATE]
-          ... (all 7 questions)
+          ... (all 9 questions: Q-U1 through Q-U7, Q-C17, Q-C25)
 
         Constraints:
         - Do not use Edit, Write, or Bash tools — read-only
@@ -635,8 +644,9 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 
 ## Layer 3: UI Specialization
 
-Question definitions are in QUESTIONS.md — ui-evaluator reads that file directly. 7 questions
-(Q-U1 through Q-U7). Active when HAS_UI=true. Evaluated by ui-evaluator each pass.
+Question definitions are in QUESTIONS-L3.md — ui-evaluator reads that file directly. 9 questions:
+Q-U1 through Q-U7 plus Q-C17 and Q-C25 (merged from Client cluster). Active when HAS_UI=true.
+Evaluated by ui-evaluator each pass (no separate client-evaluator spawned).
 
 Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
@@ -672,10 +682,11 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 | State (4) | **partially** — Q-C26 has no gas equivalent | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (5) | **fully** | Q27, Q28, Q23 |
 | Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
-| Client (7) | **fully** (only when HAS_UI) | Q32, Q33 |
+| Client (7) | **merged into ui-evaluator** when HAS_UI=true; **fully superseded** by gas-evaluator Q32, Q33 when IS_GAS | Q32, Q33 |
 
 Result: When IS_GAS=true, skip ALL cluster evaluators except State cluster (only for Q-C26,
-only if HAS_STATE=true). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
+only if HAS_STATE=true). Q-C17 and Q-C25 are handled by ui-evaluator when HAS_UI=true (not a
+separate cluster evaluator). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
 
 **IS_NODE Individual Suppressions (3 questions span multiple clusters):**
 Cluster-level suppression does not apply for IS_NODE. Mark these 3 questions N/A-superseded
@@ -691,14 +702,16 @@ evaluator has superior domain context vs cluster generic questions.)
 where both a cluster evaluator and node-evaluator flag the same concern. Keep node-plan's more
 specific Node/TS framing where both are present. (Rationale: "specialization wins.")
 
-### Q-UI: UI Specialization
+### Q-UI: UI Specialization (includes merged Client cluster)
 
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
-above). The ui-evaluator Task follows evaluate mode (as defined in the ui-designer skill), which means:
+above). The ui-evaluator reads QUESTIONS-L3.md (not the full QUESTIONS.md) and covers 9 questions:
+Q-U1 through Q-U7 (UI specialization) plus Q-C17 and Q-C25 (merged from Client cluster). This means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 7-question findings (Q-U1 through Q-U7) via SendMessage to team-lead
+- Returns all 9-question findings (Q-U1 through Q-U7, Q-C17, Q-C25) via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
+- No separate client-evaluator is spawned when HAS_UI=true
 
 HAS_UI is orthogonal to IS_GAS/IS_NODE: a GAS project with a sidebar will have
 IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + state cluster (if HAS_STATE) + ui-evaluator.
