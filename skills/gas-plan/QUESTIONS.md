@@ -259,7 +259,7 @@ Plan must include a post-implementation section after all implementation steps:
 (1) run `/review-fix` or `/gas-review` — loop until clean,
 (2) run build/compile if applicable,
 (3) run tests.
-Steps 4–5 of CLAUDE.md POST_IMPLEMENT (fail recovery and COMMIT_SUGGESTED deferral) apply at runtime regardless of plan text — plan does not need to restate them.
+Steps 4–5 of CLAUDE.md POST_IMPLEMENT (fail recovery and PR creation) apply at runtime regardless of plan text — plan does not need to restate them.
 Ensures regressions and secondary issues are caught before closing out the task.
 Mandatory for all plans — cannot be skipped.
 

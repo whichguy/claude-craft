@@ -4,8 +4,9 @@ description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
   for 1 file, parallel Tasks for 2-4 files, TeamCreate for 5+), applies Critical fixes
   per-file until nothing changes (0 fixes applied), auto-applies Advisory findings with Fix
-  blocks (same as Critical); Advisory/YAGNI skipped; loops per-file until clean, produces
-  a summary.
+  blocks (same as Critical); Advisory/YAGNI skipped; loops per-file until clean, then
+  commits and optionally creates a PR (commit_mode="pr" default: commit + push + PR + squash
+  merge + delete branch; commit_mode="commit": commit only).
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -24,7 +25,7 @@ Advisory/YAGNI is skipped; Advisory without a Fix block records as stuck
 and surfaces for human review.
 
 ```
-Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Commit
+Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Git Ops
                                        ↑                             ↑
                            Round-based parallel loop:                │
                            fix all files (sequential) → re-review    │
@@ -38,6 +39,9 @@ Flow: Setup & Triage → Initial Review ─────────────�
 - `worktree="${3:-.}"` — required; absolute path to working directory
 - `max_rounds="${4:-3}"` — optional; maximum fix-and-re-review rounds (default: 3)
 - `review_mode="${5:-full}"` — optional; passed through to code-reviewer unchanged
+- `commit_mode="${6:-pr}"` — optional; one of:
+  - `"pr"` (default) — stage + commit + push + create PR + squash merge + delete branch + checkout default branch
+  - `"commit"` — stage + commit only (for POST_IMPLEMENT pipeline, which handles PR separately)
 
 **Pre-flight**: If `target_files` or `task_name` is empty, stop and report:
 `Missing required parameters: target_files=[value], task_name=[value]`
@@ -73,7 +77,11 @@ round_durations = []                 # populated at end of each round
 *These rules apply to all phases.*
 
 **The review loop (Phases 2–4) proceeds without user input.** Teardown is automatic. Phase 5
-outputs a commit suggestion with a `COMMIT_SUGGESTED` marker. The calling agent acts on the marker.
+behavior is controlled by `commit_mode`: `"pr"` (default) stages, commits, pushes, creates a PR,
+squash-merges to the default branch, deletes the feature branch, and outputs `PR_MERGED`;
+`"commit"` stages and commits only, outputting `COMMITTED`. The calling agent acts on the marker.
+**`commit_mode="pr"` assumes the current branch is ready to merge — it auto-merges and deletes
+the branch irreversibly.**
 
 **Critical** findings auto-fix when a Fix block exists.
 **Advisory** findings WITH a Fix block are **auto-applied in Phase 3** — applied via Edit tool in
@@ -873,46 +881,124 @@ TeamDelete();
 
 ---
 
-## Phase 5: Git Commit Suggestion
+## Phase 5: Git Operations
 
-After teardown, output a commit suggestion if files were changed and review succeeded.
+After teardown, stage, commit, and optionally create a PR if files were changed and review succeeded.
 
 ---
-
-### Step 5a: Git Commit Suggestion
-
-Output a commit suggestion when the review succeeded and files were changed.
 
 **Conditions to trigger:**
 - `files_changed` is non-empty
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
-**Output template:**
+Print: "──── GIT ────────────────"
 
-Print: "──── COMMIT ─────────────"
+### Step 5a: Branch Check (pr mode only)
 
-### Suggested Next Step: Commit
+When `commit_mode == "pr"`:
 
-**Files changed this session:**
-[List each path in `files_changed`]
-
-**Suggested commit message:**
-```
-<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
+```bash
+current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 ```
 
-**To stage and commit:**
+If `current_branch` equals the default branch (detected in Step 5c, or assumed `main`):
+- Create and checkout a temp branch:
+  ```bash
+  temp_branch="review-fix/$(date +%Y%m%d-%H%M%S)"
+  git checkout -b "$temp_branch"
+  ```
+- Print: `"  → Created branch: $temp_branch (was on default branch)"`
+
+### Step 5b: Stage and Commit (both modes)
+
 ```bash
 git add [files_changed joined by space]
 git commit -m "$(cat <<'EOF'
-[suggested commit message]
+<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
 )"
 ```
 
-> Would you like to stage and commit these changes now?
+On success → print: `"  ✓ Committed: [short message]"`
+On failure → print error, output `<!-- COMMIT_FAILED -->`, stop Phase 5.
 
-<!-- COMMIT_SUGGESTED -->
+If `commit_mode == "commit"` → output `<!-- COMMITTED -->` and stop Phase 5.
+
+### Step 5c: Pre-flight Checks (pr mode only)
+
+```bash
+git remote get-url origin 2>/dev/null   # remote exists?
+gh auth status 2>/dev/null              # gh authenticated?
+```
+
+If either fails → print warning, output `<!-- COMMITTED -->` (graceful fallback to commit-only), stop Phase 5.
+
+Detect default branch (don't hardcode `main`):
+```bash
+default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+default_branch=${default_branch:-main}  # fallback to main if detection fails
+```
+Use `$default_branch` instead of `main` in all subsequent commands (PR base, checkout, pull).
+
+### Step 5d: Push + PR + Merge (pr mode only)
+
+```bash
+# Push
+git push -u origin HEAD 2>&1
+```
+On failure → print error, output `<!-- PUSH_FAILED -->`, stop.
+
+```bash
+# Create PR
+pr_url=$(gh pr create \
+  --base "$default_branch" \
+  --title "<task_name>: review-fix corrections" \
+  --body "$(cat <<'EOF'
+## Summary
+- [critical_resolved.length] critical fix(es) applied
+- [advisory_applied.length] advisory fix(es) applied
+- [advisory_stuck.length] advisory finding(s) noted (no fix block)
+
+## Files changed
+[files_changed as bullet list]
+
+Generated by review-fix agent.
+EOF
+)" 2>&1)
+```
+On failure → print error + `"Branch pushed to origin. Create PR manually."`, output `<!-- PR_FAILED -->`, stop.
+
+```bash
+# Squash merge + delete branch
+gh pr merge "$pr_url" --squash --delete-branch 2>&1
+```
+On failure → print error + `"PR remains open at $pr_url."`, output `<!-- MERGE_FAILED -->`, stop.
+
+```bash
+# Return to default branch
+git checkout "$default_branch"
+git pull --ff-only origin "$default_branch"
+```
+
+If temp branch was created (was on default branch), also: `git branch -d "$temp_branch" 2>/dev/null`
+
+Print success summary:
+```
+  ✓ Pushed → origin/[branch]
+  ✓ PR created: [pr_url]
+  ✓ Merged (squash) → [default_branch]
+  ✓ Branch deleted
+  ✓ On [default_branch]
+```
+
+Output: `<!-- PR_MERGED -->`
+
+### Marker Summary
+
+| `commit_mode` | Success | Failure |
+|---|---|---|
+| `"pr"` | `PR_MERGED` | `COMMIT_FAILED` / `PUSH_FAILED` / `PR_FAILED` / `MERGE_FAILED` |
+| `"commit"` | `COMMITTED` | `COMMIT_FAILED` |
