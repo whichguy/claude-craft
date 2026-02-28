@@ -63,6 +63,9 @@ current_findings = {}      # { file: <latest review output> } — updated after 
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
 final_status = 'pending'
+total_start_time = Date.now()        # set at Phase 1 start
+round_start_time = null              # set at start of each round
+round_durations = []                 # populated at end of each round
 ```
 
 ## Behavioral Invariants
@@ -190,12 +193,14 @@ if (htmlFilesNeedingTriage.length > 0) {
 ### Phase 1 Print: Setup Banner
 
 ```
+Print: "──── SETUP ──────────────"
 Print: "📋 review-fix: [file_count] file(s) | [single-agent|parallel-task|team] mode | max [max_rounds] rounds"
 Print: "  [filename]  → [reviewer_type]"     (one line per file)
 ```
 
 Example:
 ```
+──── SETUP ──────────────
 📋 review-fix: 3 files | parallel-task mode | max 3 rounds
   Utils.gs           → gas-code-review
   src/main.ts        → code-reviewer
@@ -333,17 +338,37 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
 
 ```
+Print: "──── REVIEW ─────────────"
 Print: "🔍 Initial Review"
-Print: "  ✅ [filename] — APPROVED"
-Print: "  ❌ [filename] — NEEDS_REVISION ([N] critical, [M] advisory)"
-Print: "  ✅ [filename] — APPROVED_WITH_NOTES ([N] advisory)"
-Print: "  ⚠️ [filename] — [Review Incomplete] (timeout)"
+```
+
+Sort files: NEEDS_REVISION first, then APPROVED_WITH_NOTES, then APPROVED.
+Use tree connectors: `┌` first, `├` middle, `└` last. Single file: `└` only.
+Right-pad filename with `─` to align reviewer type column.
+
+```
+Print: "  ┌ [filename] ──── [reviewer_type] ── ❌ ✗[N] 💡[M]"       (NEEDS_REVISION: N critical, M advisory; omit counts if 0)
+Print: "  ├ [filename] ──── [reviewer_type] ── ✅ 💡[N] (notes)"     (APPROVED_WITH_NOTES: N advisory)
+Print: "  └ [filename] ──── [reviewer_type] ── ✅"                    (APPROVED)
+Print: "  └ [filename] ──── [reviewer_type] ── ⚠️ timeout"           (Review Incomplete)
+```
+
+Single-file case: use `└` only (no `┌` or `├`):
+```
+Print: "  └ [filename] ──── [reviewer_type] ── [status]"
+```
+
+Example (3 files):
+```
+  ┌ Utils.gs ──────── gas-code-review ── ❌ ✗[2] 💡[1]
+  ├ Main.ts ───────── code-reviewer ──── ✅ 💡[1] (notes)
+  └ Sidebar.html ──── gas-ui-review ──── ✅
 ```
 
 After all receipts, print decision:
 ```
 Print: ""
-Print: "All files clean — skipping to summary."         (if files_needing_fixes.length == 0)
+Print: "✅ All files clean — skipping to summary."         (if files_needing_fixes.length == 0)
 Print: "[N] file(s) need fixes — entering fix loop."    (if files_needing_fixes.length > 0)
 ```
 
@@ -369,10 +394,13 @@ remaining_files.forEach(file => { per_file_rounds[file] = 0 })
 ### Global Fix Loop
 
 ```
+print: "──── FIX LOOP ───────────"
+
 WHILE remaining_files.length > 0 AND global_round < max_rounds:
   global_round += 1
+  round_start_time = Date.now()
 
-  print: "🔧 Round [global_round]/[max_rounds]: applying fixes to [remaining_files.length] file(s)..."
+  print: "🔧 Round [▓ × global_round + ░ × (max_rounds - global_round)] [global_round/max_rounds]: applying fixes to [remaining_files.length] file(s)..."
 
   fixes_applied_per_file = {}
 
@@ -590,7 +618,14 @@ seconds with no response, mark the file `[Review Incomplete]`, add the reviewer 
 At the start of each global round:
 
 ```
-Print: "🔧 Round [global_round]/[max_rounds]: applying fixes to [N] file(s)..."
+Print: "🔧 Round [▓ × global_round + ░ × (max_rounds - global_round)] [global_round/max_rounds]: applying fixes to [N] file(s)..."
+```
+
+Examples with max_rounds=3:
+```
+🔧 Round [▓░░] [1/3]: applying fixes to 2 file(s)...
+🔧 Round [▓▓░] [2/3]: applying fixes to 1 file(s)...
+🔧 Round [▓▓▓] [3/3]: applying fixes to 1 file(s)...
 ```
 
 For each fix applied or skipped (in evidence order, across all files in the round):
@@ -618,9 +653,30 @@ Print: "  ✅ [filename] — clean after [N] round(s)"
 Print: "  ❌ [filename] — [N] finding(s) stuck after [N] round(s)"
 ```
 
+After all files in the round are processed, record round duration: `round_durations.push(Date.now() - round_start_time)`.
+Print a per-round status grid. Use tree connectors: `┌` first, `├` middle, `└` last. Right-pad filename with `─` to align status column.
+
+```
+Print: "  Round [N]:  [round_duration_ms / 1000]s"
+Print: "  ┌ [file] ──── ✅ clean ([N] round(s))      [[N] critical, [N] advisory applied]"
+Print: "  ├ [file] ──── 🔄 re-review                  [[N] advisory applied, [Q] failed]"
+Print: "  ├ [file] ──── → nothing changed"
+Print: "  ├ [file] ──── ⚠️ max rounds                  [[N] finding(s) stuck]"
+Print: "  └ [file] ──── ❌ stuck ([N] finding(s))      [[N] critical stuck]"
+```
+
+Status options per file:
+- `✅ clean (N round(s))` — file exited loop (checkpoint passed or 0 fixes)
+- `🔄 re-review` — checkpoint failed, entering next round
+- `→ nothing changed` — 0 fixes applied, exits loop
+- `⚠️ max rounds` — hit per-file max_rounds limit
+- `❌ stuck (N finding(s))` — max rounds reached with critical findings stuck
+
+Bracket content: natural-language summary of what was fixed/failed this round.
+
 Example:
 ```
-🔧 Round 1/3: applying fixes to 2 file(s)...
+🔧 Round [▓░░] [1/3]: applying fixes to 2 file(s)...
   ✓ Utils.gs:45 — Critical Q2: sanitized user input
   ✓ Utils.gs:112 — Critical Q1: added null guard
   ✓ Main.ts:30 — Advisory Q4: empty catch block
@@ -629,6 +685,30 @@ Example:
   ✓ Main.ts checkpoint passed — clean (Q1/Q2/Q3)
   ✅ Utils.gs — clean after 1 round(s)
   ✅ Main.ts — clean after 1 round(s)
+  Round 1:  3s
+  ┌ Utils.gs ──── ✅ clean (1 round)     [2 critical applied]
+  └ Main.ts ───── ✅ clean (1 round)     [1 advisory applied]
+```
+
+---
+
+### Convergence Message
+
+After the fix loop exits (or after Phase 2 when all files are APPROVED), compute `total_elapsed = Math.round((Date.now() - total_start_time) / 1000)` and print one of:
+
+All clean, no fixes needed (Phase 2 → Phase 4 skip):
+```
+Print: "✅ All files clean — no fixes needed ([total_elapsed]s)"
+```
+
+All clean after fixes:
+```
+Print: "✅ Fix loop complete — [global_round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied ([total_elapsed]s)"
+```
+
+Partial / stuck:
+```
+Print: "⚠️ Fix loop ended — [global_round] round(s) (max), [critical_resolved.length] critical resolved, [stuck_findings.length] stuck ([total_elapsed]s)"
 ```
 
 ---
@@ -670,8 +750,12 @@ advisory_failed = advisory_failed.filter(entry => {
 
 ### Summary Output
 
+Print: "──── SUMMARY ────────────"
+
 ```markdown
-## Review-Fix Summary: [task_name]
+╔════════════════════════════════════════╗
+║  review-fix Summary — [task_name]      ║
+╚════════════════════════════════════════╝
 
 **Target files**: [list]
 **Rounds run**: [N] of [max_rounds] maximum
@@ -805,6 +889,8 @@ Output a commit suggestion when the review succeeded and files were changed.
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
 **Output template:**
+
+Print: "──── COMMIT ─────────────"
 
 ### Suggested Next Step: Commit
 
