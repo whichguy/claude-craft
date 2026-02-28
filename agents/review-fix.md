@@ -225,7 +225,10 @@ task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
 related_files=auto
-review_mode="${review_mode}"`
+review_mode="${review_mode}"
+
+Output your full review markdown starting with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
 });
 ```
 
@@ -386,7 +389,7 @@ WHILE remaining_files.length > 0 AND global_round < max_rounds:
          - `new_string` = after block (verbatim, preserving indentation)
       4. If `before` text not found (prior fix already addressed it): skip (skipped_already_addressed)
       5. If `Fix:` block absent or ambiguous: record in stuck_findings; DO NOT invent a fix
-      6. On success: record in critical_resolved; files_changed += file; fixes_applied_per_file[file] += 1
+      6. On success: record in critical_resolved; if (!files_changed.includes(file)) files_changed.push(file); fixes_applied_per_file[file] += 1
 
     Apply Advisory findings after all Critical fixes (from current_findings[file]):
       - `Finding: Advisory/YAGNI` → skip, record in advisory_yagni[], print ⊘ line;
@@ -395,7 +398,7 @@ WHILE remaining_files.length > 0 AND global_round < max_rounds:
         Apply via Edit tool (same logic as Critical fixes):
           1. Extract `before` and `after` blocks from the `Fix:` section
           2. Apply: old_string = before block (verbatim), new_string = after block (verbatim)
-          3. On success: record in advisory_applied[]; files_changed += file; fixes_applied_per_file[file] += 1; print ✓ line
+          3. On success: record in advisory_applied[]; if (!files_changed.includes(file)) files_changed.push(file); fixes_applied_per_file[file] += 1; print ✓ line
           4. If `before` text not found: record in advisory_failed[]; print ⊘ line; do NOT count toward fixes_applied_per_file[file]
       - Regular Advisory WITHOUT Fix block:
         Record in advisory_stuck[]; print ⊘ line;
@@ -489,10 +492,12 @@ CHECKPOINT_RESULT: [ALL_PASS|FAIL_Q1|FAIL_Q2|FAIL_Q3]`
 If the Fix block is absent, mark stuck — do not invent a fix.
 
 **Stop condition:** A file exits the loop naturally when `fixes_applied_per_file[file] == 0` —
-meaning no fixable findings remain (all are YAGNI, stuck, or already addressed). This is robust
-against malformed `LOOP_DIRECTIVE`: if a reviewer erroneously emits COMPLETE while providing
-fixable findings, `fixes_applied > 0` and the loop continues; if `APPLY_AND_RECHECK` is emitted
-with 0 fixes, the condition still fires and exits correctly.
+meaning no fixable findings remain (all are YAGNI, stuck, or already addressed). Note: Advisory
+findings WITH a Fix block count toward `fixes_applied_per_file` and keep the loop alive — a file
+with only Advisory/YAGNI or Advisory-no-Fix findings will score 0 and exit correctly. This is
+robust against malformed `LOOP_DIRECTIVE`: if a reviewer erroneously emits COMPLETE while
+providing fixable findings, `fixes_applied > 0` and the loop continues; if `APPLY_AND_RECHECK`
+is emitted with 0 fixes, the condition still fires and exits correctly.
 
 ### Re-Review: Single-Agent and Parallel-Task Mode (≤4 files total)
 
@@ -546,9 +551,7 @@ const re_review_results = await Promise.all(remaining_files.map(file =>
     team_name: team_name,
     name: `reviewer-${file.replace(/\//g, '-').replace(/^[-./]+/, '')}-r${per_file_rounds[file]}`,
     description: `Re-review ${file} round ${per_file_rounds[file]}`,
-    prompt: `mode=evaluate
-
-Re-review this file after fixes were applied:
+    prompt: `Re-review this file after fixes were applied:
 target_files="${file}"
 task_name="${task_name}-round${per_file_rounds[file]}"
 worktree="${worktree}"
