@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*15 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 + Q-G17). Applies to every plan, every domain.*
+*17 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G19). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -39,6 +39,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G12 | Code consolidation | When the plan modifies or extends existing code — are there substantively overlapping implementations elsewhere in the codebase that should be consolidated as part of this work? If a consolidation opportunity exists, the plan must include consolidation steps or explicitly defer with a noted reason. Flag: plan touches near-identical logic elsewhere but neither consolidation nor deferral is mentioned. | purely additive (new file / new feature) with no substantively similar existing implementations |
 | Q-G13 | Phased decomposition | Are the plan's concerns organized into phases where each phase completes the full loop — implement → /review-fix (loop until clean) → test/verify → commit — before the next phase begins? Flag: (1) multiple distinct concerns in a flat step list with no phase boundaries; (2) phase commits placed before review-fix or testing for that phase; (3) later phases implicitly depend on earlier ones without an explicit go/no-go checkpoint. | single atomic concern with no cross-phase dependencies (e.g. fix exactly one bug, rename one identifier, add one isolated function) |
 | Q-G14 | Codebase style adherence | Do proposed code changes follow existing codebase patterns and conventions? If the plan intentionally deviates (new error handling, different module structure, new abstraction), is the deviation explicitly stated with a reason? Flag: plan uses different patterns from comparable existing code without acknowledging the intentional change. | documentation-only change with no proposed code; or brand new project with no existing comparable code to inherit style from |
+| Q-G18 | Pre-condition verification | Before modifying existing files, does the plan include a step to read and verify the current state matches expectations? Flag: plan proceeds directly to editing without confirming current file contents, line numbers, or function signatures. Acceptable: explicit "Read file X to confirm Y" step, or "verify Z before proceeding" instruction. | pure new-file creation with no existing files to verify; or plan modifies only documentation where current state is irrelevant |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -48,8 +49,9 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G7 | Documentation | MEMORY.md / CLAUDE.md / README affected by this change? | no behavior changes |
 | Q-G16 | LLM comment breadcrumbs | For plans creating or significantly modifying complex code (new modules, logic, architectural changes) — does the plan include a directive to add brief LLM-navigable comments at key locations (function entry points, module purpose, non-obvious branches)? Acceptable: "add brief comments at function boundaries", "include navigation comments for key logic". Flag: complex code changes with no mention of documentation or navigation aids. | documentation-only change; configuration change; trivial single-line/single-function fix; or plan explicitly defers documentation to a separate task |
 | Q-G17 | Narrative framing | For plans with ≥ 2 distinct implementation phases: (a) does the plan have a top-level intent section (`## Plan Intent`, `## Context`, `## Overview`, or equivalent) describing the overall goal and approach rationale in 2–5 plain-language sentences? (b) does each phase have a brief intent preamble — 1–3 sentences before the numbered steps — explaining why this phase exists and what it sets up for subsequent phases? Flag: multi-phase plan that goes straight to numbered steps without any narrative context at the top or per-phase level. EDIT injection — team-lead applies: **If top-level section is absent**, `[EDIT: inject after plan title: "## Plan Intent\n[What this plan accomplishes and why it is structured this way]"]`. **If per-phase preamble is absent for a phase**, `[EDIT: add before Phase N steps: "> Intent: [why this phase exists and what it sets up for subsequent phases]"]`. One EDIT per missing element. | single-phase plan (requires ≥ 2 distinct phases); IS_TRIVIAL |
+| Q-G19 | Phase failure recovery | For multi-phase plans where each phase commits independently: does the plan address what happens if a later phase fails after earlier phases committed? Acceptable: explicit "earlier phases are safe to keep independently" statement, revert instructions, or "stop and assess before continuing" checkpoint between dependent phases. Flag: multi-phase plan with inter-phase dependencies where a Phase N failure would leave Phases 1..N-1 commits in an inconsistent state, with no acknowledgment of this risk. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 
-Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
+Count L1 edits → `l1_changes += count` (17 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G8 Decision Framework: Task Calls & Agent Teams
 
@@ -95,7 +97,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 15 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 + Q-G17). Q-G9 is not included in*
+*L1 per-pass count stays at 17 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G19). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 **Sub-question definitions:**
@@ -130,7 +132,7 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 2: Impact & Architecture
 
-*5 questions. Always active.*
+*6 questions. Always active.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -138,9 +140,10 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C8 | 2 | Interface consistency | Modified signatures consistent with siblings; callers updated? | no sig changes |
 | Q-C12 | 3 | Duplication | No reimplementation of existing utilities? | no new functions |
 | Q-C14 | 2 | Bolt-on vs integrated | New code extends existing modules; not isolated additions? | purely additive |
+| Q-C26 | 2 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
 | Q-C27 | 2 | Backward compatibility | If the change modifies public-facing APIs, CLI interfaces, published package exports, event schemas, or config formats consumed externally — does the plan flag the breaking change and include a migration path or versioning step (e.g. v2 endpoint, semver bump, deprecation notice)? | internal-only change, no external API consumers |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q18, Q16, Q39, Q41); Q-C27 N/A (no external API consumers in GAS projects).
+IS_GAS: **partially superseded** — Q-C3 (→Q18), Q-C8 (→Q16), Q-C12 (→Q39), Q-C14 (→Q41) are superseded; Q-C27 N/A (no external API consumers in GAS projects). **Q-C26 has no gas equivalent — evaluate Q-C26 normally** (always active via impact cluster).
 IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: Testing & Plan Quality
@@ -161,7 +164,8 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 4: State & Data Integrity
 
-*5 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
+*4 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
+*(Q-C26 promoted to Cluster 2: Impact & Architecture — always active.)*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -169,11 +173,9 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C18 | 2 | Concurrency | Shared state locked; background tasks have concurrency plan? | read-only |
 | Q-C19 | 2 | Idempotency | Operations safe to retry; data mutations deduped? | read-only |
 | Q-C24 | 2 | Local↔remote sync | Sync strategy explicit for local→remote pushes? Stale reads avoided? | local-only |
-| Q-C26 | 2 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
 
-IS_GAS: **partially superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24), Q-C24 (→Q3) are
-  superseded. **Q-C26 has no gas equivalent — evaluate Q-C26 normally when HAS_STATE=true.**
-  Spawn state cluster evaluator only if HAS_STATE=true, and only to evaluate Q-C26.
+IS_GAS: **fully superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24), Q-C24 (→Q3).
+  Skip this cluster entirely when IS_GAS=true (Q-C26 now in impact cluster, always active).
 IS_NODE: **Q-C18 → N/A-superseded** (covered by node-evaluator N8).
 
 ### Cluster 5: Security & Reliability
