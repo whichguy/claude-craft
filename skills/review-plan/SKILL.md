@@ -199,7 +199,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-NEW are not memoizable)
+   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-NEW are not memoizable)
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
@@ -267,12 +267,12 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 17 questions).
+      You are evaluating a plan for general quality (Layer 1: 18 questions).
 
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -286,7 +286,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 17 questions: Q-G1, Q-G2, Q-G4–G8, Q-NEW, Q-G10–G14, Q-G16–G19)
+        ... (all 18 questions: Q-G1, Q-G2, Q-G4–G8, Q-NEW, Q-G10–G14, Q-G16–G20)
 
       Constraints:
       - Do not use Edit, Write, or Bash tools — read-only
@@ -517,8 +517,9 @@ DO:
   IF l1_results["Q-G18"] in [PASS, N/A] AND "Q-G18" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G18")
   # Q-G19 (Phase failure recovery): NOT safe to memoize — failure recovery scope evolves as phases are added/modified
+  # Q-G20 (Story arc coherence): NOT safe to memoize — story arc framing evolves as plan is restructured
   # NOT memoizable (explicitly evaluated and rejected):
-  # Q-G17: review-plan Q-G13 edits add phase preambles — can shift narrative framing
+  # Q-G17: review-plan Q-G13 edits add phases — can create new preamble needs
   # Q-G16: review-plan edits can add implementation phases — changes breadcrumb scope
   # Q-C12: review-plan edits can alter plan scope — changes consolidation opportunities
   # Q-G10 (Assumption Exposure): NOT safe — assumptions evolve as plan is edited
@@ -635,13 +636,13 @@ parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G8 Decision Framework
 QUESTIONS.md (Layer 1 section). Q-G9 sub-questions follow below (team-lead evaluates inline
 post-convergence).
 
-L1 per-pass count: 17 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G19).
+L1 per-pass count: 18 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G20).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 17 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G19). Q-G9 is not included in*
+*L1 per-pass count stays at 18 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G20). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
