@@ -131,7 +131,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    ```
 
    IF IS_TRIVIAL:
-     Print: "⚡ Trivial plan detected — running fast-path review (single pass, 6 questions)"
+     Print: "──── FAST PATH ──────────"
+     Print: "⚡ Trivial plan: 1 file ([ext]), additive only"
+     Print: "  questions: Q-G1, Q-G2, Q-G5, Q-NEW, Q-C1, Q-G11"
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
@@ -157,11 +159,19 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      If all 6 PASS:
        Write gate marker: Bash "touch ~/.claude/.plan-reviewed-${plan_slug}"
-       Output simplified scorecard:
-         ## review-plan Scorecard (Fast Path)
-         ⚡ IS_TRIVIAL: single .md file, additive change
-         [Q-G1/G2/G5/NEW/C1/G11 results — one line each]
-         ### Rating: 🟢 READY
+       Output terminal-native fast-path scorecard:
+         ╔═══════════════════════════════════╗
+         ║  Scorecard (Fast Path)            ║
+         ╚═══════════════════════════════════╝
+         Rating: 🟢 READY — 6/6 clear
+
+           Q-G1  Approach soundness       ✅
+           Q-G2  Standards compliance     ✅
+           Q-G5  Scope focus              ✅
+           Q-NEW Post-implementation      ✅
+           Q-C1  Git lifecycle            ✅
+           Q-G11 Existing code examined   ✅
+         (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
        Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
        Call ExitPlanMode
        STOP — skip convergence loop entirely
@@ -171,12 +181,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate the same 6 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 6 now PASS:
-         Write gate marker, output simplified scorecard (Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
+         Write gate marker, output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
        If still NEEDS_UPDATE:
-         Print: "⚡ Fast-path could not resolve all issues — falling through to full review"
+         Print: "⚡ Fast-path could not resolve — falling through to full review"
          IS_TRIVIAL = false  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
 
+   Print: "──── CONFIG ─────────────"
    Print mode based on flags:
      IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-eval + impact cluster + ui-evaluator, [N] active)"
      IS_GAS only:         "📋 Review mode: GAS (gas-eval + impact cluster for Q-C26, [N] active)"
@@ -197,6 +208,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_needs_update_set = set()
    pass1_needs_update_set = set()  # snapshot of NEEDS_UPDATE set after pass 1 (for resolved_questions)
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
+   needs_update_counts_per_pass = []   # [7, 3, 2, ...] total NEEDS_UPDATE per pass
+   pass_start_time = 0                 # reset at top of each loop iteration
+   pass_durations = []                 # seconds per pass
+   total_applicable_questions = 0      # computed from active_clusters + flags (set after first pass)
+   memo_milestones_printed = set()     # {25, 50, 75} — each printed once
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-NEW are not memoizable)
@@ -212,6 +228,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    team_name = "review-plan-" + timestamp
    TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
    ```
+   Print: "──── REVIEW ─────────────"
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
@@ -234,12 +251,15 @@ DO:
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
-                     total_changes_all_passes, pass_count
+                     total_changes_all_passes, pass_count,
+                     needs_update_counts_per_pass, pass_durations,
+                     total_applicable_questions, memo_milestones_printed
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
   IF NOT _recovered_this_pass:
     pass_count += 1
+  pass_start_time = Date.now()
   changes_this_pass = 0
   l1_changes = 0
   cluster_changes = {}            # maps cluster_name → change count this pass
@@ -248,8 +268,7 @@ DO:
   node_plan_changes = 0
   ui_plan_changes = 0
 
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."
-  Print: "  Spawning: l1" + for each active cluster_name " · <cluster_name>" + (IS_GAS: " · gas-eval") + (IS_NODE: " · node-eval") + (HAS_UI: " · ui")
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
 
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
   [In a SINGLE message, spawn all evaluators in parallel:
@@ -424,25 +443,40 @@ DO:
   Incomplete cluster evaluator: its cluster's questions treated as same NEEDS_UPDATE status
   as their previous pass (other cluster evaluators' findings are unaffected).
 
-  Print receipt for each evaluator:
-    # Symbol key: ✗ = NEEDS_UPDATE, ✓ = PASS, — = N/A
-    If l1 responded:   Print: "  ✅ l1      ✗[n] ✓[m] —[k]"
-    If l1 incomplete:  Print: "  ⚠️ l1      timeout"
+  pass_elapsed = Math.round((Date.now() - pass_start_time) / 1000)
+  pass_durations.append(pass_elapsed)
+
+  Print evaluator status grid (tree diagram with aligned columns):
+    # Compute per-evaluator elapsed time from spawn to response (approximate: total pass time
+    # is known; per-evaluator is estimated as pass_elapsed unless individual timestamps available).
+    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete)
+    # Columns: name (right-pad with dashes to col 16) + symbol + ✗/✓/— counts + [Ns]
+    # Skipped clusters (not in active_clusters) are omitted entirely.
+    # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
+    evaluator_lines = []
+
+    If l1 responded:   evaluator_lines.append("l1 ─────── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+    If l1 incomplete:  evaluator_lines.append("l1 ─────── ◌ timeout")
     For each cluster_name in active_clusters:
-      If responded:   Print: "  ✅ <cluster_name>  ✗[n] ✓[m] —[k]"
-      If memoized:    Print: "  ⏭️ <cluster_name>  ⏭️ p[memoized_since[cluster_name]]"
-      If incomplete:  Print: "  ⚠️ <cluster_name>  timeout"
-    For each skipped cluster (not in active_clusters):
-      Print: "  ⏭️ <cluster_name>  skipped"
+      If responded:   evaluator_lines.append("<cluster_name> ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      If memoized:    evaluator_lines.append("<cluster_name> ── ⊘ memoized p[memoized_since[cluster_name]]")
+      If incomplete:  evaluator_lines.append("<cluster_name> ── ◌ timeout")
     If IS_GAS:
-      If gas responded:   Print: "  ✅ gas-eval   ✗[n] ✓[m] —[k]"
-      If gas incomplete:  Print: "  ⚠️ gas-eval   timeout"
+      If gas responded:   evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      If gas incomplete:  evaluator_lines.append("gas-eval ── ◌ timeout")
     If IS_NODE:
-      If node responded:  Print: "  ✅ node-eval  ✗[n] ✓[m] —[k]"
-      If node incomplete: Print: "  ⚠️ node-eval  timeout"
+      If node responded:  evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      If node incomplete: evaluator_lines.append("node-eval ─ ◌ timeout")
     If HAS_UI:
-      If ui responded:    Print: "  ✅ ui    ✗[n] ✓[m] —[k]"
-      If ui incomplete:   Print: "  ⚠️ ui    timeout"
+      If ui responded:    evaluator_lines.append("ui ──────── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      If ui incomplete:   evaluator_lines.append("ui ──────── ◌ timeout")
+
+    Print tree (where n = len(evaluator_lines) - 1):
+      If n == 0: "  └ " + evaluator_lines[0]   (only 1 evaluator — no ┌/├)
+      Else:
+        "  ┌ " + evaluator_lines[0]
+        For i in 1..n-1: "  ├ " + evaluator_lines[i]  (middle lines, inclusive range)
+        "  └ " + evaluator_lines[n]
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
@@ -504,18 +538,23 @@ DO:
     IF git-evaluator-p<pass_count> returned 0 NEEDS_UPDATE (all PASS or N/A):
       memoized_clusters.add("git")
       memoized_since["git"] = pass_count
+      newly_memoized.append("git")  # track for milestone display
   # L1 Q-G11: safe to memoize individually (cited file paths/function names don't regress during editing)
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
+    newly_memoized.append("Q-G11")  # track for milestone display
   # Q-G6: safe to memoize (naming conventions set during plan creation; review-plan edits don't introduce new identifier names)
   IF l1_results["Q-G6"] in [PASS, N/A] AND "Q-G6" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G6")
+    newly_memoized.append("Q-G6")  # track for milestone display
   # Q-G7: safe to memoize (doc impact determined by plan scope; review-plan edits don't alter implementation scope)
   IF l1_results["Q-G7"] in [PASS, N/A] AND "Q-G7" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G7")
+    newly_memoized.append("Q-G7")  # track for milestone display
   # Q-G18: safe to memoize (once pre-condition verification steps are stated, review-plan edits don't remove them)
   IF l1_results["Q-G18"] in [PASS, N/A] AND "Q-G18" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G18")
+    newly_memoized.append("Q-G18")  # track for milestone display
   # Q-G19 (Phase failure recovery): NOT safe to memoize — failure recovery scope evolves as phases are added/modified
   # Q-G20 (Story arc coherence): NOT safe to memoize — story arc framing evolves as plan is restructured
   # NOT memoizable (explicitly evaluated and rejected):
@@ -535,14 +574,48 @@ DO:
   # (with plan edits applied between them), it's empirically stable — safe to memoize for pass 3+.
   # Gate 1 questions are NEVER stability-memoized (too important to skip based on heuristic).
   IF pass_count >= 2:
-    current_pass_results = l1_results  # Q-ID → status built from evaluator messages
+    current_pass_results = l1_results  # Q-ID → status built from evaluator messages (L1 questions only: Q-G*)
+    # Note: cluster questions (Q-C*) are memoized at the whole-cluster level (memoized_clusters above),
+    # not per-question. Stability promotion here applies to L1 (Q-G*) questions only.
     FOR each Q-ID in current_pass_results:
       IF Q-ID in prev_pass_results:
         IF prev_pass_results[Q-ID] in [PASS, N/A] AND current_pass_results[Q-ID] in [PASS, N/A]:
-          IF Q-ID is Gate 2 or Gate 3:  # never Gate 1 (Q-G1, Q-G2, Q-G11, Q-NEW, Q-C1, Q-C3)
+          IF Q-ID is Gate 2 or Gate 3 L1 question:  # never Gate 1 (Q-G1, Q-G2, Q-G11, Q-NEW); cluster questions handled by memoized_clusters
             IF Q-ID NOT in memoized_l1_questions:
               memoized_l1_questions.add(Q-ID)
-  prev_pass_results = l1_results  # update for next pass
+              newly_memoized.append(Q-ID)  # track for milestone display (stability-locked)
+  prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
+
+  # Memoization milestone output (Enhancement E)
+  # Print individual lock events (cap at 3 per pass, then "+N more")
+  newly_memoized = []  # collect items memoized THIS pass for display
+  # (Populate newly_memoized during the memoization logic above: append each Q-ID or cluster
+  #  name when it is added to memoized_l1_questions or memoized_clusters this pass.)
+  IF len(newly_memoized) > 0:
+    shown = 0
+    FOR each item in newly_memoized:
+      IF shown < 3:
+        IF item is a cluster name:
+          Print: "  memo: +[item] cluster ([N] questions) locked at pass [pass_count]"
+        ELSE IF item was stability-locked (pass_count >= 2):
+          Print: "  memo: +[item] stable across 2 passes — locked"
+        ELSE:
+          Print: "  memo: +[item] ([question short name]) locked at pass [pass_count]"
+        shown += 1
+    IF len(newly_memoized) > 3:
+      Print: "  memo: +[len(newly_memoized) - 3] more locked"
+
+  # Milestone announcements (25/50/75% of total_applicable_questions locked)
+  IF total_applicable_questions == 0:
+    # Compute on first pass from active evaluator question counts
+    total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+  total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster)
+  memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
+  FOR threshold in [25, 50, 75]:
+    IF memo_pct >= threshold AND threshold NOT in memo_milestones_printed:
+      memo_milestones_printed.add(threshold)
+      accel_label = IF threshold == 25: "picking up speed" ELSE IF threshold == 50: "accelerating" ELSE: "almost locked"
+      Print: "  memo: [threshold]% of questions locked — [accel_label]"
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
@@ -556,7 +629,11 @@ DO:
     prev_needs_update_set: [...current_needs_update_set],
     pass1_needs_update_set: [...pass1_needs_update_set],
     prev_pass_results,
-    total_changes_all_passes
+    total_changes_all_passes,
+    needs_update_counts_per_pass,
+    pass_durations,
+    total_applicable_questions,
+    memo_milestones_printed: [...memo_milestones_printed]
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -567,10 +644,47 @@ DO:
   if IS_GAS and gas_plan_changes > 0:   breakdown_parts.append(f"gas:{gas_plan_changes}")
   if IS_NODE and node_plan_changes > 0: breakdown_parts.append(f"node:{node_plan_changes}")
   if HAS_UI and ui_plan_changes > 0:    breakdown_parts.append(f"ui:{ui_plan_changes}")
+  current_nu_count = len(current_needs_update_set)
+  needs_update_counts_per_pass.append(current_nu_count)
+
   if not breakdown_parts:
-    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — 0 changes"
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — 0 changes  [{pass_elapsed}s]"
   else:
-    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])"
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])  [{pass_elapsed}s]"
+
+  # Delta visualization (Enhancement C)
+  IF pass_count == 1:
+    Print: "  snapshot: ✗[current_nu_count] questions need work"
+  ELSE:
+    prev_nu = needs_update_counts_per_pass[pass_count - 2]  # previous pass count
+    delta = current_nu_count - prev_nu
+    delta_str = IF delta < 0: "(↓[abs(delta)])" ELSE IF delta > 0: "(↑[delta])" ELSE: "(→0)"
+    memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster)
+    # Use question count (not cluster count) to match milestone math at total_memo_count computation
+    IF memo_count <= 3:
+      memo_names = comma-separated list of memoized Q-IDs and cluster names
+      Print: "  delta: ✗ [prev_nu]→[current_nu_count] [delta_str]  memoized: [memo_names]"
+    ELSE:
+      Print: "  delta: ✗ [prev_nu]→[current_nu_count] [delta_str]  memoized: [memo_count] questions locked"
+    IF pass_count >= 3:
+      trend_values = join(needs_update_counts_per_pass, " → ")
+      last3 = needs_update_counts_per_pass[-3:]
+      trend_arrow = IF last3[-1] < last3[0]: "↘ converging" ELSE IF last3[-1] > last3[0]: "↗ oscillating" ELSE: "→ flat"
+      Print: "  trend: [trend_values]  [trend_arrow]"
+
+  # Compact gate health bar (Enhancement G)
+  # Compute gate-level counts from current_needs_update_set for quick inline display
+  gate1_open = count of NEEDS_UPDATE in current pass for Gate 1 questions
+  gate2_open = count of NEEDS_UPDATE in current pass for Gate 2 questions
+  gate3_noted = count of NEEDS_UPDATE in current pass for Gate 3 questions
+  gate1_sym = IF gate1_open == 0: "✅" ELSE: "❌[gate1_open]"
+  gate2_sym = IF gate2_open == 0: "✅" ELSE: "⚠️[gate2_open]"
+  IF pass_count >= 2:
+    prev_gate2 = count of Gate 2 NEEDS_UPDATE from previous pass
+    gate2_delta = gate2_open - prev_gate2
+    IF gate2_delta != 0:
+      gate2_sym += IF gate2_delta < 0: "↓[abs(gate2_delta)]" ELSE: "↑[gate2_delta]"
+  Print: "  gates: [🔴 [gate1_sym]] [🟡 [gate2_sym]] [💡 [gate3_noted]]"  # outer [...] are literal printed brackets; inner [gate1_sym] etc. are substituted values
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
   prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
@@ -586,11 +700,12 @@ DO:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
 
   IF pass_count >= 5:
+    total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     IF Gate1_unresolved > 0:
-      Print: "⚠️ Max passes reached — [Gate1_unresolved] Gate 1 issue(s) still open. Proceeding to scorecard (Rating: 🔴 REWORK). Reject plan approval to continue fixing."
+      Print: "⚠️ Max passes reached ([total_elapsed]s) — [Gate1_unresolved] Gate 1 issue(s) still open. Proceeding to scorecard (Rating: 🔴 REWORK). Reject plan approval to continue fixing."
       BREAK → proceed to "After Review Completes"
     ELSE:
-      Print: "✅ Converged (max passes reached, Gate 1 clear)."
+      Print: "✅ Converged (max passes, Gate 1 clear, [total_elapsed]s)."
       BREAK → proceed to "After Review Completes"
   IF Gate1_unresolved > 0:
     Print using this exact format:
@@ -605,15 +720,15 @@ DO:
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
-    elapsed = Math.round((Date.now() - timestamp) / 1000)
+    total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     IF pass_count == 1:
-      Print: "✅ Converged — no issues found (pass 1, [elapsed]s)"
+      Print: "✅ Converged — no issues found (pass 1, [total_elapsed]s)"
     ELSE:
       resolved_questions = pass1_needs_update_set - current_needs_update_set  # Q-IDs fixed since pass 1
-      Print: "✅ Converged after [pass_count] passes ([elapsed]s | [total_changes_all_passes] total changes)"
+      Print: "✅ Converged after [pass_count] passes ([total_elapsed]s total | [total_changes_all_passes] changes)"
       IF resolved_questions is non-empty:
-        Print: "Resolved: [comma-separated resolved_questions sorted by ID]"
-      Print: "Gate 1: ✅ Clean | Gate 2: ✅ [count of Gate2 PASS] PASS | Advisory: [count of Gate3 noted] noted"
+        Print: "  resolved: [comma-separated resolved_questions sorted by ID]"
+      Print: "  gates: [🔴 ✅] [🟡 ✅ [count of Gate2 PASS]] [💡 [count of Gate3 noted]]"
     BREAK → proceed to "After Review Completes"
   -- END CHECK --
 
@@ -750,7 +865,7 @@ Q-U1 through Q-U7 (UI specialization) plus Q-C17 and Q-C25 (merged from Client c
 - No separate client-evaluator is spawned when HAS_UI=true
 
 HAS_UI is orthogonal to IS_GAS/IS_NODE: a GAS project with a sidebar will have
-IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + state cluster (if HAS_STATE) + ui-evaluator.
+IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + impact cluster (always active for Q-C26) + ui-evaluator.
 
 **Deduplication (HAS_UI + IS_GAS):** GAS UI concerns (sidebar, dialog) may overlap between
 gas-evaluator and ui-evaluator. Keep gas-evaluator's GAS-specific framing in those cases.
@@ -783,66 +898,62 @@ Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list 
 individually with IDs. The collapsing happens only in this final user-facing scorecard.
 
 ```
-## review-plan Scorecard — Pass [N]
+╔═══════════════════════════════════╗
+║  review-plan Scorecard — Pass [N] ║
+╚═══════════════════════════════════╝
 
-### Rating
-[🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK]  — [criterion phrase]
+Rating: [🟢 READY / 🟡 SOLID / 🟠 GAPS / 🔴 REWORK] — [criterion phrase]
 
-| Gate | Status | Open |
-|------|--------|------|
-| 🔴 Gate 1 — Blocking  | ✅ PASS / ❌ n open | [n] |
-| 🟡 Gate 2 — Important | ✅ PASS / ⚠️ n open | [n] |
-| 💡 Gate 3 — Advisory  | [n] noted           | —  |
+Gate Health
+  🔴 Gate 1 — Blocking   [✅ M/M clear] or [❌ n open (M clear)]
+  🟡 Gate 2 — Important  [✅ M/M clear] or [⚠️ n open (M clear)]
+  💡 Gate 3 — Advisory   [n] noted
 
----
+🔴 Gate 1 — Blocking ([M] applicable)
+  [list only PASS and NEEDS_UPDATE questions — omit N/A items]
+  [indent 2 spaces, one line each:]
+  ✅ [Question short name] ([Q-ID])
+  ❌ [Question short name] ([Q-ID])
 
-### 🔴 Gate 1 — Blocking
-[✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
-[list only PASS and NEEDS_UPDATE questions — omit N/A items]
-Example line: Git lifecycle (Q-C1): ✅ PASS
-Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
+🟡 Gate 2 — Important ([M] applicable)
+  [list only PASS and NEEDS_UPDATE questions — omit N/A items]
+  ✅ [Question short name] ([Q-ID])
+  ⚠️ [Question short name] ([Q-ID])
 
-### 🟡 Gate 2 — Important
-[✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
-[list only PASS and NEEDS_UPDATE questions — omit N/A items]
-
-### 💡 Gate 3 — Advisory
-[N noted (M applicable)] or [0 noted (M applicable)]
-[list only flagged advisory questions — omit N/A and non-flagged PASS]
+💡 Gate 3 — Advisory ([M] applicable)
+  [list only flagged advisory questions — omit N/A and non-flagged PASS]
+  💡 [Question short name] ([Q-ID])
 
 [Only render the following specialization sections when the corresponding flag is TRUE.
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
 
-### GAS Specialization (gas-plan)  ← render only when IS_GAS=true
-[PASS — converged after N passes (51 questions, K triaged N/A)]
-OR
-[N NEEDS_UPDATE remaining (51 questions, K triaged N/A)]
+GAS Specialization (gas-plan)          ← render only when IS_GAS=true
+  ✅ [M] questions — [P] PASS, [K] N/A (converged pass [N])
+  OR
+  ⚠️ [N] NEEDS_UPDATE remaining ([M] questions, [K] N/A)
 
-### Node Specialization (node-plan)  ← render only when IS_NODE=true
-[PASS — converged after N passes (38 questions, K triaged N/A)]
-OR
-[N NEEDS_UPDATE remaining (38 questions, K triaged N/A)]
+Node Specialization (node-plan)        ← render only when IS_NODE=true
+  ✅ [M] questions — [P] PASS, [K] N/A (converged pass [N])
+  OR
+  ⚠️ [N] NEEDS_UPDATE remaining ([M] questions, [K] N/A)
 
-### UI Specialization (ui-designer)  ← render only when HAS_UI=true
-[PASS — converged after N passes (7 questions, K triaged N/A)]
-OR
-[N NEEDS_UPDATE remaining]
-[list only PASS and NEEDS_UPDATE UI questions — omit N/A items]
-Example line: Component structure (Q-U1): ✅ PASS
+UI Specialization (ui-designer)        ← render only when HAS_UI=true
+  [list only PASS and NEEDS_UPDATE UI questions — omit N/A items]
+  ✅ [Question short name] ([Q-ID])
+  ⚠️ [Question short name] ([Q-ID])
 
-### Organization Quality (Q-G9)  ← render only when plan has ≥ 3 implementation steps
-[✅ PASS — no structural issues (5 sub-questions)]
-OR
-[N sub-questions flagged:]
-[list only flagged sub-questions — omit PASS items]
-Example line: Q-G9b (Concurrency labeling): ❌ NEEDS_UPDATE — parallel steps not labeled
+Organization Quality (Q-G9)            ← render only when plan has >= 3 implementation steps
+  ✅ [N]/5 sub-questions clean
+  OR
+  ⚠️ [N]/5 — [K] flagged:
+  [list only flagged sub-questions — omit PASS items]
+    ❌ [Q-G9x] ([sub-question name]): [finding]
 
-### Triaged N/A  ← omit this section entirely if total N/A count across all gates == 0
-[K questions skipped — not applicable to this plan:]
-- [Question name] ([Q-ID]): [one-phrase reason, e.g. "fully isolated change", "HAS_STATE=false"]
-[list all N/A questions across Gate 1, Gate 2, Gate 3; omit section when K == 0]
-[Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
-
+Triaged N/A                            ← omit entirely if total N/A count across all gates == 0
+  [K] questions skipped:
+  [list each N/A question, indent 2 spaces:]
+    [Question name] ([Q-ID]): [one-phrase reason]
+  [Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
 ```
 
 ---
@@ -857,12 +968,14 @@ After the convergence loop exits (scorecard not yet printed):
    and ExitPlanMode (step 8). Do not re-run the REWORK check here.
 
 2. **Q-G9 organization pass** (post-convergence structural check, inline):
+   Print: "──── ORGANIZE ───────────"
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Evaluate Q-G9 inline as specified in the "Q-G9 Post-Convergence Organization Pass"
    subsection in Layer 1 (no Task spawn — team-lead evaluates directly). Apply any NEEDS_UPDATE
    edits immediately. Q-G9 results will be included in the scorecard output in step 3.
 
-3. **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
+3. Print: "──── SCORECARD ──────────"
+   **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
    Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
    when Q-G9 ran (plan had >= 3 implementation steps).
 
