@@ -194,7 +194,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-NEW are not memoizable; Q-G3 removed)
+   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-NEW are not memoizable)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -499,15 +499,23 @@ DO:
   # L1 Q-G11: safe to memoize individually (cited file paths/function names don't regress during editing)
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
-  # Q-G10 (Assumption Exposure): NOT safe to memoize — assumptions evolve as plan is edited; must re-evaluate every pass
-  # Q-G12 (Code consolidation): NOT safe to memoize — consolidation opportunities shift as plan scope evolves; must re-evaluate every pass
-  # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
-  # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
-  # Q-G16 (LLM comment breadcrumbs): NOT safe to memoize — documentation intent can shift as plan scope and complexity evolve; must re-evaluate every pass
-  # Q-G17 (Narrative framing): NOT safe to memoize — narrative intent evolves as plan is revised; must re-evaluate every pass
+  # Q-G6: safe to memoize (naming conventions set during plan creation; review-plan edits don't introduce new identifier names)
+  IF l1_results["Q-G6"] in [PASS, N/A] AND "Q-G6" NOT in memoized_l1_questions:
+    memoized_l1_questions.add("Q-G6")
+  # Q-G7: safe to memoize (doc impact determined by plan scope; review-plan edits don't alter implementation scope)
+  IF l1_results["Q-G7"] in [PASS, N/A] AND "Q-G7" NOT in memoized_l1_questions:
+    memoized_l1_questions.add("Q-G7")
+  # NOT memoizable (explicitly evaluated and rejected):
+  # Q-G17: review-plan Q-G13 edits add phase preambles — can shift narrative framing
+  # Q-G16: review-plan edits can add implementation phases — changes breadcrumb scope
+  # Q-C12: review-plan edits can alter plan scope — changes consolidation opportunities
+  # Q-G10 (Assumption Exposure): NOT safe — assumptions evolve as plan is edited
+  # Q-G12 (Code consolidation): NOT safe — consolidation opportunities shift as plan scope evolves
+  # Q-G13 (Phased decomposition): NOT safe — phase structure evolves as plan scope and steps are edited
+  # Q-G14 (Codebase style adherence): NOT safe — code style concerns may emerge or be resolved as the plan evolves
   # Q-C27, Q-C28, Q-C29: not individually memoizable by design (their clusters — impact, operations,
   # testing — are not currently added to memoized_clusters; only the git cluster is memoized)
-  # Only Q-G11 is an individually memoizable L1 question
+  # Individually memoizable L1 questions: {Q-G11, Q-G6, Q-G7}
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
