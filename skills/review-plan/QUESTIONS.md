@@ -112,19 +112,18 @@ multi-file features where cross-file consistency needs a coordinator.
 
 ## Layer 2: Code Change Quality
 
-*29 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
 ### Cluster 1: Git & Branching
 
-*2 questions. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
+*1 question. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
 *IS_NODE: not superseded — evaluate normally.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
-| Q-C1 | 1 | Branching strategy | Branch named? Push-to-remote step included? Merge-to-main step included? | never |
-| Q-C2 | 1 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never |
+| Q-C1 | 1 | Git lifecycle | Branch named? Each implementation phase ends with explicit `git add` + `git commit` steps (not prose-only)? Push-to-remote step present? Merge/PR to main step present? Commit messages follow project conventions? | never |
 
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q1, Q2).
 IS_NODE: not superseded — evaluate normally.

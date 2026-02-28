@@ -138,7 +138,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Q-G2 (Standards compliance — never N/A)
            Q-G5 (Scope focus — never N/A)
            Q-NEW (Post-implementation workflow — N/A for IS_GAS)
-           Q-C1 (Branching strategy — never N/A)
+           Q-C1 (Git lifecycle — never N/A)
            Q-G11 (Existing code examined — N/A for doc-only plans)
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
@@ -448,7 +448,7 @@ DO:
     Then proceed with Edit calls.
   Example:
     Applying 3 changes:
-      1. Branching strategy (Q-C1): adding feature branch section
+      1. Git lifecycle (Q-C1): adding branch + commit steps
       2. Step ordering (Q-C9): reordering steps 3-4 for dependency correctness
       3. Post-implementation (Q-NEW): adding exec verification after push steps
   (If changes_this_pass == 0, skip the summary entirely.)
@@ -535,10 +535,10 @@ DO:
                        Q1, Q2, Q13, Q15, Q18, Q42
                        (Q-NEW is N/A for IS_GAS — covered by Q42; L2 cluster questions are N/A-superseded by gas-evaluator)
   ELSE IF IS_NODE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C2, Q-C3,
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3,
                        N1
   ELSE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C2, Q-C3
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
 
   IF pass_count >= 5:
     IF Gate1_unresolved > 0:
@@ -555,8 +555,8 @@ DO:
       "Looping for pass [pass_count + 1]..."
     Example:
       ⚠️ Gate 1 still open — 2 blocking:
-        - Branching strategy (Q-C1): no feature branch or merge-to-main step defined
-        - Branching usage (Q-C2): steps don't reference a branch or include commits
+        - Git lifecycle (Q-C1): no feature branch or merge-to-main step defined
+        - Impact analysis (Q-C3): callers/features affected but not addressed
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
@@ -696,19 +696,18 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 
 ## Layer 2: Code Change Quality
 
-*29 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*28 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
 ### Cluster 1: Git & Branching
 
-*2 questions. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
+*1 question. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
 *IS_NODE: not superseded — evaluate normally.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
-| Q-C1 | 1 | Branching strategy | Branch named? Push-to-remote step included? Merge-to-main step included? | never |
-| Q-C2 | 1 | Branching usage | Steps actually use feature branch + incremental commits? Each implementation step has an explicit `git add` + `git commit` checkpoint (not just described in prose)? Commit messages follow project conventions (e.g. conventional commits)? | never |
+| Q-C1 | 1 | Git lifecycle | Branch named? Each implementation phase ends with explicit `git add` + `git commit` steps (not prose-only)? Push-to-remote step present? Merge/PR to main step present? Commit messages follow project conventions? | never |
 
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q1, Q2).
 IS_NODE: not superseded — evaluate normally.
@@ -832,14 +831,14 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 ### Q-GAS / Q-NODE: Ecosystem Specialization
 
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
-Loop above). The gas-evaluator Task is spawned with `mode=evaluate`, which means:
+Loop above). The gas-evaluator Task follows evaluate mode (as defined in `<gas_eval_path>`), which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
 - Returns all 51-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
 In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
-evaluator team each pass. The node-evaluator Task is spawned with `mode=evaluate`, which means:
+evaluator team each pass. The node-evaluator Task follows evaluate mode (as defined in `<node_eval_path>`), which means:
 - node-plan runs a SINGLE evaluation pass (no internal convergence loop)
 - Returns all 38-question findings via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
@@ -879,7 +878,7 @@ specific Node/TS framing where both are present. (Rationale: "specialization win
 ### Q-UI: UI Specialization
 
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
-above). The ui-evaluator Task is spawned with `mode=evaluate`, which means:
+above). The ui-evaluator Task follows evaluate mode (as defined in the ui-designer skill), which means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
 - Returns all 7-question findings (Q-U1 through Q-U7) via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
@@ -935,7 +934,7 @@ individually with IDs. The collapsing happens only in this final user-facing sco
 ### 🔴 Gate 1 — Blocking
 [✅ PASS (M applicable)] or [❌ N NEEDS_UPDATE remaining (M applicable)]
 [list only PASS and NEEDS_UPDATE questions — omit N/A items]
-Example line: Branching strategy (Q-C1): ✅ PASS
+Example line: Git lifecycle (Q-C1): ✅ PASS
 Example line: Impact analysis (Q-C3): ❌ NEEDS_UPDATE
 
 ### 🟡 Gate 2 — Important
