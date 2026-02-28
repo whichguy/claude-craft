@@ -77,7 +77,8 @@ round_durations = []                 # populated at end of each round
 *These rules apply to all phases.*
 
 **The review loop (Phases 2–4) proceeds without user input.** Teardown is automatic. Phase 5
-behavior is controlled by `commit_mode`: `"pr"` (default) stages, commits, pushes, creates a PR,
+behavior is controlled by `commit_mode`: `"pr"` (default) checks whether the current branch is
+the default branch (creating a temp branch if so), then stages, commits, pushes, creates a PR,
 squash-merges to the default branch, deletes the feature branch, and outputs `PR_MERGED`;
 `"commit"` stages and commits only, outputting `COMMITTED`. The calling agent acts on the marker.
 **`commit_mode="pr"` assumes the current branch is ready to merge — it auto-merges and deletes
@@ -900,9 +901,11 @@ When `commit_mode == "pr"`:
 
 ```bash
 current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+default_branch=${default_branch:-main}
 ```
 
-If `current_branch` equals the default branch (detected in Step 5c, or assumed `main`):
+If `current_branch` equals `$default_branch`:
 - Create and checkout a temp branch:
   ```bash
   temp_branch="review-fix/$(date +%Y%m%d-%H%M%S)"
@@ -936,12 +939,7 @@ gh auth status 2>/dev/null              # gh authenticated?
 
 If either fails → print warning, output `<!-- COMMITTED -->` (graceful fallback to commit-only), stop Phase 5.
 
-Detect default branch (don't hardcode `main`):
-```bash
-default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
-default_branch=${default_branch:-main}  # fallback to main if detection fails
-```
-Use `$default_branch` instead of `main` in all subsequent commands (PR base, checkout, pull).
+`$default_branch` was already detected in Step 5a. Use it in all subsequent commands (PR base, checkout, pull).
 
 ### Step 5d: Push + PR + Merge (pr mode only)
 
@@ -998,7 +996,7 @@ Output: `<!-- PR_MERGED -->`
 
 ### Marker Summary
 
-| `commit_mode` | Success | Failure |
-|---|---|---|
-| `"pr"` | `PR_MERGED` | `COMMIT_FAILED` / `PUSH_FAILED` / `PR_FAILED` / `MERGE_FAILED` |
-| `"commit"` | `COMMITTED` | `COMMIT_FAILED` |
+| `commit_mode` | Success | Degraded Success | Failure |
+|---|---|---|---|
+| `"pr"` | `PR_MERGED` | `COMMITTED` (no remote or gh auth — fallback) | `COMMIT_FAILED` / `PUSH_FAILED` / `PR_FAILED` / `MERGE_FAILED` |
+| `"commit"` | `COMMITTED` | — | `COMMIT_FAILED` |
