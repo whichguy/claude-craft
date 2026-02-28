@@ -193,7 +193,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    total_changes_all_passes = 0    # running sum of changes_this_pass across all passes
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-NEW are not memoizable; Q-G3 removed)
+   memoized_l1_questions = set()   # Q-G11 once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-NEW are not memoizable; Q-G3 removed)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -258,12 +258,12 @@ DO:
     team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 14 questions).
+      You are evaluating a plan for general quality (Layer 1: 15 questions).
 
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -277,7 +277,7 @@ DO:
         Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
-        ... (all 14 questions including Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16)
+        ... (all 15 questions; newer additions: Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17)
 
       Constraints:
       - Do not use Edit, Write, or Bash tools — read-only
@@ -375,10 +375,10 @@ DO:
       name = "ui-evaluator-p" + pass_count,
       prompt = """
         You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
-        UI specialization (Q-U1 through Q-U6).
+        UI specialization (Q-U1 through Q-U7).
 
         Question definitions: Read <questions_path>
-          (Layer 3: UI Specialization section, Q-U1 through Q-U6).
+          (Layer 3: UI Specialization section, Q-U1 through Q-U7).
 
         Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
         or <!-- node-plan -->.
@@ -387,7 +387,7 @@ DO:
           FINDINGS FROM ui-evaluator
           Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
           [EDIT: instruction if NEEDS_UPDATE]
-          ... (all 6 questions)
+          ... (all 7 questions)
 
         Constraints:
         - Do not use Edit, Write, or Bash tools — read-only
@@ -495,6 +495,7 @@ DO:
   # Q-G13 (Phased decomposition): NOT safe to memoize — phase structure evolves as plan scope and steps are edited; must re-evaluate every pass
   # Q-G14 (Codebase style adherence): NOT safe to memoize — code style concerns may emerge or be resolved as the plan evolves; must re-evaluate every pass
   # Q-G16 (LLM comment breadcrumbs): NOT safe to memoize — documentation intent can shift as plan scope and complexity evolve; must re-evaluate every pass
+  # Q-G17 (Narrative framing): NOT safe to memoize — narrative intent evolves as plan is revised; must re-evaluate every pass
   # Q-C27, Q-C28, Q-C29: not individually memoizable by design (their clusters — impact, operations,
   # testing — are not currently added to memoized_clusters; only the git cluster is memoized)
   # Only Q-G11 is an individually memoizable L1 question
@@ -585,7 +586,7 @@ If not found, use inline policy: mark all `<!-- skill-name -->` content as revie
 
 ## Layer 1: General Quality
 
-*14 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16). Applies to every plan, every domain.*
+*15 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 + Q-G17). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -620,6 +621,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G6 | Naming consistency | New identifiers follow codebase conventions? | no new names |
 | Q-G7 | Documentation | MEMORY.md / CLAUDE.md / README affected by this change? | no behavior changes |
 | Q-G16 | LLM comment breadcrumbs | For plans creating or significantly modifying complex code (new modules, logic, architectural changes) — does the plan include a directive to add brief LLM-navigable comments at key locations (function entry points, module purpose, non-obvious branches)? Acceptable: "add brief comments at function boundaries", "include navigation comments for key logic". Flag: complex code changes with no mention of documentation or navigation aids. | documentation-only change; configuration change; trivial single-line/single-function fix; or plan explicitly defers documentation to a separate task |
+| Q-G17 | Narrative framing | For plans with ≥ 2 distinct implementation phases: (a) does the plan have a top-level intent section (`## Plan Intent`, `## Context`, `## Overview`, or equivalent) describing the overall goal and approach rationale in 2–5 plain-language sentences? (b) does each phase have a brief intent preamble — 1–3 sentences before the numbered steps — explaining why this phase exists and what it sets up for subsequent phases? Flag: multi-phase plan that goes straight to numbered steps without any narrative context at the top or per-phase level. EDIT injection — team-lead applies: **If top-level section is absent**, `[EDIT: inject after plan title: "## Plan Intent\n[What this plan accomplishes and why it is structured this way]"]`. **If per-phase preamble is absent for a phase**, `[EDIT: add before Phase N steps: "> Intent: [why this phase exists and what it sets up for subsequent phases]"]`. One EDIT per missing element. | single-phase plan (requires ≥ 2 distinct phases); IS_TRIVIAL |
 
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
@@ -667,7 +669,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 14 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16). Q-G9 is not included in*
+*L1 per-pass count stays at 15 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 + Q-G17). Q-G9 is not included in*
 *convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
@@ -807,7 +809,7 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 
 ## Layer 3: UI Specialization
 
-*6 questions (Q-U1 through Q-U6). Active when HAS_UI=true. Evaluated by ui-evaluator each pass.*
+*7 questions (Q-U1 through Q-U7). Active when HAS_UI=true. Evaluated by ui-evaluator each pass.*
 
 *For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A***
 
@@ -819,6 +821,7 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 | Q-U4 | Responsive & layout constraints | Does the UI respect container constraints? GAS sidebars are 300px fixed; dialogs are 600px max. No overflow assumptions, no fixed pixel widths that break at sidebar dimensions. | no layout/sizing changes |
 | Q-U5 | Accessibility basics | Interactive elements have accessible labels (`aria-label`, `for`/`id` pairs on form inputs). Tab order is logical. Keyboard navigation not broken. | no new interactive elements |
 | Q-U6 | Visual consistency | New UI matches the existing design language (fonts, colors, spacing, button styles from the project's CSS baseline). No one-off inline styles that diverge from established patterns. | no visual changes or the project has no existing baseline |
+| Q-U7 | UI design narrative | Does the plan include a UI design narrative describing the user experience: what does the user see and do, what interaction states they move through (loading, error, success, empty), and why the UI is designed this way? Acceptable: a `## UI Design Narrative`, `## User Experience`, or `## Design Intent` section with 2–5 sentences. Flag: plan goes straight to component/HTML implementation steps without any user-facing design rationale. EDIT injection — team-lead applies: `[EDIT: inject ## UI Design Narrative section: "## UI Design Narrative\n**User experience**: [what the user sees and does — the interaction flow]\n**Design intent**: [why this UI approach; what workflow or feeling it supports]\n**State transitions**: [how loading, error, empty, and success states are handled]"]`. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
 
 Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
@@ -878,7 +881,7 @@ specific Node/TS framing where both are present. (Rationale: "specialization win
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
 above). The ui-evaluator Task is spawned with `mode=evaluate`, which means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 6-question findings (Q-U1 through Q-U6) via SendMessage to team-lead
+- Returns all 7-question findings (Q-U1 through Q-U7) via SendMessage to team-lead
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
@@ -957,7 +960,7 @@ OR
 [N NEEDS_UPDATE remaining (38 questions, K triaged N/A)]
 
 ### UI Specialization (ui-designer)  ← render only when HAS_UI=true
-[PASS — converged after N passes (6 questions, K triaged N/A)]
+[PASS — converged after N passes (7 questions, K triaged N/A)]
 OR
 [N NEEDS_UPDATE remaining]
 [list only PASS and NEEDS_UPDATE UI questions — omit N/A items]
