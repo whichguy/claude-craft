@@ -130,6 +130,62 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Client cluster (Q-C17, Q-C25) merged into ui-evaluator when HAS_UI=true — no separate client-evaluator
    ```
 
+   ## Staged Expansion: Tier Definitions
+
+   Questions are split into two tiers for staged evaluation. Stage 1 evaluates only
+   Foundation (Tier 1) questions — plan-shaping, volatile questions that need iteration.
+   Stage 2 expands to include Detail (Tier 2) questions — one-shot refinement checks.
+
+   ```
+   # Tier 1 "Foundation" — questions that drive plan shape. Run in ALL passes.
+   # Tier 2 "Detail" — one-shot refinement. Run only after expansion trigger.
+
+   foundation_l1 = {"Q-G1", "Q-G2", "Q-G5", "Q-G11", "Q-G13", "Q-G14", "Q-G20", "Q-NEW"}
+   detail_l1 = {"Q-G4", "Q-G6", "Q-G7", "Q-G8", "Q-G10", "Q-G12", "Q-G16", "Q-G17", "Q-G18", "Q-G19"}
+   # Validation: foundation_l1 + detail_l1 == all 18 L1 questions.
+   # If a new L1 question is added, it MUST be assigned to exactly one tier.
+   # Default: new questions go to detail_l1 unless they shape plan structure.
+
+   foundation_l2 = {
+     "git":     {"Q-C1"},                      # Gate 1 — always foundation
+     "impact":  {"Q-C3"},                      # Gate 1 — always foundation
+     "testing": {"Q-C5", "Q-C9", "Q-C10"},    # Gate 2 ordering/verification
+   }
+   detail_l2 = {
+     "impact":     {"Q-C8", "Q-C12", "Q-C14", "Q-C26", "Q-C27"},
+     "testing":    {"Q-C4", "Q-C11", "Q-C29"},
+     "state":      {"Q-C13", "Q-C18", "Q-C19", "Q-C24"},     # entire cluster deferred
+     "security":   {"Q-C15", "Q-C16", "Q-C22"},               # entire cluster deferred
+     "operations": {"Q-C6", "Q-C7", "Q-C20", "Q-C21", "Q-C23", "Q-C28"},  # entire cluster deferred
+   }
+
+   # Clusters with ZERO foundation questions — entire cluster deferred to Stage 2
+   deferred_clusters = {"state", "security", "operations"}
+
+   # UI evaluator: entirely Tier 2 (all 9 questions deferred)
+   ui_is_deferred = true
+
+   # GAS foundation questions (gas-evaluator receives filtered list in Stage 1)
+   foundation_gas = {"Q1", "Q2", "Q13", "Q15", "Q18", "Q42",    # Gate 1
+                     "Q3", "Q4", "Q5", "Q6", "Q7",               # MCP workflow (Gate 2)
+                     "Q9", "Q10", "Q11", "Q12",                   # deploy/test (Gate 2)
+                     "Q17",                                        # step ordering (Gate 2)
+                     "Q49", "Q50"}                                 # V8/namespace (Gate 2)
+
+   # Node foundation questions
+   foundation_node = {"N1",                      # Gate 1 — build check
+                      "N2", "N3",                 # packages (Gate 2)
+                      "N6", "N7",                 # async (Gate 2)
+                      "N11", "N12"}               # module system (Gate 2)
+
+   # INVARIANT: All Gate 1 questions MUST be in foundation sets.
+   # Gate 1 L1: {Q-G1, Q-G2, Q-G11, Q-NEW} ⊂ foundation_l1 ✓
+   # Gate 1 L2: {Q-C1, Q-C3} ⊂ foundation_l2 values ✓
+   # Gate 1 GAS: {Q1, Q2, Q13, Q15, Q18, Q42} ⊂ foundation_gas ✓
+   # Gate 1 Node: {N1} ⊂ foundation_node ✓
+   # If adding a new Gate 1 question, it MUST go in the corresponding foundation set.
+   ```
+
    IF IS_TRIVIAL:
      Print: "──── FAST PATH ──────────"
      Print: "⚡ Trivial plan: 1 file ([ext]), additive only"
@@ -195,6 +251,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-eval + ui-evaluator)"
      HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "📋 Review mode: Standard ([N] clusters: [names])"
+   Print: "  staging: Tier 1 foundation → expand → Tier 2 detail"
    (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_DEPLOYMENT=[v] HAS_STATE=[v]"
    is printed during the convergence loop when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
@@ -218,6 +275,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-NEW are not memoizable)
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
+   stage = 1                       # 1 = foundation only (Tier 1), 2 = expanded (all questions)
+   expanded_at_pass = null         # pass number when expansion triggered (null until Stage 2)
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
@@ -253,7 +312,8 @@ DO:
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
                      total_changes_all_passes, pass_count,
                      needs_update_counts_per_pass, pass_durations,
-                     total_applicable_questions, memo_milestones_printed
+                     total_applicable_questions, memo_milestones_printed,
+                     stage (default 1 if missing), expanded_at_pass (default null if missing)
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
@@ -268,7 +328,8 @@ DO:
   node_plan_changes = 0
   ui_plan_changes = 0
 
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
+  stage_label = IF stage == 1: "[Stage 1]" ELSE: "[Stage 2]"
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] [stage_label]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
 
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
   [In a SINGLE message, spawn all evaluators in parallel:
@@ -291,7 +352,15 @@ DO:
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
+      [IF stage == 1, append:]
+      STAGED EVALUATION — Foundation questions only (Stage 1):
+      Evaluate ONLY: Q-G1, Q-G2, Q-G5, Q-G11, Q-G13, Q-G14, Q-G20, Q-NEW
+      (8 foundation questions that drive plan shape)
+      For remaining L1 questions (Q-G4, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G16, Q-G17, Q-G18, Q-G19):
+      output "DEFERRED" (not evaluated this stage).
+      [ELSE (stage == 2), append:]
       Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20
+      [END stage conditional]
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -302,7 +371,7 @@ DO:
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM l1-evaluator
-        Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
+        Q-G1: PASS | NEEDS_UPDATE | N/A | DEFERRED — [finding]
         [EDIT: instruction if NEEDS_UPDATE]
         Q-G2: ...
         ... (all 18 questions: Q-G1, Q-G2, Q-G4–G8, Q-NEW, Q-G10–G14, Q-G16–G20)
@@ -318,6 +387,9 @@ DO:
 
   --- Cluster Evaluators (one Task per active cluster) ---
   For each cluster_name in active_clusters:
+    IF stage == 1 AND cluster_name in deferred_clusters:
+      Print: "  ⏩ <cluster_name>-evaluator — deferred (stage 2)"
+      CONTINUE to next cluster
     IF cluster_name in memoized_clusters:
       Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
       # Memoized clusters have 0 NEEDS_UPDATE by definition — no carry-forward needed.
@@ -334,6 +406,11 @@ DO:
       Question definitions: Read <questions_path>,
         section "### Cluster <N>: <cluster_name>".
       Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
+      [IF stage == 1 AND cluster_name has foundation_l2 entry, append:]
+      STAGED EVALUATION — Foundation questions only (Stage 1):
+      Evaluate ONLY: [foundation_l2[cluster_name]].
+      For remaining questions in this cluster: output "DEFERRED".
+      [END stage conditional]
 
       Context flags (substituted by team-lead at spawn time):
         IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
@@ -371,6 +448,12 @@ DO:
         You are the gas-eval running inside review-plan's team. Follow the instructions in
         <gas_eval_path> exactly.
 
+        [IF stage == 1, append:]
+        STAGED EVALUATION — Foundation questions only (Stage 1):
+        Evaluate ONLY: Q1, Q2, Q13, Q15, Q18, Q42, Q3, Q4, Q5, Q6, Q7, Q9, Q10, Q11, Q12, Q17, Q49, Q50
+        For all remaining questions: output DEFERRED.
+        [END stage conditional]
+
         Plan to evaluate: <plan_path>
 
         Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
@@ -388,6 +471,12 @@ DO:
         You are the node-eval running inside review-plan's team. Follow the instructions in
         <node_eval_path> exactly.
 
+        [IF stage == 1, append:]
+        STAGED EVALUATION — Foundation questions only (Stage 1):
+        Evaluate ONLY: N1, N2, N3, N6, N7, N11, N12
+        For all remaining questions: output DEFERRED.
+        [END stage conditional]
+
         Plan to evaluate: <plan_path>
 
         Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
@@ -396,6 +485,9 @@ DO:
     )
 
   IF HAS_UI:
+    IF stage == 1:
+      Print: "  ⏩ ui-evaluator — deferred (stage 2)"
+    ELSE:
     --- UI Evaluator (includes merged Client cluster: Q-C17, Q-C25) ---
     Task(
       subagent_type = "ui-designer",
@@ -449,7 +541,7 @@ DO:
   Print evaluator status grid (tree diagram with aligned columns):
     # Compute per-evaluator elapsed time from spawn to response (approximate: total pass time
     # is known; per-evaluator is estimated as pass_elapsed unless individual timestamps available).
-    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete)
+    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete), ⏩ = deferred (stage 2)
     # Columns: name (right-pad with dashes to col 16) + symbol + ✗/✓/— counts + [Ns]
     # Skipped clusters (not in active_clusters) are omitted entirely.
     # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
@@ -480,7 +572,10 @@ DO:
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
-  l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A" line
+  l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A|DEFERRED" line
+  # DEFERRED status: skip in change counting, convergence checks, and scorecard tallies.
+  # DEFERRED questions are excluded from total_applicable_questions during Stage 1.
+  # Treat DEFERRED as transparent — it does not count as PASS, NEEDS_UPDATE, or N/A.
   IF IS_GAS:
     Remove true duplicates (same concern raised by both cluster evaluator and gas-evaluator —
     keep gas-evaluator's more specific GAS framing)
@@ -607,8 +702,16 @@ DO:
 
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
-    # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    # Compute on first pass from active evaluator question counts — stage-aware
+    IF stage == 1:
+      # Foundation only: count only Tier 1 questions active this stage
+      total_applicable_questions = len(foundation_l1)
+        + sum(len(foundation_l2[c]) for c in active_clusters if c not in deferred_clusters and c in foundation_l2)
+        + (len(foundation_gas) if IS_GAS else 0)
+        + (len(foundation_node) if IS_NODE else 0)
+        # UI excluded in Stage 1 (entirely deferred)
+    ELSE:
+      total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
@@ -633,7 +736,9 @@ DO:
     needs_update_counts_per_pass,
     pass_durations,
     total_applicable_questions,
-    memo_milestones_printed: [...memo_milestones_printed]
+    memo_milestones_printed: [...memo_milestones_printed],
+    stage,                                    # staged expansion: 1 or 2
+    expanded_at_pass                          # staged expansion: pass number or null
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -655,6 +760,9 @@ DO:
   # Delta visualization (Enhancement C)
   IF pass_count == 1:
     Print: "  snapshot: ✗[current_nu_count] questions need work"
+  ELSE IF expanded_at_pass is not null AND pass_count == expanded_at_pass + 1:
+    # First pass after stage expansion — delta not comparable (denominator changed)
+    Print: "  delta: ✗[current_nu_count] (stage 2 expansion — delta not comparable)"
   ELSE:
     prev_nu = needs_update_counts_per_pass[pass_count - 2]  # previous pass count
     delta = current_nu_count - prev_nu
@@ -688,6 +796,7 @@ DO:
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
   prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
+
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G11,
@@ -698,6 +807,26 @@ DO:
                        N1
   ELSE:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
+
+  -- STAGE EXPANSION CHECK (runs while stage == 1) --
+  IF stage == 1:
+    should_expand = false
+    # Primary trigger: Gate 1 clear AND convergence approaching
+    IF Gate1_unresolved == 0 AND changes_this_pass <= 2:
+      should_expand = true
+    # Safety valve: force-expand at pass 3 regardless
+    IF pass_count >= 3 AND NOT should_expand:
+      should_expand = true
+      Print: "  stage: force-expanding at pass 3 (safety valve)"
+    IF should_expand:
+      stage = 2
+      expanded_at_pass = pass_count
+      # Recalculate total_applicable_questions with full question set
+      total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+      memo_milestones_printed = set()  # reset — milestones recalculated with new denominator
+      Print: "──── STAGE 2: EXPANDING ──────"
+      Print: "  Tier 2 questions activated (detail evaluation begins next pass)"
+      # Expansion takes effect on the NEXT pass — do not re-evaluate this pass.
 
   IF pass_count >= 5:
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
@@ -720,6 +849,16 @@ DO:
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
+    IF stage == 1:
+      # Cannot converge during Stage 1 — Tier 2 hasn't run yet.
+      # stage = 2 was already set in the STAGE EXPANSION CHECK above (either via
+      # primary trigger: Gate1_unresolved == 0 AND changes <= 2, or safety valve at
+      # pass 3). CONTINUE loops once more so Tier 2 questions are evaluated before
+      # convergence is declared. If neither trigger fired yet (Gate1 still open or
+      # changes > 2 with pass_count < 3), looping is still correct — we are not
+      # yet eligible to converge.
+      Print: "  stage: Tier 1 stable — expanding to full question set"
+      CONTINUE
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     IF pass_count == 1:
       Print: "✅ Converged — no issues found (pass 1, [total_elapsed]s)"

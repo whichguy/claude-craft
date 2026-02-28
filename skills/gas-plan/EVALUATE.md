@@ -3,6 +3,10 @@
 *Read-only, single pass. Used inside review-plan teams.*
 *Do not call TeamCreate, ExitPlanMode, or edit the plan.*
 
+**Staged evaluation:** The invoking prompt may include a `STAGED EVALUATION` directive
+with a filtered question list. If present, evaluate ONLY the listed questions and output
+`DEFERRED` for all others. If no staged directive, evaluate all questions as normal.
+
 ---
 
 ## Step 0 — Read Inputs
