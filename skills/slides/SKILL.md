@@ -122,7 +122,7 @@ Highlight CSS:      https://cdn.jsdelivr.net/npm/reveal.js@5.2.1/plugin/highligh
 
 If any slide is type `diagram`, also load Mermaid:
 ```
-https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js
 ```
 
 **Initialization:**
@@ -146,7 +146,14 @@ mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
 .reveal .slides section { padding: 40px 60px; box-sizing: border-box; }
 .reveal ul li { margin-bottom: .4em; line-height: 1.4; }
 .reveal .subtitle { font-size: .65em; opacity: .75; margin-top: .5em; }
+
+/* Dense/compact slides: add class="compact" to <section> when a slide has 6+ bullet points */
+.reveal .slides section.compact { padding: 20px 40px; }
+.reveal .slides section.compact ul li { font-size: .75em; margin-bottom: .2em; line-height: 1.2; }
+.reveal .slides section.compact h2 { font-size: 1.2em; margin-bottom: .3em; }
 ```
+
+Add `class="compact"` to any `<section>` that has 6 or more bullet items to prevent overflow.
 
 ### Slide Type → HTML Mapping
 
@@ -173,6 +180,8 @@ All user-supplied text embedded in HTML must have these characters escaped befor
 - `'` → `&#39;`
 
 Apply escaping to all slide titles, bullet text, speaker notes, and any other user-controlled content embedded in the HTML. Do NOT escape the structural HTML tags you generate — only the content values.
+
+**Exception — code slides**: Content inside `<pre><code>` must be HTML-escaped (replace `<`, `>`, `&` with their entities) so the browser renders it as literal text. Do NOT add `data-noescape` to avoid the escaping requirement — always escape code content and let the browser display it verbatim.
 
 ### Output
 
@@ -220,11 +229,12 @@ If the user specifies a different scriptId in the invocation args, use that inst
 | Two-column | `SlidesApp.PredefinedLayout.BLANK` |
 | Big stat / number | `SlidesApp.PredefinedLayout.BIG_NUMBER` |
 | Section divider | `SlidesApp.PredefinedLayout.SECTION_HEADER` |
+| Closing / next steps | `SlidesApp.PredefinedLayout.TITLE_AND_BODY` |
 | Custom / image | `SlidesApp.PredefinedLayout.BLANK` |
 
 ### GAS Code Template
 
-Generate a self-contained `createPresentation()` function based on the confirmed outline. The canvas is 720×540 pt (SlidesApp uses points for all dimensional arguments to `insertTextBox`). Standard layout: width 960 pt × 540 pt total slide area, but the writable region is typically 720 pt wide × 540 pt tall after margins.
+Generate a self-contained `createPresentation()` function based on the confirmed outline. The default slide canvas is **960×540 pt** (SlidesApp uses points for all dimensional arguments to `insertTextBox`). A newly created presentation via `SlidesApp.create()` has a 4:3 aspect ratio at 960 pt wide × 540 pt tall. The helpers below use `left=30, width=900` to leave a 30 pt margin on each side within that 960 pt canvas.
 
 **Code structure:**
 ```javascript
