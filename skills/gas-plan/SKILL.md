@@ -100,7 +100,9 @@ STEP 0: (done — plan loaded, team created)
   pass1_needs_update_set = []      # snapshot after pass 1 for resolved_questions computation
   total_changes_all_passes = 0     # running sum; increment by changes_this_pass after each pass's edits
   gas_memoized_questions = set()   # Q1, Q2, Q42 once confirmed stable PASS/N/A
+  gate1_gas = {"Q1", "Q2", "Q13", "Q15", "Q18", "Q42"}  # defined once; used in stability-memoization check
   gas_memoized_since = {}          # pass_count when each was memoized
+  prev_gas_results = {}            # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
   spawned_evaluators = []          # names of agents actually launched (for precise teardown)
   results = {}                     # maps Q-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   user_already_asked_gate1 = false # prevents asking user twice at pass_count >= 5
@@ -115,7 +117,8 @@ DO:
   _recovered_this_pass = false
   IF memo_file exists AND gas_memoized_questions is empty AND prev_needs_update_count == null:
     Read memo_file → restore gas_memoized_questions, gas_memoized_since,
-                     prev_needs_update_count, prev_needs_update_set, pass_count
+                     prev_needs_update_count, prev_needs_update_set, pass_count,
+                     prev_gas_results (default {} if missing)
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
@@ -319,11 +322,27 @@ DO:
     gas_memoized_questions.add("Q42")
     gas_memoized_since["Q42"] = pass_count
 
+  # Stability-based memoization for Gate 2/3 questions (post-pass 2)
+  # If a Gate 2 or Gate 3 question returned PASS/N/A in BOTH the previous pass AND this pass
+  # (with plan edits applied between them), it's empirically stable — safe to memoize.
+  # Gate 1 questions are NEVER stability-memoized (too important to skip based on heuristic).
+  # gate1_gas defined in STEP 0 above — not redefined here.
+  IF pass_count >= 2:
+    FOR q_id in results:
+      IF q_id in prev_gas_results:
+        IF prev_gas_results[q_id] in [PASS, N/A] AND results[q_id] in [PASS, N/A]:
+          IF q_id NOT in gate1_gas:
+            IF q_id NOT in gas_memoized_questions:
+              gas_memoized_questions.add(q_id)
+              gas_memoized_since[q_id] = pass_count
+  prev_gas_results = results  # Set LAST — after stability check reads it
+
   -- Checkpoint: persist memoized state for context-compression resilience --
   Write memo_file with JSON: {
     pass_count, gas_memoized_questions: [...gas_memoized_questions],
     gas_memoized_since, prev_needs_update_count,
-    prev_needs_update_set: [...prev_needs_update_set]
+    prev_needs_update_set: [...prev_needs_update_set],
+    prev_gas_results
   }
 
   -- CONVERGENCE CHECK --

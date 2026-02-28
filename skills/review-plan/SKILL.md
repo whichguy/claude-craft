@@ -184,6 +184,16 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # Gate 1 GAS: {Q1, Q2, Q13, Q15, Q18, Q42} ⊂ foundation_gas ✓
    # Gate 1 Node: {N1} ⊂ foundation_node ✓
    # If adding a new Gate 1 question, it MUST go in the corresponding foundation set.
+
+   # Gate 1 ecosystem sets (for stability-memoization exclusion — Gate 1 never stability-memoized)
+   gate1_gas = {"Q1", "Q2", "Q13", "Q15", "Q18", "Q42"}
+   gate1_node = {"N1"}
+
+   # Structurally memoizable ecosystem questions (additive-only — matches standalone patterns)
+   # gas-plan: Q1, Q2 (branching steps), Q42 (post-impl section) — from gas-plan/SKILL.md:312-320
+   # node-plan: N1 (tsc build check) — from node-plan/SKILL.md (parallel pattern)
+   struct_memo_gas = {"Q1", "Q2", "Q42"}
+   struct_memo_node = {"N1"}
    ```
 
    IF IS_TRIVIAL:
@@ -274,6 +284,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-NEW are not memoizable)
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
+   memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
+   memoized_gas_since = {}           # Q-ID → pass_count when memoized
+   memoized_node_questions = set()   # node N-IDs confirmed stable
+   memoized_node_since = {}          # N-ID → pass_count when memoized
+   prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
+   prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    stage = 1                       # 1 = foundation only (Tier 1), 2 = expanded (all questions)
    expanded_at_pass = null         # pass number when expansion triggered (null until Stage 2)
@@ -313,7 +329,13 @@ DO:
                      total_changes_all_passes, pass_count,
                      needs_update_counts_per_pass, pass_durations,
                      total_applicable_questions, memo_milestones_printed,
-                     stage (default 1 if missing), expanded_at_pass (default null if missing)
+                     stage (default 1 if missing), expanded_at_pass (default null if missing),
+                     memoized_gas_questions (default set()),
+                     memoized_gas_since (default {}),
+                     memoized_node_questions (default set()),
+                     memoized_node_since (default {}),
+                     prev_gas_results (default {}),
+                     prev_node_results (default {})
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
 
@@ -438,51 +460,101 @@ DO:
   )
 
   IF IS_GAS:
-    --- GAS Evaluator ---
-    Task(
-      subagent_type = "general-purpose",
-      model = "sonnet",
-      team_name = <team_name>,
-      name = "gas-evaluator-p" + pass_count,
-      prompt = """
-        You are the gas-eval running inside review-plan's team. Follow the instructions in
-        <gas_eval_path> exactly.
+    # Build gas memoization directive (mirrors gas-plan/SKILL.md:130-135)
+    gas_memo_directive = ""
+    IF memoized_gas_questions is non-empty:
+      ids = comma-sep sorted memoized_gas_questions
+      gas_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"Q{N}: PASS (memoized)\" without re-evaluating."
 
-        [IF stage == 1, append:]
-        STAGED EVALUATION — Foundation questions only (Stage 1):
-        Evaluate ONLY: Q1, Q2, Q13, Q15, Q18, Q42, Q3, Q4, Q5, Q6, Q7, Q9, Q10, Q11, Q12, Q17, Q49, Q50
-        For all remaining questions: output DEFERRED.
-        [END stage conditional]
+    # Determine applicable gas question count (Stage-aware)
+    IF stage == 1:
+      applicable_gas_count = len(foundation_gas)
+    ELSE:
+      applicable_gas_count = 50  # total gas questions in evaluate mode (Q43 is post-loop only)
 
-        Plan to evaluate: <plan_path>
+    # Full memoization skip: when all applicable ecosystem questions are memoized, skip evaluator spawn
+    IF len(memoized_gas_questions) >= applicable_gas_count:
+      Print: "  gas-eval ── ⏭ fully memoized (all [applicable_gas_count] questions stable)"
+      gas_plan_changes = 0
+      gas_results = {q_id: "PASS" for q_id in memoized_gas_questions}
+      # Do NOT spawn gas-evaluator
+    ELSE:
+      # Build Stage 1 filtered list (only if stage == 1)
+      IF stage == 1:
+        staged_gas = foundation_gas - memoized_gas_questions  # remove already-memoized
+        staged_gas_list = comma-sep sorted staged_gas
+      --- GAS Evaluator ---
+      Task(
+        subagent_type = "general-purpose",
+        model = "sonnet",
+        team_name = <team_name>,
+        name = "gas-evaluator-p" + pass_count,
+        prompt = """
+          You are the gas-eval running inside review-plan's team. Follow the instructions in
+          <gas_eval_path> exactly.
 
-        Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
-        call TeamCreate. Send exactly ONE message to team-lead with all findings.
-      """
-    )
+          [IF stage == 1 AND staged_gas is non-empty, append:]
+          STAGED EVALUATION — Foundation questions only (Stage 1):
+          Evaluate ONLY: [staged_gas_list]
+          For all remaining questions: output DEFERRED.
+          [END stage conditional]
+
+          [IF gas_memo_directive is non-empty, append it here]
+
+          Plan to evaluate: <plan_path>
+
+          Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
+          call TeamCreate. Send exactly ONE message to team-lead with all findings.
+        """
+      )
   ELSE IF IS_NODE:
-    --- Node Evaluator ---
-    Task(
-      subagent_type = "general-purpose",
-      model = "sonnet",
-      team_name = <team_name>,
-      name = "node-evaluator-p" + pass_count,
-      prompt = """
-        You are the node-eval running inside review-plan's team. Follow the instructions in
-        <node_eval_path> exactly.
+    # Build node memoization directive (same pattern as gas)
+    node_memo_directive = ""
+    IF memoized_node_questions is non-empty:
+      ids = comma-sep sorted memoized_node_questions
+      node_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"N{N}: PASS (memoized)\" without re-evaluating."
 
-        [IF stage == 1, append:]
-        STAGED EVALUATION — Foundation questions only (Stage 1):
-        Evaluate ONLY: N1, N2, N3, N6, N7, N11, N12
-        For all remaining questions: output DEFERRED.
-        [END stage conditional]
+    # Determine applicable node question count (Stage-aware)
+    IF stage == 1:
+      applicable_node_count = len(foundation_node)
+    ELSE:
+      applicable_node_count = 38  # total node questions
 
-        Plan to evaluate: <plan_path>
+    # Full memoization skip
+    IF len(memoized_node_questions) >= applicable_node_count:
+      Print: "  node-eval ── ⏭ fully memoized (all [applicable_node_count] questions stable)"
+      node_plan_changes = 0
+      node_results = {n_id: "PASS" for n_id in memoized_node_questions}
+      # Do NOT spawn node-evaluator
+    ELSE:
+      # Build Stage 1 filtered list (only if stage == 1)
+      IF stage == 1:
+        staged_node = foundation_node - memoized_node_questions  # remove already-memoized
+        staged_node_list = comma-sep sorted staged_node
+      --- Node Evaluator ---
+      Task(
+        subagent_type = "general-purpose",
+        model = "sonnet",
+        team_name = <team_name>,
+        name = "node-evaluator-p" + pass_count,
+        prompt = """
+          You are the node-eval running inside review-plan's team. Follow the instructions in
+          <node_eval_path> exactly.
 
-        Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
-        call TeamCreate. Send exactly ONE message to team-lead with all findings.
-      """
-    )
+          [IF stage == 1 AND staged_node is non-empty, append:]
+          STAGED EVALUATION — Foundation questions only (Stage 1):
+          Evaluate ONLY: [staged_node_list]
+          For all remaining questions: output DEFERRED.
+          [END stage conditional]
+
+          [IF node_memo_directive is non-empty, append it here]
+
+          Plan to evaluate: <plan_path>
+
+          Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
+          call TeamCreate. Send exactly ONE message to team-lead with all findings.
+        """
+      )
 
   IF HAS_UI:
     IF stage == 1:
@@ -554,10 +626,16 @@ DO:
       If memoized:    evaluator_lines.append("<cluster_name> ── ⊘ memoized p[memoized_since[cluster_name]]")
       If incomplete:  evaluator_lines.append("<cluster_name> ── ◌ timeout")
     If IS_GAS:
-      If gas responded:   evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      memo_gas = len(memoized_gas_questions)
+      If gas fully memoized (not spawned): evaluator_lines.append("gas-eval ── ⏭ fully memoized")
+      Else If gas responded AND memo_gas > 0: evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k] ⊘[memo_gas]  [{elapsed}s]")
+      Else If gas responded:   evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
       If gas incomplete:  evaluator_lines.append("gas-eval ── ◌ timeout")
     If IS_NODE:
-      If node responded:  evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
+      memo_node = len(memoized_node_questions)
+      If node fully memoized (not spawned): evaluator_lines.append("node-eval ─ ⏭ fully memoized")
+      Else If node responded AND memo_node > 0: evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k] ⊘[memo_node]  [{elapsed}s]")
+      Else If node responded:  evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
       If node incomplete: evaluator_lines.append("node-eval ─ ◌ timeout")
     If HAS_UI:
       If ui responded:    evaluator_lines.append("ui ──────── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
@@ -617,9 +695,52 @@ DO:
   IF IS_GAS: gas_plan_changes = count of gas-evaluator NEEDS_UPDATE edits applied
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
+
+  # Parse gas-evaluator findings into per-question results
+  # Note: gas_results may already be populated (set in the fully-memoized branch above).
+  # Only reset to {} when the evaluator was actually spawned (not fully memoized).
+  IF IS_GAS AND gas-evaluator responded (not fully memoized):
+    gas_results = {}
+    FOR each line in gas-evaluator message matching pattern "Q\d+: (PASS|NEEDS_UPDATE|N/A)":
+      gas_results[q_id] = status
+    # DEFERRED lines are intentionally NOT parsed — they don't enter gas_results.
+    # DEFERRED means "not yet evaluated" (Stage 1 filtering); cannot be memoized.
+    # Carry forward memoized questions if evaluator omitted them (fail-safe)
+    FOR q_id in memoized_gas_questions:
+      IF q_id NOT in gas_results:
+        gas_results[q_id] = "PASS"
+    # Fallback: if parsing yields zero results (format mismatch), skip ecosystem memoization
+    # for this pass — do not memoize from empty data. Previously memoized questions still hold.
+
+  # Parse node-evaluator findings into per-question results
+  # Note: node_results may already be populated (set in the fully-memoized branch above).
+  # Only reset to {} when the evaluator was actually spawned (not fully memoized).
+  IF IS_NODE AND node-evaluator responded (not fully memoized):
+    node_results = {}
+    FOR each line in node-evaluator message matching pattern "N\d+: (PASS|NEEDS_UPDATE|N/A)":
+      node_results[n_id] = status
+    # DEFERRED lines are NOT parsed — same rule as gas.
+    FOR n_id in memoized_node_questions:
+      IF n_id NOT in node_results:
+        node_results[n_id] = "PASS"
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
   total_changes_all_passes += changes_this_pass
   newly_memoized = []  # collect items memoized THIS pass for milestone display
+
+  # Invalidation: L1/cluster edits may make stability-locked ecosystem questions stale
+  # Do NOT invalidate when only gas/node evaluators made edits (domain-local, not plan-structural)
+  # Structurally-memoized questions (Q1, Q2, Q42, N1) are NEVER invalidated — additive-only property is invariant.
+  IF (l1_changes + cluster_changes_total) > 0:
+    stability_memo_gas = memoized_gas_questions - struct_memo_gas
+    IF stability_memo_gas:
+      Print: "  memo: invalidating [len(stability_memo_gas)] gas stability locks (plan structure changed)"
+      memoized_gas_questions -= stability_memo_gas
+      FOR q_id in stability_memo_gas: del memoized_gas_since[q_id]
+    stability_memo_node = memoized_node_questions - struct_memo_node
+    IF stability_memo_node:
+      Print: "  memo: invalidating [len(stability_memo_node)] node stability locks (plan structure changed)"
+      memoized_node_questions -= stability_memo_node
+      FOR n_id in stability_memo_node: del memoized_node_since[n_id]
 
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Memoization principle: memoize only criteria that check "additive-only" structural
@@ -651,6 +772,22 @@ DO:
   IF l1_results["Q-G18"] in [PASS, N/A] AND "Q-G18" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G18")
     newly_memoized.append("Q-G18")  # track for milestone display
+  # Structural memoization for gas questions (mirrors gas-plan/SKILL.md:312-320)
+  IF IS_GAS:
+    FOR q_id in struct_memo_gas:
+      IF gas_results.get(q_id) in [PASS, N/A] AND q_id NOT in memoized_gas_questions:
+        memoized_gas_questions.add(q_id)
+        memoized_gas_since[q_id] = pass_count
+        newly_memoized.append("gas:" + q_id)
+
+  # Structural memoization for node questions
+  IF IS_NODE:
+    FOR n_id in struct_memo_node:
+      IF node_results.get(n_id) in [PASS, N/A] AND n_id NOT in memoized_node_questions:
+        memoized_node_questions.add(n_id)
+        memoized_node_since[n_id] = pass_count
+        newly_memoized.append("node:" + n_id)
+
   # Q-G19 (Phase failure recovery): NOT safe to memoize — failure recovery scope evolves as phases are added/modified
   # Q-G20 (Story arc coherence): NOT safe to memoize — story arc framing evolves as plan is restructured
   # NOT memoizable (explicitly evaluated and rejected):
@@ -682,6 +819,31 @@ DO:
               newly_memoized.append(Q-ID)  # track for milestone display (stability-locked)
   prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
 
+  # Stability-based memoization for gas Gate 2/3 questions
+  # Runs AFTER Phase 6 invalidation — so newly-cleared questions can re-earn stability this pass
+  IF IS_GAS AND pass_count >= 2:
+    FOR q_id in gas_results:
+      IF q_id in prev_gas_results:
+        IF prev_gas_results[q_id] in [PASS, N/A] AND gas_results[q_id] in [PASS, N/A]:
+          IF q_id NOT in gate1_gas:  # Gate 1 never stability-memoized
+            IF q_id NOT in memoized_gas_questions:
+              memoized_gas_questions.add(q_id)
+              memoized_gas_since[q_id] = pass_count
+              newly_memoized.append("gas:" + q_id)
+  prev_gas_results = gas_results  # Set LAST — after stability check reads it
+
+  # Stability-based memoization for node Gate 2/3 questions (same pattern)
+  IF IS_NODE AND pass_count >= 2:
+    FOR n_id in node_results:
+      IF n_id in prev_node_results:
+        IF prev_node_results[n_id] in [PASS, N/A] AND node_results[n_id] in [PASS, N/A]:
+          IF n_id NOT in gate1_node:  # Gate 1 never stability-memoized
+            IF n_id NOT in memoized_node_questions:
+              memoized_node_questions.add(n_id)
+              memoized_node_since[n_id] = pass_count
+              newly_memoized.append("node:" + n_id)
+  prev_node_results = node_results  # Set LAST
+
   # Memoization milestone output (Enhancement E)
   # Print individual lock events (cap at 3 per pass, then "+N more")
   # newly_memoized was initialized before the memoization update block above;
@@ -712,7 +874,7 @@ DO:
         # UI excluded in Stage 1 (entirely deferred)
     ELSE:
       total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
-  total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster)
+  total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
     IF memo_pct >= threshold AND threshold NOT in memo_milestones_printed:
@@ -738,7 +900,13 @@ DO:
     total_applicable_questions,
     memo_milestones_printed: [...memo_milestones_printed],
     stage,                                    # staged expansion: 1 or 2
-    expanded_at_pass                          # staged expansion: pass number or null
+    expanded_at_pass,                         # staged expansion: pass number or null
+    memoized_gas_questions: [...memoized_gas_questions],
+    memoized_gas_since,
+    memoized_node_questions: [...memoized_node_questions],
+    memoized_node_since,
+    prev_gas_results,
+    prev_node_results
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -767,7 +935,7 @@ DO:
     prev_nu = needs_update_counts_per_pass[pass_count - 2]  # previous pass count
     delta = current_nu_count - prev_nu
     delta_str = IF delta < 0: "(↓[abs(delta)])" ELSE IF delta > 0: "(↑[delta])" ELSE: "(→0)"
-    memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster)
+    memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
     # Use question count (not cluster count) to match milestone math at total_memo_count computation
     IF memo_count <= 3:
       memo_names = comma-separated list of memoized Q-IDs and cluster names

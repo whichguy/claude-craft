@@ -109,6 +109,8 @@ STEP 0: (done — plan loaded, team created)
   incomplete_had_needs_update_last_pass = false # set per-pass; prevents false convergence when Incomplete evaluator had NEEDS_UPDATE last pass
   spawned_evaluators = []  # tracks names of all evaluator agents actually launched (for teardown)
   node_memoized_questions = set()   # N1 once confirmed stable PASS/N/A
+  prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
+  gate1_node = {"N1"}              # defined once; used in stability-memoization check
   results = {}                      # maps N-ID → "PASS" | "NEEDS_UPDATE" | "N/A" — rebuilt each pass
   memo_file = "~/.claude/.node-plan-memo-" + Date.now() + ".json"
   # memo_file: checkpoint written after each pass for context-compression resilience.
@@ -119,7 +121,8 @@ DO:
   _recovered_this_pass = false
   IF memo_file exists AND node_memoized_questions is empty AND pass_count == 0:
     Read memo_file → restore node_memoized_questions, prev_needs_update_count,
-                     prev_needs_update_set, pass_count
+                     prev_needs_update_set, pass_count,
+                     prev_node_results (default {} if missing)
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored memoized state from checkpoint"
 
@@ -321,10 +324,25 @@ DO:
   IF results["N1"] in [PASS, N/A] AND "N1" NOT in node_memoized_questions:
     node_memoized_questions.add("N1")
 
+  # Stability-based memoization for Gate 2/3 questions (post-pass 2)
+  # If a Gate 2 or Gate 3 question returned PASS/N/A in BOTH the previous pass AND this pass
+  # (with plan edits applied between them), it's empirically stable — safe to memoize.
+  # Gate 1 questions are NEVER stability-memoized (too important to skip based on heuristic).
+  # gate1_node defined in STEP 0 above — not redefined here.
+  IF pass_count >= 2:
+    FOR n_id in results:
+      IF n_id in prev_node_results:
+        IF prev_node_results[n_id] in [PASS, N/A] AND results[n_id] in [PASS, N/A]:
+          IF n_id NOT in gate1_node:
+            IF n_id NOT in node_memoized_questions:
+              node_memoized_questions.add(n_id)
+  prev_node_results = results  # Set LAST — after stability check reads it
+
   -- Checkpoint: persist memoized state for context-compression resilience --
   Write memo_file with JSON: {
     pass_count, node_memoized_questions: [...node_memoized_questions],
-    prev_needs_update_count, prev_needs_update_set: [...prev_needs_update_set]
+    prev_needs_update_count, prev_needs_update_set: [...prev_needs_update_set],
+    prev_node_results
   }
 
   -- CONVERGENCE CHECK --
