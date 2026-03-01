@@ -349,6 +349,8 @@ DO:
   gas_plan_changes = 0
   node_plan_changes = 0
   ui_plan_changes = 0
+  gas_results = {}    # populated by fully-memoized branch or evaluator parse block; empty = timeout/no response
+  node_results = {}   # same pattern
 
   stage_label = IF stage == 1: "[Stage 1]" ELSE: "[Stage 2]"
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] [stage_label]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
@@ -735,12 +737,18 @@ DO:
     IF stability_memo_gas:
       Print: "  memo: invalidating [len(stability_memo_gas)] gas stability locks (plan structure changed)"
       memoized_gas_questions -= stability_memo_gas
-      FOR q_id in stability_memo_gas: del memoized_gas_since[q_id]
+      FOR q_id in stability_memo_gas:
+        del memoized_gas_since[q_id]
+        if q_id in prev_gas_results: del prev_gas_results[q_id]  # break stability chain
+        if q_id in gas_results: del gas_results[q_id]            # prevent stale carry-forward
     stability_memo_node = memoized_node_questions - struct_memo_node
     IF stability_memo_node:
       Print: "  memo: invalidating [len(stability_memo_node)] node stability locks (plan structure changed)"
       memoized_node_questions -= stability_memo_node
-      FOR n_id in stability_memo_node: del memoized_node_since[n_id]
+      FOR n_id in stability_memo_node:
+        del memoized_node_since[n_id]
+        if n_id in prev_node_results: del prev_node_results[n_id]  # break stability chain
+        if n_id in node_results: del node_results[n_id]            # prevent stale carry-forward
 
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Memoization principle: memoize only criteria that check "additive-only" structural
@@ -873,7 +881,8 @@ DO:
         + (len(foundation_node) if IS_NODE else 0)
         # UI excluded in Stage 1 (entirely deferred)
     ELSE:
-      total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+      total_applicable_questions = 18 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+      # 50 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
@@ -990,7 +999,7 @@ DO:
       stage = 2
       expanded_at_pass = pass_count
       # Recalculate total_applicable_questions with full question set
-      total_applicable_questions = 18 + sum(questions per active cluster) + (51 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+      total_applicable_questions = 18 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
       memo_milestones_printed = set()  # reset — milestones recalculated with new denominator
       Print: "──── STAGE 2: EXPANDING ──────"
       Print: "  Tier 2 questions activated (detail evaluation begins next pass)"
