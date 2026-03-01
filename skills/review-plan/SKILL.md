@@ -707,12 +707,9 @@ DO:
       gas_results[q_id] = status
     # DEFERRED lines are intentionally NOT parsed — they don't enter gas_results.
     # DEFERRED means "not yet evaluated" (Stage 1 filtering); cannot be memoized.
-    # Carry forward memoized questions if evaluator omitted them (fail-safe)
+    # Enforce memoized status: override any evaluator contradiction for locked questions
     FOR q_id in memoized_gas_questions:
-      IF q_id NOT in gas_results:
-        gas_results[q_id] = "PASS"
-    # Fallback: if parsing yields zero results (format mismatch), skip ecosystem memoization
-    # for this pass — do not memoize from empty data. Previously memoized questions still hold.
+      gas_results[q_id] = "PASS"  # unconditional — memoization takes priority over evaluator output
 
   # Parse node-evaluator findings into per-question results
   # Note: node_results may already be populated (set in the fully-memoized branch above).
@@ -722,9 +719,9 @@ DO:
     FOR each line in node-evaluator message matching pattern "N\d+: (PASS|NEEDS_UPDATE|N/A)":
       node_results[n_id] = status
     # DEFERRED lines are NOT parsed — same rule as gas.
+    # Enforce memoized status: override any evaluator contradiction for locked questions
     FOR n_id in memoized_node_questions:
-      IF n_id NOT in node_results:
-        node_results[n_id] = "PASS"
+      node_results[n_id] = "PASS"  # unconditional — memoization takes priority over evaluator output
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
   total_changes_all_passes += changes_this_pass
   newly_memoized = []  # collect items memoized THIS pass for milestone display
