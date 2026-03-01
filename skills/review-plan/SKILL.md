@@ -821,7 +821,9 @@ DO:
     FOR each Q-ID in current_pass_results:
       IF Q-ID in prev_pass_results:
         IF prev_pass_results[Q-ID] in [PASS, N/A] AND current_pass_results[Q-ID] in [PASS, N/A]:
-          IF Q-ID is Gate 2 or Gate 3 L1 question:  # never Gate 1 (Q-G1, Q-G2, Q-G11, Q-NEW); cluster questions handled by memoized_clusters
+          IF Q-ID is Gate 2 or Gate 3 L1 question AND Q-ID NOT in {"Q-G10", "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G19", "Q-G20"}:
+            # never Gate 1 (Q-G1, Q-G2, Q-G11, Q-NEW); cluster questions handled by memoized_clusters
+            # non-memoizable Gate 2/3 questions explicitly excluded (evolving properties — see comments below)
             IF Q-ID NOT in memoized_l1_questions:
               memoized_l1_questions.add(Q-ID)
               newly_memoized.append(Q-ID)  # track for milestone display (stability-locked)
@@ -1126,7 +1128,7 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
 Loop above). The gas-evaluator Task follows evaluate mode (as defined in `<gas_eval_path>`), which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 51-question findings via SendMessage to team-lead
+- Returns all 50-question findings via SendMessage to team-lead (Q43 is post-loop only, not included in evaluate mode)
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
