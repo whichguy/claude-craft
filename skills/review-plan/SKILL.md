@@ -293,15 +293,29 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
    stage = 1                       # 1 = foundation only (Tier 1), 2 = expanded (all questions)
    expanded_at_pass = null         # pass number when expansion triggered (null until Stage 2)
-   memo_file = "~/.claude/.review-plan-memo-" + plan_slug + "-" + timestamp + ".json"
+   memo_file = "~/.claude/.review-plan-memo-" + plan_slug + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
+   # Path is stable (no timestamp) so context recovery always finds the right file.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    ```
 
-5. **Team setup (always):**
+5. **Team setup:**
    ```
-   team_name = "review-plan-" + timestamp
-   TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
+   IF memo_file exists:
+     Read memo_file → parse team_name field (if present)
+     IF team_name found:
+       # Team already exists from a prior context-compressed session — reuse it
+       Print: "⚠️ Recovered team: using existing team [team_name] (context recovery)"
+       # Do NOT call TeamCreate
+     ELSE:
+       # Old memo without team_name field — create fresh team and seed memo
+       team_name = "review-plan-" + timestamp
+       TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
+       Merge memo_file: write/update {team_name} field (preserve other fields if present)
+   ELSE:
+     team_name = "review-plan-" + timestamp
+     TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
+     Write memo_file with JSON: {team_name, pass_count: 0}
    ```
    Print: "──── REVIEW ─────────────"
 
@@ -324,7 +338,8 @@ DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
-    Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+    Read memo_file → restore team_name (if present),
+                     memoized_clusters, memoized_since, memoized_l1_questions,
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
                      total_changes_all_passes, pass_count,
                      needs_update_counts_per_pass, pass_durations,
@@ -900,6 +915,7 @@ DO:
 
   -- Checkpoint: persist memoized state for context-compression resilience --
   Write memo_file with JSON: {
+    team_name,
     pass_count, memoized_clusters: [...memoized_clusters],
     memoized_since, memoized_l1_questions: [...memoized_l1_questions],
     prev_needs_update_set: [...current_needs_update_set],
