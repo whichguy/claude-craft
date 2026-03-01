@@ -426,6 +426,9 @@ DO:
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
+      Prioritize practical production implications over theoretical concerns.
+      Flag real-world risks (deployment failures, data loss, breaking changes)
+      that a checklist review would miss.
 
       Question definitions: Read <questions_path>,
         section "### Cluster <N>: <cluster_name>".

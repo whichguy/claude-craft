@@ -465,14 +465,14 @@ Weights: **3** = blocking | **2** = important | **1** = advisory.
 
 ### Quick-Reference Weight Table
 
-**Gate 1 -- Blocking (weight 3, must all PASS):**
+**Gate 1 — Blocking (weight 3, must all PASS):**
 Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q15 simplicity [Shared] | Q18 impact analysis [G] | Q42 post-impl review [G]
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-evaluator, not gas-plan.)*
 
-**Gate 2 -- Important (weight 2, must stabilize):**
+**Gate 2 — Important (weight 2, must stabilize):**
 Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G]
 
-**Gate 3 -- Advisory (weight 1, note only):**
+**Gate 3 — Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
 
 **Triage shortcut — evaluator skip:** See Perspective Assignments above. Shared questions are never bulk-N/A'd.
@@ -719,13 +719,13 @@ Mandatory for all plans — cannot be skipped.
 | Rating | Criteria |
 |--------|----------|
 | **READY** | Gate 1 all PASS + Gate 2 all PASS |
-| **SOLID** | Gate 1 all PASS + Gate 2 <= 2 NEEDS_UPDATE |
+| **SOLID** | Gate 1 all PASS + Gate 2 ≤ 2 NEEDS_UPDATE |
 | **GAPS** | Gate 1 all PASS + Gate 2 > 2 NEEDS_UPDATE |
 | **REWORK** | Gate 1 has any NEEDS_UPDATE |
 
 ### Score
 
-`(PASS_weight_sum) / (applicable_max_weight_sum) * 100` -- summary metric alongside gate rating.
+`(PASS_weight_sum) / (applicable_max_weight_sum) * 100` — summary metric alongside gate rating.
 Q43 (weight 1) is included in applicable_max_weight_sum once evaluated post-loop; its result is appended to the scorecard separately under "Organization Quality (Q43)" but counts toward the score.
 
 ---
