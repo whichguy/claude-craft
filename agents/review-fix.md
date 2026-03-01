@@ -2,11 +2,12 @@
 name: review-fix
 description: |
   Iterative review-fix loop: spawns parallel code-reviewer subagents per file (single Task
-  for 1 file, parallel Tasks for 2–4 files, TeamCreate for 5+ files); applies Critical and
-  Advisory (with Fix block) fixes via Edit tool; Advisory/YAGNI skipped; loops per-file
-  until clean (max 3 rounds), then commits and optionally creates a PR (commit_mode="pr"
-  default: commit + push + PR + squash merge + delete branch; commit_mode="commit": commit
-  only). Git fallback auto-detects changed files when target_files is empty.
+  for 1 file, parallel Tasks for 2+ files), applies Critical and Advisory (with Fix block)
+  fixes via concurrent fixer Task() agents; Advisory/YAGNI skipped; loops per-file until
+  clean (max 5 rounds), then commits and optionally creates a PR (commit_mode="pr" default:
+  commit + push + PR + squash merge + delete branch; commit_mode="commit": commit only).
+  Supports optional plan_summary parameter for intent-aligned review. Git fallback auto-
+  detects changed files when target_files is empty.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -28,7 +29,7 @@ and surfaces for human review.
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Git Ops
                                        ↑                             ↑
                            Round-based parallel loop:                │
-                           fix all files (sequential) → re-review    │
+                           fix all files (concurrent) → re-review    │
                            all in parallel → repeat until clean ─────┘
 ```
 
@@ -37,7 +38,7 @@ Flow: Setup & Triage → Initial Review ─────────────�
 - `target_files="$1"` — required; comma-separated file paths
 - `task_name="$2"` — required; review context identifier
 - `worktree="${3:-.}"` — required; absolute path to working directory
-- `max_rounds="${4:-3}"` — optional; maximum fix-and-re-review rounds (default: 3)
+- `max_rounds="${4:-5}"` — optional; maximum fix-and-re-review rounds (default: 5)
 - `review_mode="${5:-full}"` — optional; passed through to code-reviewer unchanged
 - `commit_mode="${6:-pr}"` — optional; one of:
   - `"pr"` (default) — stage + commit + push + create PR + squash merge + delete branch + checkout default branch
@@ -74,7 +75,6 @@ files_changed = []
 files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or APPROVED_WITH_NOTES
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
-timed_out_reviewers = new Set()   # reviewers that timed out; skipped in teardown
 final_status = 'pending'
 total_start_time = Date.now()        # set at Phase 1 start
 round_start_time = null              # set at start of each round
@@ -110,7 +110,7 @@ array, never both. The presence or absence of a Fix block is the sole routing cr
 and looped (up to max_rounds). After max_rounds, stuck findings are surfaced — not silently
 dropped.
 
-**Team lead holds Edit permissions; reviewers are read-only.** Reviewers report findings; team lead applies all fixes using Edit tool directly.
+**Team lead holds Edit permissions; reviewer Tasks are read-only.** Fixer Tasks apply edits; team lead aggregates results from fixer Task JSON output.
 
 ---
 
@@ -127,8 +127,7 @@ file_count = file_list.length
 
 **Threshold:**
 - `file_count == 1`         → **single-agent mode** (direct Task call, no overhead)
-- `2 <= file_count <= 4`    → **parallel-task mode** (parallel Task() calls, no TeamCreate)
-- `file_count >= 5`         → **team mode** (TeamCreate + SendMessage + parallel spawns)
+- `file_count >= 2`         → **parallel-task mode** (Promise.all Task() calls, no TeamCreate)
 
 ### Step 1b: Reviewer Mapping (File-Type Triage)
 
@@ -216,7 +215,7 @@ Print: "  [filename]  → [reviewer_type]"     (one line per file)
 Example:
 ```
 ──── SETUP ──────────────
-📋 review-fix: 3 files | parallel-task mode | max 3 rounds
+📋 review-fix: 3 files | parallel-task mode | max 5 rounds
   Utils.gs           → gas-code-review
   src/main.ts        → code-reviewer
   Sidebar.html       → gas-ui-review
@@ -623,11 +622,11 @@ At the start of each global round:
 Print: "🔧 Round [▓ × global_round + ░ × (max_rounds - global_round)] [global_round/max_rounds]: applying fixes to [N] file(s)..."
 ```
 
-Examples with max_rounds=3:
+Examples with max_rounds=5:
 ```
-🔧 Round [▓░░] [1/3]: applying fixes to 2 file(s)...
-🔧 Round [▓▓░] [2/3]: applying fixes to 1 file(s)...
-🔧 Round [▓▓▓] [3/3]: applying fixes to 1 file(s)...
+🔧 Round [▓░░░░] [1/5]: applying fixes to 2 file(s)...
+🔧 Round [▓▓░░░] [2/5]: applying fixes to 1 file(s)...
+🔧 Round [▓▓▓░░] [3/5]: applying fixes to 1 file(s)...
 ```
 
 For the concurrent fixer dispatch and results (replacing per-fix ✓/⊘ lines):
@@ -675,11 +674,10 @@ Bracket content: natural-language summary of what was fixed/failed this round.
 
 Example:
 ```
-🔧 Round [▓░░] [1/3]: applying fixes to 2 file(s)...
-  ✓ Utils.gs:45 — Critical Q2: sanitized user input
-  ✓ Utils.gs:112 — Critical Q1: added null guard
-  ✓ Main.ts:30 — Advisory Q4: empty catch block
-  ⊘ Utils.gs:88 — Advisory/YAGNI Direct PropertiesService: skipped (speculative)
+🔧 Round [▓░░░░] [1/5]: applying fixes to 2 file(s)...
+  ↗ 2 fixers dispatched in parallel...
+  ✓ Utils.gs — 3 applied, 1 advisory/yagni, 0 stuck
+  ✓ Main.ts — 1 applied, 0 advisory/yagni, 0 stuck
   ✓ Utils.gs checkpoint passed — clean (Q1/Q2/Q3)
   ✓ Main.ts checkpoint passed — clean (Q1/Q2/Q3)
   ✅ Utils.gs — clean after 1 round(s)
