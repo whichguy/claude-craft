@@ -70,7 +70,7 @@ advisory_failed = []       # { file, line, q_number, description } — Fix block
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
 advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
-introduced_by_fix = []     # { file, line, q_number, description } — new Criticals not in prior round
+introduced_by_fix = []     # { file, line, q_number, description, introduced_in_round } — new Criticals not in prior round
 files_changed = []
 files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or APPROVED_WITH_NOTES
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
@@ -230,16 +230,14 @@ If CardService files detected, append:
 
 ## Phase 2: Initial Review
 
-### Single-Agent Mode (1 file)
+### Reviewer Prompt Template
 
-Launch one Task call directly:
+Define once, used by both single-agent and parallel-task modes:
 
 ```javascript
-Task({
-  subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
-  description: "Review file for Critical findings",
-  prompt: `Review this file:
-target_files="${file_list[0]}"
+// Reviewer prompt template (used by both single-agent and parallel-task modes)
+const reviewer_prompt = (file) => `Review this file:
+target_files="${file}"
 task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
@@ -249,6 +247,17 @@ ${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_sum
 
 Output your full review markdown starting with "## Code Review:".
 Do NOT use SendMessage — your output is collected directly by the calling agent.`
+```
+
+### Single-Agent Mode (1 file)
+
+Launch one Task call directly:
+
+```javascript
+Task({
+  subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
+  description: "Review file for Critical findings",
+  prompt: reviewer_prompt(file_list[0])
 });
 ```
 
@@ -271,17 +280,7 @@ const results = await Promise.all(file_list.map(file =>
   Task({
     subagent_type: reviewer_map[file] || 'code-reviewer',
     description: `Review ${file}`,
-    prompt: `Review this file:
-target_files="${file}"
-task_name="${task_name}"
-worktree="${worktree}"
-dryrun=false
-related_files=auto
-review_mode="${review_mode}"
-${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
-
-Output your full review markdown starting with "## Code Review:".
-Do NOT use SendMessage — your output is collected directly by the calling agent.`
+    prompt: reviewer_prompt(file)
   })
 ));
 ```
@@ -349,6 +348,21 @@ remaining_files = [...files_needing_fixes]
 // global_round already initialized to 0 in State Tracking
 // Initialize per_file_rounds for all files needing fixes
 remaining_files.forEach(file => { per_file_rounds[file] = 0 })
+
+// Incremental dedup Sets — checked on insert during Phase 3 aggregation
+const _seenApplied = new Set()
+const _seenStuck = new Set()
+const _seenYagni = new Set()
+const _seenFailed = new Set()
+const _seenCritical = new Set()
+const finding_key = (e) => `${e.file}:${e.q_number || ''}:${e.description}`
+const yagni_key = (e) => `${e.file}:${e.title}`
+// dedup_push: compute key, skip if seen, else add to array and set
+const dedup_push = (array, seen, entry, key) => {
+  if (seen.has(key)) return
+  seen.add(key)
+  array.push(entry)
+}
 ```
 
 ### Global Fix Loop
@@ -356,6 +370,9 @@ remaining_files.forEach(file => { per_file_rounds[file] = 0 })
 ```
 print: "──── FIX LOOP ───────────"
 
+// global_round < max_rounds is a safety bound. Primary exit: per_file_rounds[file] >= max_rounds
+// filtering (Step 1 pre-filter) empties remaining_files. This guard prevents infinite loops even if
+// per_file_rounds tracking is somehow bypassed.
 WHILE remaining_files.length > 0 AND global_round < max_rounds:
   global_round += 1
   round_start_time = Date.now()
@@ -451,26 +468,31 @@ Parse the review output above and apply each finding:
       print: "  ✓ [file] — [result.applied.length] applied, [result.yagni.length] advisory/yagni, [result.stuck.length] stuck"
     }
 
-    // Critical applied
-    critical_resolved.push(
-      ...result.applied.filter(a => a.type === 'critical').map(a => ({ file, ...a }))
-    )
-    // Advisory applied
-    advisory_applied.push(
-      ...result.applied.filter(a => a.type === 'advisory').map(a => ({ file, ...a }))
-    )
-    // Failed
-    advisory_failed.push(
-      ...result.failed.map(a => ({ file, ...a }))
-    )
-    // Stuck
-    advisory_stuck.push(
-      ...result.stuck.map(a => ({ file, ...a }))
-    )
-    // YAGNI
-    advisory_yagni.push(
-      ...result.yagni.map(a => ({ file, ...a }))
-    )
+    // Critical applied (dedup-guarded)
+    result.applied.filter(a => a.type === 'critical').forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(critical_resolved, _seenCritical, entry, finding_key(entry))
+    })
+    // Advisory applied (dedup-guarded)
+    result.applied.filter(a => a.type === 'advisory').forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(advisory_applied, _seenApplied, entry, finding_key(entry))
+    })
+    // Failed (dedup-guarded)
+    result.failed.forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(advisory_failed, _seenFailed, entry, finding_key(entry))
+    })
+    // Stuck (dedup-guarded)
+    result.stuck.forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(advisory_stuck, _seenStuck, entry, finding_key(entry))
+    })
+    // YAGNI (dedup-guarded)
+    result.yagni.forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(advisory_yagni, _seenYagni, entry, yagni_key(entry))
+    })
 
     if (applied_count > 0 && !files_changed.includes(file)) {
       files_changed.push(file)
@@ -478,8 +500,8 @@ Parse the review output above and apply each finding:
   }
 
   // Advisory findings processed from every round in Phase 3;
-  // deduplication happens in Phase 4. Do NOT suppress advisory processing in earlier
-  // rounds — process on every pass and let Phase 4 dedup handle duplicates.
+  // deduplication is handled incrementally via dedup_push (persistent Sets initialized before the loop).
+  // Do NOT suppress advisory processing in earlier rounds — process on every pass.
 
   // Phase 3b: Round-End Quality Checkpoint
   // Files with 0 fixes exit immediately (nothing to validate)
@@ -510,27 +532,46 @@ Q3 — No regressions: Do the patched sections retain the intended behavior (no 
 Output format (exactly):
 Q1: [PASS|FAIL] — [reason]
 Q2: [PASS|FAIL] — [reason]
-Q3: [PASS|FAIL] — [reason]
-CHECKPOINT_RESULT: [ALL_PASS|FAIL_Q1|FAIL_Q2|FAIL_Q3]`
-    }).catch(() => 'CHECKPOINT_RESULT: ALL_PASS')  // timeout: treat as pass, avoid blocking
+Q3: [PASS|FAIL] — [reason]`
+    }).catch(() => 'Q1: PASS\nQ2: PASS\nQ3: PASS')  // timeout: treat as pass, avoid blocking
   ))
 
   // Evaluate checkpoint results; route files to re-review or clean exit
+  // Parse Q1/Q2/Q3 status directly from individual output lines (supports multi-Q failure)
   const files_for_rereview = []
   for (const [i, file] of files_with_fixes.entries()) {
     const result = checkpoint_results[i] || ''
-    const passed = result.includes('CHECKPOINT_RESULT: ALL_PASS')
+    const q1_pass = result.includes('Q1: PASS')
+    const q2_pass = result.includes('Q2: PASS')
+    const q3_pass = result.includes('Q3: PASS')
+    const passed = q1_pass && q2_pass && q3_pass  // fail-safe: malformed output → re-review
     if (passed) {
       print: "  ✓ [file] checkpoint passed — clean (Q1/Q2/Q3)"
       // file exits the loop — no full re-review needed this round
     } else {
-      const failedQ = result.match(/CHECKPOINT_RESULT: FAIL_(Q\d+)/)?.[1] || 'Q?'
-      print: "  ↩ [file] checkpoint [failedQ] failed — spawning re-review"
+      const failedQs = [!q1_pass && 'Q1', !q2_pass && 'Q2', !q3_pass && 'Q3'].filter(Boolean).join(',')
+      print: "  ↩ [file] checkpoint [failedQs] failed — spawning re-review"
       files_for_rereview.push(file)
     }
   }
 
   remaining_files = [...files_for_rereview]
+
+  // Pre-filter: enforce per-file max_rounds BEFORE spawning expensive re-review Tasks
+  files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
+  for each file in files_over_limit:
+    unresolved_critical = parse remaining Critical findings from current_findings[file]
+    unresolved_critical.forEach(c => {
+      const entry = { file, ...c }
+      dedup_push(stuck_findings, _seenCritical, entry, finding_key(entry))
+    })
+    unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
+    unresolved_advisory_no_fix.forEach(a => {
+      const entry = { file, ...a }
+      dedup_push(advisory_stuck, _seenStuck, entry, finding_key(entry))
+    })
+    print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
+  remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
 
   if remaining_files.length == 0: break
 
@@ -547,18 +588,17 @@ CHECKPOINT_RESULT: [ALL_PASS|FAIL_Q1|FAIL_Q2|FAIL_Q3]`
       continue
     new_criticals = parse Critical findings from result
     old_criticals = parse Critical findings from current_findings[file]
-    introduced_by_fix.push(...new_criticals.filter(c => not in old_criticals))
+    const old_keys = new Set(
+      old_criticals.map(c => `${c.q_number || ''}:${c.description}`)
+    )
+    introduced_by_fix.push(
+      ...new_criticals
+        .filter(c => !old_keys.has(`${c.q_number || ''}:${c.description}`))
+        .map(c => ({ file, ...c, introduced_in_round: global_round }))
+    )
     current_findings[file] = result
 
-  // Enforce per-file max_rounds — remove files that have hit the limit
-  files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
-  for each file in files_over_limit:
-    unresolved_critical = parse remaining Critical findings from current_findings[file]
-    stuck_findings.push(...unresolved_critical)
-    unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
-    advisory_stuck.push(...unresolved_advisory_no_fix)
-    print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
-  remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
+  // max_rounds enforcement moved to pre-filter (before re-review dispatch above)
 ```
 
 **Fix source is code-reviewer's own Fix block.** Do not re-reason or generate alternatives.
@@ -640,7 +680,7 @@ After applying all fixes in the round (checkpoint, clean exits, and re-review):
 ```
 Print: "  → [file] nothing changed — done"                       (for each file with 0 fixes this round)
 Print: "  ✓ [file] checkpoint passed — clean (Q1/Q2/Q3)"         (checkpoint passed — file exits loop)
-Print: "  ↩ [file] checkpoint Q[N] failed — spawning re-review"  (checkpoint failed — file enters re-review)
+Print: "  ↩ [file] checkpoint [Q1,Q2,...] failed — spawning re-review"  (checkpoint failed — file enters re-review; multiple Qs comma-separated)
 Print: "  → Re-reviewing [N] file(s) in parallel..."             (before spawning re-reviews)
 Print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"  (after re-review results)
 ```
@@ -713,36 +753,8 @@ Print: "⚠️ Fix loop ended — [global_round] round(s) (max), [critical_resol
 ## Phase 4: Summary + Teardown
 
 ```javascript
-// Deduplicate advisory_applied, advisory_stuck, advisory_yagni, and advisory_failed before summary
-// Use line-agnostic keys: line numbers shift after fixes, causing spurious duplicates
-const _seenApplied = new Set()
-advisory_applied = advisory_applied.filter(entry => {
-  const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
-  if (_seenApplied.has(key)) return false
-  _seenApplied.add(key)
-  return true
-})
-const _seen = new Set()
-advisory_stuck = advisory_stuck.filter(entry => {
-  const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
-  if (_seen.has(key)) return false
-  _seen.add(key)
-  return true
-})
-const _seenYagni = new Set()
-advisory_yagni = advisory_yagni.filter(entry => {
-  const key = `${entry.file}:${entry.title}`
-  if (_seenYagni.has(key)) return false
-  _seenYagni.add(key)
-  return true
-})
-const _seenFailed = new Set()
-advisory_failed = advisory_failed.filter(entry => {
-  const key = `${entry.file}:${entry.q_number || ''}:${entry.description}`
-  if (_seenFailed.has(key)) return false
-  _seenFailed.add(key)
-  return true
-})
+// Deduplication handled incrementally during Phase 3 aggregation (dedup_push with persistent Sets).
+// No batch dedup needed here — arrays are already duplicate-free.
 ```
 
 ### Summary Output
@@ -829,7 +841,7 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 
 ```javascript
 // Assign final_status based on derivation above (MUST run before Phase 5).
-// Reads post-dedup advisory_stuck[] from the Phase 4 dedup block above.
+// Reads deduplicated advisory_stuck[] (maintained incrementally via dedup_push in Phase 3).
 if (stuck_findings.length > 0) {
   final_status = 'NEEDS_REVISION'
 } else if (advisory_stuck.length > 0) {
