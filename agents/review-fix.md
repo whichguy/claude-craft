@@ -57,6 +57,31 @@ If results non-empty: set target_files = comma-joined list
 If still empty: print "No changed files detected via git diff — nothing to review." and stop.
 ```
 
+**Argument Validation**: After Git Fallback resolves `target_files`, validate all parameters:
+
+```javascript
+// Clamp max_rounds to [1, 10]
+max_rounds = Math.max(1, Math.min(10, parseInt(max_rounds) || 5))
+
+if (!['pr', 'commit'].includes(commit_mode)) {
+  print: `Warning: Invalid commit_mode="${commit_mode}" — defaulting to "pr"`
+  commit_mode = 'pr'
+}
+
+if (worktree !== '.' && !directoryExists(worktree)) {
+  print: `Error: worktree="${worktree}" does not exist`; stop
+}
+
+const missing_files = file_list.filter(f => !fileExists(resolve(worktree, f)))
+if (missing_files.length > 0) {
+  print: `Warning: Files not found (will be skipped): ${missing_files.join(', ')}`
+  file_list = file_list.filter(f => fileExists(resolve(worktree, f)))
+}
+if (file_list.length === 0) {
+  print: "No valid files to review."; stop
+}
+```
+
 ## State Tracking
 
 Maintain these values across all phases:
