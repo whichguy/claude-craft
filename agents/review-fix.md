@@ -62,11 +62,11 @@ If still empty: print "No changed files detected via git diff — nothing to rev
 Maintain these values across all phases:
 
 ```
-global_round = 0           # global round counter for round-based parallel loop
+round = 0           # global round counter for round-based parallel loop
 run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 critical_resolved = []     # { file, line, q_number, description }
 advisory_applied = []      # { file, line, q_number, description } — Advisory WITH Fix block applied in Phase 3
-advisory_failed = []       # { file, line, q_number, description } — Fix block could not be applied (before text not found)
+fix_failures = []       # { file, line, q_number, description } — Fix block could not be applied (critical or advisory)
 stuck_findings = []        # Critical unresolved (no Fix block OR max_rounds reached)
 advisory_stuck = []        # { file, line, q_number, description } — Advisory, no Fix block
 advisory_yagni = []        # { file, line, title, description } — Advisory/YAGNI: never auto-applied
@@ -345,7 +345,7 @@ Files that clean up exit early; the rest continue to the next round.
 
 ```javascript
 remaining_files = [...files_needing_fixes]
-// global_round already initialized to 0 in State Tracking
+// round already initialized to 0 in State Tracking
 // Initialize per_file_rounds for all files needing fixes
 remaining_files.forEach(file => { per_file_rounds[file] = 0 })
 
@@ -371,14 +371,12 @@ const dedup_push = (array, seen, entry, key) => {
 ```
 print: "──── FIX LOOP ───────────"
 
-// global_round < max_rounds is a safety bound. Primary exit: per_file_rounds[file] >= max_rounds
-// filtering (Step 1 pre-filter) empties remaining_files. This guard prevents infinite loops even if
-// per_file_rounds tracking is somehow bypassed.
-WHILE remaining_files.length > 0 AND global_round < max_rounds:
-  global_round += 1
+// round counter — equals per_file_rounds[f] for all active files
+WHILE remaining_files.length > 0 AND round < max_rounds:
+  round += 1
   round_start_time = Date.now()
 
-  print: "🔧 Round [▓ × global_round + ░ × (max_rounds - global_round)] [global_round/max_rounds]: applying fixes to [remaining_files.length] file(s)..."
+  print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: applying fixes to [remaining_files.length] file(s)..."
 
   fixes_applied_per_file = {}
 
@@ -482,7 +480,7 @@ Parse the review output above and apply each finding:
     // Failed (dedup-guarded)
     result.failed.forEach(a => {
       const entry = { file, ...a }
-      dedup_push(advisory_failed, _seenFailed, entry, finding_key(entry))
+      dedup_push(fix_failures, _seenFailed, entry, finding_key(entry))
     })
     // Stuck (dedup-guarded)
     result.stuck.forEach(a => {
@@ -595,7 +593,7 @@ Q3: [PASS|FAIL] — [reason]`
     introduced_by_fix.push(
       ...new_criticals
         .filter(c => !old_keys.has(`${c.q_number || ''}:${c.description}`))
-        .map(c => ({ file, ...c, introduced_in_round: global_round }))
+        .map(c => ({ file, ...c, introduced_in_round: round }))
     )
     current_findings[file] = result
 
@@ -660,7 +658,7 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 At the start of each global round:
 
 ```
-Print: "🔧 Round [▓ × global_round + ░ × (max_rounds - global_round)] [global_round/max_rounds]: applying fixes to [N] file(s)..."
+Print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: applying fixes to [N] file(s)..."
 ```
 
 Examples with max_rounds=5:
@@ -741,12 +739,12 @@ Print: "✅ All files clean — no fixes needed ([total_elapsed]s)"
 
 All clean after fixes:
 ```
-Print: "✅ Fix loop complete — [global_round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied ([total_elapsed]s)"
+Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied ([total_elapsed]s)"
 ```
 
 Partial / stuck:
 ```
-Print: "⚠️ Fix loop ended — [global_round] round(s) (max), [critical_resolved.length] critical resolved, [stuck_findings.length] stuck ([total_elapsed]s)"
+Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.length] critical resolved, [stuck_findings.length] stuck ([total_elapsed]s)"
 ```
 
 ---
@@ -802,12 +800,12 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 
 [If none: "None — no Advisory findings were applied."]
 
-### Advisory Findings — Failed to Apply ([count])
+### Findings — Failed to Apply ([count])
 
-[For each entry in advisory_failed[]:]
+[For each entry in fix_failures[]:]
 - `file:line` — [Q-number or finding title]: `before` text not found (file may have been modified by a prior fix)
 
-[Omit this section entirely if advisory_failed is empty.]
+[Omit this section entirely if fix_failures is empty.]
 
 ### Advisory Findings — Stuck (no Fix block) ([count])
 
