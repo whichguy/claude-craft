@@ -1110,11 +1110,22 @@ Re-read the plan at <plan_path> if needed, then evaluate:
   Q-G9d: Conditional structure — are IF/ELSE branches visually distinct from sequential steps?
   Q-G9e: Checkpoint visibility — are commit/verification checkpoints clearly visible
          (not buried mid-paragraph)?
+  Q-G9f: Execution graph — for plans with 3+ phases: parse each phase's Outputs and
+         Pre-check annotations. Build dependency adjacency list. Group into parallel
+         execution waves. Inject [parallel] markers and execution schedule if parallelism
+         exists. If all phases are strictly sequential, PASS with note.
+         Algorithm:
+           (a) Extract: for each "## Phase N" section, find "**Outputs:**" and "**Pre-check:**"
+           (b) Build edges: Phase N → Phase M if N's Pre-check cites M's Outputs
+           (c) Topological grouping: assign each phase to earliest wave where all dependencies
+               are in prior waves
+           (d) Emit: execution schedule section + [parallel] markers on independent phases
+         N/A: fewer than 3 phases; or Q-G22 is N/A (no inter-phase dependencies).
 
 For each NEEDS_UPDATE finding: apply the edit to the plan immediately. Mark <!-- review-plan -->.
 Print result after applying any edits:
-  Organization: ✅ inline (5/5)              ← all PASS
-  Organization: ⚠️ inline (N/5) — K flagged  ← K sub-questions had NEEDS_UPDATE
+  Organization: ✅ inline (6/6)              ← all PASS
+  Organization: ⚠️ inline (N/6) — K flagged  ← K sub-questions had NEEDS_UPDATE
 
 Q-G9 results are included in the scorecard output (step 3 of "After Review Completes"; see Organization Quality section below).
 
@@ -1283,9 +1294,9 @@ UI Specialization (ui-designer)        ← render only when HAS_UI=true
   ⚠️ [Question short name] ([Q-ID])
 
 Organization Quality (Q-G9)            ← render only when plan has >= 3 implementation steps
-  ✅ [N]/5 sub-questions clean
+  ✅ [N]/6 sub-questions clean
   OR
-  ⚠️ [N]/5 — [K] flagged:
+  ⚠️ [N]/6 — [K] flagged:
   [list only flagged sub-questions — omit PASS items]
     ❌ [Q-G9x] ([sub-question name]): [finding]
 
