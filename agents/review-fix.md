@@ -499,59 +499,14 @@ Parse the review output above and apply each finding:
   // deduplication is handled incrementally via dedup.push (persistent _seen map initialized before the loop).
   // Do NOT suppress advisory processing in earlier rounds — process on every pass.
 
-  // Phase 3b: Round-End Quality Checkpoint
-  // Files with 0 fixes exit immediately (nothing to validate)
+  // Files with 0 fixes exit immediately; files with fixes go to re-review
   files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
   for each file in files_clean_this_round:
     print: "  → [file] nothing changed — done"
 
-  files_with_fixes = remaining_files.filter(f => fixes_applied_per_file[f] > 0)
+  remaining_files = remaining_files.filter(f => fixes_applied_per_file[f] > 0)
 
-  if files_with_fixes.length == 0: break
-
-  // Spawn Haiku checkpoints in parallel for all files with fixes applied this round
-  const checkpoint_results = await Promise.all(files_with_fixes.map(file =>
-    Task({
-      subagent_type: "general-purpose",
-      model: "haiku",
-      description: `Checkpoint: validate fixes in ${file}`,
-      prompt: `You are a code quality checkpoint evaluator. A set of fixes was just applied to this file.
-
-Read the file at: ${file}
-
-Answer these three questions with PASS or FAIL and one sentence of reasoning:
-
-Q1 — Syntax valid: Are the patched areas syntactically well-formed (no unclosed blocks, broken expressions, mismatched delimiters)?
-Q2 — Location correct: Were fixes applied to semantically correct locations (evidence line matches patched code, before-text matched the right construct)?
-Q3 — No regressions: Do the patched sections retain the intended behavior (no broken references, missing calls, obvious type mismatches)?
-
-Output format (exactly):
-Q1: [PASS|FAIL] — [reason]
-Q2: [PASS|FAIL] — [reason]
-Q3: [PASS|FAIL] — [reason]`
-    }).catch(() => 'Q1: PASS\nQ2: PASS\nQ3: PASS')  // timeout: treat as pass, avoid blocking
-  ))
-
-  // Evaluate checkpoint results; route files to re-review or clean exit
-  // Parse Q1/Q2/Q3 status directly from individual output lines (supports multi-Q failure)
-  const files_for_rereview = []
-  for (const [i, file] of files_with_fixes.entries()) {
-    const result = checkpoint_results[i] || ''
-    const q1_pass = result.includes('Q1: PASS')
-    const q2_pass = result.includes('Q2: PASS')
-    const q3_pass = result.includes('Q3: PASS')
-    const passed = q1_pass && q2_pass && q3_pass  // fail-safe: malformed output → re-review
-    if (passed) {
-      print: "  ✓ [file] checkpoint passed — clean (Q1/Q2/Q3)"
-      // file exits the loop — no full re-review needed this round
-    } else {
-      const failedQs = [!q1_pass && 'Q1', !q2_pass && 'Q2', !q3_pass && 'Q3'].filter(Boolean).join(',')
-      print: "  ↩ [file] checkpoint [failedQs] failed — spawning re-review"
-      files_for_rereview.push(file)
-    }
-  }
-
-  remaining_files = [...files_for_rereview]
+  if remaining_files.length == 0: break
 
   // Pre-filter: enforce per-file max_rounds BEFORE spawning expensive re-review Tasks
   files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
@@ -573,7 +528,7 @@ Q3: [PASS|FAIL] — [reason]`
 
   print: "  → Re-reviewing [remaining_files.length] file(s) in parallel..."
 
-  // PARALLEL re-reviews — only files that failed the checkpoint, in a SINGLE message
+  // PARALLEL re-reviews — all files with fixes applied, in a SINGLE message
   [mode-specific spawn — see subsections below]
   // re_review_results array order matches remaining_files order (Promise.all preserves insertion order)
 
@@ -672,11 +627,9 @@ Print: "  ✓ [file] — [N] applied, [M] advisory/yagni, [K] stuck"    (on resu
 Print: "  ⚠️ [file] — timeout (results partial)"                     (if status=timeout)
 ```
 
-After applying all fixes in the round (checkpoint, clean exits, and re-review):
+After applying all fixes in the round (clean exits and re-review):
 ```
 Print: "  → [file] nothing changed — done"                       (for each file with 0 fixes this round)
-Print: "  ✓ [file] checkpoint passed — clean (Q1/Q2/Q3)"         (checkpoint passed — file exits loop)
-Print: "  ↩ [file] checkpoint [Q1,Q2,...] failed — spawning re-review"  (checkpoint failed — file enters re-review; multiple Qs comma-separated)
 Print: "  → Re-reviewing [N] file(s) in parallel..."             (before spawning re-reviews)
 Print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"  (after re-review results)
 ```
@@ -700,8 +653,8 @@ Print: "  └ [file] ──── ❌ stuck ([N] finding(s))      [[N] critical 
 ```
 
 Status options per file:
-- `✅ clean (N round(s))` — file exited loop (checkpoint passed or 0 fixes)
-- `🔄 re-review` — checkpoint failed, entering next round
+- `✅ clean (N round(s))` — file exited loop (0 fixes this round)
+- `🔄 re-review` — fixes applied, entering re-review
 - `→ nothing changed` — 0 fixes applied, exits loop
 - `⚠️ max rounds` — hit per-file max_rounds limit
 - `❌ stuck (N finding(s))` — max rounds reached with critical findings stuck
@@ -714,8 +667,7 @@ Example:
   ↗ 2 fixers dispatched in parallel...
   ✓ Utils.gs — 3 applied, 1 advisory/yagni, 0 stuck
   ✓ Main.ts — 1 applied, 0 advisory/yagni, 0 stuck
-  ✓ Utils.gs checkpoint passed — clean (Q1/Q2/Q3)
-  ✓ Main.ts checkpoint passed — clean (Q1/Q2/Q3)
+  → Re-reviewing 2 file(s) in parallel...
   ✅ Utils.gs — clean after 1 round(s)
   ✅ Main.ts — clean after 1 round(s)
   Round 1:  3s
