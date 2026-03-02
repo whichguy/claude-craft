@@ -129,25 +129,47 @@ file_count = file_list.length
 - `file_count == 1`         → **single-agent mode** (direct Task call, no overhead)
 - `file_count >= 2`         → **parallel-task mode** (Promise.all Task() calls, no TeamCreate)
 
-### Step 1b: Reviewer Mapping (File-Type Triage)
+### Step 1b: Reviewer Mapping (Project Context Detection)
 
-Build a per-file reviewer mapping. This enables GAS-aware reviewers for `.gs` and GAS HTML files.
+Build a per-file reviewer mapping. Instead of AI-based classification, detect the project
+ecosystem by walking the directory tree for marker files (`appsscript.json` / `.clasp.json`
+for GAS, `package.json` for Node).
 
 ```javascript
-// Build reviewer_map: file → subagent_type
+// Project context detection — walk up to 5 parent directories for marker files
+const project_context_cache = {}
+function detect_project_context(file_path) {
+  let dir = dirname(file_path)
+  if (project_context_cache[dir]) return project_context_cache[dir]
+  let current = dir
+  for (let i = 0; i < 5; i++) {
+    if (exists(join(current, 'appsscript.json')) || exists(join(current, '.clasp.json'))) {
+      project_context_cache[dir] = 'gas'; return 'gas'
+    }
+    if (exists(join(current, 'package.json'))) {
+      project_context_cache[dir] = 'node'; return 'node'
+    }
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  project_context_cache[dir] = 'unknown'; return 'unknown'
+}
+
+// Build reviewer_map: file → subagent_type (single pass)
 // Note: reviewer_map maps each file to ONE primary reviewer.
 // For .gs files with CardService patterns, gas-gmail-cards is chosen as primary;
 // gas-code-review coverage for those files requires a separate manual pass (see note below).
 reviewer_map = {}
 cardservice_files = []  // tracked for Phase 4 summary warning
 
-// Pass 1: Route .gs and non-html files synchronously
 for (const file of file_list) {
   const ext = file.split('.').pop()
+  const context = detect_project_context(file)
 
   if (ext === 'gs') {
     // Triage: detect CardService patterns to route to gas-gmail-cards
-    const gsContent = readFile(file)  // Read file content for pattern detection
+    const gsContent = readFile(file)
     const hasCardService = gsContent.match(
       /CardService|buildContextualCard|buildHomepageCard|GmailApp\.setCurrentMessageAccessToken|setOnClickAction|pushCard|popCard|updateCard/
     )
@@ -158,46 +180,11 @@ for (const file of file_list) {
       reviewer_map[file] = 'gas-code-review'
     }
   }
-  else if (ext !== 'html') {
-    reviewer_map[file] = 'code-reviewer'
+  else if (ext === 'html') {
+    reviewer_map[file] = (context === 'gas') ? 'gas-ui-review' : 'code-reviewer'
   }
-  // .html files: deferred to parallel triage below
-}
-
-// Pass 2: Route .html files — GAS fast-path when context is unambiguous, else Haiku triage
-const htmlFilesNeedingTriage = file_list.filter(f => f.split('.').pop() === 'html')
-if (htmlFilesNeedingTriage.length > 0) {
-  // GAS fast-path: if any .gs file is in the batch, all HTML is GAS HTML — skip Haiku
-  const is_gas_project = file_list.some(f => f.split('.').pop() === 'gs')
-
-  if (is_gas_project) {
-    // All HTML in a GAS project context → gas-ui-review (no Haiku triage needed)
-    htmlFilesNeedingTriage.forEach(file => {
-      reviewer_map[file] = 'gas-ui-review'
-    })
-  } else {
-    // Ambiguous context — spawn Haiku triage for ALL .html files in a SINGLE message (parallel):
-    const triageResults = await Promise.all(htmlFilesNeedingTriage.map(file =>
-      Task({
-        subagent_type: "general-purpose",
-        model: "haiku",
-        prompt: `Read the file at ${file}. Does it contain GAS HTML patterns?
-          Look for: HtmlService, google.script.run, <?=, <?!=, createGasServer,
-          exec_api, or GAS scriptlet delimiters (<? ?>).
-          Reply with IS_GAS_HTML: true or IS_GAS_HTML: false only. Nothing else.`
-      }).catch(() => null)
-    ))
-
-    // Collect results and build reviewer_map entries for html files
-    // Fallback: if Haiku times out or returns malformed output → 'code-reviewer'
-    htmlFilesNeedingTriage.forEach((file, i) => {
-      const result = triageResults[i]
-      if (result && result.includes('IS_GAS_HTML: true')) {
-        reviewer_map[file] = 'gas-ui-review'
-      } else {
-        reviewer_map[file] = 'code-reviewer'
-      }
-    })
+  else {
+    reviewer_map[file] = 'code-reviewer'
   }
 }
 ```
