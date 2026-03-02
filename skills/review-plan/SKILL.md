@@ -1110,6 +1110,8 @@ Re-read the plan at <plan_path> if needed, then evaluate:
   Q-G9d: Conditional structure — are IF/ELSE branches visually distinct from sequential steps?
   Q-G9e: Checkpoint visibility — are commit/verification checkpoints clearly visible
          (not buried mid-paragraph)?
+  Q-G9f pre-check: if l1_results["Q-G22"] == "N/A", mark Q-G9f as N/A (no Outputs/Pre-check
+         annotations to parse). Otherwise, proceed with Q-G9f evaluation.
   Q-G9f: Execution graph — for plans with 3+ phases: parse each phase's Outputs and
          Pre-check annotations. Build dependency adjacency list. Group into parallel
          execution waves. Inject [parallel] markers and execution schedule if parallelism
