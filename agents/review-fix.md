@@ -355,6 +355,7 @@ const _seenStuck = new Set()
 const _seenYagni = new Set()
 const _seenFailed = new Set()
 const _seenCritical = new Set()
+const _seenStuckCritical = new Set()
 const finding_key = (e) => `${e.file}:${e.q_number || ''}:${e.description}`
 const yagni_key = (e) => `${e.file}:${e.title}`
 // dedup_push: compute key, skip if seen, else add to array and set
@@ -563,7 +564,7 @@ Q3: [PASS|FAIL] — [reason]`
     unresolved_critical = parse remaining Critical findings from current_findings[file]
     unresolved_critical.forEach(c => {
       const entry = { file, ...c }
-      dedup_push(stuck_findings, _seenCritical, entry, finding_key(entry))
+      dedup_push(stuck_findings, _seenStuckCritical, entry, finding_key(entry))
     })
     unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
     unresolved_advisory_no_fix.forEach(a => {
