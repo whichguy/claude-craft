@@ -349,20 +349,17 @@ remaining_files = [...files_needing_fixes]
 // Initialize per_file_rounds for all files needing fixes
 remaining_files.forEach(file => { per_file_rounds[file] = 0 })
 
-// Incremental dedup Sets — checked on insert during Phase 3 aggregation
-const _seenApplied = new Set()
-const _seenStuck = new Set()
-const _seenYagni = new Set()
-const _seenFailed = new Set()
-const _seenCritical = new Set()
-const _seenStuckCritical = new Set()
-const finding_key = (e) => `${e.file}:${e.q_number || ''}:${e.description}`
-const yagni_key = (e) => `${e.file}:${e.title}`
-// dedup_push: compute key, skip if seen, else add to array and set
-const dedup_push = (array, seen, entry, key) => {
-  if (seen.has(key)) return
-  seen.add(key)
-  array.push(entry)
+// Incremental dedup — checked on insert during Phase 3 aggregation
+const dedup = {
+  _seen: {},
+  key: (e) => `${e.file}:${e.q_number || e.title || ''}:${e.description}`,
+  push(array, name, entry) {
+    if (!this._seen[name]) this._seen[name] = new Set()
+    const k = this.key(entry)
+    if (this._seen[name].has(k)) return
+    this._seen[name].add(k)
+    array.push(entry)
+  }
 }
 ```
 
@@ -470,27 +467,27 @@ Parse the review output above and apply each finding:
     // Critical applied (dedup-guarded)
     result.applied.filter(a => a.type === 'critical').forEach(a => {
       const entry = { file, ...a }
-      dedup_push(critical_resolved, _seenCritical, entry, finding_key(entry))
+      dedup.push(critical_resolved, 'critical', entry)
     })
     // Advisory applied (dedup-guarded)
     result.applied.filter(a => a.type === 'advisory').forEach(a => {
       const entry = { file, ...a }
-      dedup_push(advisory_applied, _seenApplied, entry, finding_key(entry))
+      dedup.push(advisory_applied, 'applied', entry)
     })
     // Failed (dedup-guarded)
     result.failed.forEach(a => {
       const entry = { file, ...a }
-      dedup_push(fix_failures, _seenFailed, entry, finding_key(entry))
+      dedup.push(fix_failures, 'failed', entry)
     })
     // Stuck (dedup-guarded)
     result.stuck.forEach(a => {
       const entry = { file, ...a }
-      dedup_push(advisory_stuck, _seenStuck, entry, finding_key(entry))
+      dedup.push(advisory_stuck, 'stuck', entry)
     })
     // YAGNI (dedup-guarded)
     result.yagni.forEach(a => {
       const entry = { file, ...a }
-      dedup_push(advisory_yagni, _seenYagni, entry, yagni_key(entry))
+      dedup.push(advisory_yagni, 'yagni', entry)
     })
 
     if (applied_count > 0 && !files_changed.includes(file)) {
@@ -499,7 +496,7 @@ Parse the review output above and apply each finding:
   }
 
   // Advisory findings processed from every round in Phase 3;
-  // deduplication is handled incrementally via dedup_push (persistent Sets initialized before the loop).
+  // deduplication is handled incrementally via dedup.push (persistent _seen map initialized before the loop).
   // Do NOT suppress advisory processing in earlier rounds — process on every pass.
 
   // Phase 3b: Round-End Quality Checkpoint
@@ -562,12 +559,12 @@ Q3: [PASS|FAIL] — [reason]`
     unresolved_critical = parse remaining Critical findings from current_findings[file]
     unresolved_critical.forEach(c => {
       const entry = { file, ...c }
-      dedup_push(stuck_findings, _seenStuckCritical, entry, finding_key(entry))
+      dedup.push(stuck_findings, 'stuck_critical', entry)
     })
     unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
     unresolved_advisory_no_fix.forEach(a => {
       const entry = { file, ...a }
-      dedup_push(advisory_stuck, _seenStuck, entry, finding_key(entry))
+      dedup.push(advisory_stuck, 'stuck', entry)
     })
     print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
   remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
@@ -752,7 +749,7 @@ Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.len
 ## Phase 4: Summary + Teardown
 
 ```javascript
-// Deduplication handled incrementally during Phase 3 aggregation (dedup_push with persistent Sets).
+// Deduplication handled incrementally during Phase 3 aggregation (dedup.push with persistent _seen map).
 // No batch dedup needed here — arrays are already duplicate-free.
 ```
 
@@ -840,7 +837,7 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 
 ```javascript
 // Assign final_status based on derivation above (MUST run before Phase 5).
-// Reads deduplicated advisory_stuck[] (maintained incrementally via dedup_push in Phase 3).
+// Reads deduplicated advisory_stuck[] (maintained incrementally via dedup.push in Phase 3).
 if (stuck_findings.length > 0) {
   final_status = 'NEEDS_REVISION'
 } else if (advisory_stuck.length > 0) {
