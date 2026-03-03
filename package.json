@@ -2,7 +2,6 @@
   "name": "claude-craft",
   "version": "1.0.0",
   "description": "A comprehensive development toolkit for Claude Code",
-  "main": "index.js",
   "scripts": {
     "test": "mocha test/**/*.test.js",
     "test:watch": "mocha test/**/*.test.js --watch",
@@ -30,10 +29,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/claude-craft.git"
+    "url": "https://github.com/whichguy/claude-craft.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/claude-craft/issues"
+    "url": "https://github.com/whichguy/claude-craft/issues"
   },
-  "homepage": "https://github.com/yourusername/claude-craft#readme"
+  "homepage": "https://github.com/whichguy/claude-craft#readme"
 }
