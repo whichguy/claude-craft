@@ -33,15 +33,15 @@ If no feature description, ask what to break down.
 **Fast path** (inline checklist):
 - 2-3 obvious implementation steps
 - Single-concern feature with clear scope
-- Proceed to Step 2a
+- Proceed to Step 2
 
 **Agent path** (full decomposition):
 - Complex feature spanning multiple files/modules
 - Unclear scope requiring investigation
 - Feature needing phased implementation
-- Proceed to Step 2b
+- Proceed to Step 4
 
-## Step 2a — Inline Task List
+## Step 2 — Inline Task List
 
 Generate a numbered task checklist:
 
@@ -58,7 +58,7 @@ Generate a numbered task checklist:
 
 Each task should be independently implementable and testable.
 
-## Step 2c — Create Trackable Tasks
+## Step 3 — Create Trackable Tasks
 
 When the task breakdown produces 3+ tasks, create them as real TaskCreate entries
 so they persist and can be tracked across sessions:
@@ -76,7 +76,7 @@ Set `blockedBy` relationships for any dependent tasks via TaskUpdate.
 
 Print: "Created [N] trackable tasks. Use /develop [task] to start implementing."
 
-## Step 2b — Agent Dispatch
+## Step 4 — Agent Dispatch
 
 ```
 Use the Agent tool:
@@ -88,7 +88,7 @@ Use the Agent tool:
            Output tasks in priority order with dependencies noted."
 ```
 
-## Step 3 — Post-Processing
+## Step 5 — Post-Processing
 
 After task breakdown:
 - Present the task list
