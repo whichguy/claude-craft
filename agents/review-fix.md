@@ -60,9 +60,14 @@ If still empty: print "No changed files detected via git diff — nothing to rev
 **Argument Validation**: After Git Fallback resolves `target_files`, validate all parameters:
 
 ```javascript
-// Clamp max_rounds to [1, 10]
-max_rounds = Math.max(1, Math.min(10, parseInt(max_rounds) || 5))
+// Parse target_files into file_list (consumed by Phase 1 — no re-parse needed)
+file_list = target_files.split(',').map(f => f.trim()).filter(f => f.length > 0)
 
+// Clamp max_rounds to [1, 10]; NaN → 5, 0 → 1
+const parsed_rounds = parseInt(max_rounds)
+max_rounds = Math.max(1, Math.min(10, Number.isNaN(parsed_rounds) ? 5 : parsed_rounds))
+
+commit_mode = (commit_mode || '').toLowerCase()
 if (!['pr', 'commit'].includes(commit_mode)) {
   print: `Warning: Invalid commit_mode="${commit_mode}" — defaulting to "pr"`
   commit_mode = 'pr'
@@ -143,10 +148,9 @@ dropped.
 
 ### Step 1a: Mode Selection
 
-Parse `target_files` to count distinct files:
+Count distinct files (file_list already parsed and validated in Argument Validation):
 
 ```
-file_list = target_files.split(',').map(f => f.trim()).filter(f => f.length > 0)
 file_count = file_list.length
 ```
 
@@ -158,17 +162,35 @@ file_count = file_list.length
 
 Build a per-file reviewer mapping. Instead of AI-based classification, detect the project
 ecosystem by walking the directory tree for marker files (`appsscript.json` / `.clasp.json`
-for GAS, `package.json` for Node).
+for GAS, `package.json` for Node). `.gs` files always map to GAS (extension fallback).
+Walk stops at `$HOME` to avoid stray global markers. Template `appsscript.json` inside
+Node projects (co-located with `package.json`/`tsconfig.json`) is detected and skipped.
 
 ```javascript
-// Project context detection — walk up to 5 parent directories for marker files
+// Project context detection — walk up to 8 parent directories for marker files.
+// Priority: closest marker wins. Stop at $HOME to avoid stray package.json false positives.
+// Fallback: .gs extension → gas (covers mcp_gas-managed repos lacking appsscript.json).
 const project_context_cache = {}
+const HOME = process.env.HOME || '/Users/' + process.env.USER
 function detect_project_context(file_path) {
   let dir = dirname(file_path)
   if (project_context_cache[dir]) return project_context_cache[dir]
+
+  // Fallback: .gs files are always GAS regardless of directory markers
+  if (file_path.endsWith('.gs')) {
+    project_context_cache[dir] = 'gas'; return 'gas'
+  }
+
   let current = dir
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
+    // Stop at HOME boundary — markers above HOME are stray/global, not project-specific
+    if (current === HOME) break
     if (exists(join(current, 'appsscript.json')) || exists(join(current, '.clasp.json'))) {
+      // Guard: skip template appsscript.json inside Node projects (e.g., mcp_gas/src/)
+      // If same dir also has package.json or tsconfig.json, prefer node
+      if (exists(join(current, 'package.json')) || exists(join(current, 'tsconfig.json'))) {
+        project_context_cache[dir] = 'node'; return 'node'
+      }
       project_context_cache[dir] = 'gas'; return 'gas'
     }
     if (exists(join(current, 'package.json'))) {
@@ -188,7 +210,15 @@ function detect_project_context(file_path) {
 reviewer_map = {}
 cardservice_files = []  // tracked for Phase 4 summary warning
 
-for (const file of file_list) {
+// Process .gs files first so their extension-based GAS detection populates the cache
+// before .html files in the same directory call detect_project_context.
+const sorted_file_list = [...file_list].sort((a, b) => {
+  const aGs = a.endsWith('.gs') ? 0 : 1
+  const bGs = b.endsWith('.gs') ? 0 : 1
+  return aGs - bGs
+})
+
+for (const file of sorted_file_list) {
   const ext = file.split('.').pop()
   const context = detect_project_context(file)
 
