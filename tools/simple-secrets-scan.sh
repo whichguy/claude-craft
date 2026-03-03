@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Simple secrets scanner for git hooks
-# Scans any file for common secret patterns
+# Fast-path secrets scanner for pre-commit hooks.
+# For comprehensive scanning (PII, database URLs, private keys), use security-scan.sh.
 
 FILE="$1"
 EXIT_ON_ISSUES="${2:-true}"
