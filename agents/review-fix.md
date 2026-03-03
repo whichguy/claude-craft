@@ -407,6 +407,10 @@ const dedup = {
 
 ### Global Fix Loop
 
+**LOOP STRUCTURE**: Each round has 5 mandatory steps (A→B→C→D→E). Do NOT skip any step.
+After STEP E, control returns to the WHILE condition. The loop exits ONLY when
+`remaining_files` is empty or `round >= max_rounds`.
+
 ```
 print: "──── FIX LOOP ───────────"
 
@@ -419,13 +423,13 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
 
   fixes_applied_per_file = {}
 
-  // --- Concurrent Fix Application via Fixer Tasks ---
-  // Step 1: Increment per-file rounds (sequential bookkeeping, fast)
+  // ═══ STEP A: Apply fixes (concurrent fixer Tasks) ═══
+  // Increment per-file rounds (sequential bookkeeping, fast)
   for each file in remaining_files:
     per_file_rounds[file] += 1
     fixes_applied_per_file[file] = 0
 
-  // Step 2: Spawn one fixer Task per file in a SINGLE message (Promise.all)
+  // Spawn one fixer Task per file in a SINGLE message (Promise.all)
   print: "  ↗ [remaining_files.length] fixers dispatched in parallel..."
 
   const fixer_results = await Promise.all(remaining_files.map(file =>
@@ -493,7 +497,7 @@ Parse the review output above and apply each finding:
     }))
   ));
 
-  // Step 3: Aggregate results into state tracking arrays
+  // ═══ STEP B: Aggregate results into state tracking arrays ═══
   for (const result of fixer_results) {
     const file = result.file
     const applied_count = result.applied.length
@@ -537,11 +541,21 @@ Parse the review output above and apply each finding:
     }
   }
 
+  // ═══ MANDATORY CHECKPOINT ═══
+  // After aggregating fixer results, if `remaining_files` is non-empty (i.e., ≥1 file
+  // had fixes applied), you MUST dispatch re-review Tasks before proceeding to the next
+  // round or exiting the loop. Skipping re-review after applying fixes violates the loop
+  // invariant. The loop body is:
+  //   apply fixes → aggregate → filter clean → **re-review remaining** → update findings → next round.
+  // If you find yourself about to print the Phase 4 summary while `remaining_files.length > 0`,
+  // STOP — you have skipped re-review. Go back and dispatch the re-review Tasks.
+
   // Advisory findings processed from every round in Phase 3;
   // deduplication is handled incrementally via dedup.push (persistent _seen map initialized before the loop).
   // Do NOT suppress advisory processing in earlier rounds — process on every pass.
 
-  // Files with 0 fixes exit immediately; files with fixes go to re-review
+  // ═══ STEP C: Filter — determine which files need re-review ═══
+  // Files with 0 fixes exit immediately; files with fixes MUST go to STEP D (re-review)
   files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
   for each file in files_clean_this_round:
     print: "  → [file] nothing changed — done"
@@ -568,13 +582,17 @@ Parse the review output above and apply each finding:
 
   if remaining_files.length == 0: break
 
+  // ═══ STEP D: RE-REVIEW (MANDATORY — do NOT skip) ═══
+  // ⚠️ After applying fixes, you MUST re-review to verify correctness.
+  // Without re-review, current_findings is stale and the loop cannot converge.
   print: "  → Re-reviewing [remaining_files.length] file(s) in parallel..."
 
   // PARALLEL re-reviews — all files with fixes applied, in a SINGLE message
   [mode-specific spawn — see subsections below]
   // re_review_results array order matches remaining_files order (Promise.all preserves insertion order)
 
-  // Process re-review results
+  // ═══ STEP E: Process re-review results and update current_findings ═══
+  // This step updates current_findings so the NEXT round's fixer Tasks have fresh data.
   for each (file, result) in zip(remaining_files, re_review_results):
     if result is null:
       // timed out (.catch(() => null) fired) — skip this file's update
@@ -591,7 +609,8 @@ Parse the review output above and apply each finding:
     )
     current_findings[file] = result
 
-  // max_rounds enforcement moved to pre-filter (before re-review dispatch above)
+  // ═══ END OF ROUND — loop continues back to WHILE condition ═══
+  // remaining_files still has entries with fixes_applied > 0 → next round reviews them again
 ```
 
 **Fix source is code-reviewer's own Fix block.** Do not re-reason or generate alternatives.
@@ -876,8 +895,27 @@ If `current_branch` equals `$default_branch`:
 
 ### Step 5b: Stage and Commit (both modes)
 
+**Determine files to stage:**
+- When `commit_mode == "commit"`: Stage ALL `target_files` that have uncommitted changes (the caller
+  expects the commit to include both implementation changes and review-fix corrections).
+  ```bash
+  # Filter target_files to existing paths only (handles deleted/renamed files gracefully)
+  # Skip files that don't exist on disk and aren't in git status
+  # Stage target_files that have actual changes (avoids staging unchanged files)
+  for file in [file_list]; do
+    git diff --quiet "$file" 2>/dev/null || git add "$file"
+    git diff --cached --quiet "$file" 2>/dev/null || true  # already staged is fine
+  done
+  # Also stage any untracked target_files (new files)
+  git add [untracked target_files from git status]
+  ```
+- When `commit_mode == "pr"`: Stage only `files_changed` (review-fix corrections only — the
+  implementation was already committed by the caller before invoking review-fix).
+  ```bash
+  git add [files_changed joined by space]
+  ```
+
 ```bash
-git add [files_changed joined by space]
 git commit -m "$(cat <<'EOF'
 <task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
 

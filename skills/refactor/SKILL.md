@@ -58,6 +58,16 @@ If no target specified, ask what to refactor.
 
 ## Step 2b — Agent Dispatch
 
+When taking the agent path, create a tracking task:
+```
+TaskCreate({
+  subject: "Refactor [target] — [focus]",
+  description: "Multi-file refactoring via code-refactor agent. Focus: [focus].",
+  activeForm: "Refactoring [target]"
+})
+```
+Mark in_progress on dispatch, completed when agent returns and tests pass.
+
 ```
 Use the Agent tool:
   subagent_type: "code-refactor"
