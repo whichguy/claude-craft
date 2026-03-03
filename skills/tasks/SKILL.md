@@ -58,6 +58,24 @@ Generate a numbered task checklist:
 
 Each task should be independently implementable and testable.
 
+## Step 2c — Create Trackable Tasks
+
+When the task breakdown produces 3+ tasks, create them as real TaskCreate entries
+so they persist and can be tracked across sessions:
+
+For each task in the breakdown:
+```
+TaskCreate({
+  subject: "[Task description]",
+  description: "[Detailed description with file/module context]",
+  activeForm: "[Present continuous form, e.g., 'Implementing auth module']"
+})
+```
+
+Set `blockedBy` relationships for any dependent tasks via TaskUpdate.
+
+Print: "Created [N] trackable tasks. Use /develop [task] to start implementing."
+
 ## Step 2b — Agent Dispatch
 
 ```
@@ -66,6 +84,7 @@ Use the Agent tool:
   prompt: "Break down this feature into implementable tasks: [feature description].
            Context: [architecture docs, specs found].
            [If --detailed: include acceptance criteria and test requirements per task.]
+           After generating the task list, create each task using TaskCreate with activeForm spinners and blockedBy dependencies.
            Output tasks in priority order with dependencies noted."
 ```
 

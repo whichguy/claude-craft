@@ -59,6 +59,33 @@ From the invocation args, extract:
 **Recommendation**: [choice] because [reason tied to project context]
 ```
 
+After building the comparison table, present the recommendation using AskUserQuestion
+with markdown previews so the user can visually compare options:
+
+```
+AskUserQuestion({
+  questions: [{
+    question: "Which option fits your project best?",
+    header: "Architecture",
+    options: [
+      {
+        label: "[Option A] (Recommended)",
+        description: "[1-line rationale tied to project context]",
+        markdown: "[Full comparison table for Option A:\n| Criterion | Rating |\n|---|---|\n| Fits stack | ... |\n| Performance | ... |]"
+      },
+      {
+        label: "[Option B]",
+        description: "[1-line rationale]",
+        markdown: "[Full comparison table for Option B]"
+      }
+    ],
+    multiSelect: false
+  }]
+})
+```
+
+This enables side-by-side comparison in the Claude Code UI when the user focuses each option.
+
 ## Step 2b — Agent Dispatch
 
 ```

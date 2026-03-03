@@ -50,12 +50,33 @@ Before triaging, gather project context:
 
 ## Step 3a — Inline Implementation
 
+For inline implementations with 3+ steps, create a single tracking task:
+```
+TaskCreate({
+  subject: "Implement [feature name] (inline)",
+  description: "[Brief description]",
+  activeForm: "Implementing [feature name]"
+})
+```
+
 1. Design the implementation approach (brief)
 2. Write the code, matching existing codebase style
 3. Run tests if they exist
 4. Summarize what was built
 
+Mark tracking task completed after Step 4 post-processing.
+
 ## Step 3b — Agent Dispatch
+
+When taking the agent path, create progress tasks before dispatching:
+```
+TaskCreate({
+  subject: "Implement [feature name]",
+  description: "Full feature implementation via feature-developer agent",
+  activeForm: "Implementing [feature name]"
+})
+```
+Mark in_progress when dispatching, completed when agent returns.
 
 ```
 Use the Agent tool:
