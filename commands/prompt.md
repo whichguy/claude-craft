@@ -10,8 +10,8 @@ allowed-tools: "all"
 
 ## Argument Capture
 
-First argument (command/template): $1
-Remaining context: $ARGUMENTS
+All arguments via `$ARGUMENTS` (Claude Code does not populate `$1`/`$2`).
+The bash script below extracts the first word as template name, rest as context.
 
 ## Execution Flow
 

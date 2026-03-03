@@ -94,7 +94,11 @@ If mode is "review" (read-only):
 ```
 Use the Agent tool:
   subagent_type: "code-reviewer"
-  prompt: "Review the following files for bugs, security, and quality: [file list]"
+  prompt: "target_files=\"[file list]\"
+task_name=\"[task context]\"
+worktree=\"[working directory]\"
+review_mode=\"full\"
+Review all files for bugs, security vulnerabilities, and quality issues."
 ```
 
 ## Step 3 — Post-Processing

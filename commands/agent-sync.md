@@ -55,7 +55,7 @@ Run the auto-sync manager with the sub-action extracted from user input:
 ```bash
 "$HOME/claude-craft/tools/auto-sync.sh" <sub-action>
 ```
-Where `<sub-action>` is one of: `enable`, `disable`, `status`, `force`, or `test`.
+Where `<sub-action>` is one of: `prompt-check` (probabilistic) or `force` (immediate pull).
 
 ### 3. Present Results
 
