@@ -21,16 +21,17 @@ Execute this bash script to handle all commands and template loading:
 #!/bin/bash
 set -euo pipefail
 
-# Capture arguments
-FIRST_ARG="$1"
-ALL_ARGS="$2"
+# Capture arguments — Claude Code provides full args as $ARGUMENTS
+ALL_ARGS="${ARGUMENTS:-}"
 
-# Extract content by removing first argument + space
-if [ -n "$FIRST_ARG" ] && [ -n "$ALL_ARGS" ]; then
+# Extract first word as the template name
+FIRST_ARG="${ALL_ARGS%% *}"
+if [ "$FIRST_ARG" = "$ALL_ARGS" ]; then
+    # Only one word — no trailing content
+    CONTENT=""
+else
     FIRST_LEN=${#FIRST_ARG}
     CONTENT="${ALL_ARGS:$((FIRST_LEN + 1))}"
-else
-    CONTENT=""
 fi
 
 # Display template and context information

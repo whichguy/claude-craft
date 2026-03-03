@@ -42,11 +42,14 @@ for pattern in "${SECURITY_PATTERNS[@]}"; do
 done
 
 # Exit with appropriate code
+# EXIT_ON_ISSUES=true: exit 1 on secrets (blocks commit)
+# EXIT_ON_ISSUES=false: always exit 0 but secrets detection is via stdout (report-only)
 if [ "$SECRETS_FOUND" = "true" ]; then
     if [ "$EXIT_ON_ISSUES" = "true" ]; then
         exit 1
     else
-        exit 1  # Always indicate secrets found
+        echo "WARNING: secrets pattern detected in $FILE (EXIT_ON_ISSUES=false, not blocking)"
+        exit 0
     fi
 else
     exit 0

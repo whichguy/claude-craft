@@ -83,7 +83,11 @@ If mode is "fix" or user said "review and fix":
 ```
 Use the Agent tool:
   subagent_type: "review-fix"
-  prompt: "Review and fix the following files: [file list]. Loop until clean."
+  prompt: "target_files=\"[file list]\"
+task_name=\"[task context]\"
+worktree=\"[working directory]\"
+commit_mode=\"commit\"
+Review and apply all Critical and Advisory fixes. Loop until clean."
 ```
 
 If mode is "review" (read-only):

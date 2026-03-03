@@ -16,7 +16,7 @@ SECURITY:    pre-commit → simple-secrets-scan.sh (fast) | full → security-sc
 
 | Primitive | Count | Role | Entry Point | When to Use |
 |-----------|-------|------|-------------|-------------|
-| **Skill** | 23 | User-facing workflows, triage + optional agent dispatch | `/skill-name` | User interactions requiring triage (simple→inline, complex→agent) |
+| **Skill** | 23+ | User-facing workflows, triage + optional agent dispatch | `/skill-name` | User interactions requiring triage (simple→inline, complex→agent) |
 | **Agent** | 20 | Autonomous workers with own context window | Spawned by skills or other agents | Complex multi-step tasks needing isolation |
 | **Command** | 10 | Simple utilities, no agent dispatch | `/command-name` | One-shot operations (alias, sync, prompt execution) |
 | **Prompt** | 3 | Orchestration templates executed via `/prompt` | `/prompt name args` | Multi-phase methodologies, A/B testing frameworks |
