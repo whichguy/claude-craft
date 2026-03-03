@@ -154,7 +154,7 @@ case "$FIRST_ARG" in
             synced=0
             find "$REPO_DIR/prompts" -name "*.md" -type f | while read -r file; do
                 name=$(basename "$file")
-                cp "$file" "$HOME/.claude/prompts/$name"
+                ln -sfn "$file" "$HOME/.claude/prompts/$name"
                 printf "✓ Synced %s\n" "$name"
                 synced=$((synced + 1))
             done
