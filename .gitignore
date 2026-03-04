@@ -6,3 +6,7 @@ setup/
 # Runtime state — generated, not source
 docs/planning/
 plugins/reflection-system/state/
+
+# Benchmark results — generated, not source
+results/*.json
+!results/.gitkeep

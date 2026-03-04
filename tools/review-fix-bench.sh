@@ -152,10 +152,10 @@ print(json.dumps({'tp': tp, 'fp_count': len(fp), 'fn': fn}))
 # Parse Claude CLI output to extract findings
 parse_findings() {
   local response="$1"
-  python3 -c "
+  printf '%s' "$response" | python3 -c "
 import json, re, sys
 
-response = '''$response'''
+response = sys.stdin.read()
 
 findings = []
 # Match patterns like: Q1: ... line N ... or **Line N** ...
@@ -298,10 +298,11 @@ List each finding with its line number, severity, and fix."
         response=$(claude --print -p "$prompt" --output-format json 2>/dev/null || echo '{"result":"error"}')
         # Extract text from JSON response
         local text_response
-        text_response=$(python3 -c "
+        text_response=$(printf '%s' "$response" | python3 -c "
 import json, sys
+raw = sys.stdin.read()
 try:
-    data = json.loads('''${response}''')
+    data = json.loads(raw)
     if isinstance(data, dict) and 'result' in data:
         print(data['result'])
     elif isinstance(data, list):
@@ -311,10 +312,10 @@ try:
     else:
         print(str(data))
 except:
-    print('''${response}''')
+    print(raw)
 " 2>/dev/null || echo "$response")
         response="$text_response"
-        tokens_est=$(python3 -c "print(len('''${response}'''.split()) * 2)")
+        tokens_est=$(printf '%s' "$response" | python3 -c "import sys; print(len(sys.stdin.read().split()) * 2)")
       else
         echo "  Warning: claude CLI not found — using dry-run mode" >&2
         response="[Dry run — no Claude CLI available]"
