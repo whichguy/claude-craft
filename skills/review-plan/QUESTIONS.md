@@ -18,6 +18,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
 - NEEDS_UPDATE: criterion is missing or incomplete → edit the plan, mark `<!-- review-plan -->`
 - N/A: see N/A column
+(These are the only valid evaluator outputs — no other statuses.)
 
 **Gate 1 — Blocking (weight 3):**
 
