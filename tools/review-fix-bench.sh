@@ -14,22 +14,26 @@ RESULTS_DIR="${REPO_DIR}/results"
 RUNS_PER_FIXTURE=1
 LABEL="run"
 MODE=""
+AGENT_FILE=""
+JUDGE_FILE=""
 
 # ── Argument parsing ──────────────────────────────────────────────────
 
 usage() {
   cat <<'EOF'
 Usage:
-  review-fix-bench.sh --run [--label NAME] [--fixtures DIR] [--runs N]
+  review-fix-bench.sh --run [--label NAME] [--fixtures DIR] [--runs N] [--agent-file PATH] [--judge-file PATH]
   review-fix-bench.sh --compare FILE_A FILE_B
 
 Options:
-  --run           Run benchmark against fixtures
-  --compare       Compare two result JSON files
-  --label NAME    Label for this run (default: "run")
-  --fixtures DIR  Fixtures directory (default: test/fixtures/review-fix/)
-  --runs N        Runs per fixture for variance (default: 1, max: 3)
-  -h, --help      Show this help
+  --run              Run benchmark against fixtures
+  --compare          Compare two result JSON files
+  --label NAME       Label for this run (default: "run")
+  --fixtures DIR     Fixtures directory (default: test/fixtures/review-fix/)
+  --runs N           Runs per fixture for variance (default: 1, max: 3)
+  --agent-file PATH  Inject reviewer agent instructions (prepended to prompt)
+  --judge-file PATH  Use LLM judge for semantic matching (default: regex pipeline)
+  -h, --help         Show this help
 EOF
   exit 0
 }
@@ -41,6 +45,8 @@ while [[ $# -gt 0 ]]; do
     --label) LABEL="$2"; shift 2 ;;
     --fixtures) FIXTURES_DIR="$2"; shift 2 ;;
     --runs) RUNS_PER_FIXTURE="$2"; shift 2 ;;
+    --agent-file) AGENT_FILE="$2"; shift 2 ;;
+    --judge-file) JUDGE_FILE="$2"; shift 2 ;;
     -h|--help) usage ;;
     *)
       if [[ "$MODE" == "compare" ]]; then
@@ -213,6 +219,121 @@ print(json.dumps(findings))
 "
 }
 
+# LLM judge: semantically evaluate review output against ground truth
+# Usage: judge_findings <fixture_path> <gt_file> <review_output>
+# Returns JSON: {"tp": [...], "fp_count": N, "fn": [...], "reasoning": "..."}
+judge_findings() {
+  local fixture_path="$1"
+  local gt_file="$2"
+  local review_output="$3"
+
+  # Build structured judge prompt using env vars to prevent path-injection
+  local judge_prompt
+  judge_prompt=$(GT_FILE="$gt_file" FIXTURE_PATH="$fixture_path" python3 -c "
+import json, os, sys
+gt = json.load(open(os.environ['GT_FILE']))
+code = open(os.environ['FIXTURE_PATH']).read()
+review = sys.stdin.read()
+prompt = '''You are evaluating a code review against known ground truth issues.
+
+## Ground Truth Issues
+''' + json.dumps(gt['issues'], indent=2) + '''
+
+## False Positive Traps (code that looks suspicious but is NOT an issue)
+''' + json.dumps(gt.get('false_positive_traps', []), indent=2) + '''
+
+## Original Code
+\`\`\`
+''' + code + '''
+\`\`\`
+
+## Code Review Output to Evaluate
+''' + review + '''
+
+For each ground truth issue, determine if the review identified it (true positive) or missed it (false negative).
+Count reviewer findings that do not match any ground truth issue (false positives).
+Apply semantic matching: equivalent descriptions or ±5 line proximity with same issue class count as a match.
+Output ONLY valid JSON with no surrounding prose: {\"tp\": [\"ID1\"], \"fp_count\": N, \"fn\": [\"ID2\"], \"reasoning\": \"...\"}'''
+print(prompt)
+" <<< "$review_output")
+
+  # Guard: truncate if judge prompt is too large
+  local prompt_len="${#judge_prompt}"
+  if [[ "$prompt_len" -gt 50000 ]]; then
+    echo "Warning: judge_prompt for ${fixture_path##*/} is ${prompt_len} chars — truncating review output to last 200 lines" >&2
+    review_output=$(echo "$review_output" | tail -n 200)
+    judge_prompt=$(GT_FILE="$gt_file" FIXTURE_PATH="$fixture_path" python3 -c "
+import json, os, sys
+gt = json.load(open(os.environ['GT_FILE']))
+code = open(os.environ['FIXTURE_PATH']).read()
+review = sys.stdin.read()
+prompt = '''You are evaluating a code review against known ground truth issues.
+
+## Ground Truth Issues
+''' + json.dumps(gt['issues'], indent=2) + '''
+
+## False Positive Traps (code that looks suspicious but is NOT an issue)
+''' + json.dumps(gt.get('false_positive_traps', []), indent=2) + '''
+
+## Original Code
+\`\`\`
+''' + code + '''
+\`\`\`
+
+## Code Review Output to Evaluate (truncated to last 200 lines)
+''' + review + '''
+
+For each ground truth issue, determine if the review identified it (true positive) or missed it (false negative).
+Count reviewer findings that do not match any ground truth issue (false positives).
+Apply semantic matching: equivalent descriptions or ±5 line proximity with same issue class count as a match.
+Output ONLY valid JSON with no surrounding prose: {\"tp\": [\"ID1\"], \"fp_count\": N, \"fn\": [\"ID2\"], \"reasoning\": \"...\"}'''
+print(prompt)
+" <<< "$review_output")
+  fi
+
+  # Optionally prepend judge agent instructions (fresh context per invocation)
+  if [[ -n "${JUDGE_FILE:-}" ]] && [[ -f "$JUDGE_FILE" ]]; then
+    local judge_instr
+    judge_instr=$(cat "$JUDGE_FILE")
+    if [[ -z "$judge_instr" ]]; then
+      echo "Error: judge-file read failed or empty: $JUDGE_FILE" >&2; exit 1
+    fi
+    judge_prompt="${judge_instr}
+
+---
+
+${judge_prompt}"
+  fi
+
+  if command -v claude >/dev/null 2>&1; then
+    local raw
+    raw=$(timeout 120 claude --print -p "$judge_prompt" --output-format json 2>/dev/null \
+          || echo '{"result":"{\"tp\":[],\"fp_count\":0,\"fn\":[],\"reasoning\":\"judge error\"}"}')
+    # Extract and validate JSON from judge response
+    python3 -c "
+import json, re, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+    text = data.get('result', '') if isinstance(data, dict) else str(data)
+except Exception:
+    text = raw
+m = re.search(r'\{[^{}]*\"tp\"[^{}]*\}', text, re.DOTALL)
+if m:
+    try:
+        obj = json.loads(m.group(0))
+        print(json.dumps(obj))
+    except Exception:
+        print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [], 'reasoning': 'parse error'}))
+else:
+    print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [], 'reasoning': 'no JSON found'}))
+" <<< "$raw"
+  else
+    # Dry-run fallback: no claude CLI, return empty result
+    echo '{"tp":[],"fp_count":0,"fn":[],"reasoning":"dry-run: no claude CLI"}'
+  fi
+}
+
 # ── Run mode ──────────────────────────────────────────────────────────
 
 run_benchmarks() {
@@ -242,9 +363,24 @@ run_benchmarks() {
   echo "Found ${#gt_files[@]} fixture(s)"
   echo
 
+  # Validate agent file if provided
+  if [[ -n "${AGENT_FILE:-}" ]] && ! [[ -f "$AGENT_FILE" ]]; then
+    echo "Error: agent-file not found: $AGENT_FILE" >&2; exit 1
+  fi
+
+  # Validate judge file if provided
+  if [[ -n "${JUDGE_FILE:-}" ]] && ! [[ -f "$JUDGE_FILE" ]]; then
+    echo "Error: judge-file not found: $JUDGE_FILE" >&2; exit 1
+  fi
+
   # Get prompt version from git
-  local prompt_version
-  prompt_version="agents/review-fix.md@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  local agent_label
+  if [[ -n "${AGENT_FILE:-}" ]]; then
+    agent_label="${AGENT_FILE}@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  else
+    agent_label="generic-prompt@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+  fi
+  local prompt_version="$agent_label"
 
   # Accumulate per-fixture results
   local per_fixture_json="["
@@ -279,7 +415,7 @@ run_benchmarks() {
       fi
 
       # Build prompt
-      local prompt="Review this code for bugs, security vulnerabilities, logic errors, and code quality issues. For each issue found, specify: the line number, severity (Critical or Advisory), category, and a specific fix instruction.
+      local base_prompt="Review this code for bugs, security vulnerabilities, logic errors, and code quality issues. For each issue found, specify: the line number, severity (Critical or Advisory), category, and a specific fix instruction.
 
 Code to review (${fixture_name}):
 \`\`\`
@@ -288,6 +424,21 @@ ${fixture_content}
 
 List each finding with its line number, severity, and fix."
 
+      # Prepend agent file instructions if provided
+      local prompt="$base_prompt"
+      if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]]; then
+        local agent_content
+        agent_content=$(cat "$AGENT_FILE")
+        if [[ -z "$agent_content" ]]; then
+          echo "Error: agent-file read failed or empty: $AGENT_FILE" >&2; exit 1
+        fi
+        prompt="${agent_content}
+
+---
+
+${base_prompt}"
+      fi
+
       # Execute via Claude CLI
       local start_time
       start_time=$(python3 -c 'import time; print(time.time())')
@@ -295,10 +446,12 @@ List each finding with its line number, severity, and fix."
       local response=""
       local tokens_est=0
       if command -v claude >/dev/null 2>&1; then
-        response=$(claude --print -p "$prompt" --output-format json 2>/dev/null || echo '{"result":"error"}')
+        local raw_response
+        raw_response=$(timeout 120 claude --print -p "$prompt" --output-format json 2>/dev/null \
+                       || echo '{"result":"error: reviewer timed out or failed"}')
         # Extract text from JSON response
         local text_response
-        text_response=$(printf '%s' "$response" | python3 -c "
+        text_response=$(printf '%s' "$raw_response" | python3 -c "
 import json, sys
 raw = sys.stdin.read()
 try:
@@ -313,7 +466,7 @@ try:
         print(str(data))
 except:
     print(raw)
-" 2>/dev/null || echo "$response")
+" 2>/dev/null || echo "$raw_response")
         response="$text_response"
         tokens_est=$(printf '%s' "$response" | python3 -c "import sys; print(len(sys.stdin.read().split()) * 2)")
       else
@@ -327,18 +480,36 @@ except:
       local wall_clock
       wall_clock=$(python3 -c "print(round($end_time - $start_time, 1))")
 
-      # Parse findings from response
-      local findings_json
-      findings_json=$(parse_findings "$response")
-
-      # Match against ground truth
+      # Match findings against ground truth — use LLM judge or regex pipeline
       local match_result
-      match_result=$(match_findings "$findings_json" "$gt_file")
+      if [[ -n "${JUDGE_FILE:-}" ]]; then
+        # LLM judge path: semantic matching in fresh subprocess
+        match_result=$(judge_findings "$fixture_path" "$gt_file" "$response")
+
+        # Detect judge failure from reasoning field
+        local judge_reasoning
+        judge_reasoning=$(python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(r.get('reasoning',''))" \
+          <<< "$match_result" 2>/dev/null || echo "judge error")
+        if [[ "$judge_reasoning" == *"judge error"* ]] || [[ "$judge_reasoning" == *"parse error"* ]] \
+           || [[ "$judge_reasoning" == *"no JSON found"* ]]; then
+          echo "  WARNING: judge failed for $fixture_name — scored as all FN" >&2
+          match_result=$(GT_FILE="$gt_file" python3 -c "
+import json, os
+gt = json.load(open(os.environ['GT_FILE']))
+print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [i['id'] for i in gt['issues']], 'reasoning': 'judge failure'}))
+")
+        fi
+      else
+        # Legacy regex pipeline path
+        local findings_json
+        findings_json=$(parse_findings "$response")
+        match_result=$(match_findings "$findings_json" "$gt_file")
+      fi
 
       local tp_list fp_count fn_list
-      tp_list=$(python3 -c "import json; print(json.dumps(json.loads('$match_result')['tp']))")
-      fp_count=$(python3 -c "import json; print(json.loads('$match_result')['fp_count'])")
-      fn_list=$(python3 -c "import json; print(json.dumps(json.loads('$match_result')['fn']))")
+      tp_list=$(python3 -c "import json; print(json.dumps(json.loads('''$match_result''')['tp']))")
+      fp_count=$(python3 -c "import json; print(json.loads('''$match_result''')['fp_count'])")
+      fn_list=$(python3 -c "import json; print(json.dumps(json.loads('''$match_result''')['fn']))")
 
       local tp_count fn_count
       tp_count=$(python3 -c "import json; print(len(json.loads('$tp_list')))")
@@ -350,31 +521,46 @@ except:
       recall=$(calc_recall "$tp_count" "$fn_count")
       f1=$(calc_f1 "$precision" "$recall")
 
-      # Compute completeness
-      local categories_found
-      categories_found=$(python3 -c "
-import json
-findings = json.loads('''$findings_json''')
-cats = set(f.get('category', '') for f in findings if f.get('category'))
-print(json.dumps(list(cats)))
-")
+      # Compute completeness — from TP categories (judge path) or parsed findings (regex path)
       local gt_categories
       gt_categories=$(python3 -c "import json; print(json.dumps(json.load(open('$gt_file'))['categories_present']))")
       local completeness
-      completeness=$(python3 -c "
+
+      if [[ -n "${JUDGE_FILE:-}" ]]; then
+        # Judge path: derive categories covered from the TP issue IDs
+        completeness=$(GT_FILE="$gt_file" python3 -c "
+import json, os, sys
+gt = json.load(open(os.environ['GT_FILE']))
+tp = json.loads(sys.argv[1])
+gt_cats = json.loads(sys.argv[2])
+id_to_cat = {i['id']: i.get('category', '') for i in gt['issues']}
+found_cats = set(id_to_cat[t] for t in tp if t in id_to_cat)
+present = set(gt_cats)
+if not present: print(1.0)
+else: print(round(len(found_cats & present) / len(present), 4))
+" "$tp_list" "$gt_categories")
+      else
+        completeness=$(python3 -c "
 import json
-found = set(json.loads('''$categories_found'''))
+findings = json.loads('''$findings_json''')
+cats = set(f.get('category', '') for f in findings if f.get('category'))
 present = set(json.loads('''$gt_categories'''))
 if not present: print(1.0)
-else: print(round(len(found & present) / len(present), 4))
+else: print(round(len(cats & present) / len(present), 4))
 ")
+      fi
 
+      # Actionable: TP count when using judge; parsed findings count for regex path
       local actionable
-      actionable=$(python3 -c "
+      if [[ -n "${JUDGE_FILE:-}" ]]; then
+        actionable="$tp_count"
+      else
+        actionable=$(python3 -c "
 import json
 findings = json.loads('''$findings_json''')
 print(len([f for f in findings if f.get('description', '')]))
 ")
+      fi
 
       echo "  Results: P=$precision R=$recall F1=$f1 C=$completeness  [${wall_clock}s, ~${tokens_est} tokens]"
       echo "    TP: $tp_list"
