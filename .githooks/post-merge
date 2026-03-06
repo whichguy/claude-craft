@@ -53,7 +53,7 @@ SCAN_FAILED=false
 while IFS= read -r file; do
     if [ -f "$file" ]; then
         echo -e "${BLUE}🔍 Scanning: $file${NC}"
-        if ! "$SECURITY_SCANNER" "$file" malicious false; then
+        if ! "$SECURITY_SCANNER" "$file" secrets false; then
             SCAN_FAILED=true
             echo -e "${RED}❌ Security threats detected in: $file${NC}"
         fi
