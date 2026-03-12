@@ -9,15 +9,8 @@ description: |
   - "turn this into a deck", "build a slide deck", "generate slides"
   - "present this", "presentation from this content"
 
-model: sonnet
-allowed-tools:
-  - mcp__gas-mcp__create_presentation
-  - mcp__chrome-devtools__list_pages
-  - mcp__chrome-devtools__navigate_page
-  - mcp__chrome-devtools__wait_for
-  - mcp__chrome-devtools__take_screenshot
-  - mcp__chrome-devtools__evaluate_script
-  - WebFetch
+model: claude-sonnet-4-6
+allowed-tools: mcp__gas-mcp__create_presentation, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__evaluate_script, WebFetch
 ---
 
 # Make Slides

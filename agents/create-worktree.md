@@ -1,7 +1,7 @@
 ---
 name: create-worktree
 description: Create isolated git worktrees for parallel development, enabling multiple subagents to work concurrently on different features without conflicts or directory changes. **AUTOMATICALLY INVOKE** this agent when user mentions "parallel development", "concurrent agents", "isolated workspace", or when spawning multiple feature-developers. **STRONGLY RECOMMENDED** for multi-feature work, risky operations, and CI/CD workflows.
-model: haiku
+model: claude-haiku-4-5
 color: blue
 ---
 

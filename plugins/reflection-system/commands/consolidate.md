@@ -96,7 +96,7 @@ Spawn a subagent to synthesize:
 
 ```
 subagent_type: "general-purpose"
-model: "haiku"
+model: "claude-haiku-4-5"
 ```
 
 Prompt:

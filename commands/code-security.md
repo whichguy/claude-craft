@@ -45,6 +45,5 @@ Perform a comprehensive security analysis of the specified code:
 - [ ] Audit logging
 
 ## Analysis Target
-${1:-"Current working directory and staged changes"}
 
-Please analyze: $ARGUMENTS
+Please analyze: $ARGUMENTS (defaults to current working directory and staged changes if no argument given)

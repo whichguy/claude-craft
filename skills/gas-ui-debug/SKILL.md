@@ -13,9 +13,7 @@ description: |
 
   **MCP REQUIRED:** chrome-devtools (with browserUrl for GAS auth)
 model: claude-haiku-4-5-20251001
-allowed-tools:
-  - mcp__gas__*
-  - mcp__chrome-devtools__*
+allowed-tools: mcp__gas__*, mcp__chrome-devtools__*
 ---
 
 # SYMPTOM ROUTER (START HERE)

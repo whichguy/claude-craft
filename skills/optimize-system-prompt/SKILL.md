@@ -13,7 +13,7 @@ description: |
   - User wants to adapt the system prompt for a new model version
 
   **NOT for:** General prompt engineering, non-GAS prompts, one-off prompt writing
-model: sonnet
+model: claude-sonnet-4-6
 allowed-tools: all
 ---
 

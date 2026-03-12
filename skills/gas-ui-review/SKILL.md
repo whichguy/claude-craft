@@ -70,11 +70,8 @@ description: |
   - ContentService, JSON response, MIME type
 
   **NOT for:** Runtime debugging (use gas-ui-debug), .gs syntax validation (use gas-code-review)
-model: sonnet
-allowed-tools:
-  - mcp__gas__*
-  - Read
-  - Grep
+model: claude-sonnet-4-6
+allowed-tools: mcp__gas__*, Read, Grep
 ---
 
 # GAS HTML/UI Pattern Review

@@ -15,7 +15,7 @@ description: |
   - Exhaustive multi-phase analysis (use /prompt-reviewer)
   - A/B prompt comparison with execution (use compare-prompts)
   - GAS-specific system prompt optimization (use /optimize-system-prompt)
-model: sonnet
+model: claude-sonnet-4-6
 allowed-tools: all
 ---
 

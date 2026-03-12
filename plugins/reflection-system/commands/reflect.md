@@ -65,11 +65,11 @@ For each pending queue entry:
    - Target: pass ~50KB of conversation text to the subagent, not the entire file
 4. **Spawn a Haiku subagent** to extract a compact session summary
 
-**Subagent prompt** (use `model: "haiku"` for cost efficiency):
+**Subagent prompt** (use `model: "claude-haiku-4-5"` for cost efficiency):
 
 ```
 subagent_type: "general-purpose"
-model: "haiku"
+model: "claude-haiku-4-5"
 ```
 
 Prompt for the subagent:
@@ -188,7 +188,7 @@ If matching sessions found, spawn a subagent to synthesize:
 
 ```
 subagent_type: "general-purpose"
-model: "haiku"
+model: "claude-haiku-4-5"
 ```
 
 Prompt:

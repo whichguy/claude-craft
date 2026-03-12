@@ -14,7 +14,7 @@ description: |
 
   **NOT for:** GAS plans (use /gas-plan), code review (use /review-fix), non-Node plans
 
-model: sonnet
+model: claude-sonnet-4-6
 allowed-tools: all
 ---
 

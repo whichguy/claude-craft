@@ -51,6 +51,4 @@ Analyze performance characteristics and identify optimization opportunities:
 3. **Incremental Changes**: One optimization at a time
 4. **Monitor Production**: Real-world performance tracking
 
-Performance analysis target: ${1:-"entire application"}
-
-Analyze performance for: $ARGUMENTS
+Analyze performance for: $ARGUMENTS (defaults to entire application if no argument given)

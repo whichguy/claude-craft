@@ -18,9 +18,7 @@ description: |
   **NOT for:** Static code review (use /gas), server-side debugging (use /gas),
   symptom-based UI debugging without Chrome (use /gas)
 model: claude-sonnet-4-6
-allowed-tools:
-  - mcp__gas__*
-  - mcp__chrome-devtools__*
+allowed-tools: mcp__gas__*, mcp__chrome-devtools__*
 ---
 
 # GAS Sidebar Debug -- Interactive Chrome DevTools Automation
