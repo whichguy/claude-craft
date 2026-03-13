@@ -120,7 +120,7 @@ Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
 
 ## Step 3 — Collect Results & Timing
 
-Poll all 2×N tasks until complete. Use TaskGet or await completion notifications.
+Poll all 2×N tasks until complete. Use TaskGet or await completion notifications. Wrap each TaskGet call in try/catch — if a poll throws, treat that task as failed and proceed to error handling below.
 
 For each completed task, record:
 - **output**: result text
@@ -131,8 +131,7 @@ For each completed task, record:
 
 **NOTE on timing**: latency_ms reflects polling-detected wall-clock time. For short tasks, polling interval overhead may exceed model compute time — treat as indicative, not precise.
 
-**Error handling**: If a task completed in error state → mark as failed. Skip it in aggregation.
-Note in Per-Test Breakdown: `"task error — skipped"`. Use try/catch around result collection.
+**Error handling**: If a task completed in error state → mark as failed. Skip it in aggregation (tokens, time) AND skip the quality judge for that input file — do not spawn a judge task when either A or B run for that file failed. Note in Per-Test Breakdown: `"task error — skipped (no judge)"`. Use try/catch around result collection.
 
 **Context management**: After collecting each task's output, store only compact summaries
 (winner/latency/tokens/output text for judge). Do not retain full raw outputs longer than needed —
@@ -193,6 +192,13 @@ avg_latency_a = mean(latency_ms for all A runs)
 avg_latency_b = mean(latency_ms for all B runs)
 ```
 
+Compute delta values for the report:
+```
+token_delta_pct = round(((avg_tokens_b - avg_tokens_a) / max(avg_tokens_a, 1)) * 100, 1)
+latency_delta_pct = round(((avg_latency_b - avg_latency_a) / max(avg_latency_a, 1)) * 100, 1)
+# Positive = B is larger (A wins efficiency), negative = B is smaller (B wins efficiency)
+```
+
 **Tiebreaker chain — priority: quality → tokens → time:**
 ```
 # Threshold values chosen to filter noise:
@@ -203,10 +209,10 @@ avg_latency_b = mean(latency_ms for all B runs)
 IF |win_rate_a - win_rate_b| > 0.15:
     overall_winner = (win_rate_a > win_rate_b) ? "A" : "B"
     decided_by = "quality"
-ELIF |avg_tokens_a - avg_tokens_b| / max(avg_tokens_a, avg_tokens_b) > 0.10:
+ELIF max(avg_tokens_a, avg_tokens_b) > 0 AND |avg_tokens_a - avg_tokens_b| / max(avg_tokens_a, avg_tokens_b) > 0.10:
     overall_winner = (avg_tokens_a < avg_tokens_b) ? "A" : "B"
     decided_by = "tokens (quality tied)"
-ELIF |avg_latency_a - avg_latency_b| / max(avg_latency_a, avg_latency_b) > 0.15:
+ELIF max(avg_latency_a, avg_latency_b) > 0 AND |avg_latency_a - avg_latency_b| / max(avg_latency_a, avg_latency_b) > 0.15:
     overall_winner = (avg_latency_a < avg_latency_b) ? "A" : "B"
     decided_by = "time (quality+tokens tied)"
 ELSE:

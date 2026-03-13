@@ -38,16 +38,14 @@ Evaluate **solely on response quality relative to the input**:
 
 ## Output Format
 
-```json
-{"winner": "A" | "B" | "TIE", "reasoning": "<1-2 sentences explaining the choice>"}
-```
+Output a single line of valid JSON — no preamble, no markdown fences, no prose:
 
-**Example outputs:**
-```json
+{"winner": "A" | "B" | "TIE", "reasoning": "<1-2 sentences explaining the choice>"}
+
+**Example outputs (copy format exactly):**
 {"winner": "A", "reasoning": "A is more concise and directly answers the question without unnecessary preamble."}
 {"winner": "B", "reasoning": "B covers all edge cases mentioned in the input while A omits the error handling requirement."}
 {"winner": "TIE", "reasoning": "Both responses are accurate and similarly complete; no meaningful quality difference."}
-```
 
 ## Your Task
 
