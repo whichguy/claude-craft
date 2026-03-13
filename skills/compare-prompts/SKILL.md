@@ -156,6 +156,9 @@ For each input file i, spawn agent `compare-prompts-judge` with prompt:
 <OUTPUT_B>
 {task_b_output_for_file_i}
 </OUTPUT_B>
+
+Output only valid JSON on a single line — no preamble, no markdown fences:
+{"winner": "A" | "B" | "TIE", "reasoning": "<1-2 sentences>"}
 ```
 
 Use `judge_model` (default claude-sonnet-4-6) as model parameter.
