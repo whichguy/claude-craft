@@ -290,55 +290,126 @@ overall_winner == "NEUTRAL" → verdict = "NEUTRAL"
 
 ## Step 6 — Report
 
-Output the following formatted report:
+### Pre-report computations
 
-```markdown
-## compare-prompts Results
-
-Prompt A (baseline): {label_a} — {prompt_a_path}
-Prompt B (candidate): {label_b} — {prompt_b_path}
-Inputs: {inputs_dir} ({N} test cases)
-
-### Quality  (1st — 7-criterion pairwise judge)
-
-| Criterion             | A Wins | B Wins | TIE |
-|-----------------------|--------|--------|-----|
-| Task Adherence        | {criterion_tallies.task_adherence.a} | {criterion_tallies.task_adherence.b} | {criterion_tallies.task_adherence.tie} |
-| Factual Accuracy      | {criterion_tallies.factual_accuracy.a} | {criterion_tallies.factual_accuracy.b} | {criterion_tallies.factual_accuracy.tie} |
-| Completeness          | {criterion_tallies.completeness.a} | {criterion_tallies.completeness.b} | {criterion_tallies.completeness.tie} |
-| Instruction Following | {criterion_tallies.instruction_following.a} | {criterion_tallies.instruction_following.b} | {criterion_tallies.instruction_following.tie} |
-| Structural Clarity    | {criterion_tallies.structural_clarity.a} | {criterion_tallies.structural_clarity.b} | {criterion_tallies.structural_clarity.tie} |
-| Precision             | {criterion_tallies.precision.a} | {criterion_tallies.precision.b} | {criterion_tallies.precision.tie} |
-| Conciseness           | {criterion_tallies.conciseness.a} | {criterion_tallies.conciseness.b} | {criterion_tallies.conciseness.tie} |
-| **Total (all cases)** | **{Σ A across all criteria}** | **{Σ B across all criteria}** | **{Σ TIE across all criteria}** |
-
-Test-case win rate: A={win_rate_a_pct}% | B={win_rate_b_pct}% | TIE={win_rate_tie_pct}%
-
-### Token Count  (2nd — estimated, quality-tied only)
-
-| Metric            | A               | B               | Delta                |
-|-------------------|-----------------|-----------------|----------------------|
-| Avg tokens (est.) | ~{avg_tokens_a} | ~{avg_tokens_b} | {token_delta_pct}%   |
-
-### Time  (3rd — quality+token-tied only)
-
-| Metric           | A                  | B                  | Delta                  |
-|------------------|--------------------|--------------------|------------------------|
-| Avg latency (ms) | {avg_latency_a}ms  | {avg_latency_b}ms  | {latency_delta_pct}%   |
-
-### Per-Test Breakdown
-| File       | Winner | Reasoning                         |
-|------------|--------|-----------------------------------|
-| {file}     | {w}    | "{reasoning}"                     |
-...
-
-### Verdict
-[**IMPROVED** / **REGRESSED** / **NEUTRAL**] — decided by [{decided_by}]
-[One sentence recommendation based on the outcome]
+**Bar chart helper** (`bar(count, N, width=20)`):
+```
+filled = round(count / max(N, 1) * width)
+return "█".repeat(filled) + "░".repeat(width - filled)
 ```
 
-**Delta formatting**: show as `+X%` if B > A (A is cheaper/faster), `-X%` if B < A (B is cheaper/faster).
-Round all percentages to 1 decimal place.
+**Criterion leader** per row:
+```
+a > b  → "🔵 A"
+b > a  → "🟢 B"
+a == b → "⚖️  ~"
+```
+
+**Criteria where A leads / B leads:**
+```
+n_criteria_a = count(criterion_tallies[key].a > criterion_tallies[key].b for each key)
+n_criteria_b = count(criterion_tallies[key].b > criterion_tallies[key].a for each key)
+```
+
+**Delta label** (token and latency):
+```
+delta > 0  → "+{delta}% · A {leaner|faster}"   // B costs/takes more
+delta < 0  → "{delta}% · B {leaner|faster}"     // B costs/takes less
+delta == 0 → "0% · equal"
+```
+
+**Verdict emoji:**
+```
+IMPROVED  → "✅"
+REGRESSED → "❌"
+NEUTRAL   → "➖"
+```
+
+**Recommendation sentence** (one sentence, appended after verdict line):
+```
+IMPROVED  + decided by quality → "Ship the candidate — B leads {n_criteria_b}/7 criteria and wins {win_rate_b_pct}% of test cases."
+IMPROVED  + decided by tokens  → "Ship the candidate — quality tied; B is {|token_delta_pct|}% leaner."
+IMPROVED  + decided by time    → "Ship the candidate — quality and tokens tied; B is {|latency_delta_pct|}% faster."
+REGRESSED + decided by quality → "Keep the baseline — A leads {n_criteria_a}/7 criteria and wins {win_rate_a_pct}% of test cases."
+REGRESSED + decided by tokens  → "Keep the baseline — quality tied; A is {|token_delta_pct|}% leaner."
+REGRESSED + decided by time    → "Keep the baseline — quality and tokens tied; A is {|latency_delta_pct|}% faster."
+NEUTRAL                        → "No meaningful difference across all three dimensions."
+```
+
+---
+
+### Output
+
+Output the following report (outside any code fence — render as markdown):
+
+```
+## compare-prompts Results
+
+**Baseline (A):** {label_a} — `{prompt_a_path}`
+**Candidate (B):** {label_b} — `{prompt_b_path}`
+**Inputs:** `{inputs_dir}` · {N} test cases
+
+---
+
+### 🔍 Quality  _(7-criterion pairwise judge)_
+
+| Criterion             |  A  |  B  |  ~  | Leader |
+|-----------------------|:---:|:---:|:---:|--------|
+| Task Adherence        | {criterion_tallies.task_adherence.a} | {criterion_tallies.task_adherence.b} | {criterion_tallies.task_adherence.tie} | {leader} |
+| Factual Accuracy      | {criterion_tallies.factual_accuracy.a} | {criterion_tallies.factual_accuracy.b} | {criterion_tallies.factual_accuracy.tie} | {leader} |
+| Completeness          | {criterion_tallies.completeness.a} | {criterion_tallies.completeness.b} | {criterion_tallies.completeness.tie} | {leader} |
+| Instruction Following | {criterion_tallies.instruction_following.a} | {criterion_tallies.instruction_following.b} | {criterion_tallies.instruction_following.tie} | {leader} |
+| Structural Clarity    | {criterion_tallies.structural_clarity.a} | {criterion_tallies.structural_clarity.b} | {criterion_tallies.structural_clarity.tie} | {leader} |
+| Precision             | {criterion_tallies.precision.a} | {criterion_tallies.precision.b} | {criterion_tallies.precision.tie} | {leader} |
+| Conciseness           | {criterion_tallies.conciseness.a} | {criterion_tallies.conciseness.b} | {criterion_tallies.conciseness.tie} | {leader} |
+| **Total**             | **{Σ_a}** | **{Σ_b}** | **{Σ_tie}** | |
+
+**Win rate by test case:**
+[render as fenced code block]
+A  {bar(count_a, N)}   {win_rate_a_pct}%   ({count_a} of {N})
+B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
+~  {bar(count_tie, N)} {win_rate_tie_pct}% ({count_tie} of {N})
+[end code block]
+
+---
+
+### 🪙 Token Count  _(estimated · quality-tied only)_
+
+`A ~{avg_tokens_a}`  →  `B ~{avg_tokens_b}`  ·  **Δ {token_delta_label}**
+
+---
+
+### ⏱ Time  _(quality+token-tied only)_
+
+`A {avg_latency_a} ms`  →  `B {avg_latency_b} ms`  ·  **Δ {latency_delta_label}**
+
+---
+
+### 📋 Per-Test Breakdown
+
+| | File | Reasoning |
+|-|------|-----------|
+| {winner_emoji} | {file} | "{reasoning}" |
+... (one row per test case; winner_emoji: 🟢=B wins, 🔵=A wins, ⚖️=TIE)
+
+---
+
+[render as fenced code block]
+╔══════════════════════════════════════════════════════════════╗
+║  {verdict_emoji}  {verdict}  —  decided by {decided_by}      ║
+║                                                              ║
+║  {recommendation_sentence}                                   ║
+╚══════════════════════════════════════════════════════════════╝
+[end code block]
+```
+
+**Formatting rules:**
+- Round all percentages to 1 decimal place.
+- Token delta: `+X%` if B > A (A leaner), `-X%` if B < A (B leaner); label `· A leaner` or `· B leaner`.
+- Latency delta: `+X%` if B > A (A faster), `-X%` if B < A (B faster); label `· A faster` or `· B faster`.
+- Pad bar chart rows so columns align (counts right-aligned in their field).
+- Verdict box: pad recommendation sentence with trailing spaces to fill to box width (64 chars). If sentence overflows, wrap to a second `║` line.
+- Winner emoji column in per-test table: use `⚖️` for TIE (note: emoji width varies — use a single space after for alignment).
 
 ---
 
