@@ -15,6 +15,15 @@ model: claude-sonnet-4-6
 allowed-tools: all
 ---
 
+## Role & Authority
+
+1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
+2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. You may NOT call ExitPlanMode until the gate marker is written.
+3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
+4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
+
+---
+
 # Universal Plan Review: Convergence Loop
 
 You apply a 3-layer quality review to any implementation plan: general quality, code change
@@ -269,6 +278,26 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Surface error to user via AskUserQuestion
      Do not leave orphaned team processes.
    ```
+
+---
+
+## Gate Tier Semantics
+
+Gate tiers classify findings by severity and convergence impact. These definitions are canonical — do not defer to QUESTIONS.md if it is not in context.
+
+| Tier | Label | Convergence role | SOLID/GAPS rating impact |
+|------|-------|-----------------|--------------------------|
+| **Gate 1** | Blocking | MUST resolve before convergence (loop continues even if changes_this_pass == 0) | Unresolved → REWORK rating |
+| **Gate 2** | Important | Advisory for rating; NOT convergence-blocking once Gate 1 is clear | Unresolved → SOLID (1-3 open) or GAPS (4+ open) |
+| **Gate 3** | Informational | Noted in scorecard only; never affects convergence or rating | Counted in scorecard advisory section only |
+
+**Gate 1 question IDs by mode:**
+- **Non-GAS / Non-NODE (standard):** Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
+- **IS_GAS mode:** Q-G1, Q-G2, Q-G11 (L1); Q1, Q2, Q13, Q15, Q18, Q42 (gas-evaluator). Q-NEW is N/A-superseded by Q42.
+- **IS_NODE mode:** Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3 (L1/cluster); N1 (node-evaluator)
+
+**Gate 2** comprises all remaining questions not listed above and not designated Gate 3.
+**Gate 3** questions are explicitly marked in QUESTIONS.md with `[Gate 3]`; when QUESTIONS.md is unavailable, treat all unlisted questions as Gate 2.
 
 ---
 
@@ -566,16 +595,22 @@ DO:
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
   l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A" line
-  IF IS_GAS:
-    Remove true duplicates (same concern raised by both cluster evaluator and gas-evaluator —
-    keep gas-evaluator's more specific GAS framing)
-  IF IS_NODE:
-    Remove true duplicates (same concern raised by both cluster evaluator and node-evaluator —
-    keep node-evaluator's more specific Node/TS framing)
-  IF HAS_UI:
-    Remove true duplicates between ui-evaluator and cluster evaluators (keep ui-evaluator's
-    more specific UI framing); remove duplicates between ui-evaluator and gas-evaluator if
-    IS_GAS (keep gas-evaluator's GAS-specific framing for GAS UI concerns)
+  -- Deduplication algorithm (apply for each active ecosystem/UI evaluator) --
+  FOR each pair of findings (A from evaluator-X, B from evaluator-Y) where X ≠ Y:
+    (1) Extract the plan passage or file that each finding references.
+    (2) If both reference the same passage AND both address the same corrective action
+        (not just the same topic), flag as duplicate.
+    (3) Keep the more-specific evaluator's framing using this precedence:
+          gas-evaluator > cluster evaluator (for GAS concerns)
+          node-evaluator > cluster evaluator (for Node/TS concerns)
+          ui-evaluator > cluster evaluator (for UI concerns)
+          gas-evaluator > ui-evaluator (for GAS UI concerns when IS_GAS=true)
+    (4) If same passage but findings address complementary (not identical) concerns → keep both.
+        Do not deduplicate findings that are merely co-located — they must share a corrective action.
+  Example: Q-C1 from git-evaluator and Q2 from gas-evaluator both say "add feature branch step"
+    → duplicate, keep Q2 (gas-evaluator wins over cluster). Q-C3 from impact-evaluator says
+    "callers affected" and Q18 from gas-evaluator says "GAS triggers invalidated" → complementary,
+    keep both.
 
   Before applying edits, print a summary using this exact format:
     Print: "Applying [N] changes:"
@@ -597,8 +632,16 @@ DO:
     Keep-exemption: content annotated <!-- keep: [reason] --> is EXEMPT from consolidation removal.
     "Key flow" = any implementation step, ordering dependency, error path, rollback step, or
     verification checkpoint. Prose trimming is OK. Removing or merging steps is NOT.
-  REGRESSION CHECK: before RE-READ, verify no key flow, corner case, or condition was
-    removed during this pass — restore any dropped logic and annotate <!-- keep: [reason] -->
+  REGRESSION CHECK (5-step recovery procedure):
+    (1) After applying all edits, re-read the plan.
+    (2) For each numbered implementation step that existed at pass start, verify it still exists
+        with equivalent semantics (content may be expanded but must not be absent or materially shortened).
+    (3) If a step is missing or materially shortened: re-read the step from the previous pass
+        (from context or memo_file if available — memo_file stores pass_count but not full plan text;
+        use context window's prior read of the plan if still available).
+    (4) Restore the step verbatim, then append a <!-- keep: step N — restored after edit removed it --> marker.
+    (5) Add the restoration as an additional change: changes_this_pass += 1 and print:
+          "  ⚠️ Restored [step N] — removed by edit, reinstated."
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
