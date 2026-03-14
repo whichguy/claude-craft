@@ -109,7 +109,11 @@ Capture as `git_history` — passed to research agent for project context.
 
 **Interrupt recovery check** (if IDEAS_FILE exists):
 - Read IDEAS_FILE content
-- If the most recent `## Experiment Results` section (if any) contains `## Implemented Directions` but does NOT contain `**Verdict:` → prior run interrupted mid-flight: detect the current iteration number by counting the number of `## Experiment Results` sections in IDEAS_FILE (each completed iteration appends one; the interrupted iteration has none yet), set `i = completed_count + 1`, save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5. Print: "Resuming interrupted run (iteration {i}) — research already complete, re-generating experiment variants."
+- If the most recent `## Experiment Results` section (if any) contains `## Implemented Directions` but does NOT contain `**Verdict:` → prior run interrupted mid-flight while the reconcile agent was writing. To recover cleanly:
+  1. **Count only completed iterations** (sections containing `**Verdict:`): `completed_count = count of ## Experiment Results sections in IDEAS_FILE that contain **Verdict:`. Set `i = completed_count + 1`. (Do NOT count the partial section — it has no `**Verdict:` and must be stripped.)
+  2. **Truncate the orphaned partial section**: remove everything in IDEAS_FILE from the last `## Experiment Results` header that lacks a `**Verdict:` line through the end of file. Rewrite IDEAS_FILE with this truncated content. This prevents a double-entry when Step 5 appends the new `## Experiment Results — Iteration {i}` block.
+  3. Save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5.
+  Print: "Resuming interrupted run (iteration {i}) — research already complete, re-generating experiment variants."
 - Else if IDEAS_FILE has a `## Experiment Results` section whose most recent occurrence contains a `**Verdict:` line → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
 - Otherwise → prior run complete; read as prior context and proceed fresh (append new sections with separator `---\n*Date: {today}*`)
 
