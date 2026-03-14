@@ -337,9 +337,9 @@ Where:
 
 ### Pre-report computations
 
-**Bar chart helper** (`bar(count, N, width=20)`):
+**Bar chart helper** (`bar(value, max_val, width=20)`):
 ```
-filled = round(count / max(N, 1) * width)
+filled = round(value / max(max_val, 1) * width)
 return "█".repeat(filled) + "░".repeat(width - filled)
 ```
 
