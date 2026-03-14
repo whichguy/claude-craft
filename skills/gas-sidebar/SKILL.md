@@ -114,6 +114,8 @@ ENV = user-specified environment OR "Dev"
 MENU_ITEM = "Open Chat (" + ENV + ")"
 ```
 
+**Note:** If the sidebar is already open when you arrive at this step (e.g., resuming mid-procedure), the menu text changes to `"Open..."` instead of `"Open Chat (Dev)"`. In that case, use `click({ text: "Open..." })` to reload the sidebar in place.
+
 **Step 1.3a: Take snapshot to find the menu**
 ```javascript
 mcp__chrome-devtools__take_snapshot()
@@ -900,6 +902,8 @@ UIDs follow pattern `<frame_id>_<element_index>` where:
 5. If changes not visible, hard refresh the sheet (Cmd+Shift+R) and reopen
 ```
 
+**"Open..." vs "Open Chat (Dev)":** When the sidebar is already open, clicking "Sheets Chat" in the menu bar shows `"Open..."` (not `"Open Chat (Dev)"`). Click `"Open..."` to reload the sidebar in place. If the sidebar is closed, the menu shows `"Open Chat (Dev)"` / `"Open Chat (Staging)"` etc.
+
 **Tip:** Use a simple test prompt (like "What is 2+2?") to quickly verify UI changes without waiting for complex responses.
 
 ---
@@ -926,7 +930,7 @@ Level 0: Google Sheets (docs.google.com/spreadsheets)  → SAME-ORIGIN ✅
 **Step 1:** Take snapshot to get element uids from inside cross-origin iframe
 ```javascript
 mcp__chrome-devtools__take_snapshot()
-// Look for stable elements like: uid=4_16 textbox "Enter your message"
+// Look for stable elements like: uid=4_16 textbox "Enter a prompt here"
 ```
 
 **Step 2:** Pass uid to evaluate_script, navigate from there
@@ -1076,13 +1080,13 @@ Search snapshot text for known patterns instead of hardcoding uids:
 
 ```
 1. Take snapshot: mcp__chrome-devtools__take_snapshot()
-2. Search output for stable text: "Enter your message"
-3. Extract uid from pattern: uid=X_Y textbox "Enter your message"
+2. Search output for stable text: "Enter a prompt here"
+3. Extract uid from pattern: uid=X_Y textbox "Enter a prompt here"
 4. Use that uid for all operations
 ```
 
 **Why the textbox is reliable:**
-- Text "Enter your message" is stable (defined in HTML)
+- Text "Enter a prompt here" is stable (defined in HTML)
 - The uid format is predictable (`X_Y`)
 - Snapshot is fast (~500ms, just text)
 
@@ -1152,6 +1156,72 @@ evaluate_script({ args: [{uid: "4_16"}], function: `...check state...` })
 
 ---
 
+# ANALYZE BUTTON DEBUGGING
+
+## Enabling AMBIENT_DEBUG
+
+`ambientLog()` calls inside `triggerAnalysis`, `initAmbientPolling`, and related functions are **silent by default**. Enable tracing before testing:
+
+```javascript
+// Enable (persist across sidebar reloads within same browser session)
+mcp__chrome-devtools__evaluate_script({
+  function: `(el) => {
+    el.ownerDocument.defaultView.localStorage.setItem('AMBIENT_DEBUG', '1');
+    return { enabled: true };
+  }`,
+  args: [{"uid": "<textbox_uid>"}]
+})
+```
+
+With debug ON, console will show:
+- `[Ambient HH:MM:SS.mmm] triggerAnalysis → call`
+- `[Ambient HH:MM:SS.mmm] triggerAnalysis → ok {success, count}` — `success: undefined` means `r.result` is falsy (exec_api failed to return a result, e.g. credit-limit 400); `success: false` means server returned `{success: false}`; both trigger the failure path
+- `[Ambient HH:MM:SS.mmm] triggerAnalysis → analysis failed`
+- `[Ambient HH:MM:SS.mmm] triggerAnalysis → error {err}` — `.catch()` triggered (network/promise rejection)
+- `[Ambient HH:MM:SS.mmm] poll → ok / getRecommendations`
+
+**Note:** `AMBIENT_DEBUG` persists in `localStorage` — it survives sidebar reloads as long as the Sheets page is not navigated away from.
+
+## Checking Function Global Accessibility
+
+If the Analyze button logs `[AnalyzeBtn] triggerAnalysis not yet defined`, verify whether the function is in the sidebar's `window` scope:
+
+```javascript
+mcp__chrome-devtools__evaluate_script({
+  function: `(el) => {
+    var win = el.ownerDocument.defaultView;
+    return {
+      triggerAnalysis: typeof win.triggerAnalysis,
+      ambientLog: typeof win.ambientLog
+    };
+  }`,
+  args: [{"uid": "<textbox_uid>"}]
+})
+```
+
+If `triggerAnalysis` is `"undefined"` but `ambientLog` is `"function"`, the function is scoped inside `initApp()` and not exposed globally — a scoping bug requiring `window.triggerAnalysis = triggerAnalysis` inside `initApp()`.
+
+## Verifying Disabled State During Analysis
+
+```javascript
+// Poll button state during a running analysis
+mcp__chrome-devtools__evaluate_script({
+  function: `(el) => {
+    var root = el;
+    while (root && !root.classList?.contains('tab-content')) root = root.parentElement;
+    root = root?.parentElement;
+    var btn = root?.querySelector('#analyzeBtn');
+    return { disabled: btn?.disabled, classList: btn?.className, time: new Date().toISOString() };
+  }`,
+  args: [{"uid": "<textbox_uid>"}]
+})
+```
+
+Expected during analysis: `{ disabled: true, classList: "v2-analyze-btn analyzing" }`
+Expected after completion: `{ disabled: false, classList: "v2-analyze-btn" }`
+
+---
+
 # QUICK REFERENCE
 
 ## Most Common Tool Sequences
@@ -1180,4 +1250,3 @@ For sidebar changes, include these steps in the plan's Verification section:
 4. Read response via read-responses procedure (`take_snapshot` → parse a11y tree) — verify no console errors
 5. Take screenshot for before/after comparison if visual changes were made (`take_screenshot`)
 6. Verify config panel if config/settings changes were made (switch to Config tab → `take_snapshot`)
-`evaluate_script` returns `{isError: true/false}` - trust this instead of re-snapshotting.
