@@ -4,6 +4,7 @@ description: |
   Research-backed prompt improvement workflow. Analyzes with Q1-Q10 structural diagnostics,
   researches domain + prompt engineering best practices, generates fixed+dynamic evaluation
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
+  scope-preservation gate (12-question check against baseline for unintended regression),
   evaluates via questions-based judge (not holistic), reconciles all learnings into a single
   ideas file, and commits only if improved. Supports --iterations N for compounding improvement
   and --experiments N for parallel variant testing per iteration.
@@ -25,7 +26,8 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
-questions-based judge → reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
+scope-preservation gate (12-question baseline check) → questions-based judge →
+reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
 
 ## Argument Reference
 
@@ -93,6 +95,7 @@ After each spawned agent returns, check its output for the expected marker:
 - Step 2 agent: must contain `IDEAS_WRITTEN:` — if absent, abort: `"ERROR: research agent failed — expected IDEAS_WRITTEN: but got: <first 200 chars of output>"`
 - Step 2b gate: must contain `PLAN_GATE:` — if absent, abort similarly
 - Step 3 write-agents: each must contain `EXP_WRITTEN:` — collect all before proceeding
+- Step 3b gate-agents: each must contain all 12 `Q-SG{N}:` lines — if any missing, treat experiment as WARN with note: "incomplete gate evaluation"
 - Step 5 reconcile agent: must contain `VERDICT:` — if absent, abort
 
 Print run header (once, after validation passes):
@@ -388,6 +391,173 @@ Print: `✏️  Variants written  ·  {E} experiment{s}:` then for each k: `   E
 
 ---
 
+## Step 3b — Scope-Preservation Gate
+
+Before evaluating experiments, check each written experiment against the baseline for unintended scope regression. Experiments that fail the gate are excluded from Step 4 evaluation (saving compute) and their failure is recorded in the IDEAS_FILE Technique History.
+
+**Read the assigned options for each experiment** from IDEAS_FILE (already parsed in Step 3 for variant assignment).
+
+**Spawn one gate agent per experiment in a single parallel message** (same pattern as write-agents in Step 3). Each gate agent is a general-purpose agent:
+
+```
+You are a scope-preservation evaluator. Compare the improved prompt against the baseline and
+answer all 12 questions below.
+
+IMPORTANT: Judge against the BASELINE, not against best practices. A change is only a problem
+if it removes or breaks something the baseline had.
+
+Severity guide:
+  FAIL = something the baseline had is gone or broken, and no assigned option justifies it
+  WARN = a change exists that might be a regression but could be an acceptable side effect
+         of an assigned option (ambiguous intent)
+  PASS = preserved, or intentionally changed per assigned options
+  N/A  = question is genuinely not applicable to this prompt type
+         (e.g. Q-SG1 for a prompt with no AUTOMATICALLY INVOKE triggers)
+
+<assigned_options>
+{option names + full option details for this experiment from IDEAS_FILE}
+</assigned_options>
+
+<baseline_prompt>
+{baseline_contents from $IMPROVE_TMPDIR/baseline-iter-{i}.md}
+</baseline_prompt>
+
+<improved_prompt>
+{experiment_contents from $IMPROVE_TMPDIR/exp-{k}-iter-{i}.md}
+</improved_prompt>
+
+Evaluate ALL 12 questions in order. Q-SG12 must be evaluated last.
+
+Q-SG1.  Trigger completeness — Does the improved prompt preserve all activation patterns
+        (AUTOMATICALLY INVOKE triggers, routing conditions, use-case keywords) from the
+        original? Flag any triggers removed or narrowed without explicit justification in the
+        assigned options.
+Q-SG2.  Behavioral mode retention — If the original defined multiple operating modes, phases,
+        or personas, does the improved prompt retain all of them?
+Q-SG3.  Exclusion drift — Did new "NOT for", "do not use when", or "excluded scenarios"
+        constraints appear that were absent from the original? Are they an intentional
+        refinement from the assigned options, or accidental additions?
+Q-SG4.  Input type coverage — Does the improved prompt continue to handle all input types,
+        formats, and edge cases the original addressed? Flag any that appear dropped.
+Q-SG5.  Capability & tool retention — Does the improved prompt retain all tool grants, API
+        references, integration points, and external dependencies the original required?
+Q-SG6.  Procedural completeness — Are all mandatory steps, decision trees, checklists, required
+        outputs, and output format contracts (marker patterns, JSON schemas, structural
+        specifications) from the original still represented — even if restructured or condensed?
+Q-SG7.  Context & config anchoring — Does the improved prompt preserve all environment-specific
+        context (paths, project IDs, configuration values, assumed state) from the original?
+Q-SG8.  Error injection — Did the improvement introduce internally inconsistent instructions,
+        factual errors, or self-contradictions not present in the original?
+Q-SG9.  Directive strength — Did any mandatory or imperative instructions ("MUST", "always",
+        "never", "required", "do not") get softened to optional or suggestive language
+        ("consider", "may", "if appropriate", "try to") without explicit justification?
+Q-SG10. Example preservation — Did the improvement remove, weaken, or abstract away concrete
+        examples that were present in the original?
+Q-SG11. Output presentation — If the baseline specified how output should be formatted for
+        human consumption — rendering guidelines (box characters, tables, alignment), visual
+        indicators (emojis, status icons), structural templates (print formats, fenced blocks,
+        indentation), or response length/detail guidance — does the improved prompt preserve
+        those specifications?
+Q-SG12. Adversarial reconsideration — Name the single most likely regression risk in this
+        improved prompt (even if minor). Then assess: is this risk actually present in the diff
+        between baseline and improved? FAIL if present and serious, WARN if present but minor,
+        PASS if not actually realized. You must name a specific risk before assessing.
+
+Output ALL 12 results, one per line:
+Q-SG1: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG2: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG3: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG4: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG5: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG6: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG7: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG8: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG9: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG10: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG11: {PASS|WARN|FAIL|N/A} — {one-sentence reason}
+Q-SG12: {PASS|WARN|FAIL|N/A} — {risk named}: {assessment}
+```
+
+**Marker validation**: Verify all 12 `Q-SG{N}:` lines (Q-SG1 through Q-SG12) are present in each gate agent's output. If any are missing, treat that experiment as WARN with note: "incomplete gate evaluation."
+
+**Orchestrator computes verdict** (not the agent) from per-question results for each experiment k:
+
+```
+pass_count_k = count(q for q in Q-SG1..Q-SG12 if q == PASS or q == N/A)
+warn_count_k = count(q for q in Q-SG1..Q-SG12 if q == WARN)
+fail_count_k = count(q for q in Q-SG1..Q-SG12 if q == FAIL)
+
+IF fail_count_k > 0:
+    gate_verdict_k = "FAIL"
+ELIF warn_count_k > 0:
+    gate_verdict_k = "WARN"
+ELSE:
+    gate_verdict_k = "PASS"
+```
+
+| Verdict | Condition | Action |
+|---------|-----------|--------|
+| `PASS` | All 12 questions PASS or N/A | Proceed to Step 4 normally |
+| `WARN` | 1+ questions WARN, none FAIL | Proceed to Step 4; annotate experiment with `⚠` in Step 4 output |
+| `FAIL` | Any question is FAIL | Exclude experiment from Step 4 evaluation; warn user |
+
+**Print summary** after gate (before Step 4):
+```
+Print: 🔍 Scope Gate  ·  Iteration {i}
+For each k in 1..E:
+  IF gate_verdict_k == "PASS":
+    Print:    Exp-{k}:  ✅ PASS  ({pass_count_k}/12)
+  ELIF gate_verdict_k == "WARN":
+    Print:    Exp-{k}:  ⚠ WARN  ({pass_count_k}/12)  —  {first WARN Q-SG question}: {reason}
+  ELSE (FAIL):
+    Print:    Exp-{k}:  ❌ FAIL  ({pass_count_k}/12)  —  {first FAIL Q-SG question}: {reason}
+```
+
+**Build `scope_gate_summary`** for later use in Step 5:
+```
+scope_gate_summary = ""
+For each experiment k where gate_verdict_k is FAIL or WARN:
+  scope_gate_summary += "Exp-{k} [{gate_verdict_k}]: {list of non-PASS Q-SG questions with reasons}\n"
+IF scope_gate_summary is empty:
+  scope_gate_summary = "No scope gate issues."
+```
+
+**Track excluded experiments:**
+```
+excluded_experiments = [k for k in 1..E if gate_verdict_k == "FAIL"]
+active_experiments = [k for k in 1..E if gate_verdict_k != "FAIL"]
+```
+
+**If all experiments FAIL** → abort iteration:
+```
+IF len(active_experiments) == 0:
+  Print: ❌ Scope Gate: all experiments failed — re-run with fewer aggressive changes
+
+  # Record failure in IDEAS_FILE via reconcile agent for knowledge loop
+  IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
+    # Spawn reconcile agent to append scope gate failure to IDEAS_FILE Technique History
+    # (see Step 5 for reconcile agent prompt — scope_gate_results will contain all FAILs)
+    # Then commit IDEAS_FILE only:
+    git -C {PROMPT_DIR} add {IDEAS_FILE}
+    git commit -m "$(cat <<'EOF'
+docs({basename}): scope gate failed — all experiments excluded
+
+Scope gate failures:
+{for each k: Exp-{k}: {first FAIL Q-SG question}: {reason}}
+
+Actionable learning: {techniques applied} caused scope narrowing — avoid in future iterations
+EOF
+)"
+
+  iterations_completed = i
+  iteration_log.append({i: i, verdict: "SCOPE_FAIL", quality_score_a: null, quality_score_b: null, quality_spread: 0, applied_summary: "all experiments excluded by scope gate"})
+  BREAK  # stop iteration
+```
+
+Otherwise, proceed to Step 4 with only `active_experiments` (exclude FAILed experiments from the evaluation matrix).
+
+---
+
 ## Step 4 — Evaluate All Experiments
 
 Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..5 + dynamic questions).
@@ -406,11 +576,12 @@ ELSE:
 
 Record `start_time_ms` per task before spawning.
 
-Print: `⚖️  Evaluating {M} input{s} × {1+E} prompt{s} in parallel...`
+Print: `⚖️  Evaluating {M} input{s} × {1+len(active_experiments)} prompt{s} in parallel...`
+(If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
 
-**Spawn all (1 + E) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
+**Spawn all (1 + len(active_experiments)) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
 - `run-A-{filename}`: baseline prompt + each input (M tasks)
-- `run-E{k}-{filename}`: experiment-k prompt + each input (E × M tasks)
+- `run-E{k}-{filename}`: experiment-k prompt + each input (only for k in active_experiments — len(active_experiments) × M tasks)
 
 For each completed task, record:
 - output text
@@ -421,9 +592,9 @@ For each completed task, record:
 
 **Error handling**: If a task fails → skip its judge for that input. Note: "(run error — no judge)"
 
-**Spawn all E × M judge tasks in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
+**Spawn all len(active_experiments) × M judge tasks in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
 
-For each experiment k and each input j where both baseline and exp-k runs succeeded:
+For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
 
 Judge task prompt:
 ```
@@ -474,7 +645,8 @@ avg_latency_k = mean(latency_ms for exp-k runs)
 
 Print quality score results (after all experiments aggregated):
 - `   Baseline quality:  {quality_score_a:.1%}`
-- For each k in 1..E: `   Exp-{k}:             {quality_score_b_k:.1%}  ({quality_spread_k:+.1%})`
+- For each k in active_experiments: `   Exp-{k}:             {quality_score_b_k:.1%}  ({quality_spread_k:+.1%}){IF gate_verdict_k == "WARN": " ⚠"}`
+- For each k in excluded_experiments: `   Exp-{k}:             (excluded by scope gate)`
 
 Token/latency metrics tracked for transparency; quality score is the primary verdict driver.
 
@@ -486,7 +658,7 @@ Token/latency metrics tracked for transparency; quality score is the primary ver
 
 **Select winner:**
 ```
-best_k = argmax(quality_score_b_k for k in 1..E)
+best_k = argmax(quality_score_b_k for k in active_experiments)
 best_spread = quality_spread_{best_k}
 
 IF best_spread > 0.15:
@@ -521,7 +693,7 @@ improvement options and write comprehensive learnings to the ideas file.
 </ideas_file>
 
 <experiment_results>
-{For each k in 1..E:
+{For each k in active_experiments:
   Experiment {k} — Applied: {applied_summary from write-agent}
   Quality: {quality_score_b_k:.1%} vs baseline {quality_score_a:.1%} (spread: {quality_spread_k:+.1%})
   Tokens: {avg_tokens_k} vs {avg_tokens_a} ({token_delta_k:+.1%})
@@ -530,12 +702,20 @@ improvement options and write comprehensive learnings to the ideas file.
     Q-FX1: {a_wins}/{b_wins}/{tie}  Q-FX2: {a_wins}/{b_wins}/{tie}  ...
     {dynamic questions: id: a_wins/b_wins/tie}
 }
+{For each k in excluded_experiments:
+  Experiment {k} — EXCLUDED by scope gate (no evaluation ran)
+  Applied: {applied_summary from write-agent}
+}
 </experiment_results>
 
 <selected_winner>
 Best experiment: {best_k} — {quality_score_b_best:.1%} quality score
 Verdict: {IMPROVED|NEUTRAL|REGRESSED} (decided by: {decided_by})
 </selected_winner>
+
+<scope_gate_results>
+{scope_gate_summary from Step 3b — either per-experiment non-PASS findings, or "No scope gate issues."}
+</scope_gate_results>
 
 Work through each step:
 Step 1 — Per-experiment option analysis: which options CONTRIBUTED_TO_WIN / CONTRIBUTED_TO_LOSS / NEUTRAL?
@@ -597,6 +777,10 @@ Then update the "## Technique History" section of {ideas_file}:
 **Actionable learning:**
 {1-2 sentences: what future runs should do or avoid for this prompt type}
 
+If scope_gate_results contains FAIL entries: add an entry to Technique History for each
+excluded experiment: "Excluded by scope gate — {Q-SGN}: {reason}. Technique: {applied_summary_k}.
+Status: SCOPE_FAIL. Do not re-propose this technique direction."
+
 Output only: "VERDICT: {IMPROVED|NEUTRAL|REGRESSED}" on a single line after writing.
 ```
 
@@ -622,7 +806,8 @@ FOR i in 1..iterations:
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
 
-  # 2. Run Steps 2 → 2b → 3 → 4 → 5
+  # 2. Run Steps 2 → 2b → 3 → 3b → 4 → 5
+  #    Step 3b may exclude experiments (FAIL) or annotate them (WARN)
   #    Step 5 already copies winning experiment to {prompt_path} if IMPROVED
 
   IF VERDICT == IMPROVED:
@@ -635,6 +820,9 @@ improve({basename}): {1-line summary from best experiment's Implemented Directio
 
 What worked: {CONTRIBUTED_TO_WIN options from Technique History entry}
 Actionable learning: {Actionable learning text from Technique History entry}
+{IF len(excluded_experiments) > 0: for each k in excluded_experiments:
+Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
+}
 EOF
 )"
     iterations_completed = i
@@ -663,6 +851,9 @@ docs({basename}): improvement attempt — neutral ({E} experiments, prompt rever
 
 Tried: {techniques from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
+{IF len(excluded_experiments) > 0: for each k in excluded_experiments:
+Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
+}
 EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
@@ -681,6 +872,9 @@ docs({basename}): improvement attempt — regressed ({E} experiments, prompt rev
 Tried: {techniques from Technique History}
 What backfired: {CONTRIBUTED_TO_LOSS options from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
+{IF len(excluded_experiments) > 0: for each k in excluded_experiments:
+Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
+}
 EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
@@ -707,7 +901,7 @@ The `trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM` registered in Step 0 handles
 Print final summary.
 
 **Helpers:**
-- `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED
+- `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED / 🚫 SCOPE_FAIL
 - `max_spread = max(abs(entry.quality_spread) for entry in iteration_log)` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
@@ -726,7 +920,7 @@ Then print iteration history table:
 ```
 | Iter | Verdict      | Quality Δ  | Experiment                   |
 |------|--------------|------------|------------------------------|
-| {i}  | {verdict_emoji(v)} {v} | {quality_spread:+.1%} | {applied_summary (≤30 chars)} |
+| {i}  | {verdict_emoji(v)} {v} | {quality_score_a != null ? quality_spread:+.1% : "N/A (no eval)"} | {applied_summary (≤30 chars)} |
 ```
 (one row per entry in `iteration_log`)
 
