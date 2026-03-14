@@ -79,6 +79,27 @@ Create temp working dir: `COMPARE_TMPDIR=$(mktemp -d /tmp/compare-prompts.XXXXXX
 - prompt_a_path must exist: `test -f "$prompt_a_path"` — else abort: `"Prompt A not found: <path>"`
 - prompt_b_path must exist after resolution — else abort with appropriate message
 
+After all validations pass, emit the start banner as a fenced code block:
+
+[render as fenced code block — all lines exactly 64 chars wide]
+╔══════════════════════════════════════════════════════════════╗
+║  ⚖️  compare-prompts                                         ║
+║                                                              ║
+║  Baseline  ({label_a}):  {prompt_a_path}                     ║
+║  Candidate ({label_b}):  {prompt_b_path}                     ║
+║  Inputs:        {inputs_dir}                                 ║
+║  Model:         {model_line}                                 ║
+╚══════════════════════════════════════════════════════════════╝
+[end code block]
+
+Truncation rule: usable inner width = 60 chars (after 2-space left margin). If a path/dir
+field exceeds its usable width, truncate from the left: `"..." + path[-(usable - 3):]`.
+Model line: if run_model == judge_model → `"{run_model}  (runs + judge)"`
+           if different → `"{run_model}  ·  Judge: {judge_model}"`
+Each row right-padded with spaces to fill column 62, then `║`.
+
+**⚙️  Pre-flight passed** — `{prompt_a_path}` vs `{prompt_b_path}`
+
 ---
 
 ## Step 1 — Load Inputs
@@ -90,6 +111,9 @@ Glob `*.md` and `*.txt` from inputs_dir.
 - Read surviving files' contents into memory
 - If zero files remain → abort: `"No valid input files in <dir> (all exceeded 50KB or none matched *.md/*.txt)"`
 - If N < 3 → warn: `"Warning: N=<N> test case(s) — quality win rates have low statistical confidence. Use 3+ inputs for meaningful comparison."`
+
+**📂 Inputs loaded** — {N} test cases from `{inputs_dir}`
+(If files were skipped: **📂 Inputs loaded** — {N} of {N_found} test cases ({N_skipped} skipped))
 
 ---
 
@@ -115,6 +139,8 @@ Each task:
 - `run_in_background`: true
 
 Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
+
+**🚀 Running prompts** — {2×N} tasks launched in parallel…
 
 ---
 
@@ -165,6 +191,8 @@ After resolution, record per task:
 (winner/latency/tokens/output text for judge). Do not retain full raw outputs longer than needed —
 with 10 inputs, 20 raw outputs could bloat the context significantly.
 
+**✓ Runs complete** — avg latency: {label_a} {avg_latency_a/1000:.1f}s · {label_b} {avg_latency_b/1000:.1f}s
+
 ---
 
 ## Step 4 — Spawn Judge Tasks in Parallel (N Tasks)
@@ -199,6 +227,8 @@ Output only valid JSON on a single line — no preamble, no markdown fences:
 
 Use `judge_model` (default claude-sonnet-4-6) as model parameter.
 
+**⚖️  Judging outputs** — {N} judge tasks launched…
+
 **Judge output**: JSON with 3 keys: `scores` (7-key object — each criterion evaluated relative to its own prompt's instructions), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
 
 **Error handling**: If a judge task fails or returns malformed JSON:
@@ -206,6 +236,8 @@ Use `judge_model` (default claude-sonnet-4-6) as model parameter.
 - If `scores` key is missing but `winner` is present → use `winner` only, skip criterion tallies for this case (count as TIE per criterion)
 - If both missing → count overall winner as TIE
 - Note in Per-Test Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
+
+**✓ Judgments complete** — quality so far: {label_a} {count_a}/{N} · {label_b} {count_b}/{N} · {count_tie} tied
 
 ---
 
@@ -286,15 +318,28 @@ overall_winner == "B"       → verdict = "IMPROVED"
 overall_winner == "NEUTRAL" → verdict = "NEUTRAL"
 ```
 
+After computing overall_winner, decided_by, verdict, and all metric values, emit the early verdict flash (plain markdown, not fenced):
+
+- If decided_by == "quality":
+  **{verdict_emoji} {verdict}** — quality: {quality_flash} · tokens: {token_flash} · latency: {latency_flash}
+- Otherwise (decided by tokens, time, or NEUTRAL):
+  **{verdict_emoji} {verdict}** — quality: tied · tokens: {token_flash} · latency: {latency_flash}
+
+Where:
+- `quality_flash`: `"{winning_label} leads {n}/7 criteria ({pct:.0f}% wins)"`
+- `token_flash`: if `|token_delta_pct| >= 10` → `"{sign}{|val|}% ({leaner_label} leaner)"` · else → `"{token_delta_pct:+.1f}% (within noise)"`
+- `latency_flash`: if `|latency_delta_pct| >= 15` → `"{sign}{|val|}% ({faster_label} faster)"` · else → `"{latency_delta_pct:+.1f}% (within noise)"`
+- Use − (U+2212) for negative values, + for positive.
+
 ---
 
 ## Step 6 — Report
 
 ### Pre-report computations
 
-**Bar chart helper** (`bar(count, N, width=20)`):
+**Bar chart helper** (`bar(value, max_val, width=20)`):
 ```
-filled = round(count / max(N, 1) * width)
+filled = round(value / max(max_val, 1) * width)
 return "█".repeat(filled) + "░".repeat(width - filled)
 ```
 
@@ -373,15 +418,30 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 
 ---
 
-### 🪙 Token Count  _(estimated · quality-tied only)_
+### 🪙 Token Count  _(estimated · char/4 approx)_
 
-`A ~{avg_tokens_a}`  →  `B ~{avg_tokens_b}`  ·  **Δ {token_delta_label}**
+Compute: `bar_tokens_a = bar(avg_tokens_a, max(avg_tokens_a, avg_tokens_b))`
+         `bar_tokens_b = bar(avg_tokens_b, max(avg_tokens_a, avg_tokens_b))`
+Pad `label_a` and `label_b` to equal column width (right-pad shorter with spaces).
+
+[render as fenced code block]
+{label_a_padded}  {bar_tokens_a}  ~{avg_tokens_a} est.
+{label_b_padded}  {bar_tokens_b}  ~{avg_tokens_b} est.
+   Δ {token_delta_label}
+[end code block]
 
 ---
 
-### ⏱ Time  _(quality+token-tied only)_
+### ⏱ Time  _(wall-clock · indicative)_
 
-`A {avg_latency_a} ms`  →  `B {avg_latency_b} ms`  ·  **Δ {latency_delta_label}**
+Compute: `bar_latency_a = bar(avg_latency_a, max(avg_latency_a, avg_latency_b))`
+         `bar_latency_b = bar(avg_latency_b, max(avg_latency_a, avg_latency_b))`
+
+[render as fenced code block]
+{label_a_padded}  {bar_latency_a}  {avg_latency_a} ms
+{label_b_padded}  {bar_latency_b}  {avg_latency_b} ms
+   Δ {latency_delta_label}
+[end code block]
 
 ---
 
@@ -394,13 +454,37 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 
 ---
 
-[render as fenced code block]
+[render as fenced code block — all lines exactly 64 chars wide]
 ╔══════════════════════════════════════════════════════════════╗
 ║  {verdict_emoji}  {verdict}  —  decided by {decided_by}      ║
-║                                                              ║
-║  {recommendation_sentence}                                   ║
+╠══════════════════════════════════════════════════════════════╣
+║  {quality_metric_row}                                        ║
+║  {token_metric_row}                                          ║
+║  {latency_metric_row}                                        ║
+╠══════════════════════════════════════════════════════════════╣
+║  {recommendation_sentence_line1}                             ║
+[║  {recommendation_sentence_line2}  — only if sentence wraps  ║]
 ╚══════════════════════════════════════════════════════════════╝
 [end code block]
+
+Metric row rules (each row right-padded to fill column 62, then `║`):
+
+**Quality row:**
+- decided_by == "quality" AND winner == B → `Quality:  {label_b} leads {n_criteria_b}/7 criteria  ·  {win_rate_b_pct:.0f}% test wins  ←`
+- decided_by == "quality" AND winner == A → `Quality:  {label_a} leads {n_criteria_a}/7 criteria  ·  {win_rate_a_pct:.0f}% test wins  ←`
+- otherwise → `Quality:  tied (spread within 15% threshold)`
+
+**Token row:**
+- decided_by contains "tokens" → `Tokens:   {token_delta_label}  ←`
+- NEUTRAL AND |token_delta_pct| < 10 → `Tokens:   {token_delta_label}  (within noise)`
+- otherwise → `Tokens:   {token_delta_label}`
+
+**Latency row:**
+- decided_by contains "time" → `Latency:  {latency_delta_label}  ←`
+- NEUTRAL AND |latency_delta_pct| < 15 → `Latency:  {latency_delta_label}  (within noise)`
+- otherwise → `Latency:  {latency_delta_label}`
+
+**Recommendation wrapping:** if recommendation_sentence > 60 chars, split at last space before char 60 and emit the remainder as a second `║` row at the same 2-space indent.
 ```
 
 **Formatting rules:**
@@ -408,7 +492,8 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 - Token delta: `+X%` if B > A (A leaner), `-X%` if B < A (B leaner); label `· A leaner` or `· B leaner`.
 - Latency delta: `+X%` if B > A (A faster), `-X%` if B < A (B faster); label `· A faster` or `· B faster`.
 - Pad bar chart rows so columns align (counts right-aligned in their field).
-- Verdict box: pad recommendation sentence with trailing spaces to fill to box width (64 chars). If sentence overflows, wrap to a second `║` line.
+- Token/time bar charts: normalize to `max(a, b)` so the larger value fills the full bar. Pad labels to equal width so bar columns align.
+- Verdict box: 3 sections separated by `╠═══╣` dividers — (1) verdict header, (2) quality/token/latency metric rows with `←` on the deciding dimension, (3) recommendation. Wrap recommendation at last space before char 60 if > 60 chars; emit remainder as second `║` row.
 - Winner emoji column in per-test table: use `⚖️` for TIE (note: emoji width varies — use a single space after for alignment).
 
 ---
