@@ -1,0 +1,38 @@
+{
+  "fixture": "over-engineered.ts",
+  "description": "TypeScript code with premature abstractions and unused parameters",
+  "categories_present": ["minimal-change"],
+  "issues": [
+    {
+      "id": "OVER-1",
+      "line": 7,
+      "category": "minimal-change",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Premature abstraction — generic factory with HandlerConfig for a single use case",
+      "expected_fix": "inline the logic or simplify to a plain function"
+    },
+    {
+      "id": "UNUSED-1",
+      "line": 27,
+      "category": "minimal-change",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Parameter 'options' is declared but never used in the function body",
+      "expected_fix": "remove unused parameter or use it"
+    },
+    {
+      "id": "OVER-2",
+      "line": 34,
+      "category": "minimal-change",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Strategy pattern for only 2 cases — a simple if/else would suffice",
+      "expected_fix": "replace with if/else or ternary"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 2: clamp() is a simple utility — appropriate abstraction level"
+  ]
+}

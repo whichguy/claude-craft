@@ -1,0 +1,38 @@
+{
+  "fixture": "react-hooks.tsx",
+  "description": "React components with hooks dependency issues and stale closures",
+  "categories_present": ["react"],
+  "issues": [
+    {
+      "id": "HOOK-1",
+      "line": 23,
+      "category": "react",
+      "severity": "Critical",
+      "question": "Q6",
+      "description": "useEffect depends on userId but it is missing from dependency array",
+      "expected_fix": "add userId to dependency array"
+    },
+    {
+      "id": "HOOK-2",
+      "line": 37,
+      "category": "react",
+      "severity": "Critical",
+      "question": "Q6",
+      "description": "Stale closure — count captured at initial render, setTimeout always uses 0",
+      "expected_fix": "use functional updater setCount(c => c + 1) or add count to deps"
+    },
+    {
+      "id": "HOOK-3",
+      "line": 50,
+      "category": "react",
+      "severity": "Critical",
+      "question": "Q6",
+      "description": "Object literal filters creates new reference each render causing infinite loop",
+      "expected_fix": "useMemo filters or destructure primitive values into deps"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 10: useWindowWidth has correct empty deps — event listener is stable"
+  ]
+}

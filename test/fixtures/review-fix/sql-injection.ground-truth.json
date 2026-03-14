@@ -1,0 +1,29 @@
+{
+  "fixture": "sql-injection.js",
+  "description": "Express route with SQL injection and missing error handling",
+  "categories_present": ["security", "error-handling"],
+  "issues": [
+    {
+      "id": "SQL-INJ-1",
+      "line": 13,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "String concatenation in SQL query with user input",
+      "expected_fix": "parameterized query"
+    },
+    {
+      "id": "ERR-1",
+      "line": 28,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q3",
+      "description": "Database error swallowed silently — no logging or propagation",
+      "expected_fix": "propagate or log error"
+    }
+  ],
+  "total_issues": 2,
+  "false_positive_traps": [
+    "Line 7: template literal for TABLE_NAME — not vulnerable (no user input)"
+  ]
+}

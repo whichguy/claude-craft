@@ -1,0 +1,38 @@
+{
+  "fixture": "async-errors.ts",
+  "description": "Async/await code with unhandled promises and lost error context",
+  "categories_present": ["error-handling", "async"],
+  "issues": [
+    {
+      "id": "ASYNC-1",
+      "line": 20,
+      "category": "async",
+      "severity": "Critical",
+      "question": "Q3",
+      "description": "Floating promise — loadConfigSafe() called without await or .catch()",
+      "expected_fix": "await the promise or attach .catch() handler"
+    },
+    {
+      "id": "ASYNC-2",
+      "line": 31,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q3",
+      "description": "Original error discarded — new Error loses stack trace and cause",
+      "expected_fix": "use { cause: err } or wrap original error"
+    },
+    {
+      "id": "ASYNC-3",
+      "line": 37,
+      "category": "async",
+      "severity": "Advisory",
+      "question": "Q7",
+      "description": "Promise.all fails fast — one null from loadConfigSafe causes type error downstream",
+      "expected_fix": "use Promise.allSettled or filter nulls"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 9: loadConfigSafe has proper try/catch returning null — correct error handling"
+  ]
+}
