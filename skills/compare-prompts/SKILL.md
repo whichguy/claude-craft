@@ -118,15 +118,43 @@ Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
 
 ---
 
-## Step 3 — Collect Results & Timing
+## Step 3 — Collect Results, File-Artifact Resolution & Timing
 
 Poll all 2×N tasks until complete. Use TaskGet or await completion notifications. Wrap each TaskGet call in try/catch — if a poll throws, treat that task as failed and proceed to error handling below.
 
-For each completed task, record:
-- **output**: result text
+For each completed task, collect the raw output text then apply **file-artifact resolution**:
+
+```
+raw_output = task result text
+
+// Pattern 1: file-output-executor format — "COMPLETE: /path/to/file BYTES SECONDS"
+IF raw_output matches /^COMPLETE:\s+(\/\S+)/m:
+    file_path = captured group 1
+    TRY: output = Read(file_path)   // full file contents
+    CATCH: log "file-artifact read failed: <file_path>" — output = raw_output
+
+// Pattern 2: agent wrote file and said so — "Output written to /path/to/file" (or "output written to:")
+ELIF raw_output matches /[Oo]utput written to[:\s]+(\/\S+)/m:
+    file_path = captured group 1
+    TRY: output = Read(file_path)
+    CATCH: output = raw_output
+
+// Pattern 3: bare file path — entire output (trimmed) is a single path starting with /
+ELIF strip(raw_output) matches /^\/\S+$/:
+    file_path = strip(raw_output)
+    TRY: output = Read(file_path)
+    CATCH: output = raw_output   // might be a path-like string, not an actual file
+
+// No artifact detected
+ELSE:
+    output = raw_output
+```
+
+After resolution, record per task:
+- **output**: resolved content (file contents if artifact detected, else raw output)
 - **latency_ms**: `end_time_ms - start_time_ms` (wall-clock from spawn to completion detection)
 - **input_tokens_est**: `Math.floor((prompt_len + input_len) / 4)` (char/4 approximation — labeled "est." in report)
-- **output_tokens_est**: `Math.floor(output_len / 4)`
+- **output_tokens_est**: `Math.floor(len(output) / 4)` (re-computed after resolution)
 - **total_tokens_est**: `input_tokens_est + output_tokens_est`
 
 **NOTE on timing**: latency_ms reflects polling-detected wall-clock time. For short tasks, polling interval overhead may exceed model compute time — treat as indicative, not precise.
@@ -158,15 +186,18 @@ For each input file i, spawn agent `compare-prompts-judge` with prompt:
 </OUTPUT_B>
 
 Output only valid JSON on a single line — no preamble, no markdown fences:
-{"winner": "A" | "B" | "TIE", "reasoning": "<1-2 sentences>"}
+{"scores":{"task_adherence":"?","factual_accuracy":"?","completeness":"?","instruction_following":"?","structural_clarity":"?","precision":"?","conciseness":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
 ```
 
 Use `judge_model` (default claude-sonnet-4-6) as model parameter.
 
-**Judge output**: JSON only — `{"winner": "A" | "B" | "TIE", "reasoning": "<1-2 sentences>"}`
+**Judge output**: JSON with 3 keys: `scores` (7-key object), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
 
-**Error handling**: If a judge task fails or returns malformed JSON → count as TIE.
-Note in Per-Test Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
+**Error handling**: If a judge task fails or returns malformed JSON:
+- TRY to parse `result.scores` (7 keys) and `result.winner`
+- If `scores` key is missing but `winner` is present → use `winner` only, skip criterion tallies for this case (count as TIE per criterion)
+- If both missing → count overall winner as TIE
+- Note in Per-Test Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
 
 ---
 
@@ -174,13 +205,30 @@ Note in Per-Test Breakdown: `"judge error — counted as TIE"`. Use try/catch on
 
 Compute per dimension:
 
-**Quality:**
+**Quality — per-test winners:**
 ```
 count_a = count(winner == "A")
 count_b = count(winner == "B")
 count_tie = count(winner == "TIE")
 win_rate_a = count_a / N
 win_rate_b = count_b / N
+win_rate_tie = count_tie / N
+```
+
+**Quality — per-criterion tallies** (across all N test cases):
+```
+criterion_keys = ["task_adherence","factual_accuracy","completeness","instruction_following","structural_clarity","precision","conciseness"]
+
+criterion_tallies = {}
+FOR key IN criterion_keys:
+    criterion_tallies[key] = {a: 0, b: 0, tie: 0}
+
+FOR each judge result WITH valid scores object:
+    FOR key IN criterion_keys:
+        score = result.scores[key]   // "A", "B", or "TIE"
+        IF score == "A": criterion_tallies[key].a += 1
+        ELIF score == "B": criterion_tallies[key].b += 1
+        ELSE: criterion_tallies[key].tie += 1
 ```
 
 **Tokens** (averages across successful runs only):
@@ -223,6 +271,13 @@ ELSE:
     decided_by = "all dimensions within noise thresholds"
 ```
 
+**Verdict label mapping:**
+```
+overall_winner == "A"       → verdict = "REGRESSED"
+overall_winner == "B"       → verdict = "IMPROVED"
+overall_winner == "NEUTRAL" → verdict = "NEUTRAL"
+```
+
 ---
 
 ## Step 6 — Report
@@ -236,18 +291,32 @@ Prompt A (baseline): {label_a} — {prompt_a_path}
 Prompt B (candidate): {label_b} — {prompt_b_path}
 Inputs: {inputs_dir} ({N} test cases)
 
-### Quality  (pairwise judge)
-| Winner | Count | Win Rate |
-|--------|-------|----------|
-| A      | {count_a} | {win_rate_a_pct}% |
-| B      | {count_b} | {win_rate_b_pct}% |
-| TIE    | {count_tie} | {win_rate_tie_pct}% |
+### Quality  (1st — 7-criterion pairwise judge)
 
-### Efficiency  (estimated)
-| Metric               | A          | B          | Delta   |
-|----------------------|------------|------------|---------|
-| Avg tokens (est.)    | ~{avg_tokens_a} | ~{avg_tokens_b} | {token_delta_pct}% |
-| Avg latency (ms)     | {avg_latency_a}ms | {avg_latency_b}ms | {latency_delta_pct}% |
+| Criterion             | A Wins | B Wins | TIE |
+|-----------------------|--------|--------|-----|
+| Task Adherence        | {criterion_tallies.task_adherence.a} | {criterion_tallies.task_adherence.b} | {criterion_tallies.task_adherence.tie} |
+| Factual Accuracy      | {criterion_tallies.factual_accuracy.a} | {criterion_tallies.factual_accuracy.b} | {criterion_tallies.factual_accuracy.tie} |
+| Completeness          | {criterion_tallies.completeness.a} | {criterion_tallies.completeness.b} | {criterion_tallies.completeness.tie} |
+| Instruction Following | {criterion_tallies.instruction_following.a} | {criterion_tallies.instruction_following.b} | {criterion_tallies.instruction_following.tie} |
+| Structural Clarity    | {criterion_tallies.structural_clarity.a} | {criterion_tallies.structural_clarity.b} | {criterion_tallies.structural_clarity.tie} |
+| Precision             | {criterion_tallies.precision.a} | {criterion_tallies.precision.b} | {criterion_tallies.precision.tie} |
+| Conciseness           | {criterion_tallies.conciseness.a} | {criterion_tallies.conciseness.b} | {criterion_tallies.conciseness.tie} |
+| **Total (all cases)** | **{Σ A across all criteria}** | **{Σ B across all criteria}** | **{Σ TIE across all criteria}** |
+
+Test-case win rate: A={win_rate_a_pct}% | B={win_rate_b_pct}% | TIE={win_rate_tie_pct}%
+
+### Token Count  (2nd — estimated, quality-tied only)
+
+| Metric            | A               | B               | Delta                |
+|-------------------|-----------------|-----------------|----------------------|
+| Avg tokens (est.) | ~{avg_tokens_a} | ~{avg_tokens_b} | {token_delta_pct}%   |
+
+### Time  (3rd — quality+token-tied only)
+
+| Metric           | A                  | B                  | Delta                  |
+|------------------|--------------------|--------------------|------------------------|
+| Avg latency (ms) | {avg_latency_a}ms  | {avg_latency_b}ms  | {latency_delta_pct}%   |
 
 ### Per-Test Breakdown
 | File       | Winner | Reasoning                         |
@@ -256,7 +325,7 @@ Inputs: {inputs_dir} ({N} test cases)
 ...
 
 ### Verdict
-[**A WINS** / **B WINS** / **NEUTRAL**] — decided by [{decided_by}]
+[**IMPROVED** / **REGRESSED** / **NEUTRAL**] — decided by [{decided_by}]
 [One sentence recommendation based on the outcome]
 ```
 
