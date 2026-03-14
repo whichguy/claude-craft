@@ -109,8 +109,8 @@ Capture as `git_history` — passed to research agent for project context.
 
 **Interrupt recovery check** (if IDEAS_FILE exists):
 - Read IDEAS_FILE content
-- If `## Implemented Directions` section present but `**Verdict:` line absent → prior run interrupted mid-flight: save current prompt as `$IMPROVE_TMPDIR/baseline-iter-1.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5. Print: "Resuming interrupted run — research already complete, re-generating experiment variants."
-- If `**Verdict:` line already present → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
+- If `## Implemented Directions` section present but `**Verdict:` line absent → prior run interrupted mid-flight: detect the current iteration number by counting the number of `## Experiment Results` sections in IDEAS_FILE (each completed iteration appends one; the interrupted iteration has none yet), set `i = completed_count + 1`, save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5. Print: "Resuming interrupted run (iteration {i}) — research already complete, re-generating experiment variants."
+- Else if IDEAS_FILE has a `## Experiment Results` section whose most recent occurrence contains a `**Verdict:` line → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
 - Otherwise → prior run complete; read as prior context and proceed fresh (append new sections with separator `---\n*Date: {today}*`)
 
 ---
