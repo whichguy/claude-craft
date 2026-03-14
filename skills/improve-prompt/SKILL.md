@@ -73,7 +73,8 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 - Abort if no prompt source: `"ERROR: --prompt <file> or --prompt-text '<text>' is required"`
 - Abort if no inputs: `"ERROR: --inputs <dir> is required (or provide defaults.inputs in frontmatter)"`
 - Abort if inputs_dir does not exist: `"ERROR: inputs dir does not exist: <dir>"`
-- Abort if iterations < 1 or experiments < 1 or experiments > 4
+- Abort if iterations < 1: `"ERROR: --iterations must be >= 1"`
+- Abort if experiments < 1 or experiments > 4: `"ERROR: --experiments must be between 1 and 4"`
 - On any early abort: trap covers cleanup, but print clear error before exiting
 
 **Derive paths:**
@@ -104,8 +105,8 @@ Capture as `git_history` — passed to research agent for project context.
 
 **Interrupt recovery check** (if IDEAS_FILE exists):
 - Read IDEAS_FILE content
-- If `## Implemented Direction` section present but `## Verdict` absent → prior run interrupted mid-flight: skip to Step 4 using existing IDEAS_FILE content. Print: "Resuming interrupted run — research already complete, jumping to evaluation."
-- If `## Verdict` already present → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
+- If `## Implemented Directions` section present but `**Verdict:` line absent → prior run interrupted mid-flight: skip to Step 4 using existing IDEAS_FILE content. Print: "Resuming interrupted run — research already complete, jumping to evaluation."
+- If `**Verdict:` line already present → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
 - Otherwise → prior run complete; read as prior context and proceed fresh (append new sections with separator `---\n*Date: {today}*`)
 
 ---
@@ -272,6 +273,8 @@ Output only: "IDEAS_WRITTEN: {ideas_file}" on a single line after writing.
 
 Before writing the improved prompt, evaluate the plan. Loop up to **2 retries** (max 3 total research passes) if the plan fails.
 
+Initialize `research_pass_count = 1` (incremented each time Step 2 runs; already at 1 after the first research pass).
+
 **Spawn a general-purpose agent:**
 
 ```
@@ -296,7 +299,7 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 
 **Decision:**
 - All 6 PASS → proceed to Step 3
-- ≥2 FAIL → re-run Step 2 with failed gate list injected into `<gap_analysis>`. After 3 total research passes, proceed regardless.
+- ≥2 FAIL AND `research_pass_count < 3` → increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, proceed to Step 3 regardless.
 - 1 FAIL → proceed to Step 3 (single failure is advisory)
 
 ---
@@ -309,7 +312,7 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 - E=3: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Options A+B combined
 - E=4: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Option C; Exp-4 = top 3 combined
 
-**Spawn all E write-agents in a single parallel message** (run_in_background: true).
+**Spawn all E write-agents in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
 
 Each write-agent task prompt:
 ```
@@ -364,7 +367,7 @@ ELSE:
 
 Record `start_time_ms` per task before spawning.
 
-**Spawn all (1 + E) × M runs in a single parallel message** (run_in_background: true):
+**Spawn all (1 + E) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
 - `run-A-{filename}`: baseline prompt + each input (M tasks)
 - `run-E{k}-{filename}`: experiment-k prompt + each input (E × M tasks)
 
@@ -377,7 +380,7 @@ For each completed task, record:
 
 **Error handling**: If a task fails → skip its judge for that input. Note: "(run error — no judge)"
 
-**Spawn all E × M judge tasks in a single parallel message** (run_in_background: true).
+**Spawn all E × M judge tasks in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
 
 For each experiment k and each input j where both baseline and exp-k runs succeeded:
 
