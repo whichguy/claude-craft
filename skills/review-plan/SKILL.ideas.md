@@ -165,3 +165,155 @@ Decided by: quality
 
 **Actionable learning:**
 Algorithmic specificity beats prose instruction for any judgment call that occurs every pass — deduplication and regression recovery were the two highest-leverage targets. For future iterations, always prefer a named, numbered procedure with an inline example over a single-sentence instruction for multi-criterion decisions. Role-boundary blocks should be kept to 3 lines maximum or merged into existing constraint prose to avoid conciseness penalties.
+
+### 2026-03-13 — Iteration 2 → REGRESSED
+
+**Experiments:** 1 parallel — Exp-1 (E+F+G+H combined)
+**Verdict:** REGRESSED (decided by: quality, -25.1% spread)
+
+**What worked:**
+- Nothing — all four options contributed to regression. Q-FX4 (conciseness) won 2/3 tests for B, confirming the options made outputs more concise, but at the cost of thoroughness.
+
+**What didn't work:**
+- Option E (EDIT-ORDERING PROTOCOL): CONTRIBUTED_TO_LOSS — adds administrative protocol that was never activated in any test plan, signaling to the model that edit classification matters more than finding real issues. Confidence: moderate (only indirect evidence; the protocol itself is logically sound for multi-evaluator conflicts but is overhead in single-evaluator tests).
+- Option F (Gate2_stable rename): NEUTRAL — pure cosmetic rename with zero behavioral impact. Not a quality driver in either direction.
+- Option G (opportunistic memo recovery): CONTRIBUTED_TO_LOSS — adds complex IF/ELSE recovery logic for partial compression, a low-frequency failure mode that never triggered in 3 test plans. May increase model focus on state management over review quality.
+- Option H (Notation block): NEUTRAL — 5-line declarative lexicon. Not a quality driver; adds minor overhead.
+
+**Actionable learning:**
+Do NOT add protocol overhead (edit-ordering, recovery triggers) for failure modes that don't manifest in the primary test set. When a prompt already performs well (iteration 1: +55.6%), further additions that address edge cases will likely regress normal-case quality. If edge-case fixes are needed, test them against plans that TRIGGER those edge cases (multi-evaluator conflicts for E; 3+ pass reviews for G), not against simple single-pass plans.
+
+---
+*Date: 2026-03-13 — Iteration 2*
+
+## Structural Diagnostic (Q1-Q10) — Iteration 2
+
+Q1 — Role/Persona: The Role & Authority block added in Iteration 1 is present and functional. One remaining gap: the block does not address what the team-lead should do when two evaluators provide conflicting EDIT instructions for the same plan passage. The role-boundary constraint covers independent re-evaluation, but conflict resolution authority between competing evaluator edits is unspecified. The team-lead may freelance here without explicit guidance.
+
+Q2 — Task Precision: The deduplication algorithm (Option B, Iter 1) is solid. A new precision gap: the APPLY edits step lists "for each [EDIT: ...] instruction in any evaluator message" with no ordering constraint. When two evaluators propose conflicting edits to the same passage (e.g., node-evaluator adds rollback around a block that operations-evaluator wants to restructure), the application order is undefined. The resulting plan state varies depending on which edit the team-lead chooses to apply first — a non-determinism that can produce different convergence trajectories from identical evaluator outputs.
+
+Q3 — Context Adequacy: The memo_file recovery trigger is narrow: `memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0`. If context compression preserves pass_count (e.g., as 2) but clears the memoized sets, this condition won't fire — the team-lead will restart as if fresh. A broader recovery condition that checks for memo_file existence regardless of pass_count would catch partial compression scenarios. This gap is low-frequency but would cause unnecessary extra passes for long reviews.
+
+Q4 — Output Format: The remaining-issues summary (step 7 of After Review Completes) still has no max-length constraint on the "one-sentence summary of finding" fields. For plans with verbose evaluator findings (like the groovy-jingling-pearl TypeScript plan), these summaries can be 80+ words. No line-length ceiling is specified anywhere in the scorecard or summary sections.
+
+Q5 — Examples: The full end-to-end scorecard example for a converged non-GAS plan is still absent. The conditional rendering rules for "Triaged N/A" and "Gate 3 — Advisory" sections have no concrete filled-in example — a model first encountering these sections in a plan where N/A count is 0 (Triaged N/A omitted entirely) or Gate 3 has no findings may format inconsistently.
+
+Q6 — Constraints: Edit-ordering conflict resolution is still missing as an explicit constraint. When evaluators A and B both propose EDIT instructions targeting the same passage, the current prompt provides no rule for which to apply first or how to handle logical contradictions between them.
+
+Q7 — Anti-patterns: Step 0 is still overloaded (~200 lines, 6 sub-tasks). The IS_TRIVIAL fast path is embedded mid-Step-0, creating conditional branching before tracking state is initialized. The convergence loop is a single 650-line block with no sub-section headings — navigation during context recovery is by line scanning rather than named section lookup.
+
+Q8 — Chain-of-thought: Edit-ordering conflict remains an unguided judgment call. The APPLY step would benefit from a 3-type classification (structural edits → additive edits → annotation edits) and a rule that structural edits are applied before additive ones — preventing the case where an additive edit references a passage that a structural edit subsequently removes.
+
+Q9 — Domain specifics: The variable `Gate2_stable` is named misleadingly — it actually tracks whether the full `needs_update_set` (across all gates) is stable, not just Gate 2 questions. This naming confusion is a comprehension risk: a model reading the convergence check logic may interpret "Gate2_stable" as tracking only Gate 2 questions and apply the wrong semantics. A rename to `full_set_stable` or an inline clarifying comment would prevent misreading.
+
+Q10 — Tone/register: Three different interpolation syntaxes coexist: `[variable]` (scorecard template, convergence loop), `{variable}` (evaluator prompts, f-string style), and `<variable>` (evaluator spawn prompts). A single canonical notation declared at the prompt header (or a brief lexicon block) would eliminate ambiguity about which tokens are literal vs substituted values. This is particularly relevant in long-context scenarios where the model may lose track of the current syntax convention.
+
+## Domain & Research Findings — Iteration 2
+
+Domain: Orchestrator prompt engineering for multi-agent iterative review with structured state persistence, convergence detection, and gated quality control. Sub-task: edit conflict resolution ordering, notation standardization for 1200-line prompts.
+
+**Finding 1 — Edit conflict resolution via transaction ordering (arxiv multi-agent LLM, 2025):** In multi-agent systems where multiple agents propose updates to a shared artifact, deterministic conflict resolution requires classifying edits by type before applying them. Structural edits (those that change the document's section structure or step ordering) must be applied before additive edits (those that insert new content into existing sections) to prevent an additive edit referencing a passage that a structural edit later removes. This "type-first" ordering prevents a class of state divergence errors specific to sequential edit application. Direct applicability to the APPLY step in SKILL.md.
+
+**Finding 2 — Notation consistency is a prerequisite for reliable prompt parsing in long contexts (UiPath best practices, 2025; PromptHub 2025):** Production agentic systems use a single interpolation notation throughout all prompt sections, with a brief lexicon declared at the top. Mixed notation (`[var]`, `{var}`, `<var>`) in the same document increases the probability of the model treating a literal bracket as a substitution token or vice versa — especially after context compression removes the section that established the convention. Standardizing to one notation across SKILL.md's ~1200 lines would reduce this risk.
+
+**Finding 3 — Partial state recovery requires opportunistic memo-file reads (IBM LLM orchestration, 2025):** Long-running orchestrator prompts should attempt memo-file recovery whenever any state variable appears inconsistent with the current pass_count — not only when all state is blank. The "opportunistic recovery" pattern checks for memo-file existence at the top of every loop iteration and uses it to fill any missing or zero-valued state variable, rather than requiring a full blank-state condition. This catches partial compression scenarios (e.g., pass_count preserved but memoized sets cleared) that the current narrow trigger misses.
+
+## Test-Run Observations — Iteration 2
+
+**Plan 1: melodic-discovering-fog.md (review-fix untracked file bug fix)**
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=false. Small plan (64 lines). Standard mode: git, impact, testing, security, operations clusters. The plan has a "Before/After" code block — self-referential protection handles correctly. Key observation: the Post-Implementation Workflow and Git Steps sections are concatenated without whitespace on lines 56-63, so Q-G9c (scannability) would NEEDS_UPDATE in the post-convergence Q-G9 pass. No edit-ordering conflicts expected — only 1-2 edits total. Clean convergence case with no conflict gap exposure.
+
+**Plan 2: groovy-jingling-pearl.md (Node.js push preview feature — IS_NODE plan)**
+IS_GAS=false, IS_NODE=true, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=true. Large plan with TypeScript code blocks across Phase 1 and Phase 2. Key observation: this is precisely the plan type where edit-ordering conflict manifests. The node-evaluator might flag "add error handling around `updateProjectFiles`" (a structural change to Phase 1) while the operations cluster evaluator flags "add rollback step after `updateProjectFiles` fails" (an additive change to the same Phase 1 section). If the additive edit is applied first and references the original passage, then the structural edit changes that passage, the result is inconsistent plan text. The current APPLY step has no ordering rule for this. The `Gate2_stable` naming confusion is also relevant here: with IS_NODE=true + HAS_STATE=true + HAS_DEPLOYMENT=true, the needs_update_set can include questions from 5+ clusters — the misleading variable name `Gate2_stable` tracking the full set is more likely to be misread in this high-complexity configuration.
+
+**Plan 3: humble-watching-pike.md (improve-prompt bug fixes)**
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=false. Medium plan (113 lines), 8 ordered bug fixes. Key observation: this plan is long enough that a 3-pass review could trigger partial context compression on slower hardware. The narrow recovery trigger (all state blank AND pass_count==0) would miss a scenario where pass_count=2 is retained but memoized_l1_questions is cleared — the team-lead would re-run passes 1-2 as if fresh. The memo_file contains correct state; the trigger just doesn't consult it. The Bugs Found section uses long prose descriptions (6-8 lines each) — the remaining-issues summary's "one-sentence summary" for findings in this plan could easily run to 60+ words without a length constraint.
+
+**Cross-plan observation:** The edit-ordering gap (Q2/Q8) is the highest-frequency remaining gap for IS_NODE and multi-cluster plans. The `Gate2_stable` naming confusion (Q9) is a low-frequency but high-severity comprehension risk in complex configurations. The notation inconsistency (Q10) is cosmetic but adds parsing overhead in long-context scenarios. The partial recovery trigger (Q3) is a resilience gap for medium-to-large plans.
+
+## Improvement Options — Iteration 2
+
+### Option E: Edit-Ordering Protocol by Edit Type
+**Addresses:** Q2 — Task precision / Q8 — Chain-of-thought
+**What changes:** Before the "APPLY edits" instruction in the convergence loop, add a 4-step edit-ordering protocol: (1) Classify each EDIT instruction from all evaluators as one of three types: STRUCTURAL (changes section structure, step ordering, or step removal/replacement), ADDITIVE (inserts new content into an existing section without restructuring it), or ANNOTATION (adds a comment, marker, or label). (2) Within each type, order by gate priority: Gate 1 edits before Gate 2 before Gate 3. (3) Apply ALL structural edits first (in gate-priority order), then ALL additive edits, then ALL annotation edits. (4) If two structural edits from different evaluators target the same passage with contradictory instructions: apply the more-specific evaluator's version (same precedence table as deduplication: gas > cluster, node > cluster, ui > cluster) and print "  ⚠️ Conflict: [eval-A] and [eval-B] both edit [passage] — keeping [eval-winner]'s version." Add a one-line example: "node-evaluator adds error handling (STRUCTURAL) + operations-evaluator adds rollback note (ADDITIVE) → apply structural first, then additive into the post-structural passage."
+**Why it helps:** Research Finding 1 (transaction ordering for multi-agent edit conflicts) directly supports this. Test-run observation on groovy-jingling-pearl identified a real-world configuration where structural and additive edits to the same Phase 1 block would arrive from different evaluators. Applying additive before structural is the primary failure mode — it produces plan text that references a passage that the structural edit later changes, creating an inconsistent final state that triggers a NEEDS_UPDATE in the next pass (oscillation). The classification schema is minimal (3 types) and the precedence table reuses existing dedup logic — no new concepts introduced.
+**Predicted impact:** HIGH — Edit-ordering conflicts are highest-frequency on complex IS_NODE + multi-cluster plans (the most common production case). Preventing one oscillation pass saves 30-90 seconds and reduces false-NEEDS_UPDATE findings.
+**Conciseness impact:** ADDS_VERBOSITY — adds ~12 lines to an already-long APPLY section. Justified by the algorithmic payoff (same pattern as Option B which was the primary Iter 1 driver).
+
+### Option F: Gate2_stable Rename with Inline Comment
+**Addresses:** Q9 — Domain specifics (misleading variable name) / Q7 — Anti-patterns (comprehension risk)
+**What changes:** Rename `Gate2_stable` to `full_set_stable` in all 4 occurrences (definition line, CONVERGENCE CHECK condition, and 2 printed format strings where it's referenced). Add a one-line comment at the definition: `# full_set_stable: true when the FULL needs_update_set (all gates) is unchanged from prior pass — not just Gate 2`. This is a pure rename + comment — no behavioral change.
+**Why it helps:** The current name implies it tracks only Gate 2 question stability, but it tracks the full needs_update_set (across all gates). In a complex IS_NODE + HAS_STATE + HAS_DEPLOYMENT configuration with 5+ active clusters (like groovy-jingling-pearl), this confusion could cause the team-lead to misread the convergence condition and exit early (if it believes "Gate2_stable=true means Gate 2 is stable, so Gate 1 issues don't block it") or loop unnecessarily (if it over-applies Gate 2 semantics to all questions). Renaming is the minimal, zero-overhead fix for a comprehension trap that affects every convergence check.
+**Predicted impact:** MEDIUM — Affects every convergence check, but the failure mode (misreading the convergence condition) is low-frequency. The rename has zero token cost; the comment adds 1 line.
+**Conciseness impact:** NEUTRAL — 4 renames + 1 comment line; no prose addition.
+
+### Option G: Opportunistic Memo-File Recovery Trigger
+**Addresses:** Q3 — Context adequacy (partial state compression)
+**What changes:** Replace the current narrow recovery condition:
+  `IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):`
+with a broader opportunistic check:
+  `IF memo_file exists AND pass_count == 0:`
+  `  Read memo_file → restore ALL fields (same field list as current)`
+  `  _recovered_this_pass = true`
+  `  Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"`
+  `ELSE IF memo_file exists AND (memoized_clusters is empty OR memoized_l1_questions is empty):`
+  `  Read memo_file → merge missing fields only (do not overwrite fields that are non-empty)`
+  `  Print: "⚠️ Partial recovery: filled missing state from checkpoint"`
+The second branch catches partial compression (pass_count retained but sets cleared). The "merge missing fields only" prevents the recovery from overwriting valid in-context state with stale memo data.
+**Why it helps:** Research Finding 3 (opportunistic memo recovery pattern) and test-run observation on humble-watching-pike both identify partial compression as a real failure mode for medium plans at pass 2-3. The current trigger only fires on full blank state — missing the scenario where pass_count is correct but memoized sets are empty. The fix adds one additional `ELSE IF` branch with the same recovery logic — minimal code, significant resilience gain for multi-pass reviews.
+**Predicted impact:** MEDIUM — Prevents one class of unnecessary re-review for plans requiring 3+ passes. Low-frequency failure but adds resilience without overhead.
+**Conciseness impact:** ADDS_VERBOSITY — adds ~6 lines to the already-dense recovery block. Low overhead given the targeted improvement.
+
+### Option H: Notation Lexicon at Prompt Header
+**Addresses:** Q10 — Tone/register (mixed interpolation syntax)
+**What changes:** Add a 5-line "Notation" block immediately after the Role & Authority block (before the main title), defining the three token types used throughout the prompt: `<variable>` = team-lead substitutes this value before spawning evaluator (used in evaluator prompt templates); `[value]` = printed output substitution (used in Print: instructions and scorecard template); `{variable}` = pseudocode variable reference (used in convergence loop logic). Keep the existing usage throughout the prompt unchanged — this block is purely declarative, not a refactor.
+**Why it helps:** Research Finding 2 (UiPath/PromptHub 2025) identifies mixed notation as a parsing overhead risk in long-context scenarios. In SKILL.md's ~1200 lines, all three syntaxes are present and a model mid-context (e.g., after compression) may lose track of which tokens are literals vs substitutions. A 5-line lexicon at the header is the minimal fix — it makes the convention explicit without requiring any refactoring of the existing content. The lexicon also prevents a specific failure mode: evaluator prompts using `<plan_path>` where the team-lead forgets to substitute before spawning (treating `<plan_path>` as a literal string rather than a substitution token).
+**Predicted impact:** LOW — Parsing overhead from mixed notation is a background risk, not an acute failure mode. The benefit is primarily in long-context and context-recovery scenarios. 5-line addition has negligible token cost.
+**Conciseness impact:** ADDS_VERBOSITY — 5 lines, minimal. Partially offset by the cognitive-load reduction for any agent reading the prompt fresh.
+
+## Evaluation Questions
+*Iteration 2*
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded in the input — no hallucinated question IDs, no fabricated evaluator findings, no invented plan content?
+
+### Dynamic (new gaps for iteration 2)
+- Q-DYN-5: When two evaluators propose edits that affect the same plan passage, does the output apply structural edits before additive edits, and does it correctly resolve contradictions using the evaluator precedence table (gas > cluster, node > cluster, ui > cluster) rather than applying edits in arbitrary order? [addresses: Q2, Q8]
+- Q-DYN-6: Does the convergence check correctly interpret `full_set_stable` (or the renamed equivalent) as tracking stability of the FULL needs_update_set across all gate tiers — not just Gate 2 questions — and does it avoid early convergence in configurations with 5+ active clusters? [addresses: Q9]
+- Q-DYN-7: When partial context compression occurs (pass_count is retained as N > 0 but memoized_clusters or memoized_l1_questions is empty), does the output attempt memo_file recovery to restore missing state rather than restarting from pass 1? [addresses: Q3]
+
+## Experiment Results — Iteration 2
+*Date: 2026-03-13*
+
+### Implemented Directions
+#### Experiment 1: E+F+G+H (edit-ordering, Gate2_stable rename, opportunistic recovery, notation lexicon)
+**Options applied:** E (EDIT-ORDERING PROTOCOL), F (Gate2_stable → full_set_stable rename), G (broader memo recovery), H (Notation block)
+**Applied changes:** 4-step edit-ordering protocol before APPLY; 2-branch recovery trigger; full_set_stable rename with comment; 5-line Notation block
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | E+F+G+H | 4.2% vs 29.3% | -25.1% | ~-20% | ~-14.7% |
+
+### Per-Question Results (A wins / B wins / TIE across 3 tests)
+Q-FX1: 3/0/0  Q-FX2: 3/0/0  Q-FX3: 3/0/0
+Q-FX4: 1/2/0  Q-FX5: 1/0/2
+Q-DYN-5: 0/0/3  Q-DYN-6: 1/0/2  Q-DYN-7: 0/0/3
+
+## Results & Learnings
+
+**What worked:** None — all four options combined produced a net regression. Option H (Notation block) and Option F (rename) are neutral cosmetic changes that add no algorithmic benefit. Option G (recovery) and Option E (edit-ordering) both target failure modes that did not manifest in the 3-plan test set.
+
+**What didn't work:** All four options. The combined additions appear to have increased prompt length and structural complexity in ways that shifted the model's focus toward administrative concerns (notation conventions, edit classification) rather than substantive review quality. The "more concise" B-outputs were LESS thorough — the options traded depth for brevity without the user ever asking for that trade-off.
+
+**Root cause analysis:** The iteration 2 options address failure modes (edit-ordering conflicts, partial context compression, notation ambiguity) that occur at low frequency in normal use — and do NOT occur in any of the 3 test plans. When these protocols are present but inactive, they appear to reduce output quality by: (a) signaling to the model that the prompt is focused on administrative ordering rather than substantive review, and (b) adding complexity that causes the model to skip real NEEDS_UPDATE findings in favor of declaring premature convergence (rubber-stamping). The "faster convergence" seen in B (1 pass vs 2 passes) is NOT a quality improvement — it's a signal that B found fewer issues, which is bad for a review prompt.
+
+**What to try next iteration:** (1) Test options E and G in ISOLATION from each other — E addresses edit conflicts (needs multi-evaluator plans to exercise), G addresses compression (needs long-running reviews to trigger). Combining them with cosmetic changes F and H dilutes the signal. (2) Consider not improving this prompt further if the baseline (iteration 1) already performs well. Iteration 1's Q-FX4 loss (conciseness) from the verbose node-eval N/A listing is the remaining gap — but addressing conciseness risks sacrificing thoroughness.
+
+**Best experiment:** Exp-1 (E+F+G+H) — 4.2% quality score (negative)
+**Verdict: REGRESSED**
+Decided by: quality (-25.1% spread)
