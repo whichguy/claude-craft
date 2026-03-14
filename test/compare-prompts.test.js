@@ -177,6 +177,13 @@ describe('compare-prompts: file-artifact resolution', () => {
     assert.isTrue(readFailed);
   });
 
+  it('keeps original text when file read fails (Output written to format)', () => {
+    const raw = 'Output written to /tmp/nonexistent-cp-test-xyz.txt';
+    const { resolvedOutput, readFailed } = resolveFileArtifact(raw, realReadFile);
+    assert.equal(resolvedOutput, raw);
+    assert.isTrue(readFailed);
+  });
+
   it('returns original text unchanged when no artifact pattern matches', () => {
     const raw = 'This is a normal response with no file reference.';
     const { resolvedOutput, artifactPath } = resolveFileArtifact(raw, realReadFile);

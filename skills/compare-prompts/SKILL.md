@@ -173,6 +173,14 @@ with 10 inputs, 20 raw outputs could bloat the context significantly.
 
 For each input file i, spawn agent `compare-prompts-judge` with prompt:
 ```
+<PROMPT_A>
+{prompt_a_contents}
+</PROMPT_A>
+
+<PROMPT_B>
+{prompt_b_contents}
+</PROMPT_B>
+
 <INPUT>
 {input_file_i_contents}
 </INPUT>
@@ -191,7 +199,7 @@ Output only valid JSON on a single line — no preamble, no markdown fences:
 
 Use `judge_model` (default claude-sonnet-4-6) as model parameter.
 
-**Judge output**: JSON with 3 keys: `scores` (7-key object), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
+**Judge output**: JSON with 3 keys: `scores` (7-key object — each criterion evaluated relative to its own prompt's instructions), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
 
 **Error handling**: If a judge task fails or returns malformed JSON:
 - TRY to parse `result.scores` (7 keys) and `result.winner`
