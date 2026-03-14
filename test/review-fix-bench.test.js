@@ -114,8 +114,11 @@ function matchFindings(findings, groundTruth) {
 describe('Review-Fix Bench: Fixture Validation', function () {
   this.timeout(10000);
 
-  const groundTruthFiles = fs.readdirSync(FIXTURES_DIR)
-    .filter(f => f.endsWith('.ground-truth.json'));
+  let groundTruthFiles = [];
+  if (fs.existsSync(FIXTURES_DIR)) {
+    groundTruthFiles = fs.readdirSync(FIXTURES_DIR)
+      .filter(f => f.endsWith('.ground-truth.json'));
+  }
 
   it('should have at least 6 ground-truth files', function () {
     expect(groundTruthFiles.length).to.be.at.least(6);

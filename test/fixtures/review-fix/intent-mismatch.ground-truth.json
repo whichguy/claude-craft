@@ -1,0 +1,38 @@
+{
+  "fixture": "intent-mismatch.js",
+  "description": "Functions whose names contradict their actual behavior",
+  "categories_present": ["intent"],
+  "issues": [
+    {
+      "id": "INTENT-1",
+      "line": 7,
+      "category": "intent",
+      "severity": "Critical",
+      "question": "Q4",
+      "description": "removeInactive returns inactive users instead of removing them",
+      "expected_fix": "filter for u.active instead of !u.active"
+    },
+    {
+      "id": "INTENT-2",
+      "line": 12,
+      "category": "intent",
+      "severity": "Critical",
+      "question": "Q4",
+      "description": "sumScores computes average instead of sum",
+      "expected_fix": "return total without dividing by length, or rename to averageScores"
+    },
+    {
+      "id": "INTENT-3",
+      "line": 23,
+      "category": "intent",
+      "severity": "Advisory",
+      "question": "Q4",
+      "description": "JSDoc promises string[] but join() returns a single string",
+      "expected_fix": "remove .join() to return array, or fix JSDoc to string"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 2: isEven correctly returns boolean for even check — name matches behavior"
+  ]
+}

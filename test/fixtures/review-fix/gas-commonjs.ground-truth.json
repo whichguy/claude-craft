@@ -1,0 +1,38 @@
+{
+  "fixture": "gas-commonjs.gs",
+  "description": "GAS code with stale references, quota risks, and missing loadNow",
+  "categories_present": ["gas"],
+  "issues": [
+    {
+      "id": "GAS-STALE-1",
+      "line": 5,
+      "category": "gas",
+      "severity": "Critical",
+      "question": "Q8",
+      "description": "Module-level SpreadsheetApp reference becomes stale across function calls",
+      "expected_fix": "move getActiveSpreadsheet() inside function body"
+    },
+    {
+      "id": "GAS-QUOTA-1",
+      "line": 16,
+      "category": "gas",
+      "severity": "Critical",
+      "question": "Q8",
+      "description": "SpreadsheetApp.openById and setValue inside loop — quota exhaustion risk",
+      "expected_fix": "batch reads/writes outside the loop"
+    },
+    {
+      "id": "GAS-LOAD-1",
+      "line": 25,
+      "category": "gas",
+      "severity": "Advisory",
+      "question": "Q8",
+      "description": "onOpen requires menu-builder but module may not be loaded at trigger time",
+      "expected_fix": "add loadNow:true to menu-builder module registration"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 2: require('utils') at module level is correct GAS CommonJS pattern"
+  ]
+}

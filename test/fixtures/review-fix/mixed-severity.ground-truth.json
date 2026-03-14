@@ -1,0 +1,39 @@
+{
+  "fixture": "mixed-severity.js",
+  "description": "Mixed severity issues: prototype pollution, magic numbers, inconsistent returns",
+  "categories_present": ["security", "correctness", "minimal-change"],
+  "issues": [
+    {
+      "id": "MIXED-CRIT-1",
+      "line": 9,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "Prototype pollution — iterating userInput with for..in copies __proto__ and constructor",
+      "expected_fix": "use Object.assign, spread operator, or hasOwnProperty check"
+    },
+    {
+      "id": "MIXED-ADV-1",
+      "line": 18,
+      "category": "minimal-change",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Magic number 42 and discount rates 0.15/0.05 without named constants",
+      "expected_fix": "extract to named constants with descriptive names"
+    },
+    {
+      "id": "MIXED-ADV-2",
+      "line": 26,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "Inconsistent return types — returns number or string 'unknown'",
+      "expected_fix": "return consistent type (null or NaN for invalid)"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 4: crypto.randomBytes is secure random — not weak crypto",
+    "Line 33: formatCount returns consistent string type — ternary is fine"
+  ]
+}

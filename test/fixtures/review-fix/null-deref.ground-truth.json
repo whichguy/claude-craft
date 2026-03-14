@@ -1,0 +1,38 @@
+{
+  "fixture": "null-deref.ts",
+  "description": "TypeScript functions with null access, off-by-one, and boundary issues",
+  "categories_present": ["correctness"],
+  "issues": [
+    {
+      "id": "NULL-1",
+      "line": 15,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Missing null check — user.address is optional but accessed without guard",
+      "expected_fix": "optional chaining or null check"
+    },
+    {
+      "id": "OOB-1",
+      "line": 21,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Off-by-one: loop uses <= items.length causing out-of-bounds access",
+      "expected_fix": "use < items.length"
+    },
+    {
+      "id": "BOUNDARY-1",
+      "line": 28,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "No empty array check — sort and index access will produce NaN for empty input",
+      "expected_fix": "guard against empty array"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 8: getDisplayName has proper null check — not a bug"
+  ]
+}
