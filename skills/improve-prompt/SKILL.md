@@ -57,15 +57,15 @@ Parse all arguments from `<prompt-arguments>`:
 - `--iterations N` → iterations = N (default: 1)
 - `--experiments N` → experiments = N (default: 1; max: 4)
 
-**Prompt-as-code resolution:**
-1. If `--prompt-text "<text>"` → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless --label provided)
-2. If `--prompt <file>` → parse YAML frontmatter (text between leading `---` markers); extract `defaults.*` as fallback values for unset CLI args; strip frontmatter to get raw prompt text
-
-**Create temp dir first (needed for inline mode above):**
+**Create temp dir first (needed for inline mode below):**
 ```bash
 IMPROVE_TMPDIR=$(mktemp -d /tmp/improve-prompt.XXXXXX)
 trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 ```
+
+**Prompt-as-code resolution:**
+1. If `--prompt-text "<text>"` → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless --label provided)
+2. If `--prompt <file>` → parse YAML frontmatter (text between leading `---` markers); extract `defaults.*` as fallback values for unset CLI args; strip frontmatter to get raw prompt text
 
 **Input validation:**
 - Validate `--label` contains only alphanumeric characters, hyphens, and underscores. Abort: `"ERROR: --label must contain only alphanumeric characters, hyphens, and underscores"`
@@ -82,6 +82,10 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 PROMPT_DIR   = dirname(prompt_path)
 PROMPT_BASENAME = basename without extension (or "inline")
 IDEAS_FILE   = PROMPT_DIR/PROMPT_BASENAME.ideas.md
+
+# Inline mode override: prompt_path is inside IMPROVE_TMPDIR — no git repo there
+IF prompt_path starts with $IMPROVE_TMPDIR:
+    IDEAS_FILE = $(pwd)/inline.ideas.md
 ```
 
 **Marker validation rule** (apply after each agent step):
@@ -105,7 +109,7 @@ Capture as `git_history` — passed to research agent for project context.
 
 **Interrupt recovery check** (if IDEAS_FILE exists):
 - Read IDEAS_FILE content
-- If `## Implemented Directions` section present but `**Verdict:` line absent → prior run interrupted mid-flight: skip to Step 4 using existing IDEAS_FILE content. Print: "Resuming interrupted run — research already complete, jumping to evaluation."
+- If `## Implemented Directions` section present but `**Verdict:` line absent → prior run interrupted mid-flight: save current prompt as `$IMPROVE_TMPDIR/baseline-iter-1.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5. Print: "Resuming interrupted run — research already complete, re-generating experiment variants."
 - If `**Verdict:` line already present → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
 - Otherwise → prior run complete; read as prior context and proceed fresh (append new sections with separator `---\n*Date: {today}*`)
 
@@ -125,6 +129,7 @@ investigate its domain, research best practices, and produce a structured improv
 </original_prompt>
 
 <test_inputs_dir>{inputs_dir}</test_inputs_dir>
+<iteration>{i}</iteration>
 
 <prior_context>
 {ideas_file_contents if exists, else "(none — first analysis)"}
@@ -204,7 +209,12 @@ Generate evaluation questions for the quality judge to compare baseline vs impro
   - If Q8 gap (no CoT): "Does the output show transparent step-by-step reasoning?"
   - If Q6 gap (missing constraints): "Does the output stay within the required scope constraints?"
 
-Write all findings to {ideas_file} in this exact format:
+**Write mode:** If `{i}` == 1, write the full document below to {ideas_file} (overwrite if exists).
+If `{i}` > 1, APPEND the new diagnostic sections only to {ideas_file} with a separator:
+`---\n*Date: {today} — Iteration {i}*` — then append only steps 1 and 6–8 sections
+(omit `# Prompt Improvement:` header and `## Original Prompt` which are already in the file from iteration 1).
+
+Write all findings to {ideas_file} in this exact format (full document for iteration 1):
 
 ---
 # Prompt Improvement: {basename}
@@ -462,6 +472,8 @@ verdict = "IMPROVED" if overall_winner == "B" else ("REGRESSED" if overall_winne
 
 If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write winner to prompt file in place).
 
+**Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 2, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
+
 **Spawn reconcile agent** (general-purpose, no tool restrictions):
 
 ```
@@ -529,7 +541,9 @@ APPEND to {ideas_file} (do NOT overwrite existing content):
 **Verdict: {IMPROVED | NEUTRAL | REGRESSED}**
 Decided by: {quality | tokens | time | all within noise}
 
-Then append (or create if absent) a "## Technique History" section at the END of {ideas_file}:
+Then update the "## Technique History" section of {ideas_file}:
+- If `## Technique History` already exists in the file: add a new `### {today} — Iteration {N} → {IMPROVED|NEUTRAL|REGRESSED}` entry under the existing header (do NOT create a second `## Technique History` header).
+- If the section is absent: create it at the END of the file:
 
 ---
 ## Technique History
@@ -560,6 +574,8 @@ Parse `VERDICT:` from reconcile agent output.
 Each iteration commits independently. Run the full loop for each iteration i in 1..iterations:
 
 ```
+iterations_completed = 0
+
 FOR i in 1..iterations:
 
   # 1. Save baseline before experiments can overwrite prompt_path
@@ -569,32 +585,39 @@ FOR i in 1..iterations:
   #    Step 5 already copies winning experiment to {prompt_path} if IMPROVED
 
   IF VERDICT == IMPROVED:
-    git -C {PROMPT_DIR} add {prompt_path} {IDEAS_FILE}
-    git commit -m "$(cat <<'EOF'
+    IF prompt_path starts with $IMPROVE_TMPDIR:  # inline mode — no source file, no git repo
+      Print: "Inline mode: learnings saved to {IDEAS_FILE} (no git commit — no source file)."
+    ELSE:
+      git -C {PROMPT_DIR} add {prompt_path} {IDEAS_FILE}
+      git commit -m "$(cat <<'EOF'
 improve({basename}): {1-line summary from best experiment's Implemented Direction}
 
 What worked: {CONTRIBUTED_TO_WIN options from Technique History entry}
 Actionable learning: {Actionable learning text from Technique History entry}
 EOF
 )"
+    iterations_completed = i
     Print: "✅ Iteration {i}: IMPROVED (Exp-{best_k}) — {prompt_path} committed"
     IF i < iterations: CONTINUE to next iteration
 
   ELSE (NEUTRAL or REGRESSED):
     # Ensure prompt is reverted to baseline (Step 5 only copies on IMPROVED, but be explicit)
     cp $IMPROVE_TMPDIR/baseline-iter-{i}.md {prompt_path}
-    git -C {PROMPT_DIR} add {IDEAS_FILE}
-    IF VERDICT == NEUTRAL:
-      git commit -m "$(cat <<'EOF'
+    IF prompt_path starts with $IMPROVE_TMPDIR:  # inline mode — no git
+      Print: "Inline mode: learnings saved to {IDEAS_FILE} (no git commit — no source file)."
+    ELSE:
+      git -C {PROMPT_DIR} add {IDEAS_FILE}
+      IF VERDICT == NEUTRAL:
+        git commit -m "$(cat <<'EOF'
 docs({basename}): improvement attempt — neutral ({E} experiments, prompt reverted)
 
 Tried: {techniques from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
 EOF
 )"
-      Print: "⚠️ Iteration {i}: NEUTRAL — prompt reverted, learnings committed"
-    ELSE (REGRESSED):
-      git commit -m "$(cat <<'EOF'
+        Print: "⚠️ Iteration {i}: NEUTRAL — prompt reverted, learnings committed"
+      ELSE (REGRESSED):
+        git commit -m "$(cat <<'EOF'
 docs({basename}): improvement attempt — regressed ({E} experiments, prompt reverted)
 
 Tried: {techniques from Technique History}
@@ -602,7 +625,8 @@ What backfired: {CONTRIBUTED_TO_LOSS options from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
 EOF
 )"
-      Print: "❌ Iteration {i}: REGRESSED — prompt reverted, learnings committed"
+        Print: "❌ Iteration {i}: REGRESSED — prompt reverted, learnings committed"
+    iterations_completed = i
     BREAK  # stop early on non-improvement
 
 If git commit fails: print "ERROR: git commit failed — <error>. Learnings saved to {IDEAS_FILE}." and proceed to cleanup.
@@ -620,7 +644,7 @@ Print final summary:
 
 Prompt: {prompt_path}
 Label: {label}
-Iterations run: {i_final} of {iterations}
+Iterations run: {iterations_completed} of {iterations}
 Ideas file: {IDEAS_FILE}
 
 {Per iteration: "Iter {i}: IMPROVED/NEUTRAL/REGRESSED — <1-line summary>"}
