@@ -95,6 +95,18 @@ After each spawned agent returns, check its output for the expected marker:
 - Step 3 write-agents: each must contain `EXP_WRITTEN:` — collect all before proceeding
 - Step 5 reconcile agent: must contain `VERDICT:` — if absent, abort
 
+Print run header (once, after validation passes):
+[render as fenced code block]
+╔═══════════════════════════════════════════════════════════════╗
+║  🔬  improve-prompt                                           ║
+║                                                               ║
+║  Prompt:      {prompt_path}                                   ║
+║  Label:       {label}                                         ║
+║  Iterations:  {iterations}   ·   Experiments: {experiments}   ║
+║  Model:       {run_model}                                     ║
+╚═══════════════════════════════════════════════════════════════╝
+[end code block]
+
 ---
 
 ## Step 1 — Read & Derive Paths
@@ -281,6 +293,17 @@ Research summary:
 Output only: "IDEAS_WRITTEN: {ideas_file}" on a single line after writing.
 ```
 
+After confirming `IDEAS_WRITTEN:` marker, print post-research summary. Read `ideas_file_contents` to extract improvement options:
+- `num_options` = count of `### Option ` headers in IDEAS_FILE
+- For each option: `option_name` = text after `### Option A: `; `impact` = from `**Predicted impact:** HIGH/MEDIUM/LOW`; `Q{N}` = from `**Addresses:** Q{N}`
+
+Print:
+- `📊 Research complete  ·  Iteration {i}`
+- `   Ideas: {IDEAS_FILE}`
+- (blank line)
+- `📋 Improvement Options ({num_options} option{s}, {E} experiment{s}):`
+- For each option letter A, B, C...: `   {letter}  [{impact}]  {option_name}  —  addresses Q{N}`
+
 ---
 
 ## Step 2b — Plan Validation Gate
@@ -312,9 +335,9 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 ```
 
 **Decision:**
-- All 6 PASS → proceed to Step 3
-- ≥2 FAIL AND `research_pass_count < 3` → increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, proceed to Step 3 regardless.
-- 1 FAIL → proceed to Step 3 (single failure is advisory)
+- All 6 PASS → Print: `🔒 Plan Gate: ✅ PASS`; proceed to Step 3
+- ≥2 FAIL AND `research_pass_count < 3` → Print: `🔒 Plan Gate: ⚠ FAIL ({n})  ·  retrying (pass {research_pass_count}/3)`; increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, print `🔒 Plan Gate: ⚠ FAIL ({n})  ·  proceeding (max research passes reached)` and proceed to Step 3 regardless.
+- 1 FAIL → Print: `🔒 Plan Gate: ✅ PASS (1 advisory)`; proceed to Step 3 (single failure is advisory)
 
 ---
 
@@ -361,6 +384,8 @@ Applied: {brief comma-separated list of specific changes made}
 
 Collect all E `EXP_WRITTEN:` markers and `Applied:` summaries. Verify all E output paths exist before proceeding.
 
+Print: `✏️  Variants written  ·  {E} experiment{s}:` then for each k: `   Exp-{k}:  {applied_summary_k}` (using the `Applied:` line from each write-agent's output; truncate to ~60 chars if longer).
+
 ---
 
 ## Step 4 — Evaluate All Experiments
@@ -380,6 +405,8 @@ ELSE:
 ```
 
 Record `start_time_ms` per task before spawning.
+
+Print: `⚖️  Evaluating {M} input{s} × {1+E} prompt{s} in parallel...`
 
 **Spawn all (1 + E) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
 - `run-A-{filename}`: baseline prompt + each input (M tasks)
@@ -444,6 +471,10 @@ avg_tokens_k  = mean(total_tokens_est for exp-k runs)
 avg_latency_a = mean(latency_ms for A runs)
 avg_latency_k = mean(latency_ms for exp-k runs)
 ```
+
+Print quality score results (after all experiments aggregated):
+- `   Baseline quality:  {quality_score_a:.1%}`
+- For each k in 1..E: `   Exp-{k}:             {quality_score_b_k:.1%}  ({quality_spread_k:+.1%})`
 
 Token/latency metrics tracked for transparency; quality score is the primary verdict driver.
 
@@ -579,8 +610,14 @@ Each iteration commits independently. Run the full loop for each iteration i in 
 
 ```
 iterations_completed = 0
+iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
 
 FOR i in 1..iterations:
+
+  Print:
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔄 Iteration {i} of {iterations}  ·  {label}
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
@@ -601,7 +638,16 @@ Actionable learning: {Actionable learning text from Technique History entry}
 EOF
 )"
     iterations_completed = i
-    Print: "✅ Iteration {i}: IMPROVED (Exp-{best_k}) — {prompt_path} committed"
+    iteration_log.append({i: i, verdict: "IMPROVED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summary_{best_k}})
+    Print (render as fenced code block):
+    ╔═══════════════════════════════════════════════════════════════╗
+    ║  ✅  IMPROVED  —  Iteration {i}                               ║
+    ║                                                               ║
+    ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+    ║  Winner:    Exp-{best_k}  ·  {applied_summary_{best_k} (≤40 chars)}  ║
+    ║  Decided:   {decided_by}                                      ║
+    ╚═══════════════════════════════════════════════════════════════╝
+    [end code block]
     IF i < iterations: CONTINUE to next iteration
 
   ELSE (NEUTRAL or REGRESSED):
@@ -619,7 +665,15 @@ Tried: {techniques from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
 EOF
 )"
-        Print: "⚠️ Iteration {i}: NEUTRAL — prompt reverted, learnings committed"
+        iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
+        Print (render as fenced code block):
+        ╔═══════════════════════════════════════════════════════════════╗
+        ║  ⚠️  NEUTRAL  —  Iteration {i}  ·  stopping early            ║
+        ║                                                               ║
+        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+        ╚═══════════════════════════════════════════════════════════════╝
+        [end code block]
       ELSE (REGRESSED):
         git commit -m "$(cat <<'EOF'
 docs({basename}): improvement attempt — regressed ({E} experiments, prompt reverted)
@@ -629,7 +683,15 @@ What backfired: {CONTRIBUTED_TO_LOSS options from Technique History}
 Actionable learning: {Actionable learning text from Technique History}
 EOF
 )"
-        Print: "❌ Iteration {i}: REGRESSED — prompt reverted, learnings committed"
+        iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
+        Print (render as fenced code block):
+        ╔═══════════════════════════════════════════════════════════════╗
+        ║  ❌  REGRESSED  —  Iteration {i}  ·  stopping early          ║
+        ║                                                               ║
+        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+        ╚═══════════════════════════════════════════════════════════════╝
+        [end code block]
     iterations_completed = i
     BREAK  # stop early on non-improvement
 
@@ -642,14 +704,44 @@ If git commit fails: print "ERROR: git commit failed — <error>. Learnings save
 
 The `trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM` registered in Step 0 handles cleanup automatically on exit, interrupt, or signal. No explicit cleanup needed.
 
-Print final summary:
-```
-## improve-prompt Complete
+Print final summary.
 
-Prompt: {prompt_path}
-Label: {label}
-Iterations run: {iterations_completed} of {iterations}
-Ideas file: {IDEAS_FILE}
+**Helpers:**
+- `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED
+- `max_spread = max(abs(entry.quality_spread) for entry in iteration_log)` (default 1 if 0 to avoid div-by-0)
+- `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
+- `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
 
-{Per iteration: "Iter {i}: IMPROVED/NEUTRAL/REGRESSED — <1-line summary>"}
+Print (outside fenced block):
 ```
+## 📈 improve-prompt Complete
+
+**Prompt:** {prompt_path}
+**Label:** {label}
+**Iterations:** {iterations_completed} of {iterations}
+**Ideas:** {IDEAS_FILE}
+```
+
+Then print iteration history table:
+```
+| Iter | Verdict      | Quality Δ  | Experiment                   |
+|------|--------------|------------|------------------------------|
+| {i}  | {verdict_emoji(v)} {v} | {quality_spread:+.1%} | {applied_summary (≤30 chars)} |
+```
+(one row per entry in `iteration_log`)
+
+Then print quality trajectory as fenced code block:
+[render as fenced code block]
+Quality Δ per iteration:
+Iter {i}  {bar(entry.quality_spread)}  {entry.quality_spread:+.1%}  {verdict_emoji(entry.verdict)}
+[end code block]
+(one line per entry in `iteration_log`; right-align the percentage column to 7 chars)
+
+Then print final verdict as fenced code block:
+[render as fenced code block]
+╔═══════════════════════════════════════════════════════════════╗
+║  ✅  {n_improved} of {iterations_completed} iterations improved {PROMPT_BASENAME}  ║
+║  Prompt committed and ready.                                  ║
+╚═══════════════════════════════════════════════════════════════╝
+[end code block]
+(If n_improved == 0: use `❌  No improvement achieved across {iterations_completed} iteration(s)` on the first line instead; omit "Prompt committed and ready." line)
