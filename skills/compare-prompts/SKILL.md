@@ -318,6 +318,19 @@ overall_winner == "B"       → verdict = "IMPROVED"
 overall_winner == "NEUTRAL" → verdict = "NEUTRAL"
 ```
 
+After computing overall_winner, decided_by, verdict, and all metric values, emit the early verdict flash (plain markdown, not fenced):
+
+- If decided_by == "quality":
+  **{verdict_emoji} {verdict}** — quality: {quality_flash} · tokens: {token_flash} · latency: {latency_flash}
+- Otherwise (decided by tokens, time, or NEUTRAL):
+  **{verdict_emoji} {verdict}** — quality: tied · tokens: {token_flash} · latency: {latency_flash}
+
+Where:
+- `quality_flash`: `"{winning_label} leads {n}/7 criteria ({pct:.0f}% wins)"`
+- `token_flash`: if `|token_delta_pct| >= 10` → `"{sign}{|val|}% ({leaner_label} leaner)"` · else → `"{token_delta_pct:+.1f}% (within noise)"`
+- `latency_flash`: if `|latency_delta_pct| >= 15` → `"{sign}{|val|}% ({faster_label} faster)"` · else → `"{latency_delta_pct:+.1f}% (within noise)"`
+- Use − (U+2212) for negative values, + for positive.
+
 ---
 
 ## Step 6 — Report
@@ -405,15 +418,30 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 
 ---
 
-### 🪙 Token Count  _(estimated · quality-tied only)_
+### 🪙 Token Count  _(estimated · char/4 approx)_
 
-`A ~{avg_tokens_a}`  →  `B ~{avg_tokens_b}`  ·  **Δ {token_delta_label}**
+Compute: `bar_tokens_a = bar(avg_tokens_a, max(avg_tokens_a, avg_tokens_b))`
+         `bar_tokens_b = bar(avg_tokens_b, max(avg_tokens_a, avg_tokens_b))`
+Pad `label_a` and `label_b` to equal column width (right-pad shorter with spaces).
+
+[render as fenced code block]
+{label_a_padded}  {bar_tokens_a}  ~{avg_tokens_a} est.
+{label_b_padded}  {bar_tokens_b}  ~{avg_tokens_b} est.
+   Δ {token_delta_label}
+[end code block]
 
 ---
 
-### ⏱ Time  _(quality+token-tied only)_
+### ⏱ Time  _(wall-clock · indicative)_
 
-`A {avg_latency_a} ms`  →  `B {avg_latency_b} ms`  ·  **Δ {latency_delta_label}**
+Compute: `bar_latency_a = bar(avg_latency_a, max(avg_latency_a, avg_latency_b))`
+         `bar_latency_b = bar(avg_latency_b, max(avg_latency_a, avg_latency_b))`
+
+[render as fenced code block]
+{label_a_padded}  {bar_latency_a}  {avg_latency_a} ms
+{label_b_padded}  {bar_latency_b}  {avg_latency_b} ms
+   Δ {latency_delta_label}
+[end code block]
 
 ---
 
@@ -426,13 +454,37 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 
 ---
 
-[render as fenced code block]
+[render as fenced code block — all lines exactly 64 chars wide]
 ╔══════════════════════════════════════════════════════════════╗
 ║  {verdict_emoji}  {verdict}  —  decided by {decided_by}      ║
-║                                                              ║
-║  {recommendation_sentence}                                   ║
+╠══════════════════════════════════════════════════════════════╣
+║  {quality_metric_row}                                        ║
+║  {token_metric_row}                                          ║
+║  {latency_metric_row}                                        ║
+╠══════════════════════════════════════════════════════════════╣
+║  {recommendation_sentence_line1}                             ║
+[║  {recommendation_sentence_line2}  — only if sentence wraps  ║]
 ╚══════════════════════════════════════════════════════════════╝
 [end code block]
+
+Metric row rules (each row right-padded to fill column 62, then `║`):
+
+**Quality row:**
+- decided_by == "quality" AND winner == B → `Quality:  {label_b} leads {n_criteria_b}/7 criteria  ·  {win_rate_b_pct:.0f}% test wins  ←`
+- decided_by == "quality" AND winner == A → `Quality:  {label_a} leads {n_criteria_a}/7 criteria  ·  {win_rate_a_pct:.0f}% test wins  ←`
+- otherwise → `Quality:  tied (spread within 15% threshold)`
+
+**Token row:**
+- decided_by contains "tokens" → `Tokens:   {token_delta_label}  ←`
+- NEUTRAL AND |token_delta_pct| < 10 → `Tokens:   {token_delta_label}  (within noise)`
+- otherwise → `Tokens:   {token_delta_label}`
+
+**Latency row:**
+- decided_by contains "time" → `Latency:  {latency_delta_label}  ←`
+- NEUTRAL AND |latency_delta_pct| < 15 → `Latency:  {latency_delta_label}  (within noise)`
+- otherwise → `Latency:  {latency_delta_label}`
+
+**Recommendation wrapping:** if recommendation_sentence > 60 chars, split at last space before char 60 and emit the remainder as a second `║` row at the same 2-space indent.
 ```
 
 **Formatting rules:**
@@ -440,7 +492,8 @@ B  {bar(count_b, N)}   {win_rate_b_pct}%   ({count_b} of {N})
 - Token delta: `+X%` if B > A (A leaner), `-X%` if B < A (B leaner); label `· A leaner` or `· B leaner`.
 - Latency delta: `+X%` if B > A (A faster), `-X%` if B < A (B faster); label `· A faster` or `· B faster`.
 - Pad bar chart rows so columns align (counts right-aligned in their field).
-- Verdict box: pad recommendation sentence with trailing spaces to fill to box width (64 chars). If sentence overflows, wrap to a second `║` line.
+- Token/time bar charts: normalize to `max(a, b)` so the larger value fills the full bar. Pad labels to equal width so bar columns align.
+- Verdict box: 3 sections separated by `╠═══╣` dividers — (1) verdict header, (2) quality/token/latency metric rows with `←` on the deciding dimension, (3) recommendation. Wrap recommendation at last space before char 60 if > 60 chars; emit remainder as second `║` row.
 - Winner emoji column in per-test table: use `⚖️` for TIE (note: emoji width varies — use a single space after for alignment).
 
 ---
