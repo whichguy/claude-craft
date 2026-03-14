@@ -43,7 +43,7 @@ Run two prompt versions against a directory of test inputs, then compare outputs
 [--label-a NAME]      display label for prompt A (default: "A")
 [--label-b NAME]      display label for prompt B (default: "B")
 [--model MODEL]       model for running the prompts (default: claude-sonnet-4-6)
-[--judge-model MODEL] model for the quality judge (default: claude-sonnet-4-6)
+[--judge-model MODEL] model for the quality judge (default: claude-opus-4-6)
 ```
 
 ---
@@ -60,7 +60,7 @@ Parse arguments from `<prompt-arguments>`.
 - `--label-a <n>` → label_a = n (default: "A")
 - `--label-b <n>` → label_b = n (default: "B")
 - `--model <m>` → run_model = m (default: claude-sonnet-4-6) — used as `model:` on Task spawn
-- `--judge-model <m>` → judge_model = m (default: claude-sonnet-4-6)
+- `--judge-model <m>` → judge_model = m (default: claude-opus-4-6)
 
 **Resolve prompt_b_path** (if not explicitly provided):
 1. Determine REPO_ROOT: `git -C "$(dirname <prompt_a_path>)" rev-parse --show-toplevel`
@@ -225,7 +225,7 @@ Output only valid JSON on a single line — no preamble, no markdown fences:
 {"scores":{"task_adherence":"?","factual_accuracy":"?","completeness":"?","instruction_following":"?","structural_clarity":"?","precision":"?","conciseness":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
 ```
 
-Use `judge_model` (default claude-sonnet-4-6) as model parameter.
+Use `judge_model` (default claude-opus-4-6) as model parameter.
 
 **⚖️  Judging outputs** — {N} judge tasks launched…
 

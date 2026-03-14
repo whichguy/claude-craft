@@ -37,7 +37,7 @@ reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
   --inputs <dir>          required unless prompt file frontmatter defines default-inputs
   [--label <name>]        human label for reports/commits (default: basename or "inline")
   [--model <model>]       model for running prompts (default: claude-sonnet-4-6)
-  [--judge-model <model>] model for quality judge (default: claude-sonnet-4-6)
+  [--judge-model <model>] model for quality judge (default: claude-opus-4-6)
   [--iterations N]        run full improve loop N times (default: 1; stops early on NEUTRAL/REGRESSED)
   [--experiments N]       parallel improvement experiments per iteration (default: 1; max: 4)
                           each experiment tries a different option combination; winner is committed
@@ -55,7 +55,7 @@ Parse all arguments from `<prompt-arguments>`:
 - `--inputs <dir>` → inputs_dir = dir
 - `--label <n>` → label = n
 - `--model <m>` → run_model = m (default: claude-sonnet-4-6)
-- `--judge-model <m>` → judge_model = m (default: claude-sonnet-4-6)
+- `--judge-model <m>` → judge_model = m (default: claude-opus-4-6)
 - `--iterations N` → iterations = N (default: 1)
 - `--experiments N` → experiments = N (default: 1; max: 4)
 
