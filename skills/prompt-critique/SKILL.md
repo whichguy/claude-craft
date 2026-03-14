@@ -5,7 +5,7 @@ description: |
   categories and 14 anti-patterns, producing a scorecard with prioritized recommendations.
 
   **AUTOMATICALLY INVOKE** when:
-  - User says "critique prompt", "score this prompt", "improve this prompt"
+  - User says "critique prompt", "score this prompt", "analyze this prompt"
   - User asks "what techniques should I use", "prompt best practices"
   - User pastes a system prompt, agent prompt, or skill definition for feedback
   - User mentions "prompt anti-patterns", "prompt quality", "score this prompt"
@@ -15,6 +15,7 @@ description: |
   - Exhaustive multi-phase analysis (use /prompt-reviewer)
   - A/B prompt comparison with execution (use compare-prompts)
   - GAS-specific system prompt optimization (use /optimize-system-prompt)
+  - Full iterative improvement loop (research → variants → commit) → use /improve-prompt instead
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
