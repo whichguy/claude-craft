@@ -992,9 +992,18 @@ consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — re
 
 FOR i in 1..iterations:
 
+  # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
+  # Compute first so the print block below can reference effective_experiments
+  IF consecutive_stalls >= 1 AND experiments was not explicitly set by user:
+    effective_experiments = min(experiments + 1, 4)
+  ELSE:
+    effective_experiments = experiments
+  E = effective_experiments  # bind E so Steps 3/3b/4/5 use the bumped value this iteration
+
   Print: ""
   IF consecutive_stalls > 0:
-    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''})"
+    exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}"
   ELSE:
     Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
   IF i > 1:
@@ -1005,13 +1014,6 @@ FOR i in 1..iterations:
 
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
-
-  # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
-  IF consecutive_stalls >= 1 AND experiments was not explicitly set by user:
-    effective_experiments = min(experiments + 1, 4)
-  ELSE:
-    effective_experiments = experiments
-  # Use effective_experiments for this iteration's Step 3 variant assignment
 
   # 2. Run Steps 2 → 2b → 3 → 3b → 4 → 5
   #    Step 3b may exclude experiments (FAIL) or annotate them (WARN)
