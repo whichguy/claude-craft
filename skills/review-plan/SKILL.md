@@ -346,6 +346,11 @@ DO:
   ui_plan_changes = 0
   gas_results = {}    # populated by fully-memoized branch or evaluator parse block; empty = timeout/no response
   node_results = {}   # same pattern
+  l1_results = {}
+  l1_edits = {}
+  cluster_results = {}
+  ui_results = {}
+  all_results = {}    # pass-level accumulator — each wave appends; routing + status grid read from this
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
 
@@ -409,10 +414,34 @@ DO:
           Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task completed but no JSON file written"}' > '<RESULTS_DIR>/[evaluator_name].json'
           Print: "    ✗ [evaluator_name] — no output file (task returned successfully but wrote nothing)"
 
-    -- Poll for this wave's results (see fan-in section below) --
-    # Note: After the check above, most/all files should already exist.
-    # The poll loop handles any remaining edge cases (e.g., atomic mv race).
-    poll_for_wave_results(wave_names)
+    -- Read wave results and print progress (single-read fan-in) --
+    # All Tasks are foreground — by this point every Task has completed and written its JSON.
+    # No polling needed; read once immediately.
+    wave_results = {}  # name → parsed JSON
+    FOR each name in wave_names:
+      IF file <RESULTS_DIR>/<name>.json exists:
+        TRY: data = Read <RESULTS_DIR>/<name>.json → parse JSON
+        CATCH: data = {evaluator: name, status: "error", error: "malformed JSON"}
+      ELSE:
+        # Should not happen (Task status check writes sentinels), but guard:
+        data = {evaluator: name, status: "error", error: "no output file"}
+
+      wave_results[name] = data
+
+      # Print progress (same format as previous polling loop)
+      IF data.status == "complete":
+        nu = data.counts.needs_update; p = data.counts.pass; na = data.counts.na
+        Print: "    ✓ [name] — ✗[nu] ✓[p] —[na]  [[data.elapsed_s]s]"
+      ELSE IF data.status == "error":
+        Print: "    ✗ [name] — error: [data.error]"
+      ELSE IF data.status == "timeout":
+        Print: "    ◌ [name] — timeout"
+
+    # Accumulate into pass-level collection
+    FOR name, data in wave_results:
+      all_results[name] = data
+
+    Print: "  wave complete: [len(wave_results)]/[len(wave_names)]"
 
   -- Print memoized evaluators (not spawned) --
   FOR each cluster_name in memoized_clusters:
@@ -686,57 +715,10 @@ DO:
     """
   )
 
-  -- Fan-in: poll for result files with live progress --
-  FUNCTION poll_for_wave_results(expected_names):
-    poll_start = Date.now()
-    completed = set()
-
-    LOOP:
-      existing_files = Bash: ls <RESULTS_DIR>/*.json 2>/dev/null
-      newly_completed = set()
-      FOR each file in existing_files:
-        name = filename without .json suffix
-        IF name in expected_names AND name NOT in completed:
-          newly_completed.add(name)
-          completed.add(name)
-
-      # Print progress as each evaluator lands
-      FOR each name in newly_completed:
-        TRY: data = Read <RESULTS_DIR>/<name>.json → parse JSON
-        CATCH JSON parse error: CONTINUE to next poll cycle (file may be mid-write)
-        elapsed = data.elapsed_s or "?"
-        IF data.status == "complete":
-          nu = data.counts.needs_update
-          p = data.counts.pass
-          na = data.counts.na
-          Print: "    ✓ [name] — ✗[nu] ✓[p] —[na]  [[elapsed]s]"
-        ELSE IF data.status == "error":
-          Print: "    ✗ [name] — error: [data.error]"
-        ELSE IF data.status == "timeout":
-          Print: "    ◌ [name] — timeout"
-
-      missing = expected_names - completed
-      IF missing is empty: BREAK  # all results in
-
-      elapsed_s = Math.round((Date.now() - poll_start) / 1000)
-      IF elapsed_s >= 90 AND missing is non-empty:
-        Print: "    ⏳ [elapsed_s]s — waiting: [comma-sep missing]"
-      IF elapsed_s >= 120:
-        FOR each name in missing:
-          # Write timeout sentinel so fan-in logic always reads JSON
-          Bash: echo '{"evaluator":"[name]","pass":[pass_count],"status":"timeout"}' > '<RESULTS_DIR>/[name].json'
-          Print: "    ◌ [name] — timeout (120s)"
-        BREAK
-
-      Bash: sleep 3  # poll interval
-    END LOOP
-
-    Print: "  wave complete: [len(completed)]/[len(expected_names)]"
-
-  -- After all waves complete, print pass-level summary --
-  total_completed = count files in RESULTS_DIR with status=="complete"
-  total_timeout = count files with status=="timeout"
-  total_error = count files with status=="error"
+  -- Pass-level summary (from all_results accumulator) --
+  total_completed = count entries in all_results with status=="complete"
+  total_timeout = count entries in all_results with status=="timeout"
+  total_error = count entries in all_results with status=="error"
   Print: "  pass [pass_count] fan-in: [total_completed] complete, [total_timeout] timeout, [total_error] error"
 
   Incomplete evaluator rule: An Incomplete (timeout/error) evaluator contributes ZERO findings for its
@@ -750,14 +732,15 @@ DO:
   pass_durations.append(pass_elapsed)
 
   Print evaluator status grid (tree diagram with aligned columns):
-    # Data source: JSON files in RESULTS_DIR (collected during fan-in polling)
+    # Data source: all_results dict (populated during wave fan-in — single read, no re-read from disk)
     # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete), ✗ = error
     # Columns: name (right-pad with dashes to col 16) + symbol + ✗/✓/— counts + [Ns]
     # Skipped clusters (not in active_clusters) are omitted entirely.
     # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
     evaluator_lines = []
 
-    FOR each result file read from RESULTS_DIR (in priority order: l1, ecosystem, impact, git, remaining clusters, ui):
+    FOR each evaluator_name in all_results (in priority order: l1, ecosystem, impact, git, remaining clusters, ui):
+      data = all_results[evaluator_name]
       name = data.evaluator
       IF data.status == "complete":
         elapsed = data.elapsed_s
@@ -785,27 +768,18 @@ DO:
         For i in 1..n-1: "  ├ " + evaluator_lines[i]  (middle lines, inclusive range)
         "  └ " + evaluator_lines[n]
 
-  -- Read all result files and route findings --
-  all_results = {}  # evaluator_name → parsed JSON data
-  FOR each file in Bash: ls <RESULTS_DIR>/*.json | sort:
-    TRY: data = Read file → parse JSON
-    CATCH JSON parse error: treat as status="error", set data = {evaluator: filename, status: "error", error: "malformed JSON"}
-    evaluator_name = data.evaluator
-    all_results[evaluator_name] = data
+  -- Route findings from all_results (already read during wave fan-in — no second file read) --
+  FOR evaluator_name, data in all_results:
 
     IF data.status in ["timeout", "error"]:
       mark as Incomplete (existing incomplete evaluator rules apply unchanged)
       CONTINUE
 
-    # Route findings into existing data structures
+    # Route findings — specific evaluators checked BEFORE wildcard to prevent silent misrouting
     IF evaluator_name == "l1-evaluator":
       l1_results = {q_id: entry.status for q_id, entry in data.findings}
       # Extract EDIT instructions for NEEDS_UPDATE findings
       l1_edits = {q_id: entry for q_id, entry in data.findings where entry.status == "NEEDS_UPDATE"}
-
-    ELSE IF evaluator_name matches "*-evaluator" (cluster):
-      cluster_name = evaluator_name minus "-evaluator" suffix
-      cluster_results[cluster_name] = data.findings
 
     ELSE IF evaluator_name == "gas-evaluator":
       gas_results = {q_id: entry.status for q_id, entry in data.findings}
@@ -815,6 +789,10 @@ DO:
 
     ELSE IF evaluator_name == "ui-evaluator":
       ui_results = data.findings
+
+    ELSE IF evaluator_name matches "*-evaluator" (cluster):
+      cluster_name = evaluator_name minus "-evaluator" suffix
+      cluster_results[cluster_name] = data.findings
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from all_results (L1, cluster, ecosystem, and ui evaluators)

@@ -39,7 +39,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('SKILL.md UI evaluator prompt contains all required JSON schema fields', function () {
             const uiSection = skillContent.substring(
                 skillContent.indexOf('--- UI Evaluator Config'),
-                skillContent.indexOf('-- Fan-in:')
+                skillContent.indexOf('-- Pass-level summary')
             );
             for (const field of requiredFields) {
                 expect(uiSection).to.include(`"${field}"`);
@@ -68,33 +68,132 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
-    describe('poll_for_wave_results', function () {
-        it('defines polling function with expected_names parameter', function () {
-            expect(skillContent).to.include('FUNCTION poll_for_wave_results(expected_names)');
+    describe('single-read fan-in (no polling)', function () {
+        it('does NOT define poll_for_wave_results function', function () {
+            expect(skillContent).to.not.include('FUNCTION poll_for_wave_results');
         });
 
-        it('exits loop when all expected files are present (missing is empty → BREAK)', function () {
-            expect(skillContent).to.include('IF missing is empty: BREAK');
+        it('does NOT use sleep-based polling', function () {
+            expect(skillContent).to.not.include('Bash: sleep 3');
         });
 
-        it('uses 3-second poll interval', function () {
-            expect(skillContent).to.include('Bash: sleep 3');
+        it('does NOT call poll_for_wave_results', function () {
+            expect(skillContent).to.not.include('poll_for_wave_results(');
+        });
+
+        it('reads wave results immediately after Task status check', function () {
+            const statusCheckIdx = skillContent.indexOf('Check Task return status');
+            const readIdx = skillContent.indexOf('Read wave results and print progress');
+            expect(statusCheckIdx).to.be.greaterThan(-1);
+            expect(readIdx).to.be.greaterThan(statusCheckIdx);
+        });
+
+        it('accumulates wave results into all_results', function () {
+            expect(skillContent).to.include('all_results[name] = data');
         });
 
         it('prints wave completion summary', function () {
             expect(skillContent).to.include('wave complete:');
         });
-    });
 
-    describe('timeout sentinel at 120s', function () {
-        it('writes timeout sentinel JSON after 120s for missing evaluators', function () {
-            expect(skillContent).to.include('IF elapsed_s >= 120');
-            expect(skillContent).to.include('"status":"timeout"');
+        it('routes findings from all_results without re-reading files', function () {
+            expect(skillContent).to.include('Route findings from all_results');
+            expect(skillContent).to.include('already read during wave fan-in');
         });
 
-        it('prints 90s warning before timeout', function () {
-            expect(skillContent).to.include('IF elapsed_s >= 90');
-            expect(skillContent).to.include('waiting:');
+        it('status grid reads from all_results dict, not RESULTS_DIR files', function () {
+            const gridSection = skillContent.substring(
+                skillContent.indexOf('Print evaluator status grid'),
+                skillContent.indexOf('-- Route findings')
+            );
+            expect(gridSection).to.include('all_results');
+            expect(gridSection).to.not.include('result file read from RESULTS_DIR');
+        });
+    });
+
+    describe('routing order (specific before wildcard)', function () {
+        it('checks gas-evaluator BEFORE wildcard *-evaluator', function () {
+            const routeSection = skillContent.substring(
+                skillContent.indexOf('Route findings from all_results')
+            );
+            const gasIdx = routeSection.indexOf('evaluator_name == "gas-evaluator"');
+            const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
+            expect(gasIdx).to.be.greaterThan(-1);
+            expect(wildcardIdx).to.be.greaterThan(gasIdx);
+        });
+
+        it('checks node-evaluator BEFORE wildcard *-evaluator', function () {
+            const routeSection = skillContent.substring(
+                skillContent.indexOf('Route findings from all_results')
+            );
+            const nodeIdx = routeSection.indexOf('evaluator_name == "node-evaluator"');
+            const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
+            expect(nodeIdx).to.be.greaterThan(-1);
+            expect(wildcardIdx).to.be.greaterThan(nodeIdx);
+        });
+
+        it('checks ui-evaluator BEFORE wildcard *-evaluator', function () {
+            const routeSection = skillContent.substring(
+                skillContent.indexOf('Route findings from all_results')
+            );
+            const uiIdx = routeSection.indexOf('evaluator_name == "ui-evaluator"');
+            const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
+            expect(uiIdx).to.be.greaterThan(-1);
+            expect(wildcardIdx).to.be.greaterThan(uiIdx);
+        });
+
+        it('checks l1-evaluator BEFORE all others', function () {
+            const routeSection = skillContent.substring(
+                skillContent.indexOf('Route findings from all_results')
+            );
+            const l1Idx = routeSection.indexOf('evaluator_name == "l1-evaluator"');
+            const gasIdx = routeSection.indexOf('evaluator_name == "gas-evaluator"');
+            const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
+            expect(l1Idx).to.be.greaterThan(-1);
+            expect(l1Idx).to.be.lessThan(gasIdx);
+            expect(l1Idx).to.be.lessThan(wildcardIdx);
+        });
+    });
+
+    describe('per-pass variable initialization', function () {
+        it('initializes l1_results in per-pass reset block', function () {
+            const passInit = skillContent.substring(
+                skillContent.indexOf('pass_count += 1'),
+                skillContent.indexOf('Print: "Pass [')
+            );
+            expect(passInit).to.include('l1_results = {}');
+        });
+
+        it('initializes l1_edits in per-pass reset block', function () {
+            const passInit = skillContent.substring(
+                skillContent.indexOf('pass_count += 1'),
+                skillContent.indexOf('Print: "Pass [')
+            );
+            expect(passInit).to.include('l1_edits = {}');
+        });
+
+        it('initializes cluster_results in per-pass reset block', function () {
+            const passInit = skillContent.substring(
+                skillContent.indexOf('pass_count += 1'),
+                skillContent.indexOf('Print: "Pass [')
+            );
+            expect(passInit).to.include('cluster_results = {}');
+        });
+
+        it('initializes ui_results in per-pass reset block', function () {
+            const passInit = skillContent.substring(
+                skillContent.indexOf('pass_count += 1'),
+                skillContent.indexOf('Print: "Pass [')
+            );
+            expect(passInit).to.include('ui_results = {}');
+        });
+
+        it('initializes all_results in per-pass reset block', function () {
+            const passInit = skillContent.substring(
+                skillContent.indexOf('pass_count += 1'),
+                skillContent.indexOf('Print: "Pass [')
+            );
+            expect(passInit).to.include('all_results = {}');
         });
     });
 
@@ -131,15 +230,11 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('wave(s) (max [MAX_CONCURRENT] concurrent)');
             expect(skillContent).to.include('wave [wave_idx+1]/[len(waves)]');
         });
-
-        it('polls for wave results after each wave spawn', function () {
-            expect(skillContent).to.include('poll_for_wave_results(wave_names)');
-        });
     });
 
     describe('Task return status checking', function () {
-        it('checks Task tool results before polling', function () {
-            expect(skillContent).to.include('Check Task return status before polling');
+        it('checks Task tool results before reading results', function () {
+            expect(skillContent).to.include('Check Task return status');
         });
 
         it('writes error sentinel for tool-level Task failures', function () {
@@ -152,11 +247,11 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('test -f');
         });
 
-        it('checks status before polling, not after', function () {
-            const checkIdx = skillContent.indexOf('Check Task return status before polling');
-            const pollIdx = skillContent.indexOf('poll_for_wave_results(wave_names)');
+        it('checks status before reading results, not after', function () {
+            const checkIdx = skillContent.indexOf('Check Task return status');
+            const readIdx = skillContent.indexOf('Read wave results and print progress');
             expect(checkIdx).to.be.greaterThan(-1);
-            expect(pollIdx).to.be.greaterThan(checkIdx);
+            expect(readIdx).to.be.greaterThan(checkIdx);
         });
     });
 
@@ -302,7 +397,7 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('handles malformed JSON gracefully', function () {
-            expect(skillContent).to.include('CATCH JSON parse error');
+            expect(skillContent).to.include('error: "malformed JSON"');
         });
     });
 });
