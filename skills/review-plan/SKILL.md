@@ -361,6 +361,12 @@ DO:
       Standards: Read ~/.claude/CLAUDE.md as needed
 
       Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
+      Calibration: Prioritize practical production implications over theoretical concerns.
+      Flag findings that would cause real failures, wasted effort, or incorrect implementations
+      at development time — not hypothetical risks that require unlikely conditions to manifest.
+      When deciding between PASS and NEEDS_UPDATE for a borderline finding, ask: "Would a
+      senior developer implementing this plan actually encounter this problem?" If the answer
+      is "only under unusual circumstances," mark PASS.
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
@@ -368,6 +374,10 @@ DO:
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
+
+      Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+      (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+      without citing which step or section is responsible.
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM l1-evaluator
@@ -408,7 +418,8 @@ DO:
       Skip content marked <!-- review-plan --> or <!-- gas-plan --> or <!-- node-plan -->.
 
       Context flags (substituted by team-lead at spawn time):
-        IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
+        IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>   HAS_UI=<HAS_UI>
+        HAS_DEPLOYMENT=<HAS_DEPLOYMENT>   HAS_STATE=<HAS_STATE>
 
       IS_NODE suppression (apply only when IS_NODE=true above):
         Q-C16 (Security cluster, →N6), Q-C18 (State cluster, →N8), Q-C21 (Operations cluster, →N22),
@@ -418,6 +429,10 @@ DO:
       IS_GAS note: if you are the impact-evaluator and IS_GAS=true above, evaluate Q-C26 only;
         Q-C3, Q-C8, Q-C12, Q-C14, Q-C27, Q-C32 are N/A-superseded (covered by gas-evaluator).
         State cluster (Q-C13, Q-C18, Q-C19, Q-C24) is fully superseded when IS_GAS=true.
+
+      Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+      (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+      without citing which step or section is responsible.
 
       Output contract — send ONE message to team-lead:
         FINDINGS FROM <cluster_name>-evaluator
@@ -1191,9 +1206,15 @@ Organization Quality (Q-G9)            ← render only when plan has >= 3 implem
     ❌ [Q-G9x] ([sub-question name]): [finding]
 
 Triaged N/A                            ← omit entirely if total N/A count across all gates == 0
-  [K] questions skipped:
-  [list each N/A question, indent 2 spaces:]
-    [Question name] ([Q-ID]): [one-phrase reason]
+  IF K <= 5:
+    [K] questions skipped:
+    [list each N/A question, indent 2 spaces:]
+      [Question name] ([Q-ID]): [one-phrase reason]
+  IF K > 5:
+    [K] questions skipped ([N] GAS-superseded, [M] flag-inactive, [P] scope-inapplicable)
+    [list only N/A questions that are NOT from a fully-superseded cluster or fully-inactive flag — i.e., only "interesting" N/A items:]
+      [Question name] ([Q-ID]): [one-phrase reason]
+    [omit per-question listing for GAS-superseded clusters and flag-inactive clusters]
   [Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
 ```
 
