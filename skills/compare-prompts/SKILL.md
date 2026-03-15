@@ -346,9 +346,11 @@ avg_latency_b = mean(latency_ms for all B runs)
 
 Compute delta values for the report:
 ```
-token_delta_pct = round(((avg_tokens_b - avg_tokens_a) / max(avg_tokens_a, 1)) * 100, 1)
-latency_delta_pct = round(((avg_latency_b - avg_latency_a) / max(avg_latency_a, 1)) * 100, 1)
+token_delta_pct = round(((avg_tokens_b - avg_tokens_a) / max(avg_tokens_a, avg_tokens_b, 1)) * 100, 1)
+latency_delta_pct = round(((avg_latency_b - avg_latency_a) / max(avg_latency_a, avg_latency_b, 1)) * 100, 1)
 # Positive = B is larger (A wins efficiency), negative = B is smaller (B wins efficiency)
+# NOTE: denominators use max(a,b,1) to match the tiebreaker condition denominators and keep
+# the reported percentage consistent with the decision threshold.
 ```
 
 **Tiebreaker chain — priority: quality → tokens → time:**
@@ -387,7 +389,7 @@ After computing overall_winner, decided_by, verdict, and all metric values, emit
   **{verdict_emoji} {verdict}** — quality: tied · tokens: {token_flash} · latency: {latency_flash}
 
 Where:
-- `quality_flash`: `"{winning_label} leads {n}/7 criteria ({pct:.0f}% wins)"`
+- `quality_flash`: `"{winning_label} leads {n_criteria_winner}/7 criteria ({win_rate_winner_pct:.0f}% wins)"` where `n_criteria_winner` = `n_criteria_b` if `overall_winner == "B"` else `n_criteria_a`; `win_rate_winner_pct` = `win_rate_b * 100` if `overall_winner == "B"` else `win_rate_a * 100`
 - `token_flash`: if `|token_delta_pct| >= 10` → `"{sign}{|val|}% ({leaner_label} leaner)"` · else → `"{token_delta_pct:+.1f}% (within noise)"`
 - `latency_flash`: if `|latency_delta_pct| >= 15` → `"{sign}{|val|}% ({faster_label} faster)"` · else → `"{latency_delta_pct:+.1f}% (within noise)"`
 - Use − (U+2212) for negative values, + for positive.
