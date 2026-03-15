@@ -18,7 +18,7 @@ description: |
   - When a prompt's outputs are inconsistent or low quality
   - After receiving feedback that a prompt is underperforming
 
-argument-hint: "<prompt-file> <inputs-dir> [free-form options]"
+argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [free-form options]"
 allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 ---
 
@@ -37,21 +37,33 @@ to extract the following values:
 | Parameter | Required? | What to look for | Default |
 |-----------|-----------|-------------------|---------|
 | `prompt_path` | **yes** (unless inline text provided) | A file path (contains `/` or `.`) | — |
-| `inputs_dir` | **yes** (unless prompt frontmatter has `defaults.inputs`) | A directory path | — |
+| `inputs_dir` | no | A directory path for test inputs. Auto-generated if user approves, or empty run | — |
 | `inline_text` | alt to prompt_path | Quoted text or explicitly described as "inline prompt" | — |
+| `input_text` | no | Inline text to use as a single test input. Look for quoted strings after the prompt path, or text after "with input", "using text", "test with" | — |
+| `num_inputs` | no | Number of test inputs to auto-generate if user approves | 3 (max: 10) |
 | `label` | no | A short identifier for reports/commits | basename of prompt file, or "inline" |
 | `run_model` | no | A model name (claude-*) | claude-sonnet-4-6 |
 | `judge_model` | no | A model name for judging | claude-opus-4-6 |
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 
-**Example invocations — all equivalent:**
+**Input sources** (priority order):
+- `inputs_dir` — directory of test files (each file = one test case)
+- `input_text` — inline text string (becomes a single test case named "inline-input")
+- If both provided: directory files + inline text are all used as test cases
+- If neither provided: prompt is analyzed to determine if input is needed (see Step 0b)
+
+**Example invocations:**
 ```
 /improve-prompt agents/code-reviewer.md skills/improve-prompt/inputs/
 /improve-prompt agents/code-reviewer.md with inputs from skills/improve-prompt/inputs/ run 3 iterations
 /improve-prompt the prompt at agents/code-reviewer.md, test inputs in inputs/, 3 experiments
 /improve-prompt improve agents/code-reviewer.md using inputs/ as test dir, label=my-test, use haiku for judge
 /improve-prompt --prompt agents/code-reviewer.md --inputs inputs/  (legacy flag style also works)
+/improve-prompt agents/code-reviewer.md                            (no inputs — analyzes prompt, offers to auto-generate)
+/improve-prompt agents/code-reviewer.md "function foo() { return bar }"  (inline text as single test case)
+/improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs if user approves)
+/improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
 ```
 
 ---
@@ -67,7 +79,9 @@ paths, natural language, or any combination:
 |----------|----------------|
 | `prompt_path` | A file path to the prompt to improve. Look for paths containing `/` or `.md`. If `--prompt` flag is present, use its value. |
 | `inline_text` | Quoted text or content explicitly described as inline/literal prompt text. If `--prompt-text` flag is present, use its value. Mutually exclusive with prompt_path. |
-| `inputs_dir` | A directory path for test inputs. Look for paths associated with words like "inputs", "test", "dir". If `--inputs` flag is present, use its value. |
+| `inputs_dir` | A directory path for test inputs. Look for paths associated with words like "inputs", "test", "dir". If `--inputs` flag is present, use its value. Optional — may be absent. |
+| `input_text` | Inline text to use as test input. Look for quoted strings after the prompt path, or text after "with input", "using text", "test with". Also: any substantial free-form text that is clearly meant as input content (not a path, label, or model). If `--input` or `--text` flag is present, use its value. Optional — may be absent. |
+| `num_inputs` | Number of test inputs to auto-generate. Look for a number associated with "inputs", "test inputs", "generate", or `--num-inputs`. Optional — may be absent. |
 | `label` | A short name for reports. Look for "label", "name", "called", or `--label`. |
 | `run_model` | A model identifier (claude-*). Look for "model", "use", "with", or `--model`. |
 | `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
@@ -80,6 +94,11 @@ paths, natural language, or any combination:
 - `judge_model` = claude-opus-4-6
 - `iterations` = 1
 - `experiments` = 1
+- `inputs_dir` = none
+- `input_text` = none
+- `num_inputs` = 3
+
+**Value validation for `num_inputs`**: Must be between 1 and 10. If exceeded, clamp to 10 with warning: `"Warning: num_inputs clamped to 10 (was {N})."`
 
 **Create temp dir first (needed for inline mode below):**
 ```bash
@@ -101,21 +120,100 @@ After interpreting the arguments, check:
    Provide a file path or quoted inline text.
    Example: /improve-prompt path/to/prompt.md path/to/inputs/"
 
-2. **Inputs directory**: `inputs_dir` must be identified (unless prompt file frontmatter
-   provides `defaults.inputs` — checked after prompt-as-code resolution above).
-   If missing → abort:
-   "ERROR: Could not identify an inputs directory in the arguments.
-   Provide a directory path for test inputs.
-   Example: /improve-prompt path/to/prompt.md path/to/inputs/"
-
-3. **Value validation**:
+2. **Value validation**:
    - label must match `[a-zA-Z0-9_-]+`
    - run_model and judge_model must match `claude-*`
    - iterations >= 1
    - experiments between 1 and 4
-   - inputs_dir must exist on disk
+   - num_inputs between 1 and 10 (clamp with warning if exceeded)
+   - inputs_dir must exist on disk (if provided)
    - prompt_path must exist on disk (if not inline mode)
    - On any validation failure: print clear error before exiting (trap covers cleanup)
+
+### Step 0b — Smart Input Resolution
+
+Determine input sources using a 3-branch flow:
+
+```
+IF inputs_dir is provided OR input_text is provided OR (defaults.inputs_dir is set in frontmatter AND inputs_dir not already set):
+  # User provided inputs (or frontmatter default) — use them exactly
+  IF defaults.inputs_dir is set in frontmatter AND inputs_dir not already set:
+    inputs_dir = defaults.inputs_dir
+  inputs_auto_generated = false
+  (proceed with existing input loading logic in Step 4)
+
+ELSE:
+  # No inputs provided — analyze the prompt to determine if it needs input
+  Analyze prompt_file_contents for input dependency signals:
+    - Contains {{INPUT}} placeholder → NEEDS_INPUT
+    - References "the provided", "the following", "given input", "user input" → NEEDS_INPUT
+    - Is a skill/agent (YAML frontmatter with allowed-tools, description) → NEEDS_INPUT
+      (skills/agents process user requests which serve as input)
+    - Is a system prompt → NEEDS_INPUT (expects user messages)
+    - Is self-contained (generates output without external data) → NO_INPUT_NEEDED
+
+  IF NEEDS_INPUT:
+    # Ask the user if they want test inputs auto-generated
+    AskUserQuestion:
+      "This prompt appears to require input to evaluate properly
+       (detected: {signal_description}).
+       Would you like to auto-generate {num_inputs} test inputs?"
+      Suggestions:
+        - "Yes, generate test inputs"
+        - "No, run with empty input"
+
+    IF user says yes (or provides affirmative response):
+      inputs_auto_generated = true
+      inputs_dir = $IMPROVE_TMPDIR/auto-inputs
+      mkdir -p "$inputs_dir"
+      Print: "Generating {num_inputs} test inputs..."
+
+      Spawn general-purpose agent:
+        prompt: |
+          You are a test input generator. Analyze the prompt below and generate
+          {num_inputs} diverse test inputs that would exercise it well.
+
+          <prompt>
+          {prompt_file_contents}
+          </prompt>
+
+          Requirements:
+          - Classify the prompt type first (agent prompt, skill definition, system prompt,
+            task prompt, etc.) to understand what kind of input it expects
+          - Generate inputs that vary in complexity: simple, moderate, complex/edge-case
+          - Use realistic content (not lorem ipsum or placeholder text)
+          - Each input should be 10-80 lines
+          - Name files descriptively: input-simple.md, input-moderate.md, input-complex.md,
+            input-edge-case.md, etc.
+          - Files contain ONLY raw input content — no meta-commentary, no headers like
+            "This is a test input for..."
+          - Write each file to {inputs_dir}/
+
+          Write all {num_inputs} files, then output only:
+          INPUTS_GENERATED: {num_inputs} files written to {inputs_dir}
+
+      If agent output does not contain "INPUTS_GENERATED:" → abort:
+        "ERROR: Auto-generation failed. Provide inputs_dir manually.
+         Example: /improve-prompt path/to/prompt.md path/to/inputs/"
+      Verify files exist via glob "{inputs_dir}/*.md"; abort if zero files found.
+      Print file listing with line counts (ls -la style).
+
+    ELIF user provides a directory path in their response:
+      inputs_dir = user-provided path
+      inputs_auto_generated = false
+      Validate inputs_dir exists on disk; abort if not.
+
+    ELSE (user says no, or wants to run empty):
+      inputs_auto_generated = false
+      # Set up empty input — handled in Step 4 input loading
+      Print: "⚠ Running with empty input — evaluation quality may be limited for input-dependent prompts."
+
+  ELSE (NO_INPUT_NEEDED):
+    # Prompt is self-contained — run with empty input (like compare-prompts)
+    inputs_auto_generated = false
+    # Empty input handled in Step 4 input loading
+    Print: "Prompt is self-contained — running with empty input."
+```
 
 **Derive paths:**
 ```
@@ -130,11 +228,19 @@ IF prompt_path starts with $IMPROVE_TMPDIR:
 
 **Marker validation rule** (apply after each agent step):
 After each spawned agent returns, check its output for the expected marker:
+- Step 0b auto-generation agent (if used): must contain `INPUTS_GENERATED:` — if absent, abort: `"ERROR: Auto-generation failed. Provide inputs_dir manually."`
 - Step 2 agent: must contain `IDEAS_WRITTEN:` — if absent, abort: `"ERROR: research agent failed — expected IDEAS_WRITTEN: but got: <first 200 chars of output>"`
 - Step 2b gate: must contain `PLAN_GATE:` — if absent, abort similarly
 - Step 3 write-agents: each must contain `EXP_WRITTEN:` — collect all before proceeding
 - Step 3b gate-agents: each must contain all 12 `Q-SG{N}:` lines — if any missing, treat experiment as WARN with note: "incomplete gate evaluation"
 - Step 5 reconcile agent: must contain `VERDICT:` — if absent, abort
+
+**Inputs line** (context-aware display):
+- Directory provided: `"{inputs_dir}"`
+- Directory + auto-generated: `"{inputs_dir}" (auto-generated)`
+- Inline text only: `"inline text ({len} chars)"`
+- Directory + inline text: `"{inputs_dir} + inline text"`
+- No input (empty run): `"(no input — empty run)"`
 
 Print run header (once, after validation passes):
 [render as fenced code block]
@@ -142,6 +248,7 @@ Print run header (once, after validation passes):
 ║  🔬  improve-prompt                                           ║
 ║                                                               ║
 ║  Prompt:      {prompt_path}                                   ║
+║  Inputs:      {inputs_line}                                   ║
 ║  Label:       {label}                                         ║
 ║  Iterations:  {iterations}   ·   Experiments: {experiments}   ║
 ║  Model:       {run_model}                                     ║
@@ -234,7 +341,8 @@ Examine the <prior_context> "## Technique History" section (if present). For tec
 Also check <gap_analysis>: if specific gate failures are listed, directly address those gaps in your options.
 
 Step 6 — Test-Run Observation
-Read 1-2 input files from {inputs_dir}. Reason through what the current prompt would produce. Identify where outputs fall short: too brief, wrong format, missing key info, inconsistent structure.
+{IF inputs_dir is non-empty: Read 1-2 input files from {inputs_dir}. Reason through what the current prompt would produce on those inputs. Identify where outputs fall short: too brief, wrong format, missing key info, inconsistent structure.
+ELSE: No input files are available (prompt is self-contained or running with empty input). Reason through what the current prompt would produce given empty/no input. Identify where outputs fall short: too brief, wrong format, missing key info, inconsistent structure.}
 
 Step 7 — Improvement Options
 Based on steps 1-6, synthesize exactly 3-4 improvement options. Each option MUST directly address a specific Q1-Q10 gap or test-run observation.
@@ -601,8 +709,19 @@ Otherwise, proceed to Step 4 with only `active_experiments` (exclude FAILed expe
 Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..5 + dynamic questions).
 
 **Load inputs:**
-Glob `*.md` and `*.txt` from inputs_dir. Cap at 10 files; warn if > 10: `"Warning: found <N> input files; using first 10 only."` Skip files > 50KB with: `"Skipping <file>: exceeds 50KB limit"`. Abort if zero files remain.
-M = number of valid input files. Baseline (A) = `$IMPROVE_TMPDIR/baseline-iter-{i}.md`.
+
+**From `inputs_dir`** (if provided — explicit or auto-generated):
+- Glob `*.md` and `*.txt` from inputs_dir. Cap at 10 files; warn if > 10: `"Warning: found <N> input files; using first 10 only."` Skip files > 50KB with: `"Skipping <file>: exceeds 50KB limit"`.
+- If `inputs_dir` was explicitly provided (not auto-generated) but zero files survived → abort: `"No valid input files in <dir> (all exceeded 50KB or none matched *.md/*.txt)"`
+
+**From `input_text`** (if provided):
+- If `input_text` is an empty string → skip and warn: `"Warning: input_text was empty — ignored."`
+- Otherwise: add a single test case named `"inline-input"` with contents = the `input_text` string
+
+**No input sources** (neither `inputs_dir` nor `input_text` survived):
+- Create a single test case named `"empty-input"` with contents = `""` (empty string)
+
+M = number of valid input files (from all sources combined). Baseline (A) = `$IMPROVE_TMPDIR/baseline-iter-{i}.md`.
 
 **Prompt injection** (for each prompt P and input I):
 ```
@@ -953,6 +1072,9 @@ Print (outside fenced block):
 **Iterations:** {iterations_completed} of {iterations}
 **Ideas:** {IDEAS_FILE}
 ```
+
+If `inputs_auto_generated == true`, also print:
+> Inputs: auto-generated ({num_inputs} files) — provide a custom inputs directory for more targeted evaluation
 
 Then print iteration history table:
 ```
