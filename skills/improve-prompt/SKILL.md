@@ -83,6 +83,8 @@ to extract the following values:
 
 ## Step 0 — Parse & Preflight
 
+**Progress indicators** map the 7 user-visible pipeline stages: `[1/7]` Research → `[2/7]` Plan Gate → `[3/7]` Write → `[4/7]` Scope Gate → `[5/7]` Evaluate → `[6/7]` Select → `[7/7]` Commit. Steps 0/0b/0c are setup and not counted in the indicator.
+
 **Interpret arguments from `<prompt-arguments>` as free-form text.**
 
 Extract these values by understanding the user's intent — they may use flags, positional
@@ -1084,17 +1086,17 @@ FOR i in 1..iterations:
     cumulative = trajectory_scores[-1] - iteration_log[0].quality_score_a
     Print: "  trajectory ── {trajectory_str}  ({cumulative:+.1%} cumulative)"
 
-  # 1. Save baseline before experiments can overwrite prompt_path
+  # Save baseline before experiments can overwrite prompt_path (literal shell command — execute now)
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
 
-  # 2. Execute the per-iteration pipeline:
-  #    Run Step 1 (Research & Ideas) — spawn research agent, write IDEAS_FILE
-  #    Run Step 2 (Plan Gate) — validate plan, retry up to 3 passes if needed
-  #    Run Step 3 (Write Variants) — spawn E write-agents in parallel
-  #    Run Step 4 (Scope Gate) — spawn E gate-agents in parallel, exclude FAILed experiments
+  # Execute the per-iteration pipeline in this order:
+  #    Step 1 (Research & Ideas) — spawn research agent, write IDEAS_FILE
+  #    Step 2 (Plan Gate) — validate plan, retry up to 3 passes if needed
+  #    Step 3 (Write Variants) — spawn E write-agents in parallel
+  #    Step 4 (Scope Gate) — spawn E gate-agents in parallel, exclude FAILed experiments
   #    IF all experiments excluded → handle SCOPE_FAIL (see Step 4), then CONTINUE/BREAK
-  #    Run Step 5 (Evaluate) — spawn (1+E)×M run tasks, then E×M judge tasks
-  #    Run Step 6 (Select Winner) — compute verdict, spawn reconcile agent
+  #    Step 5 (Evaluate) — spawn (1+E)×M run tasks, then E×M judge tasks
+  #    Step 6 (Select Winner) — compute verdict, spawn reconcile agent
   #    VERDICT is now set to IMPROVED, NEUTRAL, or REGRESSED
 
   IF VERDICT == IMPROVED:
@@ -1237,6 +1239,9 @@ EOF
             [end code block]
           iterations_completed = i
           CONTINUE
+
+  # Unconditional: always record iterations_completed after each iteration body executes
+  iterations_completed = i
 
 If git commit fails: print "ERROR: git commit failed — <error>. Learnings saved to {IDEAS_FILE}." and proceed to cleanup.
 ```
