@@ -18,7 +18,7 @@ description: |
   - When a prompt's outputs are inconsistent or low quality
   - After receiving feedback that a prompt is underperforming
 
-argument-hint: "--prompt <file> [--inputs <dir>] [--iterations N] [--experiments N] [--label <name>] [--model <m>] [--judge-model <m>] | --prompt-text '<text>' --inputs <dir>"
+argument-hint: "<prompt-file> <inputs-dir> [free-form options]"
 allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 ---
 
@@ -31,33 +31,55 @@ reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
 
 ## Argument Reference
 
-```
-/improve-prompt --prompt <file>
-                OR --prompt-text "<inline prompt content>"
-  --inputs <dir>          required unless prompt file frontmatter defines default-inputs
-  [--label <name>]        human label for reports/commits (default: basename or "inline")
-  [--model <model>]       model for running prompts (default: claude-sonnet-4-6)
-  [--judge-model <model>] model for quality judge (default: claude-opus-4-6)
-  [--iterations N]        run full improve loop N times (default: 1; stops early on NEUTRAL/REGRESSED)
-  [--experiments N]       parallel improvement experiments per iteration (default: 1; max: 4)
-                          each experiment tries a different option combination; winner is committed
-```
+The arguments after `/improve-prompt` are **free-form text**. The LLM interprets them
+to extract the following values:
 
-Both `--prompt`/`--prompt-text` and `--inputs` are required unless frontmatter provides defaults.
+| Parameter | Required? | What to look for | Default |
+|-----------|-----------|-------------------|---------|
+| `prompt_path` | **yes** (unless inline text provided) | A file path (contains `/` or `.`) | — |
+| `inputs_dir` | **yes** (unless prompt frontmatter has `defaults.inputs`) | A directory path | — |
+| `inline_text` | alt to prompt_path | Quoted text or explicitly described as "inline prompt" | — |
+| `label` | no | A short identifier for reports/commits | basename of prompt file, or "inline" |
+| `run_model` | no | A model name (claude-*) | claude-sonnet-4-6 |
+| `judge_model` | no | A model name for judging | claude-opus-4-6 |
+| `iterations` | no | A number associated with "iterations" | 1 |
+| `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
+
+**Example invocations — all equivalent:**
+```
+/improve-prompt agents/code-reviewer.md skills/improve-prompt/inputs/
+/improve-prompt agents/code-reviewer.md with inputs from skills/improve-prompt/inputs/ run 3 iterations
+/improve-prompt the prompt at agents/code-reviewer.md, test inputs in inputs/, 3 experiments
+/improve-prompt improve agents/code-reviewer.md using inputs/ as test dir, label=my-test, use haiku for judge
+/improve-prompt --prompt agents/code-reviewer.md --inputs inputs/  (legacy flag style also works)
+```
 
 ---
 
 ## Step 0 — Parse & Preflight
 
-Parse all arguments from `<prompt-arguments>`:
-- `--prompt <f>` → prompt_path = f; label defaults to basename without extension
-- `--prompt-text "<text>"` → inline mode; label defaults to "inline"
-- `--inputs <dir>` → inputs_dir = dir
-- `--label <n>` → label = n
-- `--model <m>` → run_model = m (default: claude-sonnet-4-6)
-- `--judge-model <m>` → judge_model = m (default: claude-opus-4-6)
-- `--iterations N` → iterations = N (default: 1)
-- `--experiments N` → experiments = N (default: 1; max: 4)
+**Interpret arguments from `<prompt-arguments>` as free-form text.**
+
+Extract these values by understanding the user's intent — they may use flags, positional
+paths, natural language, or any combination:
+
+| Variable | How to identify |
+|----------|----------------|
+| `prompt_path` | A file path to the prompt to improve. Look for paths containing `/` or `.md`. If `--prompt` flag is present, use its value. |
+| `inline_text` | Quoted text or content explicitly described as inline/literal prompt text. If `--prompt-text` flag is present, use its value. Mutually exclusive with prompt_path. |
+| `inputs_dir` | A directory path for test inputs. Look for paths associated with words like "inputs", "test", "dir". If `--inputs` flag is present, use its value. |
+| `label` | A short name for reports. Look for "label", "name", "called", or `--label`. |
+| `run_model` | A model identifier (claude-*). Look for "model", "use", "with", or `--model`. |
+| `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
+| `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
+| `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
+
+**Defaults** (apply when not found in arguments):
+- `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
+- `run_model` = claude-sonnet-4-6
+- `judge_model` = claude-opus-4-6
+- `iterations` = 1
+- `experiments` = 1
 
 **Create temp dir first (needed for inline mode below):**
 ```bash
@@ -66,18 +88,34 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 ```
 
 **Prompt-as-code resolution:**
-1. If `--prompt-text "<text>"` → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless --label provided)
-2. If `--prompt <file>` → parse YAML frontmatter (text between leading `---` markers); extract `defaults.*` as fallback values for unset CLI args; strip frontmatter to get raw prompt text
+1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
+2. If prompt_path was identified → parse YAML frontmatter (text between leading `---` markers); extract `defaults.*` as fallback values for unset args; strip frontmatter to get raw prompt text
 
-**Input validation:**
-- Validate `--label` contains only alphanumeric characters, hyphens, and underscores. Abort: `"ERROR: --label must contain only alphanumeric characters, hyphens, and underscores"`
-- Validate `--model` and `--judge-model` match pattern `claude-*`. Abort: `"ERROR: --model must match claude-* pattern"`
-- Abort if no prompt source: `"ERROR: --prompt <file> or --prompt-text '<text>' is required"`
-- Abort if no inputs: `"ERROR: --inputs <dir> is required (or provide defaults.inputs in frontmatter)"`
-- Abort if inputs_dir does not exist: `"ERROR: inputs dir does not exist: <dir>"`
-- Abort if iterations < 1: `"ERROR: --iterations must be >= 1"`
-- Abort if experiments < 1 or experiments > 4: `"ERROR: --experiments must be between 1 and 4"`
-- On any early abort: trap covers cleanup, but print clear error before exiting
+**Requirement validation — abort immediately if any required value is missing:**
+
+After interpreting the arguments, check:
+
+1. **Prompt source**: Either `prompt_path` or `inline_text` must be identified.
+   If neither found → abort:
+   "ERROR: Could not identify a prompt file or inline text in the arguments.
+   Provide a file path or quoted inline text.
+   Example: /improve-prompt path/to/prompt.md path/to/inputs/"
+
+2. **Inputs directory**: `inputs_dir` must be identified (unless prompt file frontmatter
+   provides `defaults.inputs` — checked after prompt-as-code resolution above).
+   If missing → abort:
+   "ERROR: Could not identify an inputs directory in the arguments.
+   Provide a directory path for test inputs.
+   Example: /improve-prompt path/to/prompt.md path/to/inputs/"
+
+3. **Value validation**:
+   - label must match `[a-zA-Z0-9_-]+`
+   - run_model and judge_model must match `claude-*`
+   - iterations >= 1
+   - experiments between 1 and 4
+   - inputs_dir must exist on disk
+   - prompt_path must exist on disk (if not inline mode)
+   - On any validation failure: print clear error before exiting (trap covers cleanup)
 
 **Derive paths:**
 ```
