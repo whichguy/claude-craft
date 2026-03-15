@@ -6,8 +6,10 @@ description: |
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
   evaluates via questions-based judge (not holistic), reconciles all learnings into a single
-  ideas file, and commits only if improved. Supports --iterations N for compounding improvement
-  and --experiments N for parallel variant testing per iteration.
+  ideas file, and commits only if improved. Loops autonomously with stall detection — continues
+  seeking improvements until max_stalls consecutive failures (default 2). Strategy escalation
+  guides bolder changes after stalls. Position bias mitigated via randomized judge ordering.
+  Supports --iterations N, --experiments N, and --max-stalls N.
 
   AUTOMATICALLY INVOKE when user mentions:
   - "improve this prompt", "make this prompt better", "optimize this prompt"
@@ -26,8 +28,9 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
-scope-preservation gate (12-question baseline check) → questions-based judge →
-reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
+scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
+reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED (stall detection).
+Auto-generates test inputs when needed. Loops autonomously until max_stalls consecutive failures.
 
 ## Argument Reference
 
@@ -52,7 +55,7 @@ to extract the following values:
 - `inputs_dir` — directory of test files (each file = one test case)
 - `input_text` — inline text string (becomes a single test case named "inline-input")
 - If both provided: directory files + inline text are all used as test cases
-- If neither provided: prompt is analyzed to determine if input is needed (see Step 0b)
+- If neither provided: prompt is analyzed; if input needed, test inputs are auto-generated (see Step 0b)
 
 **Example invocations:**
 ```
@@ -61,9 +64,10 @@ to extract the following values:
 /improve-prompt the prompt at agents/code-reviewer.md, test inputs in inputs/, 3 experiments
 /improve-prompt improve agents/code-reviewer.md using inputs/ as test dir, label=my-test, use haiku for judge
 /improve-prompt --prompt agents/code-reviewer.md --inputs inputs/  (legacy flag style also works)
-/improve-prompt agents/code-reviewer.md                            (no inputs — analyzes prompt, offers to auto-generate)
+/improve-prompt agents/code-reviewer.md                            (no inputs — auto-generates test inputs if needed)
 /improve-prompt agents/code-reviewer.md "function foo() { return bar }"  (inline text as single test case)
-/improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs if user approves)
+/improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs)
+/improve-prompt agents/code-reviewer.md 5 iterations --max-stalls 3 (keeps trying through 3 consecutive stalls)
 /improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
 ```
 
