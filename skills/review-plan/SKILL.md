@@ -124,7 +124,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    )
    Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE, IS_TRIVIAL
    IF Haiku timeout or malformed output → all flags false (IS_TRIVIAL=false)
-     (fallback activates git, impact, testing, security clusters unconditionally)
+     (fallback activates impact, testing, security clusters unconditionally)
 
    Compute cluster activation:
    ```
@@ -132,7 +132,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # All L2 clusters superseded by gas-evaluator except impact (for Q-C26 — no gas equivalent)
      active_clusters = ["impact"]  # always active — Q-C26 evaluates here
    ELSE:
-     active_clusters = ["git", "impact", "testing"]  # always active
+     active_clusters = ["impact", "testing"]  # always active
      if HAS_STATE:       active_clusters.append("state")
      active_clusters.append("security")              # always active (7 questions, low overhead)
      if HAS_DEPLOYMENT:  active_clusters.append("operations")
@@ -154,7 +154,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    IF IS_TRIVIAL:
      Print: "╭─── FAST PATH ──────────────────╮"
      Print: "⚡ Trivial plan: 1 file ([ext]), additive only"
-     Print: "  questions: Q-G1, Q-G2, Q-G5, Q-NEW, Q-C1, Q-G11"
+     Print: "  questions: Q-G1, Q-G2, Q-G5, Q-E2, Q-E1, Q-G11"
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
@@ -168,8 +168,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Q-G1 (Approach soundness — never N/A)
            Q-G2 (Standards compliance — never N/A)
            Q-G5 (Scope focus — never N/A)
-           Q-NEW (Post-implementation workflow — N/A for IS_GAS)
-           Q-C1 (Git lifecycle — never N/A)
+           Q-E2 (Post-implementation workflow — N/A for IS_GAS)
+           Q-E1 (Git lifecycle — never N/A)
            Q-G11 (Existing code examined — N/A for doc-only plans)
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
@@ -189,8 +189,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Q-G1  Approach soundness       ✅
            Q-G2  Standards compliance     ✅
            Q-G5  Scope focus              ✅
-           Q-NEW Post-implementation      ✅
-           Q-C1  Git lifecycle            ✅
+           Q-E2  Post-implementation      ✅
+           Q-E1  Git lifecycle            ✅
            Q-G11 Existing code examined   ✅
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
        Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
@@ -236,7 +236,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memo_milestones_printed = set()     # {25, 50, 75} — each printed once
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-NEW are not memoizable)
+   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23 are not memoizable)
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
    memoized_gas_since = {}           # Q-ID → pass_count when memoized
@@ -287,9 +287,9 @@ Gate tiers classify findings by severity and convergence impact. These definitio
 | **Gate 3** | Informational | Noted in scorecard only; never affects convergence or rating | Counted in scorecard advisory section only |
 
 **Gate 1 question IDs by mode:**
-- **Non-GAS / Non-NODE (standard):** Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
-- **IS_GAS mode:** Q-G1, Q-G2, Q-G11 (L1); Q1, Q2, Q13, Q15, Q18, Q42 (gas-evaluator). Q-NEW is N/A-superseded by Q42.
-- **IS_NODE mode:** Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3 (L1/cluster); N1 (node-evaluator)
+- **Non-GAS / Non-NODE (standard):** Q-G1, Q-G2, Q-G11, Q-C3 (loop); Q-E1, Q-E2 (epilogue)
+- **IS_GAS mode:** Q-G1, Q-G2, Q-G11 (L1); Q1, Q2, Q13, Q15, Q18, Q42 (gas-evaluator). Q-E1 and Q-E2 are N/A for IS_GAS (covered by Q1/Q2 and Q42).
+- **IS_NODE mode:** Q-G1, Q-G2, Q-G11, Q-C3 (loop); Q-E1, Q-E2 (epilogue); N1 (node-evaluator)
 
 **Gate 2** comprises all remaining questions not listed above and not designated Gate 3.
 **Gate 3** questions are explicitly marked in QUESTIONS.md with `[Gate 3]`; when QUESTIONS.md is unavailable, treat all unlisted questions as Gate 2.
@@ -325,6 +325,9 @@ DO:
       results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
       Print: "⚠️ Results dir gone — created new: $results_dir"
     RESULTS_DIR = results_dir
+    # Guard: old memo files may contain "git" which is no longer a loop cluster
+    memoized_clusters = memoized_clusters.intersection(active_clusters)
+    memoized_since = {k: v for k, v in memoized_since.items() if k in memoized_clusters}
     _recovered_this_pass = true
     Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
 
@@ -372,16 +375,12 @@ DO:
   IF "impact" in active_clusters AND "impact" NOT in memoized_clusters:
     evaluators_to_spawn.append({name: "impact-evaluator", task_config: <cluster_config("impact")>})
 
-  # Priority 4: Git cluster (Gate 1 Q-C1)
-  IF "git" in active_clusters AND "git" NOT in memoized_clusters:
-    evaluators_to_spawn.append({name: "git-evaluator", task_config: <cluster_config("git")>})
-
-  # Priority 5: Remaining clusters by question count descending
+  # Priority 4: Remaining clusters by question count descending
   FOR each remaining cluster in [security, state, testing, operations]:
     IF cluster in active_clusters AND cluster NOT in memoized_clusters:
       evaluators_to_spawn.append({name: "<cluster>-evaluator", task_config: <cluster_config(cluster)>})
 
-  # Priority 6: UI evaluator (last — rarely blocking)
+  # Priority 5: UI evaluator (last — rarely blocking)
   IF HAS_UI:
     evaluators_to_spawn.append({name: "ui-evaluator", task_config: <ui_config below>})
 
@@ -460,12 +459,12 @@ DO:
     model = "sonnet",
     name = "l1-evaluator-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 21 questions).
+      You are evaluating a plan for general quality (Layer 1: 20 questions).
 
       Question definitions: Read <questions_path> (Layer 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-NEW, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
+      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -740,7 +739,7 @@ DO:
     # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
     evaluator_lines = []
 
-    FOR each evaluator_name in all_results (in priority order: l1, ecosystem, impact, git, remaining clusters, ui):
+    FOR each evaluator_name in all_results (in priority order: l1, ecosystem, impact, remaining clusters, ui):
       data = all_results[evaluator_name]
       name = data.evaluator
       IF data.status == "complete":
@@ -807,10 +806,10 @@ DO:
           gas-evaluator > ui-evaluator (for GAS UI concerns when IS_GAS=true)
     (4) If same passage but findings address complementary (not identical) concerns → keep both.
         Do not deduplicate findings that are merely co-located — they must share a corrective action.
-  Example: Q-C1 from git-evaluator and Q2 from gas-evaluator both say "add feature branch step"
-    → duplicate, keep Q2 (gas-evaluator wins over cluster). Q-C3 from impact-evaluator says
-    "callers affected" and Q18 from gas-evaluator says "GAS triggers invalidated" → complementary,
-    keep both.
+  Example: Q-C26 from impact-evaluator and Q40 from gas-evaluator both flag "migration step for
+    changed config schema" → duplicate, keep Q40 (gas-evaluator wins over cluster). Q-C3 from
+    impact-evaluator says "callers affected" and Q18 from gas-evaluator says "GAS triggers
+    invalidated" → complementary, keep both.
 
   (If changes_this_pass == 0, skip the entire APPLYING section — no banner, no narration.)
 
@@ -893,17 +892,10 @@ DO:
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Memoization principle: memoize only criteria that check "additive-only" structural
   # properties — once met, subsequent plan edits cannot make the criterion fail again.
-  # Memoizable: Q-G11 (file paths cited), git cluster (branch/commit steps).
+  # Memoizable: Q-G11 (file paths cited).
   # NOT memoizable: criteria that check evolving properties (scope, assumptions, phase structure, etc.)
   # Q-G1 (Approach soundness): NOT memoizable — plan edits can alter approach scope/complexity
   # Q-G2 (Standards compliance): NOT memoizable — new steps can introduce directive violations
-  # Q-NEW is NOT memoizable — mandatory framing can change as plan is revised.
-  # Git cluster: safe to memoize (additive-only — branch + commit steps cannot be removed by edits)
-  IF "git" in active_clusters AND "git" NOT in memoized_clusters:
-    IF git-evaluator-p<pass_count> returned 0 NEEDS_UPDATE (all PASS or N/A):
-      memoized_clusters.add("git")
-      memoized_since["git"] = pass_count
-      newly_memoized.append("git")  # track for milestone display
   # L1 Q-G11: safe to memoize individually (cited file paths/function names don't regress during editing)
   IF l1_results["Q-G11"] in [PASS, N/A] AND "Q-G11" NOT in memoized_l1_questions:
     memoized_l1_questions.add("Q-G11")
@@ -965,7 +957,7 @@ DO:
       IF Q-ID in prev_pass_results:
         IF prev_pass_results[Q-ID] in [PASS, N/A] AND current_pass_results[Q-ID] in [PASS, N/A]:
           IF Q-ID is Gate 2 or Gate 3 L1 question AND Q-ID NOT in {"Q-G10", "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G19", "Q-G20", "Q-G21", "Q-G22", "Q-G23"}:
-            # never Gate 1 (Q-G1, Q-G2, Q-G11, Q-NEW); cluster questions handled by memoized_clusters
+            # never Gate 1 (Q-G1, Q-G2, Q-G11); cluster questions handled by memoized_clusters
             # non-memoizable Gate 2/3 questions explicitly excluded (evolving properties — see comments below)
             IF Q-ID NOT in memoized_l1_questions:
               memoized_l1_questions.add(Q-ID)
@@ -1018,7 +1010,7 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 21 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    total_applicable_questions = 20 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
     # 50 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
@@ -1115,12 +1107,12 @@ DO:
   IF IS_GAS:
     Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G11,
                        Q1, Q2, Q13, Q15, Q18, Q42
-                       (Q-NEW is N/A for IS_GAS — covered by Q42; L2 cluster questions are N/A-superseded by gas-evaluator)
+                       (Q-E1 and Q-E2 are N/A for IS_GAS; L2 cluster questions are N/A-superseded by gas-evaluator)
   ELSE IF IS_NODE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3,
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G11, Q-C3,
                        N1
   ELSE:
-    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-NEW, Q-G11, Q-C1, Q-C3
+    Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G11, Q-C3
 
   IF pass_count >= 5:
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
@@ -1138,7 +1130,7 @@ DO:
       "Looping for pass [pass_count + 1]..."
     Example:
       ⚠️ Gate 1 still open — 2 blocking:
-        - Git lifecycle (Q-C1): no feature branch or merge-to-main step defined
+        - Approach soundness (Q-G1): simpler alternative not considered
         - Impact analysis (Q-C3): callers/features affected but not addressed
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
@@ -1157,7 +1149,7 @@ DO:
 
 WHILE TRUE
 
--- Convergence complete. Proceed to "After Review Completes" below: Q-G9 → scorecard output → marker cleanup → teardown → ExitPlanMode. --
+-- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → ExitPlanMode. --
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
@@ -1174,14 +1166,14 @@ parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G8 Decision Framework
 QUESTIONS.md (Layer 1 section). Q-G9 sub-questions follow below (team-lead evaluates inline
 post-convergence).
 
-L1 per-pass count: 21 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G23).
+L1 per-pass count: 20 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 21 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
-*convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
+*L1 per-pass count stays at 20 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
+*convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
 using the plan already in context):
@@ -1221,7 +1213,7 @@ Q-G9 results are included in the scorecard output (step 3 of "After Review Compl
 ## Layer 2: Code Change Quality
 
 Question definitions are in QUESTIONS.md — cluster evaluators read that file directly. Team-lead
-only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 33 questions organized into 7
+only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 32 questions organized into 6
 concern clusters. Cluster-level triage activates/deactivates entire clusters based on Haiku
 pre-classification. Active clusters are listed in `active_clusters` computed in Step 0.
 
@@ -1263,7 +1255,7 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 
 | Cluster | Superseded? | Gas-evaluator equivalents |
 |---------|-------------|--------------------------|
-| Git (1) | **fully** | Q1, Q2 |
+| Git (1) | **epilogue** — Q-E1 evaluated post-convergence; IS_GAS: N/A (Q1, Q2) | Q1, Q2 |
 | Impact (2) | **partially** — Q-C26 has no gas equivalent (evaluates via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
 | Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
 | State (4) | **fully** (Q-C26 promoted to Impact cluster) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
@@ -1330,7 +1322,7 @@ Reserved slot — follows same pattern as Q-GAS / Q-NODE when implemented.
 
 The scorecard is generated by the team-lead after merging all evaluator findings. N/A items are
 collapsed to a count — only PASS and NEEDS_UPDATE questions appear as line items. Question IDs
-appear as a suffix for referenceability (user can say "fix Q-C1").
+appear as a suffix for referenceability (user can say "fix Q-E1").
 
 Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list every question
 individually with IDs. The collapsing happens only in this final user-facing scorecard.

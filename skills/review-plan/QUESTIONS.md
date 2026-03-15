@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*21 questions (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G23). Applies to every plan, every domain.*
+*20 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -27,8 +27,6 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives considered? Not over/under-engineered? If the plan explicitly rejects alternative approaches, is the rejection reasoning valid? Flag: false dichotomy (presenting only two options when more exist), straw man (misrepresenting the rejected alternative to make it easy to dismiss), appeal to authority without specifics ("best practice says X" without context). | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? (For IS_GAS plans: focus on non-GAS directives in CLAUDE.md — Verification Protocol, Agent Teams, Tool Preferences. GAS-specific CLAUDE.md directives are covered by gas-evaluator Q13.) | never |
 | Q-G11 | Existing code examined | Plan demonstrates the code being modified was read: specific file paths, function names, "currently does X" language. Flag: "update the module/handler/function" without specific names when modifying existing code. GAS: mcp_gas cat output cited or .gs function names referenced. | pure new-file work only |
-| Q-NEW | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies: **If section is absent entirely**, output `[EDIT: inject ## Post-Implementation Workflow\n1. /review-fix — loop until clean (run → fix → re-run until 0 findings)\n2. Run build if applicable (e.g. npm run build, tsc --noEmit)\n3. Run tests (if any)\n4. If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing]`. **If section is present but missing step 4 only**, output `[EDIT: add to Post-Implementation Workflow: step 4 — "If build or tests fail: fix issues → re-run /review-fix (step 1) → re-run build/tests — repeat until passing"]`. (Note to evaluators: you are read-only; emit the EDIT instruction, do not write directly.) Each step in the post-implementation workflow must be an imperative instruction, not user-optional. Flag: "optionally run /review-fix", "ask user before running tests", any step requiring user confirmation. | IS_GAS (covered by Q42 in gas-plan) |
-
 **Gate 2 — Important (weight 2):**
 
 | Q | Question | Criteria | N/A |
@@ -56,7 +54,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G17 | Phase preambles | For plans with ≥ 2 distinct implementation phases: does each phase have a brief intent preamble — 1–3 sentences before the numbered steps — explaining why this phase exists and what it sets up for subsequent phases? Flag: multi-phase plan where phases go straight to numbered steps without any per-phase narrative context. EDIT injection — team-lead applies: **If per-phase preamble is absent for a phase**, `[EDIT: add before Phase N steps: "> Intent: [why this phase exists and what it sets up for subsequent phases]"]`. One EDIT per missing preamble. | single-phase plan (requires ≥ 2 distinct phases); IS_TRIVIAL |
 | Q-G19 | Phase failure recovery | For multi-phase plans where each phase commits independently: does the plan address what happens if a later phase fails after earlier phases committed? Acceptable: explicit "earlier phases are safe to keep independently" statement, revert instructions, or "stop and assess before continuing" checkpoint between dependent phases. Flag: multi-phase plan with inter-phase dependencies where a Phase N failure would leave Phases 1..N-1 commits in an inconsistent state, with no acknowledgment of this risk. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 
-Count L1 edits → `l1_changes += count` (21 questions total, combined into `changes_this_pass` in Convergence Loop)
+Count L1 edits → `l1_changes += count` (20 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G8 Decision Framework: Task Calls & Agent Teams
 
@@ -102,8 +100,8 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 21 (Q-G1 through Q-G8 + Q-NEW + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
-*convergence loop scoring. N/A if plan has fewer than 3 implementation steps.*
+*L1 per-pass count stays at 20 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
+*convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 **Sub-question definitions:**
 
@@ -120,23 +118,11 @@ multi-file features where cross-file consistency needs a coordinator.
 
 ## Layer 2: Code Change Quality
 
-*33 questions organized into 7 concern clusters. Cluster-level triage activates/deactivates
+*32 questions organized into 6 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
-### Cluster 1: Git & Branching
-
-*1 question. Always active unless IS_GAS (fully superseded by gas-evaluator Q1, Q2).*
-*IS_NODE: not superseded — evaluate normally.*
-
-| Q | Gate | Question | Criteria | N/A |
-|---|------|----------|----------|-----|
-| Q-C1 | 1 | Git lifecycle | Branch named? Each implementation phase ends with explicit `git add` + `git commit` steps (not prose-only)? Push-to-remote step present? Merge/PR to main step present? Commit messages follow project conventions? | never |
-
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q1, Q2).
-IS_NODE: not superseded — evaluate normally.
-
-### Cluster 2: Impact & Architecture
+### Cluster 1: Impact & Architecture
 
 *7 questions. Always active.*
 
@@ -153,7 +139,7 @@ IS_NODE: not superseded — evaluate normally.
 IS_GAS: **partially superseded** — Q-C3 (→Q18), Q-C8 (→Q16), Q-C12 (→Q39), Q-C14 (→Q41) are superseded; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded. **Q-C26 has no gas equivalent — evaluate Q-C26 normally** (always active via impact cluster).
 IS_NODE: Q-C32 → N/A-superseded (node N14). All other questions: not superseded — evaluate normally.
 
-### Cluster 3: Testing & Plan Quality
+### Cluster 2: Testing & Plan Quality
 
 *6 questions. Always active.*
 
@@ -169,7 +155,7 @@ IS_NODE: Q-C32 → N/A-superseded (node N14). All other questions: not supersede
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20; Q-C29 N/A — test strategy covered by gas-evaluator Q11/Q12).
 IS_NODE: not superseded — evaluate normally.
 
-### Cluster 4: State & Data Integrity
+### Cluster 3: State & Data Integrity
 
 *4 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
 *(Q-C26 promoted to Cluster 2: Impact & Architecture — always active.)*
@@ -185,7 +171,7 @@ IS_GAS: **fully superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24),
   Skip this cluster entirely when IS_GAS=true (Q-C26 now in impact cluster, always active).
 IS_NODE: **Q-C18 → N/A-superseded** (covered by node-evaluator N8).
 
-### Cluster 5: Security & Reliability
+### Cluster 4: Security & Reliability
 
 *7 questions. Always active (low overhead).*
 
@@ -202,7 +188,7 @@ IS_NODE: **Q-C18 → N/A-superseded** (covered by node-evaluator N8).
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q27, Q28, Q23; Q-C30→Q28, Q-C31→N/A isolated exec, Q-C33→Q8, Q-C34→Q22).
 IS_NODE: **Q-C16, Q-C30, Q-C31, Q-C33, Q-C34 → N/A-superseded** (Q-C16→N6, Q-C30→N6/N7, Q-C31→N13/N27, Q-C33→N9/N10, Q-C34→N28). Q-C15 and Q-C22 remain active.
 
-### Cluster 6: Operations & Deployment
+### Cluster 5: Operations & Deployment
 
 *6 questions. Active when HAS_DEPLOYMENT=true. Skip entire cluster when HAS_DEPLOYMENT=false.*
 
@@ -218,7 +204,7 @@ IS_NODE: **Q-C16, Q-C30, Q-C31, Q-C33, Q-C34 → N/A-superseded** (Q-C16→N6, Q
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25); Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability).
 IS_NODE: **Q-C21 → N/A-superseded** (covered by node-evaluator N22).
 
-### Cluster 7: Client & UI
+### Cluster 6: Client & UI
 
 *2 questions. Active when HAS_UI=true. Skip entire cluster when HAS_UI=false.*
 
@@ -252,3 +238,34 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 | Q-U7 | UI design narrative | Does the plan include a UI design narrative describing the user experience: what does the user see and do, what interaction states they move through (loading, error, success, empty), and why the UI is designed this way? Acceptable: a `## UI Design Narrative`, `## User Experience`, or `## Design Intent` section with 2–5 sentences. Flag: plan goes straight to component/HTML implementation steps without any user-facing design rationale. EDIT injection — team-lead applies: `[EDIT: inject ## UI Design Narrative section: "## UI Design Narrative\n**User experience**: [what the user sees and does — the interaction flow]\n**Design intent**: [why this UI approach; what workflow or feeling it supports]\n**State transitions**: [how loading, error, empty, and success states are handled]"]`. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
 
 Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_this_pass` in Convergence Loop)
+
+---
+
+## Post-Convergence Questions
+
+*3 questions. Evaluated once after convergence loop exits.
+Not part of per-pass evaluation or convergence scoring.*
+
+| Q | Gate | Question | When |
+|---|------|----------|------|
+| Q-G9 | — | Organization pass | inline (team-lead) |
+| Q-E1 | 1 | Git lifecycle | epilogue (team-lead) |
+| Q-E2 | 1 | Post-implementation workflow | epilogue (team-lead) |
+
+Q-G9 sub-questions (Q-G9a through Q-G9f) are defined in the Layer 1 section above.
+
+### Q-E1: Git lifecycle (was Q-C1)
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-E1 | 1 | Git lifecycle | Branch named? Each implementation phase ends with explicit `git add` + `git commit` steps? Push-to-remote step present? Merge/PR to main step present? Commit messages follow project conventions? | never |
+
+IS_GAS: N/A — covered by gas-evaluator Q1, Q2.
+
+### Q-E2: Post-implementation workflow (was Q-NEW)
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-E2 | 1 | Post-implementation workflow | Does the plan include an explicit post-implementation section specifying all 4 steps: (1) `/review-fix` — iterative loop: run → apply fixes → re-run until 0 findings, (2) run build/compile if applicable, (3) run tests (if any), (4) if build or tests fail: fix issues → re-run `/review-fix` (back to step 1) → re-run build/tests — repeat until passing? Section must appear after all implementation steps and must not be bundled with or before them. Two cases for EDIT injection — team-lead applies in epilogue: **If section is absent entirely**, inject `## Post-Implementation Workflow` with all 4 steps. **If section is present but missing step 4 only**, append step 4. Each step in the post-implementation workflow must be an imperative instruction, not user-optional. Flag: "optionally run /review-fix", "ask user before running tests", any step requiring user confirmation. | IS_GAS (covered by Q42 in gas-plan) |
+
+IS_GAS: N/A — covered by gas-evaluator Q42.
