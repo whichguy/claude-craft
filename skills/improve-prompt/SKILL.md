@@ -447,11 +447,10 @@ After confirming `IDEAS_WRITTEN:` marker, print post-research summary. Read `ide
 - For each option: `option_name` = text after `### Option A: `; `impact` = from `**Predicted impact:** HIGH/MEDIUM/LOW`; `Q{N}` = from `**Addresses:** Q{N}`
 
 Print:
-- `📊 Research complete  ·  Iteration {i}`
+- `[1/7] 📊 Research ─── {num_options} options found`
 - `   Ideas: {IDEAS_FILE}`
-- (blank line)
-- `📋 Improvement Options ({num_options} option{s}, {E} experiment{s}):`
-- For each option letter A, B, C...: `   {letter}  [{impact}]  {option_name}  —  addresses Q{N}`
+- For each option letter A, B, C...: `   {letter}  [{impact}]  {option_name}  ─  Q{N}`
+- `   Experiments: {E} ({experiment assignment summary})`
 
 ---
 
@@ -484,9 +483,9 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 ```
 
 **Decision:**
-- All 6 PASS → Print: `🔒 Plan Gate: ✅ PASS`; proceed to Step 3
-- ≥2 FAIL AND `research_pass_count < 3` → Print: `🔒 Plan Gate: ⚠ FAIL ({n})  ·  retrying (pass {research_pass_count}/3)`; increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, print `🔒 Plan Gate: ⚠ FAIL ({n})  ·  proceeding (max research passes reached)` and proceed to Step 3 regardless.
-- 1 FAIL → Print: `🔒 Plan Gate: ✅ PASS (1 advisory)`; proceed to Step 3 (single failure is advisory)
+- All 6 PASS → Print: `[2/7] 🔒 Plan Gate ─── ✅ PASS`; proceed to Step 3
+- ≥2 FAIL AND `research_pass_count < 3` → Print: `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  retrying (pass {research_pass_count}/3)`; increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, print `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  proceeding (max research passes reached)` and proceed to Step 3 regardless.
+- 1 FAIL → Print: `[2/7] 🔒 Plan Gate ─── ✅ PASS (1 advisory)`; proceed to Step 3 (single failure is advisory)
 
 ---
 
@@ -533,7 +532,7 @@ Applied: {brief comma-separated list of specific changes made}
 
 Collect all E `EXP_WRITTEN:` markers and `Applied:` summaries. Verify all E output paths exist before proceeding.
 
-Print: `✏️  Variants written  ·  {E} experiment{s}:` then for each k: `   Exp-{k}:  {applied_summary_k}` (using the `Applied:` line from each write-agent's output; truncate to ~60 chars if longer).
+Print: `[3/7] ✏️  Write ─── {E} variant{s} written` then for each k: `   Exp-{k}:  {applied_summary_k}` (using the `Applied:` line from each write-agent's output; truncate to ~60 chars if longer).
 
 ---
 
@@ -649,14 +648,14 @@ ELSE:
 
 **Print summary** after gate (before Step 4):
 ```
-Print: 🔍 Scope Gate  ·  Iteration {i}
+Print: `[4/7] 🔍 Scope Gate ─── {len(active_experiments)} experiment{s} checked`
 For each k in 1..E:
   IF gate_verdict_k == "PASS":
     Print:    Exp-{k}:  ✅ PASS  ({pass_count_k}/12)
   ELIF gate_verdict_k == "WARN":
-    Print:    Exp-{k}:  ⚠ WARN  ({pass_count_k}/12)  —  {first WARN Q-SG question}: {reason}
+    Print:    Exp-{k}:  ⚠ WARN  ({pass_count_k}/12)  ─  {first WARN Q-SG question}: {reason}
   ELSE (FAIL):
-    Print:    Exp-{k}:  ❌ FAIL  ({pass_count_k}/12)  —  {first FAIL Q-SG question}: {reason}
+    Print:    Exp-{k}:  ❌ FAIL  ({pass_count_k}/12)  ─  {first FAIL Q-SG question}: {reason}
 ```
 
 **Build `scope_gate_summary`** for later use in Step 5:
@@ -677,7 +676,7 @@ active_experiments = [k for k in 1..E if gate_verdict_k != "FAIL"]
 **If all experiments FAIL** → abort iteration:
 ```
 IF len(active_experiments) == 0:
-  Print: ❌ Scope Gate: all experiments failed — re-run with fewer aggressive changes
+  Print: `[4/7] 🔍 Scope Gate ─── ❌ all experiments failed`
 
   # Record failure in IDEAS_FILE via reconcile agent for knowledge loop
   IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
@@ -733,7 +732,7 @@ ELSE:
 
 Record `start_time_ms` per task before spawning.
 
-Print: `⚖️  Evaluating {M} input{s} × {1+len(active_experiments)} prompt{s} in parallel...`
+Print: `[5/7] ⚖️  Evaluate ─── {M} input{s} × {1+len(active_experiments)} prompt{s}`
 (If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
 
 **Spawn all (1 + len(active_experiments)) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
@@ -808,9 +807,9 @@ avg_latency_k = mean(latency_ms for exp-k runs)
 ```
 
 Print quality score results (after all experiments aggregated):
-- `   Baseline quality:  {quality_score_a:.1%}`
-- For each k in active_experiments: `   Exp-{k}:             {quality_score_b_k:.1%}  ({quality_spread_k:+.1%}){IF gate_verdict_k == "WARN": " ⚠"}`
-- For each k in excluded_experiments: `   Exp-{k}:             (excluded by scope gate)`
+- `   Baseline:  {quality_score_a:.1%}`
+- For each k in active_experiments: `   Exp-{k}:    {quality_score_b_k:.1%}  ({quality_spread_k:+.1%}){IF gate_verdict_k == "WARN": " ⚠"}`
+- For each k in excluded_experiments: `   Exp-{k}:    (excluded by scope gate)`
 
 Token/latency metrics tracked for transparency; quality score is the primary verdict driver.
 
@@ -965,10 +964,13 @@ iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality
 
 FOR i in 1..iterations:
 
-  Print:
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  🔄 Iteration {i} of {iterations}  ·  {label}
-  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Print: ""
+  Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
+  IF i > 1:
+    trajectory_scores = [entry.quality_score_b if entry.verdict == "IMPROVED" else entry.quality_score_a for entry in iteration_log]
+    trajectory_str = join([f"{s:.0%}" for s in trajectory_scores], " → ")
+    cumulative = trajectory_scores[-1] - iteration_log[0].quality_score_a
+    Print: "  trajectory ── {trajectory_str}  ({cumulative:+.1%} cumulative)"
 
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
@@ -994,6 +996,11 @@ EOF
 )"
     iterations_completed = i
     iteration_log.append({i: i, verdict: "IMPROVED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summary_{best_k}})
+    Print: `[6/7] 🏆 Select ─── Exp-{best_k} wins ({decided_by})`
+    IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
+      Print: `[7/7] 💾 Commit ─── improve({basename}): {1-line summary}`
+    ELSE:
+      Print: `[7/7] 💾 Result ─── IMPROVED (prompt committed)`
     Print (render as fenced code block):
     ╔═══════════════════════════════════════════════════════════════╗
     ║  ✅  IMPROVED  —  Iteration {i}                               ║
@@ -1024,6 +1031,8 @@ Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
 EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
+        Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
+        Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted)`
         Print (render as fenced code block):
         ╔═══════════════════════════════════════════════════════════════╗
         ║  ⚠️  NEUTRAL  —  Iteration {i}  ·  stopping early            ║
@@ -1045,6 +1054,8 @@ Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
 EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
+        Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
+        Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted)`
         Print (render as fenced code block):
         ╔═══════════════════════════════════════════════════════════════╗
         ║  ❌  REGRESSED  —  Iteration {i}  ·  stopping early          ║
