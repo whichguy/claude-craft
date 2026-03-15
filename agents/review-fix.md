@@ -284,49 +284,30 @@ for (const file of sorted_file_list) {
 After target files and reviewer mapping are determined, discover files that REFERENCE changed code.
 These become `related_files` context (NOT additional `target_files` — we warn about breakage, we don't fix other people's code).
 
-```javascript
-// Impact discovery runs sequentially across target files (single-threaded accumulation).
-// Global cap of 30 impact files is checked after each file's rg results are appended.
-let total_impact_count = 0
-const MAX_IMPACT_FILES = 30
+```
+Impact discovery runs sequentially across target files (single-threaded accumulation).
+Global cap of 30 total impact files is checked after each file's results are appended.
 
-for (const file of file_list) {
-  if (total_impact_count >= MAX_IMPACT_FILES) break
+For each file in file_list (stop if total_impact_count >= 30):
 
-  // 1. Get diff output
-  //    For new files with no diff, read the file content directly
-  const diff = git diff ${base_commit || 'HEAD'} -- ${file}
+  1. Use Bash tool: `git diff ${base_commit:-HEAD} -- ${file}`
+     If empty (new file): use Read tool to get file content.
+     If file > 500KB: skip impact discovery for this file, log warning.
 
-  // 2. Extract exported/public symbol names from CHANGED lines (+ lines only):
-  //    - JS/TS: export function/const/class X, module.exports.X, exports.X
-  //    - GAS: top-level function declarations (all public)
-  //    - Skip symbols <= 2 chars (too generic), cap at 20 symbols per file
-  const symbols = extract_symbols(diff_added_lines)
-    .filter(s => s.length > 2)
-    .slice(0, 20)
+  2. Extract exported/public symbol names from added lines (+ lines in diff):
+     - JS/TS: `export function/const/class NAME`, `module.exports.NAME`, `exports.NAME`
+     - GAS: top-level `function NAME` declarations (all public in GAS)
+     - Skip symbols with 2 or fewer characters (too generic). Cap at 20 symbols per file.
+     If no symbols found: skip to next file.
 
-  if (symbols.length === 0) continue
+  3. Use Grep tool: search for symbol references across the codebase.
+     Pattern: symbols joined by `|` (alternation).
+     Exclude: node_modules, .git, *.lock, *.json, dist, build, coverage.
+     Limit: 10 matching files per source file.
+     If Grep tool fails or rg unavailable: skip impact discovery for this file, log warning.
 
-  // 3. Ripgrep for references
-  const pattern = symbols.join('|')
-  const referencing = rg -l "${pattern}" \
-    --glob '!node_modules' --glob '!.git' --glob '!*.lock' --glob '!*.json' \
-    --glob '!dist' --glob '!build' --glob '!coverage' \
-    | head -10
-
-  // Error handling: if rg is unavailable or returns an error, skip impact discovery
-  // for this file and log a warning
-
-  // Filter out files already in file_list (don't duplicate target files)
-  const filtered = referencing.filter(f => !file_list.includes(f))
-
-  // Apply global cap
-  const capped = filtered.slice(0, MAX_IMPACT_FILES - total_impact_count)
-  if (capped.length > 0) {
-    impact_files[file] = capped
-    total_impact_count += capped.length
-  }
-}
+  4. Filter results: remove files already in file_list (no self-references).
+     Append remaining to impact_files[file]. Enforce global cap of 30 total impact files.
 ```
 
 ### Phase 1 Print: Setup Banner
@@ -506,24 +487,17 @@ early; the rest continue to the next round.
 Round 2 uses 2, Round 3 uses 3, etc., capped at `max_reviewers`. This minimizes overlap on
 early (dirty) rounds while maximizing reviewer diversity on later (clean) rounds.
 
-```javascript
-remaining_files = [...files_needing_fixes]
-// round already initialized to 0 in State Tracking
-// Initialize per_file_rounds for all files needing fixes
-remaining_files.forEach(file => { per_file_rounds[file] = 0 })
+```
+remaining_files = files_needing_fixes (copy)
+Initialize per_file_rounds[file] = 0 for each remaining file.
 
-// Incremental dedup — checked on insert during Phase 3 aggregation
-const dedup = {
-  _seen: {},
-  key: (e) => `${e.file}:${e.q_number || e.title || ''}:${e.description}`,
-  push(array, name, entry) {
-    if (!this._seen[name]) this._seen[name] = new Set()
-    const k = this.key(entry)
-    if (this._seen[name].has(k)) return
-    this._seen[name].add(k)
-    array.push(entry)
-  }
-}
+# --- Dedup Guard ---
+# Before appending any entry to a tracking array (critical_resolved, advisory_applied,
+# advisory_stuck, stuck_findings, fix_failures, advisory_yagni, etc.), compute a dedup key:
+#   key = "${entry.file}:${entry.q_number or entry.title or ''}:${entry.description}"
+# If this key was already seen for the target array: skip (do not append).
+# Otherwise: mark as seen, then append the entry.
+# This prevents duplicate findings from accumulating across multiple reviewer outputs.
 ```
 
 ### Global Fix Loop
@@ -661,7 +635,7 @@ Parse the review output above and apply each finding:
   // ═══ STEP B: Aggregate fixer results into state tracking arrays ═══
 
   // Advisory findings processed from every round in Phase 3;
-  // deduplication is handled incrementally via dedup.push (persistent _seen map initialized before the loop).
+  // deduplication is handled incrementally via the dedup guard (persistent seen keys initialized before the loop).
   // Do NOT suppress advisory processing in earlier rounds — process on every pass.
 
   for (const result of fixer_results) {
@@ -676,39 +650,39 @@ Parse the review output above and apply each finding:
       print: "  ✓ [file] — [result.applied.length] applied, [result.yagni.length] advisory/yagni, [result.stuck.length] stuck"
     }
 
-    // Critical applied (dedup-guarded)
+    // Critical applied → append to critical_resolved (dedup-guarded)
     result.applied.filter(a => a.type === 'critical').forEach(a => {
       const entry = { file, ...a }
-      dedup.push(critical_resolved, 'critical', entry)
+      append entry to critical_resolved (apply dedup guard)
     })
-    // Advisory applied (dedup-guarded)
+    // Advisory applied → append to advisory_applied (dedup-guarded)
     result.applied.filter(a => a.type === 'advisory').forEach(a => {
       const entry = { file, ...a }
-      dedup.push(advisory_applied, 'applied', entry)
+      append entry to advisory_applied (apply dedup guard)
     })
-    // Failed (dedup-guarded)
+    // Failed → append to fix_failures (dedup-guarded)
     result.failed.forEach(a => {
       const entry = { file, ...a }
-      dedup.push(fix_failures, 'failed', entry)
+      append entry to fix_failures (apply dedup guard)
     })
     // Stuck — route by type (critical → stuck_findings, advisory → advisory_stuck)
     result.stuck.filter(a => a.type === 'critical').forEach(a => {
       const entry = { file, ...a }
-      dedup.push(stuck_findings, 'stuck_critical', entry)
+      append entry to stuck_findings (apply dedup guard)
     })
     result.stuck.filter(a => a.type === 'advisory').forEach(a => {
       const entry = { file, ...a }
-      dedup.push(advisory_stuck, 'stuck', entry)
+      append entry to advisory_stuck (apply dedup guard)
     })
     // Defensive fallback: typeless stuck entries route to advisory_stuck (not silently dropped)
     result.stuck.filter(a => a.type !== 'critical' && a.type !== 'advisory').forEach(a => {
       const entry = { file, ...a }
-      dedup.push(advisory_stuck, 'stuck', entry)
+      append entry to advisory_stuck (apply dedup guard)
     })
-    // YAGNI (dedup-guarded)
+    // YAGNI → append to advisory_yagni (dedup-guarded)
     result.yagni.forEach(a => {
       const entry = { file, ...a }
-      dedup.push(advisory_yagni, 'yagni', entry)
+      append entry to advisory_yagni (apply dedup guard)
     })
 
     if (applied_count > 0 && !files_changed.includes(file)) {
@@ -732,12 +706,12 @@ Parse the review output above and apply each finding:
     unresolved_critical = parse remaining Critical findings from current_findings[file]
     unresolved_critical.forEach(c => {
       const entry = { file, ...c }
-      dedup.push(stuck_findings, 'stuck_critical', entry)
+      append entry to stuck_findings (apply dedup guard)
     })
     unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
     unresolved_advisory_no_fix.forEach(a => {
       const entry = { file, ...a }
-      dedup.push(advisory_stuck, 'stuck', entry)
+      append entry to advisory_stuck (apply dedup guard)
     })
     print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
   remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
@@ -1213,7 +1187,7 @@ Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.len
 ## Phase 4: Summary + Teardown
 
 ```javascript
-// Deduplication handled incrementally during Phase 3 aggregation (dedup.push with persistent _seen map).
+// Deduplication handled incrementally during Phase 3 aggregation (dedup guard with persistent seen keys).
 // No batch dedup needed here — arrays are already duplicate-free.
 ```
 
@@ -1302,7 +1276,7 @@ Note: `introduced_by_fix` findings that were subsequently resolved appear in "Cr
 
 ```javascript
 // Assign final_status based on derivation above (MUST run before Phase 5).
-// Reads deduplicated advisory_stuck[] (maintained incrementally via dedup.push in Phase 3).
+// Reads deduplicated advisory_stuck[] (maintained incrementally via dedup guard in Phase 3).
 if (stuck_findings.length > 0) {
   final_status = 'NEEDS_REVISION'
 } else if (advisory_stuck.length > 0) {
