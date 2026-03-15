@@ -108,7 +108,6 @@ Maintain these values across all phases:
 
 ```
 round = 0           # global round counter for round-based parallel loop
-run_id = Date.now() + '-' + Math.random().toString(36).slice(2, 10)
 critical_resolved = []     # { file, line, q_number, description }
 advisory_applied = []      # { file, line, q_number, description } — Advisory WITH Fix block applied in Phase 3
 fix_failures = []       # { file, line, q_number, description } — Fix block could not be applied (critical or advisory)
@@ -312,11 +311,14 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 Launch one Task call directly:
 
 ```javascript
+const review_start = Date.now()
 Task({
   subagent_type: reviewer_map[file_list[0]] || 'code-reviewer',
   description: "Review file for Critical findings",
   prompt: reviewer_prompt(file_list[0])
 });
+const review_elapsed = ((Date.now() - review_start) / 1000).toFixed(1)
+print: "  ✓ 1 review completed in [review_elapsed]s"
 ```
 
 Collect full output. Parse for Critical findings, Advisory findings, Advisory/YAGNI findings, Status, and LOOP_DIRECTIVE.
@@ -453,7 +455,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   // Create round subdirectory for this round's temp files
   Bash(`mkdir -p ${REVIEW_TMPDIR}/round_${round}`)
 
-  print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: [remaining_files.length] file(s) × [num_reviewers] reviewer(s) = [remaining_files.length * num_reviewers] tasks..."
+  print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: [remaining_files.length] file(s) × [num_reviewers] reviewer(s) = [remaining_files.length * num_reviewers] tasks (max)..."
 
   fixes_applied_per_file = {}
 
@@ -730,63 +732,34 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
     if (review_files.length == 1) {
       // Single reviewer — use output directly (no consolidation needed)
       const review_content = Read(review_files[0])
-      // Detect introduced-by-fix: compare new criticals against old
-      new_criticals = parse Critical findings from review_content
-      old_criticals = parse Critical findings from current_findings[file]
-      const old_keys = new Set(
-        old_criticals.map(c => `${c.q_number || ''}:${c.description}`)
-      )
-      introduced_by_fix.push(
-        ...new_criticals
-          .filter(c => !old_keys.has(`${c.q_number || ''}:${c.description}`))
-          .map(c => ({ file, ...c, introduced_in_round: round }))
-      )
+      introduced_by_fix.push(...detect_introduced_by_fix(file, review_content, current_findings[file], round))
       current_findings[file] = review_content
 
-      // Write consolidated output and print summary
+      // Print summary
       const next_findings = parse_findings(review_content)
       print: "    📊 ${file}: 1 review → ${next_findings.length} findings"
-      const consolidated_path = `${REVIEW_TMPDIR}/round_${round}/${file_slug}_consolidated.md`
-      Write(consolidated_path, current_findings[file])
-      print: "    📋 ${consolidated_path}"
-
-      // Print TODO list for next round
-      if (next_findings.length > 0) {
-        print: "    📌 Next round TODO for ${file}:"
-        for (const f of next_findings) {
-          const fix_tag = f.fix_block ? '🔧' : '⚠️'
-          print: "      ${fix_tag} ${f.q_number || '—'} ${f.severity}: ${f.description.slice(0, 80)}"
-        }
-      }
 
     } else if (review_files.length > 1) {
       // Multiple reviewers — consolidate into unique union
       const reviews = review_files.map(f => Read(f))
       const total_before = reviews.flatMap(r => parse_findings(r)).length
       const consolidated = consolidate_findings(reviews)
-      // consolidate_findings uses the Consolidation Strategy below
-      // Detect introduced-by-fix against pre-consolidation findings
-      new_criticals = parse Critical findings from consolidated
-      old_criticals = parse Critical findings from current_findings[file]
-      const old_keys = new Set(
-        old_criticals.map(c => `${c.q_number || ''}:${c.description}`)
-      )
-      introduced_by_fix.push(
-        ...new_criticals
-          .filter(c => !old_keys.has(`${c.q_number || ''}:${c.description}`))
-          .map(c => ({ file, ...c, introduced_in_round: round }))
-      )
+      introduced_by_fix.push(...detect_introduced_by_fix(file, consolidated, current_findings[file], round))
       current_findings[file] = consolidated
 
-      // Write consolidated output and print summary
+      // Print summary
       const next_findings = parse_findings(consolidated)
       const dupes_merged = total_before - next_findings.length
       print: "    📊 ${file}: ${reviews.length} reviews → ${next_findings.length} unique findings (${dupes_merged} duplicates merged)"
+    }
+
+    // Shared post-reconciliation: write consolidated file + TODO list (both paths)
+    if (review_files.length > 0) {
       const consolidated_path = `${REVIEW_TMPDIR}/round_${round}/${file_slug}_consolidated.md`
       Write(consolidated_path, current_findings[file])
       print: "    📋 ${consolidated_path}"
 
-      // Print TODO list for next round
+      const next_findings = parse_findings(current_findings[file])
       if (next_findings.length > 0) {
         print: "    📌 Next round TODO for ${file}:"
         for (const f of next_findings) {
@@ -798,7 +771,34 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
     // If 0 review files: all reviewers failed — current_findings unchanged
   }
 
-  // ═══ END OF ROUND — loop continues back to WHILE condition ═══
+  // ═══ END OF ROUND — compute duration, file exit prints, per-round status grid ═══
+  round_durations.push(Date.now() - round_start_time)
+  const round_elapsed = (round_durations[round_durations.length - 1] / 1000).toFixed(1)
+
+  // File exit prints — files that left remaining_files this round
+  for (const file of files_clean_this_round) {
+    print: "  ✅ [file] — clean after [per_file_rounds[file]] round(s)"
+  }
+  for (const file of files_over_limit) {
+    print: "  ❌ [file] — [N] finding(s) stuck after [per_file_rounds[file]] round(s)"
+  }
+
+  // Per-round status grid — all files that participated this round
+  const all_round_files = [...files_clean_this_round, ...files_over_limit, ...remaining_files]
+  print: "  Round [round]:  [round_elapsed]s"
+  for (let i = 0; i < all_round_files.length; i++) {
+    const file = all_round_files[i]
+    const connector = all_round_files.length === 1 ? '└' : i === 0 ? '┌' : i === all_round_files.length - 1 ? '└' : '├'
+    const padded = file + ' ─'.repeat(Math.max(1, 20 - file.length))
+    if (files_clean_this_round.includes(file)) {
+      print: "  ${connector} ${padded} ✅ clean (${per_file_rounds[file]} round(s))      [${num_reviewers} reviewer(s)]"
+    } else if (files_over_limit.includes(file)) {
+      print: "  ${connector} ${padded} ❌ stuck ([N] finding(s))      [[N] critical stuck]"
+    } else {
+      print: "  ${connector} ${padded} 🔄 continuing                 [${num_reviewers} reviewer(s)]"
+    }
+  }
+
   // remaining_files still has entries with fixes_applied > 0 → next round
   // Next round: fixer Tasks apply fixes from updated current_findings,
   // then team-lead fans out min(round+1, max_reviewers) reviewer Tasks per file
@@ -897,6 +897,18 @@ function consolidate_findings(reviews) {
   // Use same format as reviewer output (## Code Review: header + finding blocks + status)
   return rebuild_review_markdown(consolidated)
 }
+
+// detect_introduced_by_fix: compare new criticals against old to find regressions
+function detect_introduced_by_fix(file, new_review, old_review, round) {
+  const new_criticals = parse_findings(new_review).filter(f => f.severity === 'Critical')
+  const old_criticals = parse_findings(old_review).filter(f => f.severity === 'Critical')
+  const old_keys = new Set(
+    old_criticals.map(c => `${c.q_number || ''}:${c.description}`)
+  )
+  return new_criticals
+    .filter(c => !old_keys.has(`${c.q_number || ''}:${c.description}`))
+    .map(c => ({ file, ...c, introduced_in_round: round }))
+}
 ```
 
 ### Phase 3 Print Format
@@ -907,16 +919,16 @@ Print: "──── FIX LOOP ───────────"
 Print: "  📂 Temp dir: ${REVIEW_TMPDIR}"
 ```
 
-**Round start:**
+**Round start** (task count is max forecast — STEP C may filter files before reviewer dispatch):
 ```
-Print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: [N] file(s) × [num_reviewers] reviewer(s) = [total] tasks..."
+Print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: [N] file(s) × [num_reviewers] reviewer(s) = [total] tasks (max)..."
 ```
 
 Examples with max_rounds=5, max_reviewers=3:
 ```
-🔧 Round [▓░░░░] [1/5]: 2 file(s) × 1 reviewer(s) = 2 tasks...
-🔧 Round [▓▓░░░] [2/5]: 1 file(s) × 2 reviewer(s) = 2 tasks...
-🔧 Round [▓▓▓░░] [3/5]: 1 file(s) × 3 reviewer(s) = 3 tasks...
+🔧 Round [▓░░░░] [1/5]: 2 file(s) × 1 reviewer(s) = 2 tasks (max)...
+🔧 Round [▓▓░░░] [2/5]: 1 file(s) × 2 reviewer(s) = 2 tasks (max)...
+🔧 Round [▓▓▓░░] [3/5]: 1 file(s) × 3 reviewer(s) = 3 tasks (max)...
 ```
 
 **STEP A — fixer dispatch, timing, and results:**
@@ -962,7 +974,7 @@ Print: "  ✅ [filename] — clean after [N] round(s)"
 Print: "  ❌ [filename] — [N] finding(s) stuck after [N] round(s)"
 ```
 
-**Per-round status grid** — record `round_durations.push(Date.now() - round_start_time)`.
+**Per-round status grid** — emitted at END OF ROUND (after `round_durations.push()`).
 Use tree connectors: `┌` first, `├` middle, `└` last. Right-pad filename with `─` to align.
 ```
 Print: "  Round [N]:  [round_duration_ms / 1000]s"
@@ -992,7 +1004,7 @@ Example:
 ──── FIX LOOP ───────────
   📂 Temp dir: /tmp/review-fix-a1b2c3
 
-🔧 Round [▓░░░░] [1/5]: 3 file(s) × 1 reviewer(s) = 3 tasks...
+🔧 Round [▓░░░░] [1/5]: 3 file(s) × 1 reviewer(s) = 3 tasks (max)...
   ↗ Dispatching 3 fixer task(s)...
     → Fix Utils.gs (round 1, findings: 3 critical, 1 advisory)
     → Fix Main.ts (round 1, findings: 1 critical, 0 advisory)
@@ -1025,7 +1037,7 @@ Example:
   ├ Main.ts ───── ✅ clean (1 round)     [1 reviewer: 1 advisory applied]
   └ Api.ts ────── 🔄 continuing          [1 reviewer: 2 findings, 2 critical applied]
 
-🔧 Round [▓▓░░░] [2/5]: 1 file(s) × 2 reviewer(s) = 2 tasks...
+🔧 Round [▓▓░░░] [2/5]: 1 file(s) × 2 reviewer(s) = 2 tasks (max)...
   ↗ Dispatching 1 fixer task(s)...
     → Fix Api.ts (round 2, findings: 1 critical, 1 advisory)
   ✓ 1 fixer task(s) completed in 5.1s
@@ -1042,7 +1054,7 @@ Example:
   Round 2:  19.9s
   └ Api.ts ────── 🔄 continuing          [2 reviewers: 3→1 unique, 1 critical applied]
 
-🔧 Round [▓▓▓░░] [3/5]: 1 file(s) × 3 reviewer(s) = 3 tasks...
+🔧 Round [▓▓▓░░] [3/5]: 1 file(s) × 3 reviewer(s) = 3 tasks (max)...
   ↗ Dispatching 1 fixer task(s)...
     → Fix Api.ts (round 3, findings: 0 critical, 1 advisory)
   ✓ 1 fixer task(s) completed in 2.1s
