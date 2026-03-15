@@ -260,6 +260,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23 are not memoizable)
+   l1_advisory_memoized = false     # true when ALL 17 advisory questions PASS/N/A AND no edits applied since
+   l1_advisory_memoized_since = 0   # pass_count when group-memoized
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
    memoized_gas_since = {}           # Q-ID → pass_count when memoized
@@ -328,6 +330,7 @@ DO:
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+                     l1_advisory_memoized (default false), l1_advisory_memoized_since (default 0),
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
                      prev_pass_applied_edits (default []),
                      total_changes_all_passes, pass_count,
@@ -387,8 +390,12 @@ DO:
   -- Build evaluator list (priority-ordered for wave assignment) --
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
-  # Priority 1: L1 (always, 20 questions, longest runtime)
-  evaluators_to_spawn.append({name: "l1-evaluator", task_config: <l1_config below>})
+  # Priority 1a: L1 blocking (Gate 1, always runs, 3 questions)
+  evaluators_to_spawn.append({name: "l1-blocking", task_config: <l1_blocking_config below>})
+
+  # Priority 1b: L1 advisory (Gate 2/3, 17 questions — skip if group-memoized)
+  IF NOT l1_advisory_memoized:
+    evaluators_to_spawn.append({name: "l1-advisory", task_config: <l1_advisory_config below>})
 
   # Priority 2: Ecosystem evaluator (largest question set after L1)
   IF IS_GAS AND NOT fully_memoized_gas:
@@ -477,19 +484,97 @@ DO:
     Print: "  node-eval ── ⏭ fully memoized (all [applicable_node_count] questions stable)"
     node_plan_changes = 0
     node_results = {n_id: "PASS" for n_id in memoized_node_questions}
+  IF l1_advisory_memoized:
+    advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
+      "Q-G20", "Q-G21", "Q-G22", "Q-G23"}
+    FOR q in advisory_questions:
+      l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
+    Print: "  ⏭ l1-advisory ── memoized (17 questions stable since p[l1_advisory_memoized_since])"
 
-  --- L1 Evaluator Config ---
-  l1_config = Task(
+  --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
+  l1_blocking_config = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
-    name = "l1-evaluator-p" + pass_count,
+    name = "l1-blocking-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1: 20 questions).
+      You are evaluating a plan for critical quality (Layer 1 Gate 1: 3 questions).
 
-      Question definitions: Read <questions_path> (Layer 1 section)
+      Question definitions: Read <questions_path> (Layer 1, Gate 1 section)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 questions: Q-G1, Q-G2, Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G11, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
+      Evaluate ONLY these 3 questions: Q-G1, Q-G2, Q-G11
+      Calibration: Prioritize practical production implications over theoretical concerns.
+      Flag findings that would cause real failures, wasted effort, or incorrect implementations
+      at development time — not hypothetical risks that require unlikely conditions to manifest.
+      When deciding between PASS and NEEDS_UPDATE for a borderline finding, ask: "Would a
+      senior developer implementing this plan actually encounter this problem?" If the answer
+      is "only under unusual circumstances," mark PASS.
+      Apply triage (mark N/A per the N/A column).
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
+
+      Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+      (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+      without citing which step or section is responsible.
+
+      Output contract — write findings to JSON file:
+        Write your findings to: <RESULTS_DIR>/l1-blocking.json
+
+        JSON schema:
+        {
+          "evaluator": "l1-blocking",
+          "pass": <pass_count>,
+          "status": "complete",
+          "elapsed_s": <seconds_from_start>,
+          "findings": {
+            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+            ...
+          },
+          "counts": {"pass": N, "needs_update": N, "na": N}
+        }
+
+        Write atomically using Bash (ensures clean reads by orchestrator):
+          cat > '<RESULTS_DIR>/l1-blocking.json.tmp' << 'EVAL_EOF'
+          <json>
+          EVAL_EOF
+          mv '<RESULTS_DIR>/l1-blocking.json.tmp' '<RESULTS_DIR>/l1-blocking.json'
+
+        If you encounter an error reading inputs, write:
+          {"evaluator": "l1-blocking", "pass": <pass_count>, "status": "error", "error": "<message>"}
+
+      Constraints:
+      - Do not use Edit or Write tools on the plan file — read-only
+      - Use Bash ONLY to write your findings JSON to the specified path
+      - Do not call ExitPlanMode or touch marker files
+      - Write exactly ONE JSON file
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
+    """
+  )
+
+  --- L1 Advisory Evaluator Config (Gate 2/3: 17 questions, group-memoizable) ---
+  l1_advisory_config = Task(
+    subagent_type = "general-purpose",
+    model = "sonnet",
+    name = "l1-advisory-p" + pass_count,
+    prompt = """
+      You are evaluating a plan for general quality (Layer 1 Gate 2/3: 17 questions).
+
+      Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
+      Standards: Read ~/.claude/CLAUDE.md as needed
+
+      Evaluate ALL L1 Gate 2/3 questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -519,11 +604,11 @@ DO:
       without citing which step or section is responsible.
 
       Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-evaluator.json
+        Write your findings to: <RESULTS_DIR>/l1-advisory.json
 
         JSON schema:
         {
-          "evaluator": "l1-evaluator",
+          "evaluator": "l1-advisory",
           "pass": <pass_count>,
           "status": "complete",
           "elapsed_s": <seconds_from_start>,
@@ -535,13 +620,13 @@ DO:
         }
 
         Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-evaluator.json.tmp' << 'EVAL_EOF'
+          cat > '<RESULTS_DIR>/l1-advisory.json.tmp' << 'EVAL_EOF'
           <json>
           EVAL_EOF
-          mv '<RESULTS_DIR>/l1-evaluator.json.tmp' '<RESULTS_DIR>/l1-evaluator.json'
+          mv '<RESULTS_DIR>/l1-advisory.json.tmp' '<RESULTS_DIR>/l1-advisory.json'
 
         If you encounter an error reading inputs, write:
-          {"evaluator": "l1-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
+          {"evaluator": "l1-advisory", "pass": <pass_count>, "status": "error", "error": "<message>"}
 
       Constraints:
       - Do not use Edit or Write tools on the plan file — read-only
@@ -833,6 +918,8 @@ DO:
       evaluator_lines.append("gas-eval ── ⏭ fully memoized")
     IF IS_NODE AND fully_memoized_node:
       evaluator_lines.append("node-eval ─ ⏭ fully memoized")
+    IF l1_advisory_memoized:
+      evaluator_lines.append("l1-advisory ── ⊘ memoized p[l1_advisory_memoized_since]")
 
     Print tree (where n = len(evaluator_lines) - 1):
       If n == 0: "  └ " + evaluator_lines[0]   (only 1 evaluator — no ┌/├)
@@ -849,10 +936,17 @@ DO:
       CONTINUE
 
     # Route findings — specific evaluators checked BEFORE wildcard to prevent silent misrouting
-    IF evaluator_name == "l1-evaluator":
-      l1_results = {q_id: entry.status for q_id, entry in data.findings}
-      # Extract EDIT instructions for NEEDS_UPDATE findings
-      l1_edits = {q_id: entry for q_id, entry in data.findings where entry.status == "NEEDS_UPDATE"}
+    IF evaluator_name == "l1-blocking":
+      FOR q_id, entry in data.findings:
+        l1_results[q_id] = entry.status
+        IF entry.status == "NEEDS_UPDATE":
+          l1_edits[q_id] = entry
+
+    ELSE IF evaluator_name == "l1-advisory":
+      FOR q_id, entry in data.findings:
+        l1_results[q_id] = entry.status
+        IF entry.status == "NEEDS_UPDATE":
+          l1_edits[q_id] = entry
 
     ELSE IF evaluator_name == "gas-evaluator":
       gas_results = {q_id: entry.status for q_id, entry in data.findings}
@@ -1050,6 +1144,22 @@ DO:
   prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
   prev_pass_applied_edits = current_pass_applied_edits  # carry delta summary to next pass's evaluators
 
+  # Group memoization for l1-advisory evaluator
+  IF NOT l1_advisory_memoized:
+    advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
+      "Q-G20", "Q-G21", "Q-G22", "Q-G23"}
+    all_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in advisory_questions)
+    IF all_clean:
+      l1_advisory_memoized = true
+      l1_advisory_memoized_since = pass_count
+      newly_memoized.append("l1-advisory (17 questions)")
+  ELSE:
+    # Invalidate if ANY edit was applied this pass (edits can affect advisory questions)
+    IF changes_this_pass > 0:
+      l1_advisory_memoized = false
+      Print: "  memo: l1-advisory invalidated (edits applied)"
+
   # Stability-based memoization for gas Gate 2/3 questions
   # Runs AFTER Phase 6 invalidation — so newly-cleared questions can re-earn stability this pass
   IF IS_GAS AND pass_count >= 2:
@@ -1118,6 +1228,7 @@ DO:
     results_dir: RESULTS_DIR,
     pass_count, memoized_clusters: [...memoized_clusters],
     memoized_since, memoized_l1_questions: [...memoized_l1_questions],
+    l1_advisory_memoized, l1_advisory_memoized_since,
     prev_needs_update_set: [...current_needs_update_set],
     pass1_needs_update_set: [...pass1_needs_update_set],
     prev_pass_results,
