@@ -174,7 +174,7 @@ ELIF iterations_explicit == true:
     Print: "🔁 Fixed mode: {iterations} iterations (stall detection disabled)"
 ELSE:
     loop_mode = "default"
-    # Stall detection active (current behavior)
+    # Stall detection active
 ```
 
 Outputs: `loop_mode` ('default'|'fixed'|'duration'), `deadline` (ms timestamp, duration mode only), `duration_minutes` (number, duration mode only)
@@ -721,9 +721,12 @@ IF len(active_experiments) == 0:
   # Record failure in IDEAS_FILE via reconcile agent for knowledge loop
   IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
     Spawn reconcile agent (same prompt as Step 6) with:
+      - ideas_file_contents = current contents of IDEAS_FILE (re-read now)
       - experiment_results = "(all experiments excluded by scope gate)"
       - selected_winner = "Verdict: SCOPE_FAIL"
       - scope_gate_results = {per-experiment FAIL details from gate agents above}
+    # All other fields (ideas_file_path, best_k, etc.) are filled from the
+    # current iteration's scope gate pass — no evaluation data exists for SCOPE_FAIL.
     Wait for VERDICT: marker (ignore verdict value — always SCOPE_FAIL)
     Then commit IDEAS_FILE only:
     git -C {PROMPT_DIR} add {IDEAS_FILE}
@@ -1055,7 +1058,7 @@ FOR i in 1..iterations:
     effective_experiments = min(experiments + 1, 4)
   ELSE:
     effective_experiments = experiments
-  E = effective_experiments  # bind E so Steps 3/3b/4/5 use the bumped value this iteration
+  E = effective_experiments  # bind E so Steps 3/4/5 use the bumped value this iteration
 
   # Compute stall/auto-bump suffix (all modes — auto-bump fires whenever consecutive_stalls >= 1)
   exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
