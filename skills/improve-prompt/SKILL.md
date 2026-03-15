@@ -37,7 +37,7 @@ to extract the following values:
 | Parameter | Required? | What to look for | Default |
 |-----------|-----------|-------------------|---------|
 | `prompt_path` | **yes** (unless inline text provided) | A file path (contains `/` or `.`) | — |
-| `inputs_dir` | no | A directory path for test inputs. Auto-generated if user approves, or empty run | — |
+| `inputs_dir` | no | A directory path for test inputs. Auto-generated if not provided and prompt needs input | — |
 | `inline_text` | alt to prompt_path | Quoted text or explicitly described as "inline prompt" | — |
 | `input_text` | no | Inline text to use as a single test input. Look for quoted strings after the prompt path, or text after "with input", "using text", "test with" | — |
 | `num_inputs` | no | Number of test inputs to auto-generate if user approves | 3 (max: 10) |
@@ -157,60 +157,41 @@ ELSE:
     - Is self-contained (generates output without external data) → NO_INPUT_NEEDED
 
   IF NEEDS_INPUT:
-    # Ask the user if they want test inputs auto-generated
-    AskUserQuestion:
-      "This prompt appears to require input to evaluate properly
-       (detected: {signal_description}).
-       Would you like to auto-generate {num_inputs} test inputs?"
-      Suggestions:
-        - "Yes, generate test inputs"
-        - "No, run with empty input"
+    inputs_auto_generated = true
+    inputs_dir = $IMPROVE_TMPDIR/auto-inputs
+    mkdir -p "$inputs_dir"
+    Print: "Auto-generating {num_inputs} test inputs (prompt requires input: {signal_description})..."
 
-    IF user says yes (or provides affirmative response):
-      inputs_auto_generated = true
-      inputs_dir = $IMPROVE_TMPDIR/auto-inputs
-      mkdir -p "$inputs_dir"
-      Print: "Generating {num_inputs} test inputs..."
+    Spawn general-purpose agent:
+      prompt: |
+        You are a test input generator. Analyze the prompt below and generate
+        {num_inputs} diverse test inputs that would exercise it well.
 
-      Spawn general-purpose agent:
-        prompt: |
-          You are a test input generator. Analyze the prompt below and generate
-          {num_inputs} diverse test inputs that would exercise it well.
+        <prompt>
+        {prompt_file_contents}
+        </prompt>
 
-          <prompt>
-          {prompt_file_contents}
-          </prompt>
+        Requirements:
+        - Classify the prompt type first (agent prompt, skill definition, system prompt,
+          task prompt, etc.) to understand what kind of input it expects
+        - Generate inputs that vary in complexity: simple, moderate, complex/edge-case
+        - Use realistic content (not lorem ipsum or placeholder text)
+        - Each input should be 10-80 lines
+        - Name files descriptively: input-simple.md, input-moderate.md, input-complex.md,
+          input-edge-case.md, etc.
+        - Files contain ONLY raw input content — no meta-commentary, no headers like
+          "This is a test input for..."
+        - Write each file to {inputs_dir}/
 
-          Requirements:
-          - Classify the prompt type first (agent prompt, skill definition, system prompt,
-            task prompt, etc.) to understand what kind of input it expects
-          - Generate inputs that vary in complexity: simple, moderate, complex/edge-case
-          - Use realistic content (not lorem ipsum or placeholder text)
-          - Each input should be 10-80 lines
-          - Name files descriptively: input-simple.md, input-moderate.md, input-complex.md,
-            input-edge-case.md, etc.
-          - Files contain ONLY raw input content — no meta-commentary, no headers like
-            "This is a test input for..."
-          - Write each file to {inputs_dir}/
+        Write all {num_inputs} files, then output only:
+        INPUTS_GENERATED: {num_inputs} files written to {inputs_dir}
 
-          Write all {num_inputs} files, then output only:
-          INPUTS_GENERATED: {num_inputs} files written to {inputs_dir}
-
-      If agent output does not contain "INPUTS_GENERATED:" → abort:
-        "ERROR: Auto-generation failed. Provide inputs_dir manually.
-         Example: /improve-prompt path/to/prompt.md path/to/inputs/"
-      Verify files exist via glob "{inputs_dir}/*.md"; abort if zero files found.
-      Print file listing with line counts (ls -la style).
-
-    ELIF user provides a directory path in their response:
-      inputs_dir = user-provided path
-      inputs_auto_generated = false
-      Validate inputs_dir exists on disk; abort if not.
-
-    ELSE (user says no, or wants to run empty):
-      inputs_auto_generated = false
-      # Set up empty input — handled in Step 4 input loading
-      Print: "⚠ Running with empty input — evaluation quality may be limited for input-dependent prompts."
+    If agent output does not contain "INPUTS_GENERATED:" → abort:
+      "ERROR: Auto-generation failed. Provide inputs_dir manually.
+       Example: /improve-prompt path/to/prompt.md path/to/inputs/"
+    Verify files exist via glob "{inputs_dir}/*.md"; abort if zero files found.
+    Print file listing with line counts (ls -la style).
+    Print: "⚠ Inputs were auto-generated — provide a custom inputs directory for more targeted evaluation."
 
   ELSE (NO_INPUT_NEEDED):
     # Prompt is self-contained — run with empty input (like compare-prompts)
