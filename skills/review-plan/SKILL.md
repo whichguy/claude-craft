@@ -288,6 +288,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    Print: "  results: $RESULTS_DIR"
    ```
    Print: "╭─── REVIEW ─────────────────────╮"
+   Print: "  >> Beginning convergence loop — evaluating plan quality across all active layers"
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
@@ -384,6 +385,7 @@ DO:
   all_results = {}    # pass-level accumulator — each wave appends; routing + status grid read from this
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── evaluating…"  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
+  Print: "  >> Spawning evaluators to assess the plan — collecting findings"
 
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
 
@@ -419,6 +421,7 @@ DO:
   -- Wave spawning --
   total_evaluators = len(evaluators_to_spawn)
   waves = chunk(evaluators_to_spawn, MAX_CONCURRENT)
+  Print: "  >> Building evaluator wave schedule"
   Print: "  evaluators: [total_evaluators] across [len(waves)] wave(s) (max [MAX_CONCURRENT] concurrent)"
 
   FOR wave_idx, wave in enumerate(waves):
@@ -472,6 +475,7 @@ DO:
       all_results[name] = data
 
     Print: "  ── wave [wave_idx+1] complete: [len(wave_results)]/[len(wave_names)]"
+    Print: "  >> Wave [wave_idx+1] finished — merging results into pass accumulator"
 
   -- Print memoized evaluators (not spawned) --
   FOR each cluster_name in memoized_clusters:
@@ -876,6 +880,7 @@ DO:
   -- Pass-level summary (from all_results accumulator) --
   total_completed = count entries in all_results with status=="complete"
   total_error = count entries in all_results with status=="error"
+  Print: "  >> All evaluators reported — assembling pass-level summary"
   Print: "  fan-in ─── ●[total_completed] ✗[total_error]"
 
   Incomplete evaluator rule: An Incomplete (error) evaluator contributes ZERO findings for its
@@ -928,6 +933,7 @@ DO:
         For i in 1..n-1: "  ├ " + evaluator_lines[i]  (middle lines, inclusive range)
         "  └ " + evaluator_lines[n]
 
+  Print: "  >> Routing evaluator findings to their respective layers"
   -- Route findings from all_results (already read during wave fan-in — no second file read) --
   FOR evaluator_name, data in all_results:
 
@@ -986,6 +992,7 @@ DO:
     dedup_removed = total_findings_before_dedup - changes_to_apply
     Print: "╭─── APPLYING ───────────────────╮"
     Print: "  [total_findings_before_dedup] findings → [dedup_removed] deduped → [changes_to_apply] edits queued"
+    Print: "  >> Applying edits to the plan — each change will be verified"
 
   APPLY edits — for each finding with edit != null in any evaluator's JSON data:
     Print: ""
@@ -1015,6 +1022,7 @@ DO:
     IF restorations > 0:
       Print: "  ⚠️ [restorations] step(s) restored (removed by edit, reinstated)"
     Print: "╰─── [N] edits applied ──────────╯"
+    Print: "  >> Edits applied — updating memoization state and checking convergence"
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
@@ -1333,6 +1341,7 @@ DO:
       Looping for pass 2...
     CONTINUE (do NOT exit when Gate 1 is still open, even if changes_this_pass == 0)
   IF changes_this_pass == 0 OR Gate2_stable:
+    Print: "  >> All gates clear and no new changes — convergence achieved"
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     IF pass_count == 1:
       Print: "🏁 Converged ── pass 1, [total_elapsed]s ── 0 issues"
@@ -1603,6 +1612,7 @@ After the convergence loop exits (scorecard not yet printed):
 
 2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, inline:
    Print: "╭─── EPILOGUE ───────────────────╮"
+   Print: "  >> Checking boilerplate sections — git lifecycle and post-implementation workflow"
 
    **Q-E2: Post-implementation workflow**
    ```
@@ -1653,9 +1663,11 @@ After the convergence loop exits (scorecard not yet printed):
    `findings["Q-E2"] = {"status": epilogue_q_e2, "gate": 1}`
 
    Print: "╰─── epilogue complete ──────────╯"
+   Print: "  >> Epilogue complete — proceeding to organization pass"
 
 3. **Q-G9 organization pass** (post-convergence structural check, inline):
    Print: "╭─── ORGANIZE ───────────────────╮"
+   Print: "  >> Running structural organization check (Q-G9) on the finalized plan"
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Evaluate Q-G9 inline as specified in the "Q-G9 Post-Convergence Organization Pass"
    subsection in Layer 1 (no Task spawn — team-lead evaluates directly). Apply any NEEDS_UPDATE
@@ -1664,6 +1676,7 @@ After the convergence loop exits (scorecard not yet printed):
    visibility). Git commit steps and post-impl section are structural elements Q-G9 should see.
 
 4. Print: "╭─── SCORECARD ──────────────────╮"
+   Print: "  >> Compiling final scorecard from all evaluator findings"
    **Output the final scorecard** (incorporating epilogue Q-E1/Q-E2 and Q-G9 results). See
    "Output: Unified Scorecard" section for the full template. Include the "Organization Quality
    (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
