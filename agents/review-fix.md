@@ -1169,28 +1169,43 @@ ${tasks.map(t => `- ${t.task_id}: file="${t.file}", ${t.q_number} ${t.severity} 
 
 ## Your job
 
-Analyze these tasks and determine:
-1. **Cross-file dependencies** — does task A modify an exported symbol that task B in another file references? If so, B depends on A.
-2. **Same-file ordering** — do tasks in the same file modify overlapping code regions? If so, they must be sequenced (earlier finding first).
-3. **True independence** — tasks in different files with no symbol relationship can run in parallel.
-4. **Wave assignment** — group independent tasks into waves. Wave 0 runs first, wave 1 after wave 0 completes, etc.
+Analyze these tasks for conflicts at THREE levels — not just files, but logical resources and concurrent actions:
+
+### Level 1: File-level
+1. **Cross-file symbol dependencies** — task A modifies an exported symbol that task B in another file references → B depends on A.
+2. **Same-file region overlap** — tasks in the same file modify overlapping code regions → must be sequenced (earlier finding first).
+
+### Level 2: Logical resource overlap (even across different files)
+3. **Shared configuration** — task A changes a config value/env var, task B reads that config elsewhere → B depends on A.
+4. **Route/endpoint coherence** — task A renames a handler function, task B updates the route table that references it → sequence them.
+5. **Schema/contract dependencies** — task A changes a data structure, interface, or migration, task B relies on the old shape → B depends on A.
+6. **Trigger/event chains** — task A modifies a trigger handler, task B changes the function the trigger invokes → sequence them (GAS: onOpen→menu→handler chains, doGet/doPost→router).
+
+### Level 3: Concurrency safety
+7. **Execution path overlap** — two tasks that modify different files but affect the same runtime execution path (middleware pipeline, event handler chain, require() chain) → sequence if the fix in one could invalidate assumptions in the other.
+8. **Shared external resource** — tasks that both modify code interacting with the same external service, API endpoint, or database table → evaluate whether concurrent application could produce an inconsistent state.
+
+### Final step
+9. **Wave assignment** — group truly independent tasks into waves. Wave 0 runs first, wave 1 after wave 0 completes, etc.
 
 ## Rules
 - Minimize wave count (maximize parallelism)
 - Same-file tasks with non-overlapping regions CAN be in the same wave (the fixer handles ordering)
-- Only create dependencies when there is a concrete code-level reason
-- If all tasks are independent: 1 wave, all in wave 0
+- Only create dependencies when there is a concrete code-level OR logical-resource reason
+- When in doubt about resource overlap, sequence (correctness over speed)
+- If all tasks are independent across all three levels: 1 wave, all in wave 0
 
 ## Output (bare JSON, no markdown wrapping)
 
 {
   "tasks": [
     { "task_id": "T1", "depends_on": [], "wave": 0 },
-    { "task_id": "T2", "depends_on": ["T1"], "wave": 1, "reason": "updates import of symbol renamed by T1" }
+    { "task_id": "T2", "depends_on": ["T1"], "wave": 1, "reason": "updates import of symbol renamed by T1" },
+    { "task_id": "T3", "depends_on": ["T1"], "wave": 1, "reason": "modifies route handler that T1's endpoint rename affects" }
   ],
   "waves": [
     { "wave": 0, "task_ids": ["T1"] },
-    { "wave": 1, "task_ids": ["T2"] }
+    { "wave": 1, "task_ids": ["T2", "T3"] }
   ],
   "wave_count": 2
 }`
