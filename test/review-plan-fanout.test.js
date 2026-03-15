@@ -137,6 +137,29 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('Task return status checking', function () {
+        it('checks Task tool results before polling', function () {
+            expect(skillContent).to.include('Check Task return status before polling');
+        });
+
+        it('writes error sentinel for tool-level Task failures', function () {
+            expect(skillContent).to.include('task_result indicates tool-level failure');
+            expect(skillContent).to.include('"status":"error","error":"Task failed:');
+        });
+
+        it('detects Tasks that returned success but wrote no file', function () {
+            expect(skillContent).to.include('Task completed but no JSON file written');
+            expect(skillContent).to.include('test -f');
+        });
+
+        it('checks status before polling, not after', function () {
+            const checkIdx = skillContent.indexOf('Check Task return status before polling');
+            const pollIdx = skillContent.indexOf('poll_for_wave_results(wave_names)');
+            expect(checkIdx).to.be.greaterThan(-1);
+            expect(pollIdx).to.be.greaterThan(checkIdx);
+        });
+    });
+
     describe('per-pass cleanup', function () {
         it('removes prior-pass JSON files before next wave spawns', function () {
             expect(skillContent).to.include('IF pass_count > 1:');

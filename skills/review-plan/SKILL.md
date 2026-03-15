@@ -390,8 +390,28 @@ DO:
     Print: "  wave [wave_idx+1]/[len(waves)]: [comma-sep wave_names]"
 
     [In a SINGLE message, spawn all evaluator Tasks in this wave]
+    # Tasks are foreground — this message blocks until all Tasks in the wave complete.
+    # Each Task tool call returns a result (success text or error).
+
+    -- Check Task return status before polling --
+    # After all Tasks return, inspect each tool result:
+    FOR each task_result in wave task results:
+      evaluator_name = extract name from task_result  # matches wave entry
+      IF task_result indicates tool-level failure (error, crash, context limit):
+        # Write error sentinel immediately — don't wait for 120s timeout
+        Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task failed: [brief error]"}' > '<RESULTS_DIR>/[evaluator_name].json'
+        Print: "    ✗ [evaluator_name] — task failed: [brief error]"
+      ELSE:
+        # Task completed successfully at tool level.
+        # Verify the JSON file was actually written (defense-in-depth):
+        IF NOT Bash: test -f '<RESULTS_DIR>/[evaluator_name].json':
+          # Task returned success but didn't write its file — treat as error
+          Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task completed but no JSON file written"}' > '<RESULTS_DIR>/[evaluator_name].json'
+          Print: "    ✗ [evaluator_name] — no output file (task returned successfully but wrote nothing)"
 
     -- Poll for this wave's results (see fan-in section below) --
+    # Note: After the check above, most/all files should already exist.
+    # The poll loop handles any remaining edge cases (e.g., atomic mv race).
     poll_for_wave_results(wave_names)
 
   -- Print memoized evaluators (not spawned) --
