@@ -95,6 +95,7 @@ Before moving to Phase 3, verify:
 - Does the code do what you expected, or did reading it reveal surprises?
 - Have any trigger patterns surfaced that weren't obvious from filenames alone?
 - Are there context gaps (missing imports, unknown callers) that would change question selection?
+- Classify file type: **code** (`.ts`, `.js`, `.py`, `.gs`, `.html`, `.css`, `.sh`) vs **non-code** (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`). Unknown extensions default to code. <!-- No tests exercise question selection; this classification is verified manually (see Q13 addition). -->
 
 Produce no output yet. This phase is understanding only.
 
@@ -109,9 +110,9 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | `quick` | Q1 + Q4 | Narrow patch; time-constrained gate |
 | `security` | Q2 + Q7 + Q10 | User input, auth flows, or data persistence |
 | `architectural` | Q4 + Q5 + Q11 | Public APIs, shared utilities, stable-interface changes |
-| `full` (default) | Q1–Q5 + all triggered | Production-bound code; PR to main branch |
+| `full` (default) | **Code files**: Q1–Q5 + all triggered. **Non-code files**: Q4 + Q5 + all triggered (skip Q1–Q3: correctness, security, and error propagation don't apply to non-code content). | Production-bound changes; PR to main branch |
 
-Context-specific questions (Q6–Q12) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
+Context-specific questions (Q6–Q13) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
 
 ### Universal Questions
 
@@ -138,6 +139,7 @@ Context-specific questions (Q6–Q12) are always added when their trigger patter
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | Are all query parameters parameterized? Could string interpolation lead to injection? |
 | Q11 | (`dryrun=true` OR prompt includes `**Impact context**` block) + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? When an `**Impact context**` block lists referencing files, read those files and verify changed signatures/behaviors remain compatible with actual call sites. Are there backwards-incompatible signature or behavior changes? |
 | Q12 | `.md` files containing question tables (`\| Q`) or evaluator prompt patterns (`Evaluate ALL\|evaluate.*questions\|FINDINGS FROM`) | Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables? Are all Q-IDs defined in question tables present in IS_GAS/IS_NODE suppression tables where those tables exist? Flag stale counts, orphaned Q-ID references, and missing suppression entries as Critical. |
+| Q13 | Non-code files (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`) | Does this change achieve its stated purpose? Is the modified content clear, accurate, and consistent with surrounding context? When `plan_summary` is provided: does the change match the described intent? Flag: ambiguity that could cause misinterpretation, factual errors, broken cross-references, inconsistencies with adjacent content, or changes that undermine rather than support the stated goal. |
 
 ### Answer Format
 
