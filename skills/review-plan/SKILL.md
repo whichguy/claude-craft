@@ -1206,7 +1206,7 @@ Print result after applying any edits:
   Organization: ✅ inline (6/6)              ← all PASS
   Organization: ⚠️ inline (N/6) — K flagged  ← K sub-questions had NEEDS_UPDATE
 
-Q-G9 results are included in the scorecard output (step 3 of "After Review Completes"; see Organization Quality section below).
+Q-G9 results are included in the scorecard output (step 4 of "After Review Completes"; see Organization Quality section below).
 
 ---
 
@@ -1400,31 +1400,87 @@ After the convergence loop exits (scorecard not yet printed):
 
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): By the time
    the loop exits, Gate 1 is either clean (→ READY/SOLID/GAPS rating) or still has unresolved
-   issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 3)
+   issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 4)
    and ExitPlanMode (step 8). Do not re-run the REWORK check here.
 
-2. **Q-G9 organization pass** (post-convergence structural check, inline):
+2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, inline:
+   Print: "╭─── EPILOGUE ───────────────────╮"
+
+   **Q-E2: Post-implementation workflow**
+   ```
+   IF NOT IS_GAS:  # IS_GAS: N/A — covered by Q42
+     Scan plan for "## Post-Implementation Workflow" section (or equivalent heading).
+     IF section absent entirely:
+       Inject at END of plan (after all implementation phases):
+         ## Post-Implementation Workflow <!-- review-plan -->
+         1. `/review-fix` — loop until clean <!-- review-plan -->
+         2. Run build if applicable <!-- review-plan -->
+         3. Run tests (if any) <!-- review-plan -->
+         4. If build or tests fail: fix → re-run `/review-fix` → re-run build/tests — repeat <!-- review-plan -->
+       epilogue_q_e2 = "PASS"
+       Print: "  Q-E2: injected Post-Implementation Workflow"
+     ELSE IF section present but missing step 4:
+       Append step 4.
+       epilogue_q_e2 = "PASS"
+       Print: "  Q-E2: added step 4 (fail → re-run cycle)"
+     ELSE:
+       epilogue_q_e2 = "PASS"
+       Print: "  Q-E2: ✅ present"
+   ELSE:
+     epilogue_q_e2 = "N/A"
+     Print: "  Q-E2: — (IS_GAS, covered by Q42)"
+   ```
+
+   **Q-E1: Git lifecycle**
+   ```
+   IF NOT IS_GAS:  # IS_GAS: N/A — covered by Q1, Q2
+     Scan plan for: (a) named feature branch, (b) per-phase git add+commit,
+                     (c) push-to-remote, (d) merge/PR to main.
+     missing = list of (a)-(d) not found
+     IF missing is non-empty:
+       Inject missing elements: per-phase commit steps within phases,
+       branch/push/merge at end (before Post-Implementation). Mark <!-- review-plan -->.
+       epilogue_q_e1 = "PASS"
+       Print: "  Q-E1: injected [missing elements]"
+     ELSE:
+       epilogue_q_e1 = "PASS"
+       Print: "  Q-E1: ✅ present"
+   ELSE:
+     epilogue_q_e1 = "N/A"
+     Print: "  Q-E1: — (IS_GAS, covered by Q1/Q2)"
+   ```
+
+   Insert epilogue results into findings for scorecard:
+   `findings["Q-E1"] = {"status": epilogue_q_e1, "gate": 1}`
+   `findings["Q-E2"] = {"status": epilogue_q_e2, "gate": 1}`
+
+   Print: "╰─── epilogue complete ──────────╯"
+
+3. **Q-G9 organization pass** (post-convergence structural check, inline):
    Print: "╭─── ORGANIZE ───────────────────╮"
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Evaluate Q-G9 inline as specified in the "Q-G9 Post-Convergence Organization Pass"
    subsection in Layer 1 (no Task spawn — team-lead evaluates directly). Apply any NEEDS_UPDATE
-   edits immediately. Q-G9 results will be included in the scorecard output in step 3.
+   edits immediately. Q-G9 results will be included in the scorecard output in step 4.
+   **Why after epilogue:** Q-G9 checks structural organization (sequential clarity, checkpoint
+   visibility). Git commit steps and post-impl section are structural elements Q-G9 should see.
 
-3. Print: "╭─── SCORECARD ──────────────────╮"
-   **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
-   Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
-   when Q-G9 ran (plan had >= 3 implementation steps).
+4. Print: "╭─── SCORECARD ──────────────────╮"
+   **Output the final scorecard** (incorporating epilogue Q-E1/Q-E2 and Q-G9 results). See
+   "Output: Unified Scorecard" section for the full template. Include the "Organization Quality
+   (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
+   in the Gate 1 section of the scorecard.
 
-4. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
+5. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
    strip all self-referential markers that served their purpose during the convergence loop
-   (including any added by Q-G9 in step 2):
+   (including any added by the epilogue in step 2 and Q-G9 in step 3):
    - `" <!-- review-plan -->"` → `""` (remove)
    - `" <!-- gas-plan -->"` → `""` (remove)
    - `" <!-- node-plan -->"` → `""` (remove)
    This delivers a clean plan file to the user for implementation (no stray HTML comments).
    Only strip the markers — do not remove the content they annotated.
 
-5. Use the Bash tool to run:
+6. Use the Bash tool to run:
    ```
    touch "~/.claude/.plan-reviewed-${plan_slug}"
    rm -f <memo_file>
@@ -1434,10 +1490,10 @@ After the convergence loop exits (scorecard not yet printed):
    Second command removes the convergence checkpoint (no longer needed after loop exits).
    Third command removes the temp results directory.
 
-6. **Remaining issues summary (non-READY ratings):**
+7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     No issues to print — proceed directly to step 7 (ExitPlanMode)
+     No issues to print — proceed directly to step 8 (ExitPlanMode)
    IF Rating == SOLID or GAPS:
      Print: "ℹ️ [N] Gate 2 issues remaining (not blocking):"
      For each remaining Gate 2 NEEDS_UPDATE question:
@@ -1454,6 +1510,6 @@ After the convergence loop exits (scorecard not yet printed):
    This is a single approval point: the user sees remaining issues in printed text, then
    ExitPlanMode is the one decision point. No double-approval friction.
 
-7. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+8. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
