@@ -50,6 +50,7 @@ to extract the following values:
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
+| `duration` | no | A time duration or deadline: "2h", "30m", "1h30m", "90 minutes", "2 hours", "until 5pm", "until tomorrow morning". Look for time-related words/units after "for", "duration", "until", or `--duration` | — |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
@@ -93,6 +94,7 @@ paths, natural language, or any combination:
 | `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
 | `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
+| `duration` | A time duration or deadline. Look for: (a) explicit durations — "2h", "30m", "1h30m", "90 minutes", "2 hours", or text after "for", "duration", `--duration`; (b) relative deadlines — "until 5pm", "until tomorrow morning", "until midnight". For relative deadlines, calculate the duration in minutes from now to the target time. |
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
@@ -101,6 +103,7 @@ paths, natural language, or any combination:
 - `iterations` = 1
 - `experiments` = 1
 - `max_stalls` = 2
+- `duration` = none
 - `inputs_dir` = none
 - `input_text` = none
 - `num_inputs` = 3
@@ -133,10 +136,37 @@ After interpreting the arguments, check:
    - iterations >= 1
    - experiments between 1 and 4
    - max_stalls >= 1
+   - `duration` if set: must resolve to a positive number of minutes. Accepted formats: explicit durations (`Xh`, `Xm`, `XhYm`, `X hours`, `X minutes`, `X mins`) or relative time expressions (`until 5pm`, `until tomorrow morning`, `until midnight`). For relative expressions, calculate minutes from now to the target time. Min 5 minutes, max 24 hours. If the target time is in the past, abort: `"ERROR: Duration target is in the past."`
+   - `duration` and explicit `iterations` are mutually exclusive — if both set, abort: `"ERROR: Cannot set both --iterations and --duration. Use one or the other."`
    - num_inputs between 1 and 10 (clamp with warning if exceeded)
    - inputs_dir must exist on disk (if provided)
    - prompt_path must exist on disk (if not inline mode)
    - On any validation failure: print clear error before exiting (trap covers cleanup)
+
+**Derive loop mode** (after validation, before input resolution):
+
+```
+IF duration is set:
+    loop_mode = "duration"
+    duration_minutes = parse_duration(duration)
+    # parse_duration handles:
+    #   Explicit: "2h" → 120, "30m" → 30, "1h30m" → 90, "90 minutes" → 90
+    #   Relative: "until 5pm" → minutes from now to 5pm today (or tomorrow if past)
+    #             "until tomorrow morning" → minutes from now to tomorrow 8am
+    #             "until midnight" → minutes from now to next midnight
+    deadline = now() + duration_minutes * 60 * 1000  # ms timestamp
+    iterations = 999  # effectively unlimited — duration is the bound
+    Print: "⏱ Duration mode: {duration} ({duration_minutes}m) — deadline {format_time(deadline)}"
+ELIF iterations was explicitly set by user:
+    loop_mode = "fixed"
+    # All N iterations run regardless of verdict
+    Print: "🔁 Fixed mode: {iterations} iterations (stall detection disabled)"
+ELSE:
+    loop_mode = "default"
+    # Stall detection active (current behavior)
+```
+
+Outputs: `loop_mode` ('default'|'fixed'|'duration'), `deadline` (ms timestamp, duration mode only), `duration_minutes` (number, duration mode only)
 
 ### Step 0b — Smart Input Resolution
 
