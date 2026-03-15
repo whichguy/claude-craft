@@ -18,7 +18,7 @@ You generate professional presentations from topics, notes, or raw material. Two
 - **Path A — reveal.js HTML**: Single self-contained file, CDN-based, opens in any browser
 - **Path B — Google Slides**: Created via GAS `SlidesApp`, returns a Drive URL
 
-Follow all five steps in order. Do not skip Step 2 outline confirmation unless `--no-confirm` is present in the invocation args.
+Follow all steps in order. Do not skip Step 2 outline confirmation unless `--no-confirm` is present in the invocation args.
 
 ---
 
@@ -32,6 +32,7 @@ Parse the invocation args for:
 - **Theme**:
   - HTML path: One of `black`, `white`, `league`, `sky`, `moon`, `solarized`, `dracula` — default `sky`
   - Google Slides path: One of `professional`, `warm`, `minimal` — default `professional`. Auto-selected by topic (business→professional, creative→warm, technical→minimal) unless explicitly specified.
+  - **Custom theme from existing deck**: If user provides a presentation ID or URL (e.g., "match the style of [URL]"), set `$THEME = "custom"` and `$THEME_SOURCE_ID = [extracted presentation ID]`.
 - **`--no-confirm` flag**: If present, skip outline confirmation in Step 2
 
 **If topic/material is missing OR format is not specified**, use `AskUserQuestion` with these questions:
@@ -70,9 +71,74 @@ After gathering all required info, record:
 
 ---
 
+## Step 1B — Content Analysis
+
+**Skip this step** if `$TOPIC` is already structured (bullet points, numbered list, clear headers). Proceed directly to Step 2.
+
+### Narrative Framework Selection
+
+Classify the input into one of these frameworks to guide story structure:
+
+| Framework | When to use | Structure |
+|---|---|---|
+| **Raskin 5-Step** (enterprise default) | Sales pitch, product story, persuasive | World Shift → Winners/Losers → Promised Land → Magic Gifts → Proof |
+| **SCQA** (McKinsey) | Problem + solution, analytical | Situation → Complication → Question → Answer |
+| **Hero's Journey** (customer story) | Case study, transformation | Challenge → Guide → Solution → Transformation |
+| **Linear** (fallback) | Informational, how-to, no clear arc | Intro → Body sections → Conclusion |
+
+**Key enterprise principle:** The customer is the hero, not the product. The product/company is the "guide" (StoryBrand framework). Frame problems as the customer's challenge, solutions as the customer's transformation.
+
+### Content Element Extraction
+
+Classify each extracted content element into a slide type using this decision tree:
+
+```
+1. Single powerful statement (<=10 words)? → `hero`
+2. Statistic, percentage, large number? → `stat`
+3. Direct quote with attribution? → `quote`
+4. Sequential process (3-5 steps)? → `timeline`
+5. Exactly 3 parallel items (pillars, features)? → `triptych`
+6. Before/after or two-side comparison? → `two-column`
+7. Tabular data (3+ rows)? → `table`
+8. Key conclusion or takeaway? → `takeaway`
+9. Default remaining points → `content` (max 5 bullets)
+```
+
+### Enterprise Story Arc Pacing
+
+| Deck segment | Slides | Recommended types | Enterprise purpose |
+|---|---|---|---|
+| **Hook** | 1-2 | `title` → `hero` | Name the world shift, grab attention |
+| **Problem** | 1-2 | `content`, `stat`, `two-column` | Frame customer's challenge |
+| **Solution** | 2-3 | `triptych`, `content`, `timeline` | Present approach (customer as hero) |
+| **Proof** | 1-2 | `stat`, `quote` | Social proof, metrics, testimonials |
+| **Vision** | 1 | `hero` or `takeaway` | Promised land / transformation |
+| **Close** | 1 | `closing` | Specific next steps (not vague CTA) |
+
+For <=6 slides: combine Problem+Solution into 2-3 slides. For 10+: expand Proof with additional evidence.
+
+### Billboard Test
+
+Before finalizing any slide content, apply the billboard test: can the main message be read in 3 seconds? If not, shorten. Enterprise word limits:
+
+| Slide type | Max words (content only) | Max items |
+|---|---|---|
+| hero | 10 | 1 message |
+| stat | 5 (stat) + 15 (context) | 1 stat |
+| quote | 40 (quote) + 10 (attribution) | 1 quote |
+| triptych | 60 (3 × 20) | 3 cards |
+| timeline | 20 (5 × 4) | 3-5 steps |
+| takeaway | 20 | 1 message |
+| content | 35 (5 × 7) | 5 bullets |
+| two-column | 42 (2 × 3 × 7) | 3+3 bullets |
+
+**Output:** Record `$CONTENT_MAP` — ordered list of `{slideType, title, content, notes}` that feeds Step 2.
+
+---
+
 ## Step 2 — Generate & Confirm Outline
 
-Analyze `$TOPIC` and produce a numbered slide outline matching `$COUNT` and `$AUDIENCE`.
+Use `$CONTENT_MAP` from Step 1B if available; otherwise analyze `$TOPIC` directly to produce a numbered slide outline matching `$COUNT` and `$AUDIENCE`.
 
 **Outline format:**
 
@@ -81,10 +147,10 @@ Analyze `$TOPIC` and produce a numbered slide outline matching `$COUNT` and `$AU
 Format: [reveal.js HTML | Google Slides]
 Slides: [count]  Audience: [audience]  Theme: [theme or N/A]
 
-1. **[Slide Title]** — [type: title | bullet | two-column | stat | code | diagram | table | image | main-point | section | closing]
+1. **[Slide Title]** — [type: title | bullet | two-column | stat | hero | triptych | quote | timeline | takeaway | code | diagram | table | image | section | closing]
    [2–3 word summary of content]
 
-Note for Google Slides path: `code` maps to a bullet slide with monospace font (GAS has no syntax highlighting). `diagram` maps to an image slide if a public diagram URL is available, otherwise a descriptive bullet slide.
+Note for Google Slides path: `code` maps to a bullet slide with monospace font (GAS has no syntax highlighting). `diagram` maps to an image slide if a public diagram URL is available, otherwise a descriptive bullet slide. New types map to GAS builders: `hero` → buildHeroSlide, `triptych` → buildTriptychSlide, `quote` → buildQuoteSlide, `timeline` → buildTimelineSlide, `takeaway` → buildTakeawaySlide.
 2. ...
 ```
 
@@ -94,6 +160,8 @@ Include:
 - Section breaks for decks over 8 slides
 - Code slides only if `$AUDIENCE == technical`
 - At most one diagram slide (use Mermaid for HTML path)
+- **Layout rotation**: Never use the same slide type for two consecutive slides. If content map produces adjacent duplicates, convert the second to a different type or insert a `section` break. A 10-slide deck should use >=5 distinct types.
+- **Slide titles**: Use the Pyramid Principle — the title IS the main point (e.g., "Reduce Deployment Time 60%"), not a generic label ("Our Solution"). Every title should be a complete assertion.
 
 **If `--no-confirm` is NOT present**, print the outline and ask the user to approve or request changes:
 
@@ -235,6 +303,49 @@ Select a theme based on `$THEME` (default: `professional`). Each theme is a JS o
 | `minimal` | Technical, engineering, clean | bg=#FAFAFA, sectionBg=#18181B, accent=#18181B, titleColor=#18181B, titleColorInv=#FAFAFA, bodyColor=#3F3F46, subtitleColor=#71717A, shapeFill=#F4F4F5 |
 
 All themes pass WCAG AA for text contrast. Accent colors are used only for decorative lines and text at 28pt+, never for 18pt body text.
+
+### Theme Extraction (Custom Theme)
+
+When `$THEME == "custom"`, run this extraction IIFE via `mcp__gas__exec` BEFORE generating slides. Replace `SOURCE_ID` with `$THEME_SOURCE_ID`:
+
+```javascript
+(function() {
+  var p = SlidesApp.openById('SOURCE_ID');
+  var cs = p.getMasters()[0].getColorScheme();
+  var tc = {};
+  ['DARK1','LIGHT1','DARK2','LIGHT2','ACCENT1','ACCENT2','ACCENT3',
+   'ACCENT4','ACCENT5','ACCENT6'].forEach(function(n) {
+    tc[n] = cs.getConcreteColor(SlidesApp.ThemeColorType[n]).asRgbColor().asHexString();
+  });
+  var slides = p.getSlides(), bg1='', bg2='';
+  try { bg1 = slides[0].getBackground().getSolidFill().getColor().asRgbColor().asHexString(); } catch(e){}
+  try { bg2 = slides.length>1 ? slides[1].getBackground().getSolidFill().getColor().asRgbColor().asHexString() : bg1; } catch(e){}
+  var fonts = {h:null, b:null};
+  slides.slice(0,3).forEach(function(sl) {
+    sl.getShapes().forEach(function(sh) {
+      sh.getText().getRuns().forEach(function(r) {
+        var f=r.getTextStyle().getFontFamily(), fs=r.getTextStyle().getFontSize();
+        if(f) { if(fs>=24 && !fonts.h) fonts.h=f; if(fs<24 && fs>=12 && !fonts.b) fonts.b=f; }
+      });
+    });
+  });
+  return JSON.stringify({tc:tc, bg:{t:bg1,c:bg2}, fonts:fonts});
+})()
+```
+
+Map the extraction result to the T object:
+
+| T property | Source | Fallback |
+|---|---|---|
+| bg | bg.c (content bg) | '#FFFFFF' |
+| sectionBg | tc.DARK1 | '#1B2A4A' |
+| accent | tc.ACCENT1 | '#2563EB' |
+| titleColor | tc.DARK1 | '#111827' |
+| titleColorInv | tc.LIGHT1 | '#FFFFFF' |
+| bodyColor | tc.DARK2 | '#374151' |
+| shapeFill | lighten(tc.ACCENT1, 80%) | '#DBEAFE' |
+
+If `fonts.h` is detected, add `{font: fonts.h}` to title `addText` opts. Same for `fonts.b` → body text opts.
 
 ### PredefinedLayout Mapping
 
@@ -465,6 +576,89 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
     return s;
   }
 
+  // === ENTERPRISE BUILDERS ===
+  // PAYLOAD RULE: Each exec call must include ONLY the builders it invokes.
+  // Budget: helpers (~1.6KB) + 4-5 builders (~200-450B each) + invocations.
+  // Never include all 13 builders in one call.
+
+  function buildHeroSlide(message, notes) {
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.sectionBg);
+    addText(s, message, MARGIN, 120, CONTENT_W, 160,
+      {fontSize: 42, bold: true, color: T.titleColorInv, align: 'CENTER', valign: 'MIDDLE'});
+    addLine(s, 260, 290, 460, 290, T.accent, 3);
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildTriptychSlide(title, items, notes) {
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var cardW = 193, cardH = 250, gutter = 30.5, cardY = 110;
+    for (var i = 0; i < 3; i++) {
+      var cx = MARGIN + i * (cardW + gutter);
+      var card = addShape(s, 'ROUND_RECTANGLE', cx, cardY, cardW, cardH, T.shapeFill);
+      card.getBorder().getLineFill().setSolidFill(T.shapeFill);
+      addText(s, items[i].t, cx + 10, cardY + 20, cardW - 20, 40,
+        {fontSize: 16, bold: true, color: T.titleColor, align: 'CENTER'});
+      addText(s, items[i].d, cx + 10, cardY + 70, cardW - 20, 160,
+        {fontSize: 13, color: T.bodyColor, align: 'CENTER'});
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildQuoteSlide(quote, attribution, notes) {
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addLine(s, MARGIN, 80, MARGIN, 280, T.accent, 4);
+    addText(s, quote, MARGIN + 20, 90, CONTENT_W - 40, 160,
+      {fontSize: 24, italic: true, color: T.titleColor});
+    addText(s, '\u2014 ' + attribution, MARGIN + 20, 260, CONTENT_W - 40, 40,
+      {fontSize: 16, color: T.subtitleColor, align: 'END'});
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildTimelineSlide(title, steps, notes) {
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var n = steps.length, d = 60;
+    var gap = n > 1 ? (CONTENT_W - n * d) / (n - 1) : 0;
+    var cy = 210;
+    for (var i = 0; i < n; i++) {
+      var cx = MARGIN + i * (d + gap);
+      if (i < n - 1) addLine(s, cx + d, cy + d/2, cx + d + gap, cy + d/2, T.accent, 2);
+      var circle = addShape(s, 'ELLIPSE', cx, cy, d, d, T.shapeFill);
+      circle.getBorder().getLineFill().setSolidFill(T.accent);
+      circle.getBorder().setWeight(2);
+      addText(s, String(i + 1), cx, cy, d, d,
+        {fontSize: 20, bold: true, color: T.accent, align: 'CENTER', valign: 'MIDDLE'});
+      addText(s, steps[i], cx - 10, cy + d + 10, d + 20, 60,
+        {fontSize: 12, color: T.bodyColor, align: 'CENTER'});
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildTakeawaySlide(message, notes) {
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    var box = addShape(s, 'ROUND_RECTANGLE', 100, 120, 520, 160, T.shapeFill);
+    box.getBorder().getLineFill().setSolidFill(T.accent);
+    box.getBorder().setWeight(2);
+    addText(s, message, 120, 150, 480, 100,
+      {fontSize: 22, bold: true, color: T.titleColor, align: 'CENTER', valign: 'MIDDLE'});
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
   // === BUILD SLIDES (generate calls from outline) ===
   buildTitleSlide('Presentation Title', 'Subtitle or Date');
   buildContentSlide('Topic One', ['Point A', 'Point B', 'Point C'], 'Notes...');
@@ -487,6 +681,11 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
 | Table / data | `buildTableSlide(title, headers[], rows[][], notes)` | Auto-positioned table |
 | Image | `buildImageSlide(title, imageUrl, notes)` | Public URL only, centered |
 | Closing | `buildClosingSlide(title, bullets[]?, tagline?, notes)` | Dark bg, optional bullets |
+| Hero statement | `buildHeroSlide(message, notes)` | Dark bg, 42pt centered, max 10 words |
+| Triptych (3-card) | `buildTriptychSlide(title, [{t,d},...], notes)` | 3 rounded-rect cards, 193pt each |
+| Quote / callout | `buildQuoteSlide(quote, attribution, notes)` | Vertical accent bar, italic quote |
+| Timeline / process | `buildTimelineSlide(title, steps[], notes)` | Circles + connecting lines, 3-5 steps |
+| Key takeaway | `buildTakeawaySlide(message, notes)` | Rounded-rect box with accent border |
 | Custom | Use raw helpers (`addText`, `addShape`, `addLine`, etc.) | Full flexibility |
 
 For slides not matching any builder, use the raw helpers directly.
@@ -505,6 +704,32 @@ For slides not matching any builder, use the raw helpers directly.
 - **Two-column**: 305pt columns each with 30pt gutter (on 640pt content width)
 - **Speaker notes**: **Mandatory** on every slide via `addNotes()` — 1-2 sentences of talking points
 
+### Enterprise Storytelling Patterns
+
+Salesforce-style narrative principles:
+
+1. **Customer as hero** — never position the product as protagonist. The customer's challenge is the conflict, your solution is the "guide's gift"
+2. **Name the world shift** — open with an undeniable industry change that creates urgency
+3. **Proof sequence** — emotional proof (customer story) → capability proof (feature/demo) → quantified proof (metrics) → third-party proof (analyst quote)
+4. **Specific closes** — "Contract review by March 15, launch April 1" not "Let's schedule a follow-up"
+5. **One idea per slide** — each slide makes exactly one point. If you need two points, use two slides
+
+**Advanced styling techniques (already available in helpers):**
+- **Per-character emphasis:** `styleRange(shape.getText(), start, end, {bold:true, color:T.accent})` to bold key phrases within body text
+- **Shape backgrounds:** Insert ROUND_RECTANGLE BEFORE text. Shapes render in insertion order (last = front). Use `shape.sendToBack()` if needed
+- **Z-order:** `bringToFront()` / `sendToBack()` for layered compositions
+- **Border control:** `shape.getBorder().getLineFill().setSolidFill(color)` + `.setWeight(pts)`
+- **Monospace for code:** `{font: 'Roboto Mono'}` in addText opts
+
+### Content Density & Layout Selection
+
+Use the Content Element Extraction decision tree (Step 1B) to classify content into slide types. Additionally:
+
+- **Layout rotation**: Never use the same slide type for two consecutive slides
+- **Variety target**: A 10-slide deck should use >=5 distinct slide types
+- **Billboard test**: Apply word count limits from Step 1B for each slide type
+- **Story arc pacing**: Follow the Hook → Problem → Solution → Proof → Vision → Close structure
+
 ### Gotchas & Limitations
 
 | Issue | Detail | Workaround |
@@ -518,7 +743,7 @@ For slides not matching any builder, use the raw helpers directly.
 | **No diagrams** | SlidesApp has no diagram primitives | Use `insertImage` with a pre-rendered diagram URL, or approximate with shapes |
 | **No syntax highlighting** | No code formatting support | Use monospace font (`setFontFamily('Roboto Mono')`) for code slides |
 | **List presets** | Only 15 preset options; no custom bullet characters | DISC_CIRCLE_SQUARE for bullets, DIGIT_ALPHA_ROMAN for numbered |
-| **Performance** | ~0.4s per slide; 3 styled slides in 1.3s | Single IIFE handles ~8-10 slides with minified helpers (~3.5KB js_statement limit). For 10+ slides, split into two calls: first creates pres + returns ID, second opens by ID + appends remaining slides |
+| **Performance** | ~0.4s per slide; 3 styled slides in 1.3s | Include ONLY builders invoked per call. Budget: helpers (~1.6KB) + builders (200-450B each) + invocations. Max 4-5 builders per call. For 8+ slides: split into two calls |
 
 ### Execute via MCP
 
@@ -554,11 +779,12 @@ On success, print:
 
 ## Slide Count Guidelines
 
-| Count | Structure |
-|---|---|
-| 4–5 | Cover + 2–3 content + Closing |
-| 6–8 | Cover + 1 section break + 4–5 content + Closing |
-| 10–12 | Cover + 2 section breaks + 7–8 content + Closing |
+| Count | Structure | Types |
+|---|---|---|
+| 4–5 | Title + 2-3 content + Closing | Mix: 1 hero/stat, rest varied |
+| 6–8 | Title + section + 4-5 content + Closing | 3+ distinct types; include hero or takeaway |
+| 10–12 | Title + 2 sections + 7-8 content + Closing | 5+ distinct types; include triptych/timeline |
+| 13+ | Split into 2 exec calls | Call 1: through mid-section; Call 2: remainder |
 
 Adjust proportionally for the actual slide count requested.
 
