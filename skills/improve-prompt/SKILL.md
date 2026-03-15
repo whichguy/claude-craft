@@ -6,8 +6,10 @@ description: |
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
   evaluates via questions-based judge (not holistic), reconciles all learnings into a single
-  ideas file, and commits only if improved. Supports --iterations N for compounding improvement
-  and --experiments N for parallel variant testing per iteration.
+  ideas file, and commits only if improved. Loops autonomously with stall detection — continues
+  seeking improvements until max_stalls consecutive failures (default 2). Strategy escalation
+  guides bolder changes after stalls. Position bias mitigated via randomized judge ordering.
+  Supports --iterations N, --experiments N, and --max-stalls N.
 
   AUTOMATICALLY INVOKE when user mentions:
   - "improve this prompt", "make this prompt better", "optimize this prompt"
@@ -26,8 +28,9 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
-scope-preservation gate (12-question baseline check) → questions-based judge →
-reconciled learnings → commit on IMPROVED, revert on NEUTRAL/REGRESSED.
+scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
+reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED (stall detection).
+Auto-generates test inputs when needed. Loops autonomously until max_stalls consecutive failures.
 
 ## Argument Reference
 
@@ -37,7 +40,7 @@ to extract the following values:
 | Parameter | Required? | What to look for | Default |
 |-----------|-----------|-------------------|---------|
 | `prompt_path` | **yes** (unless inline text provided) | A file path (contains `/` or `.`) | — |
-| `inputs_dir` | no | A directory path for test inputs. Auto-generated if user approves, or empty run | — |
+| `inputs_dir` | no | A directory path for test inputs. Auto-generated if not provided and prompt needs input | — |
 | `inline_text` | alt to prompt_path | Quoted text or explicitly described as "inline prompt" | — |
 | `input_text` | no | Inline text to use as a single test input. Look for quoted strings after the prompt path, or text after "with input", "using text", "test with" | — |
 | `num_inputs` | no | Number of test inputs to auto-generate if user approves | 3 (max: 10) |
@@ -46,12 +49,13 @@ to extract the following values:
 | `judge_model` | no | A model name for judging | claude-opus-4-6 |
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
+| `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
 - `input_text` — inline text string (becomes a single test case named "inline-input")
 - If both provided: directory files + inline text are all used as test cases
-- If neither provided: prompt is analyzed to determine if input is needed (see Step 0b)
+- If neither provided: prompt is analyzed; if input needed, test inputs are auto-generated (see Step 0b)
 
 **Example invocations:**
 ```
@@ -60,9 +64,10 @@ to extract the following values:
 /improve-prompt the prompt at agents/code-reviewer.md, test inputs in inputs/, 3 experiments
 /improve-prompt improve agents/code-reviewer.md using inputs/ as test dir, label=my-test, use haiku for judge
 /improve-prompt --prompt agents/code-reviewer.md --inputs inputs/  (legacy flag style also works)
-/improve-prompt agents/code-reviewer.md                            (no inputs — analyzes prompt, offers to auto-generate)
+/improve-prompt agents/code-reviewer.md                            (no inputs — auto-generates test inputs if needed)
 /improve-prompt agents/code-reviewer.md "function foo() { return bar }"  (inline text as single test case)
-/improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs if user approves)
+/improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs)
+/improve-prompt agents/code-reviewer.md 5 iterations --max-stalls 3 (keeps trying through 3 consecutive stalls)
 /improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
 ```
 
@@ -87,6 +92,7 @@ paths, natural language, or any combination:
 | `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
 | `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
+| `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
@@ -94,6 +100,7 @@ paths, natural language, or any combination:
 - `judge_model` = claude-opus-4-6
 - `iterations` = 1
 - `experiments` = 1
+- `max_stalls` = 2
 - `inputs_dir` = none
 - `input_text` = none
 - `num_inputs` = 3
@@ -125,6 +132,7 @@ After interpreting the arguments, check:
    - run_model and judge_model must match `claude-*`
    - iterations >= 1
    - experiments between 1 and 4
+   - max_stalls >= 1
    - num_inputs between 1 and 10 (clamp with warning if exceeded)
    - inputs_dir must exist on disk (if provided)
    - prompt_path must exist on disk (if not inline mode)
@@ -153,60 +161,41 @@ ELSE:
     - Is self-contained (generates output without external data) → NO_INPUT_NEEDED
 
   IF NEEDS_INPUT:
-    # Ask the user if they want test inputs auto-generated
-    AskUserQuestion:
-      "This prompt appears to require input to evaluate properly
-       (detected: {signal_description}).
-       Would you like to auto-generate {num_inputs} test inputs?"
-      Suggestions:
-        - "Yes, generate test inputs"
-        - "No, run with empty input"
+    inputs_auto_generated = true
+    inputs_dir = $IMPROVE_TMPDIR/auto-inputs
+    mkdir -p "$inputs_dir"
+    Print: "Auto-generating {num_inputs} test inputs (prompt requires input: {signal_description})..."
 
-    IF user says yes (or provides affirmative response):
-      inputs_auto_generated = true
-      inputs_dir = $IMPROVE_TMPDIR/auto-inputs
-      mkdir -p "$inputs_dir"
-      Print: "Generating {num_inputs} test inputs..."
+    Spawn general-purpose agent:
+      prompt: |
+        You are a test input generator. Analyze the prompt below and generate
+        {num_inputs} diverse test inputs that would exercise it well.
 
-      Spawn general-purpose agent:
-        prompt: |
-          You are a test input generator. Analyze the prompt below and generate
-          {num_inputs} diverse test inputs that would exercise it well.
+        <prompt>
+        {prompt_file_contents}
+        </prompt>
 
-          <prompt>
-          {prompt_file_contents}
-          </prompt>
+        Requirements:
+        - Classify the prompt type first (agent prompt, skill definition, system prompt,
+          task prompt, etc.) to understand what kind of input it expects
+        - Generate inputs that vary in complexity: simple, moderate, complex/edge-case
+        - Use realistic content (not lorem ipsum or placeholder text)
+        - Each input should be 10-80 lines
+        - Name files descriptively: input-simple.md, input-moderate.md, input-complex.md,
+          input-edge-case.md, etc.
+        - Files contain ONLY raw input content — no meta-commentary, no headers like
+          "This is a test input for..."
+        - Write each file to {inputs_dir}/
 
-          Requirements:
-          - Classify the prompt type first (agent prompt, skill definition, system prompt,
-            task prompt, etc.) to understand what kind of input it expects
-          - Generate inputs that vary in complexity: simple, moderate, complex/edge-case
-          - Use realistic content (not lorem ipsum or placeholder text)
-          - Each input should be 10-80 lines
-          - Name files descriptively: input-simple.md, input-moderate.md, input-complex.md,
-            input-edge-case.md, etc.
-          - Files contain ONLY raw input content — no meta-commentary, no headers like
-            "This is a test input for..."
-          - Write each file to {inputs_dir}/
+        Write all {num_inputs} files, then output only:
+        INPUTS_GENERATED: {num_inputs} files written to {inputs_dir}
 
-          Write all {num_inputs} files, then output only:
-          INPUTS_GENERATED: {num_inputs} files written to {inputs_dir}
-
-      If agent output does not contain "INPUTS_GENERATED:" → abort:
-        "ERROR: Auto-generation failed. Provide inputs_dir manually.
-         Example: /improve-prompt path/to/prompt.md path/to/inputs/"
-      Verify files exist via glob "{inputs_dir}/*.md"; abort if zero files found.
-      Print file listing with line counts (ls -la style).
-
-    ELIF user provides a directory path in their response:
-      inputs_dir = user-provided path
-      inputs_auto_generated = false
-      Validate inputs_dir exists on disk; abort if not.
-
-    ELSE (user says no, or wants to run empty):
-      inputs_auto_generated = false
-      # Set up empty input — handled in Step 4 input loading
-      Print: "⚠ Running with empty input — evaluation quality may be limited for input-dependent prompts."
+    If agent output does not contain "INPUTS_GENERATED:" → abort:
+      "ERROR: Auto-generation failed. Provide inputs_dir manually.
+       Example: /improve-prompt path/to/prompt.md path/to/inputs/"
+    Verify files exist via glob "{inputs_dir}/*.md"; abort if zero files found.
+    Print file listing with line counts (ls -la style).
+    Print: "⚠ Inputs were auto-generated — provide a custom inputs directory for more targeted evaluation."
 
   ELSE (NO_INPUT_NEEDED):
     # Prompt is self-contained — run with empty input (like compare-prompts)
@@ -302,6 +291,16 @@ investigate its domain, research best practices, and produce a structured improv
 <gap_analysis>
 {if this is a retry from the Plan Validation Gate: list of failed gate questions from prior attempt; else "(none — first research pass)"}
 </gap_analysis>
+
+<strategy_escalation>
+{IF consecutive_stalls == 0: "(none — first attempt or after improvement)"}
+{IF consecutive_stalls == 1: "Prior iteration was NEUTRAL/REGRESSED. Try bolder changes:
+ structural reorganization, different prompting paradigm, or address a different Q1-Q10
+ gap than previously attempted. Avoid minor variations of failed techniques."}
+{IF consecutive_stalls >= 2: "Multiple consecutive failures. Try the most impactful
+ remaining Q1-Q10 gap NOT yet attempted. Consider fundamental prompt architecture changes
+ or combinations of previously successful techniques (if any)."}
+</strategy_escalation>
 
 <git_history>
 {last 20 commits from git log --oneline -20, or "(not a git repo)" if unavailable}
@@ -694,9 +693,15 @@ Actionable learning: {techniques applied} caused scope narrowing — avoid in fu
 EOF
 )"
 
+  consecutive_stalls += 1
   iterations_completed = i
   iteration_log.append({i: i, verdict: "SCOPE_FAIL", quality_score_a: null, quality_score_b: null, quality_spread: 0, applied_summary: "all experiments excluded by scope gate"})
-  BREAK  # stop iteration
+  IF consecutive_stalls >= max_stalls:
+    Print: "🚫 SCOPE_FAIL — stopping ({consecutive_stalls} consecutive stalls)"
+    BREAK
+  ELSE:
+    Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    CONTINUE
 ```
 
 Otherwise, proceed to Step 4 with only `active_experiments` (exclude FAILed experiments from the evaluation matrix).
@@ -752,6 +757,19 @@ For each completed task, record:
 
 For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
 
+**Position randomization** (mitigates first-position bias):
+```
+coin_flip = Math.random() < 0.5
+IF coin_flip:
+    judge_output_a = exp_k_output_for_j
+    judge_output_b = baseline_output_for_j
+    swapped[k][j] = true
+ELSE:
+    judge_output_a = baseline_output_for_j
+    judge_output_b = exp_k_output_for_j
+    swapped[k][j] = false
+```
+
 Judge task prompt:
 ```
 <input_context>
@@ -759,11 +777,11 @@ Judge task prompt:
 </input_context>
 
 <output_a>
-{baseline_output_for_j}
+{judge_output_a}
 </output_a>
 
 <output_b>
-{exp_k_output_for_j}
+{judge_output_b}
 </output_b>
 
 <evaluation_questions>
@@ -779,6 +797,15 @@ Output ONLY valid JSON on a single line — no preamble, no markdown fences:
 ```
 
 Use `judge_model` for all judge tasks. On malformed JSON → treat all questions as TIE.
+
+**Position remapping** (after parsing each judge result, before aggregation):
+```
+IF swapped[k][j]:
+    for each question q in result.questions:
+        if q.winner == "A": q.winner = "B"
+        elif q.winner == "B": q.winner = "A"
+        // "TIE" unchanged
+```
 
 **Aggregate per experiment k** (master context computes after collecting all judge results):
 ```
@@ -961,11 +988,24 @@ Each iteration commits independently. Run the full loop for each iteration i in 
 ```
 iterations_completed = 0
 iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
+consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — resets on IMPROVED
 
 FOR i in 1..iterations:
 
+  # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
+  # Compute first so the print block below can reference effective_experiments
+  IF consecutive_stalls >= 1 AND experiments was not explicitly set by user:
+    effective_experiments = min(experiments + 1, 4)
+  ELSE:
+    effective_experiments = experiments
+  E = effective_experiments  # bind E so Steps 3/3b/4/5 use the bumped value this iteration
+
   Print: ""
-  Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
+  IF consecutive_stalls > 0:
+    exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}"
+  ELSE:
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
   IF i > 1:
     trajectory_scores = [entry.quality_score_b if entry.verdict == "IMPROVED" else entry.quality_score_a for entry in iteration_log]
     trajectory_str = join([f"{s:.0%}" for s in trajectory_scores], " → ")
@@ -994,6 +1034,7 @@ Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
 }
 EOF
 )"
+    consecutive_stalls = 0  # reset on improvement
     iterations_completed = i
     iteration_log.append({i: i, verdict: "IMPROVED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summary_{best_k}})
     Print: `[6/7] 🏆 Select ─── Exp-{best_k} wins ({decided_by})`
@@ -1015,6 +1056,8 @@ EOF
   ELSE (NEUTRAL or REGRESSED):
     # Ensure prompt is reverted to baseline (Step 5 only copies on IMPROVED, but be explicit)
     cp $IMPROVE_TMPDIR/baseline-iter-{i}.md {prompt_path}
+    consecutive_stalls += 1
+
     IF prompt_path starts with $IMPROVE_TMPDIR:  # inline mode — no git
       Print: "Inline mode: learnings saved to {IDEAS_FILE} (no git commit — no source file)."
     ELSE:
@@ -1032,15 +1075,30 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted)`
-        Print (render as fenced code block):
-        ╔═══════════════════════════════════════════════════════════════╗
-        ║  ⚠️  NEUTRAL  —  Iteration {i}  ·  stopping early            ║
-        ║                                                               ║
-        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-        ╚═══════════════════════════════════════════════════════════════╝
-        [end code block]
+        IF consecutive_stalls >= max_stalls:
+          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ⚠️  NEUTRAL  —  Iteration {i} · stopping ({consecutive_stalls} consecutive stalls)  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          BREAK
+        ELSE:
+          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          CONTINUE
       ELSE (REGRESSED):
         git commit -m "$(cat <<'EOF'
 docs({basename}): improvement attempt — regressed ({E} experiments, prompt reverted)
@@ -1055,17 +1113,30 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted)`
-        Print (render as fenced code block):
-        ╔═══════════════════════════════════════════════════════════════╗
-        ║  ❌  REGRESSED  —  Iteration {i}  ·  stopping early          ║
-        ║                                                               ║
-        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-        ╚═══════════════════════════════════════════════════════════════╝
-        [end code block]
-    iterations_completed = i
-    BREAK  # stop early on non-improvement
+        IF consecutive_stalls >= max_stalls:
+          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ❌  REGRESSED  —  Iteration {i} · stopping ({consecutive_stalls} consecutive stalls)  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          BREAK
+        ELSE:
+          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          CONTINUE
 
 If git commit fails: print "ERROR: git commit failed — <error>. Learnings saved to {IDEAS_FILE}." and proceed to cleanup.
 ```
@@ -1080,6 +1151,8 @@ Print final summary.
 
 **Helpers:**
 - `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED / 🚫 SCOPE_FAIL
+- `total_stalls = count(entry.verdict in ["NEUTRAL", "REGRESSED", "SCOPE_FAIL"] for entry in iteration_log)`
+- `max_consecutive_reached`: track the maximum value `consecutive_stalls` reached during the loop (update after each increment)
 - `max_spread = max(abs(entry.quality_spread) for entry in iteration_log) or 1` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
@@ -1091,6 +1164,7 @@ Print (outside fenced block):
 **Prompt:** {prompt_path}
 **Label:** {label}
 **Iterations:** {iterations_completed} of {iterations}
+**Stalls:** {total_stalls} (max consecutive: {max_consecutive_reached})
 **Ideas:** {IDEAS_FILE}
 ```
 
