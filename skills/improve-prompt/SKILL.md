@@ -46,6 +46,7 @@ to extract the following values:
 | `judge_model` | no | A model name for judging | claude-opus-4-6 |
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
+| `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
@@ -87,6 +88,7 @@ paths, natural language, or any combination:
 | `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
 | `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
+| `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
@@ -94,6 +96,7 @@ paths, natural language, or any combination:
 - `judge_model` = claude-opus-4-6
 - `iterations` = 1
 - `experiments` = 1
+- `max_stalls` = 2
 - `inputs_dir` = none
 - `input_text` = none
 - `num_inputs` = 3
@@ -125,6 +128,7 @@ After interpreting the arguments, check:
    - run_model and judge_model must match `claude-*`
    - iterations >= 1
    - experiments between 1 and 4
+   - max_stalls >= 1
    - num_inputs between 1 and 10 (clamp with warning if exceeded)
    - inputs_dir must exist on disk (if provided)
    - prompt_path must exist on disk (if not inline mode)
@@ -694,9 +698,15 @@ Actionable learning: {techniques applied} caused scope narrowing — avoid in fu
 EOF
 )"
 
+  consecutive_stalls += 1
   iterations_completed = i
   iteration_log.append({i: i, verdict: "SCOPE_FAIL", quality_score_a: null, quality_score_b: null, quality_spread: 0, applied_summary: "all experiments excluded by scope gate"})
-  BREAK  # stop iteration
+  IF consecutive_stalls >= max_stalls:
+    Print: "🚫 SCOPE_FAIL — stopping ({consecutive_stalls} consecutive stalls)"
+    BREAK
+  ELSE:
+    Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    CONTINUE
 ```
 
 Otherwise, proceed to Step 4 with only `active_experiments` (exclude FAILed experiments from the evaluation matrix).
@@ -961,11 +971,15 @@ Each iteration commits independently. Run the full loop for each iteration i in 
 ```
 iterations_completed = 0
 iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
+consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — resets on IMPROVED
 
 FOR i in 1..iterations:
 
   Print: ""
-  Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
+  IF consecutive_stalls > 0:
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''})"
+  ELSE:
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
   IF i > 1:
     trajectory_scores = [entry.quality_score_b if entry.verdict == "IMPROVED" else entry.quality_score_a for entry in iteration_log]
     trajectory_str = join([f"{s:.0%}" for s in trajectory_scores], " → ")
@@ -994,6 +1008,7 @@ Scope gate: Exp-{k} excluded — {first FAIL Q-SG question}: {one-line reason}
 }
 EOF
 )"
+    consecutive_stalls = 0  # reset on improvement
     iterations_completed = i
     iteration_log.append({i: i, verdict: "IMPROVED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summary_{best_k}})
     Print: `[6/7] 🏆 Select ─── Exp-{best_k} wins ({decided_by})`
@@ -1015,6 +1030,8 @@ EOF
   ELSE (NEUTRAL or REGRESSED):
     # Ensure prompt is reverted to baseline (Step 5 only copies on IMPROVED, but be explicit)
     cp $IMPROVE_TMPDIR/baseline-iter-{i}.md {prompt_path}
+    consecutive_stalls += 1
+
     IF prompt_path starts with $IMPROVE_TMPDIR:  # inline mode — no git
       Print: "Inline mode: learnings saved to {IDEAS_FILE} (no git commit — no source file)."
     ELSE:
@@ -1032,15 +1049,30 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted)`
-        Print (render as fenced code block):
-        ╔═══════════════════════════════════════════════════════════════╗
-        ║  ⚠️  NEUTRAL  —  Iteration {i}  ·  stopping early            ║
-        ║                                                               ║
-        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-        ╚═══════════════════════════════════════════════════════════════╝
-        [end code block]
+        IF consecutive_stalls >= max_stalls:
+          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ⚠️  NEUTRAL  —  Iteration {i} · stopping ({consecutive_stalls} consecutive stalls)  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          BREAK
+        ELSE:
+          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          CONTINUE
       ELSE (REGRESSED):
         git commit -m "$(cat <<'EOF'
 docs({basename}): improvement attempt — regressed ({E} experiments, prompt reverted)
@@ -1055,17 +1087,30 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted)`
-        Print (render as fenced code block):
-        ╔═══════════════════════════════════════════════════════════════╗
-        ║  ❌  REGRESSED  —  Iteration {i}  ·  stopping early          ║
-        ║                                                               ║
-        ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-        ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-        ╚═══════════════════════════════════════════════════════════════╝
-        [end code block]
-    iterations_completed = i
-    BREAK  # stop early on non-improvement
+        IF consecutive_stalls >= max_stalls:
+          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ❌  REGRESSED  —  Iteration {i} · stopping ({consecutive_stalls} consecutive stalls)  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          BREAK
+        ELSE:
+          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+          Print (render as fenced code block):
+          ╔═══════════════════════════════════════════════════════════════╗
+          ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+          ║                                                               ║
+          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+          ╚═══════════════════════════════════════════════════════════════╝
+          [end code block]
+          iterations_completed = i
+          CONTINUE
 
 If git commit fails: print "ERROR: git commit failed — <error>. Learnings saved to {IDEAS_FILE}." and proceed to cleanup.
 ```
@@ -1080,6 +1125,8 @@ Print final summary.
 
 **Helpers:**
 - `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED / 🚫 SCOPE_FAIL
+- `total_stalls = count(entry.verdict in ["NEUTRAL", "REGRESSED", "SCOPE_FAIL"] for entry in iteration_log)`
+- `max_consecutive_reached`: track the maximum value `consecutive_stalls` reached during the loop (update after each increment)
 - `max_spread = max(abs(entry.quality_spread) for entry in iteration_log) or 1` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
@@ -1091,6 +1138,7 @@ Print (outside fenced block):
 **Prompt:** {prompt_path}
 **Label:** {label}
 **Iterations:** {iterations_completed} of {iterations}
+**Stalls:** {total_stalls} (max consecutive: {max_consecutive_reached})
 **Ideas:** {IDEAS_FILE}
 ```
 
