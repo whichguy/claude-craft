@@ -22,6 +22,134 @@ Follow all steps in order. Do not skip Step 2 outline confirmation unless `--no-
 
 ---
 
+## Step 0 — Read Existing Deck (Optional)
+
+*Skip this step if the user wants a new presentation from scratch. Execute this step when the user provides an existing presentation ID or URL and wants to modify, evaluate, or extend an existing deck.*
+
+**Triggers:** User says "modify these slides", "update this deck", "improve this presentation", "add slides to [URL]", "evaluate this deck", "what's wrong with this deck"
+
+### Extract Deck Structure
+
+Run this IIFE via `mcp__gas__exec`, replacing `PRES_ID` with the actual presentation ID (extract from URL if needed — the ID is the long string after `/d/` in Google Slides URLs):
+
+```javascript
+(function() {
+  var p = SlidesApp.openById('PRES_ID');
+  var allSlides = p.getSlides();
+  var slides = allSlides.slice(0, 50);
+  var index = [];
+  slides.forEach(function(sl, i) {
+    var entry = {slide: i+1, shapes: [], texts: [], bg: null, notes: ''};
+    try { entry.bg = sl.getBackground().getSolidFill().getColor().asRgbColor().asHexString(); } catch(e) { entry.bg = 'none/gradient'; }
+    sl.getPageElements().forEach(function(el) {
+      var type = String(el.getPageElementType());
+      var info = {type: type, left: el.getLeft(), top: el.getTop(), w: el.getWidth(), h: el.getHeight()};
+      if (type === 'SHAPE') {
+        var sh = el.asShape();
+        info.shapeType = String(sh.getShapeType());
+        try { info.fill = sh.getFill().getSolidFill().getColor().asRgbColor().asHexString(); } catch(e) { info.fill = 'none'; }
+        var txt = sh.getText().asString().trim();
+        if (txt) { info.text = txt.substring(0, 100); entry.texts.push(txt.substring(0, 200)); }
+      } else if (type === 'LINE') {
+        info.lineType = 'line';
+      } else if (type === 'IMAGE') {
+        info.imageType = 'image';
+      } else if (type === 'TABLE') {
+        var tbl = el.asTable();
+        info.rows = tbl.getNumRows();
+        info.cols = tbl.getNumColumns();
+      }
+      entry.shapes.push(info);
+    });
+    try {
+      sl.getNotesPage().getShapes().forEach(function(ns) {
+        if (String(ns.getPlaceholderType()) === 'BODY') {
+          entry.notes = ns.getText().asString().trim().substring(0, 200);
+        }
+      });
+    } catch(e) {}
+    index.push(entry);
+  });
+  var cs = p.getMasters()[0].getColorScheme();
+  var tc = {};
+  ['DARK1','LIGHT1','DARK2','LIGHT2','ACCENT1','ACCENT2','ACCENT3','ACCENT4','ACCENT5','ACCENT6'].forEach(function(n) {
+    tc[n] = cs.getConcreteColor(SlidesApp.ThemeColorType[n]).asRgbColor().asHexString();
+  });
+  var fonts = {h:null, b:null};
+  slides.slice(0,5).forEach(function(sl) {
+    sl.getShapes().forEach(function(sh) {
+      sh.getText().getRuns().forEach(function(r) {
+        var f = r.getTextStyle().getFontFamily(), fs = r.getTextStyle().getFontSize();
+        if(f) { if(fs>=24 && !fonts.h) fonts.h=f; if(fs<24 && fs>=12 && !fonts.b) fonts.b=f; }
+      });
+    });
+  });
+  return JSON.stringify({
+    title: p.getName(),
+    slideCount: allSlides.length,
+    slidesRead: slides.length,
+    theme: {colors: tc, fonts: fonts},
+    index: index
+  });
+})()
+```
+
+**Note:** Capped at 50 slides to stay within GAS 6-min exec timeout. For decks >50 slides, run multiple calls with `allSlides.slice(50, 100)`, etc.
+
+### Parse Output into Context Variables
+
+From the JSON result, derive:
+- `$DECK_TITLE` — `title` field
+- `$DECK_INDEX` — `index` array (per-slide: slide number, text content, shape types, positions, bg color, notes)
+- `$DECK_THEME` — `theme` object (colors + fonts) — feeds into custom theme flow (set `$THEME = "custom"`)
+- `$DECK_ARC` — story arc classification (derived by LLM from `$DECK_INDEX`, NOT produced by the IIFE)
+
+### Slide Type Classification Heuristics
+
+Apply these to `$DECK_INDEX` to classify each existing slide:
+
+| Pattern in extracted data | Inferred type |
+|---|---|
+| 1 large-font TEXT_BOX on dark bg, no bullets | `hero` |
+| 3 equal-width ROUND_RECTANGLE shapes side by side | `triptych` |
+| Large italic text + small right-aligned attribution + vertical LINE | `quote` |
+| ELLIPSE shapes with connecting horizontal LINEs + labels | `timeline` |
+| Single ROUND_RECTANGLE with bordered box + centered text | `takeaway` |
+| 1 very large number/stat + context line | `stat` |
+| Multiple bullet items in single text box | `content` |
+| 2 text boxes side by side (similar width) | `two-column` |
+| TABLE element present | `table` |
+| Dark bg + large centered title | `title` or `section` |
+
+### Deck Diagnosis
+
+After classification, perform these analyses:
+
+1. **Story arc gap detection**: Classify each slide into arc segments (Hook/Problem/Solution/Proof/Vision/Close). Flag gaps: "No hook slide", "3 consecutive content slides in Problem — needs variety", "Close uses generic CTA instead of specific action"
+2. **Billboard test on existing slides**: Run word count limits from Step 1B against extracted text. Flag violations: "Slide 4 has 68 words — exceeds 35-word limit for content slides"
+3. **Layout variety score**: Count distinct slide types. Compare to targets (10-slide deck = 5+ types). Flag monotonous decks.
+4. **Specific improvement recommendations**: Produce actionable suggestions: "Convert slide 5 from content to triptych (3 parallel items detected)", "Insert hero slide before slide 3 to strengthen hook"
+
+### Integration with Subsequent Steps
+
+- Step 1B content analysis uses `$DECK_ARC` as starting point
+- Step 2 outline shows existing slides alongside proposed changes (marked `[existing]` vs `[new]` vs `[replace]`)
+- Theme auto-set to `custom` using `$DECK_THEME` colors/fonts
+- **Layout consistency**: Extract dominant title Y-position from existing deck (most common `top` value for large-font text shapes). If it differs from `TITLE_Y=28`, note the offset so new slides can be adjusted to match
+
+### Modification Modes
+
+Each mode uses a different IIFE pattern:
+
+| Mode | Pattern | When to use |
+|---|---|---|
+| **append** | `SlidesApp.openById(id)` + append via builders | Adding new slides to end |
+| **insert** | `openById` + `insertSlide(index, layout)` at position, then build | Adding slides at specific position |
+| **replace** | `openById` + `getSlides()[n].remove()` + insert new at same position | Rebuilding a specific slide |
+| **restyle** | `openById` + iterate shapes, extract text, remove all, rebuild with different builder | Changing slide type while preserving content |
+
+---
+
 ## Step 1 — Gather Input
 
 Parse the invocation args for:
@@ -730,6 +858,64 @@ Use the Content Element Extraction decision tree (Step 1B) to classify content i
 - **Billboard test**: Apply word count limits from Step 1B for each slide type
 - **Story arc pacing**: Follow the Hook → Problem → Solution → Proof → Vision → Close structure
 
+### Tested API References
+
+All APIs below were empirically verified via live GAS execution (March 2026). These supplement Google's documentation with observed behavior.
+
+**Shape Primitives:**
+- `SlidesApp.ShapeType.ROUND_RECTANGLE` — confirmed (NOT `ROUNDED_RECTANGLE`). Width/height have minor float imprecision (~0.008pt off specified values)
+- `SlidesApp.ShapeType.ELLIPSE` — confirmed. Exact positioning for circles (equal width/height)
+- `insertTextBox()` creates shapes with `getShapeType()` returning `TEXT_BOX` (not a separate page element type)
+- Shape dimensions: `getWidth()`/`getHeight()` return floats, not exact integers (e.g., 192.992 instead of 193)
+
+**Z-Order:**
+- Insertion order = render order. Last inserted element renders on top
+- `sendToBack()` and `bringToFront()` both confirmed as available functions on shapes
+- To layer text over a shape: insert shape first, then text box
+
+**Border Styling:**
+- Chain: `shape.getBorder().getLineFill().setSolidFill(color)` + `shape.getBorder().setWeight(pts)`
+- `getWeight()` returns the exact value set (e.g., `setWeight(2)` → `getWeight()` returns `2`)
+- Hidden border technique: set border color = fill color (visually invisible)
+
+**Per-Character Styling (styleRange):**
+- `getText().getRange(start, end)` — 0-indexed, end is exclusive (like `String.substring`)
+- Chained styling works: `range.getTextStyle().setBold(true).setForegroundColor('#hex')`
+- `asString()` appends a trailing `\n` to all text content — account for this in range calculations
+
+**Lines:**
+- Vertical lines: `insertLine(STRAIGHT, x, y1, x, y2)` — same x, different y. Results in element with `width=0`
+- `Line.getStart()` returns object with `getX()`, `getY()`, `toString()` — **NOT** `getLeft()`/`getTop()` (common mistake)
+- Line element position: use `line.getLeft()`, `line.getTop()`, `line.getWidth()`, `line.getHeight()` for bounding box
+- `setWeight(pts)` and `getLineFill().setSolidFill(color)` both confirmed
+
+**Alignment:**
+- `SlidesApp.ParagraphAlignment.END` — confirmed for right-align text
+- `SlidesApp.ContentAlignment.MIDDLE` — confirmed for vertical centering within a shape
+- Both accessed via string keys on the enum object (e.g., `SlidesApp.ParagraphAlignment['END']`)
+
+**Theme Extraction:**
+- All 10 `ThemeColorType` values return valid hex via `getConcreteColor().asRgbColor().asHexString()`
+- Default Google Slides theme: DARK1=#000000, LIGHT1=#FFFFFF, DARK2=#595959, LIGHT2=#EEEEEE, ACCENT1=#4285F4
+- Background color: `slide.getBackground().getSolidFill().getColor().asRgbColor().asHexString()` — throws if gradient/image bg
+
+**Font Detection:**
+- `getRuns()` returns styled text runs. `getTextStyle().getFontFamily()` and `.getFontSize()` work on each run
+- **Gotcha:** Placeholder shapes on default slides have Arial font. Font detection may pick up placeholder fonts before user-added text. Filter shapes by non-empty `getText().asString().trim()` for accuracy
+
+**Deck Reader (Slide Introspection):**
+- `getPageElements()` returns all elements: SHAPE, LINE, IMAGE, TABLE (and potentially GROUP, WORD_ART, SHEETS_CHART, VIDEO)
+- `getPageElementType()` returns a string enum value
+- `asShape().getShapeType()` returns specific type: TEXT_BOX, ROUND_RECTANGLE, ELLIPSE, etc.
+- `asTable().getNumRows()` / `.getNumColumns()` for table dimensions
+- Speaker notes: `slide.getNotesPage().getShapes()` → filter by `getPlaceholderType() === 'BODY'` → `getText().asString()`
+- Unfilled shapes: `getSolidFill()` throws — wrap in try/catch, default to `'none'`
+
+**Performance (5-slide deck):**
+- All 5 enterprise builders + helpers in single IIFE: ~3s execution time
+- Deck reader IIFE (5 slides, 17 page elements): ~3s execution time
+- Minified helper names (at/as/al/an/sb/bl) fit 5 builders + invocations under 2.5KB
+
 ### Gotchas & Limitations
 
 | Issue | Detail | Workaround |
@@ -740,6 +926,11 @@ Use the Content Element Extraction decision tree (Step 1B) to classify content i
 | **Images: format limits** | PNG, JPEG, GIF only — no SVG, WebP | Convert to PNG before inserting |
 | **Images: size limits** | 50MB max, 25 megapixel max, URL max 2KB | Resize large images before inserting |
 | **replaceAllText()** | Cannot change formatting; throws if placeholder missing on ANY slide; skips Groups | Use per-slide shape iteration with existence check before replacing |
+| **Float imprecision** | Shape dimensions return floats, not exact integers (e.g., 192.992 instead of 193) | Cosmetic only — visually imperceptible. Do not compare dimensions with strict equality |
+| **Line.getStart()** | Returns `{getX, getY, toString}` — NOT `getLeft/getTop` | Use `line.getLeft()`/`line.getTop()` on the line element itself for bounding box position |
+| **asString() trailing \\n** | `getText().asString()` always appends a newline character | Account for `\n` when calculating text ranges or comparing text content; use `.trim()` |
+| **Placeholder font leak** | Default slide placeholders have Arial font; `getRuns()` picks these up | Filter by non-empty `getText().asString().trim()` before font detection |
+| **Unfilled shape fill** | `getSolidFill()` throws on shapes without explicit fill (e.g., text boxes) | Always wrap `getSolidFill()` in try/catch, default to `'none'` |
 | **No diagrams** | SlidesApp has no diagram primitives | Use `insertImage` with a pre-rendered diagram URL, or approximate with shapes |
 | **No syntax highlighting** | No code formatting support | Use monospace font (`setFontFamily('Roboto Mono')`) for code slides |
 | **List presets** | Only 15 preset options; no custom bullet characters | DISC_CIRCLE_SQUARE for bullets, DIGIT_ALPHA_ROMAN for numbered |
