@@ -19,7 +19,7 @@ description: |
   first-position preference. For casual comparisons this is acceptable; for high-confidence
   research use randomized ordering.
 
-argument-hint: "--prompt <file> --inputs <dir> | --prompt-a <fileA> [--prompt-b <fileB>] --inputs <dir>"
+argument-hint: "<prompt-file> [inputs-dir | inline text] [prompt-b] [free-form options]"
 allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, TaskOutput, Bash, Read, Glob, Write
 ---
 
@@ -30,37 +30,66 @@ Run two prompt versions against a directory of test inputs, then compare outputs
 
 ## Argument Reference
 
+The arguments after `/compare-prompts` are **free-form text**. The LLM interprets them
+to extract the following values:
+
+| Parameter | Required? | What to look for | Default |
+|-----------|-----------|-------------------|---------|
+| `prompt_a_path` | **yes** | A file path — the first/only `.md` path, or one labeled "A", "baseline", "current", "before" | — |
+| `inputs_dir` | no | A directory path for test inputs. Associated with "inputs", "test", "dir" | — |
+| `input_text` | no | Inline text to use as a single test input. Any remaining free-form text that is not a file path, directory, label, or model name. Look for quoted strings, or text after "with input", "using text", "test with" | — |
+| `prompt_b_path` | no | A second file path labeled "B", "candidate", "new", "after", or simply the second path | HEAD~1 of prompt A |
+| `label_a` | no | A short label for prompt A. Look for "label-a", "baseline label" | "A" |
+| `label_b` | no | A short label for prompt B. Look for "label-b", "candidate label" | "B" |
+| `run_model` | no | A model name (claude-*) for running prompts | claude-sonnet-4-6 |
+| `judge_model` | no | A model name for the quality judge | claude-opus-4-6 |
+
+**Input sources** (at least one recommended, but both optional):
+- `inputs_dir` — directory of test files (each file = one test case)
+- `input_text` — inline text string (becomes a single test case named "inline-input")
+- If both provided: directory files + inline text are all used as test cases
+- If neither provided: prompts are run once with no input (empty input — useful for prompts that don't need external input)
+
+**Example invocations:**
 ```
-/compare-prompts --prompt <file> --inputs <dir>
-  # current file vs HEAD~1
-
-/compare-prompts --prompt-a <fileA> --prompt-b <fileB> --inputs <dir>
-  # explicit A and B
-
-/compare-prompts --prompt-a <fileA> --inputs <dir>
-  # A explicit, B = HEAD~1 of A
-
-[--label-a NAME]      display label for prompt A (default: "A")
-[--label-b NAME]      display label for prompt B (default: "B")
-[--model MODEL]       model for running the prompts (default: claude-sonnet-4-6)
-[--judge-model MODEL] model for the quality judge (default: claude-opus-4-6)
+/compare-prompts agents/code-reviewer.md inputs/
+/compare-prompts agents/code-reviewer.md with inputs from inputs/
+/compare-prompts compare agents/code-reviewer.md against agents/code-reviewer-v2.md using inputs/
+/compare-prompts baseline agents/old.md vs candidate agents/new.md, test with inputs/, use haiku as judge
+/compare-prompts agents/summarizer.md "The quick brown fox jumped over the lazy dog"
+/compare-prompts agents/translator.md with text "Hello world, how are you?"
+/compare-prompts agents/code-reviewer.md   (no input — runs prompt with empty input)
+/compare-prompts --prompt agents/code-reviewer.md --inputs inputs/  (legacy flag style also works)
 ```
 
 ---
 
 ## Step 0 — Parse & Preflight
 
-Parse arguments from `<prompt-arguments>`.
+**Interpret arguments from `<prompt-arguments>` as free-form text.**
 
-**Flag parsing rules:**
-- `--prompt <f>` → prompt_a_path = f, derive prompt_b from HEAD~1 of f
-- `--prompt-a <f>` → prompt_a_path = f
-- `--prompt-b <f>` → prompt_b_path = f (explicit; skips git extraction)
-- `--inputs <dir>` → inputs_dir = dir
-- `--label-a <n>` → label_a = n (default: "A")
-- `--label-b <n>` → label_b = n (default: "B")
-- `--model <m>` → run_model = m (default: claude-sonnet-4-6) — used as `model:` on Task spawn
-- `--judge-model <m>` → judge_model = m (default: claude-opus-4-6)
+Extract these values by understanding the user's intent — they may use flags, positional
+paths, natural language, or any combination:
+
+| Variable | How to identify |
+|----------|----------------|
+| `prompt_a_path` | The primary prompt file. Look for the first file path containing `/` or `.md`. If `--prompt` or `--prompt-a` flag is present, use its value. Words like "baseline", "current", "before", "A" help disambiguate when two paths are present. |
+| `prompt_b_path` | The comparison prompt file. Look for a second file path, or one associated with "B", "candidate", "new", "after", "compare against", "vs". If `--prompt-b` flag is present, use its value. |
+| `inputs_dir` | A directory path for test inputs. Look for paths associated with "inputs", "test", "dir". If `--inputs` flag is present, use its value. Optional — may be absent. |
+| `input_text` | Inline text to use as test input. Look for quoted strings, or text after "with input", "using text", "test with". Also: any substantial free-form text that is clearly meant as input content (not a path, label, or model). If `--input` or `--text` flag is present, use its value. Optional — may be absent. |
+| `label_a` | Display label for prompt A. Look for "label-a", "baseline label", or `--label-a`. |
+| `label_b` | Display label for prompt B. Look for "label-b", "candidate label", or `--label-b`. |
+| `run_model` | A model identifier (claude-*). Look for "model", "use", "with", or `--model`. |
+| `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
+
+**Defaults** (apply when not found in arguments):
+- `prompt_b_path` = derived from git HEAD~1 of prompt_a_path (existing resolution logic)
+- `inputs_dir` = none (no directory inputs)
+- `input_text` = none (no inline input)
+- `label_a` = "A"
+- `label_b` = "B"
+- `run_model` = claude-sonnet-4-6
+- `judge_model` = claude-opus-4-6
 
 **Resolve prompt_b_path** (if not explicitly provided):
 1. Determine REPO_ROOT: `git -C "$(dirname <prompt_a_path>)" rev-parse --show-toplevel`
@@ -74,10 +103,21 @@ Parse arguments from `<prompt-arguments>`.
 Create temp working dir: `COMPARE_TMPDIR=$(mktemp -d /tmp/compare-prompts.XXXXXX)`
 — NOTE: use `COMPARE_TMPDIR`, not `$TMPDIR` (macOS system env var, do not overwrite)
 
-**Validate:**
-- inputs_dir must exist: `test -d "$inputs_dir"` — else abort: `"--inputs <dir> does not exist"`
-- prompt_a_path must exist: `test -f "$prompt_a_path"` — else abort: `"Prompt A not found: <path>"`
-- prompt_b_path must exist after resolution — else abort with appropriate message
+**Requirement validation — abort immediately if any required value is missing:**
+
+After interpreting the arguments, check:
+
+1. **Prompt A**: `prompt_a_path` must be identified.
+   If not found → abort:
+   "ERROR: Could not identify a prompt file in the arguments.
+   Provide a file path to compare.
+   Example: /compare-prompts path/to/prompt.md path/to/inputs/"
+
+2. **Value validation**:
+   - prompt_a_path must exist on disk
+   - prompt_b_path must exist on disk (after git HEAD~1 resolution if not explicit)
+   - If `inputs_dir` was identified: it must exist on disk
+   - run_model and judge_model must match `claude-*`
 
 After all validations pass, emit the start banner as a fenced code block:
 
@@ -87,10 +127,12 @@ After all validations pass, emit the start banner as a fenced code block:
 ║                                                              ║
 ║  Baseline  ({label_a}):  {prompt_a_path}                     ║
 ║  Candidate ({label_b}):  {prompt_b_path}                     ║
-║  Inputs:        {inputs_dir}                                 ║
+║  Inputs:        {inputs_line}                                ║
 ║  Model:         {model_line}                                 ║
 ╚══════════════════════════════════════════════════════════════╝
 [end code block]
+
+Inputs line: if `inputs_dir` → `"{inputs_dir}"` · if `input_text` only → `"inline text ({len} chars)"` · if both → `"{inputs_dir} + inline text"` · if neither → `"(no input — empty run)"`
 
 Truncation rule: usable inner width = 60 chars (after 2-space left margin). If a path/dir
 field exceeds its usable width, truncate from the left: `"..." + path[-(usable - 3):]`.
@@ -104,15 +146,34 @@ Each row right-padded with spaces to fill column 62, then `║`.
 
 ## Step 1 — Load Inputs
 
-Glob `*.md` and `*.txt` from inputs_dir.
+Build the list of test cases from available input sources:
 
+**From `inputs_dir`** (if provided):
+- Glob `*.md` and `*.txt` from inputs_dir
 - Cap at 10 files. If more found → warn: `"Warning: found <N> input files; using first 10 only."`
 - For each file: check size. If > 50KB → skip with: `"Skipping <file>: exceeds 50KB limit"`
 - Read surviving files' contents into memory
-- If zero files remain → abort: `"No valid input files in <dir> (all exceeded 50KB or none matched *.md/*.txt)"`
+
+**From `input_text`** (if provided):
+- If `input_text` is an empty string → skip and warn: `"Warning: input_text was empty — ignored."`
+- Otherwise: create a single test case named `"inline-input"` with contents = the `input_text` string
+
+**No input sources** (neither `inputs_dir` nor `input_text`):
+- Create a single test case named `"empty-input"` with contents = `""` (empty string)
+- Warn: `"Warning: no inputs provided — running prompts with empty input."`
+
+**Combine**: all test cases from directory files + inline text (if both provided).
+
+**Validation**:
+- If `inputs_dir` was provided but zero files survived (all exceeded 50KB or none matched *.md/*.txt) AND no `input_text` → abort: `"No valid input files in <dir> (all exceeded 50KB or none matched *.md/*.txt)"`
 - If N < 3 → warn: `"Warning: N=<N> test case(s) — quality win rates have low statistical confidence. Use 3+ inputs for meaningful comparison."`
 
-**📂 Inputs loaded** — {N} test cases from `{inputs_dir}`
+**📂 Inputs loaded** — {N} test cases{source_detail}
+Where `source_detail`:
+- directory only: `" from \`{inputs_dir}\`"`
+- inline only: `" (inline text)"`
+- both: `" from \`{inputs_dir}\` + inline text"`
+- neither: `" (empty input)"`
 (If files were skipped: **📂 Inputs loaded** — {N} of {N_found} test cases ({N_skipped} skipped))
 
 ---
@@ -134,7 +195,7 @@ Record `start_time_ms = Date.now()` per task before spawning.
 **Spawn all 2×N Tasks in a single parallel message** with `run_in_background: true`.
 Each task:
 - `subagent_type`: general-purpose
-- `model`: run_model (if specified via --model; default claude-sonnet-4-6)
+- `model`: run_model (default claude-sonnet-4-6)
 - `prompt`: constructed task_prompt (above)
 - `run_in_background`: true
 
@@ -392,7 +453,7 @@ Output the following report (outside any code fence — render as markdown):
 
 **Baseline (A):** {label_a} — `{prompt_a_path}`
 **Candidate (B):** {label_b} — `{prompt_b_path}`
-**Inputs:** `{inputs_dir}` · {N} test cases
+**Inputs:** {inputs_line} · {N} test cases
 
 ---
 
