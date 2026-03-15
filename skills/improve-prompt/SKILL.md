@@ -726,11 +726,14 @@ EOF
   consecutive_stalls += 1
   iterations_completed = i
   iteration_log.append({i: i, verdict: "SCOPE_FAIL", quality_score_a: null, quality_score_b: null, quality_spread: 0, applied_summary: "all experiments excluded by scope gate"})
-  IF consecutive_stalls >= max_stalls:
+  IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
     Print: "🚫 SCOPE_FAIL — stopping ({consecutive_stalls} consecutive stalls)"
     BREAK
   ELSE:
-    Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    IF loop_mode == "default":
+      Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    ELSE:  # fixed or duration
+      Print: "🚫 SCOPE_FAIL — continuing"
     CONTINUE
 ```
 
@@ -1123,7 +1126,7 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        IF consecutive_stalls >= max_stalls:
+        IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
           Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
           Print (render as fenced code block):
           ╔═══════════════════════════════════════════════════════════════╗
@@ -1136,15 +1139,26 @@ EOF
           iterations_completed = i
           BREAK
         ELSE:
-          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
-          Print (render as fenced code block):
-          ╔═══════════════════════════════════════════════════════════════╗
-          ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
-          ║                                                               ║
-          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-          ╚═══════════════════════════════════════════════════════════════╝
-          [end code block]
+          IF loop_mode == "default":
+            Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
+          ELSE:  # fixed or duration
+            Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ⚠️  NEUTRAL  —  Iteration {i} · continuing                   ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
           iterations_completed = i
           CONTINUE
       ELSE (REGRESSED):
@@ -1161,7 +1175,7 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        IF consecutive_stalls >= max_stalls:
+        IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
           Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
           Print (render as fenced code block):
           ╔═══════════════════════════════════════════════════════════════╗
@@ -1174,15 +1188,26 @@ EOF
           iterations_completed = i
           BREAK
         ELSE:
-          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
-          Print (render as fenced code block):
-          ╔═══════════════════════════════════════════════════════════════╗
-          ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
-          ║                                                               ║
-          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-          ╚═══════════════════════════════════════════════════════════════╝
-          [end code block]
+          IF loop_mode == "default":
+            Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
+          ELSE:  # fixed or duration
+            Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ❌  REGRESSED  —  Iteration {i} · continuing                  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
           iterations_completed = i
           CONTINUE
 
