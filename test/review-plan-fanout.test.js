@@ -142,16 +142,18 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(wildcardIdx).to.be.greaterThan(uiIdx);
         });
 
-        it('checks l1-evaluator BEFORE all others', function () {
+        it('checks l1-blocking BEFORE all others', function () {
             const routeSection = skillContent.substring(
                 skillContent.indexOf('Route findings from all_results')
             );
-            const l1Idx = routeSection.indexOf('evaluator_name == "l1-evaluator"');
+            const l1BlockingIdx = routeSection.indexOf('evaluator_name == "l1-blocking"');
+            const l1AdvisoryIdx = routeSection.indexOf('evaluator_name == "l1-advisory"');
             const gasIdx = routeSection.indexOf('evaluator_name == "gas-evaluator"');
             const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
-            expect(l1Idx).to.be.greaterThan(-1);
-            expect(l1Idx).to.be.lessThan(gasIdx);
-            expect(l1Idx).to.be.lessThan(wildcardIdx);
+            expect(l1BlockingIdx).to.be.greaterThan(-1);
+            expect(l1AdvisoryIdx).to.be.greaterThan(l1BlockingIdx);
+            expect(gasIdx).to.be.greaterThan(l1AdvisoryIdx);
+            expect(l1BlockingIdx).to.be.lessThan(wildcardIdx);
         });
     });
 
@@ -198,27 +200,29 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('wave-based spawning with MAX_CONCURRENT', function () {
-        it('defines MAX_CONCURRENT = 8', function () {
-            expect(skillContent).to.include('MAX_CONCURRENT = 8');
+        it('defines MAX_CONCURRENT = 4', function () {
+            expect(skillContent).to.include('MAX_CONCURRENT = 4');
         });
 
         it('chunks evaluators into waves by MAX_CONCURRENT', function () {
             expect(skillContent).to.include('waves = chunk(evaluators_to_spawn, MAX_CONCURRENT)');
         });
 
-        it('spawns evaluators in priority order (L1 first, UI last)', function () {
+        it('spawns evaluators in priority order (L1 blocking/advisory first, UI last)', function () {
             const buildSection = skillContent.substring(
                 skillContent.indexOf('-- Build evaluator list'),
                 skillContent.indexOf('-- Wave spawning --')
             );
-            const p1 = buildSection.indexOf('Priority 1: L1');
+            const p1a = buildSection.indexOf('Priority 1a: L1 blocking');
+            const p1b = buildSection.indexOf('Priority 1b: L1 advisory');
             const p2 = buildSection.indexOf('Priority 2: Ecosystem');
             const p3 = buildSection.indexOf('Priority 3: Impact');
             const p4 = buildSection.indexOf('Priority 4: Remaining');
             const p5 = buildSection.indexOf('Priority 5: UI');
 
-            expect(p1).to.be.greaterThan(-1);
-            expect(p2).to.be.greaterThan(p1);
+            expect(p1a).to.be.greaterThan(-1);
+            expect(p1b).to.be.greaterThan(p1a);
+            expect(p2).to.be.greaterThan(p1b);
             expect(p3).to.be.greaterThan(p2);
             expect(p4).to.be.greaterThan(p3);
             expect(p5).to.be.greaterThan(p4);
@@ -374,8 +378,12 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('fan-in JSON reading', function () {
-        it('routes l1-evaluator findings into l1_results', function () {
-            expect(skillContent).to.include('evaluator_name == "l1-evaluator"');
+        it('routes l1-blocking findings into l1_results', function () {
+            expect(skillContent).to.include('evaluator_name == "l1-blocking"');
+        });
+
+        it('routes l1-advisory findings into l1_results', function () {
+            expect(skillContent).to.include('evaluator_name == "l1-advisory"');
         });
 
         it('routes cluster evaluator findings by name suffix', function () {
@@ -415,6 +423,88 @@ describe('Review-Plan Task Fan-Out', function () {
                 skillContent.indexOf('Route findings from all_results')
             );
             expect(gridSection).to.not.include('◌ timeout');
+        });
+    });
+
+    describe('L1 blocking/advisory split', function () {
+        it('defines l1-blocking evaluator config for Gate 1 (3 questions)', function () {
+            expect(skillContent).to.include('L1 Blocking Evaluator Config (Gate 1: 3 questions');
+            expect(skillContent).to.include('Evaluate ONLY these 3 questions: Q-G1, Q-G2, Q-G11');
+        });
+
+        it('defines l1-advisory evaluator config for Gate 2/3 (17 questions)', function () {
+            expect(skillContent).to.include('L1 Advisory Evaluator Config (Gate 2/3: 17 questions');
+            expect(skillContent).to.include('Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23');
+        });
+
+        it('l1-advisory group memoization logic exists', function () {
+            expect(skillContent).to.include('l1_advisory_memoized');
+            expect(skillContent).to.include('Group memoization for l1-advisory evaluator');
+        });
+
+        it('l1-advisory memoization invalidates on edits', function () {
+            expect(skillContent).to.include('l1-advisory invalidated (edits applied)');
+        });
+
+        it('injects synthetic PASS results when l1-advisory is memoized', function () {
+            expect(skillContent).to.include('group-memoized — all were PASS/N/A');
+        });
+    });
+
+    describe('delta-aware evaluator prompts', function () {
+        it('defines prev_pass_applied_edits variable', function () {
+            expect(skillContent).to.include('prev_pass_applied_edits = []');
+        });
+
+        it('builds current_pass_applied_edits after applying edits', function () {
+            expect(skillContent).to.include('current_pass_applied_edits = []');
+            expect(skillContent).to.include('Build delta summary for next pass');
+        });
+
+        it('appends delta context to evaluator prompts on pass 2+', function () {
+            expect(skillContent).to.include('Focus verification on plan sections touched by these edits');
+            expect(skillContent).to.include('Previous pass applied 0 edits');
+        });
+
+        it('carries prev_pass_applied_edits to next pass', function () {
+            expect(skillContent).to.include('prev_pass_applied_edits = current_pass_applied_edits');
+        });
+
+        it('memo_file checkpoint includes prev_pass_applied_edits', function () {
+            const checkpointSection = skillContent.substring(
+                skillContent.indexOf('Checkpoint: persist memoized state'),
+                skillContent.indexOf('Build breakdown suffix')
+            );
+            expect(checkpointSection).to.include('prev_pass_applied_edits');
+        });
+    });
+
+    describe('smart Haiku classification', function () {
+        it('Haiku classifies HAS_TESTS flag', function () {
+            expect(skillContent).to.include('HAS_TESTS: true if plan creates/modifies test files');
+            expect(skillContent).to.include('HAS_TESTS=true|false');
+        });
+
+        it('Haiku classifies HAS_EXTERNAL_CALLS flag', function () {
+            expect(skillContent).to.include('HAS_EXTERNAL_CALLS: true if plan introduces or modifies outbound');
+            expect(skillContent).to.include('HAS_EXTERNAL_CALLS=true|false');
+        });
+
+        it('Haiku classifies HAS_UNTRUSTED_INPUT flag', function () {
+            expect(skillContent).to.include('HAS_UNTRUSTED_INPUT: true if plan handles user-submitted data');
+            expect(skillContent).to.include('HAS_UNTRUSTED_INPUT=true|false');
+        });
+
+        it('testing cluster activation is conditional on HAS_TESTS', function () {
+            expect(skillContent).to.include('if HAS_TESTS:      active_clusters.append("testing")');
+        });
+
+        it('security cluster activation is conditional on HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT', function () {
+            expect(skillContent).to.include('if HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT:');
+        });
+
+        it('Haiku fallback defaults new flags to true (conservative)', function () {
+            expect(skillContent).to.include('HAS_TESTS=true, HAS_EXTERNAL_CALLS=true, HAS_UNTRUSTED_INPUT=true');
         });
     });
 });
