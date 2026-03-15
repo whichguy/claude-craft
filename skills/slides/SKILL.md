@@ -30,10 +30,10 @@ Follow all steps in order. Do not skip Step 2 outline confirmation unless `--no-
 
 ### Extract Deck Structure
 
-Run this IIFE via `mcp__gas__exec`, replacing `PRES_ID` with the actual presentation ID (extract from URL if needed — the ID is the long string after `/d/` in Google Slides URLs):
+Run this IIFE via `mcp__mcp-gas-deploy__exec`, replacing `PRES_ID` with the actual presentation ID (extract from URL if needed — the ID is the long string after `/d/` in Google Slides URLs):
 
 ```javascript
-(function() {
+return (function() {
   var p = SlidesApp.openById('PRES_ID');
   var allSlides = p.getSlides();
   var slides = allSlides.slice(0, 50);
@@ -412,8 +412,8 @@ Print after writing:
 
 Before executing GAS code, check that the target GAS project's `appsscript.json` contains the `https://www.googleapis.com/auth/presentations` scope.
 
-Use `mcp__gas__cat` to read `appsscript.json` from the target script. If the scope is absent:
-1. Add it to the `oauthScopes` array using `mcp__gas__edit`
+Use `mcp__mcp-gas-deploy__pull` to fetch the project locally, then read `appsscript.json` from the local directory (`~/gas-projects/<scriptId>/appsscript.json`). If the scope is absent:
+1. Edit the local file to add it to the `oauthScopes` array, then `mcp__mcp-gas-deploy__push` to sync
 2. Inform the user: "Added `presentations` scope to appsscript.json. You will need to re-authorize the script once (open the script editor and run any function to trigger the OAuth flow)."
 
 **Default target script**: SHEETS_CHAT (`1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C4HoZys75N5utGfkCUG`)
@@ -434,10 +434,10 @@ All themes pass WCAG AA for text contrast. Accent colors are used only for decor
 
 ### Theme Extraction (Custom Theme)
 
-When `$THEME == "custom"`, run this extraction IIFE via `mcp__gas__exec` BEFORE generating slides. Replace `SOURCE_ID` with `$THEME_SOURCE_ID`:
+When `$THEME == "custom"`, run this extraction IIFE via `mcp__mcp-gas-deploy__exec` BEFORE generating slides. Replace `SOURCE_ID` with `$THEME_SOURCE_ID`:
 
 ```javascript
-(function() {
+return (function() {
   var p = SlidesApp.openById('SOURCE_ID');
   var cs = p.getMasters()[0].getColorScheme();
   var tc = {};
@@ -940,9 +940,9 @@ All APIs below were empirically verified via live GAS execution (March 2026). Th
 
 The entire generated code is a self-contained IIFE — no separate function definition and call. It runs immediately and returns the presentation URL:
 ```
-mcp__gas__exec({
+mcp__mcp-gas-deploy__exec({
   scriptId: "[TARGET_SCRIPT_ID]",
-  js_statement: "(function() { ... return pres.getUrl(); })();"
+  js_statement: "return (function() { ... return pres.getUrl(); })();"
 })
 ```
 
@@ -952,7 +952,7 @@ mcp__gas__exec({
 
 ### Error Handling
 
-If `mcp__gas__exec` returns `success: false` or an error:
+If `mcp__mcp-gas-deploy__exec` returns `success: false` or an error:
 1. Print: `GAS exec failed: [error message]`
 2. Offer the user two options via `AskUserQuestion`:
    - **Retry**: Fix any identified issue in the GAS code and re-execute
