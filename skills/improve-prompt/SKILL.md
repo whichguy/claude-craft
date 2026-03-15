@@ -720,9 +720,12 @@ IF len(active_experiments) == 0:
 
   # Record failure in IDEAS_FILE via reconcile agent for knowledge loop
   IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
-    # Spawn reconcile agent to append scope gate failure to IDEAS_FILE Technique History
-    # (see Step 6 for reconcile agent prompt — scope_gate_results will contain all FAILs)
-    # Then commit IDEAS_FILE only:
+    Spawn reconcile agent (same prompt as Step 6) with:
+      - experiment_results = "(all experiments excluded by scope gate)"
+      - selected_winner = "Verdict: SCOPE_FAIL"
+      - scope_gate_results = {per-experiment FAIL details from gate agents above}
+    Wait for VERDICT: marker (ignore verdict value — always SCOPE_FAIL)
+    Then commit IDEAS_FILE only:
     git -C {PROMPT_DIR} add {IDEAS_FILE}
     git commit -m "$(cat <<'EOF'
 docs({basename}): scope gate failed — all experiments excluded
@@ -895,9 +898,13 @@ Token/latency metrics tracked for transparency; quality score is the primary ver
 best_k = argmax(quality_score_b_k for k in active_experiments)
 best_spread = quality_spread_{best_k}
 
+# 0.15 threshold: roughly 1.5 question wins on a 10-question evaluation.
+# Below this, differences are likely noise from judge variance or position effects.
 IF best_spread > 0.15:
     overall_winner = "B"   # experiment best_k
     decided_by = "quality"
+# Tiebreakers only fire when quality difference is within noise (≤0.15).
+# In that case, prefer the more efficient prompt — same quality for fewer tokens is a win.
 ELIF |avg_tokens_a - avg_tokens_{best_k}| / max(avg_tokens_a, avg_tokens_{best_k}) > 0.10:
     overall_winner = "B" if avg_tokens_{best_k} < avg_tokens_a else "A"
     decided_by = "tokens (quality tied)"
