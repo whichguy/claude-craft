@@ -98,8 +98,8 @@ paths, natural language, or any combination:
 | `label` | A short name for reports. Look for "label", "name", "called", or `--label`. |
 | `run_model` | A model identifier (claude-*). Look for "model", "use", "with", or `--model`. |
 | `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
-| `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
-| `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
+| `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. If found, set `iterations_explicit = true`. |
+| `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. If found, set `experiments_explicit = true`. |
 | `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
 | `duration` | A time duration or deadline. Look for: (a) explicit durations — "2h", "30m", "1h30m", "90 minutes", "2 hours", or text after "for", "duration", `--duration`; (b) relative deadlines — "until 5pm", "until tomorrow morning", "until midnight". For relative deadlines, calculate the duration in minutes from now to the target time. |
 
@@ -114,6 +114,10 @@ paths, natural language, or any combination:
 - `inputs_dir` = none
 - `input_text` = none
 - `num_inputs` = 3
+- `iterations_explicit` = false
+- `experiments_explicit` = false
+
+**Tracking flags:** When `iterations` is extracted from user input (not defaulted), also set `iterations_explicit = true`. Same for `experiments_explicit` when `experiments` is extracted from user input.
 
 **Value validation for `num_inputs`**: Must be between 1 and 10. If exceeded, clamp to 10 with warning: `"Warning: num_inputs clamped to 10 (was {N})."`
 
@@ -164,7 +168,7 @@ IF duration is set:
     deadline = now() + duration_minutes * 60 * 1000  # ms timestamp
     iterations = 999  # effectively unlimited — duration is the bound
     Print: "⏱ Duration mode: {duration} ({duration_minutes}m) — deadline {format_time(deadline)}"
-ELIF iterations was explicitly set by user:
+ELIF iterations_explicit == true:
     loop_mode = "fixed"
     # All N iterations run regardless of verdict
     Print: "🔁 Fixed mode: {iterations} iterations (stall detection disabled)"
@@ -1040,7 +1044,7 @@ FOR i in 1..iterations:
 
   # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
   # Compute first so the print block below can reference effective_experiments
-  IF consecutive_stalls >= 1 AND experiments was not explicitly set by user:
+  IF consecutive_stalls >= 1 AND experiments_explicit == false:
     effective_experiments = min(experiments + 1, 4)
   ELSE:
     effective_experiments = experiments
