@@ -1229,6 +1229,10 @@ Print final summary.
 - `max_spread = max(abs(entry.quality_spread) for entry in iteration_log) or 1` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
+- `elapsed_total = now() - start_time`; `elapsed_total_str = format_duration(elapsed_total)` (e.g., "1h23m", "45m")
+- `iterations_display`:
+  - `default` or `fixed` mode: `{iterations_completed} of {iterations}`
+  - `duration` mode: `{iterations_completed} in {elapsed_total_str} (duration: {duration})`
 
 Print (outside fenced block):
 ```
@@ -1236,7 +1240,8 @@ Print (outside fenced block):
 
 **Prompt:** {prompt_path}
 **Label:** {label}
-**Iterations:** {iterations_completed} of {iterations}
+**Iterations:** {iterations_display}
+**Mode:** {loop_mode}{loop_mode == "duration" ? f" ({duration})" : ""}
 **Stalls:** {total_stalls} (max consecutive: {max_consecutive_reached})
 **Ideas:** {IDEAS_FILE}
 ```
@@ -1263,7 +1268,10 @@ Then print final verdict as fenced code block:
 [render as fenced code block]
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅  {n_improved} of {iterations_completed} iterations improved {PROMPT_BASENAME}  ║
+IF loop_mode == "duration":
+║  Duration: {elapsed_total_str} of {duration}                   ║
+ELSE:
 ║  Prompt committed and ready.                                  ║
 ╚═══════════════════════════════════════════════════════════════╝
 [end code block]
-(If n_improved == 0: use `❌  No improvement achieved across {iterations_completed} iteration(s)` on the first line instead; omit "Prompt committed and ready." line)
+(If n_improved == 0: use `❌  No improvement achieved across {iterations_completed} iteration(s)` on the first line instead; omit second info line)
