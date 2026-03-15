@@ -214,16 +214,14 @@ describe('Review-Plan Task Fan-Out', function () {
             const p1 = buildSection.indexOf('Priority 1: L1');
             const p2 = buildSection.indexOf('Priority 2: Ecosystem');
             const p3 = buildSection.indexOf('Priority 3: Impact');
-            const p4 = buildSection.indexOf('Priority 4: Git');
-            const p5 = buildSection.indexOf('Priority 5: Remaining');
-            const p6 = buildSection.indexOf('Priority 6: UI');
+            const p4 = buildSection.indexOf('Priority 4: Remaining');
+            const p5 = buildSection.indexOf('Priority 5: UI');
 
             expect(p1).to.be.greaterThan(-1);
             expect(p2).to.be.greaterThan(p1);
             expect(p3).to.be.greaterThan(p2);
             expect(p4).to.be.greaterThan(p3);
             expect(p5).to.be.greaterThan(p4);
-            expect(p6).to.be.greaterThan(p5);
         });
 
         it('prints wave count and evaluator names per wave', function () {
