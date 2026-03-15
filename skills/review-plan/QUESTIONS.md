@@ -101,7 +101,8 @@ multi-file features where cross-file consistency needs a coordinator.
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
 *L1 per-pass count stays at 20 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
-*convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
+*convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
+*Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
 **Sub-question definitions:**
 

@@ -362,7 +362,7 @@ DO:
   -- Build evaluator list (priority-ordered for wave assignment) --
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
-  # Priority 1: L1 (always, 21 questions, longest runtime)
+  # Priority 1: L1 (always, 20 questions, longest runtime)
   evaluators_to_spawn.append({name: "l1-evaluator", task_config: <l1_config below>})
 
   # Priority 2: Ecosystem evaluator (largest question set after L1)
@@ -942,7 +942,7 @@ DO:
   # Q-G22 (Cross-phase dependency explicitness): NOT safe — inter-phase contracts evolve as phases change
   # Q-G23 (Proportionality): NOT safe — scope/complexity assessment changes as plan expands or contracts
   # Q-C27, Q-C28, Q-C29: not individually memoizable by design (their clusters — impact, operations,
-  # testing — are not currently added to memoized_clusters; only the git cluster is memoized)
+  # testing — are not currently added to memoized_clusters; no loop cluster is currently memoized at the cluster level)
   # Individually memoizable L1 questions (structural): {Q-G11, Q-G6, Q-G7, Q-G18}
 
   # Stability-based memoization (post-pass 2 only)
@@ -1255,13 +1255,13 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 
 | Cluster | Superseded? | Gas-evaluator equivalents |
 |---------|-------------|--------------------------|
-| Git (1) | **epilogue** — Q-E1 evaluated post-convergence; IS_GAS: N/A (Q1, Q2) | Q1, Q2 |
-| Impact (2) | **partially** — Q-C26 has no gas equivalent (evaluates via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
-| Testing (3) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
-| State (4) | **fully** (Q-C26 promoted to Impact cluster) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
-| Security (5) | **fully** | Q27, Q28, Q23; Q-C30→Q28, Q-C31→N/A isolated exec, Q-C33→Q8, Q-C34→Q22 |
-| Operations (6) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
-| Client (7) | **merged into ui-evaluator** when HAS_UI=true; **fully superseded** by gas-evaluator Q32, Q33 when IS_GAS | Q32, Q33 |
+| Git | **epilogue** — Q-E1 evaluated post-convergence; IS_GAS: N/A (Q1, Q2) | Q1, Q2 |
+| Impact (1) | **partially** — Q-C26 has no gas equivalent (evaluates via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
+| Testing (2) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
+| State (3) | **fully** (Q-C26 promoted to Impact cluster) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
+| Security (4) | **fully** | Q27, Q28, Q23; Q-C30→Q28, Q-C31→N/A isolated exec, Q-C33→Q8, Q-C34→Q22 |
+| Operations (5) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
+| Client (6) | **merged into ui-evaluator** when HAS_UI=true; **fully superseded** by gas-evaluator Q32, Q33 when IS_GAS | Q32, Q33 |
 
 Result: When IS_GAS=true, skip ALL cluster evaluators EXCEPT Impact cluster (always active — Q-C26
 has no gas equivalent). Q-C17 and Q-C25 are handled by ui-evaluator when HAS_UI=true (not a
