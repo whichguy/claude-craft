@@ -280,7 +280,7 @@ Print run header (once, after validation passes):
 ║  Prompt:      {prompt_path}                                   ║
 ║  Inputs:      {inputs_line}                                   ║
 ║  Label:       {label}                                         ║
-║  Iterations:  {iterations}   ·   Experiments: {experiments}   ║
+║  Iterations:  {IF loop_mode == "duration": "∞ (deadline: " + format_time(deadline) + ")" ELIF loop_mode == "fixed": iterations + " (fixed)" ELSE: iterations}   ·   Experiments: {experiments}   ║
 ║  Model:       {run_model}                                     ║
 ╚═══════════════════════════════════════════════════════════════╝
 [end code block]
@@ -1240,6 +1240,8 @@ The `trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM` registered in Step 0 handles
 Print final summary.
 
 **Helpers:**
+- `format_duration(ms)`: convert milliseconds to human-readable: <60s → "{s}s", <60m → "{m}m", else → "{h}h{m}m" (e.g., 5400000 → "1h30m")
+- `format_time(ms_timestamp)`: format as HH:MM local time (e.g., "14:30")
 - `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED / 🚫 SCOPE_FAIL
 - `total_stalls = count(entry.verdict in ["NEUTRAL", "REGRESSED", "SCOPE_FAIL"] for entry in iteration_log)`
 - `max_consecutive_reached`: track the maximum value `consecutive_stalls` reached during the loop (update after each increment)
