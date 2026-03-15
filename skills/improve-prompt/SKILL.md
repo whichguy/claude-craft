@@ -1019,8 +1019,14 @@ Each iteration commits independently. Run the full loop for each iteration i in 
 iterations_completed = 0
 iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
 consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — resets on IMPROVED
+start_time = now()  # ms timestamp — used by duration mode and elapsed display
 
 FOR i in 1..iterations:
+
+  # Duration mode: check deadline before starting iteration
+  IF loop_mode == "duration" AND now() >= deadline:
+    Print: "⏰ Duration {duration} elapsed — stopping after {i-1} iteration{i-1 != 1 ? 's' : ''}"
+    BREAK
 
   # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
   # Compute first so the print block below can reference effective_experiments
@@ -1030,12 +1036,24 @@ FOR i in 1..iterations:
     effective_experiments = experiments
   E = effective_experiments  # bind E so Steps 3/3b/4/5 use the bumped value this iteration
 
+  # Compute stall/auto-bump suffix (all modes — auto-bump fires whenever consecutive_stalls >= 1)
+  exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
+  stall_suffix = consecutive_stalls > 0 ? f"  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}" : ""
+
   Print: ""
-  IF consecutive_stalls > 0:
-    exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
-    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}"
-  ELSE:
-    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
+  IF loop_mode == "duration":
+    elapsed = now() - start_time
+    remaining = deadline - now()
+    elapsed_str = format_duration(elapsed)   # e.g., "12m", "1h23m"
+    remaining_str = format_duration(remaining)
+    Print: "Iter {i} ─── {label}  ⏱ {elapsed_str} elapsed · {remaining_str} remaining{stall_suffix}"
+  ELIF loop_mode == "fixed":
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}{stall_suffix}"
+  ELSE:  # default
+    IF consecutive_stalls > 0:
+      Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}{stall_suffix}"
+    ELSE:
+      Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
   IF i > 1:
     trajectory_scores = [entry.quality_score_b if entry.verdict == "IMPROVED" else entry.quality_score_a for entry in iteration_log]
     trajectory_str = join([f"{s:.0%}" for s in trajectory_scores], " → ")
