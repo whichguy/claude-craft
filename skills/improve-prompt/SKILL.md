@@ -6,10 +6,11 @@ description: |
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
   evaluates via questions-based judge (not holistic), reconciles all learnings into a single
-  ideas file, and commits only if improved. Loops autonomously with stall detection — continues
-  seeking improvements until max_stalls consecutive failures (default 2). Strategy escalation
+  ideas file, and commits only if improved. Three loop modes: default (stall detection stops
+  after max_stalls consecutive failures), fixed (explicit --iterations N always completes all N),
+  and duration (--duration 2h or "until 5pm" loops until time expires). Strategy escalation
   guides bolder changes after stalls. Position bias mitigated via randomized judge ordering.
-  Supports --iterations N, --experiments N, and --max-stalls N.
+  Supports --iterations N, --experiments N, --max-stalls N, and --duration.
 
   AUTOMATICALLY INVOKE when user mentions:
   - "improve this prompt", "make this prompt better", "optimize this prompt"
@@ -29,8 +30,10 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
 scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
-reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED (stall detection).
-Auto-generates test inputs when needed. Loops autonomously until max_stalls consecutive failures.
+reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED.
+Three loop modes: **default** (stall detection — stops after max_stalls consecutive failures),
+**fixed** (explicit `--iterations N` — always completes all N), **duration** (`--duration 2h` or
+`until 5pm` — loops until time expires). Auto-generates test inputs when needed.
 
 ## Argument Reference
 
@@ -69,6 +72,10 @@ to extract the following values:
 /improve-prompt agents/code-reviewer.md "function foo() { return bar }"  (inline text as single test case)
 /improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs)
 /improve-prompt agents/code-reviewer.md 5 iterations --max-stalls 3 (keeps trying through 3 consecutive stalls)
+/improve-prompt agents/code-reviewer.md 5 iterations                   (forces all 5 — no early stop)
+/improve-prompt agents/code-reviewer.md for 2 hours                    (loops until 2h elapsed)
+/improve-prompt agents/code-reviewer.md for 30m with inputs/           (duration + explicit inputs)
+/improve-prompt agents/code-reviewer.md until tomorrow morning         (loops until ~8am tomorrow)
 /improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
 ```
 
