@@ -493,7 +493,7 @@ Parse the review output above and apply each finding:
 2. Extract the Fix: block — find "before:" and "after:" code blocks
 3. Apply via Edit tool: old_string=before block (verbatim), new_string=after block (verbatim)
 4. If before text not found: record as FAILED (DO NOT invent alternatives)
-5. If no Fix block: record as STUCK
+5. If no Fix block: record as STUCK with type "critical"
 6. On success: record as APPLIED
 
 **Advisory findings WITH Fix block** (lines matching "Finding: Advisory" that have a Fix: block):
@@ -504,7 +504,7 @@ Parse the review output above and apply each finding:
 - DO NOT apply. Record as YAGNI.
 
 **Advisory findings WITHOUT Fix block**:
-- DO NOT apply. Record as STUCK.
+- DO NOT apply. Record as STUCK with type "advisory".
 
 ## Output format (required — output this JSON exactly, no markdown wrapping)
 
@@ -518,7 +518,7 @@ Parse the review output above and apply each finding:
     { "line": <number>, "q_number": "<string>", "description": "<string>", "reason": "before text not found|other" }
   ],
   "stuck": [
-    { "line": <number>, "q_number": "<string>", "description": "<string>" }
+    { "line": <number>, "type": "critical|advisory", "q_number": "<string>", "description": "<string>" }
   ],
   "yagni": [
     { "title": "<string>", "description": "<string>" }
@@ -577,8 +577,17 @@ Parse the review output above and apply each finding:
       const entry = { file, ...a }
       dedup.push(fix_failures, 'failed', entry)
     })
-    // Stuck (dedup-guarded)
-    result.stuck.forEach(a => {
+    // Stuck — route by type (critical → stuck_findings, advisory → advisory_stuck)
+    result.stuck.filter(a => a.type === 'critical').forEach(a => {
+      const entry = { file, ...a }
+      dedup.push(stuck_findings, 'stuck_critical', entry)
+    })
+    result.stuck.filter(a => a.type === 'advisory').forEach(a => {
+      const entry = { file, ...a }
+      dedup.push(advisory_stuck, 'stuck', entry)
+    })
+    // Defensive fallback: typeless stuck entries route to advisory_stuck (not silently dropped)
+    result.stuck.filter(a => a.type !== 'critical' && a.type !== 'advisory').forEach(a => {
       const entry = { file, ...a }
       dedup.push(advisory_stuck, 'stuck', entry)
     })
@@ -712,11 +721,10 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
     const review_files = Glob(`${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_*.md`)
 
     // Output validation: compare expected vs actual temp files
-    if (review_files.length < num_reviewers) {
-      print: "    ⚠️ ${file}: expected ${num_reviewers} reviewer file(s), found ${review_files.length}"
-    }
     if (review_files.length == 0) {
-      print: "    ⚠️ ${file}: no reviewer output files — all reviewers failed to write (current_findings unchanged)"
+      print: "    ⚠️ ${file}: no reviewer output files — all ${num_reviewers} reviewer(s) failed to write (current_findings unchanged)"
+    } else if (review_files.length < num_reviewers) {
+      print: "    ⚠️ ${file}: expected ${num_reviewers} reviewer file(s), found ${review_files.length}"
     }
 
     if (review_files.length == 1) {
@@ -938,8 +946,8 @@ Print: "  ⚠️ Reviewer batch failed: ${err.message}"                  (if Pro
 
 **STEP E — reconciliation with output validation, consolidated file, TODO list:**
 ```
-Print: "    ⚠️ ${file}: expected ${N} reviewer file(s), found ${M}"  (if found < expected)
-Print: "    ⚠️ ${file}: no reviewer output files — all reviewers failed to write"
+Print: "    ⚠️ ${file}: no reviewer output files — all ${N} reviewer(s) failed to write"  (if found == 0)
+Print: "    ⚠️ ${file}: expected ${N} reviewer file(s), found ${M}"  (if 0 < found < expected)
 Print: "    📊 ${file}: 1 review → ${N} findings"                    (single reviewer)
 Print: "    📊 ${file}: ${N} reviews → ${M} unique findings (${K} duplicates merged)"  (multi-reviewer)
 Print: "    📋 ${REVIEW_TMPDIR}/round_${round}/${file_slug}_consolidated.md"
