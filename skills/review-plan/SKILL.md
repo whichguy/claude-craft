@@ -101,6 +101,23 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                   by other templates). Key test: if the file's structure changed, would
                   consumers break? False for read-only or ephemeral changes.
 
+       HAS_TESTS: true if plan creates/modifies test files, modifies function
+                  signatures that have existing tests, fixes bugs (regression test
+                  needed), or adds new functions that need test coverage.
+                  False if plan is documentation-only, cosmetic, or explicitly confirms
+                  existing tests are sufficient without modification.
+       HAS_EXTERNAL_CALLS: true if plan introduces or modifies outbound HTTP/API
+                           calls, database queries, external service integrations,
+                           OAuth flows, or third-party library usage with network I/O.
+                           False if plan operates purely on local files, in-memory
+                           data, or internal function calls.
+       HAS_UNTRUSTED_INPUT: true if plan handles user-submitted data, URL parameters,
+                            form inputs, external API responses parsed into application
+                            logic, or file uploads.
+                            False if all inputs are from trusted internal sources
+                            (config files, hardcoded values, internal APIs with
+                            authenticated callers).
+
        IS_TRIVIAL: true only if ALL of the following:
          (1) Plan modifies exactly ONE file
          (2) That file has no code extension (.md, .txt, .json are OK;
@@ -119,11 +136,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        HAS_UI=true|false
        HAS_DEPLOYMENT=true|false
        HAS_STATE=true|false
+       HAS_TESTS=true|false
+       HAS_EXTERNAL_CALLS=true|false
+       HAS_UNTRUSTED_INPUT=true|false
        IS_TRIVIAL=true|false
      """
    )
-   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE, IS_TRIVIAL
-   IF Haiku timeout or malformed output → all flags false (IS_TRIVIAL=false)
+   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE, HAS_TESTS, HAS_EXTERNAL_CALLS, HAS_UNTRUSTED_INPUT, IS_TRIVIAL
+   IF Haiku timeout or malformed output → all domain flags false, IS_TRIVIAL=false,
+     HAS_TESTS=true, HAS_EXTERNAL_CALLS=true, HAS_UNTRUSTED_INPUT=true
      (fallback activates impact, testing, security clusters unconditionally)
 
    Compute cluster activation:
@@ -132,9 +153,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # All L2 clusters superseded by gas-evaluator except impact (for Q-C26 — no gas equivalent)
      active_clusters = ["impact"]  # always active — Q-C26 evaluates here
    ELSE:
-     active_clusters = ["impact", "testing"]  # always active
-     if HAS_STATE:       active_clusters.append("state")
-     active_clusters.append("security")              # always active (7 questions, low overhead)
+     active_clusters = ["impact"]                    # always active (Gate 1 Q-C3)
+     if HAS_TESTS:      active_clusters.append("testing")
+     if HAS_STATE:      active_clusters.append("state")
+     if HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT:
+                         active_clusters.append("security")
      if HAS_DEPLOYMENT:  active_clusters.append("operations")
      # Client cluster (Q-C17, Q-C25) merged into ui-evaluator when HAS_UI=true — no separate client-evaluator
    ```
@@ -244,7 +267,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_node_since = {}          # N-ID → pass_count when memoized
    prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
-   MAX_CONCURRENT = 8              # max parallel evaluator tasks per wave; tunable
+   prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
+   MAX_CONCURRENT = 4              # max parallel evaluator tasks per wave; tunable
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # Path is stable (no timestamp) so context recovery always finds the right file.
@@ -305,6 +329,7 @@ DO:
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
+                     prev_pass_applied_edits (default []),
                      total_changes_all_passes, pass_count,
                      needs_update_counts_per_pass, pass_durations,
                      total_applicable_questions, memo_milestones_printed,
@@ -479,6 +504,16 @@ DO:
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
+
       Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
@@ -545,6 +580,16 @@ DO:
       IS_GAS note: if you are the impact-evaluator and IS_GAS=true above, evaluate Q-C26 only;
         Q-C3, Q-C8, Q-C12, Q-C14, Q-C27, Q-C32 are N/A-superseded (covered by gas-evaluator).
         State cluster (Q-C13, Q-C18, Q-C19, Q-C24) is fully superseded when IS_GAS=true.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
 
       Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
@@ -628,6 +673,16 @@ DO:
 
       [IF gas_memo_directive is non-empty, append it here]
 
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
+
       Plan to evaluate: <plan_path>
 
       Constraints: read-only — do not edit the plan, do not call ExitPlanMode.
@@ -648,6 +703,16 @@ DO:
       evaluator_name = node-evaluator
 
       [IF node_memo_directive is non-empty, append it here]
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
 
       Plan to evaluate: <plan_path>
 
@@ -677,6 +742,16 @@ DO:
 
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/ui-evaluator.json
@@ -866,6 +941,16 @@ DO:
       node_results[n_id] = "PASS"  # unconditional — memoization takes priority over evaluator output
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
   total_changes_all_passes += changes_this_pass
+
+  # Build delta summary for next pass's evaluators
+  current_pass_applied_edits = []
+  FOR each applied edit in this pass:
+    current_pass_applied_edits.append({
+      "q_id": edit.q_id,
+      "evaluator": edit.source_evaluator,
+      "summary": first_sentence(edit.instruction)
+    })
+
   newly_memoized = []  # collect items memoized THIS pass for milestone display
 
   # Invalidation: L1/cluster edits may make stability-locked ecosystem questions stale
@@ -963,6 +1048,7 @@ DO:
               memoized_l1_questions.add(Q-ID)
               newly_memoized.append(Q-ID)  # track for milestone display (stability-locked)
   prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
+  prev_pass_applied_edits = current_pass_applied_edits  # carry delta summary to next pass's evaluators
 
   # Stability-based memoization for gas Gate 2/3 questions
   # Runs AFTER Phase 6 invalidation — so newly-cleared questions can re-earn stability this pass
@@ -1035,6 +1121,7 @@ DO:
     prev_needs_update_set: [...current_needs_update_set],
     pass1_needs_update_set: [...pass1_needs_update_set],
     prev_pass_results,
+    prev_pass_applied_edits,
     total_changes_all_passes,
     needs_update_counts_per_pass,
     pass_durations,
