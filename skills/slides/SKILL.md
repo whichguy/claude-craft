@@ -518,7 +518,7 @@ For slides not matching any builder, use the raw helpers directly.
 | **No diagrams** | SlidesApp has no diagram primitives | Use `insertImage` with a pre-rendered diagram URL, or approximate with shapes |
 | **No syntax highlighting** | No code formatting support | Use monospace font (`setFontFamily('Roboto Mono')`) for code slides |
 | **List presets** | Only 15 preset options; no custom bullet characters | DISC_CIRCLE_SQUARE for bullets, DIGIT_ALPHA_ROMAN for numbered |
-| **Performance** | ~0.4s per slide; 3 styled slides in 1.3s | Single IIFE handles ~20 slides within 6-min timeout |
+| **Performance** | ~0.4s per slide; 3 styled slides in 1.3s | Single IIFE handles ~8-10 slides with minified helpers (~3.5KB js_statement limit). For 10+ slides, split into two calls: first creates pres + returns ID, second opens by ID + appends remaining slides |
 
 ### Execute via MCP
 
@@ -530,7 +530,9 @@ mcp__gas__exec({
 })
 ```
 
-**Performance**: A typical 8-slide deck completes in under 4 seconds. If timeout occurs on large image-heavy decks (10+ images from external URLs), split into two calls: first creates the presentation and returns the ID, second opens by ID and adds remaining slides.
+**Payload limit**: The GAS exec API has a ~3.5KB js_statement limit. Minify helper names (e.g., `addText` → `at`, `addLine` → `al`) to fit more slides. For decks over ~8 slides, split into two calls:
+1. **Call 1**: Create presentation + slides 1-N/2 → return `{id: pres.getId(), url: pres.getUrl()}`
+2. **Call 2**: `SlidesApp.openById(id)` + append remaining slides → return `pres.getUrl()`
 
 ### Error Handling
 
