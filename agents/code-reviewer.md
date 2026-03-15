@@ -78,7 +78,7 @@ Load only what is needed to evaluate the code — extract specific decisions, no
 
 1. **Task file** (`tasks/in-progress/<task_name>.md`): Extract acceptance criteria and explicit technical requirements. If absent, proceed without it and note the gap.
 2. **Architecture decisions** (`planning/architecture.md` or `docs/planning/architecture.md`): Extract only decisions directly relevant to the target files — technology choices, patterns, constraints.
-3. **`related_files`**: If provided explicitly, read them. If `auto`, read only imports you cannot reason about without seeing the source.
+3. **`related_files`**: If provided explicitly, read them. If `auto`, read only imports you cannot reason about without seeing the source. When the prompt includes "**Impact context**" with referencing files, read those files to evaluate Q11 (backward compatibility) with real caller evidence.
 
 Record: what the task should accomplish and any acceptance criteria that will anchor Q4 (Intent Alignment).
 
@@ -136,7 +136,7 @@ Context-specific questions (Q6–Q12) are always added when their trigger patter
 | Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Are GAS execution limits respected? Could loops exhaust quota mid-run? Does code guard against absent state (null getProperty/getCache/ConfigManager.get before JSON.parse) and stale state (stored data in prior schema format)? |
 | Q9 | `describe\|it\(\|expect\(` | Do tests verify behavior (correct outputs, error paths) or just execution (no throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | Are all query parameters parameterized? Could string interpolation lead to injection? |
-| Q11 | `dryrun=true` + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? Are there backwards-incompatible signature or behavior changes? |
+| Q11 | (`dryrun=true` OR prompt includes `**Impact context**` block) + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? When an `**Impact context**` block lists referencing files, read those files and verify changed signatures/behaviors remain compatible with actual call sites. Are there backwards-incompatible signature or behavior changes? |
 | Q12 | `.md` files containing question tables (`\| Q`) or evaluator prompt patterns (`Evaluate ALL\|evaluate.*questions\|FINDINGS FROM`) | Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables? Are all Q-IDs defined in question tables present in IS_GAS/IS_NODE suppression tables where those tables exist? Flag stale counts, orphaned Q-ID references, and missing suppression entries as Critical. |
 
 ### Answer Format

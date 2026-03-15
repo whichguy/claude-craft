@@ -59,13 +59,29 @@ Flow: Setup & Triage → Initial Review ─────────────�
 **Pre-flight**: If `task_name` is empty, stop and report:
 `Missing required parameters: task_name=[value]`
 
-**Git Fallback**: If `target_files` is empty or unset after pre-flight:
+**Git Fallback (Accumulated Lookback)**: If `target_files` is empty or unset after pre-flight:
+
 ```
-Run: git -C "${worktree}" diff --name-only HEAD 2>/dev/null
-Filter out: .json, .lock files
-If results non-empty: set target_files = comma-joined list
-  Print: "  → target_files derived from git diff: [list]"
-If still empty: print "No changed files detected via git diff — nothing to review." and stop.
+Step 1 — Find the base commit (last non-review-fix commit):
+  Walk the last 50 commits via `git -C "${worktree}" log --format="%H %s" -50`.
+  If the command fails (non-zero exit, detached HEAD, no commits), fall back to HEAD and log a warning.
+  Skip commits where the message:
+    - starts with `review-fix:` (new convention), OR
+    - contains `: apply review-fix corrections` (backward compat for old commits)
+  The first non-matching commit hash becomes `base_commit`.
+  Fallback: if all 50 are review-fix commits, use HEAD (safe default, same as current behavior).
+
+Step 2 — Collect all changed files since base:
+  committed_files = git diff --name-only ${base_commit}..HEAD   (files changed across all review-fix iterations)
+  uncommitted_files = git diff --name-only HEAD                  (working tree changes)
+  staged_files = git diff --cached --name-only                   (staged changes)
+  Union all three sets, deduplicate, filter out .json/.lock files.
+
+Step 3 — Set target_files:
+  If files found: target_files = comma-joined list
+    Print: "  → target_files derived from accumulated git diff (base: <hash_short>): [list]"
+    Print: "    (spanning N review-fix commit(s) since <base_short>)"
+  If empty: print "No changed files detected — nothing to review." and stop.
 ```
 
 **Argument Validation**: After Git Fallback resolves `target_files`, validate all parameters:
@@ -120,6 +136,8 @@ files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or 
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 reviewer_counts = []       # number of reviewers dispatched per round (for summary telemetry)
+base_commit = null          # hash of last non-review-fix commit (from Git Fallback); null if target_files provided explicitly
+impact_files = {}           # { file: [list of referencing files] } — populated by Step 1c Impact Discovery
 final_status = 'pending'
 total_start_time = Date.now()        # set at Phase 1 start
 round_start_time = null              # set at start of each round
@@ -261,6 +279,56 @@ for (const file of sorted_file_list) {
 
 **CardService note:** `.gs` files routed to `gas-gmail-cards` receive specialized Gmail add-on validation (card structure, action handlers, Gmail integration, state, navigation, security). General GAS code quality (`gas-code-review`) is not run in the automated loop for these files. For full dual coverage of CardService files, run `/gas-review` separately after this loop completes.
 
+### Step 1c: Impact Discovery
+
+After target files and reviewer mapping are determined, discover files that REFERENCE changed code.
+These become `related_files` context (NOT additional `target_files` — we warn about breakage, we don't fix other people's code).
+
+```javascript
+// Impact discovery runs sequentially across target files (single-threaded accumulation).
+// Global cap of 30 impact files is checked after each file's rg results are appended.
+let total_impact_count = 0
+const MAX_IMPACT_FILES = 30
+
+for (const file of file_list) {
+  if (total_impact_count >= MAX_IMPACT_FILES) break
+
+  // 1. Get diff output
+  //    For new files with no diff, read the file content directly
+  const diff = git diff ${base_commit || 'HEAD'} -- ${file}
+
+  // 2. Extract exported/public symbol names from CHANGED lines (+ lines only):
+  //    - JS/TS: export function/const/class X, module.exports.X, exports.X
+  //    - GAS: top-level function declarations (all public)
+  //    - Skip symbols <= 2 chars (too generic), cap at 20 symbols per file
+  const symbols = extract_symbols(diff_added_lines)
+    .filter(s => s.length > 2)
+    .slice(0, 20)
+
+  if (symbols.length === 0) continue
+
+  // 3. Ripgrep for references
+  const pattern = symbols.join('|')
+  const referencing = rg -l "${pattern}" \
+    --glob '!node_modules' --glob '!.git' --glob '!*.lock' --glob '!*.json' \
+    --glob '!dist' --glob '!build' --glob '!coverage' \
+    | head -10
+
+  // Error handling: if rg is unavailable or returns an error, skip impact discovery
+  // for this file and log a warning
+
+  // Filter out files already in file_list (don't duplicate target files)
+  const filtered = referencing.filter(f => !file_list.includes(f))
+
+  // Apply global cap
+  const capped = filtered.slice(0, MAX_IMPACT_FILES - total_impact_count)
+  if (capped.length > 0) {
+    impact_files[file] = capped
+    total_impact_count += capped.length
+  }
+}
+```
+
 ### Phase 1 Print: Setup Banner
 
 ```
@@ -283,6 +351,13 @@ If CardService files detected, append:
   ⚠️ CardService: [filename] → gas-gmail-cards (dual coverage note applies)
 ```
 
+If `impact_files` is non-empty, append:
+```
+  Impact discovery: [total_impact_count] file(s) reference changed symbols
+    [source_file] → [impact_files[source_file].length] referencing file(s)
+      → [referencing_file]                               (one line per referencing file)
+```
+
 ---
 
 ## Phase 2: Initial Review
@@ -293,17 +368,26 @@ Define once, used by both single-agent and parallel-task modes:
 
 ```javascript
 // Reviewer prompt template (used by both single-agent and parallel-task modes)
-const reviewer_prompt = (file) => `Review this file:
+const reviewer_prompt = (file) => {
+  const file_impacts = impact_files[file] || []
+  const related = file_impacts.length > 0 ? file_impacts.join(',') : 'auto'
+
+  return `Review this file:
 target_files="${file}"
 task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
-related_files=auto
+related_files="${related}"
 review_mode="${review_mode}"
 ${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
+${file_impacts.length > 0 ? `
+**Impact context**: The following files reference symbols changed in ${file}.
+Check Q11 (backward compatibility) against these actual callers:
+${file_impacts.map(f => '- ' + f).join('\n')}` : ''}
 
 Output your full review markdown starting with "## Code Review:".
 Do NOT use SendMessage — your output is collected directly by the calling agent.`
+}
 ```
 
 ### Single-Agent Mode (1 file)
@@ -335,15 +419,28 @@ Launch all reviewers in a **single message** as parallel Task calls. No TeamCrea
 collected from return values directly. Scales to any file count.
 
 ```javascript
-// Spawn all reviewers in ONE message (parallel):
+// Spawn reviewers in batches of MAX_CONCURRENT_TASKS:
+const MAX_CONCURRENT_TASKS = 4
 const review_start = Date.now()
-const results = await Promise.all(file_list.map(file =>
-  Task({
-    subagent_type: reviewer_map[file] || 'code-reviewer',
-    description: `Review ${file}`,
-    prompt: reviewer_prompt(file)
-  })
-));
+let results = []
+
+// Chunk file_list into batches
+for (let i = 0; i < file_list.length; i += MAX_CONCURRENT_TASKS) {
+  const batch = file_list.slice(i, i + MAX_CONCURRENT_TASKS)
+  try {
+    const batch_results = await Promise.all(batch.map(file =>
+      Task({
+        subagent_type: reviewer_map[file] || 'code-reviewer',
+        description: `Review ${file}`,
+        prompt: reviewer_prompt(file)
+      })
+    ))
+    results = results.concat(batch_results)
+  } catch (err) {
+    print: "  ⚠️ Reviewer batch failed: ${err.message}"
+    results = results.concat(batch.map(() => null))
+  }
+}
 const review_elapsed = ((Date.now() - review_start) / 1000).toFixed(1)
 print: "  ✓ [file_list.length] review(s) completed in [review_elapsed]s"
 ```
@@ -448,6 +545,9 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   round += 1
   round_start_time = Date.now()
 
+  // Concurrency cap — applies to both fixer dispatch (STEP A) and reviewer dispatch (STEP D)
+  const MAX_CONCURRENT_TASKS = 4
+
   // Progressive parallelism: scale reviewers with round number
   const num_reviewers = Math.min(round, max_reviewers)
   reviewer_counts.push(num_reviewers)
@@ -472,13 +572,22 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     const advisory_count = finding_counts.filter(f => f.severity === 'Advisory').length
     print: "    → Fix ${file} (round ${per_file_rounds[file]}, findings: ${critical_count} critical, ${advisory_count} advisory)"
 
+  // Fixer Tasks are safe to run in parallel: each operates on exactly one file,
+  // applies only its own Fix blocks, and never modifies other files.
+  // Concurrency bounded by MAX_CONCURRENT_TASKS (shared across fixer and reviewer dispatch).
   const fixer_start = Date.now()
-  const fixer_results = await Promise.all(remaining_files.map(file =>
-    Task({
-      subagent_type: "general-purpose",
-      model: "sonnet",
-      description: `Fix ${file} (round ${per_file_rounds[file]})`,
-      prompt: `You are a Fixer Agent. Apply code review findings to exactly one file.
+  let fixer_results = []
+
+  // Chunk remaining_files into batches of MAX_CONCURRENT_TASKS
+  for (let i = 0; i < remaining_files.length; i += MAX_CONCURRENT_TASKS) {
+    const batch = remaining_files.slice(i, i + MAX_CONCURRENT_TASKS)
+    try {
+      const batch_results = await Promise.all(batch.map(file =>
+        Task({
+          subagent_type: "general-purpose",
+          model: "sonnet",
+          description: `Fix ${file} (round ${per_file_rounds[file]})`,
+          prompt: `You are a Fixer Agent. Apply code review findings to exactly one file.
 
 ## Your file
 ${file}
@@ -536,13 +645,16 @@ Parse the review output above and apply each finding:
       yagni: [],
       status: "timeout"
     }))
-  )).catch(err => {
-    // If Promise.all itself rejects, return timeout fallback for all files
-    print: "  ⚠️ Fixer batch failed: ${err.message}"
-    return remaining_files.map(file => ({
-      file, round: per_file_rounds[file], applied: [], failed: [], stuck: [], yagni: [], status: "timeout"
-    }))
-  })
+      ))
+      fixer_results = fixer_results.concat(batch_results)
+    } catch (err) {
+      // On rejection, log which batch failed and continue processing remaining batches
+      print: "  ⚠️ Fixer batch failed: ${err.message}"
+      fixer_results = fixer_results.concat(batch.map(file => ({
+        file, round: per_file_rounds[file], applied: [], failed: [], stuck: [], yagni: [], status: "timeout"
+      })))
+    }
+  }
   const fixer_elapsed = ((Date.now() - fixer_start) / 1000).toFixed(1)
   print: "  ✓ [fixer_results.length] fixer task(s) completed in [fixer_elapsed]s"
 
@@ -648,10 +760,8 @@ Parse the review output above and apply each finding:
     }
   }
 
-  // Concurrency guard: if total reviewer tasks > 30, chunk into batches
-  const reviewer_batch_size = (reviewer_task_specs.length > 30)
-    ? 30
-    : reviewer_task_specs.length
+  // Concurrency guard: cap concurrent Tasks at MAX_CONCURRENT_TASKS (declared at top of WHILE loop)
+  const reviewer_batch_size = Math.min(MAX_CONCURRENT_TASKS, reviewer_task_specs.length)
   const reviewer_batches = []
   for (let i = 0; i < reviewer_task_specs.length; i += reviewer_batch_size) {
     reviewer_batches.push(reviewer_task_specs.slice(i, i + reviewer_batch_size))
@@ -673,14 +783,21 @@ Parse the review output above and apply each finding:
       Task({
         subagent_type: resolved_reviewer,
         description: `Re-review ${file} reviewer ${reviewer_index}/${num_reviewers} round ${per_file_rounds[file]}`,
-        prompt: `Review this file:
+        prompt: (() => {
+          const file_impacts = impact_files[file] || []
+          const related = file_impacts.length > 0 ? file_impacts.join(',') : 'auto'
+          return `Review this file:
 target_files="${file}"
 task_name="${task_name}-round${per_file_rounds[file]}"
 worktree="${worktree}"
 dryrun=false
-related_files=auto
+related_files="${related}"
 review_mode="${review_mode}"
 ${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
+${file_impacts.length > 0 ? `
+**Impact context**: The following files reference symbols changed in ${file}.
+Check Q11 (backward compatibility) against these actual callers:
+${file_impacts.map(f => '- ' + f).join('\n')}` : ''}
 
 This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file (reviewer ${reviewer_index} of ${num_reviewers}).
 
@@ -705,6 +822,7 @@ IMPORTANT: After completing your review, write your complete review output to:
   ${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_${reviewer_index}.md
 using the Write tool. Your review output starts with "## Code Review:".
 Do NOT use SendMessage — your output is collected directly by the calling agent.`
+        })()
       }).catch(() => null)
     )).catch(err => {
       print: "  ⚠️ Reviewer batch failed: ${err.message}"
@@ -1251,7 +1369,7 @@ If `current_branch` equals `$default_branch`:
 
 ```bash
 git commit -m "$(cat <<'EOF'
-<task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
+review-fix: <task_name>: apply review-fix corrections ([critical_resolved.length] critical, [advisory_applied.length] advisory applied)
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 EOF
@@ -1286,7 +1404,7 @@ On failure → print error, output `<!-- PUSH_FAILED -->`, stop.
 # Create PR
 pr_url=$(gh pr create \
   --base "$default_branch" \
-  --title "<task_name>: review-fix corrections" \
+  --title "review-fix: <task_name>: review-fix corrections" \
   --body "$(cat <<'EOF'
 ## Summary
 - [critical_resolved.length] critical fix(es) applied
