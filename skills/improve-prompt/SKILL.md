@@ -753,6 +753,19 @@ For each completed task, record:
 
 For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
 
+**Position randomization** (mitigates first-position bias):
+```
+coin_flip = Math.random() < 0.5
+IF coin_flip:
+    judge_output_a = exp_k_output_for_j
+    judge_output_b = baseline_output_for_j
+    swapped[k][j] = true
+ELSE:
+    judge_output_a = baseline_output_for_j
+    judge_output_b = exp_k_output_for_j
+    swapped[k][j] = false
+```
+
 Judge task prompt:
 ```
 <input_context>
@@ -760,11 +773,11 @@ Judge task prompt:
 </input_context>
 
 <output_a>
-{baseline_output_for_j}
+{judge_output_a}
 </output_a>
 
 <output_b>
-{exp_k_output_for_j}
+{judge_output_b}
 </output_b>
 
 <evaluation_questions>
@@ -780,6 +793,15 @@ Output ONLY valid JSON on a single line — no preamble, no markdown fences:
 ```
 
 Use `judge_model` for all judge tasks. On malformed JSON → treat all questions as TIE.
+
+**Position remapping** (after parsing each judge result, before aggregation):
+```
+IF swapped[k][j]:
+    for each question q in result.questions:
+        if q.winner == "A": q.winner = "B"
+        elif q.winner == "B": q.winner = "A"
+        // "TIE" unchanged
+```
 
 **Aggregate per experiment k** (master context computes after collecting all judge results):
 ```

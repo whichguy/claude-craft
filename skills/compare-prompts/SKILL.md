@@ -15,9 +15,8 @@ description: |
   - Comparing alternative approaches
   - Before finalizing agent/skill prompts
 
-  **Known limitation**: Judge always sees Output A first, which may introduce a ~5-10%
-  first-position preference. For casual comparisons this is acceptable; for high-confidence
-  research use randomized ordering.
+  Position bias mitigated via randomized ordering per test case — judge sees A/B in random
+  order, results remapped before aggregation.
 
 argument-hint: "<prompt-file> [inputs-dir | inline text] [prompt-b] [free-form options]"
 allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, TaskOutput, Bash, Read, Glob, Write
@@ -260,14 +259,35 @@ with 10 inputs, 20 raw outputs could bloat the context significantly.
 
 **Spawn all N judge tasks in a single parallel message** with `run_in_background: true`.
 
-For each input file i, spawn agent `compare-prompts-judge` with prompt:
+For each input file i:
+
+**Position randomization** (mitigates first-position bias):
+```
+coin_flip = Math.random() < 0.5
+IF coin_flip:
+    // Swap: B appears as "A" to the judge
+    judge_prompt_a = prompt_b_contents
+    judge_prompt_b = prompt_a_contents
+    judge_output_a = task_b_output_for_file_i
+    judge_output_b = task_a_output_for_file_i
+    swapped[i] = true
+ELSE:
+    // Normal ordering
+    judge_prompt_a = prompt_a_contents
+    judge_prompt_b = prompt_b_contents
+    judge_output_a = task_a_output_for_file_i
+    judge_output_b = task_b_output_for_file_i
+    swapped[i] = false
+```
+
+Spawn agent `compare-prompts-judge` with prompt:
 ```
 <PROMPT_A>
-{prompt_a_contents}
+{judge_prompt_a}
 </PROMPT_A>
 
 <PROMPT_B>
-{prompt_b_contents}
+{judge_prompt_b}
 </PROMPT_B>
 
 <INPUT>
@@ -275,11 +295,11 @@ For each input file i, spawn agent `compare-prompts-judge` with prompt:
 </INPUT>
 
 <OUTPUT_A>
-{task_a_output_for_file_i}
+{judge_output_a}
 </OUTPUT_A>
 
 <OUTPUT_B>
-{task_b_output_for_file_i}
+{judge_output_b}
 </OUTPUT_B>
 
 Output only valid JSON on a single line — no preamble, no markdown fences:
@@ -291,6 +311,18 @@ Use `judge_model` (default claude-opus-4-6) as model parameter.
 [5/6] ⚖️  judging ── {N} tasks launched
 
 **Judge output**: JSON with 3 keys: `scores` (7-key object — each criterion evaluated relative to its own prompt's instructions), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
+
+**Position remapping** (after parsing each judge result, before aggregation):
+```
+IF swapped[i]:
+    for key in result.scores:
+        if scores[key] == "A": scores[key] = "B"
+        elif scores[key] == "B": scores[key] = "A"
+        // "TIE" unchanged
+    if result.winner == "A": result.winner = "B"
+    elif result.winner == "B": result.winner = "A"
+    // "TIE" unchanged
+```
 
 **Error handling**: If a judge task fails or returns malformed JSON:
 - TRY to parse `result.scores` (7 keys) and `result.winner`
