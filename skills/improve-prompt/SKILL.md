@@ -185,7 +185,7 @@ IF inputs_dir is provided OR input_text is provided OR (defaults.inputs_dir is s
   IF defaults.inputs_dir is set in frontmatter AND inputs_dir not already set:
     inputs_dir = defaults.inputs_dir
   inputs_auto_generated = false
-  (proceed with existing input loading logic in Step 4)
+  (proceed with existing input loading logic in Step 5)
 
 ELSE:
   # No inputs provided — analyze the prompt to determine if it needs input
@@ -237,7 +237,7 @@ ELSE:
   ELSE (NO_INPUT_NEEDED):
     # Prompt is self-contained — run with empty input (like compare-prompts)
     inputs_auto_generated = false
-    # Empty input handled in Step 4 input loading
+    # Empty input handled in Step 5 input loading
     Print: "Prompt is self-contained — running with empty input."
 ```
 
@@ -255,11 +255,11 @@ IF prompt_path starts with $IMPROVE_TMPDIR:
 **Marker validation rule** (apply after each agent step):
 After each spawned agent returns, check its output for the expected marker:
 - Step 0b auto-generation agent (if used): must contain `INPUTS_GENERATED:` — if absent, abort: `"ERROR: Auto-generation failed. Provide inputs_dir manually."`
-- Step 2 agent: must contain `IDEAS_WRITTEN:` — if absent, abort: `"ERROR: research agent failed — expected IDEAS_WRITTEN: but got: <first 200 chars of output>"`
-- Step 2b gate: must contain `PLAN_GATE:` — if absent, abort similarly
+- Step 1 agent: must contain `IDEAS_WRITTEN:` — if absent, abort: `"ERROR: research agent failed — expected IDEAS_WRITTEN: but got: <first 200 chars of output>"`
+- Step 2 gate: must contain `PLAN_GATE:` — if absent, abort similarly
 - Step 3 write-agents: each must contain `EXP_WRITTEN:` — collect all before proceeding
-- Step 3b gate-agents: each must contain all 12 `Q-SG{N}:` lines — if any missing, treat experiment as WARN with note: "incomplete gate evaluation"
-- Step 5 reconcile agent: must contain `VERDICT:` — if absent, abort
+- Step 4 gate-agents: each must contain all 12 `Q-SG{N}:` lines — if any missing, treat experiment as WARN with note: "incomplete gate evaluation"
+- Step 6 reconcile agent: must contain `VERDICT:` — if absent, abort
 
 **Inputs line** (context-aware display):
 - Directory provided: `"{inputs_dir}"`
@@ -283,7 +283,7 @@ Print run header (once, after validation passes):
 
 ---
 
-## Step 1 — Read & Derive Paths
+## Step 0c — Read & Derive Paths
 
 Read prompt file (raw, frontmatter stripped). Derive IDEAS_FILE path.
 
@@ -297,15 +297,15 @@ Capture as `git_history` — passed to research agent for project context.
 - Read IDEAS_FILE content
 - If the most recent `## Experiment Results` section (if any) contains `## Implemented Directions` but does NOT contain `**Verdict:` → prior run interrupted mid-flight while the reconcile agent was writing. To recover cleanly:
   1. **Count only completed iterations** (sections containing `**Verdict:`): `completed_count = count of ## Experiment Results sections in IDEAS_FILE that contain **Verdict:`. Set `i = completed_count + 1`. (Do NOT count the partial section — it has no `**Verdict:` and must be stripped.)
-  2. **Truncate the orphaned partial section**: locate the last `## Experiment Results — Iteration` header in IDEAS_FILE (this is the partial one, since it lacks a `**Verdict:` line); remove everything from that header through the end of file. Rewrite IDEAS_FILE with this truncated content. This prevents a double-entry when Step 5 appends the new `## Experiment Results — Iteration {i}` block.
-  3. Save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5.
+  2. **Truncate the orphaned partial section**: locate the last `## Experiment Results — Iteration` header in IDEAS_FILE (this is the partial one, since it lacks a `**Verdict:` line); remove everything from that header through the end of file. Rewrite IDEAS_FILE with this truncated content. This prevents a double-entry when Step 6 appends the new `## Experiment Results — Iteration {i}` block.
+  3. Save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 5–6.
   Print: "Resuming interrupted run (iteration {i}) — research already complete, re-generating experiment variants."
-- Else if IDEAS_FILE has a `## Experiment Results` section whose most recent occurrence contains a `**Verdict:` line → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
+- Else if IDEAS_FILE has a `## Experiment Results` section whose most recent occurrence contains a `**Verdict:` line → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 1–6, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
 - Otherwise → prior run complete; read as prior context and proceed fresh (append new sections with separator `---\n*Date: {today}*`)
 
 ---
 
-## Step 2 — Research & Ideas Generation
+## Step 1 — Research & Ideas Generation
 
 **Spawn a general-purpose agent** (no tool restrictions — WebSearch, WebFetch, Read, Write, Bash, etc.):
 
@@ -490,11 +490,11 @@ Print:
 
 ---
 
-## Step 2b — Plan Validation Gate
+## Step 2 — Plan Validation Gate
 
 Before writing the improved prompt, evaluate the plan. Loop up to **2 retries** (max 3 total research passes) if the plan fails.
 
-Initialize `research_pass_count = 1` (incremented each time Step 2 runs; already at 1 after the first research pass).
+Initialize `research_pass_count = 1` (incremented each time Step 1 runs; already at 1 after the first research pass).
 
 **Spawn a general-purpose agent:**
 
@@ -520,7 +520,7 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 
 **Decision:**
 - All 6 PASS → Print: `[2/7] 🔒 Plan Gate ─── ✅ PASS`; proceed to Step 3
-- ≥2 FAIL AND `research_pass_count < 3` → Print: `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  retrying (pass {research_pass_count}/3)`; increment `research_pass_count`; re-run Step 2 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, print `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  proceeding (max research passes reached)` and proceed to Step 3 regardless.
+- ≥2 FAIL AND `research_pass_count < 3` → Print: `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  retrying (pass {research_pass_count}/3)`; increment `research_pass_count`; re-run Step 1 with failed gate list injected into `<gap_analysis>`; then re-evaluate gate. After `research_pass_count == 3`, print `[2/7] 🔒 Plan Gate ─── ⚠ FAIL ({n})  ·  proceeding (max research passes reached)` and proceed to Step 3 regardless.
 - 1 FAIL → Print: `[2/7] 🔒 Plan Gate ─── ✅ PASS (1 advisory)`; proceed to Step 3 (single failure is advisory)
 
 ---
@@ -572,9 +572,9 @@ Print: `[3/7] ✏️  Write ─── {E} variant{s} written` then for each k: `
 
 ---
 
-## Step 3b — Scope-Preservation Gate
+## Step 4 — Scope-Preservation Gate
 
-Before evaluating experiments, check each written experiment against the baseline for unintended scope regression. Experiments that fail the gate are excluded from Step 4 evaluation (saving compute) and their failure is recorded in the IDEAS_FILE Technique History.
+Before evaluating experiments, check each written experiment against the baseline for unintended scope regression. Experiments that fail the gate are excluded from Step 5 evaluation (saving compute) and their failure is recorded in the IDEAS_FILE Technique History.
 
 **Read the assigned options for each experiment** from IDEAS_FILE (already parsed in Step 3 for variant assignment).
 
@@ -678,11 +678,11 @@ ELSE:
 
 | Verdict | Condition | Action |
 |---------|-----------|--------|
-| `PASS` | All 12 questions PASS or N/A | Proceed to Step 4 normally |
-| `WARN` | 1+ questions WARN, none FAIL | Proceed to Step 4; annotate experiment with `⚠` in Step 4 output |
-| `FAIL` | Any question is FAIL | Exclude experiment from Step 4 evaluation; warn user |
+| `PASS` | All 12 questions PASS or N/A | Proceed to Step 5 normally |
+| `WARN` | 1+ questions WARN, none FAIL | Proceed to Step 5; annotate experiment with `⚠` in Step 5 output |
+| `FAIL` | Any question is FAIL | Exclude experiment from Step 5 evaluation; warn user |
 
-**Print summary** after gate (before Step 4):
+**Print summary** after gate (before Step 5):
 ```
 Print: `[4/7] 🔍 Scope Gate ─── {len(active_experiments)} experiment{s} checked`
 For each k in 1..E:
@@ -694,7 +694,7 @@ For each k in 1..E:
     Print:    Exp-{k}:  ❌ FAIL  ({pass_count_k}/12)  ─  {first FAIL Q-SG question}: {reason}
 ```
 
-**Build `scope_gate_summary`** for later use in Step 5:
+**Build `scope_gate_summary`** for later use in Step 6:
 ```
 scope_gate_summary = ""
 For each experiment k where gate_verdict_k is FAIL or WARN:
@@ -717,7 +717,7 @@ IF len(active_experiments) == 0:
   # Record failure in IDEAS_FILE via reconcile agent for knowledge loop
   IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
     # Spawn reconcile agent to append scope gate failure to IDEAS_FILE Technique History
-    # (see Step 5 for reconcile agent prompt — scope_gate_results will contain all FAILs)
+    # (see Step 6 for reconcile agent prompt — scope_gate_results will contain all FAILs)
     # Then commit IDEAS_FILE only:
     git -C {PROMPT_DIR} add {IDEAS_FILE}
     git commit -m "$(cat <<'EOF'
@@ -744,11 +744,11 @@ EOF
     CONTINUE
 ```
 
-Otherwise, proceed to Step 4 with only `active_experiments` (exclude FAILed experiments from the evaluation matrix).
+Otherwise, proceed to Step 5 with only `active_experiments` (exclude FAILed experiments from the evaluation matrix).
 
 ---
 
-## Step 4 — Evaluate All Experiments
+## Step 5 — Evaluate All Experiments
 
 Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..5 + dynamic questions).
 
@@ -882,7 +882,7 @@ Token/latency metrics tracked for transparency; quality score is the primary ver
 
 ---
 
-## Step 5 — Select Winner & Merge Learnings
+## Step 6 — Select Winner & Merge Learnings
 
 **Master context** (not a spawned agent) selects the winning experiment.
 
@@ -909,7 +909,7 @@ verdict = "IMPROVED" if overall_winner == "B" else ("REGRESSED" if overall_winne
 
 If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write winner to prompt file in place).
 
-**Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 2, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
+**Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 1, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
 
 **Spawn reconcile agent** (general-purpose, no tool restrictions):
 
@@ -944,7 +944,7 @@ Verdict: {IMPROVED|NEUTRAL|REGRESSED} (decided by: {decided_by})
 </selected_winner>
 
 <scope_gate_results>
-{scope_gate_summary from Step 3b — either per-experiment non-PASS findings, or "No scope gate issues."}
+{scope_gate_summary from Step 4 — either per-experiment non-PASS findings, or "No scope gate issues."}
 </scope_gate_results>
 
 Work through each step:
@@ -1073,9 +1073,15 @@ FOR i in 1..iterations:
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
 
-  # 2. Run Steps 2 → 2b → 3 → 3b → 4 → 5
-  #    Step 3b may exclude experiments (FAIL) or annotate them (WARN)
-  #    Step 5 already copies winning experiment to {prompt_path} if IMPROVED
+  # 2. Execute the per-iteration pipeline:
+  #    Run Step 1 (Research & Ideas) — spawn research agent, write IDEAS_FILE
+  #    Run Step 2 (Plan Gate) — validate plan, retry up to 3 passes if needed
+  #    Run Step 3 (Write Variants) — spawn E write-agents in parallel
+  #    Run Step 4 (Scope Gate) — spawn E gate-agents in parallel, exclude FAILed experiments
+  #    IF all experiments excluded → handle SCOPE_FAIL (see Step 4), then CONTINUE/BREAK
+  #    Run Step 5 (Evaluate) — spawn (1+E)×M run tasks, then E×M judge tasks
+  #    Run Step 6 (Select Winner) — compute verdict, spawn reconcile agent
+  #    VERDICT is now set to IMPROVED, NEUTRAL, or REGRESSED
 
   IF VERDICT == IMPROVED:
     IF prompt_path starts with $IMPROVE_TMPDIR:  # inline mode — no source file, no git repo
@@ -1112,7 +1118,7 @@ EOF
     IF i < iterations: CONTINUE to next iteration
 
   ELSE (NEUTRAL or REGRESSED):
-    # Ensure prompt is reverted to baseline (Step 5 only copies on IMPROVED, but be explicit)
+    # Ensure prompt is reverted to baseline (Step 6 only copies on IMPROVED, but be explicit)
     cp $IMPROVE_TMPDIR/baseline-iter-{i}.md {prompt_path}
     consecutive_stalls += 1
 
@@ -1223,7 +1229,7 @@ If git commit fails: print "ERROR: git commit failed — <error>. Learnings save
 
 ---
 
-## Step 6 — Cleanup
+## Step 7 — Cleanup
 
 The `trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM` registered in Step 0 handles cleanup automatically on exit, interrupt, or signal. No explicit cleanup needed.
 
