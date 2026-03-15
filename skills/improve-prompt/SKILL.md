@@ -6,10 +6,11 @@ description: |
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
   evaluates via questions-based judge (not holistic), reconciles all learnings into a single
-  ideas file, and commits only if improved. Loops autonomously with stall detection — continues
-  seeking improvements until max_stalls consecutive failures (default 2). Strategy escalation
+  ideas file, and commits only if improved. Three loop modes: default (stall detection stops
+  after max_stalls consecutive failures), fixed (explicit --iterations N always completes all N),
+  and duration (--duration 2h or "until 5pm" loops until time expires). Strategy escalation
   guides bolder changes after stalls. Position bias mitigated via randomized judge ordering.
-  Supports --iterations N, --experiments N, and --max-stalls N.
+  Supports --iterations N, --experiments N, --max-stalls N, and --duration.
 
   AUTOMATICALLY INVOKE when user mentions:
   - "improve this prompt", "make this prompt better", "optimize this prompt"
@@ -29,8 +30,10 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
 scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
-reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED (stall detection).
-Auto-generates test inputs when needed. Loops autonomously until max_stalls consecutive failures.
+reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED.
+Three loop modes: **default** (stall detection — stops after max_stalls consecutive failures),
+**fixed** (explicit `--iterations N` — always completes all N), **duration** (`--duration 2h` or
+`until 5pm` — loops until time expires). Auto-generates test inputs when needed.
 
 ## Argument Reference
 
@@ -50,6 +53,7 @@ to extract the following values:
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
+| `duration` | no | A time duration or deadline: "2h", "30m", "1h30m", "90 minutes", "2 hours", "until 5pm", "until tomorrow morning". Look for time-related words/units after "for", "duration", "until", or `--duration` | — |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
@@ -68,6 +72,10 @@ to extract the following values:
 /improve-prompt agents/code-reviewer.md "function foo() { return bar }"  (inline text as single test case)
 /improve-prompt agents/code-reviewer.md 5 inputs                   (auto-generates 5 test inputs)
 /improve-prompt agents/code-reviewer.md 5 iterations --max-stalls 3 (keeps trying through 3 consecutive stalls)
+/improve-prompt agents/code-reviewer.md 5 iterations                   (forces all 5 — no early stop)
+/improve-prompt agents/code-reviewer.md for 2 hours                    (loops until 2h elapsed)
+/improve-prompt agents/code-reviewer.md for 30m with inputs/           (duration + explicit inputs)
+/improve-prompt agents/code-reviewer.md until tomorrow morning         (loops until ~8am tomorrow)
 /improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
 ```
 
@@ -93,6 +101,7 @@ paths, natural language, or any combination:
 | `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. |
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. |
 | `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
+| `duration` | A time duration or deadline. Look for: (a) explicit durations — "2h", "30m", "1h30m", "90 minutes", "2 hours", or text after "for", "duration", `--duration`; (b) relative deadlines — "until 5pm", "until tomorrow morning", "until midnight". For relative deadlines, calculate the duration in minutes from now to the target time. |
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
@@ -101,6 +110,7 @@ paths, natural language, or any combination:
 - `iterations` = 1
 - `experiments` = 1
 - `max_stalls` = 2
+- `duration` = none
 - `inputs_dir` = none
 - `input_text` = none
 - `num_inputs` = 3
@@ -133,10 +143,37 @@ After interpreting the arguments, check:
    - iterations >= 1
    - experiments between 1 and 4
    - max_stalls >= 1
+   - `duration` if set: must resolve to a positive number of minutes. Accepted formats: explicit durations (`Xh`, `Xm`, `XhYm`, `X hours`, `X minutes`, `X mins`) or relative time expressions (`until 5pm`, `until tomorrow morning`, `until midnight`). For relative expressions, calculate minutes from now to the target time. Min 5 minutes, max 24 hours. If the target time is in the past, abort: `"ERROR: Duration target is in the past."`
+   - `duration` and explicit `iterations` are mutually exclusive — if both set, abort: `"ERROR: Cannot set both --iterations and --duration. Use one or the other."`
    - num_inputs between 1 and 10 (clamp with warning if exceeded)
    - inputs_dir must exist on disk (if provided)
    - prompt_path must exist on disk (if not inline mode)
    - On any validation failure: print clear error before exiting (trap covers cleanup)
+
+**Derive loop mode** (after validation, before input resolution):
+
+```
+IF duration is set:
+    loop_mode = "duration"
+    duration_minutes = parse_duration(duration)
+    # parse_duration handles:
+    #   Explicit: "2h" → 120, "30m" → 30, "1h30m" → 90, "90 minutes" → 90
+    #   Relative: "until 5pm" → minutes from now to 5pm today (or tomorrow if past)
+    #             "until tomorrow morning" → minutes from now to tomorrow 8am
+    #             "until midnight" → minutes from now to next midnight
+    deadline = now() + duration_minutes * 60 * 1000  # ms timestamp
+    iterations = 999  # effectively unlimited — duration is the bound
+    Print: "⏱ Duration mode: {duration} ({duration_minutes}m) — deadline {format_time(deadline)}"
+ELIF iterations was explicitly set by user:
+    loop_mode = "fixed"
+    # All N iterations run regardless of verdict
+    Print: "🔁 Fixed mode: {iterations} iterations (stall detection disabled)"
+ELSE:
+    loop_mode = "default"
+    # Stall detection active (current behavior)
+```
+
+Outputs: `loop_mode` ('default'|'fixed'|'duration'), `deadline` (ms timestamp, duration mode only), `duration_minutes` (number, duration mode only)
 
 ### Step 0b — Smart Input Resolution
 
@@ -696,11 +733,14 @@ EOF
   consecutive_stalls += 1
   iterations_completed = i
   iteration_log.append({i: i, verdict: "SCOPE_FAIL", quality_score_a: null, quality_score_b: null, quality_spread: 0, applied_summary: "all experiments excluded by scope gate"})
-  IF consecutive_stalls >= max_stalls:
+  IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
     Print: "🚫 SCOPE_FAIL — stopping ({consecutive_stalls} consecutive stalls)"
     BREAK
   ELSE:
-    Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    IF loop_mode == "default":
+      Print: "🚫 SCOPE_FAIL — stall {consecutive_stalls}/{max_stalls}, continuing to next iteration"
+    ELSE:  # fixed or duration
+      Print: "🚫 SCOPE_FAIL — continuing"
     CONTINUE
 ```
 
@@ -989,8 +1029,14 @@ Each iteration commits independently. Run the full loop for each iteration i in 
 iterations_completed = 0
 iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
 consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — resets on IMPROVED
+start_time = now()  # ms timestamp — used by duration mode and elapsed display
 
 FOR i in 1..iterations:
+
+  # Duration mode: check deadline before starting iteration
+  IF loop_mode == "duration" AND now() >= deadline:
+    Print: "⏰ Duration {duration} elapsed — stopping after {i-1} iteration{i-1 != 1 ? 's' : ''}"
+    BREAK
 
   # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
   # Compute first so the print block below can reference effective_experiments
@@ -1000,12 +1046,24 @@ FOR i in 1..iterations:
     effective_experiments = experiments
   E = effective_experiments  # bind E so Steps 3/3b/4/5 use the bumped value this iteration
 
+  # Compute stall/auto-bump suffix (all modes — auto-bump fires whenever consecutive_stalls >= 1)
+  exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
+  stall_suffix = consecutive_stalls > 0 ? f"  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}" : ""
+
   Print: ""
-  IF consecutive_stalls > 0:
-    exp_note = (effective_experiments != experiments) ? f"  · {effective_experiments} experiments (auto-bump)" : ""
-    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}  ({consecutive_stalls} stall{consecutive_stalls > 1 ? 's' : ''}){exp_note}"
-  ELSE:
-    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
+  IF loop_mode == "duration":
+    elapsed = now() - start_time
+    remaining = deadline - now()
+    elapsed_str = format_duration(elapsed)   # e.g., "12m", "1h23m"
+    remaining_str = format_duration(remaining)
+    Print: "Iter {i} ─── {label}  ⏱ {elapsed_str} elapsed · {remaining_str} remaining{stall_suffix}"
+  ELIF loop_mode == "fixed":
+    Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}{stall_suffix}"
+  ELSE:  # default
+    IF consecutive_stalls > 0:
+      Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}{stall_suffix}"
+    ELSE:
+      Print: "Iter [▓ × i + ░ × (iterations-i)] {i}/{iterations} ─── {label}"
   IF i > 1:
     trajectory_scores = [entry.quality_score_b if entry.verdict == "IMPROVED" else entry.quality_score_a for entry in iteration_log]
     trajectory_str = join([f"{s:.0%}" for s in trajectory_scores], " → ")
@@ -1075,7 +1133,7 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "NEUTRAL", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        IF consecutive_stalls >= max_stalls:
+        IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
           Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
           Print (render as fenced code block):
           ╔═══════════════════════════════════════════════════════════════╗
@@ -1088,15 +1146,26 @@ EOF
           iterations_completed = i
           BREAK
         ELSE:
-          Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
-          Print (render as fenced code block):
-          ╔═══════════════════════════════════════════════════════════════╗
-          ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
-          ║                                                               ║
-          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-          ╚═══════════════════════════════════════════════════════════════╝
-          [end code block]
+          IF loop_mode == "default":
+            Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ⚠️  NEUTRAL  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
+          ELSE:  # fixed or duration
+            Print: `[7/7] 💾 Result ─── NEUTRAL (prompt reverted — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ⚠️  NEUTRAL  —  Iteration {i} · continuing                   ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
           iterations_completed = i
           CONTINUE
       ELSE (REGRESSED):
@@ -1113,7 +1182,7 @@ EOF
 )"
         iteration_log.append({i: i, verdict: "REGRESSED", quality_score_a: quality_score_a, quality_score_b: quality_score_b_{best_k}, quality_spread: quality_spread_{best_k}, applied_summary: applied_summaries_all_k})
         Print: `[6/7] 🏆 Select ─── Exp-{best_k} ({decided_by})`
-        IF consecutive_stalls >= max_stalls:
+        IF loop_mode == "default" AND consecutive_stalls >= max_stalls:
           Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stopping — {consecutive_stalls} consecutive stalls)`
           Print (render as fenced code block):
           ╔═══════════════════════════════════════════════════════════════╗
@@ -1126,15 +1195,26 @@ EOF
           iterations_completed = i
           BREAK
         ELSE:
-          Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
-          Print (render as fenced code block):
-          ╔═══════════════════════════════════════════════════════════════╗
-          ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
-          ║                                                               ║
-          ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
-          ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
-          ╚═══════════════════════════════════════════════════════════════╝
-          [end code block]
+          IF loop_mode == "default":
+            Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted, stall {consecutive_stalls}/{max_stalls} — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ❌  REGRESSED  —  Iteration {i} · stall {consecutive_stalls}/{max_stalls}, continuing  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
+          ELSE:  # fixed or duration
+            Print: `[7/7] 💾 Result ─── REGRESSED (prompt reverted — continuing)`
+            Print (render as fenced code block):
+            ╔═══════════════════════════════════════════════════════════════╗
+            ║  ❌  REGRESSED  —  Iteration {i} · continuing                  ║
+            ║                                                               ║
+            ║  Quality:   {quality_score_a:.0%} → {quality_score_b_{best_k}:.0%}  ({quality_spread_{best_k}:+.1%})  ║
+            ║  Tried:     {applied_summaries_all_k (≤40 chars)}             ║
+            ╚═══════════════════════════════════════════════════════════════╝
+            [end code block]
           iterations_completed = i
           CONTINUE
 
@@ -1156,6 +1236,10 @@ Print final summary.
 - `max_spread = max(abs(entry.quality_spread) for entry in iteration_log) or 1` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
+- `elapsed_total = now() - start_time`; `elapsed_total_str = format_duration(elapsed_total)` (e.g., "1h23m", "45m")
+- `iterations_display`:
+  - `default` or `fixed` mode: `{iterations_completed} of {iterations}`
+  - `duration` mode: `{iterations_completed} in {elapsed_total_str} (duration: {duration})`
 
 Print (outside fenced block):
 ```
@@ -1163,7 +1247,8 @@ Print (outside fenced block):
 
 **Prompt:** {prompt_path}
 **Label:** {label}
-**Iterations:** {iterations_completed} of {iterations}
+**Iterations:** {iterations_display}
+**Mode:** {loop_mode}{loop_mode == "duration" ? f" ({duration})" : ""}
 **Stalls:** {total_stalls} (max consecutive: {max_consecutive_reached})
 **Ideas:** {IDEAS_FILE}
 ```
@@ -1190,7 +1275,10 @@ Then print final verdict as fenced code block:
 [render as fenced code block]
 ╔═══════════════════════════════════════════════════════════════╗
 ║  ✅  {n_improved} of {iterations_completed} iterations improved {PROMPT_BASENAME}  ║
+IF loop_mode == "duration":
+║  Duration: {elapsed_total_str} of {duration}                   ║
+ELSE:
 ║  Prompt committed and ready.                                  ║
 ╚═══════════════════════════════════════════════════════════════╝
 [end code block]
-(If n_improved == 0: use `❌  No improvement achieved across {iterations_completed} iteration(s)` on the first line instead; omit "Prompt committed and ready." line)
+(If n_improved == 0: use `❌  No improvement achieved across {iterations_completed} iteration(s)` on the first line instead; omit second info line)
