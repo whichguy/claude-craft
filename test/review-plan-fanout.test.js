@@ -93,7 +93,7 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('prints wave completion summary', function () {
-            expect(skillContent).to.include('wave complete:');
+            expect(skillContent).to.include('complete:');
         });
 
         it('routes findings from all_results without re-reading files', function () {
@@ -398,6 +398,25 @@ describe('Review-Plan Task Fan-Out', function () {
 
         it('handles malformed JSON gracefully', function () {
             expect(skillContent).to.include('error: "malformed JSON"');
+        });
+    });
+
+    describe('dead timeout code removal', function () {
+        it('does NOT reference timeout in progress printing', function () {
+            // Fan-in progress section should not have timeout-specific branches
+            const fanInSection = skillContent.substring(
+                skillContent.indexOf('Read wave results and print progress'),
+                skillContent.indexOf('Accumulate into pass-level collection')
+            );
+            expect(fanInSection).to.not.include('"timeout"');
+        });
+
+        it('does NOT reference timeout in status grid', function () {
+            const gridSection = skillContent.substring(
+                skillContent.indexOf('Print evaluator status grid'),
+                skillContent.indexOf('Route findings from all_results')
+            );
+            expect(gridSection).to.not.include('◌ timeout');
         });
     });
 });

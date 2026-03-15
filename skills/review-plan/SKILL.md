@@ -152,7 +152,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    ```
 
    IF IS_TRIVIAL:
-     Print: "──── FAST PATH ──────────"
+     Print: "╭─── FAST PATH ──────────────────╮"
      Print: "⚡ Trivial plan: 1 file ([ext]), additive only"
      Print: "  questions: Q-G1, Q-G2, Q-G5, Q-NEW, Q-C1, Q-G11"
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
@@ -208,7 +208,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          IS_TRIVIAL = false  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
 
-   Print: "──── CONFIG ─────────────"
+   Print: "╭─── CONFIG ─────────────────────╮"
    Print mode based on flags:
      IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-eval + impact cluster + ui-evaluator, [N] active)"
      IS_GAS only:         "📋 Review mode: GAS (gas-eval + impact cluster for Q-C26, [N] active)"
@@ -261,7 +261,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Write memo_file with JSON: {results_dir: RESULTS_DIR, pass_count: 0}
    Print: "  results: $RESULTS_DIR"
    ```
-   Print: "──── REVIEW ─────────────"
+   Print: "╭─── REVIEW ─────────────────────╮"
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
@@ -344,7 +344,7 @@ DO:
   gas_plan_changes = 0
   node_plan_changes = 0
   ui_plan_changes = 0
-  gas_results = {}    # populated by fully-memoized branch or evaluator parse block; empty = timeout/no response
+  gas_results = {}    # populated by fully-memoized branch or evaluator parse block; empty = error/no response
   node_results = {}   # same pattern
   l1_results = {}
   l1_edits = {}
@@ -352,7 +352,7 @@ DO:
   ui_results = {}
   all_results = {}    # pass-level accumulator — each wave appends; routing + status grid read from this
 
-  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
+  Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── evaluating…"  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
 
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
 
@@ -392,18 +392,18 @@ DO:
 
   FOR wave_idx, wave in enumerate(waves):
     wave_names = [e.name for e in wave]
-    Print: "  wave [wave_idx+1]/[len(waves)]: [comma-sep wave_names]"
+    Print: "  ⟫ wave [wave_idx+1]/[len(waves)]: [comma-sep wave_names]"
 
     [In a SINGLE message, spawn all evaluator Tasks in this wave]
     # Tasks are foreground — this message blocks until all Tasks in the wave complete.
     # Each Task tool call returns a result (success text or error).
 
-    -- Check Task return status before polling --
+    -- Check Task return status before reading results --
     # After all Tasks return, inspect each tool result:
     FOR each task_result in wave task results:
       evaluator_name = extract name from task_result  # matches wave entry
       IF task_result indicates tool-level failure (error, crash, context limit):
-        # Write error sentinel immediately — don't wait for 120s timeout
+        # Write error sentinel immediately — fail fast on task errors
         Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task failed: [brief error]"}' > '<RESULTS_DIR>/[evaluator_name].json'
         Print: "    ✗ [evaluator_name] — task failed: [brief error]"
       ELSE:
@@ -418,6 +418,7 @@ DO:
     # All Tasks are foreground — by this point every Task has completed and written its JSON.
     # No polling needed; read once immediately.
     wave_results = {}  # name → parsed JSON
+    wave_progress_idx = 0
     FOR each name in wave_names:
       IF file <RESULTS_DIR>/<name>.json exists:
         TRY: data = Read <RESULTS_DIR>/<name>.json → parse JSON
@@ -427,25 +428,23 @@ DO:
         data = {evaluator: name, status: "error", error: "no output file"}
 
       wave_results[name] = data
+      wave_progress_idx += 1
 
-      # Print progress (same format as previous polling loop)
+      # Print progress
       IF data.status == "complete":
         nu = data.counts.needs_update; p = data.counts.pass; na = data.counts.na
-        Print: "    ✓ [name] — ✗[nu] ✓[p] —[na]  [[data.elapsed_s]s]"
+        Print: "    [[wave_progress_idx]/[len(wave_names)]] ✓ [name] — ✗[nu] ✓[p] —[na]  [[data.elapsed_s]s]"
       ELSE IF data.status == "error":
-        Print: "    ✗ [name] — error: [data.error]"
-      ELSE IF data.status == "timeout":
-        Print: "    ◌ [name] — timeout"
-
+        Print: "    [[wave_progress_idx]/[len(wave_names)]] ✗ [name] — error: [data.error]"
     # Accumulate into pass-level collection
     FOR name, data in wave_results:
       all_results[name] = data
 
-    Print: "  wave complete: [len(wave_results)]/[len(wave_names)]"
+    Print: "  ── wave [wave_idx+1] complete: [len(wave_results)]/[len(wave_names)]"
 
   -- Print memoized evaluators (not spawned) --
   FOR each cluster_name in memoized_clusters:
-    Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+    Print: "  ⏭ [cluster_name]-evaluator ── memoized (stable since p[memoized_since[cluster_name]])"
   IF IS_GAS AND fully_memoized_gas:
     Print: "  gas-eval ── ⏭ fully memoized (all [applicable_gas_count] questions stable)"
     gas_plan_changes = 0
@@ -501,7 +500,7 @@ DO:
           "counts": {"pass": N, "needs_update": N, "na": N}
         }
 
-        Write atomically using Bash (prevents partial reads by polling loop):
+        Write atomically using Bash (ensures clean reads by orchestrator):
           cat > '<RESULTS_DIR>/l1-evaluator.json.tmp' << 'EVAL_EOF'
           <json>
           EVAL_EOF
@@ -568,7 +567,7 @@ DO:
           "counts": {"pass": N, "needs_update": N, "na": N}
         }
 
-        Write atomically using Bash (prevents partial reads by polling loop):
+        Write atomically using Bash (ensures clean reads by orchestrator):
           cat > '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' << 'EVAL_EOF'
           <json>
           EVAL_EOF
@@ -590,7 +589,7 @@ DO:
   --- Cluster Evaluators (one Task per active cluster) ---
   For each cluster_name in active_clusters:
     IF cluster_name in memoized_clusters:
-      Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+      Print: "  ⏭ [cluster_name]-evaluator ── memoized (stable since p[memoized_since[cluster_name]])"
       # Memoized clusters have 0 NEEDS_UPDATE by definition — no carry-forward needed.
       # NEEDS_UPDATE tracking is unaffected by PASS/N/A questions (they never enter the set).
       CONTINUE to next cluster
@@ -696,7 +695,7 @@ DO:
           "counts": {"pass": N, "needs_update": N, "na": N}
         }
 
-        Write atomically using Bash (prevents partial reads by polling loop):
+        Write atomically using Bash (ensures clean reads by orchestrator):
           cat > '<RESULTS_DIR>/ui-evaluator.json.tmp' << 'EVAL_EOF'
           <json>
           EVAL_EOF
@@ -717,23 +716,25 @@ DO:
 
   -- Pass-level summary (from all_results accumulator) --
   total_completed = count entries in all_results with status=="complete"
-  total_timeout = count entries in all_results with status=="timeout"
   total_error = count entries in all_results with status=="error"
-  Print: "  pass [pass_count] fan-in: [total_completed] complete, [total_timeout] timeout, [total_error] error"
+  Print: "  fan-in ─── ●[total_completed] ✗[total_error]"
 
-  Incomplete evaluator rule: An Incomplete (timeout/error) evaluator contributes ZERO findings for its
+  Incomplete evaluator rule: An Incomplete (error) evaluator contributes ZERO findings for its
   questions only. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND
   the Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the
   Incomplete evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
   Incomplete cluster evaluator: its cluster's questions treated as same NEEDS_UPDATE status
   as their previous pass (other cluster evaluators' findings are unaffected).
+  (Timeout is theoretical — foreground Tasks block until complete. The routing guard
+  at the "Route findings" block defensively checks for both ["timeout", "error"]
+  in case future Task tool changes introduce timeout semantics.)
 
   pass_elapsed = Math.round((Date.now() - pass_start_time) / 1000)
   pass_durations.append(pass_elapsed)
 
   Print evaluator status grid (tree diagram with aligned columns):
     # Data source: all_results dict (populated during wave fan-in — single read, no re-read from disk)
-    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete), ✗ = error
+    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ✗ = error
     # Columns: name (right-pad with dashes to col 16) + symbol + ✗/✓/— counts + [Ns]
     # Skipped clusters (not in active_clusters) are omitted entirely.
     # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
@@ -748,12 +749,10 @@ DO:
         p = data.counts.pass
         na = data.counts.na
         evaluator_lines.append("[name] ── ● ✗[nu] ✓[p] —[na]  [[elapsed]s]")
-      ELSE IF data.status == "timeout":
-        evaluator_lines.append("[name] ── ◌ timeout")
       ELSE IF data.status == "error":
         evaluator_lines.append("[name] ── ✗ error")
 
-    # Add memoized clusters/evaluators (not in RESULTS_DIR — never spawned)
+    # Add memoized clusters/evaluators (not in all_results — never spawned)
     FOR each cluster_name in memoized_clusters:
       evaluator_lines.append("[cluster_name] ── ⊘ memoized p[memoized_since[cluster_name]]")
     IF IS_GAS AND fully_memoized_gas:
@@ -813,23 +812,25 @@ DO:
     "callers affected" and Q18 from gas-evaluator says "GAS triggers invalidated" → complementary,
     keep both.
 
-  Before applying edits, print a summary using this exact format:
-    Print: "Applying [N] changes:"
-    Print: "  1. [question short name] ([ID]): [verb] [object]"
-    Print: "  2. ..."
-    Then proceed with Edit calls.
-  Example:
-    Applying 3 changes:
-      1. Git lifecycle (Q-C1): adding branch + commit steps
-      2. Step ordering (Q-C9): reordering steps 3-4 for dependency correctness
-      3. Post-implementation (Q-NEW): adding exec verification after push steps
-  (If changes_this_pass == 0, skip the summary entirely.)
+  (If changes_this_pass == 0, skip the entire APPLYING section — no banner, no narration.)
+
+  IF changes_to_apply > 0:
+    dedup_removed = total_findings_before_dedup - changes_to_apply
+    Print: "╭─── APPLYING ───────────────────╮"
+    Print: "  [total_findings_before_dedup] findings → [dedup_removed] deduped → [changes_to_apply] edits queued"
 
   APPLY edits — for each finding with edit != null in any evaluator's JSON data:
-    Call the Edit tool on the plan file to insert/modify the specified content.
-    Mark each insertion <!-- review-plan -->.
-    Each Edit call = 1 change. Do not count findings you only described in text.
+    Print: ""
+    FOR idx, edit in enumerate(edits_to_apply):
+      Print: "  ┌ [[idx+1]/[N]] [question short name] ([ID])"
+      Print: "  │ [verb] [object — first sentence of edit instruction]"
+      Call the Edit tool on the plan file to insert/modify the specified content.
+      Mark each insertion <!-- review-plan -->.
+      Each Edit call = 1 change. Do not count findings you only described in text.
+      Print: "  └ ✓ applied"
+    Print: ""
   CONSOLIDATE: merge overlapping findings, remove duplicate annotations
+    Print: "  consolidating overlapping annotations…"
     Keep-exemption: content annotated <!-- keep: [reason] --> is EXEMPT from consolidation removal.
     "Key flow" = any implementation step, ordering dependency, error path, rollback step, or
     verification checkpoint. Prose trimming is OK. Removing or merging steps is NOT.
@@ -843,6 +844,9 @@ DO:
     (4) Restore the step verbatim, then append a <!-- keep: step N — restored after edit removed it --> marker.
     (5) Add the restoration as an additional change: changes_this_pass += 1 and print:
           "  ⚠️ Restored [step N] — removed by edit, reinstated."
+    IF restorations > 0:
+      Print: "  ⚠️ [restorations] step(s) restored (removed by edit, reinstated)"
+    Print: "╰─── [N] edits applied ──────────╯"
   RE-READ the full consolidated plan
 
   l1_changes = count of L1 NEEDS_UPDATE edits applied
@@ -852,7 +856,7 @@ DO:
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
 
-  # Gas/Node results already routed from JSON in "Read all result files" block above.
+  # Gas/Node results already routed in "Route findings from all_results" block above.
   # Enforce memoized status: override any evaluator contradiction for locked questions
   IF IS_GAS AND gas_results is non-empty:
     FOR q_id in memoized_gas_questions:
@@ -1022,7 +1026,9 @@ DO:
     IF memo_pct >= threshold AND threshold NOT in memo_milestones_printed:
       memo_milestones_printed.add(threshold)
       accel_label = IF threshold == 25: "picking up speed" ELSE IF threshold == 50: "accelerating" ELSE: "almost locked"
-      Print: "  memo: [threshold]% of questions locked — [accel_label]"
+      filled = Math.round(10 * memo_pct / 100)
+      progress_bar = "█" × filled + "░" × (10 - filled)
+      Print: "  memo ── [threshold]% locked [[progress_bar]] [total_memo_count]/[total_applicable_questions] ── [accel_label]"
 
   current_needs_update_set = {set of Q/N numbers with NEEDS_UPDATE this pass across all evaluators}
 
@@ -1062,13 +1068,13 @@ DO:
   needs_update_counts_per_pass.append(current_nu_count)
 
   if not breakdown_parts:
-    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — 0 changes  [{pass_elapsed}s]"
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── 0 changes  [{pass_elapsed}s]"
   else:
-    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5] — [changes_this_pass] changes  ([join(breakdown_parts, ' ')])  [{pass_elapsed}s]"
+    Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── [changes_this_pass] changes ([join(breakdown_parts, ' ')])  [{pass_elapsed}s]"
 
   # Delta visualization (Enhancement C)
   IF pass_count == 1:
-    Print: "  snapshot: ✗[current_nu_count] questions need work"
+    Print: "  snapshot ── ✗[current_nu_count] need work"
   ELSE:
     prev_nu = needs_update_counts_per_pass[pass_count - 2]  # previous pass count
     delta = current_nu_count - prev_nu
@@ -1077,14 +1083,14 @@ DO:
     # Use question count (not cluster count) to match milestone math at total_memo_count computation
     IF memo_count <= 3:
       memo_names = comma-separated list of memoized Q-IDs and cluster names
-      Print: "  delta: ✗ [prev_nu]→[current_nu_count] [delta_str]  memoized: [memo_names]"
+      Print: "  delta ── ✗[prev_nu]→[current_nu_count] [delta_str]  🔒[memo_names]"
     ELSE:
-      Print: "  delta: ✗ [prev_nu]→[current_nu_count] [delta_str]  memoized: [memo_count] questions locked"
+      Print: "  delta ── ✗[prev_nu]→[current_nu_count] [delta_str]  🔒[memo_count] locked"
     IF pass_count >= 3:
       trend_values = join(needs_update_counts_per_pass, " → ")
       last3 = needs_update_counts_per_pass[-3:]
       trend_arrow = IF last3[-1] < last3[0]: "↘ converging" ELSE IF last3[-1] > last3[0]: "↗ oscillating" ELSE: "→ flat"
-      Print: "  trend: [trend_values]  [trend_arrow]"
+      Print: "  trend ── [trend_values]  [trend_arrow]"
 
   # Compact gate health bar (Enhancement G)
   # Compute gate-level counts from current_needs_update_set for quick inline display
@@ -1098,7 +1104,9 @@ DO:
     gate2_delta = gate2_open - prev_gate2
     IF gate2_delta != 0:
       gate2_sym += IF gate2_delta < 0: "↓[abs(gate2_delta)]" ELSE: "↑[gate2_delta]"
-  Print: "  gates: [🔴 [gate1_sym]] [🟡 [gate2_sym]] [💡 [gate3_noted]]"  # outer [...] are literal printed brackets; inner [gate1_sym] etc. are substituted values
+  gate1_label = IF gate1_open == 0: "clear" ELSE: "open"
+  gate2_label = IF gate2_open == 0: "clear" ELSE: "open"
+  Print: "  gates ── 🔴 [gate1_sym] [gate1_label]  🟡 [gate2_sym] [gate2_label]  💡 [gate3_noted] noted"
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
   prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
@@ -1137,10 +1145,10 @@ DO:
   IF changes_this_pass == 0 OR Gate2_stable:
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     IF pass_count == 1:
-      Print: "✅ Converged — no issues found (pass 1, [total_elapsed]s)"
+      Print: "🏁 Converged ── pass 1, [total_elapsed]s ── 0 issues"
     ELSE:
       resolved_questions = pass1_needs_update_set - current_needs_update_set  # Q-IDs fixed since pass 1
-      Print: "✅ Converged after [pass_count] passes ([total_elapsed]s total | [total_changes_all_passes] changes)"
+      Print: "🏁 Converged ── [pass_count] passes, [total_elapsed]s total ── [total_changes_all_passes] changes applied"
       IF resolved_questions is non-empty:
         Print: "  resolved: [comma-separated resolved_questions sorted by ID]"
       Print: "  gates: [🔴 ✅] [🟡 ✅ [count of Gate2 PASS]] [💡 [count of Gate3 noted]]"
@@ -1404,13 +1412,13 @@ After the convergence loop exits (scorecard not yet printed):
    and ExitPlanMode (step 8). Do not re-run the REWORK check here.
 
 2. **Q-G9 organization pass** (post-convergence structural check, inline):
-   Print: "──── ORGANIZE ───────────"
+   Print: "╭─── ORGANIZE ───────────────────╮"
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
    Evaluate Q-G9 inline as specified in the "Q-G9 Post-Convergence Organization Pass"
    subsection in Layer 1 (no Task spawn — team-lead evaluates directly). Apply any NEEDS_UPDATE
    edits immediately. Q-G9 results will be included in the scorecard output in step 3.
 
-3. Print: "──── SCORECARD ──────────"
+3. Print: "╭─── SCORECARD ──────────────────╮"
    **Output the final scorecard** (incorporating Q-G9 results from step 2). See "Output: Unified
    Scorecard" section for the full template. Include the "Organization Quality (Q-G9)" section
    when Q-G9 ran (plan had >= 3 implementation steps).
