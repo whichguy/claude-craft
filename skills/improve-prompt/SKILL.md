@@ -271,7 +271,7 @@ Capture as `git_history` — passed to research agent for project context.
 - Read IDEAS_FILE content
 - If the most recent `## Experiment Results` section (if any) contains `## Implemented Directions` but does NOT contain `**Verdict:` → prior run interrupted mid-flight while the reconcile agent was writing. To recover cleanly:
   1. **Count only completed iterations** (sections containing `**Verdict:`): `completed_count = count of ## Experiment Results sections in IDEAS_FILE that contain **Verdict:`. Set `i = completed_count + 1`. (Do NOT count the partial section — it has no `**Verdict:` and must be stripped.)
-  2. **Truncate the orphaned partial section**: remove everything in IDEAS_FILE from the last `## Experiment Results` header that lacks a `**Verdict:` line through the end of file. Rewrite IDEAS_FILE with this truncated content. This prevents a double-entry when Step 5 appends the new `## Experiment Results — Iteration {i}` block.
+  2. **Truncate the orphaned partial section**: locate the last `## Experiment Results — Iteration` header in IDEAS_FILE (this is the partial one, since it lacks a `**Verdict:` line); remove everything from that header through the end of file. Rewrite IDEAS_FILE with this truncated content. This prevents a double-entry when Step 5 appends the new `## Experiment Results — Iteration {i}` block.
   3. Save current prompt as `$IMPROVE_TMPDIR/baseline-iter-{i}.md`, then skip to Step 3 to re-generate experiment variants (experiment files from the old tmpdir no longer exist), then proceed with Steps 4–5.
   Print: "Resuming interrupted run (iteration {i}) — research already complete, re-generating experiment variants."
 - Else if IDEAS_FILE has a `## Experiment Results` section whose most recent occurrence contains a `**Verdict:` line → run `git -C {PROMPT_DIR} status -- {IDEAS_FILE}`. If IDEAS_FILE shows unstaged changes → prior run wrote verdict but did not commit: skip Steps 2–5, go directly to commit step, print: "Resuming: verdict already recorded, committing learnings."
@@ -790,9 +790,16 @@ for each input j:
   score_b_j = sum(strength_weight[q.strength] for q in questions[j,k] if q.winner == "B")
   max_score_j = len(questions[j,k])  # total number of questions
 
-quality_score_a   = sum(score_a_j) / sum(max_score_j)   # normalized 0..1 (same across all k)
-quality_score_b_k = sum(score_b_j) / sum(max_score_j)   # normalized 0..1 per experiment k
-quality_spread_k  = quality_score_b_k - quality_score_a  # positive = B better
+total_max_k = sum(max_score_j)
+if total_max_k == 0:
+  # All judge tasks failed for this experiment — treat as TIE
+  quality_score_a   = 0.0
+  quality_score_b_k = 0.0
+  quality_spread_k  = 0.0
+else:
+  quality_score_a   = sum(score_a_j) / total_max_k   # normalized 0..1 (same across all k)
+  quality_score_b_k = sum(score_b_j) / total_max_k   # normalized 0..1 per experiment k
+  quality_spread_k  = quality_score_b_k - quality_score_a  # positive = B better
 
 avg_tokens_a  = mean(total_tokens_est for A runs)
 avg_tokens_k  = mean(total_tokens_est for exp-k runs)
@@ -937,6 +944,9 @@ Then update the "## Technique History" section of {ideas_file}:
 If scope_gate_results contains FAIL entries: add an entry to Technique History for each
 excluded experiment: "Excluded by scope gate — {Q-SGN}: {reason}. Technique: {applied_summary_k}.
 Status: SCOPE_FAIL. Do not re-propose this technique direction."
+If scope_gate_results contains WARN entries: add an entry to Technique History for each
+warned experiment: "Scope gate WARN — {Q-SGN}: {reason}. Technique: {applied_summary_k}.
+Status: SCOPE_WARN. Use with caution; monitor for regression."
 
 Output only: "VERDICT: {IMPROVED|NEUTRAL|REGRESSED}" on a single line after writing.
 ```
@@ -1059,7 +1069,7 @@ Print final summary.
 
 **Helpers:**
 - `verdict_emoji(v)`: ✅ IMPROVED / ⚠️ NEUTRAL / ❌ REGRESSED / 🚫 SCOPE_FAIL
-- `max_spread = max(abs(entry.quality_spread) for entry in iteration_log)` (default 1 if 0 to avoid div-by-0)
+- `max_spread = max(abs(entry.quality_spread) for entry in iteration_log) or 1` (default 1 if 0 to avoid div-by-0)
 - `bar(spread, width=20)`: `filled = round(abs(spread) / max_spread * width)`; `"█".repeat(filled) + "░".repeat(width - filled)`
 - `n_improved = count(entry.verdict == "IMPROVED" for entry in iteration_log)`
 
