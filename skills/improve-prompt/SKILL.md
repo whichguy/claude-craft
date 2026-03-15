@@ -307,6 +307,16 @@ investigate its domain, research best practices, and produce a structured improv
 {if this is a retry from the Plan Validation Gate: list of failed gate questions from prior attempt; else "(none — first research pass)"}
 </gap_analysis>
 
+<strategy_escalation>
+{IF consecutive_stalls == 0: "(none — first attempt or after improvement)"}
+{IF consecutive_stalls == 1: "Prior iteration was NEUTRAL/REGRESSED. Try bolder changes:
+ structural reorganization, different prompting paradigm, or address a different Q1-Q10
+ gap than previously attempted. Avoid minor variations of failed techniques."}
+{IF consecutive_stalls >= 2: "Multiple consecutive failures. Try the most impactful
+ remaining Q1-Q10 gap NOT yet attempted. Consider fundamental prompt architecture changes
+ or combinations of previously successful techniques (if any)."}
+</strategy_escalation>
+
 <git_history>
 {last 20 commits from git log --oneline -20, or "(not a git repo)" if unavailable}
 </git_history>
@@ -988,6 +998,13 @@ FOR i in 1..iterations:
 
   # 1. Save baseline before experiments can overwrite prompt_path
   cp {prompt_path} $IMPROVE_TMPDIR/baseline-iter-{i}.md
+
+  # 1b. Auto-bump experiments on stall recovery (more surface area to explore after failure)
+  IF consecutive_stalls >= 1 AND experiments was not explicitly set by user:
+    effective_experiments = min(experiments + 1, 4)
+  ELSE:
+    effective_experiments = experiments
+  # Use effective_experiments for this iteration's Step 3 variant assignment
 
   # 2. Run Steps 2 → 2b → 3 → 3b → 4 → 5
   #    Step 3b may exclude experiments (FAIL) or annotate them (WARN)
