@@ -140,7 +140,7 @@ Model line: if run_model == judge_model → `"{run_model}  (runs + judge)"`
            if different → `"{run_model}  ·  Judge: {judge_model}"`
 Each row right-padded with spaces to fill column 62, then `║`.
 
-**⚙️  Pre-flight passed** — `{prompt_a_path}` vs `{prompt_b_path}`
+[1/6] ✓ preflight ── `{prompt_a_path}` vs `{prompt_b_path}`
 
 ---
 
@@ -168,13 +168,13 @@ Build the list of test cases from available input sources:
 - If `inputs_dir` was provided but zero files survived (all exceeded 50KB or none matched *.md/*.txt) AND no `input_text` → abort: `"No valid input files in <dir> (all exceeded 50KB or none matched *.md/*.txt)"`
 - If N < 3 → warn: `"Warning: N=<N> test case(s) — quality win rates have low statistical confidence. Use 3+ inputs for meaningful comparison."`
 
-**📂 Inputs loaded** — {N} test cases{source_detail}
+[2/6] ✓ inputs ── {N} test cases{source_detail}
 Where `source_detail`:
 - directory only: `" from \`{inputs_dir}\`"`
 - inline only: `" (inline text)"`
 - both: `" from \`{inputs_dir}\` + inline text"`
 - neither: `" (empty input)"`
-(If files were skipped: **📂 Inputs loaded** — {N} of {N_found} test cases ({N_skipped} skipped))
+(If files were skipped: [2/6] ✓ inputs ── {N} of {N_found} test cases ({N_skipped} skipped))
 
 ---
 
@@ -201,7 +201,7 @@ Each task:
 
 Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
 
-**🚀 Running prompts** — {2×N} tasks launched in parallel…
+[3/6] ▸ runs ── {2*N} tasks launched
 
 ---
 
@@ -252,7 +252,7 @@ After resolution, record per task:
 (winner/latency/tokens/output text for judge). Do not retain full raw outputs longer than needed —
 with 10 inputs, 20 raw outputs could bloat the context significantly.
 
-**✓ Runs complete** — avg latency: {label_a} {avg_latency_a/1000:.1f}s · {label_b} {avg_latency_b/1000:.1f}s
+[4/6] ✓ runs complete ── {label_a} {avg_latency_a/1000:.1f}s · {label_b} {avg_latency_b/1000:.1f}s
 
 ---
 
@@ -288,7 +288,7 @@ Output only valid JSON on a single line — no preamble, no markdown fences:
 
 Use `judge_model` (default claude-opus-4-6) as model parameter.
 
-**⚖️  Judging outputs** — {N} judge tasks launched…
+[5/6] ▸ judging ── {N} tasks launched
 
 **Judge output**: JSON with 3 keys: `scores` (7-key object — each criterion evaluated relative to its own prompt's instructions), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
 
@@ -298,7 +298,7 @@ Use `judge_model` (default claude-opus-4-6) as model parameter.
 - If both missing → count overall winner as TIE
 - Note in Per-Test Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
 
-**✓ Judgments complete** — quality so far: {label_a} {count_a}/{N} · {label_b} {count_b}/{N} · {count_tie} tied
+[6/6] ✓ judging complete ── {label_a} {count_a}/{N} · {label_b} {count_b}/{N} · {count_tie} tied
 
 ---
 
@@ -381,12 +381,18 @@ overall_winner == "B"       → verdict = "IMPROVED"
 overall_winner == "NEUTRAL" → verdict = "NEUTRAL"
 ```
 
-After computing overall_winner, decided_by, verdict, and all metric values, emit the early verdict flash (plain markdown, not fenced):
+After computing overall_winner, decided_by, verdict, and all metric values, emit the early verdict flash wrapped in thin rules (plain markdown, not fenced):
 
+```
+Print: "──────────────────────────────────────────────────────"
+```
 - If decided_by == "quality":
-  **{verdict_emoji} {verdict}** — quality: {quality_flash} · tokens: {token_flash} · latency: {latency_flash}
+  {verdict_emoji} {verdict} ── quality: {quality_flash} · tokens: {token_flash} · latency: {latency_flash}
 - Otherwise (decided by tokens, time, or NEUTRAL):
-  **{verdict_emoji} {verdict}** — quality: tied · tokens: {token_flash} · latency: {latency_flash}
+  {verdict_emoji} {verdict} ── quality: tied · tokens: {token_flash} · latency: {latency_flash}
+```
+Print: "──────────────────────────────────────────────────────"
+```
 
 Where:
 - `quality_flash`: `"{winning_label} leads {n_criteria_winner}/7 criteria ({win_rate_winner_pct:.0f}% wins)"` where `n_criteria_winner` = `n_criteria_b` if `overall_winner == "B"` else `n_criteria_a`; `win_rate_winner_pct` = `win_rate_b * 100` if `overall_winner == "B"` else `win_rate_a * 100`
