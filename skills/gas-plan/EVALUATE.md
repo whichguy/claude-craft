@@ -52,7 +52,7 @@ For each evaluated question, determine: **PASS** | **NEEDS_UPDATE** | **N/A**
 
 Write your findings to a JSON file. The `results_dir` and `evaluator_name` variables are provided in the invoking prompt.
 
-Write atomically using Bash (prevents partial reads by polling loop):
+Write atomically using Bash (ensures clean reads by orchestrator):
 ```bash
 cat > '<results_dir>/<evaluator_name>.json.tmp' << 'EVAL_EOF'
 {
