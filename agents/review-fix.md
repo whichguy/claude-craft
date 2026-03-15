@@ -37,9 +37,10 @@ The team-lead reads and consolidates those temp files into `current_findings[fil
 ```
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Git Ops
                                        ↑                             ↑
-                           Round-based parallel loop:                │
-                           fix all files (concurrent) → re-review    │
-                           all in parallel → repeat until clean ─────┘
+                           Round-based loop (progressive parallelism):│
+                           fix all files → aggregate → filter clean → │
+                           fan out N reviewers per file → consolidate │
+                           → repeat until clean ─────────────────────┘
 ```
 
 ## Input Contract
@@ -425,8 +426,8 @@ const dedup = {
 
 ### Global Fix Loop
 
-**LOOP STRUCTURE**: Each round has 4 mandatory steps (A→A2→B→C). Do NOT skip any step.
-After STEP C, control returns to the WHILE condition. The loop exits ONLY when
+**LOOP STRUCTURE**: Each round has 5 mandatory steps (A→B→C→D→E). Do NOT skip any step.
+After STEP E, control returns to the WHILE condition. The loop exits ONLY when
 `remaining_files` is empty or `round >= max_rounds`.
 
 ```
@@ -521,63 +522,7 @@ Parse the review output above and apply each finding:
     }))
   ))
 
-  // ═══ STEP A2: Team-lead spawns N reviewer Tasks per file (fan-out at team-lead level) ═══
-  // Progressive parallelism: N = min(round, max_reviewers) reviewers per file this round.
-  // All reviewer Tasks across all files are dispatched in a SINGLE message (flat Promise.all).
-  // Each reviewer writes its output to REVIEW_TMPDIR for consolidation.
-
-  // Build the flat list of all reviewer Tasks to dispatch in one message
-  const reviewer_task_specs = []
-  for (const file of remaining_files) {
-    const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
-    const resolved_reviewer = reviewer_map[file] || 'code-reviewer'
-    for (let i = 0; i < num_reviewers; i++) {
-      reviewer_task_specs.push({ file, file_slug, resolved_reviewer, reviewer_index: i + 1 })
-    }
-  }
-
-  print: "  ↗ [reviewer_task_specs.length] reviewer tasks dispatched ([num_reviewers] per file)..."
-
-  const re_review_results = await Promise.all(reviewer_task_specs.map(({ file, file_slug, resolved_reviewer, reviewer_index }) =>
-    Task({
-      subagent_type: resolved_reviewer,
-      description: `Re-review ${file} reviewer ${reviewer_index}/${num_reviewers} round ${per_file_rounds[file]}`,
-      prompt: `Review this file:
-target_files="${file}"
-task_name="${task_name}-round${per_file_rounds[file]}"
-worktree="${worktree}"
-dryrun=false
-related_files=auto
-review_mode="${review_mode}"
-${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
-
-This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file (reviewer ${reviewer_index} of ${num_reviewers}).
-
-**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
-1. Lines modified by the fixes applied since the previous round
-2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.
-
-**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
-the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
-
-Advisory findings that were already applied in a prior round should NOT be re-reported —
-they have been fixed. Only report new or remaining issues.
-
-Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
-If they re-appear in this re-review, record them as-is and include them in your output.
-Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`
-with no Fix block — do not upgrade them to regular Advisory.
-
-Output your full review markdown starting with "## Code Review:".
-IMPORTANT: After completing your review, write your complete review output to:
-  ${REVIEW_TMPDIR}/${file_slug}_reviewer_${reviewer_index}.md
-using the Write tool. Your review output starts with "## Code Review:".
-Do NOT use SendMessage — your output is collected directly by the calling agent.`
-    }).catch(() => null)
-  ))
-
-  // ═══ STEP B: Team-lead aggregates fixer results + reconciles reviewer temp files ═══
+  // ═══ STEP B: Aggregate fixer results into state tracking arrays ═══
 
   // Advisory findings processed from every round in Phase 3;
   // deduplication is handled incrementally via dedup.push (persistent _seen map initialized before the loop).
@@ -624,8 +569,108 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
     if (applied_count > 0 && !files_changed.includes(file)) {
       files_changed.push(file)
     }
+  }
 
-    // ── Reconcile reviewer temp files for this file ──
+  // ═══ STEP C: Filter — files with 0 fixes exit; max_rounds ejection ═══
+  // Filter BEFORE dispatching expensive reviewer Tasks (avoid wasting reviewers on unchanged files)
+  files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
+  for each file in files_clean_this_round:
+    print: "  → [file] nothing changed — done"
+
+  remaining_files = remaining_files.filter(f => fixes_applied_per_file[f] > 0)
+
+  if remaining_files.length == 0: break
+
+  // Pre-filter: enforce per-file max_rounds BEFORE spawning expensive reviewer Tasks
+  files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
+  for each file in files_over_limit:
+    unresolved_critical = parse remaining Critical findings from current_findings[file]
+    unresolved_critical.forEach(c => {
+      const entry = { file, ...c }
+      dedup.push(stuck_findings, 'stuck_critical', entry)
+    })
+    unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
+    unresolved_advisory_no_fix.forEach(a => {
+      const entry = { file, ...a }
+      dedup.push(advisory_stuck, 'stuck', entry)
+    })
+    print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
+  remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
+
+  if remaining_files.length == 0: break
+
+  // ═══ STEP D: Fan out N reviewer Tasks per file (team-lead level) ═══
+  // Progressive parallelism: N = min(round, max_reviewers) reviewers per file this round.
+  // Only files with fixes applied reach here — clean files and max_rounds files already filtered.
+  // All reviewer Tasks across all files dispatched in a SINGLE message (flat Promise.all).
+  // Each reviewer writes its output to REVIEW_TMPDIR for consolidation.
+
+  // Build the flat list of all reviewer Tasks to dispatch in one message
+  const reviewer_task_specs = []
+  for (const file of remaining_files) {
+    const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
+    const resolved_reviewer = reviewer_map[file] || 'code-reviewer'
+    for (let i = 0; i < num_reviewers; i++) {
+      reviewer_task_specs.push({ file, file_slug, resolved_reviewer, reviewer_index: i + 1 })
+    }
+  }
+
+  // Concurrency guard: if total reviewer tasks > 30, chunk into batches
+  const reviewer_batch_size = (reviewer_task_specs.length > 30)
+    ? 30
+    : reviewer_task_specs.length
+  const reviewer_batches = []
+  for (let i = 0; i < reviewer_task_specs.length; i += reviewer_batch_size) {
+    reviewer_batches.push(reviewer_task_specs.slice(i, i + reviewer_batch_size))
+  }
+
+  print: "  ↗ [reviewer_task_specs.length] reviewer tasks dispatched ([num_reviewers] per file)..."
+
+  let re_review_results = []
+  for (const batch of reviewer_batches) {
+    const batch_results = await Promise.all(batch.map(({ file, file_slug, resolved_reviewer, reviewer_index }) =>
+      Task({
+        subagent_type: resolved_reviewer,
+        description: `Re-review ${file} reviewer ${reviewer_index}/${num_reviewers} round ${per_file_rounds[file]}`,
+        prompt: `Review this file:
+target_files="${file}"
+task_name="${task_name}-round${per_file_rounds[file]}"
+worktree="${worktree}"
+dryrun=false
+related_files=auto
+review_mode="${review_mode}"
+${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
+
+This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file (reviewer ${reviewer_index} of ${num_reviewers}).
+
+**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
+1. Lines modified by the fixes applied since the previous round
+2. Code that directly calls or is called by the modified sections
+Do NOT re-examine sections already APPROVED in a previous round.
+
+**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
+the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
+
+Advisory findings that were already applied in a prior round should NOT be re-reported —
+they have been fixed. Only report new or remaining issues.
+
+Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
+If they re-appear in this re-review, record them as-is and include them in your output.
+Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`
+with no Fix block — do not upgrade them to regular Advisory.
+
+Output your full review markdown starting with "## Code Review:".
+IMPORTANT: After completing your review, write your complete review output to:
+  ${REVIEW_TMPDIR}/${file_slug}_reviewer_${reviewer_index}.md
+using the Write tool. Your review output starts with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
+      }).catch(() => null)
+    ))
+    re_review_results = re_review_results.concat(batch_results)
+  }
+
+  // ═══ STEP E: Reconcile reviewer temp files + update current_findings ═══
+  for (const file of remaining_files) {
     const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
     const review_files = Glob(`${REVIEW_TMPDIR}/${file_slug}_reviewer_*.md`)
 
@@ -668,33 +713,6 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 
   // Cleanup: delete temp dir for this round
   Bash(`rm -rf ${REVIEW_TMPDIR}`)
-
-  // ═══ STEP C: Filter — files with 0 fixes exit; max_rounds ejection ═══
-  files_clean_this_round = remaining_files.filter(f => fixes_applied_per_file[f] == 0)
-  for each file in files_clean_this_round:
-    print: "  → [file] nothing changed — done"
-
-  remaining_files = remaining_files.filter(f => fixes_applied_per_file[f] > 0)
-
-  if remaining_files.length == 0: break
-
-  // Pre-filter: enforce per-file max_rounds BEFORE next round
-  files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
-  for each file in files_over_limit:
-    unresolved_critical = parse remaining Critical findings from current_findings[file]
-    unresolved_critical.forEach(c => {
-      const entry = { file, ...c }
-      dedup.push(stuck_findings, 'stuck_critical', entry)
-    })
-    unresolved_advisory_no_fix = parse remaining Advisory (no Fix block) from current_findings[file]
-    unresolved_advisory_no_fix.forEach(a => {
-      const entry = { file, ...a }
-      dedup.push(advisory_stuck, 'stuck', entry)
-    })
-    print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
-  remaining_files = remaining_files.filter(f => per_file_rounds[f] < max_rounds)
-
-  if remaining_files.length == 0: break
 
   // ═══ END OF ROUND — loop continues back to WHILE condition ═══
   // remaining_files still has entries with fixes_applied > 0 → next round
@@ -741,7 +759,7 @@ function parse_findings(review_text) {
     const severity = sev_match[1]
     const q_match = block.match(/\*\*Q(\d+)\*\*|Q-number:\s*Q?(\d+)/i)
     const q_number = q_match ? `Q${q_match[1] || q_match[2]}` : null
-    const title_match = block.match(/\*\*(.*?)\*\*\s*\n/) // first bold after finding header
+    const title_match = block.match(/\*\*Finding:.*?\*\*[^\n]*\n[^*]*?\*\*(.*?)\*\*/) // second bold text (skip Finding: header)
     const title = title_match ? title_match[1] : null
     const fix_match = block.match(/\*\*Fix:\*\*[\s\S]*?```[\s\S]*?```/)
     const fix_block = fix_match ? fix_match[0] : null
@@ -807,23 +825,27 @@ Examples with max_rounds=5, max_reviewers=3:
 🔧 Round [▓▓▓░░] [3/5]: 1 file(s) × 3 reviewer(s) = 3 tasks...
 ```
 
-For the fixer + reviewer dispatch and results:
+STEP A — fixer dispatch and results:
 ```
 Print: "  ↗ [N] fixer tasks dispatched..."
 Print: "  ✓ [file] — [N] applied, [M] advisory/yagni, [K] stuck"
 Print: "  ⚠️ [file] — timeout (results partial)"                     (if status=timeout)
-Print: "  ↗ [reviewer_task_specs.length] reviewer tasks dispatched ([num_reviewers] per file)..."
 ```
 
-For consolidation (when num_reviewers > 1):
-```
-Print: "    📊 [file]: [N] reviews → consolidated ([unique_count] unique findings)"
-```
-
-After applying all fixes in the round (clean exits):
+STEP C — filter (before reviewer dispatch):
 ```
 Print: "  → [file] nothing changed — done"                       (for each file with 0 fixes this round)
 Print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"
+```
+
+STEP D — reviewer dispatch:
+```
+Print: "  ↗ [reviewer_task_specs.length] reviewer tasks dispatched ([num_reviewers] per file)..."
+```
+
+STEP E — consolidation (when num_reviewers > 1):
+```
+Print: "    📊 [file]: [N] reviews → consolidated ([unique_count] unique findings)"
 ```
 
 After a file's final exit (clean or max_rounds — print when file leaves remaining_files):
@@ -855,25 +877,27 @@ Bracket content: natural-language summary including reviewer count and consolida
 
 Example:
 ```
-🔧 Round [▓░░░░] [1/5]: 2 file(s) × 1 reviewer(s) = 2 tasks...
-  ↗ 2 fixer tasks dispatched...
+🔧 Round [▓░░░░] [1/5]: 3 file(s) × 1 reviewer(s) = 3 tasks...
+  ↗ 3 fixer tasks dispatched...
   ✓ Utils.gs — 3 applied, 1 advisory/yagni, 0 stuck
   ✓ Main.ts — 1 applied, 0 advisory/yagni, 0 stuck
-  ↗ 2 reviewer tasks dispatched (1 per file)...
+  ✓ Api.ts — 2 applied, 0 advisory/yagni, 0 stuck
+  ↗ 3 reviewer tasks dispatched (1 per file)...
   ✅ Utils.gs — clean after 1 round(s)
   ✅ Main.ts — clean after 1 round(s)
   Round 1:  3s
   ┌ Utils.gs ──── ✅ clean (1 round)     [1 reviewer: 2 critical applied]
-  └ Main.ts ───── ✅ clean (1 round)     [1 reviewer: 1 advisory applied]
+  ├ Main.ts ───── ✅ clean (1 round)     [1 reviewer: 1 advisory applied]
+  └ Api.ts ────── 🔄 continuing          [1 reviewer: 2 critical applied]
 
 🔧 Round [▓▓░░░] [2/5]: 1 file(s) × 2 reviewer(s) = 2 tasks...
   ↗ 1 fixer tasks dispatched...
-  ✓ Api.ts — 2 applied, 0 advisory/yagni, 0 stuck
+  ✓ Api.ts — 1 applied, 0 advisory/yagni, 0 stuck
   ↗ 2 reviewer tasks dispatched (2 per file)...
     📊 Api.ts: 2 reviews → consolidated (3 unique findings)
   ✅ Api.ts — clean after 2 round(s)
   Round 2:  4s
-  └ Api.ts ────── ✅ clean (2 rounds)    [2 reviewers: 5→3 unique, 2 critical applied]
+  └ Api.ts ────── ✅ clean (2 rounds)    [2 reviewers: 5→3 unique, 1 critical applied]
 ```
 
 ---
