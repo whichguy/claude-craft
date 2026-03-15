@@ -206,7 +206,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          IS_TRIVIAL = false  # force full convergence loop
-         # Do not jump here — fall through to Steps 4–5 below (tracking init + TeamCreate) before entering convergence loop
+         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
 
    Print: "──── CONFIG ─────────────"
    Print mode based on flags:
@@ -244,39 +244,34 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_node_since = {}          # N-ID → pass_count when memoized
    prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
-   spawned_evaluators = []         # names of all evaluator agents actually launched (for precise teardown)
+   MAX_CONCURRENT = 8              # max parallel evaluator tasks per wave; tunable
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # Path is stable (no timestamp) so context recovery always finds the right file.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    ```
 
-5. **Team setup:**
+5. **Results directory setup:**
    ```
-   team_name = "review-plan-" + timestamp
-   TRY:
-     TeamCreate({team_name, description: "review-plan — parallel L1/cluster/ecosystem evaluators"})
-     # Success: fresh start (or concurrent different session — each gets their own team)
-     IF memo_file exists:
-       Merge memo_file: write/update {team_name} field (preserve other fields — pass_count, etc.)
-     ELSE:
-       Write memo_file with JSON: {team_name, pass_count: 0}
-   CATCH error matching "Already leading team '([^']+)'":
-     # Context compression: this session is already the leader of the captured team
-     team_name = captured_team_name  # extracted from error message
-     Print: "⚠️ Recovered team: using existing team [team_name] (context recovery)"
-     # Do NOT write to memo (already has correct team_name from prior run)
-   CATCH other error:
-     re-throw  # unexpected TeamCreate failure — do not swallow
+   RESULTS_DIR = Bash: mktemp -d /tmp/review-plan.XXXXXX
+   # NOTE: use RESULTS_DIR, not $TMPDIR (macOS system env — do not overwrite)
+   IF memo_file exists:
+     Merge memo_file: write/update {results_dir: RESULTS_DIR} field (preserve other fields — pass_count, etc.)
+   ELSE:
+     Write memo_file with JSON: {results_dir: RESULTS_DIR, pass_count: 0}
+   Print: "  results: $RESULTS_DIR"
    ```
    Print: "──── REVIEW ─────────────"
 
 6. **Error handling:** Wrap the entire convergence loop:
    ```
    IF any unrecoverable error during convergence loop:
-     Send shutdown_request to any active evaluators, then TeamDelete
+     Bash: rm -rf "$RESULTS_DIR"
      Surface error to user via AskUserQuestion
-     Do not leave orphaned team processes.
+   ```
+   Orphan cleanup (run once at setup, before the loop):
+   ```
+   Bash: find /tmp -maxdepth 1 -name 'review-plan.*' -mmin +60 -exec rm -rf {} + 2>/dev/null
    ```
 
 ---
@@ -305,8 +300,6 @@ Gate tiers classify findings by severity and convergence impact. These definitio
 
 ```
 DO:
-  -- DO NOT call TeamCreate here. Team was created once in Step 0 and persists across all passes. --
-
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
@@ -321,12 +314,29 @@ DO:
                      memoized_node_since (default {}),
                      prev_gas_results (default {}),
                      prev_node_results (default {})
+    results_dir = memo_data.results_dir
+    # Guard for old memo format (written before task fan-out refactor)
+    IF results_dir is null or empty:
+      IF memo_data.team_name is present:
+        Print: "⚠️ Old memo format detected — starting fresh (team-based memo not compatible)"
+      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+    # Verify temp dir still exists (macOS /tmp cleanup)
+    ELSE IF NOT Bash: test -d "$results_dir":
+      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+      Print: "⚠️ Results dir gone — created new: $results_dir"
+    RESULTS_DIR = results_dir
     _recovered_this_pass = true
-    Print: "⚠️ Context recovery: restored memoized state from checkpoint (pass [pass_count])"
+    Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
 
   IF NOT _recovered_this_pass:
     pass_count += 1
   pass_start_time = Date.now()
+
+  -- Clear previous pass results from RESULTS_DIR --
+  IF pass_count > 1:
+    Bash: rm -f "$RESULTS_DIR"/*.json
+    # Fresh files each pass — prevents stale results from prior pass
+    Print: "  cleared pass [pass_count - 1] results"
   changes_this_pass = 0
   l1_changes = 0
   cluster_changes = {}            # maps cluster_name → change count this pass
@@ -339,20 +349,67 @@ DO:
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count/5]: evaluating..."  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
 
-  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, and node_eval_path (all derived in Step 0) into evaluator prompts before spawning]
-  [In a SINGLE message, spawn all evaluators in parallel:
-   L1 always + one Task per active cluster + ecosystem if IS_GAS/IS_NODE + ui-evaluator if HAS_UI.
-   Practical maximums: IS_GAS mode = L1 + impact cluster + gas-eval + UI = 4.
-   Non-GAS full-stack (6 clusters + UI) = L1 + 6 + UI = 8.
-   (Client cluster merged into ui-evaluator — no separate agent.)
-   If Task concurrency limits are hit, batch clusters into 2 waves (Gate 1 clusters first).]
-  [After spawning each evaluator, append its name to spawned_evaluators]
+  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
 
-  --- L1 Evaluator ---
-  Task(
+  -- Build evaluator list (priority-ordered for wave assignment) --
+  evaluators_to_spawn = []  # list of {name, task_prompt}
+
+  # Priority 1: L1 (always, 21 questions, longest runtime)
+  evaluators_to_spawn.append({name: "l1-evaluator", task_config: <l1_config below>})
+
+  # Priority 2: Ecosystem evaluator (largest question set after L1)
+  IF IS_GAS AND NOT fully_memoized_gas:
+    evaluators_to_spawn.append({name: "gas-evaluator", task_config: <gas_config below>})
+  ELSE IF IS_NODE AND NOT fully_memoized_node:
+    evaluators_to_spawn.append({name: "node-evaluator", task_config: <node_config below>})
+
+  # Priority 3: Impact cluster (always active, Gate 1 Q-C3/Q-C26)
+  IF "impact" in active_clusters AND "impact" NOT in memoized_clusters:
+    evaluators_to_spawn.append({name: "impact-evaluator", task_config: <cluster_config("impact")>})
+
+  # Priority 4: Git cluster (Gate 1 Q-C1)
+  IF "git" in active_clusters AND "git" NOT in memoized_clusters:
+    evaluators_to_spawn.append({name: "git-evaluator", task_config: <cluster_config("git")>})
+
+  # Priority 5: Remaining clusters by question count descending
+  FOR each remaining cluster in [security, state, testing, operations]:
+    IF cluster in active_clusters AND cluster NOT in memoized_clusters:
+      evaluators_to_spawn.append({name: "<cluster>-evaluator", task_config: <cluster_config(cluster)>})
+
+  # Priority 6: UI evaluator (last — rarely blocking)
+  IF HAS_UI:
+    evaluators_to_spawn.append({name: "ui-evaluator", task_config: <ui_config below>})
+
+  -- Wave spawning --
+  total_evaluators = len(evaluators_to_spawn)
+  waves = chunk(evaluators_to_spawn, MAX_CONCURRENT)
+  Print: "  evaluators: [total_evaluators] across [len(waves)] wave(s) (max [MAX_CONCURRENT] concurrent)"
+
+  FOR wave_idx, wave in enumerate(waves):
+    wave_names = [e.name for e in wave]
+    Print: "  wave [wave_idx+1]/[len(waves)]: [comma-sep wave_names]"
+
+    [In a SINGLE message, spawn all evaluator Tasks in this wave]
+
+    -- Poll for this wave's results (see fan-in section below) --
+    poll_for_wave_results(wave_names)
+
+  -- Print memoized evaluators (not spawned) --
+  FOR each cluster_name in memoized_clusters:
+    Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+  IF IS_GAS AND fully_memoized_gas:
+    Print: "  gas-eval ── ⏭ fully memoized (all [applicable_gas_count] questions stable)"
+    gas_plan_changes = 0
+    gas_results = {q_id: "PASS" for q_id in memoized_gas_questions}
+  IF IS_NODE AND fully_memoized_node:
+    Print: "  node-eval ── ⏭ fully memoized (all [applicable_node_count] questions stable)"
+    node_plan_changes = 0
+    node_results = {n_id: "PASS" for n_id in memoized_node_questions}
+
+  --- L1 Evaluator Config ---
+  l1_config = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
-    team_name = <team_name>,
     name = "l1-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for general quality (Layer 1: 21 questions).
@@ -379,33 +436,45 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
-      Output contract — send ONE message to team-lead:
-        FINDINGS FROM l1-evaluator
-        Q-G1: PASS | NEEDS_UPDATE | N/A — [finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        Q-G2: ...
-        ... (all 21 questions: Q-G1, Q-G2, Q-G4–G8, Q-NEW, Q-G10–G14, Q-G16–G23)
+      Output contract — write findings to JSON file:
+        Write your findings to: <RESULTS_DIR>/l1-evaluator.json
+
+        JSON schema:
+        {
+          "evaluator": "l1-evaluator",
+          "pass": <pass_count>,
+          "status": "complete",
+          "elapsed_s": <seconds_from_start>,
+          "findings": {
+            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+            ...
+          },
+          "counts": {"pass": N, "needs_update": N, "na": N}
+        }
+
+        Write atomically using Bash (prevents partial reads by polling loop):
+          cat > '<RESULTS_DIR>/l1-evaluator.json.tmp' << 'EVAL_EOF'
+          <json>
+          EVAL_EOF
+          mv '<RESULTS_DIR>/l1-evaluator.json.tmp' '<RESULTS_DIR>/l1-evaluator.json'
+
+        If you encounter an error reading inputs, write:
+          {"evaluator": "l1-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
 
       Constraints:
-      - Do not use Edit, Write, or Bash tools — read-only
+      - Do not use Edit or Write tools on the plan file — read-only
+      - Use Bash ONLY to write your findings JSON to the specified path
       - Do not call ExitPlanMode or touch marker files
-      - Send exactly ONE message to team-lead
+      - Write exactly ONE JSON file
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
 
-  --- Cluster Evaluators (one Task per active cluster) ---
-  For each cluster_name in active_clusters:
-    IF cluster_name in memoized_clusters:
-      Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
-      # Memoized clusters have 0 NEEDS_UPDATE by definition — no carry-forward needed.
-      # NEEDS_UPDATE tracking is unaffected by PASS/N/A questions (they never enter the set).
-      CONTINUE to next cluster
-  Task(
+  --- Cluster Evaluator Config (template for each active, non-memoized cluster) ---
+  cluster_config(cluster_name) = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
-    team_name = <team_name>,
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
@@ -434,20 +503,49 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
-      Output contract — send ONE message to team-lead:
-        FINDINGS FROM <cluster_name>-evaluator
-        <Q-ID>: PASS | NEEDS_UPDATE | N/A — [finding]
-        [EDIT: instruction if NEEDS_UPDATE]
-        ... (all questions in this cluster)
+      Output contract — write findings to JSON file:
+        Write your findings to: <RESULTS_DIR>/<cluster_name>-evaluator.json
+
+        JSON schema:
+        {
+          "evaluator": "<cluster_name>-evaluator",
+          "pass": <pass_count>,
+          "status": "complete",
+          "elapsed_s": <seconds_from_start>,
+          "findings": {
+            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+            ...
+          },
+          "counts": {"pass": N, "needs_update": N, "na": N}
+        }
+
+        Write atomically using Bash (prevents partial reads by polling loop):
+          cat > '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' << 'EVAL_EOF'
+          <json>
+          EVAL_EOF
+          mv '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' '<RESULTS_DIR>/<cluster_name>-evaluator.json'
+
+        If you encounter an error reading inputs, write:
+          {"evaluator": "<cluster_name>-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
 
       Constraints:
-      - Do not use Edit, Write, or Bash tools — read-only
+      - Do not use Edit or Write tools on the plan file — read-only
+      - Use Bash ONLY to write your findings JSON to the specified path
       - Do not call ExitPlanMode or touch marker files
-      - Send exactly ONE message to team-lead
+      - Write exactly ONE JSON file
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
   )
+
+  --- Cluster Evaluators (one Task per active cluster) ---
+  For each cluster_name in active_clusters:
+    IF cluster_name in memoized_clusters:
+      Print: "  ⏭️ <cluster_name>-evaluator — MEMOIZED (all PASS/N/A since pass [memoized_since[cluster_name]])"
+      # Memoized clusters have 0 NEEDS_UPDATE by definition — no carry-forward needed.
+      # NEEDS_UPDATE tracking is unaffected by PASS/N/A questions (they never enter the set).
+      CONTINUE to next cluster
+  [Cluster evaluator task uses cluster_config(cluster_name) — see config above]
 
   IF IS_GAS:
     # Build gas memoization directive (mirrors gas-plan/SKILL.md:130-135)
@@ -457,32 +555,8 @@ DO:
       gas_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"Q{N}: PASS (memoized)\" without re-evaluating."
 
     applicable_gas_count = 50  # total gas questions in evaluate mode (Q43 is post-loop only)
+    fully_memoized_gas = len(memoized_gas_questions) >= applicable_gas_count
 
-    # Full memoization skip: when all applicable ecosystem questions are memoized, skip evaluator spawn
-    IF len(memoized_gas_questions) >= applicable_gas_count:
-      Print: "  gas-eval ── ⏭ fully memoized (all [applicable_gas_count] questions stable)"
-      gas_plan_changes = 0
-      gas_results = {q_id: "PASS" for q_id in memoized_gas_questions}
-      # Do NOT spawn gas-evaluator
-    ELSE:
-      --- GAS Evaluator ---
-      Task(
-        subagent_type = "general-purpose",
-        model = "sonnet",
-        team_name = <team_name>,
-        name = "gas-evaluator-p" + pass_count,
-        prompt = """
-          You are the gas-eval running inside review-plan's team. Follow the instructions in
-          <gas_eval_path> exactly.
-
-          [IF gas_memo_directive is non-empty, append it here]
-
-          Plan to evaluate: <plan_path>
-
-          Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
-          call TeamCreate. Send exactly ONE message to team-lead with all findings.
-        """
-      )
   ELSE IF IS_NODE:
     # Build node memoization directive (same pattern as gas)
     node_memo_directive = ""
@@ -491,75 +565,161 @@ DO:
       node_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"N{N}: PASS (memoized)\" without re-evaluating."
 
     applicable_node_count = 38  # total node questions
+    fully_memoized_node = len(memoized_node_questions) >= applicable_node_count
 
-    # Full memoization skip
-    IF len(memoized_node_questions) >= applicable_node_count:
-      Print: "  node-eval ── ⏭ fully memoized (all [applicable_node_count] questions stable)"
-      node_plan_changes = 0
-      node_results = {n_id: "PASS" for n_id in memoized_node_questions}
-      # Do NOT spawn node-evaluator
-    ELSE:
-      --- Node Evaluator ---
-      Task(
-        subagent_type = "general-purpose",
-        model = "sonnet",
-        team_name = <team_name>,
-        name = "node-evaluator-p" + pass_count,
-        prompt = """
-          You are the node-eval running inside review-plan's team. Follow the instructions in
-          <node_eval_path> exactly.
+  --- GAS Evaluator Config ---
+  gas_config = Task(
+    subagent_type = "general-purpose",
+    model = "sonnet",
+    name = "gas-evaluator-p" + pass_count,
+    prompt = """
+      You are the gas-eval running inside a review-plan evaluator task. Follow the instructions in
+      <gas_eval_path> exactly.
 
-          [IF node_memo_directive is non-empty, append it here]
+      results_dir = <RESULTS_DIR>
+      evaluator_name = gas-evaluator
 
-          Plan to evaluate: <plan_path>
+      [IF gas_memo_directive is non-empty, append it here]
 
-          Constraints: read-only — do not edit the plan, do not call ExitPlanMode, do not
-          call TeamCreate. Send exactly ONE message to team-lead with all findings.
-        """
-      )
+      Plan to evaluate: <plan_path>
 
-  IF HAS_UI:
-    --- UI Evaluator (includes merged Client cluster: Q-C17, Q-C25) ---
-    Task(
-      subagent_type = "ui-designer",
-      model = "sonnet",
-      team_name = <team_name>,
-      name = "ui-evaluator-p" + pass_count,
-      prompt = """
-        You are the ui-evaluator running inside review-plan's team. Evaluate the plan for
-        UI specialization and client concerns (9 questions in this cluster).
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode.
+      Write exactly ONE JSON file to the results_dir.
+    """
+  )
 
-        Question definitions: Read <questions_l3_path>
-          (Q-U1 through Q-U7, plus Q-C17 and Q-C25 — merged from Client cluster).
+  --- Node Evaluator Config ---
+  node_config = Task(
+    subagent_type = "general-purpose",
+    model = "sonnet",
+    name = "node-evaluator-p" + pass_count,
+    prompt = """
+      You are the node-eval running inside a review-plan evaluator task. Follow the instructions in
+      <node_eval_path> exactly.
 
-        Context flags (substituted by team-lead at spawn time):
-          IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
+      results_dir = <RESULTS_DIR>
+      evaluator_name = node-evaluator
 
-        IS_GAS note: if IS_GAS=true above, Q-C17 and Q-C25 are N/A-superseded
-          (gas-evaluator Q32, Q33 cover these). Still evaluate Q-U1 through Q-U7 normally.
-        IS_NODE note: Q-C17 and Q-C25 are not superseded — evaluate normally.
+      [IF node_memo_directive is non-empty, append it here]
 
-        Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
-        or <!-- node-plan -->.
+      Plan to evaluate: <plan_path>
 
-        Output contract — send ONE message to team-lead:
-          FINDINGS FROM ui-evaluator
-          Q-U1: PASS | NEEDS_UPDATE | N/A — [finding]
-          [EDIT: instruction if NEEDS_UPDATE]
-          ... (all 9 questions: Q-U1 through Q-U7, Q-C17, Q-C25)
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode.
+      Write exactly ONE JSON file to the results_dir.
+    """
+  )
 
-        Constraints:
-        - Do not use Edit, Write, or Bash tools — read-only
-        - Do not call ExitPlanMode or touch marker files
-        - Send exactly ONE message to team-lead
+  --- UI Evaluator Config (includes merged Client cluster: Q-C17, Q-C25) ---
+  ui_config = Task(
+    subagent_type = "ui-designer",
+    model = "sonnet",
+    name = "ui-evaluator-p" + pass_count,
+    prompt = """
+      You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
+      UI specialization and client concerns (9 questions in this cluster).
 
-        Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
-      """
-    )
+      Question definitions: Read <questions_l3_path>
+        (Q-U1 through Q-U7, plus Q-C17 and Q-C25 — merged from Client cluster).
 
-  Wait for all evaluator messages (90s reminder; after 120s mark ⚠️ Evaluator Incomplete
-  for any non-responding evaluator and proceed with available findings).
-  Incomplete evaluator rule: An Incomplete evaluator contributes ZERO findings for its
+      Context flags (substituted by team-lead at spawn time):
+        IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
+
+      IS_GAS note: if IS_GAS=true above, Q-C17 and Q-C25 are N/A-superseded
+        (gas-evaluator Q32, Q33 cover these). Still evaluate Q-U1 through Q-U7 normally.
+      IS_NODE note: Q-C17 and Q-C25 are not superseded — evaluate normally.
+
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
+
+      Output contract — write findings to JSON file:
+        Write your findings to: <RESULTS_DIR>/ui-evaluator.json
+
+        JSON schema:
+        {
+          "evaluator": "ui-evaluator",
+          "pass": <pass_count>,
+          "status": "complete",
+          "elapsed_s": <seconds_from_start>,
+          "findings": {
+            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+            ...
+          },
+          "counts": {"pass": N, "needs_update": N, "na": N}
+        }
+
+        Write atomically using Bash (prevents partial reads by polling loop):
+          cat > '<RESULTS_DIR>/ui-evaluator.json.tmp' << 'EVAL_EOF'
+          <json>
+          EVAL_EOF
+          mv '<RESULTS_DIR>/ui-evaluator.json.tmp' '<RESULTS_DIR>/ui-evaluator.json'
+
+        If you encounter an error reading inputs, write:
+          {"evaluator": "ui-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
+
+      Constraints:
+      - Do not use Edit or Write tools on the plan file — read-only
+      - Use Bash ONLY to write your findings JSON to the specified path
+      - Do not call ExitPlanMode or touch marker files
+      - Write exactly ONE JSON file
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
+    """
+  )
+
+  -- Fan-in: poll for result files with live progress --
+  FUNCTION poll_for_wave_results(expected_names):
+    poll_start = Date.now()
+    completed = set()
+
+    LOOP:
+      existing_files = Bash: ls <RESULTS_DIR>/*.json 2>/dev/null
+      newly_completed = set()
+      FOR each file in existing_files:
+        name = filename without .json suffix
+        IF name in expected_names AND name NOT in completed:
+          newly_completed.add(name)
+          completed.add(name)
+
+      # Print progress as each evaluator lands
+      FOR each name in newly_completed:
+        TRY: data = Read <RESULTS_DIR>/<name>.json → parse JSON
+        CATCH JSON parse error: CONTINUE to next poll cycle (file may be mid-write)
+        elapsed = data.elapsed_s or "?"
+        IF data.status == "complete":
+          nu = data.counts.needs_update
+          p = data.counts.pass
+          na = data.counts.na
+          Print: "    ✓ [name] — ✗[nu] ✓[p] —[na]  [[elapsed]s]"
+        ELSE IF data.status == "error":
+          Print: "    ✗ [name] — error: [data.error]"
+        ELSE IF data.status == "timeout":
+          Print: "    ◌ [name] — timeout"
+
+      missing = expected_names - completed
+      IF missing is empty: BREAK  # all results in
+
+      elapsed_s = Math.round((Date.now() - poll_start) / 1000)
+      IF elapsed_s >= 90 AND missing is non-empty:
+        Print: "    ⏳ [elapsed_s]s — waiting: [comma-sep missing]"
+      IF elapsed_s >= 120:
+        FOR each name in missing:
+          # Write timeout sentinel so fan-in logic always reads JSON
+          Bash: echo '{"evaluator":"[name]","pass":[pass_count],"status":"timeout"}' > '<RESULTS_DIR>/[name].json'
+          Print: "    ◌ [name] — timeout (120s)"
+        BREAK
+
+      Bash: sleep 3  # poll interval
+    END LOOP
+
+    Print: "  wave complete: [len(completed)]/[len(expected_names)]"
+
+  -- After all waves complete, print pass-level summary --
+  total_completed = count files in RESULTS_DIR with status=="complete"
+  total_timeout = count files with status=="timeout"
+  total_error = count files with status=="error"
+  Print: "  pass [pass_count] fan-in: [total_completed] complete, [total_timeout] timeout, [total_error] error"
+
+  Incomplete evaluator rule: An Incomplete (timeout/error) evaluator contributes ZERO findings for its
   questions only. Pass CAN converge if responding evaluators returned 0 NEEDS_UPDATE AND
   the Incomplete evaluator returned 0 NEEDS_UPDATE in the immediately prior pass. If the
   Incomplete evaluator had NEEDS_UPDATE last pass: do NOT converge; spawn it again next pass.
@@ -570,35 +730,33 @@ DO:
   pass_durations.append(pass_elapsed)
 
   Print evaluator status grid (tree diagram with aligned columns):
-    # Compute per-evaluator elapsed time from spawn to response (approximate: total pass time
-    # is known; per-evaluator is estimated as pass_elapsed unless individual timestamps available).
-    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete)
+    # Data source: JSON files in RESULTS_DIR (collected during fan-in polling)
+    # Symbol key: ● = completed, ⊘ = memoized (not spawned), ◌ = timeout (incomplete), ✗ = error
     # Columns: name (right-pad with dashes to col 16) + symbol + ✗/✓/— counts + [Ns]
     # Skipped clusters (not in active_clusters) are omitted entirely.
     # Build list of evaluator lines, then print with tree connectors (┌ first, ├ middle, └ last).
     evaluator_lines = []
 
-    If l1 responded:   evaluator_lines.append("l1 ─────── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
-    If l1 incomplete:  evaluator_lines.append("l1 ─────── ◌ timeout")
-    For each cluster_name in active_clusters:
-      If responded:   evaluator_lines.append("<cluster_name> ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
-      If memoized:    evaluator_lines.append("<cluster_name> ── ⊘ memoized p[memoized_since[cluster_name]]")
-      If incomplete:  evaluator_lines.append("<cluster_name> ── ◌ timeout")
-    If IS_GAS:
-      memo_gas = len(memoized_gas_questions)
-      If gas fully memoized (not spawned): evaluator_lines.append("gas-eval ── ⏭ fully memoized")
-      Else If gas responded AND memo_gas > 0: evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k] ⊘[memo_gas]  [{elapsed}s]")
-      Else If gas responded:   evaluator_lines.append("gas-eval ── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
-      If gas incomplete:  evaluator_lines.append("gas-eval ── ◌ timeout")
-    If IS_NODE:
-      memo_node = len(memoized_node_questions)
-      If node fully memoized (not spawned): evaluator_lines.append("node-eval ─ ⏭ fully memoized")
-      Else If node responded AND memo_node > 0: evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k] ⊘[memo_node]  [{elapsed}s]")
-      Else If node responded:  evaluator_lines.append("node-eval ─ ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
-      If node incomplete: evaluator_lines.append("node-eval ─ ◌ timeout")
-    If HAS_UI:
-      If ui responded:    evaluator_lines.append("ui ──────── ● ✗[n] ✓[m] —[k]  [{elapsed}s]")
-      If ui incomplete:   evaluator_lines.append("ui ──────── ◌ timeout")
+    FOR each result file read from RESULTS_DIR (in priority order: l1, ecosystem, impact, git, remaining clusters, ui):
+      name = data.evaluator
+      IF data.status == "complete":
+        elapsed = data.elapsed_s
+        nu = data.counts.needs_update
+        p = data.counts.pass
+        na = data.counts.na
+        evaluator_lines.append("[name] ── ● ✗[nu] ✓[p] —[na]  [[elapsed]s]")
+      ELSE IF data.status == "timeout":
+        evaluator_lines.append("[name] ── ◌ timeout")
+      ELSE IF data.status == "error":
+        evaluator_lines.append("[name] ── ✗ error")
+
+    # Add memoized clusters/evaluators (not in RESULTS_DIR — never spawned)
+    FOR each cluster_name in memoized_clusters:
+      evaluator_lines.append("[cluster_name] ── ⊘ memoized p[memoized_since[cluster_name]]")
+    IF IS_GAS AND fully_memoized_gas:
+      evaluator_lines.append("gas-eval ── ⏭ fully memoized")
+    IF IS_NODE AND fully_memoized_node:
+      evaluator_lines.append("node-eval ─ ⏭ fully memoized")
 
     Print tree (where n = len(evaluator_lines) - 1):
       If n == 0: "  └ " + evaluator_lines[0]   (only 1 evaluator — no ┌/├)
@@ -607,9 +765,39 @@ DO:
         For i in 1..n-1: "  ├ " + evaluator_lines[i]  (middle lines, inclusive range)
         "  └ " + evaluator_lines[n]
 
+  -- Read all result files and route findings --
+  all_results = {}  # evaluator_name → parsed JSON data
+  FOR each file in Bash: ls <RESULTS_DIR>/*.json | sort:
+    TRY: data = Read file → parse JSON
+    CATCH JSON parse error: treat as status="error", set data = {evaluator: filename, status: "error", error: "malformed JSON"}
+    evaluator_name = data.evaluator
+    all_results[evaluator_name] = data
+
+    IF data.status in ["timeout", "error"]:
+      mark as Incomplete (existing incomplete evaluator rules apply unchanged)
+      CONTINUE
+
+    # Route findings into existing data structures
+    IF evaluator_name == "l1-evaluator":
+      l1_results = {q_id: entry.status for q_id, entry in data.findings}
+      # Extract EDIT instructions for NEEDS_UPDATE findings
+      l1_edits = {q_id: entry for q_id, entry in data.findings where entry.status == "NEEDS_UPDATE"}
+
+    ELSE IF evaluator_name matches "*-evaluator" (cluster):
+      cluster_name = evaluator_name minus "-evaluator" suffix
+      cluster_results[cluster_name] = data.findings
+
+    ELSE IF evaluator_name == "gas-evaluator":
+      gas_results = {q_id: entry.status for q_id, entry in data.findings}
+
+    ELSE IF evaluator_name == "node-evaluator":
+      node_results = {n_id: entry.status for n_id, entry in data.findings}
+
+    ELSE IF evaluator_name == "ui-evaluator":
+      ui_results = data.findings
+
   -- Merge & Apply --
-  COLLECT all NEEDS_UPDATE findings from L1, cluster evaluators, ecosystem evaluator, and ui-evaluator
-  l1_results = {Q-ID: status}  # built from l1-evaluator's message: parse each "Q-Gn: PASS|NEEDS_UPDATE|N/A" line
+  COLLECT all NEEDS_UPDATE findings from all_results (L1, cluster, ecosystem, and ui evaluators)
   -- Deduplication algorithm (apply for each active ecosystem/UI evaluator) --
   FOR each pair of findings (A from evaluator-X, B from evaluator-Y) where X ≠ Y:
     (1) Extract the plan passage or file that each finding references.
@@ -639,7 +827,7 @@ DO:
       3. Post-implementation (Q-NEW): adding exec verification after push steps
   (If changes_this_pass == 0, skip the summary entirely.)
 
-  APPLY edits — for each [EDIT: ...] instruction in any evaluator message:
+  APPLY edits — for each finding with edit != null in any evaluator's JSON data:
     Call the Edit tool on the plan file to insert/modify the specified content.
     Mark each insertion <!-- review-plan -->.
     Each Edit call = 1 change. Do not count findings you only described in text.
@@ -666,25 +854,13 @@ DO:
   IF IS_NODE: node_plan_changes = count of node-evaluator NEEDS_UPDATE edits applied
   IF HAS_UI: ui_plan_changes = count of ui-evaluator NEEDS_UPDATE edits applied
 
-  # Parse gas-evaluator findings into per-question results
-  # Note: gas_results may already be populated (set in the fully-memoized branch above).
-  # Only reset to {} when the evaluator was actually spawned (not fully memoized).
-  IF IS_GAS AND gas-evaluator responded (not fully memoized):
-    gas_results = {}
-    FOR each line in gas-evaluator message matching pattern "Q\d+: (PASS|NEEDS_UPDATE|N/A)":
-      gas_results[q_id] = status
-    # Enforce memoized status: override any evaluator contradiction for locked questions
+  # Gas/Node results already routed from JSON in "Read all result files" block above.
+  # Enforce memoized status: override any evaluator contradiction for locked questions
+  IF IS_GAS AND gas_results is non-empty:
     FOR q_id in memoized_gas_questions:
       gas_results[q_id] = "PASS"  # unconditional — memoization takes priority over evaluator output
 
-  # Parse node-evaluator findings into per-question results
-  # Note: node_results may already be populated (set in the fully-memoized branch above).
-  # Only reset to {} when the evaluator was actually spawned (not fully memoized).
-  IF IS_NODE AND node-evaluator responded (not fully memoized):
-    node_results = {}
-    FOR each line in node-evaluator message matching pattern "N\d+: (PASS|NEEDS_UPDATE|N/A)":
-      node_results[n_id] = status
-    # Enforce memoized status: override any evaluator contradiction for locked questions
+  IF IS_NODE AND node_results is non-empty:
     FOR n_id in memoized_node_questions:
       node_results[n_id] = "PASS"  # unconditional — memoization takes priority over evaluator output
   changes_this_pass = l1_changes + cluster_changes_total + gas_plan_changes + node_plan_changes + ui_plan_changes
@@ -857,7 +1033,7 @@ DO:
 
   -- Checkpoint: persist memoized state for context-compression resilience --
   Write memo_file with JSON: {
-    team_name,
+    results_dir: RESULTS_DIR,
     pass_count, memoized_clusters: [...memoized_clusters],
     memoized_since, memoized_l1_questions: [...memoized_l1_questions],
     prev_needs_update_set: [...current_needs_update_set],
@@ -1061,17 +1237,17 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 
 ### Q-GAS / Q-NODE: Ecosystem Specialization
 
-In IS_GAS mode, gas-plan runs as part of the parallel evaluator team each pass (see Convergence
+In IS_GAS mode, gas-plan runs as part of the parallel evaluator wave each pass (see Convergence
 Loop above). The gas-evaluator Task follows evaluate mode (as defined in `<gas_eval_path>`), which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 50-question findings via SendMessage to team-lead (Q43 is post-loop only, not included in evaluate mode)
+- Writes all 50-question findings to a JSON file in RESULTS_DIR (Q43 is post-loop only, not included in evaluate mode)
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
 In IS_NODE mode (mutually exclusive with IS_GAS), node-plan runs as part of the parallel
-evaluator team each pass. The node-evaluator Task follows evaluate mode (as defined in `<node_eval_path>`), which means:
+evaluator wave each pass. The node-evaluator Task follows evaluate mode (as defined in `<node_eval_path>`), which means:
 - node-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 38-question findings via SendMessage to team-lead
+- Writes all 38-question findings to a JSON file in RESULTS_DIR
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
@@ -1115,7 +1291,7 @@ In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Con
 above). The ui-evaluator reads QUESTIONS-L3.md (not the full QUESTIONS.md) and covers 9 questions:
 Q-U1 through Q-U7 (UI specialization) plus Q-C17 and Q-C25 (merged from Client cluster). This means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
-- Returns all 9-question findings (Q-U1 through Q-U7, Q-C17, Q-C25) via SendMessage to team-lead
+- Writes all 9-question findings (Q-U1 through Q-U7, Q-C17, Q-C25) to a JSON file in RESULTS_DIR
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 - No separate client-evaluator is spawned when HAS_UI=true
@@ -1254,23 +1430,16 @@ After the convergence loop exits (scorecard not yet printed):
    ```
    touch "~/.claude/.plan-reviewed-${plan_slug}"
    rm -f <memo_file>
+   rm -rf "$RESULTS_DIR"
    ```
    First command writes the gate marker so ExitPlanMode will pass.
    Second command removes the convergence checkpoint (no longer needed after loop exits).
+   Third command removes the temp results directory.
 
-6. **Team teardown (always):** Send shutdown_request to all agents in `spawned_evaluators`
-   (only agents that were actually launched — memoized clusters were not spawned and will not
-   be in spawned_evaluators). Then call TeamDelete. (Teardown must complete before ExitPlanMode —
-   the session context needed for TeamDelete is not available after exiting plan mode.)
-   Reference: spawned_evaluators will contain entries like `l1-evaluator-p<N>`,
-   `<cluster_name>-evaluator-p<N>`, `gas-evaluator-p<N>`, `node-evaluator-p<N>`,
-   `ui-evaluator-p<N>`. All per-pass evaluators use `-p<pass_count>` suffix to prevent
-   name collisions on re-spawn. Q-G9 is inline (no agent to shut down).
-
-7. **Remaining issues summary (non-READY ratings):**
+6. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     No issues to print — proceed directly to step 8 (ExitPlanMode)
+     No issues to print — proceed directly to step 7 (ExitPlanMode)
    IF Rating == SOLID or GAPS:
      Print: "ℹ️ [N] Gate 2 issues remaining (not blocking):"
      For each remaining Gate 2 NEEDS_UPDATE question:
@@ -1287,6 +1456,6 @@ After the convergence loop exits (scorecard not yet printed):
    This is a single approval point: the user sees remaining issues in printed text, then
    ExitPlanMode is the one decision point. No double-approval friction.
 
-8. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
+7. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
 
 The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.

@@ -1,6 +1,6 @@
 # Node.js/TypeScript Plan: Evaluate Mode
 
-*Read-only, single pass. Used inside review-plan teams.*
+*Read-only, single pass. Used inside review-plan evaluator tasks.*
 *Do not call TeamCreate, ExitPlanMode, or edit the plan.*
 
 **Memoization:** The invoking prompt may include a `Memoized questions` directive
@@ -61,27 +61,38 @@ For each evaluated question, determine: **PASS** | **NEEDS_UPDATE** | **N/A**
 
 ## Step 3 — Output
 
-Call the **SendMessage** tool exactly once with all findings:
+Write your findings to a JSON file. The `results_dir` and `evaluator_name` variables are provided in the invoking prompt.
 
+Write atomically using Bash (prevents partial reads by polling loop):
+```bash
+cat > '<results_dir>/<evaluator_name>.json.tmp' << 'EVAL_EOF'
+{
+  "evaluator": "<evaluator_name>",
+  "pass": <pass_count>,
+  "status": "complete",
+  "elapsed_s": <seconds_from_start>,
+  "findings": {
+    "N1": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+    "N2": {"status": "...", "finding": "...", "edit": "..."},
+    ...
+    "N38": {"status": "...", "finding": "...", "edit": "..."}
+  },
+  "counts": {"pass": N, "needs_update": N, "na": N}
+}
+EVAL_EOF
+mv '<results_dir>/<evaluator_name>.json.tmp' '<results_dir>/<evaluator_name>.json'
 ```
-type: "message"
-recipient: "team-lead"
-summary: "node-plan evaluation complete — N NEEDS_UPDATE"  (fill in count)
-content: |
-  FINDINGS FROM node-eval
+(N20, N21 not evaluated — covered by L1 Q-G6/Q-G7)
 
-  [Triage] TypeScript/API domain: [ACTIVE | SKIPPED — reason]
-  [Triage] Node runtime domain: [ACTIVE | SKIPPED — reason]
-
-  N1: PASS | NEEDS_UPDATE | N/A — [one-sentence finding]
-  [EDIT: specific instruction if NEEDS_UPDATE]
-  N2: ...
-  N3: ...
-  ...
-  N38: ...
-  (N20, N21 not evaluated — covered by L1 Q-G6/Q-G7)
+If you encounter an error reading inputs, write:
+```json
+{"evaluator": "<evaluator_name>", "pass": N, "status": "error", "error": "<message>"}
 ```
 
-Do not write findings to stdout — the team-lead only receives content via SendMessage.
+Constraints:
+- Do not use Edit or Write tools on the plan file — read-only
+- Use Bash ONLY to write your findings JSON to the specified path
+- Do not call ExitPlanMode or touch marker files
+- Write exactly ONE JSON file
 
-Stop after SendMessage. Do not loop, do not edit the plan, do not touch `.plan-reviewed`, do not call ExitPlanMode.
+Stop after writing the JSON file. Do not loop, do not edit the plan, do not touch `.plan-reviewed`, do not call ExitPlanMode.
