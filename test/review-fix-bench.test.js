@@ -9,7 +9,7 @@ const VALID_CATEGORIES = new Set([
   'minimal-change', 'react', 'gas', 'async'
 ]);
 
-const VALID_SEVERITIES = new Set(['Critical', 'Advisory']);
+const VALID_SEVERITIES = new Set(['Critical', 'Advisory/Functional', 'Advisory']);
 
 // --- Metric computation functions (extracted for testability) ---
 
