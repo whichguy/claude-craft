@@ -24,7 +24,7 @@ Apply bulk-N/A before evaluating:
 - No UI/HTML/CSS changes → bulk N/A Q14, Q30–Q36
   (Q43 is a post-loop question — not evaluated in this mode)
 - No .gs/deployment/common-js changes → bulk N/A GAS-owned questions:
-  Q3–Q12, Q17–Q26, Q29, Q37, Q39–Q40, Q49, Q50, Q51
+  Q3–Q12, Q17–Q26, Q29, Q37, Q39–Q40, Q49, Q50, Q51, Q52, Q53, Q54
   (Q42 is also GAS-owned but never N/A — see exception below)
   Gmail questions Q44–Q48 follow the Gmail rule below.
   **Exception: Q1, Q2, Q42 are never N/A — evaluate regardless of triage.**
@@ -64,7 +64,7 @@ cat > '<results_dir>/<evaluator_name>.json.tmp' << 'EVAL_EOF'
     "Q1": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
     "Q2": {"status": "...", "finding": "...", "edit": "..."},
     ...
-    "Q51": {"status": "...", "finding": "...", "edit": "..."}
+    "Q54": {"status": "...", "finding": "...", "edit": "..."}
   },
   "counts": {"pass": N, "needs_update": N, "na": N}
 }

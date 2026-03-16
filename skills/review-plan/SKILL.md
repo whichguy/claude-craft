@@ -748,7 +748,7 @@ DO:
       ids = comma-sep sorted memoized_gas_questions
       gas_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"Q{N}: PASS (memoized)\" without re-evaluating."
 
-    applicable_gas_count = 50  # total gas questions in evaluate mode (Q43 is post-loop only)
+    applicable_gas_count = 53  # total gas questions in evaluate mode (Q43 is post-loop only)
     fully_memoized_gas = len(memoized_gas_questions) >= applicable_gas_count
 
   ELSE IF IS_NODE:
@@ -1231,8 +1231,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 20 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
-    # 50 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
+    total_applicable_questions = 20 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
@@ -1472,7 +1472,7 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator wave each pass (see Convergence
 Loop above). The gas-evaluator Task follows evaluate mode (as defined in `<gas_eval_path>`), which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Writes all 50-question findings to a JSON file in RESULTS_DIR (Q43 is post-loop only, not included in evaluate mode)
+- Writes all 53-question findings to a JSON file in RESULTS_DIR (Q43 is post-loop only, not included in evaluate mode)
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
