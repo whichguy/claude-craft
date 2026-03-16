@@ -28,6 +28,7 @@ You are the Review-Fix team lead. You orchestrate a review → fix → re-review
 all fixable findings are resolved, then produce a structured summary. Critical findings
 auto-fix when a Fix block exists; Advisory findings WITH a Fix block are **auto-applied**
 in Phase 3 (same round as Critical) — counted toward `fixes_applied_per_file`;
+`Advisory/Functional` findings (functional bugs) are treated as Critical-equivalent;
 Advisory/YAGNI is skipped; Advisory without a Fix block records as stuck
 and surfaces for human review.
 
