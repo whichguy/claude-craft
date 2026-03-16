@@ -150,8 +150,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    Compute cluster activation:
    ```
    IF IS_GAS:
-     # All L2 clusters superseded by gas-evaluator except impact (for Q-C26 — no gas equivalent)
-     active_clusters = ["impact"]  # always active — Q-C26 evaluates here
+     # All L2 clusters superseded by gas-evaluator except impact (for Q-C26/Q-C35/Q-C37 — no gas equivalent)
+     active_clusters = ["impact"]  # always active — Q-C26/Q-C35/Q-C37 evaluate here
+     if HAS_STATE:      active_clusters.append("state")  # Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded within evaluator
    ELSE:
      active_clusters = ["impact"]                    # always active (Gate 1 Q-C3)
      if HAS_TESTS:      active_clusters.append("testing")
@@ -234,7 +235,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    Print: "╭─── CONFIG ─────────────────────╮"
    Print mode based on flags:
      IS_GAS + HAS_UI:     "📋 Review mode: GAS + UI (gas-eval + impact cluster + ui-evaluator, [N] active)"
-     IS_GAS only:         "📋 Review mode: GAS (gas-eval + impact cluster for Q-C26, [N] active)"
+     IS_GAS only:         "📋 Review mode: GAS (gas-eval + impact + state? clusters, [N] active)"
      IS_NODE only:        "📋 Review mode: Node.js ([N] clusters: [names] + node-eval)"
      IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-eval + ui-evaluator)"
      HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
@@ -259,8 +260,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memo_milestones_printed = set()     # {25, 50, 75} — each printed once
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
-   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23 are not memoizable)
-   l1_advisory_memoized = false     # true when ALL 17 advisory questions PASS/N/A AND no edits applied since
+   memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 are not memoizable)
+   l1_advisory_memoized = false     # true when ALL 19 advisory questions PASS/N/A AND no edits applied since
    l1_advisory_memoized_since = 0   # pass_count when group-memoized
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
@@ -402,7 +403,7 @@ DO:
   # Priority 1a: L1 blocking (Gate 1, always runs, 3 questions)
   evaluators_to_spawn.append({name: "l1-blocking", task_config: <l1_blocking_config below>})
 
-  # Priority 1b: L1 advisory (Gate 2/3, 17 questions — skip if group-memoized)
+  # Priority 1b: L1 advisory (Gate 2/3, 19 questions — skip if group-memoized)
   IF NOT l1_advisory_memoized:
     evaluators_to_spawn.append({name: "l1-advisory", task_config: <l1_advisory_config below>})
 
@@ -412,7 +413,7 @@ DO:
   ELSE IF IS_NODE AND NOT fully_memoized_node:
     evaluators_to_spawn.append({name: "node-evaluator", task_config: <node_config below>})
 
-  # Priority 3: Impact cluster (always active, Gate 1 Q-C3/Q-C26)
+  # Priority 3: Impact cluster (always active, Q-C3/Q-C26/Q-C35/Q-C37)
   IF "impact" in active_clusters AND "impact" NOT in memoized_clusters:
     evaluators_to_spawn.append({name: "impact-evaluator", task_config: <cluster_config("impact")>})
 
@@ -502,10 +503,10 @@ DO:
   IF l1_advisory_memoized:
     advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
       "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
-      "Q-G20", "Q-G21", "Q-G22", "Q-G23"}
+      "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
     FOR q in advisory_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
-    Print: "  ⏭ l1-advisory ── memoized (17 questions stable since p[l1_advisory_memoized_since])"
+    Print: "  ⏭ l1-advisory ── memoized (19 questions stable since p[l1_advisory_memoized_since])"
 
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
@@ -578,18 +579,18 @@ DO:
     """
   )
 
-  --- L1 Advisory Evaluator Config (Gate 2/3: 17 questions, group-memoizable) ---
+  --- L1 Advisory Evaluator Config (Gate 2/3: 19 questions, group-memoizable) ---
   l1_advisory_config = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
     name = "l1-advisory-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1 Gate 2/3: 17 questions).
+      You are evaluating a plan for general quality (Layer 1 Gate 2/3: 19 questions).
 
       Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 Gate 2/3 questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23
+      Evaluate ALL L1 Gate 2/3 questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -677,9 +678,10 @@ DO:
         Q-C30 (Security, →N6/N7), Q-C31 (Security, →N13/N27), Q-C32 (Impact, →N14),
         Q-C33 (Security, →N9/N10), Q-C34 (Security, →N28)
         are N/A-superseded when IS_NODE=true.
-      IS_GAS note: if you are the impact-evaluator and IS_GAS=true above, evaluate Q-C26 only;
+      IS_GAS note: if you are the impact-evaluator and IS_GAS=true above, evaluate Q-C26, Q-C35, Q-C37 only;
         Q-C3, Q-C8, Q-C12, Q-C14, Q-C27, Q-C32 are N/A-superseded (covered by gas-evaluator).
-        State cluster (Q-C13, Q-C18, Q-C19, Q-C24) is fully superseded when IS_GAS=true.
+        If you are the state-evaluator and IS_GAS=true above, evaluate Q-C36 only;
+        Q-C13, Q-C18, Q-C19, Q-C24 are N/A-superseded (covered by gas-evaluator).
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1141,6 +1143,8 @@ DO:
   # Q-G21 (Internal logic consistency): NOT safe — consistency evolves as plan is restructured
   # Q-G22 (Cross-phase dependency explicitness): NOT safe — inter-phase contracts evolve as phases change
   # Q-G23 (Proportionality): NOT safe — scope/complexity assessment changes as plan expands or contracts
+  # Q-G24 (Core-vs-derivative weighting): NOT safe — specification depth changes as plan is edited
+  # Q-G25 (Feedback loop completeness): NOT safe — downstream consumer relationships evolve as plan scope changes
   # Q-C27, Q-C28, Q-C29: not individually memoizable by design (their clusters — impact, operations,
   # testing — are not currently added to memoized_clusters; no loop cluster is currently memoized at the cluster level)
   # Individually memoizable L1 questions (structural): {Q-G11, Q-G6, Q-G7, Q-G18}
@@ -1156,7 +1160,7 @@ DO:
     FOR each Q-ID in current_pass_results:
       IF Q-ID in prev_pass_results:
         IF prev_pass_results[Q-ID] in [PASS, N/A] AND current_pass_results[Q-ID] in [PASS, N/A]:
-          IF Q-ID is Gate 2 or Gate 3 L1 question AND Q-ID NOT in {"Q-G10", "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G19", "Q-G20", "Q-G21", "Q-G22", "Q-G23"}:
+          IF Q-ID is Gate 2 or Gate 3 L1 question AND Q-ID NOT in {"Q-G10", "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G19", "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}:
             # never Gate 1 (Q-G1, Q-G2, Q-G11); cluster questions handled by memoized_clusters
             # non-memoizable Gate 2/3 questions explicitly excluded (evolving properties — see comments below)
             IF Q-ID NOT in memoized_l1_questions:
@@ -1169,12 +1173,12 @@ DO:
   IF NOT l1_advisory_memoized:
     advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
       "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
-      "Q-G20", "Q-G21", "Q-G22", "Q-G23"}
+      "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
     all_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in advisory_questions)
     IF all_clean:
       l1_advisory_memoized = true
       l1_advisory_memoized_since = pass_count
-      newly_memoized.append("l1-advisory (17 questions)")
+      newly_memoized.append("l1-advisory (19 questions)")
   ELSE:
     # Invalidate if ANY edit was applied this pass (edits can affect advisory questions)
     IF changes_this_pass > 0:
@@ -1396,13 +1400,13 @@ parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G8 Decision Framework
 QUESTIONS.md (Layer 1 section). Q-G9 sub-questions follow below (team-lead evaluates inline
 post-convergence).
 
-L1 per-pass count: 20 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23).
+L1 per-pass count: 22 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G25).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 20 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
+*L1 per-pass count stays at 22 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G25). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
@@ -1443,7 +1447,7 @@ Q-G9 results are included in the scorecard output (step 4 of "After Review Compl
 ## Layer 2: Code Change Quality
 
 Question definitions are in QUESTIONS.md — cluster evaluators read that file directly. Team-lead
-only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 32 questions organized into 6
+only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 35 questions organized into 6
 concern clusters. Cluster-level triage activates/deactivates entire clusters based on Haiku
 pre-classification. Active clusters are listed in `active_clusters` computed in Step 0.
 
@@ -1486,16 +1490,16 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 | Cluster | Superseded? | Gas-evaluator equivalents |
 |---------|-------------|--------------------------|
 | Git | **epilogue** — Q-E1 evaluated post-convergence; IS_GAS: N/A (Q1, Q2) | Q1, Q2 |
-| Impact (1) | **partially** — Q-C26 has no gas equivalent (evaluates via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
+| Impact (1) | **partially** — Q-C26, Q-C35, Q-C37 have no gas equivalent (evaluate via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
 | Testing (2) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
-| State (3) | **fully** (Q-C26 promoted to Impact cluster) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
+| State (3) | **partially** — Q-C36 has no gas equivalent (evaluate via state cluster when HAS_STATE) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (4) | **fully** | Q27, Q28, Q23; Q-C30→Q28, Q-C31→N/A isolated exec, Q-C33→Q8, Q-C34→Q22 |
 | Operations (5) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
 | Client (6) | **merged into ui-evaluator** when HAS_UI=true; **fully superseded** by gas-evaluator Q32, Q33 when IS_GAS | Q32, Q33 |
 
-Result: When IS_GAS=true, skip ALL cluster evaluators EXCEPT Impact cluster (always active — Q-C26
-has no gas equivalent). Q-C17 and Q-C25 are handled by ui-evaluator when HAS_UI=true (not a
-separate cluster evaluator). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
+Result: When IS_GAS=true, skip ALL cluster evaluators EXCEPT Impact cluster (always active — Q-C26/Q-C35/Q-C37
+have no gas equivalent) and State cluster when HAS_STATE=true (Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded).
+Q-C17 and Q-C25 are handled by ui-evaluator when HAS_UI=true (not a separate cluster evaluator). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
 
 **IS_NODE Individual Suppressions (8 questions span multiple clusters):**
 Cluster-level suppression does not apply for IS_NODE. Mark these 8 questions N/A-superseded

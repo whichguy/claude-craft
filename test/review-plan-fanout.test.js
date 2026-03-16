@@ -432,9 +432,9 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('Evaluate ONLY these 3 questions: Q-G1, Q-G2, Q-G11');
         });
 
-        it('defines l1-advisory evaluator config for Gate 2/3 (17 questions)', function () {
-            expect(skillContent).to.include('L1 Advisory Evaluator Config (Gate 2/3: 17 questions');
-            expect(skillContent).to.include('Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23');
+        it('defines l1-advisory evaluator config for Gate 2/3 (19 questions)', function () {
+            expect(skillContent).to.include('L1 Advisory Evaluator Config (Gate 2/3: 19 questions');
+            expect(skillContent).to.include('Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 
         it('l1-advisory group memoization logic exists', function () {
