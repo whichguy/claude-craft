@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*20 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Applies to every plan, every domain.*
+*22 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G25). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -43,6 +43,8 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G21 | Internal logic consistency | Are the plan's stated assumptions and reasoning premises mutually consistent across sections and phases? Flag: (1) contradictory premises between phases (e.g., "cache for performance" in Phase 1 + "data changes every request" in Phase 3), (2) circular reasoning where step A justifies step B and vice versa, (3) phases that make incompatible assumptions about system state (e.g., one assumes stateless, another introduces session state), (4) false dichotomies in approach justification ("we must use A because B won't work" — with no evidence B won't work). Consequence: contradictory assumptions cause one or more phases to produce incorrect results at implementation time, discovered only after significant work is committed. EDIT injection: `[EDIT: flag contradiction between [section/phase X] assumption "[quoted text]" and [section/phase Y] assumption "[quoted text]" — resolve by [aligning to one or adding investigation step]]`. | single-phase plan with no stated assumptions or premises; IS_TRIVIAL |
 | Q-G22 | Cross-phase dependency explicitness | When a phase depends on specific outputs, artifacts, intermediate state, or interface contracts from a prior phase — is the dependency explicitly stated with a verification step? Flag: (1) Phase N references files, functions, config schemas, or data formats that Phase M must produce, without Phase M listing that artifact as an output, (2) Phase N proceeds without verifying the artifact exists and matches expected format, (3) implicit "this should exist by now" assumptions, (4) phases that would silently produce wrong results if prior phase output differs from expectation. Consequence: implicit inter-phase contracts are the primary cause of "Phase 3 worked in planning but broke at implementation" failures. EDIT injection: `[EDIT: add to end of Phase [M]: "**Outputs:** [artifact list]" and add to start of Phase [N]: "**Pre-check:** verify [artifact] exists and matches [expected format]"]`. | single-phase plan; phases are purely additive with no inter-phase data/artifact/interface dependencies. (Format contract: Q-G9f parses the exact `**Outputs:**` and `**Pre-check:**` markers injected by this question's EDIT. Changes to these marker names must update Q-G9f's algorithm step (a) in both QUESTIONS.md and SKILL.md. When this question is N/A, Q-G9f is also N/A — no Outputs/Pre-check annotations exist to parse.) |
 | Q-G23 | Proportionality | Is the plan's scope and complexity proportional to the problem being solved? A single bug fix should not require 5 phases with team coordination. A minor enhancement should not restructure existing modules. A one-time operation should not introduce a new abstraction layer. Flag: (1) effort/complexity significantly exceeds what the problem's severity or scope requires, (2) multi-phase plans for changes achievable in one phase, (3) new abstractions introduced for single-use operations, (4) TeamCreate for work achievable with parallel Tasks or inline, (5) phase-per-file when a single phase could handle all files. Consequence: over-engineered plans consume disproportionate review time (each unnecessary phase triggers Q-G13/Q-G17/Q-G19 findings), increase implementation time, and increase bug surface area with no corresponding benefit. EDIT injection: `[EDIT: consolidate Phases [X] and [Y] — both modify [same concern]. Replace with single phase: "[consolidated description]"]`. | IS_TRIVIAL; plan is already single-phase; problem is explicitly complex (new system, multi-service integration, architectural migration) |
+| Q-G24 | Core-vs-derivative question weighting | When the plan defines a battery of questions/criteria, are the load-bearing questions (those that downstream steps depend on) given proportionally more specification, examples, or dedicated processing than derivative questions? Flag: all questions treated with equal depth when some are clearly foundational — core questions with one-line criteria while derivative questions receive multi-paragraph detail, or uniform shallow treatment across questions of vastly different analytical weight. EDIT injection: `[EDIT: expand specification for foundational question(s) [Q-IDs] in step N: add evaluation criteria, worked examples, or allocate dedicated processing]`. | plan defines no question batteries or evaluation criteria |
+| Q-G25 | Feedback loop completeness | When the plan's output feeds into another tool/skill, does the plan account for signals that flow back from that tool? Flag: plan generates inputs for a downstream consumer but never specifies how downstream rejection, partial success, or quality signals are consumed to improve the producing step's output. EDIT injection: `[EDIT: add feedback consumption step after step N: "Read [downstream tool]'s output signals and adjust [upstream artifact] if [quality threshold] not met"]`. | plan output is terminal (user-facing only, not consumed by another tool/skill); plan is self-contained with no downstream integration |
 
 **Gate 3 — Advisory (weight 1):**
 
@@ -54,7 +56,7 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G17 | Phase preambles | For plans with ≥ 2 distinct implementation phases: does each phase have a brief intent preamble — 1–3 sentences before the numbered steps — explaining why this phase exists and what it sets up for subsequent phases? Flag: multi-phase plan where phases go straight to numbered steps without any per-phase narrative context. EDIT injection — team-lead applies: **If per-phase preamble is absent for a phase**, `[EDIT: add before Phase N steps: "> Intent: [why this phase exists and what it sets up for subsequent phases]"]`. One EDIT per missing preamble. | single-phase plan (requires ≥ 2 distinct phases); IS_TRIVIAL |
 | Q-G19 | Phase failure recovery | For multi-phase plans where each phase commits independently: does the plan address what happens if a later phase fails after earlier phases committed? Acceptable: explicit "earlier phases are safe to keep independently" statement, revert instructions, or "stop and assess before continuing" checkpoint between dependent phases. Flag: multi-phase plan with inter-phase dependencies where a Phase N failure would leave Phases 1..N-1 commits in an inconsistent state, with no acknowledgment of this risk. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 
-Count L1 edits → `l1_changes += count` (20 questions total, combined into `changes_this_pass` in Convergence Loop)
+Count L1 edits → `l1_changes += count` (22 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G8 Decision Framework: Task Calls & Agent Teams
 
@@ -100,7 +102,7 @@ multi-file features where cross-file consistency needs a coordinator.
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 20 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G23). Q-G9 is not included in*
+*L1 per-pass count stays at 22 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G25). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
 *Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
@@ -119,13 +121,13 @@ multi-file features where cross-file consistency needs a coordinator.
 
 ## Layer 2: Code Change Quality
 
-*32 questions organized into 6 concern clusters. Cluster-level triage activates/deactivates
+*35 questions organized into 6 concern clusters. Cluster-level triage activates/deactivates
 entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
 ### Cluster 1: Impact & Architecture
 
-*7 questions. Always active.*
+*9 questions. Always active.*
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
@@ -136,9 +138,11 @@ computed in Step 0.*
 | Q-C26 | 2 | Migration tasks | If the change alters data formats, config schemas, storage keys, API contracts, or persistent state structure from a previous design, does the plan include a one-time migration step? Flag: renamed properties/keys without migration, changed data shapes in storage without conversion, removed features without cleanup of stored state, schema changes without forward/backward migration. | no change to existing data formats or persistent state |
 | Q-C27 | 2 | Backward compatibility | If the change modifies public-facing APIs, CLI interfaces, published package exports, event schemas, or config formats consumed externally — does the plan flag the breaking change and include a migration path or versioning step (e.g. v2 endpoint, semver bump, deprecation notice)? | internal-only change, no external API consumers |
 | Q-C32 | 2 | Bulk data safety | When the plan processes collections of unbounded or potentially large size (API paginated results, database query results, file system listings, spreadsheet ranges, log entries), does it use streaming, pagination, or chunking? Flag: (1) loads entire dataset into memory without size guard, (2) no upper bound on loop iterations, (3) accumulates results in growing array without limit, (4) processes user-submitted data without size validation. Consequence: unbounded data operations cause OOM crashes, execution timeouts, or quota exhaustion. EDIT injection: `[EDIT: add chunking/pagination for [operation] in step N: "Process [data source] in batches of [N] with [progress tracking]"]`. (Scope: data-volume patterns regardless of deployment context. Platform-imposed runtime limits are covered by Q-C21.) | all operations are bounded by design (fixed-size config, known-small dataset, single-record lookup) |
+| Q-C35 | 2 | Agent cognitive load | When the plan dispatches an agent with N analytical questions, is N calibrated to the complexity of the source material? Flag: agent asked to perform >6 deep-reasoning questions against a large input (>500 lines) in a single call. Consequence: overloaded agents produce shallow analysis, miss nuanced findings, or hallucinate answers to questions they lack context budget to evaluate thoroughly. EDIT injection: `[EDIT: split step N agent call into [K] focused sub-tasks, each covering [subset of questions] against [relevant input portion]]`. | plan does not dispatch agents; or all agent calls are simple retrieval/read operations with no analytical burden |
+| Q-C37 | 2 | Translation boundary specification | When the plan has a step that transforms abstract analysis into concrete artifacts (e.g., "turn boundary analysis into realistic test files"), is the translation step specified with enough structure that an agent could execute it without improvising the core methodology? Flag: the hardest creative step gets the least specification — step says "convert analysis to [artifact]" without defining mapping rules, output format, or quality criteria. EDIT injection: `[EDIT: expand step N translation spec: add "**Methodology:** [structured approach for converting [abstract input] to [concrete output]]" with input→output examples]`. | no abstract-to-concrete translation steps; all outputs are trivially derivable from inputs |
 
-IS_GAS: **partially superseded** — Q-C3 (→Q18), Q-C8 (→Q16), Q-C12 (→Q39), Q-C14 (→Q41) are superseded; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded. **Q-C26 has no gas equivalent — evaluate Q-C26 normally** (always active via impact cluster).
-IS_NODE: Q-C32 → N/A-superseded (node N14). All other questions: not superseded — evaluate normally.
+IS_GAS: **partially superseded** — Q-C3 (→Q18), Q-C8 (→Q16), Q-C12 (→Q39), Q-C14 (→Q41) are superseded; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded. **Q-C26, Q-C35, Q-C37 have no gas equivalent — evaluate normally** (always active via impact cluster).
+IS_NODE: Q-C32 → N/A-superseded (node N14). Q-C35, Q-C37: not superseded — evaluate normally. All other questions: not superseded — evaluate normally.
 
 ### Cluster 2: Testing & Plan Quality
 
@@ -158,7 +162,7 @@ IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: State & Data Integrity
 
-*4 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
+*5 questions. Active when HAS_STATE=true. Skip entire cluster when HAS_STATE=false.*
 *(Q-C26 promoted to Cluster 2: Impact & Architecture — always active.)*
 
 | Q | Gate | Question | Criteria | N/A |
@@ -167,9 +171,10 @@ IS_NODE: not superseded — evaluate normally.
 | Q-C18 | 2 | Concurrency | Shared state locked; background tasks have concurrency plan? | read-only |
 | Q-C19 | 2 | Idempotency | Operations safe to retry; data mutations deduped? | read-only |
 | Q-C24 | 2 | Local↔remote sync | Sync strategy explicit for local→remote pushes? Stale reads avoided? | local-only |
+| Q-C36 | 2 | Persistence staleness | When the plan persists intermediate artifacts (analysis files, cached results, config) for reuse across runs, does it include a staleness detection mechanism (hash, timestamp, version)? Flag: cached artifact reused without checking if its source input changed. Consequence: stale artifacts produce silently incorrect results — particularly dangerous when the artifact encodes analytical conclusions that downstream steps treat as ground truth. EDIT injection: `[EDIT: add staleness check for [artifact] in step N: "Before reusing [artifact], verify [source] hasn't changed since generation (compare [hash/timestamp/version])"]`. | no persistent intermediate artifacts; all artifacts are ephemeral within a single run |
 
-IS_GAS: **fully superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24), Q-C24 (→Q3).
-  Skip this cluster entirely when IS_GAS=true (Q-C26 now in impact cluster, always active).
+IS_GAS: **partially superseded** — Q-C13 (→Q40), Q-C18 (→Q21), Q-C19 (→Q24), Q-C24 (→Q3).
+  **Q-C36 has no gas equivalent — evaluate Q-C36 normally** when IS_GAS=true AND HAS_STATE=true (activate state cluster; mark Q-C13/Q-C18/Q-C19/Q-C24 as N/A-superseded within evaluator).
 IS_NODE: **Q-C18 → N/A-superseded** (covered by node-evaluator N8).
 
 ### Cluster 4: Security & Reliability
