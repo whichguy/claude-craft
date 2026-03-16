@@ -150,7 +150,10 @@ round_durations = []                 # populated at end of each round
 # NOTE: failed_tasks is a per-round Set — declared inside the loop, not at state level
 cluster_backlog = {}    # { file: { cluster_id: { status, round, q_numbers_affected } } }
                         # status: 'pending' | 'clean' | 'has_findings' | 'skipped'
-cluster_stats = []      # { round, clusters_dispatched, clusters_skipped } — for summary telemetry
+cluster_stats = []      # { round, clusters_dispatched, clusters_skipped, clusters_memoized } — for summary telemetry
+findings_counts_per_round = []   # [{critical: N, advisory: N, yagni: N, total: N}]
+memo_milestones_printed = new Set()  # {25, 50, 75}
+phase_timings = {}      # { inspect: N, plan: N, fix: N } — reset per round, milliseconds
 ```
 
 ## Behavioral Invariants
@@ -322,15 +325,20 @@ For each file in file_list (stop if total_impact_count >= 30):
 ### Phase 1 Print: Setup Banner
 
 ```
-Print: "──── SETUP ──────────────"
-Print: "📋 review-fix: [file_count] file(s) | [single-agent|parallel-task] mode | max [max_rounds] rounds | max [max_clusters_per_file] clusters/file"
-Print: "  [filename]  → [reviewer_type]"     (one line per file)
+Print:
+╔════════════════════════════════════════╗
+║  review-fix — [task_name]              ║
+║  Files: [N] | Mode: [mode] | Max: [R]r ║
+╚════════════════════════════════════════╝
+  [filename]  → [reviewer_type]          (one line per file)
 ```
 
 Example:
 ```
-──── SETUP ──────────────
-📋 review-fix: 3 files | parallel-task mode | max 5 rounds | max 4 clusters/file
+╔════════════════════════════════════════╗
+║  review-fix — deploy refactor          ║
+║  Files: 3 | Mode: parallel | Max: 5r   ║
+╚════════════════════════════════════════╝
   Utils.gs           → gas-code-review
   src/main.ts        → code-reviewer
   Sidebar.html       → gas-ui-review
@@ -447,7 +455,7 @@ Then print receipts and decision via the "Phase 2 Print: Reviewer Receipts (All 
 ### Phase 2 Print: Reviewer Receipts (All Modes)
 
 ```
-Print: "──── REVIEW ─────────────"
+Print: "━━━ REVIEW ━━━━━━━━━━━━━━━━━━━━━━━━"
 Print: "🔍 Initial Review"
 ```
 
@@ -549,7 +557,7 @@ After PHASE C, control returns to the WHILE condition. The loop exits ONLY when
 `remaining_files` is empty or `round >= max_rounds`.
 
 ```
-print: "──── FIX LOOP ───────────"
+print: "━━━ FIX LOOP ━━━━━━━━━━━━━━━━━━━━━━"
 
 // Create shared temp dir for this run's cluster/reviewer outputs (persists across all rounds)
 const REVIEW_TMPDIR = Bash(`mktemp -d /tmp/review-fix-XXXXXX`)
@@ -587,6 +595,9 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   // Rounds 2+ dispatch domain clusters (safety, intent, integration, ecosystem) per file.
   // Each cluster is an independent Task evaluating its subset of Q-questions.
   // Incremental re-review: only clusters affected by prior-round fixes are re-run.
+
+  phase_timings = { inspect: 0, plan: 0, fix: 0 }
+  const inspect_start = Date.now()
 
   if (round > 1) {
     // 1. Determine active clusters per file (respect backlog + trigger patterns)
@@ -679,8 +690,37 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     const cluster_failed = cluster_results.filter(r => r.result === null).length
     print: "  ✓ ${cluster_ok} cluster(s) completed, ${cluster_failed} failed in ${cluster_elapsed}s"
 
-    // Record cluster stats for telemetry
-    cluster_stats.push({ round, clusters_dispatched: round_clusters_dispatched, clusters_skipped: round_clusters_skipped })
+    // Record cluster stats for telemetry (including memoized count)
+    const round_clusters_memoized = remaining_files.reduce((sum, file) => {
+      if (!cluster_backlog[file]) return sum
+      return sum + CLUSTERS.filter(c =>
+        cluster_backlog[file][c.id]?.status === 'clean'
+      ).length
+    }, 0)
+    cluster_stats.push({ round, clusters_dispatched: round_clusters_dispatched, clusters_skipped: round_clusters_skipped, clusters_memoized: round_clusters_memoized })
+
+    // Cluster receipt grid — cluster-centric view of dispatch results
+    print: "  ┌─ Cluster Receipt Grid ─────────────────"
+    for (let ci = 0; ci < CLUSTERS.length; ci++) {
+      const cluster = CLUSTERS[ci]
+      const connector = ci === CLUSTERS.length - 1 ? '└' : '├'
+      const cluster_files = cluster_results.filter(r => r.cluster.id === cluster.id)
+      const memoized_files = remaining_files.filter(f =>
+        cluster_backlog[f]?.[cluster.id]?.status === 'clean'
+      )
+      if (memoized_files.length > 0 && cluster_files.length === 0) {
+        const since_round = Math.min(...memoized_files.map(f => cluster_backlog[f][cluster.id].round))
+        print: "  ${connector} ${cluster.id} ── ⊘ memoized (clean since r${since_round})"
+      } else if (cluster_files.length > 0) {
+        const file_summaries = cluster_files.map(r => {
+          const findings_count = r.result ? parse_findings(Read(`${REVIEW_TMPDIR}/round_${round}/${r.file_slug}_cluster_${cluster.id}.md`) || '').length : 0
+          return `${r.file} ✗${findings_count}`
+        }).join(', ')
+        print: "  ${connector} ${cluster.id} ──── ● ${file_summaries}  [${cluster_elapsed}s]"
+      } else {
+        print: "  ${connector} ${cluster.id} ── ○ skipped"
+      }
+    }
 
     // 3. Reconcile cluster outputs per file — collect temp files + consolidate
     for (const file of remaining_files) {
@@ -792,7 +832,9 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     if (remaining_files.length === 0) break
   }
   // (end of PHASE A — round 1 falls through to PHASE B with Phase 2's current_findings)
+  phase_timings.inspect = Date.now() - inspect_start
 
+  const plan_phase_start = Date.now()
   // ═══ PHASE B: Plan — deterministic task decomposition + LLM execution planner ═══
   // Stage 1 (deterministic): decompose current_findings into discrete tasks
   const { tasks, skipped } = decompose_findings(remaining_files, current_findings)
@@ -890,6 +932,9 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     wave_groups[task.wave].push(task)
   }
   const wave_numbers = Object.keys(wave_groups).map(Number).sort((a, b) => a - b)
+
+  phase_timings.plan = Date.now() - plan_phase_start
+  const fix_phase_start = Date.now()
 
   // ═══ PHASE C: Fix — execute tasks by wave ═══
   // Fan out fixer Tasks per wave. Within each wave, group tasks by file and dispatch
@@ -1004,8 +1049,22 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   // (end of wave loop)
 
   // ═══ END OF ROUND — compute duration, file exit prints, per-round status grid ═══
+  phase_timings.fix = Date.now() - fix_phase_start
   round_durations.push(Date.now() - round_start_time)
   const round_elapsed = (round_durations[round_durations.length - 1] / 1000).toFixed(1)
+
+  // Snapshot findings counts for this round (used by delta/health/summary)
+  const round_findings = { critical: 0, advisory: 0, yagni: 0, total: 0 }
+  for (const file of remaining_files) {
+    const findings = parse_findings(current_findings[file])
+    for (const f of findings) {
+      if (f.severity === 'Critical') round_findings.critical++
+      else if (f.severity === 'Advisory') round_findings.advisory++
+      else if (f.severity === 'Advisory/YAGNI') round_findings.yagni++
+    }
+  }
+  round_findings.total = round_findings.critical + round_findings.advisory + round_findings.yagni
+  findings_counts_per_round.push(round_findings)
 
   // Files with 0 fixes applied this round exit (nothing changed → done)
   const files_clean_this_round = remaining_files.filter(f => (fixes_applied_per_file[f] || 0) === 0)
@@ -1022,7 +1081,10 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
 
   // Per-round status grid — all files that participated this round
   const all_round_files = [...files_clean_this_round, ...remaining_files]
-  print: "  Round [round]:  [round_elapsed]s"
+  const inspect_s = (phase_timings.inspect / 1000).toFixed(1)
+  const plan_s = (phase_timings.plan / 1000).toFixed(1)
+  const fix_s = (phase_timings.fix / 1000).toFixed(1)
+  print: "  Round [round]:  [round_elapsed]s  (inspect: ${inspect_s}s  plan: ${plan_s}s  fix: ${fix_s}s)"
   for (let i = 0; i < all_round_files.length; i++) {
     const file = all_round_files[i]
     const connector = all_round_files.length === 1 ? '└' : i === 0 ? '┌' : i === all_round_files.length - 1 ? '└' : '├'
@@ -1032,6 +1094,36 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     } else {
       print: "  ${connector} ${padded} 🔄 continuing"
     }
+  }
+
+  // Delta visualization — between-round finding count changes
+  const file_count = remaining_files.length + files_clean_this_round.length
+  if (findings_counts_per_round.length === 1) {
+    print: "  snapshot ── ✗${round_findings.total} findings across ${file_count} file(s)"
+  } else {
+    const prev = findings_counts_per_round[findings_counts_per_round.length - 2]
+    const delta = round_findings.total - prev.total
+    const delta_str = delta < 0 ? `↓${Math.abs(delta)}` : delta > 0 ? `↑${delta}` : '→0'
+    print: "  delta ── ✗${prev.total}→${round_findings.total} (${delta_str})"
+  }
+  if (findings_counts_per_round.length >= 3) {
+    const trend_values = findings_counts_per_round.map(r => r.total).join(' → ')
+    const last3 = findings_counts_per_round.slice(-3)
+    const trend_arrow = last3[last3.length - 1].total < last3[0].total ? '↘ converging'
+      : last3[last3.length - 1].total > last3[0].total ? '↗ oscillating' : '→ flat'
+    print: "  trend ── ${trend_values}  ${trend_arrow}"
+  }
+
+  // Severity health bar — compact at-a-glance breakdown
+  if (findings_counts_per_round.length === 1) {
+    print: "  health ── 🔴 ${round_findings.critical} critical  🟡 ${round_findings.advisory} advisory  💡 ${round_findings.yagni} yagni"
+  } else {
+    const prev = findings_counts_per_round[findings_counts_per_round.length - 2]
+    const c_delta = round_findings.critical - prev.critical
+    const a_delta = round_findings.advisory - prev.advisory
+    const c_dir = c_delta < 0 ? `↓${Math.abs(c_delta)}` : c_delta > 0 ? `↑${c_delta}` : '→0'
+    const a_dir = a_delta < 0 ? `↓${Math.abs(a_delta)}` : a_delta > 0 ? `↑${a_delta}` : '→0'
+    print: "  health ── 🔴 ${prev.critical}→${round_findings.critical} (${c_dir})  🟡 ${prev.advisory}→${round_findings.advisory} (${a_dir})  💡 ${round_findings.yagni} yagni"
   }
 
   // remaining_files still has entries with fixes_applied > 0 → next round (back to PHASE A: Inspect)
@@ -1054,6 +1146,30 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
       // If round was partial (Task failures), reset clean clusters to pending (results may be stale)
       if (round_had_failures && cluster_backlog[file][cluster.id]?.status === 'clean') {
         cluster_backlog[file][cluster.id].status = 'pending'
+      }
+    }
+  }
+
+  // Memoization milestones — track cluster_backlog convergence progress
+  {
+    let total_backlog_entries = 0
+    let clean_entries = 0
+    for (const file of Object.keys(cluster_backlog)) {
+      for (const cluster of CLUSTERS) {
+        if (cluster_backlog[file][cluster.id]?.status === 'skipped') continue
+        total_backlog_entries++
+        if (cluster_backlog[file][cluster.id]?.status === 'clean') clean_entries++
+      }
+    }
+    if (total_backlog_entries > 0) {
+      const memo_pct = Math.round(100 * clean_entries / total_backlog_entries)
+      for (const threshold of [25, 50, 75]) {
+        if (memo_pct >= threshold && !memo_milestones_printed.has(threshold)) {
+          memo_milestones_printed.add(threshold)
+          const filled = Math.round(10 * memo_pct / 100)
+          const bar = '█'.repeat(filled) + '░'.repeat(10 - filled)
+          print: "  memo ── ${threshold}% memoized [${bar}] ${clean_entries}/${total_backlog_entries}"
+        }
       }
     }
   }
@@ -1465,7 +1581,7 @@ For each task above, in order:
 
 **Fix loop start** (once, before WHILE loop):
 ```
-Print: "──── FIX LOOP ───────────"
+Print: "━━━ FIX LOOP ━━━━━━━━━━━━━━━━━━━━━━"
 Print: "  📂 Temp dir: ${REVIEW_TMPDIR}"
 ```
 
@@ -1537,7 +1653,7 @@ Status options per file:
 
 Example:
 ```
-──── FIX LOOP ───────────
+━━━ FIX LOOP ━━━━━━━━━━━━━━━━━━━━━━
   📂 Temp dir: /tmp/review-fix-a1b2c3
 
 🔧 Round [▓░░░░] [1/5]: 3 file(s), planning...
@@ -1624,7 +1740,7 @@ Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.len
 
 ### Summary Output
 
-Print: "──── SUMMARY ────────────"
+Print: "━━━ SUMMARY ━━━━━━━━━━━━━━━━━━━━━━━"
 
 ```markdown
 ╔════════════════════════════════════════╗
@@ -1730,7 +1846,7 @@ After teardown, stage, commit, and optionally create a PR if files were changed 
 - `final_status` is `APPROVED` or `APPROVED_WITH_NOTES`
 - Skip entirely if `NEEDS_REVISION` or `files_changed` is empty
 
-Print: "──── GIT ────────────────"
+Print: "━━━ GIT ━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 ### Step 5a: Branch Check (pr mode only)
 
