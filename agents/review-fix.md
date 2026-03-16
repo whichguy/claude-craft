@@ -191,6 +191,13 @@ dropped.
 
 **Team lead holds Edit permissions; reviewer Tasks are read-only.** Fixer Tasks apply edits; team lead aggregates results from fixer Task JSON output.
 
+## Concurrency Invariants
+
+1. **Phase A independence:** Each cluster Task writes to a unique file path: `${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_${cluster.id}.md`. The `slug_map` (computed per round from `remaining_files`) guarantees collision-free slugs even when different file paths would produce identical naive slugs (e.g., `src/foo-bar.ts` vs `src/foo_bar.ts`). No two Tasks share an output path.
+2. **Phase C independence:** Each fixer Task operates on exactly one file. No two fixer Tasks in the same wave touch the same file — tasks are grouped by file, then one fixer Task per file per wave.
+3. **Backlog completeness:** Every `(file, cluster)` pair starts as `pending`. The backlog shrinks only via memoization (cluster returned clean) or skipping (cluster not applicable to file type/content). No work is silently dropped.
+4. **Memoization safety:** A cluster is memoized (`clean`) only when its Q-numbers have no overlap with the round's applied fixes. Memoized clusters are re-activated if a fixer failure occurs on any task in the same file.
+
 ---
 
 ## Phase 1: Setup & Triage
@@ -610,8 +617,22 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     let round_clusters_dispatched = 0
     let round_clusters_skipped = 0
 
+    // Collision-safe slug map: compute all slugs upfront, disambiguate collisions
+    const slug_map = {}  // file path → unique slug
+    const slugs_used = new Set()
     for (const file of remaining_files) {
-      const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
+      let slug = file.replace(/[^a-zA-Z0-9]/g, '_')
+      if (slugs_used.has(slug)) {
+        let n = 2
+        while (slugs_used.has(`${slug}_${n}`)) n++
+        slug = `${slug}_${n}`
+      }
+      slugs_used.add(slug)
+      slug_map[file] = slug
+    }
+
+    for (const file of remaining_files) {
+      const file_slug = slug_map[file]
       const ext = file.split('.').pop().toLowerCase()
       const is_non_code = NON_CODE_EXTENSIONS.has(ext)
 
@@ -728,7 +749,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
 
     // 3. Reconcile cluster outputs per file — collect temp files + consolidate
     for (const file of remaining_files) {
-      const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
+      const file_slug = slug_map[file]
       const review_files = Glob(`${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_*.md`)
 
       if (review_files.length == 0) {
@@ -868,6 +889,11 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   }
 
   // Stage 2 (LLM): execution planner — analyzes tasks for dependencies and wave assignment
+  // Note: deterministic same-file dependency pre-check is unnecessary here because Phase C
+  // groups all tasks by file — one fixer Task per file per wave processes tasks sequentially.
+  // Same-file conflicts are structurally impossible. The LLM planner adds value for cross-file
+  // dependencies (symbol renames, config changes, schema contracts). Its fallback (all wave 0)
+  // is safe — correctness is preserved, only parallelism is lost.
   const files_with_tasks = new Set(tasks.map(t => t.file))
   const task_ids_set = new Set(tasks.map(t => t.task_id))
 
