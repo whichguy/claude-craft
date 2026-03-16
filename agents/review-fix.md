@@ -574,8 +574,10 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   print: "🔧 Round [▓ × round + ░ × (max_rounds - round)] [round/max_rounds]: [remaining_files.length] file(s), planning..."
 
   fixes_applied_per_file = {}
+  const round_applied_q_numbers = {}  // { file: Set<q_number> } — per-round only
   for each file in remaining_files:
     fixes_applied_per_file[file] = 0
+    round_applied_q_numbers[file] = new Set()
 
   // Track failed tasks within this round (reset each round)
   const failed_tasks = new Set()
@@ -589,6 +591,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   if (round > 1) {
     // 1. Determine active clusters per file (respect backlog + trigger patterns)
     const cluster_task_specs = []
+    const per_file_plans = {}
     let round_clusters_dispatched = 0
     let round_clusters_skipped = 0
 
@@ -623,19 +626,18 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
       round_clusters_skipped += skipped_cluster_ids.length + overflow
 
       // Store per-file cluster plan for printing after total is computed
-      cluster_task_specs._per_file_plan = cluster_task_specs._per_file_plan || {}
       const recheck_ids = capped_clusters
         .filter(c => cluster_backlog[file][c.id].status === 'has_findings')
         .map(c => c.id)
       const recheck_note = recheck_ids.length > 0 ? `, re-check: ${recheck_ids.join(', ')}` : ''
       const skip_note = skipped_cluster_ids.length > 0 ? `, ${skipped_cluster_ids.join(', ')} skipped` : ''
-      cluster_task_specs._per_file_plan[file] = `    → ${file}: ${capped_clusters.map(c => c.id).join(', ')} (${capped_clusters.length} cluster(s)${skip_note}${recheck_note})`
+      per_file_plans[file] = `    → ${file}: ${capped_clusters.map(c => c.id).join(', ')} (${capped_clusters.length} cluster(s)${skip_note}${recheck_note})`
     }
 
     // Print dispatch total first, then per-file details (matches Phase 3 Print Format spec)
     print: "  ↗ Dispatching ${round_clusters_dispatched} cluster task(s) across ${remaining_files.length} file(s)..."
     for (const file of remaining_files) {
-      if (cluster_task_specs._per_file_plan?.[file]) print: cluster_task_specs._per_file_plan[file]
+      if (per_file_plans[file]) print: per_file_plans[file]
     }
 
     // 2. Dispatch all cluster Tasks in parallel (batched by MAX_CONCURRENT_TASKS)
@@ -977,6 +979,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
         if (tr.status === 'applied') {
           wave_applied++
           fixes_applied_per_file[file] = (fixes_applied_per_file[file] || 0) + 1
+          round_applied_q_numbers[file]?.add(original_task.q_number)
           if (original_task.severity === 'critical') {
             append { file, q_number: original_task.q_number, description: original_task.description, type: 'critical' } to critical_resolved (apply dedup guard)
           } else {
@@ -1038,12 +1041,8 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   // Q-numbers had fixes applied this round. Clean clusters with no related fixes are memoized.
   for (const file of remaining_files) {
     if (!cluster_backlog[file]) continue
-    const applied_for_file = [
-      ...critical_resolved.filter(r => r.file === file),
-      ...advisory_applied.filter(r => r.file === file)
-    ]
-    const affected_q_numbers = new Set(applied_for_file.map(r => r.q_number))
-    const round_complete = !fix_failures.some(r => r.file === file && r.reason === 'timeout')
+    const affected_q_numbers = round_applied_q_numbers[file] || new Set()
+    const round_had_failures = failed_tasks.size > 0 && tasks.some(t => t.file === file && failed_tasks.has(t.task_id))
 
     for (const cluster of CLUSTERS) {
       if (cluster_backlog[file][cluster.id]?.status === 'skipped') continue
@@ -1053,7 +1052,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
         cluster_backlog[file][cluster.id].status = 'pending'
       }
       // If round was partial (Task failures), reset clean clusters to pending (results may be stale)
-      if (!round_complete && cluster_backlog[file][cluster.id]?.status === 'clean') {
+      if (round_had_failures && cluster_backlog[file][cluster.id]?.status === 'clean') {
         cluster_backlog[file][cluster.id].status = 'pending'
       }
     }
@@ -1319,10 +1318,10 @@ const CLUSTERS = [
     questions: [
       { id: 'Q4', title: 'Intent Alignment', definition: '**Q4 — Intent Alignment**: Are there function names, return types, or behaviors that contradict what the task description or acceptance criteria specify?' },
       { id: 'Q5', title: 'Minimal Change', definition: '**Q5 — Minimal Change**: Are there abstractions, new dependencies, or indirection layers that the acceptance criteria don\'t justify? Could any new code be accomplished by extending existing modules or patterns instead of introducing new ones?' },
-      { id: 'Q12', title: 'Question Tables', definition: '**Q12 — Question Tables**: Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables?' },
+      { id: 'Q12', title: 'Question Tables', definition: '**Q12 — Question Tables** (only if file contains `| Q` table patterns — skip otherwise): Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables?' },
       { id: 'Q13', title: 'Content Review', definition: '**Q13 — Content Review** (non-code files only): Does this change achieve its stated purpose? Is the modified content clear, accurate, and consistent with surrounding context?' }
     ],
-    triggers: null  // always active (Q12/Q13 apply to non-code; Q4+Q5 apply to all)
+    triggers: null  // always active (Q4+Q5 apply to all; Q12 applies when file has | Q table patterns; Q13 applies to non-code files only)
   },
   {
     id: 'integration',
