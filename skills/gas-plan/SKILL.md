@@ -76,7 +76,7 @@ Each question is owned by one perspective or shared. Tags: `[F]` = Frontend, `[G
 - Note: Q43 (plan legibility) is evaluated post-loop, not by this evaluator during convergence passes.
 
 **GAS evaluator** — backend/infrastructure focus:
-- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51
+- Primary: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51, Q52, Q53, Q54
 - Shared (backend lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
 **Shared questions** (Q13, Q15, Q16, Q27, Q28, Q38, Q41): Both evaluators report on these. Team-lead merges: combine findings, keep the more actionable wording. Q47 (card navigation) is a Gmail-domain GAS-primary question — not in the shared list above. GAS evaluator covers it when active (bulk N/A when no Gmail add-on); frontend evaluator covers it only in the GAS-skipped fallback (see triage shortcut below).
@@ -214,7 +214,7 @@ DO:
         Patterns sections of ~/.claude/CLAUDE.md as needed (skip unrelated sections).
 
       Evaluate these questions through the GAS engineering lens:
-        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51
+        GAS-owned: Q1-Q12, Q17-Q26, Q29, Q37, Q39-Q40, Q42, Q44, Q45, Q46, Q47, Q48, Q49, Q50, Q51, Q52, Q53, Q54
         Shared (GAS lens): Q13, Q15, Q16, Q27, Q28, Q38, Q41
 
       Triage: If plan has no .gs/deployment/common-js changes → bulk N/A GAS-specific Qs.

@@ -748,7 +748,7 @@ DO:
       ids = comma-sep sorted memoized_gas_questions
       gas_memo_directive = "Memoized questions — SKIP (stable PASS): " + ids + "\nOutput these as \"Q{N}: PASS (memoized)\" without re-evaluating."
 
-    applicable_gas_count = 50  # total gas questions in evaluate mode (Q43 is post-loop only)
+    applicable_gas_count = 53  # total gas questions in evaluate mode (Q43 is post-loop only)
     fully_memoized_gas = len(memoized_gas_questions) >= applicable_gas_count
 
   ELSE IF IS_NODE:
@@ -1472,7 +1472,7 @@ Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_
 In IS_GAS mode, gas-plan runs as part of the parallel evaluator wave each pass (see Convergence
 Loop above). The gas-evaluator Task follows evaluate mode (as defined in `<gas_eval_path>`), which means:
 - gas-plan runs a SINGLE evaluation pass (no internal convergence loop)
-- Writes all 50-question findings to a JSON file in RESULTS_DIR (Q43 is post-loop only, not included in evaluate mode)
+- Writes all 53-question findings to a JSON file in RESULTS_DIR (Q43 is post-loop only, not included in evaluate mode)
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 
