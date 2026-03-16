@@ -1447,7 +1447,7 @@ Q-G9 results are included in the scorecard output (step 4 of "After Review Compl
 ## Layer 2: Code Change Quality
 
 Question definitions are in QUESTIONS.md — cluster evaluators read that file directly. Team-lead
-only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 35 questions organized into 6
+only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 38 questions organized into 6
 concern clusters. Cluster-level triage activates/deactivates entire clusters based on Haiku
 pre-classification. Active clusters are listed in `active_clusters` computed in Step 0.
 
@@ -1529,7 +1529,7 @@ Q-U1 through Q-U7 (UI specialization) plus Q-C17 and Q-C25 (merged from Client c
 - No separate client-evaluator is spawned when HAS_UI=true
 
 HAS_UI is orthogonal to IS_GAS/IS_NODE: a GAS project with a sidebar will have
-IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + impact cluster (always active for Q-C26/Q-C38/Q-C39/Q-C40) + ui-evaluator.
+IS_GAS=true, HAS_UI=true → spawns L1 + gas-evaluator + impact cluster (always active for Q-C26/Q-C35/Q-C37/Q-C38/Q-C39/Q-C40) + ui-evaluator.
 
 **Deduplication (HAS_UI + IS_GAS):** GAS UI concerns (sidebar, dialog) may overlap between
 gas-evaluator and ui-evaluator. Keep gas-evaluator's GAS-specific framing in those cases.

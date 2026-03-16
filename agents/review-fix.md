@@ -1029,8 +1029,8 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
           wave_applied++
           fixes_applied_per_file[file] = (fixes_applied_per_file[file] || 0) + 1
           round_applied_q_numbers[file]?.add(original_task.q_number)
-          if (original_task.severity === 'critical') {
-            append { file, q_number: original_task.q_number, description: original_task.description, type: 'critical' } to critical_resolved (apply dedup guard)
+          if (original_task.severity === 'critical' || original_task.severity === 'advisory/functional') {
+            append { file, q_number: original_task.q_number, description: original_task.description, type: original_task.severity } to critical_resolved (apply dedup guard)
           } else {
             append { file, q_number: original_task.q_number, description: original_task.description, type: 'advisory' } to advisory_applied (apply dedup guard)
           }
@@ -1775,7 +1775,7 @@ File Health
   └ [file3] ── 🔴 stuck ([N] findings)
 
 Findings Ledger
-  ┌ 🔴 Critical ── [critical_resolved.length] resolved, [stuck_findings.length] stuck
+  ┌ 🔴 Critical/Functional ── [critical_resolved.length] resolved, [stuck_findings.length] stuck
   ├ 🟡 Advisory ── [advisory_applied.length] applied, [advisory_stuck.length] no-fix, [fix_failures.length] failed
   └ 💡 YAGNI ──── [advisory_yagni.length] skipped
 
