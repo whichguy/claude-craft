@@ -1231,8 +1231,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 20 + sum(questions per active cluster) + (50 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
-    # 50 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
+    total_applicable_questions = 20 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
