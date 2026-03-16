@@ -152,7 +152,7 @@ per_round_phase_timings = []         # [{ inspect: N, plan: N, fix: N }] — one
 cluster_backlog = {}    # { file: { cluster_id: { status, round, q_numbers_affected } } }
                         # status: 'pending' | 'clean' | 'has_findings' | 'skipped'
 cluster_stats = []      # { round, clusters_dispatched, clusters_skipped, clusters_memoized } — for summary telemetry
-findings_counts_per_round = []   # [{critical: N, advisory: N, yagni: N, total: N}]
+findings_counts_per_round = []   # [{critical: N, functional: N, advisory: N, yagni: N, total: N}]
 memo_milestones_printed = new Set()  # {25, 50, 75}
 phase_timings = {}      # { inspect: N, plan: N, fix: N } — reset per round, milliseconds
 ```
@@ -170,6 +170,9 @@ squash-merges to the default branch, deletes the feature branch, and outputs `PR
 the branch irreversibly.**
 
 **Critical** findings auto-fix when a Fix block exists.
+**Advisory/Functional** findings are functional bugs (wrong output, data loss, schema mismatch)
+that deserve auto-fix treatment. WITH a Fix block: auto-applied same as Critical. WITHOUT a Fix
+block: routed to `stuck_findings[]` (Critical-equivalent), producing `NEEDS_REVISION`.
 **Advisory** findings WITH a Fix block are **auto-applied in Phase 3** — applied by fixer Tasks in
 the same round as Critical fixes, counted toward `fixes_applied_per_file`.
 `Advisory/YAGNI` findings are never auto-applied — they are recorded in `advisory_yagni[]`
@@ -804,7 +807,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
             append { file, ...f } to advisory_yagni (apply dedup guard)
           } else if (!f.fix_block && f.severity === 'Advisory') {
             append { file, ...f } to advisory_stuck (apply dedup guard)
-          } else if (!f.fix_block && f.severity === 'Critical') {
+          } else if (!f.fix_block && (f.severity === 'Critical' || f.severity === 'Advisory/Functional')) {
             append { file, ...f } to stuck_findings (apply dedup guard)
           }
         }
@@ -820,7 +823,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     const files_over_limit = remaining_files.filter(f => per_file_rounds[f] >= max_rounds)
     for (const file of files_over_limit) {
       const unresolved = parse_findings(current_findings[file])
-      unresolved.filter(c => c.severity === 'Critical').forEach(c => {
+      unresolved.filter(c => c.severity === 'Critical' || c.severity === 'Advisory/Functional').forEach(c => {
         append { file, ...c } to stuck_findings (apply dedup guard)
       })
       unresolved.filter(a => a.severity === 'Advisory' && !a.fix_block).forEach(a => {
@@ -846,7 +849,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
       append { file: s.file, q_number: s.q_number, severity: s.severity } to advisory_yagni (apply dedup guard)
     } else if (s.reason === 'no_fix_block' && s.severity === 'advisory') {
       append { file: s.file, q_number: s.q_number, severity: s.severity } to advisory_stuck (apply dedup guard)
-    } else if (s.reason === 'no_fix_block' && s.severity === 'critical') {
+    } else if (s.reason === 'no_fix_block' && (s.severity === 'critical' || s.severity === 'advisory/functional')) {
       append { file: s.file, q_number: s.q_number, severity: s.severity } to stuck_findings (apply dedup guard)
     } else if (s.reason === 'malformed_fix_block') {
       // Fix block present but unparseable — record in fix_failures regardless of severity
@@ -1026,8 +1029,8 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
           wave_applied++
           fixes_applied_per_file[file] = (fixes_applied_per_file[file] || 0) + 1
           round_applied_q_numbers[file]?.add(original_task.q_number)
-          if (original_task.severity === 'critical') {
-            append { file, q_number: original_task.q_number, description: original_task.description, type: 'critical' } to critical_resolved (apply dedup guard)
+          if (original_task.severity === 'critical' || original_task.severity === 'advisory/functional') {
+            append { file, q_number: original_task.q_number, description: original_task.description, type: original_task.severity } to critical_resolved (apply dedup guard)
           } else {
             append { file, q_number: original_task.q_number, description: original_task.description, type: 'advisory' } to advisory_applied (apply dedup guard)
           }
@@ -1056,16 +1059,17 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   per_round_phase_timings.push({ inspect: phase_timings.inspect, plan: phase_timings.plan, fix: phase_timings.fix })
 
   // Snapshot findings counts for this round (used by delta/health/summary)
-  const round_findings = { critical: 0, advisory: 0, yagni: 0, total: 0 }
+  const round_findings = { critical: 0, functional: 0, advisory: 0, yagni: 0, total: 0 }
   for (const file of remaining_files) {
     const findings = parse_findings(current_findings[file])
     for (const f of findings) {
       if (f.severity === 'Critical') round_findings.critical++
+      else if (f.severity === 'Advisory/Functional') round_findings.functional++
       else if (f.severity === 'Advisory') round_findings.advisory++
       else if (f.severity === 'Advisory/YAGNI') round_findings.yagni++
     }
   }
-  round_findings.total = round_findings.critical + round_findings.advisory + round_findings.yagni
+  round_findings.total = round_findings.critical + round_findings.functional + round_findings.advisory + round_findings.yagni
   findings_counts_per_round.push(round_findings)
 
   // Files with 0 fixes applied this round exit (nothing changed → done)
@@ -1118,14 +1122,16 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
 
   // Severity health bar — compact at-a-glance breakdown
   if (findings_counts_per_round.length === 1) {
-    print: "  health ── 🔴 ${round_findings.critical} critical  🟡 ${round_findings.advisory} advisory  💡 ${round_findings.yagni} yagni"
+    print: "  health ── 🔴 ${round_findings.critical} critical  🟠 ${round_findings.functional} functional  🟡 ${round_findings.advisory} advisory  💡 ${round_findings.yagni} yagni"
   } else {
     const prev = findings_counts_per_round[findings_counts_per_round.length - 2]
     const c_delta = round_findings.critical - prev.critical
+    const fn_delta = round_findings.functional - prev.functional
     const a_delta = round_findings.advisory - prev.advisory
     const c_dir = c_delta < 0 ? `↓${Math.abs(c_delta)}` : c_delta > 0 ? `↑${c_delta}` : '→0'
+    const fn_dir = fn_delta < 0 ? `↓${Math.abs(fn_delta)}` : fn_delta > 0 ? `↑${fn_delta}` : '→0'
     const a_dir = a_delta < 0 ? `↓${Math.abs(a_delta)}` : a_delta > 0 ? `↑${a_delta}` : '→0'
-    print: "  health ── 🔴 ${prev.critical}→${round_findings.critical} (${c_dir})  🟡 ${prev.advisory}→${round_findings.advisory} (${a_dir})  💡 ${round_findings.yagni} yagni"
+    print: "  health ── 🔴 ${prev.critical}→${round_findings.critical} (${c_dir})  🟠 ${prev.functional}→${round_findings.functional} (${fn_dir})  🟡 ${prev.advisory}→${round_findings.advisory} (${a_dir})  💡 ${round_findings.yagni} yagni"
   }
 
   // remaining_files still has entries with fixes_applied > 0 → next round (back to PHASE A: Inspect)
@@ -1212,9 +1218,9 @@ subdirectory (`${REVIEW_TMPDIR}/round_${round}/`) and merges into a single conso
 function parse_findings(review_text) {
   const findings = []
   // Split on finding header lines: "Finding: Critical" / "Finding: Advisory" / "Finding: Advisory/YAGNI"
-  const blocks = review_text.split(/(?=\*\*Finding:\s*(Critical|Advisory(?:\/YAGNI)?)\*\*)/i)
+  const blocks = review_text.split(/(?=\*\*Finding:\s*(Critical|Advisory(?:\/(?:Functional|YAGNI))?)\*\*)/i)
   for (const block of blocks) {
-    const sev_match = block.match(/\*\*Finding:\s*(Critical|Advisory(?:\/YAGNI)?)\*\*/i)
+    const sev_match = block.match(/\*\*Finding:\s*(Critical|Advisory(?:\/(?:Functional|YAGNI))?)\*\*/i)
     if (!sev_match) continue
     const severity = sev_match[1]
     const q_match = block.match(/\*\*Q(\d+)\*\*|Q-number:\s*Q?(\d+)/i)
@@ -1233,8 +1239,9 @@ function rebuild_review_markdown(findings) {
   const sections = findings.map(f => f.raw).join('\n\n---\n\n')
   // Determine overall status from severity of remaining findings
   const has_critical = findings.some(f => f.severity === 'Critical')
+  const has_functional = findings.some(f => f.severity === 'Advisory/Functional')
   const has_advisory = findings.some(f => f.severity === 'Advisory')
-  const status = has_critical ? 'NEEDS_REVISION'
+  const status = has_critical || has_functional ? 'NEEDS_REVISION'
     : has_advisory ? 'APPROVED_WITH_NOTES'
     : 'APPROVED'
   return `## Code Review: consolidated\n\n${sections}\n\n**Status**: ${status}\n`
@@ -1253,7 +1260,7 @@ function consolidate_findings(reviews) {
   }
 
   // For each group, select the best representative
-  const severity_rank = { 'Critical': 3, 'Advisory': 2, 'Advisory/YAGNI': 1 }
+  const severity_rank = { 'Critical': 3, 'Advisory/Functional': 2.5, 'Advisory': 2, 'Advisory/YAGNI': 1 }
   const consolidated = Object.values(groups).map(group => {
     // Sort: highest severity first, prefer findings WITH fix blocks
     group.sort((a, b) => {
@@ -1269,10 +1276,11 @@ function consolidate_findings(reviews) {
   return rebuild_review_markdown(consolidated)
 }
 
-// detect_introduced_by_fix: compare new criticals against old to find regressions
+// detect_introduced_by_fix: compare new criticals/functionals against old to find regressions
 function detect_introduced_by_fix(file, new_review, old_review, round) {
-  const new_criticals = parse_findings(new_review).filter(f => f.severity === 'Critical')
-  const old_criticals = parse_findings(old_review).filter(f => f.severity === 'Critical')
+  const is_actionable = f => f.severity === 'Critical' || f.severity === 'Advisory/Functional'
+  const new_criticals = parse_findings(new_review).filter(is_actionable)
+  const old_criticals = parse_findings(old_review).filter(is_actionable)
   const old_keys = new Set(
     old_criticals.map(c => `${c.q_number || ''}:${c.description}`)
   )
@@ -1426,7 +1434,8 @@ const CLUSTERS = [
     questions: [
       { id: 'Q1', title: 'Correctness', definition: '**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.' },
       { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Could user-controlled data reach a sensitive operation (DB, eval, file system, HTML) without adequate validation?' },
-      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' }
+      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' },
+      { id: 'Q14', title: 'Type Cast Consistency', definition: '**Q14 — Type Cast Consistency**: When a type or interface is modified in this changeset, trace its usage across files: are there `as Type`, `<Type>`, or `Record<string, unknown>` casts that bypass the updated definition? Casts written before a type extension pin callers to the old shape, hiding new fields from the checker and producing silent field-access failures at runtime.' }
     ],
     triggers: null  // always active for code files
   },
@@ -1461,12 +1470,14 @@ const CLUSTERS = [
     questions: [
       { id: 'Q6', title: 'React Hooks', definition: '**Q6 — React Hooks**: Are hook dependency arrays complete? Could stale closures cause missed updates?' },
       { id: 'Q9', title: 'Test Quality', definition: '**Q9 — Test Quality**: Do tests verify behavior (correct outputs, error paths) or just execution (no throw)?' },
-      { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' }
+      { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' },
+      { id: 'Q15', title: 'Untested Failure Paths', definition: '**Q15 — Untested Failure Paths**: Trace error-handling and fallback branches: could any produce silently wrong results if the upstream assumption fails — and is that path covered by a test? Flag: catch blocks returning defaults instead of propagating, config lookups with fallback values that mask structural errors, optional chaining (`?.`) silently yielding undefined that downstream code treats as valid data.' }
     ],
     triggers: [
       /useState|useEffect|useCallback/,            // Q6: React hooks
       /describe\s*\(|it\s*\(|expect\s*\(/,         // Q9: test patterns
-      /SELECT\s|INSERT\s|query\s*\(|\.raw\s*\(/    // Q10: SQL patterns
+      /SELECT\s|INSERT\s|query\s*\(|\.raw\s*\(/,   // Q10: SQL patterns
+      /catch\s*\(|\.catch\(|\?\.\w/                 // Q15: catch blocks and optional chaining
     ]
   }
 ]
@@ -1516,6 +1527,12 @@ Read this file using the Read tool before evaluating.
 Evaluate ONLY these questions:
 
 ${questions.map(q => q.definition).join('\n\n')}
+
+## Severity Decision
+Ask: "If deployed, would this produce wrong output or silently lose/corrupt data?"
+YES → \`Advisory/Functional\` (auto-fix priority; NEEDS_REVISION when stuck)
+NO → \`Advisory\` (style, readability, refactoring; APPROVED_WITH_NOTES when stuck)
+Calibration: config misread returning wrong default → Functional. Schema access returning undefined silently → Functional. Misleading variable name → Advisory. Redundant null check → Advisory.
 
 ## Context
 worktree="${context.worktree}"
@@ -1707,7 +1724,7 @@ Example:
 
   🗑️ Cleaned up: /tmp/review-fix-a1b2c3
 
-✅ Fix loop complete — 3 round(s), 5 critical resolved, 0 advisory applied | clusters/round: 2, 1 (37.0s)
+✅ Fix loop complete — 3 round(s), 5 critical resolved, 0 advisory applied (37.0s)
 ```
 
 ---
@@ -1723,7 +1740,7 @@ Print: "✅ All files clean — no fixes needed ([total_elapsed]s)"
 
 All clean after fixes:
 ```
-Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied | clusters/round: [cluster_stats.map(s => s.clusters_dispatched).join(', ')] ([total_elapsed]s)"
+Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied ([total_elapsed]s)"
 ```
 
 Partial / stuck:
@@ -1758,7 +1775,7 @@ File Health
   └ [file3] ── 🔴 stuck ([N] findings)
 
 Findings Ledger
-  ┌ 🔴 Critical ── [critical_resolved.length] resolved, [stuck_findings.length] stuck
+  ┌ 🔴 Critical/Functional ── [critical_resolved.length] resolved, [stuck_findings.length] stuck
   ├ 🟡 Advisory ── [advisory_applied.length] applied, [advisory_stuck.length] no-fix, [fix_failures.length] failed
   └ 💡 YAGNI ──── [advisory_yagni.length] skipped
 
