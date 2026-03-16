@@ -193,10 +193,10 @@ dropped.
 
 ## Concurrency Invariants
 
-1. **Phase A independence:** Each cluster Task writes to a unique file path: `${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_${cluster.id}.md`. The `slug_map` (computed per round from `remaining_files`) guarantees collision-free slugs even when different file paths would produce identical naive slugs (e.g., `src/foo-bar.ts` vs `src/foo_bar.ts`). No two Tasks share an output path.
-2. **Phase C independence:** Each fixer Task operates on exactly one file. No two fixer Tasks in the same wave touch the same file — tasks are grouped by file, then one fixer Task per file per wave.
-3. **Backlog completeness:** Every `(file, cluster)` pair starts as `pending`. The backlog shrinks only via memoization (cluster returned clean) or skipping (cluster not applicable to file type/content). No work is silently dropped.
-4. **Memoization safety:** A cluster is memoized (`clean`) only when its Q-numbers have no overlap with the round's applied fixes. Memoized clusters are re-activated if a fixer failure occurs on any task in the same file.
+1. **Phase A:** Each cluster Task writes to `${file_slug}_cluster_${cluster.id}.md`. `slug_map` guarantees collision-free slugs (e.g., `foo-bar.ts` vs `foo_bar.ts` get distinct slugs). No shared output paths.
+2. **Phase C:** One fixer Task per file per wave. No two fixers touch the same file concurrently.
+3. **Backlog:** Every `(file, cluster)` starts `pending`, shrinks only via memoization or skip. No silent drops.
+4. **Memo safety:** Cluster memoized only when its Q-numbers don't overlap with round's applied fixes. Re-activated on fixer failure in same file.
 
 ---
 
@@ -888,12 +888,9 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     break
   }
 
-  // Stage 2 (LLM): execution planner — analyzes tasks for dependencies and wave assignment
-  // Note: deterministic same-file dependency pre-check is unnecessary here because Phase C
-  // groups all tasks by file — one fixer Task per file per wave processes tasks sequentially.
-  // Same-file conflicts are structurally impossible. The LLM planner adds value for cross-file
-  // dependencies (symbol renames, config changes, schema contracts). Its fallback (all wave 0)
-  // is safe — correctness is preserved, only parallelism is lost.
+  // Stage 2 (LLM): execution planner — dependency graph + wave assignment
+  // Same-file safety: Phase C groups tasks by file (one fixer per file per wave) — no pre-check needed.
+  // LLM planner handles cross-file deps; fallback (all wave 0) is safe (correctness preserved).
   const files_with_tasks = new Set(tasks.map(t => t.file))
   const task_ids_set = new Set(tasks.map(t => t.task_id))
 

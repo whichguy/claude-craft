@@ -427,13 +427,9 @@ DO:
     evaluators_to_spawn.append({name: "ui-evaluator", task_config: <ui_config below>})
 
   -- Concurrency invariants --
-  # 1. Evaluator independence: each evaluator writes to <RESULTS_DIR>/<evaluator_name>.json.
-  #    Names are unique by construction (l1-blocking, l1-advisory, gas-evaluator, node-evaluator,
-  #    <cluster>-evaluator, ui-evaluator). No two Tasks share an output path.
-  # 2. Plan is read-only: evaluators may NOT edit the plan — all edits are applied by the
-  #    orchestrator after fan-in. Evaluators only read the plan file and write their own JSON.
-  # 3. Wave ordering preserves priority: higher-priority evaluators (L1-blocking) are in earlier
-  #    waves, ensuring their results inform orchestrator decisions before lower-priority results.
+  # Each evaluator writes to <RESULTS_DIR>/<name>.json (unique by construction). No shared paths.
+  # Evaluators are read-only on the plan — all edits applied by orchestrator after fan-in.
+  # Wave order = priority order: L1-blocking first, UI last.
 
   -- Wave spawning --
   dispatch_start_time = Date.now()
