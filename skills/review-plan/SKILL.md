@@ -271,6 +271,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
    MAX_CONCURRENT = 4              # max parallel evaluator tasks per wave; tunable
+   dispatch_start_time = 0    # set before wave spawning
+   fanin_start_time = 0       # set after all waves complete
+   apply_start_time = 0       # set before edit application
+   pass_phase_timings = []    # [{dispatch: Ns, fanin: Ns, apply: Ns, total: Ns}] per pass
+   evaluators_spawned_total = 0  # running sum of evaluators spawned across all passes
    memo_file = "~/.claude/.review-plan-memo-" + plan_slug + ".json"
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # Path is stable (no timestamp) so context recovery always finds the right file.
@@ -342,7 +347,9 @@ DO:
                      memoized_node_questions (default set()),
                      memoized_node_since (default {}),
                      prev_gas_results (default {}),
-                     prev_node_results (default {})
+                     prev_node_results (default {}),
+                     pass_phase_timings (default []),
+                     evaluators_spawned_total (default 0)
     results_dir = memo_data.results_dir
     # Guard for old memo format (written before task fan-out refactor)
     IF results_dir is null or empty:
@@ -419,7 +426,9 @@ DO:
     evaluators_to_spawn.append({name: "ui-evaluator", task_config: <ui_config below>})
 
   -- Wave spawning --
+  dispatch_start_time = Date.now()
   total_evaluators = len(evaluators_to_spawn)
+  evaluators_spawned_total += total_evaluators
   waves = chunk(evaluators_to_spawn, MAX_CONCURRENT)
   Print: "  >> Building evaluator wave schedule"
   Print: "  evaluators: [total_evaluators] across [len(waves)] wave(s) (max [MAX_CONCURRENT] concurrent)"
@@ -476,6 +485,8 @@ DO:
 
     Print: "  ── wave [wave_idx+1] complete: [len(wave_results)]/[len(wave_names)]"
     Print: "  >> Wave [wave_idx+1] finished — merging results into pass accumulator"
+
+  fanin_start_time = Date.now()
 
   -- Print memoized evaluators (not spawned) --
   FOR each cluster_name in memoized_clusters:
@@ -994,6 +1005,8 @@ DO:
     Print: "  [total_findings_before_dedup] findings → [dedup_removed] deduped → [changes_to_apply] edits queued"
     Print: "  >> Applying edits to the plan — each change will be verified"
 
+  IF changes_to_apply > 0:
+    apply_start_time = Date.now()
   APPLY edits — for each finding with edit != null in any evaluator's JSON data:
     Print: ""
     FOR idx, edit in enumerate(edits_to_apply):
@@ -1251,7 +1264,9 @@ DO:
     memoized_node_questions: [...memoized_node_questions],
     memoized_node_since,
     prev_gas_results,
-    prev_node_results
+    prev_node_results,
+    pass_phase_timings,
+    evaluators_spawned_total
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -1269,6 +1284,14 @@ DO:
     Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── 0 changes  [{pass_elapsed}s]"
   else:
     Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── [changes_this_pass] changes ([join(breakdown_parts, ' ')])  [{pass_elapsed}s]"
+
+  # Phase-level timing breakdown
+  dispatch_elapsed = ((fanin_start_time - dispatch_start_time) / 1000).toFixed(1)
+  # apply_start_time is 0 when changes_to_apply == 0 (apply block was skipped entirely)
+  fanin_elapsed = apply_start_time > 0 ? ((apply_start_time - fanin_start_time) / 1000).toFixed(1) : ((Date.now() - fanin_start_time) / 1000).toFixed(1)
+  apply_elapsed = apply_start_time > 0 ? ((Date.now() - apply_start_time) / 1000).toFixed(1) : "—"
+  pass_phase_timings.append({dispatch: dispatch_elapsed, fanin: fanin_elapsed, apply: apply_elapsed, total: pass_elapsed})
+  Print: "  timing ── dispatch: ${dispatch_elapsed}s  fan-in: ${fanin_elapsed}s  apply: ${apply_elapsed}s  total: ${pass_elapsed}s"
 
   # Delta visualization (Enhancement C)
   IF pass_count == 1:
@@ -1597,6 +1620,25 @@ Triaged N/A                            ← omit entirely if total N/A count acro
       [Question name] ([Q-ID]): [one-phrase reason]
     [omit per-question listing for GAS-superseded clusters and flag-inactive clusters]
   [Note: Q-G9 is skipped at the section level when plan has < 3 steps — do not list it here as individual N/A items]
+
+Review History                           ← omit if pass_count == 1 (single-pass convergence)
+  Pass  Changes  Memoized         Gate 1  Gate 2  Duration  Timing (dispatch / fan-in / apply)
+  [for each pass N from 1 to pass_count:]
+  [N]   [changes_this_pass]     [memo_count]/[total_applicable_questions]   [gate1_open] open  [gate2_open] open  [pass_durations[N-1]]s  [dispatch_Ns] / [fanin_Ns] / [apply_Ns]
+  Total: [pass_count] passes, [total_changes_all_passes] changes, [total_elapsed]s
+
+  Changes from needs_update_counts_per_pass difference (pass N changes = changes applied that pass).
+  Memoized = locked question count at end of that pass.
+  Gate 1/Gate 2 open counts from needs_update_counts_per_pass breakdown.
+  Duration from pass_durations[N-1]. Timing from pass_phase_timings[N-1].
+
+Efficiency                               ← omit if pass_count == 1
+  evaluators spawned: [evaluators_spawned_total] across [pass_count] pass(es)
+  memoized/skipped: [total memoized evaluator-passes]
+  memo coverage: [pct]% ([locked_questions]/[total_applicable_questions] questions)
+
+  Memoized evaluator-passes = sum of evaluators NOT spawned each pass due to memoization.
+  Memo coverage = 100 * locked_questions / total_applicable_questions at final pass.
 ```
 
 ---
