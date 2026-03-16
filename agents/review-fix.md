@@ -1,17 +1,19 @@
 ---
 name: review-fix
 description: |
-  Iterative review-fix loop with Inspect→Plan→Fix architecture: spawns parallel code-reviewer
-  subagents per file (single Task for 1 file, parallel Tasks for 2+), decomposes findings into
-  discrete tasks via deterministic parsing + LLM execution planner, then fans out fixer Tasks
+  Iterative review-fix loop with Inspect→Plan→Fix architecture: dispatches parallel cluster-based
+  reviewer Tasks per file (safety, intent, integration, ecosystem clusters), decomposes findings
+  into discrete tasks via deterministic parsing + LLM execution planner, then fans out fixer Tasks
   by wave (parallel within wave, respecting cross-file dependencies). Advisory/YAGNI skipped;
   loops per-file until clean (max 5 rounds), then commits and optionally creates a PR
   (commit_mode="pr" default: commit + push + PR + squash merge + delete branch;
   commit_mode="commit": commit only). Supports optional plan_summary parameter for
   intent-aligned review. Git fallback auto-detects changed files when target_files is empty.
-  Progressive parallelism: scales reviewers per file per round via max_reviewers parameter
-  (default 3, range [1,5]). Round 1 skips Inspect (uses Phase 2 output), enters at Plan.
-  Rounds 2+ run full Inspect→Plan→Fix cycle.
+  Cluster-based parallelism: PHASE A dispatches domain clusters (safety, intent, integration,
+  ecosystem) per file with incremental re-review backlog — only re-runs clusters affected by
+  fixes. max_clusters_per_file parameter caps cluster Tasks per file (default 4, range [1,4]).
+  Round 1 skips Inspect (uses Phase 2 output), enters at Plan. Rounds 2+ run full
+  Inspect→Plan→Fix cycle with cluster dispatch.
   **AUTOMATICALLY INVOKE** after implementing features, fixing bugs, before committing,
   or after plan implementation completes (user approves + all changes made).
   **STRONGLY RECOMMENDED** before merging to main, after refactoring,
@@ -29,8 +31,8 @@ in Phase 3 (same round as Critical) — counted toward `fixes_applied_per_file`;
 Advisory/YAGNI is skipped; Advisory without a Fix block records as stuck
 and surfaces for human review.
 
-Phase 3 uses an **Inspect → Plan → Fix** architecture with progressive parallelism:
-- **Inspect**: fan out `min(round-1, max_reviewers)` reviewer Tasks per file, consolidate, filter
+Phase 3 uses an **Inspect → Plan → Fix** architecture with cluster-based parallelism:
+- **Inspect**: dispatch domain clusters (safety, intent, integration, ecosystem) per file, consolidate by Q-number, filter. Incremental re-review backlog skips clusters unaffected by fixes.
 - **Plan**: deterministic task decomposition (`decompose_findings`) + LLM execution planner (dependency graph, waves)
 - **Fix**: fan out fixer Tasks by wave (parallel within wave, respecting cross-file dependencies)
 
@@ -40,7 +42,7 @@ Round 1 skips Inspect (uses Phase 2 output) and enters directly at Plan. Rounds 
 Flow: Setup & Triage → Initial Review ──────────────────────────────► Summary → Git Ops
                                        ↑                             ↑
                            Round-based loop (Inspect → Plan → Fix):  │
-                           Inspect: fan out N reviewers → consolidate│
+                           Inspect: dispatch clusters → consolidate  │
                            Plan: decompose → planner → wave schedule │
                            Fix: execute waves → aggregate results    │
                            → filter clean → repeat ─────────────────┘
@@ -57,7 +59,7 @@ Flow: Setup & Triage → Initial Review ─────────────�
   - `"pr"` (default) — stage + commit + push + create PR + squash merge + delete branch + checkout default branch
   - `"commit"` — stage + commit only (for POST_IMPLEMENT pipeline, which handles PR separately)
 - `plan_summary="${7:-}"` — optional; context string describing the plan intent; injected into reviewer prompts to enable intent-alignment evaluation
-- `max_reviewers="${8:-3}"` — optional; max concurrent reviewers per file per round (default: 3, range [1, 5])
+- `max_clusters_per_file="${8:-4}"` — optional; max cluster Tasks per file per round (default: 4, range [1, 4])
 
 **Pre-flight**: If `task_name` is empty, stop and report:
 `Missing required parameters: task_name=[value]`
@@ -97,9 +99,9 @@ file_list = target_files.split(',').map(f => f.trim()).filter(f => f.length > 0)
 const parsed_rounds = parseInt(max_rounds)
 max_rounds = Math.max(1, Math.min(10, Number.isNaN(parsed_rounds) ? 5 : parsed_rounds))
 
-// Clamp max_reviewers to [1, 5]; NaN → 3, 0 → 1
-const parsed_reviewers = parseInt(max_reviewers)
-max_reviewers = Math.max(1, Math.min(5, Number.isNaN(parsed_reviewers) ? 3 : parsed_reviewers))
+// Clamp max_clusters_per_file to [1, 4]; NaN → 4, 0 → 1
+const parsed_clusters = parseInt(max_clusters_per_file)
+max_clusters_per_file = Math.max(1, Math.min(4, Number.isNaN(parsed_clusters) ? 4 : parsed_clusters))
 
 commit_mode = (commit_mode || '').toLowerCase()
 if (!['pr', 'commit'].includes(commit_mode)) {
@@ -138,7 +140,7 @@ files_changed = []
 files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or APPROVED_WITH_NOTES
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
-reviewer_counts = []       # number of reviewers dispatched per round (for summary telemetry)
+reviewer_counts = []       # (deprecated — retained for backward compat; cluster_stats preferred)
 base_commit = null          # hash of last non-review-fix commit (from Git Fallback); null if target_files provided explicitly
 impact_files = {}           # { file: [list of referencing files] } — populated by Step 1c Impact Discovery
 final_status = 'pending'
@@ -146,6 +148,9 @@ total_start_time = Date.now()        # set at Phase 1 start
 round_start_time = null              # set at start of each round
 round_durations = []                 # populated at end of each round
 # NOTE: failed_tasks is a per-round Set — declared inside the loop, not at state level
+cluster_backlog = {}    # { file: { cluster_id: { status, round, q_numbers_affected } } }
+                        # status: 'pending' | 'clean' | 'has_findings' | 'skipped'
+cluster_stats = []      # { round, clusters_dispatched, clusters_skipped } — for summary telemetry
 ```
 
 ## Behavioral Invariants
@@ -318,14 +323,14 @@ For each file in file_list (stop if total_impact_count >= 30):
 
 ```
 Print: "──── SETUP ──────────────"
-Print: "📋 review-fix: [file_count] file(s) | [single-agent|parallel-task] mode | max [max_rounds] rounds | max [max_reviewers] reviewers"
+Print: "📋 review-fix: [file_count] file(s) | [single-agent|parallel-task] mode | max [max_rounds] rounds | max [max_clusters_per_file] clusters/file"
 Print: "  [filename]  → [reviewer_type]"     (one line per file)
 ```
 
 Example:
 ```
 ──── SETUP ──────────────
-📋 review-fix: 3 files | parallel-task mode | max 5 rounds | max 3 reviewers
+📋 review-fix: 3 files | parallel-task mode | max 5 rounds | max 4 clusters/file
   Utils.gs           → gas-code-review
   src/main.ts        → code-reviewer
   Sidebar.html       → gas-ui-review
@@ -476,19 +481,53 @@ Print: "✅ All files clean — skipping to summary."         (if files_needing_
 Print: "[N] file(s) need fixes — entering fix loop."    (if files_needing_fixes.length > 0)
 ```
 
+### Phase 2 Post-Processing: Backlog Initialization
+
+After Phase 2 collects `current_findings` for all files, build the initial `cluster_backlog`:
+
+```javascript
+// Build initial cluster backlog from Phase 2 results
+// Uses NON_CODE_EXTENSIONS and CLUSTERS defined in Cluster Infrastructure section below.
+
+for (const file of files_needing_fixes) {
+  const findings = parse_findings(current_findings[file])
+  const q_numbers_with_findings = new Set(findings.map(f => f.q_number).filter(Boolean))
+  const ext = file.split('.').pop().toLowerCase()
+  const is_non_code = NON_CODE_EXTENSIONS.has(ext)
+
+  cluster_backlog[file] = {}
+  for (const cluster of CLUSTERS) {
+    // Non-code files: only intent cluster runs
+    if (is_non_code && cluster.id !== 'intent') {
+      cluster_backlog[file][cluster.id] = { status: 'skipped', round: 0, q_numbers_affected: [] }
+      continue
+    }
+    const cluster_qs = cluster.questions.map(q => q.id)
+    const affected = cluster_qs.some(q => q_numbers_with_findings.has(q))
+    cluster_backlog[file][cluster.id] = {
+      status: affected ? 'has_findings' : 'clean',
+      round: 0,
+      q_numbers_affected: cluster_qs.filter(q => q_numbers_with_findings.has(q))
+    }
+  }
+}
+```
+
 ---
 
 ## Phase 3: Fix Loop (Inspect → Plan → Fix)
 
 Process all files needing fixes in **global rounds**. Each round cycles through three phases:
-**Inspect** (fan out reviewers, consolidate, filter) → **Plan** (deterministic task decomposition +
+**Inspect** (dispatch cluster evaluators, consolidate, filter) → **Plan** (deterministic task decomposition +
 LLM execution planner) → **Fix** (fan out fixer Tasks by wave, aggregate results).
 
 Round 1 is special: Phase 2 already produced `current_findings[file]`, so round 1 skips
 PHASE A (Inspect) and enters directly at PHASE B (Plan). Rounds 2+ run the full A→B→C cycle.
 
-**Progressive parallelism**: Round 2 uses 1 reviewer per file, Round 3 uses 2, etc.,
-capped at `max_reviewers`. (Round 1 has no reviewers — it uses Phase 2 output.)
+**Cluster-based parallelism**: PHASE A dispatches domain clusters (safety, intent, integration,
+ecosystem) per file, each as an independent Task. Conditional clusters (integration, ecosystem)
+activate only when trigger patterns appear in the file. Incremental re-review backlog tracks
+cluster status — only clusters affected by fixes are re-run. Capped at `max_clusters_per_file`.
 
 ```
 remaining_files = files_needing_fixes (copy)
@@ -512,7 +551,7 @@ After PHASE C, control returns to the WHILE condition. The loop exits ONLY when
 ```
 print: "──── FIX LOOP ───────────"
 
-// Create shared temp dir for this run's reviewer outputs (persists across all rounds)
+// Create shared temp dir for this run's cluster/reviewer outputs (persists across all rounds)
 const REVIEW_TMPDIR = Bash(`mktemp -d /tmp/review-fix-XXXXXX`)
 print: "  📂 Temp dir: ${REVIEW_TMPDIR}"
 
@@ -522,12 +561,8 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   round += 1
   round_start_time = Date.now()
 
-  // Concurrency cap — applies to both reviewer dispatch (PHASE A) and fixer dispatch (PHASE C)
+  // Concurrency cap — applies to both cluster dispatch (PHASE A) and fixer dispatch (PHASE C)
   const MAX_CONCURRENT_TASKS = 4
-
-  // Progressive parallelism: reviewers scale with round number (round 1 skips Inspect entirely)
-  const num_reviewers = Math.min(round - 1, max_reviewers)  // round 1 → 0, round 2 → 1, round 3 → 2, ...
-  reviewer_counts.push(num_reviewers)  // always push (0 for round 1 = Phase 2 output, no in-loop reviewers)
 
   // Create round subdirectory for this round's temp files
   Bash(`mkdir -p ${REVIEW_TMPDIR}/round_${round}`)
@@ -545,133 +580,134 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   // Track failed tasks within this round (reset each round)
   const failed_tasks = new Set()
 
-  // ═══ PHASE A: Inspect — fan out reviewers + consolidate + filter ═══
+  // ═══ PHASE A: Inspect — cluster-based dispatch + consolidate + filter ═══
   // Round 1 skips PHASE A entirely — uses Phase 2's current_findings[file] output.
-  // Rounds 2+ run full Inspect: fan out N reviewer Tasks per file, consolidate, filter.
+  // Rounds 2+ dispatch domain clusters (safety, intent, integration, ecosystem) per file.
+  // Each cluster is an independent Task evaluating its subset of Q-questions.
+  // Incremental re-review: only clusters affected by prior-round fixes are re-run.
 
   if (round > 1) {
-    // Build the flat list of all reviewer Tasks to dispatch in one message
-    const reviewer_task_specs = []
+    // 1. Determine active clusters per file (respect backlog + trigger patterns)
+    const cluster_task_specs = []
+    let round_clusters_dispatched = 0
+    let round_clusters_skipped = 0
+
     for (const file of remaining_files) {
       const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
-      const resolved_reviewer = reviewer_map[file] || 'code-reviewer'
-      for (let i = 0; i < num_reviewers; i++) {
-        reviewer_task_specs.push({ file, file_slug, resolved_reviewer, reviewer_index: i + 1 })
+      const ext = file.split('.').pop().toLowerCase()
+      const is_non_code = NON_CODE_EXTENSIONS.has(ext)
+
+      // Guard: initialize backlog for files not seen in Phase 2 (e.g., added mid-loop)
+      if (!cluster_backlog[file]) {
+        cluster_backlog[file] = {}
+        for (const cluster of CLUSTERS) {
+          cluster_backlog[file][cluster.id] = { status: 'pending', round: 0, q_numbers_affected: [] }
+        }
       }
+
+      // Determine which clusters to dispatch for this file
+      const file_content = Read(file)
+      const active_clusters = get_active_clusters(file, file_content, is_non_code, cluster_backlog[file])
+      const active_cluster_ids = active_clusters.map(c => c.id)
+      const skipped_cluster_ids = CLUSTERS.filter(c => !active_cluster_ids.includes(c.id)).map(c => c.id)
+
+      // Cap at max_clusters_per_file
+      const capped_clusters = active_clusters.slice(0, max_clusters_per_file)
+      const overflow = active_clusters.length - capped_clusters.length
+
+      // Build Task specs for each active cluster
+      for (const cluster of capped_clusters) {
+        cluster_task_specs.push({ file, file_slug, cluster, is_recheck: cluster_backlog[file][cluster.id].status !== 'pending' })
+        round_clusters_dispatched++
+      }
+      round_clusters_skipped += skipped_cluster_ids.length + overflow
+
+      // Store per-file cluster plan for printing after total is computed
+      cluster_task_specs._per_file_plan = cluster_task_specs._per_file_plan || {}
+      const recheck_ids = capped_clusters
+        .filter(c => cluster_backlog[file][c.id].status === 'has_findings')
+        .map(c => c.id)
+      const recheck_note = recheck_ids.length > 0 ? `, re-check: ${recheck_ids.join(', ')}` : ''
+      const skip_note = skipped_cluster_ids.length > 0 ? `, ${skipped_cluster_ids.join(', ')} skipped` : ''
+      cluster_task_specs._per_file_plan[file] = `    → ${file}: ${capped_clusters.map(c => c.id).join(', ')} (${capped_clusters.length} cluster(s)${skip_note}${recheck_note})`
     }
 
-    // Concurrency guard: cap concurrent Tasks at MAX_CONCURRENT_TASKS
-    const reviewer_batch_size = Math.min(MAX_CONCURRENT_TASKS, reviewer_task_specs.length)
-    const reviewer_batches = []
-    for (let i = 0; i < reviewer_task_specs.length; i += reviewer_batch_size) {
-      reviewer_batches.push(reviewer_task_specs.slice(i, i + reviewer_batch_size))
-    }
-
-    print: "  ↗ Dispatching [reviewer_task_specs.length] reviewer task(s) ([num_reviewers] per file)..."
+    // Print dispatch total first, then per-file details (matches Phase 3 Print Format spec)
+    print: "  ↗ Dispatching ${round_clusters_dispatched} cluster task(s) across ${remaining_files.length} file(s)..."
     for (const file of remaining_files) {
-      const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
-      print: "    → Review ${file} × ${num_reviewers} → ${reviewer_map[file] || 'code-reviewer'}"
-      for (let ri = 1; ri <= num_reviewers; ri++) {
-        print: "      📝 ${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_${ri}.md"
-      }
+      if (cluster_task_specs._per_file_plan?.[file]) print: cluster_task_specs._per_file_plan[file]
     }
 
-    const reviewer_start = Date.now()
-    let re_review_results = []
-    for (const batch of reviewer_batches) {
-      const batch_results = await Promise.all(batch.map(({ file, file_slug, resolved_reviewer, reviewer_index }) =>
+    // 2. Dispatch all cluster Tasks in parallel (batched by MAX_CONCURRENT_TASKS)
+    const cluster_batch_size = Math.min(MAX_CONCURRENT_TASKS, cluster_task_specs.length)
+    const cluster_batches = []
+    for (let i = 0; i < cluster_task_specs.length; i += cluster_batch_size) {
+      cluster_batches.push(cluster_task_specs.slice(i, i + cluster_batch_size))
+    }
+
+    const cluster_start = Date.now()
+    let cluster_results = []
+    for (const batch of cluster_batches) {
+      const batch_results = await Promise.all(batch.map(({ file, file_slug, cluster, is_recheck }) =>
         Task({
-          subagent_type: resolved_reviewer,
-          description: `Re-review ${file} reviewer ${reviewer_index}/${num_reviewers} round ${per_file_rounds[file]}`,
-          prompt: (() => {
-            const file_impacts = impact_files[file] || []
-            const related = file_impacts.length > 0 ? file_impacts.join(',') : 'auto'
-            return `Review this file:
-target_files="${file}"
-task_name="${task_name}-round${per_file_rounds[file]}"
-worktree="${worktree}"
-dryrun=false
-related_files="${related}"
-review_mode="${review_mode}"
-${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
-${file_impacts.length > 0 ? `
-**Impact context**: The following files reference symbols changed in ${file}.
-Check Q11 (backward compatibility) against these actual callers:
-${file_impacts.map(f => '- ' + f).join('\n')}` : ''}
-
-This is re-review round ${per_file_rounds[file]} of ${max_rounds} for this file (reviewer ${reviewer_index} of ${num_reviewers}).
-
-**For non-GAS reviewers (code-reviewer):** Focus ONLY on:
-1. Lines modified by the fixes applied since the previous round
-2. Code that directly calls or is called by the modified sections
-Do NOT re-examine sections already APPROVED in a previous round.
-
-**For GAS reviewers (gas-code-review, gas-ui-review, gas-gmail-cards):** Run all phases on
-the full file — these reviewers perform whole-file phase scans with no line-scoping capability.
-
-Advisory findings that were already applied in a prior round should NOT be re-reported —
-they have been fixed. Only report new or remaining issues.
-
-Note: Advisory findings without a Fix block were recorded as stuck in a prior round.
-If they re-appear in this re-review, record them as-is and include them in your output.
-Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`
-with no Fix block — do not upgrade them to regular Advisory.
-
-Output your full review markdown starting with "## Code Review:".
-IMPORTANT: After completing your review, write your complete review output to:
-  ${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_${reviewer_index}.md
-using the Write tool. Your review output starts with "## Code Review:".
-Do NOT use SendMessage — your output is collected directly by the calling agent.`
-          })()
+          subagent_type: 'general-purpose',
+          model: 'sonnet',
+          description: `Cluster ${cluster.id} review ${file} round ${per_file_rounds[file]}`,
+          prompt: CLUSTER_PROMPT(cluster.id, cluster.questions, file, {
+            plan_summary,
+            impact_files: impact_files[file] || [],
+            is_recheck,
+            round: per_file_rounds[file],
+            worktree,
+            review_mode,
+            task_name,
+            output_path: `${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_${cluster.id}.md`
+          })
         }).catch(() => null)
       )).catch(err => {
-        print: "  ⚠️ Reviewer batch failed: ${err.message}"
+        print: "  ⚠️ Cluster batch failed: ${err.message}"
         return batch.map(() => null)
       })
-      re_review_results = re_review_results.concat(batch_results)
+      cluster_results = cluster_results.concat(
+        batch_results.map((result, idx) => ({ ...batch[idx], result }))
+      )
     }
-    const reviewer_elapsed = ((Date.now() - reviewer_start) / 1000).toFixed(1)
-    const reviewer_ok = re_review_results.filter(r => r !== null).length
-    const reviewer_failed = re_review_results.filter(r => r === null).length
-    print: "  ✓ [reviewer_ok] reviewer(s) completed, [reviewer_failed] failed in [reviewer_elapsed]s"
+    const cluster_elapsed = ((Date.now() - cluster_start) / 1000).toFixed(1)
+    const cluster_ok = cluster_results.filter(r => r.result !== null).length
+    const cluster_failed = cluster_results.filter(r => r.result === null).length
+    print: "  ✓ ${cluster_ok} cluster(s) completed, ${cluster_failed} failed in ${cluster_elapsed}s"
 
-    // Reconcile reviewer temp files + update current_findings
+    // Record cluster stats for telemetry
+    cluster_stats.push({ round, clusters_dispatched: round_clusters_dispatched, clusters_skipped: round_clusters_skipped })
+
+    // 3. Reconcile cluster outputs per file — collect temp files + consolidate
     for (const file of remaining_files) {
       const file_slug = file.replace(/[^a-zA-Z0-9]/g, '_')
-      const review_files = Glob(`${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_*.md`)
+      const review_files = Glob(`${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_*.md`)
 
-      // Output validation: compare expected vs actual temp files
       if (review_files.length == 0) {
-        print: "    ⚠️ ${file}: no reviewer output files — all ${num_reviewers} reviewer(s) failed to write (current_findings unchanged)"
-      } else if (review_files.length < num_reviewers) {
-        print: "    ⚠️ ${file}: expected ${num_reviewers} reviewer file(s), found ${review_files.length}"
+        print: "    ⚠️ ${file}: no cluster output files — all clusters failed to write (current_findings unchanged)"
       }
 
       if (review_files.length == 1) {
-        // Single reviewer — use output directly (no consolidation needed)
         const review_content = Read(review_files[0])
         introduced_by_fix.push(...detect_introduced_by_fix(file, review_content, current_findings[file], round))
         current_findings[file] = review_content
-
-        // Print summary
         const next_findings = parse_findings(review_content)
-        print: "    📊 ${file}: 1 review → ${next_findings.length} findings"
+        print: "    📊 ${file}: 1 cluster → ${next_findings.length} findings"
 
       } else if (review_files.length > 1) {
-        // Multiple reviewers — consolidate into unique union
         const reviews = review_files.map(f => Read(f))
         const total_before = reviews.flatMap(r => parse_findings(r)).length
         const consolidated = consolidate_findings(reviews)
         introduced_by_fix.push(...detect_introduced_by_fix(file, consolidated, current_findings[file], round))
         current_findings[file] = consolidated
-
-        // Print summary
         const next_findings = parse_findings(consolidated)
         const dupes_merged = total_before - next_findings.length
-        print: "    📊 ${file}: ${reviews.length} reviews → ${next_findings.length} unique findings (${dupes_merged} duplicates merged)"
+        print: "    📊 ${file}: ${reviews.length} clusters → ${next_findings.length} unique findings (${dupes_merged} duplicates merged)"
       }
 
-      // Shared post-reconciliation: write consolidated file + TODO list (both paths)
+      // Post-reconciliation: write consolidated file + TODO list + update backlog
       if (review_files.length > 0) {
         const consolidated_path = `${REVIEW_TMPDIR}/round_${round}/${file_slug}_consolidated.md`
         Write(consolidated_path, current_findings[file])
@@ -685,8 +721,31 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
             print: "      ${fix_tag} ${f.q_number || '—'} ${f.severity}: ${f.description.slice(0, 80)}"
           }
         }
+
+        // Update cluster_backlog per cluster based on findings
+        const q_numbers_with_findings = new Set(next_findings.map(f => f.q_number).filter(Boolean))
+        for (const cluster of CLUSTERS) {
+          if (cluster_backlog[file][cluster.id]?.status === 'skipped') continue
+          const cluster_qs = cluster.questions.map(q => q.id)
+          const has_findings = cluster_qs.some(q => q_numbers_with_findings.has(q))
+          cluster_backlog[file][cluster.id] = {
+            status: has_findings ? 'has_findings' : 'clean',
+            round,
+            q_numbers_affected: has_findings ? cluster_qs.filter(q => q_numbers_with_findings.has(q)) : []
+          }
+        }
+
+        // Print backlog status
+        const backlog_parts = CLUSTERS
+          .filter(c => cluster_backlog[file][c.id]?.status !== 'skipped')
+          .map(c => {
+            const bl = cluster_backlog[file][c.id]
+            if (bl.status === 'clean') return `${c.id}=clean`
+            const count = bl.q_numbers_affected.length
+            return `${c.id}=${count} finding(s)`
+          })
+        print: "    📊 ${file}: ${backlog_parts.join(', ')}"
       }
-      // If 0 review files: all reviewers failed — current_findings unchanged
     }
 
     // Filter: files with 0 actionable findings exit as clean
@@ -974,6 +1033,32 @@ Do NOT use SendMessage — your output is collected directly by the calling agen
 
   // remaining_files still has entries with fixes_applied > 0 → next round (back to PHASE A: Inspect)
 
+  // ═══ INCREMENTAL RE-REVIEW: update cluster_backlog based on applied fixes ═══
+  // Determine which clusters need re-inspection in the next round based on which
+  // Q-numbers had fixes applied this round. Clean clusters with no related fixes are memoized.
+  for (const file of remaining_files) {
+    if (!cluster_backlog[file]) continue
+    const applied_for_file = [
+      ...critical_resolved.filter(r => r.file === file),
+      ...advisory_applied.filter(r => r.file === file)
+    ]
+    const affected_q_numbers = new Set(applied_for_file.map(r => r.q_number))
+    const round_complete = !fix_failures.some(r => r.file === file && r.reason === 'timeout')
+
+    for (const cluster of CLUSTERS) {
+      if (cluster_backlog[file][cluster.id]?.status === 'skipped') continue
+      const cluster_qs = cluster.questions.map(q => q.id)
+      if (cluster_qs.some(q => affected_q_numbers.has(q))) {
+        // Fixes applied to questions in this cluster → re-check needed
+        cluster_backlog[file][cluster.id].status = 'pending'
+      }
+      // If round was partial (Task failures), reset clean clusters to pending (results may be stale)
+      if (!round_complete && cluster_backlog[file][cluster.id]?.status === 'clean') {
+        cluster_backlog[file][cluster.id].status = 'pending'
+      }
+    }
+  }
+
 FINALLY:
   // Cleanup: delete temp dir for this run (runs on both normal exit and exception)
   Bash(`rm -rf ${REVIEW_TMPDIR}`)
@@ -991,7 +1076,7 @@ and the loop exits correctly.
 
 ### Consolidation Strategy
 
-After fan-out, the reconciler reads all `${file_slug}_reviewer_*.md` files from the round's
+After fan-out, the reconciler reads all `${file_slug}_cluster_*.md` files from the round's
 subdirectory (`${REVIEW_TMPDIR}/round_${round}/`) and merges into a single consolidated review per file:
 
 1. **Group by Q-number** (Q1, Q2, ... Q12) — primary dedup key. If a finding lacks a Q-number
@@ -1210,6 +1295,134 @@ Analyze these tasks for conflicts at THREE levels — not just files, but logica
   "wave_count": 2
 }`
 
+// ═══ CLUSTER INFRASTRUCTURE: constants, activation, prompt template ═══
+
+// NON_CODE_EXTENSIONS: file types where only the intent cluster applies
+const NON_CODE_EXTENSIONS = new Set(['md', 'yaml', 'yml', 'json', 'txt', 'toml'])
+
+// CLUSTERS: domain clusters with question assignments and trigger patterns.
+// safety + intent always run for code files. integration + ecosystem are conditional.
+const CLUSTERS = [
+  {
+    id: 'safety',
+    always: true,
+    questions: [
+      { id: 'Q1', title: 'Correctness', definition: '**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.' },
+      { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Could user-controlled data reach a sensitive operation (DB, eval, file system, HTML) without adequate validation?' },
+      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' }
+    ],
+    triggers: null  // always active for code files
+  },
+  {
+    id: 'intent',
+    always: true,
+    questions: [
+      { id: 'Q4', title: 'Intent Alignment', definition: '**Q4 — Intent Alignment**: Are there function names, return types, or behaviors that contradict what the task description or acceptance criteria specify?' },
+      { id: 'Q5', title: 'Minimal Change', definition: '**Q5 — Minimal Change**: Are there abstractions, new dependencies, or indirection layers that the acceptance criteria don\'t justify? Could any new code be accomplished by extending existing modules or patterns instead of introducing new ones?' },
+      { id: 'Q12', title: 'Question Tables', definition: '**Q12 — Question Tables**: Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables?' },
+      { id: 'Q13', title: 'Content Review', definition: '**Q13 — Content Review** (non-code files only): Does this change achieve its stated purpose? Is the modified content clear, accurate, and consistent with surrounding context?' }
+    ],
+    triggers: null  // always active (Q12/Q13 apply to non-code; Q4+Q5 apply to all)
+  },
+  {
+    id: 'integration',
+    always: false,
+    questions: [
+      { id: 'Q11', title: 'Backward Compat', definition: '**Q11 — Backward Compatibility**: Would this break existing callers? Are there backwards-incompatible signature or behavior changes?' },
+      { id: 'Q7', title: 'Async Errors', definition: '**Q7 — Async Errors**: Are async errors handled across all paths? Could unhandled rejections crash the service?' },
+      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Are GAS execution limits respected? Could loops exhaust quota mid-run? Does code guard against absent/stale state?' }
+    ],
+    triggers: [
+      /export\s+(function|const|class|default)|module\.exports|exports\./,    // Q11: exports/public API
+      /async\s|await\s|\.then\(|express|router/,                              // Q7: async patterns
+      /SpreadsheetApp|DriveApp|GmailApp|PropertiesService|CacheService|ConfigManager/  // Q8: GAS APIs
+    ]
+  },
+  {
+    id: 'ecosystem',
+    always: false,
+    questions: [
+      { id: 'Q6', title: 'React Hooks', definition: '**Q6 — React Hooks**: Are hook dependency arrays complete? Could stale closures cause missed updates?' },
+      { id: 'Q9', title: 'Test Quality', definition: '**Q9 — Test Quality**: Do tests verify behavior (correct outputs, error paths) or just execution (no throw)?' },
+      { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' }
+    ],
+    triggers: [
+      /useState|useEffect|useCallback/,            // Q6: React hooks
+      /describe\s*\(|it\s*\(|expect\s*\(/,         // Q9: test patterns
+      /SELECT\s|INSERT\s|query\s*\(|\.raw\s*\(/    // Q10: SQL patterns
+    ]
+  }
+]
+
+// get_active_clusters: determine which clusters should be dispatched for a file.
+// Respects: non-code file restrictions, trigger pattern activation, backlog status.
+// Returns: array of cluster objects to dispatch (subset of CLUSTERS).
+function get_active_clusters(file, file_content, is_non_code, file_backlog) {
+  const active = []
+
+  for (const cluster of CLUSTERS) {
+    // Non-code files: only intent cluster runs
+    if (is_non_code && cluster.id !== 'intent') continue
+
+    // Check backlog: skip clusters that are 'clean' (memoized from prior round, no related fixes)
+    if (file_backlog[cluster.id]?.status === 'clean') continue
+
+    // Check backlog: skip clusters explicitly marked 'skipped'
+    if (file_backlog[cluster.id]?.status === 'skipped') continue
+
+    // Always-on clusters (safety, intent): dispatch unconditionally for code files
+    if (cluster.always) {
+      active.push(cluster)
+      continue
+    }
+
+    // Conditional clusters: check if any trigger pattern matches file content
+    if (cluster.triggers && cluster.triggers.some(pattern => pattern.test(file_content))) {
+      active.push(cluster)
+    }
+  }
+
+  return active
+}
+
+// CLUSTER_PROMPT: focused review prompt for a single cluster evaluating one file.
+// Output format matches code-reviewer's finding format exactly, so parse_findings() works as-is.
+const CLUSTER_PROMPT = (cluster_id, questions, file, context) => `You are a Code Review Cluster Evaluator.
+You evaluate a specific subset of quality questions for exactly one file.
+
+## Your file
+${file}
+
+Read this file using the Read tool before evaluating.
+
+## Your cluster: ${cluster_id}
+Evaluate ONLY these questions:
+
+${questions.map(q => q.definition).join('\n\n')}
+
+## Context
+worktree="${context.worktree}"
+review_mode="${context.review_mode}"
+task_name="${context.task_name}"
+${context.plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${context.plan_summary}` : ''}
+${context.impact_files?.length > 0 ? `\n**Impact context**: The following files reference symbols changed in ${file}.\nCheck Q11 (backward compatibility) against these actual callers:\n${context.impact_files.map(f => '- ' + f).join('\n')}` : ''}
+${context.is_recheck ? `\nThis is a re-review (round ${context.round}). Focus on code modified since last review.\nAdvisory findings that were already applied in a prior round should NOT be re-reported.\nAdvisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`.` : ''}
+
+## Output format
+Use the standard code-reviewer finding format for each question:
+
+**Q[N]: [Title]** | **Finding: Critical** / **Finding: Advisory** / **Finding: Advisory/YAGNI** / **Finding: None**
+> [One-sentence answer]
+Evidence: [file:line]
+**Fix:** [before/after code blocks for Critical/Advisory — omit for None/YAGNI]
+
+Output your findings starting with "## Code Review: ${cluster_id}".
+
+IMPORTANT: After completing your review, write your complete review output to:
+  ${context.output_path}
+using the Write tool. Your review output starts with "## Code Review:".
+Do NOT use SendMessage — your output is collected directly by the calling agent.`
+
 // FIXER_PROMPT_V2: structured per-task fixer prompt (replaces raw blob)
 const FIXER_PROMPT_V2 = (file, tasks_for_file) => `You are a Fixer Agent. Apply these discrete fix tasks to exactly one file.
 
@@ -1269,18 +1482,18 @@ Examples with max_rounds=5:
 🔧 Round [▓▓▓░░] [3/5]: 1 file(s), planning...
 ```
 
-**PHASE A — Inspect (rounds 2+, reviewer dispatch + reconciliation):**
+**PHASE A — Inspect (rounds 2+, cluster dispatch + reconciliation):**
 ```
-Print: "  ↗ Dispatching [N] reviewer task(s) ([num_reviewers] per file)..."
-Print: "    → Review ${file} × ${num_reviewers} → ${reviewer_type}"
-Print: "      📝 ${REVIEW_TMPDIR}/round_${round}/${file_slug}_reviewer_${i}.md"
-Print: "  ✓ [ok] reviewer(s) completed, [failed] failed in [elapsed]s"
-Print: "    📊 ${file}: 1 review → ${N} findings"                    (single reviewer)
-Print: "    📊 ${file}: ${N} reviews → ${M} unique findings (${K} duplicates merged)"  (multi-reviewer)
+Print: "  ↗ Dispatching ${N} cluster task(s) across ${M} file(s)..."
+Print: "    → ${file}: ${cluster_ids} (${N} cluster(s), ${skipped} skipped, re-check: ${recheck_ids})"
+Print: "  ✓ ${ok} cluster(s) completed, ${failed} failed in ${elapsed}s"
+Print: "    📊 ${file}: 1 cluster → ${N} findings"                    (single cluster)
+Print: "    📊 ${file}: ${N} clusters → ${M} unique findings (${K} duplicates merged)"  (multi-cluster)
 Print: "    📋 ${REVIEW_TMPDIR}/round_${round}/${file_slug}_consolidated.md"
 Print: "    📌 Next round TODO for ${file}:"
 Print: "      🔧 ${q_number} ${severity}: ${description}"            (has Fix block)
 Print: "      ⚠️ ${q_number} ${severity}: ${description}"            (no Fix block)
+Print: "    📊 ${file}: ${cluster_id}=clean, ${cluster_id}=${N} finding(s)"  (backlog status)
 Print: "  → [file] — no actionable findings — done"               (filter: clean exit)
 Print: "  ⚠️ [file] — max rounds reached — [N] finding(s) stuck"   (max_rounds ejection)
 ```
@@ -1345,40 +1558,39 @@ Example:
   └ Api.ts ────── 🔄 continuing
 
 🔧 Round [▓▓░░░] [2/5]: 1 file(s), planning...
-  ↗ Dispatching 1 reviewer task(s) (1 per file)...
-    → Review Api.ts × 1 → code-reviewer
-      📝 /tmp/review-fix-a1b2c3/round_2/Api_ts_reviewer_1.md
-  ✓ 1 reviewer(s) completed, 0 failed in 12.4s
-    📊 Api.ts: 1 review → 2 findings
+  ↗ Dispatching 2 cluster task(s) across 1 file(s)...
+    → Api.ts: safety, intent (2 clusters, integration skipped, re-check: safety)
+  ✓ 2 cluster(s) completed, 0 failed in 9.2s
+    📊 Api.ts: 2 clusters → 2 unique findings (0 duplicates merged)
     📋 /tmp/review-fix-a1b2c3/round_2/Api_ts_consolidated.md
     📌 Next round TODO for Api.ts:
       🔧 Q3 Critical: Missing null check on response.data before...
       ⚠️ Q7 Advisory: Consider extracting validation logic into...
+    📊 Api.ts: safety=1 finding(s), intent=clean
   📐 Decompose: 1 tasks, 1 skipped (deterministic)
   📐 Planner: analyzing 1 tasks across 1 file(s) for parallel dispatch...
   ✓ Plan: 1 tasks in 1 wave(s) — all independent (3.1s)
   ⚡ Wave 0: 1 task(s) across 1 file(s)...
     → Fix Api.ts (1 task: T1)
   ✓ Wave 0: 1 applied, 0 failed (5.1s)
-  Round 2:  20.6s
+  Round 2:  17.4s
   └ Api.ts ────── 🔄 continuing
 
 🔧 Round [▓▓▓░░] [3/5]: 1 file(s), planning...
-  ↗ Dispatching 2 reviewer task(s) (2 per file)...
-    → Review Api.ts × 2 → code-reviewer
-      📝 /tmp/review-fix-a1b2c3/round_3/Api_ts_reviewer_1.md
-      📝 /tmp/review-fix-a1b2c3/round_3/Api_ts_reviewer_2.md
-  ✓ 2 reviewer(s) completed, 0 failed in 14.8s
-    📊 Api.ts: 2 reviews → 0 unique findings (2 duplicates merged)
+  ↗ Dispatching 1 cluster task(s) across 1 file(s)...
+    → Api.ts: safety (1 cluster, intent skipped)
+  ✓ 1 cluster(s) completed, 0 failed in 6.8s
+    📊 Api.ts: 1 cluster → 0 findings
+    📊 Api.ts: safety=clean, intent=clean
   📐 Decompose: 0 tasks, 0 skipped (deterministic)
   → Api.ts — no actionable tasks — done
   ✅ Api.ts — clean after 3 round(s)
-  Round 3:  14.8s
+  Round 3:  6.8s
   └ Api.ts ────── ✅ clean (3 round(s))
 
   🗑️ Cleaned up: /tmp/review-fix-a1b2c3
 
-✅ Fix loop complete — 3 round(s), 5 critical resolved, 0 advisory applied | reviewers/round: 1, 2 (47.8s)
+✅ Fix loop complete — 3 round(s), 5 critical resolved, 0 advisory applied | clusters/round: 2, 1 (37.0s)
 ```
 
 ---
@@ -1394,7 +1606,7 @@ Print: "✅ All files clean — no fixes needed ([total_elapsed]s)"
 
 All clean after fixes:
 ```
-Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied | reviewers/round: [reviewer_counts.join(', ')] ([total_elapsed]s)"
+Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] critical resolved, [advisory_applied.length] advisory applied | clusters/round: [cluster_stats.map(s => s.clusters_dispatched).join(', ')] ([total_elapsed]s)"
 ```
 
 Partial / stuck:
@@ -1422,7 +1634,7 @@ Print: "──── SUMMARY ────────────"
 
 **Target files**: [list]
 **Rounds run**: [N] of [max_rounds] maximum
-**Reviewers per round**: [reviewer_counts as comma-separated, e.g. "1, 2, 3"]
+**Clusters per round**: [cluster_stats.map(s => `${s.clusters_dispatched} dispatched, ${s.clusters_skipped} skipped`).join(' | ')]
 **Files changed**: [list, or "none"]
 
 [If cardservice_files is non-empty:]
