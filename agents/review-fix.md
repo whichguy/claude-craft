@@ -147,6 +147,7 @@ final_status = 'pending'
 total_start_time = Date.now()        # set at Phase 1 start
 round_start_time = null              # set at start of each round
 round_durations = []                 # populated at end of each round
+per_round_phase_timings = []         # [{ inspect: N, plan: N, fix: N }] — one entry per round, milliseconds; used by Round History table in summary
 # NOTE: failed_tasks is a per-round Set — declared inside the loop, not at state level
 cluster_backlog = {}    # { file: { cluster_id: { status, round, q_numbers_affected } } }
                         # status: 'pending' | 'clean' | 'has_findings' | 'skipped'
@@ -1052,6 +1053,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   phase_timings.fix = Date.now() - fix_phase_start
   round_durations.push(Date.now() - round_start_time)
   const round_elapsed = (round_durations[round_durations.length - 1] / 1000).toFixed(1)
+  per_round_phase_timings.push({ inspect: phase_timings.inspect, plan: phase_timings.plan, fix: phase_timings.fix })
 
   // Snapshot findings counts for this round (used by delta/health/summary)
   const round_findings = { critical: 0, advisory: 0, yagni: 0, total: 0 }
@@ -1743,19 +1745,49 @@ Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.len
 Print: "━━━ SUMMARY ━━━━━━━━━━━━━━━━━━━━━━━"
 
 ```markdown
-╔════════════════════════════════════════╗
-║  review-fix Summary — [task_name]      ║
-╚════════════════════════════════════════╝
+╔════════════════════════════════════════════════╗
+║  review-fix Summary — [task_name]              ║
+╚════════════════════════════════════════════════╝
 
-**Target files**: [list]
-**Rounds run**: [N] of [max_rounds] maximum
-**Clusters per round**: [cluster_stats.map(s => `${s.clusters_dispatched} dispatched, ${s.clusters_skipped} skipped`).join(' | ')]
-**Files changed**: [list, or "none"]
+Status: [🟢 APPROVED | 🟡 APPROVED_WITH_NOTES | 🔴 NEEDS_REVISION] — [rationale]
+
+File Health
+  [tree grid: ┌├└ with final per-file status — one line per target file]
+  ┌ [file1] ── ✅ clean (round [N])
+  ├ [file2] ── ✅ clean (round [N])
+  └ [file3] ── 🔴 stuck ([N] findings)
+
+Findings Ledger
+  ┌ 🔴 Critical ── [critical_resolved.length] resolved, [stuck_findings.length] stuck
+  ├ 🟡 Advisory ── [advisory_applied.length] applied, [advisory_stuck.length] no-fix, [fix_failures.length] failed
+  └ 💡 YAGNI ──── [advisory_yagni.length] skipped
+
+Round History
+  Round  Files  Clusters (dispatched/memoized)  Findings  Fixes  Duration (inspect / plan / fix)
+  [for each round N from 1 to round:]
+  [N]      [file_count]  [dispatched]/[memoized]  [total_findings]      [fixes]  [duration]s ([inspect_s]s / [plan_s]s / [fix_s]s)
+  Total: [round] rounds, [critical_resolved.length + advisory_applied.length] fixes applied, [total_elapsed]s
+
+  Round 1 cluster column shows "—" (Phase 2 output used, no cluster dispatch).
+  Subsequent rounds show dispatched/memoized counts from cluster_stats[round-1].
+  Findings column from findings_counts_per_round[round-1].total.
+  Duration from round_durations[round-1], timing breakdown from per_round_phase_timings[round-1].
+
+Cluster Efficiency
+  dispatched: [sum of cluster_stats.clusters_dispatched]  memoized: [sum of cluster_stats.clusters_memoized]  ratio: [memo_pct]%
+
+  Ratio = 100 * total_memoized / (total_dispatched + total_memoized).
+  Omit this section if no cluster dispatch occurred (round == 1 only).
 
 [If cardservice_files is non-empty:]
 > ⚠️ **CardService coverage note**: The following files were routed to `gas-gmail-cards` (Gmail add-on specialist) instead of `gas-code-review` (general GAS quality). General GAS code quality checks were **not** run for these files in the automated loop. For full dual coverage, run `/gas-review` separately:
 > [list each file in cardservice_files]
+```
 
+The following detail sections follow the summary box. They preserve all existing data points for
+actionable human review:
+
+```markdown
 ### Critical Findings — Resolved ([count])
 
 [For each resolved finding:]
