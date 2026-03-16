@@ -120,6 +120,12 @@ Apply these to `$DECK_INDEX` to classify each existing slide:
 | 2 text boxes side by side (similar width) | `two-column` |
 | TABLE element present | `table` |
 | Dark bg + large centered title | `title` or `section` |
+| Grid of ROUND_RECTANGLE cards with label/value/trend text | `kpi-dashboard` |
+| Row of ELLIPSE icons with values and labels below | `kpi-strip` |
+| IMAGE element (non-decorative) with chart appearance | `chart` |
+| Horizontal RECTANGLE bars with proportional widths + labels | `drill-down` |
+| Two-half layout with LINE divider + ELLIPSE arrow center | `before-after` |
+| Vertical RECTANGLE bars (one highlighted red) + "Root Cause" text | `anomaly` |
 
 ### Deck Diagnosis
 
@@ -161,6 +167,11 @@ Parse the invocation args for:
   - HTML path: One of `black`, `white`, `league`, `sky`, `moon`, `solarized`, `dracula` — default `sky`
   - Google Slides path: One of `professional`, `warm`, `minimal` — default `professional`. Auto-selected by topic (business→professional, creative→warm, technical→minimal) unless explicitly specified.
   - **Custom theme from existing deck**: If user provides a presentation ID or URL (e.g., "match the style of [URL]"), set `$THEME = "custom"` and `$THEME_SOURCE_ID = [extracted presentation ID]`.
+- **Story arc** (`$ARC`): `product-launch | org-report | auto` — default `auto`
+  - `product-launch`: Connected narrative (Salesforce/Apple pattern), metrics woven into story
+  - `org-report`: McKinsey Pyramid (insight-first titles, charts prove claims)
+  - `auto`: Existing 4-framework heuristic from Step 1B (unchanged)
+  - Auto-detected from topic keywords: "launch", "release", "product" → `product-launch`; "review", "report", "quarterly", "Q1-Q4" → `org-report`
 - **`--no-confirm` flag**: If present, skip outline confirmation in Step 2
 
 **If topic/material is missing OR format is not specified**, use `AskUserQuestion` with these questions:
@@ -196,6 +207,7 @@ After gathering all required info, record:
 - `$COUNT` — target slide count (integer or range like "6-8")
 - `$AUDIENCE` — `technical`, `executive`, or `general`
 - `$THEME` — chosen theme (HTML: default `sky`; Google Slides: default `professional`)
+- `$ARC` — story arc template (`product-launch`, `org-report`, or `auto`)
 
 ---
 
@@ -226,10 +238,15 @@ Classify each extracted content element into a slide type using this decision tr
 3. Direct quote with attribution? → `quote`
 4. Sequential process (3-5 steps)? → `timeline`
 5. Exactly 3 parallel items (pillars, features)? → `triptych`
-6. Before/after or two-side comparison? → `two-column`
-7. Tabular data (3+ rows)? → `table`
-8. Key conclusion or takeaway? → `takeaway`
-9. Default remaining points → `content` (max 5 bullets)
+6. Before/after or two-side comparison? → `before-after`
+7. 3-6 KPI metrics with trends (+/-/→)? → `kpi-dashboard`
+8. 3-5 inline metrics (lighter than dashboard)? → `kpi-strip`
+9. Ranked items by team/category with values? → `drill-down`
+10. Deviation or anomaly with root cause? → `anomaly`
+11. Trend data (time series, growth)? → `chart` (requires QuickChart.io)
+12. Tabular data (3+ rows)? → `table`
+13. Key conclusion or takeaway? → `takeaway`
+14. Default remaining points → `content` (max 5 bullets)
 ```
 
 ### Enterprise Story Arc Pacing
@@ -237,9 +254,9 @@ Classify each extracted content element into a slide type using this decision tr
 | Deck segment | Slides | Recommended types | Enterprise purpose |
 |---|---|---|---|
 | **Hook** | 1-2 | `title` → `hero` | Name the world shift, grab attention |
-| **Problem** | 1-2 | `content`, `stat`, `two-column` | Frame customer's challenge |
-| **Solution** | 2-3 | `triptych`, `content`, `timeline` | Present approach (customer as hero) |
-| **Proof** | 1-2 | `stat`, `quote` | Social proof, metrics, testimonials |
+| **Problem** | 1-2 | `content`, `stat`, `two-column`, `before-after` | Frame customer's challenge |
+| **Solution** | 2-3 | `triptych`, `content`, `timeline`, `kpi-strip` | Present approach (customer as hero) |
+| **Proof** | 1-2 | `stat`, `quote`, `chart`, `kpi-dashboard`, `drill-down` | Social proof, metrics, testimonials |
 | **Vision** | 1 | `hero` or `takeaway` | Promised land / transformation |
 | **Close** | 1 | `closing` | Specific next steps (not vague CTA) |
 
@@ -259,8 +276,60 @@ Before finalizing any slide content, apply the billboard test: can the main mess
 | takeaway | 20 | 1 message |
 | content | 35 (5 × 7) | 5 bullets |
 | two-column | 42 (2 × 3 × 7) | 3+3 bullets |
+| kpi-dashboard | 3 per card (label + value + trend) | 2-6 cards |
+| kpi-strip | 2 per metric (value + label) | 3-5 metrics |
+| chart | 5 (title only — data is visual) | 1 chart |
+| drill-down | 2 per bar (label + value) | 3-8 bars |
+| before-after | 42 (2 × 3 × 7) | 3+3 bullets per side |
+| anomaly | 3 per bar + 21 root cause (3 × 7) | 3-6 bars + 2-3 bullets |
 
 **Output:** Record `$CONTENT_MAP` — ordered list of `{slideType, title, content, notes}` that feeds Step 2.
+
+### Story Arc Templates
+
+When `$ARC` is not `auto`, override `$CONTENT_MAP` with the arc template below. Map user content to template positions; generate placeholder content for unfilled slots.
+
+#### `product-launch` Arc — Connected Narrative (Salesforce/Apple Pattern)
+
+Each title reads as a paragraph in a connected story. Metrics woven into narrative, not isolated.
+
+| Position | Type | Intent | Design Pattern |
+|----------|------|--------|----------------|
+| 1 | title | Product + tagline | Dark bg, centered |
+| 2 | hero | World shift (why now) | Single statement, 42pt |
+| 3 | content | Customer pain | 3-4 bullets, light bg |
+| 4 | before-after | Legacy vs modern | Vertical split comparison |
+| 5 | triptych | Solution pillars | 3 cards |
+| 6 | stat | Proof metric | 72pt number |
+| 7 | image | Product visual | Full-bleed or centered |
+| 8 | quote | Customer testimonial | Accent bar + italic |
+| 9 | kpi-strip | Key metrics row | 3-5 inline metrics |
+| 10 | takeaway | Core promise | Boxed statement |
+| 11 | closing | CTA + next steps | Dark bg |
+
+#### `org-report` Arc — McKinsey Pyramid (Insight-First)
+
+Titles state the insight; charts/data prove the claim. Summary → drill-down → anomaly → action.
+
+| Position | Type | Intent | Design Pattern |
+|----------|------|--------|----------------|
+| 1 | title | Report + period | "Q2 2026 Engineering Review" |
+| 2 | kpi-dashboard | Executive summary | 4-6 KPI cards |
+| 3 | chart | Primary trend | QuickChart line/bar |
+| 4 | drill-down | By team/leader | Horizontal bars |
+| 5 | chart | Secondary metric | Quality/velocity trend |
+| 6 | anomaly | Deviation highlight | Red bar + root cause |
+| 7 | two-column | This Q vs last Q | Side-by-side bullets |
+| 8 | stat | Headline achievement | Big number |
+| 9 | takeaway | Key insight | Boxed statement |
+| 10 | closing | Next quarter actions | Action items |
+
+#### Arc Application Rules
+
+1. **Content mapping**: Match user's content elements to template positions by intent (not type). If user provides a customer quote, it maps to the `quote` position regardless of where it appears in their notes.
+2. **Flexible count**: Arc templates define the ideal sequence. For shorter decks (6-8 slides), compress: merge positions 3+4, drop position 7 (image), merge 9+10. For longer decks (12+), expand Proof section.
+3. **Auto-detect**: When `$ARC == auto`, check topic keywords. If no match, use the 4-framework heuristic from Step 1B.
+4. **Override**: User can always override arc choice in outline confirmation (Step 2).
 
 ---
 
@@ -275,10 +344,10 @@ Use `$CONTENT_MAP` from Step 1B if available; otherwise analyze `$TOPIC` directl
 Format: [reveal.js HTML | Google Slides]
 Slides: [count]  Audience: [audience]  Theme: [theme or N/A]
 
-1. **[Slide Title]** — [type: title | bullet | two-column | stat | hero | triptych | quote | timeline | takeaway | code | diagram | table | image | section | closing]
+1. **[Slide Title]** — [type: title | bullet | two-column | stat | hero | triptych | quote | timeline | takeaway | kpi-dashboard | kpi-strip | chart | drill-down | before-after | anomaly | code | diagram | table | image | section | closing]
    [2–3 word summary of content]
 
-Note for Google Slides path: `code` maps to a bullet slide with monospace font (GAS has no syntax highlighting). `diagram` maps to an image slide if a public diagram URL is available, otherwise a descriptive bullet slide. New types map to GAS builders: `hero` → buildHeroSlide, `triptych` → buildTriptychSlide, `quote` → buildQuoteSlide, `timeline` → buildTimelineSlide, `takeaway` → buildTakeawaySlide.
+Note for Google Slides path: `code` maps to a bullet slide with monospace font (GAS has no syntax highlighting). `diagram` maps to an image slide if a public diagram URL is available, otherwise a descriptive bullet slide. All enterprise types map to GAS builders: `hero` → buildHeroSlide, `triptych` → buildTriptychSlide, `quote` → buildQuoteSlide, `timeline` → buildTimelineSlide, `takeaway` → buildTakeawaySlide, `kpi-dashboard` → buildKpiDashboardSlide, `kpi-strip` → buildKpiStripSlide, `chart` → buildChartSlide, `drill-down` → buildDrillDownSlide, `before-after` → buildBeforeAfterSlide, `anomaly` → buildAnomalySlide.
 2. ...
 ```
 
@@ -410,7 +479,10 @@ Print after writing:
 
 ### Pre-condition: Verify OAuth Scope
 
-Before executing GAS code, check that the target GAS project's `appsscript.json` contains the `https://www.googleapis.com/auth/presentations` scope.
+Before executing GAS code, check that the target GAS project's `appsscript.json` contains the required scopes:
+- `https://www.googleapis.com/auth/presentations` — always required
+- `https://www.googleapis.com/auth/script.external_request` — required if using `chart` slide type (QuickChart.io)
+- `https://www.googleapis.com/auth/drive` — required if using Drive image IDs
 
 Use `mcp__mcp-gas-deploy__pull` to fetch the project locally, then read `appsscript.json` from the local directory (`~/gas-projects/<scriptId>/appsscript.json`). If the scope is absent:
 1. Edit the local file to add it to the `oauthScopes` array, then `mcp__mcp-gas-deploy__push` to sync
@@ -424,13 +496,15 @@ If the user specifies a different scriptId in the invocation args, use that inst
 
 Select a theme based on `$THEME` (default: `professional`). Each theme is a JS object embedded in the IIFE:
 
-| Theme | When to use | Palette |
-|---|---|---|
-| `professional` | Business, corporate, formal | bg=#FFFFFF, sectionBg=#1B2A4A, accent=#2563EB, titleColor=#111827, titleColorInv=#FFFFFF, bodyColor=#374151, subtitleColor=#6B7280, shapeFill=#DBEAFE |
-| `warm` | Creative, marketing, friendly | bg=#FFFBF2, sectionBg=#3D2B1F, accent=#D97706, titleColor=#1C1917, titleColorInv=#FEF9EE, bodyColor=#44403C, subtitleColor=#78716C, shapeFill=#FEF3C7 |
-| `minimal` | Technical, engineering, clean | bg=#FAFAFA, sectionBg=#18181B, accent=#18181B, titleColor=#18181B, titleColorInv=#FAFAFA, bodyColor=#3F3F46, subtitleColor=#71717A, shapeFill=#F4F4F5 |
+Each theme defines 16 properties — 8 core + 8 extended (surfaces, status, structure, data viz, disabled):
 
-All themes pass WCAG AA for text contrast. Accent colors are used only for decorative lines and text at 28pt+, never for 18pt body text.
+| Theme | When to use | Core Palette | Extended Tokens |
+|---|---|---|---|
+| `professional` | Business, corporate, formal | bg=#FFFFFF, sectionBg=#1B2A4A, accent=#2563EB, titleColor=#111827, titleColorInv=#FFFFFF, bodyColor=#374151, subtitleColor=#6B7280, shapeFill=#DBEAFE | surfaceColor=#F3F4F6, onSurface=#1F2937, statusSuccess=#059669, statusWarning=#d97706, statusError=#dc2626, dividerColor=#E5E7EB, chartPalette=[#2563EB,#7c3aed,#dc2626,#f59e0b,#10b981], disabledColor=#9ca3af |
+| `warm` | Creative, marketing, friendly | bg=#FFFBF2, sectionBg=#3D2B1F, accent=#D97706, titleColor=#1C1917, titleColorInv=#FEF9EE, bodyColor=#44403C, subtitleColor=#78716C, shapeFill=#FEF3C7 | surfaceColor=#FFF7ED, onSurface=#292524, statusSuccess=#059669, statusWarning=#d97706, statusError=#dc2626, dividerColor=#E7E5E4, chartPalette=[#D97706,#b45309,#dc2626,#059669,#7c3aed], disabledColor=#a8a29e |
+| `minimal` | Technical, engineering, clean | bg=#FAFAFA, sectionBg=#18181B, accent=#18181B, titleColor=#18181B, titleColorInv=#FAFAFA, bodyColor=#3F3F46, subtitleColor=#71717A, shapeFill=#F4F4F5 | surfaceColor=#F4F4F5, onSurface=#27272A, statusSuccess=#059669, statusWarning=#d97706, statusError=#dc2626, dividerColor=#E4E4E7, chartPalette=[#18181B,#3F3F46,#71717A,#A1A1AA,#D4D4D8], disabledColor=#a1a1aa |
+
+All themes pass WCAG AA for text contrast. Accent colors are used only for decorative lines and text at 28pt+, never for 18pt body text. Use `onSurface` (not accent) for text on `shapeFill` backgrounds to ensure 4.5:1 contrast.
 
 ### Theme Extraction (Custom Theme)
 
@@ -472,6 +546,16 @@ Map the extraction result to the T object:
 | titleColorInv | tc.LIGHT1 | '#FFFFFF' |
 | bodyColor | tc.DARK2 | '#374151' |
 | shapeFill | lighten(tc.ACCENT1, 80%) | '#DBEAFE' |
+| surfaceColor | tc.LIGHT2 | '#F3F4F6' |
+| onSurface | darken(tc.DARK2, 20%) | '#1F2937' |
+| statusSuccess | (hardcode safe) | '#059669' |
+| statusWarning | (hardcode safe) | '#d97706' |
+| statusError | (hardcode safe) | '#dc2626' |
+| dividerColor | tc.DARK2 lightened to 10% opacity | '#E5E7EB' |
+| chartPalette | [tc.ACCENT2, tc.ACCENT3, tc.ACCENT4, tc.ACCENT5, tc.ACCENT6] | ['#2563EB','#7c3aed','#dc2626','#f59e0b','#10b981'] |
+| disabledColor | lighten(tc.DARK2, 60%) | '#9ca3af' |
+
+**Status colors**: Always use hardcoded safe defaults (green/amber/red). Do not derive from theme — status semantics must be universal.
 
 If `fonts.h` is detected, add `{font: fonts.h}` to title `addText` opts. Same for `fonts.b` → body text opts.
 
@@ -501,9 +585,20 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
 (function() {
   // === THEME ===
   var T = {
+    // Core (8)
     bg: '#FFFFFF', sectionBg: '#1B2A4A', accent: '#2563EB',
     titleColor: '#111827', titleColorInv: '#FFFFFF',
-    bodyColor: '#374151', subtitleColor: '#6B7280', shapeFill: '#DBEAFE'
+    bodyColor: '#374151', subtitleColor: '#6B7280', shapeFill: '#DBEAFE',
+    // Surfaces (2)
+    surfaceColor: '#F3F4F6', onSurface: '#1F2937',
+    // Semantic Status (3)
+    statusSuccess: '#059669', statusWarning: '#d97706', statusError: '#dc2626',
+    // Structure (1)
+    dividerColor: '#E5E7EB',
+    // Data Viz (1 array)
+    chartPalette: ['#2563EB','#7c3aed','#dc2626','#f59e0b','#10b981'],
+    // Disabled (1)
+    disabledColor: '#9ca3af'
   };
 
   // === CANVAS CONSTANTS ===
@@ -562,8 +657,11 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
     return line;
   }
 
-  function addImage(slide, url, left, top, width, height) {
-    return slide.insertImage(url, left, top, width, height);
+  function addImage(slide, imageSource, left, top, width, height) {
+    // Accepts public URL string OR Drive file ID (20+ char alphanumeric)
+    var img = String(imageSource).match(/^[a-zA-Z0-9_-]{20,}$/)
+      ? DriveApp.getFileById(imageSource) : imageSource;
+    return slide.insertImage(img, left, top, width, height);
   }
 
   function addBulletList(shape, presetName) {
@@ -587,9 +685,49 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
     slide.getBackground().setSolidFill(color);
   }
 
+  // === INFOGRAPHIC PRIMITIVES ===
+  // Reusable shape helpers for data-rich slides (KPI cards, charts, dashboards)
+
+  function progressBar(slide, x, y, w, h, pct, color) {
+    addShape(slide, 'ROUND_RECTANGLE', x, y, w, h, T.dividerColor);
+    if (pct > 0) addShape(slide, 'ROUND_RECTANGLE', x, y, w * (pct / 100), h, color || T.accent);
+  }
+
+  function metricCard(slide, x, y, w, h, label, value, trend) {
+    var card = addShape(slide, 'ROUND_RECTANGLE', x, y, w, h, T.surfaceColor);
+    card.getFill().setSolidFill(T.surfaceColor, 0.9);
+    addText(slide, label, x + 10, y + 10, w - 20, 20,
+      {fontSize: 12, color: T.subtitleColor, align: 'CENTER'});
+    addText(slide, String(value), x + 10, y + 35, w - 20, 45,
+      {fontSize: 36, bold: true, color: T.accent, align: 'CENTER', valign: 'MIDDLE'});
+    if (trend) {
+      var tColor = String(trend).charAt(0) === '+' ? T.statusSuccess
+        : String(trend).charAt(0) === '-' ? T.statusError : T.subtitleColor;
+      addText(slide, String(trend), x + 10, y + h - 30, w - 20, 20,
+        {fontSize: 14, color: tColor, align: 'CENTER'});
+    }
+  }
+
+  function hBar(slide, x, y, w, h, value, maxVal, color, label) {
+    addShape(slide, 'RECTANGLE', x, y, w, h, T.dividerColor);
+    var barW = maxVal > 0 ? w * (value / maxVal) : 0;
+    if (barW > 0) addShape(slide, 'RECTANGLE', x, y, barW, h, color || T.accent);
+    if (label) addText(slide, label, x - 120, y, 110, h,
+      {fontSize: 14, color: T.bodyColor, align: 'END', valign: 'MIDDLE'});
+    addText(slide, String(value), x + w + 10, y, 60, h,
+      {fontSize: 16, bold: true, color: T.onSurface, valign: 'MIDDLE'});
+  }
+
+  function statusDot(slide, x, y, status) {
+    var color = status === 'success' ? T.statusSuccess
+      : status === 'warning' ? T.statusWarning
+      : status === 'error' ? T.statusError : T.disabledColor;
+    addShape(slide, 'ELLIPSE', x, y, 12, 12, color);
+  }
+
   // === SLIDE BUILDERS ===
 
-  function buildTitleSlide(title, subtitle) {
+  function buildTitleSlide(title, subtitle, notes) {
     var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
     setBg(s, T.sectionBg);
     addText(s, title, MARGIN, 100, CONTENT_W, 80,
@@ -599,7 +737,7 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
       addText(s, subtitle, MARGIN, 200, CONTENT_W, 40,
         {fontSize: 20, color: T.titleColorInv, align: 'CENTER'});
     }
-    addNotes(s, 'NOTES');
+    if (notes) addNotes(s, notes);
     return s;
   }
 
@@ -787,8 +925,169 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
     return s;
   }
 
+  // --- NEW BUILDERS (Phase 3) ---
+
+  function buildKpiDashboardSlide(title, kpis, notes) {
+    // kpis: [{label, value, trend}] — 2-6 items
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var n = kpis.length, cols = n <= 4 ? 2 : 3;
+    var rows = Math.ceil(n / cols), gap = 20;
+    var cW = (CONTENT_W - (cols - 1) * gap) / cols, cH = 140;
+    for (var i = 0; i < n; i++) {
+      var col = i % cols, row = Math.floor(i / cols);
+      var cx = MARGIN + col * (cW + gap);
+      var cy = 110 + row * (cH + gap);
+      metricCard(s, cx, cy, cW, cH, kpis[i].label, kpis[i].value, kpis[i].trend);
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildKpiStripSlide(title, metrics, notes) {
+    // metrics: [{icon, value, label}] — 3-5 items
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var n = metrics.length, gap = 20;
+    var itemW = (CONTENT_W - (n - 1) * gap) / n;
+    for (var i = 0; i < n; i++) {
+      var mx = MARGIN + i * (itemW + gap);
+      var my = 180;
+      addShape(s, 'ELLIPSE', mx + (itemW - 40) / 2, my, 40, 40, T.surfaceColor);
+      addText(s, metrics[i].icon || '\u2022', mx + (itemW - 40) / 2, my, 40, 40,
+        {fontSize: 18, color: T.accent, align: 'CENTER', valign: 'MIDDLE'});
+      addText(s, String(metrics[i].value), mx, my + 50, itemW, 35,
+        {fontSize: 28, bold: true, color: T.onSurface, align: 'CENTER'});
+      addText(s, metrics[i].label, mx, my + 85, itemW, 25,
+        {fontSize: 12, color: T.subtitleColor, align: 'CENTER'});
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildChartSlide(title, chartConfig, notes) {
+    // chartConfig: Chart.js config object for QuickChart.io
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var blob = null;
+    try {
+      var json = JSON.stringify(chartConfig);
+      if (json.length > 2000) {
+        blob = UrlFetchApp.fetch('https://quickchart.io/chart', {
+          method: 'post', contentType: 'application/json',
+          payload: JSON.stringify({width: 600, height: 300, backgroundColor: 'white', chart: chartConfig})
+        }).getBlob();
+      } else {
+        var url = 'https://quickchart.io/chart?c=' + encodeURIComponent(json)
+          + '&w=600&h=300&bkg=white&devicePixelRatio=1';
+        blob = UrlFetchApp.fetch(url).getBlob();
+      }
+    } catch(e) { blob = null; }
+    if (blob) {
+      s.insertImage(blob, MARGIN + 20, 100, 600, 280);
+    } else {
+      addText(s, '[Chart: data visualization would appear here]', MARGIN, 180, CONTENT_W, 60,
+        {fontSize: 18, italic: true, color: T.subtitleColor, align: 'CENTER'});
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildDrillDownSlide(title, items, notes) {
+    // items: [{label, value, max?}] — up to 8 items
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var maxVal = 0;
+    items.forEach(function(it) { if (it.value > maxVal) maxVal = it.value; });
+    var barH = 22, spacing = 30, startY = 110;
+    var barX = MARGIN + 130, maxBarW = CONTENT_W - 200;
+    for (var i = 0; i < Math.min(items.length, 8); i++) {
+      var y = startY + i * spacing;
+      var pct = maxVal > 0 ? items[i].value / maxVal : 0;
+      var color = pct > 0.8 ? T.statusSuccess : pct > 0.5 ? T.statusWarning : T.statusError;
+      hBar(s, barX, y, maxBarW, barH, items[i].value, maxVal, color, items[i].label);
+    }
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildBeforeAfterSlide(title, before, after, notes) {
+    // before: {label, bullets[]}, after: {label, bullets[]}
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    // Left half (before)
+    addShape(s, 'RECTANGLE', 0, 100, 350, 305, T.surfaceColor);
+    addText(s, before.label || 'Before', 20, 110, 310, 30,
+      {fontSize: 20, bold: true, color: T.onSurface, align: 'CENTER'});
+    var lb = addText(s, before.bullets.join('\n'), 20, 150, 310, 240,
+      {fontSize: 14, color: T.bodyColor});
+    addBulletList(lb);
+    // Divider with arrow
+    addLine(s, 360, 140, 360, 380, T.dividerColor, 2);
+    var arrow = addShape(s, 'ELLIPSE', 340, 235, 40, 40, T.accent);
+    addText(s, '\u2192', 340, 235, 40, 40,
+      {fontSize: 20, bold: true, color: T.titleColorInv, align: 'CENTER', valign: 'MIDDLE'});
+    // Right half (after)
+    var rightBg = addShape(s, 'RECTANGLE', 370, 100, 350, 305);
+    rightBg.getFill().setSolidFill(T.accent, 0.15);
+    addText(s, after.label || 'After', 390, 110, 310, 30,
+      {fontSize: 20, bold: true, color: T.onSurface, align: 'CENTER'});
+    var rb = addText(s, after.bullets.join('\n'), 390, 150, 310, 240,
+      {fontSize: 14, color: T.bodyColor});
+    addBulletList(rb);
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
+  function buildAnomalySlide(title, bars, rootCause, notes) {
+    // bars: [{label, value, highlighted?}] — 3-6 items
+    // rootCause: string[] — 2-3 bullet explanations
+    var s = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    setBg(s, T.bg);
+    addText(s, title, MARGIN, TITLE_Y, CONTENT_W, TITLE_H,
+      {fontSize: 30, bold: true, color: T.titleColor});
+    addLine(s, MARGIN, 90, MARGIN + 100, 90, T.accent, 3);
+    var maxVal = 0;
+    bars.forEach(function(b) { if (b.value > maxVal) maxVal = b.value; });
+    var n = bars.length, barW = Math.min(80, (CONTENT_W - (n - 1) * 15) / n);
+    var chartH = 150, chartY = 100, baseY = chartY + chartH;
+    for (var i = 0; i < n; i++) {
+      var bx = MARGIN + i * (barW + 15);
+      var bH = maxVal > 0 ? chartH * (bars[i].value / maxVal) : 0;
+      var color = bars[i].highlighted ? T.statusError : T.dividerColor;
+      addShape(s, 'RECTANGLE', bx, baseY - bH, barW, bH, color);
+      addText(s, bars[i].label, bx, baseY + 5, barW, 20,
+        {fontSize: 10, color: T.subtitleColor, align: 'CENTER'});
+      addText(s, String(bars[i].value), bx, baseY - bH - 18, barW, 18,
+        {fontSize: 11, bold: true, color: T.onSurface, align: 'CENTER'});
+    }
+    // Root cause section
+    addText(s, 'Root Cause', MARGIN, 290, CONTENT_W, 25,
+      {fontSize: 16, bold: true, color: T.titleColor});
+    var rc = addText(s, rootCause.join('\n'), MARGIN, 318, CONTENT_W, 80,
+      {fontSize: 14, color: T.bodyColor});
+    addBulletList(rc);
+    if (notes) addNotes(s, notes);
+    return s;
+  }
+
   // === BUILD SLIDES (generate calls from outline) ===
-  buildTitleSlide('Presentation Title', 'Subtitle or Date');
+  buildTitleSlide('Presentation Title', 'Subtitle or Date', 'Notes...');
   buildContentSlide('Topic One', ['Point A', 'Point B', 'Point C'], 'Notes...');
   // ... (one builder call per slide from the confirmed outline)
   buildClosingSlide('Thank You', ['Next step 1', 'Next step 2'], 'tagline', 'Notes...');
@@ -801,7 +1100,7 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
 
 | Outline Slide Type | Builder Function | Key Parameters |
 |---|---|---|
-| Title / cover | `buildTitleSlide(title, subtitle)` | Dark bg, centered, accent divider line |
+| Title / cover | `buildTitleSlide(title, subtitle, notes?)` | Dark bg, centered, accent divider line |
 | Bullet content | `buildContentSlide(title, bullets[], notes)` | Light bg, bullet list preset |
 | Two-column | `buildTwoColumnSlide(title, leftBullets[], rightBullets[], notes)` | 305pt columns, 30pt gutter |
 | Big stat | `buildStatSlide(stat, context, notes)` | 72pt centered stat, accent color |
@@ -814,6 +1113,12 @@ Generate a self-contained IIFE based on the confirmed outline. The default slide
 | Quote / callout | `buildQuoteSlide(quote, attribution, notes)` | Vertical accent bar, italic quote |
 | Timeline / process | `buildTimelineSlide(title, steps[], notes)` | Circles + connecting lines, 3-5 steps |
 | Key takeaway | `buildTakeawaySlide(message, notes)` | Rounded-rect box with accent border |
+| KPI dashboard | `buildKpiDashboardSlide(title, [{label,value,trend}], notes)` | 2-6 metric cards in grid, status-colored trends |
+| KPI strip | `buildKpiStripSlide(title, [{icon,value,label}], notes)` | 3-5 inline metrics with icons |
+| Chart (QuickChart) | `buildChartSlide(title, chartConfig, notes)` | QuickChart.io image; POST for configs >2000 chars; fallback text |
+| Drill-down | `buildDrillDownSlide(title, [{label,value}], notes)` | Horizontal bars, status-colored by threshold |
+| Before/after | `buildBeforeAfterSlide(title, {label,bullets[]}, {label,bullets[]}, notes)` | Vertical split with arrow divider |
+| Anomaly | `buildAnomalySlide(title, [{label,value,highlighted?}], rootCause[], notes)` | Vertical bars + root cause bullets |
 | Custom | Use raw helpers (`addText`, `addShape`, `addLine`, etc.) | Full flexibility |
 
 For slides not matching any builder, use the raw helpers directly.
@@ -848,6 +1153,9 @@ Salesforce-style narrative principles:
 - **Z-order:** `bringToFront()` / `sendToBack()` for layered compositions
 - **Border control:** `shape.getBorder().getLineFill().setSolidFill(color)` + `.setWeight(pts)`
 - **Monospace for code:** `{font: 'Roboto Mono'}` in addText opts
+- **Image + text overlay (hero):** `addImage(slide, url, 0, 0, 720, 405)` → overlay RECTANGLE (sectionBg, alpha 0.6) → white text on top. Insertion order = z-order
+- **Infographic primitives:** `progressBar()`, `metricCard()`, `hBar()`, `statusDot()` — composable building blocks for dashboards and data slides
+- **QuickChart.io charts:** `buildChartSlide()` with Chart.js config — line, bar, doughnut, pie, radar, sparkline. Free tier: 50 req/day. Requires `script.external_request` scope
 
 ### Content Density & Layout Selection
 
@@ -911,10 +1219,27 @@ All APIs below were empirically verified via live GAS execution (March 2026). Th
 - Speaker notes: `slide.getNotesPage().getShapes()` → filter by `getPlaceholderType() === 'BODY'` → `getText().asString()`
 - Unfilled shapes: `getSolidFill()` throws — wrap in try/catch, default to `'none'`
 
+**QuickChart.io (chart builder):**
+- GET mode: `https://quickchart.io/chart?c=CONFIG&w=600&h=300&bkg=white&devicePixelRatio=1`
+- POST mode (for configs >2000 chars): `UrlFetchApp.fetch(url, {method:'post', contentType:'application/json', payload:JSON.stringify({...})})`
+- Supported types: `bar`, `horizontalBar`, `line`, `pie`, `doughnut`, `radar`, `sparkline`, `radialGauge`
+- Plugins: `datalabels` (value labels), `doughnutlabel` (center text), `annotation` (reference lines)
+- Progress ring: doughnut with `cutout:'75%'` + doughnutlabel center text
+- Sparkline: `type:'sparkline'` at 200x60, no axes
+- Returns PNG blob suitable for `slide.insertImage(blob, ...)`
+- Free tier: 50 requests/day (sufficient for 1-2 decks)
+- Requires `script.external_request` OAuth scope
+
+**Alpha/Opacity:**
+- `shape.getFill().setSolidFill(color, alpha)` — alpha is 0-1 float (0=transparent, 1=opaque)
+- Works on any shape fill, NOT on lines or text
+- Use for card backgrounds (0.9), overlays (0.6), subtle tints (0.15)
+
 **Performance (5-slide deck):**
 - All 5 enterprise builders + helpers in single IIFE: ~3s execution time
 - Deck reader IIFE (5 slides, 17 page elements): ~3s execution time
 - Minified helper names (at/as/al/an/sb/bl) fit 5 builders + invocations under 2.5KB
+- Chart slides add ~1-2s per QuickChart.io fetch
 
 ### Gotchas & Limitations
 
@@ -922,7 +1247,9 @@ All APIs below were empirically verified via live GAS execution (March 2026). Th
 |---|---|---|
 | **Canvas size** | 720x405 pt (NOT 960x540) | All coords in this template calibrated for 720x405 |
 | **insertTable position** | `insertTable(rows, cols)` auto-positions; cannot specify left/top/width/height | Accept default position; adjust manually in Slides if needed |
-| **Images: public URLs only** | Private/authenticated URLs silently fail | Use `DriveApp.getFileById(id).getBlob()` for private images (**requires `drive` scope** — users must re-authorize) |
+| **Images: public URLs only** | Private/authenticated URLs silently fail | `addImage()` auto-detects Drive file IDs (20+ alphanumeric chars) and calls `DriveApp.getFileById()` — **requires `drive` scope** |
+| **Image overlay** | Full-bleed image + text needs layering | Insert image → dark overlay RECTANGLE (`sectionBg`, alpha 0.6) → text on top. Insertion order = z-order |
+| **QuickChart.io** | External API for chart images — needs `script.external_request` scope | Free tier: 50 req/day. POST mode for configs >2000 chars. Fallback text if fetch fails |
 | **Images: format limits** | PNG, JPEG, GIF only — no SVG, WebP | Convert to PNG before inserting |
 | **Images: size limits** | 50MB max, 25 megapixel max, URL max 2KB | Resize large images before inserting |
 | **replaceAllText()** | Cannot change formatting; throws if placeholder missing on ANY slide; skips Groups | Use per-slide shape iteration with existence check before replacing |
@@ -974,7 +1301,7 @@ On success, print:
 |---|---|---|
 | 4–5 | Title + 2-3 content + Closing | Mix: 1 hero/stat, rest varied |
 | 6–8 | Title + section + 4-5 content + Closing | 3+ distinct types; include hero or takeaway |
-| 10–12 | Title + 2 sections + 7-8 content + Closing | 5+ distinct types; include triptych/timeline |
+| 10–12 | Title + 2 sections + 7-8 content + Closing | 5+ distinct types; include triptych/timeline/kpi-dashboard/chart |
 | 13+ | Split into 2 exec calls | Call 1: through mid-section; Call 2: remainder |
 
 Adjust proportionally for the actual slide count requested.
