@@ -1434,7 +1434,8 @@ const CLUSTERS = [
     questions: [
       { id: 'Q1', title: 'Correctness', definition: '**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.' },
       { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Could user-controlled data reach a sensitive operation (DB, eval, file system, HTML) without adequate validation?' },
-      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' }
+      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' },
+      { id: 'Q14', title: 'Type Cast Consistency', definition: '**Q14 — Type Cast Consistency**: When a type or interface is modified in this changeset, trace its usage across files: are there `as Type`, `<Type>`, or `Record<string, unknown>` casts that bypass the updated definition? Casts written before a type extension pin callers to the old shape, hiding new fields from the checker and producing silent field-access failures at runtime.' }
     ],
     triggers: null  // always active for code files
   },
@@ -1469,12 +1470,14 @@ const CLUSTERS = [
     questions: [
       { id: 'Q6', title: 'React Hooks', definition: '**Q6 — React Hooks**: Are hook dependency arrays complete? Could stale closures cause missed updates?' },
       { id: 'Q9', title: 'Test Quality', definition: '**Q9 — Test Quality**: Do tests verify behavior (correct outputs, error paths) or just execution (no throw)?' },
-      { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' }
+      { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' },
+      { id: 'Q15', title: 'Untested Failure Paths', definition: '**Q15 — Untested Failure Paths**: Trace error-handling and fallback branches: could any produce silently wrong results if the upstream assumption fails — and is that path covered by a test? Flag: catch blocks returning defaults instead of propagating, config lookups with fallback values that mask structural errors, optional chaining (`?.`) silently yielding undefined that downstream code treats as valid data.' }
     ],
     triggers: [
       /useState|useEffect|useCallback/,            // Q6: React hooks
       /describe\s*\(|it\s*\(|expect\s*\(/,         // Q9: test patterns
-      /SELECT\s|INSERT\s|query\s*\(|\.raw\s*\(/    // Q10: SQL patterns
+      /SELECT\s|INSERT\s|query\s*\(|\.raw\s*\(/,   // Q10: SQL patterns
+      /catch\s*\(|\.catch\(|\?\.\w/                 // Q15: catch blocks and optional chaining
     ]
   }
 ]
