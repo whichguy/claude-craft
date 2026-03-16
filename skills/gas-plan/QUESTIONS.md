@@ -14,7 +14,7 @@ Q1 branching strategy [G] | Q2 branching usage [G] | Q13 standards [Shared] | Q1
 *(Note: When gas-plan runs inside review-plan as gas-evaluator, the effective IS_GAS Gate 1 also includes Q-G3 — evaluated by l1-evaluator, not gas-plan.)*
 
 **Gate 2 — Important (weight 2, must stabilize):**
-Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G]
+Q3 sync [G] | Q4 folders+ordering [G] | Q5 right tools [G] | Q6 exec verify [G] | Q7 common-js sync [G] | Q9 deployment [G] | Q10 rollback [G] | Q11 tests [G] | Q12 incremental verify [G] | Q16 interfaces [Shared] | Q17 step ordering [G] | Q19 empty code [G] | Q20 dead code [G] | Q21 concurrency [G] | Q22 execution limit [G] | Q23 OAuth scopes [G] | Q24 idempotent [G] | Q27 input validation [Shared] | Q28 error handling [Shared] | Q29 logging [G] | Q32 event listeners [F] | Q38 unintended consequences [Shared] | Q39 duplication [G] | Q40 state-exists+absent [G] | Q41 bolt-on vs merge [Shared] | Q44 card structure [G] | Q45 action handlers [G] | Q46 token access [G] | Q47 navigation [G] | Q48 trigger coverage [G] | Q49 V8 parsing order [G] | Q50 namespace collision [G] | Q52 execution mechanism [G] | Q53 container-bound separation [G] | Q54 GCP project [G]
 
 **Gate 3 — Advisory (weight 1, note only):**
 Q8 isolated state [G] | Q14 naming [F] | Q25 quotas [G] | Q26 storage limits [G] | Q30 UX feedback [F] | Q31 accessibility [F] | Q33 error boundary [F] | Q34 CSS conflicts [F] | Q35 LLM comments [F] | Q36 breadcrumbs [F] | Q37 documentation [G] | Q43 plan legibility [F] [post-loop] | Q51 debug logging [G]
@@ -170,6 +170,19 @@ UrlFetch 20K/day, Properties 50 reads/min, runtime 6min, triggers 90min. N/A: no
 
 **Q26: Are Properties/Cache payloads within actual limits?** (1, GAS)
 PropertiesService: 524,288 chars/value, 512KB total per store, 500 keys max. CacheService: 102,400 bytes/value, 250-char key max, FIFO eviction (not LRU — hot keys can still be evicted). Exceeding these silently fails or throws with no clear error. N/A: plan does not read/write PropertiesService or CacheService.
+
+---
+
+### Execution & Auth
+
+**Q52: Does the plan use the simplest available execution mechanism?** (2, GAS)
+Are there alternative execution mechanisms (scripts.run API, direct REST endpoints, shared GCP project association, container-bound script access) that achieve the same goal with fewer auth requirements or manual setup steps? Does the plan account for the difference between OAuth token auth (programmatic, no user interaction) and web app browser consent (requires manual approval per user/project)? If the plan chooses a more complex mechanism, is there cited evidence that simpler alternatives were tested and found insufficient? Flag: plan defaults to web app deployment when scripts.run or direct API access would suffice; plan requires per-project auth consent when shared GCP project association would eliminate it; plan assumes a mechanism "won't work" without testing. N/A: plan does not introduce or modify execution/auth mechanisms.
+
+**Q53: If the plan separates code from container-bound scripts, what functionality is lost?** (2, GAS)
+Container-bound scripts have access to getActiveSpreadsheet(), getUi(), installed triggers, and onOpen/onEdit simple triggers. Standalone scripts lose ALL of these. If the plan creates standalone copies or moves code out of the container-bound context: does it enumerate the lost capabilities and either (a) provide alternatives (e.g., parameterized spreadsheet ID via SpreadsheetApp.openById()), or (b) confirm they are not needed? Can the plan's isolation strategy transparently preserve the caller's execution context across the standalone boundary? Flag: plan creates standalone versions of container-bound code without addressing lost container-bound features; plan assumes getActiveSpreadsheet() will work in a standalone context; plan doesn't consider whether existing code depends on container-bound behavior. N/A: plan does not create standalone scripts or separate code from container-bound scripts.
+
+**Q54: Does the plan leverage or account for GCP project association?** (2, GAS)
+Scripts within the same GCP project can call each other via scripts.run without additional OAuth consent screens. GCP project association can be set programmatically via the Apps Script API (not UI-only as commonly assumed). If the plan requires cross-script communication or execution, does it evaluate whether shared GCP project association eliminates auth barriers? If the plan adds new OAuth consent requirements, does it check whether GCP project configuration could reduce them? Flag: plan treats OAuth consent as unavoidable without checking GCP project relationships; plan assumes GCP project association requires manual UI steps without verifying programmatic alternatives; plan does not mention GCP project context when introducing cross-script calls or new auth requirements. N/A: plan involves only a single script with no cross-script execution or GCP project concerns.
 
 ---
 
