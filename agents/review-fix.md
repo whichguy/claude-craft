@@ -195,9 +195,8 @@ dropped.
 ## Concurrency Invariants
 
 1. **Phase A:** Each cluster Task writes to `${file_slug}_cluster_${cluster.id}.md`. `slug_map` guarantees collision-free slugs (e.g., `foo-bar.ts` vs `foo_bar.ts` get distinct slugs). No shared output paths.
-2. **Phase C:** One fixer Task per file per wave. No two fixers touch the same file concurrently.
-3. **Backlog:** Every `(file, cluster)` starts `pending`, shrinks only via memoization or skip. No silent drops.
-4. **Memo safety:** Cluster memoized only when its Q-numbers don't overlap with round's applied fixes. Re-activated on fixer failure in same file.
+2. **Backlog:** Every `(file, cluster)` starts `pending`, shrinks only via memoization or skip. No silent drops.
+3. **Memo safety:** Cluster memoized only when its Q-numbers don't overlap with round's applied fixes. Re-activated on fixer failure in same file.
 
 ---
 

@@ -429,7 +429,6 @@ DO:
   -- Concurrency invariants --
   # Each evaluator writes to <RESULTS_DIR>/<name>.json (unique by construction). No shared paths.
   # Evaluators are read-only on the plan — all edits applied by orchestrator after fan-in.
-  # Wave order = priority order: L1-blocking first, UI last.
 
   -- Wave spawning --
   dispatch_start_time = Date.now()
