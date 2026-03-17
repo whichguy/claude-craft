@@ -144,7 +144,7 @@ IS_LARGE_PROMPT = false  # set after prompt_file_contents is read in Step 0c
 # QUESTIONS.md, eval_path, EVALUATE.md, SendMessage, mcp__, or "spawn.*agent"
 # Detect IS_LARGE_PROMPT: len(prompt_file_contents) > LARGE_PROMPT_THRESHOLD — covers orchestration
 # skills where run agents would exhaust context reading the prompt before producing output
-# (All flags are set before Step 0b, after prompt_file_contents is read)
+# (All three flags are set in Step 0c, after prompt_file_contents is read — after Step 0b)
 
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)

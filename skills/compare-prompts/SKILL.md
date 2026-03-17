@@ -191,16 +191,6 @@ IF IS_LARGE_PROMPT:
     Bash: diff "{prompt_a_path}" "{prompt_b_path}" > "$COMPARE_TMPDIR/diff.txt" || true
 ```
 
-**Prompt injection** — build task_prompt per run:
-```
-IF prompt_contents contains "{{INPUT}}":
-    task_prompt = prompt_contents.replace("{{INPUT}}", input_file_contents)
-ELSE:
-    task_prompt = prompt_contents + "\n\n<INPUT>\n" + input_file_contents + "\n</INPUT>\n\nExecute the above instructions on the provided input. Output your response directly."
-```
-
-Record `start_time_ms = Date.now()` per task before spawning.
-
 IF IS_LARGE_PROMPT:
     # Skip run agents — proceed directly to diff-based judges in Step 4
     Print: "[3/6] 🚀 runs ── skipped (diff-based mode)"
@@ -208,6 +198,16 @@ IF IS_LARGE_PROMPT:
     avg_latency_a = 0; avg_latency_b = 0
     avg_tokens_a = 0; avg_tokens_b = 0
 ELSE:
+    **Prompt injection** — build task_prompt per run:
+    ```
+    IF prompt_contents contains "{{INPUT}}":
+        task_prompt = prompt_contents.replace("{{INPUT}}", input_file_contents)
+    ELSE:
+        task_prompt = prompt_contents + "\n\n<INPUT>\n" + input_file_contents + "\n</INPUT>\n\nExecute the above instructions on the provided input. Output your response directly."
+    ```
+
+    Record `start_time_ms = Date.now()` per task before spawning.
+
     **Spawn all 2×N Tasks in a single parallel message** with `run_in_background: true`.
     Each task:
     - `subagent_type`: general-purpose
@@ -223,7 +223,9 @@ ELSE:
 
 ## Step 3 — Collect Results, File-Artifact Resolution & Timing
 
-IF IS_LARGE_PROMPT: Skip this step — no run tasks were spawned. Proceed directly to Step 4.
+IF IS_LARGE_PROMPT:
+    Print: "[4/6] ✅ runs complete ── (skipped — diff-based mode)"
+    Skip remaining steps in this section — no run tasks were spawned. Proceed directly to Step 4.
 
 Poll all 2×N tasks until complete. Use TaskGet or await completion notifications. Wrap each TaskGet call in try/catch — if a poll throws, treat that task as failed and proceed to error handling below.
 
