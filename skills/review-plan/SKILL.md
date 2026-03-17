@@ -261,8 +261,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 are not memoizable)
-   l1_advisory_memoized = false     # true when ALL 19 advisory questions PASS/N/A AND no edits applied since
-   l1_advisory_memoized_since = 0   # pass_count when group-memoized
+   l1_structural_memoized = false    # true when ALL 6 structural questions PASS/N/A AND no edits since
+   l1_structural_memoized_since = 0
+   l1_process_memoized = false       # true when ALL 13 process questions PASS/N/A AND no edits since
+   l1_process_memoized_since = 0
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
    memoized_gas_since = {}           # Q-ID → pass_count when memoized
@@ -271,7 +273,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
-   MAX_CONCURRENT = 4              # max parallel evaluator tasks per wave; tunable
+   MAX_CONCURRENT = 5              # max parallel evaluator tasks per wave; tunable
    dispatch_start_time = 0    # set before wave spawning
    fanin_start_time = 0       # set after all waves complete
    apply_start_time = 0       # set before edit application
@@ -337,7 +339,8 @@ DO:
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
-                     l1_advisory_memoized (default false), l1_advisory_memoized_since (default 0),
+                     l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
+                     l1_process_memoized (default false), l1_process_memoized_since (default 0),
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
                      prev_pass_applied_edits (default []),
                      total_changes_all_passes, pass_count,
@@ -403,10 +406,12 @@ DO:
   # Priority 1a: L1 blocking (Gate 1, always runs, 3 questions)
   evaluators_to_spawn.append({name: "l1-blocking", task_config: <l1_blocking_config below>})
 
-  # Priority 1b: L1 advisory (Gate 2/3, 19 questions — skip if group-memoized)
-  # Split into two passes: structural (Q-G20–Q-G25, runs first) and process (Q-G4–Q-G19, runs second)
-  IF NOT l1_advisory_memoized:
+  # Priority 1b: L1 advisory structural (Gate 2/3, 6 questions — skip if group-memoized)
+  IF NOT l1_structural_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-structural", task_config: <l1_advisory_structural_config below>})
+
+  # Priority 1c: L1 advisory process (Gate 2/3, 13 questions — skip if group-memoized)
+  IF NOT l1_process_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-process", task_config: <l1_advisory_process_config below>})
 
   # Priority 2: Ecosystem evaluator (largest question set after L1)
@@ -506,14 +511,17 @@ DO:
     Print: "  node-eval ── ⏭ fully memoized (all [applicable_node_count] questions stable)"
     node_plan_changes = 0
     node_results = {n_id: "PASS" for n_id in memoized_node_questions}
-  IF l1_advisory_memoized:
-    advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
-      "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
-    FOR q in advisory_questions:
+  IF l1_structural_memoized:
+    structural_questions = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    FOR q in structural_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
-    Print: "  ⏭ l1-advisory-structural ── memoized (6 questions stable since p[l1_advisory_memoized_since])"
-    Print: "  ⏭ l1-advisory-process ── memoized (13 questions stable since p[l1_advisory_memoized_since])"
+    Print: "  ⏭ l1-advisory-structural ── memoized (6 questions stable since p[l1_structural_memoized_since])"
+  IF l1_process_memoized:
+    process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19"}
+    FOR q in process_questions:
+      l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
+    Print: "  ⏭ l1-advisory-process ── memoized (13 questions stable since p[l1_process_memoized_since])"
 
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
@@ -641,6 +649,16 @@ DO:
       without citing which step or section is responsible.
 
       Question-specific methodology:
+      - For Q-G20 (Story arc coherence): Check 4 elements — (1) problem/need statement,
+        (2) approach and why it was chosen, (3) expected outcome, (4) testable verification assertion.
+        Subtype A: design/approach section claims a behavior no implementation step produces.
+        Subtype B: verification section uses untestable assertions ("verify it works", "check for regressions").
+        Both subtypes → NEEDS_UPDATE. Cite the specific missing element or untestable assertion.
+        If story arc is entirely absent, produce edit: "[EDIT: inject after plan title:
+        '## Context\n[What problem or need this addresses and what current state changes]\n\n
+        ## Approach\n[What this plan will do and why this method]\n\n
+        ## Expected Outcome\n[What success looks like and how it is verified]']"
+        For partial story arcs, cite the specific missing element in your finding.
       - For Q-G21 (internal logic consistency) and Q-G22 (cross-phase dependency):
         Use trace-verify-cite: (1) identify each claim, cross-reference, or data access
         (2) trace it to its declared source (prior phase output, schema, function signature)
@@ -1066,9 +1084,10 @@ DO:
       evaluator_lines.append("gas-eval ── ⏭ fully memoized")
     IF IS_NODE AND fully_memoized_node:
       evaluator_lines.append("node-eval ─ ⏭ fully memoized")
-    IF l1_advisory_memoized:
-      evaluator_lines.append("l1-advisory-structural ── ⊘ memoized p[l1_advisory_memoized_since]")
-      evaluator_lines.append("l1-advisory-process ── ⊘ memoized p[l1_advisory_memoized_since]")
+    IF l1_structural_memoized:
+      evaluator_lines.append("l1-advisory-structural ── ⊘ memoized p[l1_structural_memoized_since]")
+    IF l1_process_memoized:
+      evaluator_lines.append("l1-advisory-process ── ⊘ memoized p[l1_process_memoized_since]")
 
     Print tree (where n = len(evaluator_lines) - 1):
       If n == 0: "  └ " + evaluator_lines[0]   (only 1 evaluator — no ┌/├)
@@ -1306,22 +1325,34 @@ DO:
   prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
   prev_pass_applied_edits = current_pass_applied_edits  # carry delta summary to next pass's evaluators
 
-  # Group memoization for l1-advisory evaluators (structural + process — both groups together)
-  # l1_advisory_memoized covers all 19 advisory questions from both l1-advisory-structural and l1-advisory-process
-  IF NOT l1_advisory_memoized:
-    advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
-      "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
-    all_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in advisory_questions)
-    IF all_clean:
-      l1_advisory_memoized = true
-      l1_advisory_memoized_since = pass_count
-      newly_memoized.append("l1-advisory-structural (6 questions) + l1-advisory-process (13 questions)")
+  # Group memoization for l1-advisory-structural (6 questions — independently tracked)
+  IF NOT l1_structural_memoized:
+    structural_questions = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    all_structural_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in structural_questions)
+    IF all_structural_clean:
+      l1_structural_memoized = true
+      l1_structural_memoized_since = pass_count
+      newly_memoized.append("l1-advisory-structural (6 questions)")
   ELSE:
-    # Invalidate if ANY edit was applied this pass (edits can affect advisory questions)
+    # Invalidate if ANY edit was applied this pass (edits can affect structural questions)
     IF changes_this_pass > 0:
-      l1_advisory_memoized = false
-      Print: "  memo: l1-advisory-structural + l1-advisory-process invalidated (edits applied)"
+      l1_structural_memoized = false
+      Print: "  memo: l1-advisory-structural invalidated (edits applied)"
+
+  # Group memoization for l1-advisory-process (13 questions — independently tracked)
+  IF NOT l1_process_memoized:
+    process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19"}
+    all_process_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in process_questions)
+    IF all_process_clean:
+      l1_process_memoized = true
+      l1_process_memoized_since = pass_count
+      newly_memoized.append("l1-advisory-process (13 questions)")
+  ELSE:
+    # Invalidate if ANY edit was applied this pass (edits can affect process questions)
+    IF changes_this_pass > 0:
+      l1_process_memoized = false
+      Print: "  memo: l1-advisory-process invalidated (edits applied)"
 
   # Stability-based memoization for gas Gate 2/3 questions
   # Runs AFTER Phase 6 invalidation — so newly-cleared questions can re-earn stability this pass
@@ -1391,7 +1422,8 @@ DO:
     results_dir: RESULTS_DIR,
     pass_count, memoized_clusters: [...memoized_clusters],
     memoized_since, memoized_l1_questions: [...memoized_l1_questions],
-    l1_advisory_memoized, l1_advisory_memoized_since,
+    l1_structural_memoized, l1_structural_memoized_since,
+    l1_process_memoized, l1_process_memoized_since,
     prev_needs_update_set: [...current_needs_update_set],
     pass1_needs_update_set: [...pass1_needs_update_set],
     prev_pass_results,
