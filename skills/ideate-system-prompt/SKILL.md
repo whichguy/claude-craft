@@ -33,22 +33,37 @@ this skill generates *new* hypotheses on demand and benchmarks them immediately.
 - **Scenarios**: `require('sheets-chat/ABTestHarness').SCENARIOS` — 12 scenarios total (indices 0–11)
 - **Variant map**: `{ V2: 'buildSystemPromptV2', V2a: 'buildSystemPromptV2a', V2b: 'buildSystemPromptV2b', V2c: 'buildSystemPromptV2c' }`
 
-## Argument Reference
+## Argument Parsing
 
-Arguments are free-form text after `/ideate-system-prompt`. Parse them using the table below:
+Parse `$ARGUMENTS` (the free-form text after `/ideate-system-prompt`) using the rules below.
+Execute this block exactly before Step 0 — all subsequent steps reference these named variables.
 
-| Parameter | Default | Format | Notes |
-|-----------|---------|--------|-------|
-| `--base` | `V2a` | variant name | Base to start from; must be in variant map |
-| `--ideas` | `3` | integer | Number of variant hypotheses to generate |
-| `--scenarios` | `0-4` | range `0-4` or comma `0,1,5` | Standard ABTestHarness scenario indices for regression |
-| `--targeted` | `4` | integer | Targeted test messages per hypothesis |
-| `--model` | `claude-haiku-4-5-20251001` | Claude model ID | GAS-side inference model |
-| `--ideation-model` | `claude-sonnet-4-6` | Claude model ID | Skill-side ideation model |
-| `--judge-model` | `claude-opus-4-6` | Claude model ID | LLM-as-judge model |
-| `--save` | (off) | flag | If set, emit winning variant full text at end |
+```
+# Argument parsing — execute before Step 0
+base        = extract("--base <value>")                  ?? "V2a"
+ideas       = int(extract("--ideas <N>"))                ?? 3
+scenarios   = parseRange(extract("--scenarios <range>")) ?? range(0, 4)
+targeted    = int(extract("--targeted <N>"))             ?? 4
+model       = extract("--model <value>")                 ?? "claude-haiku-4-5-20251001"
+ideaModel   = extract("--ideation-model <value>")        ?? "claude-sonnet-4-6"
+judgeModel  = extract("--judge-model <value>")           ?? "claude-opus-4-6"
+save        = flag("--save")                             ?? false
+```
 
-**Default cell count**: 3 ideas × (5 std + 4 targeted) + 5 baseline = **32 cells**
+**Range parsing rule for `--scenarios`:**
+```
+parseRange(s):
+  if s contains "-"  → split on "-", produce [parseInt(left) .. parseInt(right)] inclusive
+                        e.g. "0-4" → [0,1,2,3,4]
+  if s contains ","  → split on ",", parse each token as int
+                        e.g. "0,1,5" → [0,1,5]
+  if s is a single integer → [parseInt(s)]
+                        e.g. "3" → [3]
+  else               → null  (triggers default: range(0,4))
+```
+
+**Default cell count**: `ideas × (scenarios.length + targeted) + scenarios.length`
+For defaults (3 × (5 + 4) + 5 = **32 cells**)
 
 ---
 
@@ -88,23 +103,31 @@ the variant map (e.g. `buildSystemPromptV2a`). The result is a plain string valu
 
 If exec returns error, abort with: `Step 0 exec failed: <error>`. Emit:
 ```
-Base prompt loaded: V2a  |  length: 16,842 chars
+Base prompt loaded: <base>  |  length: <basePromptText.length> chars
 ```
+(substitute `<base>` with the parsed `base` variable and `<basePromptText.length>` with the actual char count)
 
 ### Config banner
 
+Emit the banner after loading `basePromptText`. All values come from parsed args and runtime —
+substitute each `<…>` token before printing. Do not print these as literal angle-bracket tokens.
+
 ```
+variantCells = ideas × (scenarios.length + targeted)   # total non-baseline cells
+baselineCells = scenarios.length
+totalCells   = variantCells + baselineCells
+
 ╔══════════════════════════════════════════╗
 ║     ideate-system-prompt                 ║
 ╠══════════════════════════════════════════╣
-║  Base       : V2a (16,842 chars)         ║
-║  Ideas      : 3                          ║
-║  Scenarios  : 0-4 (5 standard)           ║
-║  Targeted   : 4 per idea                 ║
-║  Cells      : 32 (27 variant + 5 base)   ║
-║  Bench model: claude-haiku-4-5-20251001  ║
-║  Ideation   : claude-sonnet-4-6          ║
-║  Judge      : claude-opus-4-6            ║
+║  Base       : <base> (<basePromptText.length> chars)  ║
+║  Ideas      : <ideas>                    ║
+║  Scenarios  : <scenarios[0]>-<scenarios[last]> (<scenarios.length> standard) ║
+║  Targeted   : <targeted> per idea        ║
+║  Cells      : <totalCells> (<variantCells> variant + <baselineCells> base) ║
+║  Bench model: <model>                    ║
+║  Ideation   : <ideaModel>                ║
+║  Judge      : <judgeModel>               ║
 ╚══════════════════════════════════════════╝
 ```
 
@@ -112,15 +135,34 @@ Base prompt loaded: V2a  |  length: 16,842 chars
 
 ## Step 1 — Generate Hypotheses (Parallel Ideation Agents)
 
-Spawn `--ideas` ideation agents in parallel (default 3), each given `basePromptText` and one angle.
+Spawn `ideas` ideation agents in parallel (default 3), each given `basePromptText` and one angle.
 
-**Standard angles (map by index 0-based):**
-- Index 0 — **Compression**: "Identify 2–3 sections that are over-specified or redundant. Propose a tightened version that preserves all critical behaviors while reducing length."
-- Index 1 — **Missing coverage**: "Identify 2–3 failure modes or edge cases this prompt doesn't handle well. Propose targeted additions that address them without inflating length."
-- Index 2 — **Structure / clarity**: "Identify instruction conflicts, confusing ordering, or sections that work against each other. Propose a restructured version with clearer hierarchy."
-- Index 3+ — Rotate through Compression, Missing coverage, Structure/clarity (cycle with index % 3).
+**Angle assignment (pseudo-code):**
+```
+ANGLES = [
+  { id: "compression",   desc: "Identify 2–3 sections that are over-specified or redundant. Propose a tightened version that preserves all critical behaviors while reducing length." },
+  { id: "missing-cov",   desc: "Identify 2–3 failure modes or edge cases this prompt doesn't handle well. Propose targeted additions that address them without inflating length." },
+  { id: "structure",     desc: "Identify instruction conflicts, confusing ordering, or sections that work against each other. Propose a restructured version with clearer hierarchy." }
+]
 
-**Ideation agent prompt template:**
+for i in 0 .. ideas-1:
+  angle    = ANGLES[i % 3]                   # cycle: 0→compression, 1→missing-cov, 2→structure, 3→compression, ...
+  ideaId   = angle.id + "-1"                 # always append "-1" (one idea per agent per angle)
+  angleDesc = angle.desc
+```
+
+The `-1` suffix is always appended because each agent produces exactly one idea.
+If `ideas > 3`, angles cycle (index % 3) and the suffix stays `-1` — they do NOT increment
+(e.g. a second compression agent still produces `"compression-1"`, not `"compression-2"`).
+
+**Ideation agent prompt template (construct once per agent, substituting from parsed args):**
+
+Before sending to each ideation agent, build the prompt string by substituting:
+- `<BASE_PROMPT_TEXT>` → `basePromptText` (the full string loaded in Step 0)
+- `<ANGLE_DESCRIPTION>` → `angleDesc` for this agent (from angle assignment above)
+- `<TARGETED_COUNT>` → `targeted` (the parsed `--targeted` integer)
+- `<IDEA_ID>` → `ideaId` for this agent (e.g. `"compression-1"`)
+- The `targetedTests` array in the JSON template must have exactly `<TARGETED_COUNT>` placeholder entries — add or remove `{ "message": "...", ... }` lines to match
 
 ```
 You are a prompt engineer improving a system prompt for a Google Sheets AI assistant.
@@ -132,14 +174,12 @@ Your angle: <ANGLE_DESCRIPTION>
 
 Generate exactly ONE variant hypothesis. Return ONLY valid JSON:
 {
-  "ideaId": "<angle-N>",
+  "ideaId": "<IDEA_ID>",
   "hypothesis": "one-line description of the change and why it should help",
   "variantPromptText": "<full modified system prompt text>",
   "targetedTests": [
-    { "message": "...", "validates": "...", "category": "..." },
-    { "message": "...", "validates": "...", "category": "..." },
-    { "message": "...", "validates": "...", "category": "..." },
     { "message": "...", "validates": "...", "category": "..." }
+    <repeat to total <TARGETED_COUNT> entries>
   ]
 }
 
@@ -305,7 +345,14 @@ be placed verbatim into the JS source — do not add extra quotes around it.
 [▓▓▓▓▓▓▓░░░░░░░░░░░░░] 12/32 cells  (compression-1/std/scenario-3 ✓)
 ```
 
-The progress label uses `cell.ideaId + "/" + cell.testType.slice(0,3) + "/scenario-" + cell.scenarioId`.
+The progress label is computed per cell as:
+```
+label = cell.ideaId + "/" + cell.testType.slice(0,3) + "/scenario-" + cell.scenarioId
+# Examples:
+#   ideaId="compression-1", testType="standard", scenarioId="3"  → "compression-1/std/scenario-3"
+#   ideaId="missing-cov-1", testType="targeted", scenarioId="targeted-0" → "missing-cov-1/tar/scenario-targeted-0"
+#   ideaId="baseline",      testType="standard", scenarioId="2"  → "baseline/std/scenario-2"
+```
 
 **Retry**: If the `mcp__gas__exec` tool call itself errors (non-zero exit or tool error), OR if the
 returned object contains an `error` field → retry once. The inner JS try/catch always returns a
@@ -333,13 +380,32 @@ Collect all `cellResults[]` entries where `scenarioId === String(scenarioIndex)`
 `testType === "standard"`. This produces one result per idea plus one baseline result —
 N+1 configs total (where N = number of successfully generated ideas).
 
-Assign randomized single-letter labels (A, B, C, ...) to the configs. Keep a private
-`labelMap` that maps label → ideaId for later remapping. The judge must NOT see ideaId
-values — labels only.
+**Label assignment (execute once per scenario, independently):**
+```
+# Collect all configs for this scenario
+configs = cellResults[] where scenarioId === String(scenarioIndex) and testType === "standard"
+# → one entry per ideaId (ideas + baseline), N+1 total
 
-**Label cardinality**: Total configs = number of ideas that produced results + 1 (baseline).
+# Shuffle configs for position blinding (use a different shuffle per scenario)
+shuffled = shuffle(configs)    # random permutation — different seed each call
+
+# Assign single-letter labels in shuffled order
+LABELS = ["A", "B", "C", "D", "E", "F", ...]  # extend as needed
+labelMap = {}                  # label → ideaId (private; never shown to judge)
+for i in 0 .. shuffled.length - 1:
+  label         = LABELS[i]
+  labelMap[label] = shuffled[i].ideaId
+```
+
+The judge sees only the labels. After parsing the judge result, remap:
+```
+winner_ideaId = labelMap[result.winner]
+```
+
+**Label cardinality**: Total configs = ideas that produced results + 1 (baseline).
 For 3 ideas: 4 configs → labels A/B/C/D. For 2 ideas: 3 configs → labels A/B/C.
-Adjust the `judgments` keys and JSON template to match the actual config count.
+Build the judge prompt's config block and JSON template from `shuffled` — one entry per label.
+Never hardcode the number of configs in the template.
 
 **Judge prompt template** (construct this string dynamically for each scenario — the
 config block and JSON template must be built to match the actual number of configs
