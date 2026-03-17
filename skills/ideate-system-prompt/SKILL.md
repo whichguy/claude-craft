@@ -162,6 +162,49 @@ totalCells   = variantCells + baselineCells
 
 Spawn `ideas` ideation agents in parallel (default 3), each given `basePromptText` and one angle.
 
+### Step 1a — Pre-ideation Diagnostic
+
+Before spawning ideation agents, run ONE lightweight diagnostic agent using `ideaModel` to analyze
+`basePromptText` through all 3 angles simultaneously. This runs sequentially — complete before
+spawning ideation agents.
+
+**Diagnostic agent prompt** (substitute `<BASE_PROMPT_TEXT>` with `basePromptText`):
+
+```
+You are analyzing a system prompt for a Google Sheets AI assistant.
+Identify the top 2 SPECIFIC opportunities from each angle below:
+
+1. COMPRESSION: Which sections are over-specified, redundant, or could be condensed
+   without losing critical behaviors? Name the section (quote its header or first line).
+2. MISSING-COV: Which user request types, edge cases, or failure modes does this prompt
+   handle poorly or not address at all? Name the specific gap.
+3. STRUCTURE: Where do instructions conflict, create confusing ordering, or work against
+   each other? Cite the specific sections involved.
+
+Base prompt:
+<BASE_PROMPT_TEXT>
+
+Return ONLY valid JSON — no prose, no markdown:
+{
+  "compression": ["specific opportunity 1", "specific opportunity 2"],
+  "missing": ["specific gap 1", "specific gap 2"],
+  "structure": ["specific issue 1", "specific issue 2"],
+  "_marker": "DIAGNOSTIC_COMPLETE"
+}
+```
+
+Store the parsed result as `diagnosticContext`.
+
+**Marker validation**: If `!diagnosticContext._marker`, emit debug output (first 200 chars of raw
+response) and set `diagnosticContext = {}`. Proceed — diagnostics are enhancement, not required.
+
+**Diagnostic injection into each ideation agent**: Before sending each ideation agent prompt,
+resolve `<DIAGNOSTIC_FOR_THIS_ANGLE>` (see template below) as:
+- `compression` angle → bullet list of `diagnosticContext.compression` items
+- `missing-cov` angle → bullet list of `diagnosticContext.missing` items
+- `structure` angle → bullet list of `diagnosticContext.structure` items
+- If `diagnosticContext` is empty (fallback) → omit the entire diagnostic section from the prompt
+
 **Angle assignment (pseudo-code):**
 ```
 ANGLES = [
@@ -197,6 +240,8 @@ Base prompt:
 
 Your angle: <ANGLE_DESCRIPTION>
 
+<DIAGNOSTIC_FOR_THIS_ANGLE>
+
 Generate exactly ONE variant hypothesis. Return ONLY valid JSON:
 {
   "ideaId": "<IDEA_ID>",
@@ -205,7 +250,8 @@ Generate exactly ONE variant hypothesis. Return ONLY valid JSON:
   "targetedTests": [
     { "message": "...", "validates": "...", "category": "..." }
     <repeat to total <TARGETED_COUNT> entries>
-  ]
+  ],
+  "_marker": "IDEATION_COMPLETE"
 }
 
 Rules:
@@ -217,10 +263,26 @@ Rules:
 - Return ONLY the JSON object — no prose, no markdown fence, no explanation
 ```
 
+**`<DIAGNOSTIC_FOR_THIS_ANGLE>` substitution**: If `diagnosticContext` is non-empty, replace
+`<DIAGNOSTIC_FOR_THIS_ANGLE>` with:
+
+```
+Diagnostic analysis of this prompt (identified opportunities for your angle):
+- <opportunity 1>
+- <opportunity 2>
+
+Use these as starting points for your hypothesis. Your hypothesis should address at least one
+of the identified opportunities above, or explain why a different opportunity is more impactful.
+```
+
+Where the bullet items come from the matching diagnostic key. If `diagnosticContext` is empty,
+remove the `<DIAGNOSTIC_FOR_THIS_ANGLE>` line entirely from the prompt.
+
 **Error handling per agent:**
 - Agent timeout (60s): log warning `[Step 1] Agent <angle> timed out — skipping` and skip
 - JSON parse failure: retry once with "Return ONLY the raw JSON object, no other text"
-- On second parse failure: skip that agent's idea
+- On second parse failure: emit first 200 chars of raw output before skipping that agent's idea
+- `_marker` validation: after successful JSON parse, check `result._marker === "IDEATION_COMPLETE"` — if absent, emit first 200 chars of raw output and skip
 - Schema validation: require `{ ideaId, hypothesis, variantPromptText, targetedTests[] }` — skip if missing required fields
 - If `targetedTests.length < --targeted`, pad with generic Sheets queries or trim to actual count
 - If 0 agents succeed: abort with `Step 1 failed: all ideation agents failed or timed out`
@@ -233,10 +295,14 @@ Steps 2 and 3.
 Print ideation summary:
 ```
 Step 1 — Ideation complete (3/3 ideas generated)
+  [diagnostic: compression×2, missing×2, structure×2 opportunities identified]
   compression-1   : Removed redundant THINKING PROTOCOL phases 4-5 (-1,200 chars)
   missing-cov-1   : Added explicit handling for multi-sheet operations
   structure-1     : Reorganized KEY PRINCIPLES before TOOL USAGE section
 ```
+
+If `diagnosticContext` was empty (marker absent or parse failed), show instead:
+`[diagnostic: unavailable — proceeding without grounding context]`
 
 ---
 
@@ -382,6 +448,18 @@ label = cell.ideaId + "/" + cell.testType.slice(0,3) + "/scenario-" + cell.scena
 **Retry**: If the `mcp__gas__exec` tool call itself errors (non-zero exit or tool error), OR if the
 returned object contains an `error` field → retry once. The inner JS try/catch always returns a
 valid object (never a raw exception), so `result.error` being set is the per-cell failure signal.
+
+**Circuit breaker**: Track `consecutive_cell_failures = 0`. After each cell completes:
+- If the cell has `error` (after retry) → increment `consecutive_cell_failures`
+- If the cell succeeds → reset `consecutive_cell_failures = 0`
+
+If `consecutive_cell_failures >= 3`, abort immediately with:
+```
+Step 3 circuit breaker: 3 consecutive cell failures.
+Last error: <last_error>
+Suggest: check GAS quota, verify require() paths are reachable.
+```
+
 **Abort threshold**: If >20% of cells (>6 for 32-cell default; scales with actual cell count × 0.20) fail after retry → abort with diagnostic listing failed cells.
 **Per-cell timeout**: 90s. On timeout, record cell as failed (with `error: "timeout"`) and continue.
 
@@ -441,6 +519,11 @@ You are evaluating system prompt configurations for a Google Sheets AI assistant
 Scenario: "<scenario.message>" (Category: <scenario.category>)
 Validates: <scenario.validates>
 
+Context for each configuration (use to inform your reasoning, not to bias scoring):
+<FOR EACH label in shuffled labels — repeat this block once per config>
+  [<label>] Testing: "<idea.hypothesis for this ideaId>" (or "Baseline — unmodified <base>" for baseline)
+</END FOR>
+
 Configurations (labels assigned randomly — do not infer identity from order):
 <FOR EACH label in shuffled labels — repeat this block once per config>
   [<label>] Heuristic composite: <composite_for_label>/10
@@ -457,6 +540,12 @@ Score each configuration on these 5 dimensions (1–5 scale each):
   4. Tool Use    — Does it correctly identify what tools/APIs are needed?
   5. Conciseness — Is the response appropriately sized (not too verbose, not too short)?
 
+For each non-baseline configuration, assess whether responses suggest the stated hypothesis
+change is working as intended (use "achieved", "partial", or "unclear"):
+  - achieved  — responses strongly suggest the hypothesis change is working as intended
+  - partial   — some evidence the hypothesis is working, but inconsistent
+  - unclear   — can't tell from this scenario alone
+
 Return ONLY valid JSON in this exact format (one key per config label — adjust to match
 the actual labels present above):
 {
@@ -466,9 +555,16 @@ the actual labels present above):
     "<label2>": {...}
   },
   "winner": "<label>",
-  "reasoning": "1-2 sentence explanation"
+  "reasoning": "1-2 sentence explanation",
+  "hypothesisEffectiveness": {
+    "<label_for_non_baseline_idea>": {"assessment": "achieved|partial|unclear", "evidence": "one sentence"}
+  },
+  "_marker": "JUDGE_COMPLETE"
 }
 ```
+
+Note: `hypothesisEffectiveness` should include one entry per non-baseline config only (exclude
+baseline). The `_marker` field must always be present.
 
 Example for 3 ideas (4 configs: A/B/C/D); for 2 ideas use 3 configs (A/B/C); adjust
 accordingly. Always derive label count from the actual number of configs, never hardcode 4.
@@ -482,18 +578,36 @@ position bias. Use a different shuffle for each judge agent call.
 
 **Normalization**: For each config's judgment, compute `raw_avg = mean([accuracy, helpfulness, safety, toolUse, conciseness])` (1–5 scale), then rescale to 0–10 via `(raw_avg - 1) / 4 * 10`.
 
-**Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object, no other text". On second failure or timeout (30s) → skip that scenario from judge scoring; note in output.
+**Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object, no other text". On second failure → emit first 200 chars of raw output before marking failed. On timeout (30s) → skip that scenario from judge scoring; note in output.
+
+**`_marker` validation**: After successful JSON parse, check `result._marker === "JUDGE_COMPLETE"` — if absent, emit first 200 chars of raw output and mark that judge result as `status: "failed"`.
 
 **State output**: After all judge agents complete, store results as `judgeResults[]`. Each entry
 must record:
 - `scenarioId` — the scenario this judge evaluated
-- `status` — `"ok"` or `"failed"` (failed = parse failure after retry, or timeout)
+- `status` — `"ok"` or `"failed"` (failed = parse failure after retry, marker absent, or timeout)
 - `judgments` — map of label → normalized score (0–10), populated only on `"ok"` entries
 - `labelMap` — map of label → ideaId (populated only on `"ok"` entries)
 - `winner_ideaId` — remapped winner (populated only on `"ok"` entries)
+- `hypothesisEffectiveness` — raw map from judge output, populated only on `"ok"` entries
 
 Step 5 uses `judgeResults[]` to filter: only entries with `status === "ok"` contribute
 to judge averages. The `scenarioId` field identifies which scenarios to include per idea.
+
+**Quorum gate**: After all judge agents complete:
+```
+quorum = ceil(scenarios.length / 2)
+judge_ok_count = judgeResults[].filter(r => r.status === "ok").length
+
+IF judge_ok_count < quorum:
+  emit: "⚠️  Judge quorum not met ({judge_ok_count}/{scenarios.length} scenarios ok — need ≥{quorum})
+         Ranking will use heuristic scores only."
+  SET judge_data_available = false
+  SET full_quorum = false
+ELSE:
+  SET judge_data_available = true
+  SET full_quorum = (judge_ok_count >= scenarios.length)
+```
 
 **Error handling**: Partial judge results acceptable — skip failed scenarios from judge aggregation.
 
@@ -508,22 +622,51 @@ Ranking is computed on **standard scenarios only** (filter `cellResults[]` to
 ```
 baseline_cells     = cellResults[] where ideaId === "baseline" and testType === "standard"
 baseline_heuristic = mean(composite) over baseline_cells
-succeeded_judge_ids = Set of scenarioId values from judgeResults[] where status === "ok"
-baseline_judge     = mean(normalized judgment score for "baseline" label) over
+
+IF judge_data_available:
+  baseline_judge   = mean(normalized judgment score for "baseline" label) over
                      judgeResults[] entries where status === "ok"
                      (use labelMap to identify which label mapped to "baseline" per scenario)
-baseline_unified   = 0.6 × baseline_heuristic + 0.4 × baseline_judge
+  baseline_unified = 0.6 × baseline_heuristic + 0.4 × baseline_judge
+ELSE:
+  baseline_unified = baseline_heuristic
 ```
 
 For each idea (filter `cellResults[]` to matching `ideaId` and `testType === "standard"`):
 ```
 heuristic_avg = mean(composite) over standard-scenario cells for this idea
-judge_avg     = mean(normalized judgment score for this idea's label) over
-                judgeResults[] entries where status === "ok" and this idea participated
-                (use labelMap per entry to find the label that mapped to this ideaId,
-                 then read judgments[label] for the normalized score)
-unified       = 0.6 × heuristic_avg + 0.4 × judge_avg
+
+IF judge_data_available:
+  judge_avg = mean(normalized judgment score for this idea's label) over
+              judgeResults[] entries where status === "ok" and this idea participated
+              (use labelMap per entry to find the label that mapped to this ideaId,
+               then read judgments[label] for the normalized score)
+  unified   = 0.6 × heuristic_avg + 0.4 × judge_avg
+ELSE:
+  unified   = heuristic_avg
+
 delta_vs_base = unified - baseline_unified
+```
+
+**Delta tier** (compute after all unifieds are calculated):
+```
+delta = winner.unified - baseline_unified   # winner = idea with highest unified score
+IF    delta >= 0.5 : delta_tier = "CLEAR"
+ELIF  delta >= 0.2 : delta_tier = "SOLID"
+ELIF  delta >= 0.05: delta_tier = "MARGINAL"
+ELSE               : delta_tier = "NOISE"
+```
+
+**Hypothesis effectiveness aggregation** (diagnostic only — separate from ranking):
+```
+For each idea:
+  effectiveness_count[idea.ideaId] = count of judgeResults[] entries where:
+    - status === "ok"
+    - hypothesisEffectiveness[label_for_this_idea].assessment === "achieved"
+    (use labelMap to find the label for this ideaId per scenario entry)
+  effectiveness_total[idea.ideaId] = count of judgeResults[] entries where:
+    - status === "ok"
+    - hypothesisEffectiveness has a key for this idea's label
 ```
 
 Targeted test heuristic scores (not in ranking — shown in Step 6 as diagnostics only):
@@ -565,6 +708,33 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
 `scenarioId === "targeted-" + String(i)`). Use `cell.composite` for the score and
 `winner.targetedTests[i].category` for the label.
 
+**Confidence level** (compute from `delta_tier` and `full_quorum`):
+| Condition | Confidence |
+|-----------|-----------|
+| `delta_tier == "CLEAR"` AND `full_quorum == true` | `HIGH` |
+| `delta_tier == "SOLID"` OR (`delta_tier == "CLEAR"` AND `judge_data_available && !full_quorum`) | `MEDIUM` |
+| `delta_tier == "MARGINAL"` OR `judge_data_available == false` | `LOW` |
+| `delta_tier == "NOISE"` | `INCONCLUSIVE` |
+
+**When `delta_tier == "NOISE"`, emit INCONCLUSIVE block instead of winner block:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  RESULT: INCONCLUSIVE — no clear winner
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Top candidate: <top_idea_id> (Δ <delta> — within noise)
+  Baseline (<base>/V2a): <baseline_unified>
+
+  No variant exceeded the noise threshold (±0.05 vs baseline).
+  Suggestions:
+  → Re-run with more scenarios (--scenarios 0-9) for higher signal
+  → Try bolder angles (the current ideas may be too similar to base)
+  → Inspect targeted test diagnostics below for hypotheses worth developing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**When `delta_tier != "NOISE"`, emit winner block:**
+
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   WINNER: compression-1
@@ -572,6 +742,8 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
   Hypothesis: Removed 1,200 chars from THINKING PROTOCOL (phases
               4-5 were redundant with KEY PRINCIPLES section).
   Unified: 7.92 (+0.35 vs V2a baseline)
+  Confidence: MEDIUM
+  Hypothesis effectiveness: achieved in 4/5 judge scenarios
   Prompt length: 16,800 chars (-1,200 vs base)
   Judge winner in: 4/5 standard scenarios
 
@@ -580,11 +752,27 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
   ✓ Code gen constraint: 7.4 composite
   ✗ Context window use: 5.2 composite  ← hypothesis weakness
 
+  ⚠ Anomalies:   (only show if any condition is true)
+  - Judge quorum not met (2/5 scenarios): ranking is heuristic-only
+  - Delta is marginal (0.12): results may not be significant
+  - Hypothesis effectiveness unclear: achieved in only 1/5 judge scenarios
+  - Targeted tests show weaknesses: Context window use (5.2)
+
   Next step:
   → Run /improve-system-prompt --variants V2a,<winner> to full 40-cell benchmark
   → OR use --save to get the variant text for manual review
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
+
+**Anomaly conditions** (include in the ⚠ Anomalies section only when true):
+- `!judge_data_available` → "Judge quorum not met ({judge_ok}/{total} scenarios): ranking is heuristic-only"
+- `delta_tier == "MARGINAL"` → "Delta is marginal ({delta:.2f}): results may not be significant"
+- Winner's `effectiveness_count / effectiveness_total < 0.4` (and `effectiveness_total > 0`) → "Hypothesis effectiveness unclear: achieved in only {count}/{total} judge scenarios"
+- Any targeted test with `composite < 6.0` → "Targeted tests show weaknesses: {category} ({composite})"
+
+If no anomalies are true, omit the `⚠ Anomalies:` section entirely.
+
+**`Hypothesis effectiveness:` field**: Show only if `effectiveness_total > 0`. Format as "achieved in {effectiveness_count}/{effectiveness_total} judge scenarios". If `effectiveness_total == 0`, omit the line.
 
 **Targeted test status symbols:**
 - `✓` if `composite >= 7.0` (hypothesis strength confirmed)
