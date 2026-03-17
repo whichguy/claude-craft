@@ -29,7 +29,7 @@ this skill generates *new* hypotheses on demand and benchmarks them immediately.
 
 - **ScriptId**: `1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C4HoZys75N5utGfkCUG`
 - **GAS execution**: inline JS via `mcp__gas__exec` — no module to deploy
-- **Base prompt**: loaded from `require('sheets-chat/SystemPrompt')['build<Base>'](null, null, SP.gatherEnvironmentContext())`
+- **Base prompt**: loaded from `require('sheets-chat/SystemPrompt')[variantFnName](null, null, SP.gatherEnvironmentContext())` — see variant map below
 - **Scenarios**: `require('sheets-chat/ABTestHarness').SCENARIOS` — 12 scenarios total (indices 0–11)
 - **Variant map**: `{ V2: 'buildSystemPromptV2', V2a: 'buildSystemPromptV2a', V2b: 'buildSystemPromptV2b', V2c: 'buildSystemPromptV2c' }`
 
@@ -79,15 +79,14 @@ Read `sheets-chat/SystemPrompt.gs` and verify:
 ```javascript
 (function() {
   var SP = require('sheets-chat/SystemPrompt');
-  return SP['build<baseVariantFnName>'](null, null, SP.gatherEnvironmentContext());
+  return SP['VARIANT_FN_NAME'](null, null, SP.gatherEnvironmentContext());
 })()
 ```
 
-Substitute `<baseVariantFnName>` from variant map (e.g. `buildSystemPromptV2a`).
+Before sending to exec, replace the literal string `VARIANT_FN_NAME` with the function name from
+the variant map (e.g. `buildSystemPromptV2a`). The result is a plain string value — store it directly as `basePromptText`.
 
-If exec returns error, abort with: `Step 0 exec failed: <error>`.
-
-Store result as `basePromptText`. Emit:
+If exec returns error, abort with: `Step 0 exec failed: <error>`. Emit:
 ```
 Base prompt loaded: V2a  |  length: 16,842 chars
 ```
@@ -162,6 +161,10 @@ Rules:
 - If 0 agents succeed: abort with `Step 1 failed: all ideation agents failed or timed out`
 - If 1–2 succeed: proceed with fewer ideas, note in banner
 
+**State output:** Store results as `ideas[]` — an array of objects matching the JSON schema above
+(`{ ideaId, hypothesis, variantPromptText, targetedTests[] }`). This array is consumed by
+Steps 2 and 3.
+
 Print ideation summary:
 ```
 Step 1 — Ideation complete (3/3 ideas generated)
@@ -174,13 +177,35 @@ Step 1 — Ideation complete (3/3 ideas generated)
 
 ## Step 2 — Build Cell Matrix
 
+Using `ideas[]` from Step 1 and `basePromptText` from Step 0, enumerate every cell that
+will be executed in Step 3. Store the result as `cellSpecs[]` — each entry is a plain
+object describing one execution unit.
+
 For each idea × (standard scenarios + targeted tests):
-- **Standard cells**: `AB.SCENARIOS[N]` for each scenario index from `--scenarios`
-  - testMessage = `scenario.message`
-  - validates = `scenario.validates`
-  - category = `scenario.category`
-- **Targeted cells**: `idea.targetedTests[i]` for i in 0..targeted-1
-- **Baseline cells**: base prompt × each standard scenario (5 cells total — once for all ideas)
+- **Standard cells**: one cell per scenario index from `--scenarios`, using `AB.SCENARIOS[N]`
+  - `variantText` = `idea.variantPromptText`
+  - `testMessage` = `scenario.message`
+  - `validates` = `scenario.validates`
+  - `category` = `scenario.category`
+  - `ideaId` = `idea.ideaId`
+  - `testType` = `"standard"`
+  - `scenarioId` = String(scenarioIndex)  (e.g. `"0"`, `"1"`)
+- **Targeted cells**: one cell per `idea.targetedTests[i]`, for i in 0..targeted-1
+  - `variantText` = `idea.variantPromptText`
+  - `testMessage` = `idea.targetedTests[i].message`
+  - `validates` = `idea.targetedTests[i].validates`
+  - `category` = `idea.targetedTests[i].category`
+  - `ideaId` = `idea.ideaId`
+  - `testType` = `"targeted"`
+  - `scenarioId` = `"targeted-" + String(i)`  (e.g. `"targeted-0"`)
+- **Baseline cells**: `basePromptText` × each standard scenario (one set shared across all ideas)
+  - `variantText` = `basePromptText`
+  - `testMessage` = `scenario.message`
+  - `validates` = `scenario.validates`
+  - `category` = `scenario.category`
+  - `ideaId` = `"baseline"`
+  - `testType` = `"standard"`
+  - `scenarioId` = String(scenarioIndex)
 
 Print matrix summary:
 ```
@@ -194,7 +219,8 @@ Idea matrix: 3 ideas × (5 std + 4 targeted) cells + 5 baseline cells = 32 cells
 
 ## Step 3 — Execute Cells (Sliding Window, 3 Parallel)
 
-Use a sliding window of **3 parallel** `mcp__gas__exec` calls. Do NOT fire all cells at once.
+Iterate over `cellSpecs[]` built in Step 2. Use a sliding window of **3 parallel**
+`mcp__gas__exec` calls — keep exactly 3 in flight at a time. Do NOT fire all cells at once.
 
 **Per-cell inline JS — variant prompt:**
 
@@ -249,48 +275,96 @@ Use a sliding window of **3 parallel** `mcp__gas__exec` calls. Do NOT fire all c
 ```
 
 **Substitution rules (all placeholders use `JSON.stringify` — safe for any string content):**
-- `<JSON_STRINGIFIED_PROMPT>` → `JSON.stringify(variantText)`
-- `<JSON_STRINGIFIED_MESSAGE>` → `JSON.stringify(scenario.message)`
-- `<JSON_STRINGIFIED_VALIDATES>` → `JSON.stringify(scenario.validates)`
-- `<JSON_STRINGIFIED_BASE_PROMPT>` → `JSON.stringify(basePromptText)`
-- `<JSON_STRINGIFIED_MODEL>` → `JSON.stringify(modelId)` — e.g. `"claude-haiku-4-5-20251001"`
-- `<JSON_STRINGIFIED_CATEGORY>` → `JSON.stringify(scenario.category)`
-- `<JSON_STRINGIFIED_IDEA_ID>` → `JSON.stringify(idea.ideaId)` — e.g. `"compression-1"`
-- `<JSON_STRINGIFIED_TEST_TYPE>` → `JSON.stringify("standard")` or `JSON.stringify("targeted")`
-- `<JSON_STRINGIFIED_SCENARIO_ID>` → `JSON.stringify(scenarioId)` — e.g. `"0"` or `"targeted-0"`
 
-Each placeholder produces a complete JSON string literal (with double quotes) and must be pasted verbatim into the JS source with no additional quoting around it.
+For each cell, read the corresponding fields from `cellSpecs[]` and substitute every
+placeholder below before sending the JS string to `mcp__gas__exec`. ALL placeholders
+(including those in the catch block) must be substituted — the entire JS string is
+assembled in memory before exec is called.
+
+| Placeholder | Source | Example value in JS |
+|---|---|---|
+| `<JSON_STRINGIFIED_PROMPT>` | `cell.variantText` (idea variant) | `"You are..."` |
+| `<JSON_STRINGIFIED_BASE_PROMPT>` | `basePromptText` (baseline cells only) | `"You are..."` |
+| `<JSON_STRINGIFIED_MESSAGE>` | `cell.testMessage` | `"Sum column B"` |
+| `<JSON_STRINGIFIED_VALIDATES>` | `cell.validates` | `"Uses SUM formula"` |
+| `<JSON_STRINGIFIED_CATEGORY>` | `cell.category` | `"Formula"` |
+| `<JSON_STRINGIFIED_MODEL>` | `--model` arg | `"claude-haiku-4-5-20251001"` |
+| `<JSON_STRINGIFIED_IDEA_ID>` | `cell.ideaId` | `"compression-1"` |
+| `<JSON_STRINGIFIED_TEST_TYPE>` | `cell.testType` | `"standard"` or `"targeted"` |
+| `<JSON_STRINGIFIED_SCENARIO_ID>` | `cell.scenarioId` | `"0"`, `"1"`, `"targeted-0"` |
+
+Each placeholder produces a complete JSON string literal (with surrounding double quotes) and must
+be placed verbatim into the JS source — do not add extra quotes around it.
 
 **Progress display** (update after each cell completes):
 ```
 [▓▓▓▓▓▓▓░░░░░░░░░░░░░] 12/32 cells  (compression-1/std/scenario-3 ✓)
 ```
 
-**Retry**: If a cell returns `{ success: false }` or exec fails → retry once.
-**Abort threshold**: If >20% of cells (>6 of 32) fail → abort with diagnostic listing failed cells.
-**Per-cell timeout**: 90s. On timeout, record cell as failed and continue.
+The progress label uses `cell.ideaId + "/" + cell.testType.slice(0,3) + "/scenario-" + cell.scenarioId`.
+
+**Retry**: If the `mcp__gas__exec` tool call itself errors (non-zero exit or tool error), OR if the
+returned object contains an `error` field → retry once. The inner JS try/catch always returns a
+valid object (never a raw exception), so `result.error` being set is the per-cell failure signal.
+**Abort threshold**: If >20% of cells (>6 for 32-cell default; scales with actual cell count × 0.20) fail after retry → abort with diagnostic listing failed cells.
+**Per-cell timeout**: 90s. On timeout, record cell as failed (with `error: "timeout"`) and continue.
+
+**State output**: After all cells complete, store results as `cellResults[]` — one entry per cell,
+merging the exec return object with the `cellSpecs[]` entry (`ideaId`, `testType`, `scenarioId`
+are echoed back from the exec return so they are always present, even on failure).
 
 ---
 
 ## Step 4 — LLM-as-Judge (Standard Scenarios Only)
 
-Spawn one judge agent per **standard scenario** (up to 5 in parallel). Targeted test results are
+Filter `cellResults[]` to `testType === "standard"` only. Targeted test results are
 heuristic-only — they do NOT go to the judge and do NOT affect the ranking formula.
 
-**Judge agent prompt template:**
+Spawn one judge agent per **standard scenario** (up to 5 in parallel). Each judge receives
+all configs' responses for that one scenario (all ideas + baseline), with labels randomized.
+
+**Building the judge prompt for each scenario:**
+
+Collect all `cellResults[]` entries where `scenarioId === String(scenarioIndex)` and
+`testType === "standard"`. This produces one result per idea plus one baseline result —
+N+1 configs total (where N = number of successfully generated ideas).
+
+Assign randomized single-letter labels (A, B, C, ...) to the configs. Keep a private
+`labelMap` that maps label → ideaId for later remapping. The judge must NOT see ideaId
+values — labels only.
+
+**Label cardinality**: Total configs = number of ideas that produced results + 1 (baseline).
+For 3 ideas: 4 configs → labels A/B/C/D. For 2 ideas: 3 configs → labels A/B/C.
+Adjust the `judgments` keys and JSON template to match the actual config count.
+
+**Judge prompt template** (construct this string for each scenario — expand the config loop
+before sending to the judge agent):
 
 ```
 You are evaluating system prompt configurations for a Google Sheets AI assistant.
 Scenario: "<scenario.message>" (Category: <scenario.category>)
 Validates: <scenario.validates>
 
-Configurations (order randomized — labels A/B/C/D assigned below):
-<for each config labeled A/B/C/D (randomized order):>
-  [<label>] ideaId=<ideaId>
-  Heuristic composite: <composite>/10
+Configurations (labels assigned randomly — do not infer identity from order):
+  [A] Heuristic composite: <composite_A>/10
   Response:
   ---
-  <response>
+  <response_A>
+  ---
+  [B] Heuristic composite: <composite_B>/10
+  Response:
+  ---
+  <response_B>
+  ---
+  [C] Heuristic composite: <composite_C>/10
+  Response:
+  ---
+  <response_C>
+  ---
+  [D] Heuristic composite: <composite_D>/10
+  Response:
+  ---
+  <response_D>
   ---
 
 Score each configuration on these 5 dimensions (1–5 scale each):
@@ -302,7 +376,7 @@ Score each configuration on these 5 dimensions (1–5 scale each):
 
 Return ONLY valid JSON in this exact format:
 {
-  "testMessage": "...",
+  "scenarioId": "<scenarioId>",
   "judgments": {
     "A": {"accuracy": X, "helpfulness": X, "safety": X, "toolUse": X, "conciseness": X},
     "B": {...},
@@ -310,41 +384,53 @@ Return ONLY valid JSON in this exact format:
     "D": {...}
   },
   "winner": "A",
-  "winner_idea": "<ideaId>",
   "reasoning": "1-2 sentence explanation"
 }
 ```
 
-**Label cardinality**: The judge prompt and JSON template show A/B/C/D (4 configs = 3 ideas + baseline). If `--ideas N` is not 3, adjust the label set to A through the Nth+1 letter (e.g. 2 ideas → A/B/C; 4 ideas → A/B/C/D/E). Generate the judge prompt's `judgments` keys and the JSON template to match the actual config count.
+The judge returns only `"winner": "<label>"` — it does NOT return `winner_idea`.
+After parsing the judge result, remap: `winner_ideaId = labelMap[result.winner]`.
+Store `winner_ideaId` alongside the parsed result before aggregating.
 
-**Position blinding**: Randomize label assignment per scenario; remap `winner_idea` back to the
-original `ideaId` after parsing. Each judge result must include remapped winner before storing.
+**Position blinding**: Randomize label assignment independently for each scenario to prevent
+position bias. Use a different shuffle for each judge agent call.
 
-**Normalization**: `judge_avg` for each config = `mean(sum of 5 dims / 5)` → 1–5 scale → rescale to 0–10 via `(raw_avg - 1) / 4 * 10`.
+**Normalization**: For each config's judgment, compute `raw_avg = mean([accuracy, helpfulness, safety, toolUse, conciseness])` (1–5 scale), then rescale to 0–10 via `(raw_avg - 1) / 4 * 10`.
 
-**Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object". On second failure or timeout (30s) → skip that scenario from judge scoring; note in output.
+**Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object, no other text". On second failure or timeout (30s) → skip that scenario from judge scoring; note in output.
 
-**Error handling**: Partial judge results acceptable — skip failed agents from aggregation.
+**Error handling**: Partial judge results acceptable — skip failed scenarios from judge aggregation.
 
 ---
 
 ## Step 5 — Aggregate & Rank
 
-Ranking is computed on **standard scenarios only** so baseline is comparable.
+Ranking is computed on **standard scenarios only** (filter `cellResults[]` to
+`testType === "standard"`) so baseline is directly comparable.
 
-For each idea:
+**Compute `baseline_unified` first** (needed for delta calculation):
 ```
-heuristic_avg = mean(composite) over standard scenarios
-judge_avg     = mean(normalized judge score 0-10) over standard scenarios
+baseline_cells    = cellResults[] where ideaId === "baseline" and testType === "standard"
+baseline_heuristic = mean(composite) over baseline_cells
+baseline_judge    = mean(normalized judge score 0-10) over baseline_cells
+                    (skip scenarios where judge failed — same filter as ideas)
+baseline_unified  = 0.6 × baseline_heuristic + 0.4 × baseline_judge
+```
+
+For each idea (filter `cellResults[]` to matching `ideaId` and `testType === "standard"`):
+```
+heuristic_avg = mean(composite) over standard-scenario cells for this idea
+judge_avg     = mean(normalized judge score 0-10) over standard-scenario cells for this idea
                 (skip scenarios where judge failed)
 unified       = 0.6 × heuristic_avg + 0.4 × judge_avg
 delta_vs_base = unified - baseline_unified
-  (baseline_unified = same formula on the 5 baseline standard-scenario cells)
 ```
 
 Targeted test heuristic scores (not in ranking — shown in Step 6 as diagnostics only):
 ```
-targeted_heuristic = mean(composite) over the targeted tests for this idea
+targeted_heuristic[idea][i] = composite from the cellResults[] entry where
+                               ideaId === idea.ideaId and testType === "targeted"
+                               and scenarioId === "targeted-" + String(i)
 ```
 
 Ranking table (sort by unified descending):
@@ -365,6 +451,15 @@ note "judge N/A" and rank by heuristic_avg only; unified = heuristic_avg for tha
 ---
 
 ## Step 6 — Recommendation Block
+
+The winner is the idea with the highest `unified` score. Use `ideas[]` to look up
+`winner.hypothesis` and `winner.variantPromptText`. Use `cellResults[]` for
+`winner.promptLength` (from `promptLength` field of any standard cell for that idea).
+
+For the targeted test diagnostics, iterate over `winner.targetedTests` (from `ideas[]`)
+and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId` and
+`scenarioId === "targeted-" + String(i)`). Use `cell.composite` for the score and
+`winner.targetedTests[i].category` for the label.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -388,18 +483,21 @@ note "judge N/A" and rank by heuristic_avg only; unified = heuristic_avg for tha
 ```
 
 **Targeted test status symbols:**
-- `✓` if `targeted_heuristic ≥ 7.0` (hypothesis strength confirmed)
-- `✗` if `targeted_heuristic < 6.0` (hypothesis weakness — may regress on this angle)
-- `~` if 6.0 ≤ composite < 7.0 (neutral)
+- `✓` if `composite >= 7.0` (hypothesis strength confirmed)
+- `✗` if `composite < 6.0` (hypothesis weakness — may regress on this angle)
+- `~` if `6.0 <= composite < 7.0` (neutral)
 
-If `--save` was passed, emit the full winning variant text in a fenced block after the recommendation:
+If `--save` was passed, emit the full winning variant text after the recommendation block,
+enclosed in a separator and a plain indented block (do NOT use triple-backtick fences here
+since the prompt text itself may contain backticks):
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   WINNING VARIANT TEXT (compression-1)
+  (copy everything between the separators)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-```<full winning variantPromptText here>```
+<full winning variantPromptText here — output as a plain quoted string block>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
