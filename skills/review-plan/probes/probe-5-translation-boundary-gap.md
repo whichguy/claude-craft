@@ -45,7 +45,7 @@ Two-stage pipeline: (1) parse the TYPES array into structured data, (2) generate
 5. Generate fixture manifest (`test/fixtures/generated/manifest.json`):
    - List all fixtures with type, path, expected sync behavior
    - Mark skip-pattern files as `expectedSkip: true`
-   - Convert analysis results into test assertion data for each fixture; add `--clean` flag
+   - For each parsed type: extract name (field 0), pattern (field 5), and skip rules (field 6) into an assertion object `{ typeName, pattern, shouldSkip: [array of globs] }`; add `--clean` flag to regenerate all fixtures from scratch
 
 6. Verify and commit: `git add tools/generate-fixtures.sh && git commit -m "feat: add fixture generator"`
 
