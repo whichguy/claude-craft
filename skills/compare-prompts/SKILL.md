@@ -181,6 +181,16 @@ Where `source_detail`:
 
 Read prompt_a contents and prompt_b contents.
 
+**Large-prompt detection:**
+```
+LARGE_PROMPT_THRESHOLD = 25000
+IS_LARGE_PROMPT = max(len(prompt_a_contents), len(prompt_b_contents)) > LARGE_PROMPT_THRESHOLD
+IF IS_LARGE_PROMPT:
+    max_len = max(len(prompt_a_contents), len(prompt_b_contents))
+    Print: "⚠️  Large prompt ({max_len} chars) — using diff-based evaluation"
+    Bash: diff "{prompt_a_path}" "{prompt_b_path}" > "$COMPARE_TMPDIR/diff.txt" || true
+```
+
 **Prompt injection** — build task_prompt per run:
 ```
 IF prompt_contents contains "{{INPUT}}":
@@ -191,20 +201,29 @@ ELSE:
 
 Record `start_time_ms = Date.now()` per task before spawning.
 
-**Spawn all 2×N Tasks in a single parallel message** with `run_in_background: true`.
-Each task:
-- `subagent_type`: general-purpose
-- `model`: run_model (default claude-sonnet-4-6)
-- `prompt`: constructed task_prompt (above)
-- `run_in_background`: true
+IF IS_LARGE_PROMPT:
+    # Skip run agents — proceed directly to diff-based judges in Step 4
+    Print: "[3/6] 🚀 runs ── skipped (diff-based mode)"
+    # All run outputs set to N/A; latency/tokens N/A
+    avg_latency_a = 0; avg_latency_b = 0
+    avg_tokens_a = 0; avg_tokens_b = 0
+ELSE:
+    **Spawn all 2×N Tasks in a single parallel message** with `run_in_background: true`.
+    Each task:
+    - `subagent_type`: general-purpose
+    - `model`: run_model (default claude-sonnet-4-6)
+    - `prompt`: constructed task_prompt (above)
+    - `run_in_background`: true
 
-Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
+    Name tasks for tracking: `run-A-<filename>`, `run-B-<filename>`.
 
-[3/6] 🚀 runs ── {2*N} tasks launched
+[3/6] 🚀 runs ── {2*N} tasks launched  _(or "skipped (diff-based mode)" if IS_LARGE_PROMPT)_
 
 ---
 
 ## Step 3 — Collect Results, File-Artifact Resolution & Timing
+
+IF IS_LARGE_PROMPT: Skip this step — no run tasks were spawned. Proceed directly to Step 4.
 
 Poll all 2×N tasks until complete. Use TaskGet or await completion notifications. Wrap each TaskGet call in try/catch — if a poll throws, treat that task as failed and proceed to error handling below.
 
@@ -257,58 +276,111 @@ with 10 inputs, 20 raw outputs could bloat the context significantly.
 
 ## Step 4 — Spawn Judge Tasks in Parallel (N Tasks)
 
-**Spawn all N judge tasks in a single parallel message** with `run_in_background: true`.
+IF IS_LARGE_PROMPT:
+    # DIFF-BASED JUDGING — judge receives diff + input context (no run outputs)
 
-For each input file i:
+    **Spawn all N judge tasks in a single parallel message** with `run_in_background: true`.
 
-**Position randomization** (mitigates first-position bias):
-```
-coin_flip = Math.random() < 0.5
-IF coin_flip:
-    // Swap: B appears as "A" to the judge
-    judge_prompt_a = prompt_b_contents
-    judge_prompt_b = prompt_a_contents
-    judge_output_a = task_b_output_for_file_i
-    judge_output_b = task_a_output_for_file_i
-    swapped[i] = true
+    For each input file i:
+
+    **Position randomization** (mitigates first-position bias):
+    ```
+    coin_flip = Math.random() < 0.5
+    swapped[i] = coin_flip
+    # if swapped: diff direction is noted as reversed in prompt
+    ```
+
+    Diff-based judge task prompt (use judge_model):
+    ```
+    You are comparing two versions of a prompt or skill.
+    Version B (candidate) differs from version A (baseline) as shown in the diff below.
+
+    IMPORTANT: You cannot run these prompts — evaluate which version's INSTRUCTIONS
+    are better for the given input. Judge on: precision, completeness, unambiguity,
+    and correctness of the instructions. Reason through what each version would DO
+    differently for this specific input, based on the diff.
+
+    <diff_a_to_b>
+    {contents of $COMPARE_TMPDIR/diff.txt}
+    {IF swapped[i]: "(diff direction reversed — lines starting with - are candidate B, + are baseline A)"}
+    </diff_a_to_b>
+
+    <input>
+    {input_file_i_contents}
+    </input>
+
+    Evaluate the following 7 criteria. For each, determine which version's instructions
+    better address the criterion for this specific input:
+    - task_adherence: Which version's instructions would better adhere to the task requirements?
+    - factual_accuracy: Which version's instructions are more accurate and free of errors?
+    - completeness: Which version's instructions are more complete for this input type?
+    - instruction_following: Which version's instructions are clearer and easier to follow?
+    - structural_clarity: Which version has better structural clarity and organization?
+    - precision: Which version's instructions are more precise and unambiguous?
+    - conciseness: Which version is more concise without losing necessary detail?
+
+    Output only valid JSON on a single line — no preamble, no markdown fences:
+    {"scores":{"task_adherence":"?","factual_accuracy":"?","completeness":"?","instruction_following":"?","structural_clarity":"?","precision":"?","conciseness":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+    Where each score value is "A" (baseline better), "B" (candidate better), or "~" (equivalent).
+    ```
+
+    [5/6] ⚖️  judging ── {N} tasks launched  _(diff-based mode)_
+
 ELSE:
-    // Normal ordering
-    judge_prompt_a = prompt_a_contents
-    judge_prompt_b = prompt_b_contents
-    judge_output_a = task_a_output_for_file_i
-    judge_output_b = task_b_output_for_file_i
-    swapped[i] = false
-```
+    # STANDARD JUDGING — judge receives both prompt texts + run outputs
 
-Spawn agent `compare-prompts-judge` with prompt:
-```
-<PROMPT_A>
-{judge_prompt_a}
-</PROMPT_A>
+    **Spawn all N judge tasks in a single parallel message** with `run_in_background: true`.
 
-<PROMPT_B>
-{judge_prompt_b}
-</PROMPT_B>
+    For each input file i:
 
-<INPUT>
-{input_file_i_contents}
-</INPUT>
+    **Position randomization** (mitigates first-position bias):
+    ```
+    coin_flip = Math.random() < 0.5
+    IF coin_flip:
+        // Swap: B appears as "A" to the judge
+        judge_prompt_a = prompt_b_contents
+        judge_prompt_b = prompt_a_contents
+        judge_output_a = task_b_output_for_file_i
+        judge_output_b = task_a_output_for_file_i
+        swapped[i] = true
+    ELSE:
+        // Normal ordering
+        judge_prompt_a = prompt_a_contents
+        judge_prompt_b = prompt_b_contents
+        judge_output_a = task_a_output_for_file_i
+        judge_output_b = task_b_output_for_file_i
+        swapped[i] = false
+    ```
 
-<OUTPUT_A>
-{judge_output_a}
-</OUTPUT_A>
+    Spawn agent `compare-prompts-judge` with prompt:
+    ```
+    <PROMPT_A>
+    {judge_prompt_a}
+    </PROMPT_A>
 
-<OUTPUT_B>
-{judge_output_b}
-</OUTPUT_B>
+    <PROMPT_B>
+    {judge_prompt_b}
+    </PROMPT_B>
 
-Output only valid JSON on a single line — no preamble, no markdown fences:
-{"scores":{"task_adherence":"?","factual_accuracy":"?","completeness":"?","instruction_following":"?","structural_clarity":"?","precision":"?","conciseness":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
-```
+    <INPUT>
+    {input_file_i_contents}
+    </INPUT>
 
-Use `judge_model` (default claude-opus-4-6) as model parameter.
+    <OUTPUT_A>
+    {judge_output_a}
+    </OUTPUT_A>
 
-[5/6] ⚖️  judging ── {N} tasks launched
+    <OUTPUT_B>
+    {judge_output_b}
+    </OUTPUT_B>
+
+    Output only valid JSON on a single line — no preamble, no markdown fences:
+    {"scores":{"task_adherence":"?","factual_accuracy":"?","completeness":"?","instruction_following":"?","structural_clarity":"?","precision":"?","conciseness":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+    ```
+
+    Use `judge_model` (default claude-opus-4-6) as model parameter.
+
+    [5/6] ⚖️  judging ── {N} tasks launched
 
 **Judge output**: JSON with 3 keys: `scores` (7-key object — each criterion evaluated relative to its own prompt's instructions), `winner` ("A"|"B"|"TIE"), `reasoning` (1-2 sentences).
 
