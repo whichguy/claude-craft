@@ -293,6 +293,21 @@ Probe N: [slug]
 - **Size**: 20-80 lines per file, max 50KB.
 - **Boundary probes must be subtle** — the difficulty comes from nuance, not from being obviously broken or obviously perfect. A good boundary probe makes a skilled human hesitate before deciding.
 
+- **Single-deficiency rule**: Each probe must embed exactly ONE primary deficiency.
+  Multiple deficiency types in one probe make attribution impossible when a prompt
+  change improves one but not the other. If a plan naturally has two issues, choose
+  the more load-bearing one and neutralize the other.
+
+- **Discrimination criterion**: Each probe must have a stated criterion for success:
+  "probe worked = target question NEEDS_UPDATE, all Gate 1 questions PASS". Include
+  this as a comment in the probe plan output (Step 3 Build Probe Plan).
+
+- **Gate 1 calibration probes**: For Gate 1 questions (Q-G1, Q-G11), always pair
+  each NEEDS_UPDATE probe with a PASS calibration probe. Gate 1 questions are
+  high-stakes — over-triggering NEEDS_UPDATE wastes author time and undermines trust.
+  A calibration probe has a sound approach (well-reasoned, evidence-backed) and
+  must produce Q-G1=PASS from any correct reviewer.
+
 ### Operations
 
 - **ADD**: agent writes new probe files to `output_dir`
