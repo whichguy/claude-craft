@@ -296,7 +296,7 @@ Print run header (once, after validation passes):
 ║  Inputs:      {inputs_line}                                   ║
 ║  Label:       {label}                                         ║
 ║  Iterations:  {IF loop_mode == "duration": "∞ (deadline: " + format_time(deadline) + ")" ELIF loop_mode == "fixed": iterations + " (fixed)" ELSE: iterations}   ·   Experiments: {experiments}   ║
-║  Models:      run={run_model}  research/judge={research_model} ║
+║  Models:      run={run_model}  research={research_model}  judge={judge_model} ║
 ╚═══════════════════════════════════════════════════════════════╝
 [end code block]
 
@@ -793,7 +793,7 @@ Otherwise, proceed to Step 5 with only `active_experiments` (exclude FAILed expe
 
 ## Step 5 — Evaluate All Experiments
 
-Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..5 + dynamic questions).
+Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic questions).
 
 **Load inputs:**
 
