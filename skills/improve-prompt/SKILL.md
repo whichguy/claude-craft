@@ -50,6 +50,7 @@ to extract the following values:
 | `label` | no | A short identifier for reports/commits | basename of prompt file, or "inline" |
 | `run_model` | no | A model name (claude-*) | claude-sonnet-4-6 |
 | `judge_model` | no | A model name for judging | claude-opus-4-6 |
+| `research_model` | no | Model for research, write-agents, and reconcile (deep analysis steps) | claude-opus-4-6 |
 | `iterations` | no | A number associated with "iterations" | 1 |
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
@@ -100,6 +101,7 @@ paths, natural language, or any combination:
 | `label` | A short name for reports. Look for "label", "name", "called", or `--label`. |
 | `run_model` | A model identifier (claude-*). Look for "model", "use", "with", or `--model`. |
 | `judge_model` | A model for judging. Look for "judge", "judge-model", or `--judge-model`. |
+| `research_model` | A model for research/write/reconcile agents. Look for "research-model", "analysis model", or `--research-model`. |
 | `iterations` | A number associated with "iterations", "times", "rounds", or `--iterations`. If found, set `iterations_explicit = true`. |
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. If found, set `experiments_explicit = true`. |
 | `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
@@ -109,6 +111,7 @@ paths, natural language, or any combination:
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)
 - `run_model` = claude-sonnet-4-6
 - `judge_model` = claude-opus-4-6
+- `research_model` = claude-opus-4-6
 - `iterations` = 1
 - `experiments` = 1
 - `max_stalls` = 2
@@ -130,6 +133,14 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 ```
 
 MAX_CONCURRENT = 8   # max agent calls issued in a single parallel message
+HAS_OUTPUT_FORMAT = false   # true when prompt has explicit structured output (Print: boxes, scorecards, tables)
+HAS_DOWNSTREAM_DEPS = false  # true when prompt orchestrates agents or references external eval files
+
+# Detect HAS_OUTPUT_FORMAT: scan prompt_file_contents for box-drawing chars (╔ ║ ╗ ╝) OR
+# explicit "Print:" format blocks with fenced rendering instructions OR scorecard/table/dashboard specs
+# Detect HAS_DOWNSTREAM_DEPS: scan for orchestrator patterns — Spawn, Agent(, Task(, ExitPlanMode,
+# QUESTIONS.md, eval_path, EVALUATE.md, SendMessage, mcp__, or "spawn.*agent"
+# (Both flags are set before Step 0b, after prompt_file_contents is read)
 
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
@@ -285,7 +296,7 @@ Print run header (once, after validation passes):
 ║  Inputs:      {inputs_line}                                   ║
 ║  Label:       {label}                                         ║
 ║  Iterations:  {IF loop_mode == "duration": "∞ (deadline: " + format_time(deadline) + ")" ELIF loop_mode == "fixed": iterations + " (fixed)" ELSE: iterations}   ·   Experiments: {experiments}   ║
-║  Model:       {run_model}                                     ║
+║  Models:      run={run_model}  research/judge={research_model} ║
 ╚═══════════════════════════════════════════════════════════════╝
 [end code block]
 
@@ -315,7 +326,7 @@ Capture as `git_history` — passed to research agent for project context.
 
 ## Step 1 — Research & Ideas Generation
 
-**Spawn a general-purpose agent** (no tool restrictions — WebSearch, WebFetch, Read, Write, Bash, etc.):
+**Spawn a general-purpose agent** (model: `research_model` = claude-opus-4-6 — deep analytical reasoning required; no tool restrictions — WebSearch, WebFetch, Read, Write, Bash, etc.):
 
 ```
 You are an expert prompt engineer and researcher. Your task is to analyze a prompt,
@@ -407,6 +418,16 @@ Generate evaluation questions for the quality judge to compare baseline vs impro
 - Q-FX3: Is the output complete — does it cover all required aspects without omitting key information?
 - Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition, or verbosity?
 - Q-FX5: Is the output grounded in the input — no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning and decision logic — no circular dependencies, contradictory instructions, or unresolved ambiguities?
+- Q-FX7 (when HAS_DOWNSTREAM_DEPS=true): If the output produces instructions for downstream agents or references external dependencies (files, tools, state), are those references complete, correct, and unambiguous? [omit if HAS_DOWNSTREAM_DEPS=false]
+
+**UX questions** (include when HAS_OUTPUT_FORMAT=true — prompt produces human-facing structured output with explicit formatting specs):
+- Q-UX1: Is the output's visual hierarchy clear — key decisions and verdicts are prominent, supporting details subordinate?
+- Q-UX2: Is the most important information (verdict, score, required action) immediately scannable without wading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, box-drawing, tables, spacing) appropriately to separate information categories?
+Note: UX questions are weighted at 0.5× in scoring — they test presentation style, not correctness.
+
+**Side-experiment guidance**: To isolate which specific option drove improvement, use `--experiments N` where N=num_options. This assigns each option to its own experiment for causal attribution. Example: 3 options → `--experiments 3` assigns A→Exp-1, B→Exp-2, A+B+C→Exp-3 (per E=3 assignment rules above). Ablation reads directly from the quality spread per experiment.
 
 **Dynamic questions** (generate 2-4 questions derived from the Q1-Q10 gaps and improvement options above):
 - Each question must be answerable by comparing two outputs side-by-side
@@ -476,6 +497,14 @@ Research summary:
 - Q-FX3: Is the output complete (all required aspects, no key omissions)?
 - Q-FX4: Is the output appropriately concise (no padding or verbosity)?
 - Q-FX5: Is the output grounded — no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning — no circular logic, contradictions, or unresolved ambiguities?
+{IF HAS_DOWNSTREAM_DEPS: - Q-FX7: Are downstream agent instructions and external dependency references complete and unambiguous?}
+
+### UX (when HAS_OUTPUT_FORMAT=true — weighted 0.5×)
+{IF HAS_OUTPUT_FORMAT:
+- Q-UX1: Is the output's visual hierarchy clear (key decisions prominent, details subordinate)?
+- Q-UX2: Is the most important information immediately scannable without reading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?}
 
 ### Dynamic (derived from Q1-Q10 gaps addressed this iteration)
 - {Q-DYN-1}: {question text} [addresses: Q{N}]
@@ -541,7 +570,7 @@ Output only: "PLAN_GATE: PASS" if all 6 pass, or "PLAN_GATE: FAIL\n{numbered lis
 - E=3: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Options A+B combined
 - E=4: Exp-1 = Option A; Exp-2 = Option B; Exp-3 = Option C; Exp-4 = top 3 combined
 
-**Spawn all E write-agents in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
+**Spawn all E write-agents in a single parallel message** (model: `research_model` = claude-opus-4-6 — careful, precise prompt implementation required; all Agent calls issued simultaneously in one step — do not await each sequentially).
 
 Each write-agent task prompt:
 ```
@@ -839,7 +868,8 @@ Judge task prompt:
 </output_b>
 
 <evaluation_questions>
-{all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..5 and dynamic}
+{all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic}
+Note: Q-UX questions (if present) are style/presentation questions — treat them with proportionally less weight.
 </evaluation_questions>
 
 For each evaluation question, determine which output better satisfies it.
@@ -864,11 +894,21 @@ IF swapped[k][j]:
 **Aggregate per experiment k** (master context computes after collecting all judge results):
 ```
 strength_weight = {"strong": 1.0, "moderate": 0.67, "slight": 0.33}
+strength_weight_ux = {"strong": 0.5, "moderate": 0.33, "slight": 0.17}  # UX questions: style, not correctness
 
 for each input j:
-  score_a_j = sum(strength_weight[q.strength] for q in questions[j,k] if q.winner == "A")
-  score_b_j = sum(strength_weight[q.strength] for q in questions[j,k] if q.winner == "B")
-  max_score_j = len(questions[j,k])  # total number of questions
+  score_a_j = sum(
+    (strength_weight_ux if q.id.startswith("Q-UX") else strength_weight)[q.strength]
+    for q in questions[j,k] if q.winner == "A"
+  )
+  score_b_j = sum(
+    (strength_weight_ux if q.id.startswith("Q-UX") else strength_weight)[q.strength]
+    for q in questions[j,k] if q.winner == "B"
+  )
+  max_score_j = sum(
+    (strength_weight_ux["strong"] if q.id.startswith("Q-UX") else 1.0)
+    for q in questions[j,k]
+  )  # effective max weight per question
 
 total_max_k = sum(max_score_j)
 if total_max_k == 0:
@@ -929,7 +969,7 @@ If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write 
 
 **Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 1, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
 
-**Spawn reconcile agent** (general-purpose, no tool restrictions):
+**Spawn reconcile agent** (model: `research_model` = claude-opus-4-6 — deep synthesis required; general-purpose, no tool restrictions):
 
 ```
 You are a prompt improvement analyst. Reconcile all experiment results with the
