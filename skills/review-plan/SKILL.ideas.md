@@ -218,6 +218,20 @@ Evaluator-level methodology improvements (tracing algorithms, self-checks, concr
 
 Scope gate WARN for Exp-1: Q-SG12 — Q-G21/Q-G22 references in cluster evaluator scope. Status: SCOPE_WARN. Use with caution; monitor for regression.
 
+### 2026-03-16 — Iteration 5 → NEUTRAL
+
+**Experiments:** 1 — Exp-1 (Q+R+S+T)
+**Verdict:** NEUTRAL (decided by: all within noise, -14.6% spread)
+
+**What worked:**
+Q (Q-G1 challenge-justify-check framing) improved DYN-15 on probe-1/probe-2 — "premise error" naming is more precise than "may not apply". Option R (checklist completion reminder): no effect.
+
+**What didn't work:**
+Q+S combination: calibration exemption (S) + methodology (Q) together caused Q-G1 over-triggering on plans where approach is sound. The challenge-justify-check fires on any architectural decision, not just invalid ones — when combined with S's removal of the conservative PASS guard, it produces false NEEDS_UPDATE on probe-4 (sha256sum performance). Option T (remove IS_GAS scope reminder): NEUTRAL — had no measurable effect.
+
+**Actionable learning:**
+Option Q (challenge-justify-check) is valuable but must NOT be paired with Option S (calibration exemption for Q-G1). The calibration heuristic serves as a false-positive guard; removing it causes over-triggering. In next iteration: try Q alone (without S) with targeted premise-challenge phrasing that only fires when the plan uses language like "X is too slow/won't work/is unavailable" — not on all approach decisions.
+
 ---
 *Date: 2026-03-13 — Iteration 2*
 
@@ -696,3 +710,198 @@ The winning experiment improved quality because it addressed the single most imp
 Decided by: quality (+24.1% spread)
 
 Scope gate WARN for Exp-1: Q-SG12 — Q-G21/Q-G22 references in cluster evaluator scope (inert noise, not active regression). Status: SCOPE_WARN. Monitor for regression in future iterations.
+
+---
+*Date: 2026-03-16 — Iteration 5*
+
+## Structural Diagnostic (Q1-Q10) — Iteration 5
+
+Q1 — Role/Persona: The Role & Authority block is fully adequate. No new gaps.
+
+Q2 — Task Precision: The key precision gap for this iteration is in the **L1 blocking evaluator's handling of Q-G1 (Approach soundness)**. Q-G1 requires the evaluator to challenge whether the stated rationale for the chosen approach is validated — not just that the approach is technically sound. The current L1 blocking evaluator has a calibration instruction ("Would a senior developer actually encounter this problem?") that applies uniformly to all 3 L1 blocking questions. For Q-G1, this heuristic creates a pressure toward PASS when an approach justification sounds plausible — even if it is an unvalidated performance claim presented as fact. Probe-1's planted defect ("PropertiesService is too slow — we'll use SQLite") is precisely this pattern: a plausible-sounding claim that a calibrated evaluator might accept as common knowledge. The calibration instruction, correct for Q-G2 and Q-G11, is subtly counterproductive for Q-G1 which requires skeptical examination of premises rather than conservative severity thresholds.
+
+Q3 — Context adequacy: Strong. No new gaps after Iter 3 Option K (context flag pass-through).
+
+Q4 — Output format: Well-specified. No new gaps.
+
+Q5 — Examples: The L1 blocking evaluator has calibration and specificity instructions but no question-specific methodology for Q-G1. The impact-evaluator has a concrete Q-C39 example. The L1 blocking evaluator has nothing analogous for Q-G1 — the most important question in the entire system (Gate 1, always runs, never memoized). An evaluator seeing "Q-G1: Approach soundness" with only the calibration instruction may produce a finding that verifies technical soundness ("yes, SQLite is a valid database") without questioning the stated premise ("PropertiesService is too slow — but is this claim validated?").
+
+Q6 — Constraints: The calibration instruction's "borderline → PASS" default is an implicit constraint that applies to all 3 L1 blocking questions. For Q-G11 (existing code examined) and Q-G2 (standards compliance), this is appropriate — the finding must be practically impactful to warrant NEEDS_UPDATE. But Q-G1 is different: it is the only question that evaluates whether the plan has *chosen the right approach*, which requires actively interrogating assumptions and alternatives rather than applying a conservative severity filter. No current constraint distinguishes Q-G1's evaluative posture from Q-G2's/Q-G11's.
+
+Q7 — Anti-patterns: The question-driven prompt style (correct in principle) now creates an unintended salience effect: questions with question-specific methodology annotations (Q-G21, Q-G22 in l1-advisory; Q-C37-Q-C40 in impact-evaluator) receive more evaluator reasoning effort than non-annotated questions. This is a structural asymmetry — the 2 annotated questions in l1-advisory are treated differently from the other 17 advisory questions, and the 4 annotated questions in impact-evaluator may crowd out attentional coverage of the remaining Q-C26, Q-C35, Q-C36 questions. The Iter 4 regression on probe-1 and analysis.md is consistent with this salience-asymmetry hypothesis: the annotated questions "pull" evaluator attention proportionally more than their question-count share warrants.
+
+Q8 — Chain-of-thought: For Q-G1 specifically, there is no CoT guidance at all. The evaluator must answer "Is the approach sound?" without any template for *how* to assess soundness. For a question about approach validation, the appropriate reasoning template is different from tracing questions: it requires (1) identify the stated rationale/justification for the approach choice, (2) check whether the rationale is validated by evidence/benchmarks/tests in the plan or is asserted as fact, (3) check whether simpler alternatives were considered and explicitly ruled out. This is a distinct reasoning pattern from the trace-verify-cite used for tracing questions — and it is currently absent from the L1 blocking evaluator.
+
+Q9 — Domain specifics: No new gaps.
+
+Q10 — Tone/register: Consistent. No new gaps.
+
+## Domain & Research Findings — Iteration 5
+
+Domain: Multi-question LLM evaluator attention distribution; approach-soundness evaluation methodology; salience effects in checklisted evaluator prompts.
+
+**Finding 1 — Salience asymmetry in multi-question evaluators reduces breadth coverage (PEEM, 2025; Maxim Practitioner's Guide, 2025):** When evaluators are given a fixed question list with methodology annotations for only a subset of questions, the annotated questions exhibit a salience advantage — they receive proportionally more reasoning effort. The PEEM framework addresses this by assigning equal rubric-weight to each evaluation axis, preventing any single axis from dominating. Applied to review-plan: question-specific methodology annotations for Q-G21/Q-G22 and Q-C37-Q-C40 create salience asymmetry relative to the ~20 non-annotated questions. The modular evaluation literature (Evidently AI LLM-as-judge, 2025) recommends that each question receive an equal "slot" of evaluation attention — which requires either annotating all questions consistently or providing a global coverage reminder that prevents early termination after the high-salience questions are resolved.
+
+**Finding 2 — Checklist completeness requires an explicit "cover all items before concluding" instruction (Prompt Engineering Best Practices 2025, promptbuilder.cc; LLM-as-Judge, Monte Carlo):** Production LLM-as-judge systems that use checklists consistently underperform on recall (missing real issues) when evaluators are not explicitly told to complete the entire checklist before writing any verdict. The pattern: without a "complete all items first" constraint, evaluators answer early questions thoroughly, then produce increasingly cursory responses for later questions as their output grows. For l1-advisory (19 questions), the Q-G21/Q-G22 annotation means these questions receive deep treatment, but Q-G4, Q-G5, Q-G8, Q-G10 — which appear earlier in the list — may receive adequate treatment, while Q-G20, Q-G23, Q-G24, Q-G25 (appearing later) may be assessed cursorily. A 1-line "complete all questions before writing your JSON" instruction is the minimal fix.
+
+**Finding 3 — Approach-soundness evaluation requires premise-challenging methodology, not severity calibration (Claude best practices 2026, Lakera; Practitioner's Guide Maxim):** Calibration instructions ("only flag findings a senior developer would encounter") are appropriate for code-quality questions (Q-G2, Q-G11) where the finding's practical impact is the relevant threshold. For approach-soundness questions (Q-G1), the appropriate evaluation posture is "premise challenger" — does the plan assert rather than justify its core architectural choice? This requires a different CoT: find the key approach decision, identify the justification given, check whether it is evidence-backed or assumed. Calibration instructions suppress this challenge: "a senior developer implementing this plan won't encounter the PropertiesService problem" because the PropertiesService choice was already made. The evaluation-mode mismatch is the root cause of probe-1's detection failure.
+
+## Test-Run Observation — Iteration 5
+
+**probe-1-unvalidated-constraint.md (after 4979eee)**
+
+The 4979eee commit scoped tracing methodology to question-level annotations — specifically, the standalone preamble block that was shifting evaluator attention is now replaced by "Question-specific methodology" bullets subordinate to individual questions. For probe-1, the relevant evaluator is the **L1 blocking evaluator** (Q-G1, Q-G2, Q-G11). This evaluator has NO question-specific methodology annotations — the refactor touched only the l1-advisory and cluster evaluator prompts. So probe-1's regression cause from Iter 4 was the standalone preamble in the L1 advisory/cluster prompts that crowded breadth on the advisory questions — but Q-G1 (L1 blocking) was always separate. The probe-1 regression in Iter 4 (11 changes vs 19 baseline) compared to Iter 3's baseline is attributable to a different mechanism: the tracing preamble in the impact-evaluator may have displaced probe-1's actual defect (Q-G1 approach soundness) by attracting evaluator attention toward tracing questions (Q-C37-Q-C40) that are largely N/A for this IS_NODE probe.
+
+After 4979eee: the tracing methodology is now question-scoped, not preamble-level. The impact-evaluator only applies trace-verify-cite when specifically evaluating Q-C37-Q-C40. For probe-1 (IS_NODE, HAS_STATE, HAS_DEPLOYMENT), the impact-evaluator runs Q-C3, Q-C26, Q-C35, Q-C37, Q-C38, Q-C39, Q-C40. Q-C37-Q-C40 are largely N/A for this plan (no cross-boundary signatures, no schema access, no guidance gaps — the plan is straightforward SQLite integration). So the impact-evaluator should now spend less time on trace-verify-cite methodology for non-applicable questions. However, the **L1 blocking evaluator's Q-G1 gap remains**: no methodology for premise-challenging, just calibration that suppresses it.
+
+What is still missing for probe-1: a Q-G1-specific methodology instruction that says "for approach soundness, identify the core architectural choice and verify whether the rationale given is backed by evidence in the plan or asserted as fact." Without this, Q-G1 evaluation of probe-1 defaults to "SQLite is a valid technology choice — PASS" rather than "the plan asserts PropertiesService is too slow without benchmarks — this is an unvalidated premise that constrains the entire design."
+
+**analysis.md (after 4979eee)**
+
+The analysis.md probe tests breadth coverage across L1 questions on a meta-document (the probe analysis file itself). The Iter 4 regression (6 findings vs 10 baseline) was attributed to the standalone tracing preamble crowding breadth. After 4979eee, the preambles are question-scoped — the l1-advisory evaluator now has "Question-specific methodology" bullets only for Q-G21 and Q-G22.
+
+What is still missing: the l1-advisory evaluator evaluates 19 questions in a single task. Research Finding 2 (checklist completeness) suggests that without an explicit "complete all 19 questions" instruction, later questions (Q-G20, Q-G23, Q-G24, Q-G25) may receive cursory assessment after the evaluator has already produced thorough findings for earlier questions. The analysis.md regression likely has a residual cause in addition to the tracing preamble issue: the l1-advisory evaluator lacks a completion guarantee. The evaluator can produce a compliant-looking JSON with 19 entries, but the depth of reasoning decreases for later entries. For a broad meta-document like analysis.md (which touches many questions), shallow later-question assessments suppress findings that would require careful reading of the whole document.
+
+The 4979eee refactor is a necessary but not sufficient fix for the breadth regression: it removes the preamble-level salience distortion, but the per-question salience asymmetry (Q-G21/Q-G22 annotated, other 17 not) and the late-question depth attenuation remain.
+
+## Improvement Options — Iteration 5
+
+### Option Q: Q-G1 Approach Soundness Methodology in L1 Blocking Evaluator
+
+**Addresses:** Q2 — Task precision / Q5 — Examples / Q8 — Chain-of-thought (Q-G1 has no evaluative CoT)
+**What changes:** Add a 5-line question-specific methodology block for Q-G1 to the l1-blocking evaluator prompt, inserted in the "Question-specific methodology" section (after the calibration instruction, before the output contract). The block follows the same "Question-specific methodology" format as the l1-advisory evaluator's Q-G21/Q-G22 block:
+
+```
+Question-specific methodology:
+- For Q-G1 (Approach soundness): Use challenge-justify-check:
+    (1) Identify the core architectural or technology decision the plan makes
+    (2) Find the stated justification — what reason does the plan give for this choice?
+    (3) Check: is the justification backed by evidence, data, or explicit trade-off analysis?
+        If the justification is asserted as fact ("X is too slow", "Y won't work"),
+        not measured or cited → flag NEEDS_UPDATE regardless of whether the claim seems plausible.
+    The calibration heuristic ("senior developer impact") does NOT apply to Q-G1 premise checks —
+    approach assumptions that turn out wrong waste entire implementation cycles.
+```
+
+The critical structural element: explicitly carving out Q-G1 from the "borderline → PASS" calibration heuristic. This is a 7-line addition to the l1-blocking evaluator prompt.
+
+**Why it helps:** Probe-1's planted defect is exactly this pattern: "PropertiesService is too slow" is asserted as fact without benchmarks. The current calibration instruction tells the evaluator to apply a "would a senior developer encounter this?" test — and the answer for an unvalidated claim is "maybe," which resolves to PASS under the calibration default. The challenge-justify-check template converts Q-G1 evaluation from passive ("is this technically valid?") to active ("is this justified or assumed?") — the same algorithmic-specificity-for-judgment-calls pattern that drove every successful prior iteration. This directly addresses the Iter 4 probe-1 regression root cause.
+
+**Predicted impact:** HIGH for probe-1 specifically. Medium overall. Q-G1 is the Gate 1 question most likely to detect the class of defect where a plan's approach rests on an unvalidated premise — exactly the defect that causes "works in plan, breaks in implementation." The 7-line addition is subordinated to the question-list (correct style for this prompt) and does not affect Q-G2 or Q-G11 evaluation.
+
+**Conciseness impact:** ADDS_VERBOSITY — 7 lines in the l1-blocking evaluator prompt. Justified by the direct probe-1 regression fix and by the importance of Q-G1 as the top-level approach soundness gate.
+
+---
+
+### Option R: Checklist Completion Instruction for Multi-Question Evaluators
+
+**Addresses:** Q7 — Anti-patterns (salience asymmetry/late-question depth attenuation) / Q8 — Chain-of-thought (no completion guarantee)
+**What changes:** Add a single-line completion reminder to the l1-advisory evaluator prompt and the cluster evaluator prompt template, positioned immediately before the output contract section (after all question-specific methodology bullets):
+
+```
+Coverage: Evaluate ALL questions in your list before writing your findings JSON. Do not
+submit partial results — every question in your assigned set must have a status entry.
+```
+
+This is 2 lines. It does not change the question list or methodology — it is a process instruction that prevents early termination of evaluation after high-salience questions are resolved.
+
+**Why it helps:** Research Finding 2 (checklist completeness, Monte Carlo/promptbuilder.cc 2025) shows that multi-question LLM evaluators produce depth-decreasing responses over long question lists without an explicit completion guarantee. The analysis.md regression (6 findings vs baseline's 10) is consistent with the evaluator producing thorough findings for early and annotated questions, then shallow assessments for later questions. The 2-line instruction is the minimal intervention — it does not add methodology overhead, only a process reminder that the evaluator must complete the full list before submitting. This is the evaluation equivalent of the existing "Finding specificity" instruction (Iter 3 Option L) but for completeness rather than depth.
+
+**Predicted impact:** MEDIUM for analysis.md specifically. Medium-low overall. The failure mode (depth attenuation on later questions in 19-question lists) is a known LLM behavior on long checklists, but it manifests most clearly on broad documents (like analysis.md) that surface many questions simultaneously. For focused implementation plans where only 3-5 questions have real findings, the effect is negligible.
+
+**Conciseness impact:** MINIMAL — 2 lines. Zero protocol overhead.
+
+---
+
+### Option S: Q-G1 Scope Exemption from Calibration Heuristic
+
+**Addresses:** Q6 — Constraints (calibration instruction too conservative for Q-G1) / Q2 — Task precision
+**What changes:** Add a single clarifying sentence immediately after the calibration instruction in the l1-blocking evaluator prompt, explicitly scoping it away from Q-G1:
+
+```
+Calibration exception: Q-G1 (Approach soundness) is NOT subject to the "only if a senior
+developer would encounter it" heuristic. Unvalidated assumptions about approach viability
+waste entire implementation cycles — flag even when the claim sounds plausible.
+```
+
+This is 3 lines. It preserves the calibration instruction for Q-G2 and Q-G11 while creating an explicit carve-out for Q-G1.
+
+**Why it helps:** The core tension identified in Q2/Q6 is that the calibration instruction ("borderline → PASS") is the right heuristic for Q-G11 (files examined) and Q-G2 (standards compliance) but counterproductive for Q-G1 (approach soundness). Q-G1 requires the evaluator to challenge premises — exactly the kind of hypothetical ("what if this claim is wrong?") that the calibration instruction says to suppress. By creating an explicit scope exemption, Option S resolves the tension without changing the calibration instruction's behavior for Q-G2/Q-G11. Options Q and S are complementary: Q adds a positive methodology (what to look for), S removes a negative constraint (what the evaluator was told to suppress).
+
+**Predicted impact:** HIGH for probe-1 combined with Option Q. Lower standalone — it is an inhibitor-removal rather than a methodology addition. The expected value of Option S is highest when used together with Option Q (Q adds the challenge-justify-check template; S removes the calibration suppression that would override Q's conclusion with a PASS). Together they form a "methodology + constraint-removal" pair.
+
+**Conciseness impact:** MINIMAL — 3 lines.
+
+---
+
+### Option T: Option P Removal (IS_GAS Scope Reminder)
+
+**Addresses:** Technique History "What didn't work" — Iter 4 Option P was NEUTRAL, adding noise without measurable benefit. The Iter 4 recommendation explicitly suggested removing it.
+**What changes:** Remove the 3-line IS_GAS scope reminder from the impact-evaluator cluster prompt:
+```
+When IS_GAS=true and you are the impact-evaluator: you are the ONLY L2 cluster evaluator
+running. Questions Q-C37, Q-C38, Q-C39, Q-C40 (the tracing questions) are your exclusive
+responsibility — no other evaluator will assess them.
+```
+This removes 3 lines of declarative text that add informational scope without algorithmic payoff.
+
+**Why it helps:** Option P was identified as NEUTRAL in Iter 4 — probe-1 (IS_GAS-relevant) saw baseline winning (19 changes vs 11), consistent with the scope reminder narrowing evaluator focus without compensating quality gain. The Iter 4 Technique History explicitly flags it as inert noise. Removing it reduces the impact-evaluator prompt's length by 3 lines and eliminates a potential salience attractor that emphasizes tracing questions relative to other impact cluster questions. This is a "clean up known inert additions" option — the only risk is if removing it causes regression on IS_GAS+tracing plans (probes 2-5 are not IS_GAS, so the primary concern is isolated to IS_GAS configurations).
+
+**Predicted impact:** LOW positive (removes noise, slightly reduces salience asymmetry within impact cluster). Near-zero regression risk based on Iter 4 evidence. The removal is cleanest as part of a multi-option experiment that also includes positive additions (Q, R, S) — if the experiment regresses on IS_GAS probes, Option T can be restored in isolation.
+
+**Conciseness impact:** REDUCES_VERBOSITY — removes 3 lines.
+
+## Evaluation Questions — Iteration 5
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded in the input — no hallucinated question IDs, no fabricated evaluator findings, no invented plan content?
+
+### Dynamic (derived from Q1-Q10 gaps for iteration 5)
+- Q-DYN-15: When a plan's core architectural or technology choice is justified by an unvalidated claim ("X is too slow", "Y won't work") without benchmarks or explicit trade-off analysis, does the L1 evaluator flag Q-G1 NEEDS_UPDATE with a specific citation of the unsupported claim — rather than passing the claim as plausible technical judgment? [addresses: Q2, Q6, Q8 — Q-G1 approach soundness without premise challenge]
+- Q-DYN-16: Does the l1-advisory evaluator produce substantive findings (not cursory PASS assessments) for ALL 19 advisory questions, including the later-appearing questions (Q-G20, Q-G23, Q-G24, Q-G25) — not just the annotated (Q-G21, Q-G22) and early-appearing questions? [addresses: Q7, Q8 — checklist completion and anti-salience asymmetry]
+- Q-DYN-17: On breadth-coverage probes (analysis.md, probe-1 for non-tracing questions), does the improved prompt produce at least as many valid NEEDS_UPDATE findings as the iteration 4 baseline — demonstrating that probe-specific methodology additions do not suppress coverage on questions not targeted by those additions? [addresses: Q7 — breadth regression prevention]
+
+## Experiment Results — Iteration 5
+*Date: 2026-03-16*
+
+### Implemented Directions
+#### Experiment 1: Options Q+R+S+T combined
+**Options applied:** Q (Q-G1 challenge-justify-check methodology), R (checklist completion reminder), S (Q-G1 calibration exemption), T (remove IS_GAS scope reminder)
+**Applied changes:** 7-line Q-G1 methodology block + 3-line calibration exception + 2-line completion reminder (l1-advisory + cluster) + 3-line deletion (IS_GAS reminder)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | Q+R+S+T | 13.9% vs 28.5% | -14.6% | ~0% | ~0% |
+
+### Per-Question Results (A=baseline / B=exp / TIE across 6 tests)
+Q-FX1: 3/2/1  Q-FX2: 3/1/2  Q-FX3: 3/2/1  Q-FX4: 1/2/3  Q-FX5: 3/2/1
+Q-DYN-15: 2/2/2  Q-DYN-16: 2/1/3  Q-DYN-17: 3/1/2
+
+### Per-Probe Breakdown
+- **probe-1** (Q-G1/Q-G10): A=0.66, B=1.00 — Exp-1 slightly better (DYN-15 win: "challenge-justify-check" framing sharper)
+- **probe-2** (Q-G11/Q-C38): A=0.33, B=1.66 — Exp-1 wins (grounding, structured table of phantom refs, explicit mapping)
+- **probe-3** (Q-G21/Q-G22): A=2.00, B=1.32 — BASELINE wins (correct SOLID rating; exp-1 had wrong REWORK rating for Gate 1-clear plan)
+- **probe-4** (Q-C40/Q-G20): A=3.01, B=0.67 — BASELINE wins strongly (more breadth: Q-C26, Q-C27, Q-C36 found; sharper Q-C40 distinction; Q-G1 PASS correct)
+- **probe-5** (Q-C37/Q-C39): A=2.00, B=1.67 — BASELINE wins (correct Gate 1 classification of Q-C39; deeper off-by-one cascade analysis)
+- **analysis** (breadth probe): A=5.67, B=0.33 — BASELINE wins strongly (11 findings vs 5; deeper advisory coverage; Q-G11 Gate 1 correctly opened; Q-C37/C38/C40 coverage)
+
+## Results & Learnings
+
+**What worked:** Option Q alone improved DYN-15 on probe-1/probe-2 (sharper premise framing). The "challenge-justify-check" framing produced more precise Q-G1 findings when the approach defect was genuine. Option R had no measurable effect either way (genuinely neutral).
+
+**What didn't work:** Q+S combination caused Q-G1 over-triggering on probe-4 (approach is sound; weakness is in verification/Q-C40, not the approach itself). Option T (removal of IS_GAS reminder) had no effect on measured quality.
+
+**Root cause analysis:** The Q+S interaction is the core problem. Option S removes the conservative PASS guard from Q-G1 evaluation by exempting it from the calibration heuristic. When combined with Q's challenge-justify-check template (which fires on any architectural decision, not just invalid premises), the result is a Q-G1 evaluator that challenges all approach decisions — including sound ones like probe-4's sha256sum performance choice, which is industry-standard and adequately justified. The calibration heuristic was serving as a false-positive suppressor for Q-G1; S's removal caused over-triggering. On probe-3, Exp-1 also produced a wrong REWORK rating (Gate 1 clear → should be SOLID), which suggests the Q+S combination elevated severity across the board by weakening the conservative default.
+
+**What to try next iteration:** (1) Try Option Q without Option S — the challenge-justify-check methodology is valuable but must retain the calibration heuristic as a false-positive guard. The two must coexist: Q provides the positive methodology ("look for unsupported premises"), the existing calibration provides the threshold ("only flag if a senior developer would encounter it"). (2) Consider a more targeted calibration exception: instead of exempting all of Q-G1 from calibration, add a narrow carve-out that only fires when the plan uses language explicitly asserting a constraint as unchallengeable fact ("X is too slow", "Y won't work", "Z is unavailable") — not on all approach decisions.
+
+**Best experiment:** Exp-1 (Q+R+S+T) — 13.9% quality score
+**Verdict: NEUTRAL**
+Decided by: all dimensions within noise thresholds (-14.6% spread)
+
+---
