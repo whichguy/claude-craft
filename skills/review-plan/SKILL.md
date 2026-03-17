@@ -623,6 +623,14 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
+      Question-specific methodology:
+      - For Q-G21 (internal logic consistency) and Q-G22 (cross-phase dependency):
+        Use trace-verify-cite: (1) identify each claim, cross-reference, or data access
+        (2) trace it to its declared source (prior phase output, schema, function signature)
+        (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
+        Before writing PASS, confirm you traced the reference to its source — not just
+        scanned for keyword presence.
+
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory.json
 
@@ -684,6 +692,9 @@ DO:
         are N/A-superseded when IS_NODE=true.
       IS_GAS note: if you are the impact-evaluator and IS_GAS=true above, evaluate Q-C26, Q-C35, Q-C37, Q-C38, Q-C39, Q-C40 only;
         Q-C3, Q-C8, Q-C12, Q-C14, Q-C27, Q-C32 are N/A-superseded (covered by gas-evaluator).
+        When IS_GAS=true and you are the impact-evaluator: you are the ONLY L2 cluster evaluator
+        running. Questions Q-C37, Q-C38, Q-C39, Q-C40 (the tracing questions) are your exclusive
+        responsibility — no other evaluator will assess them.
         If you are the state-evaluator and IS_GAS=true above, evaluate Q-C36 only;
         Q-C13, Q-C18, Q-C19, Q-C24 are N/A-superseded (covered by gas-evaluator).
 
@@ -700,6 +711,18 @@ DO:
       Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
+
+      Question-specific methodology (apply only to questions in YOUR cluster):
+      - For Q-C37, Q-C38, Q-C39, Q-C40 (tracing questions, impact cluster):
+        Use trace-verify-cite: (1) identify each claim, cross-reference, or data access
+        (2) trace it to its declared source (prior phase output, schema, function signature)
+        (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
+        Before writing PASS on these questions, confirm you traced the reference to its
+        source — not just scanned for keyword presence.
+      [IF cluster_name == "impact", append:]
+        Example (Q-C39): "NEEDS_UPDATE — Step 1 extracts Field 3 as 'kind', but the
+        actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
+        position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/<cluster_name>-evaluator.json

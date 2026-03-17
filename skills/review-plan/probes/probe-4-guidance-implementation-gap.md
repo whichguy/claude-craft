@@ -66,6 +66,6 @@ The incremental sync engine maintains a manifest file (`~/.claude/.sync-manifest
 3. If tests fail → fix → re-run `/review-fix` → re-run tests
 
 ## Verification
-- Verify behavior is correct across all sync modes
-- Run tests and check for regressions
-- Confirm incremental sync is faster than full sync on unchanged state
+- Run `./tools/sync-status.sh sync --dry-run` — output shows only changed extensions
+- Run `cat ~/.claude/.sync-manifest.json | jq '.extensions | length'` — count matches expected
+- Time comparison: `time sync-status.sh sync` on unchanged state should complete in <1s

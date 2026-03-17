@@ -50,7 +50,7 @@ Extend the existing sync infrastructure with a priority layer. Each sync source 
 
 7. Write tests for conflict logging (conflict → log entry, no conflict → no log entry)
 
-8. Update `tools/sync-status.sh` to call `resolveConflicts(sources, typeEntry)` before creating each symlink — pass the type entry's name and kind fields (positions 0 and 3 from the pipe-delimited TYPES array) for conflict-aware linking
+8. Update `tools/sync-status.sh` to call `resolveConflicts()` before creating each symlink — pass the type entry fields needed for conflict-aware linking
 
 9. Build and verify: `npm test`
 
