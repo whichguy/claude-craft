@@ -232,6 +232,20 @@ Q+S combination: calibration exemption (S) + methodology (Q) together caused Q-G
 **Actionable learning:**
 Option Q (challenge-justify-check) is valuable but must NOT be paired with Option S (calibration exemption for Q-G1). The calibration heuristic serves as a false-positive guard; removing it causes over-triggering. In next iteration: try Q alone (without S) with targeted premise-challenge phrasing that only fires when the plan uses language like "X is too slow/won't work/is unavailable" — not on all approach decisions.
 
+### 2026-03-17 — Iteration 6 → NEUTRAL
+
+**Experiments:** 2 (Exp-1 = baseline no-op; Exp-2 = Option V only)
+**Verdict:** NEUTRAL (decided by: quality parity, 0.0% spread)
+
+**What worked:**
+Option W (Q-G1 conditional activation predicate) was already in the baseline — correctly fires on probe-1, correctly PASSES probe-9. No remaining Q-G1 calibration issue. Option V adds a slightly sharper probe-4 Q-G20 finding (specific commitment cited vs missing element 3), but the delta is below threshold.
+
+**What didn't work:**
+Option V (Q-G20 methodology annotation scoped to "Approach/Design section"): misses probe-7's untestable verification pattern (lives in Verification section, not Approach/Design). Net effect on quality: 0.0%. The annotation covers only one of two Q-G20 subtypes.
+
+**Actionable learning:**
+Q-G20 has two distinct subtypes: (A) design promise not backed by implementation step, (B) untestable verification assertions. Option V covers subtype A only. Subtype B is already covered by base Q-G20 definition. Do not retry Option V in isolation — the annotation is already correct for what it covers. Next priority: breadth probe coverage for Q-G20/21-25 depth attenuation (structural problem, requires evaluator restructuring or two-pass approach).
+
 ---
 *Date: 2026-03-13 — Iteration 2*
 
@@ -903,5 +917,42 @@ Q-DYN-15: 2/2/2  Q-DYN-16: 2/1/3  Q-DYN-17: 3/1/2
 **Best experiment:** Exp-1 (Q+R+S+T) — 13.9% quality score
 **Verdict: NEUTRAL**
 Decided by: all dimensions within noise thresholds (-14.6% spread)
+
+## Experiment Results — Iteration 6
+*Date: 2026-03-17*
+
+### Implemented Directions
+#### Experiment 1: Option W (Q-G1 conditional block — already in baseline)
+**Options applied:** W (Q-G1 challenge-justify-check with conditional activation predicate)
+**Applied changes:** No change — Q-G1 block was already present in baseline (committed in e71b28c/4979eee)
+
+#### Experiment 2: Option W (no-op) + Option V (Q-G20 methodology annotation)
+**Options applied:** V (5-line Q-G20 narrative-commitment methodology in l1-advisory before Q-G21)
+**Applied changes:** 5-line Q-G20 methodology note in l1-advisory before Q-G21 — scope: "Approach/Design section" narrative commitments → implementation step check
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | W (no-op) | 1.8% vs 1.8% | 0.0% | 0% | 0% |
+| Exp-2 | V only | 1.8% vs 1.8% | 0.0% | ~0% | ~0% |
+
+### Per-Question Results (A wins / B wins / TIE across 6 tests)
+Q-FX1: 0/0/6  Q-FX2: 0/0/6  Q-FX3: 2/2/2  Q-FX4: 0/0/6  Q-FX5: 0/0/6
+Q-DYN-18 (Q-G1 assertion language): 0/0/6  Q-DYN-19 (Q-G1 evidence PASS): 0/0/6
+Q-DYN-21 (Q-G20 untestable verify): 0/0/6  Q-DYN-22 (Q-C37 translation): 0/0/6
+
+## Results & Learnings
+
+**What worked:** Option W (Q-G1 conditional predicate) was already incorporated before this iteration — it correctly fires on probe-1 (bare assertion) and correctly PASSES probe-9 (evidence-backed). The baseline is already working well on Q-G1 calibration. Option V produced a slightly sharper Q-G20 finding on probe-4 (identifies "validates checksums before overwriting" as the specific commitment, vs baseline finding element 3 "expected outcome section absent") — but not enough to cross the quality threshold.
+
+**What didn't work:** Option V's Q-G20 methodology annotation uses "Approach/Design section" scope, which correctly identifies one Q-G20 failure pattern (design promises not backed by implementation steps — probe-4 subtype) but misses the other (untestable verification assertions — probe-7 subtype). Probe-7's deficiency lives in the VERIFICATION section, not Approach/Design, so the methodology note doesn't reach it. Both subtypes are real Q-G20 patterns; the annotation is over-narrow.
+
+**Root cause analysis:** Q-G20 has two distinct failure subtypes: (A) design/approach narrative commitments with no implementation step — e.g., "validates checksums before overwriting" in Design with no corresponding step, and (B) verification section with untestable assertions — e.g., "verify the watch mode works correctly." Option V's methodology targets subtype A only. Subtype B is already caught by the base Q-G20 definition (story arc element 4: testable assertion required). Adding subtype A coverage via methodology note doesn't change probe-7's outcome because the base definition handles it independently. The net improvement from V is sharpened citing precision on probe-4, insufficient to cross the 15% quality threshold.
+
+**What to try next iteration:** The Q-G1 calibration problem from Iter 5 appears solved (the conditional predicate is already in the baseline and working correctly on both probe-1 and probe-9). The remaining unaddressed gap is: **broader advisory question coverage** on the analysis.md breadth probe. The analysis.md breadth test regressed in Iter 5 and has not recovered — the baseline produces fewer findings on breadth probes than on focused probes. One untried approach: add a "depth-maintenance check" instruction to the l1-advisory evaluator that explicitly names the final 5 questions (Q-G20 through Q-G25) and reminds the evaluator to give them equal consideration, since they appear late in the 19-question set. Alternatively, restructure the l1-advisory evaluator into two passes (questions 1-10, then 11-19) to counteract depth attenuation.
+
+**Best experiment:** Exp-2 (W+V) — 1.8% quality score
+**Verdict: NEUTRAL**
+Decided by: all dimensions within noise thresholds (0.0% spread)
 
 ---
