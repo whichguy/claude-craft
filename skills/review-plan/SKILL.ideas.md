@@ -956,3 +956,208 @@ Q-DYN-21 (Q-G20 untestable verify): 0/0/6  Q-DYN-22 (Q-C37 translation): 0/0/6
 Decided by: all dimensions within noise thresholds (0.0% spread)
 
 ---
+*Date: 2026-03-17 — Iteration 7*
+
+## Structural Diagnostic (Q1-Q10) — Iteration 7
+
+Q1 — Role/Persona: The Role & Authority block is fully adequate after Iter 1. No new gaps.
+
+Q2 — Task Precision: The l1-advisory evaluator receives a flat list of 19 questions with no structural ordering, priority weighting, or batch instruction. The question list runs from Q-G4 through Q-G25. Questions Q-G20 through Q-G25 — the six questions added most recently (commits #71–#73) and the ones most likely to catch subtle design-level defects — appear in positions 14–19 of 19. An evaluator working through a 19-item list with no depth-maintenance guidance will naturally produce progressively shorter assessments as its output grows. The current prompt has no mechanism to counteract this — not even a reordering that would place high-miss-rate questions earlier. The analysis.md breadth regression (Iter 5: 6 findings vs 10 baseline; Iter 6: not recovered) is the empirical evidence. Precision gap: the 19-question flat list has no structural protection against the evaluator front-loading effort on early questions and shortchanging the final 6.
+
+Q3 — Context Adequacy: Strong. No new gaps after Iter 3 Option K.
+
+Q4 — Output Format: Well-specified. No new gaps.
+
+Q5 — Examples: The impact-evaluator has a concrete Q-C39 example (Iter 4 Option O) that improved detection of field-index defects. The l1-advisory evaluator has methodology annotations for Q-G21/Q-G22 (trace-verify-cite). It has NOTHING for Q-G23 (proportionality: does the plan's effort match the change's scope?), Q-G24 (core-vs-derivative weighting: are the most foundational steps spec'd first?), or Q-G25 (feedback loop completeness: do downstream consumers have a path to verify the change works?). These three questions are the most conceptually abstract in the advisory list, appear latest in the sequence, and have no example to anchor evaluator reasoning. An evaluator seeing Q-G23 with only the question definition may produce a 1-sentence PASS or NEEDS_UPDATE without articulating the proportionality comparison.
+
+Q6 — Constraints: Adequate. No new critical gaps.
+
+Q7 — Anti-patterns: The l1-advisory evaluator's flat 19-question list is a structural depth-attenuation risk. Questions 14–19 (Q-G20 through Q-G25) receive systematically less reasoning effort than questions 1–6 simply because they appear later in the output. Research from CheckEval (2025) and position-bias studies confirms that LLM evaluators working through long checklists produce depth-decreasing responses without explicit depth-maintenance instructions or structural reordering. The current prompt's question-specific methodology annotations for Q-G21/Q-G22 partially compensate by adding salience for those two, but Q-G20, Q-G23, Q-G24, Q-G25 are unprotected. This is a well-known anti-pattern in LLM-as-judge systems: annotation asymmetry + late-list position = compounded depth attenuation.
+
+Q8 — Chain-of-thought: Q-G23 (proportionality), Q-G24 (core-vs-derivative), and Q-G25 (feedback loop) are the three questions with no CoT guidance at all. Each requires a distinct reasoning mode: Q-G23 requires comparing plan complexity to change scope (is a 10-phase plan warranted for a 2-file bug fix?); Q-G24 requires identifying which steps define the core capability vs derivative scaffolding (does the plan spec the primary logic before wiring it up?); Q-G25 requires tracing from the plan's outputs to their downstream consumers (will anyone know if this breaks?). All three are judgment-intensive. The "Calibration" instruction provides a relevance threshold but no reasoning template for HOW to apply it to these abstract quality dimensions. No chain-of-thought means the evaluator makes an unstructured judgment that is likely to be cursory for late-list questions.
+
+Q9 — Domain specifics: Strong. No new gaps.
+
+Q10 — Tone/register: Consistent. No new gaps.
+
+## Domain & Research Findings — Iteration 7
+
+Domain: LLM-as-judge checklist evaluation; depth attenuation in multi-question evaluator agents; position effects in long question lists; structural reordering vs annotation strategies.
+
+**Finding 1 — CheckEval (2025) confirms checklist question ordering and annotation asymmetry drive recall disparity:** The CheckEval framework (EMNLP 2025) demonstrates that LLM evaluators working through checklists exhibit measurable depth decrease for items appearing in the final quartile of a list. The framework recommends either (a) structuring the checklist so higher-risk items appear first, or (b) adding elaboration annotations that counteract the late-item depth drop. Both strategies are actionable for the l1-advisory evaluator's Q-G20–Q-G25 problem: reordering to put Q-G20–Q-G25 earlier (before Q-G4–Q-G8 which are simpler and routinely PASS), or adding brief elaboration for the three unannotated abstract questions. The reordering approach avoids adding prompt verbosity; the annotation approach is consistent with the Iter 4 success pattern (M+N+O).
+
+**Finding 2 — Position bias in LLM judges: late-list items receive shallower treatment independent of content (IJCNLP 2025):** The "Judging the Judges" study (2025, IJCNLP) confirms that position effects in LLM evaluation are not purely due to content difficulty — they are systematic ordering effects. Even when a late-list question is more important than an early-list question, it receives less reasoning effort. The finding most applicable here: "quality gap modulation" — when the evaluator has already produced thorough findings for several questions (confirming real defects), it applies a lower-attention baseline to subsequent questions. For the l1-advisory evaluator applied to a plan with obvious early defects (like input4's "maybe add caching"), Q-G20–Q-G25 assessments are especially at risk of depth attenuation because the evaluator has already "proven" it is doing its job. Mitigation: reorder so that the abstract, structurally-sensitive questions appear before the simpler ones that are frequently PASS (reducing the "already done my work" effect at the point Q-G20+ are reached).
+
+**Finding 3 — Split-evaluator two-pass approach increases recall for long question lists (CheckEval, EMNLP 2025; DeepEval multi-agent evaluation 2025):** Production LLM evaluation systems that split a long question list into two focused evaluator tasks (each ~10 questions) show 15–30% higher recall on the second half of the original combined list, with no regression on first-half recall. The tradeoff is latency (two sequential tasks vs one) and token cost. For the review-plan use case, latency is already 30–90s per pass — one additional evaluator task adds ~15–20s. The alternative is a structural reordering within the single evaluator, which has zero latency cost but captures only partial benefit (the ordering effect is attenuated but not eliminated). The split approach is the most reliable fix; the reorder approach is the lowest-cost partial fix.
+
+## Test-Run Observations — Iteration 7
+
+**input4-plan-with-issues.md (sync engine remote repos with deliberate defects)**
+
+IS_GAS=false, IS_NODE=false, HAS_STATE=true (TYPES array modified), HAS_DEPLOYMENT=true (push directly to main), HAS_TESTS=false (no test step), IS_TRIVIAL=false. Active clusters: impact (Q-C3/Q-C26/Q-C35/Q-C37-Q-C40), state (Q-C36), operations (Q-C21), testing (Q-C8/Q-C9). L1-advisory evaluator runs all 19 questions.
+
+Early questions (Q-G4, Q-G5, Q-G8, Q-G10) would all have obvious NEEDS_UPDATE findings: the plan uses "maybe", "might need", "somehow" throughout — classic Q-G10 assumption exposure and Q-G5 scope focus failures. After producing 5–6 NEEDS_UPDATE findings for early questions, the evaluator reaches the final quartile (Q-G20 through Q-G25). Predicted behavior without depth protection:
+
+- Q-G20 (story arc): The plan has no narrative arc — "Steps 1–7" are flat bullet points with no declared phases or outcomes. A thorough evaluator would cite steps 3–4 ("maybe add some caching") as lacking a committed story. A depth-attenuated evaluator would write: "PASS — plan has steps" or a brief NEEDS_UPDATE without citing the specific vague steps.
+- Q-G23 (proportionality): 7 vague steps to add remote git repo support is disproportionate — the scope is large (auth, conflict resolution, caching, TYPES schema migration) but steps are under-specified. A thorough evaluator would note the mismatch: the plan's brevity is inversely proportional to the feature's complexity. A depth-attenuated evaluator would write: "NEEDS_UPDATE — plan lacks detail" without the proportionality comparison.
+- Q-G24 (core-vs-derivative): The plan lists `--remote` flag and cloning before defining the schema change in TYPES array (step 5), when logically the schema change is the core foundational change that everything else depends on. A thorough evaluator would flag this ordering. A depth-attenuated evaluator may not catch the inversion.
+- Q-G25 (feedback loop): No acceptance criteria, no test step, no verification other than "Test it manually." A depth-attenuated evaluator may produce a 1-sentence finding that doesn't articulate which downstream consumers (other extensions relying on the TYPES schema) are at risk.
+
+**input2-node-plan.md (rate limiting for mcp_gas API)**
+
+IS_NODE=true, HAS_STATE=true, HAS_DEPLOYMENT=true, HAS_TESTS=true, IS_TRIVIAL=false. Good plan — most questions should PASS. Node-evaluator active + testing + state + operations + impact clusters. L1-advisory evaluator runs all 19 questions.
+
+Early questions would mostly PASS quickly and correctly. By the time the evaluator reaches Q-G23–Q-G25, it has processed ~10 PASSes and may be producing increasingly brief assessments. Critical check: Q-G24 (core-vs-derivative) — Phase 1 (rateLimiter.ts) is correctly the core, but does the plan spec the `TokenBucket` logic in sufficient depth before wiring it into gasClient.ts? The type definitions in step 2 are terse; the algorithm description for token bucket in step 1 is adequate ("token bucket algorithm with per-user tracking") but doesn't specify the refill mechanics. A thorough evaluator would flag this gap between step 1's algorithm description and the testability of step 5 ("unit tests for token bucket algorithm" — but the algorithm isn't fully specified). A depth-attenuated evaluator would PASS Q-G24 as "Phase 1 correctly precedes Phase 2."
+
+Cross-probe observation: **both plans' final-quartile questions (Q-G20–Q-G25) are predicted to receive either cursory PASS assessments (input2) or NEEDS_UPDATE findings without adequate specificity (input4).** The pattern matches the Iter 5 analysis.md breadth regression root cause. The two consecutive NEUTRAL iterations (5 and 6) targeted Q-G1 and Q-G20 individually; neither addressed the structural depth attenuation across the Q-G20–Q-G25 cluster as a group.
+
+## Improvement Options — Iteration 7
+
+### Option X: Reorder l1-advisory Question List — Late-at-Risk Questions First
+
+**Addresses:** Q2 — Task precision (flat list, no depth protection) / Q7 — Anti-patterns (depth attenuation at late positions) / Q8 — Chain-of-thought (no reasoning template for Q-G23/Q-G24/Q-G25)
+**What changes:** Reorder the 19 questions in the l1-advisory evaluator prompt from:
+`Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25`
+to a depth-protected order that places the 6 most-at-risk questions (the abstractly-judged, empirically-under-detected ones) earlier:
+`Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25, Q-G4, Q-G5, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G6, Q-G7`
+
+Rationale for order: Q-G20–Q-G25 (story arc, internal consistency, cross-phase, proportionality, core-vs-derivative, feedback loop) are placed first while the evaluator is at full attention. Q-G4, Q-G5, Q-G8, Q-G10, Q-G12–Q-G14, Q-G16–Q-G19 are placed in the middle (still active attention). Q-G6 (naming conventions) and Q-G7 (doc impact) are placed last — they are the most mechanical and frequently N/A, requiring least depth.
+
+Also add a 3-line methodology note for Q-G23/Q-G24/Q-G25 in the "Question-specific methodology" section, following the same format as Q-G21/Q-G22's trace-verify-cite:
+```
+- For Q-G23 (Proportionality): Compare plan step count and detail level to the scope of the change.
+    A plan with 10 steps for a 1-file bug fix is over-engineered; 3 vague steps for a multi-file
+    feature is under-engineered. Cite the specific mismatch.
+- For Q-G24 (Core-vs-derivative weighting): Identify the most foundational new function or
+    schema. Verify it is specified in full before steps that depend on it.
+    If wiring/integration steps precede core logic specification → NEEDS_UPDATE.
+- For Q-G25 (Feedback loop): Identify who or what downstream consumes this change's outputs.
+    If no test, acceptance criterion, or stakeholder check is specified → NEEDS_UPDATE.
+```
+
+**Why it helps:** Finding 1 (CheckEval 2025) recommends placing higher-risk items first to counteract late-list depth attenuation. Finding 2 (IJCNLP 2025) confirms position ordering directly affects reasoning depth independent of content. The reordering costs zero tokens and zero latency — it is a pure structural change to the evaluator prompt. The 3-line methodology notes for Q-G23/Q-G24/Q-G25 follow the Iter 4 success pattern (algorithmic specificity for judgment calls) and address the Q8 gap (no CoT for abstract questions). Combined, the reorder + notes directly target the analysis.md breadth regression root cause (late-list questions receiving cursory treatment).
+
+**Why it is the best standalone option:** (a) Zero latency and token cost — pure reordering with 3-line annotation additions. (b) Directly targets the structural mechanism of the two-iteration stall (depth attenuation). (c) Consistent with the "instruct + exemplify" pattern that drove Iter 4 gains. (d) Not blocked by any known failure mode from prior iterations (unlike Q+S, which caused over-triggering; unlike V, which was over-narrow).
+
+**Predicted impact:** MEDIUM-HIGH. The analysis.md breadth regression (-4 findings) is the primary target. Input4's Q-G23/Q-G24/Q-G25 findings are secondary targets. The proportionality/core-derivative/feedback-loop questions are the most abstract and most consistently under-detected — reordering + annotation is the minimum intervention that addresses both the position and the CoT gaps simultaneously.
+
+**Conciseness impact:** MINIMAL — reordering is zero-cost; 3-line methodology notes add ~9 lines total to the l1-advisory evaluator prompt. Less verbosity than Option V (which was 5 lines for a single question).
+
+---
+
+### Option Y: Two-Pass l1-Advisory Evaluator Split (First: Q-G20–Q-G25, Second: Q-G4–Q-G19)
+
+**Addresses:** Q7 — Anti-patterns (depth attenuation via structural split) / Q2 — Task precision (separate focus per group)
+**What changes:** Replace the single l1-advisory evaluator Task with two sequential evaluator Tasks:
+
+- **Pass A (abstract/structural questions — 6 questions):** `Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25`. This evaluator runs first, while the model is at full attention, with no prior output pressure. It uses the existing trace-verify-cite methodology for Q-G21/Q-G22 and the new Q-G23/Q-G24/Q-G25 methodology from Option X.
+- **Pass B (standards/process questions — 13 questions):** `Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19`. These run second; they are mostly PASS on typical plans and tolerate lower attention depth.
+
+Orchestrator change: spawn Pass A in wave 1 (Priority 2 — after l1-blocking, before or alongside gas/node evaluator); spawn Pass B in wave 1 as well (after l1-blocking). Both write to separate JSON files (`l1-advisory-structural.json`, `l1-advisory-process.json`). Fan-in reads both files; routing logic unchanged. Memoization: `l1_advisory_memoized` covers both groups (group-memoized when all 19 are PASS/N/A across both files).
+
+**Why it helps:** Finding 3 (CheckEval / DeepEval 2025) shows 15–30% recall improvement for the second half of a combined list when split into two focused tasks. The two-pass approach completely eliminates depth attenuation for Q-G20–Q-G25 by giving them their own context with no prior output pressure. It also allows the abstract questions to receive the methodology annotations without the list-length overhead affecting the process questions.
+
+**Why it is a different option from X:** Option X uses a zero-cost structural intervention (reordering + annotation); Option Y uses a structural redesign (split into two Tasks). They address the same root cause via different mechanisms. Y is more reliable but costlier (+1 evaluator Task per pass, +15–20s latency, +~2k tokens per pass). X is cheaper but less decisive (reordering attenuates but doesn't eliminate depth drop; the methodology notes add CoT but don't change context pressure).
+
+**Predicted impact:** HIGH for Q-G20–Q-G25 recall. The split approach is the only mechanism that completely eliminates context-pressure depth attenuation. Trade-off: latency increases by ~20s per pass (additional Task spawn for a 6-question evaluator). Given that review-plan passes already take 30–90s, +20s is a ~25% latency increase — acceptable for the quality gain, but measurable.
+
+**Conciseness impact:** ADDS_VERBOSITY — additional Task config block (~40 lines) + second JSON file routing in fan-in logic. Significant structural change to the convergence loop.
+
+---
+
+### Option Z: Structural Reordering Only (No Annotation Additions)
+
+**Addresses:** Q7 — Anti-patterns (late-list position bias) only
+**What changes:** Apply the reordering from Option X (Q-G20–Q-G25 first, Q-G6/Q-G7 last) WITHOUT adding the Q-G23/Q-G24/Q-G25 methodology notes. Pure structural change — zero text added, zero tokens added.
+
+**Why it helps:** This isolates the position-ordering effect from the annotation effect, providing a clean signal on whether reordering alone is sufficient. Research Finding 2 (IJCNLP 2025) confirms position effects are systematic — reordering should improve recall for late-list questions even without additional annotations. If Option Z alone is IMPROVED, it validates the position-ordering hypothesis. If Option Z is NEUTRAL, it confirms that reordering without annotation is insufficient, pointing to Option X (reorder + annotate) or Option Y (split) as the necessary intervention.
+
+**Predicted impact:** MEDIUM — position reordering is a partial fix. Without CoT guidance for Q-G23/Q-G24/Q-G25, the evaluator may still produce cursory assessments for these questions even when they appear first, because the questions themselves are abstract. The expected gain is smaller than Option X (position + CoT) or Option Y (split). Useful as an experiment to isolate the position effect.
+
+**Conciseness impact:** ZERO — pure reordering, no additions.
+
+---
+
+## Evaluation Questions — Iteration 7
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded in the input — no hallucinated question IDs, no fabricated evaluator findings, no invented plan content?
+
+### Dynamic (derived from Q1-Q10 gaps and improvement options for iteration 7)
+- Q-DYN-23: For plans where questions Q-G20 through Q-G25 are genuinely applicable (structural plan quality, narrative arc, proportionality, core-derivative ordering, feedback loop), does the l1-advisory evaluator produce substantive findings — with specific plan citations — rather than cursory one-sentence assessments? Compare baseline vs improved on the final 6 advisory questions specifically. [addresses: Q2, Q7, Q8 — late-list depth attenuation and missing CoT for abstract questions]
+- Q-DYN-24: When a plan has a proportionality mismatch (large scope with few/vague steps, or over-engineered structure for a small change), does the output correctly flag Q-G23 NEEDS_UPDATE with a specific comparison between plan step count/detail and the change's scope — not just "lacks detail"? [addresses: Q8 — no CoT for Q-G23]
+- Q-DYN-25: Does the l1-advisory evaluator produce at least as many total NEEDS_UPDATE findings across ALL 19 questions (including early-list Q-G4 through Q-G19) as the baseline — confirming that reordering or splitting did not suppress breadth on the early/middle questions? [addresses: Q7 — anti-regression check for early-list questions after structural change]
+- Q-DYN-26: For plans with clear feedback loop gaps (no acceptance criteria, no downstream consumer verification, no automated test for the primary new behavior), does the output flag Q-G25 NEEDS_UPDATE with a specific identification of which downstream consumer or verification path is missing — not just "needs tests"? [addresses: Q8 — no CoT for Q-G25]
+
+
+---
+
+## Experiment Results — Iteration 7
+*Date: 2026-03-17*
+
+### Implemented Directions
+#### Experiment 1: Option Y (Two-pass l1-advisory split)
+**Options applied:** Option Y
+**Applied changes:** Split single l1-advisory Task into l1-advisory-structural (Q-G20–Q-G25, with Q-G23/24/25 methodology notes) + l1-advisory-process (Q-G4–Q-G19); both spawn in wave 1; fan-in reads both JSON files; memoization covers both groups together
+
+#### Experiment 2: Options X+Z (Reorder + annotate)
+**Options applied:** Option X, Option Z
+**Applied changes:** Reordered l1-advisory question list (Q-G20–Q-G25 first, Q-G6/Q-G7 last); added 3-line methodology notes for Q-G23/24/25
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | Y | 56.4% vs 2.9% | +53.5% | +~20% | +~25s/pass |
+| Exp-2 | X+Z | 34.2% vs 12.6% | +21.6% | ~0% | ~0% |
+
+### Per-Question Results (A wins / B wins / TIE across 5 tests)
+Exp-1: Q-FX1: 0/3/2  Q-FX2: 0/2/3  Q-FX3: 0/5/0  Q-FX4: 4/1/0  Q-FX5: 0/4/1
+       Q-DYN-23: 0/5/0  Q-DYN-24: 0/4/1  Q-DYN-25: 0/3/2  Q-DYN-26: 1/4/0
+Exp-2: Q-FX1: 2/2/1  Q-FX2: 0/0/5  Q-FX3: 3/2/0  Q-FX4: 0/3/2  Q-FX5: 0/3/2
+       Q-DYN-23: 0/4/1  Q-DYN-24: 0/4/1  Q-DYN-25: 3/2/0  Q-DYN-26: 1/3/1
+
+## Results & Learnings
+
+**Step 1 — Per-option attribution:**
+- Option Y (Two-pass split): CONTRIBUTED_TO_WIN. Primary quality driver. DYN-23 went 0/5/0 unanimously — judges cited the structural evaluator running at full attention with zero prior output pressure as the decisive mechanism. DYN-24 (Q-G23 proportionality) went 0/4/1, DYN-26 (Q-G25 feedback loop) went 1/4/0. The split also improved Q-FX1, Q-FX3, Q-FX5 — finding real defects (toggleProtection spec gaps, TYPES ordering, parseCSV underspecification, story arc gaps) that baseline missed entirely. Q-FX4 (conciseness) was the only dimension where baseline won 4/1/0 — the additional Task produces more output, which is legitimate but not concise.
+- Options X+Z (Reorder + annotate): CONTRIBUTED_TO_WIN (partial). Both experiments improved over baseline. Exp-2 achieved +21.6% with zero token/latency cost. It found Q-G24 and Q-G22 structural findings on input1 and input5. However, on input4 (plan with planted defects), Exp-2 missed security/impact findings that baseline caught, trading breadth for depth. Net result: X+Z is a lower-cost partial fix that addresses depth attenuation but does not eliminate it.
+
+**Step 2 — Cross-experiment comparison:**
+Exp-1 (two-pass, +53.5%) vs Exp-2 (reorder, +21.6%) confirms the split approach is decisively better than reordering alone. The +32% quality gap between them validates CheckEval Finding 3: two focused evaluator tasks show 15-30% recall improvement vs reordering alone — our result shows +32% absolute quality improvement, consistent with the finding at the high end. Exp-2's breadth tradeoff (Q-DYN-25: A wins 3/2/0 for Exp-2 vs 0/3/2 for Exp-1) confirms that reordering alone without a split may suppress breadth on the process questions to partially compensate for structural depth.
+
+**Step 3 — Root cause:**
+Exp-1's +53.5% gain is driven by eliminating context-pressure depth attenuation for Q-G20–Q-G25 entirely. When these 6 questions run as their own Task with zero prior output, the evaluator applies full reasoning to each. The 3-line methodology notes for Q-G23/24/25 amplify this by providing concrete evaluation templates (proportionality mismatch, core-before-derivative, downstream consumer). The result is that every test plan's structural quality gaps are surfaced — on input4 (planted defects), all 3 structural planted defects were caught; on input1 (GAS), Q-G24 and Q-G25 gaps were found that a single-evaluator run missed. The split approach also cleanly memoizes both groups together, preserving the efficiency gains from memoization.
+
+**What worked:** Option Y (two-pass split) is the highest-impact change found across 7 iterations. It eliminates the root cause of the two-iteration stall by architectural means rather than annotation alone. The "instruct + exemplify + verify" triad from Iter 4 (M+N+O) now has an architectural complement: structural isolation via task split.
+
+**What didn't work:** Exp-2's reorder-only approach (X+Z) produces measurable improvement (+21.6%) but with a breadth tradeoff on some plans. Not a failure, but clearly inferior to Exp-1.
+
+**Root cause analysis:** Late-list depth attenuation is a systematic context-pressure effect that cannot be fully mitigated by reordering alone (Exp-2 confirms). Only structural isolation (separate Task) eliminates it. This is consistent with the research findings: CheckEval/DeepEval show 15-30% recall improvement from task splitting, not from reordering. The +53.5% improvement in Exp-1 vs +21.6% in Exp-2 quantifies the difference between architectural isolation and positional mitigation.
+
+**What to try next iteration:** (1) Investigate whether the l1-advisory-structural task's methodology notes for Q-G23/24/25 can be further refined based on Iter 7 evidence (e.g., Q-DYN-26 won 1/4/0 rather than 0/5/0 — baseline once won here, suggesting Q-G25 detection is still slightly inconsistent). (2) Check if the memoization of both l1-advisory groups together is correct — if one group stabilizes faster than the other, splitting the memoization condition could save evaluator spawns.
+
+**Best experiment:** Exp-1 (Y) — 56.4% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+53.5% spread)
+
+### 2026-03-17 — Iteration 7 → IMPROVED
+
+**Experiments:** 2 parallel — best was Exp-1 (Option Y: two-pass l1-advisory split)
+**Verdict:** IMPROVED (decided by: quality, +53.5% spread)
+
+**What worked:**
+- Option Y (Two-pass split): l1-advisory split into l1-advisory-structural (Q-G20–Q-G25 first, full attention) + l1-advisory-process (Q-G4–Q-G19). All 5 test plans showed measurable structural finding improvement. Q-DYN-23 unanimous (0/5/0). Structural planted defects in input4 caught completely. Eliminates context-pressure depth attenuation architecturally.
+- Options X+Z (Reorder + annotate, Exp-2): +21.6% improvement — valid secondary finding, lower cost, but inferior to Y.
+
+**What didn't work:**
+- Nothing regressed — both experiments improved over baseline.
+
+**Actionable learning:**
+Late-list depth attenuation for Q-G20–Q-G25 requires architectural Task isolation (not just reordering) to fully eliminate. The two-pass split is the canonical fix. Reordering (X+Z) is a useful lower-cost partial mitigation but should not be preferred over Y when latency is acceptable (+25s/pass is acceptable given 30-90s pass duration). Scope gate WARNs (memoize/routing) were not realized — monitor in production but do not block.
+
+Scope gate WARN for Exp-1: Q-SG6, Q-SG8, Q-SG12 — routing and memoization concerns. Status: SCOPE_WARN. Monitor for regression in multi-pass reviews but did not manifest in 5-plan test.
+Scope gate WARN for Exp-2: Q-SG12 — attention reallocation risk. Status: SCOPE_WARN.

@@ -404,8 +404,10 @@ DO:
   evaluators_to_spawn.append({name: "l1-blocking", task_config: <l1_blocking_config below>})
 
   # Priority 1b: L1 advisory (Gate 2/3, 19 questions — skip if group-memoized)
+  # Split into two passes: structural (Q-G20–Q-G25, runs first) and process (Q-G4–Q-G19, runs second)
   IF NOT l1_advisory_memoized:
-    evaluators_to_spawn.append({name: "l1-advisory", task_config: <l1_advisory_config below>})
+    evaluators_to_spawn.append({name: "l1-advisory-structural", task_config: <l1_advisory_structural_config below>})
+    evaluators_to_spawn.append({name: "l1-advisory-process", task_config: <l1_advisory_process_config below>})
 
   # Priority 2: Ecosystem evaluator (largest question set after L1)
   IF IS_GAS AND NOT fully_memoized_gas:
@@ -510,7 +512,8 @@ DO:
       "Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
     FOR q in advisory_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
-    Print: "  ⏭ l1-advisory ── memoized (19 questions stable since p[l1_advisory_memoized_since])"
+    Print: "  ⏭ l1-advisory-structural ── memoized (6 questions stable since p[l1_advisory_memoized_since])"
+    Print: "  ⏭ l1-advisory-process ── memoized (13 questions stable since p[l1_advisory_memoized_since])"
 
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
@@ -548,6 +551,19 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
+      Question-specific methodology:
+      - For Q-G1 (Approach soundness): When the plan uses explicit constraint-assertion language
+        ("X is too slow", "Y won't work", "Z is unavailable", "X has too much overhead") to
+        justify an architectural choice — apply challenge-justify-check:
+          (1) Identify the constrained choice and the assertion used to justify it
+          (2) Check whether the assertion is backed by measurement, benchmark, or cited evidence
+          (3) If assertion is bare (no evidence) → NEEDS_UPDATE; if evidence is cited → PASS
+        If the plan does NOT use constraint-assertion language, skip this check entirely.
+        Example — NEEDS_UPDATE: "Plan states 'PropertiesService is too slow' with no benchmark.
+          [EDIT: add measured latency or justify the choice on architectural grounds]"
+        Example — PASS: "Plan cites 'better-sqlite3: 2.3µs vs 45µs flat-file, 10k iterations
+          (bench/results/...)'. Evidence-backed approach — no challenge needed."
+
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-blocking.json
 
@@ -583,18 +599,19 @@ DO:
     """
   )
 
-  --- L1 Advisory Evaluator Config (Gate 2/3: 19 questions, group-memoizable) ---
-  l1_advisory_config = Task(
+  --- L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions, group-memoizable) ---
+  --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
+  l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
-    name = "l1-advisory-p" + pass_count,
+    name = "l1-advisory-structural-p" + pass_count,
     prompt = """
-      You are evaluating a plan for general quality (Layer 1 Gate 2/3: 19 questions).
+      You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
 
       Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ALL L1 Gate 2/3 questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25
+      Evaluate ONLY these 6 abstract/structural questions: Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -604,8 +621,8 @@ DO:
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
-      [IF memoized_l1_questions is non-empty, append to prompt:]
-      Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated memoized_l1_questions]
+      [IF memoized_l1_questions intersects {Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25} is non-empty, append to prompt:]
+      Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
@@ -630,13 +647,23 @@ DO:
         (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
         Before writing PASS, confirm you traced the reference to its source — not just
         scanned for keyword presence.
+      - For Q-G23 (Proportionality): Compare plan step count and detail level to the scope of
+        the change. Cite the specific mismatch (e.g., "Phase 3 has 12 sub-steps for a one-line
+        config change"). If step density is proportionate to complexity → PASS.
+      - For Q-G24 (Core-vs-derivative): Identify the most foundational new function or schema
+        introduced by the plan. Verify it is fully specified before steps that depend on it
+        (wiring, callers, tests). If wiring or derivative steps precede the core logic
+        specification → NEEDS_UPDATE.
+      - For Q-G25 (Feedback loop): Identify who or what downstream consumes this change's
+        outputs (callers, tests, acceptance criteria, stakeholder checks). If no test,
+        acceptance criterion, or stakeholder check is present → NEEDS_UPDATE.
 
       Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-advisory.json
+        Write your findings to: <RESULTS_DIR>/l1-advisory-structural.json
 
         JSON schema:
         {
-          "evaluator": "l1-advisory",
+          "evaluator": "l1-advisory-structural",
           "pass": <pass_count>,
           "status": "complete",
           "elapsed_s": <seconds_from_start>,
@@ -648,13 +675,89 @@ DO:
         }
 
         Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-advisory.json.tmp' << 'EVAL_EOF'
+          cat > '<RESULTS_DIR>/l1-advisory-structural.json.tmp' << 'EVAL_EOF'
           <json>
           EVAL_EOF
-          mv '<RESULTS_DIR>/l1-advisory.json.tmp' '<RESULTS_DIR>/l1-advisory.json'
+          mv '<RESULTS_DIR>/l1-advisory-structural.json.tmp' '<RESULTS_DIR>/l1-advisory-structural.json'
 
         If you encounter an error reading inputs, write:
-          {"evaluator": "l1-advisory", "pass": <pass_count>, "status": "error", "error": "<message>"}
+          {"evaluator": "l1-advisory-structural", "pass": <pass_count>, "status": "error", "error": "<message>"}
+
+      Constraints:
+      - Do not use Edit or Write tools on the plan file — read-only
+      - Use Bash ONLY to write your findings JSON to the specified path
+      - Do not call ExitPlanMode or touch marker files
+      - Write exactly ONE JSON file
+
+      Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
+    """
+  )
+
+  --- L1 Advisory Process Evaluator Config (Gate 2/3: 13 standards/process questions, group-memoizable) ---
+  --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19 ---
+  l1_advisory_process_config = Task(
+    subagent_type = "general-purpose",
+    model = "sonnet",
+    name = "l1-advisory-process-p" + pass_count,
+    prompt = """
+      You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 13 questions).
+
+      Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
+      Standards: Read ~/.claude/CLAUDE.md as needed
+
+      Evaluate ONLY these 13 standards/process questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19
+      Calibration: Prioritize practical production implications over theoretical concerns.
+      Flag findings that would cause real failures, wasted effort, or incorrect implementations
+      at development time — not hypothetical risks that require unlikely conditions to manifest.
+      When deciding between PASS and NEEDS_UPDATE for a borderline finding, ask: "Would a
+      senior developer implementing this plan actually encounter this problem?" If the answer
+      is "only under unusual circumstances," mark PASS.
+      Apply triage (mark N/A per the N/A column).
+      Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
+      or <!-- node-plan -->.
+      [IF memoized_l1_questions intersects {Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19} is non-empty, append to prompt:]
+      Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
+      These were confirmed PASS or N/A in a prior pass and are structurally stable.
+      Do not re-evaluate them; treat as PASS in your output.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
+      Previous pass applied [N] edit(s):
+        - [Q-ID] ([evaluator]): [summary]
+        ...
+      Focus verification on plan sections touched by these edits.
+      Confirm fixes resolve flagged issues without introducing new problems.
+
+      [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
+      Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
+
+      Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+      (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+      without citing which step or section is responsible.
+
+      Output contract — write findings to JSON file:
+        Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
+
+        JSON schema:
+        {
+          "evaluator": "l1-advisory-process",
+          "pass": <pass_count>,
+          "status": "complete",
+          "elapsed_s": <seconds_from_start>,
+          "findings": {
+            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+            ...
+          },
+          "counts": {"pass": N, "needs_update": N, "na": N}
+        }
+
+        Write atomically using Bash (ensures clean reads by orchestrator):
+          cat > '<RESULTS_DIR>/l1-advisory-process.json.tmp' << 'EVAL_EOF'
+          <json>
+          EVAL_EOF
+          mv '<RESULTS_DIR>/l1-advisory-process.json.tmp' '<RESULTS_DIR>/l1-advisory-process.json'
+
+        If you encounter an error reading inputs, write:
+          {"evaluator": "l1-advisory-process", "pass": <pass_count>, "status": "error", "error": "<message>"}
 
       Constraints:
       - Do not use Edit or Write tools on the plan file — read-only
@@ -964,7 +1067,8 @@ DO:
     IF IS_NODE AND fully_memoized_node:
       evaluator_lines.append("node-eval ─ ⏭ fully memoized")
     IF l1_advisory_memoized:
-      evaluator_lines.append("l1-advisory ── ⊘ memoized p[l1_advisory_memoized_since]")
+      evaluator_lines.append("l1-advisory-structural ── ⊘ memoized p[l1_advisory_memoized_since]")
+      evaluator_lines.append("l1-advisory-process ── ⊘ memoized p[l1_advisory_memoized_since]")
 
     Print tree (where n = len(evaluator_lines) - 1):
       If n == 0: "  └ " + evaluator_lines[0]   (only 1 evaluator — no ┌/├)
@@ -988,7 +1092,13 @@ DO:
         IF entry.status == "NEEDS_UPDATE":
           l1_edits[q_id] = entry
 
-    ELSE IF evaluator_name == "l1-advisory":
+    ELSE IF evaluator_name == "l1-advisory-structural":
+      FOR q_id, entry in data.findings:
+        l1_results[q_id] = entry.status
+        IF entry.status == "NEEDS_UPDATE":
+          l1_edits[q_id] = entry
+
+    ELSE IF evaluator_name == "l1-advisory-process":
       FOR q_id, entry in data.findings:
         l1_results[q_id] = entry.status
         IF entry.status == "NEEDS_UPDATE":
@@ -1196,7 +1306,8 @@ DO:
   prev_pass_results = l1_results  # update for next pass (L1 results only; cluster stability tracked separately)
   prev_pass_applied_edits = current_pass_applied_edits  # carry delta summary to next pass's evaluators
 
-  # Group memoization for l1-advisory evaluator
+  # Group memoization for l1-advisory evaluators (structural + process — both groups together)
+  # l1_advisory_memoized covers all 19 advisory questions from both l1-advisory-structural and l1-advisory-process
   IF NOT l1_advisory_memoized:
     advisory_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G8", "Q-G10",
       "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
@@ -1205,12 +1316,12 @@ DO:
     IF all_clean:
       l1_advisory_memoized = true
       l1_advisory_memoized_since = pass_count
-      newly_memoized.append("l1-advisory (19 questions)")
+      newly_memoized.append("l1-advisory-structural (6 questions) + l1-advisory-process (13 questions)")
   ELSE:
     # Invalidate if ANY edit was applied this pass (edits can affect advisory questions)
     IF changes_this_pass > 0:
       l1_advisory_memoized = false
-      Print: "  memo: l1-advisory invalidated (edits applied)"
+      Print: "  memo: l1-advisory-structural + l1-advisory-process invalidated (edits applied)"
 
   # Stability-based memoization for gas Gate 2/3 questions
   # Runs AFTER Phase 6 invalidation — so newly-cleared questions can re-earn stability this pass
