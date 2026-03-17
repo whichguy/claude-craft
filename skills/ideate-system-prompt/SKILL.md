@@ -281,17 +281,21 @@ placeholder below before sending the JS string to `mcp__gas__exec`. ALL placehol
 (including those in the catch block) must be substituted — the entire JS string is
 assembled in memory before exec is called.
 
-| Placeholder | Source | Example value in JS |
-|---|---|---|
-| `<JSON_STRINGIFIED_PROMPT>` | `cell.variantText` (idea variant) | `"You are..."` |
-| `<JSON_STRINGIFIED_BASE_PROMPT>` | `basePromptText` (baseline cells only) | `"You are..."` |
-| `<JSON_STRINGIFIED_MESSAGE>` | `cell.testMessage` | `"Sum column B"` |
-| `<JSON_STRINGIFIED_VALIDATES>` | `cell.validates` | `"Uses SUM formula"` |
-| `<JSON_STRINGIFIED_CATEGORY>` | `cell.category` | `"Formula"` |
-| `<JSON_STRINGIFIED_MODEL>` | `--model` arg | `"claude-haiku-4-5-20251001"` |
-| `<JSON_STRINGIFIED_IDEA_ID>` | `cell.ideaId` | `"compression-1"` |
-| `<JSON_STRINGIFIED_TEST_TYPE>` | `cell.testType` | `"standard"` or `"targeted"` |
-| `<JSON_STRINGIFIED_SCENARIO_ID>` | `cell.scenarioId` | `"0"`, `"1"`, `"targeted-0"` |
+The "Template" column indicates which exec template(s) each placeholder appears in.
+`ideaId` and `testType` are hardcoded string literals in the baseline template —
+do NOT attempt to substitute them there.
+
+| Placeholder | Template | Source | Example value in JS |
+|---|---|---|---|
+| `<JSON_STRINGIFIED_PROMPT>` | variant only | `cell.variantText` (idea variant) | `"You are..."` |
+| `<JSON_STRINGIFIED_BASE_PROMPT>` | baseline only | `basePromptText` | `"You are..."` |
+| `<JSON_STRINGIFIED_MESSAGE>` | both | `cell.testMessage` | `"Sum column B"` |
+| `<JSON_STRINGIFIED_VALIDATES>` | both | `cell.validates` | `"Uses SUM formula"` |
+| `<JSON_STRINGIFIED_CATEGORY>` | both | `cell.category` | `"Formula"` |
+| `<JSON_STRINGIFIED_MODEL>` | both | `--model` arg | `"claude-haiku-4-5-20251001"` |
+| `<JSON_STRINGIFIED_IDEA_ID>` | variant only | `cell.ideaId` | `"compression-1"` |
+| `<JSON_STRINGIFIED_TEST_TYPE>` | variant only | `cell.testType` | `"standard"` or `"targeted"` |
+| `<JSON_STRINGIFIED_SCENARIO_ID>` | both | `cell.scenarioId` | `"0"`, `"1"`, `"targeted-0"` |
 
 Each placeholder produces a complete JSON string literal (with surrounding double quotes) and must
 be placed verbatim into the JS source — do not add extra quotes around it.
@@ -337,8 +341,9 @@ values — labels only.
 For 3 ideas: 4 configs → labels A/B/C/D. For 2 ideas: 3 configs → labels A/B/C.
 Adjust the `judgments` keys and JSON template to match the actual config count.
 
-**Judge prompt template** (construct this string for each scenario — expand the config loop
-before sending to the judge agent):
+**Judge prompt template** (construct this string dynamically for each scenario — the
+config block and JSON template must be built to match the actual number of configs
+for this run, not hardcoded to 4 entries):
 
 ```
 You are evaluating system prompt configurations for a Google Sheets AI assistant.
@@ -346,26 +351,13 @@ Scenario: "<scenario.message>" (Category: <scenario.category>)
 Validates: <scenario.validates>
 
 Configurations (labels assigned randomly — do not infer identity from order):
-  [A] Heuristic composite: <composite_A>/10
+<FOR EACH label in shuffled labels — repeat this block once per config>
+  [<label>] Heuristic composite: <composite_for_label>/10
   Response:
   ---
-  <response_A>
+  <response_for_label>
   ---
-  [B] Heuristic composite: <composite_B>/10
-  Response:
-  ---
-  <response_B>
-  ---
-  [C] Heuristic composite: <composite_C>/10
-  Response:
-  ---
-  <response_C>
-  ---
-  [D] Heuristic composite: <composite_D>/10
-  Response:
-  ---
-  <response_D>
-  ---
+</END FOR>
 
 Score each configuration on these 5 dimensions (1–5 scale each):
   1. Accuracy    — Is the response factually correct and appropriate for the request?
@@ -374,19 +366,21 @@ Score each configuration on these 5 dimensions (1–5 scale each):
   4. Tool Use    — Does it correctly identify what tools/APIs are needed?
   5. Conciseness — Is the response appropriately sized (not too verbose, not too short)?
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact format (one key per config label — adjust to match
+the actual labels present above):
 {
   "scenarioId": "<scenarioId>",
   "judgments": {
-    "A": {"accuracy": X, "helpfulness": X, "safety": X, "toolUse": X, "conciseness": X},
-    "B": {...},
-    "C": {...},
-    "D": {...}
+    "<label1>": {"accuracy": X, "helpfulness": X, "safety": X, "toolUse": X, "conciseness": X},
+    "<label2>": {...}
   },
-  "winner": "A",
+  "winner": "<label>",
   "reasoning": "1-2 sentence explanation"
 }
 ```
+
+Example for 3 ideas (4 configs: A/B/C/D); for 2 ideas use 3 configs (A/B/C); adjust
+accordingly. Always derive label count from the actual number of configs, never hardcode 4.
 
 The judge returns only `"winner": "<label>"` — it does NOT return `winner_idea`.
 After parsing the judge result, remap: `winner_ideaId = labelMap[result.winner]`.
@@ -399,6 +393,17 @@ position bias. Use a different shuffle for each judge agent call.
 
 **Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object, no other text". On second failure or timeout (30s) → skip that scenario from judge scoring; note in output.
 
+**State output**: After all judge agents complete, store results as `judgeResults[]`. Each entry
+must record:
+- `scenarioId` — the scenario this judge evaluated
+- `status` — `"ok"` or `"failed"` (failed = parse failure after retry, or timeout)
+- `judgments` — map of label → normalized score (0–10), populated only on `"ok"` entries
+- `labelMap` — map of label → ideaId (populated only on `"ok"` entries)
+- `winner_ideaId` — remapped winner (populated only on `"ok"` entries)
+
+Step 5 uses `judgeResults[]` to filter: only entries with `status === "ok"` contribute
+to judge averages. The `scenarioId` field identifies which scenarios to include per idea.
+
 **Error handling**: Partial judge results acceptable — skip failed scenarios from judge aggregation.
 
 ---
@@ -410,18 +415,22 @@ Ranking is computed on **standard scenarios only** (filter `cellResults[]` to
 
 **Compute `baseline_unified` first** (needed for delta calculation):
 ```
-baseline_cells    = cellResults[] where ideaId === "baseline" and testType === "standard"
+baseline_cells     = cellResults[] where ideaId === "baseline" and testType === "standard"
 baseline_heuristic = mean(composite) over baseline_cells
-baseline_judge    = mean(normalized judge score 0-10) over baseline_cells
-                    (skip scenarios where judge failed — same filter as ideas)
-baseline_unified  = 0.6 × baseline_heuristic + 0.4 × baseline_judge
+succeeded_judge_ids = Set of scenarioId values from judgeResults[] where status === "ok"
+baseline_judge     = mean(normalized judgment score for "baseline" label) over
+                     judgeResults[] entries where status === "ok"
+                     (use labelMap to identify which label mapped to "baseline" per scenario)
+baseline_unified   = 0.6 × baseline_heuristic + 0.4 × baseline_judge
 ```
 
 For each idea (filter `cellResults[]` to matching `ideaId` and `testType === "standard"`):
 ```
 heuristic_avg = mean(composite) over standard-scenario cells for this idea
-judge_avg     = mean(normalized judge score 0-10) over standard-scenario cells for this idea
-                (skip scenarios where judge failed)
+judge_avg     = mean(normalized judgment score for this idea's label) over
+                judgeResults[] entries where status === "ok" and this idea participated
+                (use labelMap per entry to find the label that mapped to this ideaId,
+                 then read judgments[label] for the normalized score)
 unified       = 0.6 × heuristic_avg + 0.4 × judge_avg
 delta_vs_base = unified - baseline_unified
 ```
@@ -447,6 +456,10 @@ Ranking table (sort by unified descending):
 
 If judge data is unavailable for an idea (all judge agents failed for that idea's scenarios),
 note "judge N/A" and rank by heuristic_avg only; unified = heuristic_avg for that idea.
+
+If an idea has 0 successful standard-scenario cells in `cellResults[]` (all failed in Step 3),
+exclude it from the ranking table entirely and note:
+`[idea-id] excluded: no successful standard cells to rank`
 
 ---
 
@@ -487,16 +500,17 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
 - `✗` if `composite < 6.0` (hypothesis weakness — may regress on this angle)
 - `~` if `6.0 <= composite < 7.0` (neutral)
 
-If `--save` was passed, emit the full winning variant text after the recommendation block,
-enclosed in a separator and a plain indented block (do NOT use triple-backtick fences here
-since the prompt text itself may contain backticks):
+If `--save` was passed, emit the full winning variant text after the recommendation block.
+Do NOT use triple-backtick fences (the prompt text may contain backticks). Emit the raw
+text exactly as stored in `winner.variantPromptText` — no quoting, no escaping, no
+markdown wrapping. The two separator lines are the only delimiters the user has.
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   WINNING VARIANT TEXT (compression-1)
   (copy everything between the separators)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-<full winning variantPromptText here — output as a plain quoted string block>
+<winner.variantPromptText printed verbatim — no extra indentation, no wrapping, no quoting>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 

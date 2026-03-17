@@ -129,6 +129,8 @@ IMPROVE_TMPDIR=$(mktemp -d /tmp/improve-prompt.XXXXXX)
 trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 ```
 
+MAX_CONCURRENT = 8   # max agent calls issued in a single parallel message
+
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
 2. If prompt_path was identified → parse YAML frontmatter (text between leading `---` markers); extract `defaults.*` as fallback values for unset args; strip frontmatter to get raw prompt text
@@ -792,7 +794,7 @@ Record `start_time_ms` per task before spawning.
 Print: `[5/7] ⚖️  Evaluate ─── {M} input{s} × {1+len(active_experiments)} prompt{s}`
 (If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
 
-**Spawn all (1 + len(active_experiments)) × M runs in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially):
+**Spawn run-agents in batches of at most MAX_CONCURRENT** — collect all (1 + len(active_experiments)) × M tasks, then issue them in successive parallel messages of ≤MAX_CONCURRENT each, waiting for each batch to complete before issuing the next:
 - `run-A-{filename}`: baseline prompt + each input (M tasks)
 - `run-E{k}-{filename}`: experiment-k prompt + each input (only for k in active_experiments — len(active_experiments) × M tasks)
 
@@ -805,7 +807,7 @@ For each completed task, record:
 
 **Error handling**: If a task fails → skip its judge for that input. Note: "(run error — no judge)"
 
-**Spawn all len(active_experiments) × M judge tasks in a single parallel message** (all Agent calls issued simultaneously in one step — do not await each sequentially).
+**Spawn judge tasks in batches of at most MAX_CONCURRENT** — collect all len(active_experiments) × M judge tasks, then issue them in successive parallel messages of ≤MAX_CONCURRENT each, waiting for each batch to complete before issuing the next.
 
 For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
 
