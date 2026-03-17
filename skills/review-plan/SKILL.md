@@ -623,14 +623,13 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
-      Analytical methodology for tracing questions (Q-G21, Q-G22):
-        (1) Identify each claim, cross-reference, or data access in the plan
-        (2) Trace it to its declared source (output of a prior phase, schema definition, function signature)
-        (3) If the source does not exist or contradicts the claim → NEEDS_UPDATE
-      Do not accept the plan's own assertions at face value — verify by tracing.
-
-      Self-check: Before writing PASS for Q-G21 or Q-G22,
-      confirm you traced the reference to its source — not just scanned for keyword presence.
+      Question-specific methodology:
+      - For Q-G21 (internal logic consistency) and Q-G22 (cross-phase dependency):
+        Use trace-verify-cite: (1) identify each claim, cross-reference, or data access
+        (2) trace it to its declared source (prior phase output, schema, function signature)
+        (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
+        Before writing PASS, confirm you traced the reference to its source — not just
+        scanned for keyword presence.
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory.json
@@ -713,19 +712,17 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
-      Analytical methodology for tracing questions (Q-C37 through Q-C40, Q-G21, Q-G22):
-        (1) Identify each claim, cross-reference, or data access in the plan
-        (2) Trace it to its declared source (output of a prior phase, schema definition, function signature)
-        (3) If the source does not exist or contradicts the claim → NEEDS_UPDATE
-      Do not accept the plan's own assertions at face value — verify by tracing.
-
+      Question-specific methodology (apply only to questions in YOUR cluster):
+      - For Q-C37, Q-C38, Q-C39, Q-C40 (tracing questions, impact cluster):
+        Use trace-verify-cite: (1) identify each claim, cross-reference, or data access
+        (2) trace it to its declared source (prior phase output, schema, function signature)
+        (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
+        Before writing PASS on these questions, confirm you traced the reference to its
+        source — not just scanned for keyword presence.
       [IF cluster_name == "impact", append:]
-      Example finding (Q-C39): "NEEDS_UPDATE — Step 1 extracts Field 3 as 'kind', but the
-      actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
-      position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
-
-      Self-check: Before writing PASS for Q-C37, Q-C38, Q-C39, Q-C40, Q-G21, or Q-G22,
-      confirm you traced the reference to its source — not just scanned for keyword presence.
+        Example (Q-C39): "NEEDS_UPDATE — Step 1 extracts Field 3 as 'kind', but the
+        actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
+        position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/<cluster_name>-evaluator.json
