@@ -1,7 +1,7 @@
 ---
 name: improve-prompt
 description: |
-  Research-backed prompt improvement workflow. Analyzes with Q1-Q10 structural diagnostics,
+  Research-backed prompt improvement workflow. Analyzes with Q1-Q11 structural diagnostics,
   researches domain + prompt engineering best practices, generates fixed+dynamic evaluation
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
@@ -27,7 +27,7 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 
 # improve-prompt Skill
 
-Research-backed prompt improvement loop: structural diagnostics (Q1-Q10) → domain research →
+Research-backed prompt improvement loop: structural diagnostics (Q1-Q11) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
 scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
 reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED.
@@ -351,10 +351,10 @@ investigate its domain, research best practices, and produce a structured improv
 <strategy_escalation>
 {IF consecutive_stalls == 0: "(none — first attempt or after improvement)"}
 {IF consecutive_stalls == 1: "Prior iteration was NEUTRAL/REGRESSED. Try bolder changes:
- structural reorganization, different prompting paradigm, or address a different Q1-Q10
+ structural reorganization, different prompting paradigm, or address a different Q1-Q11
  gap than previously attempted. Avoid minor variations of failed techniques."}
 {IF consecutive_stalls >= 2: "Multiple consecutive failures. Try the most impactful
- remaining Q1-Q10 gap NOT yet attempted. Consider fundamental prompt architecture changes
+ remaining Q1-Q11 gap NOT yet attempted. Consider fundamental prompt architecture changes
  or combinations of previously successful techniques (if any)."}
 </strategy_escalation>
 
@@ -375,6 +375,7 @@ Q7 — Anti-patterns: Does the prompt exhibit hedging ("try to"), vagueness, ove
 Q8 — Chain-of-thought: Would explicit step-by-step reasoning improve output quality for this task?
 Q9 — Domain specifics: What domain terminology, conventions, or requirements should be in the prompt but aren't?
 Q10 — Tone/register: Is the tone/register appropriate for the task and target audience?
+Q11 — Parallelization: Does the prompt describe sequential steps that could be parallelized via concurrent Agent/Task calls? If so, are the independent work units identified, is a MAX_CONCURRENT limit (≤8) specified to avoid API rate-limit exhaustion, and are the batch-wait-batch boundaries clear? This applies when the prompt spawns multiple agents (evaluators, writers, runners, judges) — flag any "do one at a time" patterns that should be "issue all in parallel, wait, then proceed."
 
 Step 2 — Domain Inference
 Infer the precise domain and subtask this prompt is designed for.
@@ -387,7 +388,7 @@ Fetch any top result that looks substantive. Summarize 2-3 actionable findings f
 
 Step 4 — Technique Research
 Search: "prompt engineering techniques few-shot chain-of-thought structured output 2025"
-Identify 1-2 techniques most applicable to the Q1-Q10 gaps found above.
+Identify 1-2 techniques most applicable to the Q1-Q11 gaps found above.
 
 Step 5 — Check Prior Learnings
 Examine the <prior_context> "## Technique History" section (if present). For techniques previously attempted:
@@ -400,7 +401,7 @@ Step 6 — Test-Run Observation
 ELSE: No input files are available (prompt is self-contained or running with empty input). Reason through what the current prompt would produce given empty/no input. Identify where outputs fall short: too brief, wrong format, missing key info, inconsistent structure.}
 
 Step 7 — Improvement Options
-Based on steps 1-6, synthesize exactly 3-4 improvement options. Each option MUST directly address a specific Q1-Q10 gap or test-run observation.
+Based on steps 1-6, synthesize exactly 3-4 improvement options. Each option MUST directly address a specific Q1-Q11 gap or test-run observation.
 
 For each option:
 - Name: <short descriptive name>
@@ -408,6 +409,14 @@ For each option:
 - What changes: <specific, implementable changes — no vague advice>
 - Why it helps: <grounded in research findings or test-run observations>
 - Predicted impact: HIGH / MEDIUM / LOW — {one sentence justification}
+
+**Parallelization + file-output pattern hint** (apply when Q11 identifies a gap):
+When a prompt runs multiple independent units of work (evaluators, writers, runners, scorers), consider proposing the **atomic fan-out → file → reconcile** pattern:
+1. Fan out: spawn all independent work units in parallel (batched at MAX_CONCURRENT ≤8)
+2. Each unit writes its output to a named temp file (e.g., `$TMPDIR/unit-{id}.json`) rather than returning large text through the context window — this avoids context-size limits and makes outputs durable across interruptions
+3. Reconcile: after all units complete, the orchestrator reads the temp files and aggregates results
+4. Repeat if needed: if some units require follow-up (re-evaluation, retry), loop over only those — not all
+This pattern is especially valuable when: (a) individual outputs are large (>1KB each), (b) M×E total outputs would saturate context, or (c) the orchestrator must persist state across potential context compression. The temp dir should be created at startup with `mktemp -d` and cleaned up on exit via `trap`.
 
 Step 8 — Evaluation Questions
 Generate evaluation questions for the quality judge to compare baseline vs improved outputs.
@@ -429,7 +438,7 @@ Note: UX questions are weighted at 0.5× in scoring — they test presentation s
 
 **Side-experiment guidance**: To isolate which specific option drove improvement, use `--experiments N` where N=num_options. This assigns each option to its own experiment for causal attribution. Example: 3 options → `--experiments 3` assigns A→Exp-1, B→Exp-2, A+B+C→Exp-3 (per E=3 assignment rules above). Ablation reads directly from the quality spread per experiment.
 
-**Dynamic questions** (generate 2-4 questions derived from the Q1-Q10 gaps and improvement options above):
+**Dynamic questions** (generate 2-4 questions derived from the Q1-Q11 gaps and improvement options above):
 - Each question must be answerable by comparing two outputs side-by-side
 - Each question must directly reflect a specific gap being addressed (reference the Q-number)
 - Phrase as "Does output X better achieve Y?" — must have a clear, observable answer
@@ -453,7 +462,7 @@ Write all findings to {ideas_file} in this exact format (full document for itera
 ## Original Prompt
 Path: {prompt_path}
 
-## Structural Diagnostic (Q1-Q10)
+## Structural Diagnostic (Q1-Q11)
 Q1 — Role/Persona: {finding}
 Q2 — Task Precision: {finding}
 Q3 — Context Adequacy: {finding}
@@ -506,7 +515,7 @@ Research summary:
 - Q-UX2: Is the most important information immediately scannable without reading through background?
 - Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?}
 
-### Dynamic (derived from Q1-Q10 gaps addressed this iteration)
+### Dynamic (derived from Q1-Q11 gaps addressed this iteration)
 - {Q-DYN-1}: {question text} [addresses: Q{N}]
 - {Q-DYN-2}: {question text} [addresses: Q{N}]
 ...
@@ -546,9 +555,9 @@ against these 6 gate questions. Answer PASS or FAIL with one-sentence reason for
 Gate questions:
 1. Specificity — Each option specifies a concrete, implementable change (not "improve clarity"
    but "add role: 'You are a...'"). PASS if all options are concrete.
-2. Grounding — Each option cites a specific finding from Q1-Q10 or research (not generic advice).
+2. Grounding — Each option cites a specific finding from Q1-Q11 or research (not generic advice).
 3. Differentiation — Options are meaningfully different from each other (not variations of same change).
-4. Coverage — Plan addresses at least one structural issue from Q1-Q10 (format, role, constraints, examples).
+4. Coverage — Plan addresses at least one structural issue from Q1-Q11 (format, role, constraints, examples).
 5. History compliance — No option re-proposes a technique in the Technique History marked REGRESSED or NEUTRAL.
 6. Impact — At least one option is rated HIGH predicted impact.
 
@@ -587,7 +596,7 @@ by applying exactly the assigned improvement options — no others.
 </original_prompt>
 
 <ideas_file>
-{ideas_file_contents — for Q1-Q10 context and full option specs}
+{ideas_file_contents — for Q1-Q11 context and full option specs}
 </ideas_file>
 
 <output_path>{$IMPROVE_TMPDIR/exp-{k}-iter-{i}.md}</output_path>
@@ -1038,7 +1047,7 @@ APPEND to {ideas_file} (do NOT overwrite existing content):
 **What worked:** {specific options/techniques that drove quality improvements}
 **What didn't work:** {options that were neutral or hurt quality across all experiments}
 **Root cause analysis:** {2-3 sentences}
-**What to try next iteration:** {1-2 grounded suggestions for remaining Q1-Q10 gaps}
+**What to try next iteration:** {1-2 grounded suggestions for remaining Q1-Q11 gaps}
 
 **Best experiment:** Exp-{best_k} ({options}) — {quality_score:.1%} quality score
 **Verdict: {IMPROVED | NEUTRAL | REGRESSED}**
