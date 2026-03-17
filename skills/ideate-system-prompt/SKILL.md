@@ -33,37 +33,62 @@ this skill generates *new* hypotheses on demand and benchmarks them immediately.
 - **Scenarios**: `require('sheets-chat/ABTestHarness').SCENARIOS` — 12 scenarios total (indices 0–11)
 - **Variant map**: `{ V2: 'buildSystemPromptV2', V2a: 'buildSystemPromptV2a', V2b: 'buildSystemPromptV2b', V2c: 'buildSystemPromptV2c' }`
 
-## Argument Parsing
+## Argument Resolution
 
-Parse `$ARGUMENTS` (the free-form text after `/ideate-system-prompt`) using the rules below.
-Execute this block exactly before Step 0 — all subsequent steps reference these named variables.
+Read `$ARGUMENTS` (the full text after `/ideate-system-prompt`) and resolve the parameters below.
+Both formal `--flag` syntax and natural language are supported — use your understanding of intent
+to resolve values. Execute before Step 0; all subsequent steps reference these named variables.
 
-```
-# Argument parsing — execute before Step 0
-base        = extract("--base <value>")                  ?? "V2a"
-ideas       = int(extract("--ideas <N>"))                ?? 3
-scenarios   = parseRange(extract("--scenarios <range>")) ?? range(0, 4)
-targeted    = int(extract("--targeted <N>"))             ?? 4
-model       = extract("--model <value>")                 ?? "claude-haiku-4-5-20251001"
-ideaModel   = extract("--ideation-model <value>")        ?? "claude-sonnet-4-6"
-judgeModel  = extract("--judge-model <value>")           ?? "claude-opus-4-6"
-save        = flag("--save")                             ?? false
-```
+### Parameters
 
-**Range parsing rule for `--scenarios`:**
-```
-parseRange(s):
-  if s contains "-"  → split on "-", produce [parseInt(left) .. parseInt(right)] inclusive
-                        e.g. "0-4" → [0,1,2,3,4]
-  if s contains ","  → split on ",", parse each token as int
-                        e.g. "0,1,5" → [0,1,5]
-  if s is a single integer → [parseInt(s)]
-                        e.g. "3" → [3]
-  else               → null  (triggers default: range(0,4))
-```
+| Parameter | Variable | Default | Accepted values |
+|-----------|----------|---------|-----------------|
+| `--base` | `base` | `V2a` | V2, V2a, V2b, V2c |
+| `--ideas` | `ideas` | `3` | positive integer |
+| `--scenarios` | `scenarios` | `[0,1,2,3,4]` | range (`0-9`), comma list (`0,1,5`), or single index |
+| `--targeted` | `targeted` | `4` | integer ≥ 0 |
+| `--model` | `model` | `claude-haiku-4-5-20251001` | Claude model ID |
+| `--ideation-model` | `ideaModel` | `claude-sonnet-4-6` | Claude model ID |
+| `--judge-model` | `judgeModel` | `claude-opus-4-6` | Claude model ID |
+| `--save` | `save` | `false` | presence flag |
 
-**Default cell count**: `ideas × (scenarios.length + targeted) + scenarios.length`
-For defaults (3 × (5 + 4) + 5 = **32 cells**)
+### Recognition examples
+
+**Formal flags** (always recognized):
+- `--base V2b` → base=V2b
+- `--ideas 5` → ideas=5
+- `--scenarios 0-9` → scenarios=[0..9]
+- `--scenarios 0,2,4` → scenarios=[0,2,4]
+- `--targeted 2` → targeted=2
+- `--save` → save=true
+
+**Natural language** (understood by intent):
+- "quick test" / "smoke test" / "mini run" → ideas=1, scenarios=[0], targeted=1
+- "try 5 ideas" / "5 hypotheses" → ideas=5
+- "use V2b" / "start from V2b" / "base V2b" → base=V2b
+- "just 2 scenarios" / "first 3 scenarios" → scenarios=[0,1] / [0,1,2]
+- "save the winner" / "output winner text" / "with save" → save=true
+- "full run" / "default run" → all defaults (32 cells)
+- "only compression" / "compression angle only" → ideas=1 (angle cycling will pick compression)
+- "no targeted tests" / "skip targeted" → targeted=0
+- "test with sonnet" / "use sonnet for bench" → model=claude-sonnet-4-6
+
+### Resolution rules
+
+1. Formal `--flag` values take precedence over natural language for the same parameter.
+2. Contradictory signals → use the last explicit statement.
+3. Unrecognized phrases → treat as info, ignore (never abort on unknown text).
+4. After resolution, compute:
+   - `variantCells = ideas × (scenarios.length + targeted)`
+   - `baselineCells = scenarios.length`
+   - `totalCells = variantCells + baselineCells`
+   - Example for defaults: 3 × (5 + 4) + 5 = **32 cells**
+
+### Validation (abort if violated)
+
+- `base` ∉ {V2, V2a, V2b, V2c} → abort: `Unknown base variant: <name>. Valid: V2, V2a, V2b, V2c`
+- Any `scenarios` index outside [0..11] → abort: `Invalid scenario index: <N>. Valid range: 0–11`
+- `ideas` < 1 → reset to 3 with warning
 
 ---
 
@@ -597,15 +622,21 @@ markdown wrapping. The two separator lines are the only delimiters the user has.
 ## Quick Smoke Tests
 
 ```bash
-# Minimal: 1 idea, 1 scenario, 1 targeted — 3 cells total
+# Minimal (formal flags): 1 idea, 1 scenario, 1 targeted — 3 cells
 /ideate-system-prompt --ideas 1 --scenarios 0 --targeted 1
 
-# Small: 1 idea, 5 std scenarios + 2 targeted + 5 baseline = 12 cells
+# Minimal (natural language): same run
+/ideate-system-prompt quick test
+
+# Small: 1 idea, 5 std + 2 targeted + 5 baseline = 12 cells
 /ideate-system-prompt --ideas 1 --scenarios 0-4 --targeted 2
 
-# Full default run (32 cells, ~5 min)
+# Full default run (32 cells)
 /ideate-system-prompt
 
-# Save winning variant text
-/ideate-system-prompt --save
+# Full run with save, natural language
+/ideate-system-prompt full run, save the winner
+
+# Mixed: natural language + formal flag override
+/ideate-system-prompt try 5 ideas --base V2b --save
 ```
