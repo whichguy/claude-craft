@@ -147,7 +147,7 @@ describe('Review-Plan Task Fan-Out', function () {
                 skillContent.indexOf('Route findings from all_results')
             );
             const l1BlockingIdx = routeSection.indexOf('evaluator_name == "l1-blocking"');
-            const l1AdvisoryIdx = routeSection.indexOf('evaluator_name == "l1-advisory"');
+            const l1AdvisoryIdx = routeSection.indexOf('evaluator_name == "l1-advisory-structural"');
             const gasIdx = routeSection.indexOf('evaluator_name == "gas-evaluator"');
             const wildcardIdx = routeSection.indexOf('evaluator_name matches "*-evaluator" (cluster)');
             expect(l1BlockingIdx).to.be.greaterThan(-1);
@@ -383,7 +383,9 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('routes l1-advisory findings into l1_results', function () {
-            expect(skillContent).to.include('evaluator_name == "l1-advisory"');
+            // l1-advisory is now split into structural (Q-G20–Q-G25) + process (Q-G4–Q-G19)
+            expect(skillContent).to.include('evaluator_name == "l1-advisory-structural"');
+            expect(skillContent).to.include('evaluator_name == "l1-advisory-process"');
         });
 
         it('routes cluster evaluator findings by name suffix', function () {
@@ -433,8 +435,10 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('defines l1-advisory evaluator config for Gate 2/3 (19 questions)', function () {
-            expect(skillContent).to.include('L1 Advisory Evaluator Config (Gate 2/3: 19 questions');
-            expect(skillContent).to.include('Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
+            // l1-advisory is now split: structural (6 questions) + process (13 questions) = 19 total
+            expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
+            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 13 standards/process questions');
+            expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 
         it('l1-advisory group memoization logic exists', function () {
@@ -443,7 +447,7 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('l1-advisory memoization invalidates on edits', function () {
-            expect(skillContent).to.include('l1-advisory invalidated (edits applied)');
+            expect(skillContent).to.include('l1-advisory-structural + l1-advisory-process invalidated (edits applied)');
         });
 
         it('injects synthetic PASS results when l1-advisory is memoized', function () {
