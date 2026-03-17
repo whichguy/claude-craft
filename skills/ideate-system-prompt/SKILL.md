@@ -71,6 +71,9 @@ Read `sheets-chat/SystemPrompt.gs` and verify:
 **Validate `--base` arg:** Known variants: V2, V2a, V2b, V2c. If unknown, abort:
 `Unknown --base variant: <name>. Valid: V2, V2a, V2b, V2c`
 
+**Validate `--scenarios` arg:** All requested indices must be in range 0–11 (SCENARIOS has 12 entries). If any index is out of range, abort:
+`Invalid --scenarios index: <N>. Valid range: 0–11 (12 scenarios available)`
+
 ### Exec to load base prompt
 
 ```javascript
@@ -203,17 +206,17 @@ Use a sliding window of **3 parallel** `mcp__gas__exec` calls. Do NOT fire all c
     var validates = <JSON_STRINGIFIED_VALIDATES>;
     var AB = require('sheets-chat/ABTestHarness');
     var CC = require('chat-core/ClaudeConversation');
-    var claude = new CC(null, '<model>', { system: promptText });
+    var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
-    var scenario = { message: testMessage, validates: validates, category: '<category>' };
+    var scenario = { message: testMessage, validates: validates, category: <JSON_STRINGIFIED_CATEGORY> };
     var ev = AB.evaluateResponse(scenario, result.response || '');
     return {
-      ideaId: '<ideaId>', testType: '<standard|targeted>', scenarioId: '<id>',
+      ideaId: <JSON_STRINGIFIED_IDEA_ID>, testType: <JSON_STRINGIFIED_TEST_TYPE>, scenarioId: <JSON_STRINGIFIED_SCENARIO_ID>,
       response: result.response || '', promptLength: promptText.length,
       usage: result.usage || {}, composite: ev.composite, scores: ev.scores
     };
   } catch(e) {
-    return { ideaId: '<ideaId>', testType: '<standard|targeted>', scenarioId: '<id>',
+    return { ideaId: <JSON_STRINGIFIED_IDEA_ID>, testType: <JSON_STRINGIFIED_TEST_TYPE>, scenarioId: <JSON_STRINGIFIED_SCENARIO_ID>,
       error: e.message, composite: 0, scores: {} };
   }
 })()
@@ -229,32 +232,34 @@ Use a sliding window of **3 parallel** `mcp__gas__exec` calls. Do NOT fire all c
     var validates = <JSON_STRINGIFIED_VALIDATES>;
     var AB = require('sheets-chat/ABTestHarness');
     var CC = require('chat-core/ClaudeConversation');
-    var claude = new CC(null, '<model>', { system: promptText });
+    var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
-    var scenario = { message: testMessage, validates: validates, category: '<category>' };
+    var scenario = { message: testMessage, validates: validates, category: <JSON_STRINGIFIED_CATEGORY> };
     var ev = AB.evaluateResponse(scenario, result.response || '');
     return {
-      ideaId: 'baseline', testType: 'standard', scenarioId: '<id>',
+      ideaId: 'baseline', testType: 'standard', scenarioId: <JSON_STRINGIFIED_SCENARIO_ID>,
       response: result.response || '', promptLength: promptText.length,
       usage: result.usage || {}, composite: ev.composite, scores: ev.scores
     };
   } catch(e) {
-    return { ideaId: 'baseline', testType: 'standard', scenarioId: '<id>',
+    return { ideaId: 'baseline', testType: 'standard', scenarioId: <JSON_STRINGIFIED_SCENARIO_ID>,
       error: e.message, composite: 0, scores: {} };
   }
 })()
 ```
 
-**Substitution rules:**
-- `<JSON_STRINGIFIED_PROMPT>` → `JSON.stringify(variantText)` (handles all escaping)
+**Substitution rules (all placeholders use `JSON.stringify` — safe for any string content):**
+- `<JSON_STRINGIFIED_PROMPT>` → `JSON.stringify(variantText)`
 - `<JSON_STRINGIFIED_MESSAGE>` → `JSON.stringify(scenario.message)`
 - `<JSON_STRINGIFIED_VALIDATES>` → `JSON.stringify(scenario.validates)`
 - `<JSON_STRINGIFIED_BASE_PROMPT>` → `JSON.stringify(basePromptText)`
-- `<model>` → model string from `--model` arg
-- `<category>` → scenario category string (literal, not JSON-embedded)
-- `<ideaId>` → idea identifier string
-- `<id>` → scenario index or `targeted-0` etc.
-- `<standard|targeted>` → cell type label
+- `<JSON_STRINGIFIED_MODEL>` → `JSON.stringify(modelId)` — e.g. `"claude-haiku-4-5-20251001"`
+- `<JSON_STRINGIFIED_CATEGORY>` → `JSON.stringify(scenario.category)`
+- `<JSON_STRINGIFIED_IDEA_ID>` → `JSON.stringify(idea.ideaId)` — e.g. `"compression-1"`
+- `<JSON_STRINGIFIED_TEST_TYPE>` → `JSON.stringify("standard")` or `JSON.stringify("targeted")`
+- `<JSON_STRINGIFIED_SCENARIO_ID>` → `JSON.stringify(scenarioId)` — e.g. `"0"` or `"targeted-0"`
+
+Each placeholder produces a complete JSON string literal (with double quotes) and must be pasted verbatim into the JS source with no additional quoting around it.
 
 **Progress display** (update after each cell completes):
 ```
@@ -310,10 +315,12 @@ Return ONLY valid JSON in this exact format:
 }
 ```
 
-**Position blinding**: Randomize A/B/C/D assignment per scenario; remap `winner_idea` back to the
+**Label cardinality**: The judge prompt and JSON template show A/B/C/D (4 configs = 3 ideas + baseline). If `--ideas N` is not 3, adjust the label set to A through the Nth+1 letter (e.g. 2 ideas → A/B/C; 4 ideas → A/B/C/D/E). Generate the judge prompt's `judgments` keys and the JSON template to match the actual config count.
+
+**Position blinding**: Randomize label assignment per scenario; remap `winner_idea` back to the
 original `ideaId` after parsing. Each judge result must include remapped winner before storing.
 
-**Normalization**: `judge_avg` for each config = `mean(sum of 5 dims / 5)` → 1–5 scale → multiply by 2 → 0–10 scale.
+**Normalization**: `judge_avg` for each config = `mean(sum of 5 dims / 5)` → 1–5 scale → rescale to 0–10 via `(raw_avg - 1) / 4 * 10`.
 
 **Retry**: JSON parse failure → retry once with stricter "return ONLY the JSON object". On second failure or timeout (30s) → skip that scenario from judge scoring; note in output.
 
