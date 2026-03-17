@@ -200,6 +200,24 @@ Do NOT add protocol overhead (edit-ordering, recovery triggers) for failure mode
 **Actionable learning:**
 Orchestrator prompts that require real tool infrastructure (TeamCreate, SendMessage, ExitPlanMode) cannot be meaningfully evaluated by simulated single-agent execution. Future improvement iterations for review-plan should use captured real-world review transcripts as ground truth. The prompt is likely at diminishing returns after 3 iterations — the highest-leverage gaps (deduplication, regression recovery, gate semantics, role authority) were addressed in iteration 1.
 
+### 2026-03-16 — Iteration 4 → IMPROVED
+
+**Experiments:** 1 parallel — best was Exp-1 (M+N+O+P)
+**Verdict:** IMPROVED (decided by: quality, +24.1% spread)
+
+**What worked:**
+- Option M (Tracing Methodology): 4-line identify/trace/compare template for evaluators — primary quality driver. Decisive on Q-DYN-11 (1/5/0, cross-phase data tracing) and Q-DYN-13 (1/5/0, translation boundary detection). Probe-5: caught ALL 3 planted defects that baseline completely missed.
+- Option N (Self-Verification Gate): 2-line self-check before PASS on tracing questions — complementary driver. Decisive on Q-DYN-14 (1/4/1, verified PASS verdicts reflect actual tracing). Synergy with M: M provides methodology, N ensures execution.
+- Option O (Concrete Finding Example): 3-line Q-C39 example anchored evaluator output depth — probe-5's field-index off-by-one detection directly matches the example pattern. Contributed to Q-FX3 completeness win (2/4/0).
+
+**What didn't work:**
+- Option P (IS_GAS Scope Reminder): NEUTRAL — probe-1 saw baseline win (19 vs 11 changes), suggesting the scope reminder may have narrowed evaluator focus without compensating gain. Inert noise, not harmful but not contributing.
+
+**Actionable learning:**
+Evaluator-level methodology improvements (tracing algorithms, self-checks, concrete examples) are the highest-leverage remaining improvement vector after orchestrator-level logic is solid. The "instruct + exemplify + verify" triad (M+N+O) for analytical questions follows the same algorithmic-specificity pattern as Iter 1's deduplication algorithm — numbered steps + concrete example + validation gate. Future iterations should investigate whether the tracing methodology inadvertently narrows evaluator attention on non-tracing questions (probe-1 regression signal).
+
+Scope gate WARN for Exp-1: Q-SG12 — Q-G21/Q-G22 references in cluster evaluator scope. Status: SCOPE_WARN. Use with caution; monitor for regression.
+
 ---
 *Date: 2026-03-13 — Iteration 2*
 
@@ -494,3 +512,187 @@ Evaluation could not complete (agents timed out processing the 1272-line prompt)
 **Best experiment:** Exp-1 (I+J+K+L) — structural confidence
 **Verdict: IMPROVED**
 Decided by: structural analysis (plan gate 6/6, scope gate 11/12, pattern alignment with iteration 1 success, avoidance of iteration 2 failure patterns)
+
+---
+*Date: 2026-03-16 — Iteration 4*
+
+## Structural Diagnostic (Q1-Q10) — Iteration 4
+
+Q1 — Role/Persona: The Role & Authority block (4 lines, from Iter 1 Option D) is present and defines the team-lead orchestrator role with explicit constraints. No remaining gaps — the block adequately covers role boundary, authority scope, evaluator deference, and goal. The DYN-4 conciseness concern from Iter 1 has been absorbed into the prompt's steady-state behavior.
+
+Q2 — Task Precision: The deduplication algorithm (Iter 1 Option B) and REGRESSION CHECK (Iter 1 Option C) provide strong algorithmic specificity. The L1 calibration instruction (Iter 3 Option I) and finding specificity instruction (Iter 3 Option L) address evaluator output quality. Remaining precision gap: the **probe test inputs reveal that the newest question cluster (Q-C35 through Q-C40, added in commits #71-#73)** relies on evaluators performing multi-step analytical reasoning — tracing cross-boundary signatures (Q-C38), matching data access patterns against schemas (Q-C39), cross-referencing guidance text against implementation steps (Q-C40), and evaluating translation boundary specifications (Q-C37). These questions require the evaluator to do what amounts to "code review of a plan" — following data flow across phases and verifying consistency. The existing evaluator prompts tell evaluators to "read the plan" and "evaluate questions" but do not instruct evaluators to perform explicit cross-phase tracing. An evaluator processing probe-3 (cross-phase contradiction) must notice that Phase 1 reads symlinks while Phase 3 copies files, and that Phase 2 reads a field Phase 1 never outputs — this requires systematic phase-by-phase comparison, not question-by-question scanning.
+
+Q3 — Context Adequacy: Context adequacy is strong. The 5-flag pass-through (Iter 3 Option K) provides cluster evaluators with the information they need. The memo-file recovery (existing narrow trigger) has not been a problem in practice. No new gaps.
+
+Q4 — Output Format: The N/A collapse threshold (Iter 3 Option J) addresses the verbose N/A listing issue. Scorecard template is well-specified. No new gaps.
+
+Q5 — Examples: The probe test inputs surface a gap in evaluator output *examples* for the newer analytical questions (Q-C35 through Q-C40). These questions have detailed EDIT injection templates in QUESTIONS.md, but evaluators have no example of what a well-reasoned NEEDS_UPDATE finding looks like for a multi-step tracing question. The existing evaluator prompts provide a JSON output schema but no example finding that demonstrates the expected analytical depth. For instance, Q-C38 (cross-boundary API contract) requires the evaluator to trace a function call across boundaries and verify the signature — the finding should cite both the caller's assumed signature and the target's actual signature. Without an example, evaluators may produce shallow findings like "cross-boundary calls not verified" rather than "step 8 calls resolveConflicts with (sources, typeEntry) passing positions 0 and 3, but TYPES format has kind at position 4, not 3."
+
+Q6 — Constraints: No new constraint gaps. The existing constraints (evaluator read-only, team-lead edit authority, gate marker prerequisite for ExitPlanMode) are adequate.
+
+Q7 — Anti-patterns: The convergence loop remains a single ~700-line block but this has not caused measurable quality issues (Iter 2 learning: do not restructure without demonstrated quality payoff). No new anti-patterns.
+
+Q8 — Chain-of-thought: The most significant remaining CoT gap is in the **impact-evaluator's analytical methodology for the newer tracing questions**. Q-C38 (cross-boundary API contract), Q-C39 (data access pattern vs schema), and Q-C40 (guidance-implementation consistency) all require the evaluator to perform multi-step reasoning: (1) identify the claim or call, (2) trace it to its target, (3) compare expected vs actual. The existing cluster evaluator prompt says "Prioritize practical production implications" but provides no reasoning template for these tracing operations. The probes demonstrate that these questions are the hardest to evaluate correctly — probe-2 has a subtle field index error (position 0 and 3 vs actual 0 and 4), probe-4 has a design claim with no implementation step, and probe-5 has a translation step that gets less specification than mechanical steps. Without explicit tracing instructions, evaluators may scan for surface patterns ("does the plan mention checksums?") rather than performing the structural comparison the question requires ("does step N actually compute a checksum, or does only the design section mention it?").
+
+Q9 — Domain specifics: Gate Tier Semantics are inline (Iter 1 Option A). The newer questions (Q-C35 through Q-C40) are properly documented in QUESTIONS.md with gate assignments, N/A conditions, and EDIT injection templates. No domain terminology gaps.
+
+Q10 — Tone/register: Consistent. The three interpolation syntaxes coexist as documented; Iter 2 showed that standardizing them adds overhead without quality payoff.
+
+## Domain & Research Findings — Iteration 4
+
+Domain: Multi-agent plan review orchestration with analytical tracing questions. Sub-task: improving evaluator effectiveness on questions that require cross-phase consistency verification and multi-step reasoning chains.
+
+**Finding 1 — Multi-LLM Evaluator Frameworks use rubric-anchored reasoning chains (emergentmind.com, arxiv PEEM 2026):** Production multi-agent evaluation frameworks show that evaluators produce significantly more accurate assessments when given a rubric that includes not just criteria but also a reasoning template — a structured sequence of verification steps the evaluator must follow before rendering a verdict. The PEEM framework demonstrates that adding explicit reasoning axes (clarity, coherence, relevance) with per-axis scoring instructions improves inter-evaluator agreement by 15-20%. Directly applicable to the impact-evaluator's analytical questions: adding a 3-step verification template ("identify claim, trace to implementation, compare") would anchor reasoning without adding protocol overhead.
+
+**Finding 2 — Evaluator calibration via concrete positive/negative examples (promptbuilder.cc Claude Best Practices 2026, Lakera 2026):** Claude performs best when given clear success criteria with concrete examples. For evaluator tasks, the highest-impact improvement is providing one positive and one negative example of the expected finding output — the positive example shows what a correctly-traced finding looks like, the negative shows a shallow/incorrect finding that would miss the deficiency. This is distinct from few-shot prompting of the full output: only the finding-level example is needed, not a full evaluator run.
+
+**Finding 3 — Self-Critique Methodology applied to evaluator reasoning (IBM, Latitude 2026):** Iterative refinement research shows that asking an agent to critique its own reasoning against specific criteria before finalizing improves accuracy on analytical tasks. For the impact-evaluator, adding a single self-check instruction — "Before writing PASS for a tracing question, verify that you actually traced the reference to its source rather than accepting the plan's claim at face value" — converts a passive evaluation into an active verification pass.
+
+## Test-Run Observations — Iteration 4
+
+**probe-1-unvalidated-constraint.md (Persistent Job Queue — IS_NODE)**
+IS_NODE=true, HAS_STATE=true, HAS_DEPLOYMENT=true, IS_TRIVIAL=false. The key deficiency is Q-G1: the plan states "PropertiesService is too slow for job state management" as an established fact to justify choosing SQLite, but provides no benchmark data, latency measurements, or even a qualifying hedge. The current prompt's L1 evaluator (with Iter 3 calibration) would apply the "Would a senior developer actually encounter this problem?" test — and the answer is ambiguous. A senior developer WOULD question an unvalidated performance claim, but the claim might also be common knowledge in the GAS ecosystem. The calibration instruction is well-suited here: it would prevent over-flagging on well-known constraints while still catching truly unvalidated claims. However, the finding specificity instruction (Iter 3 Option L) is what determines whether the evaluator cites the specific passage ("line 9: PropertiesService is too slow...") or generalizes ("the approach has unvalidated assumptions"). Observation: the current prompt should handle this probe correctly for Q-G1, with moderate confidence.
+
+**probe-3-cross-phase-contradiction.md (Portable Extension Export)**
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=false. This probe targets three questions: Q-G21 (internal logic consistency — Phase 1 reads symlinks as truth vs Phase 3 copies files for portability), Q-G22 (cross-phase dependency — Phase 2 reads `installMode` field that Phase 1 never outputs), and Q-G10 (unstated assumption about registry JSON schema). These are ALL questions evaluated by the L1 evaluator (Q-G21 and Q-G22 are L1 advisory; Q-G10 is L1 advisory). The critical test: will the L1 evaluator perform the cross-phase comparison needed to detect the Phase 1/Phase 3 contradiction? The current L1 evaluator prompt says "evaluate ALL L1 questions" with calibration and specificity instructions, but has no explicit instruction to trace data flow across phases. A model that evaluates Q-G21 by scanning for obvious contradictions (keyword-level: "symlinks" vs "copies") might catch the Phase 1/Phase 3 issue, but Q-G22 requires deeper analysis — the evaluator must notice that Phase 2's `installMode` field is NOT in Phase 1's output schema. This is the kind of structural analysis that benefits from an explicit tracing instruction. **Prediction: the current prompt will likely catch Q-G21 (surface-level contradiction) but may miss Q-G22 (requires schema tracing) and Q-G10 (requires recognizing an unstated assumption about JSON shape).**
+
+**probe-4-guidance-implementation-gap.md (Incremental Sync)**
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=false (the manifest is ephemeral per the plan). This probe targets Q-C40 (guidance-implementation consistency) and Q-G20 (story arc / untestable verification). The Design section claims "validates checksums before overwriting" but no implementation step performs checksum validation — steps only check file existence and hashes for change detection, not integrity validation before overwriting. This is a Q-C40 textbook case: guidance claims a behavior that no step implements. The impact-evaluator handles Q-C40, and the current cluster evaluator prompt says "Prioritize practical production implications" but does not instruct the evaluator to cross-reference design claims against implementation steps. **Prediction: the current prompt may miss Q-C40 because the evaluator scans implementation steps for issues rather than systematically cross-referencing design claims against steps.** For Q-G20, the verification section uses "verify behavior is correct" and "check for regressions" — untestable assertions that the L1 evaluator should flag if it applies the specificity instruction ("cite the specific plan passage that is deficient").
+
+**probe-5-translation-boundary-gap.md (Test Fixture Generator)**
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, IS_TRIVIAL=false. Targets Q-C37 (translation boundary) and Q-C39 (data access vs schema). Step 5 says "convert analysis results into test assertion data" — this is the creative, load-bearing step but gets the least specification (no mapping rules, no output format, no quality criteria). The impact-evaluator handles Q-C37. Additionally, step 1 extracts "Field 3: kind" but the actual TYPES format has `repo_subdir` at position 3 and `kind` at position 4 — a Q-C39 data schema mismatch. **Prediction: Q-C37 (underspecified translation) may be caught by keyword scanning ("convert analysis to..."), but Q-C39 (field index mismatch) requires the evaluator to actually verify the TYPES schema against the plan's claimed positions — which the current prompt does not explicitly instruct.**
+
+**Cross-probe observation:** The five probes collectively expose a single systematic gap: the current evaluator prompts lack explicit instructions for **cross-referential tracing** — verifying that claims, schemas, and data flows in one part of the plan match their targets in another part (or in external code). The newer questions (Q-C37 through Q-C40, Q-G21, Q-G22) all require this methodology, but the evaluator prompts only instruct "evaluate" and "cite specific passages." Adding a brief analytical methodology instruction to the relevant evaluator prompts would convert these from passive evaluation to active verification.
+
+## Improvement Options — Iteration 4
+
+### Option M: Cross-Referential Tracing Instruction for Evaluators
+**Addresses:** Q2 — Task precision / Q8 — Chain-of-thought (evaluators lack methodology for multi-step tracing questions)
+**What changes:** Add a 4-line "Analytical methodology" instruction to both the impact-evaluator cluster prompt and the L1 advisory evaluator prompt, immediately after the calibration instruction:
+```
+Analytical methodology for tracing questions (Q-C37 through Q-C40, Q-G21, Q-G22):
+  (1) Identify each claim, cross-reference, or data access in the plan
+  (2) Trace it to its declared source (output of a prior phase, schema definition, function signature)
+  (3) If the source does not exist or contradicts the claim → NEEDS_UPDATE
+Do not accept the plan's own assertions at face value — verify by tracing.
+```
+This instruction is scoped to the specific question IDs that require tracing. It does not apply to all questions (avoiding the Iter 2 failure of adding overhead for non-applicable cases). The instruction uses the same pattern that succeeded in Iter 1 (Option B: named algorithm with numbered steps for a judgment call) and Iter 3 (Option I: calibration instruction for a high-frequency decision).
+**Why it helps:** Test-run observations on probes 3, 4, and 5 show that the current prompt is predicted to miss Q-G22 (cross-phase field reference), Q-C40 (guidance-implementation gap), and Q-C39 (field index mismatch) because evaluators scan for issues within each step rather than tracing references across steps. Research Finding 1 (PEEM rubric-anchored reasoning chains) directly supports adding per-axis verification instructions. The 4-line instruction converts passive scanning into active verification for exactly the questions that need it.
+**Predicted impact:** HIGH — The tracing questions (Q-C37-Q-C40, Q-G21, Q-G22) are the questions most likely to catch subtle plan defects (the kind that cause "works in plan, breaks in implementation"). These are also the newest questions (commits #71-#73), added specifically because they were NOT being caught — improving their evaluator methodology directly addresses the quality gap they were designed to fill.
+
+### Option N: Self-Verification Gate for PASS Verdicts on Tracing Questions
+**Addresses:** Q8 — Chain-of-thought (evaluator may PASS without actually verifying)
+**What changes:** Add a 2-line self-check instruction at the end of the impact-evaluator's constraint section (and the L1 advisory evaluator), immediately before the output contract:
+```
+Self-check: Before writing PASS for Q-C37, Q-C38, Q-C39, Q-C40, Q-G21, or Q-G22,
+confirm you traced the reference to its source — not just scanned for keyword presence.
+```
+This is a single conditional gate: it applies only to the 6 tracing questions and only triggers when the evaluator is about to write PASS. It does not add process overhead for NEEDS_UPDATE findings (which already require reasoning) or for non-tracing questions.
+**Why it helps:** Research Finding 3 (self-critique methodology) shows that asking an agent to verify its own reasoning before finalizing improves accuracy on analytical tasks. The specific failure mode this addresses is "false PASS via surface scan" — the evaluator sees that the plan mentions checksums (probe-4) or mentions field positions (probe-5) and writes PASS without verifying that the implementation steps actually perform the claimed operation. The self-check is minimal (2 lines) and scoped (6 questions only), avoiding the Iter 2 failure pattern of adding broad protocol overhead.
+**Predicted impact:** MEDIUM — Complements Option M by catching the specific case where an evaluator has the tracing instruction but shortcuts it. The impact is conditional on Option M being present (without the tracing instruction, the self-check alone is insufficient). Together, M+N form a "instruct + verify" pair that addresses both the methodology gap and the execution gap.
+
+### Option O: Concrete Finding Example for Tracing Questions in Cluster Evaluator Prompt
+**Addresses:** Q5 — Examples (evaluators have no model of what a well-traced finding looks like)
+**What changes:** Add a single concrete finding example to the impact-evaluator cluster prompt, after the analytical methodology instruction (Option M), showing what a well-traced NEEDS_UPDATE finding looks like:
+```
+Example finding (Q-C39): "NEEDS_UPDATE — Step 1 extracts Field 3 as 'kind', but the
+actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
+position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
+```
+This is 3 lines. It demonstrates the expected analytical depth: cite the plan passage, cite the actual schema, note the mismatch, provide the edit instruction. The example uses a Q-C39 case (data schema mismatch) which is representative of all tracing questions — the pattern generalizes to Q-C38 (signature mismatch), Q-C40 (guidance vs implementation), and Q-C37 (underspecified translation).
+**Why it helps:** Research Finding 2 (Claude Best Practices 2026) identifies concrete examples as the highest-impact improvement for evaluator tasks. The example anchors the evaluator's output quality for the tracing questions — without it, evaluators may produce findings at the wrong level of specificity ("data access patterns not verified" vs the concrete "Field 3 is kind but position 3 is repo_subdir"). Iter 1's success (Option B deduplication algorithm with inline example) validated this pattern: examples drive consistent output quality. The 3-line cost is minimal.
+**Predicted impact:** MEDIUM — Anchors evaluator output quality for tracing questions. The benefit is primarily on first-pass accuracy (reducing the need for the team-lead to re-interpret vague findings). Works synergistically with Option M (methodology) and Option N (self-check) — together they form methodology + example + verification.
+
+### Option P: Expanded Evaluator Triage for IS_GAS Impact Cluster Scope
+**Addresses:** Q3 — Context adequacy / Q9 — Domain specifics (impact-evaluator scope for IS_GAS is under-documented in the evaluator prompt itself)
+**What changes:** Add a 3-line scope reminder to the impact-evaluator's cluster prompt specifically for IS_GAS mode. Currently, the IS_GAS scope rules (evaluate Q-C26, Q-C35, Q-C37, Q-C38, Q-C39, Q-C40 only; N/A-supersede Q-C3, Q-C8, Q-C12, Q-C14, Q-C27, Q-C32) are stated in the SKILL.md orchestrator logic and in the cluster evaluator prompt template's generic IS_GAS note. However, the impact-evaluator is the ONLY cluster evaluator that runs in IS_GAS mode (all others are superseded), making it the sole carrier of the L2 quality gate for GAS plans. Add to the cluster evaluator's IS_GAS note:
+```
+When IS_GAS=true and you are the impact-evaluator: you are the ONLY L2 cluster evaluator
+running. Questions Q-C37, Q-C38, Q-C39, Q-C40 (the tracing questions) are your exclusive
+responsibility — no other evaluator will assess them.
+```
+This signals the evaluator that it cannot rely on other cluster evaluators to catch tracing issues, increasing the analytical effort it applies to these questions.
+**Why it helps:** In IS_GAS mode, 5 of 6 cluster evaluator slots are superseded — the impact-evaluator inherits 7 questions that would normally be distributed across multiple evaluators. Without the scope reminder, the evaluator treats these as "additional" questions rather than "sole-responsibility" questions, potentially applying less effort. The 3-line addition is purely informational — it does not change routing or logic, only the evaluator's awareness of its scope.
+**Predicted impact:** LOW — Affects only IS_GAS plans (2 of 5 probes). The failure mode (impact-evaluator underweighting tracing questions in IS_GAS mode) is low-frequency but was observable in the probe-2 analysis where the plan modifies .gs files and the impact-evaluator must catch Q-C38 (cross-boundary signature). The improvement is informational, not algorithmic — lower confidence than M/N/O.
+
+## Evaluation Questions — Iteration 4
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded in the input — no hallucinated question IDs, no fabricated evaluator findings, no invented plan content?
+
+### Dynamic (new gaps for iteration 4)
+- Q-DYN-11: When a plan contains a cross-phase data reference (Phase N reads a field or output that Phase M is supposed to produce), does the evaluator trace the reference to its declared source and flag NEEDS_UPDATE when the source phase does not produce the referenced field — rather than accepting the plan's own assertions at face value? [addresses: Q2, Q8 — cross-referential tracing for Q-G22, Q-C39]
+- Q-DYN-12: When a plan's design/guidance section claims a behavior (e.g., "validates checksums before overwriting") that no implementation step actually performs, does the evaluator detect the guidance-implementation gap and flag it as NEEDS_UPDATE with specific citations of both the claim and the missing step? [addresses: Q2, Q8 — guidance-implementation consistency for Q-C40]
+- Q-DYN-13: When a plan's hardest creative step (abstract-to-concrete translation, e.g., "convert analysis results into test assertion data") receives less specification than mechanical steps, does the evaluator flag the underspecification as NEEDS_UPDATE and request a methodology, mapping rules, or output format? [addresses: Q5, Q8 — translation boundary specification for Q-C37]
+- Q-DYN-14: For tracing questions (Q-C37 through Q-C40, Q-G21, Q-G22), does the evaluator PASS verdict reflect actual verification (tracing the reference to its source) rather than surface-level keyword scanning (checking that the plan mentions the concept)? [addresses: Q8 — self-verification gate for false PASS verdicts]
+
+## Experiment Results — Iteration 4
+*Date: 2026-03-16*
+
+### Implemented Directions
+#### Experiment 1: Options M+N+O+P combined
+**Options applied:** M (tracing methodology), N (self-verification gate), O (concrete finding example), P (IS_GAS scope)
+**Applied changes:** 4-line analytical methodology block in impact-evaluator and L1 advisory prompts (identify/trace/compare template for Q-C37-Q-C40, Q-G21, Q-G22) + 2-line self-check gate for PASS verdicts on tracing questions + 3-line Q-C39 concrete finding example in impact-evaluator prompt + 3-line IS_GAS scope reminder for sole-responsibility tracing questions
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | M+N+O+P | 39.0% vs 14.8% | +24.1% | ~0% | ~0% |
+
+### Per-Question Results (A=baseline wins / B=exp wins / TIE across 6 tests)
+Q-FX1: 2/3/1  Q-FX2: 0/0/6  Q-FX3: 2/4/0  Q-FX4: 1/1/4  Q-FX5: 1/1/4
+Q-DYN-11: 1/5/0  Q-DYN-12: 2/3/1  Q-DYN-13: 1/5/0  Q-DYN-14: 1/4/1
+
+### Per-Probe Breakdown
+- **probe-1** (unvalidated constraint): Baseline won. Baseline found 19 changes vs Exp-1's 11. Exp-1 was less thorough on this already well-covered probe.
+- **probe-2** (phantom code references): Exp-1 won. Caught cross-phase phantom dependency (Q-G22) and phantom TypeScript handler reference that baseline missed.
+- **probe-3** (cross-phase contradiction): Exp-1 won strongly. Found 13 findings incl manifest.json schema gap, git -C violations, shell best practices, architectural integrity (Q-C35).
+- **probe-4** (guidance-implementation gap): Exp-1 won. Found 13 changes achieving READY vs baseline's 8 changes at SOLID. Better schema/lifecycle coverage.
+- **probe-5** (translation boundary gap): Exp-1 won strongly. Caught ALL 3 target defects (Q-C39 off-by-one, Q-C37 translation boundary, Q-G21 undefined term) that baseline COMPLETELY MISSED.
+- **analysis.md**: Baseline won. Baseline provided broader coverage (10 findings vs 6) on the meta-document; Exp-1 showed more analytical rigor on specific points.
+
+## Results & Learnings
+
+**Step 1 — Per-option attribution:**
+
+- **Option M (tracing methodology)** — CONTRIBUTED_TO_WIN (primary driver). The 4-line identify/trace/compare template was the single most impactful change. Q-DYN-11 (1/5/0), Q-DYN-13 (1/5/0), and Q-DYN-12 (2/3/1) all measure cross-referential tracing quality — and all strongly favor Exp-1. Probe-5 is the definitive evidence: Exp-1 detected ALL 3 planted defects (Q-C39 field index off-by-one, Q-C37 translation boundary underspecification, Q-G21 undefined term) that baseline completely missed. Probe-3 found 13 findings including cross-phase contradictions, up from baseline's lower count. The tracing template converts passive "does the plan mention X?" scanning into active "does step N's claim match its source?" verification — the same algorithmic-specificity-for-judgment-calls pattern that drove Iter 1's +55.6% win.
+
+- **Option N (self-verification gate)** — CONTRIBUTED_TO_WIN (complementary). Q-DYN-14 (1/4/1) directly measures whether PASS verdicts reflect actual verification vs surface scanning — Exp-1 wins decisively. The self-check gate works synergistically with Option M: M provides the tracing methodology, N ensures evaluators actually execute it before writing PASS. Probe-5's 3/3 defect detection (vs baseline's 0/3) is partially attributable to N preventing premature PASS on Q-C39 and Q-C37 where keyword presence ("field extraction", "convert analysis") would have satisfied a surface scan.
+
+- **Option O (concrete finding example)** — CONTRIBUTED_TO_WIN (anchoring). The Q-C39 example ("Step 1 extracts Field 3 as 'kind', but kind is at position 4") directly matches probe-5's planted defect — and Exp-1 caught it while baseline missed it. Q-FX3 completeness (2/4/0 favoring B) suggests the example anchored evaluator output depth, producing more thorough findings overall. The pattern replicates Iter 1 Option B's success: concrete examples drive consistent output quality for judgment-heavy operations.
+
+- **Option P (IS_GAS scope reminder)** — NEUTRAL. Probe-1 (the IS_GAS-relevant probe) saw baseline win (19 changes vs 11). The scope reminder may have over-focused the impact-evaluator on tracing questions at the expense of breadth on a probe that targets Q-G1 (unvalidated constraint), not a tracing question. No strong positive or negative signal; the 3-line addition is harmless but not demonstrably helpful.
+
+**Decisive questions:** Q-DYN-11 (1/5/0) and Q-DYN-13 (1/5/0) were the most decisive — 5 of 6 judges favored Exp-1 on cross-phase tracing and translation boundary detection. Q-DYN-14 (1/4/1) confirmed the self-verification gate worked. Q-FX2 (0/0/6 all ties) confirms zero format regression — the additions are invisible to output structure.
+
+**Step 2 — Cross-experiment comparison:**
+
+Single experiment this iteration. Cross-iteration comparison reveals a clear pattern across all 4 iterations:
+- Iter 1 (+55.6%): algorithmic specificity for deduplication + regression recovery — IMPROVED
+- Iter 2 (-25.1%): protocol overhead for non-manifesting edge cases — REGRESSED
+- Iter 3 (structural): calibration + specificity for evaluator output quality — IMPROVED
+- Iter 4 (+24.1%): tracing methodology + self-check + example for analytical questions — IMPROVED
+
+The success pattern is consistent: **numbered-step algorithms + concrete examples + scoped self-checks for high-frequency judgment calls** produce quality gains. The failure pattern is also consistent: **broad protocol additions targeting low-frequency edge cases** regress quality by distracting from substantive review. Iter 4's +24.1% is smaller than Iter 1's +55.6%, consistent with diminishing returns — the highest-leverage gaps (deduplication, regression recovery) were addressed first. The remaining +24.1% gain from evaluator methodology improvements suggests the prompt had not yet reached diminishing returns for evaluator-level (as opposed to orchestrator-level) improvements.
+
+**Step 3 — Root cause:**
+
+The winning experiment improved quality because it addressed the single most important remaining gap after 3 prior iterations: evaluators lacked explicit methodology for the newest analytical questions (Q-C37 through Q-C40, Q-G21, Q-G22). These questions require multi-step cross-referential tracing — following a data reference, design claim, or field access from one plan section to its source in another section (or in external code). The prior evaluator prompts said "evaluate" and "cite specific passages" but never instructed evaluators to perform structural comparison across phases. Options M+N+O form a coherent "instruct + exemplify + verify" triad: M provides the 3-step tracing algorithm (identify, trace, compare), O anchors the expected output depth with a concrete example, and N prevents false PASS verdicts by requiring evaluators to confirm they actually traced before accepting. The probe results confirm this root cause: probe-5's perfect 3/3 defect detection (Q-C39 off-by-one, Q-C37 underspecification, Q-G21 undefined term) vs baseline's 0/3 is the clearest causal evidence — these are exactly the defect types that require cross-referential tracing to detect.
+
+**What worked:** Options M, N, and O (tracing methodology + self-verification gate + concrete example) — the "instruct + exemplify + verify" triad for analytical tracing questions. Decisive on Q-DYN-11 (1/5/0), Q-DYN-13 (1/5/0), Q-DYN-14 (1/4/1). Probe-5's 3/3 defect detection vs baseline's 0/3 is the strongest single-probe evidence of improvement across all 4 iterations.
+
+**What didn't work:** Option P (IS_GAS scope reminder) was NEUTRAL — probe-1 showed baseline winning with broader coverage, suggesting the scope reminder may have narrowed evaluator focus without compensating quality gain on tracing questions for that probe type. The 3-line addition is inert noise, not harmful, but not contributing either.
+
+**Root cause analysis:** The prompt's orchestrator-level logic (deduplication, regression recovery, convergence) was already strong from Iter 1. The remaining quality gap was at the evaluator level: evaluators lacked the analytical methodology to perform multi-step cross-referential verification for the newest question cluster (Q-C35 through Q-C40). Providing a numbered tracing procedure, a concrete example of the expected output depth, and a self-check gate before PASS verdicts converted passive evaluation into active verification — the same "algorithmic specificity for judgment calls" pattern that has driven every successful iteration.
+
+**What to try next iteration:** (1) Consider removing or shortening Option P (IS_GAS scope reminder) — it produced no measurable benefit and the scope-gate WARN for Q-SG12 (inert Q-G21/Q-G22 references in cluster evaluator scope) suggests it adds complexity without payoff. (2) Investigate why probe-1 (unvalidated constraint) regressed under Exp-1 (11 changes vs baseline's 19) — the tracing methodology may have inadvertently narrowed evaluator attention away from non-tracing questions like Q-G1. A scoping adjustment ("apply tracing methodology ONLY for Q-C37-Q-C40, Q-G21, Q-G22; evaluate all other questions as before") may be needed to prevent thoroughness regression on non-tracing questions.
+
+**Best experiment:** Exp-1 (M+N+O+P) — 39.0% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+24.1% spread)
+
+Scope gate WARN for Exp-1: Q-SG12 — Q-G21/Q-G22 references in cluster evaluator scope (inert noise, not active regression). Status: SCOPE_WARN. Monitor for regression in future iterations.
