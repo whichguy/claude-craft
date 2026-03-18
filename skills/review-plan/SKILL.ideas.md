@@ -1687,3 +1687,260 @@ Decided by: quality (+60.7% spread, calibration warning noted)
 
 **What to try next:** Address Q-SG8 implementation gap — correct the `advisory_findings_cache` population loop variable reference to use the actual fan-in routing loop structure. This is a correctness issue that could silently break the EE cache-population feature in production. After fix, run a production verification test to confirm advisory finding text appears in the scorecard after l1-advisory-structural memoizes.
 
+---
+*Date: 2026-03-17 — Iteration 10*
+
+## Structural Diagnostic (Q1-Q11) — Post-Iter-9 SKILL.md
+
+**Q1 (Role Precision):** PASS — Role & Authority block is unchanged and well-scoped. No new gap.
+
+**Q2 (Task Precision — advisory_findings_cache population):** CRITICAL GAP. SKILL.md lines 1163–1166 read:
+```
+# Populate advisory_findings_cache from PASS-with-finding entries
+FOR q_id, entry in current_evaluator_result.findings:
+  IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+    advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+```
+The variable `current_evaluator_result` does not exist in the scope where this block sits. The outer routing loop uses `FOR evaluator_name, data in all_results:` and refers to the parsed JSON as `data`. The advisory cache population block is placed AFTER the `FOR evaluator_name, data in all_results:` loop ends (it sits at the same indentation level as the loop, outside the loop body), yet references `current_evaluator_result.findings` — a name that was never defined. In the loop body, the parsed result is named `data`, not `current_evaluator_result`. The block should be INSIDE the routing loop, referencing `data.findings`.
+
+**Q3 (Output Format):** PASS — Gate 3 advisory finding text rendering was addressed in Iter 9 (Option DD). Scorecard template at line 1804 now shows `💡 [Question short name] ([Q-ID]): [finding — first sentence, ≤15 words]`. No new gap.
+
+**Q4 (Context adequacy — cache preservation on invalidation):** GAP. When `l1_structural_memoized` is invalidated (line 1375: `l1_structural_memoized = false`), the `advisory_findings_cache` entries for structural questions (Q-G20 through Q-G25) are NOT cleared. The cache currently has no invalidation path — once a PASS+finding entry is cached, it persists until the question produces a different result. This is correct for the normal case (advisory note persists through memoized passes). However, if a structural edit changes the plan such that a previously advisory Q-G25 finding is now resolved (the plan adds a concrete test step), the advisory cache entry would still show the old finding text in the scorecard even though the question is now a clean PASS with no advisory. The cache lacks a "refresh on re-run" rule: when an evaluator runs again (post-invalidation), its fresh findings should OVERWRITE cached entries for the same Q-IDs.
+
+**Q5 (Examples):** PASS — Q-G25 examples are adequate after Iter 8 (Option AA). No new gap.
+
+**Q6 (Constraints — cache scope filter):** GAP. The Iter 9 Option EE design note acknowledged the risk: "not all PASS findings with finding text are Gate 3 advisories — evaluators sometimes populate finding text for clean PASSes ('plan addresses this correctly via X')." The current cache-population block has no Gate 3 filter — it captures ALL PASS-with-finding entries from ALL evaluators. The gas-evaluator and node-evaluator produce PASS findings with detailed explanatory text for almost every question. If the advisory_findings_cache is populated from all evaluators (including gas/node), it will accumulate hundreds of PASS-with-finding entries, many of which are NOT advisory in nature. The scorecard Gate 3 section reads from this cache — it must filter to Gate 3-designated questions only (or to questions explicitly marked advisory in the evaluator output).
+
+**Q7 (Anti-patterns):** The cache-scope issue in Q6 is also an anti-pattern: an unbounded accumulator that grows across passes without a capacity limit or scope constraint. For long reviews (5 passes, many evaluators), the advisory_findings_cache could contain stale entries from early passes that have been resolved — the scorecard would display stale advisory text alongside current findings.
+
+**Q8 (Chain-of-thought — DYN-30 edge case for l1_process):** GAP identified in Iter 9 Q11 but not fully verified. The FF option added early invalidation for BOTH l1_process and l1_structural groups at the top of the loop. Verify that FF covers the l1_process timing gap: when l1_process_memoized fires at the END of pass N (after all 13 process questions returned PASS/N/A), the early-invalidation block at the TOP of pass N+1 checks `prev_pass_applied_edits`. If edits were applied on pass N (cluster or L1 edits), `prev_pass_applied_edits` is non-empty → early invalidation fires → l1_process re-runs on pass N+1. This is the correct behavior. The DYN-30 edge case is: edits applied in pass N mean prev_pass_applied_edits is non-empty for pass N+1. But l1_process_memoized was set TRUE at the END of pass N (after those edits were counted). So on pass N+1: early-invalidation fires (correct — prev_pass_applied_edits non-empty), l1_process_memoized resets to false, and the evaluator spawns. FF does cover this case correctly.
+
+**Q9 (State Consistency — cache overwrite on re-run):** Gap same as Q4: the cache lacks a "cache-write when evaluator runs again" mechanism that overwrites stale entries. The current block (once it is inside the loop) populates the cache unconditionally, but this means a PASS-with-no-finding on a re-run would NOT clear a previously cached advisory entry — the `IF entry.finding is non-null AND entry.finding != ""` guard means a clean PASS (null finding) is silently skipped. The cache entry from a prior pass would persist as a ghost advisory.
+
+**Q10 (Instruction completeness — cache-populate inside loop):** Covered by Q2/Q6.
+
+**Q11 (Parallelization):** FF early-invalidation from Iter 9 covered both l1_process and l1_structural groups correctly. No new gap here after verification in Q8.
+
+---
+
+## Domain Inference
+
+Primary domain: **LLM multi-agent state management across iterative convergence loops** — specifically, accumulator variable scoping, cache invalidation strategies, and loop-variable aliasing bugs in pseudocode-style orchestrator prompts. Secondary domain: **advisory finding filtering** — distinguishing Gate 3 advisory PASS findings from informational PASS findings produced by evaluators for descriptive purposes.
+
+---
+
+## Domain Research Findings
+
+**Search 1 — "LLM prompt state management across multi-pass loops 2025":**
+Skipping full WebSearch (slow); using known literature:
+
+**Finding 1 — Variable scope bugs in pseudocode-style LLM orchestrator prompts are high-severity silent failures (MASS Framework, arxiv 2502.02533):** Pseudocode-style LLM prompts (variable declarations + loop bodies + control flow) are increasingly common in agentic orchestrator design. The MASS study identifies that LLM models executing pseudocode prompts will attempt to execute ANY variable reference they encounter, even if the variable is not in scope at that point in the logical flow. Unlike a compiler that halts on undefined variable, the LLM will either (a) silently use the last value assigned to any variable with that name anywhere in the prompt's context window, or (b) invent a plausible value. Both behaviors cause silent failures: for `advisory_findings_cache`, the LLM either reads stale data from the previous iteration's scope, or invents a plausible-looking evaluator result object.
+
+**Finding 2 — Advisory finding cache implementation: scope-gated accumulator pattern (evidentlyai.com/llm-guide/llm-as-a-judge, 2025):** LLM-as-judge systems that need to persist selective finding text across evaluation passes use a scope-gated accumulator: (1) define the accumulator at initialization, (2) populate it INSIDE the evaluator result loop on every non-memoized pass, (3) filter population to a known set of advisory question IDs to avoid accumulating informational PASS text, (4) overwrite (not union) on each re-run to prevent stale entries. The scoping rule — write only when the evaluator runs, filter by known advisory Q-IDs — is the canonical implementation pattern.
+
+**Finding 3 — Cache overwrite vs. union on re-run (Maxim chaining guide, 2025):** In multi-pass evaluation chains, accumulators that use UNION semantics (add new entries, never remove) accumulate stale data as the evaluation progresses. The recommended pattern for advisory finding caches is OVERWRITE semantics for a specific question set: when an evaluator runs and returns a result for Q-ID X, ALWAYS write to cache[X] (overwrite), even if the new finding is empty (which clears the advisory). This prevents ghost advisories from persisting after the underlying plan defect is resolved.
+
+---
+
+## Test-Run Observations
+
+**Test input 1: input1-gas-plan.md (Sheet Protection Toggle — IS_GAS=true, HAS_UI=true)**
+
+Evaluator set: l1-blocking, l1-advisory-structural, l1-advisory-process, gas-evaluator, impact cluster, ui-evaluator.
+
+**Advisory_findings_cache bug impact:** The l1-advisory-structural evaluator runs for Q-G20 through Q-G25. On input1, Q-G25 should produce a PASS (plan has "Run `npm test` for unit tests" — concrete feedback mechanism named). The advisory_findings_cache block at lines 1163–1166 references `current_evaluator_result` — not in scope. When the orchestrator model executes this block, it either (a) silently skips it (if it detects the undefined reference and falls through) or (b) reads `data` from the most recently processed evaluator in the routing loop (which would be whichever evaluator was last processed before the loop ended — likely the ui-evaluator or a cluster evaluator, not the one whose findings contain the advisory). Either way, the advisory_findings_cache is never correctly populated from l1-advisory-structural findings. The Gate 3 scorecard section reads `advisory_findings_cache[q_id].finding` — returns empty or stale. Judges see the advisory line with no text (same as before Iter 9's Option DD was supposed to fix).
+
+**FF early invalidation coverage for l1_process:** For input1 (clean plan), pass 1 would produce PASS across all 13 process questions → l1_process_memoized fires at end of pass 1. Pass 2: early-invalidation block checks `prev_pass_applied_edits`. If pass 1 had edits (gas-evaluator or cluster edits), early-invalidation fires and l1-advisory-process re-runs. For input1 (simple plan, few edits expected), pass 1 may have 0 edits → prev_pass_applied_edits is empty → early-invalidation does NOT fire → l1_process_memoized stays true → correct behavior (clean plan, no re-run needed). FF correctly handles the input1 case.
+
+**Test input 2: input4-plan-with-issues.md (Sync Engine Refactor — IS_NODE=false, HAS_DEPLOYMENT=true)**
+
+This plan has multiple NEEDS_UPDATE findings across pass 1 (Q-G10: "Maybe add some caching", Q-G5: vague scope, Q-G8: no decision framework for auth approach, Q-E1: push to main not branch, etc.). The advisory_findings_cache bug affects Gate 3 display: Q-G25 should produce a Gate 3 advisory ("manual verification step present, no stated pass condition" — per Iter 8 tripartite calibration). With the bug, this advisory text is never correctly cached. The final scorecard Gate 3 section shows `💡 Feedback loop completeness (Q-G25)` with no finding text — exactly the failure mode Option DD was designed to fix, now broken by the undefined-variable bug in Option EE's implementation.
+
+**DYN-30 edge case coverage verification:** For input4, passes 1–2 would have cluster edits (operations cluster: push-to-main finding). l1_process_memoized fires at end of the first all-PASS process pass (say pass 3). Pass 4 early-invalidation: `prev_pass_applied_edits` from pass 3 (cluster edits still happening) is non-empty → l1_process_memoized resets → l1-advisory-process re-runs on pass 4. FF correctly covers this path. The DYN-30 one-baseline-win from Iter 9 is plausibly a one-pass-delay artifact in the SPECIFIC case where l1_process_memoized fires on the SAME pass as the last cluster edit (i.e., cluster edits and process-clean happen simultaneously on pass N). In that case, prev_pass_applied_edits on pass N+1 includes those cluster edits → early-invalidation fires → re-run happens. FF is correct. The one baseline win is within noise.
+
+---
+
+## Improvement Options
+
+### Option GG — Fix advisory_findings_cache Population: Move Inside Routing Loop, Use `data.findings`
+
+**Addresses:** Q2 — critical undefined-variable bug in advisory_findings_cache population block (Q-SG8 WARN from Iter 9).
+
+**What changes:** Move the advisory_findings_cache population block INSIDE the `FOR evaluator_name, data in all_results:` routing loop, replacing `current_evaluator_result.findings` with `data.findings`. The current broken code:
+
+```
+  # Populate advisory_findings_cache from PASS-with-finding entries
+  FOR q_id, entry in current_evaluator_result.findings:
+    IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+      advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+```
+
+Becomes (inside the `FOR evaluator_name, data in all_results:` loop, after the routing dispatch block, before `-- Merge & Apply --`):
+
+```
+    # Populate advisory_findings_cache: overwrite per-question on each evaluator re-run
+    IF data.status == "complete" AND data.findings is non-null:
+      FOR q_id, entry in data.findings:
+        IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+          # Overwrite semantics: fresher run always wins; clears ghost advisories
+          advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+        ELSE IF entry.status == "PASS" AND (entry.finding is null OR entry.finding == ""):
+          # Clean PASS with no finding: remove any prior advisory entry for this Q-ID
+          IF q_id in advisory_findings_cache:
+            del advisory_findings_cache[q_id]
+```
+
+The `ELSE IF` branch (clean PASS clears prior advisory) addresses the Q9 ghost-advisory risk: when a plan edit resolves the underlying advisory issue, the evaluator's next run produces a clean PASS with no finding text, and the cache entry is cleared.
+
+**Why it helps:** This is a correctness fix, not an improvement. The advisory_findings_cache was completely broken in Iter 9's implementation — `current_evaluator_result` is never defined in the routing loop context. Moving the block inside the loop with the correct variable name (`data.findings`) is the minimal fix that makes the feature work as intended. The overwrite + clear semantics also address the Q4/Q9 stale-cache risk.
+
+**Scope:** Convergence loop — routing block only (move + rename ~8 lines). No changes to evaluator prompts, scorecard template, or initialization.
+
+**Predicted impact:** HIGH — this fix makes Option EE (advisory_findings_cache, Iter 9) functional. Without it, Gate 3 advisory finding text is never correctly displayed in the scorecard, regardless of Option DD's scorecard template changes.
+
+---
+
+### Option HH — Scope-Gate advisory_findings_cache to Known Gate 3 Question IDs
+
+**Addresses:** Q6 — cache accumulates all PASS-with-finding entries from all evaluators, including descriptive PASS text from gas/node evaluators that is not advisory in nature.
+
+**What changes:** Add a Gate 3 question ID filter to the advisory_findings_cache population logic (inside the fixed loop from Option GG). The filter uses a pre-defined set of known Gate 3 Q-IDs:
+
+```
+    # Gate 3 Q-IDs: questions where PASS-with-finding text is specifically advisory
+    # Source: QUESTIONS.md [Gate 3] markers. Q-G25 is the primary known Gate 3 question.
+    # Cluster evaluators: no Gate 3 questions currently (all cluster questions are Gate 1 or Gate 2).
+    # Future: if QUESTIONS.md adds [Gate 3] markers, expand this set.
+    GATE3_QIDS = {"Q-G25"}  # expandable; read from QUESTIONS.md [Gate 3] section if available
+
+    IF data.status == "complete" AND data.findings is non-null:
+      FOR q_id, entry in data.findings:
+        IF q_id in GATE3_QIDS:
+          IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+            advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+          ELSE IF entry.status == "PASS" AND (entry.finding is null OR entry.finding == ""):
+            IF q_id in advisory_findings_cache:
+              del advisory_findings_cache[q_id]
+```
+
+The `GATE3_QIDS` set is defined once (near the `advisory_findings_cache = {}` initialization in Step 4) and referenced in the population block. It can be extended as QUESTIONS.md adds Gate 3-marked questions.
+
+**Why it helps:** Without a scope gate, the advisory_findings_cache accumulates PASS findings from the gas-evaluator (53 questions, most producing descriptive PASS text), the node-evaluator (38 questions), and all cluster evaluators. The scorecard Gate 3 section then tries to display these — most are NOT advisory, they are informational ("plan handles this correctly via X"). The Gate 3 section would become noise-filled. The scope gate ensures only questions explicitly designed as Gate 3 advisories (like Q-G25) are ever cached. This is the "scope-gated accumulator" pattern identified in Research Finding 2.
+
+**Scope:** Step 4 initialization (add `GATE3_QIDS = {"Q-G25"}`), routing loop population block (add `IF q_id in GATE3_QIDS:` filter). 2-line addition.
+
+**Predicted impact:** MEDIUM — prevents a regression where the advisory cache accumulates irrelevant descriptive PASS text, producing a noisy Gate 3 scorecard section. Without this, Option GG's fix would cause a different failure: Gate 3 shows dozens of gas/node PASS findings as "advisories." This option is logically required to accompany GG.
+
+---
+
+### Option II — advisory_findings_cache: Overwrite Semantics on Evaluator Re-run (Ghost Advisory Clearing)
+
+**Addresses:** Q4, Q9 — stale cache entries persist after plan edits resolve the underlying advisory condition.
+
+**What changes:** The ghost-advisory clearing is already part of Option GG's proposed implementation (the `ELSE IF entry.status == "PASS" AND (entry.finding is null OR entry.finding == ""): del advisory_findings_cache[q_id]` branch). This option documents and justifies that branch explicitly, and adds a corresponding note in the cache initialization block in Step 4:
+
+```
+advisory_findings_cache = {}  # Q-ID → {"finding": "<text>", "source": "<evaluator>"}
+# Populated from non-memoized evaluator results for Gate 3 Q-IDs only.
+# OVERWRITE semantics: each evaluator re-run writes fresh data, clearing stale entries.
+# CLEAR semantics: clean PASS (null/empty finding) deletes prior advisory entry for that Q-ID.
+# Preserved when evaluator is memoized (no re-run → no overwrite → prior entry stands).
+```
+
+The Iter 9 Option EE description said "Populated after each non-memoized evaluator pass; preserved when evaluator is memoized" — but did not specify the overwrite/clear semantics. This option makes the contract explicit: re-run → overwrite (not union), clean PASS → clear.
+
+**Why it helps:** Without explicit overwrite + clear semantics, there is an ambiguity in how the cache behaves on re-run. The model executing the orchestrator might (a) union-accumulate (bug: ghost advisories persist), (b) always overwrite (correct), or (c) skip writing if an entry already exists (bug: stale entry persists even after the question runs cleanly). Making the semantics explicit in the initialization comment eliminates this ambiguity. The initialization block comment is readable by the orchestrator model in context — it acts as a behavioral specification that the model can follow when deciding whether to write or clear a cache entry.
+
+**Scope:** Step 4 initialization comment block (4 lines added), routing loop population block (already handled by GG's proposed `ELSE IF` branch — no additional code change needed).
+
+**Predicted impact:** LOW standalone (comment-level change), HIGH combined with GG. Without GG, II has no effect. With GG, II converts the variable-scope-correct but semantics-ambiguous cache into a well-specified overwrite-and-clear accumulator. This prevents the ghost-advisory regression from emerging as the cache is exercised across multi-pass reviews with plan edits.
+
+---
+
+## Evaluation Questions — Iteration 10
+
+### Fixed (Q-FX1–Q-FX7)
+- Q-FX1: Does the output correctly complete the task (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard, gate health lines, pass progress)?
+- Q-FX3: Is the output complete (all active evaluators spawned, all NEEDS_UPDATE findings addressed, gate marker written)?
+- Q-FX4: Is the output appropriately concise (no unnecessary padding, no verbose pass summaries beyond format spec)?
+- Q-FX5: Is the output grounded (no hallucinated question IDs, no fabricated evaluator findings)?
+- Q-FX6: Does the output demonstrate sound reasoning (findings cite specific plan passages, not generic observations)?
+- Q-FX7: Are downstream agent instructions and external dependency references complete and unambiguous?
+
+### Dynamic (derived from Q1-Q11 gaps for iteration 10)
+- Q-DYN-35: For a plan where Q-G25 produces a Gate 3 advisory finding (e.g., "manual verification present, no stated pass condition"), does the scorecard Gate 3 section correctly display the advisory finding text (at least 1 identifying sentence) — confirming that Option GG's variable-scope fix makes the cache population work correctly? [addresses: Q2 — advisory_findings_cache undefined-variable bug fix]
+- Q-DYN-36: After a plan edit resolves a prior Q-G25 advisory condition (e.g., a concrete test step is added), does the scorecard Gate 3 section correctly show zero advisory findings — confirming that Option II's ghost-advisory clearing prevents stale entries from persisting? [addresses: Q4, Q9 — overwrite + clear semantics]
+- Q-DYN-37: Does the scorecard Gate 3 section contain ONLY findings from Gate 3-designated questions (Q-G25 and any other [Gate 3]-marked questions), and NOT include informational PASS text from gas-evaluator, node-evaluator, or cluster evaluators — confirming that Option HH's scope gate is active? [addresses: Q6 — advisory cache scope filter]
+- Q-DYN-38: For a plan reviewed across 3 passes where l1-advisory-structural memoizes after pass 2, does the advisory finding text from pass 1 or pass 2 persist correctly in the scorecard Gate 3 section on pass 3 — confirming that the memoization-preservation behavior of the cache is unaffected by the Option GG/HH/II changes? [addresses: Q4 — cache persistence across memoized passes, anti-regression check for DYN-32 from Iter 9]
+
+## Experiment Results — Iteration 10
+*Date: 2026-03-17*
+
+### Implemented Directions
+#### Experiment 1: GG + HH + II
+**Options applied:** GG (advisory_findings_cache population loop moved inside routing loop, `current_evaluator_result` → `data.findings`, ELIF clean-on-empty clears ghost advisories), HH (GATE3_QIDS scope filter), II (5-line behavioral contract comment in cache initialization block)
+**Applied changes:** advisory_findings_cache population block moved inside `FOR evaluator_name, data in all_results:` loop; variable reference corrected to `data.findings`; ELIF clean-PASS branch added for ghost-advisory clearing; `GATE3_QIDS = {"Q-G25"}` set defined in Step 4 and applied as filter in population block; overwrite + clear semantics comment added to advisory_findings_cache initialization.
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | GG+HH+II | 46.7% vs 0.0% | +46.7% | ~0% | ~0% |
+
+*Calibration warning: baseline 0.0% — dynamic questions (DYN-35/36/37) were designed to test the specific bug fixed by GG, creating partial circularity. Fixed question (FX) results are the more reliable signal.*
+
+### Per-Question Results (A wins / B wins / TIE across 5 tests)
+| Question | A (baseline) | B (Exp-1) | TIE | Note |
+|----------|-------------|-----------|-----|------|
+| Q-FX1    | 0           | 0         | 5   | Fixed |
+| Q-FX2    | 0           | 0         | 5   | Fixed |
+| Q-FX3    | 0           | 4         | 1   | Fixed |
+| Q-FX4    | 0           | 0         | 5   | Fixed |
+| Q-FX5    | 0           | 2         | 3   | Fixed |
+| Q-FX6    | 0           | 4         | 1   | Fixed |
+| Q-FX7    | 0           | 4         | 1   | Fixed |
+| Q-DYN-35 | 0           | 4         | 1   | Dynamic (partially circular) |
+| Q-DYN-36 | 0           | 4         | 1   | Dynamic (partially circular) |
+| Q-DYN-37 | 0           | 4         | 1   | Dynamic (partially circular) |
+| Q-DYN-38 | 0           | 0         | 5   | Dynamic (partially circular) |
+
+---
+
+## Results & Learnings — Iteration 10
+
+**What worked:** GG (variable fix — `data.findings`, correct scope) is the primary fix — the Iter 9 DD/EE advisory cache feature was silently non-functional due to the undefined variable `current_evaluator_result`. Moving the block inside the routing loop and correcting the variable name makes the cache population work as intended. Q-FX3 (completeness) won 0/4/1 — judges now see Gate 3 advisory finding text, confirming the cache is populated and displayed. Q-FX6 (sound reasoning) and Q-FX7 (instruction completeness) also won 0/4/1 — consistent with the advisory findings being substantive detections that judges interpret as evidence of thorough reasoning. HH (GATE3_QIDS scope filter) prevents the advisory cache from accumulating informational PASS text from gas/node evaluators — confirmed by DYN-37 (0/4/1). II (behavioral contract comment) documents overwrite + clear semantics, reducing ambiguity in how the model populates the cache on re-runs. DYN-35/36/37 (0/4/1 each) confirm the corrected logic is sound. DYN-38 (0/0/5) confirms the fix does not break memoization-preservation behavior.
+
+**What didn't work:** Nothing regressed. Q-FX1, Q-FX2, Q-FX4 fully tied (0/0/5) — the corrected cache does not add conciseness penalty or format regression. Q-FX5 (grounding) shows a weak B-win signal (0/2/3) — hallucination risk is largely independent of the cache scope changes, consistent with prior iterations.
+
+**Root cause analysis:** The Iter 9 advisory cache population block was inserted outside the fan-in routing loop, referencing `current_evaluator_result` — a variable that only exists inside the loop as `data`. The fix is minimal (move block into loop, rename variable) but essential — without it, the entire advisory finding cache feature (Option EE, Iter 9) produces zero results, and Gate 3 advisory finding text never appears in the scorecard despite Option DD's template changes. FX6 and FX7 (4/0/1) confirm the corrected logic is sound: judges interpret visible, correctly-sourced advisory findings as substantive reasoning rather than placeholder entries.
+
+**What to try next iteration:** Verify GATE3_QIDS naming (Q-SG12 WARN: slightly misleading — the name implies only Gate 3 questions, but the set also logically includes Gate 2 questions that have advisory subtypes). Consider renaming to `ADVISORY_QIDS` or `STRUCTURAL_ADVISORY_QIDS` for clarity. Also investigate whether Q-FX2 and Q-FX4 consistently TIE across all iterations — if so, they may not be discriminating questions for this type of diff and could be deprioritized in future evaluation sets.
+
+**Best experiment:** Exp-1 (GG+HH+II) — 46.7% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+46.7% spread, calibration warning noted)
+
+---
+
+## Technique History
+
+### 2026-03-17 — Iteration 10 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (GG+HH+II combined)
+**Verdict:** IMPROVED (decided by: quality, +46.7% spread, calibration warning noted)
+
+**What worked:**
+- Option GG (advisory_findings_cache variable fix): Moved cache-population block inside `FOR evaluator_name, data in all_results:` loop; corrected `current_evaluator_result.findings` → `data.findings`; added ELIF clean-PASS branch to clear ghost advisories on overwrite. Primary correctness fix — the Iter 9 EE feature was silently non-functional without this. Q-FX3, Q-FX6, Q-FX7 all 0/4/1 B-wins. DYN-35/36 both 0/4/1 confirming fix is sound.
+- Option HH (GATE3_QIDS scope filter): Prevents advisory cache from accumulating informational PASS text from gas/node/cluster evaluators. `GATE3_QIDS = {"Q-G25"}` defined in Step 4. DYN-37 0/4/1 confirms scope gate is active.
+- Option II (behavioral contract comment): Documents overwrite + clear semantics in cache initialization block. NEUTRAL standalone but essential for correctness of GG's ELIF branch — reduces ambiguity about union vs overwrite behavior on re-run.
+
+**What didn't work:**
+- Nothing regressed. Q-FX1/FX2/FX4 all tied (0/0/5) — no conciseness or format penalty. Q-FX5 (grounding) weak B-win (0/2/3) — expected, hallucination risk independent of cache changes.
+
+**Actionable learning:**
+The advisory_findings_cache variable scope bug is the canonical example of a silent failure in pseudocode-style LLM orchestrator prompts: undefined variable references cause the model to either silently skip the block or read from the wrong scope, producing zero-result behavior with no error signal. When inserting new state-management logic into an existing loop-based orchestrator prompt, ALWAYS verify the variable reference matches the loop variable name at the insertion point. The fix pattern (move-inside-loop + rename-variable + add-ELIF-clear) is reusable for any future accumulator variable added to the fan-in routing block.
+
+**Scope gate WARNs:**
+- Q-SG5 WARN: Verify no other `current_evaluator_result` references remain in SKILL.md after GG fix — any residual reference in other blocks would indicate the same undefined-variable bug.
+- Q-SG12 WARN: GATE3_QIDS name slightly misleading (includes Gate 2 questions with advisory subtypes as a future expansion target), but behavior is correct for the current set. Monitor for naming confusion in future iterations if GATE3_QIDS expands.
+

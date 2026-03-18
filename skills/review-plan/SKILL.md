@@ -284,8 +284,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # Path is stable (no timestamp) so context recovery always finds the right file.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
-   advisory_findings_cache = {}  # Q-ID → {"finding": "<text>", "source": "<evaluator>"}
-   # Populated from non-memoized evaluator results; preserved when evaluator memoizes; cleared on invalidation.
+   advisory_findings_cache = {}
+   # advisory_findings_cache: Q-ID → {"finding": "<text>", "source": "<evaluator>"}
+   # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per GATE3_QIDS).
+   # Later-pass entries overwrite earlier — preserves freshest advisory text.
+   # Entry cleared when PASS with empty finding — signals condition was resolved by edits.
+   # Persisted in memo_file checkpoint for context-compression resilience.
    ```
 
 5. **Results directory setup:**
@@ -1160,10 +1164,15 @@ DO:
       cluster_name = evaluator_name minus "-evaluator" suffix
       cluster_results[cluster_name] = data.findings
 
-  # Populate advisory_findings_cache from PASS-with-finding entries
-  FOR q_id, entry in current_evaluator_result.findings:
-    IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
-      advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+    # Populate advisory_findings_cache from PASS-with-finding entries (Gate 3 advisory notes)
+    GATE3_QIDS = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    FOR q_id, entry in data.findings:
+      IF q_id not in GATE3_QIDS:
+        continue  # only cache advisory-tier questions
+      IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+        advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+      ELIF entry.status == "PASS" AND (entry.finding is null OR entry.finding == ""):
+        advisory_findings_cache.pop(q_id, None)  # clear stale entry if condition resolved
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from all_results (L1, cluster, ecosystem, and ui evaluators)
