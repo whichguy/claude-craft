@@ -437,6 +437,8 @@ Generate evaluation questions for the quality judge to compare baseline vs impro
 - Q-FX5: Is the output grounded in the input — no hallucinations or unsupported claims?
 - Q-FX6: Does the output demonstrate sound reasoning and decision logic — no circular dependencies, contradictory instructions, or unresolved ambiguities?
 - Q-FX7 (when HAS_DOWNSTREAM_DEPS=true): If the output produces instructions for downstream agents or references external dependencies (files, tools, state), are those references complete, correct, and unambiguous? [omit if HAS_DOWNSTREAM_DEPS=false]
+- Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity? (Flags cases where the improved prompt is larger but the gain doesn't justify the added tokens.)
+- Q-FX9: Does the improved prompt preserve or improve detection depth, breadth, accuracy, and precision — specifically, does it not sacrifice evaluator thoroughness in exchange for other gains such as calibration, conciseness, or format changes?
 
 **UX questions** (include when HAS_OUTPUT_FORMAT=true — prompt produces human-facing structured output with explicit formatting specs):
 - Q-UX1: Is the output's visual hierarchy clear — key decisions and verdicts are prominent, supporting details subordinate?
@@ -516,6 +518,8 @@ Research summary:
 - Q-FX5: Is the output grounded — no hallucinations or unsupported claims?
 - Q-FX6: Does the output demonstrate sound reasoning — no circular logic, contradictions, or unresolved ambiguities?
 {IF HAS_DOWNSTREAM_DEPS: - Q-FX7: Are downstream agent instructions and external dependency references complete and unambiguous?}
+- Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity?
+- Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision — does it not sacrifice evaluator thoroughness for calibration, conciseness, or format changes?
 
 ### UX (when HAS_OUTPUT_FORMAT=true — weighted 0.5×)
 {IF HAS_OUTPUT_FORMAT:
@@ -1267,6 +1271,7 @@ FOR i in 1..iterations:
       git commit -m "$(cat <<'EOF'
 improve({basename}): {1-line summary from best experiment's Implemented Direction}
 
+Quality: {quality_score_a:.1%} → {quality_score_b_{best_k}:.1%} ({quality_spread_{best_k}:+.1%})
 What worked: {CONTRIBUTED_TO_WIN options from Technique History entry}
 Actionable learning: {Actionable learning text from Technique History entry}
 {IF len(excluded_experiments) > 0: for each k in excluded_experiments:
