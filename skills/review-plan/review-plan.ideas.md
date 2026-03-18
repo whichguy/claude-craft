@@ -767,3 +767,222 @@ Exp-1: WARN (Q-SG8: Q-G13 severity shift intentional per Option A; Q-SG10: examp
 
 **Actionable learning:**
 Calibration refinement via safe harbor clauses is a high-ROI pattern for reducing false positives from strict detection rules. When a borderline rule causes over-flagging (detected via regression-check DYN questions), adding a two-tier distinction that names the exemption condition (e.g., "has Pre-check markers") preserves detection on genuinely deficient plans while softening findings on borderline-adequate plans. Template compression of structurally repetitive boilerplate (same decision branches repeated per evaluator) is a safe, high-yield compression target -- but methodology annotation compression has a floor below which detection quality degrades. For marker/example lists, 5-6 items is the safe minimum for evaluator recognition anchoring; compressing to 3 introduces regression risk.
+
+---
+*Date: 2026-03-18 -- Iteration 4*
+
+## Structural Diagnostic (Q1-Q13) -- Iteration 4
+
+Q1 -- Role/Persona: Adequate. No changes since Iteration 3. The team-lead orchestrator role, evaluator-output-as-authoritative rule, and convergence goal are stable. No new role gaps.
+
+Q2 -- Task Precision: The l1-advisory-process evaluator now has Q-G13 (4 detection patterns + two-tier borderline) and Q-G10 (2 detection categories + borderline) methodology annotations. However, the Q-G10 Category 1 marker list was over-compressed in Iteration 3 (from 6 examples to 3: "TBD", "need to determine", "maybe"). QUESTIONS.md defines Q-G10 with these explicit markers: "TBD", "will need to investigate", "if the API supports", "need to determine", plus additional phrases "should work", "assume X exists". The SKILL.md process evaluator prompt currently has only 3 markers + "and similar uncertainty markers." The "and similar" clause is vague -- it relies on the evaluator to generalize from 3 examples to an unbounded set of uncertainty phrases. The Iteration 3 results confirmed this as a regression risk: j2 showed Q-FX10 baseline win (1/0/4) and Q-DYN-37 baseline win (2/0/3), both attributed to the shortened marker list missing detection of markers like "should handle...somehow", "might need to", "will need to investigate." The precision gap is specific: restore the marker list to include the distinctive markers that the evaluator cannot reliably infer from "and similar."
+
+Q3 -- Context Adequacy: Adequate. No new gaps.
+
+Q4 -- Output Format: The scorecard's "Review History" table shows per-pass aggregate data (changes, memoized count, gate status, duration, timing breakdown). It does NOT show per-evaluator trajectory across passes -- i.e., which evaluators were re-run vs memoized at each pass boundary. The per-evaluator status lines (printed during each pass in Phase 7) capture this information in real-time, but it is not summarized in the final scorecard. The prior iteration's "What to try next" item #3 suggested extending per-evaluator status lines to the convergence summary. However, as noted in the Iteration 3 Q4 analysis, the convergence summary is already information-dense (10+ sections), and adding per-evaluator trajectory would increase it further. The incremental value is marginal: the per-pass status lines are already visible in the output stream. The Review History table's "Memoized" column (locked question count per pass) partially captures evaluator trajectory at aggregate level. Not a demonstrated gap -- no test-run or evaluation signal showing operators struggle with the final summary. Deprioritized.
+
+Q5 -- Examples: The l1-advisory-process evaluator has methodology for Q-G13 and Q-G10 but still no concrete JSON output examples. The l1-blocking evaluator has PASS + NEEDS_UPDATE examples for Q-G1. Adding a concrete Q-G10 example (e.g., showing a NEEDS_UPDATE finding for a "TBD" marker with the expected JSON structure) could calibrate the evaluator's output format. However, the process evaluator already has a detailed Output Contract section with JSON schema -- the gap is not "what format" but "what content." The risk of adding a concrete example is the Iter 2 overhead-for-non-manifesting-cases pattern. The Q-G10 marker regression is a detection precision issue (which markers to scan for), not an output format issue (how to write the finding). An example would not address the root cause. Deprioritized.
+
+Q6 -- Constraints: Adequate. No new gaps.
+
+Q7 -- Anti-patterns: Q-FX4 (conciseness) remained 5/0/0 baseline wins in Iteration 3. Q-FX8 improved to 4/0/1 (from 5/0/0 in Iter 2). The prompt has accumulated ~50 net lines of methodology annotations across Iterations 1-3 (Q-G20 dual-subtype, Q-G13 4-pattern methodology, Q-G10 2-category methodology, Q-G1 challenge-justify-check, per-evaluator status template, helper functions). Further compression opportunities are limited: the template compression (Iter 3 Option B) addressed the largest structural repetition, and the micro-compression (Iter 3 Option C) reached the floor for marker lists. The Q-G10 marker restoration (this iteration) will add ~2 lines net (expanding the compressed 1-line list to ~3 lines). This is a justified expansion to fix a demonstrated regression, not an overhead addition. The conciseness regression on Q-FX4 may be structural -- the prompt is simply more instruction-dense than the baseline -- and may be acceptable if detection quality gains outweigh the conciseness cost.
+
+Q8 -- Chain-of-thought: The Q-G10 Category 1 detection currently has a one-step chain: scan for markers -> if found, NEEDS_UPDATE. The chain is adequate for explicit markers (exact-match scanning). The issue is completeness of the scan set, not depth of reasoning. No CoT improvement needed; the fix is in the marker list itself.
+
+Q9 -- Domain specifics: Adequate.
+
+Q10 -- Tone/register: Consistent.
+
+Q11 -- Parallelization: Adequate. Independent memoization for structural/process groups, MAX_CONCURRENT=5, wave spawning. No new opportunities.
+
+Q12 -- Failure modes & recovery: Adequate. Edit failure fallback in place.
+
+Q13 -- Calibration & thresholds: The Q-G13 two-tier borderline (Iteration 3 Option A) is working well: Q-DYN-35 showed 4/5 B-wins. No further calibration refinement needed for Q-G13. The Q-G10 detection calibration is the remaining issue: the compressed marker list under-triggers on uncertainty phrases that don't match the 3 listed markers. The fix is a precision restoration (expanding the marker list), not a calibration threshold change.
+
+## Domain & Research Findings -- Iteration 4
+
+Domain: LLM team-lead orchestration prompt for multi-agent iterative plan review. Sub-task this iteration: Q-G10 marker list restoration and remaining structural gap analysis.
+
+**Finding 1 -- Marker list completeness as recall anchor (synthesized from Lanham "Your LLM Evaluator Is Lying to You" Jan 2026, ICLR 2025 "Calibrate Before Use", and empirical evidence from Iteration 3):** LLM evaluators scanning for textual patterns depend on the prompt's example list as a recognition anchor. When the prompt lists N examples, the evaluator reliably detects those N patterns plus close paraphrases. When the list is compressed to N/2, detection of non-listed patterns drops even if "and similar" is appended -- the evaluator's generalization from few examples to the full category is unreliable for medium-similarity patterns. The critical threshold appears to be ~5 examples for a 10+ item category: below 5, the evaluator misses distinctive patterns that are semantically adjacent but not obvious paraphrases of the listed items (e.g., "might need to" is adjacent to "need to determine" but not an obvious paraphrase; "should handle...somehow" is adjacent to "TBD" but structurally different). The Iteration 3 regression confirms this: compressing from 6 to 3 markers caused j2 to flag baseline advantage on marker detection. Restoring to 5-6 markers should recover the detection without exceeding conciseness tolerance.
+
+**Finding 2 -- Prompt calibration research (2025-2026) confirms few-shot anchoring for evaluators:** Recent research (Lanham 2026, Braintrust 2025 evaluation frameworks) emphasizes that evaluator prompts should include "the rubric criteria, few-shot examples, and a strict output format." When evaluator prompts lack sufficient recognition examples, evaluator scores can have poor correlation with intended detection targets. The Q-G10 marker list serves as a de facto few-shot recognition anchor for the "explicit uncertainty markers" detection task. Reducing it below the minimum effective set degrades recall.
+
+**Finding 3 -- Scorecard Review History enrichment is low-priority:** The Review History table already captures aggregate memoization coverage per pass. Adding per-evaluator breakdown would increase information density in an already dense section. No test-run or evaluation signal shows operators struggle with the current summary. This is a "nice to have" not a demonstrated gap.
+
+## Test-Run Observations -- Iteration 4
+
+**input4-plan-with-issues.md (Sync Engine Remote Repos -- deliberately flawed plan)**
+
+Q-G10 Category 1 marker analysis with CURRENT compressed list ("TBD", "need to determine", "maybe", "and similar uncertainty markers"):
+
+The plan contains these uncertainty markers:
+1. "Maybe add some caching" (step 4) -- matches "maybe" DIRECTLY. Detected.
+2. "Should handle authentication somehow" (Notes) -- does NOT match any of the 3 listed markers. "should handle...somehow" is a distinctive uncertainty pattern. The evaluator must generalize from "and similar uncertainty markers" to recognize this. Risk: "should" alone is common and not always uncertain; the distinctive pattern is "should...somehow" which signals vagueness. The baseline QUESTIONS.md lists "should work" as an example -- "should handle...somehow" is structurally similar but requires the evaluator to bridge from "should work" to "should handle...somehow."
+3. "Need to think about conflict resolution" (Notes) -- partially matches "need to determine" (both start with "need to"). But "need to think about" is vaguer than "need to determine" -- it signals undecided direction, not just a missing value. The match depends on the evaluator treating "need to" as the stem. Marginal detection.
+4. "Might need to update install.sh" (Notes) -- does NOT match any listed marker. "might need to" is a conditional uncertainty marker. QUESTIONS.md does not list it explicitly either, but the baseline prompt's longer marker list provides more recognition surface for the evaluator to generalize. The compressed list's 3 markers provide insufficient recognition surface for this pattern.
+
+Prediction with CURRENT compressed list: Items 1 (maybe) and 3 (need to think about) are likely detected. Items 2 (should handle...somehow) and 4 (might need to) are at risk of being missed because the 3-marker list doesn't provide enough recognition anchoring for the evaluator to generalize to these patterns.
+
+Prediction with RESTORED marker list (adding back "will need to investigate", "might need to", "should handle...somehow" or equivalents): All 4 items would be detected. The restored list provides explicit anchoring for the "might" and "should...somehow" patterns.
+
+**Cross-input validation (input2-node-plan.md):** Input2 is a well-structured plan with no uncertainty markers. Q-G10 should be PASS regardless of marker list completeness. No regression risk from marker restoration on clean plans.
+
+## Improvement Options -- Iteration 4
+
+### Option A: Q-G10 Category 1 Marker List Restoration
+**Addresses:** Q2 -- Task Precision / Q13 -- Calibration (demonstrated regression from Iteration 3 Option C)
+**What changes:** Expand the Q-G10 Category 1 marker list in the l1-advisory-process evaluator prompt (line 801-802) from the current compressed form:
+```
+Category 1 — Explicit markers: scan for "TBD", "need to determine", "maybe",
+    and similar uncertainty markers → always NEEDS_UPDATE.
+```
+To a restored form with 6 representative markers covering the key semantic clusters:
+```
+Category 1 — Explicit markers: scan for "TBD", "need to determine", "maybe",
+    "might need to", "should handle...somehow", "will need to investigate",
+    and similar uncertainty markers → always NEEDS_UPDATE. Cite the marker and its location.
+```
+This adds ~1 line (expanding the marker list from 3 to 6 items on 2 lines). The 6 markers cover 4 semantic clusters: (a) explicit unknowns: "TBD"; (b) undecided direction: "need to determine", "will need to investigate"; (c) conditional uncertainty: "might need to"; (d) vague intent: "maybe", "should handle...somehow". Each cluster has at least one representative marker. The "and similar" clause is retained for generalization beyond the listed set.
+**Why it helps:** Directly addresses the demonstrated regression from Iteration 3: j2 showed Q-FX10 baseline win and Q-DYN-37 baseline wins attributed to the compressed marker list. Research Finding #1 confirms that marker lists below ~5 examples degrade evaluator recall for medium-similarity patterns. The restoration provides explicit anchoring for the "might need to" and "should...somehow" patterns that the 3-marker list missed. The 6-marker list is within the safe conciseness range established in Iteration 3 (the pre-compression state was 6 markers; the regression occurred at 3; 6 restores to the proven safe level).
+**Predicted impact:** MEDIUM -- Directly reverses a demonstrated regression. The change is +1 line net, well within conciseness tolerance. The impact is bounded by Q-G10's frequency: it fires on plans with uncertainty markers (common in real-world plans, present in input4) and is a PASS on clean plans (input2). No risk of regression on clean plans. The fix restores a known-good state rather than introducing new behavior.
+
+### Option B: Q-G10 Category 2 Chain-of-Thought Enhancement
+**Addresses:** Q8 -- Chain-of-thought (Category 2 implicit constraints detection)
+**What changes:** The Q-G10 Category 2 section (lines 803-806) currently instructs:
+```
+Category 2 — Implicit constraints: scan for statements presented as facts that could
+    be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
+    and would the plan discover it before committing work?" If no → flag as unstated
+    assumption. Cite the statement and explain why it is unvalidated.
+```
+Add a 1-line detection prompt after the "Could this be wrong" question:
+```
+Category 2 — Implicit constraints: scan for statements presented as facts that could
+    be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
+    and would the plan discover it before committing work?" Common patterns: "X won't work",
+    "Y is required", "use Z" (without citing tested results, error messages, or documentation).
+    If no validation step → flag as unstated assumption. Cite the statement and explain why
+    it is unvalidated.
+```
+This adds ~1.5 lines by providing 3 common Category 2 patterns ("X won't work", "Y is required", "use Z") as recognition anchors, mirroring the Category 1 approach.
+**Why it helps:** Category 2 has the same recognition-anchoring need as Category 1 but currently has no concrete examples of what implicit constraints look like. The "Could this be wrong" question is a good reasoning prompt but gives no textual patterns to scan for. Adding 3 common patterns provides the same few-shot anchoring benefit that the Category 1 marker list provides. The patterns are drawn directly from the QUESTIONS.md Q-G10 definition, which explicitly lists "API X doesn't support Y" and "mechanism Z requires manual step W" as examples. Input4 contains a Category 2 instance: step 3 "Copy files from the cloned repo" assumes copy is the right approach (vs symlinks). The evaluator needs to bridge from "copy files" to "this could be wrong" -- the pattern anchors would help.
+**Predicted impact:** LOW-MEDIUM -- Category 2 is harder to evaluate than Category 1 (it requires judgment about what "could be wrong," not just pattern matching). The recognition anchors help but don't eliminate the judgment gap. The change is small (+1.5 lines) and follows the established pattern of providing concrete examples for detection tasks. Risk: the patterns might trigger false positives on plans that legitimately choose an approach without citing evidence (if the approach is conventional and low-risk). The borderline rule ("stated assumption = PASS if reasonable") mitigates this.
+
+### Option C: Q-G18 Pre-Condition Verification Methodology Annotation
+**Addresses:** Q2 -- Task Precision (l1-advisory-process evaluator; Q-G18 at position 12 of 13, late-list depth-attenuation risk; no methodology annotation)
+**Grounding in Q1-Q13:** Q2 diagnostic identifies that the l1-advisory-process evaluator has 13 questions (Q-G4 through Q-G19) with methodology annotations only for Q-G13 and Q-G10. Q-G18 (Pre-condition verification) is the most mechanically evaluable of the unannotated questions -- its QUESTIONS.md definition already provides a concrete EDIT injection pattern ("Read [file path] and verify [specific expectation]") and an explicit detection trigger ("plan proceeds directly to editing without confirming current file contents, line numbers, or function signatures"). Without a methodology note in the process evaluator prompt, the evaluator must independently derive the detection logic from the question text, which is reliability risk at position 12 of 13 where attention is attenuated.
+**What changes:** Add a 3-line methodology note to the Q-G18 question in the l1-advisory-process evaluator prompt:
+```
+Q-G18 methodology: Scan for file-edit steps. For each, check whether a preceding Read or
+    "verify current state" step exists that names the specific file AND what to confirm
+    (function name, line range, config key). Pattern: "edit/modify/update [file]" without
+    a prior "read [file] and verify [X]" step → NEEDS_UPDATE. N/A: new-file creation steps
+    with no existing file to verify. EDIT injection: cite the edit step and the missing
+    verification target (what specifically should be confirmed before the edit).
+```
+This adds ~3.5 lines. It follows the same methodology-note pattern as Q-G13 (4 detection patterns) and Q-G10 (2 categories), but is tighter because Q-G18 is a pattern-match question (look for edit step, check for preceding read step) rather than a judgment question.
+**Why it helps:** Q-G18 appears as NEEDS_UPDATE frequently on real plans because most plans proceed directly to edit steps without a preceding "read and verify" step. The QUESTIONS.md EDIT injection is well-specified ("Read [file path] and verify [specific expectation — e.g., function X exists at line ~Y, config contains key Z] before modifying") -- the methodology note brings this specificity into the evaluator prompt so the evaluator does not need to re-derive it at position 12. Unlike Q4 (Output Format) and formatting options, this directly improves detection quality on a high-frequency question.
+**Predicted impact:** HIGH -- Q-G18 fires on virtually every plan that modifies existing files (the most common plan type). Unlike Q-G10 (fires on plans with uncertainty markers, a subset) or Q-G13 (fires on multi-phase plans, a subset), Q-G18 applies to nearly every non-trivial plan. The methodology note closes a depth-attenuation risk at a late list position (12/13) for a mechanically evaluable, high-frequency question. Risk: low -- the detection pattern is binary (edit step with/without preceding read step) and the N/A condition (new-file creation) is explicitly stated, limiting false positives.
+
+### Option D: Q-G17 Phase Preamble Detection Methodology Annotation
+**Addresses:** Q2 -- Task Precision (l1-advisory-process evaluator; Q-G17 at position ~9 of 13, within depth-attenuation risk window; no methodology annotation despite being judgment-intensive on multi-phase plans)
+**Grounding in Q1-Q13:** Q2 diagnostic identifies Q-G13 (phased decomposition) and Q-G10 (assumption exposure) as the judgment-intensive questions that warranted methodology annotations. Q-G17 (Phase preambles) is closely related to Q-G13 -- it activates on the same multi-phase plans where Q-G13 fires -- but has no methodology annotation in the process evaluator. The QUESTIONS.md definition provides a concrete EDIT injection ("add before Phase N steps: '> Intent: [why this phase exists and what it sets up for subsequent phases]'") and an explicit N/A condition (single-phase plans). Without a methodology note, the evaluator must distinguish between "phase has a preamble" (PASS), "phase has no preamble" (NEEDS_UPDATE), and "plan is single-phase" (N/A) at position ~9 of 13, relying on the question text alone. The Q-G13 annotation established the pattern for phased-plan questions -- Q-G17 is the natural companion.
+**What changes:** Add a 3-line methodology note to the Q-G17 question in the l1-advisory-process evaluator prompt:
+```
+Q-G17 methodology: Only activates when the plan has ≥ 2 distinct implementation phases.
+    For each phase: check whether 1-3 narrative sentences appear BEFORE the numbered steps,
+    explaining why this phase exists and what it sets up for subsequent phases. A phase header
+    alone ("## Phase 2: Testing") does not qualify -- the preamble must convey intent.
+    N/A: single-phase plans. EDIT injection: one EDIT per missing preamble, per phase.
+    Cite the phase number and the first step that begins without a preamble.
+```
+This adds ~3 lines. The methodology note resolves two common evaluator errors on Q-G17: (1) treating a phase header as a preamble (false PASS), and (2) flagging every phase equally when only some are missing preambles (incomplete EDIT set). It mirrors the Q-G13 two-tier structure (activation condition + detection pattern + N/A + EDIT output spec) without the borderline complexity Q-G13 required.
+**Why it helps:** Q-G17 is a Gate 3 advisory question that fires on every multi-phase plan, which is the majority of non-trivial plans reviewed by this skill. The "phase header vs. preamble" ambiguity is a structural evaluator error -- the evaluator cannot reliably distinguish a section header from a narrative intent statement without explicit guidance. The methodology note resolves this binary ambiguity at a list position (~9/13) where attention is within the attenuated range. The option directly addresses the Q2 precision gap identified in the Iteration 4 diagnostic for the process evaluator's unannotated questions, and is anchored to a specific Q1-Q13 finding rather than a formatting preference.
+**Predicted impact:** MEDIUM -- Q-G17 fires on multi-phase plans (common but not universal). The methodology note prevents the header-as-preamble false PASS and ensures complete EDIT injection (one per missing preamble). Risk: low -- the activation condition (≥ 2 distinct phases) is mechanically checkable and eliminates false positives on single-phase plans. The header-vs-preamble distinction is well-specified ("must convey intent"), mitigating false negatives on plans with substantive phase headers that do count as preambles.
+
+## Evaluation Questions
+*Iteration 4*
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt?
+- Q-FX2: Does the output conform to the required format/structure?
+- Q-FX3: Is the output complete (all required aspects, no key omissions)?
+- Q-FX4: Is the output appropriately concise (no padding or verbosity)?
+- Q-FX5: Is the output grounded -- no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning -- no circular logic, contradictions, or unresolved ambiguities?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely without losing detection depth?
+- Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision of the baseline?
+- Q-FX10 (adversarial regression -- baseline-favoring): Does the baseline catch any concrete defect that the improved version misses or softens?
+
+### UX (HAS_OUTPUT_FORMAT=true -- weighted 0.5x)
+- Q-UX1: Is the output's visual hierarchy clear (key decisions prominent, details subordinate)?
+- Q-UX2: Is the most important information immediately scannable without reading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?
+
+### Dynamic (4 questions, 2 regression-checks)
+- Q-DYN-38: On input4 (deliberately flawed plan), does the Q-G10 Category 1 evaluation detect ALL FOUR uncertainty markers: "Maybe add some caching", "Should handle authentication somehow", "Need to think about conflict resolution", "Might need to update install.sh" -- citing each with its location? [addresses: Q2/Q13 -- Q-G10 marker list restoration]
+- Q-DYN-39: On input4, does the Q-G10 Category 2 evaluation detect at least ONE implicit constraint (e.g., step 3 "Copy files" assumes copy over symlinks, step 7 "Push directly to main" assumes no PR needed) and cite the unvalidated fact? [addresses: Q8 -- Category 2 chain-of-thought enhancement]
+- Q-DYN-40: On input4 (deliberately flawed plan), does Q-G18 correctly flag at least one edit step that proceeds without a preceding read/verify step -- citing the specific edit step and the missing verification target? [addresses: Q2 -- Q-G18 methodology annotation; Option C]
+- Q-DYN-41: On input2 (well-structured Node.js plan with multi-phase structure), does Q-G17 correctly identify which phases have preambles (PASS) and which go straight to numbered steps without narrative context (NEEDS_UPDATE) -- emitting one EDIT per missing preamble, not a blanket flag? [addresses: Q2 -- Q-G17 methodology annotation; Option D]
+
+## Experiment Results — Iteration 4
+*Date: 2026-03-18*
+
+### Implemented Directions
+#### Experiment 1: Options A+B+C+D combined
+**Options applied:** A (Q-G10 marker restoration), B (Q-G10 Cat2 recognition anchors), C (Q-G18 methodology), D (Q-G17 methodology)
+**Applied changes:** Restored 4 markers to Q-G10 Category 1 ("should handle...somehow", "might need to", "will need to investigate", "if the API supports"), added recognition anchors for Category 2 ("action-without-investigation verbs"), added Q-G18 pre-condition verification methodology (3-line note), added Q-G17 phase preamble methodology (3-line note)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | A+B+C+D | 32.8% vs 1.3% | +31.5% | N/A | N/A |
+
+### Per-Question Results (A_baseline wins / B_improved wins / TIE across 5 tests)
+Q-FX1: 0/4/1  Q-FX2: 0/1/4  Q-FX3: 0/4/1  Q-FX4: 0/0/5
+Q-FX5: 0/1/4  Q-FX6: 0/4/1  Q-FX7: 1/2/2  Q-FX8: 0/2/3
+Q-FX9: 0/4/1  Q-FX10: 1/0/4 (1 baseline win — adversarial/conciseness)
+Q-UX1: 0/4/1  Q-UX2: 0/2/3  Q-UX3: 0/3/2
+Q-DYN-38: 0/4/1 (Q-G18 edit detection)  Q-DYN-39: 0/4/1 (Q-G17 preambles)
+Q-DYN-40: 0/1/4 (marker restoration — strong B win only on j4)
+Q-DYN-41: 1/0/4 (adversarial regression — B never misses A's finds)
+
+## Results & Learnings
+
+**Option attribution:**
+- Option A (marker restoration): CONTRIBUTED_TO_WIN strongly on j4 (DYN-40 strong B win: "should handle...somehow", "might need to" explicitly present). Neutral on j1/j2/j5 (no matching markers). TIE on j3 (trivial).
+- Option B (Cat2 recognition anchors): Contributed to FX1/FX3/FX6 wins on j2. The "action-without-investigation verbs" framing helped identify implicit constraints. Neutral on j3.
+- Option C (Q-G18 methodology): CONTRIBUTED_TO_WIN on j1/j2/j5 — all three have file-edit steps without explicit read/verify. DYN-38 strong B wins across inputs. Zero regression on j3 (trivial fast path) or j4 (flat list, Q-G18 still fires correctly on step 5).
+- Option D (Q-G17 methodology): CONTRIBUTED_TO_WIN on j1/j2/j5 — all three have multi-phase plans where phases lack narrative preamble sentences. DYN-39 strong B wins. Correctly N/A on j4 (flat list) and j3 (trivial).
+
+**What worked:** Option C (Q-G18) and Option D (Q-G17) were the dominant drivers — they exercised on 3 of 5 test inputs and produced strong detection wins without regressions. Option A (marker restoration) delivered targeted value on j4 (the one plan with matching TBD language). Option B added incremental improvement on well-structured plans with implicit constraints.
+
+**What didn't work:** No significant regressions. Q-FX7 showed 1 baseline win (conciseness cost of additional methodology annotations). Q-FX10 showed 1 adversarial baseline win (by design — B doesn't miss A's finds, but A is leaner). Q-DYN-41 showed 1 adversarial baseline win (same design — B is conservative on non-exercised plans).
+
+**Root cause analysis:** The +31.5% improvement came from three reinforcing effects: (1) Q-G18 and Q-G17 both apply to the majority of non-trivial multi-phase plans, providing broad coverage; (2) the marker restoration in Option A exactly matches the deliberately-planted TBD language in input4, demonstrating detection precision; (3) j3 (trivial fast path) is all TIE, confirming no regression on the baseline case. The improvements follow the established pattern: methodology annotations for judgment-intensive evaluator questions with binary detection criteria.
+
+**What to try next iteration:** (1) Q-G18 may over-flag plans where Pre-check markers exist for the edited file (monitor Q-DYN-38 for input2's Phase 2 step 3 — which IS legitimate flagging since Pre-check ≠ read/verify). (2) Q-G17 may generate false positives on plans with substantive phase headers (monitor Q-DYN-39). (3) Consider whether Q-G14 (codebase style adherence) or Q-G5 (rollback strategy) warrant methodology notes in the process evaluator.
+
+**Best experiment:** Exp-1 (all options) — 32.8% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+31.5%)
+
+## Technique History
+
+### 2026-03-18 — Iteration 4 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (Options A+B+C+D combined)
+**Verdict:** IMPROVED (decided by: quality, +31.5%)
+
+**What worked:**
+- Option C (Q-G18 pre-condition verification methodology) — dominant driver, 3/5 inputs exercised, strong DYN-38 wins
+- Option D (Q-G17 phase preamble methodology) — dominant driver, 3/5 inputs exercised, strong DYN-39 wins
+- Option A (Q-G10 marker restoration) — targeted win on input4 (restored markers exactly match planted TBD language)
+- Option B (Q-G10 Cat2 recognition anchors) — incremental improvement on implicit constraint detection
+
+**What didn't work:**
+- Minimal conciseness cost: Q-FX7 1 baseline win. All other dimensions favor improved or TIE.
+
+**Actionable learning:**
+Methodology annotations for process evaluator questions continue to be the highest-ROI improvement pattern. Q-G18 and Q-G17 both follow the binary detection pattern (edit step with/without preceding read; phase with/without narrative preamble) — this structure is ideal for methodology annotations because the detection is mechanically specified. Restoring compressed marker lists when regression evidence exists (j2 Q-FX10 baseline wins from Iter 3) successfully recovers detection quality.

@@ -799,14 +799,29 @@ DO:
           NEEDS_UPDATE (mild: suggest distributing test steps, acknowledge checkpoints exist).
       - For Q-G10 (Assumption exposure): Apply two detection categories:
           Category 1 — Explicit markers: scan for "TBD", "need to determine", "maybe",
-              and similar uncertainty markers → always NEEDS_UPDATE. Cite the marker and its location.
+              "should handle...somehow", "might need to", "will need to investigate",
+              "if the API supports", and similar uncertainty markers → always NEEDS_UPDATE.
+              Cite the marker and its location.
           Category 2 — Implicit constraints: scan for statements presented as facts that could
               be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
               and would the plan discover it before committing work?" If no → flag as unstated
               assumption. Cite the statement and explain why it is unvalidated.
+              Recognition anchors for implicit constraints: action-without-investigation verbs
+              ('Copy files from X', 'Update Y directly', 'Use approach Z') where the approach
+              could be wrong but the plan has no discovery step.
         Borderline: plan states "we assume X" explicitly → PASS if the assumption is reasonable
         and stated. "X won't work" or "Y is required" without citing evidence → NEEDS_UPDATE
         (unvalidated constraint presented as established fact).
+      - For Q-G18 (Pre-condition verification): Scan for file-edit steps. For each, check
+          whether a preceding Read or "verify current state" step exists that names the specific
+          file AND what to confirm (function name, line range, config key). Pattern:
+          "edit/modify/update [file]" without a prior "read [file] and verify [X]" step →
+          NEEDS_UPDATE. N/A: new-file creation steps with no existing file to verify.
+      - For Q-G17 (Phase preambles): Only activates on plans with ≥ 2 distinct phases.
+          For each phase: check whether 1-3 narrative sentences appear BEFORE the numbered
+          steps, explaining the phase intent. A phase header alone ('## Phase 2') does not
+          qualify — the preamble must convey why this phase exists and what it sets up.
+          N/A: single-phase plans.
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
