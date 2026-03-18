@@ -545,6 +545,41 @@ DO:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process ── memoized (13 questions stable since p[l1_process_memoized_since])"
 
+  --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
+  # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
+  # Gas-evaluator and node-evaluator use their own output contracts (defined in external eval files).
+  #
+  # Output contract — write findings to JSON file:
+  #   Write your findings to: <RESULTS_DIR>/EVALUATOR_NAME.json
+  #
+  #   JSON schema:
+  #   {
+  #     "evaluator": "EVALUATOR_NAME",
+  #     "pass": <pass_count>,
+  #     "status": "complete",
+  #     "elapsed_s": <seconds_from_start>,
+  #     "findings": {
+  #       "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+  #       ...
+  #     },
+  #     "counts": {"pass": N, "needs_update": N, "na": N}
+  #   }
+  #
+  #   Write atomically using Bash (ensures clean reads by orchestrator):
+  #     cat > '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' << 'EVAL_EOF'
+  #     <json>
+  #     EVAL_EOF
+  #     mv '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' '<RESULTS_DIR>/EVALUATOR_NAME.json'
+  #
+  #   If you encounter an error reading inputs, write:
+  #     {"evaluator": "EVALUATOR_NAME", "pass": <pass_count>, "status": "error", "error": "<message>"}
+  #
+  # Constraints:
+  #   - Do not use Edit or Write tools on the plan file — read-only
+  #   - Use Bash ONLY to write your findings JSON to the specified path
+  #   - Do not call ExitPlanMode or touch marker files
+  #   - Write exactly ONE JSON file
+
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
@@ -594,36 +629,7 @@ DO:
         Example — PASS: "Plan cites 'better-sqlite3: 2.3µs vs 45µs flat-file, 10k iterations
           (bench/results/...)'. Evidence-backed approach — no challenge needed."
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-blocking.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-blocking",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-blocking.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-blocking.json.tmp' '<RESULTS_DIR>/l1-blocking.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-blocking", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-blocking" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -708,36 +714,7 @@ DO:
           [EDIT: add '## Verification\n- Run npm test\n- Confirm no regressions in CI']"
         Example — PASS: "Plan includes 'Run npm test for unit tests' in Verification — feedback loop present."
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-advisory-structural.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-advisory-structural",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-advisory-structural.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-advisory-structural.json.tmp' '<RESULTS_DIR>/l1-advisory-structural.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-advisory-structural", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-structural" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -826,36 +803,7 @@ DO:
           qualify — the preamble must convey why this phase exists and what it sets up.
           N/A: single-phase plans.
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-advisory-process",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-advisory-process.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-advisory-process.json.tmp' '<RESULTS_DIR>/l1-advisory-process.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-advisory-process", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-process" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -919,36 +867,7 @@ DO:
         actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
         position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/<cluster_name>-evaluator.json
-
-        JSON schema:
-        {
-          "evaluator": "<cluster_name>-evaluator",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' '<RESULTS_DIR>/<cluster_name>-evaluator.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "<cluster_name>-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "<cluster_name>-evaluator" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -1077,36 +996,7 @@ DO:
       [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
       Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/ui-evaluator.json
-
-        JSON schema:
-        {
-          "evaluator": "ui-evaluator",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/ui-evaluator.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/ui-evaluator.json.tmp' '<RESULTS_DIR>/ui-evaluator.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "ui-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "ui-evaluator" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -1185,6 +1075,25 @@ DO:
         l1_edits[q_id] = {"finding": "l1-blocking evaluator error — re-run required", "edit": null}
       Print: "  ⚠️ l1-blocking error → Q-G1/Q-G2/Q-G11 treated as NEEDS_UPDATE (fail-closed)"
       CONTINUE  # skip normal routing for this evaluator
+
+    # Fail-closed guard for gas-evaluator errors (Gate 1 safety — IS_GAS mode) — MUST precede general handler
+    IF evaluator_name == "gas-evaluator" AND data.status in ["timeout", "error"]:
+      # gas-evaluator covers Q1, Q2, Q13, Q15, Q18, Q42 — all Gate 1 in IS_GAS mode.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      FOR q_id in ["Q1", "Q2", "Q13", "Q15", "Q18", "Q42"]:
+        gas_results[q_id] = "NEEDS_UPDATE"
+        gas_edits[q_id] = {"finding": "gas-evaluator error — re-run required", "edit": null}
+      Print: "  ⚠️ gas-evaluator error → Q1/Q2/Q13/Q15/Q18/Q42 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE
+
+    # Fail-closed guard for node-evaluator errors (Gate 1 safety — IS_NODE mode) — MUST precede general handler
+    IF evaluator_name == "node-evaluator" AND data.status in ["timeout", "error"]:
+      # node-evaluator covers N1 — Gate 1 in IS_NODE mode.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      node_results["N1"] = "NEEDS_UPDATE"
+      node_edits = {"N1": {"finding": "node-evaluator error — re-run required", "edit": null}}
+      Print: "  ⚠️ node-evaluator error → N1 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE
 
     IF data.status in ["timeout", "error"]:
       mark as Incomplete (existing incomplete evaluator rules apply unchanged)
@@ -1524,7 +1433,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 20 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    # L1 per-pass count: 3 (l1-blocking) + 6 (l1-advisory-structural) + 13 (l1-advisory-process) = 22
+    total_applicable_questions = 22 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
