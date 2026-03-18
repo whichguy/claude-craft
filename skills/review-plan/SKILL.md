@@ -275,6 +275,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
    MAX_CONCURRENT = 5              # max parallel evaluator tasks per wave; tunable
+   MAX_EDITS_PER_PASS = 12         # safety cap — prevent runaway plan expansion
    dispatch_start_time = 0    # set before wave spawning
    fanin_start_time = 0       # set after all waves complete
    apply_start_time = 0       # set before edit application
@@ -286,7 +287,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    advisory_findings_cache = {}
    # advisory_findings_cache: Q-ID → {"finding": "<text>", "source": "<evaluator>"}
-   # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per GATE3_QIDS).
+   # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per ADVISORY_CACHE_QIDS).
    # Later-pass entries overwrite earlier — preserves freshest advisory text.
    # Entry cleared when PASS with empty finding — signals condition was resolved by edits.
    # Persisted in memo_file checkpoint for context-compression resilience.
@@ -1175,6 +1176,16 @@ DO:
       mark as Incomplete (existing incomplete evaluator rules apply unchanged)
       CONTINUE
 
+    # Fail-closed guard for l1-blocking errors (Gate 1 safety)
+    IF evaluator_name == "l1-blocking" AND data.status in ["timeout", "error"]:
+      # l1-blocking covers Q-G1, Q-G2, Q-G11 — all Gate 1.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      FOR q_id in ["Q-G1", "Q-G2", "Q-G11"]:
+        l1_results[q_id] = "NEEDS_UPDATE"
+        l1_edits[q_id] = {"finding": "l1-blocking evaluator error — re-run required", "edit": null}
+      Print: "  ⚠️ l1-blocking error → Q-G1/Q-G2/Q-G11 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE  # skip normal routing for this evaluator
+
     # Route findings — specific evaluators checked BEFORE wildcard to prevent silent misrouting
     IF evaluator_name == "l1-blocking":
       FOR q_id, entry in data.findings:
@@ -1208,9 +1219,9 @@ DO:
       cluster_results[cluster_name] = data.findings
 
     # Populate advisory_findings_cache from PASS-with-finding entries (Gate 3 advisory notes)
-    GATE3_QIDS = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    ADVISORY_CACHE_QIDS = {"Q-G25"}
     FOR q_id, entry in data.findings:
-      IF q_id not in GATE3_QIDS:
+      IF q_id not in ADVISORY_CACHE_QIDS:
         continue  # only cache advisory-tier questions
       IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
         advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
@@ -1247,6 +1258,11 @@ DO:
   IF changes_to_apply > 0:
     apply_start_time = Date.now()
   APPLY edits — for each finding with edit != null in any evaluator's JSON data:
+    IF changes_to_apply > MAX_EDITS_PER_PASS:
+      # Sort edits by gate priority: Gate 1 first, then Gate 2, then Gate 3
+      edits_to_apply = sorted(edits_to_apply, key=lambda e: gate_priority(e.q_id))
+      edits_to_apply = edits_to_apply[:MAX_EDITS_PER_PASS]
+      Print: "  ⚠️ [changes_to_apply] edits queued — applying top [MAX_EDITS_PER_PASS] by gate priority (overflow: [changes_to_apply - MAX_EDITS_PER_PASS] deferred to next pass)"
     Print: ""
     FOR idx, edit in enumerate(edits_to_apply):
       Print: "  ┌ [[idx+1]/[N]] [question short name] ([ID])"
@@ -1877,6 +1893,22 @@ Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list 
 individually with IDs. The collapsing happens only in this final user-facing scorecard.
 
 ```
+-- Compute Rating from gate-level counts --
+# gate2_open: count of Gate 2 NEEDS_UPDATE questions (NOT Gate 3 — advisories do not affect rating)
+# Gate1_unresolved: computed in CONVERGENCE CHECK above
+IF Gate1_unresolved > 0:
+  Rating = "🔴 REWORK"
+  criterion_phrase = "[Gate1_unresolved] Gate 1 blocking issue(s)"
+ELIF gate2_open == 0:
+  Rating = "🟢 READY"
+  criterion_phrase = "all gates clear"
+ELIF gate2_open <= 3:
+  Rating = "🟡 SOLID"
+  criterion_phrase = "[gate2_open] Gate 2 advisory issue(s)"
+ELSE:
+  Rating = "🟠 GAPS"
+  criterion_phrase = "[gate2_open] Gate 2 issue(s) — review recommended"
+
 ╔═══════════════════════════════════╗
 ║  review-plan Scorecard — Pass [N] ║
 ╚═══════════════════════════════════╝
