@@ -384,6 +384,8 @@ Q8 — Chain-of-thought: Would explicit step-by-step reasoning improve output qu
 Q9 — Domain specifics: What domain terminology, conventions, or requirements should be in the prompt but aren't?
 Q10 — Tone/register: Is the tone/register appropriate for the task and target audience?
 Q11 — Parallelization: Does the prompt describe sequential steps that could be parallelized via concurrent Agent/Task calls? If so, are the independent work units identified, is a MAX_CONCURRENT limit (≤8) specified to avoid API rate-limit exhaustion, and are the batch-wait-batch boundaries clear? This applies when the prompt spawns multiple agents (evaluators, writers, runners, judges) — flag any "do one at a time" patterns that should be "issue all in parallel, wait, then proceed."
+Q12 — Failure modes & recovery: Does the prompt define behavior for edge cases, malformed inputs, and partial failures? Are fallback or recovery paths specified for the most likely error conditions? Flag any "happy path only" designs where a single bad input or failed sub-step would leave the model without a defined next action.
+Q13 — Calibration & thresholds: For prompts that make evaluative judgments (PASS/FAIL, NEEDS_UPDATE, score, grade, severity) — are the decision thresholds precisely defined with boundary examples? Does the prompt prevent consistent over- or under-triggering by naming the "present but weak" middle case explicitly, not just the clear pass and clear fail extremes?
 
 Step 2 — Domain Inference
 Infer the precise domain and subtask this prompt is designed for.
@@ -395,8 +397,9 @@ Fetch any top result that looks substantive. Summarize 2-3 actionable findings f
 **Time constraint:** If any search or fetch does not return promptly, skip it and note "(search unavailable)". Do not stall — proceed with available information.
 
 Step 4 — Technique Research
+Search: "{domain} LLM calibration threshold boundary case 2025" (prioritize if Q13 gap found)
 Search: "prompt engineering techniques few-shot chain-of-thought structured output 2025"
-Identify 1-2 techniques most applicable to the Q1-Q11 gaps found above.
+Identify 1-2 techniques most applicable to the Q1-Q13 gaps found above. If Q12 (failure modes) or Q13 (calibration) gaps were identified, search first for domain-specific solutions before general prompt engineering techniques.
 
 Step 5 — Check Prior Learnings
 Examine the <prior_context> "## Technique History" section (if present). For techniques previously attempted:
@@ -439,6 +442,7 @@ Generate evaluation questions for the quality judge to compare baseline vs impro
 - Q-FX7 (when HAS_DOWNSTREAM_DEPS=true): If the output produces instructions for downstream agents or references external dependencies (files, tools, state), are those references complete, correct, and unambiguous? [omit if HAS_DOWNSTREAM_DEPS=false]
 - Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity? (Flags cases where the improved prompt is larger but the gain doesn't justify the added tokens.)
 - Q-FX9: Does the improved prompt preserve or improve detection depth, breadth, accuracy, and precision — specifically, does it not sacrifice evaluator thoroughness in exchange for other gains such as calibration, conciseness, or format changes?
+- Q-FX10 (adversarial regression — baseline-favoring): Does the baseline catch any concrete defect, violation, or requirement that the improved version misses, downgrades, or softens? Score A (baseline) if yes, TIE if both detect equivalently, B only if improved detects something baseline misses on this specific dimension. This question deliberately counteracts finding-count proxy bias.
 
 **UX questions** (include when HAS_OUTPUT_FORMAT=true — prompt produces human-facing structured output with explicit formatting specs):
 - Q-UX1: Is the output's visual hierarchy clear — key decisions and verdicts are prominent, supporting details subordinate?
@@ -448,7 +452,7 @@ Note: UX questions are weighted at 0.5× in scoring — they test presentation s
 
 **Side-experiment guidance**: To isolate which specific option drove improvement, use `--experiments N` where N=num_options. This assigns each option to its own experiment for causal attribution. Example: 3 options → `--experiments 3` assigns A→Exp-1, B→Exp-2, A+B+C→Exp-3 (per E=3 assignment rules above). Ablation reads directly from the quality spread per experiment.
 
-**Dynamic questions** (generate 2-4 questions derived from the Q1-Q11 gaps and improvement options above):
+**Dynamic questions** (generate 2-4 questions derived from the Q1-Q13 gaps and improvement options above):
 - Each question must be answerable by comparing two outputs side-by-side
 - Each question must directly reflect a specific gap being addressed (reference the Q-number)
 - Phrase as "Does output X better achieve Y?" — must have a clear, observable answer
@@ -457,6 +461,11 @@ Note: UX questions are weighted at 0.5× in scoring — they test presentation s
   - If Q4 gap (no format spec): "Does the output strictly conform to the expected output format?"
   - If Q8 gap (no CoT): "Does the output show transparent step-by-step reasoning?"
   - If Q6 gap (missing constraints): "Does the output stay within the required scope constraints?"
+  - If Q13 gap (calibration): "Does the improved version correctly distinguish the boundary case (present-but-weak) from both a clean pass and a clear failure?"
+
+**Anti-circularity rule**: Do not generate dynamic questions that ONLY test features the improvement adds. At least 1 of the 2-4 dynamic questions MUST be a regression-check from the baseline's perspective — e.g.: "Does the improved version miss any finding, constraint, or edge case that the baseline would correctly flag?" Frame this question so A (baseline) wins if the baseline detects something B misses.
+
+**Calibration warning guard**: If the prior iteration's IDEAS_FILE Technique History shows a baseline 0% warning (all questions favored improved), the FIRST dynamic question this iteration MUST be: "Does the improved version miss any defect or requirement in the domain targeted by this iteration's improvements — specifically one the baseline would have caught?"
 
 **Write mode:** If `{i}` == 1, write the full document below to {ideas_file} (overwrite if exists).
 If `{i}` > 1, APPEND the new diagnostic sections only to {ideas_file} with a separator:
@@ -472,7 +481,7 @@ Write all findings to {ideas_file} in this exact format (full document for itera
 ## Original Prompt
 Path: {prompt_path}
 
-## Structural Diagnostic (Q1-Q11)
+## Structural Diagnostic (Q1-Q13)
 Q1 — Role/Persona: {finding}
 Q2 — Task Precision: {finding}
 Q3 — Context Adequacy: {finding}
@@ -483,6 +492,9 @@ Q7 — Anti-patterns: {finding}
 Q8 — Chain-of-thought: {finding}
 Q9 — Domain specifics: {finding}
 Q10 — Tone/register: {finding}
+Q11 — Parallelization: {finding}
+Q12 — Failure modes & recovery: {finding}
+Q13 — Calibration & thresholds: {finding}
 
 ## Domain & Research Findings
 Domain: {precise domain + subtask}
@@ -520,6 +532,7 @@ Research summary:
 {IF HAS_DOWNSTREAM_DEPS: - Q-FX7: Are downstream agent instructions and external dependency references complete and unambiguous?}
 - Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity?
 - Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision — does it not sacrifice evaluator thoroughness for calibration, conciseness, or format changes?
+- Q-FX10 (adversarial regression — baseline-favoring): Does the baseline catch any concrete defect or requirement the improved version misses or softens? (A wins if yes, TIE if equivalent, B only if improved also catches everything A catches.)
 
 ### UX (when HAS_OUTPUT_FORMAT=true — weighted 0.5×)
 {IF HAS_OUTPUT_FORMAT:
@@ -872,6 +885,15 @@ IF IS_LARGE_PROMPT:
         and correctness of the instructions. Reason through what each version would DO
         differently for this specific input, based on the diff.
 
+        Anti-bias guidance:
+        - A version that produces FEWER findings/flags is NOT necessarily worse — judge
+          accuracy of findings, not count. Fewer but more accurate findings is an improvement.
+        - Actively look for cases where the baseline (A) catches something the improved
+          version (B) misses, downgrades, or softens. Award A credit for any concrete
+          detection B degrades — this is what Q-FX10 specifically tests.
+        - Dynamic questions that test features the improvement adds are expected to favor B.
+          The fixed questions (Q-FX1..Q-FX10) are the more reliable signal for overall quality.
+
         <diff_baseline_to_improved>
         {contents of $IMPROVE_TMPDIR/diff-{k}-iter-{i}.txt}
         {IF swapped[k][j]: "(diff direction reversed — lines starting with - are improved, + are baseline)"}
@@ -981,9 +1003,15 @@ ELSE:
     </output_b>
 
     <evaluation_questions>
-    {all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic}
+    {all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..10 + optional Q-FX7/Q-UX1..3 + dynamic}
     Note: Q-UX questions (if present) are style/presentation questions — treat them with proportionally less weight.
+    Note: Q-FX10 is deliberately baseline-favoring — award A if baseline catches anything B misses.
     </evaluation_questions>
+
+    Anti-bias guidance:
+    - A version that produces FEWER findings is NOT necessarily worse — judge accuracy, not count.
+    - Actively check whether A catches something B misses. Q-FX10 specifically asks this — answer it honestly even if all other questions favor B.
+    - Dynamic questions test features the improvement adds; fixed questions (Q-FX1..Q-FX10) are the more reliable overall signal.
 
     For each evaluation question, determine which output better satisfies it.
     - winner: "A" if A clearly better, "B" if B clearly better, "TIE" if equivalent
@@ -1079,7 +1107,11 @@ verdict = "IMPROVED" if overall_winner == "B" else ("REGRESSED" if overall_winne
 
 # Calibration check: 0% baseline is a signal, especially in diff-based evaluation
 IF quality_score_a == 0.0 AND quality_score_b_{best_k} > 0:
-    Print: "⚠️  Baseline scored 0% — all questions favored improved. If evaluation questions were written in the same research pass that designed the improvements, this may indicate circular evaluation design."
+    Print: "⚠️  Baseline scored 0% — all questions favored improved."
+    Print: "   Root causes: (1) dynamic questions test features added this iteration (circular); (2) fixed questions Q-FX1..Q-FX10 were all won by B — check Q-FX10 specifically."
+    Print: "   If Q-FX10 (adversarial regression) also scored B: the improved version is genuinely better AND catches everything baseline does."
+    Print: "   If Q-FX10 scored TIE/A: more reliable signal — use that to calibrate confidence in the IMPROVED verdict."
+    Print: "   Next iteration: the anti-circularity rule will require a mandatory regression-check dynamic question."
 ```
 
 If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write winner to prompt file in place).
