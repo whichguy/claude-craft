@@ -261,8 +261,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_clusters = set()       # clusters where all questions were PASS/N/A in their last pass
    memoized_since = {}             # pass_count when each cluster was memoized
    memoized_l1_questions = set()   # {Q-G11, Q-G6, Q-G7, Q-G18} once confirmed stable PASS or N/A (Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G19, Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 are not memoizable)
-   l1_structural_memoized = false    # true when ALL 6 structural questions PASS/N/A AND no edits since
+   l1_structural_memoized = false    # true when ALL 6 structural questions PASS/N/A for 2 consecutive passes AND no edits since
    l1_structural_memoized_since = 0
+   l1_structural_clean_since = 0    # pass_count when first consecutive clean pass was observed (0 = not yet started)
    l1_process_memoized = false       # true when ALL 13 process questions PASS/N/A AND no edits since
    l1_process_memoized_since = 0
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
@@ -340,6 +341,7 @@ DO:
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
     Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
                      l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
+                     l1_structural_clean_since (default 0),
                      l1_process_memoized (default false), l1_process_memoized_since (default 0),
                      prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
                      prev_pass_applied_edits (default []),
@@ -672,9 +674,19 @@ DO:
         introduced by the plan. Verify it is fully specified before steps that depend on it
         (wiring, callers, tests). If wiring or derivative steps precede the core logic
         specification → NEEDS_UPDATE.
-      - For Q-G25 (Feedback loop): Identify who or what downstream consumes this change's
-        outputs (callers, tests, acceptance criteria, stakeholder checks). If no test,
-        acceptance criterion, or stakeholder check is present → NEEDS_UPDATE.
+      - For Q-G25 (Feedback loop): Identify who or what downstream consumes this change's outputs
+        (callers, automated tests, named acceptance criteria, or stakeholder verification steps).
+        NEEDS_UPDATE: No feedback mechanism of any kind is present — no test step, no acceptance
+        criterion, no named verification path (e.g., plan ends with "deploy and monitor" with no
+        stated pass/fail condition).
+        PASS: At least one concrete feedback mechanism is named — an automated test step, a specific
+        acceptance criterion with a pass condition, or an integration test. A manual verification step
+        with a stated pass condition also qualifies.
+        Gate 3 advisory (do NOT NEEDS_UPDATE): A feedback mechanism is present but weak (e.g., only
+        "run it manually and see" with no criterion). Note in finding as advisory only.
+        Example — NEEDS_UPDATE: "Plan's Steps section lists deploy steps with no verification step.
+          [EDIT: add '## Verification\n- Run npm test\n- Confirm no regressions in CI']"
+        Example — PASS: "Plan includes 'Run npm test for unit tests' in Verification — feedback loop present."
 
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory-structural.json
@@ -1330,14 +1342,29 @@ DO:
     structural_questions = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
     all_structural_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in structural_questions)
     IF all_structural_clean:
-      l1_structural_memoized = true
-      l1_structural_memoized_since = pass_count
-      newly_memoized.append("l1-advisory-structural (6 questions)")
+      IF l1_structural_clean_since == 0:
+        l1_structural_clean_since = pass_count  # first clean pass — start the stability window
+      ELSE:
+        # Second consecutive clean pass
+        l1_structural_memoized = true
+        l1_structural_memoized_since = pass_count
+        newly_memoized.append("l1-advisory-structural (6 questions)")
+        l1_structural_clean_since = 0  # reset
+    ELSE:
+      l1_structural_clean_since = 0  # reset window on any NEEDS_UPDATE
   ELSE:
     # Invalidate if ANY edit was applied this pass (edits can affect structural questions)
     IF changes_this_pass > 0:
       l1_structural_memoized = false
+      l1_structural_clean_since = 0  # reset stability window on invalidation
       Print: "  memo: l1-advisory-structural invalidated (edits applied)"
+
+  # Memoization thresholds — intentionally asymmetric:
+  # Structural group (Q-G20–Q-G25): 2 consecutive clean passes required.
+  #   Q-G23/G24/G25 methodology notes added in Iter 7; higher false-PASS risk until
+  #   question calibration is validated across plan-edit boundaries.
+  # Process group (Q-G4–Q-G19): 1 clean pass sufficient.
+  #   Older question definitions with lower calibration risk.
 
   # Group memoization for l1-advisory-process (13 questions — independently tracked)
   IF NOT l1_process_memoized:
@@ -1422,7 +1449,7 @@ DO:
     results_dir: RESULTS_DIR,
     pass_count, memoized_clusters: [...memoized_clusters],
     memoized_since, memoized_l1_questions: [...memoized_l1_questions],
-    l1_structural_memoized, l1_structural_memoized_since,
+    l1_structural_memoized, l1_structural_memoized_since, l1_structural_clean_since,
     l1_process_memoized, l1_process_memoized_since,
     prev_needs_update_set: [...current_needs_update_set],
     pass1_needs_update_set: [...pass1_needs_update_set],
