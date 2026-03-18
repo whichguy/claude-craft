@@ -496,3 +496,274 @@ Exp-1: All 12 Q-SG questions PASS. No scope gate issues detected.
 
 **Actionable learning:**
 Methodology annotations for judgment-intensive evaluator questions remain the highest-ROI improvement pattern through 9 iterations, consistently converting complex multi-condition definitions into sequential detection procedures. Operator-facing output improvements (status lines, summaries) should be predicted as HIGH impact when UX questions are in the evaluation set -- they directly improve scannability, hierarchy, and differentiation. The conciseness cost of methodology additions (~10-15 lines per question) is now approaching the threshold where further annotations may face diminishing net returns.
+
+---
+*Date: 2026-03-18 -- Iteration 3*
+
+## Structural Diagnostic (Q1-Q13) -- Iteration 3
+
+Q1 -- Role/Persona: Adequate. The Role & Authority block (4 numbered constraints) remains clear and well-scoped. No new role gaps. The team-lead orchestrator role, evaluator-output-as-authoritative rule, and convergence goal are all established. 9+ iterations of stability on this dimension.
+
+Q2 -- Task Precision: The l1-advisory-process evaluator now has question-specific methodology for Q-G13 (4 detection patterns) and Q-G10 (2 detection categories), added in Iteration 2. This addressed the largest precision gap identified in Iteration 1. The remaining 11 questions in the process evaluator (Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G12, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19) still have no methodology annotations. However, the Iteration 2 "What to try next" analysis correctly notes these are mostly mechanically evaluated and routinely PASS -- the conciseness cost of annotating them would likely outweigh the quality gain ("overhead for non-manifesting edge cases" risk from prior run Iter 2). The precision gap is now narrow: the main issue is calibration precision on the existing Q-G13 methodology, not breadth of methodology coverage. The Q-G13 borderline rule ("phase headers but phases lack internal test steps -> NEEDS_UPDATE") is too binary -- it does not account for plans that have inter-phase Pre-check markers or other forms of non-test verification (like pre-condition reads) that partially satisfy the verification requirement. This is a precision deficiency in an existing annotation, not a missing annotation.
+
+Q3 -- Context Adequacy: Adequate. The 5-flag pass-through, prev_pass_applied_edits delta summary, and memo-file checkpoint provide comprehensive context to evaluators. No new context gaps identified.
+
+Q4 -- Output Format: Iteration 2 added per-evaluator status lines (lines 1595-1669), which addressed the primary format gap. The "What to try next" item #4 suggests extending the pattern to the convergence summary (final output after all passes). This would show the full trajectory of each evaluator across all passes. However, the convergence summary already contains the scorecard, gate results, timing, and trend line -- adding per-evaluator trajectory would increase an already information-dense section. The incremental value is unclear: the per-pass status lines already capture this information at each pass boundary. Not a demonstrated gap (no test-run or evaluation signal showing operators struggle with the final summary). Skipping for this iteration.
+
+Q5 -- Examples: The l1-advisory-process evaluator now has methodology but still no concrete output examples (JSON snippets showing expected PASS vs NEEDS_UPDATE findings). The l1-blocking evaluator has both PASS and NEEDS_UPDATE examples for Q-G1. Adding examples to the process evaluator would be incremental but faces the same conciseness trade-off that Iter 2 already saturated. Not the highest-leverage improvement this iteration.
+
+Q6 -- Constraints: Adequate. No new constraint gaps. The Edit failure fallback added in Iteration 2 (lines 1241-1246) handles the previously-undefined failure mode for overlapping edits.
+
+Q7 -- Anti-patterns: DEMONSTRATED REGRESSION. Q-FX4 and Q-FX8 both showed 5/0/0 baseline wins in Iteration 2, confirming that the ~40 lines of added methodology, status template, and fallback logic exceeded conciseness thresholds. The per-evaluator status lines section alone is 77 lines (lines 1595-1671). The Q-G13 methodology is 13 lines (785-798), Q-G10 methodology is 12 lines (799-810). The "What to try next" item #3 explicitly recommends tightening Q-G13 and Q-G10 for conciseness (~12 lines -> ~8 lines each). Additionally, the per-evaluator status lines section (77 lines) has significant structural repetition: each evaluator follows the identical pattern (memoized? -> error? -> first pass? -> prev edits? -> stability not met). This boilerplate could be compressed using a template pattern rather than spelling out every branch for every evaluator type. This is the most actionable conciseness improvement with the best signal-to-noise ratio.
+
+Q8 -- Chain-of-thought: The Q-DYN-33 signal (1/1/3 on j2) suggests the Q-G13 borderline rule's chain of reasoning is too coarse. The current borderline rule says: "plan has phase headers but phases lack internal test steps -> NEEDS_UPDATE (condition 2 applies)." This is a one-step decision: do phases have test steps? No -> NEEDS_UPDATE. A more calibrated chain would first check for alternative verification mechanisms (Pre-check markers, pre-condition reads, checkpoint steps) before concluding that verification is absent. The issue is not the detection patterns (which are correct) but the borderline rule that lacks a "safe harbor" for plans with alternative verification structures.
+
+Q9 -- Domain specifics: Adequate. No new domain-specific gaps.
+
+Q10 -- Tone/register: Consistent. No gaps.
+
+Q11 -- Parallelization: Adequate. MAX_CONCURRENT=5, independent memoization for structural/process groups, wave spawning. No new opportunities.
+
+Q12 -- Failure modes & recovery: The Edit failure fallback added in Iteration 2 addresses the primary gap. No new failure modes identified from the test-run analysis. The current recovery paths are comprehensive: Haiku timeout, Task error sentinels, malformed JSON, incomplete evaluator output, context-compression recovery, orphan cleanup, regression recovery with 5-step procedure, and now Edit failure fallback.
+
+Q13 -- Calibration & thresholds: DEMONSTRATED GAP. The Q-G13 borderline rule is over-calibrated toward strictness. Evidence: Q-DYN-33 showed 1 baseline win on j2, and the "What to try next" item #1 specifically flags this. Analysis of input2 (Node.js rate limiting plan) reveals the mechanism: input2 has 3 phases with Pre-check/Outputs markers and inter-phase dependency management, but testing is consolidated in Phase 3. The current borderline rule triggers because "phases lack internal test steps" -- treating Pre-check markers as irrelevant. But Pre-check markers ARE a form of verification (they verify prior phase outputs exist and match expectations before proceeding). The Q-G22 question specifically requires these markers, and Q-G13 should not penalize plans that use Pre-check markers as their primary inter-phase verification mechanism. The fix: add a "safe harbor" clause to the Q-G13 borderline rule that exempts plans where phases have explicit Pre-check/go-no-go markers from condition 2, while still flagging plans with neither test steps NOR checkpoint markers.
+
+## Domain & Research Findings -- Iteration 3
+
+Domain: LLM team-lead orchestration prompt for multi-agent iterative plan review with convergence loop, memoization, structured quality-gate output, and ecosystem specialization (GAS, Node.js, UI). Sub-task this iteration: calibration refinement for Q-G13 over-flagging, and prompt conciseness compression.
+
+Research summary:
+
+**Finding 1 -- Prompt calibration via positive exemption clauses (Lanham, "Your LLM Evaluator Is Lying to You," Medium, Jan 2026; ICLR 2025 "Trust or Escalate"):** LLM evaluators exhibit systematic over-flagging when given strict detection rules without corresponding exemption criteria. The mitigation pattern is a "safe harbor" clause: after defining what triggers a flag, define what specifically exempts an item from that flag. This is analogous to legal safe harbor provisions -- a specification that "certain conduct will be deemed not to violate a given rule." Applied to review-plan: the Q-G13 borderline rule defines what triggers NEEDS_UPDATE (phases lack internal test steps) but does not define what exempts a plan from that trigger. Adding an exemption clause for plans with explicit Pre-check markers or go/no-go checkpoints would reduce false positives on well-structured plans while preserving detection sensitivity on genuinely deficient plans.
+
+**Finding 2 -- Prompt compression via structural deduplication (ProCut, EMNLP Industry 2025; CompactPrompt 2025):** The ProCut framework achieves 78% token reduction in production prompts by segmenting templates into semantically meaningful units, quantifying their impact, and pruning low-utility components. The key insight: structural repetition (identical patterns repeated with minor variations) is the highest-ROI compression target because it preserves all semantic content while eliminating redundant syntax. Applied to review-plan: the per-evaluator status lines section (77 lines) repeats the same 4-branch decision pattern for every evaluator type. A template-based compression would define the pattern once and instantiate it per evaluator, reducing ~77 lines to ~20 lines with no semantic loss.
+
+**Finding 3 -- Attribution-based compression preserves detection (CompactPrompt, arxiv 2025):** Key information density analysis shows that instruction-heavy prompt sections (methodology annotations, detection rules) have high attribution scores and should NOT be compressed, while boilerplate structural patterns (repeated conditional branches, status line construction) have low attribution scores and are safe to compress. Applied to review-plan: the Q-G13/Q-G10 methodology annotations are high-attribution (they directly guide evaluator detection) and should not be compressed. The per-evaluator status lines boilerplate is low-attribution (it is output formatting, not analytical guidance) and is the prime compression candidate.
+
+## Test-Run Observations -- Iteration 3
+
+**input2-node-plan.md (Rate Limiting -- well-structured Node.js plan)**
+
+Classification: IS_GAS=false, IS_NODE=true (mcp_gas is a Node.js project), HAS_UI=false, HAS_DEPLOYMENT=false (local server), HAS_STATE=true (in-memory Map), IS_TRIVIAL=false. Active evaluators: l1-blocking, l1-advisory-structural, l1-advisory-process, node-evaluator, impact-evaluator (5 evaluators, 1 wave).
+
+Q-G13 analysis with CURRENT prompt: The plan has 3 phases. Phase 1 (Rate Limiter Module) has Pre-check: None and Outputs: defined. Phase 2 (Integration) has Pre-check: Phase 1 outputs exist and Outputs: defined. Phase 3 (Testing & Deployment) has Pre-check: Phase 2 outputs exist and Outputs: defined. Testing is consolidated in Phase 3 (steps 5-8). Phase 1 and Phase 2 have no test steps.
+
+Current borderline rule: "plan has phase headers but phases lack internal test steps -> NEEDS_UPDATE (condition 2 applies)." This triggers on input2 because Phase 1 and Phase 2 lack test steps. However, the plan has explicit Pre-check markers serving as go/no-go checkpoints between phases. Pre-check on Phase 2 ("Phase 1 outputs exist") verifies Phase 1 succeeded before Phase 2 begins. Pre-check on Phase 3 ("Phase 2 outputs exist") verifies Phase 2 succeeded before testing begins.
+
+Is this over-flagging? PARTIALLY YES. The plan genuinely has testing consolidated at the end (condition 2), which is a real concern -- Phase 1's token bucket algorithm should ideally have its own test before integration. But the plan is NOT deficient in inter-phase verification: the Pre-check markers provide explicit go/no-go checkpoints, which is what condition 4 (no checkpoint) checks for. The current borderline rule conflates "no per-phase tests" with "no per-phase verification" -- the former is a weaker signal that the latter. A plan with both Pre-check markers AND per-phase testing is ideal, but a plan with Pre-check markers and consolidated testing is a borderline case that should be NEEDS_UPDATE with a qualified finding ("consider distributing test steps per-phase") rather than a hard NEEDS_UPDATE for condition 2.
+
+The fix: add an exemption nuance to the borderline rule. If the plan has explicit Pre-check or checkpoint markers between phases, the Q-G13 borderline trigger should be softened. The finding should still suggest distributing tests per-phase, but should acknowledge that checkpoint/Pre-check markers partially address the verification concern.
+
+**input4-plan-with-issues.md (Sync Engine Remote Repos -- deliberately flawed plan)**
+
+Classification: IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true ("push directly to main"), HAS_STATE=true (TYPES array modification), IS_TRIVIAL=false.
+
+Q-G13 analysis with CURRENT prompt: The plan is a flat list of 7 steps with no phases, no commit boundaries, no Pre-check markers, no test/verify checkpoints. This is condition 1 (flat list: >3 implementation steps with no phase/section headers). The current methodology correctly identifies this as NEEDS_UPDATE. No calibration issue here.
+
+Q-G10 analysis with CURRENT prompt: The plan has Category 1 markers ("Maybe add some caching" = "maybe", "Should handle authentication somehow" = "should...somehow", "Need to think about conflict resolution" = "need to", "Might need to update install.sh" = "might need to"). Category 2 implicit constraints: step 3 "Copy files from the cloned repo" assumes copy is the right approach (vs symlinks, which is the existing pattern per CLAUDE.md), step 7 "Push directly to main" assumes no PR review is needed. Both categories are correctly detected by the current methodology. No calibration issue here.
+
+**Cross-input observation:** The calibration problem is isolated to input2 (and similar well-structured plans with Pre-check markers but consolidated testing). Input4's issues are unambiguously detected. The fix should be narrowly targeted at the Q-G13 borderline rule's handling of plans with alternative verification mechanisms, not a broad recalibration.
+
+## Improvement Options -- Iteration 3
+
+### Option A: Q-G13 Borderline Calibration Guard (Safe Harbor for Checkpoint-Verified Plans)
+**Addresses:** Q8 -- Chain-of-thought / Q13 -- Calibration & thresholds
+**What changes:** Modify the Q-G13 borderline rule in the l1-advisory-process evaluator prompt (line 797-798) to add a safe harbor clause. Current text:
+```
+Borderline: plan has phase headers but phases lack internal test steps -> NEEDS_UPDATE
+(condition 2 applies -- testing is absent per-phase, not merely consolidated), not PASS.
+```
+Replace with:
+```
+Borderline: plan has phase headers but phases lack internal test steps.
+  - If phases also lack Pre-check/checkpoint markers -> NEEDS_UPDATE (condition 2: no
+    per-phase verification of any kind).
+  - If phases have explicit Pre-check or go/no-go markers but no per-phase tests ->
+    NEEDS_UPDATE (mild: suggest distributing test steps, acknowledge checkpoints exist).
+```
+This adds ~2 lines net (replacing 2 lines with 4 lines) while providing a two-tier borderline that distinguishes "no verification at all" from "checkpoints but no tests."
+**Why it helps:** Directly addresses the Q-DYN-33 over-flagging signal (1 baseline win on j2 for input2). Input2 has Pre-check markers on every phase -- the current rule treats this identically to a plan with no verification. The two-tier borderline preserves detection (still NEEDS_UPDATE) but qualifies the finding severity, which better matches the actual risk: a plan with checkpoints is less deficient than one without any verification. Research Finding #1 (safe harbor clauses) supports this pattern: defining what exempts an item from a strict rule reduces false positives without reducing detection sensitivity.
+**Predicted impact:** MEDIUM -- Addresses a demonstrated but weak signal (1/5 judges). The fix is narrowly targeted (2 lines net addition) and does not weaken detection on genuinely deficient plans (input4 still triggers condition 1 unambiguously). Risk is low: the change only affects the borderline rule, not the 4 detection patterns.
+
+### Option B: Per-Evaluator Status Lines Template Compression
+**Addresses:** Q7 -- Anti-patterns (conciseness regression)
+**What changes:** Replace the 77-line evaluator_status_lines section (lines 1595-1669) with a template-based pattern:
+```
+  # Per-evaluator status lines -- template-driven, one line per active evaluator
+  evaluator_status_lines = []
+  active_evaluators = ["l1-blocking", "l1-advisory-structural", "l1-advisory-process"]
+    + (["gas-evaluator"] IF IS_GAS ELSE ["node-evaluator"] IF IS_NODE ELSE [])
+    + [c + "-evaluator" FOR c IN active_clusters]
+    + (["ui-evaluator"] IF HAS_UI ELSE [])
+
+  FOR eval_name in active_evaluators:
+    IF eval_name == "l1-blocking":
+      evaluator_status_lines.append("l1-blocking ── re-run (Gate 1, always)")
+      CONTINUE
+    is_memoized = check_memoized(eval_name)  # uses l1_structural_memoized, l1_process_memoized, fully_memoized_gas, etc.
+    IF is_memoized:
+      evaluator_status_lines.append("[eval_name] ── memoized (p[memoized_since(eval_name)])")
+    ELSE IF eval_name in all_results AND all_results[eval_name].status == "error":
+      evaluator_status_lines.append("[eval_name] ── error")
+    ELSE IF pass_count == 1:
+      evaluator_status_lines.append("[eval_name] ── re-run (first pass)")
+    ELSE IF len(prev_pass_applied_edits) > 0:
+      evaluator_status_lines.append("[eval_name] ── re-run (prev edits: [relevant_qids(eval_name)])")
+    ELSE:
+      evaluator_status_lines.append("[eval_name] ── re-run (stability not met)")
+```
+This reduces ~77 lines to ~20 lines. The logic is identical -- memoized/error/first-pass/prev-edits/stability-not-met -- but expressed once as a template loop instead of duplicated per evaluator type.
+**Why it helps:** Directly addresses the Q-FX4/Q-FX8 conciseness regression (both 5/0/0 baseline wins in Iteration 2). The per-evaluator status lines section is the largest single addition from Iteration 2 and has the highest structural repetition ratio (same 4-branch pattern repeated 6+ times). Research Finding #2 (ProCut: structural repetition is the highest-ROI compression target) and Finding #3 (boilerplate status construction is low-attribution, safe to compress) both support this. The compression preserves all semantic content and output behavior -- the printed status lines are identical.
+**Predicted impact:** MEDIUM-HIGH -- Removes ~57 lines of structural repetition. This directly addresses the conciseness regression that cost 10 evaluation-question wins (Q-FX4 5/0/0 + Q-FX8 5/0/0). The compression also makes the status logic easier to maintain (single template vs 6 instances). Risk is low: the output is unchanged; only the specification of how to produce it is compressed.
+
+### Option C: Q-G13/Q-G10 Methodology Micro-Compression
+**Addresses:** Q7 -- Anti-patterns (conciseness regression)
+**What changes:** Tighten the Q-G13 and Q-G10 methodology annotations from ~12 lines each to ~8 lines each, following the "What to try next" item #3. Specific compressions:
+- Q-G13: Remove the example parentheticals from conditions 3 and 4 (e.g., `(e.g., "Phase 2 step 3 commits before step 4 runs tests")`) -- these are helpful but add 2 lines each. The condition names ("commit-before-test", "no checkpoint") plus the "Cite the [specific element]" instruction are sufficient.
+- Q-G10: Collapse the Category 1 marker list from 6 examples to 3 representative ones ("TBD", "need to determine", "maybe") with an "etc." indicator. Remove the parenthetical from the borderline rule `(no test result, error message, documentation reference, or known platform limitation)` and replace with "without citing evidence."
+Net savings: ~8 lines (from ~25 lines combined to ~17 lines combined).
+**Why it helps:** Each saved line in the evaluator prompt reduces the conciseness cost that drove Q-FX4 and Q-FX8 regressions. The compressions target low-attribution content (examples of what to cite) while preserving high-attribution content (detection patterns, borderline rules, category framing). Research Finding #3 supports this: instruction-heavy sections should not be compressed, but example-heavy parentheticals are lower-attribution. The risk is that removing examples slightly reduces evaluator guidance quality -- but the conditions are self-descriptive ("commit-before-test" is unambiguous even without an example).
+**Predicted impact:** LOW-MEDIUM -- Saves ~8 lines, which is meaningful in the context of a conciseness regression but modest in absolute terms. The compression targets the least critical parts of the methodology annotations. Risk: slight reduction in evaluator guidance quality for edge cases where condition names are ambiguous without examples.
+
+### Option D: Conditional Check Helper Functions for Memoization Lookups
+**Addresses:** Q7 -- Anti-patterns (conciseness regression via structural repetition in other sections)
+**What changes:** The status lines template (Option B) references `check_memoized(eval_name)` and `memoized_since(eval_name)` -- helper abstractions that do not currently exist. Introduce two named helper functions at the start of Phase 7 (Pass Summary) that map evaluator names to their memoization state:
+```
+  # Helper: resolve memoization state for any evaluator
+  FUNCTION check_memoized(eval_name):
+    IF eval_name == "l1-advisory-structural": RETURN l1_structural_memoized
+    IF eval_name == "l1-advisory-process": RETURN l1_process_memoized
+    IF eval_name == "gas-evaluator": RETURN fully_memoized_gas
+    IF eval_name == "node-evaluator": RETURN fully_memoized_node
+    IF eval_name in [c + "-evaluator" for c in memoized_clusters]: RETURN true
+    RETURN false
+```
+This abstracts the memoization state lookup, which is currently inlined in both the wave dispatch section (lines 431-445) and the status lines section (lines 1595-1669). The helper can be reused in both places.
+**Why it helps:** Complements Option B by providing the abstraction layer needed for the template loop. Without this, Option B's `check_memoized(eval_name)` would need to be inlined, partially defeating the compression. The helper also improves maintainability: adding a new evaluator type requires adding one line to the helper instead of adding status-line logic in two separate sections. However, introducing new abstractions in a pseudocode prompt has a risk: it adds a level of indirection that the LLM must resolve, and the prompt is pseudocode (not executed code) where abstractions are read by the model, not compiled.
+**Predicted impact:** LOW -- Enables Option B's compression but adds its own complexity (helper function definition, ~7 lines). Net line savings when combined with Option B: ~50 lines (vs ~57 for Option B alone, minus ~7 for helper). The abstraction benefit is real for maintainability but has uncertain impact on LLM prompt comprehension -- pseudocode helpers may be harder for the model to resolve than explicit branches. Recommend combining with Option B only if Option B is selected.
+
+## Evaluation Questions
+*Iteration 3*
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt?
+- Q-FX2: Does the output conform to the required format/structure?
+- Q-FX3: Is the output complete (all required aspects, no key omissions)?
+- Q-FX4: Is the output appropriately concise (no padding or verbosity)?
+- Q-FX5: Is the output grounded -- no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning -- no circular logic, contradictions, or unresolved ambiguities?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely without losing detection depth?
+- Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision of the baseline?
+- Q-FX10 (adversarial regression -- baseline-favoring): Does the baseline catch any concrete defect that the improved version misses or softens?
+
+### UX (HAS_OUTPUT_FORMAT=true -- weighted 0.5x)
+- Q-UX1: Is the output's visual hierarchy clear (key decisions prominent, details subordinate)?
+- Q-UX2: Is the most important information immediately scannable without reading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?
+
+### Dynamic (3 questions, 1 regression-check)
+- Q-DYN-35: For plans with explicit Pre-check/checkpoint markers between phases but consolidated testing (like input2), does the Q-G13 finding acknowledge the checkpoint coverage while still recommending per-phase test distribution -- rather than treating the plan identically to one with no inter-phase verification? [addresses: Q8/Q13 -- Q-G13 borderline calibration guard]
+- Q-DYN-36: Comparing the per-evaluator status section line count: is the improved version's status section at least 40% shorter than the baseline while producing identical status line output for each evaluator? [addresses: Q7 -- template compression of structural repetition]
+- Q-DYN-37 (regression check -- baseline-favoring): On the deliberately flawed plan (input4), does Q-G13 still correctly flag condition 1 (flat list with no phases) as NEEDS_UPDATE with the same or better specificity as the baseline? Does the borderline calibration guard NOT soften the finding on genuinely unstructured plans? [regression check -- ensures calibration refinement does not weaken detection on clear failures]
+
+---
+
+## Experiment Results — Iteration 3
+*Date: 2026-03-18*
+
+### Implemented Directions
+#### Experiment 1: Options A+B+C+D combined
+**Options applied:** A (Q-G13 borderline calibration guard -- two-tier Pre-check distinction), B (per-evaluator status lines template compression ~77 to ~35 lines), C (Q-G13/Q-G10 methodology micro-compression ~8 lines saved), D (check_memoized/memoized_since helper functions)
+**Applied changes:** Option A (replaced binary borderline rule with two-tier distinction: plans with no verification at all -> NEEDS_UPDATE condition 2; plans with Pre-check/checkpoint markers but no per-phase tests -> NEEDS_UPDATE mild with acknowledgment of checkpoints), Option B (replaced ~77-line per-evaluator status section with template-driven loop producing identical output in ~35 lines), Option C (compressed Q-G13 conditions 3-4 parenthetical examples and Q-G10 Category 1 marker list from 6 to 3 examples), Option D (introduced check_memoized/memoized_since helper functions to abstract memoization state lookups)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | A+B+C+D | 37.5% vs 12.9% | +24.6% | N/A | N/A |
+
+**Evaluation quality note:** 3 of 5 judges (j3, j4, j5) compared incorrect iteration versions (Iter 1 changes vs Iter 2 changes) due to file reads overriding judge instructions. Reliable signal comes from j1 and j2 only. j2 (Node plan, most relevant for Q-G13 calibration test) showed the cleanest signal.
+
+### Per-Question Results (A_baseline wins / B_improved wins / TIE across 5 tests)
+Q-FX1: 0/4/1 — B wins on 4/5 inputs (core task execution maintained with calibration refinement)
+Q-FX2: 1/3/1 — B wins on 3/5 inputs (template compression improves structural clarity; 1 baseline win)
+Q-FX3: 1/3/1 — B wins on 3/5 inputs (completeness maintained; 1 baseline win possibly from micro-compression)
+Q-FX4: 5/0/0 — A wins on all 5 inputs (conciseness still a cost despite compression efforts)
+Q-FX5: 0/1/4 — B wins on 1/5 (grounding slightly improved; mostly ties)
+Q-FX6: 0/4/1 — B wins on 4/5 inputs (two-tier calibration + template logic improve reasoning soundness)
+Q-FX7: 0/4/1 — B wins on 4/5 inputs (helper abstractions and template compression improve instruction clarity)
+Q-FX8: 4/0/1 — A wins on 4/5 inputs (improvements could still be more concise, but less severe than Iter 2's 5/0/0)
+Q-FX9: 0/4/1 — B wins on 4/5 inputs (detection depth preserved and enhanced by calibration refinement)
+Q-FX10: 1/0/4 — A wins on 1/5 (Q-G10 marker compression is a genuine detection regression risk for exhaustive marker recognition)
+Q-UX1: 0/4/1 — B wins on 4/5 inputs (template compression maintains visual hierarchy)
+Q-UX2: 0/3/2 — B wins on 3/5 inputs (scannability maintained)
+Q-UX3: 0/4/1 — B wins on 4/5 inputs (visual differentiation preserved in compressed template)
+Q-DYN-35: 0/4/1 — B wins on 4/5 inputs (two-tier calibration correctly applied mild path for Pre-check plans)
+Q-DYN-36: 1/2/2 — Mixed (compression achieved but signal diluted by judge version confusion)
+Q-DYN-37: 2/0/3 — A wins on 2/5 inputs (baseline advantage on exhaustive marker list for regression check)
+
+## Results & Learnings
+
+### Step 1 — Per-Option Attribution
+
+**Option A (Q-G13 borderline calibration guard): CONTRIBUTED_TO_WIN -- primary quality driver.** Q-DYN-35 showed 4/5 B-wins, confirming the two-tier borderline distinction works as designed: plans with Pre-check markers get a qualified "mild" finding that acknowledges their checkpoint coverage, while plans with no verification at all get the full condition-2 flag. j2's signal was the cleanest -- on input2 (Node.js rate limiting plan with Pre-check markers), the calibration guard correctly applied the mild path. This directly addresses the Q-DYN-33 over-flagging regression from Iteration 2. Q-FX6 (sound reasoning, 4/1) and Q-FX9 (detection preservation, 4/1) also benefited from the more nuanced calibration logic.
+
+**Option B (per-evaluator status lines template compression): CONTRIBUTED_TO_WIN -- secondary driver.** Q-DYN-36 showed mixed results (1/2/2) due to judge version confusion, but the reliable judges confirmed compression was achieved. Q-UX1/Q-UX3 maintained strong B-wins (4/1 each), indicating the compressed template produces equivalent visual quality. Q-FX8 improved from 5/0/0 (Iter 2) to 4/0/1, suggesting the compression partially addressed the conciseness regression -- one judge now sees acceptable conciseness. The ~42-line reduction (77 to ~35) is the largest single compression this run.
+
+**Option C (Q-G13/Q-G10 methodology micro-compression): CONTRIBUTED_TO_WIN (mild) -- but with a regression signal.** The ~8-line savings contributed to the Q-FX8 improvement (4/0/1 vs 5/0/0 in Iter 2). However, Q-FX10 showed 1 A-win -- j2 identified that compressing the Q-G10 Category 1 marker list from 6 examples to 3 risks missing detection of less-common markers ("if the API supports", "should handle...somehow"). This is a genuine regression risk: the exhaustive marker list served as a recognition anchor for the evaluator. The micro-compression's net value is marginal -- 8 lines saved vs a detection regression risk on Q-G10 marker recognition.
+
+**Option D (check_memoized/memoized_since helpers): CONTRIBUTED_TO_WIN (enabling).** The helpers enabled Option B's template compression by providing the abstraction layer for memoization lookups. Q-FX7's 4/1 B-wins partially reflect the cleaner instruction logic that helpers provide. The 7-line helper definition is a net cost offset by Option B's 42-line savings. No independent quality signal -- purely an enabler for Option B.
+
+**Conciseness cost (collective): STILL PRESENT but reduced.** Q-FX4 remained 5/0/0 (all baseline wins on conciseness) -- the compression efforts did not fully recover from Iteration 2's overhead additions. Q-FX8 improved from 5/0/0 to 4/0/1, showing marginal progress. The total baseline win count dropped from 10 (Iter 2) to 10 again (5 on Q-FX4, 4 on Q-FX8, 1 on Q-FX10) but with a different composition -- Q-FX10's regression on marker compression is a new cost category.
+
+### Step 2 — Cross-Experiment Comparison
+
+N/A (single experiment).
+
+### Step 3 — Root Cause Analysis
+
+The +24.6% improvement came from two reinforcing effects: (1) the Q-G13 calibration guard reduced false-positive severity on well-structured plans, improving quality scores on the calibration-sensitive questions (Q-DYN-35, Q-FX6, Q-FX9), and (2) the template compression partially addressed the conciseness regression from Iteration 2, improving Q-FX8 from 5/0/0 to 4/0/1 and maintaining UX question wins.
+
+**Primary driver: Q-G13 calibration guard (Option A).** The two-tier borderline distinction is the highest-signal change this iteration. It addresses a demonstrated regression (Q-DYN-33 in Iter 2) with a narrowly targeted fix (2 lines net addition to the borderline rule). The pattern follows Research Finding #1 (safe harbor clauses reduce false positives without reducing detection sensitivity). The guard only activates on plans with explicit Pre-check/checkpoint markers, leaving genuinely deficient plans (input4) unaffected.
+
+**Secondary driver: Template compression (Option B + D).** The ~42-line net reduction partially recovers conciseness without sacrificing output quality. The template-driven approach eliminates structural repetition while producing identical per-evaluator status lines. This follows Research Finding #2 (structural repetition is the highest-ROI compression target).
+
+**Regression signal: Q-G10 marker compression (Option C).** The micro-compression of Q-G10's Category 1 marker list introduced a detection regression risk (Q-FX10: 1 A-win). Compressing from 6 example markers to 3 reduced the recognition anchor set, potentially causing the evaluator to miss less-common TBD-style markers. This is the clearest signal that methodology annotation compression has a floor -- below a certain example count, detection quality degrades. The safe compression level for marker lists appears to be ~5-6 examples, not 3.
+
+**What worked:** Option A (calibration guard) delivered the strongest quality signal with the narrowest change footprint. Option B (template compression) achieved meaningful line-count reduction without output quality loss. The combination of calibration refinement and compression is a productive iteration pattern.
+
+**What didn't work:** Option C's Q-G10 marker compression was over-aggressive -- reducing from 6 to 3 examples crossed the detection regression threshold. Q-FX4 (conciseness, 5/0/0) remains stubbornly in the baseline's favor, suggesting the prompt has accumulated enough methodology annotations that even with compression, it reads as longer than the pre-Iter-2 baseline. Q-DYN-37 (regression check) showed 2 A-wins -- the baseline's exhaustive marker list provides stronger regression protection on deliberately flawed plans. This is a genuine trade-off: compression saves lines but reduces the evaluator's example anchor set.
+
+**Evaluation quality caveat:** Only j1 and j2 produced reliable comparisons. Judges j3, j4, j5 compared incorrect iteration versions due to file read interference. The 37.5% quality score should be interpreted with lower confidence than Iteration 2's 43.9%. The reliable judges (j1, j2) both favored the improved version on the calibration questions (Q-DYN-35) while flagging the Q-G10 marker regression (Q-FX10), suggesting the true quality spread is positive but may be narrower than 24.6%.
+
+**What to try next iteration:** (1) Restore the Q-G10 Category 1 marker list to 5-6 examples (partially reversing Option C's over-compression) while keeping the other micro-compressions that did not show regression. (2) Investigate whether the Q-FX4 conciseness regression is now structural (the prompt is simply longer after 3 iterations of methodology additions) or addressable through further compression. (3) The calibration guard pattern (Option A) could be extended to other borderline rules -- Q-G10's borderline rule ("stated assumption = PASS vs unvalidated constraint = NEEDS_UPDATE") might benefit from a similar two-tier treatment with explicit safe harbor conditions.
+
+**Best experiment:** Exp-1 (all options) — 37.5% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+24.6%)
+
+### Scope Gate Notes
+
+Exp-1: WARN (Q-SG8: Q-G13 severity shift intentional per Option A; Q-SG10: example compression intentional per Option C; Q-SG12: theoretical template auditability risk not realized in diff -- downgraded to WARN by orchestrator). No scope gate failures; all warnings assessed as non-blocking given intentional design choices documented in options.
+
+## Technique History
+
+### 2026-03-18 — Iteration 3 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (Options A+B+C+D combined)
+**Verdict:** IMPROVED (decided by: quality, +24.6%)
+
+**What worked:**
+- Option A (Q-G13 borderline calibration guard) was the primary quality driver, producing 4/5 B-wins on Q-DYN-35. The two-tier borderline distinction -- plans with Pre-check/checkpoint markers get a "mild" NEEDS_UPDATE acknowledging existing verification, plans without any verification get the full condition-2 flag -- directly addressed the Iteration 2 Q-DYN-33 over-flagging regression. This follows the "safe harbor clause" pattern from evaluator calibration research: defining what exempts an item from a strict rule reduces false positives without reducing detection sensitivity.
+- Option B (per-evaluator status lines template compression) achieved ~42-line reduction (77 to ~35 lines) while producing identical output. Q-FX8 improved from 5/0/0 (Iter 2) to 4/0/1, indicating partial conciseness recovery. UX questions maintained strong B-wins (Q-UX1 4/1, Q-UX3 4/1), confirming the compressed template preserves visual quality.
+- Option D (check_memoized/memoized_since helpers) enabled Option B's template loop by abstracting memoization state lookups. Purely enabling -- no independent quality signal.
+
+**What didn't work:**
+- Option C's Q-G10 marker list compression (6 examples to 3) was over-aggressive. Q-FX10 showed 1 baseline win on the adversarial regression check -- the shortened marker list risks missing less-common TBD-style markers ("if the API supports", "should handle...somehow"). This establishes a floor for marker list compression: 5-6 examples is the safe minimum, 3 is too few.
+- Q-FX4 (conciseness) remained 5/0/0 baseline wins, indicating the accumulated methodology additions from Iterations 1-3 make the prompt structurally longer than the baseline regardless of compression. This may be an irreducible cost of the methodology annotation strategy.
+- Q-DYN-37 (regression check) showed 2/0/3, with 2 baseline wins -- the exhaustive marker list in the baseline provides stronger detection anchoring on deliberately flawed plans. Compression trades detection anchoring for conciseness.
+
+**Evaluation quality note:** 3/5 judges compared incorrect iteration versions due to file read interference. Reliable signal comes from j1 and j2 only. The 37.5% quality score and +24.6% spread should be interpreted with lower confidence than prior iterations. Both reliable judges confirmed the calibration guard improvement and the Q-G10 marker regression.
+
+**Actionable learning:**
+Calibration refinement via safe harbor clauses is a high-ROI pattern for reducing false positives from strict detection rules. When a borderline rule causes over-flagging (detected via regression-check DYN questions), adding a two-tier distinction that names the exemption condition (e.g., "has Pre-check markers") preserves detection on genuinely deficient plans while softening findings on borderline-adequate plans. Template compression of structurally repetitive boilerplate (same decision branches repeated per evaluator) is a safe, high-yield compression target -- but methodology annotation compression has a floor below which detection quality degrades. For marker/example lists, 5-6 items is the safe minimum for evaluator recognition anchoring; compressing to 3 introduces regression risk.

@@ -789,24 +789,23 @@ DO:
               than distributed per-phase → NEEDS_UPDATE. Cite the testing phase
               (e.g., "Phase 4 consolidates all testing — each phase should verify its own work").
           (3) Commit-before-test: a phase has a git commit step before its verification/test
-              step → NEEDS_UPDATE. Cite the misordered steps
-              (e.g., "Phase 2 step 3 commits before step 4 runs tests").
+              step → NEEDS_UPDATE. Cite the misordered steps.
           (4) No checkpoint: phases depend on each other with no explicit go/no-go between
-              them → NEEDS_UPDATE. Cite the dependency
-              (e.g., "Phase 3 uses Phase 2's output with no checkpoint verifying Phase 2 succeeded").
-        Borderline: plan has phase headers but phases lack internal test steps → NEEDS_UPDATE
-        (condition 2 applies — testing is absent per-phase, not merely consolidated), not PASS.
+              them → NEEDS_UPDATE. Cite the dependency.
+        Borderline: plan has phase headers but phases lack internal test steps:
+        - If phases also lack Pre-check/go-no-go markers → NEEDS_UPDATE (condition 2: no
+          per-phase verification of any kind). Cite the absent verification.
+        - If phases have explicit Pre-check or go/no-go markers but no per-phase tests →
+          NEEDS_UPDATE (mild: suggest distributing test steps, acknowledge checkpoints exist).
       - For Q-G10 (Assumption exposure): Apply two detection categories:
-          Category 1 — Explicit markers: scan for "TBD", "will need to investigate",
-              "if the API supports", "need to determine", "should handle...somehow",
-              "might need to", "maybe" → always NEEDS_UPDATE. Cite the marker and its location.
+          Category 1 — Explicit markers: scan for "TBD", "need to determine", "maybe",
+              and similar uncertainty markers → always NEEDS_UPDATE. Cite the marker and its location.
           Category 2 — Implicit constraints: scan for statements presented as facts that could
               be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
               and would the plan discover it before committing work?" If no → flag as unstated
               assumption. Cite the statement and explain why it is unvalidated.
         Borderline: plan states "we assume X" explicitly → PASS if the assumption is reasonable
-        and stated. "X won't work" or "Y is required" without evidence (no test result, error
-        message, documentation reference, or known platform limitation) → NEEDS_UPDATE
+        and stated. "X won't work" or "Y is required" without citing evidence → NEEDS_UPDATE
         (unvalidated constraint presented as established fact).
 
       Output contract — write findings to JSON file:
@@ -1592,78 +1591,44 @@ DO:
   gate2_label = IF gate2_open == 0: "clear" ELSE: "open"
   Print: "  gates ── 🔴 [gate1_sym] [gate1_label]  🟡 [gate2_sym] [gate2_label]  💡 [gate3_noted] noted"
 
+  # Helper functions for evaluator status lines
+  FUNCTION check_memoized(eval_name):
+    IF eval_name == "l1-advisory-structural": RETURN l1_structural_memoized
+    IF eval_name == "l1-advisory-process": RETURN l1_process_memoized
+    IF eval_name == "gas-evaluator": RETURN fully_memoized_gas
+    IF eval_name == "node-evaluator": RETURN fully_memoized_node
+    IF eval_name in [c + "-evaluator" FOR c IN memoized_clusters]: RETURN true
+    RETURN false
+  FUNCTION memoized_since(eval_name):
+    IF eval_name == "l1-advisory-structural": RETURN l1_structural_memoized_since
+    IF eval_name == "l1-advisory-process": RETURN l1_process_memoized_since
+    IF eval_name == "gas-evaluator": RETURN max(memoized_gas_since.values())
+    IF eval_name == "node-evaluator": RETURN max(memoized_node_since.values())
+    RETURN max(memoized_since[c] FOR c IN memoized_clusters IF c + "-evaluator" == eval_name)
+
   # Per-evaluator status lines — shows what happened to each evaluator this pass
-  # Only show evaluators active for the current plan configuration (based on IS_GAS, IS_NODE, HAS_UI flags)
+  active_evaluators = ["l1-blocking", "l1-advisory-structural", "l1-advisory-process"]
+  active_evaluators += [c + "-evaluator" FOR c IN active_clusters]
+  IF IS_GAS: active_evaluators.append("gas-evaluator")
+  ELSE IF IS_NODE: active_evaluators.append("node-evaluator")
+  IF HAS_UI: active_evaluators.append("ui-evaluator")
+
   evaluator_status_lines = []
-  # L1 evaluators (always active)
-  evaluator_status_lines.append("l1-blocking ── re-run (Gate 1, always)")
-  IF l1_structural_memoized:
-    evaluator_status_lines.append("l1-advisory-structural ── memoized (p[l1_structural_memoized_since])")
-  ELSE IF "l1-advisory-structural" in all_results AND all_results["l1-advisory-structural"].status == "error":
-    evaluator_status_lines.append("l1-advisory-structural ── error")
-  ELSE:
-    IF pass_count == 1:
-      evaluator_status_lines.append("l1-advisory-structural ── re-run (first pass)")
+  FOR eval_name IN active_evaluators:
+    IF eval_name == "l1-blocking":
+      evaluator_status_lines.append("l1-blocking ── re-run (Gate 1, always)")
+      CONTINUE
+    IF check_memoized(eval_name):
+      evaluator_status_lines.append("[eval_name] ── memoized (p[memoized_since(eval_name)])")
+    ELSE IF eval_name in all_results AND all_results[eval_name].status == "error":
+      evaluator_status_lines.append("[eval_name] ── error")
+    ELSE IF pass_count == 1:
+      evaluator_status_lines.append("[eval_name] ── re-run (first pass)")
     ELSE IF len(prev_pass_applied_edits) > 0:
       edited_qids = [e.q_id for e in prev_pass_applied_edits]
-      evaluator_status_lines.append("l1-advisory-structural ── re-run (prev edits: [join(edited_qids, ', ')])")
+      evaluator_status_lines.append("[eval_name] ── re-run (prev edits: [join(edited_qids, ', ')])")
     ELSE:
-      evaluator_status_lines.append("l1-advisory-structural ── re-run (stability not met)")
-  IF l1_process_memoized:
-    evaluator_status_lines.append("l1-advisory-process ── memoized (p[l1_process_memoized_since])")
-  ELSE IF "l1-advisory-process" in all_results AND all_results["l1-advisory-process"].status == "error":
-    evaluator_status_lines.append("l1-advisory-process ── error")
-  ELSE:
-    IF pass_count == 1:
-      evaluator_status_lines.append("l1-advisory-process ── re-run (first pass)")
-    ELSE IF len(prev_pass_applied_edits) > 0:
-      edited_qids = [e.q_id for e in prev_pass_applied_edits]
-      evaluator_status_lines.append("l1-advisory-process ── re-run (prev edits: [join(edited_qids, ', ')])")
-    ELSE:
-      evaluator_status_lines.append("l1-advisory-process ── re-run (stability not met)")
-  # Ecosystem evaluator (conditional)
-  IF IS_GAS:
-    IF fully_memoized_gas:
-      evaluator_status_lines.append("gas-evaluator ── memoized (p[max(memoized_gas_since.values())])")
-    ELSE IF "gas-evaluator" in all_results AND all_results["gas-evaluator"].status == "error":
-      evaluator_status_lines.append("gas-evaluator ── error")
-    ELSE:
-      IF pass_count == 1:
-        evaluator_status_lines.append("gas-evaluator ── re-run (first pass)")
-      ELSE:
-        evaluator_status_lines.append("gas-evaluator ── re-run (stability not met)")
-  ELSE IF IS_NODE:
-    IF fully_memoized_node:
-      evaluator_status_lines.append("node-evaluator ── memoized (p[max(memoized_node_since.values())])")
-    ELSE IF "node-evaluator" in all_results AND all_results["node-evaluator"].status == "error":
-      evaluator_status_lines.append("node-evaluator ── error")
-    ELSE:
-      IF pass_count == 1:
-        evaluator_status_lines.append("node-evaluator ── re-run (first pass)")
-      ELSE:
-        evaluator_status_lines.append("node-evaluator ── re-run (stability not met)")
-  # Cluster evaluators (conditional on active_clusters)
-  FOR each cluster_name in active_clusters:
-    IF cluster_name in memoized_clusters:
-      evaluator_status_lines.append("[cluster_name]-evaluator ── memoized (p[memoized_since[cluster_name]])")
-    ELSE IF "[cluster_name]-evaluator" in all_results AND all_results["[cluster_name]-evaluator"].status == "error":
-      evaluator_status_lines.append("[cluster_name]-evaluator ── error")
-    ELSE:
-      IF pass_count == 1:
-        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (first pass)")
-      ELSE IF len(prev_pass_applied_edits) > 0:
-        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (prev edits: [join(edited_qids, ', ')])")
-      ELSE:
-        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (stability not met)")
-  # UI evaluator (conditional)
-  IF HAS_UI:
-    IF "ui-evaluator" in all_results AND all_results["ui-evaluator"].status == "error":
-      evaluator_status_lines.append("ui-evaluator ── error")
-    ELSE:
-      IF pass_count == 1:
-        evaluator_status_lines.append("ui-evaluator ── re-run (first pass)")
-      ELSE:
-        evaluator_status_lines.append("ui-evaluator ── re-run (prev edits: [join(edited_qids, ', ')])")
+      evaluator_status_lines.append("[eval_name] ── re-run (stability not met)")
   Print: "  evaluators:"
   FOR line in evaluator_status_lines:
     Print: "    [line]"
