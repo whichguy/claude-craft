@@ -39,6 +39,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 1. **Find the plan file:**
    - If an argument was passed (file path), use it directly
    - Otherwise: `Glob("~/.claude/plans/*.md")` → pick the most recently modified
+   - If no plan file found (glob returns empty AND no file path argument provided):
+     Print: "❌ No plan file found — nothing to review."
+     Print: "  Pass a file path as argument, or run from a directory with ~/.claude/plans/*.md"
+     STOP — do not proceed
    - Read the plan file fully
 
 2. **Load standards context:**
@@ -348,40 +352,45 @@ DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
-    Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
-                     l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
-                     l1_structural_clean_since (default 0),
-                     l1_process_memoized (default false), l1_process_memoized_since (default 0),
-                     prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
-                     prev_pass_applied_edits (default []),
-                     total_changes_all_passes, pass_count,
-                     needs_update_counts_per_pass, pass_durations,
-                     total_applicable_questions, memo_milestones_printed,
-                     memoized_gas_questions (default set()),
-                     memoized_gas_since (default {}),
-                     memoized_node_questions (default set()),
-                     memoized_node_since (default {}),
-                     prev_gas_results (default {}),
-                     prev_node_results (default {}),
-                     pass_phase_timings (default []),
-                     evaluators_spawned_total (default 0),
-     advisory_findings_cache (default {})
-    results_dir = memo_data.results_dir
-    # Guard for old memo format (written before task fan-out refactor)
-    IF results_dir is null or empty:
-      IF memo_data.team_name is present:
-        Print: "⚠️ Old memo format detected — starting fresh (team-based memo not compatible)"
-      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
-    # Verify temp dir still exists (macOS /tmp cleanup)
-    ELSE IF NOT Bash: test -d "$results_dir":
-      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
-      Print: "⚠️ Results dir gone — created new: $results_dir"
-    RESULTS_DIR = results_dir
-    # Guard: old memo files may contain "git" which is no longer a loop cluster
-    memoized_clusters = memoized_clusters.intersection(active_clusters)
-    memoized_since = {k: v for k, v in memoized_since.items() if k in memoized_clusters}
-    _recovered_this_pass = true
-    Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
+    TRY:
+      Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+                       l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
+                       l1_structural_clean_since (default 0),
+                       l1_process_memoized (default false), l1_process_memoized_since (default 0),
+                       prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
+                       prev_pass_applied_edits (default []),
+                       total_changes_all_passes, pass_count,
+                       needs_update_counts_per_pass, pass_durations,
+                       total_applicable_questions, memo_milestones_printed,
+                       memoized_gas_questions (default set()),
+                       memoized_gas_since (default {}),
+                       memoized_node_questions (default set()),
+                       memoized_node_since (default {}),
+                       prev_gas_results (default {}),
+                       prev_node_results (default {}),
+                       pass_phase_timings (default []),
+                       evaluators_spawned_total (default 0),
+       advisory_findings_cache (default {})
+      results_dir = memo_data.results_dir
+      # Guard for old memo format (written before task fan-out refactor)
+      IF results_dir is null or empty:
+        IF memo_data.team_name is present:
+          Print: "⚠️ Old memo format detected — starting fresh (team-based memo not compatible)"
+        results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+      # Verify temp dir still exists (macOS /tmp cleanup)
+      ELSE IF NOT Bash: test -d "$results_dir":
+        results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+        Print: "⚠️ Results dir gone — created new: $results_dir"
+      RESULTS_DIR = results_dir
+      # Guard: old memo files may contain "git" which is no longer a loop cluster
+      memoized_clusters = memoized_clusters.intersection(active_clusters)
+      memoized_since = {k: v for k, v in memoized_since.items() if k in memoized_clusters}
+      _recovered_this_pass = true
+      Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
+    CATCH (JSON parse error or read failure):
+      Print: "⚠️ Memo file unreadable — starting fresh (removed stale checkpoint)"
+      Bash: rm -f <memo_file_path>
+      # All memoized state remains at defaults; fall through
 
   IF NOT _recovered_this_pass:
     pass_count += 1
@@ -420,7 +429,8 @@ DO:
     l1_structural_clean_since = 0
     Print: "  memo: l1-advisory-structural early-invalidated (prev pass had edits)"
 
-  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
+  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning.
+  For evaluators referencing [See: EVALUATOR_OUTPUT_CONTRACT above], expand the reference inline — copy the full contract block into the Task prompt, replacing EVALUATOR_NAME with the evaluator's name and RESULTS_DIR with the actual results directory path.]
 
   -- Build evaluator list (priority-ordered for wave assignment) --
   evaluators_to_spawn = []  # list of {name, task_prompt}
