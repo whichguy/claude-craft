@@ -27,14 +27,15 @@ Phase 2 touches the live schema.
 
 1. Read `package.json` — verify `pg-pool` is currently at `"^2.0.0"` and `pg` at `"^8.11.0"`
 2. Read `src/db/pool.ts` — verify current `connect()` call signature returns `{client, done}` (v2 pattern at line ~22), and that `done()` is used for release
-3. Update `package.json`: `pg-pool` → `^3.6.0`, `pg` → `^8.13.0`
-4. Edit `src/db/pool.ts`:
+3. Read `src/db/transaction.ts` — verify `done()` call pattern at release sites before modifying
+4. Update `package.json`: `pg-pool` → `^3.6.0`, `pg` → `^8.13.0`
+5. Edit `src/db/pool.ts`:
    - Change `const { client, done } = await pool.connect()` → `const client = await pool.connect()`
    - Change `done()` → `client.release()` at all release sites
-5. Edit `src/db/transaction.ts` — same `client.release()` update at every call site
-6. Run `npm install && npm run build` — confirm TypeScript compiles clean
-7. Test pool: `npm run test:db` — pool connection tests pass
-8. Commit: `git add src/db/ package*.json && git commit -m "feat(db): upgrade pg-pool v2→v3"`
+6. Edit `src/db/transaction.ts` — same `client.release()` update at every call site
+7. Run `npm install && npm run build` — confirm TypeScript compiles clean
+8. Test pool: `npm run test:db` — pool connection tests pass
+9. Commit: `git add src/db/ package*.json && git commit -m "feat(db): upgrade pg-pool v2→v3"`
 
 ### Phase 2: Schema Migration
 
