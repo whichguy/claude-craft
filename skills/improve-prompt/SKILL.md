@@ -1,7 +1,7 @@
 ---
 name: improve-prompt
 description: |
-  Research-backed prompt improvement workflow. Analyzes with Q1-Q11 structural diagnostics,
+  Research-backed prompt improvement workflow. Analyzes with Q1-Q13 structural diagnostics,
   researches domain + prompt engineering best practices, generates fixed+dynamic evaluation
   questions, validates improvement plan (quality gate), runs E parallel experiment variants,
   scope-preservation gate (12-question check against baseline for unintended regression),
@@ -27,7 +27,7 @@ allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 
 # improve-prompt Skill
 
-Research-backed prompt improvement loop: structural diagnostics (Q1-Q11) → domain research →
+Research-backed prompt improvement loop: structural diagnostics (Q1-Q13) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →
 scope-preservation gate (12-question baseline check) → questions-based judge (position-randomized) →
 reconciled learnings → commit on IMPROVED, revert + continue on NEUTRAL/REGRESSED.
@@ -359,10 +359,10 @@ investigate its domain, research best practices, and produce a structured improv
 <strategy_escalation>
 {IF consecutive_stalls == 0: "(none — first attempt or after improvement)"}
 {IF consecutive_stalls == 1: "Prior iteration was NEUTRAL/REGRESSED. Try bolder changes:
- structural reorganization, different prompting paradigm, or address a different Q1-Q11
+ structural reorganization, different prompting paradigm, or address a different Q1-Q13
  gap than previously attempted. Avoid minor variations of failed techniques."}
 {IF consecutive_stalls >= 2: "Multiple consecutive failures. Try the most impactful
- remaining Q1-Q11 gap NOT yet attempted. Consider fundamental prompt architecture changes
+ remaining Q1-Q13 gap NOT yet attempted. Consider fundamental prompt architecture changes
  or combinations of previously successful techniques (if any)."}
 </strategy_escalation>
 
@@ -412,7 +412,7 @@ Step 6 — Test-Run Observation
 ELSE: No input files are available (prompt is self-contained or running with empty input). Reason through what the current prompt would produce given empty/no input. Identify where outputs fall short: too brief, wrong format, missing key info, inconsistent structure.}
 
 Step 7 — Improvement Options
-Based on steps 1-6, synthesize exactly 3-4 improvement options. Each option MUST directly address a specific Q1-Q11 gap or test-run observation.
+Based on steps 1-6, synthesize exactly 3-4 improvement options. Each option MUST directly address a specific Q1-Q13 gap or test-run observation.
 
 For each option:
 - Name: <short descriptive name>
@@ -465,7 +465,7 @@ Note: UX questions are weighted at 0.5× in scoring — they test presentation s
 
 **Anti-circularity rule**: Do not generate dynamic questions that ONLY test features the improvement adds. At least 1 of the 2-4 dynamic questions MUST be a regression-check from the baseline's perspective — e.g.: "Does the improved version miss any finding, constraint, or edge case that the baseline would correctly flag?" Frame this question so A (baseline) wins if the baseline detects something B misses.
 
-**Calibration warning guard**: If the prior iteration's IDEAS_FILE Technique History shows a baseline 0% warning (all questions favored improved), the FIRST dynamic question this iteration MUST be: "Does the improved version miss any defect or requirement in the domain targeted by this iteration's improvements — specifically one the baseline would have caught?"
+**Calibration warning guard**: If the most recent Technique History entry in the IDEAS_FILE contains the line `Calibration: BASELINE_ZERO`, the FIRST dynamic question this iteration MUST be: "Does the improved version miss any defect or requirement in the domain targeted by this iteration's improvements — specifically one the baseline would have caught?"
 
 **Write mode:** If `{i}` == 1, write the full document below to {ideas_file} (overwrite if exists).
 If `{i}` > 1, APPEND the new diagnostic sections only to {ideas_file} with a separator:
@@ -540,7 +540,7 @@ Research summary:
 - Q-UX2: Is the most important information immediately scannable without reading through background?
 - Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?}
 
-### Dynamic (derived from Q1-Q11 gaps addressed this iteration)
+### Dynamic (derived from Q1-Q13 gaps addressed this iteration)
 - {Q-DYN-1}: {question text} [addresses: Q{N}]
 - {Q-DYN-2}: {question text} [addresses: Q{N}]
 ...
@@ -580,9 +580,9 @@ against these 6 gate questions. Answer PASS or FAIL with one-sentence reason for
 Gate questions:
 1. Specificity — Each option specifies a concrete, implementable change (not "improve clarity"
    but "add role: 'You are a...'"). PASS if all options are concrete.
-2. Grounding — Each option cites a specific finding from Q1-Q11 or research (not generic advice).
+2. Grounding — Each option cites a specific finding from Q1-Q13 or research (not generic advice).
 3. Differentiation — Options are meaningfully different from each other (not variations of same change).
-4. Coverage — Plan addresses at least one structural issue from Q1-Q11 (format, role, constraints, examples).
+4. Coverage — Plan addresses at least one structural issue from Q1-Q13 (format, role, constraints, examples).
 5. History compliance — No option re-proposes a technique in the Technique History marked REGRESSED or NEUTRAL.
 6. Impact — At least one option is rated HIGH predicted impact.
 
@@ -621,7 +621,7 @@ by applying exactly the assigned improvement options — no others.
 </original_prompt>
 
 <ideas_file>
-{ideas_file_contents — for Q1-Q11 context and full option specs}
+{ideas_file_contents — for Q1-Q13 context and full option specs}
 </ideas_file>
 
 <output_path>{$IMPROVE_TMPDIR/exp-{k}-iter-{i}.md}</output_path>
@@ -918,8 +918,8 @@ IF IS_LARGE_PROMPT:
         {"questions":[{"id":"Q-FX1","winner":"A","strength":"strong","reasoning":"..."},...], "reasoning":"1-2 sentences on most decisive quality factors"}
         ```
 
-    # Question count guard: if len(evaluation_questions) > 10, split into two judge sub-tasks
-    # per (k, j) pair — first covers Q-FX1..6 + Q-FX7 (if applicable), second covers Q-UX +
+    # Question count guard: if len(evaluation_questions) > 13, split into two judge sub-tasks
+    # per (k, j) pair — first covers Q-FX1..10 + Q-FX7 (if applicable), second covers Q-UX +
     # dynamic questions. Aggregate both sub-tasks before scoring.
 
     On malformed JSON → treat all questions as TIE.
@@ -1112,6 +1112,10 @@ IF quality_score_a == 0.0 AND quality_score_b_{best_k} > 0:
     Print: "   If Q-FX10 (adversarial regression) also scored B: the improved version is genuinely better AND catches everything baseline does."
     Print: "   If Q-FX10 scored TIE/A: more reliable signal — use that to calibrate confidence in the IMPROVED verdict."
     Print: "   Next iteration: the anti-circularity rule will require a mandatory regression-check dynamic question."
+
+calibration_flag = ""
+IF quality_score_a == 0.0 AND quality_score_b_{best_k} > 0:
+    calibration_flag = "Calibration: BASELINE_ZERO"
 ```
 
 If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write winner to prompt file in place).
@@ -1149,6 +1153,7 @@ improvement options and write comprehensive learnings to the ideas file.
 <selected_winner>
 Best experiment: {best_k} — {quality_score_b_best:.1%} quality score
 Verdict: {IMPROVED|NEUTRAL|REGRESSED} (decided by: {decided_by})
+{calibration_flag}
 </selected_winner>
 
 <scope_gate_results>
@@ -1188,7 +1193,7 @@ APPEND to {ideas_file} (do NOT overwrite existing content):
 **What worked:** {specific options/techniques that drove quality improvements}
 **What didn't work:** {options that were neutral or hurt quality across all experiments}
 **Root cause analysis:** {2-3 sentences}
-**What to try next iteration:** {1-2 grounded suggestions for remaining Q1-Q11 gaps}
+**What to try next iteration:** {1-2 grounded suggestions for remaining Q1-Q13 gaps}
 
 **Best experiment:** Exp-{best_k} ({options}) — {quality_score:.1%} quality score
 **Verdict: {IMPROVED | NEUTRAL | REGRESSED}**
@@ -1221,6 +1226,8 @@ Status: SCOPE_FAIL. Do not re-propose this technique direction."
 If scope_gate_results contains WARN entries: add an entry to Technique History for each
 warned experiment: "Scope gate WARN — {Q-SGN}: {reason}. Technique: {applied_summary_k}.
 Status: SCOPE_WARN. Use with caution; monitor for regression."
+
+If `<selected_winner>` contains `Calibration: BASELINE_ZERO`, include that exact tag on its own line in the Technique History entry for this iteration.
 
 Output only: "VERDICT: {IMPROVED|NEUTRAL|REGRESSED}" on a single line after writing.
 ```
