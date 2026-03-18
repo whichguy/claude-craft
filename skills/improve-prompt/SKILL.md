@@ -909,9 +909,32 @@ ELSE:
     Print: `[5/7] ⚖️  Evaluate ─── {M} input{s} × {1+len(active_experiments)} prompt{s}`
     (If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
 
-    **Spawn run-agents in batches of at most MAX_CONCURRENT** — collect all (1 + len(active_experiments)) × M tasks, then issue them in successive parallel messages of ≤MAX_CONCURRENT each, waiting for each batch to complete before issuing the next:
-    - `run-A-{filename}`: baseline prompt + each input (M tasks)
-    - `run-E{k}-{filename}`: experiment-k prompt + each input (only for k in active_experiments — len(active_experiments) × M tasks)
+    # Baseline run — use cache when prompt is unchanged from prior iteration
+    IF baseline_run_cache is not null:
+        # Baseline prompt unchanged (prior verdict was NEUTRAL or REGRESSED — rollback occurred).
+        # Reuse prior run outputs — skip spawning run-A tasks.
+        baseline_outputs  = baseline_run_cache.outputs   # dict[filename -> text]
+        baseline_tokens   = baseline_run_cache.tokens    # dict[filename -> total_tokens_est]
+        baseline_latency  = baseline_run_cache.latency   # dict[filename -> latency_ms]
+        Print: "   (baseline reused from iter {baseline_run_cache.iteration} — prompt unchanged)"
+    ELSE:
+        # Baseline changed (first iteration, or prior verdict was IMPROVED) — run fresh.
+        Spawn `run-A-{filename}` tasks in batches of at most MAX_CONCURRENT (M tasks, one per input).
+        Collect outputs, latency_ms, and token estimates as normal.
+        After collecting all baseline run results, save to cache:
+        baseline_run_cache = {
+            outputs:   {filename: output_text for each input},
+            tokens:    {filename: total_tokens_est for each input},
+            latency:   {filename: latency_ms for each input},
+            iteration: i
+        }
+        baseline_outputs  = baseline_run_cache.outputs
+        baseline_tokens   = baseline_run_cache.tokens
+        baseline_latency  = baseline_run_cache.latency
+
+    # Spawn experiment run-agents (always fresh — experiment variants change every iteration)
+    Spawn `run-E{k}-{filename}` tasks in batches of at most MAX_CONCURRENT (len(active_experiments) × M tasks).
+    Collect outputs, latency_ms, and token estimates as normal.
 
     For each completed task, record:
     - output text
@@ -1007,9 +1030,9 @@ else:
   quality_score_b_k = sum(score_b_j) / total_max_k   # normalized 0..1 per experiment k
   quality_spread_k  = quality_score_b_k - quality_score_a  # positive = B better
 
-avg_tokens_a  = mean(total_tokens_est for A runs)
+avg_tokens_a  = mean(baseline_tokens.values())   # from cache or live A runs
 avg_tokens_k  = mean(total_tokens_est for exp-k runs)
-avg_latency_a = mean(latency_ms for A runs)
+avg_latency_a = mean(baseline_latency.values())  # from cache or live A runs
 avg_latency_k = mean(latency_ms for exp-k runs)
 ```
 
@@ -1056,6 +1079,7 @@ IF quality_score_a == 0.0 AND quality_score_b_{best_k} > 0:
 ```
 
 If IMPROVED: `cp $IMPROVE_TMPDIR/exp-{best_k}-iter-{i}.md {prompt_path}` (write winner to prompt file in place).
+`baseline_run_cache = null`  # invalidate — new baseline is experiment winner; must re-run next iter
 
 **Re-read IDEAS_FILE** to get the current contents (written by the research agent in Step 1, which includes Improvement Options and Evaluation Questions) — do not rely on any cached snapshot from earlier in this iteration.
 
@@ -1178,6 +1202,10 @@ iterations_completed = 0
 iteration_log = []  # track per-iteration: {i, verdict, quality_score_a, quality_score_b, quality_spread, applied_summary}
 consecutive_stalls = 0  # tracks consecutive NEUTRAL/REGRESSED/SCOPE_FAIL — resets on IMPROVED
 start_time = now()  # ms timestamp — used by duration mode and elapsed display
+baseline_run_cache = null
+# baseline_run_cache: when populated, holds {outputs: dict[filename->text], tokens: dict[filename->float], latency: dict[filename->float], iteration: int}
+# Reused next iteration when the baseline prompt did not change (NEUTRAL/REGRESSED → rollback).
+# Cleared when verdict is IMPROVED (new baseline = experiment winner).
 
 FOR i in 1..iterations:
 
