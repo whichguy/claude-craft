@@ -781,6 +781,48 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
+      Question-specific methodology:
+      - For Q-G13 (Phased decomposition): Apply four detection patterns in order:
+          (1) Flat list: plan has >3 implementation steps with no phase/section headers →
+              NEEDS_UPDATE. Cite the flat list and its step count.
+          (2) Test-at-end: phases exist but testing is consolidated in a final phase rather
+              than distributed per-phase → NEEDS_UPDATE. Cite the testing phase
+              (e.g., "Phase 4 consolidates all testing — each phase should verify its own work").
+          (3) Commit-before-test: a phase has a git commit step before its verification/test
+              step → NEEDS_UPDATE. Cite the misordered steps.
+          (4) No checkpoint: phases depend on each other with no explicit go/no-go between
+              them → NEEDS_UPDATE. Cite the dependency.
+        Borderline: plan has phase headers but phases lack internal test steps:
+        - If phases also lack Pre-check/go-no-go markers → NEEDS_UPDATE (condition 2: no
+          per-phase verification of any kind). Cite the absent verification.
+        - If phases have explicit Pre-check or go/no-go markers but no per-phase tests →
+          NEEDS_UPDATE (mild: suggest distributing test steps, acknowledge checkpoints exist).
+      - For Q-G10 (Assumption exposure): Apply two detection categories:
+          Category 1 — Explicit markers: scan for "TBD", "need to determine", "maybe",
+              "should handle...somehow", "might need to", "will need to investigate",
+              "if the API supports", and similar uncertainty markers → always NEEDS_UPDATE.
+              Cite the marker and its location.
+          Category 2 — Implicit constraints: scan for statements presented as facts that could
+              be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
+              and would the plan discover it before committing work?" If no → flag as unstated
+              assumption. Cite the statement and explain why it is unvalidated.
+              Recognition anchors for implicit constraints: action-without-investigation verbs
+              ('Copy files from X', 'Update Y directly', 'Use approach Z') where the approach
+              could be wrong but the plan has no discovery step.
+        Borderline: plan states "we assume X" explicitly → PASS if the assumption is reasonable
+        and stated. "X won't work" or "Y is required" without citing evidence → NEEDS_UPDATE
+        (unvalidated constraint presented as established fact).
+      - For Q-G18 (Pre-condition verification): Scan for file-edit steps. For each, check
+          whether a preceding Read or "verify current state" step exists that names the specific
+          file AND what to confirm (function name, line range, config key). Pattern:
+          "edit/modify/update [file]" without a prior "read [file] and verify [X]" step →
+          NEEDS_UPDATE. N/A: new-file creation steps with no existing file to verify.
+      - For Q-G17 (Phase preambles): Only activates on plans with ≥ 2 distinct phases.
+          For each phase: check whether 1-3 narrative sentences appear BEFORE the numbered
+          steps, explaining the phase intent. A phase header alone ('## Phase 2') does not
+          qualify — the preamble must convey why this phase exists and what it sets up.
+          N/A: single-phase plans.
+
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
 
@@ -1210,6 +1252,12 @@ DO:
       Print: "  ┌ [[idx+1]/[N]] [question short name] ([ID])"
       Print: "  │ [verb] [object — first sentence of edit instruction]"
       Call the Edit tool on the plan file to insert/modify the specified content.
+      IF Edit fails (old_string not found in plan):
+        Print: "  ⚠️ Edit skipped — passage not found (may have been modified by prior edit this pass)"
+        Print: "  │ Q-ID: [ID], finding: [first sentence of edit.finding]"
+        # Do NOT count as a change. Do NOT retry.
+        # The finding remains in evaluator output — it will be re-evaluated next pass.
+        CONTINUE to next edit
       Mark each insertion <!-- review-plan -->.
       Each Edit call = 1 change. Do not count findings you only described in text.
       Print: "  └ ✓ applied"
@@ -1557,6 +1605,48 @@ DO:
   gate1_label = IF gate1_open == 0: "clear" ELSE: "open"
   gate2_label = IF gate2_open == 0: "clear" ELSE: "open"
   Print: "  gates ── 🔴 [gate1_sym] [gate1_label]  🟡 [gate2_sym] [gate2_label]  💡 [gate3_noted] noted"
+
+  # Helper functions for evaluator status lines
+  FUNCTION check_memoized(eval_name):
+    IF eval_name == "l1-advisory-structural": RETURN l1_structural_memoized
+    IF eval_name == "l1-advisory-process": RETURN l1_process_memoized
+    IF eval_name == "gas-evaluator": RETURN fully_memoized_gas
+    IF eval_name == "node-evaluator": RETURN fully_memoized_node
+    IF eval_name in [c + "-evaluator" FOR c IN memoized_clusters]: RETURN true
+    RETURN false
+  FUNCTION memoized_since(eval_name):
+    IF eval_name == "l1-advisory-structural": RETURN l1_structural_memoized_since
+    IF eval_name == "l1-advisory-process": RETURN l1_process_memoized_since
+    IF eval_name == "gas-evaluator": RETURN max(memoized_gas_since.values())
+    IF eval_name == "node-evaluator": RETURN max(memoized_node_since.values())
+    RETURN max(memoized_since[c] FOR c IN memoized_clusters IF c + "-evaluator" == eval_name)
+
+  # Per-evaluator status lines — shows what happened to each evaluator this pass
+  active_evaluators = ["l1-blocking", "l1-advisory-structural", "l1-advisory-process"]
+  active_evaluators += [c + "-evaluator" FOR c IN active_clusters]
+  IF IS_GAS: active_evaluators.append("gas-evaluator")
+  ELSE IF IS_NODE: active_evaluators.append("node-evaluator")
+  IF HAS_UI: active_evaluators.append("ui-evaluator")
+
+  evaluator_status_lines = []
+  FOR eval_name IN active_evaluators:
+    IF eval_name == "l1-blocking":
+      evaluator_status_lines.append("l1-blocking ── re-run (Gate 1, always)")
+      CONTINUE
+    IF check_memoized(eval_name):
+      evaluator_status_lines.append("[eval_name] ── memoized (p[memoized_since(eval_name)])")
+    ELSE IF eval_name in all_results AND all_results[eval_name].status == "error":
+      evaluator_status_lines.append("[eval_name] ── error")
+    ELSE IF pass_count == 1:
+      evaluator_status_lines.append("[eval_name] ── re-run (first pass)")
+    ELSE IF len(prev_pass_applied_edits) > 0:
+      edited_qids = [e.q_id for e in prev_pass_applied_edits]
+      evaluator_status_lines.append("[eval_name] ── re-run (prev edits: [join(edited_qids, ', ')])")
+    ELSE:
+      evaluator_status_lines.append("[eval_name] ── re-run (stability not met)")
+  Print: "  evaluators:"
+  FOR line in evaluator_status_lines:
+    Print: "    [line]"
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
   prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
