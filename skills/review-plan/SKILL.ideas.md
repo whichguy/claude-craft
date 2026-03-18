@@ -1964,6 +1964,23 @@ Scope gate WARNs carried forward:
 - Q-SG8: KK guard is dead code — general error CONTINUE fires first. Fix required next iteration.
 - Q-SG12: ADVISORY_CACHE_QIDS narrowing to {"Q-G25"} could lose Q-G20-Q-G24 advisory text for complex multi-pass plans. Monitor for regression.
 
+### 2026-03-18 — Iteration 12 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (NN+OO+PP+QQ)
+**Verdict:** IMPROVED (decided by: quality, +21.1% spread)
+Calibration: BASELINE_ZERO
+
+**What worked:**
+- Option NN (KK dead code fix — l1-blocking guard reordered before general handler): Q-FX9 (0/9/1), Q-DYN-43 (0/9/1). Reorder makes fail-closed guard execute before general CONTINUE. Trivial plan Input 3 all-TIE confirms zero happy-path impact. Zero new lines — pure reorder.
+- Option QQ (gate3_noted = len(advisory_findings_cache)): Q-FX8 (0/8/2), Q-DYN-44 (0/9/1). Gate health bar now correctly shows advisory count rather than always-zero NEEDS_UPDATE count for Gate 3 questions. Single-line semantic correction.
+- Options OO+PP (ordering contract comment + ADVISORY_CACHE_QIDS rationale): Q-FX6 (0/9/1). Documentation improvements preventing future bug class recurrence.
+
+**What didn't work:**
+- Nothing regressed. Q-DYN-45 all-TIE (0/0/10) confirms no regression on happy path from reorder.
+
+**Actionable learning:**
+Silent correctness bugs (dead code, semantic errors) in orchestrator prompts are identifiable by: (1) a code path that checks the same condition as a preceding handler but is never executed due to CONTINUE; (2) a variable that counts a condition that structurally can never be true (NEEDS_UPDATE for Gate 3 questions). When a bug is identified, the fix is always: (a) trace the actual control flow, (b) apply the minimal structural change (reorder, semantic correction), never add new code to work around the wrong path. Both NN and QQ followed this pattern.
+
 ---
 *Date: 2026-03-18 — Iteration 11*
 
@@ -2223,3 +2240,295 @@ Q-DYN-39: 0/10/0  Q-DYN-40: 0/3/7  Q-DYN-41: 1/8/1  Q-DYN-42: 0/7/3
 **Verdict: IMPROVED**
 Decided by: quality (+20.8% spread)
 
+### 2026-03-18 — Iteration 11 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (JJ+KK+LL+MM combined)
+**Verdict:** IMPROVED (decided by: quality, +20.8% spread)
+
+**What worked:**
+- Option JJ (Explicit Rating Computation Block): Unanimous Q-FX8 (0/10/0) and Q-DYN-39 (0/10/0) wins. IF/ELIF/ELSE block before scorecard makes READY/SOLID/GAPS/REWORK deterministic. Comment explicitly excludes Gate 3 from gate2_open count. Primary driver.
+- Option MM (MAX_EDITS_PER_PASS=12): Q-DYN-42 (0/7/3) wins. Gate-priority sorting ensures Gate 1 edits apply first; overflow warning is surfaced. Directly benefits complex plans (Input 4, Input 10) with many simultaneous findings.
+- Option LL (ADVISORY_CACHE_QIDS rename + {"Q-G25"} scope): Q-DYN-41 (1/8/1). Minor regression signal on complex GAS plans (Q-G20-Q-G24 advisory text loss across memoized passes). Scope gate WARN Q-SG12 confirmed.
+
+**What didn't work:**
+- Option KK (l1-blocking fail-closed guard): DEAD CODE. Inserted after general error CONTINUE at line 1174-1176 — never executed. Q-DYN-40 only 3/10 wins (all "slight"). Fix: move check BEFORE the general handler.
+- Q-FX10 adversarial/edge-case: 5 A-wins, 2 B-wins, 3 TIE. The combined additions (JJ+KK+LL+MM) slightly worsened adversarial handling on 5/10 inputs. Possible cause: added structural complexity (rating block, edit cap, cache rename) increases prompt length and may cause the model to focus on the new blocks rather than gracefully handling degenerate inputs.
+
+**Actionable learning:**
+When adding safety guards to existing loops, ALWAYS trace the control flow from loop entry to the insertion point to verify reachability. The KK dead code bug is the canonical example: the general error handler (lines 1175-1177) fires for ALL error/timeout statuses including l1-blocking, so any evaluator-specific error guard placed AFTER it is unreachable. The fix is structural reordering (specific before general), not additional code. For Q-FX10 adversarial regression: monitor but do not add adversarial-specific handling unless the regression persists across 2+ iterations — the 5/10 A-win could be within noise for a +20.8% overall improvement.
+
+**Calibration:** BASELINE_NONZERO (1.1%). No mandatory calibration dynamic question.
+
+---
+*Date: 2026-03-18 — Iteration 12*
+
+## Structural Diagnostic (Q1-Q13) — Iteration 12
+
+**Q1 (Role/Persona):** PASS. The Role & Authority block (lines 18-24) remains clear, well-scoped, and stable across all 11 iterations. Four components (Role, Authority, Constraint, Goal) are all present. No drift.
+
+**Q2 (Task Precision):** PASS with ONE BUG REMAINING. The deduplication algorithm, advisory_findings_cache population loop, GATE3_QIDS scope filter, and Rating computation block are all correctly specified after Iter 10-11 fixes. The ONE remaining precision bug is the KK dead code: lines 1179-1187 contain an l1-blocking-specific fail-closed guard that is unreachable because the general error handler at lines 1175-1177 fires first and CONTINUEs past it. This is a correctness bug from Iter 11 — the intent is correct but the insertion point makes it dead code. The fix is to reorder: move the l1-blocking-specific check BEFORE the general error handler, or merge it into the general handler with an evaluator_name conditional.
+
+**Q3 (Context Adequacy):** PASS. Context recovery from memo_file is well-specified. Advisory findings cache is persisted in memo_file checkpoint. The 5 context flags are passed through to cluster evaluators. No new gap.
+
+**Q4 (Output Format):** PASS. Gate 3 advisory finding text is rendered in the scorecard (Iter 9 DD). Advisory findings cache correctly populates and clears (Iter 10 GG/HH/II). Rating computation block (Iter 11 JJ) is correctly positioned before the scorecard template. No format inconsistency.
+
+**Q5 (Examples):** PASS. All high-frequency question methodologies have inline examples (Q-G25 tripartite, Q-G20 story arc, Q-C39 field-index, Gate 3 scorecard rendering). No critical example gap.
+
+**Q6 (Constraints):** MINOR GAP CARRIED FORWARD. ADVISORY_CACHE_QIDS is now `{"Q-G25"}` (Iter 11 LL rename + narrowing). The narrowing from Q-G20-Q-G25 to Q-G25-only had a 1/10 regression signal on Input 10 (complex GAS OAuth plan with TBD markers). For Input 10, Q-G20 (story arc) could produce a PASS-with-advisory-finding ("Phase 2 step 3 mentions investigation needed — story arc has a gap") that would be cached under the old Q-G20-Q-G25 scope but is now lost. However, the scorecard Gate 3 section only renders Q-G25 advisory text (the only actual Gate 3 question), so Q-G20 advisory text would not have appeared in the scorecard anyway. The regression signal is likely an evaluation artifact — the old broad cache retained more state which subtly affected downstream behavior. This is a Q-SG12 WARN that is safe to close: the narrowing is correct for the scorecard's rendering scope.
+
+**Q7 (Anti-patterns):** MINOR GAP. Evaluator config boilerplate (4 identical constraint lines + ~15-line output contract repeated across 5-7 evaluator configs) remains a DRY violation contributing to prompt length (~70-105 lines of repetition in 120K chars). Per Iter 2 learning, attempts to reduce prompt overhead regress quality. Not actionable.
+
+**Q8 (Chain-of-thought):** PASS. All high-frequency judgment calls have explicit CoT templates. No remaining unguided high-frequency judgment calls.
+
+**Q9 (Domain Specifics):** PASS. Gate tier semantics are inline. Gate 1 question IDs are enumerated per mode. IS_GAS/IS_NODE cluster suppression tables are comprehensive.
+
+**Q10 (Tone/Register):** PASS. Three interpolation syntaxes coexist but per Iter 2, notation standardization is not worth attempting.
+
+**Q11 (Parallelization):** PASS. All evaluators spawn in priority-ordered waves. Two-pass l1-advisory split runs both in wave 1. Early memoization invalidation ensures no one-pass-delay.
+
+**Q12 (Failure Modes):** ONE GAP — KK DEAD CODE.
+
+(a) **KK dead code bug (CRITICAL).** Lines 1179-1187 contain the l1-blocking fail-closed guard from Iter 11 Option KK. This guard checks `IF evaluator_name == "l1-blocking" AND data.status in ["timeout", "error"]` and injects synthetic NEEDS_UPDATE for Q-G1/Q-G2/Q-G11. However, lines 1175-1177 are a GENERAL error handler that fires for ALL evaluators with status `["timeout", "error"]` — it marks the evaluator as Incomplete and CONTINUEs past the KK guard. Since both conditions check the same `data.status in ["timeout", "error"]`, the general handler at 1175-1177 ALWAYS fires first for l1-blocking errors, and the CONTINUE skips the KK guard entirely. The KK guard is dead code.
+
+**Fix:** Restructure the fan-in routing block so the l1-blocking-specific guard fires BEFORE the general error handler. Two implementation options:
+- Option A (recommended): Move lines 1179-1187 to BEFORE lines 1175-1177. The l1-blocking guard has its own CONTINUE, so it will skip both the general handler and the normal routing for l1-blocking errors. Non-l1-blocking errors still fall through to the general handler.
+- Option B: Merge the l1-blocking check INTO the general handler as a conditional: `IF evaluator_name == "l1-blocking": [inject NEEDS_UPDATE] ELSE: [existing Incomplete handling]`.
+
+(b) **Q-FX10 adversarial regression (MINOR, MONITORING).** Iter 11 showed Q-FX10 at 5/2/3 (A-wins). The combined JJ+KK+LL+MM additions slightly worsened adversarial handling. This is plausibly within noise (+20.8% overall spread was strong). Root cause hypothesis: the added structural complexity (rating computation block, edit cap, cache rename) increases the prompt's cognitive surface area, and when processing degenerate inputs (malformed plan, empty plan), the model may spend attention on the new blocks rather than gracefully degrading. This is NOT actionable as a separate fix — it would resolve naturally if the dead code is removed (KK fix reduces complexity).
+
+(c) **Rating computation: RESOLVED.** Iter 11 Option JJ added the explicit IF/ELIF/ELSE block before the scorecard. Verified correct at lines 1896-1910. No remaining gap.
+
+(d) **MAX_EDITS_PER_PASS: RESOLVED.** Iter 11 Option MM added the cap at line 1261. Verified correct. No remaining gap.
+
+**Q13 (Calibration & Thresholds):** PASS. ADVISORY_CACHE_QIDS narrowing to `{"Q-G25"}` is correct for the scorecard's rendering scope. Evaluator calibration is well-specified across all L1 and cluster configs. Q-G25 tripartite calibration (Iter 8) stable. 2-pass structural memoization threshold (Iter 8) stable. No calibration drift detected.
+
+---
+
+## Domain Inference — Iteration 12
+
+Primary domain: **LLM multi-agent orchestrator prompt — convergence loop with gated quality review, parallel evaluator fan-out/fan-in, and structured scorecard output.** The prompt is highly mature (11 iterations, ~122K chars) with well-specified evaluator configs, memoization logic, advisory finding cache, and rating computation.
+
+Most improvable sub-tasks after 11 iterations:
+1. **KK dead code fix (Q12):** The highest-priority remaining item. A correctness bug from Iter 11 that makes the l1-blocking fail-closed guard unreachable. The fix is a simple reorder — zero new code, just moving existing lines.
+2. **Q-FX10 adversarial resilience (Q12, MINOR):** The 5/10 A-win signal on adversarial/edge-case inputs is the only dimension where Iter 11 showed regression. However, this is likely within noise and would partially resolve by removing dead code (reduces prompt complexity).
+3. **Evaluator config boilerplate (Q7):** Structural redundancy. Not actionable per Iter 2 learning.
+
+The prompt is at diminishing returns for per-question methodology refinements. The remaining gains are structural: fixing dead code, and potentially one more targeted improvement.
+
+---
+
+## Domain Research Findings — Iteration 12
+
+**Finding 1 — Guard ordering in multi-branch error handlers: specific-before-general is the canonical pattern (Augment Code multi-agent failure guide, 2025; MASFT taxonomy, arxiv 2503.13657, 2025):**
+
+Production multi-agent systems use a "specific-before-general" guard ordering pattern in error handlers: when a fan-in loop processes results from multiple evaluator types, evaluator-specific error guards must appear BEFORE the general catch-all error handler. The general handler's CONTINUE/BREAK causes control flow to skip all subsequent checks in the current loop iteration. This is the same pattern as exception handling in programming languages (catch specific exceptions before generic Exception) and firewall rules (specific ALLOW/DENY before default policy). The MASFT taxonomy identifies "silent error propagation" as one of 14 distinct multi-agent failure modes — where a generic error handler masks a specific recovery action that should have fired. The KK dead code bug in SKILL.md is exactly this pattern: the generic error CONTINUE at line 1175-1177 masks the l1-blocking-specific recovery at lines 1179-1187.
+
+**Finding 2 — Evaluator-optimizer convergence: max_attempts + fail-closed guards prevent false convergence (DEV Community evaluator-optimizer pattern, 2025; Langfuse LLM-as-judge guide, 2025):**
+
+The evaluator-optimizer pattern (iterative refinement with evaluator feedback) requires two safety mechanisms: (a) a max_attempts counter to prevent infinite loops (already present in SKILL.md as `pass_count >= 5`), and (b) fail-closed guards for critical evaluators to prevent false convergence when evaluation fails (the intent of KK). The literature emphasizes that these guards must be wired into the control flow correctly — a guard that exists but is unreachable provides zero safety value and creates a false sense of protection. For review-plan, the l1-blocking evaluator is the ONLY evaluator covering Gate 1 questions in standard mode. Its error handler must inject NEEDS_UPDATE (fail-closed) before the generic handler fires, or the convergence check will see Gate1_unresolved == 0 and falsely converge.
+
+---
+
+## Test-Run Observations — Iteration 12
+
+**Test input 1: input8-gas-oauth-tbd-markers.md (GAS OAuth/PKCE — complex, multi-phase, TBD markers)**
+
+IS_GAS=true (modifies .gs files, GAS HTML service files), HAS_UI=true (sidebar auth.html, main.html), HAS_DEPLOYMENT=false (squash merge, but no explicit deploy step — this is borderline), HAS_STATE=true (PropertiesService token storage), IS_TRIVIAL=false. Active clusters: impact (always), state (HAS_STATE=true). Gas-evaluator + ui-evaluator active.
+
+**KK dead code impact analysis:** For this plan, l1-blocking evaluates Q-G1 (Approach soundness — OAuth/PKCE is a sound approach for GAS sidebar auth), Q-G2 (Standards compliance), Q-G11 (Pre-reads — needs to verify GAS web app callback path format). If l1-blocking errors on pass 1 (e.g., context limit due to the 3-phase plan being long + QUESTIONS.md being large), the general error handler at line 1175-1177 fires, marking l1-blocking as Incomplete. The KK guard at lines 1179-1187 is never reached. Q-G1/Q-G2/Q-G11 have no status. The convergence check computes `Gate1_unresolved = count of NEEDS_UPDATE on Q-G1, Q-G2, Q-G11, Q1, Q2, Q13, Q15, Q18, Q42` (IS_GAS mode). Q-G1/Q-G2/Q-G11 are absent (not NEEDS_UPDATE) — they contribute 0 to the count. The gas-evaluator covers Q1, Q2, Q13, Q15, Q18, Q42 independently. If the gas-evaluator runs successfully and all 6 gas Gate 1 questions are PASS, then Gate1_unresolved could be 0 with Q-G1/Q-G2/Q-G11 completely unevaluated. The Incomplete evaluator rule says "do NOT converge if Incomplete had NEEDS_UPDATE last pass" — but on pass 1 there IS no last pass. False convergence is possible.
+
+**ADVISORY_CACHE_QIDS observation:** For this plan, Q-G20 (story arc) would evaluate the 3-phase structure. Phase 1 is clear (OAuth config + PKCE helper). Phase 2 has two TBD markers: step 3 ("will need to investigate") and step 8 ("should handle edge cases somehow"). Q-G20's story arc check would produce NEEDS_UPDATE (not advisory) for these — the TBD markers are gaps, not advisory notes. So the ADVISORY_CACHE_QIDS scope (whether Q-G20 is included or not) does not affect this plan's advisory text — there IS no Q-G20 advisory text to cache. The Iter 11 Q-DYN-41 regression on Input 10 (this plan type) was likely caused by subtle downstream state differences from the rename, not by actual advisory text loss.
+
+**Test input 2: input10-gas-production-fix.md (Fix onThinking — single-file GAS bug fix)**
+
+IS_GAS=true, HAS_UI=false, HAS_DEPLOYMENT=false, HAS_STATE=false, IS_TRIVIAL=false (code logic changes with conditional branching — callerOnThinking null check + try/catch restructuring). Active clusters: impact (always). Gas-evaluator active.
+
+**KK dead code impact analysis:** For this clean, small plan, l1-blocking is very unlikely to error (plan is short, minimal context pressure). KK dead code has no practical impact on this input. The plan is expected to converge in 1-2 passes with a READY rating.
+
+**ADVISORY_CACHE_QIDS observation:** Q-G25 (feedback loop): the plan has "Step 4: exec verify — module loads cleanly" and "Step 5: send test message... cancel mid-thinking — verify cancel fires" and "Step 6: Verify compaction path." These are concrete feedback mechanisms. Q-G25 should PASS cleanly with no advisory text. The ADVISORY_CACHE_QIDS scope is irrelevant for this input.
+
+**Cross-observation:** The KK dead code fix is the only remaining structural correctness bug. It affects the highest-severity failure mode (false convergence with Gate 1 unevaluated) on the lowest-frequency trigger (l1-blocking error). The fix is zero-risk: reordering two existing code blocks. The ADVISORY_CACHE_QIDS Q-DYN-41 regression is a Q-SG12 WARN that does not manifest in either test input — safe to close.
+
+---
+
+## Improvement Options — Iteration 12
+
+### Option NN — Fix KK Dead Code: Reorder l1-Blocking Guard Before General Error Handler
+
+**Addresses:** Q2 — Task precision (dead code bug) / Q12 — Failure modes (l1-blocking error on pass 1 causes false convergence)
+
+**What changes:** In the fan-in routing block (lines 1173-1220), move the l1-blocking-specific fail-closed guard (currently lines 1179-1187) to BEFORE the general error handler (currently lines 1175-1177). The reordered block becomes:
+
+```
+FOR evaluator_name, data in all_results:
+
+    # Fail-closed guard for l1-blocking errors (Gate 1 safety) — MUST precede general handler
+    IF evaluator_name == "l1-blocking" AND data.status in ["timeout", "error"]:
+      # l1-blocking covers Q-G1, Q-G2, Q-G11 — all Gate 1.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      FOR q_id in ["Q-G1", "Q-G2", "Q-G11"]:
+        l1_results[q_id] = "NEEDS_UPDATE"
+        l1_edits[q_id] = {"finding": "l1-blocking evaluator error — re-run required", "edit": null}
+      Print: "  ⚠️ l1-blocking error → Q-G1/Q-G2/Q-G11 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE  # skip normal routing for this evaluator
+
+    IF data.status in ["timeout", "error"]:
+      mark as Incomplete (existing incomplete evaluator rules apply unchanged)
+      CONTINUE
+```
+
+The l1-blocking guard now fires FIRST for l1-blocking errors, injecting synthetic NEEDS_UPDATE before the general handler can CONTINUE past it. For all other evaluators, the general handler fires as before (the l1-blocking IF condition is false for non-l1-blocking evaluators). Zero behavioral change for non-error paths — the specific-before-general reorder only affects the error path.
+
+**Why it helps:** This fixes a confirmed dead code bug from Iter 11. The KK guard was conceptually correct but structurally unreachable. Research Finding 1 (specific-before-general guard ordering) confirms this is the canonical fix pattern. Q-DYN-40 from Iter 11 only achieved 3/10 wins because the guard never executed — with the fix, the guard will actually fire when l1-blocking errors, injecting NEEDS_UPDATE for Q-G1/Q-G2/Q-G11 and preventing false convergence on pass 1. This also removes dead code, marginally reducing prompt complexity (which may help the Q-FX10 adversarial regression).
+
+**Predicted impact:** HIGH severity prevention, LOW frequency occurrence. When l1-blocking errors on pass 1, the guard prevents false convergence with Gate 1 unevaluated. The fix adds zero new lines — it only reorders existing lines 1175-1187.
+
+**Conciseness impact:** NEUTRAL — pure reorder, no new lines.
+
+---
+
+### Option OO — Inline Comment Anchoring the Specific-Before-General Pattern
+
+**Addresses:** Q12 — Failure modes (prevent future regressions of the same class) / Q7 — Anti-patterns (no annotation explaining why ordering matters)
+
+**What changes:** Add a 2-line comment at the top of the fan-in routing block (after the `FOR evaluator_name, data in all_results:` line) that documents the ordering contract:
+
+```
+  FOR evaluator_name, data in all_results:
+    # ORDERING CONTRACT: evaluator-specific error guards MUST appear before the general
+    # error handler. The general handler's CONTINUE skips all subsequent checks.
+```
+
+**Why it helps:** The KK dead code bug was an insertion-point error — the developer placed the l1-blocking guard after the general handler without tracing the control flow. A 2-line comment at the top of the routing block makes the ordering invariant explicit, preventing future contributors from inserting new evaluator-specific guards after the general handler. This follows the pattern of structural annotations (like `<!-- keep -->` markers in the regression check) that encode invariants at the point where they are most likely to be violated.
+
+**Predicted impact:** LOW — preventive only. No behavioral change. Prevents a class of future bugs.
+
+**Conciseness impact:** ADDS 2 lines. Minimal.
+
+---
+
+### Option PP — Close Q-SG12 WARN: Add Inline Comment to ADVISORY_CACHE_QIDS Explaining Scope Decision
+
+**Addresses:** Q6 — Constraints (ADVISORY_CACHE_QIDS scope rationale undocumented) / Q13 — Calibration (close the Q-SG12 WARN from Iter 10/11)
+
+**What changes:** Expand the ADVISORY_CACHE_QIDS definition comment (currently lines 289-293 and line 1222) to explain WHY the set is `{"Q-G25"}` and not `{"Q-G20", ..., "Q-G25"}`:
+
+At the definition site (line 1222):
+```
+    # ADVISORY_CACHE_QIDS: only Q-G25 (the sole Gate 3 question). Q-G20-Q-G24 are Gate 2 —
+    # their PASS-with-finding text is descriptive, not advisory, and is never rendered in the
+    # Gate 3 scorecard section. Caching them would accumulate unused entries.
+    ADVISORY_CACHE_QIDS = {"Q-G25"}
+```
+
+At the initialization comment (lines 289-293), add one line:
+```
+   advisory_findings_cache = {}
+   # advisory_findings_cache: Q-ID → {"finding": "<text>", "source": "<evaluator>"}
+   # Scope: Gate 3 advisory questions only (currently Q-G25 — the sole Gate 3 question).
+   # Q-G20-Q-G24 are Gate 2; their descriptive PASS text is not cached (never rendered in Gate 3 section).
+   # Populated each non-memoized evaluator pass. Later-pass entries overwrite earlier.
+   # Entry cleared when PASS with empty finding — signals condition was resolved by edits.
+   # Persisted in memo_file checkpoint for context-compression resilience.
+```
+
+**Why it helps:** The Q-SG12 WARN has been carried forward since Iter 10 and confirmed in Iter 11. The Iter 11 Q-DYN-41 regression (1/10 A-win on Input 10) triggered concern about the narrowing. Test-run analysis in this iteration confirms the narrowing is correct: Q-G20-Q-G24 are Gate 2 questions whose PASS-with-finding text is never rendered in the Gate 3 scorecard section. The regression was an evaluation artifact, not a functional loss. Adding the explanatory comment closes the Q-SG12 WARN permanently by documenting the design rationale at both definition sites.
+
+**Predicted impact:** LOW — documentation only. No behavioral change. Closes a carried-forward scope gate WARN.
+
+**Conciseness impact:** ADDS 4 lines net (replacing existing 4-line comment block with 6-line block at init, adding 2-line block at definition). Minimal.
+
+---
+
+### Option QQ — Gate 3 Count Alignment: Ensure gate3_noted Uses advisory_findings_cache, Not NEEDS_UPDATE Count
+
+**Addresses:** Q12 — Failure modes (gate3_noted could miscount) / Q4 — Output Format (gate health bar accuracy)
+
+**What changes:** The compact gate health bar at lines 1609-1623 computes `gate3_noted = count of NEEDS_UPDATE in current pass for Gate 3 questions`. But Gate 3 questions (specifically Q-G25 per tripartite calibration) produce PASS-with-advisory, not NEEDS_UPDATE. The NEEDS_UPDATE count for Gate 3 should always be 0 (or near-0) because the Iter 8 tripartite calibration explicitly says "Gate 3 advisory — do NOT NEEDS_UPDATE." The gate3_noted variable should instead count entries in `advisory_findings_cache` to accurately reflect the number of advisory notes detected.
+
+Change line 1613 from:
+```
+  gate3_noted = count of NEEDS_UPDATE in current pass for Gate 3 questions
+```
+to:
+```
+  gate3_noted = len(advisory_findings_cache)  # count of advisory notes (PASS-with-finding), not NEEDS_UPDATE
+```
+
+This aligns the gate health bar's Gate 3 count with the actual advisory detection mechanism (the cache) rather than the NEEDS_UPDATE count (which should be 0 for properly calibrated Gate 3 questions).
+
+**Why it helps:** After Iter 8's tripartite calibration, Q-G25 should never produce NEEDS_UPDATE for "present but weak" feedback loops — those are Gate 3 advisory (PASS-with-finding). The current gate3_noted computation counts NEEDS_UPDATE for Gate 3 questions, which would be 0 in the calibrated case. The gate health bar would show `💡 0 noted` even when the advisory_findings_cache has a legitimate advisory entry for Q-G25. This is a display inconsistency: the scorecard's Gate 3 section (which reads from advisory_findings_cache) would show the advisory, but the per-pass gate health bar would show 0. Aligning both to read from advisory_findings_cache makes the display consistent.
+
+**Predicted impact:** LOW-MEDIUM. Affects the gate health bar display for plans with Gate 3 advisories (e.g., input4 with weak feedback loop). Does not affect convergence or rating computation. Improves display consistency between per-pass bar and final scorecard.
+
+**Conciseness impact:** CHANGES 1 line. Zero net line addition.
+
+---
+
+## Evaluation Questions — Iteration 12
+
+### Fixed (Q-FX1-Q-FX10)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded in the input — no hallucinated question IDs, no fabricated evaluator findings, no invented plan content?
+- Q-FX6: Does the output demonstrate sound reasoning — findings cite specific plan passages, not generic observations?
+- Q-FX7: Are downstream agent instructions and external dependency references complete and unambiguous? (HAS_DOWNSTREAM_DEPS=true — evaluator configs are downstream instructions)
+- Q-FX8: Does the scorecard rating correctly reflect the gate-level findings (READY when all clear, SOLID for 1-3 Gate 2 open, GAPS for 4+, REWORK when Gate 1 open)?
+- Q-FX9: Are evaluator errors handled gracefully — does the output surface errors clearly and continue the review rather than silently skipping or false-converging?
+- Q-FX10: Does the prompt handle adversarial or edge-case inputs (malformed plan, empty plan, evaluator timeout) without crashing or producing undefined output?
+
+### UX Questions (Q-UX1-Q-UX3, HAS_OUTPUT_FORMAT=true)
+- Q-UX1: Is the ASCII scorecard box visually consistent — aligned columns, correct box-drawing characters, no broken lines?
+- Q-UX2: Is the pass progress bar correctly rendered and does it accurately reflect the current pass count out of 5?
+- Q-UX3: Are the convergence output sections (CONFIG, REVIEW, APPLYING, EPILOGUE, ORGANIZE, SCORECARD) clearly delineated with consistent box-drawing borders and section headers?
+
+### Dynamic (derived from gaps found in this iteration)
+- Q-DYN-43: If the l1-blocking evaluator encounters an error on pass 1, does the orchestrator treat Q-G1/Q-G2/Q-G11 as NEEDS_UPDATE (fail-closed) and continue looping — confirming the reordered guard fires BEFORE the general error handler? [addresses: Q2, Q12 — KK dead code fix verification; regression check from baseline's perspective since baseline has the dead code]
+- Q-DYN-44: Does the per-pass gate health bar's Gate 3 count (gate3_noted) correctly reflect the number of advisory findings detected (from advisory_findings_cache), rather than showing 0 when Gate 3 questions produce PASS-with-advisory instead of NEEDS_UPDATE? [addresses: Q4, Q12 — gate3_noted alignment with advisory cache]
+- Q-DYN-45: For a plan where all evaluators succeed (no errors), does the reordered fan-in routing block produce identical results to the baseline — confirming the specific-before-general reorder has zero behavioral impact on the happy path? [addresses: Q2 — anti-regression check, ensures the reorder does not alter non-error behavior]
+- Q-DYN-46: On adversarial/edge-case inputs (malformed plan with no implementation steps, or empty plan file), does the output degrade gracefully with a clear error message or minimal scorecard, rather than crashing or producing undefined output? [addresses: Q-FX10 — regression check for the Iter 11 adversarial signal, 5/10 A-wins]
+
+---
+
+## Experiment Results — Iteration 12
+*Date: 2026-03-18*
+
+### Implemented Directions
+#### Experiment 1: NN+OO+PP+QQ
+**Options applied:** NN (KK dead code fix — l1-blocking guard reordered before general error handler), OO (ordering contract comment), PP (ADVISORY_CACHE_QIDS scope rationale comments), QQ (gate3_noted = len(advisory_findings_cache))
+**Applied changes:** KK guard reordered before general error handler (NN); ordering contract comment added (OO); ADVISORY_CACHE_QIDS scope rationale comments expanded (PP); gate3_noted uses advisory_findings_cache (QQ)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | NN+OO+PP+QQ | 21.1% vs 0.0% | +21.1% | N/A (diff-based) | N/A (diff-based) |
+
+*Calibration note: BASELINE_ZERO — both NN and QQ fix correctness bugs; Q-DYN-43/44 directly test the bugs fixed. Q-DYN-45 (anti-regression: normal path) all TIE (0/0/10), confirming no regression on happy path. Q-FX10 adversarial: 0/1/9 (no regression).*
+
+### Per-Question Results (A wins / B wins / TIE across 10 tests)
+Q-FX1: 0/0/10  Q-FX2: 0/6/4   Q-FX3: 0/0/10  Q-FX4: 0/0/10
+Q-FX5: 0/0/10  Q-FX6: 0/9/1   Q-FX7: 0/0/10  Q-FX8: 0/8/2
+Q-FX9: 0/9/1   Q-FX10: 0/1/9
+Q-UX1: 0/5/5   Q-UX2: 0/0/10  Q-UX3: 0/0/10
+Q-DYN-43: 0/9/1  Q-DYN-44: 0/9/1  Q-DYN-45: 0/0/10  Q-DYN-46: 0/1/9
+
+---
+
+## Results & Learnings — Iteration 12
+
+**What worked:**
+- Option NN (KK dead code fix): PRIMARY DRIVER. Q-FX9 (0/9/1) and Q-DYN-43 (0/9/1) — the reorder makes the l1-blocking fail-closed guard execute for l1-blocking errors before the general handler can CONTINUE past it. The trivial plan (Input 3, all TIE) confirms the fix only affects the error path — no impact on IS_TRIVIAL fast path. Input 3 provides perfect control evidence.
+- Option QQ (gate3_noted fix): SECONDARY DRIVER. Q-FX2 (0/6/4), Q-FX8 (0/8/2), Q-DYN-44 (0/9/1). Gate health bar now correctly shows len(advisory_findings_cache) for Gate 3 advisory count. Baseline always showed 0 since Gate 3 questions produce PASS-with-finding (not NEEDS_UPDATE). Trivial plan (no gate health bar) all TIE.
+- Option OO+PP (comment improvements): Minor contributor to Q-FX6 (0/9/1). Ordering contract comment and ADVISORY_CACHE_QIDS rationale improve prompt clarity. No behavioral change.
+
+**What didn't work:** Nothing regressed. Q-DYN-45 (anti-regression for NN on normal path) all TIE — the reorder has zero effect when evaluators succeed. Q-FX10 adversarial: 0/1/9 — Input 10 (GAS OAuth with TBD markers) gave slight B win on adversarial handling, suggesting NN fix helps even for evaluator errors triggered by complex/adversarial plans. No A-wins.
+
+**Root cause analysis:** Both NN and QQ are silent failures that made the prompt appear functional while having wrong behavior on specific paths. NN: l1-blocking error on pass 1 could produce false convergence with Gate 1 unevaluated — a high-severity but low-frequency failure. QQ: gate health bar always showed 0 for Gate 3 advisory count regardless of advisory_findings_cache state — a display inconsistency that made the cache effectively invisible in the per-pass output. Both fixes are zero-new-code correctness corrections (reorder + semantic change). The BASELINE_ZERO calibration confirms these are genuine bugs, not style improvements: when a bug is fixed, the improved version wins every question that exercises the bug.
+
+**What to try next iteration:** The prompt now has no known correctness bugs (NN, QQ fixed; KK was the last known dead code issue). Remaining improvement targets: (1) Coverage expansion for the Meta-reflection Recommendations section (does it surface actionable next-iteration guidance in a machine-readable format?); (2) Any remaining Q-G question calibration gaps not yet addressed; (3) Token efficiency in evaluator config boilerplate (but Iter 2 learning says this risks regression — approach only with strong evidence of benefit).
+
+**Best experiment:** Exp-1 (NN+OO+PP+QQ) — 21.1% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+21.1% spread, calibration BASELINE_ZERO noted — correctness fix pattern)

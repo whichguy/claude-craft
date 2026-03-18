@@ -287,6 +287,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    advisory_findings_cache = {}
    # advisory_findings_cache: Q-ID → {"finding": "<text>", "source": "<evaluator>"}
+   # Scope: Gate 3 advisory questions only (currently Q-G25 — the sole Gate 3 question).
+   # Q-G20-Q-G24 are Gate 2; their descriptive PASS text is not cached (never rendered in Gate 3 section).
    # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per ADVISORY_CACHE_QIDS).
    # Later-pass entries overwrite earlier — preserves freshest advisory text.
    # Entry cleared when PASS with empty finding — signals condition was resolved by edits.
@@ -1171,12 +1173,10 @@ DO:
   Print: "  >> Routing evaluator findings to their respective layers"
   -- Route findings from all_results (already read during wave fan-in — no second file read) --
   FOR evaluator_name, data in all_results:
+    # ORDERING CONTRACT: evaluator-specific error guards MUST appear before the general
+    # error handler. The general handler's CONTINUE skips all subsequent checks.
 
-    IF data.status in ["timeout", "error"]:
-      mark as Incomplete (existing incomplete evaluator rules apply unchanged)
-      CONTINUE
-
-    # Fail-closed guard for l1-blocking errors (Gate 1 safety)
+    # Fail-closed guard for l1-blocking errors (Gate 1 safety) — MUST precede general handler
     IF evaluator_name == "l1-blocking" AND data.status in ["timeout", "error"]:
       # l1-blocking covers Q-G1, Q-G2, Q-G11 — all Gate 1.
       # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
@@ -1185,6 +1185,10 @@ DO:
         l1_edits[q_id] = {"finding": "l1-blocking evaluator error — re-run required", "edit": null}
       Print: "  ⚠️ l1-blocking error → Q-G1/Q-G2/Q-G11 treated as NEEDS_UPDATE (fail-closed)"
       CONTINUE  # skip normal routing for this evaluator
+
+    IF data.status in ["timeout", "error"]:
+      mark as Incomplete (existing incomplete evaluator rules apply unchanged)
+      CONTINUE
 
     # Route findings — specific evaluators checked BEFORE wildcard to prevent silent misrouting
     IF evaluator_name == "l1-blocking":
@@ -1218,7 +1222,9 @@ DO:
       cluster_name = evaluator_name minus "-evaluator" suffix
       cluster_results[cluster_name] = data.findings
 
-    # Populate advisory_findings_cache from PASS-with-finding entries (Gate 3 advisory notes)
+    # ADVISORY_CACHE_QIDS: only Q-G25 (the sole Gate 3 question). Q-G20-Q-G24 are Gate 2 —
+    # their PASS-with-finding text is descriptive, not advisory, and is never rendered in the
+    # Gate 3 scorecard section. Caching them would accumulate unused entries.
     ADVISORY_CACHE_QIDS = {"Q-G25"}
     FOR q_id, entry in data.findings:
       IF q_id not in ADVISORY_CACHE_QIDS:
@@ -1610,7 +1616,7 @@ DO:
   # Compute gate-level counts from current_needs_update_set for quick inline display
   gate1_open = count of NEEDS_UPDATE in current pass for Gate 1 questions
   gate2_open = count of NEEDS_UPDATE in current pass for Gate 2 questions
-  gate3_noted = count of NEEDS_UPDATE in current pass for Gate 3 questions
+  gate3_noted = len(advisory_findings_cache)  # count of advisory notes (PASS-with-finding), not NEEDS_UPDATE
   gate1_sym = IF gate1_open == 0: "✅" ELSE: "❌[gate1_open]"
   gate2_sym = IF gate2_open == 0: "✅" ELSE: "⚠️[gate2_open]"
   IF pass_count >= 2:
