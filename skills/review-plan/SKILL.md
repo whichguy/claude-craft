@@ -361,7 +361,8 @@ DO:
                      prev_gas_results (default {}),
                      prev_node_results (default {}),
                      pass_phase_timings (default []),
-                     evaluators_spawned_total (default 0)
+                     evaluators_spawned_total (default 0),
+     advisory_findings_cache (default {})
     results_dir = memo_data.results_dir
     # Guard for old memo format (written before task fan-out refactor)
     IF results_dir is null or empty:
