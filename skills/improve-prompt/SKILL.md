@@ -928,6 +928,9 @@ ELSE:
             latency:   {filename: latency_ms for each input},
             iteration: i
         }
+        baseline_outputs  = baseline_run_cache.outputs
+        baseline_tokens   = baseline_run_cache.tokens
+        baseline_latency  = baseline_run_cache.latency
 
     # Spawn experiment run-agents (always fresh — experiment variants change every iteration)
     Spawn `run-E{k}-{filename}` tasks in batches of at most MAX_CONCURRENT (len(active_experiments) × M tasks).
@@ -1027,9 +1030,9 @@ else:
   quality_score_b_k = sum(score_b_j) / total_max_k   # normalized 0..1 per experiment k
   quality_spread_k  = quality_score_b_k - quality_score_a  # positive = B better
 
-avg_tokens_a  = mean(total_tokens_est for A runs)
+avg_tokens_a  = mean(baseline_tokens.values())   # from cache or live A runs
 avg_tokens_k  = mean(total_tokens_est for exp-k runs)
-avg_latency_a = mean(latency_ms for A runs)
+avg_latency_a = mean(baseline_latency.values())  # from cache or live A runs
 avg_latency_k = mean(latency_ms for exp-k runs)
 ```
 
