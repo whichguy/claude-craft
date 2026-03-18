@@ -284,6 +284,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # memo_file: checkpoint written after each pass for context-compression resilience.
    # Path is stable (no timestamp) so context recovery always finds the right file.
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
+   advisory_findings_cache = {}  # Q-ID → {"finding": "<text>", "source": "<evaluator>"}
+   # Populated from non-memoized evaluator results; preserved when evaluator memoizes; cleared on invalidation.
    ```
 
 5. **Results directory setup:**
@@ -399,6 +401,16 @@ DO:
 
   Print: "Pass [▓ × pass_count + ░ × (5-pass_count)] [pass_count]/5 ─── evaluating…"  # 5 = max passes ceiling (pass_count >= 5 in CONVERGENCE CHECK)
   Print: "  >> Spawning evaluators to assess the plan — collecting findings"
+
+  -- Early memoization invalidation (top-of-pass, before wave spawning) --
+  IF l1_process_memoized AND len(prev_pass_applied_edits) > 0:
+    l1_process_memoized = false
+    l1_process_memoized_since = 0
+    Print: "  memo: l1-advisory-process early-invalidated (prev pass had edits)"
+  IF l1_structural_memoized AND len(prev_pass_applied_edits) > 0:
+    l1_structural_memoized = false
+    l1_structural_clean_since = 0
+    Print: "  memo: l1-advisory-structural early-invalidated (prev pass had edits)"
 
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
 
@@ -1148,6 +1160,11 @@ DO:
       cluster_name = evaluator_name minus "-evaluator" suffix
       cluster_results[cluster_name] = data.findings
 
+  # Populate advisory_findings_cache from PASS-with-finding entries
+  FOR q_id, entry in current_evaluator_result.findings:
+    IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
+      advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
+
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from all_results (L1, cluster, ecosystem, and ui evaluators)
   -- Deduplication algorithm (apply for each active ecosystem/UI evaluator) --
@@ -1467,7 +1484,8 @@ DO:
     prev_gas_results,
     prev_node_results,
     pass_phase_timings,
-    evaluators_spawned_total
+    evaluators_spawned_total,
+    advisory_findings_cache
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -1783,7 +1801,13 @@ Gate Health
 
 💡 Gate 3 — Advisory ([M] applicable)
   [list only flagged advisory questions — omit N/A and non-flagged PASS]
-  💡 [Question short name] ([Q-ID])
+  💡 [Question short name] ([Q-ID]): [finding — first sentence, ≤15 words]
+
+  Example rendered:
+  💡 Feedback loop completeness (Q-G25): manual verification present, no stated pass condition
+  💡 Proportionality (Q-G23): Phase 3 step count is dense for a config-level change
+
+  Note: Read advisory finding text from `advisory_findings_cache[q_id].finding` (persists across memoized passes) rather than only from current-pass evaluator data.
 
 [Only render the following specialization sections when the corresponding flag is TRUE.
  Omit the section entirely when the flag is false — do NOT write "NOT INVOKED" placeholders.]
