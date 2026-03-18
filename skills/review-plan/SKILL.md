@@ -781,6 +781,34 @@ DO:
       (quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
       without citing which step or section is responsible.
 
+      Question-specific methodology:
+      - For Q-G13 (Phased decomposition): Apply four detection patterns in order:
+          (1) Flat list: plan has >3 implementation steps with no phase/section headers →
+              NEEDS_UPDATE. Cite the flat list and its step count.
+          (2) Test-at-end: phases exist but testing is consolidated in a final phase rather
+              than distributed per-phase → NEEDS_UPDATE. Cite the testing phase
+              (e.g., "Phase 4 consolidates all testing — each phase should verify its own work").
+          (3) Commit-before-test: a phase has a git commit step before its verification/test
+              step → NEEDS_UPDATE. Cite the misordered steps
+              (e.g., "Phase 2 step 3 commits before step 4 runs tests").
+          (4) No checkpoint: phases depend on each other with no explicit go/no-go between
+              them → NEEDS_UPDATE. Cite the dependency
+              (e.g., "Phase 3 uses Phase 2's output with no checkpoint verifying Phase 2 succeeded").
+        Borderline: plan has phase headers but phases lack internal test steps → NEEDS_UPDATE
+        (condition 2 applies — testing is absent per-phase, not merely consolidated), not PASS.
+      - For Q-G10 (Assumption exposure): Apply two detection categories:
+          Category 1 — Explicit markers: scan for "TBD", "will need to investigate",
+              "if the API supports", "need to determine", "should handle...somehow",
+              "might need to", "maybe" → always NEEDS_UPDATE. Cite the marker and its location.
+          Category 2 — Implicit constraints: scan for statements presented as facts that could
+              be wrong where no investigation step validates the choice. Ask: "Could this be wrong,
+              and would the plan discover it before committing work?" If no → flag as unstated
+              assumption. Cite the statement and explain why it is unvalidated.
+        Borderline: plan states "we assume X" explicitly → PASS if the assumption is reasonable
+        and stated. "X won't work" or "Y is required" without evidence (no test result, error
+        message, documentation reference, or known platform limitation) → NEEDS_UPDATE
+        (unvalidated constraint presented as established fact).
+
       Output contract — write findings to JSON file:
         Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
 
@@ -1210,6 +1238,12 @@ DO:
       Print: "  ┌ [[idx+1]/[N]] [question short name] ([ID])"
       Print: "  │ [verb] [object — first sentence of edit instruction]"
       Call the Edit tool on the plan file to insert/modify the specified content.
+      IF Edit fails (old_string not found in plan):
+        Print: "  ⚠️ Edit skipped — passage not found (may have been modified by prior edit this pass)"
+        Print: "  │ Q-ID: [ID], finding: [first sentence of edit.finding]"
+        # Do NOT count as a change. Do NOT retry.
+        # The finding remains in evaluator output — it will be re-evaluated next pass.
+        CONTINUE to next edit
       Mark each insertion <!-- review-plan -->.
       Each Edit call = 1 change. Do not count findings you only described in text.
       Print: "  └ ✓ applied"
@@ -1557,6 +1591,82 @@ DO:
   gate1_label = IF gate1_open == 0: "clear" ELSE: "open"
   gate2_label = IF gate2_open == 0: "clear" ELSE: "open"
   Print: "  gates ── 🔴 [gate1_sym] [gate1_label]  🟡 [gate2_sym] [gate2_label]  💡 [gate3_noted] noted"
+
+  # Per-evaluator status lines — shows what happened to each evaluator this pass
+  # Only show evaluators active for the current plan configuration (based on IS_GAS, IS_NODE, HAS_UI flags)
+  evaluator_status_lines = []
+  # L1 evaluators (always active)
+  evaluator_status_lines.append("l1-blocking ── re-run (Gate 1, always)")
+  IF l1_structural_memoized:
+    evaluator_status_lines.append("l1-advisory-structural ── memoized (p[l1_structural_memoized_since])")
+  ELSE IF "l1-advisory-structural" in all_results AND all_results["l1-advisory-structural"].status == "error":
+    evaluator_status_lines.append("l1-advisory-structural ── error")
+  ELSE:
+    IF pass_count == 1:
+      evaluator_status_lines.append("l1-advisory-structural ── re-run (first pass)")
+    ELSE IF len(prev_pass_applied_edits) > 0:
+      edited_qids = [e.q_id for e in prev_pass_applied_edits]
+      evaluator_status_lines.append("l1-advisory-structural ── re-run (prev edits: [join(edited_qids, ', ')])")
+    ELSE:
+      evaluator_status_lines.append("l1-advisory-structural ── re-run (stability not met)")
+  IF l1_process_memoized:
+    evaluator_status_lines.append("l1-advisory-process ── memoized (p[l1_process_memoized_since])")
+  ELSE IF "l1-advisory-process" in all_results AND all_results["l1-advisory-process"].status == "error":
+    evaluator_status_lines.append("l1-advisory-process ── error")
+  ELSE:
+    IF pass_count == 1:
+      evaluator_status_lines.append("l1-advisory-process ── re-run (first pass)")
+    ELSE IF len(prev_pass_applied_edits) > 0:
+      edited_qids = [e.q_id for e in prev_pass_applied_edits]
+      evaluator_status_lines.append("l1-advisory-process ── re-run (prev edits: [join(edited_qids, ', ')])")
+    ELSE:
+      evaluator_status_lines.append("l1-advisory-process ── re-run (stability not met)")
+  # Ecosystem evaluator (conditional)
+  IF IS_GAS:
+    IF fully_memoized_gas:
+      evaluator_status_lines.append("gas-evaluator ── memoized (p[max(memoized_gas_since.values())])")
+    ELSE IF "gas-evaluator" in all_results AND all_results["gas-evaluator"].status == "error":
+      evaluator_status_lines.append("gas-evaluator ── error")
+    ELSE:
+      IF pass_count == 1:
+        evaluator_status_lines.append("gas-evaluator ── re-run (first pass)")
+      ELSE:
+        evaluator_status_lines.append("gas-evaluator ── re-run (stability not met)")
+  ELSE IF IS_NODE:
+    IF fully_memoized_node:
+      evaluator_status_lines.append("node-evaluator ── memoized (p[max(memoized_node_since.values())])")
+    ELSE IF "node-evaluator" in all_results AND all_results["node-evaluator"].status == "error":
+      evaluator_status_lines.append("node-evaluator ── error")
+    ELSE:
+      IF pass_count == 1:
+        evaluator_status_lines.append("node-evaluator ── re-run (first pass)")
+      ELSE:
+        evaluator_status_lines.append("node-evaluator ── re-run (stability not met)")
+  # Cluster evaluators (conditional on active_clusters)
+  FOR each cluster_name in active_clusters:
+    IF cluster_name in memoized_clusters:
+      evaluator_status_lines.append("[cluster_name]-evaluator ── memoized (p[memoized_since[cluster_name]])")
+    ELSE IF "[cluster_name]-evaluator" in all_results AND all_results["[cluster_name]-evaluator"].status == "error":
+      evaluator_status_lines.append("[cluster_name]-evaluator ── error")
+    ELSE:
+      IF pass_count == 1:
+        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (first pass)")
+      ELSE IF len(prev_pass_applied_edits) > 0:
+        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (prev edits: [join(edited_qids, ', ')])")
+      ELSE:
+        evaluator_status_lines.append("[cluster_name]-evaluator ── re-run (stability not met)")
+  # UI evaluator (conditional)
+  IF HAS_UI:
+    IF "ui-evaluator" in all_results AND all_results["ui-evaluator"].status == "error":
+      evaluator_status_lines.append("ui-evaluator ── error")
+    ELSE:
+      IF pass_count == 1:
+        evaluator_status_lines.append("ui-evaluator ── re-run (first pass)")
+      ELSE:
+        evaluator_status_lines.append("ui-evaluator ── re-run (prev edits: [join(edited_qids, ', ')])")
+  Print: "  evaluators:"
+  FOR line in evaluator_status_lines:
+    Print: "    [line]"
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
   prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state

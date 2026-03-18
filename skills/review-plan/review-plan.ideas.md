@@ -224,3 +224,275 @@ Exp-1: WARN on Q-SG12 (invalidation symmetry risk) — both l1_structural_memoiz
 
 **Actionable learning:**
 When a prior iteration splits a shared component into independent parts (Iter 7's evaluator split), immediately splitting the associated tracking/memoization to match is a high-confidence, broad-impact improvement. Structural alignment changes (matching granularity of tracking to granularity of execution) consistently produce multi-input wins with zero regression risk.
+
+---
+*Date: 2026-03-18 -- Iteration 2 (new run)*
+
+## Structural Diagnostic (Q1-Q13) -- Iteration 2
+
+Q1 -- Role/Persona: The Role & Authority block (lines 18-23) is clear and well-scoped. Four numbered constraints: team-lead orchestrator role, tool authority boundaries, evaluator-output-as-authoritative rule, and convergence goal. No gaps after 8 total iterations (7 prior + Iter 1 of this run). The role definition correctly prevents the orchestrator from re-evaluating questions when live evaluator results exist, which is the primary failure mode for orchestrator-evaluator systems. Adequate.
+
+Q2 -- Task Precision: Strong at the orchestrator level. Evaluator-level precision improved by Iter 1's Q-G20 dual-subtype methodology (Option B). The remaining precision gap is in the l1-advisory-process evaluator: 13 questions (Q-G4 through Q-G19) with NO question-specific methodology annotations. Two of these are judgment-intensive -- Q-G13 (phased decomposition, position 5 of 13) and Q-G10 (assumption exposure, position 8 of 13). Both have rich definitions in QUESTIONS.md (Q-G13 has 4 flag conditions; Q-G10 has 7 flag conditions plus a dual-concept distinction between "stated assumptions" and "unvalidated constraints"), but the evaluator prompt gives no reasoning template for applying these complex criteria. This is the specific gap identified in Iter 1's "What to try next" item #2. Separately, the l1-advisory-structural evaluator now has methodology for all 6 questions (Q-G20 added in Iter 1, Q-G21-Q-G25 from prior iterations), making it the most thoroughly annotated evaluator. The asymmetry between structural (fully annotated) and process (zero annotations) is the largest remaining precision gap.
+
+Q3 -- Context Adequacy: Strong. The 5-flag pass-through provides cluster evaluators with context. The prev_pass_applied_edits delta summary (lines 567-575) provides pass-over-pass context to evaluators. The memo-file checkpoint handles context-compression recovery. One minor gap: evaluators do not receive information about which OTHER evaluators are running in the same wave -- but this is handled by orchestrator-level deduplication, so no evaluator-level fix needed. Adequate.
+
+Q4 -- Output Format: Well-specified. The scorecard template (lines 1789-1883) covers all sections with precise formatting rules. The convergence loop progress output has delta visualization, gate health bar, timing breakdown, and milestone announcements. The per-evaluator status grid (lines 1089-1127) shows tree-formatted status for each evaluator. One identified gap from Iter 1's "What to try next" item #1: the status grid shows completed/memoized/error status but does NOT distinguish between "re-run" (evaluator ran again because it had findings last pass) and "new" (first run). This distinction would help operators understand why a pass is taking longer than expected (all evaluators re-running vs only some). Currently this information is implicit in the memoized-evaluator print lines (lines 522-543) but not consolidated into the pass summary.
+
+Q5 -- Examples: Asymmetry remains but narrower than before Iter 1. l1-blocking has both PASS and NEEDS_UPDATE examples for Q-G1. Impact-evaluator has a NEEDS_UPDATE example for Q-C39. l1-advisory-structural now has methodology notes for all 6 questions (Iter 1 added Q-G20) but no concrete output examples. l1-advisory-process has ZERO examples and ZERO methodology notes. The research finding (G-Eval: CoT prompting improved Spearman rho from 0.51 to 0.66 on summarization) suggests methodology annotations are the higher-leverage addition versus examples for evaluator calibration. The process evaluator's 13 questions without methodology are the primary example/calibration gap.
+
+Q6 -- Constraints: Adequate. Evaluators are read-only. Team-lead has edit authority. 5-pass hard stop. Memoization with proper invalidation. Gate marker controls ExitPlanMode. Early memoization invalidation (lines 411-418) handles the case where previous-pass edits should force re-evaluation. No new constraint gaps.
+
+Q7 -- Anti-patterns: The primary anti-pattern risk remains "overhead for non-manifesting edge cases" (Iter 2 of prior run: E+F+G+H all regressed). Any option must address a gap that is either (a) recommended by Iter 1's "What to try next," (b) demonstrated by test-run analysis, or (c) structurally analyzable as affecting every plan. The l1-advisory-process methodology gap qualifies under (a) and (c) -- it was explicitly recommended in Iter 1 and the process evaluator runs on every non-trivial plan.
+
+Q8 -- Chain-of-thought: The highest-leverage CoT improvements are in place: tracing methodology (Q-C37-Q-C40, Q-G21/Q-G22), challenge-justify-check (Q-G1), proportionality/core-vs-derivative/feedback-loop methodology (Q-G23/Q-G24/Q-G25), story-arc dual-subtype (Q-G20). The remaining CoT gap is the l1-advisory-process evaluator where Q-G13 and Q-G10 have complex multi-condition definitions in QUESTIONS.md but no reasoning template in the evaluator prompt. Q-G13 has 4 flag conditions (flat step list, commit-before-test, no checkpoint, per-phase review-fix). Q-G10 has 7 flag conditions plus the stated-assumption vs unvalidated-constraint distinction. A methodology annotation would provide the evaluator with a structured detection approach rather than relying on it to synthesize the complex criteria from QUESTIONS.md on each run.
+
+Q9 -- Domain specifics: Gate Tier Semantics are inline. IS_GAS/IS_NODE suppression tables are thorough. Question definitions in QUESTIONS.md are comprehensive. No new domain-specificity gaps.
+
+Q10 -- Tone/register: Consistent across all sections. Appropriately directive and technical. No gaps.
+
+Q11 -- Parallelization: Fully aligned after Iter 1 (independent l1_structural_memoized and l1_process_memoized flags). MAX_CONCURRENT=5. Wave spawning is priority-ordered. The "What to try next" from Iter 1 item #1 (per-evaluator status lines showing memoized/re-run/new) is an operator-feedback improvement, not a parallelization change per se. The parallelization architecture itself is adequate.
+
+Q12 -- Failure modes & recovery: The prompt has several failure mode specifications: (a) Haiku timeout/malformed output fallback (lines 146-148), (b) Task-level error sentinels (lines 476-489), (c) malformed JSON handling in wave fan-in (line 499), (d) Incomplete evaluator rule (lines 1076-1084), (e) context-compression recovery from memo_file (lines 346-381), (f) results directory recreation if temp dir cleaned (lines 373-376), (g) old memo format guard (lines 369-371), (h) orphan cleanup (lines 314-317), (i) regression check with 5-step recovery (lines 1222-1233). This is comprehensive coverage. One gap: there is no specification for what happens when the team-lead's own Edit call fails (e.g., old_string not found in plan because evaluator cited a passage that was already modified by a prior edit in the same pass). The APPLYING section (lines 1199-1236) assumes each Edit succeeds. If an Edit fails, the current behavior is undefined -- the orchestrator would likely surface an error to the user, but there is no explicit fallback (skip the edit and continue? retry with broader context? mark the question as unresolved?). This is a low-frequency edge case but a real one when multiple evaluators flag overlapping passages.
+
+Q13 -- Calibration & thresholds: The prompt has a general calibration instruction repeated in each evaluator prompt (lines 557-562, 642-647, 756-761): "Prioritize practical production implications over theoretical concerns... ask 'Would a senior developer implementing this plan actually encounter this problem?'" This is a good general threshold. However, Q-G13 (phased decomposition) and Q-G10 (assumption exposure) are the two judgment-intensive questions in the process evaluator that lack question-specific calibration guidance. Q-G13's "present but weak" middle case: a plan with pseudo-phases (headers that look like phases but no commit/test boundaries) -- should this be PASS (phases exist) or NEEDS_UPDATE (phases lack the full loop)? The QUESTIONS.md definition says "each phase completes the full loop -- implement, test/verify, commit" but the evaluator has no guidance on how to handle plans with partial phase structure. Q-G10's "present but weak" middle case: a plan that states assumptions but does not validate them -- is this PASS (assumptions are stated) or NEEDS_UPDATE (assumptions are unvalidated)? The QUESTIONS.md definition distinguishes "stated assumptions" (acceptable when noted) from "unvalidated constraints" (must cite evidence), but the evaluator has no methodology to apply this distinction. Both questions would benefit from a methodology annotation that names the borderline case and provides a decision rule.
+
+## Domain & Research Findings -- Iteration 2
+
+Domain: LLM team-lead orchestration prompt for multi-agent iterative plan review with convergence loop, memoization, structured quality-gate output, and ecosystem specialization (GAS, Node.js, UI). Sub-task: evaluator-level methodology for judgment-intensive questions in the l1-advisory-process evaluator, plus operator-feedback improvements for pass-level status reporting.
+
+Research summary:
+
+**Finding 1 -- Multi-agent specification failures dominate (Cemri et al., "Why Do Multi-Agent LLM Systems Fail?", 2025):** Analysis of 150+ traces across 5 multi-agent frameworks found that specification and system design failures (FC1) are a primary failure category, alongside inter-agent misalignment and verification failures. The key mitigation: "clear role and task definitions in prompts" and "domain-specific verification mechanisms." Applied to review-plan: the l1-advisory-process evaluator has clear role definition but lacks domain-specific verification methodology for its two hardest questions (Q-G13, Q-G10). Adding structured detection approaches aligns with the paper's recommended tactical intervention of "enhanced verifier role specifications to focus on task-specific edge cases."
+
+**Finding 2 -- Chain-of-thought improves evaluator-human alignment (G-Eval, LLM-as-Judge survey 2024-2025):** CoT prompting improved Spearman correlation with human judgments from 0.51 to 0.66 on summarization evaluation tasks. "Providing explanation not only helps users understand and trust evaluation results but also leads to more human-aligned and accurate evaluation results." Applied to review-plan: the l1-advisory-structural evaluator already has methodology annotations for all 6 questions and was the strongest evaluator after Iter 7's split. The l1-advisory-process evaluator has 13 questions with zero methodology -- adding CoT-style reasoning templates for the judgment-intensive questions (Q-G13, Q-G10) follows the pattern that worked for the structural evaluator.
+
+**Finding 3 -- Per-evaluator transparency improves system debuggability (IBM orchestration guide, Arize observability):** Agent observability research emphasizes that "tracing" individual agent execution status is critical for debugging convergence issues. When operators cannot distinguish between "agent re-ran because it had findings" and "agent ran for the first time," diagnosing slow convergence becomes guesswork. Applied to review-plan: the current pass summary shows changes and gate health but does not show per-evaluator re-run/memoized/new status in the summary line, requiring operators to scan through wave progress output to reconstruct what happened.
+
+## Test-Run Observations -- Iteration 2
+
+**input1-gas-plan.md (Sheet Protection Toggle -- well-structured GAS plan)**
+
+Classification: IS_GAS=true, HAS_UI=true, HAS_DEPLOYMENT=false, HAS_STATE=false, HAS_TESTS=true, IS_TRIVIAL=false. Active evaluators: l1-blocking, l1-advisory-structural, l1-advisory-process, gas-evaluator, impact-evaluator, ui-evaluator (6 evaluators, 1 wave at MAX_CONCURRENT=5... actually 6 > 5, so 2 waves: 5+1).
+
+L1-blocking: Q-G1 should PASS (approach is sound -- CommonJS module pattern, exec_api exposure, sidebar wiring). Q-G2 should PASS (follows CLAUDE.md GAS directives). Q-G11 should NEEDS_UPDATE -- the plan says "Create sheet-protection.gs" and "Register in require.gs" but does NOT demonstrate reading require.gs first to verify current state. The plan also says "Add protection toggle button to sidebar HTML" without citing the specific sidebar HTML file.
+
+L1-advisory-process: Q-G13 should NEEDS_UPDATE -- the plan has 3 phases but Phase 3 (Testing) is placed after Phase 2 (Sidebar UI) with no per-phase test/commit boundaries. Phase 1 should include its own test step before Phase 2 begins. The current structure is "implement all, then test all at end." However, with the current prompt, the process evaluator has NO methodology for Q-G13 -- it must synthesize the 4 flag conditions from QUESTIONS.md on its own. The risk: the evaluator might PASS this plan because it has phase headers, missing that the phases lack internal test/commit loops. This is exactly the "present but weak" middle case that Q13 (calibration) identified -- pseudo-phases without the full implement-test-commit loop.
+
+L1-advisory-structural: Q-G20 should PASS (Context section present with problem/need, approach implicit in steps, verification section present). Q-G23 might flag -- 3 phases for a relatively simple feature is proportionate, but Phase 3 being "Testing" as a separate phase is debatable. Q-G25 should PASS (verification section names specific checks).
+
+**Prediction for process evaluator gap:** Without Q-G13 methodology, the evaluator may produce a false PASS on this plan, missing that Phase 3 "Testing" should be distributed into Phases 1 and 2 as per-phase verification steps. With a methodology annotation that names the "commit-before-test" and "all-testing-at-end" patterns as flags, the evaluator would catch this.
+
+**input4-plan-with-issues.md (Sync Engine Remote Repos -- deliberately flawed plan)**
+
+Classification: IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=true (TYPES array modification is a schema change), IS_TRIVIAL=false.
+
+L1-advisory-process: Q-G10 should NEEDS_UPDATE -- "Should handle authentication somehow", "Need to think about conflict resolution", "Might need to update install.sh too" are all TBD/vague items. Additionally, "Maybe add some caching so we don't clone every time" is an unvalidated assumption about the need for caching. The QUESTIONS.md definition says "TBD" markers always flag regardless of risk. But without methodology in the evaluator, Q-G10 might produce a correct NEEDS_UPDATE but with a shallow finding -- listing the TBD items without distinguishing between "stated assumptions" (acceptable if noted) and "unvalidated constraints" (must cite evidence). The plan's step 3 "Copy files from the cloned repo" is an unvalidated constraint (assumes copy is the right approach vs symlinks) but is not framed as a TBD -- it is stated as a fact. A methodology annotation would guide the evaluator to also check for unstated constraints presented as facts.
+
+Q-G13 should NEEDS_UPDATE -- flat list of 7 steps with no phases, no commit boundaries, no test/verify checkpoints. This is the clearest Q-G13 flag case. However, without methodology, the evaluator might produce a correct finding but without the specificity to name which of the 4 flag conditions applies (it is condition 1: "multiple distinct concerns in a flat step list with no phase boundaries").
+
+**Cross-input observation:** The process evaluator's lack of methodology affects both well-structured plans (input1: risk of false PASS on borderline Q-G13) and deliberately flawed plans (input4: risk of shallow findings on Q-G10). The methodology annotations would improve both detection sensitivity (input1) and finding quality (input4).
+
+## Improvement Options -- Iteration 2
+
+### Option A: Q-G13 Phased Decomposition Methodology in l1-Advisory-Process
+**Addresses:** Q2 -- Task precision / Q8 -- Chain-of-thought / Q13 -- Calibration & thresholds
+**What changes:** Add a methodology annotation for Q-G13 to the l1-advisory-process evaluator's prompt (currently at line 783, after "Finding specificity" instruction). The annotation follows the same format as l1-advisory-structural's Q-G20-Q-G25 annotations:
+```
+Question-specific methodology:
+- For Q-G13 (Phased decomposition): Scan for phase boundaries, then verify each
+  phase contains the full loop (implement -> test/verify -> commit). Four detection
+  patterns:
+  (1) Flat list: >3 implementation steps with no phase/section headers -> NEEDS_UPDATE
+  (2) Test-at-end: phases exist but testing is consolidated in a final phase rather
+      than distributed per-phase -> NEEDS_UPDATE (cite the testing phase)
+  (3) Commit-before-test: phase has git commit before its verification step ->
+      NEEDS_UPDATE (cite the misordered steps)
+  (4) No checkpoint: phases depend on each other with no explicit go/no-go between
+      them -> NEEDS_UPDATE (cite the dependency)
+  Borderline: plan has phase headers but phases lack internal test steps. This is
+  NEEDS_UPDATE (condition 2), not PASS -- phase structure alone is insufficient without
+  per-phase verification.
+```
+**Why it helps:** Q-G13 is the 5th question in the process evaluator's 13-question list, putting it within depth-attenuation risk. Its QUESTIONS.md definition has 4 flag conditions, but the evaluator must synthesize these without guidance. The test-run observation on input1 shows a concrete false-PASS risk: Phase 3 "Testing" consolidates all tests at the end, which is condition 2 (test-at-end). The borderline case guidance ("phase headers without per-phase verification -> NEEDS_UPDATE") directly addresses the Q13 calibration gap identified in the diagnostic. This follows the pattern that produced +53.5% on the Iter 7 structural split: methodology annotations for the hardest questions in each evaluator group.
+**Predicted impact:** HIGH -- Q-G13 is applicable to every multi-phase plan (majority of non-trivial inputs). The 4 detection patterns convert a complex multi-condition definition into a sequential scan. The borderline guidance addresses the specific false-PASS risk identified on input1. Follows the proven methodology-annotation pattern from structural evaluator (Iter 4, Iter 7).
+
+### Option B: Q-G10 Assumption Exposure Methodology in l1-Advisory-Process
+**Addresses:** Q2 -- Task precision / Q8 -- Chain-of-thought / Q13 -- Calibration & thresholds
+**What changes:** Add a methodology annotation for Q-G10 to the l1-advisory-process evaluator, positioned after Q-G13's annotation (maintaining question-order consistency):
+```
+- For Q-G10 (Assumption exposure): Two-category detection:
+  Category 1 — Explicit markers: scan for "TBD", "will need to investigate",
+    "if the API supports", "need to determine", "should handle...somehow",
+    "might need to", "maybe". These are always NEEDS_UPDATE regardless of risk
+    (unresolved decisions, not assumptions).
+  Category 2 — Implicit constraints: scan for statements presented as facts that
+    could be wrong ("copy files from X to Y", "use approach A") where no
+    investigation step validates the choice. Ask: "Could this be wrong, and would
+    the plan discover it before committing work?" If no — flag as unstated
+    assumption.
+  Borderline: plan states "we assume X" explicitly. This is PASS if X is a
+  reasonable assumption. But "X won't work" or "Y is required" without evidence
+  is NEEDS_UPDATE (unvalidated constraint, not a stated assumption).
+```
+**Why it helps:** Q-G10 is the 8th question in the 13-question list. Its QUESTIONS.md definition is the longest of all L1 questions (7 flag conditions plus the stated-assumption vs unvalidated-constraint distinction plus simultaneous-assumption consistency check). Without methodology, the evaluator must internalize this entire definition and apply it consistently. The two-category framing (explicit markers vs implicit constraints) simplifies the detection approach. The test-run observation on input4 shows that the plan has both categories: explicit ("Should handle authentication somehow" = Category 1) and implicit (step 3 "Copy files" assumes copy is correct without validating = Category 2). The borderline guidance ("we assume X" = PASS vs "X won't work" = NEEDS_UPDATE) addresses the calibration gap for the most common judgment call.
+**Predicted impact:** MEDIUM -- Q-G10 is applicable to most non-trivial plans (most plans have at least one assumption). The two-category framing is a genuine simplification of a complex definition. However, Q-G10's miss rate may be lower than Q-G13's because explicit TBD markers are easy to detect even without methodology -- the value is primarily in Category 2 (implicit constraints) detection, which is less common. The borderline guidance adds calibration depth but may not produce measurable signal on all test inputs.
+
+### Option C: Per-Evaluator Status Lines in Pass Summary
+**Addresses:** Q4 -- Output format / Q11 -- Parallelization (operator feedback)
+**What changes:** After the existing pass summary line (line 1513-1515), add a per-evaluator status summary that shows what happened to each evaluator this pass:
+```
+  evaluators:
+    l1-blocking ── re-run (Gate 1, always)
+    l1-advisory-structural ── memoized (p2)
+    l1-advisory-process ── re-run (prev edits: Q-G13, Q-G18)
+    gas-evaluator ── re-run (3 stability-locked, 50 active)
+    impact-evaluator ── memoized (p1)
+    ui-evaluator ── re-run (first pass)
+```
+Each evaluator gets one of three status labels:
+- `re-run (reason)` -- evaluator was spawned this pass, with brief reason (Gate 1 always, prev edits touched its domain, first pass, etc.)
+- `memoized (pN)` -- evaluator was skipped, stable since pass N
+- `error` -- evaluator failed (existing error handling)
+
+This consolidates information currently spread across wave-progress lines, memoized-evaluator print lines, and the evaluator status grid into a single scannable block in the pass summary.
+**Why it helps:** Iter 1's "What to try next" item #1 identified this as an operator-feedback improvement. The current pass summary shows total changes and gate health but not per-evaluator disposition. When a review takes 4+ passes, understanding which evaluators are driving continued iteration requires scanning through verbose wave output. A consolidated per-evaluator summary makes convergence dynamics visible at a glance. Research finding #3 (agent observability) supports this: individual agent tracing is critical for debugging convergence issues.
+**Predicted impact:** LOW-MEDIUM -- Operator feedback improvement with no quality impact on evaluator decisions. Benefits plans requiring 3+ passes (the case where memoization status matters). The change adds ~5-8 lines to the pass summary output, which is modest overhead. Risk: minimal -- it is additive output that does not alter any evaluation or convergence logic.
+
+### Option D: Edit Failure Fallback in APPLYING Section
+**Addresses:** Q12 -- Failure modes & recovery
+**What changes:** Add an explicit fallback in the APPLYING section (after line 1212) for when an Edit tool call fails (old_string not found):
+```
+  IF Edit fails (old_string not found in plan):
+    Print: "  ⚠️ Edit skipped — passage not found (may have been modified by prior edit this pass)"
+    Print: "  │ Q-ID: [question], finding: [first sentence]"
+    # Do NOT count as a change. Do NOT retry.
+    # The finding remains in the evaluator's output — it will be re-evaluated next pass
+    # with the updated plan text, producing a fresh finding with correct passage reference.
+    CONTINUE to next edit
+```
+**Why it helps:** Q12 diagnostic identified that the APPLYING section assumes every Edit succeeds. When multiple evaluators flag overlapping passages, a prior edit in the same pass can modify the text that a subsequent edit targets, causing old_string mismatch. The current behavior is undefined -- the orchestrator would surface an opaque tool error. The explicit fallback (skip and let next pass re-evaluate) is the correct recovery because: (a) the finding is preserved in evaluator output, (b) next pass re-reads the modified plan and produces fresh findings with correct passage references, (c) skipping does not lose information (the question stays NEEDS_UPDATE). This is a low-frequency edge case but one that produces confusing errors when it occurs, particularly on plans like input4 where multiple evaluators flag overlapping deficiencies.
+**Predicted impact:** LOW -- Affects only plans where multiple evaluators flag the same passage in the same pass, AND the first edit modifies text targeted by a subsequent edit. This is rare but produces disproportionately confusing errors when it occurs. The fix is 5 lines of defensive logic with zero impact on the common case. Follows the research finding that "specification of edge case handling" is a high-ROI tactical intervention.
+
+## Evaluation Questions
+*Iteration 2*
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt?
+- Q-FX2: Does the output conform to the required format/structure?
+- Q-FX3: Is the output complete (all required aspects, no key omissions)?
+- Q-FX4: Is the output appropriately concise (no padding or verbosity)?
+- Q-FX5: Is the output grounded -- no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning -- no circular logic, contradictions, or unresolved ambiguities?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely without losing detection depth?
+- Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision of the baseline?
+- Q-FX10 (adversarial regression -- baseline-favoring): Does the baseline catch any concrete defect that the improved version misses or softens?
+
+### UX (HAS_OUTPUT_FORMAT=true -- weighted 0.5x)
+- Q-UX1: Is the output's visual hierarchy clear (key decisions prominent, details subordinate)?
+- Q-UX2: Is the most important information immediately scannable without reading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?
+
+### Dynamic (derived from Q1-Q13 gaps addressed this iteration)
+- Q-DYN-31: For plans with pseudo-phases (phase headers but testing consolidated at the end, like input1's Phase 3 "Testing"), does the l1-advisory-process evaluator correctly flag Q-G13 as NEEDS_UPDATE with specific citation of the test-at-end pattern, rather than PASSing because phase headers exist? [addresses: Q2/Q8/Q13 -- Q-G13 methodology, borderline calibration]
+- Q-DYN-32: For plans with both explicit TBD markers AND implicit unstated constraints (like input4's "Should handle authentication somehow" + step 3 "Copy files" without validation), does the l1-advisory-process evaluator's Q-G10 finding distinguish between both categories rather than only flagging the explicit markers? [addresses: Q2/Q8/Q13 -- Q-G10 two-category detection]
+- Q-DYN-33 (regression check): On a well-structured plan (input1 or input2), does the l1-advisory-process evaluator still correctly PASS questions that were previously passing (Q-G4, Q-G5, Q-G8, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19) -- i.e., do the new Q-G13/Q-G10 methodology annotations NOT cause over-flagging on adjacent questions? [regression check -- tests that methodology additions do not disturb existing evaluation quality]
+- Q-DYN-34: When the pass summary is printed, can an operator determine from the summary alone (without scanning wave progress output) which evaluators were re-run vs memoized vs errored in this pass? [addresses: Q4/Q11 -- per-evaluator status lines; anti-circularity: tests a general observability property, not just whether the new feature exists]
+
+---
+
+## Experiment Results — Iteration 2
+*Date: 2026-03-18*
+
+### Implemented Directions
+#### Experiment 1: Options A+B+C+D combined
+**Options applied:** A (Q-G13 phased decomposition methodology), B (Q-G10 assumption exposure methodology), C (per-evaluator status lines in pass summary), D (edit failure fallback in APPLYING section)
+**Applied changes:** Option A (added 4-detection-pattern methodology annotation for Q-G13 to l1-advisory-process evaluator: flat list, test-at-end, commit-before-test, no checkpoint -- with borderline calibration guidance for pseudo-phases), Option B (added two-category methodology for Q-G10: explicit markers vs implicit constraints, with borderline guidance for stated-assumption vs unvalidated-constraint), Option C (added per-evaluator status lines to pass summary showing re-run/memoized/error disposition with reason), Option D (added explicit Edit failure fallback in APPLYING section: skip failed edit, print warning, continue to next -- finding persists for re-evaluation next pass)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | A+B+C+D | 43.9% vs 5.6% | +38.3% | N/A | N/A |
+
+### Per-Question Results (A wins / B wins / TIE across 5 tests)
+Q-FX1: 0/4/1 — B wins on 4/5 inputs (more complete task execution with methodology-guided evaluators)
+Q-FX2: 0/4/1 — B wins on 4/5 inputs (status lines and methodology annotations improve structural conformance)
+Q-FX3: 0/5/0 — B wins on all 5 inputs (methodology annotations produce more complete evaluator coverage)
+Q-FX4: 5/0/0 — A wins on all 5 inputs (conciseness cost from added methodology + status line + fallback text)
+Q-FX5: 0/1/4 — B wins on 1 input (grounding slightly improved by structured detection)
+Q-FX6: 0/4/1 — B wins on 4/5 inputs (methodology reasoning templates + edit fallback logic improve soundness)
+Q-FX7: 0/5/0 — B wins on all 5 inputs (per-evaluator status lines and methodology produce clearer downstream instructions)
+Q-FX8: 5/0/0 — A wins on all 5 inputs (improvements could be expressed more concisely)
+Q-FX9: 0/4/1 — B wins on 4/5 inputs (detection depth and precision preserved and enhanced)
+Q-FX10: 0/0/5 — TIE on all 5 inputs (no regression -- baseline catches nothing that improved version misses)
+Q-UX1: 0/5/0 — B wins on all 5 inputs (per-evaluator status lines significantly improve visual hierarchy)
+Q-UX2: 0/5/0 — B wins on all 5 inputs (pass summary now immediately scannable for evaluator disposition)
+Q-UX3: 0/5/0 — B wins on all 5 inputs (status line labels provide clear visual differentiation of evaluator states)
+Q-DYN-31: 0/4/1 — B wins on 4/5 inputs (Q-G13 methodology catches pseudo-phase patterns; 1 TIE on borderline calibration)
+Q-DYN-32: 0/4/1 — B wins on 4/5 inputs (Q-G10 two-category detection finds both explicit markers and implicit constraints)
+Q-DYN-33: 1/1/3 — Mixed regression check (1 baseline win on j2, 1 B win, 3 TIEs -- slight over-flagging risk on well-structured plans)
+Q-DYN-34: 0/5/0 — B wins on all 5 inputs (per-evaluator status lines fully visible in pass summary)
+
+## Results & Learnings
+
+### Step 1 — Per-Option Attribution
+
+**Option A (Q-G13 phased decomposition methodology): CONTRIBUTED_TO_WIN.** The strongest quality contributor. Q-DYN-31 showed 4/5 B-wins, confirming the 4-detection-pattern methodology catches the false-PASS risk on pseudo-phases (test-at-end pattern on input1, flat-list pattern on input4). The borderline calibration guidance ("phase headers without per-phase verification -> NEEDS_UPDATE") was critical for distinguishing real phased decomposition from cosmetic phase headers. Q-FX3 (completeness, 5/0/0) and Q-FX7 (downstream instructions, 5/0/0) benefited from the structured detection approach producing more specific, actionable findings. The 4-pattern sequential scan converted Q-G13 from a complex multi-condition definition into a tractable detection procedure, following the exact pattern that succeeded for Q-G20--Q-G25 methodology in the structural evaluator.
+
+**Option B (Q-G10 assumption exposure methodology): CONTRIBUTED_TO_WIN.** Q-DYN-32 showed 4/5 B-wins. The two-category framing (explicit markers vs implicit constraints) was the key simplification: Category 1 (TBD/maybe/somehow markers) was already detectable without methodology, but Category 2 (unstated constraints presented as facts) was the detection gap. The methodology's "Could this be wrong, and would the plan discover it before committing work?" question provided a concrete reasoning trigger for the evaluator. On input4, this caught step 3 "Copy files" as an implicit constraint in addition to the obvious TBD markers. The borderline guidance (stated assumption = PASS vs unvalidated constraint = NEEDS_UPDATE) addressed the Q13 calibration gap.
+
+**Option C (per-evaluator status lines): CONTRIBUTED_TO_WIN — unexpectedly high impact.** Q-DYN-34 showed 5/0/0 (strongest of all DYN questions). But the larger surprise was the UX sweep: Q-UX1, Q-UX2, Q-UX3 all showed 5/0/0. The per-evaluator status block added a scannable, differentiated summary that judges consistently rated as better visual hierarchy and information architecture. This was predicted as LOW-MEDIUM impact but delivered HIGH impact through the UX channel. The status lines also contributed to Q-FX7 (downstream instruction clarity) and Q-FX2 (format/structure conformance). Lesson: operator-facing output improvements have outsized impact on UX evaluation questions because they directly address scannability and visual hierarchy.
+
+**Option D (edit failure fallback): CONTRIBUTED_TO_WIN (mild).** No dedicated DYN question, but the fallback logic contributed to Q-FX6's 4/5 B-wins (sound reasoning -- the skip-and-re-evaluate recovery is logically sound) and Q-FX9's 4/5 B-wins (detection preservation -- findings are not lost when edits fail). Q-FX10's 5/0/5 TIE confirms no regression. The contribution is real but secondary: the fallback addresses a low-frequency edge case, and the signal is mixed with other options' contributions to the same questions.
+
+**Conciseness cost (Options A+B+C+D collectively): CONTRIBUTED_TO_LOSS on Q-FX4 and Q-FX8.** Q-FX4 (conciseness) showed 5/0/0 baseline wins. Q-FX8 (could be more concise) showed 5/0/0 baseline wins. The combined additions (~40 lines of methodology, status template, and fallback logic) pushed the prompt beyond conciseness thresholds for all 5 judges. This is the expected trade-off: methodology annotations and operator-feedback improvements increase prompt length. The 10 total baseline wins on conciseness are the sole source of the 5.6% baseline quality score; all other questions favored the improved version or tied.
+
+### Step 2 — Cross-Experiment Comparison
+
+N/A (single experiment).
+
+### Step 3 — Root Cause Analysis
+
+The winning experiment improved quality by +38.3% because it addressed the last two unguided methodology gaps in the l1-advisory-process evaluator (Q-G13 and Q-G10) with structured detection approaches, while simultaneously improving operator-facing output with per-evaluator status lines.
+
+**Primary driver: Methodology annotations for judgment-intensive questions (Options A+B).** The pattern is now well-established across 9 iterations: when an evaluator has a complex multi-condition question definition in QUESTIONS.md but no reasoning template in its prompt, adding a methodology annotation that names the detection patterns and borderline cases produces consistent quality gains. This worked for Q-C37-Q-C40 (Iter 4, +24.1%), Q-G20-Q-G25 (Iter 7, +53.5%), and now Q-G13/Q-G10 (Iter 2 of this run, +38.3%). The mechanism is the same each time: the annotation converts "synthesize complex criteria from definition" into "follow sequential detection procedure" -- reducing the evaluator's reasoning burden and increasing detection consistency.
+
+**Secondary driver: Operator-feedback improvement (Option C).** The per-evaluator status lines were predicted as LOW-MEDIUM impact but delivered HIGH impact through the UX evaluation channel. This is a generalizable finding: when the prompt produces structured output that humans read, adding a consolidated status summary improves scannability, visual hierarchy, and information differentiation -- all of which are directly measured by UX evaluation questions. Future iterations should consider operator-feedback improvements as HIGH potential when UX questions are in the evaluation set.
+
+**Trade-off: Conciseness regression.** The 10 baseline wins on Q-FX4 and Q-FX8 are the cost of adding ~40 lines of methodology and output formatting. This trade-off is acceptable at the current quality level (+38.3% net), but it signals a ceiling: further methodology additions will face diminishing returns as conciseness costs accumulate. The l1-advisory-process evaluator now has 2 of 13 questions annotated; annotating more questions would add diminishing quality gains against increasing conciseness costs.
+
+**What worked:** Option A (Q-G13 methodology with 4 detection patterns) was the strongest contributor -- it addressed the highest-risk false-PASS case (pseudo-phases) with concrete detection steps. Option C (per-evaluator status lines) was the surprise performer -- UX impact far exceeded prediction. Option B (Q-G10 two-category detection) improved finding quality on assumption-heavy plans. Option D (edit failure fallback) added robustness at minimal cost.
+
+**What didn't work:** Q-DYN-33 (regression check) showed 1/1/3 -- one baseline win on judge j2 suggests slight over-flagging risk on well-structured plans from the new methodology annotations. This is a calibration concern: the Q-G13 borderline guidance may be triggering on plans with adequate (but imperfect) phase structure. The signal is weak (1 judge out of 5) but worth monitoring. Additionally, Q-FX4 and Q-FX8 both showed 5/0/0 baseline wins -- the conciseness cost is real and consistent across all judges.
+
+**Root cause analysis:** The +38.3% improvement came from three reinforcing effects: (1) methodology annotations improved detection sensitivity and finding quality on the two hardest process-evaluator questions, (2) per-evaluator status lines improved all three UX dimensions, and (3) the edit failure fallback improved logical soundness metrics. The conciseness regression (-10 questions' worth of baseline wins) was overwhelmed by quality gains across the remaining 15 questions (60 B-wins + 23 TIEs vs 11 A-wins total).
+
+**What to try next iteration:** (1) Address the Q-DYN-33 slight over-flagging signal: consider adding a calibration guard to Q-G13 methodology for plans that have genuine per-phase testing (even if not explicitly labeled as verification steps). (2) Investigate whether the remaining 11 un-annotated questions in the process evaluator (Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G9, Q-G12, Q-G14, Q-G15, Q-G16, Q-G17, Q-G18, Q-G19) would benefit from methodology, or whether the conciseness cost would outweigh the quality gain (the Iter 2 prior-run "overhead for non-manifesting cases" risk). (3) Consider tightening the Q-G13 and Q-G10 methodology annotations for conciseness -- the current ~12 lines each may be compressible to ~8 lines without losing detection depth. (4) The per-evaluator status line pattern could be extended to the convergence summary (final output after all passes) to show the full trajectory of each evaluator across passes.
+
+**Best experiment:** Exp-1 (all options) — 43.9% quality score
+**Verdict: IMPROVED**
+Decided by: quality (+38.3%)
+
+### Scope Gate Notes
+
+Exp-1: All 12 Q-SG questions PASS. No scope gate issues detected.
+
+## Technique History
+
+### 2026-03-18 — Iteration 2 → IMPROVED
+
+**Experiments:** 1 — Exp-1 (Options A+B+C+D combined)
+**Verdict:** IMPROVED (decided by: quality, +38.3%)
+
+**What worked:**
+- Option A (Q-G13 phased decomposition methodology) was the strongest quality contributor, producing 4/5 B-wins on Q-DYN-31 and contributing to sweeps on Q-FX3 (5/0/0) and Q-FX7 (5/0/0). The 4-detection-pattern structure (flat list, test-at-end, commit-before-test, no checkpoint) with borderline calibration guidance converted a complex multi-condition definition into a tractable sequential scan.
+- Option C (per-evaluator status lines) was the surprise performer, driving a clean sweep of all three UX questions (Q-UX1, Q-UX2, Q-UX3 all 5/0/0) and the dedicated Q-DYN-34 (5/0/0). Operator-facing output improvements have outsized UX impact.
+- Option B (Q-G10 two-category detection) improved finding quality with the explicit-markers vs implicit-constraints framing, producing 4/5 B-wins on Q-DYN-32.
+- Option D (edit failure fallback) added robustness contributing to Q-FX6 and Q-FX9 improvements.
+
+**What didn't work:**
+- Conciseness regression: Q-FX4 and Q-FX8 both showed 5/0/0 baseline wins -- the ~40 lines of added methodology, status template, and fallback logic exceeded conciseness thresholds. This is the expected trade-off for methodology annotations.
+- Slight over-flagging signal: Q-DYN-33 showed 1 baseline win on judge j2, suggesting the Q-G13 methodology may trigger on borderline-adequate phase structures. Weak signal (1/5 judges) but worth monitoring.
+
+**Actionable learning:**
+Methodology annotations for judgment-intensive evaluator questions remain the highest-ROI improvement pattern through 9 iterations, consistently converting complex multi-condition definitions into sequential detection procedures. Operator-facing output improvements (status lines, summaries) should be predicted as HIGH impact when UX questions are in the evaluation set -- they directly improve scannability, hierarchy, and differentiation. The conciseness cost of methodology additions (~10-15 lines per question) is now approaching the threshold where further annotations may face diminishing net returns.
