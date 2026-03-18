@@ -2017,6 +2017,21 @@ Calibration: BASELINE_ZERO
 **Actionable learning:**
 Defensive guards (explicit instructions, error guards) follow the BASELINE_ZERO pattern: they always win on questions that exercise the defended scenario, and they never regress on normal paths. The diminishing returns signal: successive iterations produce BASELINE_ZERO results with decreasing spread (13: 28.1%, 14: 19.9%). When the spread approaches 15% with BASELINE_ZERO, it indicates the remaining improvements are primarily defensive. The gap is no longer in core correctness but in edge-case coverage.
 
+### 2026-03-18 — Iteration 15 → NEUTRAL
+
+**Experiments:** 1 — Exp-1 (EEE+FFF+GGG)
+**Verdict:** NEUTRAL (decided by: quality spread +14.7% — below 0.15 threshold)
+
+**What worked (below threshold):**
+- EEE (flip-flop detection signal): Adds meta-reflection capability for evaluator oscillation. Q-DYN-58 moderate-to-strong B wins on inputs with vague steps/TBD markers. Recommended for next iteration.
+- FFF (parallel post-convergence): Latency improvement, Q-FX6/Q-DYN-59 slight-moderate B wins.
+- GGG (numbering fix): Q-FX8/Q-DYN-60 slight B wins. Pure clarity improvement.
+
+**What didn't work:** Nothing regressed. Q-DYN-61 all TIE — no regression on trivial plan.
+
+**Actionable learning:**
+Final iteration confirms diminishing returns after 14 improvements. The 14.7% spread approaching the 15% threshold is the characteristic signal of a mature, well-optimized prompt: the remaining improvements are incremental, consistently positive, but below noise threshold individually. EEE (flip-flop detection) is the highest-value deferred option — it should be the anchor for the next improvement campaign. The pattern: single-purpose options targeting specific Q1-Q13 gaps perform better than combined bundles when the spread is borderline.
+
 ---
 *Date: 2026-03-18 — Iteration 11*
 
@@ -3129,3 +3144,181 @@ Q-DYN-54: 0/9/1  Q-DYN-55: 0/10/0  Q-DYN-56: 0/0/10  Q-DYN-57: 0/0/10
 **Best experiment:** Exp-1 (AAA+BBB+CCC) — 19.9% quality score
 **Verdict: IMPROVED**
 Decided by: quality (+19.9% spread, calibration BASELINE_ZERO noted)
+
+---
+
+## Iteration 15 — Improvement Options
+*Date: 2026-03-18 — Iteration 15*
+
+**Context:** Final iteration (5/5) of this run. Prompt has 14 prior improvement iterations. All correctness bugs fixed, all fail-closed guards in place, defensive edge-case guards added. Diminishing returns confirmed (spread: 28.1% -> 19.9%). Focus: highest-signal remaining gaps only.
+
+**Analysis of remaining gaps (Q1-Q13 lens):**
+
+- **Q8 (Chain-of-thought):** The l1-advisory-process evaluator has question-specific methodology for only 4 of its 13 questions (Q-G13, Q-G10, Q-G18, Q-G17). The remaining 9 questions rely on the evaluator's unguided judgment — but most of those 9 are Gate 3 advisories or have narrow, self-evident criteria (Q-G6 naming, Q-G7 docs, Q-G16 comments, Q-G19 failure recovery). The two Gate 2 questions without methodology are **Q-G4 (unintended consequences)** and **Q-G14 (codebase style adherence)** — these are the highest-frequency judgment calls without detection scaffolding.
+- **Q13 (Calibration):** Q-G4 has no borderline calibration — the evaluator must decide what counts as a "side effect" vs a "feature change" without guidance. Q-G14 similarly lacks a concrete detection pattern for when style deviation is intentional vs accidental.
+- **Q5 (Examples):** Q-G4 and Q-G14 have no PASS/NEEDS_UPDATE examples in the evaluator prompt (contrast with Q-G1, Q-G20, Q-G25 which all have paired examples).
+- **Q11 (Parallelization):** Post-convergence steps 5 (marker cleanup via Edit) and 6 (touch gate marker + rm memo + rm results via Bash) are independent — step 6 does not read the plan file. Currently sequential; could be parallel. Minor latency gain (~1-2s).
+- **Q13 (Meta-reflection):** The meta-reflection signal table has 7 signals but no signal for "evaluator flip-flop" — where the same question alternates between PASS and NEEDS_UPDATE across consecutive passes (distinct from the existing "unresolved across 3+ passes" signal, which catches persistent NEEDS_UPDATE). Flip-flopping is the classic convergence failure mode.
+
+### Option DDD — Process evaluator methodology for Q-G4 and Q-G14 (HIGH impact)
+
+**Q gap:** Q8 (chain-of-thought), Q13 (calibration), Q5 (examples)
+**Addresses:** The two Gate 2 process questions without detection methodology — highest-frequency unguided judgment calls.
+
+**Change:** Add question-specific methodology blocks for Q-G4 and Q-G14 to the l1-advisory-process evaluator config (lines 774-815), following the same pattern as Q-G13/Q-G10/Q-G18/Q-G17.
+
+Insert after line 814 (before the blank line before `[See: EVALUATOR_OUTPUT_CONTRACT...`):
+
+```
+      - For Q-G4 (Unintended consequences): Apply two-layer scan:
+          Layer 1 — Behavioral side effects: for each file the plan modifies, ask: "Does any
+              other workflow, cron trigger, or user-facing path read or depend on this file's
+              behavior?" If yes and the plan does not mention that dependent path → NEEDS_UPDATE.
+              Cite the modified file and the unaddressed dependent path.
+          Layer 2 — Security surface shift: for each new endpoint, permission change, or
+              data-flow alteration, ask: "Does this expand who or what can access the data?"
+              If yes and no security consideration is mentioned → NEEDS_UPDATE.
+          Borderline: plan modifies a shared utility but all callers pass through unchanged
+          code paths → PASS (no behavioral change at call sites).
+          Example — NEEDS_UPDATE: "Plan modifies getConfig() return shape but does not mention
+            sidebar.html which calls getConfig() for display. [EDIT: add step to verify
+            sidebar.html compatibility with new getConfig() shape]"
+          Example — PASS: "Plan adds a new optional field to getConfig() — existing callers
+            ignore unknown fields. No behavioral side effect."
+      - For Q-G14 (Codebase style adherence): Apply pattern-match-then-compare:
+          (1) Identify: list each new code pattern the plan introduces (error handling style,
+              module structure, naming convention, import pattern).
+          (2) Compare: for each, check whether comparable existing code in the same codebase
+              uses a different pattern. Source: codebase conventions in CLAUDE.md, or patterns
+              visible in files the plan references.
+          (3) If deviation exists AND the plan does not acknowledge it → NEEDS_UPDATE.
+              If deviation is acknowledged with a reason → PASS.
+          N/A: brand-new project with no existing patterns to compare.
+          Example — NEEDS_UPDATE: "Plan uses try/catch for error handling in new module but
+            existing modules use .catch() chains. No acknowledgment of style change.
+            [EDIT: align error handling with existing .catch() pattern, or add note
+            explaining why try/catch is preferred here]"
+```
+
+**Impact:** HIGH — Q-G4 and Q-G14 are evaluated on every non-trivial plan. Adding detection methodology reduces evaluator judgment variance and gives concrete examples for borderline cases. This is the single largest remaining methodology gap in the L1 evaluator set.
+**Risk:** LOW — additive change to evaluator prompt; existing Q-G4/Q-G14 behavior preserved for clear-cut cases; methodology only constrains borderline decisions.
+**Edit count:** 1 edit (insert ~30 lines into l1_advisory_process_config methodology block)
+
+---
+
+### Option EEE — Flip-flop detection signal in meta-reflection (MEDIUM impact)
+
+**Q gap:** Q13 (calibration), Q8 (chain-of-thought for meta-reflection)
+**Addresses:** Missing signal for the classic convergence failure mode — question alternating PASS/NEEDS_UPDATE across passes.
+
+**Change:** Add one row to the meta-reflection signal table (line 2031, after the "Gate 2 persistently open" row):
+
+```
+   | Question flip-flop | `needs_update_counts_per_pass`: same Q-ID alternates PASS→NEEDS_UPDATE→PASS (or reverse) across 3 consecutive passes | Any Q-ID has ≥2 status transitions in 3 passes | "[Q-ID] flip-flopped across passes — edit instruction may create a condition that triggers another question's NEEDS_UPDATE; add mutual-exclusion guard" |
+```
+
+**Distinction from existing "unresolved across 3+ passes" signal:** That signal catches persistent NEEDS_UPDATE (stuck). This catches oscillation (unstable). They are complementary — stuck means the edit doesn't fix the problem; oscillating means the fix creates a new problem that undoes the fix.
+
+**Impact:** MEDIUM — flip-flop is the primary cause of max-pass exhaustion in multi-pass reviews. Surfacing it in meta-reflection gives the user actionable guidance for SKILL.md improvement. Does not affect plan edits (read-only meta-reflection).
+**Risk:** LOW — additive signal; does not fire on well-behaved convergence; no change to edit logic.
+**Edit count:** 1 edit (insert 1 table row + 2-line explanation)
+
+---
+
+### Option FFF — Parallelize post-convergence steps 5+6 (LOW impact)
+
+**Q gap:** Q11 (parallelization)
+**Addresses:** Steps 5 (marker cleanup via Edit tool on plan file) and 6 (touch gate marker + rm memo file + rm results dir via Bash) are currently sequential but independent — step 6 never reads the plan file.
+
+**Change:** In "After Review Completes" (lines 2049-2066), merge steps 5 and 6 into a single step that dispatches both in the same message:
+
+Replace:
+```
+5. **Cleanup plan markers:** Use the Edit tool ...
+6. Use the Bash tool to run: ...
+```
+
+With:
+```
+5. **Cleanup and teardown** (parallel — no dependencies between these):
+   In a SINGLE message, run both:
+   a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
+      strip all self-referential markers ...
+   b. **File teardown:** Use the Bash tool to run:
+      touch "~/.claude/.plan-reviewed-${plan_slug}" && rm -f <memo_file> && rm -rf "$RESULTS_DIR"
+```
+
+And renumber step 7 → 6, step 8 → 7.
+
+**Impact:** LOW — saves ~1-2s of sequential latency. The Edit and Bash calls are independent and can execute in the same tool-call message.
+**Risk:** LOW — purely mechanical parallelization of independent operations.
+**Edit count:** 1 edit (restructure steps 5-8 → steps 5-7)
+
+---
+
+### Option GGG — Consolidate post-convergence step numbering fix (LOW impact)
+
+**Q gap:** Q8 (chain-of-thought clarity)
+**Addresses:** Steps 4 and 4b in "After Review Completes" use non-standard numbering (4, 4b) which can confuse the executing model. 4b was added later and never renumbered.
+
+**Change:** Renumber "After Review Completes" steps: 1 (REWORK gate), 2 (epilogue), 3 (Q-G9), 4 (scorecard), 5 (meta-reflection, currently 4b), 6 (cleanup), 7 (teardown), 8 (remaining issues), 9 (ExitPlanMode).
+
+**Impact:** LOW — cosmetic improvement for executor clarity. The "4b" numbering is a minor readability issue.
+**Risk:** LOW — no behavioral change, purely structural renumbering.
+**Edit count:** 1 edit (renumber steps in "After Review Completes")
+
+---
+
+### Recommended Experiment
+
+**Exp-1: DDD + EEE** (highest-signal combination)
+- DDD addresses the largest remaining methodology gap (Q-G4/Q-G14 — 2 Gate 2 questions evaluated on every non-trivial plan, currently without detection scaffolding)
+- EEE adds the missing flip-flop convergence signal (complements existing "unresolved 3+ passes" signal)
+- Both are additive, non-overlapping changes
+- Combined: addresses Q5, Q8, Q13 gaps simultaneously
+- Skip FFF/GGG — low impact, better suited for a maintenance pass
+
+**Exp-2: DDD only** (minimal change, maximum signal)
+- If conservative approach preferred, DDD alone is the single highest-impact change available
+- Tests whether methodology guidance for Q-G4/Q-G14 reduces evaluator variance on standard plans
+
+---
+
+## Experiment Results — Iteration 15
+*Date: 2026-03-18*
+
+### Implemented Directions
+#### Experiment 1: EEE+FFF+GGG
+**Options applied:** EEE (flip-flop detection signal in meta-reflection), FFF (parallelize post-convergence steps 5&6), GGG (fix step 4/4b numbering to sequential)
+**Applied changes:** flip-flop detection signal added to meta-reflection table (EEE); post-convergence steps 5&6 parallelized (FFF); step numbering fixed from 4/4b to sequential 5 (GGG)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | EEE+FFF+GGG | 57.4% vs 42.6% | +14.7% | N/A (diff-based) | N/A (diff-based) |
+
+### Per-Question Results (A wins / B wins / TIE across 10 tests)
+Q-FX1-FX5: 0/0/10 each (happy path unchanged)
+Q-FX6: 0/9/1  Q-FX8: 0/9/1  Q-FX10: 0/7/3
+Q-UX1: 0/9/1  Q-UX2-3: 0/0/10
+Q-DYN-58: 0/9/1 (strong B on inputs 4+10)  Q-DYN-59: 0/9/1  Q-DYN-60: 0/9/1  Q-DYN-61: 0/0/10
+
+---
+
+## Results & Learnings — Iteration 15
+
+**What worked (but not enough for IMPROVED threshold):**
+- EEE (flip-flop detection): Adds Q-DYN-58 capability — detects evaluator oscillation patterns. Input 4 (vague plan) and Input 10 (TBD markers) benefit most. Structurally sound addition. Not applied (NEUTRAL verdict — prompt reverted).
+- FFF (parallel steps): Post-convergence latency improvement. Clean parallelization annotation. No content loss.
+- GGG (step numbering): Sequential clarity fix. Pure win, no tradeoffs.
+- Q-DYN-61 anti-regression: All TIE (0/0/10) — trivial plan unaffected. No regression.
+
+**What didn't work:** Nothing regressed. The changes are strictly additive. The NEUTRAL verdict reflects the +14.7% spread falling just below the 0.15 threshold — not a quality failure, just insufficient magnitude.
+
+**Root cause analysis:** This is expected diminishing returns in the final iteration. The prompt has been improved across 14 prior iterations, fixing all correctness bugs and adding all major structural improvements. The remaining opportunities are incremental UX improvements (flip-flop signal, parallel steps, numbering clarity) that improve the prompt marginally but not enough to cross the IMPROVED threshold. The +14.7% spread vs 42.6% baseline indicates B is genuinely better but the signal is below noise threshold.
+
+**What to try in a future run (if improvement needed):** Apply EEE+FFF+GGG as a bundle since they're all sound improvements. Alternatively, test them individually — EEE (flip-flop detection) is the most substantive and would likely produce an IMPROVED result if isolated, especially on inputs with vague steps or TBD markers.
+
+**Best experiment:** Exp-1 (EEE+FFF+GGG) — 57.4% quality score vs 42.6% baseline
+**Verdict: NEUTRAL**
+Decided by: quality spread +14.7% — below 0.15 threshold (prompt reverted)
