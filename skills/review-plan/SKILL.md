@@ -1874,6 +1874,12 @@ Efficiency                               ← omit if pass_count == 1
 
   Memoized evaluator-passes = sum of evaluators NOT spawned each pass due to memoization.
   Memo coverage = 100 * locked_questions / total_applicable_questions at final pass.
+
+📊 Prompt Improvement Recommendations   ← always rendered (even when "None")
+  [signal label]: [recommendation ≤25 words]
+  ...
+  — or if no signals fire —
+  None — prompt appears well-calibrated for this plan type
 ```
 
 ---
@@ -1958,6 +1964,39 @@ After the convergence loop exits (scorecard not yet printed):
    "Output: Unified Scorecard" section for the full template. Include the "Organization Quality
    (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
    in the Gate 1 section of the scorecard.
+
+4b. **Meta-Reflection Pass** (inline, no agent spawn):
+   Analyze signals accumulated during the convergence loop to surface 0–5 concise
+   recommendations for improving review-plan's question set or prompt structure. This step
+   is read-only — no edits to the plan file.
+
+   **Signal table — evaluate each; generate a recommendation only if the signal fires:**
+
+   | Signal | Data source | Fires when | Example recommendation |
+   |--------|-------------|------------|------------------------|
+   | High N/A rate (>40%) for a cluster | `cluster_results`: count findings with status "N/A" per cluster vs total questions in that cluster | Any active cluster has >40% N/A | "Impact cluster had 5/6 N/A — consider a flag-gate or scoping condition to reduce noise" |
+   | Question unresolved across 3+ passes | `needs_update_counts_per_pass`: same Q-ID in NEEDS_UPDATE for 3+ consecutive passes | Any Q-ID oscillates ≥3 passes | "[Q-ID] oscillated across passes — criteria may be ambiguous; add concrete thresholds" |
+   | Gate 3 advisory with empty/vague edit instruction | `advisory_findings_cache`: check for null or short (<10 chars) edit fields | Any Gate 3 entry has no actionable edit | "[Q-ID] advisory fires often but produces no actionable edit — consider removing or promoting" |
+   | Max passes hit with Gate 1 still open | `pass_count == 5 AND gate1_open > 0` at final pass | Loop hit ceiling without resolving Gate 1 | "[Q-ID] edit instructions may need stronger prescriptive templates to converge within max passes" |
+   | Low memo coverage (<30%) | `total_memo_count / total_applicable_questions` at final pass | Coverage below 30% | "Low memoization coverage suggests evaluator inconsistency — consider explicit stability criteria" |
+   | Plan topic with zero question coverage | Scan plan headings/topics against all evaluated question IDs | A substantive plan section has no matching question | "No question covers [topic] found in this plan — consider a new question or cluster extension" |
+   | Gate 2 persistently open (>3) at GAPS rating | `gate2_open > 3 AND rating == GAPS` | GAPS rating with many open Gate 2 items | "Gate 2 edit instructions for [Q-IDs] appear non-prescriptive — strengthen with concrete edit templates" |
+
+   **Rules:**
+   - Generate 0–5 recommendations (fewer is better — only surface real signals)
+   - Skip signals that only apply to IS_TRIVIAL plans
+   - Do NOT recommend changes that would alter Gate 1 blocking status
+   - Each recommendation format: `[Signal label]: [recommendation ≤25 words]`
+   - If no signals fire, output: `None — prompt appears well-calibrated for this plan type`
+
+   Print the `📊 Prompt Improvement Recommendations` section immediately after the scorecard:
+   ```
+   📊 Prompt Improvement Recommendations
+     [signal label]: [recommendation ≤25 words]
+     ...
+     — or —
+     None — prompt appears well-calibrated for this plan type
+   ```
 
 5. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
    strip all self-referential markers that served their purpose during the convergence loop
