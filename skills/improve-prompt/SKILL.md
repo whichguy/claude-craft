@@ -135,11 +135,7 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 MAX_CONCURRENT = 8   # max agent calls issued in a single parallel message
 HAS_OUTPUT_FORMAT = false   # true when prompt has explicit structured output (Print: boxes, scorecards, tables)
 HAS_DOWNSTREAM_DEPS = false  # true when prompt orchestrates agents or references external eval files
-# Detect HAS_OUTPUT_FORMAT: scan prompt_file_contents for box-drawing chars (╔ ║ ╗ ╝) OR
-# explicit "Print:" format blocks with fenced rendering instructions OR scorecard/table/dashboard specs
-# Detect HAS_DOWNSTREAM_DEPS: scan for orchestrator patterns — Spawn, Agent(, Task(, ExitPlanMode,
-# QUESTIONS.md, eval_path, EVALUATE.md, SendMessage, mcp__, or "spawn.*agent"
-# (Both flags are set in Step 0c, after prompt_file_contents is read — after Step 0b)
+# (Both flags are detected and set in Step 0c, after prompt_file_contents is read)
 
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
@@ -304,6 +300,10 @@ Print run header (once, after validation passes):
 ## Step 0c — Read & Derive Paths
 
 Read prompt file (raw, frontmatter stripped). Derive IDEAS_FILE path.
+
+**Detect prompt flags** (after reading prompt file contents):
+- Set `HAS_OUTPUT_FORMAT = true` if prompt_file_contents contains any of: box-drawing chars (`╔ ║ ╗ ╝`), explicit `Print:` format blocks with fenced rendering instructions, or scorecard/table/dashboard specs.
+- Set `HAS_DOWNSTREAM_DEPS = true` if prompt_file_contents matches any of: `Spawn`, `Agent(`, `Task(`, `ExitPlanMode`, `QUESTIONS.md`, `eval_path`, `EVALUATE.md`, `SendMessage`, `mcp__`, or `spawn.*agent`.
 
 **Git context:**
 ```bash
@@ -818,7 +818,7 @@ Otherwise, proceed to Step 5 with only `active_experiments` (exclude FAILed expe
 
 ## Step 5 — Evaluate All Experiments
 
-Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic questions).
+Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..Q-FX10 + optional Q-UX1..3 + dynamic questions).
 
 **Load inputs:**
 
@@ -1248,7 +1248,7 @@ EOF
     IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
       Print: `[7/7] 💾 Commit ─── improve({basename}): {1-line summary}`
     ELSE:
-      Print: `[7/7] 💾 Result ─── IMPROVED (prompt committed)`
+      Print: `[7/7] 💾 Result ─── IMPROVED (learnings saved, no commit — inline mode)`
     Print (render as fenced code block):
     ╔═══════════════════════════════════════════════════════════════╗
     ║  ✅  IMPROVED  —  Iteration {i}                               ║
