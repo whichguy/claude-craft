@@ -14,5 +14,4 @@ TYPES=(
     "prompts|📄|prompts|prompts|file|*.md|old-do-not-use-*,test-*"
     "references|📚|references|references|file|*.md|"
     "plugins|🔌|plugins|plugins|dir||"
-    "derive-questions|🔍|skills|skills|dir|derive-questions|"
 )
