@@ -39,6 +39,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 1. **Find the plan file:**
    - If an argument was passed (file path), use it directly
    - Otherwise: `Glob("~/.claude/plans/*.md")` → pick the most recently modified
+   - If no plan file found (glob returns empty AND no file path argument provided):
+     Print: "❌ No plan file found — nothing to review."
+     Print: "  Pass a file path as argument, or run from a directory with ~/.claude/plans/*.md"
+     STOP — do not proceed
    - Read the plan file fully
 
 2. **Load standards context:**
@@ -275,6 +279,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
    MAX_CONCURRENT = 5              # max parallel evaluator tasks per wave; tunable
+   MAX_EDITS_PER_PASS = 12         # safety cap — prevent runaway plan expansion
    dispatch_start_time = 0    # set before wave spawning
    fanin_start_time = 0       # set after all waves complete
    apply_start_time = 0       # set before edit application
@@ -286,7 +291,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    # If state is lost mid-loop (long reviews): re-read memo_file at start of next pass.
    advisory_findings_cache = {}
    # advisory_findings_cache: Q-ID → {"finding": "<text>", "source": "<evaluator>"}
-   # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per GATE3_QIDS).
+   # Scope: Gate 3 advisory questions only (currently Q-G25 — the sole Gate 3 question).
+   # Q-G20-Q-G24 are Gate 2; their descriptive PASS text is not cached (never rendered in Gate 3 section).
+   # Populated each non-memoized evaluator pass (Gate 3 advisory questions only, per ADVISORY_CACHE_QIDS).
    # Later-pass entries overwrite earlier — preserves freshest advisory text.
    # Entry cleared when PASS with empty finding — signals condition was resolved by edits.
    # Persisted in memo_file checkpoint for context-compression resilience.
@@ -345,40 +352,45 @@ DO:
   -- Context-compression recovery: if memoized state appears lost, restore from checkpoint --
   _recovered_this_pass = false
   IF memo_file exists AND (memoized_clusters is empty AND memoized_l1_questions is empty AND pass_count == 0):
-    Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
-                     l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
-                     l1_structural_clean_since (default 0),
-                     l1_process_memoized (default false), l1_process_memoized_since (default 0),
-                     prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
-                     prev_pass_applied_edits (default []),
-                     total_changes_all_passes, pass_count,
-                     needs_update_counts_per_pass, pass_durations,
-                     total_applicable_questions, memo_milestones_printed,
-                     memoized_gas_questions (default set()),
-                     memoized_gas_since (default {}),
-                     memoized_node_questions (default set()),
-                     memoized_node_since (default {}),
-                     prev_gas_results (default {}),
-                     prev_node_results (default {}),
-                     pass_phase_timings (default []),
-                     evaluators_spawned_total (default 0),
-     advisory_findings_cache (default {})
-    results_dir = memo_data.results_dir
-    # Guard for old memo format (written before task fan-out refactor)
-    IF results_dir is null or empty:
-      IF memo_data.team_name is present:
-        Print: "⚠️ Old memo format detected — starting fresh (team-based memo not compatible)"
-      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
-    # Verify temp dir still exists (macOS /tmp cleanup)
-    ELSE IF NOT Bash: test -d "$results_dir":
-      results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
-      Print: "⚠️ Results dir gone — created new: $results_dir"
-    RESULTS_DIR = results_dir
-    # Guard: old memo files may contain "git" which is no longer a loop cluster
-    memoized_clusters = memoized_clusters.intersection(active_clusters)
-    memoized_since = {k: v for k, v in memoized_since.items() if k in memoized_clusters}
-    _recovered_this_pass = true
-    Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
+    TRY:
+      Read memo_file → restore memoized_clusters, memoized_since, memoized_l1_questions,
+                       l1_structural_memoized (default false), l1_structural_memoized_since (default 0),
+                       l1_structural_clean_since (default 0),
+                       l1_process_memoized (default false), l1_process_memoized_since (default 0),
+                       prev_needs_update_set, pass1_needs_update_set, prev_pass_results,
+                       prev_pass_applied_edits (default []),
+                       total_changes_all_passes, pass_count,
+                       needs_update_counts_per_pass, pass_durations,
+                       total_applicable_questions, memo_milestones_printed,
+                       memoized_gas_questions (default set()),
+                       memoized_gas_since (default {}),
+                       memoized_node_questions (default set()),
+                       memoized_node_since (default {}),
+                       prev_gas_results (default {}),
+                       prev_node_results (default {}),
+                       pass_phase_timings (default []),
+                       evaluators_spawned_total (default 0),
+       advisory_findings_cache (default {})
+      results_dir = memo_data.results_dir
+      # Guard for old memo format (written before task fan-out refactor)
+      IF results_dir is null or empty:
+        IF memo_data.team_name is present:
+          Print: "⚠️ Old memo format detected — starting fresh (team-based memo not compatible)"
+        results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+      # Verify temp dir still exists (macOS /tmp cleanup)
+      ELSE IF NOT Bash: test -d "$results_dir":
+        results_dir = Bash: mktemp -d /tmp/review-plan.XXXXXX
+        Print: "⚠️ Results dir gone — created new: $results_dir"
+      RESULTS_DIR = results_dir
+      # Guard: old memo files may contain "git" which is no longer a loop cluster
+      memoized_clusters = memoized_clusters.intersection(active_clusters)
+      memoized_since = {k: v for k, v in memoized_since.items() if k in memoized_clusters}
+      _recovered_this_pass = true
+      Print: "⚠️ Context recovery: restored state from checkpoint (pass [pass_count])"
+    CATCH (JSON parse error or read failure):
+      Print: "⚠️ Memo file unreadable — starting fresh (removed stale checkpoint)"
+      Bash: rm -f <memo_file_path>
+      # All memoized state remains at defaults; fall through
 
   IF NOT _recovered_this_pass:
     pass_count += 1
@@ -417,7 +429,8 @@ DO:
     l1_structural_clean_since = 0
     Print: "  memo: l1-advisory-structural early-invalidated (prev pass had edits)"
 
-  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning]
+  [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning.
+  For evaluators referencing [See: EVALUATOR_OUTPUT_CONTRACT above], expand the reference inline — copy the full contract block into the Task prompt, replacing EVALUATOR_NAME with the evaluator's name and RESULTS_DIR with the actual results directory path.]
 
   -- Build evaluator list (priority-ordered for wave assignment) --
   evaluators_to_spawn = []  # list of {name, task_prompt}
@@ -542,6 +555,41 @@ DO:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process ── memoized (13 questions stable since p[l1_process_memoized_since])"
 
+  --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
+  # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
+  # Gas-evaluator and node-evaluator use their own output contracts (defined in external eval files).
+  #
+  # Output contract — write findings to JSON file:
+  #   Write your findings to: <RESULTS_DIR>/EVALUATOR_NAME.json
+  #
+  #   JSON schema:
+  #   {
+  #     "evaluator": "EVALUATOR_NAME",
+  #     "pass": <pass_count>,
+  #     "status": "complete",
+  #     "elapsed_s": <seconds_from_start>,
+  #     "findings": {
+  #       "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+  #       ...
+  #     },
+  #     "counts": {"pass": N, "needs_update": N, "na": N}
+  #   }
+  #
+  #   Write atomically using Bash (ensures clean reads by orchestrator):
+  #     cat > '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' << 'EVAL_EOF'
+  #     <json>
+  #     EVAL_EOF
+  #     mv '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' '<RESULTS_DIR>/EVALUATOR_NAME.json'
+  #
+  #   If you encounter an error reading inputs, write:
+  #     {"evaluator": "EVALUATOR_NAME", "pass": <pass_count>, "status": "error", "error": "<message>"}
+  #
+  # Constraints:
+  #   - Do not use Edit or Write tools on the plan file — read-only
+  #   - Use Bash ONLY to write your findings JSON to the specified path
+  #   - Do not call ExitPlanMode or touch marker files
+  #   - Write exactly ONE JSON file
+
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
@@ -591,36 +639,7 @@ DO:
         Example — PASS: "Plan cites 'better-sqlite3: 2.3µs vs 45µs flat-file, 10k iterations
           (bench/results/...)'. Evidence-backed approach — no challenge needed."
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-blocking.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-blocking",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-blocking.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-blocking.json.tmp' '<RESULTS_DIR>/l1-blocking.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-blocking", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-blocking" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -705,36 +724,7 @@ DO:
           [EDIT: add '## Verification\n- Run npm test\n- Confirm no regressions in CI']"
         Example — PASS: "Plan includes 'Run npm test for unit tests' in Verification — feedback loop present."
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-advisory-structural.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-advisory-structural",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-advisory-structural.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-advisory-structural.json.tmp' '<RESULTS_DIR>/l1-advisory-structural.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-advisory-structural", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-structural" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -823,36 +813,7 @@ DO:
           qualify — the preamble must convey why this phase exists and what it sets up.
           N/A: single-phase plans.
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/l1-advisory-process.json
-
-        JSON schema:
-        {
-          "evaluator": "l1-advisory-process",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/l1-advisory-process.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/l1-advisory-process.json.tmp' '<RESULTS_DIR>/l1-advisory-process.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "l1-advisory-process", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-process" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -916,36 +877,7 @@ DO:
         actual TYPES format (shared-types.sh) has repo_subdir at position 3 and kind at
         position 4. [EDIT: correct field extraction in step 1 to use position 4 for kind]"
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/<cluster_name>-evaluator.json
-
-        JSON schema:
-        {
-          "evaluator": "<cluster_name>-evaluator",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/<cluster_name>-evaluator.json.tmp' '<RESULTS_DIR>/<cluster_name>-evaluator.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "<cluster_name>-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "<cluster_name>-evaluator" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -1074,36 +1006,7 @@ DO:
       [IF pass_count > 1 AND prev_pass_applied_edits is empty:]
       Previous pass applied 0 edits — plan unchanged. Verify your questions still PASS.
 
-      Output contract — write findings to JSON file:
-        Write your findings to: <RESULTS_DIR>/ui-evaluator.json
-
-        JSON schema:
-        {
-          "evaluator": "ui-evaluator",
-          "pass": <pass_count>,
-          "status": "complete",
-          "elapsed_s": <seconds_from_start>,
-          "findings": {
-            "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-            ...
-          },
-          "counts": {"pass": N, "needs_update": N, "na": N}
-        }
-
-        Write atomically using Bash (ensures clean reads by orchestrator):
-          cat > '<RESULTS_DIR>/ui-evaluator.json.tmp' << 'EVAL_EOF'
-          <json>
-          EVAL_EOF
-          mv '<RESULTS_DIR>/ui-evaluator.json.tmp' '<RESULTS_DIR>/ui-evaluator.json'
-
-        If you encounter an error reading inputs, write:
-          {"evaluator": "ui-evaluator", "pass": <pass_count>, "status": "error", "error": "<message>"}
-
-      Constraints:
-      - Do not use Edit or Write tools on the plan file — read-only
-      - Use Bash ONLY to write your findings JSON to the specified path
-      - Do not call ExitPlanMode or touch marker files
-      - Write exactly ONE JSON file
+      [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "ui-evaluator" and RESULTS_DIR = <RESULTS_DIR>]
 
       Plan to evaluate: <plan_path> — read it with the Read tool, then evaluate the questions above.
     """
@@ -1170,6 +1073,37 @@ DO:
   Print: "  >> Routing evaluator findings to their respective layers"
   -- Route findings from all_results (already read during wave fan-in — no second file read) --
   FOR evaluator_name, data in all_results:
+    # ORDERING CONTRACT: evaluator-specific error guards MUST appear before the general
+    # error handler. The general handler's CONTINUE skips all subsequent checks.
+
+    # Fail-closed guard for l1-blocking errors (Gate 1 safety) — MUST precede general handler
+    IF evaluator_name == "l1-blocking" AND data.status in ["timeout", "error"]:
+      # l1-blocking covers Q-G1, Q-G2, Q-G11 — all Gate 1.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      FOR q_id in ["Q-G1", "Q-G2", "Q-G11"]:
+        l1_results[q_id] = "NEEDS_UPDATE"
+        l1_edits[q_id] = {"finding": "l1-blocking evaluator error — re-run required", "edit": null}
+      Print: "  ⚠️ l1-blocking error → Q-G1/Q-G2/Q-G11 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE  # skip normal routing for this evaluator
+
+    # Fail-closed guard for gas-evaluator errors (Gate 1 safety — IS_GAS mode) — MUST precede general handler
+    IF evaluator_name == "gas-evaluator" AND data.status in ["timeout", "error"]:
+      # gas-evaluator covers Q1, Q2, Q13, Q15, Q18, Q42 — all Gate 1 in IS_GAS mode.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      FOR q_id in ["Q1", "Q2", "Q13", "Q15", "Q18", "Q42"]:
+        gas_results[q_id] = "NEEDS_UPDATE"
+        gas_edits[q_id] = {"finding": "gas-evaluator error — re-run required", "edit": null}
+      Print: "  ⚠️ gas-evaluator error → Q1/Q2/Q13/Q15/Q18/Q42 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE
+
+    # Fail-closed guard for node-evaluator errors (Gate 1 safety — IS_NODE mode) — MUST precede general handler
+    IF evaluator_name == "node-evaluator" AND data.status in ["timeout", "error"]:
+      # node-evaluator covers N1 — Gate 1 in IS_NODE mode.
+      # Treat as NEEDS_UPDATE to prevent false convergence with unevaluated Gate 1 questions.
+      node_results["N1"] = "NEEDS_UPDATE"
+      node_edits = {"N1": {"finding": "node-evaluator error — re-run required", "edit": null}}
+      Print: "  ⚠️ node-evaluator error → N1 treated as NEEDS_UPDATE (fail-closed)"
+      CONTINUE
 
     IF data.status in ["timeout", "error"]:
       mark as Incomplete (existing incomplete evaluator rules apply unchanged)
@@ -1207,10 +1141,12 @@ DO:
       cluster_name = evaluator_name minus "-evaluator" suffix
       cluster_results[cluster_name] = data.findings
 
-    # Populate advisory_findings_cache from PASS-with-finding entries (Gate 3 advisory notes)
-    GATE3_QIDS = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    # ADVISORY_CACHE_QIDS: only Q-G25 (the sole Gate 3 question). Q-G20-Q-G24 are Gate 2 —
+    # their PASS-with-finding text is descriptive, not advisory, and is never rendered in the
+    # Gate 3 scorecard section. Caching them would accumulate unused entries.
+    ADVISORY_CACHE_QIDS = {"Q-G25"}
     FOR q_id, entry in data.findings:
-      IF q_id not in GATE3_QIDS:
+      IF q_id not in ADVISORY_CACHE_QIDS:
         continue  # only cache advisory-tier questions
       IF entry.status == "PASS" AND entry.finding is non-null AND entry.finding != "":
         advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
@@ -1247,6 +1183,11 @@ DO:
   IF changes_to_apply > 0:
     apply_start_time = Date.now()
   APPLY edits — for each finding with edit != null in any evaluator's JSON data:
+    IF changes_to_apply > MAX_EDITS_PER_PASS:
+      # Sort edits by gate priority: Gate 1 first, then Gate 2, then Gate 3
+      edits_to_apply = sorted(edits_to_apply, key=lambda e: gate_priority(e.q_id))
+      edits_to_apply = edits_to_apply[:MAX_EDITS_PER_PASS]
+      Print: "  ⚠️ [changes_to_apply] edits queued — applying top [MAX_EDITS_PER_PASS] by gate priority (overflow: [changes_to_apply - MAX_EDITS_PER_PASS] deferred to next pass)"
     Print: ""
     FOR idx, edit in enumerate(edits_to_apply):
       Print: "  ┌ [[idx+1]/[N]] [question short name] ([ID])"
@@ -1502,7 +1443,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    total_applicable_questions = 20 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    # L1 per-pass count: 3 (l1-blocking) + 6 (l1-advisory-structural) + 13 (l1-advisory-process) = 22
+    total_applicable_questions = 22 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
@@ -1594,7 +1536,7 @@ DO:
   # Compute gate-level counts from current_needs_update_set for quick inline display
   gate1_open = count of NEEDS_UPDATE in current pass for Gate 1 questions
   gate2_open = count of NEEDS_UPDATE in current pass for Gate 2 questions
-  gate3_noted = count of NEEDS_UPDATE in current pass for Gate 3 questions
+  gate3_noted = len(advisory_findings_cache)  # count of advisory notes (PASS-with-finding), not NEEDS_UPDATE
   gate1_sym = IF gate1_open == 0: "✅" ELSE: "❌[gate1_open]"
   gate2_sym = IF gate2_open == 0: "✅" ELSE: "⚠️[gate2_open]"
   IF pass_count >= 2:
@@ -1877,6 +1819,22 @@ Evaluator-to-team-lead output contracts are UNCHANGED — evaluators still list 
 individually with IDs. The collapsing happens only in this final user-facing scorecard.
 
 ```
+-- Compute Rating from gate-level counts --
+# gate2_open: count of Gate 2 NEEDS_UPDATE questions (NOT Gate 3 — advisories do not affect rating)
+# Gate1_unresolved: computed in CONVERGENCE CHECK above
+IF Gate1_unresolved > 0:
+  Rating = "🔴 REWORK"
+  criterion_phrase = "[Gate1_unresolved] Gate 1 blocking issue(s)"
+ELIF gate2_open == 0:
+  Rating = "🟢 READY"
+  criterion_phrase = "all gates clear"
+ELIF gate2_open <= 3:
+  Rating = "🟡 SOLID"
+  criterion_phrase = "[gate2_open] Gate 2 advisory issue(s)"
+ELSE:
+  Rating = "🟠 GAPS"
+  criterion_phrase = "[gate2_open] Gate 2 issue(s) — review recommended"
+
 ╔═══════════════════════════════════╗
 ║  review-plan Scorecard — Pass [N] ║
 ╚═══════════════════════════════════╝
