@@ -135,16 +135,7 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 MAX_CONCURRENT = 8   # max agent calls issued in a single parallel message
 HAS_OUTPUT_FORMAT = false   # true when prompt has explicit structured output (Print: boxes, scorecards, tables)
 HAS_DOWNSTREAM_DEPS = false  # true when prompt orchestrates agents or references external eval files
-LARGE_PROMPT_THRESHOLD = 25000  # chars — above this, run agents can't reliably execute
-IS_LARGE_PROMPT = false  # set after prompt_file_contents is read in Step 0c
-
-# Detect HAS_OUTPUT_FORMAT: scan prompt_file_contents for box-drawing chars (╔ ║ ╗ ╝) OR
-# explicit "Print:" format blocks with fenced rendering instructions OR scorecard/table/dashboard specs
-# Detect HAS_DOWNSTREAM_DEPS: scan for orchestrator patterns — Spawn, Agent(, Task(, ExitPlanMode,
-# QUESTIONS.md, eval_path, EVALUATE.md, SendMessage, mcp__, or "spawn.*agent"
-# Detect IS_LARGE_PROMPT: len(prompt_file_contents) > LARGE_PROMPT_THRESHOLD — covers orchestration
-# skills where run agents would exhaust context reading the prompt before producing output
-# (All three flags are set in Step 0c, after prompt_file_contents is read — after Step 0b)
+# (Both flags are detected and set in Step 0c, after prompt_file_contents is read)
 
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
@@ -310,9 +301,9 @@ Print run header (once, after validation passes):
 
 Read prompt file (raw, frontmatter stripped). Derive IDEAS_FILE path.
 
-Set IS_LARGE_PROMPT = len(prompt_file_contents) > LARGE_PROMPT_THRESHOLD
-IF IS_LARGE_PROMPT:
-    Print: "⚠️  Large prompt ({len(prompt_file_contents)} chars) — using diff-based evaluation (run agents skipped)"
+**Detect prompt flags** (after reading prompt file contents):
+- Set `HAS_OUTPUT_FORMAT = true` if prompt_file_contents contains any of: box-drawing chars (`╔ ║ ╗ ╝`), explicit `Print:` format blocks with fenced rendering instructions, or scorecard/table/dashboard specs.
+- Set `HAS_DOWNSTREAM_DEPS = true` if prompt_file_contents matches any of: `Spawn`, `Agent(`, `Task(`, `ExitPlanMode`, `QUESTIONS.md`, `eval_path`, `EVALUATE.md`, `SendMessage`, `mcp__`, or `spawn.*agent`.
 
 **Git context:**
 ```bash
@@ -827,7 +818,7 @@ Otherwise, proceed to Step 5 with only `active_experiments` (exclude FAILed expe
 
 ## Step 5 — Evaluate All Experiments
 
-Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic questions).
+Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..Q-FX10 + optional Q-UX1..3 + dynamic questions).
 
 **Load inputs:**
 
@@ -844,184 +835,116 @@ Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fix
 
 M = number of valid input files (from all sources combined). Baseline (A) = `$IMPROVE_TMPDIR/baseline-iter-{i}.md`.
 
-**Prompt injection** (for each prompt P and input I):
+**Prompt injection** (for each prompt P, input I):
+
+Derive `prompt_P_path` from context:
+- Baseline prompt: `prompt_P_path = $IMPROVE_TMPDIR/baseline-iter-{i}.md`
+- Experiment k prompt: `prompt_P_path = $IMPROVE_TMPDIR/exp-{k}-iter-{i}.md`
+
 ```
 IF P contains "{{INPUT}}":
     task_prompt = P.replace("{{INPUT}}", I)
+ELSE IF len(P) > 25000:
+    # File-based injection — run agent reads prompt from disk to avoid context bloat
+    task_prompt = "Use the Read tool to read the prompt file at: {prompt_P_path}\n\nThen execute those instructions on the following input:\n\n<input>\n" + I + "\n</input>\n\nOutput your response directly."
 ELSE:
     task_prompt = P + "\n\n<INPUT>\n" + I + "\n</INPUT>\n\nExecute the above instructions on the provided input. Output your response directly."
 ```
 
 Record `start_time_ms` per task before spawning.
 
-IF IS_LARGE_PROMPT:
-    # DIFF-BASED EVALUATION — skip run agents, compare instructions directly
+# STANDARD EVALUATION — run agents + judge agents
 
-    Print: "[5/7] ⚖️  Evaluate ─── diff-based ({M} input{s} × {len(active_experiments)} diff{s})"
-    (If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
+Print: `[5/7] ⚖️  Evaluate ─── {M} input{s} × {1+len(active_experiments)} prompt{s}`
+(If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
 
-    # For each experiment k: compute diff between baseline and exp-k
-    FOR k in active_experiments:
-        Bash: diff "$IMPROVE_TMPDIR/baseline-iter-{i}.md" "$IMPROVE_TMPDIR/exp-{k}-iter-{i}.md" > "$IMPROVE_TMPDIR/diff-{k}-iter-{i}.txt" || true
-
-    # Spawn diff-based judge tasks in batches of at most MAX_CONCURRENT
-    # One judge per (experiment k, input j) pair — M × len(active_experiments) total
-    FOR k in active_experiments, FOR j in inputs (batched ≤MAX_CONCURRENT):
-
-        **Position randomization** (same as standard path — mitigates first-position bias):
-        ```
-        coin_flip = Math.random() < 0.5
-        swapped[k][j] = coin_flip
-        # if swapped: diff direction is noted as reversed — judge sees "A" as improved side
-        ```
-
-        Diff-based judge task prompt (use judge_model):
-        ```
-        You are comparing two versions of an orchestration skill or complex prompt.
-        Version B (improved) differs from version A (baseline) as shown in the diff below.
-
-        IMPORTANT: You cannot run these prompts — evaluate which version's INSTRUCTIONS
-        are better for the given input. Judge on: precision, completeness, unambiguity,
-        and correctness of the instructions. Reason through what each version would DO
-        differently for this specific input, based on the diff.
-
-        Anti-bias guidance:
-        - A version that produces FEWER findings/flags is NOT necessarily worse — judge
-          accuracy of findings, not count. Fewer but more accurate findings is an improvement.
-        - Actively look for cases where the baseline (A) catches something the improved
-          version (B) misses, downgrades, or softens. Award A credit for any concrete
-          detection B degrades — this is what Q-FX10 specifically tests.
-        - Dynamic questions that test features the improvement adds are expected to favor B.
-          The fixed questions (Q-FX1..Q-FX10) are the more reliable signal for overall quality.
-
-        <diff_baseline_to_improved>
-        {contents of $IMPROVE_TMPDIR/diff-{k}-iter-{i}.txt}
-        {IF swapped[k][j]: "(diff direction reversed — lines starting with - are improved, + are baseline)"}
-        </diff_baseline_to_improved>
-
-        <input_context>
-        {input_j_contents}
-        </input_context>
-
-        <evaluation_questions>
-        {all questions from IDEAS_FILE — fixed + optional + dynamic}
-        Note: Q-UX questions are style/presentation — weight proportionally less.
-        When evaluating Q-FX7 (downstream deps), assess whether the improved instructions
-        are more complete and unambiguous for downstream agents.
-        </evaluation_questions>
-
-        For each evaluation question, determine which version better satisfies it.
-        - winner: "A" if baseline better, "B" if improved better, "TIE" if equivalent
-        - strength: "strong" (clear decisive difference), "moderate" (noticeable), "slight" (marginal)
-
-        Output ONLY valid JSON on a single line:
-        {"questions":[{"id":"Q-FX1","winner":"A","strength":"strong","reasoning":"..."},...], "reasoning":"1-2 sentences on most decisive quality factors"}
-        ```
-
-    # Question count guard: if len(evaluation_questions) > 13, split into two judge sub-tasks
-    # per (k, j) pair — first covers Q-FX1..10 + Q-FX7 (if applicable), second covers Q-UX +
-    # dynamic questions. Aggregate both sub-tasks before scoring.
-
-    On malformed JSON → treat all questions as TIE.
-
-    # Token/latency: N/A in diff-based mode (no run agents executed)
-    avg_tokens_a = 0; avg_tokens_k = 0; avg_latency_a = 0; avg_latency_k = 0
-
-    Note in step output: "(diff-based evaluation)"
-
+# Baseline run — use cache when prompt is unchanged from prior iteration
+IF baseline_run_cache is not null:
+    # Baseline prompt unchanged (prior verdict was NEUTRAL or REGRESSED — rollback occurred).
+    # Reuse prior run outputs — skip spawning run-A tasks.
+    baseline_outputs  = baseline_run_cache.outputs   # dict[filename -> text]
+    baseline_tokens   = baseline_run_cache.tokens    # dict[filename -> total_tokens_est]
+    baseline_latency  = baseline_run_cache.latency   # dict[filename -> latency_ms]
+    Print: "   (baseline reused from iter {baseline_run_cache.iteration} — prompt unchanged)"
 ELSE:
-    # STANDARD EVALUATION — run agents + judge agents
-
-    Print: `[5/7] ⚖️  Evaluate ─── {M} input{s} × {1+len(active_experiments)} prompt{s}`
-    (If any experiments were excluded by scope gate, note: `   ({len(excluded_experiments)} experiment{s} excluded by scope gate)`)
-
-    # Baseline run — use cache when prompt is unchanged from prior iteration
-    IF baseline_run_cache is not null:
-        # Baseline prompt unchanged (prior verdict was NEUTRAL or REGRESSED — rollback occurred).
-        # Reuse prior run outputs — skip spawning run-A tasks.
-        baseline_outputs  = baseline_run_cache.outputs   # dict[filename -> text]
-        baseline_tokens   = baseline_run_cache.tokens    # dict[filename -> total_tokens_est]
-        baseline_latency  = baseline_run_cache.latency   # dict[filename -> latency_ms]
-        Print: "   (baseline reused from iter {baseline_run_cache.iteration} — prompt unchanged)"
-    ELSE:
-        # Baseline changed (first iteration, or prior verdict was IMPROVED) — run fresh.
-        Spawn `run-A-{filename}` tasks in batches of at most MAX_CONCURRENT (M tasks, one per input).
-        Collect outputs, latency_ms, and token estimates as normal.
-        After collecting all baseline run results, save to cache:
-        baseline_run_cache = {
-            outputs:   {filename: output_text for each input},
-            tokens:    {filename: total_tokens_est for each input},
-            latency:   {filename: latency_ms for each input},
-            iteration: i
-        }
-        baseline_outputs  = baseline_run_cache.outputs
-        baseline_tokens   = baseline_run_cache.tokens
-        baseline_latency  = baseline_run_cache.latency
-
-    # Spawn experiment run-agents (always fresh — experiment variants change every iteration)
-    Spawn `run-E{k}-{filename}` tasks in batches of at most MAX_CONCURRENT (len(active_experiments) × M tasks).
+    # Baseline changed (first iteration, or prior verdict was IMPROVED) — run fresh.
+    Spawn `run-A-{filename}` tasks in batches of at most MAX_CONCURRENT (M tasks, one per input).
     Collect outputs, latency_ms, and token estimates as normal.
+    After collecting all baseline run results, save to cache:
+    baseline_run_cache = {
+        outputs:   {filename: output_text for each input},
+        tokens:    {filename: total_tokens_est for each input},
+        latency:   {filename: latency_ms for each input},
+        iteration: i
+    }
+    baseline_outputs  = baseline_run_cache.outputs
+    baseline_tokens   = baseline_run_cache.tokens
+    baseline_latency  = baseline_run_cache.latency
 
-    For each completed task, record:
-    - output text
-    - `latency_ms` = end_time_ms - start_time_ms
-    - `input_tokens_est` = floor((prompt_len + input_len) / 4)
-    - `output_tokens_est` = floor(output_len / 4)
-    - `total_tokens_est` = input_tokens_est + output_tokens_est
+# Spawn experiment run-agents (always fresh — experiment variants change every iteration)
+Spawn `run-E{k}-{filename}` tasks in batches of at most MAX_CONCURRENT (len(active_experiments) × M tasks).
+Collect outputs, latency_ms, and token estimates as normal.
 
-    **Error handling**: If a task fails → skip its judge for that input. Note: "(run error — no judge)"
+For each completed task, record:
+- output text
+- `latency_ms` = end_time_ms - start_time_ms
+- `input_tokens_est` = floor((prompt_len + input_len) / 4)
+- `output_tokens_est` = floor(output_len / 4)
+- `total_tokens_est` = input_tokens_est + output_tokens_est
 
-    **Spawn judge tasks in batches of at most MAX_CONCURRENT** — collect all len(active_experiments) × M judge tasks, then issue them in successive parallel messages of ≤MAX_CONCURRENT each, waiting for each batch to complete before issuing the next.
+**Error handling**: If a task fails → skip its judge for that input. Note: "(run error — no judge)"
 
-    For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
+**Spawn judge tasks in batches of at most MAX_CONCURRENT** — collect all len(active_experiments) × M judge tasks, then issue them in successive parallel messages of ≤MAX_CONCURRENT each, waiting for each batch to complete before issuing the next.
 
-    **Position randomization** (mitigates first-position bias):
-    ```
-    coin_flip = Math.random() < 0.5
-    IF coin_flip:
-        judge_output_a = exp_k_output_for_j
-        judge_output_b = baseline_output_for_j
-        swapped[k][j] = true
-    ELSE:
-        judge_output_a = baseline_output_for_j
-        judge_output_b = exp_k_output_for_j
-        swapped[k][j] = false
-    ```
+For each experiment k in active_experiments and each input j where both baseline and exp-k runs succeeded:
 
-    Judge task prompt:
-    ```
-    <input_context>
-    {input_j_contents}
-    </input_context>
+**Position randomization** (mitigates first-position bias):
+```
+coin_flip = Math.random() < 0.5
+IF coin_flip:
+    judge_output_a = exp_k_output_for_j
+    judge_output_b = baseline_output_for_j
+    swapped[k][j] = true
+ELSE:
+    judge_output_a = baseline_output_for_j
+    judge_output_b = exp_k_output_for_j
+    swapped[k][j] = false
+```
 
-    <output_a>
-    {judge_output_a}
-    </output_a>
+Judge task prompt:
+```
+<input_context>
+{input_j_contents}
+</input_context>
 
-    <output_b>
-    {judge_output_b}
-    </output_b>
+<output_a>
+{judge_output_a}
+</output_a>
 
-    <evaluation_questions>
-    {all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..10 + optional Q-FX7/Q-UX1..3 + dynamic}
-    Note: Q-UX questions (if present) are style/presentation questions — treat them with proportionally less weight.
-    Note: Q-FX10 is deliberately baseline-favoring — award A if baseline catches anything B misses.
-    </evaluation_questions>
+<output_b>
+{judge_output_b}
+</output_b>
 
-    Anti-bias guidance:
-    - A version that produces FEWER findings is NOT necessarily worse — judge accuracy, not count.
-    - Actively check whether A catches something B misses. Q-FX10 specifically asks this — answer it honestly even if all other questions favor B.
-    - Dynamic questions test features the improvement adds; fixed questions (Q-FX1..Q-FX10) are the more reliable overall signal.
+<evaluation_questions>
+{all questions from IDEAS_FILE ## Evaluation Questions section — fixed Q-FX1..10 + optional Q-FX7/Q-UX1..3 + dynamic}
+Note: Q-UX questions (if present) are style/presentation questions — treat them with proportionally less weight.
+Note: Q-FX10 is deliberately baseline-favoring — award A if baseline catches anything B misses.
+</evaluation_questions>
 
-    For each evaluation question, determine which output better satisfies it.
-    - winner: "A" if A clearly better, "B" if B clearly better, "TIE" if equivalent
-    - strength: "strong" (clear decisive difference), "moderate" (noticeable), "slight" (marginal)
+Anti-bias guidance:
+- A version that produces FEWER findings is NOT necessarily worse — judge accuracy, not count.
+- Actively check whether A catches something B misses. Q-FX10 specifically asks this — answer it honestly even if all other questions favor B.
+- Dynamic questions test features the improvement adds; fixed questions (Q-FX1..Q-FX10) are the more reliable overall signal.
 
-    Output ONLY valid JSON on a single line — no preamble, no markdown fences:
-    {"questions":[{"id":"Q-FX1","winner":"A","strength":"strong","reasoning":"..."},...], "reasoning":"1-2 sentences on most decisive quality factors"}
-    ```
+For each evaluation question, determine which output better satisfies it.
+- winner: "A" if A clearly better, "B" if B clearly better, "TIE" if equivalent
+- strength: "strong" (clear decisive difference), "moderate" (noticeable), "slight" (marginal)
 
-    Use `judge_model` for all judge tasks. On malformed JSON → treat all questions as TIE.
+Output ONLY valid JSON on a single line — no preamble, no markdown fences:
+{"questions":[{"id":"Q-FX1","winner":"A","strength":"strong","reasoning":"..."},...], "reasoning":"1-2 sentences on most decisive quality factors"}
+```
+
+Use `judge_model` for all judge tasks. On malformed JSON → treat all questions as TIE.
 
 **Position remapping** (after parsing each judge result, before aggregation):
 ```
@@ -1105,7 +1028,7 @@ ELSE:
 
 verdict = "IMPROVED" if overall_winner == "B" else ("REGRESSED" if overall_winner == "A" else "NEUTRAL")
 
-# Calibration check: 0% baseline is a signal, especially in diff-based evaluation
+# Calibration check: 0% baseline is a signal of circular evaluation
 IF quality_score_a == 0.0 AND quality_score_b_{best_k} > 0:
     Print: "⚠️  Baseline scored 0% — all questions favored improved."
     Print: "   Root causes: (1) dynamic questions test features added this iteration (circular); (2) fixed questions Q-FX1..Q-FX10 were all won by B — check Q-FX10 specifically."
@@ -1325,7 +1248,7 @@ EOF
     IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
       Print: `[7/7] 💾 Commit ─── improve({basename}): {1-line summary}`
     ELSE:
-      Print: `[7/7] 💾 Result ─── IMPROVED (prompt committed)`
+      Print: `[7/7] 💾 Result ─── IMPROVED (learnings saved, no commit — inline mode)`
     Print (render as fenced code block):
     ╔═══════════════════════════════════════════════════════════════╗
     ║  ✅  IMPROVED  —  Iteration {i}                               ║
