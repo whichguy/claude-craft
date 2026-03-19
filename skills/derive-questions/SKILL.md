@@ -15,7 +15,7 @@ description: |
   - "build question library", "question library from failures"
   - "mine post-mortems", "extract planning questions"
 
-argument-hint: "[questions-file] [--iterations N | --duration Xm | --tokens N] [--min-q N] [--max-q N] [--research-model MODEL] [--judge-model MODEL] [--reorganize-every N]"
+argument-hint: "[questions-file] [--iterations N | --duration Xm | --tokens N] [--min-q N] [--max-q N] [--research-model MODEL] [--application-model MODEL] [--judge-model MODEL] [--reorganize-every N]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit, WebSearch, WebFetch, Skill
 ---
 
@@ -101,8 +101,8 @@ ELSE:
    - `"ERROR: Duration target is in the past"`
 6. `min_q` must be 1–10; `max_q` must be 1–10 and ≥ `min_q`
 7. `reorganize_every` must be ≥1
-8. `duration` and explicit `iterations` are mutually exclusive — if both set:
-   - `"ERROR: Cannot set both --iterations and --duration. Use one or the other."`
+8. `duration` and explicit `iterations` or `tokens` are mutually exclusive — if `duration` is set alongside either `iterations` or `tokens`:
+   - `"ERROR: Cannot set both --duration and --iterations/--tokens. Use one or the other."`
 
 **Lockfile check:**
 
@@ -253,7 +253,7 @@ WHILE not exit_condition_met:
 
   # 2a Exit check
   IF loop_mode == 'duration' AND now() >= deadline: BREAK
-  IF loop_mode in ('fixed', 'tokens') AND iteration > iterations: BREAK
+  IF loop_mode in ('fixed', 'tokens', 'default') AND iteration > iterations: BREAK
 
   Print: "─── Iteration {iteration} ───"
 
