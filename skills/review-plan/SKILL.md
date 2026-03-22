@@ -11,7 +11,7 @@ description: |
   - Any plan file needs review (GAS or non-GAS)
 
   NOT for: Code review of existing files (use /gas-review or /review-fix)
-model: claude-sonnet-4-6
+model: us.anthropic.claude-sonnet-4-5-20250929
 allowed-tools: all
 ---
 
@@ -68,7 +68,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 3. **Set context flags** (Haiku classification):
    Task(
      subagent_type = "general-purpose",
-     model = "haiku",
+     model = "us.anthropic.claude-haiku-4-5-20251001",
      prompt = """
        Read the plan at <plan_path>.
 
@@ -186,7 +186,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
-       model = "sonnet",
+       model = "us.anthropic.claude-sonnet-4-5-20250929",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -593,7 +593,7 @@ DO:
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-blocking-p" + pass_count,
     prompt = """
       You are evaluating a plan for critical quality (Layer 1 Gate 1: 3 questions).
@@ -649,7 +649,7 @@ DO:
   --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
@@ -734,7 +734,7 @@ DO:
   --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
       You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 13 questions).
@@ -812,6 +812,36 @@ DO:
           steps, explaining the phase intent. A phase header alone ('## Phase 2') does not
           qualify — the preamble must convey why this phase exists and what it sets up.
           N/A: single-phase plans.
+      - For Q-G4 (Unintended consequences): Apply a two-layer scan:
+          Layer 1 — Behavioral side effects: for each file the plan modifies, ask "Does any
+              other workflow, cron trigger, or user-facing path read or depend on this file's
+              behavior?" If yes and the plan does not mention that dependent path, NEEDS_UPDATE.
+              Cite the modified file and the unaddressed dependent path.
+          Layer 2 — Security surface shift: for each new endpoint, permission change, or
+              data-flow alteration, ask "Does this expand who or what can access the data?"
+              If yes and no security consideration is mentioned, NEEDS_UPDATE.
+          Borderline: plan modifies a shared utility but all callers pass through unchanged
+              code paths → PASS (no behavioral change at call sites).
+          Example — NEEDS_UPDATE: "Plan modifies shared-types.sh TYPES array schema but does
+              not mention uninstall.sh or other scripts that parse TYPES.
+              [EDIT: add step to verify all TYPES array consumers handle the new format]"
+          Example — PASS: "Plan adds a new optional field to getConfig() — existing callers
+              ignore unknown fields. No behavioral side effect."
+      - For Q-G14 (Codebase style adherence): Apply a pattern-match-then-compare algorithm:
+          (1) Identify: list each new code pattern the plan introduces (error handling style,
+              module structure, naming convention, import pattern, git workflow steps).
+          (2) Compare: for each, check whether comparable existing code in the same codebase
+              uses a different pattern. Source: codebase conventions in CLAUDE.md, or patterns
+              visible in files the plan references.
+          (3) If deviation exists AND the plan does not acknowledge it → NEEDS_UPDATE. If
+              deviation is acknowledged with a reason → PASS.
+          N/A: brand-new project with no existing patterns to compare.
+          Example — NEEDS_UPDATE: "Plan uses 'Push directly to main' (step 7) but CLAUDE.md
+              requires feature branches. Deviation not acknowledged.
+              [EDIT: change to feature branch workflow, or add note explaining direct-push justification]"
+          Example — PASS: "Plan introduces try/catch in new module; existing modules use bare
+              calls. Plan justifies: 'hardened against transient CacheService errors.'
+              Acknowledged → PASS."
 
       [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-process" and RESULTS_DIR = <RESULTS_DIR>]
 
@@ -822,7 +852,7 @@ DO:
   --- Cluster Evaluator Config (template for each active, non-memoized cluster) ---
   cluster_config(cluster_name) = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
@@ -915,7 +945,7 @@ DO:
   --- GAS Evaluator Config ---
   gas_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "gas-evaluator-p" + pass_count,
     prompt = """
       You are the gas-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -946,7 +976,7 @@ DO:
   --- Node Evaluator Config ---
   node_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "node-evaluator-p" + pass_count,
     prompt = """
       You are the node-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -977,7 +1007,7 @@ DO:
   --- UI Evaluator Config (includes merged Client cluster: Q-C17, Q-C25) ---
   ui_config = Task(
     subagent_type = "ui-designer",
-    model = "sonnet",
+    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "ui-evaluator-p" + pass_count,
     prompt = """
       You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
@@ -2013,7 +2043,7 @@ After the convergence loop exits (scorecard not yet printed):
    (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
    in the Gate 1 section of the scorecard.
 
-4b. **Meta-Reflection Pass** (inline, no agent spawn):
+5. **Meta-Reflection Pass** (inline, no agent spawn):
    Analyze signals accumulated during the convergence loop to surface 0–5 concise
    recommendations for improving review-plan's question set or prompt structure. This step
    is read-only — no edits to the plan file.
@@ -2029,6 +2059,9 @@ After the convergence loop exits (scorecard not yet printed):
    | Low memo coverage (<30%) | `total_memo_count / total_applicable_questions` at final pass | Coverage below 30% | "Low memoization coverage suggests evaluator inconsistency — consider explicit stability criteria" |
    | Plan topic with zero question coverage | Scan plan headings/topics against all evaluated question IDs | A substantive plan section has no matching question | "No question covers [topic] found in this plan — consider a new question or cluster extension" |
    | Gate 2 persistently open (>3) at GAPS rating | `gate2_open > 3 AND rating == GAPS` | GAPS rating with many open Gate 2 items | "Gate 2 edit instructions for [Q-IDs] appear non-prescriptive — strengthen with concrete edit templates" |
+   | Question flip-flop | `needs_update_counts_per_pass`: same Q-ID alternates PASS→NEEDS_UPDATE→PASS (or reverse) across 3 consecutive passes | Any Q-ID has ≥2 status transitions in 3 passes | "[Q-ID] flip-flopped across passes — edit instruction may create a condition that triggers another question's NEEDS_UPDATE; add mutual-exclusion guard" |
+
+   **Distinction from "unresolved across 3+ passes" signal:** That signal catches persistent NEEDS_UPDATE (stuck). Flip-flop catches oscillation (unstable) — the fix creates a new problem that undoes the fix.
 
    **Rules:**
    - Generate 0–5 recommendations (fewer is better — only surface real signals)
@@ -2046,24 +2079,22 @@ After the convergence loop exits (scorecard not yet printed):
      None — prompt appears well-calibrated for this plan type
    ```
 
-5. **Cleanup plan markers:** Use the Edit tool with `replace_all=true` on the plan file to
-   strip all self-referential markers that served their purpose during the convergence loop
-   (including any added by the epilogue in step 2 and Q-G9 in step 3):
-   - `" <!-- review-plan -->"` → `""` (remove)
-   - `" <!-- gas-plan -->"` → `""` (remove)
-   - `" <!-- node-plan -->"` → `""` (remove)
-   This delivers a clean plan file to the user for implementation (no stray HTML comments).
-   Only strip the markers — do not remove the content they annotated.
-
-6. Use the Bash tool to run:
-   ```
-   touch "~/.claude/.plan-reviewed-${plan_slug}"
-   rm -f <memo_file>
-   rm -rf "$RESULTS_DIR"
-   ```
-   First command writes the gate marker so ExitPlanMode will pass.
-   Second command removes the convergence checkpoint (no longer needed after loop exits).
-   Third command removes the temp results directory.
+6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run both:
+   a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
+      strip all self-referential markers that served their purpose during the convergence loop
+      (including any added by the epilogue in step 2 and Q-G9 in step 3):
+      - `" <!-- review-plan -->"` → `""` (remove)
+      - `" <!-- gas-plan -->"` → `""` (remove)
+      - `" <!-- node-plan -->"` → `""` (remove)
+      This delivers a clean plan file to the user for implementation (no stray HTML comments).
+      Only strip the markers — do not remove the content they annotated.
+   b. **File teardown:** Use the Bash tool to run:
+      ```
+      touch "~/.claude/.plan-reviewed-${plan_slug}" && rm -f <memo_file> && rm -rf "$RESULTS_DIR"
+      ```
+      First command writes the gate marker so ExitPlanMode will pass.
+      Second command removes the convergence checkpoint (no longer needed after loop exits).
+      Third command removes the temp results directory.
 
 7. **Remaining issues summary (non-READY ratings):**
    ```

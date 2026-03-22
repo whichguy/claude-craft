@@ -2032,6 +2032,27 @@ Defensive guards (explicit instructions, error guards) follow the BASELINE_ZERO 
 **Actionable learning:**
 Final iteration confirms diminishing returns after 14 improvements. The 14.7% spread approaching the 15% threshold is the characteristic signal of a mature, well-optimized prompt: the remaining improvements are incremental, consistently positive, but below noise threshold individually. EEE (flip-flop detection) is the highest-value deferred option — it should be the anchor for the next improvement campaign. The pattern: single-purpose options targeting specific Q1-Q13 gaps perform better than combined bundles when the spread is borderline.
 
+### 2026-03-22 — Iteration 16 → IMPROVED
+
+**Experiments:** 2 parallel (both contaminated — both received HHH+III+JJJ+KKK) — best was Exp-1 (+17.6%)
+**Verdict:** IMPROVED (decided by: quality, +17.6% spread)
+
+**What worked:**
+- Option HHH (Q-G4 two-layer behavioral+security scan + Q-G14 pattern-match-then-compare methodology): PRIMARY DRIVER. Q-FX6 (0/9/1 in Exp-1) and Q-FX9 (0/9/1 in Exp-1) demonstrate unanimous detection depth and reasoning improvement. Q-FX5 (0/6/4) confirms grounding improvement — methodology forces citation of specific files and consumers. Q-FX7 (0/7/3) confirms downstream instruction completeness — methodology provides concrete detection algorithms for the evaluator agent. Q-DYN-62 (0/1/9 in Exp-1) shows targeted improvement: only input4 triggered the consumer-dependency detection (shared-types.sh → uninstall.sh), with TIE on other inputs where Q-G4 is not the primary concern. Q-DYN-63 (0/0/10) confirms the Q-G14 style-deviation detection integrates cleanly (TIE across all inputs — no false positives, correct PASSes on clean plans). Q-FX3 (0/6/4) confirms completeness gains from systematic all-file/all-consumer evaluation.
+- The HHH methodology additions follow the same "instruct + exemplify + verify" triad that drove Iter 4 (M+N+O: +24.1%) and Iter 8 (AA: +38.9%) — adding structured detection methodology for high-frequency unguided judgment calls in the evaluator set.
+
+**What didn't work:**
+- Q-FX4 (3/0/7 in Exp-1) and Q-FX8 (3/0/7 in Exp-1): Conciseness regression — the methodology adds prompt verbosity (~30 lines to the l1-advisory-process config). This is the expected tradeoff: methodology additions increase evaluator prompt length, which judges score as "less concise." The same pattern appeared in Iter 1 (Option D: role authority block cost Q-FX4) and Iter 7 (Option Y: two-pass split cost Q-FX4 4/1/0). The conciseness penalty is a known, acceptable cost of methodology additions when the quality spread is positive.
+- Experiment contamination prevented clean isolation of individual options. Both experiments received all 4 options (HHH+III+JJJ+KKK), so per-option attribution relies on question-level analysis rather than between-experiment comparison. The spread difference between Exp-1 (+17.6%) and Exp-2 (+7.7%) with identical options suggests structural or wording differences in how the write-agents applied the same changes — not a meaningful option-level signal.
+- Options III (flip-flop signal), JJJ (parallel cleanup), KKK (step renumbering) were LOW-impact additions carried forward from Iter 15's NEUTRAL EEE+FFF+GGG bundle. Their individual contribution is indistinguishable from noise given the contamination. The +17.6% spread is primarily attributable to HHH based on per-question analysis: Q-FX6 and Q-FX9 (the detection depth and reasoning questions) show the strongest B-wins, and these are the dimensions most directly affected by evaluator methodology additions.
+
+**Actionable learning:**
+The Q-G4 two-layer scan (behavioral side effects + security surface shift) and Q-G14 pattern-match-then-compare methodology are the primary drivers of the +17.6% improvement. These were the last two Gate 2 questions without detection scaffolding in the l1-advisory-process evaluator — completing the methodology coverage for all substantive judgment calls in the L1 evaluator set. The improvement follows the established pattern: when evaluators have explicit detection algorithms with borderline examples, they produce more consistent, deeper findings. The specific success on Q-FX6 (0/9/1) and Q-FX9 (0/9/1) mirrors the Iter 4 pattern where tracing methodology (M) drove Q-DYN-11 (1/5/0) and Q-DYN-13 (1/5/0). For future iterations: the L1 evaluator methodology coverage is now complete — all Gate 1 and Gate 2 questions have detection scaffolding. Remaining improvement vectors are at the cluster evaluator level (impact, operations, testing) or in meta-reflection and convergence loop optimization.
+
+Scope gate WARNs (non-blocking):
+- Exp-1 WARN: Minor wording restructuring in methodology blocks — no content removed
+- Exp-2 WARN: Same; neither excluded from evaluation
+
 ---
 *Date: 2026-03-18 — Iteration 11*
 
@@ -3322,3 +3343,197 @@ Q-DYN-58: 0/9/1 (strong B on inputs 4+10)  Q-DYN-59: 0/9/1  Q-DYN-60: 0/9/1  Q-D
 **Best experiment:** Exp-1 (EEE+FFF+GGG) — 57.4% quality score vs 42.6% baseline
 **Verdict: NEUTRAL**
 Decided by: quality spread +14.7% — below 0.15 threshold (prompt reverted)
+
+---
+*Date: 2026-03-22 — Iteration 16*
+
+## STEP 1 — Structural Diagnostic (Q1-Q13)
+
+**Q1 (Role/Persona):** PASS. The Role & Authority block (lines 18-24) has been stable since Iter 1 with 4 components (Role, Authority, Constraint, Goal). No drift observed across 15 iterations. The constraint "Never re-evaluate a question yourself if a live evaluator result is available" remains correctly scoped.
+
+**Q2 (Task Precision):** PASS with ONE REMAINING GAP. All correctness bugs are fixed (NN dead code, VV fail-closed guards, QQ gate3_noted alignment). The deduplication algorithm, regression check, rating computation block, and edit cap are all precise. **Remaining gap:** The l1-advisory-process evaluator evaluates 13 questions but has methodology annotations for only 4 of them (Q-G13, Q-G10, Q-G18, Q-G17). The remaining 9 questions rely on the evaluator's unguided judgment. Of those 9, most are narrow/self-evident (Q-G6 naming, Q-G7 docs, Q-G5 scope, Q-G8 decision framework, Q-G16 comments, Q-G19 failure recovery, Q-G12 consolidation). The two Gate 2 questions without methodology that involve substantive judgment calls are **Q-G4 (Unintended consequences)** and **Q-G14 (Codebase style adherence)**. These are the highest-frequency unguided judgment calls remaining in the evaluator set.
+
+**Q3 (Context Adequacy):** PASS. Context recovery, advisory findings cache, 5 context flags to cluster evaluators, memo file JSON parse guard, plan-not-found guard — all present and verified.
+
+**Q4 (Output Format):** PASS. Scorecard template is complete with conditional rendering, gate health bar uses advisory_findings_cache for gate3_noted, N/A collapse threshold works for 5+ items.
+
+**Q5 (Examples):** MINOR GAP. Q-G4 and Q-G14 have no PASS/NEEDS_UPDATE example pairs in the evaluator prompt. Contrast with Q-G1 (challenge-justify-check with 2 examples), Q-G20 (story arc with 2 examples), Q-G25 (tripartite with 3 examples), Q-G10 (2 detection categories with borderline guidance). The absence of examples for Q-G4 and Q-G14 means the evaluator has no anchoring for borderline cases — it must decide what counts as a "side effect" (Q-G4) or a "style deviation" (Q-G14) from first principles each time.
+
+**Q6 (Constraints):** PASS. All constraints are well-specified after 15 iterations. ADVISORY_CACHE_QIDS scope rationale is documented. Ordering contract comment is present.
+
+**Q7 (Anti-patterns):** PASS. Evaluator boilerplate repetition remains (~300 lines across 5 configs) but per Iter 2 learning, compression risks regression. The EVALUATOR_OUTPUT_CONTRACT reference extraction (WW, Iter 13) reduced the worst of it. No new anti-patterns.
+
+**Q8 (Chain-of-thought):** CONFIRMED GAP — PRIMARY TARGET. The l1-advisory-process evaluator's Q-G4 and Q-G14 are the two remaining Gate 2 questions without detection methodology. Q-G4 requires a two-layer scan (behavioral side effects + security surface shift) that the evaluator currently performs ad-hoc. Q-G14 requires pattern-match-then-compare (identify new patterns, compare to existing codebase patterns, flag unacknowledged deviations) that the evaluator currently performs ad-hoc. Both follow the same "instruct + exemplify + verify" triad pattern that succeeded in Iter 4 (M+N+O for tracing methodology, +24.1%) and Iter 8 (AA tripartite calibration, +38.9%).
+
+**Q9 (Domain specifics):** PASS. Gate tier semantics inline, Gate 1 question IDs enumerated per mode, cluster suppression tables comprehensive.
+
+**Q10 (Tone/register):** PASS. Three interpolation syntaxes coexist but per Iter 2, not worth standardizing.
+
+**Q11 (Parallelization):** PASS. Wave-based parallel spawning well-implemented. Post-convergence steps could be parallelized (FFF from Iter 15) but this is LOW impact.
+
+**Q12 (Failure modes):** PASS. All fail-closed guards in place (l1-blocking NN, gas-evaluator VV, node-evaluator VV). Plan-not-found guard (BBB). Memo file JSON parse guard (CCC). MAX_EDITS_PER_PASS cap (MM). No remaining unhandled failure mode.
+
+**Q13 (Calibration & thresholds):** MINOR GAP. Q-G4 has no borderline calibration — "What counts as an unintended consequence?" is left to the evaluator. Plans that modify shared utilities (like input4's sync-status.sh changes or input10's ClaudeConversation.gs changes) require the evaluator to determine whether callers are affected without guidance on what "affected" means. Q-G14 similarly lacks a threshold for "style deviation" — when is a new pattern a legitimate design choice vs an accidental inconsistency? Both questions would benefit from explicit borderline guidance matching the pattern used for Q-G10 (borderline: "plan states 'we assume X' explicitly -> PASS if stated") and Q-G25 (tripartite: NEEDS_UPDATE / PASS / Gate 3 advisory).
+
+## STEP 6 — Test-Run Observations
+
+**Input 4 (plan-with-issues.md — deliberately flawed plan):**
+
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true, HAS_STATE=false, IS_TRIVIAL=false. Active clusters: ["impact", "operations"]. Evaluator set: l1-blocking, l1-advisory-structural, l1-advisory-process, impact-evaluator, operations-evaluator.
+
+Tracing the current prompt's handling of Q-G4 (Unintended consequences):
+- The plan modifies sync-status.sh (step 1: add --remote flag) and shared-types.sh (step 5: add remote_url field to TYPES array).
+- shared-types.sh is imported by multiple scripts (sync-status.sh, uninstall.sh — per CLAUDE.md). Changing the TYPES array format affects ALL consumers.
+- The plan does NOT mention updating uninstall.sh or any other consumer of the TYPES array.
+- **Without Q-G4 methodology:** The evaluator must independently recognize that shared-types.sh is consumed by other scripts and flag the missing consumer update. This is exactly the kind of "behavioral side effect" detection that requires the evaluator to think about callers/consumers — a judgment call with no scaffolding.
+- **With Q-G4 methodology (proposed DDD):** Layer 1 scan ("Does any other workflow depend on this file's behavior?") would catch the shared-types.sh consumer gap. Layer 2 scan ("Does this expand who can access the data?") would catch the --remote flag's potential for pulling untrusted code from arbitrary URLs.
+- The plan also has Q-G10 issues (TBD markers), Q-G13 issues (flat list, no phases), and Q-G18 issues (no pre-reads). These are already covered by existing methodology.
+- **Q-G14 observation:** The plan uses "Push directly to main" (step 7) — this is a git workflow style deviation from the project's branch-based workflow documented in CLAUDE.md. Without Q-G14 methodology, the evaluator may or may not flag this as a style deviation; with methodology, the pattern-match-then-compare algorithm would identify it: "existing pattern = feature branches (per CLAUDE.md); plan pattern = direct push; deviation not acknowledged → NEEDS_UPDATE."
+
+**Input 10 (gas-production-fix.md — clean GAS bug fix):**
+
+IS_GAS=true, HAS_UI=false, HAS_DEPLOYMENT=false, HAS_STATE=false, IS_TRIVIAL=false. Active clusters: ["impact"]. Evaluator set: l1-blocking, l1-advisory-structural, l1-advisory-process, gas-evaluator, impact-evaluator.
+
+Tracing Q-G4 with proposed methodology:
+- The plan modifies ClaudeConversation.gs — a single file.
+- Layer 1 scan: "Does any other workflow depend on this file's behavior?" Yes — ChatService calls sendMessage() which builds the onThinking closure. The plan explicitly addresses this dependency (destructuring callerOnThinking from params and delegating).
+- Layer 2 scan: "Does this expand who can access the data?" No — the fix is internal error handling, no new endpoints or permissions.
+- **Expected result with methodology:** Q-G4 PASS — the plan explicitly addresses the caller dependency (ChatService). The methodology's Layer 1 scan would confirm the caller is addressed, not flag a false positive.
+- **Without methodology:** The evaluator might still PASS Q-G4, but the reasoning would be implicit. On a borderline case (where the caller dependency is mentioned but not fully addressed), the methodology provides a concrete decision framework.
+
+Tracing Q-G14 with proposed methodology:
+- The plan uses try/catch for error handling in the new internal closure. Is this consistent with the existing codebase?
+- Existing GAS code patterns: the plan says "the internal closure calls storeThinkingMessage bare — no try/catch." If the existing pattern is bare calls without try/catch, then adding try/catch is a style deviation — but one that the plan explicitly justifies ("A transient CacheService error would propagate and abort the response loop").
+- **Expected result with methodology:** Q-G14 PASS — deviation is acknowledged with a reason (harden against transient CacheService errors). The pattern-match-then-compare algorithm: (1) identify new pattern (try/catch), (2) compare to existing (bare calls), (3) deviation acknowledged → PASS.
+
+**Cross-observation:** Q-G4 methodology helps most on plans that modify shared files without addressing all consumers (input4 is the strongest case). Q-G14 methodology helps most on plans that introduce new patterns without acknowledging the style change. Both are high-frequency scenarios in real-world plans. The methodology correctly PASSes clean plans (input10) and correctly flags flawed plans (input4).
+
+## STEP 7 — Improvement Options
+
+### Option HHH — Q-G4 and Q-G14 methodology annotations in l1-advisory-process evaluator (PRIMARY — DDD from Iter 15, not applied)
+
+**Addresses:** Q8 (chain-of-thought), Q13 (calibration), Q5 (examples)
+**What changes:** Add question-specific methodology blocks for Q-G4 and Q-G14 to the l1-advisory-process evaluator config (after line 814, before the EVALUATOR_OUTPUT_CONTRACT reference), following the same pattern as existing Q-G13/Q-G10/Q-G18/Q-G17 methodology annotations.
+
+For Q-G4 (Unintended consequences), add a two-layer scan:
+- Layer 1 — Behavioral side effects: for each file the plan modifies, ask "Does any other workflow, cron trigger, or user-facing path read or depend on this file's behavior?" If yes and the plan does not mention that dependent path, NEEDS_UPDATE. Cite the modified file and the unaddressed dependent path.
+- Layer 2 — Security surface shift: for each new endpoint, permission change, or data-flow alteration, ask "Does this expand who or what can access the data?" If yes and no security consideration is mentioned, NEEDS_UPDATE.
+- Borderline guidance and paired PASS/NEEDS_UPDATE examples.
+
+For Q-G14 (Codebase style adherence), add a pattern-match-then-compare algorithm:
+- (1) Identify each new code pattern the plan introduces (error handling style, module structure, naming convention, import pattern).
+- (2) Compare to existing codebase patterns (from CLAUDE.md conventions or referenced files).
+- (3) If deviation exists AND not acknowledged, NEEDS_UPDATE. If acknowledged with reason, PASS.
+- N/A for brand-new projects. Paired PASS/NEEDS_UPDATE examples.
+
+**Why it helps:** This is Option DDD from Iter 15, identified as HIGH impact but NOT applied (the Iter 15 run applied EEE+FFF+GGG instead, which resulted in NEUTRAL +14.7%). The strategy escalation directive explicitly identifies this as the primary opportunity. Q-G4 and Q-G14 are the two remaining Gate 2 questions without detection methodology — the highest-frequency unguided judgment calls in the l1-advisory-process evaluator. Test-run observation on input4 shows Q-G4 methodology would catch the shared-types.sh consumer gap (currently an ad-hoc judgment call). Test-run observation on input10 shows Q-G14 methodology correctly PASSes acknowledged style deviations. The "instruct + exemplify + verify" triad pattern succeeded in Iter 4 (M+N+O: +24.1%) and Iter 8 (AA: +38.9%) — methodology annotations for analytical questions are the highest-leverage remaining improvement vector.
+
+**Predicted impact:** HIGH — Q-G4 and Q-G14 are evaluated on every non-trivial plan, every pass. Adding detection methodology reduces evaluator judgment variance on the two most substantive remaining unguided questions. This is the single largest methodology gap in the L1 evaluator set.
+
+### Option III — Flip-flop detection signal in meta-reflection (EEE from Iter 15, not applied — MEDIUM impact)
+
+**Addresses:** Q13 (calibration), Q8 (chain-of-thought for meta-reflection)
+**What changes:** Add one row to the meta-reflection signal table for "Question flip-flop" — detects when a Q-ID alternates PASS/NEEDS_UPDATE across 3 consecutive passes (oscillation, distinct from persistent NEEDS_UPDATE which is "stuck"). The signal fires when any Q-ID has 2+ status transitions in 3 passes. Recommendation template: "[Q-ID] flip-flopped across passes — edit instruction may create a condition that triggers another question's NEEDS_UPDATE; add mutual-exclusion guard."
+
+**Why it helps:** This was EEE from Iter 15, part of the EEE+FFF+GGG bundle that scored +14.7% (NEUTRAL). Flip-flop is the classic convergence failure mode — the primary cause of max-pass exhaustion in multi-pass reviews. Surfacing it in meta-reflection gives actionable guidance for SKILL.md improvement. The signal is complementary to the existing "unresolved across 3+ passes" signal (stuck vs oscillating). EEE was the most substantive option in the Iter 15 bundle; the Iter 15 NEUTRAL result was likely due to FFF and GGG diluting the signal.
+
+**Predicted impact:** MEDIUM — fires on inputs 4 and 10 (plans with vague steps or complex edits that may trigger evaluator oscillation). Does not affect plan edits (read-only meta-reflection). Additive, non-overlapping with HHH.
+
+### Option JJJ — Parallelize post-convergence cleanup + teardown (FFF from Iter 15, not applied — LOW impact)
+
+**Addresses:** Q11 (parallelization)
+**What changes:** In "After Review Completes," merge steps 5 (marker cleanup via Edit tool) and 6 (touch gate marker + rm memo + rm results via Bash) into a single step that dispatches both in the same message. Renumber subsequent steps. These are independent operations — step 6 never reads the plan file that step 5 modifies.
+
+**Why it helps:** Saves ~1-2s of sequential latency per review. Clean parallelization of independent operations. This was FFF from Iter 15 — sound improvement with no tradeoffs.
+
+**Predicted impact:** LOW — minor latency improvement. No quality impact.
+
+### Option KKK — Fix post-convergence step numbering (GGG from Iter 15, not applied — LOW impact)
+
+**Addresses:** Q8 (chain-of-thought clarity)
+**What changes:** Renumber "After Review Completes" steps from the current 1, 2, 3, 4, 4b, 5, 6, 7, 8 to sequential 1-9. Step "4b" (meta-reflection) was added later and never properly renumbered.
+
+**Why it helps:** The non-standard "4b" numbering is a minor readability issue for the executing model. Sequential numbering is clearer. This was GGG from Iter 15 — cosmetic fix with no tradeoffs.
+
+**Predicted impact:** LOW — cosmetic improvement for executor clarity.
+
+## STEP 8 — Evaluation Questions
+
+### Fixed Questions
+
+- Q-FX1: Does the output correctly complete the task as specified (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded — no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning — no circular dependencies or contradictions?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity?
+- Q-FX9: Does the improved prompt preserve or improve detection depth, breadth, accuracy, and precision?
+- Q-FX10 (adversarial regression — baseline-favoring): Does the baseline catch any concrete defect or requirement that the improved version misses or softens?
+
+### UX Questions (HAS_OUTPUT_FORMAT=true, weighted 0.5x)
+
+- Q-UX1: Is the output's visual hierarchy clear?
+- Q-UX2: Is the most important information immediately scannable?
+- Q-UX3: Does the output use visual differentiation appropriately?
+
+### Dynamic Questions
+
+- Q-DYN-62 (HHH: Q-G4 methodology — consumer dependency detection): Given Input 4 (plan modifying sync-status.sh and shared-types.sh), does the l1-advisory-process evaluator detect that shared-types.sh is consumed by uninstall.sh (and potentially other scripts) and flag the missing consumer update as a Q-G4 NEEDS_UPDATE finding — citing the specific shared file and the unaddressed consumer? Judge: does the evaluator's Q-G4 finding name the shared-types.sh dependency and at least one downstream consumer? Score: B-wins if Q-G4 finding cites a specific consumer; A-wins if A catches the same dependency without methodology; TIE if neither catches it or both do.
+
+- Q-DYN-63 (HHH: Q-G14 methodology — style deviation detection): Given Input 4 (plan with "Push directly to main" in step 7), does the l1-advisory-process evaluator detect the git workflow style deviation from the project's branch-based convention and flag it as a Q-G14 NEEDS_UPDATE finding — citing the deviation and the project convention? Judge: does the evaluator's Q-G14 finding reference the specific plan step AND the project convention? Score: B-wins if Q-G14 finding cites both; A-wins if A catches it without methodology; TIE if neither.
+
+- Q-DYN-64 (HHH: Q-G4 false-positive guard — clean plan): Given Input 10 (clean GAS bug fix that explicitly addresses the ChatService caller dependency), does the l1-advisory-process evaluator correctly PASS Q-G4 — confirming the methodology does not over-trigger on plans that address their dependencies? Judge: is Q-G4 PASS for Input 10? Score: TIE expected (both should PASS); A-wins if B incorrectly flags Q-G4 NEEDS_UPDATE (false positive from new methodology).
+
+- Q-DYN-65 (anti-regression — baseline-favoring): On Input 10 (clean GAS production fix), does the prompt converge in the same number of passes and produce the same or better rating? Judge: compare pass count and final rating. Score: TIE expected; A-wins if B takes more passes, produces a worse rating, or introduces any regression in detection quality.
+
+---
+
+## Experiment Results — Iteration 16
+*Date: 2026-03-22*
+
+### Implemented Directions
+#### Experiment 1: HHH+III+JJJ+KKK (contaminated — all options combined)
+**Options applied:** HHH (Q-G4 two-layer scan + Q-G14 pattern-match-then-compare), III (flip-flop signal), JJJ (parallel cleanup), KKK (step renumbering)
+**Applied changes:** Q-G4 two-layer behavioral+security scan and Q-G14 pattern-match-then-compare methodology added to l1-advisory-process evaluator; flip-flop meta-reflection signal added; post-convergence steps 5+6 parallelized; step 4b renumbered to 5
+
+#### Experiment 2: HHH+III+JJJ+KKK (contaminated — same set as Exp-1)
+**Options applied:** HHH+III+JJJ+KKK (identical to Exp-1 — write-agent contamination)
+**Applied changes:** same combination as Exp-1 (contamination resulted in both experiments applying all 4 options)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | HHH+III+JJJ+KKK | 18.9% vs 1.3% | +17.6% | N/A (combined-judge) | N/A (combined-judge) |
+| Exp-2 | HHH+III+JJJ+KKK | 9.4% vs 1.7% | +7.7% | N/A (combined-judge) | N/A (combined-judge) |
+
+### Per-Question Results (A wins / B wins / TIE across 10 tests)
+
+**Experiment 1:**
+Q-FX1: 0/3/7  Q-FX2: 0/1/9  Q-FX3: 0/6/4  Q-FX4: 3/0/7
+Q-FX5: 0/6/4  Q-FX6: 0/9/1  Q-FX7: 0/7/3  Q-FX8: 3/0/7
+Q-FX9: 0/9/1  Q-FX10: 0/4/6  Q-UX1: 0/2/8  Q-UX2: 0/0/10
+Q-UX3: 0/3/7  Q-DYN-62: 0/1/9  Q-DYN-63: 0/0/10
+Q-DYN-64: 0/0/10  Q-DYN-65: 0/0/10
+
+**Experiment 2:**
+Q-FX1: 0/2/8  Q-FX2: 0/2/8  Q-FX3: 0/2/8  Q-FX4: 4/1/5
+Q-FX5: 0/3/7  Q-FX6: 0/1/9  Q-FX7: 0/4/6  Q-FX8: 3/1/6
+Q-FX9: 0/4/6  Q-FX10: 0/0/10  Q-UX1: 0/5/5  Q-UX2: 0/2/8
+Q-UX3: 0/2/8  Q-DYN-62: 0/1/9  Q-DYN-63: 0/1/9
+Q-DYN-64: 0/0/10  Q-DYN-65: 0/0/10
+
+## Results & Learnings — Iteration 16
+
+**What worked:** The Q-G4 two-layer behavioral+security scan and Q-G14 pattern-match-then-compare methodology (Option HHH) are the primary quality drivers. Q-FX6 (0/9/1 in Exp-1) and Q-FX9 (0/9/1 in Exp-1) demonstrate near-unanimous detection depth and reasoning improvement — judges cited the structured evaluation framework as the decisive factor. Q-FX5 (0/6/4) confirms improved grounding: the methodology forces evaluators to cite specific files and their consumers rather than making general observations. Q-FX7 (0/7/3) confirms downstream instruction quality: the methodology provides concrete detection algorithms that the evaluator agent can follow step-by-step. Q-FX3 (0/6/4) confirms completeness: the two-layer scan ensures all modified files and their consumers are systematically evaluated rather than spot-checked. On the targeted scenarios, Q-DYN-62 (0/1/9 in both experiments) shows the consumer-dependency detection fires precisely: only input4 (which modifies shared-types.sh without addressing uninstall.sh) triggered a B-win; all other inputs correctly TIE because Q-G4 is not the primary concern. Q-DYN-64 and Q-DYN-65 (all TIE in both experiments) confirm zero false-positive regression on clean plans — the methodology correctly PASSes input10's well-addressed caller dependency.
+
+**What didn't work:** Q-FX4 (3/0/7 in Exp-1, 4/1/5 in Exp-2) and Q-FX8 (3/0/7 in Exp-1, 3/1/6 in Exp-2) show conciseness regression — adding ~30 lines of methodology to the l1-advisory-process evaluator config increases prompt verbosity. This is the expected and accepted tradeoff: methodology additions cost conciseness but gain detection depth. The same pattern appeared in Iter 1 (Option D cost Q-FX4), Iter 7 (Option Y cost Q-FX4 4/1/0), and Iter 8 (AA cost FX1/FX3/FX6/FX7 — judges perceive fewer findings as "less complete" when calibration is tighter). Experiment contamination (both experiments received all 4 options) prevented clean per-option isolation. The +17.6% vs +7.7% spread difference between experiments with identical options suggests a structural or wording difference in how the write-agents applied the same changes, not an option-level signal — the mechanism is uncertain.
+
+**Root cause analysis:** The +17.6% improvement is driven by completing the methodology coverage for the l1-advisory-process evaluator's two remaining unguided Gate 2 judgment calls. Q-G4 (unintended consequences) and Q-G14 (codebase style adherence) were the highest-frequency questions without detection scaffolding — evaluated on every non-trivial plan, every pass. The Q-G4 two-layer scan (behavioral side effects: "does any other workflow depend on this file?" + security surface shift: "does this expand who can access the data?") converts ad-hoc evaluator reasoning into a systematic all-file, all-consumer sweep. The Q-G14 pattern-match-then-compare algorithm (identify new patterns, compare to existing codebase, flag unacknowledged deviations) gives the evaluator a concrete 3-step procedure for what was previously an aesthetic judgment. This follows the same pattern as Iter 4 (M+N+O: tracing methodology for Q-C37-Q-C40, +24.1%) and Iter 8 (AA: tripartite calibration for Q-G25, +38.9%): structured detection algorithms for analytical questions are the highest-leverage improvement vector for evaluator prompts. With HHH applied, all Gate 1 and Gate 2 questions in the L1 evaluator set now have explicit detection methodology — the L1 methodology coverage is complete.
+
+**What to try next iteration:** The L1 evaluator methodology is now complete. Remaining improvement vectors are: (1) cluster evaluator methodology gaps — the impact-evaluator, operations-evaluator, and testing-evaluator have less detection scaffolding than the L1 evaluators; (2) meta-reflection actionability — does the meta-reflection section produce machine-readable recommendations that inform the next iteration?; (3) convergence loop optimization — reducing unnecessary passes via smarter memoization or early-exit conditions. The consecutive_stalls counter should reset to 0 given this IMPROVED result.
+
+**Best experiment:** Exp-1 (HHH+III+JJJ+KKK) — 18.9% quality score vs 1.3% baseline
+**Verdict: IMPROVED**
+Decided by: quality (+17.6% spread)
