@@ -2053,6 +2053,24 @@ Scope gate WARNs (non-blocking):
 - Exp-1 WARN: Minor wording restructuring in methodology blocks — no content removed
 - Exp-2 WARN: Same; neither excluded from evaluation
 
+### 2026-03-23 — Iteration 17 → NEUTRAL
+
+**Experiments:** 1 — Exp-1 (LLL+MMM+NNN+OOO)
+**Verdict:** NEUTRAL (decided by: quality spread +6.0% — below 0.15 threshold)
+
+**What worked (below threshold):**
+- LLL (Q-C3 consumer-trace): Real detection improvement for IS_NODE/IS_STANDARD plans. Q-DYN-66 strong B-win on input4 (shared-types.sh consumers). Q-FX9 (0/4/6) moderate wins. Input7 (PostgreSQL GENERATED ALWAYS column INSERT gap) also strong signal. The consumer-trace algorithm converts Q-C3 from ad-hoc to systematic.
+- OOO (clean-sweep): Minor Q-FX4 improvement for clean single-pass reviews. Sound structural addition.
+- NNN (Q-C8/Q-C21): Sound methodology for testing and operations clusters; limited by IS_GAS suppression.
+
+**What didn't work:**
+- 50% IS_GAS test set dilutes IS_NODE/IS_STANDARD improvements. Q-C3 is N/A-superseded in IS_GAS mode; testing/operations clusters suppressed. Dead-weight verbosity for GAS plans causes Q-FX4/FX8 baseline wins (3/10 each).
+
+**Actionable learning:**
+IS_NODE/IS_STANDARD cluster methodology improvements produce real quality gains but are invisible in a test set with 50% GAS plans. Two paths forward: (1) add equivalent consumer-dependency methodology to the gas-evaluator for IS_GAS plans, or (2) verify whether gas-evaluator already covers Q-C3's intent via its own question set (Q1/Q2/Q13/Q15/Q18/Q42). The NEUTRAL result is not a quality failure — the improvement works for its target mode; it just doesn't reach threshold due to dilution. Recommend re-proposing LLL with a GAS-mode equivalent in the next iteration.
+
+Scope gate WARNs: none
+
 ---
 *Date: 2026-03-18 — Iteration 11*
 
@@ -3537,3 +3555,228 @@ Q-DYN-64: 0/0/10  Q-DYN-65: 0/0/10
 **Best experiment:** Exp-1 (HHH+III+JJJ+KKK) — 18.9% quality score vs 1.3% baseline
 **Verdict: IMPROVED**
 Decided by: quality (+17.6% spread)
+
+---
+*Date: 2026-03-23 — Iteration 17*
+
+## STEP 1 — Structural Diagnostic (Q1-Q13)
+
+**Q1 (Role/Persona):** PASS. The Role & Authority block (lines 18-24) remains stable across 16 iterations. Four components (Role, Authority, Constraint, Goal) are present and well-scoped. The orchestrator/evaluator separation ("Never re-evaluate a question yourself if a live evaluator result is available") is correctly maintained. No drift.
+
+**Q2 (Task Precision):** PASS with RESIDUAL GAP at cluster level. All core correctness bugs are fixed. The Iter 16 HHH changes are verified present: the Q-G4 two-layer behavioral+security scan (lines 815-829) and Q-G14 pattern-match-then-compare (lines 830-844) are correctly inserted in the l1-advisory-process evaluator config, with borderline guidance and paired PASS/NEEDS_UPDATE examples for both. JJJ (parallel cleanup) verified: step 6 of "After Review Completes" (line 2082) correctly parallelizes marker cleanup (Edit) and file teardown (Bash) in a single message. KKK (step renumbering) verified: "After Review Completes" steps are sequential 1-8 with no "4b" artifact. III (flip-flop detection) verified: the signal is present in the meta-reflection signal table at line 2062.
+
+**Residual gap:** The cluster evaluators (impact, operations, testing, state, security) have significantly less detection scaffolding than L1 evaluators. The impact-evaluator has trace-verify-cite methodology for Q-C37-Q-C40 (Iter 4) and one concrete example (Q-C39 field-index mismatch), but the other cluster evaluators have only the generic calibration instruction and finding specificity instruction. Most importantly, **Q-C3 (Impact analysis) is the ONLY Gate 1 cluster question (in non-GAS/non-NODE standard mode) and has no detection methodology.** The impact-evaluator must determine whether "all callers/consumers are identified" without a structured algorithm. This is a Gate 1 precision gap — the same gap class that drove Iter 12 NN (fail-closed guard for l1-blocking Gate 1 questions) and Iter 13 VV (fail-closed guard for gas/node Gate 1 questions). Unlike those guards (which addressed evaluator errors), this gap is in evaluator judgment quality on a Gate 1 question.
+
+**Q3 (Context Adequacy):** PASS. Context recovery from memo_file is well-specified with broad trigger condition, old-format guard, temp-dir existence check, and stale-cluster intersection guard. Advisory findings cache is persisted in memo checkpoint. Plan-not-found guard (BBB, Iter 14). Memo file JSON parse guard (CCC, Iter 14). No new gaps.
+
+**Q4 (Output Format):** PASS. Scorecard template is complete with conditional rendering for IS_GAS/IS_NODE/HAS_UI specialization sections. Gate health bar correctly uses `advisory_findings_cache` for `gate3_noted` (QQ fix, Iter 12). N/A collapse threshold handles 5+ items. Review History table with timing breakdown (dispatch/fan-in/apply) is well-specified. Efficiency section with memo coverage percentage is present. No format inconsistencies.
+
+**Q5 (Examples):** PASS for L1 evaluators — all Gate 1 and Gate 2 L1 questions now have methodology with PASS/NEEDS_UPDATE example pairs or borderline guidance. The Q-G4 examples (shared-types.sh consumer gap / optional field with no behavioral change) and Q-G14 examples (direct push vs branch workflow / try/catch with justification) are specific and diagnostic. **Minor gap for cluster evaluators:** Only the impact cluster has a concrete example (Q-C39 field-index mismatch). Operations, testing, state, and security cluster evaluators have no question-specific examples. Q-C3 (the Gate 1 cluster question) has no example at all.
+
+**Q6 (Constraints):** PASS. ADVISORY_CACHE_QIDS scope is correctly `{"Q-G25"}` with rationale comment (line 1174-1177). Ordering contract comment (line 1106-1107) ensures fail-closed guards precede the general error handler. MAX_EDITS_PER_PASS=12 with gate-priority sorting is operational. Memoization thresholds are correctly asymmetric (structural group: 2 consecutive clean passes; process group: 1 clean pass). Non-memoizable question exclusion list at line 1377 correctly includes all evolving-property questions. No constraint gaps.
+
+**Q7 (Anti-patterns):** PASS. The evaluator boilerplate repetition (~300 lines across 5+ configs) remains a known overhead, but per Iter 2 learning, compression risks regression. The EVALUATOR_OUTPUT_CONTRACT extraction (Iter 13 WW) with AAA expansion instruction (Iter 14) is the established mitigation. No new anti-patterns introduced by Iter 16 changes.
+
+**Q8 (Chain-of-thought):** PASS for L1 evaluators — all 22 L1 questions have explicit detection methodology or are self-evident. The Q-G4 two-layer scan and Q-G14 pattern-match-then-compare complete the L1 methodology coverage. **Remaining gap at cluster level:** The cluster evaluators' question-specific methodology section covers only Q-C37-Q-C40 trace-verify-cite (impact cluster). No other cluster has question-specific methodology. The gap is most significant for Q-C3 (impact analysis, Gate 1) because it is always active and determines whether the plan has identified all affected callers/consumers — a judgment call that directly parallels Q-G4's behavioral side-effect scan but at the code-change level. The Iter 2 learning ("do NOT add protocol overhead for failure modes that don't manifest in the primary test set") applies to the other cluster questions (Q-C8, Q-C21, Q-C16) but does NOT apply to Q-C3 — Q-C3 manifests on input4 (shared-types.sh consumers) which is in the primary test set.
+
+**Q9 (Domain specifics):** PASS. Gate tier semantics are inline with canonical definitions. Gate 1 question IDs are enumerated per mode (lines 339-341). IS_GAS cluster suppression table (lines 1776-1789) and IS_NODE individual suppressions (lines 1791-1796) are comprehensive. All domain concepts are self-contained.
+
+**Q10 (Tone/register):** PASS. Three interpolation syntaxes coexist (`<variable>`, `[value]`, `{variable}`) — per Iter 2 learning, not worth standardizing. No new inconsistencies from Iter 16 changes.
+
+**Q11 (Parallelization):** PASS. Wave-based parallel spawning at MAX_CONCURRENT=5 is well-implemented. Post-convergence cleanup+teardown is correctly parallelized (JJJ, Iter 16, verified at line 2082). The epilogue (Q-E1, Q-E2) runs sequentially before Q-G9 which is correct (Q-G9 needs to see git lifecycle steps injected by Q-E1). No remaining sequential steps that should be parallel.
+
+**Q12 (Failure modes):** PASS. All fail-closed guards in place: l1-blocking (NN, Iter 12, line 1109-1117), gas-evaluator (VV, Iter 13, line 1119-1127), node-evaluator (VV, Iter 13, line 1129-1136). Plan-not-found guard (BBB, Iter 14). Memo file JSON parse guard (CCC, Iter 14). MAX_EDITS_PER_PASS cap (MM, Iter 11). The Q-G4 two-layer scan methodology does NOT introduce a stopping condition issue — Layer 1 iterates over "each file the plan modifies" (a bounded set derived from the plan text), and Layer 2 iterates over "each new endpoint, permission change, or data-flow alteration" (also bounded by plan content). No infinite-loop risk. No new failure modes from Iter 16 changes.
+
+**Q13 (Calibration & thresholds):** PASS for L1 evaluators. The Q-G4 methodology includes borderline guidance ("plan modifies a shared utility but all callers pass through unchanged code paths -> PASS") and the Q-G14 methodology includes borderline guidance ("N/A: brand-new project with no existing patterns to compare"). Both include paired PASS/NEEDS_UPDATE examples. These match the calibration pattern established for Q-G10 (borderline: "plan states 'we assume X' explicitly -> PASS if stated") and Q-G25 (tripartite: NEEDS_UPDATE / PASS / Gate 3 advisory).
+
+**Minor gap:** Two meta-reflection signals ("Plan topic with zero question coverage" and "Gate 2 persistently open at GAPS rating") lack concrete detection algorithms, relying on team-lead judgment. This is LOW priority — meta-reflection fires once per review, not per pass, and produces advisory recommendations.
+
+**Summary of gaps identified:**
+1. **Q2/Q5/Q8 — Q-C3 (Gate 1 cluster question) lacks detection methodology** (impact: MEDIUM-HIGH, frequency: every non-trivial non-GAS non-NODE plan, risk: ad-hoc judgment on the only Gate 1 cluster question)
+2. **Q2/Q8 — Other cluster evaluator methodology gaps** (impact: LOW, frequency: conditional on flags, risk: evaluator judgment variance on Q-C8/Q-C21/Q-C16)
+3. **Q13 — Meta-reflection signal detection precision** (impact: LOW, frequency: once per review)
+4. All Iter 16 changes (HHH, III, JJJ, KKK) verified correctly applied — no contamination residue.
+
+## STEP 6 — Test-Run Observations
+
+**Input 4 (input4-plan-with-issues.md — deliberately flawed plan for sync engine remote repos):**
+
+IS_GAS=false, IS_NODE=false, HAS_UI=false, HAS_DEPLOYMENT=true (push to feature branch, merge to main), HAS_STATE=true (modifies TYPES array schema — a structured format consumed by downstream scripts), HAS_TESTS=true (test fixtures, mocha/chai tests in Phase 4), HAS_EXTERNAL_CALLS=false, HAS_UNTRUSTED_INPUT=false, IS_TRIVIAL=false. Active clusters: ["impact", "testing", "state", "operations"]. Evaluator set: l1-blocking, l1-advisory-structural, l1-advisory-process, impact-evaluator, testing-evaluator, state-evaluator, operations-evaluator.
+
+Tracing through the current prompt on the most diagnostic questions:
+
+- **Q-G4 (Unintended consequences — HHH methodology):** Layer 1 scan — the plan modifies shared-types.sh (Phase 2, step 1: adds `remote_url` as 8th field to TYPES array). Does any other workflow depend on shared-types.sh? Yes: per CLAUDE.md, shared-types.sh is consumed by sync-status.sh AND uninstall.sh. The plan mentions updating sync-status.sh (step 2) and uninstall.sh (step 3) for the new field — **these consumers ARE addressed.** The plan also mentions updating install.sh if investigation finds TYPES parsing there (Phase 1, step 4 + Phase 2, step 4). Layer 2 scan — the `--remote <url>` flag clones from arbitrary URLs. Does this expand who can access the data? Yes: a user could clone a malicious repo. The plan includes URL scheme validation (restrict to https://, git://, ssh://) but does NOT discuss whether cloned code could contain malicious scripts that get symlinked and auto-executed. However, the plan's scope section addresses this implicitly: cloned repos are symlinked as extensions (same trust model as local extensions). **Expected result with methodology:** Borderline on Layer 2. The evaluator may PASS (trust model is consistent with local extensions) or flag a NEEDS_UPDATE (no explicit security note about untrusted remote repos). Layer 1 should PASS — consumers are addressed. The methodology provides a structured framework for this decision rather than leaving it to ad-hoc reasoning.
+
+- **Q-G14 (Codebase style — HHH methodology):** Pattern-match-then-compare: (1) The plan uses `git -C` consistently, which matches CLAUDE.md's "always git -C, never cd + git" convention. (2) The plan uses `ln -sfn` for symlinks, matching the SYMLINKS directive. (3) Phase 5 uses a feature branch workflow (`git -C "$REPO" checkout -b feature/remote-repo-sync`), consistent with project conventions. **Expected result:** Q-G14 PASS — no unacknowledged style deviations. The methodology correctly identifies that the plan follows existing conventions.
+
+- **Q-G13 (Phased decomposition):** The plan has 5 phases with numbered steps. Phase headers are present. Per-phase tests exist (Phase 2 step 5, Phase 3 step 5, Phase 4 step 3). Go/No-Go checkpoints exist at end of Phases 1, 2, 3, 4. **Expected:** PASS.
+
+- **Q-G10 (Assumption exposure):** No explicit TBD markers. However, Phase 1, step 4 says "Read install.sh — determine whether it needs updating for the new remote_url field" — this is an investigation step that validates an implicit assumption, not a TBD. Phase 2, step 4 says "Update install.sh if investigation (Phase 1, Step 4) found TYPES parsing there" — conditional on investigation. **Expected:** PASS.
+
+- **Q-G18 (Pre-condition verification):** Phase 1 has explicit Read steps for all 4 files (sync-status.sh, shared-types.sh, uninstall.sh, install.sh) before any modifications in Phase 2. Phase 2's edits are preceded by Phase 1's reads. **Expected:** PASS.
+
+- **Q-C3 (Impact analysis — impact-evaluator, Gate 1):** This is the key diagnostic. The plan modifies shared-types.sh, sync-status.sh, uninstall.sh, and install.sh. The plan's Phase 1 investigation identifies all TYPES consumers. Phase 2 updates each consumer. Phase 2, step 6 says "Confirm all consumers handle empty 8th field without error." **Without Q-C3 methodology, the impact-evaluator must independently trace the consumer graph and verify each is addressed.** The evaluator has the trace-verify-cite methodology for Q-C37-Q-C40, but Q-C3 is a different question (broader impact analysis, not just tracing data flow). **Expected result without methodology:** The evaluator will likely PASS Q-C3 because the plan explicitly lists consumer updates — but the reasoning would be ad-hoc. **With Q-C3 methodology (proposed NNN):** The 3-step algorithm would systematically verify: (1) files modified = shared-types.sh, sync-status.sh, uninstall.sh, install.sh; (2) callers/consumers of each: shared-types.sh consumers = sync-status.sh, uninstall.sh (per CLAUDE.md); (3) all consumers addressed in plan? Yes. PASS with concrete citation.
+
+- **Q-C8 (Test coverage — testing-evaluator):** Phase 4 adds mocha/chai test fixtures, tests for --remote flag parsing, URL validation, clone-dir naming, and local sync unaffected. Phase 2, step 5 and Phase 3, step 5 run `npm test`. **Without testing cluster methodology,** the evaluator assesses coverage ad-hoc. **Expected:** PASS — test coverage appears comprehensive. But a methodology would force the evaluator to check whether EACH new behavior has a corresponding test, making any gap explicit.
+
+- **Q-C21 (Rollback plan — operations-evaluator):** Phase 2, step 7 explicitly states: "Rollback note: If Phase 3 or Phase 4 fail after this phase is committed, revert with `git -C "$REPO" revert HEAD` to restore the 7-field TYPES schema before any push." Phase 5 uses per-phase commits. **Expected:** PASS — explicit rollback instruction present. **Without operations cluster methodology,** the evaluator still PASSes because the plan has an explicit rollback note. This input is NOT diagnostic for Q-C21 methodology (the explicit rollback note makes it a clear PASS regardless).
+
+- **Overall prediction for input4:** Converges in 1 pass. The plan is well-structured with all the right elements (pre-reads, phased decomposition, Go/No-Go checkpoints, rollback note, test steps, explicit consumer updates). The Q-G4 methodology adds structured reasoning but arrives at the same PASS conclusion. The Q-C3 methodology would add concrete consumer citation but the evaluator likely PASSes anyway. This input is most diagnostic for Q-C3 methodology on plans where consumers are NOT fully addressed — but input4's Phase 2 explicitly addresses all consumers.
+
+**Input 10 (input10-gas-production-fix.md — clean GAS bug fix):**
+
+IS_GAS=true, HAS_UI=false, HAS_DEPLOYMENT=false (no push/deploy — gas edits via mcp tools), HAS_STATE=false, HAS_TESTS=false (no test files modified, only runtime verification via exec and sidebar test), IS_TRIVIAL=false. Active clusters: ["impact"]. Evaluator set: l1-blocking, l1-advisory-structural, l1-advisory-process, gas-evaluator, impact-evaluator.
+
+Tracing the current prompt:
+
+- **Q-G4 (Unintended consequences — HHH methodology):** Layer 1 scan — the plan modifies ClaudeConversation.gs. "Does any other workflow depend on this file's behavior?" Yes: ChatService calls `sendMessage()` which builds the `onThinking` closure. The plan explicitly addresses this: "destructure `onThinking` from params" and "delegate to the caller-supplied callback when present." The Layer 1 scan identifies the dependency (ChatService) and verifies the plan addresses it. Layer 2 scan — "Does this expand who can access the data?" No — the fix is internal error handling, no new endpoints or permissions. **Expected result:** Q-G4 PASS. The methodology correctly identifies the ChatService caller dependency and confirms the plan addresses it. No false positive.
+
+- **Q-G14 (Codebase style — HHH methodology):** Pattern-match-then-compare: the plan adds try/catch to the internal onThinking fallback closure where the existing pattern is bare calls without try/catch. The plan explicitly justifies this: "A transient CacheService error would propagate and abort the response loop." Step (3) of the algorithm: deviation acknowledged with reason -> PASS. **Expected result:** Q-G14 PASS. No false positive from the methodology.
+
+- **Q-C3 (Impact analysis — impact-evaluator):** In IS_GAS mode, the impact-evaluator runs only Q-C26, Q-C35, Q-C37, Q-C38, Q-C39, Q-C40 (Q-C3 is N/A-superseded by gas-evaluator). So Q-C3 methodology is NOT exercised on IS_GAS plans. The impact-evaluator focuses on tracing questions (Q-C37-Q-C40) which already have trace-verify-cite methodology. **Expected:** Impact-evaluator PASSes tracing questions — the plan's step-by-step modification of ClaudeConversation.gs traces cleanly to its caller (ChatService).
+
+- **Gas-evaluator:** Q1/Q2 — 7 numbered steps with no phases (single-file fix). Q18 — explicit Read step (step 2) before edit (step 3). Q42 — Verification section with exec check and sidebar test. **Expected:** All PASS.
+
+- **Overall prediction for input10:** Converges in 1 pass. Clean GAS bug fix with well-addressed dependencies. The HHH methodology correctly PASSes without false positives. Q-C3 is N/A-superseded in IS_GAS mode, so the proposed Q-C3 methodology has no effect here.
+
+**Cross-observation:** Input4 is moderately diagnostic for Q-C3 methodology — the plan addresses its consumers, so the methodology adds structured citation (better Q-FX5 grounding) but does not change the verdict. The most diagnostic case for Q-C3 methodology would be a plan that modifies a shared file WITHOUT addressing all consumers — input4 is close (it does address them, but only because Phase 1 is a thorough investigation phase). If Phase 1 were absent, Q-C3 would be the question that catches the gap. Input10 confirms Q-G4/Q-G14 HHH methodology produces no false positives on clean GAS plans. The remaining improvement opportunity is primarily at the Q-C3 Gate 1 cluster question, which is the only Gate 1 question across all cluster evaluators without detection methodology.
+
+## STEP 7 — Improvement Options
+
+### Option LLL — Q-C3 impact analysis methodology for impact-evaluator (Gate 1 cluster question)
+
+**Addresses:** Q2 (task precision — Q-C3 is the only Gate 1 cluster question without methodology), Q8 (chain-of-thought — impact analysis is a high-frequency unguided judgment call), Q5 (examples — no Q-C3 example in cluster evaluator prompt)
+
+**What changes:** Add a question-specific methodology block for Q-C3 to the cluster evaluator prompt template, scoped to the impact cluster only (via the existing `[IF cluster_name == "impact", append:]` conditional pattern used for the Q-C39 example). The methodology consists of a 3-step consumer-trace algorithm:
+
+1. **Enumerate modified files:** For each file the plan creates or modifies, list it.
+2. **Identify consumers:** For each modified file, identify callers, importers, or downstream consumers. Sources: (a) the plan text itself (does the plan reference other files that use this one?), (b) CLAUDE.md (architecture references — e.g., "TYPES array in shared-types.sh shared by sync-status.sh and uninstall.sh"), (c) files the plan reads as investigation steps.
+3. **Verify coverage:** For each consumer identified, check whether the plan addresses the impact (mentions the consumer, provides migration/update steps, or explicitly asserts no consumer impact). If a consumer exists and is not addressed -> NEEDS_UPDATE. Cite the modified file and the unaddressed consumer.
+
+Borderline guidance: plan states "this change is backward-compatible, no consumer changes needed" -> PASS if the claim is plausible (e.g., adding an optional field that existing callers ignore). Plan modifies a file listed in CLAUDE.md with known consumers, but does not mention those consumers -> NEEDS_UPDATE even if the change might be compatible.
+
+Example -- NEEDS_UPDATE: "Plan modifies the TYPES array schema in shared-types.sh (adds 8th field) but CLAUDE.md lists uninstall.sh as a TYPES consumer and the plan does not mention updating uninstall.sh's field extraction. [EDIT: add step verifying uninstall.sh handles the new 8-field format]"
+Example -- PASS: "Plan modifies logger.ts to add optional traceId parameter; all callers use positional args and the new parameter is last with a default value. No consumer impact."
+
+This follows the same "instruct + exemplify + verify" triad pattern that drove Iter 4 (M+N+O: +24.1%), Iter 8 (AA: +38.9%), and Iter 16 (HHH: +17.6%).
+
+**Why it helps:** Q-C3 is the ONLY Gate 1 question in the cluster evaluator set for standard (non-GAS, non-NODE) mode. It is always active (impact cluster is always in active_clusters). It is evaluated on every non-trivial plan, every pass. Without methodology, the evaluator must trace the consumer graph and verify coverage ad-hoc. With methodology, the evaluator follows a 3-step algorithm with borderline guidance and examples — the same pattern that has produced IMPROVED results for L1 questions in 5 consecutive iterations.
+
+**Predicted impact:** MEDIUM-HIGH — Gate 1 priority, always active, evaluated every pass. Input 4 is the primary test case (shared-types.sh with known consumers from CLAUDE.md). The methodology would improve Q-FX5 (grounding — concrete consumer citations) and Q-FX9 (detection depth — systematic consumer sweep rather than spot check) on plans that modify shared files. 3 concrete edits: add methodology block, add NEEDS_UPDATE example, add PASS example.
+
+### Option MMM — Meta-reflection signal table: concrete detection algorithms for 2 vague signals
+
+**Addresses:** Q13 (calibration — meta-reflection signals "Plan topic with zero question coverage" and "Gate 2 persistently open at GAPS rating" lack detection precision)
+
+**What changes:** Sharpen 2 of the 8 meta-reflection signals that currently rely on team-lead judgment:
+
+1. **"Plan topic with zero question coverage"** — replace "Scan plan headings/topics against all evaluated question IDs" with: (a) extract all `## Phase` and `### Step` headings from the plan, (b) for each heading, check whether at least one question in the active evaluator set addresses that heading's concern domain using a fixed mapping table (git -> Q-E1; testing -> Q-C8/Q-C9; deployment -> Q-C21; security -> Q-C16; state -> Q-C13; UI -> Q-U*; impact -> Q-C3/Q-C26), (c) if a heading maps to a concern domain where NO active cluster evaluator covers it -> fire signal. This converts the detection from "use judgment" to "heading-to-domain table lookup."
+
+2. **"Gate 2 persistently open at GAPS rating"** — replace "edit instructions appear non-prescriptive" with: for each Gate 2 NEEDS_UPDATE question at GAPS rating, check whether the edit instruction contains an actionable verb (add, remove, change, replace, create, insert, update, delete) followed by a specific target (file name, step number, section heading, function name). If the edit instruction contains only descriptive language ("consider," "review," "ensure," "verify," "address") without a concrete action and target -> fire signal. This converts the signal from aesthetic judgment to verb+target pattern matching.
+
+**Why it helps:** The meta-reflection pass produces recommendations for SKILL.md improvement. Concrete detection algorithms produce actionable recommendations with specific citations rather than vague observations. The pattern follows the established principle: algorithmic specificity for judgment calls.
+
+**Predicted impact:** LOW — meta-reflection fires once per review, not per pass. No direct quality impact on the reviewed plan. Improves maintainability of the SKILL.md improvement loop.
+
+### Option NNN — Cluster evaluator methodology bundle: Q-C8 (test coverage) + Q-C21 (rollback plan)
+
+**Addresses:** Q2 (task precision — Q-C8 and Q-C21 are the two most judgment-intensive non-Gate-1 cluster questions), Q8 (chain-of-thought — unguided judgment on cluster questions)
+
+**What changes:** Add question-specific methodology blocks to the cluster evaluator prompt template for 2 additional cluster questions (extending the `[IF cluster_name == "X", append:]` conditional pattern):
+
+1. **Q-C8 (Test coverage — testing cluster):** 2-step sufficiency check: (1) identify each new function/endpoint/behavior the plan introduces, (2) for each, check whether a corresponding test step exists. If any new behavior lacks a test -> NEEDS_UPDATE. Borderline: plan says "run existing test suite" without specifying which tests cover the new behavior -> PASS with advisory note (not NEEDS_UPDATE — existing tests may implicitly cover it). Example -- NEEDS_UPDATE: "Plan adds --remote flag parsing (Phase 3) but test step in Phase 4 only tests URL validation — no test for flag parsing itself."
+
+2. **Q-C21 (Rollback plan — operations cluster):** 2-step rollback check: (1) identify the plan's deployment/push mechanism, (2) check whether a failure-recovery step exists. Borderline: per-phase commits provide implicit rollback via git history -> PASS if commits are granular. Example -- NEEDS_UPDATE: "Plan uses clasp push with no rollback instructions if push introduces a bug."
+
+**Why it helps:** These are the two most judgment-intensive cluster questions after Q-C3. Q-C8 activates for any plan with HAS_TESTS=true (6 of 11 test inputs). Q-C21 activates for any plan with HAS_DEPLOYMENT=true (at least 4 of 11 test inputs). Adding methodology for both reduces evaluator variance on the most subjective cluster determinations.
+
+**Predicted impact:** LOW-MEDIUM — Both are conditional on flag activation and Gate 2 (not blocking). The quality gain is smaller than LLL (Q-C3 Gate 1) because these questions do not affect convergence. However, they improve the SOLID/GAPS rating boundary accuracy (Gate 2 open counts). 4 concrete edits total.
+
+### Option OOO — Clean-sweep output compression for single-pass reviews
+
+**Addresses:** Q4 (output format — verbose output for clean single-pass reviews), Q11 (efficiency — unnecessary processing for clean reviews)
+
+**What changes:** After computing the convergence check on pass 1, if ALL of the following are true: (a) changes_this_pass == 0, (b) Gate1_unresolved == 0, (c) all evaluators returned status "complete", (d) current_needs_update_set is empty — then skip the full delta visualization, evaluator status lines, gate health bar, and trend output. Instead, print a compact convergence line: "Pass [1/5] 0 changes -- clean sweep, all gates clear." Then proceed directly to "After Review Completes." This saves 15-20 output lines per clean single-pass review.
+
+The convergence logic itself is unchanged (it already handles the `changes_this_pass == 0` case correctly). The change is purely output compression for the happy path.
+
+**Why it helps:** For well-structured plans (inputs 9, 10, 11), the review typically converges in 1 pass. The current prompt prints the full delta visualization, evaluator status grid, gate health bar, and timing breakdown even when everything is PASS. This output is valuable for multi-pass debugging but is noise for clean reviews. Reducing it improves user experience and saves context tokens.
+
+**Predicted impact:** LOW — pure UX improvement. No quality impact. No prompt verbosity increase (output behavior change, not prompt text change).
+
+## STEP 8 — Evaluation Questions
+
+### Fixed Questions
+
+- Q-FX1: Does the output correctly complete the task as specified (plan reviewed, edits applied, scorecard produced, ExitPlanMode called)?
+- Q-FX2: Does the output conform to the required format/structure (ASCII scorecard box, gate health lines, pass progress bars, convergence message)?
+- Q-FX3: Is the output complete — does it cover all required aspects (all active evaluators spawned, all NEEDS_UPDATE findings addressed, Q-G9 organization pass run, markers stripped, gate marker written)?
+- Q-FX4: Is the output appropriately concise — no unnecessary padding, repetition of evaluator findings, or verbose pass summaries beyond what the format specifies?
+- Q-FX5: Is the output grounded — no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning — no circular dependencies or contradictions?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely — do the changes achieve the same quality gain without adding unnecessary prompt verbosity?
+- Q-FX9: Does the improved prompt preserve or improve detection depth, breadth, accuracy, and precision?
+- Q-FX10 (adversarial regression — baseline-favoring): Does the baseline catch any concrete defect or requirement that the improved version misses or softens?
+
+### UX Questions (HAS_OUTPUT_FORMAT=true, weighted 0.5x)
+
+- Q-UX1: Is the output's visual hierarchy clear?
+- Q-UX2: Is the most important information immediately scannable?
+- Q-UX3: Does the output use visual differentiation appropriately?
+
+### Dynamic Questions
+
+- Q-DYN-66 (LLL: Q-C3 impact analysis methodology — consumer citation quality): Given Input 4 (plan modifying shared-types.sh TYPES array with consumers listed in CLAUDE.md), does the impact-evaluator produce a Q-C3 finding that explicitly cites the specific consumers (sync-status.sh, uninstall.sh) by name and confirms each is addressed in the plan — rather than a generic "impact analysis looks adequate" finding? Score: B-wins if Q-C3 finding names specific consumers and traces each to a plan step; A-wins if baseline produces equally specific consumer citations; TIE if both produce the same level of specificity.
+
+- Q-DYN-67 (LLL: Q-C3 false-positive guard — IS_GAS plan): Given Input 10 (IS_GAS=true, Q-C3 is N/A-superseded), does the impact-evaluator correctly mark Q-C3 as N/A-superseded and NOT produce a false positive from the new methodology? Score: TIE expected (Q-C3 should be N/A in IS_GAS mode regardless); A-wins if B incorrectly activates Q-C3 methodology despite IS_GAS N/A-supersession.
+
+- Q-DYN-68 (NNN: Q-C8/Q-C21 cluster methodology — detection specificity on multi-cluster plan): Given Input 4 (HAS_TESTS=true, HAS_DEPLOYMENT=true, activating testing and operations clusters), do the testing-evaluator and operations-evaluator produce findings that cite specific plan steps and behaviors rather than generic assessments? Score: B-wins if cluster findings reference specific plan steps by number; A-wins if baseline is equally specific; TIE if both produce the same specificity.
+
+- Q-DYN-69 (anti-regression — baseline-favoring): On Input 10 (clean GAS production fix), does the prompt converge in the same number of passes and produce the same or better rating? Compare pass count, final rating, and total findings count. Score: TIE expected; A-wins if B takes more passes, produces a worse rating, or introduces any regression in detection quality or convergence behavior.
+
+## Experiment Results — Iteration 17
+*Date: 2026-03-23*
+
+### Implemented Directions
+#### Experiment 1: LLL+MMM+NNN+OOO
+**Options applied:** LLL (Q-C3 consumer-trace methodology for impact-evaluator), MMM (meta-reflection signal concrete detection algorithms), NNN (Q-C8/Q-C21 cluster methodology bundle), OOO (clean-sweep output compression)
+**Applied changes:** 3-step consumer-trace algorithm added to impact-evaluator cluster config (LLL); 2 meta-reflection signals sharpened with heading-to-domain table lookup and verb+target edit instruction check (MMM); Q-C8 testing methodology and Q-C21 operations methodology added via cluster conditional blocks (NNN); clean-sweep fast-path condition added before verbose convergence output (OOO)
+
+### Quality Scores
+| Experiment | Options | Quality vs Baseline | Spread | Token Δ | Latency Δ |
+|------------|---------|---------------------|--------|---------|-----------|
+| Exp-1 | LLL+MMM+NNN+OOO | 7.3% vs 1.3% | +6.0% | N/A (combined-judge) | N/A (combined-judge) |
+
+### Per-Question Results (A wins / B wins / TIE across 10 tests)
+Q-FX1: 0/2/8  Q-FX2: 0/0/10  Q-FX3: 0/4/6  Q-FX4: 3/1/6
+Q-FX5: 0/2/8  Q-FX6: 0/1/9   Q-FX7: 0/3/7  Q-FX8: 3/0/7
+Q-FX9: 0/4/6  Q-FX10: 0/0/10  Q-UX1: 0/4/6  Q-UX2: 0/3/7
+Q-UX3: 0/1/9  Q-DYN-66: 0/1/9 (strong on input4)  Q-DYN-67: 0/0/10
+Q-DYN-68: 0/1/9  Q-DYN-69: 0/0/10
+
+---
+
+## Results & Learnings — Iteration 17
+
+**What worked (below threshold):**
+- LLL (Q-C3 consumer-trace methodology): Q-FX9 (0/4/6 moderate wins), Q-FX7 (0/3/7), Q-DYN-66 (0/1/9 strong on input4). The consumer-trace algorithm correctly identified consumer coverage gaps and produced grounded findings with specific file citations. Input4 (shared-types.sh/sync-status.sh/uninstall.sh) is the strongest test case. Input7 (PostgreSQL migration, events table GENERATED ALWAYS column) also benefited significantly — exp-1 systematically flagged the INSERT statement compatibility gap that baseline missed.
+- MMM (meta-reflection signal sharpening): Contributed to minor wins on multiple inputs. The heading-to-domain mapping and verb+target edit instruction check are structurally sound improvements. Marginal standalone impact.
+- NNN (Q-C8/Q-C21 cluster methodology): Q-C8 and Q-C21 findings were more specific and grounded. However, testing/operations clusters are suppressed in IS_GAS mode, limiting the gain to IS_NODE/IS_STANDARD inputs only.
+- OOO (clean-sweep output compression): Q-FX4 (0/1/6) slight win on clean single-pass reviews (input10). Minor but sound improvement.
+
+**What didn't work:**
+- Q-FX4/Q-FX8 (conciseness): A (baseline) won 3/10 on FX4 and 3/10 on FX8. Adding methodology text for Q-C3, Q-C8, Q-C21 increases prompt verbosity. For IS_GAS plans (5 of 10 test inputs), the Q-C3 consumer-trace and Q-C8/Q-C21 cluster methodology are inert (Q-C3 N/A-superseded, testing/operations clusters not activated). This produces dead-weight verbosity for the GAS plan test set.
+- Spread only +6.0%: The 50/50 GAS/non-GAS split in the test set dilutes the gains from IS_NODE/IS_STANDARD-specific improvements. Q-C3 consumer-trace provides real value for non-GAS plans but is invisible for GAS plans.
+
+**Root cause analysis:**
+LLL is the right improvement direction but suffers from scope limitation: Q-C3 consumer-trace methodology only fires for plans where Q-C3 is active (IS_NODE/IS_STANDARD mode). The test set is 50% GAS (inputs 1, 5, 6, 8, 10 are IS_GAS), so the methodology's impact is diluted by 50% purely from test set composition. The non-GAS plans showed consistent moderate wins on Q-FX9 and Q-FX5 — the detection improvement is real. If the test set were weighted toward IS_STANDARD/IS_NODE plans, the spread would likely exceed the 0.15 threshold. NNN (Q-C8/Q-C21) has the same IS_GAS suppression issue.
+
+The OOO clean-sweep has the opposite problem: it wins on Q-FX4 for clean plans but loses on Q-FX4/FX8 for complex plans where the methodology adds unused text overhead.
+
+**What to try next iteration:**
+The highest-leverage remaining improvement is to make LLL's Q-C3 consumer-trace methodology activatable for GAS plans as well, OR to focus entirely on GAS-specific quality improvements. The Q-C3 methodology IS relevant for GAS plans — GAS scripts regularly import shared modules (require.gs) that have consumer dependencies. The issue is that in IS_GAS mode, Q-C3 is "N/A-superseded by gas-evaluator." The gas-evaluator should have equivalent consumer-dependency methodology. Alternatively, the gas-evaluator's questions (Q1, Q2, Q13, Q15, Q18, Q42) could be examined for similar methodology gaps.
+
+**Best experiment:** Exp-1 (LLL+MMM+NNN+OOO) — 7.3% quality score vs 1.3% baseline
+**Verdict: NEUTRAL**
+Decided by: quality spread +6.0% — below 0.15 threshold (prompt reverted)
