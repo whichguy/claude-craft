@@ -11,7 +11,6 @@ description: |
   - Any plan file needs review (GAS or non-GAS)
 
   NOT for: Code review of existing files (use /gas-review or /review-fix)
-model: us.anthropic.claude-sonnet-4-5-20250929
 allowed-tools: all
 ---
 
@@ -68,7 +67,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 3. **Set context flags** (Haiku classification):
    Task(
      subagent_type = "general-purpose",
-     model = "us.anthropic.claude-haiku-4-5-20251001",
+     model = "claude-haiku-4-5-20251001",
      prompt = """
        Read the plan at <plan_path>.
 
@@ -81,6 +80,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        — set the corresponding flag regardless of what file type the plan document
        itself is.
 
+       ## Step 1: Domain flags
+
        IS_GAS: true if plan creates/modifies .gs files, appsscript.json, GAS
                CommonJS modules, or GAS HTML service files.
                False if plan only references GAS concepts in prose or skill metadata.
@@ -92,78 +93,72 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                implementations, or client-side JavaScript.
                False if plan only describes UI concepts in evaluator questions or
                architectural context.
-       HAS_DEPLOYMENT: true if plan includes push/deploy/release steps, target
-                       environments, or release process; or pushing code to a shared
-                       repository others depend on (git push to main/shared branches,
-                       clasp push, npm publish). Key test: will other people or systems
-                       see this change without pulling it themselves?
-                       False for local-only changes.
-       HAS_STATE: true if plan modifies persistent storage, databases, config files,
-                  state schemas, or stateful operations; or any file with a defined
-                  schema/format that downstream code consumes (e.g., QUESTIONS.md read
-                  by evaluators, config.json parsed by tools, template files included
-                  by other templates). Key test: if the file's structure changed, would
-                  consumers break? False for read-only or ephemeral changes.
 
-       HAS_TESTS: true if plan creates/modifies test files, modifies function
-                  signatures that have existing tests, fixes bugs (regression test
-                  needed), or adds new functions that need test coverage.
-                  False if plan is documentation-only, cosmetic, or explicitly confirms
-                  existing tests are sufficient without modification.
-       HAS_EXTERNAL_CALLS: true if plan introduces or modifies outbound HTTP/API
-                           calls, database queries, external service integrations,
-                           OAuth flows, or third-party library usage with network I/O.
-                           False if plan operates purely on local files, in-memory
-                           data, or internal function calls.
-       HAS_UNTRUSTED_INPUT: true if plan handles user-submitted data, URL parameters,
-                            form inputs, external API responses parsed into application
-                            logic, or file uploads.
-                            False if all inputs are from trusted internal sources
-                            (config files, hardcoded values, internal APIs with
-                            authenticated callers).
+       ## Step 2: Review tier
 
-       IS_TRIVIAL: true only if ALL of the following:
-         (1) Plan modifies exactly ONE file
-         (2) That file has no code extension (.md, .txt, .json are OK;
-             .gs/.ts/.js/.py/.html disqualify)
-         (3) The change is purely additive wording/description (no architectural
-             decisions, no removal of existing content, no new behavioral logic described)
-         (4) Plan contains no branching decisions or conditional implementation paths
-         False when uncertain — default to false (full review).
+       Assess the plan's overall review needs holistically:
+
+       REVIEW_TIER:
+         TRIVIAL — ALL of: exactly 1 non-code file (.md, .txt, .json OK;
+                   .gs/.ts/.js/.py/.html disqualify), purely additive wording/
+                   description (no architectural decisions, no removal, no new
+                   behavioral logic), no branching decisions or conditional paths.
+                   Default to SMALL when uncertain.
+         SMALL — 1-3 files, straightforward changes, no risk escalation.
+                 ESCALATE TO FULL if any of:
+                   - Plan touches trust boundaries (new endpoints, auth, permissions)
+                   - Combined high-risk domains (security + external_calls + state)
+                   - Schema/format changes consumed by files NOT in the plan
+                   - Complex conditional implementation paths
+                 Default to FULL when uncertain.
+         FULL — Everything else.
 
        Key: "modifies code in that domain" vs "mentions that domain in prose."
        Example: a plan editing .md files that runs npm test → IS_NODE=false.
 
+       ## Step 3: Active risk domains (for SMALL and FULL tiers; skip for TRIVIAL)
+
+       List which risk domains the plan's implementation steps actually touch:
+         security — new endpoints, user input handling, auth changes, API keys,
+                    injection risk, permission model changes
+         testing — function signature changes, new logic needing test coverage,
+                   bug fixes (regression test needed)
+         state — config file changes, persistent storage, caching, schema changes,
+                 any file with a defined format that downstream code consumes
+                 (key test: if structure changed, would consumers break?)
+         operations — deployment/push/release steps, logging changes, monitoring,
+                      env var additions (key test: will others see this change
+                      without pulling it themselves?)
+         external_calls — outbound HTTP/API calls, database queries, external
+                          service integrations, OAuth flows, third-party library
+                          usage with network I/O
+
        Output ONLY (no explanation):
+       REVIEW_TIER=TRIVIAL|SMALL|FULL
+       ACTIVE_RISKS=comma,separated,list (or "none")
        IS_GAS=true|false
        IS_NODE=true|false
        HAS_UI=true|false
-       HAS_DEPLOYMENT=true|false
-       HAS_STATE=true|false
-       HAS_TESTS=true|false
-       HAS_EXTERNAL_CALLS=true|false
-       HAS_UNTRUSTED_INPUT=true|false
-       IS_TRIVIAL=true|false
      """
    )
-   Parse output → set IS_GAS, IS_NODE, HAS_UI, HAS_DEPLOYMENT, HAS_STATE, HAS_TESTS, HAS_EXTERNAL_CALLS, HAS_UNTRUSTED_INPUT, IS_TRIVIAL
-   IF Haiku timeout or malformed output → all domain flags false, IS_TRIVIAL=false,
-     HAS_TESTS=true, HAS_EXTERNAL_CALLS=true, HAS_UNTRUSTED_INPUT=true
+   Parse output → set REVIEW_TIER, ACTIVE_RISKS (as set of strings), IS_GAS, IS_NODE, HAS_UI
+   IF Haiku timeout or malformed output → REVIEW_TIER=FULL, IS_GAS=false, IS_NODE=false, HAS_UI=false,
+     ACTIVE_RISKS={"testing", "security", "external_calls"}
      (fallback activates impact, testing, security clusters unconditionally)
 
-   Compute cluster activation:
+   Compute cluster activation (for FULL tier; SMALL uses its own question selection):
    ```
    IF IS_GAS:
      # All L2 clusters superseded by gas-evaluator except impact (for Q-C26/Q-C35/Q-C37/Q-C38/Q-C39/Q-C40 — no gas equivalent)
      active_clusters = ["impact"]  # always active — Q-C26/Q-C35/Q-C37/Q-C38/Q-C39/Q-C40 evaluate here
-     if HAS_STATE:      active_clusters.append("state")  # Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded within evaluator
+     if "state" in ACTIVE_RISKS:  active_clusters.append("state")  # Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded within evaluator
    ELSE:
-     active_clusters = ["impact"]                    # always active (Gate 1 Q-C3)
-     if HAS_TESTS:      active_clusters.append("testing")
-     if HAS_STATE:      active_clusters.append("state")
-     if HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT:
-                         active_clusters.append("security")
-     if HAS_DEPLOYMENT:  active_clusters.append("operations")
+     active_clusters = ["impact"]                              # always active (Gate 1 Q-C3)
+     if "testing" in ACTIVE_RISKS:        active_clusters.append("testing")
+     if "state" in ACTIVE_RISKS:          active_clusters.append("state")
+     if "security" in ACTIVE_RISKS or "external_calls" in ACTIVE_RISKS:
+                                          active_clusters.append("security")
+     if "operations" in ACTIVE_RISKS:     active_clusters.append("operations")
      # Client cluster (Q-C17, Q-C25) merged into ui-evaluator when HAS_UI=true — no separate client-evaluator
    ```
 
@@ -179,14 +174,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    struct_memo_node = {"N1"}
    ```
 
-   IF IS_TRIVIAL:
+   IF REVIEW_TIER == TRIVIAL:
      Print: "╭─── FAST PATH ──────────────────╮"
      Print: "⚡ Trivial plan: 1 file ([ext]), additive only"
      Print: "  questions: Q-G1, Q-G2, Q-G5, Q-E2, Q-E1, Q-G11"
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
-       model = "us.anthropic.claude-sonnet-4-5-20250929",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -233,7 +227,123 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Write gate marker, output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
-         IS_TRIVIAL = false  # force full convergence loop
+         REVIEW_TIER = FULL  # force full convergence loop
+         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
+
+   IF REVIEW_TIER == SMALL:
+     # Build question set: 11 core + risk-activated conditional questions
+     small_questions = [
+       "Q-G1",   # Approach soundness (Gate 1)
+       "Q-G2",   # Standards compliance (Gate 1)
+       "Q-G11",  # Existing code examined (Gate 1)
+       "Q-C3",   # Blast radius / call-site cross-ref (Gate 1)
+       "Q-G3",   # Scope clarity (Gate 2)
+       "Q-G4",   # Assumptions / unintended consequences (Gate 2)
+       "Q-G5",   # Scope focus (Gate 2)
+       "Q-G8",   # Phasing (Gate 2)
+       "Q-C26",  # Proportionality / migration tasks (Gate 2)
+       "Q-E1",   # Git lifecycle (Gate 2)
+       "Q-E2",   # Post-implementation workflow (Gate 2)
+     ]
+     risk_questions = {}  # risk_domain → [question IDs]
+     if "security" in ACTIVE_RISKS:
+       small_questions.extend(["Q-C15", "Q-C22"])  # input validation, auth/permission
+       risk_questions["security"] = ["Q-C15", "Q-C22"]
+     if "testing" in ACTIVE_RISKS:
+       small_questions.extend(["Q-C4"])             # tests updated
+       risk_questions["testing"] = ["Q-C4"]
+     if "state" in ACTIVE_RISKS:
+       small_questions.extend(["Q-C33"])            # config validation
+       risk_questions["state"] = ["Q-C33"]
+     if "operations" in ACTIVE_RISKS:
+       small_questions.extend(["Q-C20"])            # logging / sensitive data
+       risk_questions["operations"] = ["Q-C20"]
+     if "external_calls" in ACTIVE_RISKS:
+       small_questions.extend(["Q-C30", "Q-C34"])   # async errors, timeouts
+       risk_questions["external_calls"] = ["Q-C30", "Q-C34"]
+     # Dedup (guards against future overlap if risk domains share question IDs)
+     small_questions = list(dict.fromkeys(small_questions))
+     total_q = len(small_questions)
+     risk_count = total_q - 11
+
+     Print: "╭─── FAST PATH (small) ─────────────╮"
+     Print: "⚡ Small plan: single-pass review"
+     Print: "  questions: [total_q] (11 core + [risk_count] risk-activated)"
+     IF risk_questions:
+       Print: "  risks: [comma-separated ACTIVE_RISKS]"
+
+     # Build question list string for evaluator prompt
+     question_list_str = "\n".join(f"  {qid}" for qid in small_questions)
+
+     [Substitute plan_path and questions_path (resolved in step 2) before spawning]
+     Run single Task(
+       subagent_type = "general-purpose",
+       prompt = """
+         Read the plan at <plan_path>.
+         Read ~/.claude/CLAUDE.md for standards context.
+         Read <questions_path> for question definitions.
+
+         Context flags (substituted by team-lead at spawn time):
+           IS_GAS=<IS_GAS>   IS_NODE=<IS_NODE>   HAS_UI=<HAS_UI>
+
+         Evaluate ONLY these [total_q] questions (definitions in <questions_path>):
+         [question_list_str]
+
+         Gate 1 (blocking): Q-G1, Q-G2, Q-G11, Q-C3
+         Gate 2 (important): all others listed above
+
+         N/A-supersession rules (apply based on context flags above):
+           IF IS_GAS=true: Q-C3 → N/A (covered by gas-evaluator Q18/Q16/Q39/Q41),
+             Q-E1 → N/A (covered by Q1/Q2), Q-E2 → N/A (covered by Q42)
+           IF IS_NODE=true: Q-C3 remains active (not superseded for Node)
+
+         For each question:
+           - Look up its full definition in <questions_path>
+           - Evaluate against the plan (mark N/A per supersession rules above)
+           - Output: Q-ID PASS | NEEDS_UPDATE | N/A — [finding]
+           - If NEEDS_UPDATE: include [EDIT: instruction]
+         Do not use Edit/Write/Bash tools — read-only.
+       """
+     )
+
+     If all PASS or N/A (no NEEDS_UPDATE):
+       Write gate marker: Bash "touch ~/.claude/.plan-reviewed-${plan_slug}"
+       na_count = count of N/A results; applicable_count = total_q - na_count
+       Output terminal-native small fast-path scorecard:
+         ╔═══════════════════════════════════════╗
+         ║  Scorecard (Small — Fast Path)        ║
+         ╚═══════════════════════════════════════╝
+         Rating: 🟢 READY — [applicable_count]/[applicable_count] clear[ + [na_count] N/A]
+
+           Gate 1 (Blocking)
+             Q-G1  Approach soundness         ✅
+             Q-G2  Standards compliance       ✅
+             Q-G11 Existing code examined     ✅
+             Q-C3  Blast radius               ✅ [or — N/A if IS_GAS]
+           Gate 2 (Important)
+             Q-G3  Scope clarity              ✅
+             Q-G4  Assumptions stated         ✅
+             Q-G5  Scope focus                ✅
+             Q-G8  Phasing                    ✅
+             Q-C26 Proportionality            ✅
+             Q-E1  Git lifecycle              ✅ [or — N/A if IS_GAS]
+             Q-E2  Post-implementation        ✅ [or — N/A if IS_GAS]
+           Risk-Activated (if any)
+             [for each risk_questions entry: Q-ID  Name  ✅  [domain]]
+         (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
+       Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
+       Call ExitPlanMode
+       STOP — skip convergence loop entirely
+
+     If any NEEDS_UPDATE:
+       Apply edits inline (no team — orchestrator applies directly).
+       Re-evaluate the same questions once (same Task format above,
+       including substitution of plan_path, questions_path, and question_list_str).
+       If all now PASS or N/A:
+         Write gate marker, output small fast-path scorecard (same format, Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
+       If still NEEDS_UPDATE:
+         Print: "⚡ Small fast-path could not resolve — falling through to full review"
+         REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
 
    Print: "╭─── CONFIG ─────────────────────╮"
@@ -244,11 +354,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      IS_NODE + HAS_UI:    "📋 Review mode: Node.js + UI ([N] clusters: [names] + node-eval + ui-evaluator)"
      HAS_UI only:         "📋 Review mode: Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "📋 Review mode: Standard ([N] clusters: [names])"
-   (Raw flag debug line "IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_DEPLOYMENT=[v] HAS_STATE=[v]"
+   (Raw flag debug line "REVIEW_TIER=[v] ACTIVE_RISKS=[v] IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]"
    is printed during the convergence loop when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
    would invalidate convergence state tracking).
-   [future: IS_SEC, HAS_API]
 
 4. **Initialize tracking:**
    ```
@@ -593,7 +702,6 @@ DO:
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-blocking-p" + pass_count,
     prompt = """
       You are evaluating a plan for critical quality (Layer 1 Gate 1: 3 questions).
@@ -649,7 +757,6 @@ DO:
   --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
@@ -734,7 +841,6 @@ DO:
   --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G8, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
       You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 13 questions).
@@ -852,7 +958,6 @@ DO:
   --- Cluster Evaluator Config (template for each active, non-memoized cluster) ---
   cluster_config(cluster_name) = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
@@ -866,7 +971,7 @@ DO:
 
       Context flags (substituted by team-lead at spawn time):
         IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>   HAS_UI=<HAS_UI>
-        HAS_DEPLOYMENT=<HAS_DEPLOYMENT>   HAS_STATE=<HAS_STATE>
+        ACTIVE_RISKS=<ACTIVE_RISKS>
 
       IS_NODE suppression (apply only when IS_NODE=true above):
         Q-C16 (Security cluster, →N6), Q-C18 (State cluster, →N8), Q-C21 (Operations cluster, →N22),
@@ -945,7 +1050,6 @@ DO:
   --- GAS Evaluator Config ---
   gas_config = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "gas-evaluator-p" + pass_count,
     prompt = """
       You are the gas-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -976,7 +1080,6 @@ DO:
   --- Node Evaluator Config ---
   node_config = Task(
     subagent_type = "general-purpose",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "node-evaluator-p" + pass_count,
     prompt = """
       You are the node-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -1007,7 +1110,6 @@ DO:
   --- UI Evaluator Config (includes merged Client cluster: Q-C17, Q-C25) ---
   ui_config = Task(
     subagent_type = "ui-designer",
-    model = "us.anthropic.claude-sonnet-4-5-20250929",
     name = "ui-evaluator-p" + pass_count,
     prompt = """
       You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
@@ -1779,13 +1881,13 @@ When neither IS_GAS nor IS_NODE, no ecosystem evaluator is invoked.
 | Git | **epilogue** — Q-E1 evaluated post-convergence; IS_GAS: N/A (Q1, Q2) | Q1, Q2 |
 | Impact (1) | **partially** — Q-C26, Q-C35, Q-C37, Q-C38, Q-C39, Q-C40 have no gas equivalent (evaluate via impact cluster) | Q18, Q16, Q39, Q41; Q-C27 N/A (no external API consumers in GAS projects); Q-C32 (→Q22/Q25/Q26) superseded |
 | Testing (2) | **fully** | Q11, Q12, Q17, Q19, Q20; Q-C29 N/A (gas-evaluator Q11/Q12 cover test strategy) |
-| State (3) | **partially** — Q-C36 has no gas equivalent (evaluate via state cluster when HAS_STATE) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
+| State (3) | **partially** — Q-C36 has no gas equivalent (evaluate via state cluster when "state" in ACTIVE_RISKS) | Q40, Q21, Q24, Q3 (for Q-C13/18/19/24) |
 | Security (4) | **fully** | Q27, Q28, Q23; Q-C30→Q28, Q-C31→N/A isolated exec, Q-C33→Q8, Q-C34→Q22 |
 | Operations (5) | **fully** | Q9, Q10, Q29, Q22, Q25; Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability) |
 | Client (6) | **merged into ui-evaluator** when HAS_UI=true; **fully superseded** by gas-evaluator Q32, Q33 when IS_GAS | Q32, Q33 |
 
 Result: When IS_GAS=true, skip ALL cluster evaluators EXCEPT Impact cluster (always active — Q-C26/Q-C35/Q-C37/Q-C38/Q-C39/Q-C40
-have no gas equivalent) and State cluster when HAS_STATE=true (Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded).
+have no gas equivalent) and State cluster when "state" in ACTIVE_RISKS (Q-C36 has no gas equivalent; Q-C13/18/19/24 → N/A-superseded).
 Q-C17 and Q-C25 are handled by ui-evaluator when HAS_UI=true (not a separate cluster evaluator). Mark all other IS_GAS-superseded questions N/A-superseded in the scorecard.
 
 **IS_NODE Individual Suppressions (8 questions span multiple clusters):**
@@ -2065,7 +2167,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    **Rules:**
    - Generate 0–5 recommendations (fewer is better — only surface real signals)
-   - Skip signals that only apply to IS_TRIVIAL plans
+   - Skip signals that only apply to REVIEW_TIER=TRIVIAL plans
    - Do NOT recommend changes that would alter Gate 1 blocking status
    - Each recommendation format: `[Signal label]: [recommendation ≤25 words]`
    - If no signals fire, output: `None — prompt appears well-calibrated for this plan type`
