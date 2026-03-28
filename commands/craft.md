@@ -15,10 +15,10 @@ Given arguments: $ARGUMENTS
 Check the first word of $ARGUMENTS:
 
 1. If **no arguments** provided → go to **SYNC MODE** with action `status`
-2. If $1 is `status` → go to **SYNC MODE** with action `status`
-3. If $1 is `sync` → go to **SYNC MODE** with action `sync`
-4. If $1 is `add` → go to **SYNC MODE** with action `add`
-5. If $1 is `publish` → go to **SYNC MODE** with action `publish`
+2. If the first token of `$ARGUMENTS` is `status` → go to **SYNC MODE** with action `status`
+3. If the first token of `$ARGUMENTS` is `sync` → go to **SYNC MODE** with action `sync`
+4. If the first token of `$ARGUMENTS` is `add` → go to **SYNC MODE** with action `add`
+5. If the first token of `$ARGUMENTS` is `publish` → go to **SYNC MODE** with action `publish`
 6. Otherwise → set **task** = entire $ARGUMENTS, go to **DEV MODE** (skip to "Quality Gate Philosophy" section below)
 
 ---

@@ -19,7 +19,7 @@ description: |
   - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
   - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
     team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
-model: sonnet
+model: claude-sonnet-4-6
 allowed-tools: all
 ---
 
@@ -145,7 +145,7 @@ DO:
   --- Frontend Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "claude-sonnet-4-6",
     team_name = <team_name>,
     name = "frontend-evaluator-p" + pass_count,
     prompt = """
@@ -202,7 +202,7 @@ DO:
   --- GAS Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "claude-sonnet-4-6",
     team_name = <team_name>,
     name = "gas-evaluator-p" + pass_count,
     prompt = """

@@ -1,0 +1,97 @@
+{
+  "research_id": "backend-framework-fintech-2026-03",
+  "research_date": "2026-03-22",
+  "topic": "Backend Framework Evaluation — Fintech Microservices Platform",
+  "candidates_evaluated": ["FastAPI", "NestJS", "Go/Gin", "Go/Echo", "Rust/Actix-web"],
+  "primary_recommendation": "Go with Echo",
+  "secondary_recommendation": "FastAPI (Python)",
+  "not_recommended": ["NestJS", "Rust/Actix-web"],
+  "weighted_scores": {
+    "Go_Echo": 77.5,
+    "FastAPI": 70.5,
+    "NestJS": 67.0,
+    "Rust_Actix": 65.0
+  },
+  "evaluation_criteria_weights": {
+    "latency_throughput": 0.30,
+    "developer_productivity": 0.25,
+    "type_safety_correctness": 0.20,
+    "observability": 0.15,
+    "hiring": 0.10
+  },
+  "quality_gates": {
+    "gate_1_market_understanding": { "status": "PASS", "score": "6/7", "threshold_pct": 85 },
+    "gate_2_technical_evaluation": { "status": "PASS", "score": "7/7", "threshold_pct": 100 },
+    "gate_3_business_analysis":    { "status": "PASS", "score": "6/6", "threshold_pct": 100 },
+    "gate_4_comparative_analysis": { "status": "PASS", "score": "7/7", "threshold_pct": 100 },
+    "gate_5_recommendation_readiness": { "status": "PASS", "score": "7/7", "threshold_pct": 100 },
+    "overall_quality_pct": 88
+  },
+  "data_sources": {
+    "market_data": [
+      "Stack Overflow Developer Survey 2024",
+      "GitHub repository metrics (March 2026): FastAPI 96.5k stars, NestJS 75k stars, Gin 88.3k stars, Actix-web 24.5k stars",
+      "LinkedIn Jobs US: FastAPI 600+ postings (602 confirmed)",
+      "pkg.go.dev: grpc v1.79.3, 267,188 importers",
+      "go-grpc-middleware: 6.7k stars, 45.8k dependents"
+    ],
+    "technical_data": [
+      "FastAPI official documentation (fastapi.tiangolo.com)",
+      "OpenTelemetry Python contrib: 51 instrumentation packages; FastAPI, gRPC, asyncpg, Redis, psycopg2 all present",
+      "OpenTelemetry Go contrib: otelgin, otelecho, otelgrpc — all provide metrics + traces",
+      "go-grpc-middleware: Prometheus, OTel, logging (zap/slog/zerolog/logrus), auth, retry, rate-limit, validation, panic-recovery",
+      "pgx Go PostgreSQL driver: v5, 13.6k stars, statement caching, COPY protocol, connection pooling",
+      "Benchmarks Game: Go vs Python ~70-100x faster CPU-bound; Rust vs Go ~2-4x faster CPU-bound",
+      "Python asyncio: I/O-bound optimized; CPU-bound requires thread/process delegation",
+      "SQLAlchemy 2.0 asyncio: asyncpg backend, per-request AsyncSession pattern, no greenlet overhead for simple queries",
+      "Actix-web: v4.13.0 (Feb 2026), Tokio-native, 72,800 dependents, MSRV Rust 1.88+"
+    ],
+    "business_data": [
+      "Notable adopters: FastAPI (Microsoft, Netflix, Uber, Cisco); NestJS (Mercedes-Benz, Red Hat, Sanofi); Go (Uber, Docker, Kubernetes, Cloudflare); Rust (Mozilla Push 20M WebSockets, Juspay fintech)",
+      "NestJS sponsors: Microsoft, Red Hat, JetBrains, Snyk, Mercedes-Benz",
+      "Go: language satisfaction 82.2% (2nd highest); adoption 14.4% professional developers",
+      "Rust: language satisfaction 83% (highest); adoption 12.6% all developers"
+    ]
+  },
+  "data_gaps": [
+    {
+      "gap": "TechEmpower Round 22 exact RPS numbers",
+      "reason": "Page is JavaScript-rendered; scraping returned only page title",
+      "confidence_impact": "Low — tier ordering (Rust > Go > NestJS > FastAPI) is consistent across multiple public summaries",
+      "mitigation": "Cited as approximate ranges; recommendation does not depend on exact RPS numbers"
+    },
+    {
+      "gap": "NestJS State of JS survey adoption data",
+      "reason": "stateofjs.com returned oversized content error",
+      "confidence_impact": "Low — NestJS GitHub/npm data (75k stars, 673k dependents, v11.1.17) is comprehensive",
+      "mitigation": "Used GitHub metrics and LinkedIn data as proxy"
+    },
+    {
+      "gap": "Fintech-specific Go/Rust production internal benchmarks (Stripe, Cloudflare)",
+      "reason": "Internal engineering posts not accessible",
+      "confidence_impact": "Low — Juspay (Rust/fintech) and Uber (Go/platform) documented as production case studies",
+      "mitigation": "Public GopherCon talks and published FastAPI adopter list used"
+    },
+    {
+      "gap": "NestJS OpenTelemetry integration depth",
+      "reason": "docs.nestjs.com returns CSS/GA only (JavaScript-rendered docs)",
+      "confidence_impact": "Medium — assessed as 'requires manual interceptors' based on community knowledge; official docs could show better native support",
+      "mitigation": "Recommend team evaluate NestJS OTel packages (@opentelemetry/instrumentation-nestjs-core) before finalizing"
+    }
+  ],
+  "output_files": {
+    "requirements": "research-requirements.md",
+    "full_research": "tech-research-backend-framework.md",
+    "decision_summary": "tech-decision-backend-framework.md",
+    "metadata": ".tech-metadata/reconciliation-backend-framework.json"
+  },
+  "review_horizon": "12 months (March 2027)",
+  "review_triggers": [
+    "Team headcount reaches 15+ engineers — re-evaluate hiring market pressure",
+    "Any service exceeds p99 latency SLO for 30+ days — trigger Go migration evaluation",
+    "Python 3.14+ free-threaded mode (no-GIL) reaches production stability — re-evaluate FastAPI performance tier",
+    "Rust Actix-web OTel ecosystem reaches parity with Go — re-evaluate for cryptographic service"
+  ],
+  "generated_by": "Technology Research Specialist (Claude Code)",
+  "model": "us.anthropic.claude-sonnet-4-6"
+}

@@ -8,7 +8,7 @@ description: |
   loops per-file until clean (max 5 rounds), then commits and optionally creates a PR
   (commit_mode="pr" default: commit + push + PR + squash merge + delete branch;
   commit_mode="commit": commit only). Supports optional plan_summary parameter for
-  intent-aligned review. Git fallback auto-detects changed files when target_files is empty.
+  intent-aligned review. Git fallback uses cascading priority (WIP → last commit) when target_files is empty.
   Cluster-based parallelism: PHASE A dispatches domain clusters (safety, intent, integration,
   ecosystem) per file with incremental re-review backlog — only re-runs clusters affected by
   fixes. max_clusters_per_file parameter caps cluster Tasks per file (default 4, range [1,4]).
@@ -20,9 +20,12 @@ description: |
   and when code-reviewer returns NEEDS_REVISION.
   Trigger phrases: "review and fix", "polish this", "clean this up", "make sure this is
   good", "before committing", "before merging", "loop until clean".
-model: sonnet
 color: orange
 ---
+
+⚠️  **BREAKING CHANGE (v2.0)**: Git fallback uses **cascading priority** (uncommitted/staged → last commit).
+Accumulated multi-commit review is removed. WIP always takes priority — stash to review past commits.
+Run review-fix after each commit, or provide `target_files` explicitly for multi-file review.
 
 You are the Review-Fix team lead. You orchestrate a review → fix → re-review loop until
 all fixable findings are resolved, then produce a structured summary. Critical findings
@@ -51,7 +54,11 @@ Flow: Setup & Triage → Initial Review ─────────────�
 
 ## Input Contract
 
-- `target_files="$1"` — required; comma-separated file paths
+- `target_files="$1"` — optional; comma-separated file paths. If omitted, cascading fallback: reviews **uncommitted/staged** if present, otherwise **last commit (HEAD)**. WIP takes priority.
+  - Examples:
+    - Auto (WIP): `review-fix()` → reviews uncommitted/staged files
+    - Auto (clean): `review-fix()` → reviews last commit
+    - Explicit: `review-fix(target_files="src/auth.ts,src/server.ts")`
 - `task_name="$2"` — required; review context identifier
 - `worktree="${3:-.}"` — required; absolute path to working directory
 - `max_rounds="${4:-5}"` — optional; maximum fix-and-re-review rounds (default: 5)
@@ -65,29 +72,59 @@ Flow: Setup & Triage → Initial Review ─────────────�
 **Pre-flight**: If `task_name` is empty, stop and report:
 `Missing required parameters: task_name=[value]`
 
-**Git Fallback (Accumulated Lookback)**: If `target_files` is empty or unset after pre-flight:
+**Git Fallback (Cascading: WIP → Last Commit)**: If `target_files` is empty or unset after pre-flight:
 
 ```
-Step 1 — Find the base commit (last non-review-fix commit):
-  Walk the last 50 commits via `git -C "${worktree}" log --format="%H %s" -50`.
-  If the command fails (non-zero exit, detached HEAD, no commits), fall back to HEAD and log a warning.
-  Skip commits where the message:
-    - starts with `review-fix:` (new convention), OR
-    - contains `: apply review-fix corrections` (backward compat for old commits)
-  The first non-matching commit hash becomes `base_commit`.
-  Fallback: if all 50 are review-fix commits, use HEAD (safe default, same as current behavior).
+Step 1 — Check for work-in-progress:
+  uncommitted = git -C "${worktree}" diff --name-only HEAD 2>/dev/null
+  staged = git -C "${worktree}" diff --cached --name-only 2>/dev/null
+  work_in_progress = union(uncommitted, staged), deduplicate
 
-Step 2 — Collect all changed files since base:
-  committed_files = git diff --name-only ${base_commit}..HEAD   (files changed across all review-fix iterations)
-  uncommitted_files = git diff --name-only HEAD                  (working tree changes)
-  staged_files = git diff --cached --name-only                   (staged changes)
-  Union all three sets, deduplicate, filter out .json/.lock files.
+Step 2 — Decision cascade:
+  Case A: Work-in-progress exists (uncommitted OR staged)
+    target_files = work_in_progress
+    rationale = "work-in-progress"
+    Print: "  → Reviewing uncommitted changes:"
+    Print: "    - Unstaged: N files"
+    Print: "    - Staged: M files"
 
-Step 3 — Set target_files:
-  If files found: target_files = comma-joined list
-    Print: "  → target_files derived from accumulated git diff (base: <hash_short>): [list]"
-    Print: "    (spanning N review-fix commit(s) since <base_short>)"
-  If empty: print "No changed files detected — nothing to review." and stop.
+  Case B: Working tree clean, check last commit
+    last_commit_files = git -C "${worktree}" diff --name-only HEAD~1..HEAD 2>/dev/null
+
+    Error handling:
+    - If command fails (exit non-zero): check git status
+      - Try: git -C "${worktree}" log --oneline -1
+      - If succeeds but diff failed: error "Cannot diff initial commit. Provide target_files explicitly."
+      - If log fails (no commits): error "No commits exist. Make changes or commit, then run review-fix."
+
+    if last_commit_files is empty:
+      Error: "No changes to review. Working tree clean and last commit has no file changes.
+
+      Options:
+      - Make changes and run review-fix again
+      - Or provide target_files explicitly: review-fix(target_files='path/to/file.ts')"
+      Stop execution.
+
+    target_files = last_commit_files
+    rationale = "last-commit"
+    commit_msg = first line of git log -1 --pretty=%s
+    Print: "  → Reviewing last commit (HEAD): ${commit_msg}"
+
+Step 3 — Filter and validate:
+  - Exclude .json/.lock files: filter target_files by extension
+  - Verify each file exists on disk (warn about missing)
+  - Result: file_list (valid files to review)
+
+  If file_list is empty after filtering:
+    if rationale == "work-in-progress":
+      Error: "No reviewable files in working tree (only .json/.lock files changed)"
+    else:
+      Error: "No reviewable files in last commit (only .json/.lock files changed)"
+    Stop execution.
+
+Rationale: Adapts to user's workflow — reviews WIP when developing, reviews commits
+when committing. Never mixes contexts. Clear feedback about what's being reviewed.
+WIP always takes priority over commits (stash to review old commits).
 ```
 
 **Argument Validation**: After Git Fallback resolves `target_files`, validate all parameters:
@@ -142,7 +179,6 @@ files_needing_fixes = []   # populated in Phase 2: files with NEEDS_REVISION or 
 current_findings = {}      # { file: <latest review output> } — updated after each review/re-review
 per_file_rounds = {}       # { file: round_count } — for max_rounds enforcement per file
 reviewer_counts = []       # (deprecated — retained for backward compat; cluster_stats preferred)
-base_commit = null          # hash of last non-review-fix commit (from Git Fallback); null if target_files provided explicitly
 impact_files = {}           # { file: [list of referencing files] } — populated by Step 1c Impact Discovery
 final_status = 'pending'
 total_start_time = Date.now()        # set at Phase 1 start
@@ -313,8 +349,12 @@ Global cap of 30 total impact files is checked after each file's results are app
 
 For each file in file_list (stop if total_impact_count >= 30):
 
-  1. Use Bash tool: `git diff ${base_commit:-HEAD} -- ${file}`
-     If empty (new file): use Read tool to get file content.
+  1. Get file changes based on rationale:
+     If rationale == "work-in-progress":
+       Use Read tool to get current file content (WIP review uses working tree, not a diff)
+     Else (rationale == "last-commit"):
+       Use Bash tool: `git diff HEAD~1..HEAD -- ${file}`
+       If empty (new file): use Read tool to get file content.
      If file > 500KB: skip impact discovery for this file, log warning.
 
   2. Extract exported/public symbol names from added lines (+ lines in diff):
@@ -689,7 +729,6 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
       const batch_results = await Promise.all(batch.map(({ file, file_slug, cluster, is_recheck }) =>
         Task({
           subagent_type: 'general-purpose',
-          model: 'sonnet',
           description: `Cluster ${cluster.id} review ${file} round ${per_file_rounds[file]}`,
           prompt: CLUSTER_PROMPT(cluster.id, cluster.questions, file, {
             plan_summary,
@@ -901,7 +940,6 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   try {
     const planner_output = await Task({
       subagent_type: "general-purpose",
-      model: "sonnet",
       description: `Plan execution for ${tasks.length} tasks across ${files_with_tasks.size} file(s)`,
       prompt: PLANNER_PROMPT(tasks, round)
     })
@@ -1008,7 +1046,6 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
         const batch_results = await Promise.all(batch.map(file =>
           Task({
             subagent_type: "general-purpose",
-            model: "sonnet",
             description: `Fix ${file} wave ${wave_num} (round ${per_file_rounds[file]})`,
             prompt: FIXER_PROMPT_V2(file, tasks_by_file[file])
           }).catch(() => ({

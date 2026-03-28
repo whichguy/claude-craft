@@ -54,6 +54,33 @@ verify_sync_script() {
     fi
 }
 
+install_settings_hooks() {
+    local settings_file="$CLAUDE_DIR/settings.json"
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  jq not found — skipping settings hook install${NC}"
+        return
+    fi
+
+    [ ! -f "$settings_file" ] && echo '{}' > "$settings_file"
+
+    # Idempotency: skip if ExitPlanMode hook already present
+    if jq -e '.hooks.PreToolUse[]? | select(.matcher == "ExitPlanMode")' "$settings_file" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ ExitPlanMode review-plan hook already installed${NC}"
+        return
+    fi
+
+    local hook_cmd
+    hook_cmd='printf '"'"'%s'"'"' '"'"'{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"MANDATORY: Before calling ExitPlanMode, you MUST first run the review-plan skill. Use the Skill tool with skill=\"review-plan\". If you have not yet run review-plan on the current plan in this session, cancel ExitPlanMode now and run it first."}}'"'"''
+
+    local tmp="$settings_file.tmp"
+    jq --arg cmd "$hook_cmd" \
+       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$cmd,"statusMessage":"Checking review-plan was run..."}]}])' \
+       "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
+
+    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hook${NC}"
+}
+
 # Main installation
 main() {
     echo -e "${YELLOW}🔍 Checking system requirements...${NC}"
@@ -117,6 +144,10 @@ main() {
     
     # Sync all extension types (agents, commands, skills, prompts, references, plugins)
     sync_extensions
+
+    # Install settings hooks (e.g. ExitPlanMode review-plan gate)
+    echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
+    install_settings_hooks
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"
