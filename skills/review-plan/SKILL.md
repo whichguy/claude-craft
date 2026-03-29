@@ -17,7 +17,7 @@ allowed-tools: all
 ## Role & Authority
 
 1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
-2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. You may NOT call ExitPlanMode until the gate marker is written.
+2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. You must NOT call ExitPlanMode — the caller handles mode transitions after review completes.
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
 
@@ -216,15 +216,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Q-G11 Existing code examined   ✅
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
        Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
-       Call ExitPlanMode
-       STOP — skip convergence loop entirely
+       STOP — review complete, skip convergence loop entirely
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 6 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 6 now PASS:
-         Write gate marker, output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
+         Write gate marker, output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY), strip markers. STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -332,15 +331,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry: Q-ID  Name  ✅  [domain]]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
        Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
-       Call ExitPlanMode
-       STOP — skip convergence loop entirely
+       STOP — review complete, skip convergence loop entirely
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
        Re-evaluate the same questions once (same Task format above,
        including substitution of plan_path, questions_path, and question_list_str).
        If all now PASS or N/A:
-         Write gate marker, output small fast-path scorecard (same format, Rating 🟢 READY), strip markers, ExitPlanMode. STOP.
+         Write gate marker, output small fast-path scorecard (same format, Rating 🟢 READY), strip markers. STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -1772,7 +1770,7 @@ DO:
 
 WHILE TRUE
 
--- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → ExitPlanMode. --
+-- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → STOP. --
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
@@ -2071,7 +2069,7 @@ After the convergence loop exits (scorecard not yet printed):
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): By the time
    the loop exits, Gate 1 is either clean (→ READY/SOLID/GAPS rating) or still has unresolved
    issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 4)
-   and ExitPlanMode (step 8). Do not re-run the REWORK check here.
+   and STOP (step 8). Do not re-run the REWORK check here.
 
 2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, inline:
    Print: "╭─── EPILOGUE ───────────────────╮"
@@ -2192,32 +2190,28 @@ After the convergence loop exits (scorecard not yet printed):
       Only strip the markers — do not remove the content they annotated.
    b. **File teardown:** Use the Bash tool to run:
       ```
-      touch "~/.claude/.plan-reviewed-${plan_slug}" && rm -f <memo_file> && rm -rf "$RESULTS_DIR"
+      rm -f <memo_file> && rm -rf "$RESULTS_DIR"
       ```
-      First command writes the gate marker so ExitPlanMode will pass.
-      Second command removes the convergence checkpoint (no longer needed after loop exits).
-      Third command removes the temp results directory.
+      First command removes the convergence checkpoint (no longer needed after loop exits).
+      Second command removes the temp results directory.
 
 7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     No issues to print — proceed directly to step 8 (ExitPlanMode)
+     No issues to print — proceed directly to step 8 (STOP)
    IF Rating == SOLID or GAPS:
      Print: "ℹ️ [N] Gate 2 issues remaining (not blocking):"
      For each remaining Gate 2 NEEDS_UPDATE question:
        Print: "  - [question short name] ([ID]): [one-sentence summary of finding]"
-     Print: "These are advisory — reject the plan approval to address them."
-     Proceed to ExitPlanMode (user can reject ExitPlanMode if they want to fix issues first)
+     Print: "These are advisory — reject the caller's ExitPlanMode to address these before implementation."
+     STOP
    IF Rating == REWORK:
      Print: "🔴 [N] Gate 1 issue(s) remaining after maximum passes:"
      For each remaining Gate 1 NEEDS_UPDATE question:
        Print: "  - [question short name] ([ID]): [one-sentence summary of finding]"
-     Print: "These are BLOCKING — reject plan approval to continue fixing before implementation."
-     Proceed to ExitPlanMode
+     Print: "These are BLOCKING — reject the caller's ExitPlanMode to continue fixing before implementation."
+     STOP
    ```
-   This is a single approval point: the user sees remaining issues in printed text, then
-   ExitPlanMode is the one decision point. No double-approval friction.
+   The caller's ExitPlanMode call is the approval point. review-plan does not participate in mode transitions.
 
-8. **Call ExitPlanMode immediately.** Do not pause, do not ask the user "should I present the plan?"
-
-The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
+8. **STOP.** Review is complete. Print "Review complete." Do not call ExitPlanMode — the caller handles mode transitions.
