@@ -43,6 +43,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Print: "  Pass a file path as argument, or run from a directory with ~/.claude/plans/*.md"
      STOP — do not proceed
    - Read the plan file fully
+   - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
+     `Bash "echo 'SKIP' > ~/.claude/plans/.review-ready"` — this creates the gate file
+     manually, allowing ExitPlanMode to proceed without review.
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
@@ -51,11 +54,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      (skip gracefully if none found)
    - Path variables — derive now and cache as named variables; used in all evaluator spawning (fast-path and loop):
      - `plan_path` = absolute path of the plan file found in step 1
-     - `plan_slug` = filename stem of plan_path (no extension); scopes gate marker and memo file
+     - `plan_slug` = filename stem of plan_path (no extension); scopes memo file
        ```
        plan_slug = basename(plan_path, ".md")
        # Example: /Users/jameswiese/.claude/plans/snug-jumping-yao.md → snug-jumping-yao
-       # Used to scope gate marker and memo file to this specific plan invocation.
+       # Used to scope memo file to this specific plan invocation.
        ```
      - `questions_path` = `~/.claude/skills/review-plan/QUESTIONS.md`
      - `questions_l3_path` = `~/.claude/skills/review-plan/QUESTIONS-L3.md`
@@ -201,7 +204,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all 6 PASS:
-       Write gate marker: Bash "touch ~/.claude/.plan-reviewed-${plan_slug}"
+       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready"
        Output terminal-native fast-path scorecard:
          ╔═══════════════════════════════════╗
          ║  Scorecard (Fast Path)            ║
@@ -215,15 +218,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Q-E1  Git lifecycle            ✅
            Q-G11 Existing code examined   ✅
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
        STOP — review complete, skip convergence loop entirely
+       (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 6 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 6 now PASS:
-         Write gate marker, output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY), strip markers. STOP — review complete.
+         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -306,7 +309,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all PASS or N/A (no NEEDS_UPDATE):
-       Write gate marker: Bash "touch ~/.claude/.plan-reviewed-${plan_slug}"
+       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready"
        na_count = count of N/A results; applicable_count = total_q - na_count
        Output terminal-native small fast-path scorecard:
          ╔═══════════════════════════════════════╗
@@ -330,15 +333,15 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            Risk-Activated (if any)
              [for each risk_questions entry: Q-ID  Name  ✅  [domain]]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       Strip <!-- review-plan --> markers (Edit with replace_all=true → "")
        STOP — review complete, skip convergence loop entirely
+       (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
        Re-evaluate the same questions once (same Task format above,
        including substitution of plan_path, questions_path, and question_list_str).
        If all now PASS or N/A:
-         Write gate marker, output small fast-path scorecard (same format, Rating 🟢 READY), strip markers. STOP — review complete.
+         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -2179,7 +2182,7 @@ After the convergence loop exits (scorecard not yet printed):
      None — prompt appears well-calibrated for this plan type
    ```
 
-6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run both:
+6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
       strip all self-referential markers that served their purpose during the convergence loop
       (including any added by the epilogue in step 2 and Q-G9 in step 3):
@@ -2188,7 +2191,13 @@ After the convergence loop exits (scorecard not yet printed):
       - `" <!-- node-plan -->"` → `""` (remove)
       This delivers a clean plan file to the user for implementation (no stray HTML comments).
       Only strip the markers — do not remove the content they annotated.
-   b. **File teardown:** Use the Bash tool to run:
+   b. **Gate file:** Write the review-complete breadcrumb:
+      Bash `echo '<plan_path>' > ~/.claude/plans/.review-ready`
+      This signals the ExitPlanMode PreToolUse hook that review has completed. The gate
+      file is a separate breadcrumb — the plan file itself stays clean (no HTML comments).
+      Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after
+      successful exit.
+   c. **File teardown:** Use the Bash tool to run:
       ```
       rm -f <memo_file> && rm -rf "$RESULTS_DIR"
       ```
