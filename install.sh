@@ -70,15 +70,15 @@ install_settings_hooks() {
         return
     fi
 
-    local hook_cmd
-    hook_cmd='printf '"'"'%s'"'"' '"'"'{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"MANDATORY: Before calling ExitPlanMode, you MUST first run the review-plan skill. Use the Skill tool with skill=\"review-plan\". If you have not yet run review-plan on the current plan in this session, cancel ExitPlanMode now and run it first."}}'"'"''
+    local pre_hook_cmd='plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); slug=$(basename "$plan_file" .md 2>/dev/null); if [ -n "$slug" ] && [ -f ~/.claude/plans/.review-ready-"$slug" ]; then printf '"'"'{}'"'"'; else printf '"'"'%s'"'"' '"'"'{"decision":"block","reason":"Gate file not found. Either review-plan has not been run yet (run it first), or ExitPlanMode already succeeded and the gate was cleaned up (do not retry)."}'"'"'; fi'
+    local post_hook_cmd='input=$(cat); tool_result=$(echo "$input" | jq -r '"'"'.tool_result // ""'"'"' 2>/dev/null); if echo "$tool_result" | grep -qi '"'"'error\|not in plan mode\|failed'"'"'; then printf '"'"'{}'"'"'; exit 0; fi; plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); if [ -n "$plan_file" ]; then slug=$(basename "$plan_file" .md); rm -f ~/.claude/plans/.review-ready-"$slug"; fi; printf '"'"'{}'"'"''
 
     local tmp="$settings_file.tmp"
-    jq --arg cmd "$hook_cmd" \
-       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$cmd,"statusMessage":"Checking review-plan was run..."}]}])' \
+    jq --arg pre_cmd "$pre_hook_cmd" --arg post_cmd "$post_hook_cmd" \
+       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$pre_cmd,"statusMessage":"Checking review-plan was run..."}]}]) | .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$post_cmd,"statusMessage":"Cleaning up review gate..."}]}])' \
        "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
 
-    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hook${NC}"
+    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hooks (PreToolUse + PostToolUse)${NC}"
 }
 
 # Main installation

@@ -805,8 +805,8 @@ After outputting the Final Scorecard:
    Add Q43 result to the Final Scorecard output under a new line:
    `Organization Quality (Q43): [PASS | NEEDS_UPDATE — reason]`
 
-3. Use the Bash tool to run: `touch ~/.claude/.plan-reviewed && rm -f <memo_file>` — writes the gate marker so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits)
+3. Use the Bash tool to run: `slug=$(basename '<plan_path>' .md) && echo '<plan_path>' > ~/.claude/plans/.review-ready-"$slug" && rm -f <memo_file>` — writes the slug-scoped gate file so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits)
 4. **Team teardown:** Send shutdown_request to all agents in `spawned_evaluators` (only agents that were actually launched — triage-skipped evaluators and any agents not appended to spawned_evaluators are never targeted), then call TeamDelete. (Teardown must complete before ExitPlanMode — the session context needed for TeamDelete is not available after exiting plan mode.)
 5. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
-The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
+The PreToolUse hook on ExitPlanMode checks for the slug-scoped gate file (~/.claude/plans/.review-ready-{slug}) and blocks if not found. The PostToolUse hook deletes it on successful exit.

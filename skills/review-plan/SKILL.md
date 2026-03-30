@@ -44,8 +44,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      STOP — do not proceed
    - Read the plan file fully
    - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
-     `Bash "echo 'SKIP' > ~/.claude/plans/.review-ready"` — this creates the gate file
-     manually, allowing ExitPlanMode to proceed without review.
+     `Bash "touch ~/.claude/plans/.review-ready-$(basename $(ls -t ~/.claude/plans/*.md | head -1) .md)"`
+     — this creates the gate file for the current plan, allowing ExitPlanMode to proceed without review.
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
@@ -204,7 +204,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all 6 PASS:
-       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready"
+       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}"
        Output terminal-native fast-path scorecard:
          ╔═══════════════════════════════════╗
          ║  Scorecard (Fast Path)            ║
@@ -226,7 +226,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate the same 6 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 6 now PASS:
-         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
+         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -309,7 +309,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all PASS or N/A (no NEEDS_UPDATE):
-       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready"
+       Write gate file: Bash "echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}"
        na_count = count of N/A results; applicable_count = total_q - na_count
        Output terminal-native small fast-path scorecard:
          ╔═══════════════════════════════════════╗
@@ -341,7 +341,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate the same questions once (same Task format above,
        including substitution of plan_path, questions_path, and question_list_str).
        If all now PASS or N/A:
-         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
+         Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -2192,7 +2192,7 @@ After the convergence loop exits (scorecard not yet printed):
       This delivers a clean plan file to the user for implementation (no stray HTML comments).
       Only strip the markers — do not remove the content they annotated.
    b. **Gate file:** Write the review-complete breadcrumb:
-      Bash `echo '<plan_path>' > ~/.claude/plans/.review-ready`
+      Bash `echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}`
       This signals the ExitPlanMode PreToolUse hook that review has completed. The gate
       file is a separate breadcrumb — the plan file itself stays clean (no HTML comments).
       Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after
