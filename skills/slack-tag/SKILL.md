@@ -1,0 +1,222 @@
+---
+name: slack-tag
+description: |
+  Ping someone on Slack about a GUS work item or GitHub PR.
+  Resolves the item, finds the person, formats a rich message, previews,
+  and sends on approval.
+
+  **AUTOMATICALLY INVOKE** when:
+  - "tag someone on slack about"
+  - "notify on slack about W-"
+  - "slack ping" / "slack tag"
+  - "DM about this work item"
+  - "post this PR to slack"
+  - "let X know about W-"
+
+  **NOT for:** General Slack messaging, announcements, or channel summaries
+argument-hint: "<person> <work-item> [#channel] [message]"
+allowed-tools: all
+model: sonnet
+---
+
+# slack-tag
+
+Ping someone on Slack about a GUS work item or GitHub PR. Resolves the item,
+finds the person, formats a polished message, shows a preview, and sends on
+approval.
+
+---
+
+## Step 0 — Parse Arguments
+
+Extract from the user's input (flexible — natural language is fine):
+
+- **person** (required): name, email, or `@handle`
+- **work-item** (required): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
+- **channel** (optional): `#channel-name` — if omitted, send as DM
+- **message** (optional): quoted string or trailing text after the other args
+
+Examples:
+```
+/slack-tag john.doe W-12345678
+/slack-tag @jane W-12345678 #gov-cloud-all "Needs your eyes on the P1"
+/slack-tag jane anthropics/claude-code#100 "Thoughts on this approach?"
+```
+
+---
+
+## Step 1 — Resolve Identifiers
+
+**IMPORTANT**: GUS MCP calls must be sequential (never parallel). Slack calls
+can run in parallel with each other and with GitHub CLI calls.
+
+### 1a. Find the person on Slack
+
+Call `slack_search_users(query: "<person>")`.
+
+- **Single match**: store `user_id` and `display_name`.
+- **Multiple matches**: show a numbered list with name, title, and department.
+  Ask the user to pick one.
+- **No match**: try `<person>@salesforce.com` as a fallback query. If still
+  nothing, ask the user for the person's email or Slack handle.
+
+### 1b. Look up the work item
+
+**If GUS** (matches `W-\d+`):
+
+```sql
+SELECT Id, Name, Subject__c, Status__c, Priority__c,
+       RecordType.Name, Product_Tag__c,
+       Scrum_Team__r.Name, Assignee__r.Name
+FROM ADM_Work__c
+WHERE Name = '<W-number>'
+```
+
+Build the GUS URL from the `Id` field:
+```
+https://gus.lightning.force.com/lightning/r/ADM_Work__c/{Id}/view
+```
+
+**If GitHub PR** (matches `owner/repo#N` or a full GitHub URL):
+
+```bash
+gh pr view <owner/repo#N> --json title,state,author,url,labels,isDraft
+```
+
+**Not found**: report the error and stop. "W-XXXXX not found in GUS. Check the
+number?"
+
+### 1c. Resolve the channel (if provided)
+
+Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
+
+- Not found: "Can't find #channel. Send as DM to @person instead?"
+- Omitted: use the person's `user_id` as the target (DM).
+
+---
+
+## Step 2 — Format the Slack Message
+
+### Design principles
+
+- Lead with the item — bold title is the first thing they see
+- One contextual emoji max (priority-driven for GUS, none for PRs)
+- Clean metadata line using middle-dot separators
+- Link on its own line
+- Personal note in a blockquote
+
+### Priority emoji (GUS only)
+
+| Priority | Emoji |
+|----------|-------|
+| P0 | `:rotating_light:` |
+| P1 | `:warning:` |
+| P2 | `:mag:` |
+| P3+ | _(none)_ |
+
+### @mention behavior
+
+When posting to a **channel**, prefix the message with `<@USER_ID>` so the
+person gets a Slack notification. When sending a **DM**, skip the @mention
+(they'll see it directly).
+
+### Template — GUS work item
+
+Channel version (with @mention):
+```
+<@{user_id}> {priority_emoji} **{W-number}: {Subject}**
+{RecordType} · {Status} · {Priority} · {Team}
+[Open in GUS]({url})
+
+> {message}
+```
+
+DM version (no @mention):
+```
+{priority_emoji} **{W-number}: {Subject}**
+{RecordType} · {Status} · {Priority} · {Team}
+[Open in GUS]({url})
+
+> {message}
+```
+
+### Template — GitHub PR
+
+Channel version (with @mention):
+```
+<@{user_id}> **{owner/repo}#{number}: {title}**
+PR · {state}{draft_badge} · by {author}{label_badges}
+[Open on GitHub]({url})
+
+> {message}
+```
+
+DM version (no @mention):
+```
+**{owner/repo}#{number}: {title}**
+PR · {state}{draft_badge} · by {author}{label_badges}
+[Open on GitHub]({url})
+
+> {message}
+```
+
+- **Draft badge**: if the PR is a draft, append ` · _Draft_` to the metadata line.
+- **Label badges**: show up to 3 labels as inline code (e.g. `` `enhancement` ``). Skip if none.
+
+### Default messages (when the user doesn't provide one)
+
+Pick based on context:
+- GUS P0/P1: "Heads up — this could use some attention."
+- GUS general: "Hey — could use your eyes on this when you get a chance."
+- GitHub PR: "Mind taking a look when you have a minute?"
+
+---
+
+## Step 3 — Preview & Confirm
+
+Show a terminal preview card before sending:
+
+```
+  ╭──────────────────────────────────────────────╮
+  │  slack-tag                                    │
+  ╰──────────────────────────────────────────────╯
+
+  To        @{handle} ({Full Name})
+  Via       #{channel-name} (tagged)   ← or "DM" if no channel
+  Item      {W-number} — {Subject}
+
+  ── Message Preview ──────────────────────────────
+
+  {formatted slack message here}
+
+  ────────────────────────────────────────────────
+```
+
+Then ask: **"Send this?"** (yes / no / edit)
+
+- **yes** → call `slack_send_message(channel_id: "<id>", message: "<formatted>")`
+- **edit** → ask what to change, update the message, re-preview
+- **no** → abort cleanly
+
+---
+
+## Step 4 — Delivery Confirmation
+
+After a successful send, print a single confirmation line:
+
+```
+  Sent to #{channel} · @{handle} · {work-item-id}
+```
+
+---
+
+## Step 5 — Error Handling
+
+| Situation | Response |
+|-----------|----------|
+| Person not found on Slack | Try `{name}@salesforce.com`, show suggestions, ask for email |
+| Multiple Slack matches | Numbered list: name + title + department. Ask to pick. |
+| Work item not found | "{W-number} not found in GUS. Check the number?" |
+| Channel not found | "Can't find #{name}. Send as DM to @{person} instead?" |
+| Slack send fails | Show the error. Offer to retry or save as draft via `slack_send_message_draft`. |
+| GUS MCP unavailable | "GUS is unavailable right now. Try again in a moment." |
