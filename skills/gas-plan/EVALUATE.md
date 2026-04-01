@@ -46,6 +46,10 @@ Q1, Q2, Q42 are never N/A — evaluate regardless of domain triage.
 For each evaluated question, determine: **PASS** | **NEEDS_UPDATE** | **N/A**
 - If NEEDS_UPDATE: include a specific [EDIT: instruction — where to add/change and what]
 
+Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+(quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+without citing which step or section is responsible.
+
 ---
 
 ## Step 3 — Output
