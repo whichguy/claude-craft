@@ -1,9 +1,8 @@
 ---
 name: slack-tag
 description: |
-  Ping someone on Slack about a GUS work item or GitHub PR.
-  Resolves the item, finds the person, formats a rich message, previews,
-  and sends on approval.
+  Ping someone on Slack — optionally about a GUS work item or GitHub PR.
+  Resolves identifiers, formats a rich message, previews, and sends on approval.
 
   **AUTOMATICALLY INVOKE** when:
   - "tag someone on slack about"
@@ -12,18 +11,21 @@ description: |
   - "DM about this work item"
   - "post this PR to slack"
   - "let X know about W-"
+  - "ping someone on slack"
+  - "message someone on slack about"
 
-  **NOT for:** General Slack messaging, announcements, or channel summaries
-argument-hint: "<person> <work-item> [#channel] [message]"
+  **NOT for:** General Slack announcements or channel summaries
+argument-hint: "<person> [work-item] [#channel] [message]"
 allowed-tools: all
 model: sonnet
 ---
 
 # slack-tag
 
-Ping someone on Slack about a GUS work item or GitHub PR. Resolves the item,
-finds the person, formats a polished message, shows a preview, and sends on
-approval.
+Ping someone on Slack — with or without a work item. When a GUS record or
+GitHub PR is provided, resolves the item details and formats a rich message.
+Without a work item, sends a simple tagged message. Always previews before
+sending.
 
 ---
 
@@ -49,15 +51,20 @@ Stop on any failure — don't attempt partial workflows.
 Extract from the user's input (flexible — natural language is fine):
 
 - **person** (required): name, email, or `@handle`
-- **work-item** (required): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
-- **channel** (optional): `#channel-name` — if omitted, send as DM
+- **work-item** (optional): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
+- **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM
 - **message** (optional): quoted string or trailing text after the other args
+
+If no work item is provided, the message is sent as a simple ping (message only,
+no item metadata block).
 
 Examples:
 ```
 /slack-tag john.doe W-12345678
 /slack-tag @jane W-12345678 #gov-cloud-all "Needs your eyes on the P1"
 /slack-tag jane anthropics/claude-code#100 "Thoughts on this approach?"
+/slack-tag john.doe #gov-cloud-all "Hey, got a minute to chat about the deploy?"
+/slack-tag @jane "Quick question about the migration"
 ```
 
 ---
@@ -84,7 +91,9 @@ Call `slack_search_users(query: "<person>")`.
 - **No match**: try `<person>@salesforce.com` as a fallback query. If still
   nothing, ask the user for the person's email or Slack handle.
 
-### 2b. Look up the work item
+### 2b. Look up the work item (if provided)
+
+Skip this step entirely if no work item was specified — go straight to Step 2c.
 
 **If GUS** (matches `^W-[0-9]+$`):
 
@@ -190,12 +199,25 @@ PR · {state}{draft_badge} · by {author}{label_badges}
 - **Draft badge**: if the PR is a draft, append ` · _Draft_` to the metadata line.
 - **Label badges**: show up to 3 labels as inline code (e.g. `` `enhancement` ``). Skip if none.
 
+### Template — Simple message (no work item)
+
+Channel version (with @mention):
+```
+<@{user_id}> {message}
+```
+
+DM version (no @mention):
+```
+{message}
+```
+
 ### Default messages (when the user doesn't provide one)
 
 Pick based on context:
 - GUS P0/P1: "Heads up — this could use some attention."
 - GUS general: "Hey — could use your eyes on this when you get a chance."
 - GitHub PR: "Mind taking a look when you have a minute?"
+- No work item: **a message is required** — ask the user what to say.
 
 ---
 
@@ -210,7 +232,7 @@ Show a terminal preview card before sending:
 
   To        @{handle} ({Full Name})
   Via       #{channel-name} (tagged)   ← or "DM" if no channel
-  Item      {W-number} — {Subject}
+  Item      {W-number} — {Subject}     ← or omit this line if no work item
 
   ── Message Preview ──────────────────────────────
 
@@ -232,7 +254,7 @@ Then ask: **"Send this?"** (yes / no / edit)
 After a successful send, print a single confirmation line:
 
 ```
-  Sent to #{channel} · @{handle} · {work-item-id}
+  Sent to #{channel} · @{handle} · {work-item-id}     ← omit work-item-id if none
 ```
 
 ---
