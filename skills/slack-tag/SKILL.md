@@ -62,12 +62,19 @@ Examples:
 
 ---
 
-## Step 1 — Resolve Identifiers
+## Step 1 — Triage
+
+No complexity triage — all invocations follow the same inline path:
+resolve → format → preview → send. Proceed directly to Step 2.
+
+---
+
+## Step 2 — Resolve Identifiers
 
 **IMPORTANT**: GUS MCP calls must be sequential (never parallel). Slack calls
 can run in parallel with each other and with GitHub CLI calls.
 
-### 1a. Find the person on Slack
+### 2a. Find the person on Slack
 
 Call `slack_search_users(query: "<person>")`.
 
@@ -77,11 +84,11 @@ Call `slack_search_users(query: "<person>")`.
 - **No match**: try `<person>@salesforce.com` as a fallback query. If still
   nothing, ask the user for the person's email or Slack handle.
 
-### 1b. Look up the work item
+### 2b. Look up the work item
 
-**If GUS** (matches `W-\d+`):
+**If GUS** (matches `^W-[0-9]+$`):
 
-Validate format first — reject anything that doesn't match `^W-[0-9]+$`.
+Validate format — reject anything not matching this pattern.
 If invalid: "That doesn't look like a GUS work item number. Expected format: W-12345678."
 
 ```sql
@@ -106,7 +113,7 @@ gh pr view <owner/repo#N> --json title,state,author,url,labels,isDraft
 **Not found**: report the error and stop. "W-XXXXX not found in GUS. Check the
 number?"
 
-### 1c. Resolve the channel (if provided)
+### 2c. Resolve the channel (if provided)
 
 Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 
@@ -115,7 +122,7 @@ Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 
 ---
 
-## Step 2 — Format the Slack Message
+## Step 3 — Format the Slack Message
 
 ### Design principles
 
@@ -132,7 +139,7 @@ Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 | P0 | `:rotating_light:` |
 | P1 | `:warning:` |
 | P2 | `:mag:` |
-| P3+ | _(none)_ |
+| Any other | _(none)_ |
 
 ### @mention behavior
 
@@ -192,7 +199,7 @@ Pick based on context:
 
 ---
 
-## Step 3 — Preview & Confirm
+## Step 4 — Preview & Confirm
 
 Show a terminal preview card before sending:
 
@@ -220,7 +227,7 @@ Then ask: **"Send this?"** (yes / no / edit)
 
 ---
 
-## Step 4 — Delivery Confirmation
+## Step 5 — Delivery Confirmation
 
 After a successful send, print a single confirmation line:
 
@@ -230,7 +237,7 @@ After a successful send, print a single confirmation line:
 
 ---
 
-## Step 5 — Error Handling
+## Step 6 — Error Handling
 
 | Situation | Response |
 |-----------|----------|
