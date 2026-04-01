@@ -58,6 +58,13 @@ Extract from the user's input (flexible — natural language is fine):
 If no work item is provided, the message is sent as a simple ping (message only,
 no item metadata block).
 
+**Validation**: If both work-item and message are omitted, stop immediately:
+"Please provide either a work item or a message (or both)."
+
+Parse left-to-right: first token is always **person**, then look for work-item
+patterns (`W-XXXXX` or `owner/repo#N`) and channel (`#channel`) in remaining
+tokens, then treat the rest as message.
+
 Examples:
 ```
 /slack-tag john.doe W-12345678
@@ -94,6 +101,7 @@ Call `slack_search_users(query: "<person>")`.
 ### 2b. Look up the work item (if provided)
 
 Skip this step entirely if no work item was specified — go straight to Step 2c.
+(Step 3 will use the simple message template instead of the GUS/PR templates.)
 
 **If GUS** (matches `^W-[0-9]+$`):
 
