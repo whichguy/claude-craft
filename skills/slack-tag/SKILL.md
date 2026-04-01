@@ -27,6 +27,23 @@ approval.
 
 ---
 
+## Preflight — Check Prerequisites
+
+Before doing anything, verify the required tools are available:
+
+1. **Slack MCP**: Confirm `slack_search_users` is callable. If not:
+   "Slack MCP server isn't connected. Run `/mcp` to authenticate, then try again."
+
+2. **GUS MCP** (only if work item is `W-XXXXX`): Confirm `query_gus_records` is callable. If not:
+   "GUS MCP server isn't connected. Check your MCP configuration."
+
+3. **GitHub CLI** (only if work item is `owner/repo#N`): Run `gh auth status` to verify. If not authenticated:
+   "GitHub CLI isn't authenticated. Run `! gh auth login` to set up."
+
+Stop on any failure — don't attempt partial workflows.
+
+---
+
 ## Step 0 — Parse Arguments
 
 Extract from the user's input (flexible — natural language is fine):
@@ -63,6 +80,9 @@ Call `slack_search_users(query: "<person>")`.
 ### 1b. Look up the work item
 
 **If GUS** (matches `W-\d+`):
+
+Validate format first — reject anything that doesn't match `^W-[0-9]+$`.
+If invalid: "That doesn't look like a GUS work item number. Expected format: W-12345678."
 
 ```sql
 SELECT Id, Name, Subject__c, Status__c, Priority__c,
