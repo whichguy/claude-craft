@@ -15,7 +15,7 @@ description: |
   - "message someone on slack about"
 
   **NOT for:** General Slack announcements or channel summaries
-argument-hint: "<person> [work-item] [#channel] [message]"
+argument-hint: "<person> [work-item] [#channel] [url] [message]"
 allowed-tools: all
 model: sonnet
 ---
@@ -53,6 +53,7 @@ Extract from the user's input (flexible — natural language is fine):
 - **person** (required): name, email, or `@handle`
 - **work-item** (optional): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
 - **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM
+- **url** (optional): any `https://` URL — will be intelligently hyperlinked into the message
 - **message** (optional): quoted string or trailing text after the other args
 
 If no work item is provided, the message is sent as a simple ping (message only,
@@ -62,8 +63,8 @@ no item metadata block).
 "Please provide either a work item or a message (or both)."
 
 Parse left-to-right: first token is always **person**, then look for work-item
-patterns (`W-XXXXX` or `owner/repo#N`) and channel (`#channel`) in remaining
-tokens, then treat the rest as message.
+patterns (`W-XXXXX` or `owner/repo#N`), channel (`#channel`), and URL
+(`https://...`) in remaining tokens, then treat the rest as message.
 
 Examples:
 ```
@@ -72,6 +73,8 @@ Examples:
 /slack-tag jane anthropics/claude-code#100 "Thoughts on this approach?"
 /slack-tag john.doe #gov-cloud-all "Hey, got a minute to chat about the deploy?"
 /slack-tag @jane "Quick question about the migration"
+/slack-tag john.doe https://confluence.internal/pages/12345 "Check out the new design doc"
+/slack-tag @jane W-12345678 https://docs.google.com/spreadsheets/d/abc "Data is in the tracker"
 ```
 
 ---
@@ -158,6 +161,30 @@ Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 | P2 | `:mag:` |
 | Any other | _(none)_ |
 
+### URL hyperlinking (when a URL is provided)
+
+When the user provides a URL alongside a message, **do not dump the raw URL**
+into the message. Instead, intelligently hyperlink it into the message text
+using Slack's `[anchor text](url)` markdown format.
+
+**How to pick the anchor text**: Read the message and find the noun phrase that
+the URL most naturally describes. Examples:
+
+| Message | URL | Result |
+|---------|-----|--------|
+| "Check out the new design doc" | `https://confluence.internal/...` | "Check out the new [design doc](https://...)" |
+| "Data is in the tracker" | `https://docs.google.com/...` | "Data is in the [tracker](https://...)" |
+| "Here's the runbook for the migration" | `https://wiki.internal/...` | "Here's the [runbook](https://...) for the migration" |
+| "Can you review this?" | `https://github.com/org/repo/pull/42` | "Can you [review this](https://...)?" |
+| "FYI" | `https://example.com/article` | "[FYI](https://...)" (fallback: hyperlink the whole message) |
+
+**Rules**:
+- Hyperlink the most semantically relevant phrase, not the entire message
+- If no phrase is a natural fit, append the link on its own line: `[Link]({url})`
+- Never show a raw URL in the message body
+- If a work item is also present, the work item gets its own link line (as usual)
+  and the user's URL is hyperlinked into the blockquote message
+
 ### @mention behavior
 
 When posting to a **channel**, prefix the message with `<@USER_ID>` so the
@@ -219,6 +246,10 @@ DM version (no @mention):
 {message}
 ```
 
+In all templates, `{message}` means the **hyperlink-processed** message — if a
+URL was provided, the anchor text substitution has already been applied before
+the message is placed into the template.
+
 ### Default messages (when the user doesn't provide one)
 
 Pick based on context:
@@ -241,6 +272,7 @@ Show a terminal preview card before sending:
   To        @{handle} ({Full Name})
   Via       #{channel-name} (tagged)   ← or "DM" if no channel
   Item      {W-number} — {Subject}     ← or omit this line if no work item
+  Link      {url}                      ← or omit this line if no URL
 
   ── Message Preview ──────────────────────────────
 
