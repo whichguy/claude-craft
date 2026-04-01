@@ -1,7 +1,8 @@
 ---
 name: slack-tag
 description: |
-  Ping someone on Slack — optionally about a GUS work item or GitHub PR.
+  Ping someone on Slack — optionally about a GUS work item or GitHub PR,
+  with optional URL intelligently hyperlinked into the message.
   Resolves identifiers, formats a rich message, previews, and sends on approval.
 
   **AUTOMATICALLY INVOKE** when:
@@ -66,6 +67,11 @@ Parse left-to-right: first token is always **person**, then look for work-item
 patterns (`W-XXXXX` or `owner/repo#N`), channel (`#channel`), and URL
 (`https://...`) in remaining tokens, then treat the rest as message.
 
+**Parse priority**: Work-item patterns are matched before the generic URL
+parameter. Full GitHub PR URLs (`https://github.com/owner/repo/pull/N`) are
+treated as the work-item, not the URL. To reference both a PR and a separate
+link (e.g., a design doc), use shorthand for the PR: `owner/repo#N https://...`.
+
 Examples:
 ```
 /slack-tag john.doe W-12345678
@@ -75,6 +81,7 @@ Examples:
 /slack-tag @jane "Quick question about the migration"
 /slack-tag john.doe https://confluence.internal/pages/12345 "Check out the new design doc"
 /slack-tag @jane W-12345678 https://docs.google.com/spreadsheets/d/abc "Data is in the tracker"
+/slack-tag @jane anthropics/claude-code#100 https://wiki.internal/runbook "See the runbook for context"
 ```
 
 ---
@@ -180,10 +187,18 @@ the URL most naturally describes. Examples:
 
 **Rules**:
 - Hyperlink the most semantically relevant phrase, not the entire message
-- If no phrase is a natural fit, append the link on its own line: `[Link]({url})`
-- Never show a raw URL in the message body
+- If no phrase is a natural fit, append on its own line as `[View link]({url})`
+- Never show a bare URL — always wrap in `[anchor text](url)` markdown
 - If a work item is also present, the work item gets its own link line (as usual)
-  and the user's URL is hyperlinked into the blockquote message
+  and the user's URL is hyperlinked into the blockquote message:
+
+  ```
+  :warning: **W-12345678: Fix auth flow**
+  Bug · In Progress · P1 · Gov Cloud
+  [Open in GUS](https://gus.lightning.force.com/...)
+
+  > Data is in the [tracker](https://docs.google.com/spreadsheets/d/abc)
+  ```
 
 ### @mention behavior
 
@@ -272,7 +287,7 @@ Show a terminal preview card before sending:
   To        @{handle} ({Full Name})
   Via       #{channel-name} (tagged)   ← or "DM" if no channel
   Item      {W-number} — {Subject}     ← or omit this line if no work item
-  Link      {url}                      ← or omit this line if no URL
+  Ref       {url}                      ← omit if no user-provided URL
 
   ── Message Preview ──────────────────────────────
 
