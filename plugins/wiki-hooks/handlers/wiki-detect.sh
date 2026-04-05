@@ -2,7 +2,9 @@
 # SessionStart: inject project wiki context + surface raw/ files + global cross-refs
 # Pattern: fast check → build rich hint → output systemMessage
 
-set -euo pipefail
+# SAFETY: Never exit non-zero — a failing SessionStart hook should not block session init.
+# No set -e. Use || true on individual commands. Trap guarantees exit 0.
+trap 'exit 0' ERR
 command -v jq >/dev/null 2>&1 || exit 0
 
 HOOK_INPUT=$(cat)
