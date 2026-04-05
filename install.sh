@@ -79,6 +79,19 @@ install_settings_hooks() {
        "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
 
     echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hooks (PreToolUse + PostToolUse)${NC}"
+
+    # Wiki hooks: register 4 handlers in settings.json (plugin auto-discovery unreliable for local plugins)
+    if jq -e '.hooks.SessionStart[]? | select(.hooks[]?.command | contains("wiki-detect"))' "$settings_file" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Wiki hooks already installed${NC}"
+    else
+        jq '
+          .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-detect.sh","timeout":5}]}]) |
+          .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Write|Edit","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-raw-guard.sh","timeout":2}]}]) |
+          .hooks.PreCompact = ((.hooks.PreCompact // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-precompact.sh","timeout":5}]}]) |
+          .hooks.Stop = ((.hooks.Stop // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-stop.sh","timeout":15,"async":true}]}])
+        ' "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
+        echo -e "${GREEN}✅ Installed wiki hooks (SessionStart, PreToolUse, PreCompact, Stop)${NC}"
+    fi
 }
 
 # Main installation
