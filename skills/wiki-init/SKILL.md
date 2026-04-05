@@ -78,147 +78,52 @@ Valid types: INIT, INGEST, QUERY, LINT, SESSION_START, SESSION_END, EXTRACT
 
 ## Step 5 — Write wiki/SCHEMA.md
 
-Write `REPO_ROOT/WIKI_DIR/SCHEMA.md` with the following content:
+Write `REPO_ROOT/WIKI_DIR/SCHEMA.md` with the following token-compact content (~183 tokens vs ~945 in verbose format):
 
+```
 ---
 schema_version: 1
 ---
-
 # Wiki Schema v1
 
-This wiki is maintained by Claude Code. Any LLM reading this file should follow
-these conventions when creating, updating, or querying wiki pages.
-
-## Directory Structure
-
-```
-wiki/
-├── index.md           ← Master catalog (read this first for any wiki operation)
-├── log.md             ← Append-only event log (never delete or reorder entries)
-├── SCHEMA.md          ← This file
-├── sources/           ← One page per ingested source
-├── entities/          ← One page per named concept, person, system, or term
-├── queries/           ← Saved query results (written by /wiki-query --save)
-└── maintenance/       ← Lint reports (written by /wiki-lint)
-
-raw/                   ← IMMUTABLE LLM-write-protected source files.
-                          Drop files here manually. Never write programmatically.
-```
-
-Two-tier system:
-- This wiki = project-scoped, manually curated via /wiki-ingest
-- `~/.claude/wiki/topics/` = global, auto-written by reflect pipeline (Sonnet)
-- Use `/wiki-load <topic>` to search both tiers
+Dirs: wiki/{entities,sources,queries,maintenance}, raw/ (LLM-write-protected, hook enforced)
+Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches both tiers
 
 ## Page Formats
 
-### Source Page (wiki/sources/SLUG.md)
+**Source** (sources/SLUG.md):
+  # Title
+  TYPE | DATE | URL-or-path | Ingested: DATE
+  Summary (3-5 paragraphs). Concepts (bulleted key:description). Relevance (1-2 sentences).
+  → Related: entity-links
 
-```markdown
-# [Document Title]
+**Entity** (entities/SLUG.md):
+  # Entity Name
+  Overview (2-3 sentences).
+  - **From [Source]:** 2-3 sentences per source (bullet list, NOT separate ## headers — saves tokens)
+  → See also: related-entity-links
 
-**Source:** [URL or file path]  
-**Date:** [YYYY-MM-DD]  
-**Type:** article | paper | doc | book | code | other  
-**Ingested:** [YYYY-MM-DD]  
+**Query** (queries/SLUG.md):
+  # Query: Question
+  Asked: DATE | Pages: slug-list
+  Answer with citations. Evidence bullets. Gaps section.
 
-## Summary
+## Rules
+1. Never write raw/ (hook blocks it)
+2. Always update index.md after wiki changes
+3. Always append log.md after ingest/query/lint
+4. Entity pages: add "- **From [Source]:**" bullet — never overwrite existing entries
+5. Cross-link entities. Prefer update over create. Lint before bulk ops.
 
-[3-5 paragraph summary]
+## Formats
+Log: `[YYYY-MM-DD HH:MM] TYPE detail` (INIT,INGEST,QUERY,LINT,SESSION_START,SESSION_END,EXTRACT)
+Log rotation: >500 entries → /wiki-lint suggests archive
+Index: `| page-path | summary | YYYY-MM-DD |` — every page gets a row, never remove rows
+Slugs: lowercase, hyphens, max 50 chars
 
-## Key Concepts
-
-- [Concept]: [one-line description]
-
-## Relevance
-
-[1-2 sentences on how this applies to this repo]
-
----
-→ **Related:** [links to entity pages]
+## Notes
+Entity extraction is LLM judgment (intentional). Concurrent ingests may race on index.md (accepted).
 ```
-
-### Entity Page (wiki/entities/SLUG.md)
-
-```markdown
-# [Entity Name]
-
-## Overview
-
-[2-3 sentence definition]
-
-## From [Source Title]
-
-[2-3 sentences from this source's perspective]
-
----
-→ **See also:** [related entity links]
-```
-
-### Query Page (wiki/queries/SLUG.md)
-
-```markdown
-# Query: [Question Text]
-
-**Asked:** [YYYY-MM-DD]  
-**Pages consulted:** [comma-separated slugs]  
-
-## Answer
-
-[Synthesized answer with inline citations]
-
-### Evidence
-- [point] ([source page](../sources/slug.md))
-
-### Gaps
-
-[What the wiki lacks on this topic]
-```
-
-## Log Format
-
-Single line per entry:
-```
-[YYYY-MM-DD HH:MM] TYPE detail
-```
-
-Log rotation: when log.md exceeds 500 entries, /wiki-lint will suggest archiving to
-`wiki/log-archive-YYYY.md`.
-
-## Index Format
-
-Markdown table under `## Pages`:
-```
-| Page | Summary | Last Updated |
-|------|---------|--------------|
-| [sources/slug.md](sources/slug.md) | One-line summary | YYYY-MM-DD |
-```
-
-Rules:
-- Every wiki page (except index.md, log.md, SCHEMA.md) must have a row
-- Add rows on ingest. Update `Last Updated` on modification. Never remove rows.
-
-## LLM Maintenance Rules
-
-1. **Never write to `raw/`** — immutable, LLM-write-protected (hook enforces this)
-2. **Always update `wiki/index.md`** after creating/modifying any wiki page
-3. **Always append to `wiki/log.md`** after ingest, query, or lint
-4. **Entity pages**: add `## From [Source]` subsection — never overwrite existing sections
-5. **Cross-links**: every entity page should link to related entities
-6. **Prefer update over create**: check index.md first, append before creating
-7. **Lint before bulk maintenance**: run /wiki-lint before major reorganization
-8. **Entity extraction** is LLM judgment (intentional — semantic variation enriches the wiki)
-
-## Concurrency Note
-
-`log.md` appends using `>>` are POSIX-atomic for single-line writes (<4KB).
-Concurrent /wiki-ingest calls from multiple sessions may race on `index.md` updates.
-This is an accepted limitation for developer-local use — avoid running two ingests simultaneously.
-
-## Slug Convention
-
-Derive from title: lowercase, replace spaces/special chars with hyphens, truncate at 50 chars.
-Example: "Attention Is All You Need" → `attention-is-all-you-need`
 
 ---
 

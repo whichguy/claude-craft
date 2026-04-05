@@ -70,24 +70,16 @@ Agent(
        - SOURCE_TYPE: article | paper | doc | book | code | other
        - SLUG: SOURCE_TITLE lowercased, spaces→hyphens, truncated at 50 chars
 
-    3. Write WIKI_DIR/sources/SLUG.md:
+    3. Write WIKI_DIR/sources/SLUG.md (compact format — ~46% fewer tokens):
        # SOURCE_TITLE
-       **Source:** SOURCE
-       **Date:** SOURCE_DATE
-       **Type:** SOURCE_TYPE
-       **Ingested:** TODAY
+       SOURCE_TYPE | SOURCE_DATE | SOURCE | Ingested: TODAY
 
-       ## Summary
        [3-5 paragraph summary]
 
-       ## Key Concepts
-       [bulleted list of entities/concepts with one-line descriptions]
+       **Concepts:** [inline bulleted list — Concept (brief description), ...]
 
-       ## Relevance
-       [1-2 sentences on how this applies to this specific repository]
-
-       ---
-       → **Related:** [links to entity pages if any]
+       **Relevance:** [1-2 sentences on how this applies to this repo]
+       → Related: entity-slug-links
 
     4. For up to 5 entities from Key Concepts:
        Entity selection criteria (must meet ≥2):
@@ -99,19 +91,17 @@ Agent(
        For each entity:
        - ENTITY_SLUG = entity name lowercased, hyphens, max 50 chars
        - If WIKI_DIR/entities/ENTITY_SLUG.md exists:
-           Check if "## From SOURCE_TITLE" heading already present (idempotency).
-           If absent: Edit to append:
-           ## From SOURCE_TITLE
-           [2-3 sentences from this source's perspective]
-       - If new entity:
+           Check if "**From SOURCE_TITLE:**" already present (idempotency).
+           If absent: Edit to append a bullet under existing entries:
+           - **From SOURCE_TITLE:** [2-3 sentences from this source's perspective]
+       - If new entity (use compact format — ~46% fewer tokens than verbose):
            Write WIKI_DIR/entities/ENTITY_SLUG.md:
            # Entity Name
-           ## Overview
-           [2-3 sentence definition]
-           ## From SOURCE_TITLE
-           [2-3 sentences]
-           ---
-           → **See also:** [related entity links if any]
+           [2-3 sentence overview/definition]
+
+           - **From SOURCE_TITLE:** [2-3 sentences from this source's perspective]
+
+           → See also: related-entity-slugs
 
     5. Update WIKI_DIR/index.md:
        Check for existing row by page path (idempotency).

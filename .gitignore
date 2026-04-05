@@ -6,3 +6,13 @@ setup/
 # Runtime state — generated, not source
 docs/planning/
 plugins/reflection-system/state/
+# Wiki runtime content (created by /wiki-init, not tracked)
+wiki/index.md
+wiki/log.md
+wiki/entities/
+wiki/sources/
+wiki/queries/
+wiki/maintenance/
+wiki/.session-*
+raw/
+!wiki/SCHEMA.md
