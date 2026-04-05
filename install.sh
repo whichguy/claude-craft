@@ -88,9 +88,10 @@ install_settings_hooks() {
           .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-detect.sh","timeout":5}]}]) |
           .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Write|Edit","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-raw-guard.sh","timeout":2}]}]) |
           .hooks.PreCompact = ((.hooks.PreCompact // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-precompact.sh","timeout":5}]}]) |
-          .hooks.Stop = ((.hooks.Stop // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-stop.sh","timeout":15,"async":true}]}])
+          .hooks.Stop = ((.hooks.Stop // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-stop.sh","timeout":15,"async":true}]}]) |
+          .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-session-end.sh","timeout":5}]}])
         ' "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
-        echo -e "${GREEN}✅ Installed wiki hooks (SessionStart, PreToolUse, PreCompact, Stop)${NC}"
+        echo -e "${GREEN}✅ Installed wiki hooks (SessionStart, PreToolUse, PreCompact, Stop, SessionEnd)${NC}"
     fi
 }
 

@@ -17,8 +17,15 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 SKILLS_DIR="$HOME/claude-craft/skills"
 COMMANDS_DIR="$HOME/claude-craft/commands"
 AGENTS_DIR="$HOME/claude-craft/agents"
-STATE_DIR="$HOME/.claude/plugins/reflection-system/state"
+STATE_DIR="$HOME/.claude/plugins/craft-hooks/state"
 STATE_FILE="$STATE_DIR/notification-state.json"
+
+# Self-healing: migrate state from old reflection-system path if it exists
+OLD_STATE="$HOME/.claude/plugins/reflection-system/state/notification-state.json"
+if [ ! -f "$STATE_FILE" ] && [ -f "$OLD_STATE" ]; then
+  mkdir -p "$STATE_DIR"
+  cp "$OLD_STATE" "$STATE_FILE" 2>/dev/null || true
+fi
 
 # Dependency check: jq required for JSON processing
 if ! command -v jq >/dev/null 2>&1; then

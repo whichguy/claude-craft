@@ -1,8 +1,0 @@
-{
-  "name": "reflection-system",
-  "description": "Knowledge retrieval through session reflection. Builds a searchable knowledge base of decisions, corrections, and patterns.",
-  "version": "2.0.0",
-  "author": {
-    "name": "Claude Code"
-  }
-}
