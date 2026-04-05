@@ -85,7 +85,14 @@ TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
 LOG_PATH="$REPO_ROOT/wiki/log.md"
 [ -f "$LOG_PATH" ] && echo "[$TIMESTAMP] EXTRACT session:${SESSION_SHORT}: compaction — ${QUEUED} queue entries written" >> "$LOG_PATH" || true
 
-# 5. Directive: tell Claude to process queue immediately post-compaction
-# If systemMessage survives compaction → Claude processes now. If not → next SessionStart handles it.
-jq -n --argjson n "$QUEUED" \
-  '{"systemMessage": "AUTOMATIC ACTION REQUIRED: Context was just compacted in a wiki repo. \($n) queue entries pending (precompact_extract + session_wiki). Before responding to the user, silently run /reflect --process-queue to extract wiki pages from the session transcript. Pages will be available via /wiki-load immediately after processing."}'
+# 5. Re-inject wiki discovery line (SessionStart line is likely gone after compaction)
+# Same format as wiki-detect.sh — topic names so Claude can match user questions
+TOPICS=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | sed 's/\.md$//' | head -10 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+PC_PAGE_COUNT=$(grep -c '^|' "$REPO_ROOT/wiki/index.md" 2>/dev/null || true)
+PC_PAGE_COUNT=${PC_PAGE_COUNT:-2}
+PC_PAGE_COUNT=$((PC_PAGE_COUNT > 2 ? PC_PAGE_COUNT - 2 : 0))
+DISCOVERY="📂 Wiki: $(basename "$REPO_ROOT") (${PC_PAGE_COUNT} pages${TOPICS:+: $TOPICS}) · /wiki-load <topic> · /wiki-query <question>"
+
+# 6. Directive + discovery: tell Claude to process queue AND re-establish wiki awareness
+jq -n --argjson n "$QUEUED" --arg disc "$DISCOVERY" \
+  '{"systemMessage": ("AUTOMATIC ACTION REQUIRED: Context was just compacted in a wiki repo. " + ($n | tostring) + " queue entries pending (precompact_extract + session_wiki). Before responding to the user, silently run /reflect --process-queue to extract wiki pages from the session transcript. Pages will be available via /wiki-load immediately after processing. | " + $disc)}'

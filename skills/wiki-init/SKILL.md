@@ -129,7 +129,26 @@ Entity extraction is LLM judgment (intentional). Concurrent ingests may race on 
 
 (End of SCHEMA.md content)
 
-## Step 6 — Print Summary
+## Step 6 — Append Wiki Directive to CLAUDE.md
+
+Check if `REPO_ROOT/CLAUDE.md` exists.
+
+If it exists: check if `## Wiki` heading is already present (idempotency guard via grep).
+If the heading is absent, append the directive block below.
+If it doesn't exist: create the file with just the wiki section.
+
+**Directive to append** (~30 tokens — behavioral backstop for 70% skill ignore rate):
+
+```markdown
+
+## Wiki
+WIKI: /wiki-load before answering project-domain questions. /wiki-query for synthesis.
+```
+
+This is the behavioral directive. The SessionStart hook provides topic-level awareness
+(WHAT topics exist); this CLAUDE.md line tells Claude to actually USE the wiki (WHEN to check).
+
+## Step 7 — Print Summary
 
 Print a rich summary using the output-format.md character vocabulary:
 
@@ -155,4 +174,5 @@ Print a rich summary using the output-format.md character vocabulary:
   ▸ /wiki-lint                  health check
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   ◉ SessionStart hook active — wiki auto-injected on every future session
+  ◉ CLAUDE.md updated — wiki directive ensures Claude checks wiki before answering
 ```
