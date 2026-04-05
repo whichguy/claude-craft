@@ -75,5 +75,26 @@ If `SAVE` is true:
 
 ## Step 7 — Print Answer
 
-Print the answer with citations.
-If `--save`: also print "📝 Saved to wiki/queries/SLUG.md"
+Print the answer using rich output formatting:
+
+```
+╔═══════════════════════════════════════╗
+║  🔎 wiki-query                        ║
+╚═══════════════════════════════════════╝
+
+## Answer
+
+[Direct answer — 1-3 sentences]
+
+  Evidence ([N] pages consulted)
+  ├─ [point] — sources/page-name.md
+  ├─ [point] — entities/entity-name.md
+  └─ [point] — sources/other-page.md
+
+  [If gaps exist:]
+  ⚠ Gaps
+  └─ [What the wiki doesn't cover — suggest /wiki-ingest targets]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [N] pages consulted | [if --save: 📝 Saved to queries/SLUG.md]
+```

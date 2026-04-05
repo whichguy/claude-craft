@@ -67,40 +67,36 @@ Collect MISSING_CONCEPTS.
 Count entries in `WIKI_DIR/log.md`.
 If count > 500: add suggestion to archive: "Log has N entries (>500) — consider archiving old entries to wiki/log-archive-YYYY.md"
 
-## Step 8 — Write Report
+## Step 8 — Write Report + Print Dashboard
 
-Write `REPORT_PATH`:
+Write `REPORT_PATH` with the full detailed report (markdown format for Obsidian readability).
 
-```markdown
-# Wiki Lint Report — TODAY
+Then print a **terminal dashboard** to the user:
 
-## Summary
-| Check | Count |
-|-------|-------|
-| Orphan pages | N |
-| Broken links | N |
-| Contradictions | N |
-| Stale pages (>180d) | N |
-| Missing concept pages | N |
-
-## Orphan Pages
-[list with paths]
-
-## Broken Links
-[list: page → link text → broken target]
-
-## Contradictions
-[list: entity, claim A (source), claim B (source)]
-
-## Stale Pages
-[list: path, last updated]
-
-## Missing Concepts
-[list: term, frequency, pages where it appears]
-
-## Recommended Actions
-[Prioritized: fix broken links → create missing concept pages → review contradictions → triage orphans]
 ```
+╔═══════════════════════════════════════╗
+║  🔍 Wiki Lint — [repo name]           ║
+║  Pages: [N] | Date: TODAY             ║
+╚═══════════════════════════════════════╝
+
+  Health Checks
+  ┌─ Orphan pages        [✓ 0 | ⚠ N found]
+  ├─ Broken links        [✓ 0 | ✗ N broken]
+  ├─ Contradictions      [✓ 0 | ⚠ N flagged]
+  ├─ Stale pages (>180d) [✓ 0 | ⚠ N stale]
+  ├─ Missing concepts    [✓ 0 | ▸ N suggested]
+  └─ Log rotation        [✓ OK | ⚠ N entries > 500]
+
+  [If any issues found, list top 3 most actionable:]
+  ━━━ Top Actions ━━━━━━━━━━━━━━━━━━━━━
+    1. [action — e.g., "Fix 2 broken links in entities/"]
+    2. [action — e.g., "Create entity page for 'attention' (mentioned 5×)"]
+    3. [action — e.g., "Review contradiction in transformer-architecture.md"]
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Report: maintenance/lint-TODAY.md
+```
+
+Use `✓` for clean checks, `✗` for critical issues (broken links), `⚠` for warnings, `▸` for suggestions.
 
 ## Step 9 — Update Index and Log
 

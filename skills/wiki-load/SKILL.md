@@ -53,17 +53,34 @@ Read each matched page in full (max 7 pages total: up to 5 project + 2 global).
 
 ## Step 4 — Present Loaded Context
 
-Print:
+Print using the output-format character vocabulary:
+
 ```
-📚 Loaded [N] pages for '[TOPIC]':
-  Project wiki ([M] pages): [page names]
-  Global wiki ([K] pages): [topic names]
+╔═══════════════════════════════════════╗
+║  📚 wiki-load — [TOPIC]               ║
+╚═══════════════════════════════════════╝
+
+  Project wiki ([M] pages)
+  ├─ 🏠 entities/[slug].md    [first line of overview]
+  ├─ 🏠 entities/[slug].md    [first line of overview]
+  └─ 🏠 sources/[slug].md     [first line of summary]
+
+  Global wiki ([K] topics)
+  ├─ 🌐 topics/[slug].md      [first line of summary]
+  └─ 🌐 topics/[slug].md      [first line of summary]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  [N] pages loaded | /wiki-query for synthesis
 ```
 
+After the summary, print each page's full content (this is the actual context injection).
+
 If no matches in either tier:
-Print: "No wiki pages found for '[TOPIC]'.
-  To add: /wiki-ingest <source-about-TOPIC>
-  Global knowledge is auto-added after sessions where TOPIC is discussed."
+```
+  ⚠ No wiki pages found for '[TOPIC]'
+  ▸ /wiki-ingest <source>  to add project knowledge
+  ◉ Global topics auto-added after sessions discussing [TOPIC]
+```
 
 ## Notes
 

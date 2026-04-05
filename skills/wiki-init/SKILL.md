@@ -131,26 +131,28 @@ Entity extraction is LLM judgment (intentional). Concurrent ingests may race on 
 
 ## Step 6 — Print Summary
 
-Print a summary tree:
+Print a rich summary using the output-format.md character vocabulary:
 
 ```
-✓ Wiki initialized at WIKI_DIR/
-  ├─ index.md       master catalog
-  ├─ log.md         event log
-  ├─ SCHEMA.md      conventions
-  ├─ entities/      concept pages
-  ├─ sources/       ingested docs
-  ├─ queries/       saved results
-  └─ maintenance/   lint reports
+╔═══════════════════════════════════════╗
+║  📂 Wiki Initialized — [repo name]    ║
+╚═══════════════════════════════════════╝
 
-raw/                drop source files here (immutable)
+  ├─ wiki/
+  │  ├─ index.md       master catalog
+  │  ├─ log.md         event log
+  │  ├─ SCHEMA.md      conventions (~183 tokens)
+  │  ├─ entities/      concept pages
+  │  ├─ sources/       ingested docs
+  │  ├─ queries/       saved results
+  │  └─ maintenance/   lint reports
+  └─ raw/              drop sources here (LLM-write-protected)
 
-Next steps:
-  /wiki-ingest <file-or-url>  — add knowledge sources
-  /wiki-query <question>      — synthesize answers
-  /wiki-load <topic>          — load context for a topic
-  /wiki-lint                  — health check
-
-The SessionStart hook will now auto-inject this wiki's index
-into every future session in this repo.
+━━━ Next Steps ━━━━━━━━━━━━━━━━━━━━━━━
+  ▸ /wiki-ingest <file-or-url>  add knowledge (runs async)
+  ▸ /wiki-query <question>      synthesize answers
+  ▸ /wiki-load <topic>          JIT context from both tiers
+  ▸ /wiki-lint                  health check
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ◉ SessionStart hook active — wiki auto-injected on every future session
 ```
