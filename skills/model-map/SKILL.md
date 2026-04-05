@@ -102,12 +102,15 @@ if that section is empty (don't show an empty table).
 
 **Providers section** (only if `.providers` has entries):
 ```
-Providers (use with: claude-route <model>)
-  ┌──────────────┬───────────────────────────┐
-  │ Model        │ Endpoint                  │
-  ├──────────────┼───────────────────────────┤
-  │ gemma4:26b   │ http://localhost:11434     │
-  └──────────────┴───────────────────────────┘
+Providers (use with: claude-router --model <name>)
+  ┌──────────────────┬───────────────────────────┬──────────┐
+  │ Model            │ Endpoint                  │ Type     │
+  ├──────────────────┼───────────────────────────┼──────────┤
+  │ gemma4:26b       │ http://localhost:11434     │ ollama   │
+  │ bedrock-opus     │ (via AWS Bedrock)          │ bedrock  │
+  │ vertex-sonnet    │ (via GCP Vertex)           │ vertex   │
+  │ openrouter-opus  │ openrouter.ai/api/v1      │ web      │
+  └──────────────────┴───────────────────────────┴──────────┘
 ```
 
 **Status line logic:**
@@ -154,15 +157,50 @@ Then show the updated config.
 
 ### provider <model> <base_url>
 
-Add or update a provider config with sensible defaults for Ollama:
+Add or update a provider. Detects provider type from the base_url or explicit `--type` flag:
+
+**Ollama** (default for localhost URLs):
 ```bash
 jq --arg m "<model>" --arg url "<base_url>" \
   '.providers[$m] = {"base_url": $url, "auth_token": "ollama", "api_key": "", "config_dir": "$HOME/.claude-ollama", "disable_nonessential_traffic": true}' \
   "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
 ```
 
-Print: `Added provider: <model> → <base_url>`
-Print: `Launch with: claude-route <model>`
+**Bedrock** (`/model-map provider <name> --bedrock --region us-west-2`):
+```bash
+jq --arg m "<name>" --arg region "<region>" \
+  '.providers[$m] = {"env": {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": $region}}' \
+  "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+```
+Optionally add `AWS_PROFILE` to the `env` block. AWS credentials must be configured separately
+(via `aws configure`, env vars, or IAM role). The model name passed to `claude-router --model`
+should be a Bedrock model ID like `anthropic.claude-sonnet-4-6-20250514-v1:0`.
+
+**Vertex** (`/model-map provider <name> --vertex --region us-east5 --project my-project`):
+```bash
+jq --arg m "<name>" --arg region "<region>" --arg project "<project>" \
+  '.providers[$m] = {"env": {"CLAUDE_CODE_USE_VERTEX": "1", "CLOUD_ML_REGION": $region, "ANTHROPIC_VERTEX_PROJECT_ID": $project}}' \
+  "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+```
+GCP auth must be configured separately (`gcloud auth application-default login`).
+
+**Web API** (`/model-map provider <name> <base_url> --api-key <key>`):
+```bash
+jq --arg m "<name>" --arg url "<base_url>" --arg key "<api_key>" \
+  '.providers[$m] = {"base_url": $url, "api_key": $key}' \
+  "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+```
+Works with OpenRouter (`https://openrouter.ai/api/v1`), LiteLLM, or any Anthropic-compatible endpoint.
+
+**Generic env** (`/model-map provider <name> --env KEY=VALUE ...`):
+For any provider not covered above, set arbitrary env vars:
+```bash
+jq --arg m "<name>" '.providers[$m] = {"env": {<key-value pairs>}}' \
+  "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+```
+
+Print: `Added provider: <model>`
+Print: `Launch with: claude-router --model <model>`
 Then show the updated config.
 
 ### provider <model> --remove

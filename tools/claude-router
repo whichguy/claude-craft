@@ -1,0 +1,125 @@
+#!/bin/bash
+# claude-router — route Claude Code to any model provider
+# Provider lookup: 1) model-map.json providers  2) local Ollama auto-detect  3) Anthropic passthrough
+# Supports: Ollama (local), OpenRouter, LiteLLM, Bedrock, Vertex, any custom endpoint.
+# All args pass through to claude unchanged.
+#
+# Usage: claude-router --model gemma4:26b          — Ollama (auto-detected)
+#        claude-router --model bedrock-opus        — Bedrock (from model-map.json)
+#        claude-router --model opus                — Anthropic (passthrough)
+#        claude-router --model gemma4:26b -p .      — provider config + pass -p to claude
+#        claude-router --list                       — show all available models
+#        claude-router                              — show help + available models
+set -eo pipefail
+
+CONFIG="$HOME/.claude/model-map.json"
+OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
+
+[[ -f "$CONFIG" ]] && chmod 600 "$CONFIG" 2>/dev/null
+
+# --- Show available models from all sources ---
+show_models() {
+  # Configured providers
+  if [[ -f "$CONFIG" ]] && jq -e '.providers | length > 0' "$CONFIG" >/dev/null 2>&1; then
+    echo "Configured providers (model-map.json):"
+    jq -r '.providers | to_entries[] | "  \(.key)  →  \(.value.base_url // (.value.env | to_entries[0] | "\(.key)=\(.value)") // "custom")"' "$CONFIG" 2>/dev/null
+    echo ""
+  fi
+
+  # Local Ollama
+  local ollama_models
+  ollama_models=$(curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -r '.models[].name' 2>/dev/null)
+  if [[ -n "$ollama_models" ]]; then
+    echo "Local Ollama ($OLLAMA_URL):"
+    echo "$ollama_models" | while read -r m; do
+      if [[ -f "$CONFIG" ]] && jq -e --arg m "$m" '.providers[$m]' "$CONFIG" >/dev/null 2>&1; then
+        echo "  $m  (custom config)"
+      else
+        echo "  $m"
+      fi
+    done
+    echo ""
+  fi
+
+  echo "Any other model name passes through to Anthropic (default)."
+}
+
+# --- Help / no args ---
+if [[ $# -eq 0 ]]; then
+  echo "Usage: claude-router --model <model> [claude args...]"
+  echo "       claude-router --list"
+  echo ""
+  echo "Routes Claude Code to the right provider for any model."
+  echo "Priority: configured providers → local Ollama → Anthropic (default)"
+  echo ""
+  show_models
+  exit 1
+fi
+
+if [[ "$1" == "--list" ]]; then
+  show_models
+  exit 0
+fi
+
+# --- Extract model from args (peek — don't consume) ---
+MODEL=""
+prev=""
+for arg in "$@"; do
+  if [[ "$prev" == "--model" ]]; then
+    MODEL="$arg"; break
+  fi
+  if [[ "$arg" == --model=* ]]; then
+    MODEL="${arg#--model=}"; break
+  fi
+  prev="$arg"
+done
+
+if [[ -z "$MODEL" ]]; then
+  echo "Error: --model <model> is required"
+  echo "Usage: claude-router --model <model> [claude args...]"
+  exit 1
+fi
+
+# --- Provider lookup chain ---
+PROVIDER=""
+if [[ -f "$CONFIG" ]]; then
+  PROVIDER=$(jq -r --arg m "$MODEL" '.providers[$m] // empty' "$CONFIG" 2>/dev/null)
+fi
+
+if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
+  # 1) Explicit provider config from model-map.json (any provider: Ollama, OpenRouter, custom)
+  BASE_URL=$(echo "$PROVIDER" | jq -r '.base_url // empty')
+  AUTH_TOKEN=$(echo "$PROVIDER" | jq -r '.auth_token // empty')
+  CONFIG_DIR=$(echo "$PROVIDER" | jq -r '.config_dir // empty')
+  DISABLE_TRAFFIC=$(echo "$PROVIDER" | jq -r '.disable_nonessential_traffic // false')
+
+  [[ -n "$BASE_URL" ]] && export ANTHROPIC_BASE_URL="$BASE_URL"
+  [[ -n "$AUTH_TOKEN" ]] && export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
+  if echo "$PROVIDER" | jq -e 'has("api_key")' >/dev/null 2>&1; then
+    export ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+  fi
+  [[ -n "$CONFIG_DIR" ]] && export CLAUDE_CONFIG_DIR="${CONFIG_DIR//\$HOME/$HOME}"
+  [[ "$DISABLE_TRAFFIC" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
+  # Generic env block — supports Bedrock, Vertex, or any custom env vars
+  ENV_KEYS=$(echo "$PROVIDER" | jq -r '.env // {} | keys[]' 2>/dev/null)
+  if [[ -n "$ENV_KEYS" ]]; then
+    while IFS= read -r key; do
+      val=$(echo "$PROVIDER" | jq -r --arg k "$key" '.env[$k]' 2>/dev/null)
+      export "$key=$val"
+    done <<< "$ENV_KEYS"
+  fi
+
+elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
+  # 2) Auto-detected in local Ollama — apply defaults
+  export ANTHROPIC_BASE_URL="$OLLAMA_URL"
+  export ANTHROPIC_AUTH_TOKEN="ollama"
+  export ANTHROPIC_API_KEY=""
+  export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+fi
+
+# 3) No match = Anthropic passthrough (no env vars set, claude uses its defaults)
+
+# Pass ALL original args through to claude unchanged
+exec claude "$@"
