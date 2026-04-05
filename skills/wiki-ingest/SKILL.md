@@ -131,9 +131,12 @@ Agent(
 
 ## Step 5 — Handle Failure
 
-If the background agent returns an error or reports 0 pages written:
+If `--interactive` mode is active (foreground agent) and the agent returns an error or reports 0 pages written:
 Print: "⚠️ Ingest failed for [SOURCE]: [error]. Try /wiki-ingest again or check the source."
-Never fail silently.
+
+For background (async) mode: monitor is not possible post-spawn. The agent logs its result
+to `WIKI_DIR/log.md` on completion. The session-start hook will surface any failed queue
+entries at the next session start.
 
 ## Step 6 — Interactive Mode
 

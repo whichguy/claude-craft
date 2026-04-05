@@ -65,7 +65,7 @@ if [[ -n "$CWD" ]]; then
         # Avoid duplicates (same topic in both dirs)
         [[ "$RELEVANT_TOPICS" == *"$TOPIC_NAME"* ]] && continue
         RELEVANT_TOPICS="${RELEVANT_TOPICS}${TOPIC_NAME}, "
-      done < <(grep -rl "$PROJECT_NAME" "$TOPIC_SEARCH_DIR/" 2>/dev/null | head -3)
+      done < <(grep -rFl "$PROJECT_NAME" "$TOPIC_SEARCH_DIR/" 2>/dev/null | head -3)
     done
 
     if [[ -n "$RELEVANT_TOPICS" ]]; then

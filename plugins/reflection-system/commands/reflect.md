@@ -332,7 +332,7 @@ Commands:
 ## Security
 
 When reading session JSONL files for summarization:
-- The Haiku subagent prompt explicitly instructs not to include credentials
+- The Sonnet subagent prompt explicitly instructs not to include credentials
 - Session summaries should contain behavioral patterns, not raw data
 - If a summary contains obvious credential patterns (sk-, Bearer, etc.), warn the user
 

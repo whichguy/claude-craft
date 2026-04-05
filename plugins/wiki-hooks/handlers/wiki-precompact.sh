@@ -13,7 +13,7 @@ CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [ -z "$CWD" ] && exit 0
 
 REPO_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
-[ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/wiki/index.md" ] && exit 0
+{ [ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/wiki/index.md" ]; } && exit 0
 
 SID=$(echo "$HOOK_INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null || echo "unknown")
 TRANSCRIPT=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)

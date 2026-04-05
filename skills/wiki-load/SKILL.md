@@ -49,7 +49,7 @@ Grep for TOPIC across both directories. Select up to 2 best matches.
 
 ## Step 3 — Read Pages
 
-Read each matched page in full (max 5 pages total: up to 3 project + 2 global).
+Read each matched page in full (max 7 pages total: up to 5 project + 2 global).
 
 ## Step 4 — Present Loaded Context
 

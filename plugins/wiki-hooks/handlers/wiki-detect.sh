@@ -10,7 +10,7 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 [ -n "$AGENT_ID" ] && exit 0  # Subagents inherit parent context
 
 CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
-[ -z "$CWD" ] || [[ "$CWD" != /* ]] && exit 0
+{ [ -z "$CWD" ] || [[ "$CWD" != /* ]]; } && exit 0
 [ "${#CWD}" -gt 4096 ] && exit 0
 
 REPO_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
@@ -42,9 +42,9 @@ STALE=""
 [ "$ACTUAL" -gt 0 ] && DIFF=$((PAGE_COUNT > ACTUAL ? PAGE_COUNT - ACTUAL : ACTUAL - PAGE_COUNT)) && \
   [ "$DIFF" -gt 3 ] && STALE="⚠️ Index may be stale (${PAGE_COUNT} indexed, ${ACTUAL} files)"$'\n'
 
-# Surface unprocessed raw/ files
+# Surface unprocessed raw/ files (raw/ lives at repo root, not inside wiki/)
 RAW_COUNT=$(find "$REPO_ROOT/raw" -type f 2>/dev/null | wc -l | tr -d ' ')
-RAW_INDEXED=$(grep -c 'raw/' "$INDEX_PATH" 2>/dev/null || echo "0")
+RAW_INDEXED=$(grep -c '^| \[sources/' "$INDEX_PATH" 2>/dev/null || echo "0")
 RAW_HINT=""
 UNPROCESSED=$((RAW_COUNT - RAW_INDEXED))
 [ "$UNPROCESSED" -gt 0 ] && RAW_HINT=$'\n'"📥 ${UNPROCESSED} file(s) in raw/ not yet ingested — ask me to /wiki-ingest them"
@@ -69,11 +69,11 @@ for GDIR in "${GLOBAL_DIRS[@]}"; do
   # Cap: check top 3 entities only, grep limited to max 10 topic files
   TOPIC_FILES=$(ls "$GDIR"/*.md 2>/dev/null | head -10)
   [ -z "$TOPIC_FILES" ] && break
-  for EF in $(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | head -3); do
+  while IFS= read -r EF; do
     E=$(basename "$EF" .md)
     MATCH=$(echo "$TOPIC_FILES" | xargs grep -l "$E" 2>/dev/null | head -1 | xargs -I{} basename {} .md 2>/dev/null || true)
     [ -n "$MATCH" ] && RELATED="$RELATED$MATCH "
-  done
+  done < <(find "$REPO_ROOT/wiki/entities" -maxdepth 1 -name '*.md' 2>/dev/null | head -3)
   break  # Only check first available global dir
 done
 GLOBAL_NOTE=""
