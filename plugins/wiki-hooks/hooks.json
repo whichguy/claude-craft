@@ -1,0 +1,21 @@
+{
+  "description": "Wiki: 4-handler lifecycle — detect+mark, guard, precompact, stop+serialize",
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 5 }]
+    }],
+    "PreToolUse": [{
+      "matcher": "Write|Edit",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-raw-guard.sh", "timeout": 2 }]
+    }],
+    "PreCompact": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-precompact.sh", "timeout": 5 }]
+    }],
+    "Stop": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-stop.sh", "timeout": 15, "async": true }]
+    }]
+  }
+}

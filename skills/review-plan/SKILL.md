@@ -730,6 +730,41 @@ DO:
   #   - Do not call ExitPlanMode or touch marker files
   #   - Write exactly ONE JSON file
 
+  --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
+  # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
+  # Gas-evaluator and node-evaluator use their own output contracts (defined in external eval files).
+  #
+  # Output contract — write findings to JSON file:
+  #   Write your findings to: <RESULTS_DIR>/EVALUATOR_NAME.json
+  #
+  #   JSON schema:
+  #   {
+  #     "evaluator": "EVALUATOR_NAME",
+  #     "pass": <pass_count>,
+  #     "status": "complete",
+  #     "elapsed_s": <seconds_from_start>,
+  #     "findings": {
+  #       "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
+  #       ...
+  #     },
+  #     "counts": {"pass": N, "needs_update": N, "na": N}
+  #   }
+  #
+  #   Write atomically using Bash (ensures clean reads by orchestrator):
+  #     cat > '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' << 'EVAL_EOF'
+  #     <json>
+  #     EVAL_EOF
+  #     mv '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' '<RESULTS_DIR>/EVALUATOR_NAME.json'
+  #
+  #   If you encounter an error reading inputs, write:
+  #     {"evaluator": "EVALUATOR_NAME", "pass": <pass_count>, "status": "error", "error": "<message>"}
+  #
+  # Constraints:
+  #   - Do not use Edit or Write tools on the plan file — read-only
+  #   - Use Bash ONLY to write your findings JSON to the specified path
+  #   - Do not call ExitPlanMode or touch marker files
+  #   - Write exactly ONE JSON file
+
   --- L1 Blocking Evaluator Config (Gate 1: 3 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
@@ -2001,6 +2036,10 @@ ELIF gate2_open <= 3:
 ELSE:
   Rating = "🟠 GAPS"
   criterion_phrase = "[gate2_open] Gate 2 issue(s) — review recommended"
+
+╔═══════════════════════════════════╗
+║  review-plan Scorecard — Pass [N] ║
+╚═══════════════════════════════════╝
 
 -- Compute health_bar from Rating --
 IF Rating == "🟢 READY":   health_bar = "██████ ██████ ██████ ██████ ██████ ██████"

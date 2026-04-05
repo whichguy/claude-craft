@@ -14,6 +14,7 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 KNOWLEDGE_DIR="$HOME/.claude/reflection-knowledge"
+GLOBAL_WIKI_DIR="$HOME/.claude/wiki"
 
 # ============================================
 # STEP 1: Check for pending queue entries
@@ -48,22 +49,28 @@ fi
 # Part B: Relevant topic knowledge injection
 CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 
-if [[ -n "$CWD" ]] && [[ -d "$KNOWLEDGE_DIR/topics" ]]; then
-  # Find topic files whose content mentions this project path or directory name
+if [[ -n "$CWD" ]]; then
+  # Find topic files in both global wiki and legacy reflection-knowledge dirs
   # Skip overly generic names that would false-positive match everything
   PROJECT_NAME=$(basename "$CWD" 2>/dev/null || true)
   if [[ -n "$PROJECT_NAME" ]] && [[ ${#PROJECT_NAME} -gt 3 ]] && \
      [[ ! "$PROJECT_NAME" =~ ^(src|home|tmp|var|usr|lib|bin|opt|etc)$ ]]; then
     RELEVANT_TOPICS=""
-    while IFS= read -r topic_file; do
-      [[ -z "$topic_file" ]] && continue
-      TOPIC_NAME=$(basename "$topic_file" .md)
-      RELEVANT_TOPICS="${RELEVANT_TOPICS}${TOPIC_NAME}, "
-    done < <(grep -rl "$PROJECT_NAME" "$KNOWLEDGE_DIR/topics/" 2>/dev/null | head -3)
+    # Check primary global wiki dir first, then legacy path for backward compat
+    for TOPIC_SEARCH_DIR in "$GLOBAL_WIKI_DIR/topics" "$KNOWLEDGE_DIR/topics"; do
+      [[ ! -d "$TOPIC_SEARCH_DIR" ]] && continue
+      while IFS= read -r topic_file; do
+        [[ -z "$topic_file" ]] && continue
+        TOPIC_NAME=$(basename "$topic_file" .md)
+        # Avoid duplicates (same topic in both dirs)
+        [[ "$RELEVANT_TOPICS" == *"$TOPIC_NAME"* ]] && continue
+        RELEVANT_TOPICS="${RELEVANT_TOPICS}${TOPIC_NAME}, "
+      done < <(grep -rFl "$PROJECT_NAME" "$TOPIC_SEARCH_DIR/" 2>/dev/null | head -3)
+    done
 
     if [[ -n "$RELEVANT_TOPICS" ]]; then
       RELEVANT_TOPICS="${RELEVANT_TOPICS%, }"
-      CONTEXT_PARTS+=("KNOWLEDGE CONTEXT: Relevant reflection topics for this project: ${RELEVANT_TOPICS}. Use /reflect <topic> to retrieve detailed knowledge.")
+      CONTEXT_PARTS+=("KNOWLEDGE CONTEXT: Relevant global knowledge for this project: ${RELEVANT_TOPICS}. Use /wiki-load <topic> to load detailed context.")
     fi
   fi
 fi

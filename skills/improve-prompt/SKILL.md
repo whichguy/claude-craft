@@ -135,7 +135,11 @@ trap 'rm -rf "$IMPROVE_TMPDIR"' EXIT INT TERM
 MAX_CONCURRENT = 8   # max agent calls issued in a single parallel message
 HAS_OUTPUT_FORMAT = false   # true when prompt has explicit structured output (Print: boxes, scorecards, tables)
 HAS_DOWNSTREAM_DEPS = false  # true when prompt orchestrates agents or references external eval files
-# (Both flags are detected and set in Step 0c, after prompt_file_contents is read)
+# Detect HAS_OUTPUT_FORMAT: scan prompt_file_contents for box-drawing chars (╔ ║ ╗ ╝) OR
+# explicit "Print:" format blocks with fenced rendering instructions OR scorecard/table/dashboard specs
+# Detect HAS_DOWNSTREAM_DEPS: scan for orchestrator patterns — Spawn, Agent(, Task(, ExitPlanMode,
+# QUESTIONS.md, eval_path, EVALUATE.md, SendMessage, mcp__, or "spawn.*agent"
+# (Both flags are set in Step 0c, after prompt_file_contents is read — after Step 0b)
 
 **Prompt-as-code resolution:**
 1. If inline_text was identified → write to `$IMPROVE_TMPDIR/inline-prompt.md`; set prompt_path to that; label = "inline" (unless label was provided)
@@ -300,10 +304,6 @@ Print run header (once, after validation passes):
 ## Step 0c — Read & Derive Paths
 
 Read prompt file (raw, frontmatter stripped). Derive IDEAS_FILE path.
-
-**Detect prompt flags** (after reading prompt file contents):
-- Set `HAS_OUTPUT_FORMAT = true` if prompt_file_contents contains any of: box-drawing chars (`╔ ║ ╗ ╝`), explicit `Print:` format blocks with fenced rendering instructions, or scorecard/table/dashboard specs.
-- Set `HAS_DOWNSTREAM_DEPS = true` if prompt_file_contents matches any of: `Spawn`, `Agent(`, `Task(`, `ExitPlanMode`, `QUESTIONS.md`, `eval_path`, `EVALUATE.md`, `SendMessage`, `mcp__`, or `spawn.*agent`.
 
 **Git context:**
 ```bash

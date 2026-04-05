@@ -6,6 +6,9 @@ allowed-tools: Task, Read, Write, Edit, Glob, Grep, Bash
 
 # /reflect — Knowledge Retrieval & Session Processing
 
+**Note:** `/reflect <topic>` is equivalent to `/wiki-load --global <topic>`. Prefer `/wiki-load`
+for unified search across both project and global knowledge tiers.
+
 Single entry point for the reflection system. Two modes:
 
 1. **Topic query**: `/reflect <topic>` — search and synthesize knowledge on a topic
@@ -52,9 +55,39 @@ done
 
 If no pending entries: output "No pending sessions to process." and stop.
 
+**Processing order** (by priority field, then type):
+1. `precompact_extract` (priority: high) — context preservation before compaction
+2. `session_wiki` (priority: normal) — project wiki synthesis from session transcript
+3. `wiki_change` (priority: normal) — global cross-project pattern synthesis
+4. `session` (priority: normal, no type field) — global reflect summary (existing behavior)
+
+**Re-entry guard**: Skip entries with `status: "in_progress"` if queued within the last 30 minutes.
+Mark stale `in_progress` (>30 min old) back to `pending` before processing.
+
 ### 3.2: For Each Pending Entry, Generate Session Summary
 
-For each pending queue entry:
+For each pending queue entry (in priority order above):
+
+**Route by `type` field:**
+
+- If `type` is `"precompact_extract"` or `"session_wiki"`:
+  Spawn a Sonnet subagent with the transcript to extract project wiki pages.
+  Prompt: "Extract wiki pages from this session transcript. Write to wiki_path/entities/ and
+  wiki_path/sources/. Update wiki_path/index.md. Append EXTRACT/INGEST log entries.
+  Extraction criteria (write a page if ≥2 of): (a) named 3+ times, (b) non-obvious decision,
+  (c) correction/confusion occurred, (d) named architectural component.
+  Check existing pages before writing — prefer appending ## From Session [date] subsections."
+  Mark entry completed/failed after agent returns.
+
+- If `type` is `"wiki_change"`:
+  Spawn a Sonnet subagent to synthesize cross-project patterns.
+  Prompt: "These wiki pages changed: [changed_files]. Find cross-project patterns (same concept
+  in 2+ project wikis) and write to ~/.claude/wiki/topics/. New concepts → confidence: low.
+  Conflicts → add ## Conflict [date] subsection. Never modify project wikis."
+  Mark entry completed/failed.
+
+- If `type` is `"session"` or type field is absent (existing behavior):
+  Continue to step 1 below.
 
 1. **Read the queue entry** to get `session_id` and `transcript_path`
 2. **Verify the transcript file exists**. If `transcript_path` is empty or the file doesn't exist, mark the queue entry as `"status": "error"` and skip to the next entry.
@@ -63,13 +96,13 @@ For each pending queue entry:
    - Focus on extracting user messages (`"type":"human"`) and assistant messages (`"type":"assistant"`)
    - Skip tool use details, system messages, and base64/binary content
    - Target: pass ~50KB of conversation text to the subagent, not the entire file
-4. **Spawn a Haiku subagent** to extract a compact session summary
+4. **Spawn a Sonnet subagent** to extract a high-quality session summary
 
-**Subagent prompt** (use `model: "claude-haiku-4-5-20251001"` for cost efficiency):
+**Subagent prompt** (use `model: "claude-sonnet-4-6"` for cost efficiency):
 
 ```
 subagent_type: "general-purpose"
-model: "claude-haiku-4-5-20251001"
+model: "claude-sonnet-4-6"
 ```
 
 Prompt for the subagent:
@@ -119,6 +152,8 @@ Examples: mcp-design, gas-permissions, git-workflow, testing, refactoring
 ```
 
 5. **Write the summary** to `~/.claude/reflection-knowledge/sessions/{session_id}.md`
+   Also write synthesized topic knowledge to `~/.claude/wiki/topics/` (primary global wiki tier).
+   For backward compat, also write to `~/.claude/reflection-knowledge/topics/` during migration period.
 
 6. **Update the index** (`~/.claude/reflection-knowledge/index.json`):
    - Add session entry: `{ "date": "<ISO8601>", "keywords": ["<kw1>", ...], "summary_path": "sessions/<session_id>.md" }`
@@ -188,7 +223,7 @@ If matching sessions found, spawn a subagent to synthesize:
 
 ```
 subagent_type: "general-purpose"
-model: "claude-haiku-4-5-20251001"
+model: "claude-sonnet-4-6"
 ```
 
 Prompt:
@@ -231,7 +266,8 @@ Output the synthesized knowledge to the user.
 
 Then ask: "Save as topic file? This consolidates {N} sessions into a reusable knowledge entry."
 
-If user confirms, write to `~/.claude/reflection-knowledge/topics/{topic-slug}.md` with:
+If user confirms, write to `~/.claude/wiki/topics/{topic-slug}.md` (primary) AND
+`~/.claude/reflection-knowledge/topics/{topic-slug}.md` (backward compat) with:
 - YAML frontmatter: `topic`, `created`, `updated`, `sources` (session IDs), `keywords`, `confidence`
 - The synthesized content as the body
 
@@ -296,7 +332,7 @@ Commands:
 ## Security
 
 When reading session JSONL files for summarization:
-- The Haiku subagent prompt explicitly instructs not to include credentials
+- The Sonnet subagent prompt explicitly instructs not to include credentials
 - Session summaries should contain behavioral patterns, not raw data
 - If a summary contains obvious credential patterns (sk-, Bearer, etc.), warn the user
 

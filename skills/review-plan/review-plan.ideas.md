@@ -986,3 +986,142 @@ Decided by: quality (+31.5%)
 
 **Actionable learning:**
 Methodology annotations for process evaluator questions continue to be the highest-ROI improvement pattern. Q-G18 and Q-G17 both follow the binary detection pattern (edit step with/without preceding read; phase with/without narrative preamble) — this structure is ideal for methodology annotations because the detection is mechanically specified. Restoring compressed marker lists when regression evidence exists (j2 Q-FX10 baseline wins from Iter 3) successfully recovers detection quality.
+
+---
+*Date: 2026-03-18 — Iteration 5 (new session)*
+
+## Structural Diagnostic (Q1-Q13) — Iteration 5
+
+Q1 -- Role/Persona: Adequate. The Role & Authority block (lines 18-23) remains clear and well-scoped with 4 numbered constraints: team-lead orchestrator role, tool authority boundaries, evaluator-output-as-authoritative rule, and convergence goal. Stable across all prior iterations. No new role gaps.
+
+Q2 -- Task Precision: The l1-advisory-process evaluator now has methodology annotations for Q-G13 (4 detection patterns + two-tier borderline, Iter 2-3), Q-G10 (2 detection categories + 7 markers + Cat2 recognition anchors, Iter 2-4), Q-G18 (pre-condition verification scan, Iter 4), and Q-G17 (phase preamble detection, Iter 4). This leaves 9 un-annotated questions in the process evaluator: Q-G4 (unintended consequences), Q-G5 (scope focus), Q-G6 (naming consistency), Q-G7 (documentation), Q-G8 (task & team usage), Q-G12 (code consolidation), Q-G14 (codebase style adherence), Q-G16 (LLM comment breadcrumbs), Q-G19 (phase failure recovery). Of these, Iter 4's "What to try next" item #3 specifically flagged Q-G14 (codebase style adherence) and Q-G5 (scope focus / rollback strategy) as candidates for methodology. Q-G14 is a judgment-intensive question -- its QUESTIONS.md definition has a nuanced criterion ("if the plan intentionally deviates, is the deviation explicitly stated with a reason?") that requires distinguishing "uses different pattern without acknowledgment" (NEEDS_UPDATE) from "uses different pattern with stated rationale" (PASS). This distinction is the same kind of binary detection pattern that succeeded for Q-G18 and Q-G17. Q-G5 (scope focus) is less judgment-intensive -- it asks "does the plan stay on target?" which is relatively straightforward to evaluate without methodology guidance. The remaining un-annotated questions (Q-G4, Q-G6, Q-G7, Q-G8, Q-G12, Q-G16, Q-G19) are either mechanically evaluated and routinely PASS, or already have extensive QUESTIONS.md definitions that the evaluator applies reliably. The conciseness cost of annotating them would outweigh quality gain (the Iter 2 prior-run "overhead for non-manifesting cases" pattern). The precision gap is narrow: Q-G14 is the single remaining question where a methodology annotation would address a demonstrated judgment ambiguity.
+
+Q3 -- Context Adequacy: Adequate. The 5-flag pass-through, prev_pass_applied_edits delta summary, memo-file checkpoint, and per-evaluator status lines provide comprehensive context. No new context gaps.
+
+Q4 -- Output Format: Well-specified. The scorecard template covers all sections with precise formatting rules. The per-evaluator status lines (Iter 2, compressed in Iter 3) provide pass-level evaluator disposition. The convergence loop progress output has delta visualization, gate health bar, timing breakdown, and milestone announcements. No demonstrated gaps from evaluation signals.
+
+Q5 -- Examples: The l1-advisory-process evaluator now has 4 methodology annotations (Q-G13, Q-G10, Q-G18, Q-G17) but still no concrete JSON output examples. The l1-blocking evaluator has both PASS and NEEDS_UPDATE examples for Q-G1. As established in prior iterations, examples address output format calibration, while methodology annotations address detection quality. The primary remaining gap is detection quality on Q-G14, not output format -- so examples are not the highest-leverage improvement. Deprioritized.
+
+Q6 -- Constraints: Adequate. Evaluators are read-only. Team-lead has edit authority. 5-pass hard stop. Memoization with proper invalidation (including early invalidation for prev-pass edits). Edit failure fallback (Iter 2). Gate marker controls ExitPlanMode. No new constraint gaps.
+
+Q7 -- Anti-patterns: Q-FX4 (conciseness) has been 5/0/0 baseline wins since Iter 2 and remained so through Iter 4. This appears structural -- the prompt is ~2100 lines with accumulated methodology annotations that make it inherently longer than the pre-methodology baseline. Further compression was attempted in Iter 3 (template compression ~42 lines saved, micro-compression ~8 lines saved) with limited effect on Q-FX4. The Iter 3 micro-compression of Q-G10 markers actually caused a regression (Q-FX10 baseline win), establishing a compression floor. At this point, conciseness improvements must come from structural changes (removing unused sections, consolidating redundant specifications) rather than further compression of methodology annotations. One structural opportunity: the SKILL.md has several "NOT memoizable" comment blocks (lines 1317-1334) totaling ~18 lines that document why each question is not memoizable. These comments serve a maintenance purpose but are read by the model on every invocation, consuming context without affecting evaluation behavior. Moving them to a separate design-notes section or condensing them could save ~10 lines of active prompt text.
+
+Q8 -- Chain-of-thought: The methodology annotations added across Iters 1-4 provide CoT guidance for the highest-risk questions. The remaining questions either have straightforward evaluation criteria (Q-G5 scope focus, Q-G6 naming, Q-G7 documentation) or are post-convergence (Q-G9). Q-G14 (codebase style adherence) is the one remaining question where a CoT annotation would help -- distinguishing "intentional deviation with rationale" (PASS) from "unacknowledged deviation" (NEEDS_UPDATE) requires the evaluator to perform a two-step check: (1) does the plan use a different pattern from existing code? (2) if yes, does it acknowledge the deviation? This two-step chain is analogous to Q-G18's two-step check (edit step present? + preceding read step present?).
+
+Q9 -- Domain specifics: Adequate. Gate Tier Semantics inline. IS_GAS/IS_NODE suppression tables thorough. No new domain gaps.
+
+Q10 -- Tone/register: Consistent and appropriately directive across all sections. No gaps.
+
+Q11 -- Parallelization: Adequate. Independent memoization for structural/process groups, MAX_CONCURRENT=5, wave spawning with priority ordering. No new opportunities.
+
+Q12 -- Failure modes & recovery: Comprehensive. Haiku timeout fallback, Task error sentinels, malformed JSON handling, Incomplete evaluator rule, context-compression recovery, old memo format guard, orphan cleanup, regression recovery with 5-step procedure, Edit failure fallback (Iter 2). No new failure mode gaps identified.
+
+Q13 -- Calibration & thresholds: The Q-G13 two-tier borderline (Iter 3) is working well. The Q-G10 marker list was restored (Iter 4) and the Cat2 recognition anchors added. Q-G18 (newly annotated in Iter 4) needs calibration verification: does the methodology correctly handle plans where a Pre-check marker exists for a file being edited? Per Iter 4's "What to try next" item #1, Pre-check is NOT equivalent to read/verify -- Pre-check verifies prior-phase outputs exist, not current file state. So Q-G18 SHOULD still flag "edit [file]" without a preceding "read [file] and verify [X]" even if a Pre-check marker references that file in a different context. This is correct behavior, not over-flagging. Q-G17 (Iter 4) needs calibration verification: does the methodology correctly handle plans with substantive phase headers that DO convey intent? The methodology's "A phase header alone does not qualify" criterion may over-flag plans where the header itself serves as the preamble. However, this is a low-frequency pattern (most plans use terse headers) and the severity is low (Q-G17 is Gate 3 advisory, not blocking). Both newly annotated questions appear well-calibrated on the test inputs.
+
+## Domain & Research Findings — Iteration 5
+
+Domain: LLM team-lead orchestration prompt for multi-agent iterative plan review with convergence loop, memoization, structured quality-gate output, and ecosystem specialization (GAS, Node.js, UI). Sub-task this iteration: remaining methodology gap analysis, diminishing returns assessment, and potential structural improvements.
+
+**Finding 1 -- Prompt engineering diminishing returns curve (Softcery, "AI Agent Prompt Engineering: Early Gains, Diminishing Returns, and Architectural Solutions", 2026):** The article identifies a predictable performance curve: initial prompt work delivers ~35% accuracy gains, followed by ~5% over the next phase, then ~1% over subsequent phases. Six signals of saturation are identified: (1) whack-a-mole failures (fixing case A breaks case B), (2) prompt bloat without accuracy gains, (3) superstitious optimization, (4) time-to-improvement breakdown, (5) vibes-based evaluation, (6) team misalignment. The recommended allocation at saturation: 20% prompts, 30% evaluation/measurement, 50% architecture/tooling/data. Applied to review-plan: after 4 improvement iterations producing +16%, +38%, +25%, +32% improvements respectively, the system is approaching the plateau where methodology annotations have been added to all high-miss-rate questions. Signal #2 (prompt bloat) is partially present -- Q-FX4 has been 5/0/0 baseline wins since Iter 2. The system is not yet fully saturated (Q-G14 still has a demonstrated judgment ambiguity), but is approaching the threshold where further per-question annotations will face diminishing returns.
+
+**Finding 2 -- Few-shot example sweet spot (Lakera, "The Ultimate Guide to Prompt Engineering in 2026"):** The typical sweet spot for few-shot examples is 2-6 examples depending on task complexity. Adding example #7+ rarely helps. Quality and diversity matter more than quantity. Applied to review-plan: the Q-G10 marker list has 7 items (6 named + "and similar") right at the upper bound. The Q-G13 methodology has 4 detection patterns within the effective range. Further methodology expansion should stay within this 2-6 pattern density to avoid diminishing returns.
+
+**Finding 3 -- Structural decomposition as the plateau-breaking pattern (Softcery 2026, Google ADK patterns 2026):** When prompt-level improvements plateau, the highest-leverage intervention is structural decomposition or maintenance documentation reduction. Applied to review-plan: the major structural decomposition (l1-advisory split) was already done. The remaining structural opportunity is reducing non-functional documentation (NOT memoizable comment blocks, threshold rationale comments) that bloats the prompt without contributing to evaluation behavior.
+
+## Test-Run Observations — Iteration 5
+
+**input1-gas-plan.md (Sheet Protection Toggle -- well-structured GAS plan)**
+
+Classification: IS_GAS=true, HAS_UI=true, HAS_DEPLOYMENT=false, HAS_STATE=false, HAS_TESTS=true, IS_TRIVIAL=false. Active evaluators: l1-blocking, l1-advisory-structural, l1-advisory-process, gas-evaluator, impact-evaluator, ui-evaluator (6 evaluators, 2 waves).
+
+L1-blocking: Q-G1 PASS (sound approach). Q-G2 PASS (follows GAS directives). Q-G11 NEEDS_UPDATE (steps 2 and 4 edit existing files without demonstrating they were read).
+
+L1-advisory-process with CURRENT prompt:
+- Q-G13: NEEDS_UPDATE -- Phase 3 is testing-only (test-at-end, condition 2). No Pre-check markers -> stronger flag per two-tier borderline. Correctly detected.
+- Q-G10: PASS -- no uncertainty markers.
+- Q-G18: NEEDS_UPDATE -- Steps 2 and 4 edit existing files without preceding read/verify steps. Correctly detected by Iter 4 methodology.
+- Q-G17: NEEDS_UPDATE -- 3 phases, no narrative preambles. Correctly detected by Iter 4 methodology. The Iter 4 "substantive header" concern does NOT manifest -- headers name concerns but do not explain inter-phase rationale.
+- Q-G14: PASS -- plan uses CommonJS module pattern per CLAUDE.md conventions. No deviation. Evaluator should handle this correctly even without methodology. No detection gap here.
+
+**input6-node-refactor-missing-prereads.md (Auth Module Refactor -- Node.js plan with missing pre-reads)**
+
+Classification: IS_GAS=false, IS_NODE=true, HAS_UI=false, HAS_DEPLOYMENT=false, HAS_STATE=false, HAS_TESTS=true, IS_TRIVIAL=false. Active evaluators: l1-blocking, l1-advisory-structural, l1-advisory-process, node-evaluator, impact-evaluator, testing-evaluator (6 evaluators, 2 waves).
+
+L1-blocking: Q-G1 PASS (callback-to-async is sound). Q-G2 PASS (follows Node conventions). Q-G11 borderline PASS (cites specific function signatures implying code was read, though no explicit Read steps).
+
+L1-advisory-process with CURRENT prompt:
+- Q-G18: NEEDS_UPDATE -- 6 file-edit steps (steps 1-6), none preceded by read/verify. This is the quintessential Q-G18 case. Correctly detected by Iter 4 methodology. No Pre-check markers present, so the Iter 4 over-flagging concern does not manifest.
+- Q-G13: NEEDS_UPDATE -- Phase 3 consolidates all testing (test-at-end, condition 2). No Pre-check markers -> stronger flag. Correctly detected.
+- Q-G17: NEEDS_UPDATE -- 3 phases, no narrative preambles. Correctly detected.
+- Q-G10: PASS -- no uncertainty markers, no unvalidated constraints.
+- Q-G14: MODERATE DETECTION GAP. The plan changes function signatures from callback-style to async/await -- a pattern deviation from existing codebase. The plan's Context section explains the reason ("before the team standardized on async/await. This causes awkward interop"). Without Q-G14 methodology, the evaluator must independently: (1) recognize that callback-to-async IS a style deviation, and (2) find the rationale in the Context section. The two-step identification is the same pattern that methodology annotations have successfully addressed for Q-G18 and Q-G17. Risk of false NEEDS_UPDATE: moderate -- the evaluator might identify the deviation in step 1 but miss the Context section's rationale in step 2. A Q-G14 methodology note would guide the evaluator to check Context/Approach sections for stated rationale before flagging.
+
+**Cross-input calibration verification for Iter 4 annotations:**
+- Q-G18: Well-calibrated on both inputs. No false positives, no missed detections. The Pre-check over-flagging concern from Iter 4 does not manifest (neither input has Pre-check markers for edited files).
+- Q-G17: Well-calibrated on both inputs. The "substantive header" false-positive concern does not manifest -- headers are descriptive but do not convey inter-phase rationale.
+- Q-G14 (un-annotated): Input1 is a clean case (no deviation, PASS). Input6 reveals a moderate detection gap (deviation exists with stated rationale, should be PASS, but evaluator might miss the rationale without methodology guidance).
+
+## Improvement Options — Iteration 5
+
+### Option A: Q-G14 Codebase Style Adherence Methodology in l1-Advisory-Process
+**Addresses:** Q2 -- Task Precision / Q8 -- Chain-of-thought (Q-G14 at position ~9 of 13 in the process evaluator, no methodology despite being judgment-intensive; specifically flagged in Iter 4 "What to try next" item #3)
+**What changes:** Add a 4-line methodology note for Q-G14 to the l1-advisory-process evaluator's "Question-specific methodology" section, positioned after Q-G17's annotation:
+```
+- For Q-G14 (Codebase style adherence): Two-step check:
+    (1) Identify pattern deviations: does the plan propose code patterns different from
+        existing comparable code (different error handling, module structure, naming
+        conventions, API style)? Read CLAUDE.md and compare.
+    (2) If deviation found: check whether the plan explicitly acknowledges the deviation
+        and states a reason (Context section, Approach section, or inline justification).
+    PASS: deviation is acknowledged with stated reason, OR no deviation detected.
+    NEEDS_UPDATE: deviation exists but is not acknowledged — cite the specific pattern
+    difference and the existing code it diverges from.
+    N/A: documentation-only change; or brand new project with no existing comparable code.
+```
+**Why it helps:** Q-G14 is the last remaining judgment-intensive question flagged by Iter 4 as a methodology candidate. The test-run analysis on input6 reveals a moderate detection gap: the evaluator must independently identify callback-to-async as a style deviation and locate the rationale in the Context section. The two-step check follows the proven binary detection pattern from Q-G18 and Q-G17. The 4-line addition is within conciseness tolerance.
+**Predicted impact:** HIGH -- Q-G14 applies to every plan that modifies existing code with pattern changes (common in refactoring plans). The two-step check addresses the specific judgment ambiguity demonstrated on input6. Follows the established methodology-annotation pattern that has consistently produced improvements across Iters 2-4.
+
+### Option B: "NOT memoizable" Comment Block Condensation
+**Addresses:** Q7 -- Anti-patterns (prompt bloat; 18 lines of non-functional maintenance documentation consumed on every invocation)
+**What changes:** Condense the 18-line "NOT memoizable" comment block (lines 1317-1334) to a 3-line summary preserving the exclusion set and memoizable set. Removes per-question rationale that duplicates the stability-exclusion list at line 1347.
+**Why it helps:** The 18-line block is the single largest block of non-functional text in the convergence loop. Research Finding #1 (Softcery 2026) identifies prompt bloat as a saturation signal. The condensed version preserves actionable information while removing low-attribution documentation. Follows the Iter 3 pattern of compressing low-attribution content.
+**Predicted impact:** LOW-MEDIUM -- Saves ~15 lines with zero behavioral change. May contribute to Q-FX4/Q-FX8 improvement. Risk: minimal.
+
+### Option C: Memoization Threshold Asymmetry Comment Condensation
+**Addresses:** Q7 -- Anti-patterns (structural redundancy between threshold comments and implementation)
+**What changes:** Condense the 6-line memoization threshold comment block (lines 1378-1383) to a 1-line annotation. Removes historical rationale that duplicates the code structure.
+**Why it helps:** Complements Option B for a combined ~20-line compression of maintenance documentation. The model does not need historical rationale ("Q-G23/G24/G25 methodology notes added in Iter 7; higher false-PASS risk until question calibration is validated") to correctly execute the asymmetric thresholds -- the code structure (2-pass window vs 1-pass) is self-describing.
+**Predicted impact:** LOW -- Saves ~5 lines. Complements Option B. Risk: very low.
+
+### Option D: Q-G5 Scope Focus Methodology with Scope-Creep Detection Anchors
+**Addresses:** Q2 -- Task Precision (Q-G5 flagged in Iter 4 "What to try next" item #3; applicable to every plan)
+**What changes:** Add a 4-line methodology note for Q-G5 to the l1-advisory-process evaluator with scope-creep detection anchors: feature bundling (plan title names X but steps include Y), hedging language ("while we're at it", "might as well", "could also"), unrelated file modifications.
+**Why it helps:** Q-G5 applies to every non-trivial plan (N/A: never). The hedging-language patterns provide scannable textual recognition anchors similar to Q-G10's uncertainty markers. Addresses Iter 4 "What to try next" item #3 recommendation.
+**Predicted impact:** LOW -- Q-G5 is straightforward and the evaluator likely handles it adequately without methodology in most cases. Neither test input demonstrates a Q-G5 detection gap. The improvement is preventive rather than reactive. Per Iter 2 learning, this carries risk of being low-value overhead.
+
+## Evaluation Questions
+*Iteration 5*
+
+### Fixed (always applied)
+- Q-FX1: Does the output correctly complete the task as specified in the prompt?
+- Q-FX2: Does the output conform to the required format/structure?
+- Q-FX3: Is the output complete (all required aspects, no key omissions)?
+- Q-FX4: Is the output appropriately concise (no padding or verbosity)?
+- Q-FX5: Is the output grounded -- no hallucinations or unsupported claims?
+- Q-FX6: Does the output demonstrate sound reasoning -- no circular logic, contradictions, or unresolved ambiguities?
+- Q-FX7 (HAS_DOWNSTREAM_DEPS=true): Are downstream agent instructions and external dependency references complete and unambiguous?
+- Q-FX8: Could the improvements be expressed more concisely without losing detection depth?
+- Q-FX9: Does the improved prompt preserve detection depth, breadth, accuracy, and precision of the baseline?
+- Q-FX10 (adversarial regression -- baseline-favoring): Does the baseline catch any concrete defect that the improved version misses or softens?
+
+### UX (HAS_OUTPUT_FORMAT=true -- weighted 0.5x)
+- Q-UX1: Is the output's visual hierarchy clear (key decisions prominent, details subordinate)?
+- Q-UX2: Is the most important information immediately scannable without reading through background?
+- Q-UX3: Does the output use visual differentiation (emoji, tables, formatting) to separate information categories appropriately?
+
+### Dynamic (4 questions, 1 regression-check)
+- Q-DYN-42: On input6 (Node.js auth refactor -- callback-to-async pattern change), does Q-G14 correctly identify that the async/await refactor is a codebase pattern deviation AND correctly determine that the plan's Context section provides explicit rationale (-> PASS), rather than either missing the deviation entirely or flagging it as NEEDS_UPDATE despite the stated rationale? [addresses: Q2/Q8 -- Q-G14 methodology two-step check; tests both steps of the detection procedure]
+- Q-DYN-43: Comparing the "NOT memoizable" comment section: is the improved version's memoization documentation at least 60% shorter than the baseline while preserving the same exclusion set (all 13 non-memoizable Q-IDs listed) and the memoizable set ({Q-G11, Q-G6, Q-G7, Q-G18})? [addresses: Q7 -- comment block condensation; anti-circularity: tests that the compression preserves the canonical exclusion information]
+- Q-DYN-44: On a well-structured plan (input1 or input6), does Q-G5 correctly PASS (plan is tightly scoped) WITHOUT being over-triggered by the scope-creep detection anchors? Specifically: do the hedging-language markers ("while we're at it", "might as well") NOT produce false positives on plans that contain no hedging language? [addresses: Q2 -- Q-G5 scope-creep anchors; anti-circularity: tests a general quality property (correct PASS on clean plans), not just whether the new feature exists]
+- Q-DYN-45 (regression check -- baseline-favoring): On input4 (deliberately flawed plan), do Q-G13, Q-G10, Q-G18, and Q-G17 all still correctly produce NEEDS_UPDATE findings with the same or better specificity as the baseline? Do the new Q-G14 and Q-G5 methodology annotations NOT interfere with the existing methodology annotations' detection quality? [regression check -- ensures new additions do not disturb established methodology]
+---

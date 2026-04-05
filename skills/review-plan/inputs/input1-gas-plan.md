@@ -3,33 +3,32 @@
 ## Context
 The Sheet Chat sidebar needs a button that lets users toggle protection on the active sheet. Currently users must navigate Google Sheets menus to protect/unprotect sheets. This feature brings that capability into the sidebar for convenience.
 
+Note: `SpreadsheetApp.Protection` requires the user to be an editor or owner. The toggle functions must surface an appropriate error if the user lacks sufficient access. Protection changes are visible to all users with access to the sheet — this is a shared state change, not a per-user toggle.
+
 **Project:** Sheets Chat (scriptId: 1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C4HoZys75N5utGfkCUG)
 
-## Git Setup
-
-- Create feature branch: `git checkout -b feat/sheet-protection-toggle`
+**Branch:** `git checkout -b feature/sheet-protection-toggle`
 
 ## Implementation Steps
 
 ### Phase 1: Server-Side Module
 
-> Intent: Creates the server-side module that encapsulates sheet protection logic, exposing it via the exec_api pattern for sidebar access.
+> Intent: Create and register the server-side protection module that handles GAS SpreadsheetApp protection API calls.
 
-**Pre-work (read existing files before modifying):**
-- Read `require.gs` and verify the module registry pattern — confirm the `require()` registration syntax used by existing modules (current registry entries, line numbers)
-- Read an existing module that uses `__events__` exec_api handler (e.g., grep `__events__` in project .gs files) — verify the exact registration syntax before writing Step 6
-- Verify no existing `.gs` file already implements protection logic: `grep -r 'protect' *.gs common-js/` — confirm no duplication before creating new module
-- Determine the correct folder for the new module: check existing CommonJS modules — if they live in `common-js/`, place `sheet-protection.gs` there; verify `COMMON-JS_SYNC` directive applies and plan dual update to MCP GAS templates if needed
+0. Read `require.gs` via `mcp__gas__cat` (remoteOnly: true) to identify the current module registry structure and insertion point. Read the sidebar HTML file to confirm its current structure.
 
-1. Create `sheet-protection.gs` in the folder confirmed above (e.g., `common-js/sheet-protection.gs`) with CommonJS module pattern using `function _main(module, exports, log)` 3-param signature; include LLM-navigable comments at function boundaries (e.g., `// LLM: toggleProtection checks current sheet protection status and toggles it`):
-   - `toggleProtection(sheetName)` — validates `sheetName` is non-empty string; checks current protection status; handles multi-protection edge case (if multiple protections exist, identifies the one created by this feature by description before removing); wraps operations in try/catch returning `{error: '...'}` on failure; acquires `LockService.getDocumentLock().tryLock(3000)` before check-then-act to prevent concurrent toggle races
-   - `getProtectionStatus(sheetName)` — validates `sheetName`; returns `{protected: boolean, description: string}`; wraps in try/catch
-   - Use `setModuleLogging` pattern for debug logging; include module name in log calls
+1. Create `sheet-protection.gs` at the appropriate project path (e.g., `sheets-chat/sheet-protection.gs`) with the CommonJS module pattern using the 3-param signature:
+   - `function _main(module, exports, log) { ... }`
+   - `toggleProtection(sheetName)` — validates `sheetName` is non-empty and sheet exists, checks current protection status and toggles it. Handles edge cases: (1) if multiple protection objects exist, toggle all; (2) if user is not the protection owner, return `{success: false, error: 'Insufficient permission'}`. (3) if no protection exists, create one with a default description. Wraps SpreadsheetApp calls in try/catch; returns `{success: false, error: message}` on failure consistent with exec_api error format.
+   - `getProtectionStatus(sheetName)` — returns `{protected: boolean, description: string}`; handles missing/unprotected sheet gracefully.
+   - Add LLM-navigable comment at module top: `// LLM: sheet-protection — toggles SpreadsheetApp SHEET-type protection on named sheets`
+   - Add debug logging via `log()` at start of `toggleProtection`
    - Export via `module.exports`
+   - Push via `mcp__gas__write`
 
-2. Push `sheet-protection.gs` using `mcp__gas__write` (no `raw` flag — `.gs` file); exec to verify module loads without error
-3. Register in `require.gs` module registry using the pattern confirmed in pre-work read step; after registering, verify no `loadNow` module depends on `sheet-protection.gs` at a higher file position (run `ls()` to check file order); if `COMMON-JS_SYNC` applies, also update the corresponding MCP GAS template entry
-4. Push updated `require.gs` using `mcp__gas__write`; exec `require('sheet-protection').getProtectionStatus('Sheet1')` — verify returns `{protected: boolean, description: string}` without error
+2. Register in `require.gs` module registry at the insertion point identified in step 0. Verify that inserting `sheet-protection.gs` at its proposed position does not alter load order for existing `loadNow` modules (check file positions).
+   - Push updated `require.gs` via `mcp__gas__write`
+   - Verify: `mcp__gas__exec` → `sheet_protection.getProtectionStatus('Sheet1')` should return `{protected: boolean, description: string}` without error
 
    **Rollback note:** if exec fails, revert `require.gs` to the pre-edit state, push the revert, exec verify.
 5. Verify `appsscript.json` already includes the `spreadsheets` scope for protection operations, or add if missing
@@ -39,6 +38,12 @@ The Sheet Chat sidebar needs a button that lets users toggle protection on the a
      exec_api: { sheet_protection: { toggleProtection, getProtectionStatus } }
    }
    ```
+   - Push updated file via `mcp__gas__write`
+   - Verify: `mcp__gas__exec` → exec_api call to `sheet_protection.getProtectionStatus` returns `success: true`
+
+**Outputs:** `sheet-protection.gs` module registered in `require.gs` with `__events__` handler `sheet_protection` accessible via exec_api.
+
+**Phase 1 commit:** `git add -A && git commit -m "feat: add sheet-protection server module with toggleProtection and getProtectionStatus"`
 
 **Outputs:** `sheet-protection.gs` module created and pushed; registered in `require.gs`; `__events__.exec_api.sheet_protection` active; exec verification confirms module loads and `getProtectionStatus` returns expected shape.
 
@@ -48,52 +53,55 @@ The Sheet Chat sidebar needs a button that lets users toggle protection on the a
 
 ### Phase 2: Sidebar UI
 
-> Intent: Wires the protection module into the sidebar UI, adding a toggle button and status indicator for user interaction.
+> Intent: Wire the protection module into the sidebar UI with a toggle button and status indicator.
 
-**Pre-check:** Verify Phase 1 outputs — exec `require('sheet-protection').getProtectionStatus('Sheet1')` returns `{protected: boolean, description: string}` without error before proceeding.
+**Pre-check:** Verify Phase 1 `sheet_protection` module loads cleanly — `mcp__gas__exec` exec_api call to `getProtectionStatus` returns `success: true`.
 
-**Pre-work:** Read the sidebar HTML file (identify file name and path); verify the current container structure and existing button CSS classes to match styling. Read an existing `exec_api` call in the sidebar JavaScript to verify the call signature (confirm `null` as first arg, namespace as second, function name as third, args after).
+4. Read the sidebar HTML file (confirmed in step 0) and add a protection toggle button using `mcp__gas__write({..., raw: true})` (HTML files require raw: true):
+   - Add button with namespaced CSS class (e.g., `.sp-toggle-btn`) to avoid conflicts with Google's add-on CSS
+   - Add `aria-label="Toggle sheet protection"` for accessibility
+   - Include a visual status indicator for protection state (e.g., icon or text label)
 
-7. Add protection toggle button and status indicator to sidebar HTML using `mcp__gas__write({..., raw: true})` — use namespaced CSS classes (e.g., `.sheet-protection-btn`, `.sheet-protection-status`); apply existing sidebar button CSS classes for visual consistency; add `aria-label` to both elements; include `<!-- LLM: protection toggle button and status indicator -->` comment
+5. Wire button click to `server.exec_api(null, 'sheet_protection', 'toggleProtection', sheetName)`:
+   - Obtain `sheetName` on sidebar load via `server.exec_api(null, 'sheet_protection', 'getProtectionStatus', activeSheetName)` where `activeSheetName` is provided by the host spreadsheet context
+   - Show a loading/disabled state on the toggle button while the server call is in progress; restore button state on completion or error
+   - Use event delegation or remove-and-re-add the listener on sidebar initialization to prevent listener accumulation across sidebar reopens
+   - Handle server errors: display user-facing message on `.catch()`
 
-8. Wire button click using inline `onclick` attribute (or single-init guard) to `server.exec_api(null, 'sheet_protection', 'toggleProtection', sheetName)` — wrap client-side initialization in try/catch; log errors to console
+6. Display current protection status with visual indicator.
+   - Push updated HTML via `mcp__gas__write({..., raw: true})`
+   - Verify: open sidebar in browser and confirm toggle button renders with correct initial state
 
-9. Implement full UI state management for the protection controls:
-   - On sidebar open: call `getProtectionStatus` with loading spinner while fetching; display result
-   - During toggle: disable button + show "Updating..." while `exec_api` call is in flight; re-enable on completion
-   - On success: update visual indicator to new protection state
-   - On error: display error message to user
+**Outputs:** Sidebar HTML updated with protection toggle button, status indicator, and client-side wiring.
 
-**Outputs:** Sidebar HTML updated with toggle button and status indicator; all UI states handled (loading, success, error).
-
-**Phase 2 commit:** `git add <files> && git commit -m "feat: add protection toggle button and status indicator to sidebar"`
+**Phase 2 commit:** `git add -A && git commit -m "feat: add protection toggle button to sidebar UI"`
 
 ### Phase 3: Testing
 
-> Intent: Validates the implementation with unit tests and a manual integration check to confirm the full toggle flow works end-to-end.
+> Intent: Verify server-side logic with unit tests and confirm sidebar integration works.
 
-**Pre-check:** Phase 2 sidebar changes are live and the toggle button renders in the sidebar.
+**Pre-check:** Verify Phase 2 sidebar button renders correctly by opening sidebar.
 
-**Pre-work:** Verify the test framework's SpreadsheetApp mock approach — check existing test files for the mocking pattern used.
+7. Write test cases for `toggleProtection` with mocked `SpreadsheetApp`:
+   - Test: toggle on (no existing protection → creates protection)
+   - Test: toggle off (protection exists → removes protection)
+   - Test: insufficient permissions (non-owner → returns error)
+   - Test: invalid sheetName (empty/missing → returns error)
+   - Run `npm test` to confirm all pass
 
-10. Write test cases for `toggleProtection` with mocked SpreadsheetApp — cover: normal toggle (unprotected → protected → unprotected), multi-protection edge case, invalid `sheetName` validation, error handling (mock throw)
-11. Write test cases for `getProtectionStatus` — cover: protected sheet, unprotected sheet, invalid `sheetName`
-12. Test sidebar button click handler — cover: loading state activation, exec_api call, success and error UI state transitions
+8. Test sidebar button click handler (manual verification or existing test harness):
+   - Click toggle with protection off → verify sheet becomes protected
+   - Click toggle with protection on → verify sheet becomes unprotected
 
-**Phase 3 commit:** `git add <files> && git commit -m "test: add sheet-protection unit tests and sidebar handler tests"`
+**Phase 3 commit:** `git add -A && git commit -m "test: add sheet-protection unit tests and verify sidebar integration"`
 
-## UI Design Narrative
+## Post-Implementation Review
 
-**User experience**: User opens the sidebar and sees the current protection status of the active sheet (locked/unlocked indicator). Clicking the toggle button protects or unprotects the sheet.
+1. Run `/gas-review` or `/review-fix` — loop until clean
+2. Run `npm test`
+3. If tests fail: fix → re-run review-fix → re-run tests
+4. Push and PR: `git push origin feature/sheet-protection-toggle && gh pr create --base main`
 
-**Design intent**: Convenience — eliminates the need to navigate Google Sheets menus for protection management; brings this capability into the existing sidebar workflow.
-
-**State transitions**: Loading (fetching status on open) → Ready (showing current status) → In-progress (toggle in flight, button disabled) → Updated (new status displayed) or Error (failed toggle with message shown).
-
-## Post-Implementation Workflow
-
-1. Run `/gas-review` — loop until 0 findings
-2. Run `npm test` — verify all tests pass
-3. If tests fail: fix → re-run `/gas-review` → re-run tests — repeat until passing
-4. Update MEMORY.md to note the new `sheet-protection` module and its `exec_api` namespace
-5. Push feature branch and open PR to main: `git push origin feat/sheet-protection-toggle`
+## Verification
+- Manual test: open sidebar, click toggle, verify sheet protection changes in Google Sheets UI
+- Run `npm test` for unit tests — all toggleProtection cases must pass
