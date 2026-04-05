@@ -1,7 +1,7 @@
 ---
 name: review-fix-judge
 description: LLM judge that semantically evaluates code reviewer output against ground-truth issues. Used by review-fix-bench harness to replace fragile regex-based finding extraction and matching. Outputs structured JSON only — no prose wrapper.
-model: claude-haiku-4-5
+model: claude-haiku-4-5-20251001
 color: yellow
 ---
 

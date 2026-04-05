@@ -26,23 +26,29 @@ describe('Review-Plan Task Fan-Out', function () {
             }
         });
 
-        it('SKILL.md cluster evaluator prompt contains all required JSON schema fields', function () {
+        it('SKILL.md cluster evaluator prompt references EVALUATOR_OUTPUT_CONTRACT', function () {
             const clusterSection = skillContent.substring(
                 skillContent.indexOf('--- Cluster Evaluator Config'),
                 skillContent.indexOf('--- GAS Evaluator Config')
             );
-            for (const field of requiredFields) {
-                expect(clusterSection).to.include(`"${field}"`);
-            }
+            expect(clusterSection).to.include('EVALUATOR_OUTPUT_CONTRACT');
         });
 
-        it('SKILL.md UI evaluator prompt contains all required JSON schema fields', function () {
+        it('SKILL.md UI evaluator prompt references EVALUATOR_OUTPUT_CONTRACT', function () {
             const uiSection = skillContent.substring(
                 skillContent.indexOf('--- UI Evaluator Config'),
                 skillContent.indexOf('-- Pass-level summary')
             );
+            expect(uiSection).to.include('EVALUATOR_OUTPUT_CONTRACT');
+        });
+
+        it('EVALUATOR_OUTPUT_CONTRACT section contains all required JSON schema fields', function () {
+            const contractSection = skillContent.substring(
+                skillContent.indexOf('--- EVALUATOR_OUTPUT_CONTRACT'),
+                skillContent.indexOf('--- L1 Blocking Evaluator Config')
+            );
             for (const field of requiredFields) {
-                expect(uiSection).to.include(`"${field}"`);
+                expect(contractSection).to.include(`"${field}"`);
             }
         });
 
@@ -142,9 +148,10 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(wildcardIdx).to.be.greaterThan(uiIdx);
         });
 
-        it('checks l1-blocking BEFORE all others', function () {
+        it('checks l1-blocking BEFORE all others in routing (not fail-closed guards)', function () {
+            // Use the "Route findings — specific evaluators" comment to skip fail-closed guards
             const routeSection = skillContent.substring(
-                skillContent.indexOf('Route findings from all_results')
+                skillContent.indexOf('Route findings — specific evaluators')
             );
             const l1BlockingIdx = routeSection.indexOf('evaluator_name == "l1-blocking"');
             const l1AdvisoryIdx = routeSection.indexOf('evaluator_name == "l1-advisory-structural"');
@@ -200,8 +207,8 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('wave-based spawning with MAX_CONCURRENT', function () {
-        it('defines MAX_CONCURRENT = 4', function () {
-            expect(skillContent).to.include('MAX_CONCURRENT = 4');
+        it('defines MAX_CONCURRENT = 5', function () {
+            expect(skillContent).to.include('MAX_CONCURRENT = 5');
         });
 
         it('chunks evaluators into waves by MAX_CONCURRENT', function () {
@@ -441,13 +448,16 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 
-        it('l1-advisory group memoization logic exists', function () {
-            expect(skillContent).to.include('l1_advisory_memoized');
-            expect(skillContent).to.include('Group memoization for l1-advisory evaluator');
+        it('l1-advisory group memoization logic exists (split structural/process)', function () {
+            expect(skillContent).to.include('l1_structural_memoized');
+            expect(skillContent).to.include('l1_process_memoized');
+            expect(skillContent).to.include('Group memoization for l1-advisory-structural');
+            expect(skillContent).to.include('Group memoization for l1-advisory-process');
         });
 
         it('l1-advisory memoization invalidates on edits', function () {
-            expect(skillContent).to.include('l1-advisory-structural + l1-advisory-process invalidated (edits applied)');
+            expect(skillContent).to.include('l1-advisory-structural invalidated (edits applied)');
+            expect(skillContent).to.include('l1-advisory-process invalidated (edits applied)');
         });
 
         it('injects synthetic PASS results when l1-advisory is memoized', function () {
@@ -484,31 +494,28 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('smart Haiku classification', function () {
-        it('Haiku classifies HAS_TESTS flag', function () {
-            expect(skillContent).to.include('HAS_TESTS: true if plan creates/modifies test files');
-            expect(skillContent).to.include('HAS_TESTS=true|false');
+        it('Haiku classifies ACTIVE_RISKS domains', function () {
+            expect(skillContent).to.include('ACTIVE_RISKS=comma,separated,list');
         });
 
-        it('Haiku classifies HAS_EXTERNAL_CALLS flag', function () {
-            expect(skillContent).to.include('HAS_EXTERNAL_CALLS: true if plan introduces or modifies outbound');
-            expect(skillContent).to.include('HAS_EXTERNAL_CALLS=true|false');
+        it('Haiku classifies risk domains: security, testing, state, operations, external_calls', function () {
+            expect(skillContent).to.include('security');
+            expect(skillContent).to.include('testing');
+            expect(skillContent).to.include('state');
+            expect(skillContent).to.include('operations');
+            expect(skillContent).to.include('external_calls');
         });
 
-        it('Haiku classifies HAS_UNTRUSTED_INPUT flag', function () {
-            expect(skillContent).to.include('HAS_UNTRUSTED_INPUT: true if plan handles user-submitted data');
-            expect(skillContent).to.include('HAS_UNTRUSTED_INPUT=true|false');
+        it('testing cluster activation is conditional on ACTIVE_RISKS', function () {
+            expect(skillContent).to.include('if "testing" in ACTIVE_RISKS:        active_clusters.append("testing")');
         });
 
-        it('testing cluster activation is conditional on HAS_TESTS', function () {
-            expect(skillContent).to.include('if HAS_TESTS:      active_clusters.append("testing")');
+        it('security cluster activation is conditional on security or external_calls risk', function () {
+            expect(skillContent).to.include('if "security" in ACTIVE_RISKS or "external_calls" in ACTIVE_RISKS:');
         });
 
-        it('security cluster activation is conditional on HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT', function () {
-            expect(skillContent).to.include('if HAS_EXTERNAL_CALLS or HAS_UNTRUSTED_INPUT:');
-        });
-
-        it('Haiku fallback defaults new flags to true (conservative)', function () {
-            expect(skillContent).to.include('HAS_TESTS=true, HAS_EXTERNAL_CALLS=true, HAS_UNTRUSTED_INPUT=true');
+        it('Haiku fallback defaults ACTIVE_RISKS conservatively', function () {
+            expect(skillContent).to.include('ACTIVE_RISKS={"testing", "security", "external_calls"}');
         });
     });
 });

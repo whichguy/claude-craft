@@ -1,0 +1,155 @@
+{
+  "research_id": "data-pipeline-healthtech-2026-03-22",
+  "research_date": "2026-03-22",
+  "model": "us.anthropic.claude-sonnet-4-6",
+  "domain": "Real-Time Data Pipeline & Analytics Infrastructure",
+  "context": "Series B health-tech, HIPAA, GCP, 12K→200K IoT devices",
+  "decision_areas": [
+    {
+      "area": "stream_processing",
+      "candidates_evaluated": [
+        "Apache Kafka + Kafka Streams",
+        "Apache Pulsar",
+        "Google Pub/Sub + Apache Beam/Dataflow",
+        "Redpanda + Apache Flink"
+      ],
+      "eliminated": ["Apache Pulsar"],
+      "recommended": "Google Pub/Sub + Apache Beam/Dataflow",
+      "elimination_reason_pulsar": "Operational complexity too high, small GCP ecosystem, no strong use case differentiation",
+      "recommendation_rationale": "Full GCP BAA coverage, Python ML native support, lowest operational burden, best cost profile"
+    },
+    {
+      "area": "analytics_olap",
+      "candidates_evaluated": [
+        "BigQuery",
+        "ClickHouse Cloud",
+        "Apache Druid",
+        "TimescaleDB / TigerData"
+      ],
+      "eliminated": ["Apache Druid", "TimescaleDB"],
+      "recommended": "BigQuery (primary); ClickHouse Cloud as conditional hot-query tier",
+      "elimination_reason_druid": "Extreme operational complexity, 6+ JVM service types, not GCP-native",
+      "elimination_reason_timescaledb": "TigerData Cloud not available on GCP; scale limitations at 200K devices",
+      "recommendation_rationale": "Serverless, GCP BAA, excellent cost profile, Storage Write API for near-realtime ingestion"
+    },
+    {
+      "area": "batch_orchestration",
+      "candidates_evaluated": [
+        "Cloud Composer (Airflow)",
+        "Prefect",
+        "Dagster",
+        "Temporal"
+      ],
+      "eliminated": ["Temporal"],
+      "recommended": "Dagster+ (primary); Cloud Composer as fallback if HIPAA BAA unavailable from Dagster",
+      "elimination_reason_temporal": "Designed for durable long-running stateful workflows, not data pipeline orchestration; lacks native BigQuery operators and data lineage",
+      "recommendation_rationale": "Asset-based model provides compliance audit trail for model versioning; native BigQuery integration; excellent Python support"
+    }
+  ],
+  "stack_configurations": [
+    {
+      "id": "stack_a",
+      "name": "Full GCP Native",
+      "verdict": "RECOMMENDED",
+      "components": {
+        "ingestion": "Google Pub/Sub",
+        "stream_processing": "Apache Beam / Google Dataflow",
+        "analytics_db": "BigQuery",
+        "orchestration": "Dagster+"
+      },
+      "cost_estimate_annual": {
+        "current_12k_devices": "$9,000-$18,000",
+        "projected_200k_devices": "$60,000-$120,000"
+      },
+      "hipaa_coverage": "Complete - all components under GCP BAA"
+    },
+    {
+      "id": "stack_b",
+      "name": "Performance-Optimized",
+      "verdict": "CONDITIONAL - use if BigQuery dashboard latency insufficient",
+      "components": {
+        "ingestion": "Google Pub/Sub",
+        "stream_processing": "Apache Beam / Google Dataflow",
+        "analytics_db": "ClickHouse Cloud (GCP) + BigQuery as system of record",
+        "orchestration": "Dagster+"
+      },
+      "cost_estimate_annual": {
+        "current_12k_devices": "$30,000-$50,000",
+        "projected_200k_devices": "$100,000-$180,000"
+      },
+      "hipaa_coverage": "Partial - requires ClickHouse Enterprise BAA negotiation"
+    },
+    {
+      "id": "stack_c",
+      "name": "Kafka-Centric (Revised)",
+      "verdict": "NOT RECOMMENDED as primary - evaluated to address CTO hypothesis",
+      "components": {
+        "ingestion": "Confluent Cloud (Kafka)",
+        "stream_processing": "Python microservices on GKE consuming from Kafka",
+        "analytics_db": "BigQuery (via Kafka Connect)",
+        "orchestration": "Cloud Composer"
+      },
+      "cost_estimate_annual": {
+        "current_12k_devices": "$18,000-$30,000",
+        "projected_200k_devices": "$96,000-$180,000"
+      },
+      "hipaa_coverage": "Requires Confluent Cloud BAA (available) + GCP BAA"
+    }
+  ],
+  "cto_hypothesis": {
+    "claim": "Just use Kafka for everything",
+    "verdict": "PARTIALLY VALID - Kafka as transport is reasonable; Kafka Streams as processor is impossible in Python",
+    "critical_finding": "Kafka Streams is a Java/Scala library with no Python API. Python ML models cannot run natively in Kafka Streams.",
+    "valid_parts": "Kafka API compatibility is real; ecosystem is rich; portability argument has merit",
+    "invalid_parts": "Python ML integration requires external services, adding latency and complexity; cost is 10x higher than Pub/Sub at target scale; GCP committed spend does not cover Confluent"
+  },
+  "gate_results": {
+    "gate_1_market_landscape": "PASS",
+    "gate_2_technical_evaluation": "PASS",
+    "gate_3_business_analysis": "PASS",
+    "gate_4_comparative_analysis": "PASS",
+    "gate_5_contextual_recommendation": "PASS"
+  },
+  "sources_consulted": [
+    "https://kafka.apache.org/documentation/",
+    "https://docs.cloud.google.com/pubsub/docs/overview",
+    "https://docs.cloud.google.com/bigquery/docs/introduction",
+    "https://docs.cloud.google.com/dataflow/docs/concepts/beam-programming-model",
+    "https://docs.cloud.google.com/dataflow/docs/concepts/streaming-with-cloud-pubsub",
+    "https://docs.cloud.google.com/bigquery/docs/streaming-data-into-bigquery",
+    "https://docs.cloud.google.com/bigquery/docs/write-api",
+    "https://docs.cloud.google.com/composer/docs/composer-2/composer-overview",
+    "https://cloud.google.com/security/compliance/hipaa",
+    "https://clickhouse.com/docs/en/intro",
+    "https://clickhouse.com/pricing",
+    "https://druid.apache.org/docs/latest/design/",
+    "https://www.tigerdata.com/products",
+    "https://docs.redpanda.com/current/get-started/intro-to-events/",
+    "https://pulsar.apache.org/docs/concepts-overview/",
+    "https://flink.apache.org/what-is-flink/flink-architecture/",
+    "https://flink.apache.org/what-is-flink/use-cases/",
+    "https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/python/overview/",
+    "https://prefect.io/pricing",
+    "https://dagster.io/pricing",
+    "https://docs.dagster.io/integrations/libraries/gcp/bigquery",
+    "https://temporal.io/how-it-works",
+    "https://engineering.linkedin.com/kafka/benchmarking-apache-kafka-2-million-writes-second-three-cheap-machines",
+    "https://docs.cloud.google.com/bigtable/docs/overview",
+    "https://www.strimzi.io/"
+  ],
+  "data_gaps": [
+    "Redpanda Cloud HIPAA BAA availability not publicly confirmed - requires direct vendor contact",
+    "Dagster+ HIPAA BAA availability not explicitly documented - requires sales contact",
+    "Confluent Cloud specific pricing for target throughput not available (dynamic pricing)",
+    "Google Cloud Composer specific pricing not extracted (dynamic JavaScript pricing page)",
+    "Redpanda BYOC GCP region availability not confirmed"
+  ],
+  "confidence_level": "HIGH for Stack A recommendation; MEDIUM for cost estimates at 200K device scale",
+  "recommended_next_steps": [
+    "Sign Google Cloud BAA if not already executed",
+    "Contact Dagster sales to confirm HIPAA BAA availability; if unavailable, fall back to Cloud Composer",
+    "Prototype MQTT-to-Pub/Sub bridge to validate Mosquitto integration approach",
+    "Run Pub/Sub + Dataflow latency benchmark at 12K device message rate to validate <3s SLA",
+    "Set up BigQuery dataset with time-based partitioning and device_id clustering for cost efficiency"
+  ]
+}

@@ -320,9 +320,11 @@ describe('Sync Status Tests', function () {
             expect(content).to.not.include('register_hooks');
         });
 
-        it('should not require jq as a dependency', function () {
+        it('should use jq gracefully (skip if not available)', function () {
             const content = fs.readFileSync(installScript, 'utf8');
-            expect(content).to.not.include('jq');
+            // install.sh uses jq for hook installation but skips gracefully if jq is missing
+            expect(content).to.include('jq');
+            expect(content).to.include('jq not found');
         });
     });
 

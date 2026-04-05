@@ -30,7 +30,9 @@ Note: `SpreadsheetApp.Protection` requires the user to be an editor or owner. Th
    - Push updated `require.gs` via `mcp__gas__write`
    - Verify: `mcp__gas__exec` → `sheet_protection.getProtectionStatus('Sheet1')` should return `{protected: boolean, description: string}` without error
 
-3. Add `__events__` handler for sidebar access:
+   **Rollback note:** if exec fails, revert `require.gs` to the pre-edit state, push the revert, exec verify.
+5. Verify `appsscript.json` already includes the `spreadsheets` scope for protection operations, or add if missing
+6. Add `__events__` handler for sidebar access:
    ```
    __events__ = {
      exec_api: { sheet_protection: { toggleProtection, getProtectionStatus } }
@@ -42,6 +44,12 @@ Note: `SpreadsheetApp.Protection` requires the user to be an editor or owner. Th
 **Outputs:** `sheet-protection.gs` module registered in `require.gs` with `__events__` handler `sheet_protection` accessible via exec_api.
 
 **Phase 1 commit:** `git add -A && git commit -m "feat: add sheet-protection server module with toggleProtection and getProtectionStatus"`
+
+**Outputs:** `sheet-protection.gs` module created and pushed; registered in `require.gs`; `__events__.exec_api.sheet_protection` active; exec verification confirms module loads and `getProtectionStatus` returns expected shape.
+
+**Rollback (Phase 1):** if any step fails after push, revert `require.gs` and remove `sheet-protection.gs` from the registry; push revert and exec verify clean state.
+
+**Phase 1 commit:** `git add <files> && git commit -m "feat: add sheet-protection CommonJS module with exec_api registration"`
 
 ### Phase 2: Sidebar UI
 

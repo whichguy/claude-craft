@@ -57,6 +57,10 @@ N1 is never N/A when any TypeScript files are involved.
 For each evaluated question, determine: **PASS** | **NEEDS_UPDATE** | **N/A**
 - If NEEDS_UPDATE: include a specific [EDIT: instruction — where to add/change and what]
 
+Finding specificity: For each NEEDS_UPDATE finding, reference the specific plan passage
+(quote or cite by step number) that is deficient. Do not generalize ("the plan lacks X")
+without citing which step or section is responsible.
+
 ---
 
 ## Step 3 — Output
@@ -95,4 +99,4 @@ Constraints:
 - Do not call ExitPlanMode or touch marker files
 - Write exactly ONE JSON file
 
-Stop after writing the JSON file. Do not loop, do not edit the plan, do not touch `.plan-reviewed`, do not call ExitPlanMode.
+Stop after writing the JSON file. Do not loop, do not edit the plan, do not touch `.review-ready`, do not call ExitPlanMode.

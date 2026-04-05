@@ -818,7 +818,7 @@ Otherwise, proceed to Step 5 with only `active_experiments` (exclude FAILed expe
 
 ## Step 5 — Evaluate All Experiments
 
-Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..6 + optional Q-FX7/Q-UX1..3 + dynamic questions).
+Read evaluation questions from IDEAS_FILE `## Evaluation Questions` section (fixed Q-FX1..Q-FX10 + optional Q-UX1..3 + dynamic questions).
 
 **Load inputs:**
 
@@ -1248,7 +1248,7 @@ EOF
     IF prompt_path NOT starts with $IMPROVE_TMPDIR:  # not inline mode
       Print: `[7/7] 💾 Commit ─── improve({basename}): {1-line summary}`
     ELSE:
-      Print: `[7/7] 💾 Result ─── IMPROVED (prompt committed)`
+      Print: `[7/7] 💾 Result ─── IMPROVED (learnings saved, no commit — inline mode)`
     Print (render as fenced code block):
     ╔═══════════════════════════════════════════════════════════════╗
     ║  ✅  IMPROVED  —  Iteration {i}                               ║

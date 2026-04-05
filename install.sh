@@ -54,6 +54,33 @@ verify_sync_script() {
     fi
 }
 
+install_settings_hooks() {
+    local settings_file="$CLAUDE_DIR/settings.json"
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  jq not found — skipping settings hook install${NC}"
+        return
+    fi
+
+    [ ! -f "$settings_file" ] && echo '{}' > "$settings_file"
+
+    # Idempotency: skip if ExitPlanMode hook already present
+    if jq -e '.hooks.PreToolUse[]? | select(.matcher == "ExitPlanMode")' "$settings_file" > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ ExitPlanMode review-plan hook already installed${NC}"
+        return
+    fi
+
+    local pre_hook_cmd='plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); slug=$(basename "$plan_file" .md 2>/dev/null); if [ -n "$slug" ] && [ -f ~/.claude/plans/.review-ready-"$slug" ]; then printf '"'"'{}'"'"'; else printf '"'"'%s'"'"' '"'"'{"decision":"block","reason":"Gate file not found. Either review-plan has not been run yet (run it first), or ExitPlanMode already succeeded and the gate was cleaned up (do not retry)."}'"'"'; fi'
+    local post_hook_cmd='input=$(cat); tool_result=$(echo "$input" | jq -r '"'"'.tool_result // ""'"'"' 2>/dev/null); if echo "$tool_result" | grep -qi '"'"'error\|not in plan mode\|failed'"'"'; then printf '"'"'{}'"'"'; exit 0; fi; plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); if [ -n "$plan_file" ]; then slug=$(basename "$plan_file" .md); rm -f ~/.claude/plans/.review-ready-"$slug"; fi; printf '"'"'{}'"'"''
+
+    local tmp="$settings_file.tmp"
+    jq --arg pre_cmd "$pre_hook_cmd" --arg post_cmd "$post_hook_cmd" \
+       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$pre_cmd,"statusMessage":"Checking review-plan was run..."}]}]) | .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$post_cmd,"statusMessage":"Cleaning up review gate..."}]}])' \
+       "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
+
+    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hooks (PreToolUse + PostToolUse)${NC}"
+}
+
 # Main installation
 main() {
     echo -e "${YELLOW}🔍 Checking system requirements...${NC}"
@@ -117,6 +144,10 @@ main() {
     
     # Sync all extension types (agents, commands, skills, prompts, references, plugins)
     sync_extensions
+
+    # Install settings hooks (e.g. ExitPlanMode review-plan gate)
+    echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
+    install_settings_hooks
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"

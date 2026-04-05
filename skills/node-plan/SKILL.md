@@ -147,7 +147,7 @@ DO:
   --- TypeScript/API Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "claude-sonnet-4-6",
     team_name = <team_name>,
     name = "ts-evaluator-p" + pass_count,
     prompt = """
@@ -209,7 +209,7 @@ DO:
   --- Node Runtime Evaluator Task ---
   Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "claude-sonnet-4-6",
     team_name = <team_name>,
     name = "node-evaluator-p" + pass_count,
     prompt = """
@@ -779,12 +779,12 @@ execution flow pseudo-code is a placeholder only — it defers here. Summary:
    Wait (90s max; timeout → ⚠️ skipped, note in scorecard).
    Apply any NEEDS_UPDATE edits. Add result to Final Scorecard as:
    `Organization Quality: [PASS | NEEDS_UPDATE — reason]`
-3. **Write gate marker and clean up**: Use the Bash tool to run:
-   `touch ~/.claude/.plan-reviewed && rm -f <memo_file>` — writes the gate marker so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits).
+3. **Write gate file and clean up**: Use the Bash tool to run:
+   `slug=$(basename '<plan_path>' .md) && echo '<plan_path>' > ~/.claude/plans/.review-ready-"$slug" && rm -f <memo_file>` — writes the slug-scoped gate file so ExitPlanMode will pass; second command removes the convergence checkpoint (no longer needed after loop exits).
 4. **Team teardown**: Send shutdown_request to all agents in `spawned_evaluators` (only
    agents that were actually launched — triage-skipped evaluators are not in this list),
    then TeamDelete. Teardown must complete before ExitPlanMode — the session context needed
    for TeamDelete is not available after exiting plan mode.
 5. **Call ExitPlanMode immediately.** Do not pause, do not ask "should I present the plan?"
 
-The PreToolUse hook on ExitPlanMode checks for this marker and consumes it on success.
+The PreToolUse hook on ExitPlanMode checks for the slug-scoped gate file (~/.claude/plans/.review-ready-{slug}) and blocks if not found. The PostToolUse hook deletes it on successful exit.

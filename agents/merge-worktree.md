@@ -1,7 +1,7 @@
 ---
 name: merge-worktree
 description: Safely merge worktree changes back to source branch with squash commit, comprehensive validation, and automatic cleanup. Handles conflicts gracefully with detailed resolution guidance. **AUTOMATICALLY INVOKE** this agent when user mentions "merge worktree", "integrate worktree", or when worktree feature work is complete. **STRONGLY RECOMMENDED** after create-worktree operations and before cleanup.
-model: claude-haiku-4-5
+model: claude-haiku-4-5-20251001
 color: green
 ---
 
