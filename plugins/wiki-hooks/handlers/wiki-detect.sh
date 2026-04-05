@@ -34,64 +34,34 @@ touch "$MARKER" 2>/dev/null || true
 LOG_PATH="$REPO_ROOT/wiki/log.md"
 [ -f "$LOG_PATH" ] && echo "[$TIMESTAMP] SESSION_START session:${SESSION_SHORT}: opened in $(basename "$REPO_ROOT")" >> "$LOG_PATH" || true
 
-# Stale detection: compare index rows vs actual file count
-# grep -c outputs count AND exits 1 when 0 matches — || echo would append a second value
-# Use || true to suppress the exit code without adding extra output
+# --- Progressive disclosure Tier 1: discovery line with topic names only ---
+# Full index, stale detection, raw/ counts, global cross-refs → deferred to /wiki-load and /wiki-lint (Tier 2+3).
+# This outputs ~50-80 tokens vs ~370-1200 for the full index. Avoids context rot from irrelevant info.
+
 PAGE_COUNT=$(grep -c '^|' "$INDEX_PATH" 2>/dev/null || true)
 PAGE_COUNT=${PAGE_COUNT:-2}
 PAGE_COUNT=$((PAGE_COUNT > 2 ? PAGE_COUNT - 2 : 0))
-ACTUAL=$(find "$REPO_ROOT/wiki" -name '*.md' ! -name 'index.md' ! -name 'log.md' ! -name 'SCHEMA.md' 2>/dev/null | wc -l | tr -d ' ')
-STALE=""
-[ "$ACTUAL" -gt 0 ] && DIFF=$((PAGE_COUNT > ACTUAL ? PAGE_COUNT - ACTUAL : ACTUAL - PAGE_COUNT)) && \
-  [ "$DIFF" -gt 3 ] && STALE="⚠️ Index may be stale (${PAGE_COUNT} indexed, ${ACTUAL} files)"$'\n'
 
-# Surface unprocessed raw/ files (raw/ lives at repo root, not inside wiki/)
-RAW_COUNT=$(find "$REPO_ROOT/raw" -type f 2>/dev/null | wc -l | tr -d ' ')
-RAW_INDEXED=$(grep -c '^| \[sources/' "$INDEX_PATH" 2>/dev/null || true)
-RAW_INDEXED=${RAW_INDEXED:-0}
-RAW_HINT=""
-UNPROCESSED=$((RAW_COUNT - RAW_INDEXED))
-[ "$UNPROCESSED" -gt 0 ] && RAW_HINT=$'\n'"📥 ${UNPROCESSED} file(s) in raw/ not yet ingested — ask me to /wiki-ingest them"
+# Extract entity topic names (first 10, filenames without extension)
+# These let Claude match user questions against available wiki topics
+TOPICS=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | sed 's/\.md$//' | head -10 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+TOPIC_COUNT=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
+OVERFLOW=""
+# Note: use if/then/fi instead of [ ] && ... — set -e kills the script on false [ ] in && chains
+if [ "$TOPIC_COUNT" -gt 10 ]; then OVERFLOW=", +$((TOPIC_COUNT - 10)) more"; fi
 
-# Check for failed queue entries from previous sessions
-FAILED_COUNT=$(find "$HOME/.claude/reflection-queue" -name '*-wiki.json' -o -name '*-wikichange.json' 2>/dev/null | \
-  xargs -I{} sh -c 'jq -e ".status == \"failed\"" "{}" >/dev/null 2>&1 && echo 1' | wc -l | tr -d ' ')
+# Check for failed queue entries (actionable alert — keep in discovery)
+# Use grep instead of jq+xargs — avoids pipefail issues with set -eo pipefail
+FAILED_COUNT=$(grep -rl '"status".*"failed"' "$HOME/.claude/reflection-queue/" 2>/dev/null | grep -c -E '\-(wiki|wikichange)\.json$' || true)
+FAILED_COUNT=${FAILED_COUNT:-0}
 FAILED_HINT=""
-[ "$FAILED_COUNT" -gt 0 ] && FAILED_HINT=$'\n'"⚠️ ${FAILED_COUNT} wiki synthesis failed last session — check ~/.claude/reflection-queue/ for details"
+if [ "$FAILED_COUNT" -gt 0 ]; then FAILED_HINT=$'\n'"⚠️ ${FAILED_COUNT} wiki synthesis failed — check ~/.claude/reflection-queue/"; fi
 
-# Index content (truncation visible)
-TOTAL_LINES=$(wc -l < "$INDEX_PATH" 2>/dev/null || true)
-TOTAL_LINES=${TOTAL_LINES:-0}
-TOTAL_LINES=$(echo "$TOTAL_LINES" | tr -d ' ')
-INDEX_CONTENT=$(head -80 "$INDEX_PATH" 2>/dev/null || true)
-TRUNCATION=""
-[ "$TOTAL_LINES" -gt 80 ] && TRUNCATION=$'\n'"...and $((TOTAL_LINES - 80)) more lines — /wiki-load or /wiki-query for full search"
-
-# Global wiki cross-reference (cap: top 3 entities × max 10 global topics = bounded grep)
-GLOBAL_DIRS=("$HOME/.claude/wiki/topics" "$HOME/.claude/reflection-knowledge/topics")
-RELATED=""
-for GDIR in "${GLOBAL_DIRS[@]}"; do
-  [ ! -d "$GDIR" ] && continue
-  # Cap: check top 3 entities only, grep limited to max 10 topic files
-  TOPIC_FILES=$(ls "$GDIR"/*.md 2>/dev/null | head -10)
-  [ -z "$TOPIC_FILES" ] && break
-  while IFS= read -r EF; do
-    E=$(basename "$EF" .md)
-    MATCH=$(echo "$TOPIC_FILES" | xargs grep -l "$E" 2>/dev/null | head -1 | xargs -I{} basename {} .md 2>/dev/null || true)
-    [ -n "$MATCH" ] && RELATED="$RELATED$MATCH "
-  done < <(find "$REPO_ROOT/wiki/entities" -maxdepth 1 -name '*.md' 2>/dev/null | head -3)
-  break  # Only check first available global dir
-done
-GLOBAL_NOTE=""
-[ -n "$RELATED" ] && GLOBAL_NOTE=$'\n'"🔗 Related global knowledge: ${RELATED}(use /wiki-load <topic>)"
-
-RULES="Key rules: never write to raw/ (LLM-write-protected) · always update index.md after wiki changes · entity pages use ## From [Source] subsections · use /wiki-load for JIT context · /wiki-query for synthesis"
-
-MSG="${STALE}📂 Wiki: $(basename "$REPO_ROOT") — ${PAGE_COUNT} pages${RAW_HINT}${FAILED_HINT}
-
-${INDEX_CONTENT}${TRUNCATION}${GLOBAL_NOTE}
-
-Skills: /wiki-ingest · /wiki-query · /wiki-load · /wiki-lint
-${RULES}"
+# Build discovery message (~50-80 tokens)
+if [ -n "$TOPICS" ]; then
+  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages: ${TOPICS}${OVERFLOW}) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
+else
+  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
+fi
 
 jq -n --arg msg "$MSG" '{"systemMessage": $msg}'

@@ -292,7 +292,7 @@ describe('Wiki Hooks', function () {
             const parsed = JSON.parse(stdout.trim());
             expect(parsed).to.have.property('systemMessage');
             expect(parsed.systemMessage).to.include('Wiki:');
-            expect(parsed.systemMessage).to.include('/wiki-ingest');
+            expect(parsed.systemMessage).to.include('/wiki-load');
         });
 
         it('should be silent for non-wiki repos', async function () {
