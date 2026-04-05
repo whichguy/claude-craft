@@ -1,5 +1,14 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/memo-cleanup.sh", "async": true, "timeout": 3 },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/check-skills-changed.sh", "async": true, "timeout": 5 }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "matcher": "*",
