@@ -35,7 +35,10 @@ LOG_PATH="$REPO_ROOT/wiki/log.md"
 [ -f "$LOG_PATH" ] && echo "[$TIMESTAMP] SESSION_START session:${SESSION_SHORT}: opened in $(basename "$REPO_ROOT")" >> "$LOG_PATH" || true
 
 # Stale detection: compare index rows vs actual file count
-PAGE_COUNT=$(grep -c '^|' "$INDEX_PATH" 2>/dev/null || echo "2")
+# grep -c outputs count AND exits 1 when 0 matches — || echo would append a second value
+# Use || true to suppress the exit code without adding extra output
+PAGE_COUNT=$(grep -c '^|' "$INDEX_PATH" 2>/dev/null || true)
+PAGE_COUNT=${PAGE_COUNT:-2}
 PAGE_COUNT=$((PAGE_COUNT > 2 ? PAGE_COUNT - 2 : 0))
 ACTUAL=$(find "$REPO_ROOT/wiki" -name '*.md' ! -name 'index.md' ! -name 'log.md' ! -name 'SCHEMA.md' 2>/dev/null | wc -l | tr -d ' ')
 STALE=""
@@ -44,7 +47,8 @@ STALE=""
 
 # Surface unprocessed raw/ files (raw/ lives at repo root, not inside wiki/)
 RAW_COUNT=$(find "$REPO_ROOT/raw" -type f 2>/dev/null | wc -l | tr -d ' ')
-RAW_INDEXED=$(grep -c '^| \[sources/' "$INDEX_PATH" 2>/dev/null || echo "0")
+RAW_INDEXED=$(grep -c '^| \[sources/' "$INDEX_PATH" 2>/dev/null || true)
+RAW_INDEXED=${RAW_INDEXED:-0}
 RAW_HINT=""
 UNPROCESSED=$((RAW_COUNT - RAW_INDEXED))
 [ "$UNPROCESSED" -gt 0 ] && RAW_HINT=$'\n'"📥 ${UNPROCESSED} file(s) in raw/ not yet ingested — ask me to /wiki-ingest them"
@@ -56,7 +60,9 @@ FAILED_HINT=""
 [ "$FAILED_COUNT" -gt 0 ] && FAILED_HINT=$'\n'"⚠️ ${FAILED_COUNT} wiki synthesis failed last session — check ~/.claude/reflection-queue/ for details"
 
 # Index content (truncation visible)
-TOTAL_LINES=$(wc -l < "$INDEX_PATH" 2>/dev/null || echo "0")
+TOTAL_LINES=$(wc -l < "$INDEX_PATH" 2>/dev/null || true)
+TOTAL_LINES=${TOTAL_LINES:-0}
+TOTAL_LINES=$(echo "$TOTAL_LINES" | tr -d ' ')
 INDEX_CONTENT=$(head -80 "$INDEX_PATH" 2>/dev/null || true)
 TRUNCATION=""
 [ "$TOTAL_LINES" -gt 80 ] && TRUNCATION=$'\n'"...and $((TOTAL_LINES - 80)) more lines — /wiki-load or /wiki-query for full search"
