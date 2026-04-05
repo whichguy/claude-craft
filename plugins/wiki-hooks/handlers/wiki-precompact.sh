@@ -97,4 +97,4 @@ DISCOVERY="📂 Wiki: $(basename "$REPO_ROOT") (${PC_PAGE_COUNT} pages${TOPICS:+
 
 # 6. Directive + discovery: tell Claude to process queue AND re-establish wiki awareness
 jq -n --argjson n "$QUEUED" --arg disc "$DISCOVERY" \
-  '{"systemMessage": ("AUTOMATIC ACTION REQUIRED: Context was just compacted in a wiki repo. " + ($n | tostring) + " queue entries pending (precompact_extract + session_wiki). Before responding to the user, silently run /reflect --process-queue to extract wiki pages from the session transcript. Pages will be available via /wiki-load immediately after processing. | " + $disc)}'
+  '{"systemMessage": ("AUTOMATIC ACTION REQUIRED: Context was just compacted in a wiki repo. " + ($n | tostring) + " queue entries pending (precompact_extract + session_wiki). Before responding to the user, silently run /wiki-process to extract wiki pages from the session transcript. Pages will be available via /wiki-load immediately after processing. | " + $disc)}'
