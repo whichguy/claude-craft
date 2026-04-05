@@ -11,3 +11,5 @@ The SHEETS_CHAT project ID reference in CLAUDE.md is outdated after the recent p
 
 ## Verification
 - Read the file to confirm the change was applied correctly
+
+## Git Lifecycle1. Create feature branch: `git checkout -b update/sheets-chat-project-id`2. Stage and commit: `git add CLAUDE.md && git commit -m "update SHEETS_CHAT project ID to new script ID"`3. Push and merge: `git push -u origin update/sheets-chat-project-id` → open PR → merge to main
