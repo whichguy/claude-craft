@@ -1,0 +1,62 @@
+#!/bin/bash
+# claude-route — launch Claude Code with provider config from model-map.json
+# Usage: claude-route <model>    — launch with provider env vars
+#        claude-route             — launch default (no override)
+#        claude-route --list      — show models with provider config
+set -eo pipefail
+
+CONFIG="$HOME/.claude/model-map.json"
+
+# Harden config permissions if it contains provider credentials
+[[ -f "$CONFIG" ]] && chmod 600 "$CONFIG" 2>/dev/null
+
+MODEL="${1:-}"
+
+if [[ "$MODEL" == "--list" ]]; then
+  if [[ ! -f "$CONFIG" ]] || ! jq -e '.providers | length > 0' "$CONFIG" >/dev/null 2>&1; then
+    echo "No providers configured in $CONFIG"
+    echo "Use /model-map provider <model> <base_url> to add one."
+    exit 0
+  fi
+  echo "Models with provider config:"
+  jq -r '.providers | to_entries[] | "  \(.key)  →  \(.value.base_url)"' "$CONFIG" 2>/dev/null
+  echo ""
+  echo "Usage: claude-route <model>"
+  exit 0
+fi
+
+if [[ -z "$MODEL" ]]; then
+  exec claude "$@"
+fi
+
+# Look up provider config
+PROVIDER=""
+if [[ -f "$CONFIG" ]]; then
+  PROVIDER=$(jq -r --arg m "$MODEL" '.providers[$m] // empty' "$CONFIG" 2>/dev/null)
+fi
+
+if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
+  BASE_URL=$(echo "$PROVIDER" | jq -r '.base_url // empty')
+  AUTH_TOKEN=$(echo "$PROVIDER" | jq -r '.auth_token // empty')
+  CONFIG_DIR=$(echo "$PROVIDER" | jq -r '.config_dir // empty')
+  DISABLE_TRAFFIC=$(echo "$PROVIDER" | jq -r '.disable_nonessential_traffic // false')
+
+  [[ -n "$BASE_URL" ]] && export ANTHROPIC_BASE_URL="$BASE_URL"
+  [[ -n "$AUTH_TOKEN" ]] && export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
+
+  # api_key can be intentionally empty (Ollama) — only set if key exists in config
+  if echo "$PROVIDER" | jq -e 'has("api_key")' >/dev/null 2>&1; then
+    export ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+  fi
+
+  # Expand $HOME anywhere in config_dir (not just leading prefix)
+  [[ -n "$CONFIG_DIR" ]] && export CLAUDE_CONFIG_DIR="${CONFIG_DIR//\$HOME/$HOME}"
+  [[ "$DISABLE_TRAFFIC" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+
+  shift
+  exec claude --model "$MODEL" "$@"
+else
+  # No provider config — launch with model override only
+  shift
+  exec claude --model "$MODEL" "$@"
+fi
