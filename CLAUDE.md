@@ -158,3 +158,6 @@ ls -la .git/hooks/                               # Verify git hooks
 ./tools/security-scan.sh test/fixtures secrets   # Test security patterns
 ./tools/simple-secrets-scan.sh                   # Quick secrets check
 ```
+
+## Wiki
+WIKI: /wiki-load before answering project-domain questions. /wiki-query for synthesis.

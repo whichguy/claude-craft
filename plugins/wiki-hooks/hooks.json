@@ -16,6 +16,10 @@
     "Stop": [{
       "matcher": "*",
       "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-stop.sh", "timeout": 15, "async": true }]
+    }],
+    "SessionEnd": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-session-end.sh", "timeout": 5 }]
     }]
   }
 }
