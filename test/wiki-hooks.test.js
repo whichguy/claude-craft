@@ -8,7 +8,7 @@ const util = require('util');
 const execAsync = util.promisify(exec);
 
 const HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'wiki-hooks', 'handlers');
-const REFLECT_HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'reflection-system', 'hooks-handlers');
+// reflection-system deleted — session-start-processor logic merged into wiki-detect.sh
 
 describe('Wiki Hooks', function () {
     this.timeout(15000);
@@ -80,14 +80,7 @@ describe('Wiki Hooks', function () {
         });
     }
 
-    function runReflectHook(handlerName, inputJson, extraEnv) {
-        const script = path.join(REFLECT_HANDLERS_DIR, handlerName);
-        const jsonStr = JSON.stringify(inputJson);
-        const env = { ...process.env, HOME: fakeClaudeHome, ...extraEnv };
-        return execAsync(`printf '%s' '${jsonStr.replace(/'/g, "'\\''")}' | bash "${script}"`, {
-            env, timeout: 10000,
-        });
-    }
+    // runReflectHook removed — reflection-system deleted, tests below updated to use wiki-detect.sh
 
     // ================================================================
     // Group 1: wiki-stop.sh find-newer change detection
@@ -207,75 +200,36 @@ describe('Wiki Hooks', function () {
     });
 
     // ================================================================
-    // Group 3: session-start-processor.sh dual-path topic search
+    // Group 3: wiki-detect.sh queue detection (absorbed from session-start-processor.sh)
     // ================================================================
-    describe('session-start-processor.sh dual-path topics', function () {
+    describe('wiki-detect.sh queue detection', function () {
 
-        it('should find topics in global wiki dir', async function () {
-            const globalTopicDir = path.join(fakeClaudeHome, '.claude', 'wiki', 'topics');
-            fs.mkdirSync(globalTopicDir, { recursive: true });
+        it('should include processing directive when pending queue entries exist', async function () {
+            // Create a pending queue entry
             fs.writeFileSync(
-                path.join(globalTopicDir, 'test-patterns.md'),
-                '---\ntopic: test-patterns\n---\n# Test Patterns\nUsed in myproject for testing.\n'
+                path.join(fakeClaudeHome, '.claude', 'reflection-queue', 'test-session-wiki.json'),
+                JSON.stringify({ type: 'session_wiki', status: 'pending', session_id: 'test' })
             );
 
-            const { stdout } = await runReflectHook('session-start-processor.sh', {
-                cwd: '/tmp/myproject', agent_id: '', session_id: 'topic-test-1',
+            const { stdout } = await runHook('wiki-detect.sh', {
+                cwd: fakeRepo, agent_id: '', session_id: 'queue-test-1',
             });
 
             const parsed = JSON.parse(stdout.trim());
-            expect(parsed.systemMessage).to.include('test-patterns');
-            expect(parsed.systemMessage).to.include('/wiki-load');
+            expect(parsed.systemMessage).to.include('/wiki-process');
+            expect(parsed.systemMessage).to.include('AUTOMATIC ACTION');
+
+            // Clean up
+            fs.unlinkSync(path.join(fakeClaudeHome, '.claude', 'reflection-queue', 'test-session-wiki.json'));
         });
 
-        it('should find topics in legacy reflection-knowledge dir', async function () {
-            const legacyDir = path.join(fakeClaudeHome, '.claude', 'reflection-knowledge', 'topics');
-            fs.mkdirSync(legacyDir, { recursive: true });
-            fs.writeFileSync(
-                path.join(legacyDir, 'legacy-design.md'),
-                '---\ntopic: legacy-design\n---\n# Legacy\nPatterns from legacyrepo.\n'
-            );
-
-            const { stdout } = await runReflectHook('session-start-processor.sh', {
-                cwd: '/tmp/legacyrepo', agent_id: '', session_id: 'topic-test-2',
+        it('should not include directive when no pending entries', async function () {
+            const { stdout } = await runHook('wiki-detect.sh', {
+                cwd: fakeRepo, agent_id: '', session_id: 'queue-test-2',
             });
 
             const parsed = JSON.parse(stdout.trim());
-            expect(parsed.systemMessage).to.include('legacy-design');
-        });
-
-        it('should deduplicate topics present in both dirs', async function () {
-            const globalDir = path.join(fakeClaudeHome, '.claude', 'wiki', 'topics');
-            const legacyDir = path.join(fakeClaudeHome, '.claude', 'reflection-knowledge', 'topics');
-            fs.mkdirSync(globalDir, { recursive: true });
-            fs.mkdirSync(legacyDir, { recursive: true });
-
-            const content = '---\ntopic: shared-topic\n---\n# Shared\nUsed in duperepo.\n';
-            fs.writeFileSync(path.join(globalDir, 'shared-topic.md'), content);
-            fs.writeFileSync(path.join(legacyDir, 'shared-topic.md'), content);
-
-            const { stdout } = await runReflectHook('session-start-processor.sh', {
-                cwd: '/tmp/duperepo', agent_id: '', session_id: 'topic-test-3',
-            });
-
-            const parsed = JSON.parse(stdout.trim());
-            const matches = parsed.systemMessage.match(/shared-topic/g);
-            expect(matches.length).to.equal(1, 'topic should appear only once (deduplicated)');
-        });
-
-        it('should be silent for repos with short generic names', async function () {
-            // "src" is in the skip list
-            try {
-                const { stdout } = await runReflectHook('session-start-processor.sh', {
-                    cwd: '/tmp/src', agent_id: '', session_id: 'topic-test-4',
-                });
-                if (stdout.trim()) {
-                    const parsed = JSON.parse(stdout.trim());
-                    expect(parsed.systemMessage).to.not.include('KNOWLEDGE CONTEXT');
-                }
-            } catch {
-                // Silent exit is acceptable
-            }
+            expect(parsed.systemMessage).to.not.include('AUTOMATIC ACTION');
         });
     });
 

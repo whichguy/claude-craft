@@ -21,7 +21,7 @@ SECURITY:    pre-commit → simple-secrets-scan.sh (fast) | full → security-sc
 | **Command** | 10 | Simple utilities, no agent dispatch | `/command-name` | One-shot operations (alias, sync, prompt execution) |
 | **Prompt** | 3 | Orchestration templates executed via `/prompt` | `/prompt name args` | Multi-phase methodologies, A/B testing frameworks |
 | **Reference** | 1 | Static documentation loaded into context | Referenced by agents/skills | Domain knowledge that doesn't change often |
-| **Plugin** | 2 | Hook-based extensions (pre/post execution) | Auto-loaded by Claude Code | Security gates, auto-sync triggers, reflection |
+| **Plugin** | 2 | Hook-based extensions (pre/post execution) | Auto-loaded by Claude Code | Wiki lifecycle hooks, utility hooks (cleanup, sync, skill-change) |
 
 ### Skill Design Pattern
 
@@ -45,8 +45,8 @@ Symlinks from repo to `~/.claude/` provide instant updates, no sync conflicts, v
 ├── prompts/     (.md files)    → ~/.claude/prompts/     [file-based symlinks]
 ├── references/  (.md files)    → ~/.claude/references/  [file-based symlinks]
 ├── plugins/     (directories)  → ~/.claude/plugins/     [dir-based symlinks]
-│   ├── craft-hooks/            # Security + auto-sync hooks
-│   └── reflection-system/      # Session reflection and knowledge
+│   ├── craft-hooks/            # Security + auto-sync + utility hooks
+│   └── wiki-hooks/             # Wiki lifecycle: detect, guard, precompact, stop, session-end
 └── tools/                      # Management scripts (not symlinked)
 ```
 
