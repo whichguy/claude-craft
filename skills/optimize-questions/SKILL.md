@@ -304,7 +304,7 @@ WHILE attempt < max_attempts AND NOT improved:
             </REVISION_B>
 
             Output only valid JSON on a single line — no preamble, no markdown fences:
-            {"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+            {"scores":{"correctness":"?","actionability":"?","insight":"?","economy":"?","trust":"?"},"winner":"?","reasoning":"<1-2 sentences>","valid":true,"recusal":null}
         """
     )
 
