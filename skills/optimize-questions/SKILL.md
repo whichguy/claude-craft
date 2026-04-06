@@ -99,7 +99,26 @@ generate a concise variant → A/B test via compare-questions → update QUESTIO
    ```
    This gives the user a live dashboard of per-question progress.
 
-**State output:** `targets[]` with `{q_id, current_text, plan_path, source_file, question_name}`, `task_ids{}` (q_id → task ID)
+7. **Load learnings briefing** (if LEARNINGS.md exists):
+   - Read `skills/optimize-questions/LEARNINGS.md`
+   - Extract `## Principles` section → `principles_text`
+   - Extract `## Compression Guidance` section → `guidance_text`
+   - Build `learnings_briefing`:
+     ```
+     ACCUMULATED LEARNINGS (from previous optimization runs):
+
+     Proven principles:
+     {principles_text}
+
+     Recent guidance:
+     {guidance_text}
+
+     Apply these alongside the preservation hierarchy. If a principle
+     contradicts the hierarchy, the hierarchy takes precedence.
+     ```
+   - If file doesn't exist → `learnings_briefing = ""`
+
+**State output:** `targets[]` with `{q_id, current_text, plan_path, source_file, question_name}`, `task_ids{}` (q_id → task ID), `learnings_briefing`
 Consumed by: Step 1.
 
 ---
@@ -110,7 +129,8 @@ Create temp dir: `OPT_TMPDIR=$(mktemp -d /tmp/optimize-questions.XXXXXX)`
 
 **Results tracking:**
 ```
-results = []  # {q_id, original_tokens, optimized_tokens, savings_pct, verdict, attempt}
+results = []  # {q_id, original_tokens, optimized_tokens, savings_pct, verdict, attempt,
+              #  winning_strategy, judge_scores, judge_reasoning, compression_description}
 ```
 
 **Parallelization strategy:** Spawn all questions as independent background agents
@@ -191,12 +211,18 @@ WHILE attempt < max_attempts AND NOT improved:
             - Generic consequences ("causes bugs", "leads to errors"): SAFE TO REMOVE —
               every evaluator knows bugs are bad.
 
+            LEARNINGS_BRIEFING
+
+            Apply the above learnings alongside the preservation hierarchy.
+
             CRITICAL: The optimized version must catch the SAME issues as the original
             when applied to a plan. Preserve WHY over HOW — a question that explains the
             failure mode generates better evaluator behavior than an exhaustive flag list.
 
-            Output ONLY the optimized criteria column text.
-            No commentary, no Q-ID, no table formatting, no markdown fences.
+            Output format:
+            Line 1: One-sentence summary of what you changed (e.g., "Removed 2 consequence clauses, merged overlapping flag conditions")
+            Line 2: ---
+            Line 3+: The optimized criteria column text only. No commentary, no Q-ID, no table formatting, no markdown fences.
         """
     )
 
@@ -204,6 +230,11 @@ WHILE attempt < max_attempts AND NOT improved:
     - Q_ID → the question's ID (e.g., "Q-G10")
     - CURRENT_TEXT → the current criteria column text
     - COMPRESSION_STRATEGY → strategy text from above
+    - LEARNINGS_BRIEFING → `learnings_briefing` from Step 0 (empty string if no LEARNINGS.md)
+
+    *Parse response:* Split output on first `---` line. Part before → `compression_description`.
+    Part after → optimized criteria text. If no `---` found, treat entire output as criteria text
+    and set `compression_description = "no description provided"`.
 
     # 1b: Compute token savings
     original_tokens = Math.floor(current_text.length / 4)
@@ -370,7 +401,10 @@ WHILE attempt < max_attempts AND NOT improved:
     IF improved:
         best_version = optimized
         Print: "  ✅ attempt {attempt}: optimized wins — {decided_by} ({savings_pct}% fewer tokens)"
-        results.append({q_id, original_tokens, optimized_tokens, savings_pct, verdict: "updated", attempt})
+        winning_strategy = IF attempt == 1: "STRUCTURAL" ELIF attempt == 2: "SEMANTIC" ELSE: "RADICAL"
+        results.append({q_id, original_tokens, optimized_tokens, savings_pct, verdict: "updated", attempt,
+                        winning_strategy, judge_scores: judge_result.scores, judge_reasoning: judge_result.reasoning,
+                        compression_description})
         TaskUpdate(task_ids[q_id], status = "completed",
                    subject = "Optimize {q_id}: {savings_pct}% smaller ✅")
     ELSE:
@@ -379,7 +413,9 @@ WHILE attempt < max_attempts AND NOT improved:
 
 IF NOT improved:
     Print: "  ➖ kept original after {max_attempts} attempts"
-    results.append({q_id, original_tokens, original_tokens, 0, verdict: "kept", attempt: max_attempts})
+    results.append({q_id, original_tokens, original_tokens, 0, verdict: "kept", attempt: max_attempts,
+                    winning_strategy: null, judge_scores: judge_result.scores, judge_reasoning: judge_result.reasoning,
+                    compression_description})
     TaskUpdate(task_ids[q_id], status = "completed",
                subject = "Optimize {q_id}: kept original ➖")
 ```
@@ -422,6 +458,7 @@ For Q-G9 sub-questions: Edit the inline definition in SKILL.md instead.
   Tokens:   ~{total_original} → ~{total_optimized} ({total_savings_pct}%)
   Kept:     {kept_count} (original was better)
   Skipped:  {skipped_count} (no test plan)
+  Learnings: pending extraction (Step 4)
 ──────────────────────────────────────────────────────
 ```
 
@@ -429,7 +466,93 @@ Where verdict_emoji: `✅` = updated, `➖` = kept, `⚠` = skipped.
 
 ---
 
-## Step 4 — Cleanup
+## Step 4 — Learnings Extraction
+
+IF dry_run OR len(results) == 0:
+    Print: "📝 Skipping learnings extraction"
+    Skip to Step 5.
+
+```
+# 4a: Build run summary from results[]
+run_summary = {
+    timestamp: ISO8601 now,
+    scope: "{layers_summary}, {len(results)} questions",
+    results: results[]  # already enriched with judge_scores, reasoning, etc.
+}
+
+# 4b: Load existing learnings
+learnings_file = "skills/optimize-questions/LEARNINGS.md"
+existing_content = Read(learnings_file) IF exists ELSE ""
+
+# 4c: Spawn analysis agent (single Opus call)
+analysis = Task(
+    subagent_type = "general-purpose",
+    model = "claude-opus-4-6",
+    prompt = """
+        You are analyzing results from an LLM evaluator question optimization run
+        to extract reusable compression learnings.
+
+        <RUN_RESULTS>
+        {run_summary as JSON}
+        </RUN_RESULTS>
+
+        <EXISTING_LEARNINGS>
+        {existing_content}
+        </EXISTING_LEARNINGS>
+
+        Analyze each result:
+        - For wins: What compression technique worked? What text was safely removed?
+          What made the judge prefer the optimized version?
+        - For losses: What caused quality regression? Which preservation category
+          was violated? What should future compression avoid?
+        - For ties decided by tokens: What compression was quality-neutral?
+
+        Cross-reference against existing observations. If a pattern now appears
+        3+ times across runs, promote it to a Principle.
+
+        Output ONLY valid JSON (no markdown fences):
+        {
+          "observations": [
+            {
+              "q_id": "Q-G10",
+              "strategy": "STRUCTURAL",
+              "outcome": "win|loss|tie",
+              "description": "what was changed",
+              "savings_pct": 28.6,
+              "pattern": "extracted reusable pattern",
+              "judge_summary": "quality TIE, decided by tokens"
+            }
+          ],
+          "new_principles": [
+            {"id": "P6", "text": "principle text", "evidence_count": 3}
+          ],
+          "compression_guidance": "1-2 sentence guidance for next run's compression agents"
+        }
+    """
+)
+
+# 4d: Parse analysis output
+parsed = JSON.parse(analysis)
+
+# 4e: Update LEARNINGS.md
+# - Append new observations to "## Recent Observations" (newest first)
+# - Add any new principles to "## Principles"
+# - Replace "## Compression Guidance" with new guidance
+# - Prune observations beyond 50 entries (remove oldest run block)
+# Use Edit tool to update each section
+
+# 4f: Update memory file if new principles promoted
+IF parsed.new_principles is non-empty:
+    Append to ~/.claude/projects/.../memory/project_prompt_compression_learnings.md
+
+Print: "📝 Learnings: {len(parsed.observations)} observations, {len(parsed.new_principles)} new principles"
+```
+
+**Cost:** Exactly 1 additional Opus agent call per run (not per question).
+
+---
+
+## Step 5 — Cleanup
 
 ```bash
 rm -rf "$OPT_TMPDIR"
@@ -449,3 +572,5 @@ Print: "Temp files cleaned up."
 | Compare-questions judge error | Count as "original wins" for that attempt |
 | Edit tool fails on QUESTIONS.md | Warn and continue (don't corrupt file) |
 | Savings < 0% (variant longer) | Skip comparison entirely |
+| Learnings analysis agent error | Warn and continue (learnings not updated this run) |
+| LEARNINGS.md parse error | Skip learnings briefing injection, warn |
