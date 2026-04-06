@@ -65,9 +65,12 @@ generate a concise variant → A/B test via compare-questions → update QUESTIO
    - Q-G9a–f → `~/.claude/skills/review-plan/SKILL.md` (inline in Q-G9 section)
 
 3. **Extract current question text** for each target Q-ID:
-   - For QUESTIONS.md/QUESTIONS-L3.md: find the table row starting with `| Q-{ID} |`,
-     extract the Criteria column (3rd column in `| Q | Question | Criteria | N/A |` table).
-   - For Q-G9 sub-questions: extract the definition line from the SKILL.md Q-G9 section.
+   - For QUESTIONS.md: find the table row starting with `| Q-{ID} |`. Tables have two formats:
+     - L1 (4-column): `| Q | Question | Criteria | N/A |` — Criteria is column 3
+     - L2 (5-column): `| Q | Gate | Question | Criteria | N/A |` — Criteria is column 4
+     Match by Q-ID prefix: Q-G* uses L1 format, Q-C* uses L2 format, Q-E* uses L1 format.
+   - For QUESTIONS-L3.md (Q-U*): same 5-column L2 format — Criteria is column 4.
+   - For Q-G9 sub-questions: find the sub-question table in QUESTIONS.md (3-column: `| Sub-Q | Question | Criteria |`), Criteria is column 3.
 
 4. **Verify test plans exist** for each target Q-ID:
    - Check `~/.claude/skills/optimize-questions/plans/{Q_ID}.md` exists
@@ -288,16 +291,21 @@ WHILE attempt < max_attempts AND NOT improved:
         """
     )
 
+    # Parse judge result FIRST (judge_result is raw Task output string)
+    TRY: judge_result = parse JSON from judge_result
+    CATCH: judge_result = {winner: "TIE", scores: {}, reasoning: "parse error"}
+
     # Remap judge result back to original/optimized orientation
+    # Must happen AFTER parse (need structured object) and BEFORE evaluation
     IF coin_flip:
-        # Judge's "A" was optimized, "B" was original — invert winner
+        # Judge's "A" was optimized, "B" was original — invert both scores and winner
+        FOR key IN judge_result.scores:
+            IF judge_result.scores[key] == "A": judge_result.scores[key] = "B"
+            ELIF judge_result.scores[key] == "B": judge_result.scores[key] = "A"
+            # "TIE" unchanged
         IF judge_result.winner == "A": judge_result.winner = "B"   # optimized won → B in our terms
         ELIF judge_result.winner == "B": judge_result.winner = "A" # original won → A in our terms
         # "TIE" unchanged
-
-    # Parse judge result
-    TRY: parse JSON from judge_result
-    CATCH: treat as TIE
 
     # 1f: Evaluate — apply tiebreaker chain
     # Quality: winner from judge
