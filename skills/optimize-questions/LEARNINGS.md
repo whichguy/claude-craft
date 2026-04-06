@@ -8,6 +8,7 @@
 - [P3] Removing purpose/WHY statements causes judge correctness regression — never safe. (5 observations)
 - [P4] Removing elaboration while keeping core calibration examples saves 15-25%. (9 observations)
 - [P5] Consolidating flag criteria via semicolons saves 10-20% vs numbered lists. (7 observations)
+- [P6] Domain terminology substitution: LLM evaluators understand technical jargon — replace verbose explanations with established terms (idempotent, fail-fast, defense-in-depth, single-responsibility) without loss. Compound words and comma-separated term lists compress multi-word phrases. (0 observations — seeded from session analysis)
 
 ## Compression Guidance
 <!-- Updated by Step 4 each run. Read by Step 1 compression agents. -->
@@ -15,6 +16,8 @@
 Target questions with >3 consequence clauses (safe ~40% savings). Avoid touching calibration
 examples that define PASS/NEEDS_UPDATE boundaries — attempts that removed them lost on
 correctness in 3 of 4 trials. Questions under 50 tokens rarely compress meaningfully.
+Actively seek domain terminology substitutions — LLM evaluators handle jargon well, so
+multi-word explanations of established concepts can collapse to single terms or compound words.
 
 ## Recent Observations
 <!-- Rolling window: last 50. Oldest pruned each run. Format: [O] Q-ID: ... -->

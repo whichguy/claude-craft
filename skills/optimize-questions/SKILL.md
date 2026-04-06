@@ -164,8 +164,11 @@ WHILE attempt < max_attempts AND NOT improved:
             "Keep all edge cases and calibration anchors."
     ELIF attempt == 2:
         compression_strategy = "Use SEMANTIC compression: rephrase for information density. " +
-            "Replace verbose descriptions with precise terminology. " +
-            "Merge overlapping conditions into compound predicates."
+            "Replace verbose descriptions with precise domain terminology " +
+            "(e.g., 'safe to retry; mutations deduped' → 'idempotent'; " +
+            "'each step has checkpoint, not all-at-end' → 'incremental verification'). " +
+            "LLM evaluators understand technical jargon — use established terms " +
+            "without explanation. Merge overlapping conditions into compound predicates."
     ELSE:
         compression_strategy = "Use RADICAL compression: minimum viable question. " +
             "Distill to the essential detection signal. Remove examples " +
