@@ -124,8 +124,10 @@ wiki_build_display() {
     DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
   fi
 
-  if [ -n "$topics" ]; then
-    CONTEXT="Wiki available: ${repo_name} (${page_count} pages). Topics: ${topics}${overflow}. Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
+  # Rich context: inject full index table so Claude can match questions to pages by summary
+  local index_content; index_content=$(grep '^|' "$index_path" 2>/dev/null | head -30 || true)
+  if [ -n "$index_content" ]; then
+    CONTEXT="Project wiki: ${repo_name}. Load pages with /wiki-load <topic>. Query with /wiki-query <question>."$'\n\n'"${index_content}"
   else
     CONTEXT="Wiki available: ${repo_name} (${page_count} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
   fi
