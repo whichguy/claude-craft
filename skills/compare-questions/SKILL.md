@@ -305,8 +305,11 @@ IF swapped[i]:
 ```
 
 **Error handling:** If a judge task fails or returns malformed JSON:
-- TRY to parse `result.scores` (5 keys) and `result.winner`
-- If `scores` key is missing but `winner` is present → use `winner` only, skip criterion tallies for this case
+- TRY to parse `result.scores` (6 keys), `result.winner`, and `result.valid`
+- If `result.valid == false` (RECUSED): exclude this plan from aggregation entirely.
+  Note in Per-Plan Breakdown: `"⚠ RECUSED — {result.recusal.reason}"`.
+  Do NOT count as TIE — recused trials are inconclusive, not equivalent.
+- If `scores` key is missing but `winner` is present → use `winner` only, skip criterion tallies
 - If both missing → count overall winner as TIE
 - Note in Per-Plan Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
 

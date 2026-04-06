@@ -324,7 +324,13 @@ WHILE attempt < max_attempts AND NOT improved:
         ELIF judge_result.winner == "B": judge_result.winner = "A" # original won → A in our terms
         # "TIE" unchanged
 
-    # 1f: Evaluate — apply tiebreaker chain
+    # 1f: Handle recusal — if judge determined trial was invalid, skip (don't count as win or loss)
+    IF judge_result.valid == false:
+        Print: "  ⚠ attempt {attempt}: RECUSED — {judge_result.recusal.reason}"
+        Print: "     Fix: {judge_result.recusal.fix}"
+        CONTINUE  # try next attempt (different compression strategy may produce a fairer trial)
+
+    # 1g: Evaluate — apply tiebreaker chain
     # Quality: winner from judge
     # If TIE on quality and savings >= 10%: optimized wins (fewer tokens)
     IF judge_result.winner == "B" (optimized):

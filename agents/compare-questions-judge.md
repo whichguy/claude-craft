@@ -2,9 +2,10 @@
 name: compare-questions-judge
 description: |
   Pairwise LLM judge for compare-questions skill. Evaluates two revised plans (produced
-  by applying two different planning questions to the same original plan) on 5 plan-quality
-  criteria, derives a per-test winner by majority vote, and returns a structured JSON verdict
-  with per-criterion scores.
+  by applying two different planning questions to the same original plan) on 6 plan-quality
+  criteria, derives a per-test winner by majority vote, returns a structured JSON verdict
+  with per-criterion scores, and self-checks trial validity (recusing if the comparison
+  was unfair or inconclusive).
 
   Spawned by compare-questions skill for each plan test case. Receives ORIGINAL_PLAN,
   QUESTION_A, QUESTION_B, REVISION_A, REVISION_B in its prompt. Returns JSON only — no prose.
@@ -74,6 +75,25 @@ Count A scores and B scores across all 6 questions:
 - If B count > A count → `winner = "B"`
 - If equal (e.g. 2A, 2B, 1TIE) → `winner = "TIE"`
 
+## Trial Validity Self-Check
+
+After scoring all 6 criteria and deriving a winner, critique whether this trial was valid.
+Check these conditions — if ANY fails, recuse the trial:
+
+1. **Test plan exercises the question's detection boundary**: Both revisions should differ
+   meaningfully from the original. If both produce NO_CHANGE or near-identical revisions,
+   the test plan doesn't exercise this question's concern — the trial is inconclusive, not TIE.
+2. **Questions target the same concern**: Both questions should address the same domain
+   (both about security, both about testing, etc.). If they target different concerns,
+   the comparison is invalid.
+3. **Revisions are coherent**: Both revisions should be well-formed plans, not truncated,
+   hallucinated, or containing error messages/apologies/meta-commentary.
+4. **No position bias leak**: If one revision is systematically more detailed regardless
+   of which question produced it, flag potential position bias.
+
+If all checks pass: `"valid": true, "recusal": null`.
+If any check fails: set `"winner": "RECUSED"` and provide fix guidance.
+
 ## Rules
 
 1. You are performing **blind evaluation** — do not assume A is current or B is candidate. Evaluate both without bias.
@@ -85,14 +105,18 @@ Count A scores and B scores across all 6 questions:
 
 Output a single line of valid JSON — no preamble, no markdown fences, no prose:
 
-{"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+**Valid trial:**
+{"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"?","reasoning":"<1-2 sentences>","valid":true,"recusal":null}
+
+**Recused trial (any validity check failed):**
+{"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"RECUSED","reasoning":"Trial invalid: <reason>","valid":false,"recusal":{"reason":"<which check failed>","fix":"<what to change>","retry_hint":"<actionable instruction for caller>"}}
 
 **Example outputs (copy format exactly):**
-{"scores":{"issue_detection":"B","improvement_quality":"B","proportionality":"A","precision":"B","preservation":"A","question_depth":"B"},"winner":"B","reasoning":"B surfaces a critical missing rollback path and adds concrete recovery steps; A's concern about naming is valid but lower-impact."}
-{"scores":{"issue_detection":"A","improvement_quality":"A","proportionality":"A","precision":"TIE","preservation":"TIE","question_depth":"A"},"winner":"A","reasoning":"A identifies an unvalidated assumption about API availability that could derail Phase 2; B's revision adds boilerplate testing notes without targeting a specific gap."}
-{"scores":{"issue_detection":"TIE","improvement_quality":"TIE","proportionality":"TIE","precision":"TIE","preservation":"TIE","question_depth":"TIE"},"winner":"TIE","reasoning":"Both questions surface the same missing error handling concern and produce nearly identical revisions."}
+{"scores":{"issue_detection":"B","improvement_quality":"B","proportionality":"A","precision":"B","preservation":"A","question_depth":"B"},"winner":"B","reasoning":"B surfaces a critical missing rollback path and adds concrete recovery steps; A's concern about naming is valid but lower-impact.","valid":true,"recusal":null}
+{"scores":{"issue_detection":"A","improvement_quality":"A","proportionality":"A","precision":"TIE","preservation":"TIE","question_depth":"A"},"winner":"A","reasoning":"A identifies an unvalidated assumption about API availability that could derail Phase 2; B's revision adds boilerplate testing notes without targeting a specific gap.","valid":true,"recusal":null}
+{"scores":{"issue_detection":"TIE","improvement_quality":"TIE","proportionality":"TIE","precision":"TIE","preservation":"TIE","question_depth":"TIE"},"winner":"RECUSED","reasoning":"Trial invalid: both revisions identical to original (NO_CHANGE)","valid":false,"recusal":{"reason":"Test plan does not exercise this question's detection boundary — both questions found no issue","fix":"Use a test plan with an intentional gap this question should detect","retry_hint":"Replace test plan with one containing [specific gap type]"}}
 
 ## Your Task
 
 The prompt you received contains `<ORIGINAL_PLAN>`, `<QUESTION_A>`, `<QUESTION_B>`, `<REVISION_A>`, and `<REVISION_B>` sections.
-Read them, compare each revision's delta from the original, score each of the 5 criteria, derive the winner by majority vote, and output your single-line verdict JSON. Nothing else.
+Read them, score each of the 6 criteria, derive the winner by majority vote, run the trial validity self-check, and output your single-line verdict JSON. Nothing else.
