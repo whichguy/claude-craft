@@ -1,6 +1,6 @@
 #!/bin/bash
 # SessionStart: inject project wiki context + surface raw/ files + global cross-refs
-# Pattern: fast check → build rich hint → output systemMessage
+# Pattern: fast check → build rich hint → output systemMessage + additionalContext
 
 # SAFETY: Never exit non-zero — a failing SessionStart hook should not block session init.
 # No set -e. Use || true on individual commands. Trap guarantees exit 0.
@@ -52,25 +52,41 @@ OVERFLOW=""
 # Note: use if/then/fi instead of [ ] && ... — set -e kills the script on false [ ] in && chains
 if [ "$TOPIC_COUNT" -gt 10 ]; then OVERFLOW=", +$((TOPIC_COUNT - 10)) more"; fi
 
-# Check for failed queue entries (actionable alert — keep in discovery)
-# Use grep instead of jq+xargs — avoids pipefail issues with set -eo pipefail
+# Check for failed queue entries (actionable alert — keep in display)
 FAILED_COUNT=$(grep -rl '"status".*"failed"' "$HOME/.claude/reflection-queue/" 2>/dev/null | grep -c -E '\-(wiki|wikichange)\.json$' || true)
 FAILED_COUNT=${FAILED_COUNT:-0}
-FAILED_HINT=""
-if [ "$FAILED_COUNT" -gt 0 ]; then FAILED_HINT=$'\n'"⚠️ ${FAILED_COUNT} wiki synthesis failed — check ~/.claude/reflection-queue/"; fi
 
-# Queue processing directive moved to wiki-queue-nudge.sh (UserPromptSubmit, async)
-# Expire old entries on session start (housekeeping — retained from original)
+# Expire old queue entries on session start (housekeeping)
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 if [ -d "$QUEUE_DIR" ]; then
   find "$QUEUE_DIR" -name "*.json" -mtime +7 -delete 2>/dev/null || true
 fi
 
-# Build discovery message (~50-80 tokens, no queue directive)
+# Build user-facing display (systemMessage — terminal only, multi-line with separators)
+REPO_NAME=$(basename "$REPO_ROOT")
+SEP="   ─────────────────────────────────────"
+
 if [ -n "$TOPICS" ]; then
-  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages: ${TOPICS}${OVERFLOW}) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
+  TOPIC_DISPLAY=$(echo "$TOPICS" | sed 's/, / · /g')
+  DISPLAY="📂 ${REPO_NAME} wiki · ${PAGE_COUNT} pages · ${TOPIC_COUNT} topics"
+  DISPLAY="${DISPLAY}"$'\n'"${SEP}"
+  DISPLAY="${DISPLAY}"$'\n'"   ${TOPIC_DISPLAY}${OVERFLOW}"
+  DISPLAY="${DISPLAY}"$'\n'"${SEP}"
+  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
 else
-  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
+  DISPLAY="📂 ${REPO_NAME} wiki · ${PAGE_COUNT} pages"
+  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
+fi
+if [ "$FAILED_COUNT" -gt 0 ]; then
+  DISPLAY="${DISPLAY}"$'\n'"   ⚠️ ${FAILED_COUNT} wiki synthesis failed"
 fi
 
-jq -n --arg msg "$MSG" '{"systemMessage": $msg}'
+# Build Claude context (additionalContext — context injection only, no emoji)
+if [ -n "$TOPICS" ]; then
+  CONTEXT="Wiki available: ${REPO_NAME} (${PAGE_COUNT} pages). Topics: ${TOPICS}${OVERFLOW}. Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
+else
+  CONTEXT="Wiki available: ${REPO_NAME} (${PAGE_COUNT} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
+fi
+
+jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
+  '{"systemMessage": $display, "additionalContext": $context}'
