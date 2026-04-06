@@ -110,12 +110,12 @@ multi-file features where cross-file consistency needs a coordinator.
 
 | Sub-Q | Question | Criteria |
 |-------|----------|----------|
-| Q-G9a | Sequential clarity | Are implementation steps numbered and unambiguous in order? Steps must be numbered sequentially; ordering must be legible at a glance. |
-| Q-G9b | Concurrency labeling | Are parallel steps explicitly marked (e.g. "[parallel]", "In a SINGLE message", "spawn in parallel")? |
-| Q-G9c | Scannability | Does the plan use headers and bullets (no prose walls >5 sentences)? |
+| Q-G9a | Sequential clarity | Are steps numbered sequentially with unambiguous ordering, legible at a glance? |
+| Q-G9b | Concurrency labeling | Parallel steps marked (e.g. "[parallel]", "In a SINGLE message", "spawn in parallel")? |
+| Q-G9c | Scannability | Headers+bullets used (no prose walls >5 sentences)? |
 | Q-G9d | Conditional structure | Are IF/ELSE branches visually distinct from sequential steps? |
-| Q-G9e | Checkpoint visibility | Are commit/verification checkpoints clearly visible (not buried mid-paragraph)? |
-| Q-G9f | Execution graph | For plans with 3+ implementation phases: does the plan include an execution schedule that identifies which phases can run in parallel? Parse each phase's **Outputs** (artifacts produced) and **Pre-check** (artifacts required from prior phases) to build a dependency graph. Algorithm: (a) For each phase, extract Outputs list and Pre-check references. (b) Build adjacency: Phase N depends on Phase M if N's Pre-check references any artifact in M's Outputs. (c) Group into execution waves: Wave 1 = phases with no dependencies; Wave 2 = phases whose dependencies are all in Wave 1; etc. (d) Within each wave, phases can execute in parallel. EDIT injection: IF no execution schedule present and parallelism exists, output `[EDIT: add after last phase: "## Execution Schedule\nWave 1: Phase [X] (no dependencies)\nWave 2 [parallel]: Phases [Y], [Z] (both depend only on Wave 1)\nWave 3: Phase [W] (depends on [Y] and [Z])\n\nParallel execution: In a SINGLE message, spawn Phase [Y] and Phase [Z] as parallel Tasks after Phase [X] completes."]`. IF all phases are strictly sequential (each depends on the previous), output PASS with note: "All phases sequential — no parallelism available." N/A: fewer than 3 phases; or Q-G22 is N/A (no inter-phase dependencies — no Outputs/Pre-check annotations to parse). |
+| Q-G9e | Checkpoint visibility | Commit/verification checkpoints visible (not buried mid-paragraph)? |
+| Q-G9f | Execution graph | Plans with 3+ phases: execution schedule showing which phases parallelize? Parse each phase's **Outputs** and **Pre-check** to build dependency graph: (a) Extract Outputs and Pre-check per phase. (b) Phase N depends on M if N's Pre-check references M's Outputs. (c) Wave assignment: Wave 1 = no deps; Wave K = all deps in prior waves. (d) Same-wave phases run parallel. EDIT: IF no schedule and parallelism exists: `[EDIT: add after last phase: "## Execution Schedule\nWave 1: Phase [X] (no dependencies)\nWave 2 [parallel]: Phases [Y], [Z] (depend only on Wave 1)\nWave 3: Phase [W] (depends on [Y], [Z])\n\nParallel execution: In a SINGLE message, spawn Phase [Y] and Phase [Z] as parallel Tasks after Phase [X] completes."]`. IF strictly sequential: PASS — "All phases sequential — no parallelism available." N/A: <3 phases; or Q-G22 N/A (no Outputs/Pre-check annotations). |
 
 ---
 
