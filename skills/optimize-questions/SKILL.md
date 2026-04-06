@@ -2,10 +2,11 @@
 name: optimize-questions
 description: |
   Systematically optimize review-plan evaluator questions for token efficiency while
-  maintaining quality. For each target question: generates a token-optimized variant,
-  A/B tests it against the original via compare-questions using a dedicated test plan,
-  and updates QUESTIONS.md if the variant wins. Retries up to N times with different
-  compression strategies.
+  maintaining quality. For each target question: generates 3 token-optimized variants
+  (STRUCTURAL, SEMANTIC, RADICAL) in parallel, selects the best one (optionally
+  synthesizing strengths from others), A/B tests it against the original via
+  compare-questions using a dedicated test plan, and updates QUESTIONS.md if the
+  variant wins. Retries up to N times with judge feedback.
 
   AUTOMATICALLY INVOKE when user mentions:
   - "optimize questions", "compress questions", "reduce question tokens"
@@ -24,7 +25,7 @@ allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop,
 # optimize-questions Skill
 
 Optimize review-plan evaluator questions for token efficiency. For each target question:
-generate a concise variant → A/B test via compare-questions → update QUESTIONS.md if better.
+generate 3 variants in parallel → select best → A/B test via compare-questions → update QUESTIONS.md if better.
 
 **Priority chain:** quality > input tokens > time (inherited from compare-questions).
 
@@ -33,7 +34,7 @@ generate a concise variant → A/B test via compare-questions → update QUESTIO
 | Parameter | Required? | What to look for | Default |
 |-----------|-----------|-------------------|---------|
 | `question_ids` | no | Comma-separated Q-IDs (`Q-G1,Q-G10`), range (`Q-G1..Q-G25`), layer (`L1`, `L2`, `L3`, `epilogue`), or `all` | `all` |
-| `max_attempts` | no | `--max-attempts N` or `N attempts` | 3 |
+| `max_attempts` | no | `--max-attempts N` or `N attempts` | 2 |
 | `dry_run` | no | `--dry-run`, `dry run`, `preview` | false |
 | `model` | no | `--model MODEL` (must match `claude-*`) | claude-sonnet-4-6 |
 
@@ -135,8 +136,11 @@ results = []  # {q_id, original_tokens, optimized_tokens, savings_pct, verdict, 
 
 **Parallelization strategy:** Spawn all questions as independent background agents
 (one per question, `run_in_background: true`). Each agent handles the full pipeline:
-compress → apply both versions → judge → report result. Name agents `opt-{q_id}`
-for tracking (e.g., `opt-G10`, `opt-C39`).
+generate 3 variants → select best → apply both versions → judge → report result.
+Name agents `opt-{q_id}` for tracking (e.g., `opt-G10`, `opt-C39`).
+
+**Cost per attempt:** 3 generator agents ({model}) + 1 selector agent (opus) + 2 applier agents ({model}) + 1 judge agent (opus) = 7 agents.
+Default max_attempts=2, so worst-case per question = 14 agents.
 
 Update each question's task as it progresses:
 ```
@@ -152,92 +156,224 @@ Print: "── {q_id}: {question_name} ({original_tokens} est. tokens) ──"
 attempt = 0
 improved = false
 best_version = current_text
+previous_judge_reasoning = ""
+judge_result = {winner: "TIE", scores: {}, reasoning: "no comparison run"}
 
 WHILE attempt < max_attempts AND NOT improved:
     attempt += 1
 
-    # 1a: Generate optimized variant via Task
-    compression_strategy = ""
-    IF attempt == 1:
-        compression_strategy = "Use STRUCTURAL compression: remove redundant phrases, " +
+    # 1a: Generate 3 optimized variants in parallel (all strategies, every attempt)
+    previous_feedback = ""
+    IF attempt > 1:
+        previous_feedback = """
+            PREVIOUS ATTEMPT FEEDBACK:
+            The previous optimized version lost the A/B test. The judge said:
+            "{previous_judge_reasoning}"
+
+            Avoid the failure mode described above. Adjust your compression accordingly.
+        """
+
+    *Shared compression prompt body (used by all 3 variants):*
+    ```
+    COMPRESSION_PROMPT = """
+        You are a prompt engineer optimizing an LLM evaluator question for token efficiency.
+
+        Current question (from review-plan QUESTIONS.md):
+        ---
+        Q-ID: Q_ID
+        CURRENT_TEXT
+        ---
+
+        COMPRESSION_STRATEGY
+
+        Create a MORE TOKEN-EFFICIENT version that:
+        1. Preserves the FULL breadth and reach of the original question
+        2. Maintains all detection capabilities (same issues caught, same false-positive guards)
+        3. Uses fewer tokens (more concise phrasing, less repetition)
+        4. Keeps the same structure: Question text | Criteria | N/A condition
+        5. Does NOT lose edge cases, examples, or calibration anchors that
+           prevent false positives/negatives — unless the criteria text alone
+           is unambiguous without them
+
+        PRESERVATION PRIORITY (most → least important):
+        - PURPOSE/WHY statements: consequence explanations, failure mode descriptions,
+          risk framing ("silent in dynamic langs", "#1 cause of plan-to-impl failure").
+          These cause the evaluator to independently discover many tactics. ALWAYS KEEP.
+        - Methodology directives: "trace each X", "cross-reference each Y", "enumerate".
+          These change HOW the evaluator works, not just WHAT it checks. ALWAYS KEEP.
+        - Evaluator heuristics: decision rules ("assume X = flag if high-risk; TBD = always flag").
+          These are instructions TO the evaluator. ALWAYS KEEP.
+        - Calibration examples: boundary-defining examples ("test X passes" = acceptable;
+          "it works" = insufficient). Keep if they define the PASS/NEEDS_UPDATE boundary.
+          Remove only if the criteria text alone is unambiguous without them.
+        - Tactic enumerations: numbered flag lists. These CAN be compressed — a good
+          purpose statement elicits the evaluator to discover tactics independently.
+          Compress verbose flag lists; keep concise ones.
+        - Generic consequences ("causes bugs", "leads to errors"): SAFE TO REMOVE —
+          every evaluator knows bugs are bad.
+
+        LEARNINGS_BRIEFING
+
+        Apply the above learnings alongside the preservation hierarchy.
+
+        PREVIOUS_FEEDBACK
+
+        CRITICAL: The optimized version must catch the SAME issues as the original
+        when applied to a plan. Preserve WHY over HOW — a question that explains the
+        failure mode generates better evaluator behavior than an exhaustive flag list.
+
+        Output format:
+        Line 1: One-sentence summary of what you changed (e.g., "Removed 2 consequence clauses, merged overlapping flag conditions")
+        Line 2: ---
+        Line 3+: The optimized criteria column text only. No commentary, no Q-ID, no table formatting, no markdown fences.
+    """
+    ```
+
+    *Substitution rules (apply to each variant's prompt):*
+    - Q_ID → the question's ID (e.g., "Q-G10")
+    - CURRENT_TEXT → the current criteria column text
+    - COMPRESSION_STRATEGY → strategy text specific to each variant (see below)
+    - LEARNINGS_BRIEFING → `learnings_briefing` from Step 0 (empty string if no LEARNINGS.md)
+    - PREVIOUS_FEEDBACK → `previous_feedback` from above (empty string on attempt 1)
+
+    # Spawn all 3 variants in parallel (run_in_background: true)
+    variant_structural = Task(
+        subagent_type = "general-purpose",
+        model = model,
+        run_in_background = true,
+        prompt = COMPRESSION_PROMPT with COMPRESSION_STRATEGY =
+            "Use STRUCTURAL compression: remove redundant phrases, " +
             "collapse repeated patterns, eliminate restated conditions. " +
             "Keep all edge cases and calibration anchors."
-    ELIF attempt == 2:
-        compression_strategy = "Use SEMANTIC compression: rephrase for information density. " +
+    )
+
+    variant_semantic = Task(
+        subagent_type = "general-purpose",
+        model = model,
+        run_in_background = true,
+        prompt = COMPRESSION_PROMPT with COMPRESSION_STRATEGY =
+            "Use SEMANTIC compression: rephrase for information density. " +
             "Replace verbose descriptions with precise domain terminology " +
             "(e.g., 'safe to retry; mutations deduped' → 'idempotent'; " +
             "'each step has checkpoint, not all-at-end' → 'incremental verification'). " +
             "LLM evaluators understand technical jargon — use established terms " +
             "without explanation. Merge overlapping conditions into compound predicates."
-    ELSE:
-        compression_strategy = "Use RADICAL compression: minimum viable question. " +
-            "Distill to the essential detection signal. Remove examples " +
-            "only if the criteria text alone is unambiguous without them."
-
-    optimized = Task(
-        subagent_type = "general-purpose",
-        model = model,
-        prompt = """
-            You are a prompt engineer optimizing an LLM evaluator question for token efficiency.
-
-            Current question (from review-plan QUESTIONS.md):
-            ---
-            Q-ID: Q_ID
-            CURRENT_TEXT
-            ---
-
-            COMPRESSION_STRATEGY
-
-            Create a MORE TOKEN-EFFICIENT version that:
-            1. Preserves the FULL breadth and reach of the original question
-            2. Maintains all detection capabilities (same issues caught, same false-positive guards)
-            3. Uses fewer tokens (more concise phrasing, less repetition)
-            4. Keeps the same structure: Question text | Criteria | N/A condition
-            5. Does NOT lose edge cases, examples, or calibration anchors that
-               prevent false positives/negatives — unless the criteria text alone
-               is unambiguous without them
-
-            PRESERVATION PRIORITY (most → least important):
-            - PURPOSE/WHY statements: consequence explanations, failure mode descriptions,
-              risk framing ("silent in dynamic langs", "#1 cause of plan-to-impl failure").
-              These cause the evaluator to independently discover many tactics. ALWAYS KEEP.
-            - Methodology directives: "trace each X", "cross-reference each Y", "enumerate".
-              These change HOW the evaluator works, not just WHAT it checks. ALWAYS KEEP.
-            - Evaluator heuristics: decision rules ("assume X = flag if high-risk; TBD = always flag").
-              These are instructions TO the evaluator. ALWAYS KEEP.
-            - Calibration examples: boundary-defining examples ("test X passes" = acceptable;
-              "it works" = insufficient). Keep if they define the PASS/NEEDS_UPDATE boundary.
-              Remove only if the criteria text alone is unambiguous without them.
-            - Tactic enumerations: numbered flag lists. These CAN be compressed — a good
-              purpose statement elicits the evaluator to discover tactics independently.
-              Compress verbose flag lists; keep concise ones.
-            - Generic consequences ("causes bugs", "leads to errors"): SAFE TO REMOVE —
-              every evaluator knows bugs are bad.
-
-            LEARNINGS_BRIEFING
-
-            Apply the above learnings alongside the preservation hierarchy.
-
-            CRITICAL: The optimized version must catch the SAME issues as the original
-            when applied to a plan. Preserve WHY over HOW — a question that explains the
-            failure mode generates better evaluator behavior than an exhaustive flag list.
-
-            Output format:
-            Line 1: One-sentence summary of what you changed (e.g., "Removed 2 consequence clauses, merged overlapping flag conditions")
-            Line 2: ---
-            Line 3+: The optimized criteria column text only. No commentary, no Q-ID, no table formatting, no markdown fences.
-        """
     )
 
-    *Substitution rules:*
-    - Q_ID → the question's ID (e.g., "Q-G10")
-    - CURRENT_TEXT → the current criteria column text
-    - COMPRESSION_STRATEGY → strategy text from above
-    - LEARNINGS_BRIEFING → `learnings_briefing` from Step 0 (empty string if no LEARNINGS.md)
+    variant_radical = Task(
+        subagent_type = "general-purpose",
+        model = model,
+        run_in_background = true,
+        prompt = COMPRESSION_PROMPT with COMPRESSION_STRATEGY =
+            "Use RADICAL compression: minimum viable question. " +
+            "Distill to the essential detection signal. Remove examples " +
+            "only if the criteria text alone is unambiguous without them."
+    )
 
-    *Parse response:* Split output on first `---` line. Part before → `compression_description`.
-    Part after → optimized criteria text. If no `---` found, treat entire output as criteria text
-    and set `compression_description = "no description provided"`.
+    # Wait for all 3 to complete
+    AWAIT variant_structural, variant_semantic, variant_radical
+
+    # Parse each variant's output (same logic: split on first "---")
+    variants = [variant_structural, variant_semantic, variant_radical]
+    variant_labels = ["STRUCTURAL", "SEMANTIC", "RADICAL"]
+    parsed_variants = []
+    FOR i, v IN enumerate(variants):
+        Split v on first "---" line → v_description, v_criteria_text
+        IF no "---" found: v_description = "no description provided", v_criteria_text = full output
+        parsed_variants.append({label: variant_labels[i], description: v_description, criteria: v_criteria_text})
+
+    # Count successful variants (non-empty criteria text)
+    successful = [pv for pv in parsed_variants if pv.criteria is non-empty]
+
+    IF len(successful) == 0:
+        # All 3 failed — treat as "original wins" for this attempt
+        Print: "  attempt {attempt}: all 3 variants failed — skipping"
+        CONTINUE
+
+    IF len(successful) == 1:
+        # Only 1 succeeded — use it directly, skip selector
+        optimized = successful[0].criteria
+        compression_description = successful[0].description
+        selected_strategy = successful[0].label
+        Print: "  attempt {attempt}: only {selected_strategy} succeeded — using directly"
+
+    ELSE:
+        # 1a-select: Pick best variant and optionally refine
+        selected_output = Task(
+            subagent_type = "general-purpose",
+            model = "claude-opus-4-6",
+            prompt = """
+                You are selecting the best token-optimized variant of an LLM evaluator question.
+                Your job: pick the strongest variant, then optionally incorporate strengths
+                from the other two into a refined final version.
+
+                <ORIGINAL>
+                Q-ID: {q_id}
+                {current_text}
+                </ORIGINAL>
+
+                <VARIANT_1 strategy="STRUCTURAL">
+                Change summary: {parsed_variants[0].description}
+                ---
+                {parsed_variants[0].criteria}
+                </VARIANT_1>
+
+                <VARIANT_2 strategy="SEMANTIC">
+                Change summary: {parsed_variants[1].description}
+                ---
+                {parsed_variants[1].criteria}
+                </VARIANT_2>
+
+                <VARIANT_3 strategy="RADICAL">
+                Change summary: {parsed_variants[2].description}
+                ---
+                {parsed_variants[2].criteria}
+                </VARIANT_3>
+
+                EVALUATION CRITERIA (in priority order):
+                1. DETECTION PRESERVATION: Must catch the same issues as the original.
+                   Check for lost edge cases, removed calibration anchors, dropped
+                   methodology directives, missing purpose/WHY statements.
+                2. TOKEN EFFICIENCY: Fewer tokens is better, but only after (1) is satisfied.
+                3. PHRASING QUALITY: Clear, precise, unambiguous wording.
+
+                PREVIOUS_FEEDBACK
+
+                INSTRUCTIONS:
+                - Pick the variant that best balances all three criteria
+                - You MAY synthesize a refined version that combines the best elements
+                  from multiple variants (e.g., take STRUCTURAL's concise framing but
+                  SEMANTIC's domain terminology). Only do this if it genuinely improves
+                  the result — do not synthesize for the sake of it.
+                - If one variant is clearly best, output it as-is
+
+                Output format:
+                Line 1: "SELECTED: {STRUCTURAL|SEMANTIC|RADICAL|SYNTHESIZED}"
+                Line 2: One-sentence summary of what the final version changed from original
+                Line 3: ---
+                Line 4+: The final optimized criteria text only. No commentary.
+            """
+        )
+
+        *Substitution rules for selector prompt:*
+        - {q_id}, {current_text} → from target question
+        - {parsed_variants[N].description}, {parsed_variants[N].criteria} → from parsed output
+        - PREVIOUS_FEEDBACK → `previous_feedback` from above (empty string on attempt 1)
+
+        *Parse selector output:*
+        Extract "SELECTED: X" from first line → selected_strategy (STRUCTURAL, SEMANTIC, RADICAL, or SYNTHESIZED)
+        Line 2 → compression_description
+        Everything after first "---" → optimized criteria text
+
+        IF parse fails (no "SELECTED:" line or no "---"):
+            # Fall back to structural variant
+            optimized = parsed_variants[0].criteria
+            compression_description = parsed_variants[0].description
+            selected_strategy = "STRUCTURAL"
+            Print: "  attempt {attempt}: selector parse failed — falling back to STRUCTURAL"
+        ELSE:
+            optimized = extracted criteria text
+            Print: "  attempt {attempt}: selected {selected_strategy}"
 
     # 1b: Compute token savings
     original_tokens = Math.floor(current_text.length / 4)
@@ -404,7 +540,7 @@ WHILE attempt < max_attempts AND NOT improved:
     IF improved:
         best_version = optimized
         Print: "  ✅ attempt {attempt}: optimized wins — {decided_by} ({savings_pct}% fewer tokens)"
-        winning_strategy = IF attempt == 1: "STRUCTURAL" ELIF attempt == 2: "SEMANTIC" ELSE: "RADICAL"
+        winning_strategy = selected_strategy  # from selector output: STRUCTURAL, SEMANTIC, RADICAL, or SYNTHESIZED
         results.append({q_id, original_tokens, optimized_tokens, savings_pct, verdict: "updated", attempt,
                         winning_strategy, judge_scores: judge_result.scores, judge_reasoning: judge_result.reasoning,
                         compression_description})
@@ -413,6 +549,7 @@ WHILE attempt < max_attempts AND NOT improved:
     ELSE:
         Print: "  ❌ attempt {attempt}: original wins — {decided_by}"
         Print: "     Judge: {judge_result.reasoning}"
+        previous_judge_reasoning = judge_result.reasoning
 
 IF NOT improved:
     Print: "  ➖ kept original after {max_attempts} attempts"
