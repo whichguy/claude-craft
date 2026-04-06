@@ -10,7 +10,8 @@ command -v jq >/dev/null 2>&1 || exit 0
 command -v claude >/dev/null 2>&1 || exit 0
 
 HOOK_INPUT=$(cat)
-echo "$HOOK_INPUT" | jq -e '.agent_id // empty' >/dev/null 2>&1 && exit 0
+AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
+[ -n "$AGENT_ID" ] && exit 0
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 
