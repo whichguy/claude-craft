@@ -1,5 +1,5 @@
 {
-  "description": "Wiki: 6-handler lifecycle — detect+mark, clear+boundary, guard, precompact, stop+serialize, session-end+safety-net",
+  "description": "Wiki: 7-handler lifecycle — detect+mark, clear+boundary, nudge+queue, guard, precompact, stop+serialize, session-end+safety-net",
   "hooks": {
     "SessionStart": [{
       "matcher": "clear",
@@ -7,6 +7,10 @@
     }, {
       "matcher": "*",
       "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 5 }]
+    }],
+    "UserPromptSubmit": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-queue-nudge.sh", "timeout": 30, "async": true }]
     }],
     "PreToolUse": [{
       "matcher": "Write|Edit",
