@@ -6,7 +6,10 @@
       "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-clear.sh", "timeout": 10, "async": true }]
     }, {
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 5 }]
+      "hooks": [
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 5 },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-queue-nudge.sh", "timeout": 300, "async": true }
+      ]
     }],
     "UserPromptSubmit": [{
       "matcher": "*",
