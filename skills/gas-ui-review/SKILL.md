@@ -1,75 +1,6 @@
 ---
 name: gas-ui-review
-description: |
-  GAS HTML/UI pattern reviewer for correctness and layout.
-
-  **AUTOMATICALLY INVOKE** when:
-  - Code snippet pasted containing: HtmlService, <?=, <?!=, google.script.run, createGasServer
-
-  ## HTML File Operations (Highest Priority)
-  - ANY edit/create/write to .html files in GAS projects
-  - Reading .html files for review or understanding
-  - Planning changes to HTML files
-
-  **ALWAYS PAIR WITH:** gas-code-review when .gs files are also present (or use /gas-review for both)
-
-  ## IFRAME & Embedding
-  - IFRAME, embedding, X-Frame-Options, setXFrameOptionsMode
-  - Web app deployment, doGet(), doPost()
-  - External embedding, cross-origin, CORS
-
-  ## UI Components & Layout
-  - sidebar, dialog, modal, toast, menu, form, button
-  - Layout, positioning, sizing, dimensions, width, height
-  - CSS, styling, responsive, mobile
-  - Template, HtmlService, HtmlOutput, HtmlTemplate
-
-  ## GAS HTML Patterns
-  - Scriptlets: <?= ?>, <?!= ?>, <? ?>, include()
-  - createTemplateFromFile, createHtmlOutputFromFile, evaluate()
-  - google.script.run, createGasServer(), server.exec_api()
-  - Template literals in HTML, URL strings
-
-  ## Review & Planning Triggers
-  - "review" + any UI/HTML context
-  - "plan" + sidebar/dialog/menu/UI implementation
-  - "implement" + UI components
-  - "add" + sidebar/dialog/menu/form
-  - "create" + HTML/UI/interface
-  - "update" + sidebar/dialog/layout
-  - "fix" + UI/display/render/layout issues
-
-  ## Explicit UI Keywords
-  - UI, UX, interface, display, render, show, view
-  - Frontend, client-side, browser-side
-  - User interaction, click handler, event handler (in HTML)
-
-  ## Advanced Patterns (Trigger on these topics)
-  - Google Picker, file picker, setOrigin, setAppId
-  - File upload, blob, byte array, base64
-  - CORS, preflight, text/plain workaround
-  - Loading state, spinner, async UI
-  - Polling, active sheet detection
-  - Dynamic menu, global functions
-  - Cache vs Properties, performance
-  - Close sidebar programmatically
-  - Template debugging, getCode()
-  - Session, authentication, getActiveUser, getUserAgent
-  - Webhook response, ContentService, JSON API
-  - Data passing, hidden div, template properties
-  - Internal methods, initTemplate, output._ / output._$
-
-  ## Web Apps (doGet/doPost) Triggers
-  - Web app, doGet, doPost, deployment
-  - URL parameters, query string, pathInfo
-  - /exec vs /dev, versioned deployment
-  - Execute as me, execute as user, permissions
-  - State token, OAuth callback, usercallback
-  - ScriptApp.getOAuthToken, Authorization header
-  - JSONP, cross-origin, redirect behavior
-  - ContentService, JSON response, MIME type
-
-  **NOT for:** Runtime debugging (use gas-ui-debug), .gs syntax validation (use gas-code-review)
+description: "Reviews Google Apps Script HTML/UI code for correctness, layout, and GAS-specific patterns. Use when editing, reviewing, or planning .html files in GAS projects, or when code contains HtmlService, scriptlets, google.script.run, or IFRAME embedding patterns. Pair with gas-code-review for .gs files or use /gas-review for both."
 model: claude-sonnet-4-6
 allowed-tools: mcp__gas__*, Read, Grep
 ---
@@ -77,6 +8,14 @@ allowed-tools: mcp__gas__*, Read, Grep
 # GAS HTML/UI Pattern Review
 
 You review GAS HTML code for correctness, patterns, and layout. Focus on GAS-specific gotchas.
+
+**AUTOMATICALLY INVOKE** when:
+- Code contains: HtmlService, `<?=`, `<?!=`, google.script.run, createGasServer
+- Any edit/create/write to .html files in GAS projects
+- Topics: IFRAME embedding, sidebar, dialog, web app deployment, Google Picker, CORS, template debugging
+- User says "review"/"plan"/"fix" with UI/HTML context
+
+**NOT for:** Runtime debugging (use gas-ui-debug), .gs syntax validation (use gas-code-review).
 
 ## Mode Detection (check first)
 

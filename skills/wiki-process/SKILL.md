@@ -1,17 +1,13 @@
 ---
 name: wiki-process
-description: |
-  Process pending wiki queue entries — spawns Sonnet to extract knowledge from session
-  transcripts and wiki changes. This is the engine that makes the wiki self-building.
-  AUTOMATICALLY INVOKE when: "process wiki queue", "wiki process", "extract sessions",
-  "process pending sessions", "run queue processing"
-  Subcommands: --status (show queue), --consolidate <topic> (merge sessions into topic)
-  NOT for: ingesting sources (use /wiki-ingest), querying (use /wiki-query)
+description: "Processes pending wiki queue entries by spawning Sonnet subagents to extract knowledge from session transcripts and wiki changes. Use when processing wiki queues, extracting sessions, or consolidating topics. Supports --status and --consolidate subcommands."
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Glob, Grep
 argument-hint: "[--status] [--consolidate <topic>]"
 ---
 
 # /wiki-process — Queue Processing Engine
+
+**AUTOMATICALLY INVOKE** when: "process wiki queue", "wiki process", "extract sessions", "process pending sessions", "run queue processing". Not for ingesting sources (use /wiki-ingest) or querying (use /wiki-query).
 
 Process pending entries in `~/.claude/reflection-queue/`. Routes by entry type,
 spawns Sonnet subagents to extract knowledge, writes to wiki.

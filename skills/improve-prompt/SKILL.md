@@ -1,31 +1,13 @@
 ---
 name: improve-prompt
-description: |
-  Research-backed prompt improvement workflow. Analyzes with Q1-Q13 structural diagnostics,
-  researches domain + prompt engineering best practices, generates fixed+dynamic evaluation
-  questions, validates improvement plan (quality gate), runs E parallel experiment variants,
-  scope-preservation gate (12-question check against baseline for unintended regression),
-  evaluates via questions-based judge (not holistic), reconciles all learnings into a single
-  ideas file, and commits only if improved. Three loop modes: default (stall detection stops
-  after max_stalls consecutive failures), fixed (explicit --iterations N always completes all N),
-  and duration (--duration 2h or "until 5pm" loops until time expires). Strategy escalation
-  guides bolder changes after stalls. Position bias mitigated via randomized judge ordering.
-  Supports --iterations N, --experiments N, --max-stalls N, and --duration.
-
-  AUTOMATICALLY INVOKE when user mentions:
-  - "improve this prompt", "make this prompt better", "optimize this prompt"
-  - "prompt improvement", "iterate on prompt", "evolve this prompt"
-
-  STRONGLY RECOMMENDED for:
-  - Before finalizing agent/skill prompts
-  - When a prompt's outputs are inconsistent or low quality
-  - After receiving feedback that a prompt is underperforming
-
+description: "Research-backed prompt improvement loop with structural diagnostics, parallel experiments, and question-based evaluation. Use when improving, optimizing, or iterating on prompts — especially before finalizing agent/skill prompts or when outputs are inconsistent. Supports --iterations N, --experiments N, --max-stalls N, and --duration modes."
 argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [free-form options]"
 allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 ---
 
 # improve-prompt Skill
+
+**AUTOMATICALLY INVOKE** when user mentions: "improve this prompt", "make this prompt better", "optimize this prompt", "iterate on prompt", or "evolve this prompt". Strongly recommended before finalizing agent/skill prompts, when outputs are inconsistent, or after feedback that a prompt is underperforming.
 
 Research-backed prompt improvement loop: structural diagnostics (Q1-Q13) → domain research →
 fixed+dynamic evaluation questions → plan quality gate → E parallel experiment variants →

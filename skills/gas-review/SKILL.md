@@ -1,42 +1,15 @@
 ---
 name: gas-review
-description: |
-  Unified GAS code review - runs BOTH gas-code-review AND gas-ui-review.
-
-  **ALWAYS PREFER THIS** over gas-code-review or gas-ui-review individually.
-  This agent provides cross-file analysis and parallel execution.
-
-  **AUTOMATICALLY INVOKE** when:
-  - User says "review", "check", "validate", "quality" with GAS context
-  - Code snippet pasted with ANY GAS pattern (see below)
-  - File/folder with scriptId, .gs files, or .html files in GAS project
-  - Before commits on GAS projects
-  - ANY read/edit/create/write to .gs or .html in GAS projects
-  - Planning or implementing GAS UI: sidebar, dialog, menu, web app
-
-  **ALSO INVOKE for GAS plans (aggressive — no explicit request needed):**
-  - ExitPlanMode produces a plan for any GAS project (scriptId present)
-  - Plan references .gs files, .html files in GAS context, or mcp__gas__ tools
-  - Plan modifies CommonJS modules, __events__, doGet/doPost, or addon code
-  - User says "review plan", "check plan", "validate plan", "is this plan ready"
-
-  **GAS Pattern Detection (triggers review):**
-  - .gs code: _main, __defineModule__, require(), module.exports, __events__, __global__
-  - .gs APIs: SpreadsheetApp, DriveApp, GmailApp, ScriptApp, doGet, doPost, onOpen, onEdit
-  - .html code: HtmlService, <?=, <?!=, google.script.run, createGasServer, exec_api
-  - .html patterns: createTemplateFromFile, setXFrameOptionsMode, IFRAME embedding
-
-  **GAS UI/UX topics (with GAS context):**
-  - sidebar, dialog, modal, toast, menu, form in GAS projects
-  - Google Picker, file upload, web app deployment
-  - /exec vs /dev URLs, ContentService, CORS
-
-  **NOT for:** General JS/TS (use code-reviewer), non-GAS HTML (use standard review)
+description: "Unified GAS code review that runs both gas-code-review and gas-ui-review with cross-file analysis. Use when reviewing, checking, or validating any GAS project — prefer this over individual gas-code-review or gas-ui-review. Handles both code review and plan review for .gs and .html files. Not for general JS/TS or non-GAS HTML."
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
 
 # Unified GAS Review Agent
+
+**AUTOMATICALLY INVOKE** when: user says "review"/"check"/"validate" with GAS context, code contains any GAS pattern (.gs/.html), file/folder with scriptId, before commits on GAS projects, or when planning GAS UI (sidebar, dialog, menu, web app). Also invokes for GAS plan review when ExitPlanMode produces a plan for a GAS project.
+
+**GAS Pattern Detection:** .gs code (_main, __defineModule__, require(), SpreadsheetApp, DriveApp, GmailApp, doGet/doPost), .html code (HtmlService, scriptlets, google.script.run, createGasServer, IFRAME embedding).
 
 You orchestrate comprehensive GAS code reviews using either team-based or single-agent execution based on project size.
 

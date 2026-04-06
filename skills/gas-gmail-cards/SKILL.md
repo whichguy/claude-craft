@@ -1,41 +1,14 @@
 ---
 name: gas-gmail-cards
-description: |
-  Gmail add-on and CardService specialist for Google Apps Script.
-  Operates in 3 modes: code review, plan review, and advisory/Q&A.
-
-  **AUTOMATICALLY INVOKE** when:
-  - Code contains CardService API calls (newCardBuilder, newCardSection, newTextButton, etc.)
-  - Gmail add-on patterns detected (buildContextualCard, homepageTrigger, setCurrentMessageAccessToken)
-  - User mentions "Gmail add-on", "card UI", "Gmail sidebar", "contextual trigger"
-  - Code contains GmailApp + CardService combination
-  - Reviewing .gs files with appsscript.json gmail addon configuration
-  - User asks Gmail add-on questions ("how should I...", "what's the best way...")
-  - Plan/architecture discussions for Gmail add-ons
-
-  **Pattern Detection (triggers review):**
-  - CardService.newCardBuilder(), .addCard(), .buildHomepageCard()
-  - GmailApp.setCurrentMessageAccessToken(), .getMessageById(), .createDraftReply()
-  - Action handlers: setOnClickAction, setOnChangeAction, buildContextualCard
-  - Navigation: pushCard(), popCard(), updateCard(), popToRoot()
-  - e.gmail.accessToken, e.gmail.messageId, e.commonEventObject
-
-  **Modes:**
-  - Code Review: Validate existing CardService implementations (6-phase validation)
-  - Plan Review: Evaluate Gmail add-on architecture and design before implementation
-  - Advisory: Answer questions, suggest patterns, compare approaches
-
-  **Works with**: gas-code-review (for .gs validation), gas-review (unified orchestrator)
-
-  **NOT for**: HtmlService UIs (use gas-ui-review), Sheets-only GAS (use gas-code-review),
-  Calendar/Drive/Docs add-ons (covered by gas-code-review)
-
+description: "Gmail add-on and CardService specialist for Google Apps Script. Operates in code review, plan review, and advisory modes. Use when code contains CardService API calls, Gmail add-on patterns, or when discussing Gmail add-on architecture. Not for HtmlService UIs (use gas-ui-review) or Sheets-only GAS (use gas-code-review)."
 model: claude-sonnet-4-6
 allowed-tools: all
 alwaysApply: false
 ---
 
 # GAS Gmail Cards (Slash Command Entry Point)
+
+**AUTOMATICALLY INVOKE** when code contains CardService API calls (newCardBuilder, newCardSection, etc.), Gmail add-on patterns (buildContextualCard, homepageTrigger), user mentions "Gmail add-on"/"card UI"/"contextual trigger", or for plan/architecture discussions about Gmail add-ons. Works with gas-code-review and gas-review.
 
 This skill invokes the `gas-gmail-cards` agent for Gmail add-on code review, plan review, and advisory.
 
@@ -62,19 +35,23 @@ This skill invokes the `gas-gmail-cards` agent for Gmail add-on code review, pla
 
 Auto-invokes when CardService patterns or Gmail add-on questions detected.
 
-## Behavior
+## Step 1: Detect Mode
 
-When invoked, spawn the `gas-gmail-cards` agent:
+Determine the mode from user input:
 
-```
-Task(
-  subagent_type="gas-gmail-cards",
-  description="Gmail add-on assistance",
-  prompt="[user's request - code, plan, or question]"
-)
-```
+| Indicator | Mode |
+|-----------|------|
+| Code pasted or file path with CardService calls | Code Review |
+| "review plan", "evaluate architecture", plan file | Plan Review |
+| Question format ("how should I...", "what's the best...") | Advisory |
 
-The agent automatically detects mode and responds appropriately:
-- **Code:** 6-phase validation with specific fixes
-- **Plan:** Architecture assessment with pattern recommendations
-- **Questions:** Direct answers with code examples and decision trees
+## Step 2: Dispatch to Agent
+
+Spawn the `gas-gmail-cards` agent using the Agent tool with `subagent_type="gas-gmail-cards"` and pass the user's request as the prompt.
+
+## Step 3: Return Results
+
+The agent responds based on detected mode:
+- **Code Review:** 6-phase validation covering CardService builder patterns, action handlers, navigation flow, event objects, manifest configuration, and cross-file consistency. Returns specific fixes with line references.
+- **Plan Review:** Architecture assessment evaluating card hierarchy, navigation patterns, state management, and manifest setup. Returns pattern recommendations.
+- **Advisory:** Direct answers with code examples, decision trees, and CardService best practices.
