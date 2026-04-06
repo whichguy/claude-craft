@@ -411,6 +411,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    memoized_node_since = {}          # N-ID → pass_count when memoized
    prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
+   per_q_status_history = {}        # Q-ID → [status_per_pass] e.g. {"Q-G20": ["NEEDS_UPDATE", "PASS", "NEEDS_UPDATE"]}
+                                    # Tracks per-question status across passes for oscillation detection.
+                                    # A Q-ID with pattern [X, Y, X] (status flips twice) is oscillating.
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
    MAX_CONCURRENT = 5              # max parallel evaluator tasks per wave; tunable
    MAX_EDITS_PER_PASS = 12         # safety cap — prevent runaway plan expansion
@@ -506,7 +509,8 @@ DO:
                        prev_node_results (default {}),
                        pass_phase_timings (default []),
                        evaluators_spawned_total (default 0),
-       advisory_findings_cache (default {})
+       advisory_findings_cache (default {}),
+       per_q_status_history (default {})
       results_dir = memo_data.results_dir
       # Guard for old memo format (written before task fan-out refactor)
       IF results_dir is null or empty:
@@ -1685,7 +1689,8 @@ DO:
     prev_node_results,
     pass_phase_timings,
     evaluators_spawned_total,
-    advisory_findings_cache
+    advisory_findings_cache,
+    per_q_status_history
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -1792,7 +1797,62 @@ DO:
   Print: "──────────────────────────────────────────────────────"
 
   Gate2_stable = (prev_needs_update_set == current_needs_update_set)  # set equality: order-independent; compare BEFORE updating prev
-  prev_needs_update_set = current_needs_update_set  # update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
+  prev_needs_update_set = new Set(current_needs_update_set)  # COPY — update AFTER Gate2_stable check; placed before CONVERGENCE CHECK so CONTINUE paths don't leave stale state
+
+  -- PER-Q OSCILLATION DETECTION --
+  # Track each question's status this pass. Detect oscillation pattern [X, Y, X] in last 3 passes.
+  # Force oscillating Gate 2/3 questions to advisory (stop re-evaluating). Gate 1 exempt.
+  # Guard: only spread evaluator result maps that exist for the current context.
+  const all_q_results = {
+    ...l1_results,
+    ...(Object.keys(cluster_results).length > 0 ? Object.fromEntries(
+      Object.values(cluster_results).flatMap(cr => Object.entries(cr).map(([qid, entry]) => [qid, entry.status || entry]))
+    ) : {}),
+    ...(IS_GAS ? gas_results : {}),
+    ...(IS_NODE ? node_results : {}),
+    ...(HAS_UI && ui_results ? Object.fromEntries(
+      Object.entries(ui_results).map(([qid, entry]) => [qid, entry.status || entry])
+    ) : {})
+  }
+  for (const [q_id, status] of Object.entries(all_q_results)) {
+    if (!per_q_status_history[q_id]) per_q_status_history[q_id] = []
+    per_q_status_history[q_id].push(status)
+  }
+
+  const oscillating_questions = new Set()
+  if (pass_count >= 3) {
+    for (const [q_id, history] of Object.entries(per_q_status_history)) {
+      if (history.length >= 3) {
+        const last3 = history.slice(-3)
+        if (last3[0] === last3[2] && last3[0] !== last3[1]) {
+          oscillating_questions.add(q_id)
+        }
+      }
+    }
+  }
+
+  # Derive gate1_question_set from current mode for Gate 1 exemption
+  IF IS_GAS:
+    gate1_question_set = {"Q-G1", "Q-G2", "Q-G11", "Q1", "Q2", "Q13", "Q15", "Q18", "Q42"}
+  ELSE IF IS_NODE:
+    gate1_question_set = {"Q-G1", "Q-G2", "Q-G11", "Q-C3", "N1"}
+  ELSE:
+    gate1_question_set = {"Q-G1", "Q-G2", "Q-G11", "Q-C3"}
+
+  if (oscillating_questions.size > 0) {
+    for (const q_id of oscillating_questions) {
+      if (!gate1_question_set.has(q_id)) {
+        current_needs_update_set.delete(q_id)
+        advisory_findings_cache[q_id] = {
+          "finding": `Oscillating (${per_q_status_history[q_id].slice(-3).join('→')}) — forced stable as advisory`,
+          "source": "oscillation-detector"
+        }
+        print: "  ⚠️ ${q_id} oscillating (${per_q_status_history[q_id].slice(-3).join('→')}) — forced stable as advisory"
+      } else {
+        print: "  ⚠️ ${q_id} oscillating (Gate 1 — cannot force-stabilize, will continue looping)"
+      }
+    }
+  }
 
   -- CONVERGENCE CHECK (gate-aware) --
   IF IS_GAS:
