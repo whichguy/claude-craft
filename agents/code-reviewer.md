@@ -120,7 +120,7 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 
 **Q2 — Security**: Can untrusted input reach a sensitive sink (DB, eval, filesystem, HTML) without validation?
 
-**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?
+**Q3 — Error Propagation**: Are errors swallowed, losing diagnostic context or silencing recoverable failures?
 
 **Q4 — Intent Alignment**: Do function names, return types, or behaviors contradict the task description or acceptance criteria?
 
@@ -134,7 +134,7 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 |---|---------|----------|
 | Q6 | `useState\|useEffect\|useCallback` | Are hook dependency arrays complete and free of stale closures? |
 | Q7 | `async\|await\|\.then\(\|express\|router` | Are all async error paths handled? Any unhandled rejections? |
-| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Schema migration handled for stale persisted state? |
+| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Stale state migration handled? |
 | Q9 | `describe\|it\(\|expect\(` | Do tests verify behavior (correct outputs, error paths) or just execution (no throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | Are all query parameters parameterized? Could string interpolation lead to injection? |
 | Q11 | (`dryrun=true` OR prompt includes `**Impact context**` block) + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? When an `**Impact context**` block lists referencing files, read those files and verify changed signatures/behaviors remain compatible with actual call sites. Are there backwards-incompatible signature or behavior changes? |

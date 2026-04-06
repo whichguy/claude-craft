@@ -9,7 +9,7 @@
 
 **P3**: Calibration anchors — concrete API names, specific identifiers, domain-specific terms — must be preserved through compression. They are the tokens that drive detection; surrounding prose is expendable. (evidence: 1)
 
-**P4**: Questions under ~28 tokens with temporal/async semantics are near their compression floor. Temporal ordering words (before, after, await, concurrent) carry detection weight disproportionate to their token cost. (evidence: 1)
+**P4**: Questions under ~28 tokens with temporal/async semantics are near their compression floor. Temporal ordering words (before, after, await, concurrent) carry detection weight disproportionate to their token cost. (evidence: 4 — Q3, Q4, Q6, Q7 confirmed)
 
 **P5**: Sentence merging and compound predicates are reliable structural wins (18-21% savings). When two criteria share scope, merge them — the sentence boundary tokens are pure overhead. (evidence: 3)
 
@@ -20,6 +20,16 @@ Prioritize removing consequence tails, interrogative framing, and filler adjecti
 
 ## Recent Observations
 <!-- Rolling window: last 50. Oldest pruned each run. Format: [O] Q-ID: ... -->
+
+[O] Q3-r2: win 23.1% — "swallowed, losing...or silencing" shorter than "swallowed in ways that lose...or convert...into silent ones". Pattern: PARTICIPLE_REWRITE. Detection: 3tp→3tp across 2 fixtures (previously failed in pass 1 with different compression).
+
+[O] Q8-r2: QUALITY IMPROVEMENT 9.5% — "Stale state migration handled?" caught GAS-STALE-1 that "Schema migration handled for stale persisted state?" missed. Pattern: SHORTER_PHRASING_BETTER_DETECTION (rare). Hypothesis: terser phrasing focused reviewer on "stale state" broadly rather than narrowly on "schema migration".
+
+[O] Q1-r2: loss — optimized missed MIXED-ADV-2 (inconsistent return types). Reviewer found range validation instead. Pattern: SEMANTIC_DRIFT at 12.8% compression. The change from "Are there code paths that produce" to "Any paths with" may have subtly shifted reviewer focus.
+
+[O] Q5-r2: loss — judge ruled OVER-1 missed due to line proximity despite correct semantic match. Pattern: JUDGE_NOISE at marginal compression levels.
+
+[O] Q4-r2: AT_FLOOR at 25 tokens. Q6-r2: AT_FLOOR at 15 tokens. Q7-r2: AT_FLOOR at 15 tokens.
 
 [O] Q1: STRUCTURAL win 23.2% — removed generic consequence phrase "bugs concentrate in the inputs developers don't test". Pattern: TRIM_CONSEQUENCE. Detection: 4tp→4tp, 0 regression.
 

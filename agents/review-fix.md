@@ -1794,7 +1794,7 @@ const CLUSTERS = [
     questions: [
       { id: 'Q1', title: 'Correctness', definition: '**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.' },
       { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Can untrusted input reach a sensitive sink (DB, eval, filesystem, HTML) without validation?' },
-      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' },
+      { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed, losing diagnostic context or silencing recoverable failures?' },
       { id: 'Q14', title: 'Type Cast Consistency', definition: '**Q14 — Type Cast Consistency**: When a type or interface is modified in this changeset, trace its usage across files: are there `as Type`, `<Type>`, or `Record<string, unknown>` casts that bypass the updated definition? Casts written before a type extension pin callers to the old shape, hiding new fields from the checker and producing silent field-access failures at runtime.' }
     ],
     triggers: null  // always active for code files
@@ -1816,7 +1816,7 @@ const CLUSTERS = [
     questions: [
       { id: 'Q11', title: 'Backward Compat', definition: '**Q11 — Backward Compatibility**: Would this break existing callers? Are there backwards-incompatible signature or behavior changes?' },
       { id: 'Q7', title: 'Async Errors', definition: '**Q7 — Async Errors**: Are all async error paths handled? Any unhandled rejections?' },
-      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Schema migration handled for stale persisted state?' }
+      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Stale state migration handled?' }
     ],
     triggers: [
       /export\s+(function|const|class|default)|module\.exports|exports\./,    // Q11: exports/public API
