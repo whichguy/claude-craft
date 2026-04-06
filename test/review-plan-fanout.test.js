@@ -441,10 +441,10 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('Evaluate ONLY these 3 questions: Q-G1, Q-G2, Q-G11');
         });
 
-        it('defines l1-advisory evaluator config for Gate 2/3 (19 questions)', function () {
-            // l1-advisory is now split: structural (6 questions) + process (13 questions) = 19 total
+        it('defines l1-advisory evaluator config for Gate 2/3 (21 questions)', function () {
+            // l1-advisory is now split: structural (6 questions) + process (15 questions) = 21 total
             expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
-            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 13 standards/process questions');
+            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 15 standards/process questions');
             expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 
@@ -462,6 +462,18 @@ describe('Review-Plan Task Fan-Out', function () {
 
         it('injects synthetic PASS results when l1-advisory is memoized', function () {
             expect(skillContent).to.include('group-memoized — all were PASS/N/A');
+        });
+
+        it('l1-advisory-process evaluator prompt includes Q-G26 and Q-G27', function () {
+            const processStart = skillContent.indexOf('L1 Advisory Process Evaluator Config');
+            const processSection = skillContent.substring(processStart, processStart + 2000);
+            expect(processSection).to.include('Q-G26');
+            expect(processSection).to.include('Q-G27');
+        });
+
+        it('process_questions memoization set includes Q-G26 and Q-G27', function () {
+            // Both process_questions set definitions (in-loop and memoization block) must contain Q-G26 and Q-G27
+            expect(skillContent).to.include('"Q-G26", "Q-G27"');
         });
     });
 
