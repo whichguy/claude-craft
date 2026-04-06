@@ -83,7 +83,8 @@ Agent(
       (c) It caused confusion or correction
       (d) It's a named architectural component or design pattern
 
-    Update wiki_path/index.md. Append EXTRACT or INGEST log entries to wiki_path/log.md.
+    Update wiki_path/index.md (retrieval-friendly summaries: what + 2-3 key search terms in parens).
+    Append EXTRACT or INGEST log entries to wiki_path/log.md.
     Return: list of pages created/updated.
   """
 )

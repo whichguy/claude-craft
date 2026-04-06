@@ -105,10 +105,12 @@ Agent(
 
     5. Update WIKI_DIR/index.md:
        Check for existing row by page path (idempotency).
-       If row exists: update Last Updated date.
+       If row exists: update Last Updated date and summary.
        If new: add row to the Pages table.
        Never duplicate rows.
        Also add rows for any new entity pages created.
+       Summary format: retrieval-friendly — what the page IS + 2-3 key search terms in parens.
+       Example: "Runtime fix verifier — catches bad fixes and false-positive findings (review-fix, Phase 3.5, verification gate)"
 
     6. Append to WIKI_DIR/log.md:
        [TIMESTAMP] INGEST SOURCE_TITLE: created sources/SLUG.md; updated N entity pages

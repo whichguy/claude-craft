@@ -36,6 +36,7 @@ Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches
 Log: `[YYYY-MM-DD HH:MM] TYPE detail` (INIT,INGEST,QUERY,LINT,SESSION_START,SESSION_END,EXTRACT)
 Log rotation: >500 entries → /wiki-lint suggests archive
 Index: `| page-path | summary | YYYY-MM-DD |` — every page gets a row, never remove rows
+Index summaries must be retrieval-friendly: start with what the page IS, then add 2-3 key terms a user would search for in parentheses. Example: "Runtime fix verifier — catches bad fixes and false-positive findings (review-fix, Phase 3.5, verification gate)"
 Slugs: lowercase, hyphens, max 50 chars
 
 ## Notes

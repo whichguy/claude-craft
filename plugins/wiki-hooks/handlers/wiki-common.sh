@@ -132,42 +132,6 @@ wiki_build_display() {
     CONTEXT="Wiki available: ${repo_name} (${page_count} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
   fi
 
-  # Append entity digest if scale allows (≤50 entities)
-  wiki_build_entity_summaries
-  if [ -n "$ENTITY_DIGEST" ]; then
-    CONTEXT="${CONTEXT}"$'\n\n'"${ENTITY_DIGEST}"
-  fi
-}
-
-# --- Entity digest construction ---
-# Reads the first 3-5 lines (overview paragraph) of each entity page.
-# Sets: ENTITY_DIGEST (empty if >50 entities or no entities dir)
-wiki_build_entity_summaries() {
-  ENTITY_DIGEST=""
-  local entities_dir="$REPO_ROOT/wiki/entities"
-  [ -d "$entities_dir" ] || return 0
-
-  local entity_count; entity_count=$(ls "$entities_dir"/*.md 2>/dev/null | wc -l | tr -d ' ')
-  [ "$entity_count" -eq 0 ] && return 0
-  # Scale guard: skip digest for large wikis
-  [ "$entity_count" -gt 50 ] && return 0
-
-  local digest=""
-  local file name overview
-  for file in "$entities_dir"/*.md; do
-    [ -f "$file" ] || continue
-    name=$(basename "$file" .md)
-    # Read lines 2-5 (skip the # Title line), strip empty lines, join into one line
-    overview=$(sed -n '2,5p' "$file" 2>/dev/null | grep -v '^$' | tr '\n' ' ' | sed 's/  */ /g;s/ *$//')
-    [ -z "$overview" ] && continue
-    # Truncate to ~200 chars to keep digest compact
-    overview="${overview:0:200}"
-    digest="${digest}"$'\n'"- **${name}**: ${overview}"
-  done
-
-  # Only set digest if at least one entity had an overview
-  [ -z "$digest" ] && return 0
-  ENTITY_DIGEST="## Entity Summaries${digest}"
 }
 
 # --- Log entry ---
