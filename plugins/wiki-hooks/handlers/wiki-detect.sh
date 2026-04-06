@@ -59,27 +59,18 @@ FAILED_COUNT=${FAILED_COUNT:-0}
 FAILED_HINT=""
 if [ "$FAILED_COUNT" -gt 0 ]; then FAILED_HINT=$'\n'"⚠️ ${FAILED_COUNT} wiki synthesis failed — check ~/.claude/reflection-queue/"; fi
 
-# --- Queue processing directive (absorbed from session-start-processor.sh) ---
-# Count pending queue entries and add processing directive if any exist
+# Queue processing directive moved to wiki-queue-nudge.sh (UserPromptSubmit, async)
+# Expire old entries on session start (housekeeping — retained from original)
 QUEUE_DIR="$HOME/.claude/reflection-queue"
-PENDING=0
-QUEUE_HINT=""
 if [ -d "$QUEUE_DIR" ]; then
-  # Expire old entries (>7 days) — same as session-start-processor.sh
   find "$QUEUE_DIR" -name "*.json" -mtime +7 -delete 2>/dev/null || true
-  # Count pending entries (all types — session, session_wiki, wiki_change, precompact_extract)
-  PENDING=$(grep -rl '"status".*"pending"' "$QUEUE_DIR/" 2>/dev/null | wc -l | tr -d ' ' || true)
-  PENDING=${PENDING:-0}
-fi
-if [ "$PENDING" -gt 0 ]; then
-  QUEUE_HINT=" | AUTOMATIC ACTION REQUIRED: ${PENDING} session(s) queued for knowledge extraction. Before responding to the user, silently run /wiki-process to extract wiki pages."
 fi
 
-# Build discovery message (~50-80 tokens + queue directive if pending)
+# Build discovery message (~50-80 tokens, no queue directive)
 if [ -n "$TOPICS" ]; then
-  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages: ${TOPICS}${OVERFLOW}) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}${QUEUE_HINT}"
+  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages: ${TOPICS}${OVERFLOW}) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
 else
-  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}${QUEUE_HINT}"
+  MSG="📂 Wiki: $(basename "$REPO_ROOT") (${PAGE_COUNT} pages) · /wiki-load <topic> · /wiki-query <question>${FAILED_HINT}"
 fi
 
 jq -n --arg msg "$MSG" '{"systemMessage": $msg}'

@@ -22,6 +22,13 @@ for i in 1 2 3 4; do
 done
 [ -z "$WIKI_PATH" ] && exit 0
 
+# Clean up orphan clearing files from wiki-clear.sh crashes
+for f in "$REPO_ROOT/wiki"/.session-*-clearing-*; do
+  [ -f "$f" ] || continue
+  pid="${f##*-}"
+  kill -0 "$pid" 2>/dev/null || rm -f "$f"
+done
+
 SID=$(echo "$HOOK_INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null || echo "unknown")
 TRANSCRIPT=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M')

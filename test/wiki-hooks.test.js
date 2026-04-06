@@ -200,12 +200,12 @@ describe('Wiki Hooks', function () {
     });
 
     // ================================================================
-    // Group 3: wiki-detect.sh queue detection (absorbed from session-start-processor.sh)
+    // Group 3: wiki-detect.sh queue detection (directive moved to wiki-queue-nudge.sh)
     // ================================================================
     describe('wiki-detect.sh queue detection', function () {
 
-        it('should include processing directive when pending queue entries exist', async function () {
-            // Create a pending queue entry
+        it('should NOT include processing directive (moved to wiki-queue-nudge.sh)', async function () {
+            // Create a pending queue entry — wiki-detect.sh should NOT mention it
             fs.writeFileSync(
                 path.join(fakeClaudeHome, '.claude', 'reflection-queue', 'test-session-wiki.json'),
                 JSON.stringify({ type: 'session_wiki', status: 'pending', session_id: 'test' })
@@ -216,14 +216,14 @@ describe('Wiki Hooks', function () {
             });
 
             const parsed = JSON.parse(stdout.trim());
-            expect(parsed.systemMessage).to.include('/wiki-process');
-            expect(parsed.systemMessage).to.include('AUTOMATIC ACTION');
+            expect(parsed.systemMessage).to.not.include('/wiki-process');
+            expect(parsed.systemMessage).to.not.include('AUTOMATIC ACTION');
 
             // Clean up
             fs.unlinkSync(path.join(fakeClaudeHome, '.claude', 'reflection-queue', 'test-session-wiki.json'));
         });
 
-        it('should not include directive when no pending entries', async function () {
+        it('should still expire old queue entries (housekeeping retained)', async function () {
             const { stdout } = await runHook('wiki-detect.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: 'queue-test-2',
             });
