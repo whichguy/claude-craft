@@ -372,11 +372,13 @@ describe('Sync Status Tests', function () {
             }
         });
 
-        it('should have exactly 1 handler script', function () {
+        it('should have all handler scripts', function () {
             const handlersDir = path.join(pluginDir, 'handlers');
             const scripts = fs.readdirSync(handlersDir).filter(f => f.endsWith('.sh'));
-            expect(scripts).to.have.length(1);
+            expect(scripts).to.have.length(3);
             expect(scripts).to.include('prompt-sync-check.sh');
+            expect(scripts).to.include('check-skills-changed.sh');
+            expect(scripts).to.include('memo-cleanup.sh');
         });
     });
 
