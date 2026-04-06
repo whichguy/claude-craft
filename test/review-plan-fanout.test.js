@@ -207,8 +207,8 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('wave-based spawning with MAX_CONCURRENT', function () {
-        it('defines MAX_CONCURRENT = 5', function () {
-            expect(skillContent).to.include('MAX_CONCURRENT = 5');
+        it('defines MAX_CONCURRENT = 10', function () {
+            expect(skillContent).to.include('MAX_CONCURRENT = 10');
         });
 
         it('chunks evaluators into waves by MAX_CONCURRENT', function () {

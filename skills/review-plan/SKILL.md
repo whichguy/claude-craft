@@ -359,8 +359,16 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
-       Re-evaluate the same questions once (same Task format above,
-       including substitution of plan_path, questions_path, and question_list_str).
+       Build re_eval_questions: only Q-IDs that returned NEEDS_UPDATE (not PASS or N/A).
+       Always include Gate 1 questions (Q-G1, Q-G2, Q-G11, Q-C3) in re-eval regardless
+       of prior status (Gate 1 must be verified after edits).
+       # Note: edits to fix NEEDS_UPDATE questions may introduce regressions in
+       # previously-passing questions. The Gate 1 inclusion mitigates the highest-risk
+       # regressions. Remaining risk is accepted as a tradeoff for token savings — the
+       # SMALL tier is already a fast-path for low-complexity plans where cross-question
+       # regression is unlikely.
+       Re-evaluate re_eval_questions once (same Task format, substituting
+       re_eval_questions for question_list_str).
        If all now PASS or N/A:
          Write gate file (echo '<plan_path>' > ~/.claude/plans/.review-ready-${plan_slug}), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
@@ -415,7 +423,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                                     # Tracks per-question status across passes for oscillation detection.
                                     # A Q-ID with pattern [X, Y, X] (status flips twice) is oscillating.
    prev_pass_applied_edits = []   # list of {q_id, evaluator, summary} from previous pass
-   MAX_CONCURRENT = 5              # max parallel evaluator tasks per wave; tunable
+   MAX_CONCURRENT = 10             # max parallel evaluator tasks per wave; tunable (increased from 5 — typical FULL review spawns 5-7 evaluators, all fit in single wave)
    MAX_EDITS_PER_PASS = 12         # safety cap — prevent runaway plan expansion
    dispatch_start_time = 0    # set before wave spawning
    fanin_start_time = 0       # set after all waves complete
@@ -2246,54 +2254,61 @@ After the convergence loop exits (scorecard not yet printed):
    issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 4)
    and STOP (step 8). Do not re-run the REWORK check here.
 
-2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, inline:
+2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, **parallel**:
    Print: "╔══════════════════════════════════════════════╗"
    Print: "║  ◆ EPILOGUE                                 ║"
    Print: "╚══════════════════════════════════════════════╝"
 
-   **Q-E2: Post-implementation workflow**
+   **Q-E1 + Q-E2: Parallel epilogue evaluation**
+
+   Spawn Q-E1 and Q-E2 as two parallel Tasks in a SINGLE message:
+
    ```
-   IF NOT IS_GAS:  # IS_GAS: N/A — covered by Q42
-     Scan plan for "## Post-Implementation Workflow" section (or equivalent heading).
-     IF section absent entirely:
-       Inject at END of plan (after all implementation phases):
-         ## Post-Implementation Workflow <!-- review-plan -->
-         1. `/review-fix` — loop until clean <!-- review-plan -->
-         2. Run build if applicable <!-- review-plan -->
-         3. Run tests (if any) <!-- review-plan -->
-         4. If build or tests fail: fix → re-run `/review-fix` → re-run build/tests — repeat <!-- review-plan -->
-       epilogue_q_e2 = "PASS"
-       Print: "  Q-E2  Post-implementation workflow     ✅ injected"
-     ELSE IF section present but missing step 4:
-       Append step 4.
-       epilogue_q_e2 = "PASS"
-       Print: "  Q-E2  Post-implementation workflow     ✅ added step 4"
-     ELSE:
-       epilogue_q_e2 = "PASS"
-       Print: "  Q-E2  Post-implementation workflow     ✅ present"
-   ELSE:
-     epilogue_q_e2 = "N/A"
-     Print: "  Q-E2  Post-implementation workflow     —  N/A (IS_GAS, Q42)"
+   epilogue_e2 = Task(
+     subagent_type = "general-purpose",
+     prompt = """
+       Read the plan at <plan_path>.
+       IS_GAS = <IS_GAS>
+
+       Evaluate Q-E2 (Post-implementation workflow):
+       IF NOT IS_GAS:
+         Scan plan for "## Post-Implementation Workflow" section (or equivalent heading).
+         IF section absent entirely:
+           Output: "NEEDS_INJECT: full_section"
+         ELSE IF section present but missing step 4 (fail-fix-rerun cycle):
+           Output: "NEEDS_INJECT: step_4_only"
+         ELSE:
+           Output: "PASS"
+       ELSE:
+         Output: "N/A"
+     """
+   )
+
+   epilogue_e1 = Task(
+     subagent_type = "general-purpose",
+     prompt = """
+       Read the plan at <plan_path>.
+       IS_GAS = <IS_GAS>
+
+       Evaluate Q-E1 (Git lifecycle):
+       IF NOT IS_GAS:
+         Scan plan for: (a) named feature branch, (b) per-phase git add+commit,
+                         (c) push-to-remote, (d) merge/PR to main.
+         Output: "MISSING: [comma-separated list of a-d not found]" or "PASS"
+       ELSE:
+         Output: "N/A"
+     """
+   )
    ```
 
-   **Q-E1: Git lifecycle**
-   ```
-   IF NOT IS_GAS:  # IS_GAS: N/A — covered by Q1, Q2
-     Scan plan for: (a) named feature branch, (b) per-phase git add+commit,
-                     (c) push-to-remote, (d) merge/PR to main.
-     missing = list of (a)-(d) not found
-     IF missing is non-empty:
-       Inject missing elements: per-phase commit steps within phases,
-       branch/push/merge at end (before Post-Implementation). Mark <!-- review-plan -->.
-       epilogue_q_e1 = "PASS"
-       Print: "  Q-E1  Git lifecycle                    ✅ injected [missing elements]"
-     ELSE:
-       epilogue_q_e1 = "PASS"
-       Print: "  Q-E1  Git lifecycle                    ✅ present"
-   ELSE:
-     epilogue_q_e1 = "N/A"
-     Print: "  Q-E1  Git lifecycle                    —  N/A (IS_GAS, Q1/Q2)"
-   ```
+   Parse results from both Tasks. Apply any injections sequentially after both complete:
+   - Q-E2 NEEDS_INJECT → inject Post-Implementation Workflow section. Mark <!-- review-plan -->.
+   - Q-E1 MISSING → inject missing git elements. Mark <!-- review-plan -->.
+   - Both N/A → skip injection.
+
+   Print status for each:
+     "  Q-E1  Git lifecycle                    ✅ [injected/present] | —  N/A"
+     "  Q-E2  Post-implementation workflow     ✅ [injected/present] | —  N/A"
 
    Insert epilogue results into findings for scorecard:
    `findings["Q-E1"] = {"status": epilogue_q_e1, "gate": 1}`
