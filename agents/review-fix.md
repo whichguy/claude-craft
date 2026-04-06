@@ -206,10 +206,10 @@ findings_counts_per_round = []   # [{critical: N, functional: N, advisory: N, ya
 memo_milestones_printed = new Set()  # {25, 50, 75}
 phase_timings = {}      # { inspect: N, plan: N, fix: N } — reset per round, milliseconds
 per_q_history = {}      # { file: { q_number: [round_numbers_where_finding_present] } }
-per_file_diffs = {}     # { file: git_diff_string } — captured during git fallback Step 4; passed to Phase 2 reviewers as change_context
-round_diffs = {}        # { file: fix_diff_string } — captured per round: snapshot before fixer, diff after; passed to Phase 3A cluster evaluators as fix_context
                         # Tracks per-Q-number finding presence across rounds for oscillation detection.
                         # A Q-number that appears in rounds [1, 3] (present, absent, present) is oscillating.
+per_file_diffs = {}     # { file: git_diff_string } — captured during git fallback Step 4; passed to Phase 2 reviewers as change_context
+round_diffs = {}        # { file: fix_diff_string } — captured per round: snapshot before fixer, diff after; passed to Phase 3A cluster evaluators as fix_context
 ```
 
 ## Behavioral Invariants
@@ -2127,7 +2127,6 @@ if (round > 0) {
   try {
     const retro_output = await Task({
       subagent_type: "general-purpose",
-      model: "haiku",
       description: "Post-round retrospective analysis",
       prompt: `You are a review-fix process analyst. Examine this run's telemetry and answer concisely.
 
