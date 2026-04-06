@@ -153,9 +153,26 @@ WHILE attempt < max_attempts AND NOT improved:
                prevent false positives/negatives — unless the criteria text alone
                is unambiguous without them
 
+            PRESERVATION PRIORITY (most → least important):
+            - PURPOSE/WHY statements: consequence explanations, failure mode descriptions,
+              risk framing ("silent in dynamic langs", "#1 cause of plan-to-impl failure").
+              These cause the evaluator to independently discover many tactics. ALWAYS KEEP.
+            - Methodology directives: "trace each X", "cross-reference each Y", "enumerate".
+              These change HOW the evaluator works, not just WHAT it checks. ALWAYS KEEP.
+            - Evaluator heuristics: decision rules ("assume X = flag if high-risk; TBD = always flag").
+              These are instructions TO the evaluator. ALWAYS KEEP.
+            - Calibration examples: boundary-defining examples ("test X passes" = acceptable;
+              "it works" = insufficient). Keep if they define the PASS/NEEDS_UPDATE boundary.
+              Remove only if the criteria text alone is unambiguous without them.
+            - Tactic enumerations: numbered flag lists. These CAN be compressed — a good
+              purpose statement elicits the evaluator to discover tactics independently.
+              Compress verbose flag lists; keep concise ones.
+            - Generic consequences ("causes bugs", "leads to errors"): SAFE TO REMOVE —
+              every evaluator knows bugs are bad.
+
             CRITICAL: The optimized version must catch the SAME issues as the original
-            when applied to a plan. If you remove an example or edge case, the evaluator
-            must still reach the same conclusion from the remaining text.
+            when applied to a plan. Preserve WHY over HOW — a question that explains the
+            failure mode generates better evaluator behavior than an exhaustive flag list.
 
             Output ONLY the optimized criteria column text.
             No commentary, no Q-ID, no table formatting, no markdown fences.
@@ -287,7 +304,7 @@ WHILE attempt < max_attempts AND NOT improved:
             </REVISION_B>
 
             Output only valid JSON on a single line — no preamble, no markdown fences:
-            {"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+            {"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
         """
     )
 

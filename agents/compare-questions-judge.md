@@ -30,7 +30,7 @@ You will be given:
 
 ## Evaluation Criteria
 
-Answer each of the 5 questions independently with `"A"`, `"B"`, or `"TIE"`.
+Answer each of the 6 questions independently with `"A"`, `"B"`, or `"TIE"`.
 All questions evaluate how well each question improved the plan — judge the **delta**
 between the original and each revision, not the revision in isolation.
 
@@ -57,9 +57,19 @@ between the original and each revision, not the revision in isolation.
    while fixing weaknesses? Penalize revisions that restructure or rewrite sections
    not related to the issue found. The best revision is a surgical improvement.
 
+6. **`question_depth`** — Compare the two questions themselves (not just the revisions).
+   Which question better conveys WHY the issue matters — the failure mode, the
+   consequence, the risk — rather than merely listing WHAT to check? A question that
+   explains purpose ("cross-boundary mismatches are the #1 cause of plan-to-implementation
+   failure") elicits broader detection than one that only enumerates tactics ("check arg
+   count, check return type"). Also penalize questions that remove: calibration examples
+   (concrete boundary cases distinguishing acceptable from flagged), evaluator heuristics
+   (decision rules like "TBD = always flag"), or methodology directives ("trace each X"
+   vs "does X match?"). These elements shape evaluator behavior beyond this single test plan.
+
 ## Winner Derivation
 
-Count A scores and B scores across all 5 questions:
+Count A scores and B scores across all 6 questions:
 - If A count > B count → `winner = "A"`
 - If B count > A count → `winner = "B"`
 - If equal (e.g. 2A, 2B, 1TIE) → `winner = "TIE"`
@@ -75,12 +85,12 @@ Count A scores and B scores across all 5 questions:
 
 Output a single line of valid JSON — no preamble, no markdown fences, no prose:
 
-{"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
+{"scores":{"issue_detection":"?","improvement_quality":"?","proportionality":"?","precision":"?","preservation":"?","question_depth":"?"},"winner":"?","reasoning":"<1-2 sentences>"}
 
 **Example outputs (copy format exactly):**
-{"scores":{"issue_detection":"B","improvement_quality":"B","proportionality":"A","precision":"B","preservation":"A"},"winner":"B","reasoning":"B surfaces a critical missing rollback path and adds concrete recovery steps; A's concern about naming is valid but lower-impact."}
-{"scores":{"issue_detection":"A","improvement_quality":"A","proportionality":"A","precision":"TIE","preservation":"TIE"},"winner":"A","reasoning":"A identifies an unvalidated assumption about API availability that could derail Phase 2; B's revision adds boilerplate testing notes without targeting a specific gap."}
-{"scores":{"issue_detection":"TIE","improvement_quality":"TIE","proportionality":"TIE","precision":"TIE","preservation":"TIE"},"winner":"TIE","reasoning":"Both questions surface the same missing error handling concern and produce nearly identical revisions."}
+{"scores":{"issue_detection":"B","improvement_quality":"B","proportionality":"A","precision":"B","preservation":"A","question_depth":"B"},"winner":"B","reasoning":"B surfaces a critical missing rollback path and adds concrete recovery steps; A's concern about naming is valid but lower-impact."}
+{"scores":{"issue_detection":"A","improvement_quality":"A","proportionality":"A","precision":"TIE","preservation":"TIE","question_depth":"A"},"winner":"A","reasoning":"A identifies an unvalidated assumption about API availability that could derail Phase 2; B's revision adds boilerplate testing notes without targeting a specific gap."}
+{"scores":{"issue_detection":"TIE","improvement_quality":"TIE","proportionality":"TIE","precision":"TIE","preservation":"TIE","question_depth":"TIE"},"winner":"TIE","reasoning":"Both questions surface the same missing error handling concern and produce nearly identical revisions."}
 
 ## Your Task
 

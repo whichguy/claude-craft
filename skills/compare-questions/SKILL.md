@@ -330,7 +330,7 @@ win_rate_tie = count_tie / N
 
 **Quality — per-criterion tallies** (across all N judge results):
 ```
-criterion_keys = ["issue_detection", "improvement_quality", "proportionality", "precision", "preservation"]
+criterion_keys = ["issue_detection", "improvement_quality", "proportionality", "precision", "preservation", "question_depth"]
 
 criterion_tallies = {}
 FOR key IN criterion_keys:
@@ -405,7 +405,7 @@ Print: "────────────────────────
 ```
 
 Where:
-- `quality_flash`: If decided by quality → `"{winning_label} leads {n_criteria_winning}/5 criteria · {win_rate_pct}% wins"` where n_criteria_winning = count of criterion keys where winning label's tally > loser's tally. Otherwise → `"tied"`
+- `quality_flash`: If decided by quality → `"{winning_label} leads {n_criteria_winning}/6 criteria · {win_rate_pct}% wins"` where n_criteria_winning = count of criterion keys where winning label's tally > loser's tally. Otherwise → `"tied"`
 - `token_flash`: `"A ~{tokens_a} · B ~{tokens_b} ({concise_label} more concise)"` or `"within noise"` if delta < 10%
 - `latency_flash`: if `|latency_delta_pct| >= 15` → `"{faster_label} {|val|}% faster"` · else → `"within noise"`
 
@@ -422,7 +422,7 @@ Output the following report (outside any code fence — render as markdown):
 
 ---
 
-### 🔍 Quality  _(5-criterion pairwise judge)_
+### 🔍 Quality  _(6-criterion pairwise judge)_
 
 | Criterion             |  A  |  B  |  ~  | Leader |
 |-----------------------|:---:|:---:|:---:|--------|
@@ -431,6 +431,7 @@ Output the following report (outside any code fence — render as markdown):
 | Proportionality       | {t.proportionality.a} | {t.proportionality.b} | {t.proportionality.tie} | {leader} |
 | Precision             | {t.precision.a} | {t.precision.b} | {t.precision.tie} | {leader} |
 | Preservation          | {t.preservation.a} | {t.preservation.b} | {t.preservation.tie} | {leader} |
+| Question Depth        | {t.question_depth.a} | {t.question_depth.b} | {t.question_depth.tie} | {leader} |
 | **Total**             | **{sum_a}** | **{sum_b}** | **{sum_tie}** | |
 
 **Win rate by plan:**
@@ -490,8 +491,8 @@ the same quality revision is inherently a better question.
 **Metric row rules** (each row right-padded to fill column 62, then `║`):
 
 **Quality row:**
-- decided_by == "quality" AND winner == B → `Quality:  {label_b} leads {n_criteria_b}/5 criteria  ·  {win_rate_b_pct:.0f}% wins  ←`
-- decided_by == "quality" AND winner == A → `Quality:  {label_a} leads {n_criteria_a}/5 criteria  ·  {win_rate_a_pct:.0f}% wins  ←`
+- decided_by == "quality" AND winner == B → `Quality:  {label_b} leads {n_criteria_b}/6 criteria  ·  {win_rate_b_pct:.0f}% wins  ←`
+- decided_by == "quality" AND winner == A → `Quality:  {label_a} leads {n_criteria_a}/6 criteria  ·  {win_rate_a_pct:.0f}% wins  ←`
 - otherwise → `Quality:  tied (spread within 15% threshold)`
 
 **Token row:**
