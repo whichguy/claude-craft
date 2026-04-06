@@ -122,6 +122,19 @@ Step 3 — Filter and validate:
       Error: "No reviewable files in last commit (only .json/.lock files changed)"
     Stop execution.
 
+Step 4 — Capture per-file diffs (focus guide for reviewers):
+  per_file_diffs = {}
+  for each file in file_list:
+    if rationale == "work-in-progress":
+      diff = git -C "${worktree}" diff HEAD -- "${file}" 2>/dev/null
+      if diff is empty:
+        diff = git -C "${worktree}" diff --cached -- "${file}" 2>/dev/null
+    else:
+      diff = git -C "${worktree}" diff HEAD~1..HEAD -- "${file}" 2>/dev/null
+    if diff is non-empty:
+      per_file_diffs[file] = diff
+  Print: "  → Captured diffs for ${Object.keys(per_file_diffs).length}/${file_list.length} file(s)"
+
 Rationale: Adapts to user's workflow — reviews WIP when developing, reviews commits
 when committing. Never mixes contexts. Clear feedback about what's being reviewed.
 WIP always takes priority over commits (stash to review old commits).
@@ -192,6 +205,11 @@ cluster_stats = []      # { round, clusters_dispatched, clusters_skipped, cluste
 findings_counts_per_round = []   # [{critical: N, functional: N, advisory: N, yagni: N, total: N}]
 memo_milestones_printed = new Set()  # {25, 50, 75}
 phase_timings = {}      # { inspect: N, plan: N, fix: N } — reset per round, milliseconds
+per_q_history = {}      # { file: { q_number: [round_numbers_where_finding_present] } }
+per_file_diffs = {}     # { file: git_diff_string } — captured during git fallback Step 4; passed to Phase 2 reviewers as change_context
+round_diffs = {}        # { file: fix_diff_string } — captured per round: snapshot before fixer, diff after; passed to Phase 3A cluster evaluators as fix_context
+                        # Tracks per-Q-number finding presence across rounds for oscillation detection.
+                        # A Q-number that appears in rounds [1, 3] (present, absent, present) is oscillating.
 ```
 
 ## Behavioral Invariants
@@ -429,6 +447,12 @@ dryrun=false
 related_files="${related}"
 review_mode="${review_mode}"
 ${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
+${per_file_diffs[file] ? `
+**Change context** (focus your review on these changes and their surrounding context):
+\`\`\`diff
+${per_file_diffs[file]}
+\`\`\`
+` : ''}
 ${file_impacts.length > 0 ? `
 **Impact context**: The following files reference symbols changed in ${file}.
 Check Q11 (backward compatibility) against these actual callers:
@@ -738,6 +762,7 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
             worktree,
             review_mode,
             task_name,
+            fix_context: round_diffs[file] || null,
             output_path: `${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_${cluster.id}.md`
           })
         }).catch(() => null)
@@ -1036,6 +1061,12 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
       print: "    → Fix ${file} (${tasks_by_file[file].length} tasks: ${file_task_ids})"
     }
 
+    // Snapshot file content before fixer runs (for fix_context diff generation)
+    const pre_fix_snapshots = {}
+    for (const file of file_keys) {
+      try { pre_fix_snapshots[file] = Read(file) } catch (e) { /* file may not exist yet */ }
+    }
+
     // Dispatch one fixer Task per file in this wave (parallel, batched)
     const fixer_start = Date.now()
     let wave_results = []
@@ -1109,8 +1140,175 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
     }
 
     print: "  ✓ Wave ${wave_num}: ${wave_applied} applied, ${wave_failed} failed${wave_blocked > 0 ? `, ${wave_blocked} blocked` : ''} (${fixer_elapsed}s)"
+
+    // Compute per-file fix diffs (post-fix vs pre-fix snapshot) for fix_context in next round
+    for (const file of file_keys) {
+      if (!pre_fix_snapshots[file]) continue
+      try {
+        const post_fix_content = Read(file)
+        if (post_fix_content !== pre_fix_snapshots[file]) {
+          // Simple line-based diff: show changed regions with context
+          const pre_lines = pre_fix_snapshots[file].split('\n')
+          const post_lines = post_fix_content.split('\n')
+          // NOTE: This index-based comparison produces noisy diffs when fixes add/remove lines
+          // (all subsequent lines shift). Cap output to prevent excessive token consumption.
+          const MAX_DIFF_LINES = 100
+          const diff_lines = []
+          for (let l = 0; l < Math.max(pre_lines.length, post_lines.length); l++) {
+            if (diff_lines.length >= MAX_DIFF_LINES) {
+              diff_lines.push(`... (truncated, ${Math.max(pre_lines.length, post_lines.length) - l} more lines differ)`)
+              break
+            }
+            if (pre_lines[l] !== post_lines[l]) {
+              // Add 3 lines of context before
+              const ctx_start = Math.max(0, l - 3)
+              if (diff_lines.length === 0 || diff_lines[diff_lines.length - 1] !== '...') {
+                for (let c = ctx_start; c < l; c++) {
+                  diff_lines.push(` ${pre_lines[c] || ''}`)
+                }
+              }
+              if (l < pre_lines.length) diff_lines.push(`-${pre_lines[l]}`)
+              if (l < post_lines.length) diff_lines.push(`+${post_lines[l]}`)
+              // Add 3 lines of context after
+              for (let c = l + 1; c <= Math.min(l + 3, post_lines.length - 1); c++) {
+                diff_lines.push(` ${post_lines[c]}`)
+              }
+              diff_lines.push('...')
+            }
+          }
+          if (diff_lines.length > 0) {
+            round_diffs[file] = diff_lines.join('\n')
+          }
+        }
+      } catch (e) { /* graceful degradation — no fix_context for this file */ }
+    }
   }
   // (end of wave loop)
+
+  // ═══ POST-FIX VERIFICATION GATE ═══
+  // Lightweight Haiku-based verification of each applied fix. Catches self-rubber-stamping
+  // and false positive findings before the next re-review round. Runs per-file, batched.
+  // Each verification checks TWO things: (a) does the fix resolve the stated issue?
+  // (b) was the original finding legitimate (could original code have been correct)?
+  const VERIFY_AGGREGATE_TIMEOUT = 120000  // 120s total for all verifications this round
+  const verify_start = Date.now()
+  let verifications_run = 0, verifications_passed = 0, verifications_failed = 0, verifications_false_positive = 0
+
+  // Collect applied fixes from this round for verification
+  const fixes_to_verify = []
+  for (const result of wave_results) {
+    const file = result.file
+    let task_results = []
+    if (typeof result === 'string') {
+      try { const json_match = result.match(/\{[\s\S]*\}/); if (json_match) task_results = JSON.parse(json_match[0]).task_results || [] } catch (e) {}
+    } else { task_results = result.task_results || [] }
+
+    for (const tr of task_results) {
+      if (tr.status !== 'applied') continue
+      const original_task = tasks.find(t => t.task_id === tr.task_id)
+      if (!original_task) continue
+      fixes_to_verify.push({ file, task_id: tr.task_id, q_number: original_task.q_number, description: original_task.description, fix_block: original_task.fix_block })
+    }
+  }
+
+  if (fixes_to_verify.length > 0) {
+    print: "  🔍 Verifying ${fixes_to_verify.length} applied fix(es)..."
+
+    // Create verification subdirectory for this round's results
+    Bash(`mkdir -p ${REVIEW_TMPDIR}/round_${round}/verify`)
+
+    // Batch verify (MAX_CONCURRENT_TASKS at a time, with aggregate timeout)
+    // Each verifier writes its verdict to a temp file; orchestrator reads after batch completes.
+    for (let i = 0; i < fixes_to_verify.length && (Date.now() - verify_start) < VERIFY_AGGREGATE_TIMEOUT; i += MAX_CONCURRENT_TASKS) {
+      const batch = fixes_to_verify.slice(i, i + MAX_CONCURRENT_TASKS)
+      try {
+        await Promise.all(batch.map(fix =>
+          Task({
+            subagent_type: "general-purpose",
+            model: "haiku",
+            description: `Verify fix ${fix.task_id} for ${fix.q_number}`,
+            prompt: `You are a fix verifier. Evaluate whether this code fix is correct and whether the original finding was legitimate.
+
+## Finding
+${fix.q_number}: ${fix.description}
+
+## Code Before Fix
+\`\`\`
+${fix.fix_block.before}
+\`\`\`
+
+## Code After Fix
+\`\`\`
+${fix.fix_block.after}
+\`\`\`
+
+Answer TWO questions:
+1. Does the modification resolve the stated issue without introducing new problems?
+2. Is the original finding legitimate — could the original code have been correct as-is?
+
+Write ONLY one of these verdicts to the output file (no other text):
+PASS — fix resolves the issue, finding was legitimate
+FAIL — fix does not resolve the issue or introduces new problems
+FALSE_POSITIVE — the original finding was not a real issue; original code was correct
+
+Write your verdict using Bash:
+  echo 'VERDICT_HERE' > '${REVIEW_TMPDIR}/round_${round}/verify/${fix.task_id}.txt'`
+          }).catch(() => {
+            // Write timeout sentinel on task failure
+            Bash(`echo 'TIMEOUT' > '${REVIEW_TMPDIR}/round_${round}/verify/${fix.task_id}.txt'`)
+          })
+        ))
+
+        // Read verdicts from temp files (single pass after batch completes)
+        const batch_results = batch.map(fix => {
+          try {
+            return Read(`${REVIEW_TMPDIR}/round_${round}/verify/${fix.task_id}.txt`).trim()
+          } catch (e) { return 'TIMEOUT' }
+        })
+
+        for (let j = 0; j < batch.length; j++) {
+          verifications_run++
+          const raw = batch_results[j] || ''
+          const verdict = raw.split('\n')[0].toUpperCase()
+          const fix = batch[j]
+          if (verdict.startsWith('PASS')) {
+            verifications_passed++
+          } else if (verdict.startsWith('FALSE_POSITIVE')) {
+            verifications_false_positive++
+            // Drop the finding — do not re-review this Q-number for this file
+            // Remove from critical_resolved (it wasn't a real fix) and advisory_applied
+            // NOTE: The file edit for this fix remains on disk. Reverting edits is not attempted
+            // because the "after" code may be equally valid — the issue is that the finding was
+            // spurious, not that the fix is harmful. The next re-review round will evaluate the
+            // current file state on its merits.
+            critical_resolved = critical_resolved.filter(cr => !(cr.file === fix.file && cr.q_number === fix.q_number))
+            advisory_applied = advisory_applied.filter(aa => !(aa.file === fix.file && aa.q_number === fix.q_number))
+            // Also decrement fixes_applied count — false positive fix should not keep file in loop
+            fixes_applied_per_file[fix.file] = Math.max(0, (fixes_applied_per_file[fix.file] || 0) - 1)
+            print: "    ⊘ ${fix.task_id} (${fix.q_number}) — false positive, finding dropped"
+          } else {
+            // FAIL or TIMEOUT — route to stuck_findings, do not count as resolved
+            verifications_failed++
+            // Revert: remove from resolved/applied tracking
+            critical_resolved = critical_resolved.filter(cr => !(cr.file === fix.file && cr.q_number === fix.q_number))
+            advisory_applied = advisory_applied.filter(aa => !(aa.file === fix.file && aa.q_number === fix.q_number))
+            append { file: fix.file, q_number: fix.q_number, description: fix.description, reason: verdict.startsWith('FAIL') ? 'verification_failed' : 'verification_timeout' } to stuck_findings (apply dedup guard)
+            print: "    ✗ ${fix.task_id} (${fix.q_number}) — ${verdict.startsWith('FAIL') ? 'fix rejected' : 'verification timeout'}"
+          }
+        }
+      } catch (err) {
+        // Batch-level failure — treat all as unverified
+        for (const fix of batch) {
+          verifications_run++
+          verifications_failed++
+          append { file: fix.file, q_number: fix.q_number, description: fix.description, reason: 'verification_error' } to stuck_findings (apply dedup guard)
+        }
+        print: "  ⚠️ Verification batch failed: ${err.message}"
+      }
+    }
+    const verify_elapsed = ((Date.now() - verify_start) / 1000).toFixed(1)
+    print: "  ✓ Verified: ${verifications_passed} pass, ${verifications_failed} fail, ${verifications_false_positive} false-positive (${verify_elapsed}s)"
+  }
 
   // ═══ END OF ROUND — compute duration, file exit prints, per-round status grid ═══
   phase_timings.fix = Date.now() - fix_phase_start
@@ -1133,8 +1331,23 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
   findings_counts_per_round.push(round_findings)
 
   // Files with 0 fixes applied this round exit (nothing changed → done)
+  // Route remaining findings to tracking arrays so they are not silently lost.
+  // This mirrors the routing logic in files_clean_after_inspect (PHASE A filter).
   const files_clean_this_round = remaining_files.filter(f => (fixes_applied_per_file[f] || 0) === 0)
   for (const file of files_clean_this_round) {
+    const findings = parse_findings(current_findings[file])
+    for (const f of findings) {
+      if (f.severity === 'Advisory/YAGNI') {
+        append { file, ...f } to advisory_yagni (apply dedup guard)
+      } else if (!f.fix_block && f.severity === 'Advisory') {
+        append { file, ...f } to advisory_stuck (apply dedup guard)
+      } else if (!f.fix_block && (f.severity === 'Critical' || f.severity === 'Advisory/Functional')) {
+        append { file, ...f } to stuck_findings (apply dedup guard)
+      } else if (f.fix_block && (f.severity === 'Critical' || f.severity === 'Advisory/Functional')) {
+        // Fix block existed but fixer failed to apply it — route to fix_failures
+        append { file, ...f, reason: 'fix_not_applied_this_round' } to fix_failures (apply dedup guard)
+      }
+    }
     print: "  → [file] nothing changed — done"
   }
 
@@ -1196,20 +1409,89 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
 
   // remaining_files still has entries with fixes_applied > 0 → next round (back to PHASE A: Inspect)
 
+  // ═══ PER-Q OSCILLATION DETECTION ═══
+  // Track which Q-numbers have findings each round. Detect oscillation: a Q-number
+  // that appears, resolves, and reappears (present in rounds N, absent in N+1, present in N+2)
+  // indicates the fix for that Q creates a condition that re-triggers the same Q.
+  // This is distinct from progressive discovery (new Q-numbers appearing).
+  for (const file of remaining_files) {
+    if (!per_q_history[file]) per_q_history[file] = {}
+    const findings = parse_findings(current_findings[file])
+    const active_qs = new Set(findings.map(f => f.q_number).filter(Boolean))
+    for (const q of active_qs) {
+      if (!per_q_history[file][q]) per_q_history[file][q] = []
+      per_q_history[file][q].push(round)
+    }
+  }
+
+  // Check for per-Q oscillation (requires 3+ rounds of history for a file)
+  const files_oscillating = []
+  for (const file of remaining_files) {
+    if (!per_q_history[file] || per_file_rounds[file] < 3) continue
+    for (const [q, rounds_present] of Object.entries(per_q_history[file])) {
+      // Oscillation: Q present in round N, absent in N+1, present in N+2
+      // Detect by checking if there are gaps in the rounds_present array
+      if (rounds_present.length >= 2) {
+        const last = rounds_present[rounds_present.length - 1]
+        const prev = rounds_present[rounds_present.length - 2]
+        // If Q was present, then absent for at least 1 round, then present again
+        if (last === round && (last - prev) >= 2) {
+          files_oscillating.push({ file, q_number: q, pattern: rounds_present })
+          break  // one oscillating Q is enough to eject the file
+        }
+      }
+    }
+  }
+
+  // Eject oscillating files
+  for (const { file, q_number, pattern } of files_oscillating) {
+    const unresolved = parse_findings(current_findings[file])
+    unresolved.filter(c => c.severity === 'Critical' || c.severity === 'Advisory/Functional').forEach(c => {
+      append { file, ...c } to stuck_findings (apply dedup guard)
+    })
+    unresolved.filter(a => a.severity === 'Advisory' && !a.fix_block).forEach(a => {
+      append { file, ...a } to advisory_stuck (apply dedup guard)
+    })
+    print: "  ⚠️ ${file} — oscillating on ${q_number} (rounds: ${pattern.join('→')}) — ejected"
+  }
+  const oscillating_file_set = new Set(files_oscillating.map(f => f.file))
+  remaining_files = remaining_files.filter(f => !oscillating_file_set.has(f))
+
   // ═══ INCREMENTAL RE-REVIEW: update cluster_backlog based on applied fixes ═══
   // Determine which clusters need re-inspection in the next round based on which
   // Q-numbers had fixes applied this round. Clean clusters with no related fixes are memoized.
+  // Cross-cluster invalidation: when a fix to Q-X in cluster A affects Q-Y in cluster B
+  // (per CROSS_CLUSTER_DEPS), cluster B is also marked 'pending'.
   for (const file of remaining_files) {
     if (!cluster_backlog[file]) continue
     const affected_q_numbers = round_applied_q_numbers[file] || new Set()
     const round_had_failures = failed_tasks.size > 0 && tasks.some(t => t.file === file && failed_tasks.has(t.task_id))
 
+    // Expand affected Q-numbers with cross-cluster dependencies
+    const cross_cluster_affected = new Set()
+    for (const q of affected_q_numbers) {
+      const deps = CROSS_CLUSTER_DEPS[q] || []
+      for (const dep_q of deps) {
+        cross_cluster_affected.add(dep_q)
+      }
+    }
+    // Merge: all Q-numbers that should trigger re-review (within-cluster + cross-cluster)
+    const all_affected = new Set([...affected_q_numbers, ...cross_cluster_affected])
+
     for (const cluster of CLUSTERS) {
       if (cluster_backlog[file][cluster.id]?.status === 'skipped') continue
       const cluster_qs = cluster.questions.map(q => q.id)
-      if (cluster_qs.some(q => affected_q_numbers.has(q))) {
-        // Fixes applied to questions in this cluster → re-check needed
+      if (cluster_qs.some(q => all_affected.has(q))) {
+        // Fixes applied to questions in this cluster OR cross-cluster deps → re-check needed
+        const was_clean = cluster_backlog[file][cluster.id]?.status === 'clean'
         cluster_backlog[file][cluster.id].status = 'pending'
+        // Log cross-cluster invalidations for visibility
+        if (was_clean) {
+          const triggering_cross = [...cross_cluster_affected].filter(q => cluster_qs.includes(q))
+          if (triggering_cross.length > 0) {
+            print: "    ↔ ${file}: ${cluster.id} re-activated by cross-cluster dep (${triggering_cross.join(', ')})"
+          }
+        }
       }
       // If round was partial (Task failures), reset clean clusters to pending (results may be stale)
       if (round_had_failures && cluster_backlog[file][cluster.id]?.status === 'clean') {
@@ -1485,6 +1767,24 @@ Analyze these tasks for conflicts at THREE levels — not just files, but logica
 // NON_CODE_EXTENSIONS: file types where only the intent cluster applies
 const NON_CODE_EXTENSIONS = new Set(['md', 'yaml', 'yml', 'json', 'txt', 'toml'])
 
+// CROSS_CLUSTER_DEPS: when a fix is applied for Q-number X, these Q-numbers in OTHER
+// clusters should be invalidated (their cluster marked 'pending' for re-review).
+// Derived systematically by analyzing question scope overlap — a fix to X changes
+// behavior that Y evaluates. Bidirectional: Safety→Integration AND Integration→Safety.
+const CROSS_CLUSTER_DEPS = {
+  // Safety → Integration
+  'Q3':  ['Q7'],           // error propagation fix → async errors may be affected
+  'Q1':  ['Q15'],          // correctness fix → untested failure paths may shift
+  'Q14': ['Q11'],          // type cast fix → backward compat (callers affected)
+  // Integration → Safety
+  'Q11': ['Q1'],           // backward compat fix → may introduce correctness bugs
+  'Q7':  ['Q3'],           // async error fix → may swallow other errors
+  // Safety → Intent
+  'Q2':  ['Q5'],           // security fix (adds validation) → minimal change affected
+  // Intent → Safety
+  'Q5':  ['Q1', 'Q2', 'Q3'],  // removing over-engineering → removed code may have been load-bearing
+}
+
 // CLUSTERS: domain clusters with question assignments and trigger patterns.
 // safety + intent always run for code files. integration + ecosystem are conditional.
 const CLUSTERS = [
@@ -1600,7 +1900,11 @@ review_mode="${context.review_mode}"
 task_name="${context.task_name}"
 ${context.plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${context.plan_summary}` : ''}
 ${context.impact_files?.length > 0 ? `\n**Impact context**: The following files reference symbols changed in ${file}.\nCheck Q11 (backward compatibility) against these actual callers:\n${context.impact_files.map(f => '- ' + f).join('\n')}` : ''}
-${context.is_recheck ? `\nThis is a re-review (round ${context.round}). Focus on code modified since last review.\nAdvisory findings that were already applied in a prior round should NOT be re-reported.\nAdvisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`.` : ''}
+${context.is_recheck ? `\nThis is a re-review (round ${context.round}). Focus on code modified since last review.
+Evaluate the current code on its own merits. Do not assume that recently modified code is correct simply because it was the result of a prior fix.
+Advisory findings that were already applied in a prior round should NOT be re-reported.
+Advisory/YAGNI findings from prior rounds should still be emitted as \`Finding: Advisory/YAGNI\`.` : ''}
+${context.fix_context ? `\n**Fix context** (these lines were modified by the fixer in the previous round — verify correctness):\n\`\`\`diff\n${context.fix_context}\n\`\`\`\n` : ''}
 
 ## Output format
 Use the standard code-reviewer finding format for each question:
@@ -1806,6 +2110,80 @@ Print: "✅ Fix loop complete — [round] round(s), [critical_resolved.length] c
 Partial / stuck:
 ```
 Print: "⚠️ Fix loop ended — [round] round(s) (max), [critical_resolved.length] critical resolved, [stuck_findings.length] stuck ([total_elapsed]s)"
+```
+
+---
+
+## Phase 3.5: Post-Round Retrospective
+
+After the fix loop exits (convergence or max_rounds), run a lightweight Haiku-based retrospective
+that examines the run's telemetry and produces actionable process improvements.
+
+```javascript
+// Skip retrospective if round == 0 (all files clean in Phase 2, no fix loop ran)
+if (round > 0) {
+  print: "━━━ RETROSPECTIVE ━━━━━━━━━━━━━━━━━━"
+  const retro_start = Date.now()
+  try {
+    const retro_output = await Task({
+      subagent_type: "general-purpose",
+      model: "haiku",
+      description: "Post-round retrospective analysis",
+      prompt: `You are a review-fix process analyst. Examine this run's telemetry and answer concisely.
+
+## Run Telemetry
+- Rounds: ${round}/${max_rounds}
+- Findings by round: ${JSON.stringify(findings_counts_per_round)}
+- Cluster efficiency: ${JSON.stringify(cluster_stats)}
+- Fix success rate: ${critical_resolved.length} resolved, ${fix_failures.length} failed, ${stuck_findings.length} stuck
+- Phase timings: ${JSON.stringify(per_round_phase_timings)}
+- Introduced by fix: ${introduced_by_fix.length} regressions
+- Verification: ${verifications_passed || 0} pass, ${verifications_failed || 0} fail, ${verifications_false_positive || 0} false-positive
+
+## Questions (answer each in 1-2 sentences)
+
+Q-R1: **Finding quality** — Were any findings false positives (applied then re-review found no issue)? Which Q-numbers are unreliable?
+
+Q-R2: **Convergence efficiency** — Did the run converge in minimum rounds, or were rounds wasted?
+
+Q-R3: **Fix quality** — What fraction of fix_failures were from textual drift (prior fixes shifting "before" text) vs wrong fix blocks?
+
+Q-R4: **Memoization effectiveness** — Were memoized clusters re-activated unnecessarily?
+
+Q-R5: **Self-improvement** — Is there a materially better way to have structured the review/fix for THESE files?
+
+## Output (bare JSON, no markdown wrapping)
+{"false_positive_q_numbers":[],"wasted_rounds":0,"drift_fraction":0.0,"over_invalidated_clusters":[],"process_recommendation":"one-sentence actionable improvement","confidence":"high|medium|low"}`
+    })
+
+    // Parse and display retrospective results
+    try {
+      const json_match = retro_output.match(/\{[\s\S]*\}/)
+      if (json_match) {
+        const retro = JSON.parse(json_match[0])
+        if (retro.false_positive_q_numbers?.length > 0) {
+          print: "  ⚠️ False-positive Q-numbers: ${retro.false_positive_q_numbers.join(', ')}"
+        }
+        if (retro.wasted_rounds > 0) {
+          print: "  ⚠️ Wasted rounds: ${retro.wasted_rounds}"
+        }
+        if (retro.drift_fraction > 0.3) {
+          print: "  ⚠️ Fix drift: ${Math.round(retro.drift_fraction * 100)}% of failures from textual drift"
+        }
+        if (retro.over_invalidated_clusters?.length > 0) {
+          print: "  ⚠️ Over-invalidated: ${retro.over_invalidated_clusters.join(', ')}"
+        }
+        print: "  💡 ${retro.process_recommendation} (confidence: ${retro.confidence})"
+      }
+    } catch (e) {
+      print: "  ⚠️ Could not parse retrospective output"
+    }
+    const retro_elapsed = ((Date.now() - retro_start) / 1000).toFixed(1)
+    print: "  ✓ Retrospective complete (${retro_elapsed}s)"
+  } catch (err) {
+    print: "  ⚠️ Retrospective failed: ${err.message} — skipping (non-blocking)"
+  }
+}
 ```
 
 ---
