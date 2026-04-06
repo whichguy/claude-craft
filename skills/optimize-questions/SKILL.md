@@ -299,36 +299,31 @@ WHILE attempt < max_attempts AND NOT improved:
 
     ELSE:
         # 1a-select: Pick best variant and optionally refine
+        # Build variant blocks dynamically from successful list (handles 2-of-3 case)
+        variant_blocks = ""
+        FOR i, sv IN enumerate(successful):
+            variant_blocks += """
+                <VARIANT_{i+1} strategy="{sv.label}">
+                Change summary: {sv.description}
+                ---
+                {sv.criteria}
+                </VARIANT_{i+1}>
+            """
+
         selected_output = Task(
             subagent_type = "general-purpose",
             model = "claude-opus-4-6",
             prompt = """
                 You are selecting the best token-optimized variant of an LLM evaluator question.
                 Your job: pick the strongest variant, then optionally incorporate strengths
-                from the other two into a refined final version.
+                from the others into a refined final version.
 
                 <ORIGINAL>
                 Q-ID: {q_id}
                 {current_text}
                 </ORIGINAL>
 
-                <VARIANT_1 strategy="STRUCTURAL">
-                Change summary: {parsed_variants[0].description}
-                ---
-                {parsed_variants[0].criteria}
-                </VARIANT_1>
-
-                <VARIANT_2 strategy="SEMANTIC">
-                Change summary: {parsed_variants[1].description}
-                ---
-                {parsed_variants[1].criteria}
-                </VARIANT_2>
-
-                <VARIANT_3 strategy="RADICAL">
-                Change summary: {parsed_variants[2].description}
-                ---
-                {parsed_variants[2].criteria}
-                </VARIANT_3>
+                {variant_blocks}
 
                 EVALUATION CRITERIA (in priority order):
                 1. DETECTION PRESERVATION: Must catch the same issues as the original.
@@ -357,7 +352,7 @@ WHILE attempt < max_attempts AND NOT improved:
 
         *Substitution rules for selector prompt:*
         - {q_id}, {current_text} → from target question
-        - {parsed_variants[N].description}, {parsed_variants[N].criteria} → from parsed output
+        - {variant_blocks} → dynamically built from `successful` list above
         - PREVIOUS_FEEDBACK → `previous_feedback` from above (empty string on attempt 1)
 
         *Parse selector output:*
@@ -366,11 +361,11 @@ WHILE attempt < max_attempts AND NOT improved:
         Everything after first "---" → optimized criteria text
 
         IF parse fails (no "SELECTED:" line or no "---"):
-            # Fall back to structural variant
-            optimized = parsed_variants[0].criteria
-            compression_description = parsed_variants[0].description
-            selected_strategy = "STRUCTURAL"
-            Print: "  attempt {attempt}: selector parse failed — falling back to STRUCTURAL"
+            # Fall back to first successful variant
+            optimized = successful[0].criteria
+            compression_description = successful[0].description
+            selected_strategy = successful[0].label
+            Print: "  attempt {attempt}: selector parse failed — falling back to {selected_strategy}"
         ELSE:
             optimized = extracted criteria text
             Print: "  attempt {attempt}: selected {selected_strategy}"
@@ -519,7 +514,7 @@ WHILE attempt < max_attempts AND NOT improved:
     IF judge_result.valid == false:
         Print: "  ⚠ attempt {attempt}: RECUSED — {judge_result.recusal.reason}"
         Print: "     Fix: {judge_result.recusal.fix}"
-        CONTINUE  # try next attempt (different compression strategy may produce a fairer trial)
+        CONTINUE  # try next attempt (PREVIOUS_FEEDBACK may guide generators to a fairer trial)
 
     # 1g: Evaluate — apply tiebreaker chain
     # Quality: winner from judge
