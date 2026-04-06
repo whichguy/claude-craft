@@ -264,7 +264,7 @@ WHILE attempt < max_attempts AND NOT improved:
 
     judge_result = Task(
         subagent_type = "compare-questions-judge",
-        model = "claude-sonnet-4-6",
+        model = "claude-opus-4-6",
         prompt = """
             <ORIGINAL_PLAN>
             {plan_contents}
