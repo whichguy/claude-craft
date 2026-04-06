@@ -90,7 +90,7 @@ Update ${WIKI_PATH%/}/index.md with any new pages.
 Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRACT session:${SID:0:8}: <pages created/updated>"
 
   # Spawn claude CLI — sonnet, budget cap, non-interactive (no --bare: needs OAuth from keychain)
-  if claude -p --model sonnet --max-budget-usd 0.50 \
+  if claude -p --model sonnet \
     --dangerously-skip-permissions --no-session-persistence \
     "$PROMPT" < /dev/null >/dev/null 2>&1; then
     # Success — delete the claimed file
