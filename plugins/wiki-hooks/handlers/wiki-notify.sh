@@ -12,9 +12,9 @@ wiki_parse_input
 
 wiki_find_root || exit 0
 
-# Find the session marker (created by wiki-detect.sh at session start)
-MARKER=$(find "$REPO_ROOT/wiki" -maxdepth 1 -name '.session-*-start' 2>/dev/null | head -1)
-[ -z "$MARKER" ] && exit 0
+# Session marker (created by wiki-detect.sh at session start)
+MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
+[ ! -f "$MARKER" ] && exit 0
 
 # Notified marker — tracks what we've already injected (touch after notification)
 NOTIFIED="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-notified"
@@ -26,11 +26,10 @@ REF_MARKER="$NOTIFIED"
 NEW_PAGES=$(find "$REPO_ROOT/wiki/entities" -newer "$REF_MARKER" -name '*.md' 2>/dev/null)
 [ -z "$NEW_PAGES" ] && exit 0
 
-# Read new page contents (cap at 5 pages, 200 lines each to stay under 10K char limit)
+# Read new page contents (200 lines each — 10KB additionalContext limit is the natural cap)
 CONTENT=""
 COUNT=0
 while IFS= read -r page; do
-  [ "$COUNT" -ge 5 ] && break
   NAME=$(basename "$page" .md)
   PAGE_CONTENT=$(head -200 "$page" 2>/dev/null)
   CONTENT="${CONTENT}--- ${NAME} ---"$'\n'"${PAGE_CONTENT}"$'\n\n'
@@ -41,7 +40,7 @@ done <<< "$NEW_PAGES"
 touch "$NOTIFIED" 2>/dev/null || true
 
 # Build page name list for display
-PAGE_NAMES=$(echo "$NEW_PAGES" | sed 's|.*/||;s|\.md$||' | head -5 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+PAGE_NAMES=$(echo "$NEW_PAGES" | sed 's|.*/||;s|\.md$||' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
 
 jq -n --arg context "New wiki pages extracted from recent sessions: ${PAGE_NAMES}. Content below."$'\n\n'"${CONTENT}" \
   --arg display "📖 ${COUNT} new wiki page(s): ${PAGE_NAMES}" \
