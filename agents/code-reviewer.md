@@ -116,15 +116,15 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 
 ### Universal Questions
 
-**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes — bugs concentrate in the inputs developers don't test.
+**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.
 
-**Q2 — Security**: Could user-controlled data reach a sensitive operation (DB, eval, file system, HTML) without adequate validation?
+**Q2 — Security**: Can untrusted input reach a sensitive sink (DB, eval, filesystem, HTML) without validation?
 
 **Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?
 
-**Q4 — Intent Alignment**: Are there function names, return types, or behaviors that contradict what the task description or acceptance criteria specify?
+**Q4 — Intent Alignment**: Do function names, return types, or behaviors contradict the task description or acceptance criteria?
 
-**Q5 — Minimal Change**: Are there abstractions, new dependencies, or indirection layers that the acceptance criteria don't justify? Could any new code be accomplished by extending existing modules or patterns instead of introducing new ones?
+**Q5 — Minimal Change**: Does the change introduce abstractions, dependencies, or indirection layers that acceptance criteria don't justify, where existing modules or patterns could extend instead?
 
 > When Q5 identifies a speculative abstraction, premature generalization, or hypothetical future need with no evidence from the acceptance criteria, use `Finding: Advisory/YAGNI`. Use regular `Advisory` only when the over-engineering creates an actively observable problem (e.g., existing complexity misleads callers, or introduces real coupling).
 
@@ -132,9 +132,9 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 
 | Q | Trigger | Question |
 |---|---------|----------|
-| Q6 | `useState\|useEffect\|useCallback` | Are hook dependency arrays complete? Could stale closures cause missed updates? |
-| Q7 | `async\|await\|\.then\(\|express\|router` | Are async errors handled across all paths? Could unhandled rejections crash the service? |
-| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Are GAS execution limits respected? Could loops exhaust quota mid-run? Does code guard against absent state (null getProperty/getCache/ConfigManager.get before JSON.parse) and stale state (stored data in prior schema format)? |
+| Q6 | `useState\|useEffect\|useCallback` | Are hook dependency arrays complete and free of stale closures? |
+| Q7 | `async\|await\|\.then\(\|express\|router` | Are all async error paths handled? Any unhandled rejections? |
+| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Schema migration handled for stale persisted state? |
 | Q9 | `describe\|it\(\|expect\(` | Do tests verify behavior (correct outputs, error paths) or just execution (no throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | Are all query parameters parameterized? Could string interpolation lead to injection? |
 | Q11 | (`dryrun=true` OR prompt includes `**Impact context**` block) + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? When an `**Impact context**` block lists referencing files, read those files and verify changed signatures/behaviors remain compatible with actual call sites. Are there backwards-incompatible signature or behavior changes? |

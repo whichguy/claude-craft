@@ -1793,7 +1793,7 @@ const CLUSTERS = [
     always: true,
     questions: [
       { id: 'Q1', title: 'Correctness', definition: '**Q1 — Correctness**: Are there code paths that produce incorrect results, null errors, or silent failures? Check boundary values, null/empty inputs, and integer extremes.' },
-      { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Could user-controlled data reach a sensitive operation (DB, eval, file system, HTML) without adequate validation?' },
+      { id: 'Q2', title: 'Security', definition: '**Q2 — Security**: Can untrusted input reach a sensitive sink (DB, eval, filesystem, HTML) without validation?' },
       { id: 'Q3', title: 'Error Propagation', definition: '**Q3 — Error Propagation**: Are errors swallowed in ways that lose diagnostic context or convert recoverable failures into silent ones?' },
       { id: 'Q14', title: 'Type Cast Consistency', definition: '**Q14 — Type Cast Consistency**: When a type or interface is modified in this changeset, trace its usage across files: are there `as Type`, `<Type>`, or `Record<string, unknown>` casts that bypass the updated definition? Casts written before a type extension pin callers to the old shape, hiding new fields from the checker and producing silent field-access failures at runtime.' }
     ],
@@ -1803,8 +1803,8 @@ const CLUSTERS = [
     id: 'intent',
     always: true,
     questions: [
-      { id: 'Q4', title: 'Intent Alignment', definition: '**Q4 — Intent Alignment**: Are there function names, return types, or behaviors that contradict what the task description or acceptance criteria specify?' },
-      { id: 'Q5', title: 'Minimal Change', definition: '**Q5 — Minimal Change**: Are there abstractions, new dependencies, or indirection layers that the acceptance criteria don\'t justify? Could any new code be accomplished by extending existing modules or patterns instead of introducing new ones?' },
+      { id: 'Q4', title: 'Intent Alignment', definition: '**Q4 — Intent Alignment**: Do function names, return types, or behaviors contradict the task description or acceptance criteria?' },
+      { id: 'Q5', title: 'Minimal Change', definition: '**Q5 — Minimal Change**: Does the change introduce abstractions, dependencies, or indirection layers that acceptance criteria don\'t justify, where existing modules or patterns could extend instead?' },
       { id: 'Q12', title: 'Question Tables', definition: '**Q12 — Question Tables** (only if file contains `| Q` table patterns — skip otherwise): Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables?' },
       { id: 'Q13', title: 'Content Review', definition: '**Q13 — Content Review** (non-code files only): Does this change achieve its stated purpose? Is the modified content clear, accurate, and consistent with surrounding context?' }
     ],
@@ -1815,8 +1815,8 @@ const CLUSTERS = [
     always: false,
     questions: [
       { id: 'Q11', title: 'Backward Compat', definition: '**Q11 — Backward Compatibility**: Would this break existing callers? Are there backwards-incompatible signature or behavior changes?' },
-      { id: 'Q7', title: 'Async Errors', definition: '**Q7 — Async Errors**: Are async errors handled across all paths? Could unhandled rejections crash the service?' },
-      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Are GAS execution limits respected? Could loops exhaust quota mid-run? Does code guard against absent/stale state?' }
+      { id: 'Q7', title: 'Async Errors', definition: '**Q7 — Async Errors**: Are all async error paths handled? Any unhandled rejections?' },
+      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Schema migration handled for stale persisted state?' }
     ],
     triggers: [
       /export\s+(function|const|class|default)|module\.exports|exports\./,    // Q11: exports/public API
@@ -1828,7 +1828,7 @@ const CLUSTERS = [
     id: 'ecosystem',
     always: false,
     questions: [
-      { id: 'Q6', title: 'React Hooks', definition: '**Q6 — React Hooks**: Are hook dependency arrays complete? Could stale closures cause missed updates?' },
+      { id: 'Q6', title: 'React Hooks', definition: '**Q6 — React Hooks**: Are hook dependency arrays complete and free of stale closures?' },
       { id: 'Q9', title: 'Test Quality', definition: '**Q9 — Test Quality**: Do tests verify behavior (correct outputs, error paths) or just execution (no throw)?' },
       { id: 'Q10', title: 'SQL Injection', definition: '**Q10 — SQL Injection**: Are all query parameters parameterized? Could string interpolation lead to injection?' },
       { id: 'Q15', title: 'Untested Failure Paths', definition: '**Q15 — Untested Failure Paths**: Trace error-handling and fallback branches: could any produce silently wrong results if the upstream assumption fails — and is that path covered by a test? Flag: catch blocks returning defaults instead of propagating, config lookups with fallback values that mask structural errors, optional chaining (`?.`) silently yielding undefined that downstream code treats as valid data.' }
