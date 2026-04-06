@@ -18,6 +18,7 @@ wiki_cleanup_orphans "$REPO_ROOT/wiki" ".session-*-clearing-*"
 MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
 wiki_detect_changes "$MARKER"
 rm -f "$MARKER"
+rm -f "$REPO_ROOT/wiki/.session-${SESSION_SHORT}-notified"
 
 # Queue session_wiki
 if [ -n "$TRANSCRIPT" ]; then
