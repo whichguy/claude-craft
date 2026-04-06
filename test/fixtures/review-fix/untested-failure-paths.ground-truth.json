@@ -1,0 +1,38 @@
+{
+  "fixture": "untested-failure-paths.ts",
+  "description": "Code with catch-default returns, config fallbacks masking errors, and optional chaining hiding undefined",
+  "categories_present": ["error-handling"],
+  "issues": [
+    {
+      "id": "UFP-1",
+      "line": 33,
+      "category": "error-handling",
+      "severity": "Critical",
+      "question": "Q15",
+      "description": "catch block returns empty array default — downstream map/filter silently produces empty output with no error signal",
+      "expected_fix": "propagate the error or return a Result type that callers must check"
+    },
+    {
+      "id": "UFP-2",
+      "line": 39,
+      "category": "error-handling",
+      "severity": "Critical",
+      "question": "Q15",
+      "description": "Nullish coalescing on nested optional chain masks missing config section — 'localhost' fallback hides structural misconfiguration",
+      "expected_fix": "validate config shape at startup and fail fast if required sections are absent"
+    },
+    {
+      "id": "UFP-3",
+      "line": 47,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q15",
+      "description": "Optional chaining with nullish coalescing silently treats missing scores as 0 and division by zero returns Infinity — silent data corruption",
+      "expected_fix": "guard against empty count or exclude users without scores from both sum and count"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 12: getConfigWithValidation has proper fallback with logged warning and typed default — not a bug"
+  ]
+}

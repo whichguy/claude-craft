@@ -1,0 +1,38 @@
+{
+  "fixture": "weak-tests.test.js",
+  "description": "Test file with assertion-free tests, no-throw-only checks, and overly loose matchers",
+  "categories_present": ["testing"],
+  "issues": [
+    {
+      "id": "TEST-1",
+      "line": 27,
+      "category": "testing",
+      "severity": "Critical",
+      "question": "Q9",
+      "description": "Test body calls function but has no expect() assertion — only verifies function doesn't throw",
+      "expected_fix": "add expect() assertion on return value or side effect"
+    },
+    {
+      "id": "TEST-2",
+      "line": 34,
+      "category": "testing",
+      "severity": "Advisory",
+      "question": "Q9",
+      "description": "Test uses expect(fn).not.throw() but never checks the returned value — execution-only verification",
+      "expected_fix": "add assertion on return value: expect(validateAge(-1)).to.be.null"
+    },
+    {
+      "id": "TEST-3",
+      "line": 41,
+      "category": "testing",
+      "severity": "Advisory",
+      "question": "Q9",
+      "description": "Test asserts to.be.ok on complex object — any non-null object passes regardless of shape",
+      "expected_fix": "use to.deep.equal() or to.have.property() with expected structure"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 14: test with to.deep.equal and error path coverage via to.throw — proper behavior verification"
+  ]
+}

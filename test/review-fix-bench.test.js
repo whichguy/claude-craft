@@ -6,7 +6,8 @@ const FIXTURES_DIR = path.join(__dirname, 'fixtures', 'review-fix');
 
 const VALID_CATEGORIES = new Set([
   'security', 'correctness', 'error-handling', 'intent',
-  'minimal-change', 'react', 'gas', 'async'
+  'minimal-change', 'react', 'gas', 'async',
+  'resource-lifecycle', 'testing'
 ]);
 
 const VALID_SEVERITIES = new Set(['Critical', 'Advisory/Functional', 'Advisory']);

@@ -1778,7 +1778,8 @@ const CROSS_CLUSTER_DEPS = {
   'Q14': ['Q11'],          // type cast fix → backward compat (callers affected)
   // Integration → Safety
   'Q11': ['Q1'],           // backward compat fix → may introduce correctness bugs
-  'Q7':  ['Q3'],           // async error fix → may swallow other errors
+  'Q7':  ['Q3', 'Q16'],    // async error fix → may swallow other errors or affect resource cleanup
+  'Q16': ['Q3'],           // resource cleanup fix → may affect error propagation
   // Safety → Intent
   'Q2':  ['Q5'],           // security fix (adds validation) → minimal change affected
   // Intent → Safety
@@ -1816,12 +1817,14 @@ const CLUSTERS = [
     questions: [
       { id: 'Q11', title: 'Backward Compat', definition: '**Q11 — Backward Compatibility**: Would this break existing callers? Are there backwards-incompatible signature or behavior changes?' },
       { id: 'Q7', title: 'Async Errors', definition: '**Q7 — Async Errors**: Are all async error paths handled? Any unhandled rejections?' },
-      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Stale state migration handled?' }
+      { id: 'Q8', title: 'GAS Limits', definition: '**Q8 — GAS Execution Limits**: Execution limits respected? Loops quota-safe? Null-guarded before JSON.parse (getProperty/getCache/ConfigManager.get)? Stale state migration handled?' },
+      { id: 'Q16', title: 'Resource Cleanup', definition: '**Q16 — Resource Cleanup**: Are opened resources (connections, handles, listeners, timers) closed on all paths including error paths?' }
     ],
     triggers: [
       /export\s+(function|const|class|default)|module\.exports|exports\./,    // Q11: exports/public API
       /async\s|await\s|\.then\(|express|router/,                              // Q7: async patterns
-      /SpreadsheetApp|DriveApp|GmailApp|PropertiesService|CacheService|ConfigManager/  // Q8: GAS APIs
+      /SpreadsheetApp|DriveApp|GmailApp|PropertiesService|CacheService|ConfigManager/,  // Q8: GAS APIs
+      /open\(|connect\(|subscribe\(|addEventListener|setInterval|setTimeout|createReadStream|createServer|acquire\(/  // Q16: resource lifecycle
     ]
   },
   {

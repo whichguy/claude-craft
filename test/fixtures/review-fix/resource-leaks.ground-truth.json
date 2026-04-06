@@ -1,0 +1,38 @@
+{
+  "fixture": "resource-leaks.ts",
+  "description": "Code with unclosed file handles, leaked event listeners, and accumulated timers",
+  "categories_present": ["resource-lifecycle"],
+  "issues": [
+    {
+      "id": "LEAK-1",
+      "line": 21,
+      "category": "resource-lifecycle",
+      "severity": "Critical",
+      "question": "Q16",
+      "description": "createReadStream opened in try block but not closed in catch — file handle leaks on error path",
+      "expected_fix": "close stream in finally block or use try-finally pattern"
+    },
+    {
+      "id": "LEAK-2",
+      "line": 37,
+      "category": "resource-lifecycle",
+      "severity": "Critical",
+      "question": "Q16",
+      "description": "addEventListener called without corresponding removeEventListener — event listener accumulates on re-calls",
+      "expected_fix": "return cleanup function that calls removeEventListener"
+    },
+    {
+      "id": "LEAK-3",
+      "line": 46,
+      "category": "resource-lifecycle",
+      "severity": "Advisory",
+      "question": "Q16",
+      "description": "setInterval called without storing ID or clearing — timer accumulates on repeated calls",
+      "expected_fix": "store interval ID and call clearInterval in cleanup/teardown"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 10: fetchWithCleanup properly closes connection in finally block — not a leak"
+  ]
+}

@@ -1,7 +1,7 @@
 ---
 name: optimize-review-questions
 description: |
-  Systematically optimize code-reviewer quality questions (Q1-Q15) for token efficiency
+  Systematically optimize code-reviewer quality questions (Q1-Q16) for token efficiency
   while maintaining detection quality. For each target question: generates 3 token-optimized
   variants (STRUCTURAL, SEMANTIC, RADICAL) in parallel, selects the best one, A/B tests it
   against code fixtures with known bugs using review-fix-judge for objective tp/fn/fp scoring,
@@ -46,13 +46,13 @@ test cases instead of plan files.
 - `universal` → Q1, Q2, Q3, Q4, Q5
 - `safety` → Q1, Q2, Q3, Q14 (review-fix cluster)
 - `intent` → Q4, Q5, Q12, Q13 (review-fix cluster)
-- `integration` → Q7, Q8, Q11 (review-fix cluster)
+- `integration` → Q7, Q8, Q11, Q16 (review-fix cluster)
 - `ecosystem` → Q6, Q9, Q10, Q15 (review-fix cluster)
-- `all` → Q1..Q15
+- `all` → Q1..Q16
 
-**Note:** Q9-Q15 currently lack fixture coverage and will be automatically skipped with a
-warning. Only Q1-Q8 have ground-truth fixtures. Groups containing uncovered Q-IDs (e.g.,
-`safety` includes Q14, `all` includes Q9-Q15) will process the covered subset and skip the rest.
+**Note:** Q10-Q14 currently lack fixture coverage and will be automatically skipped with a
+warning. Q1-Q9, Q15, and Q16 have ground-truth fixtures. Groups containing uncovered Q-IDs
+(e.g., `safety` includes Q14, `all` includes Q10-Q14) will process the covered subset and skip the rest.
 
 **Range expansion:** `Q1..Q8` → Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8.
 
@@ -74,12 +74,12 @@ warning. Only Q1-Q8 have ground-truth fixtures. Groups containing uncovered Q-ID
 
    **Source file mapping:**
    - Q1-Q5 (Universal): `agents/code-reviewer.md` — paragraph format: `**Q{N} — {Title}**: {text}`
-   - Q6-Q13 (Context-Specific): `agents/code-reviewer.md` — table row: `| Q{N} | {trigger} | {question} |`
+   - Q6-Q13, Q16 (Context-Specific): `agents/code-reviewer.md` — table row: `| Q{N} | {trigger} | {question} |`
    - Q14-Q15: `agents/review-fix.md` — CLUSTERS array `definition` field only (no code-reviewer.md entry)
 
    **Extraction:**
    - Read `agents/code-reviewer.md`. For Q1-Q5: find line starting `**Q{N}` and extract full paragraph.
-     For Q6-Q13: find table row starting `| Q{N} |` and extract the Question column (3rd `|`-delimited field).
+     For Q6-Q13, Q16: find table row starting `| Q{N} |` and extract the Question column (3rd `|`-delimited field).
    - Read `agents/review-fix.md`. For Q14-Q15: find the CLUSTERS `definition` field containing `**Q{N}`.
    - For ALL Q-IDs: also extract the CLUSTERS `definition` field from `agents/review-fix.md` for sync verification.
 
