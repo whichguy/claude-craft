@@ -2,6 +2,7 @@
 # UserPromptSubmit: background wiki queue processor
 # Waits for queue directory to quiesce (no new files for 10s), then processes ALL pending entries
 # Claims each entry via atomic mv before processing — multiple concurrent spawns safe
+# PID file prevents unbounded parallel claude -p processes
 
 set -o pipefail
 trap 'exit 0' ERR
@@ -12,17 +13,29 @@ HOOK_INPUT=$(cat)
 echo "$HOOK_INPUT" | jq -e '.agent_id // empty' >/dev/null 2>&1 && exit 0
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
+PID_FILE="$HOME/.claude/.wiki-processor-pid"
 
 # Quick pre-check: any pending entries? Exit early if not
 [ ! -d "$QUEUE_DIR" ] && exit 0
 PENDING=$(grep -rl '"status".*"pending"' "$QUEUE_DIR/" 2>/dev/null | head -1)
 [ -z "$PENDING" ] && exit 0
 
+# Concurrency guard: only one processor at a time
+if [ -f "$PID_FILE" ]; then
+  EXISTING_PID=$(cat "$PID_FILE" 2>/dev/null)
+  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+    exit 0  # another processor is running
+  fi
+  rm -f "$PID_FILE"  # stale PID file
+fi
+echo $$ > "$PID_FILE"
+trap 'rm -f "$PID_FILE"; exit 0' EXIT ERR
+
 # Quiescence: wait until no new .json files appear for 10s (session hooks have finished writing)
 PREV_COUNT=0
 STABLE=0
 for tick in $(seq 1 12); do
-  CURR_COUNT=$(ls "$QUEUE_DIR"/*.json 2>/dev/null | wc -l | tr -d ' ')
+  CURR_COUNT=$(find "$QUEUE_DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
   if [ "$CURR_COUNT" -eq "$PREV_COUNT" ]; then
     STABLE=$((STABLE + 1))
     [ "$STABLE" -ge 2 ] && break  # stable for 2 checks (10s) — quiesced
@@ -44,9 +57,6 @@ for stale in "$QUEUE_DIR"/*.processing-*; do
 done
 
 # Process ALL pending entries — claim one at a time, process, then next
-PROCESSED=0
-FAILED=0
-
 for entry in "$QUEUE_DIR"/*.json; do
   [ -f "$entry" ] || continue
 
@@ -68,16 +78,14 @@ for entry in "$QUEUE_DIR"/*.json; do
     jq '.status = "failed" | .error = "transcript missing" | .failed_at = (now | todate)' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
       && mv "${CLAIMED}.tmp" "${entry}" 2>/dev/null \
       || mv "$CLAIMED" "$entry" 2>/dev/null
-    FAILED=$((FAILED + 1))
     continue
   fi
 
-  # Validate wiki exists
-  if [ ! -d "$WIKI_PATH" ]; then
-    jq '.status = "failed" | .error = "wiki_path missing" | .failed_at = (now | todate)' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
+  # Validate wiki path exists
+  if [ -z "$WIKI_PATH" ] || [ "$WIKI_PATH" = "null" ] || [ ! -d "$WIKI_PATH" ]; then
+    jq '.status = "failed" | .error = "wiki_path missing or invalid" | .failed_at = (now | todate)' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
       && mv "${CLAIMED}.tmp" "${entry}" 2>/dev/null \
       || mv "$CLAIMED" "$entry" 2>/dev/null
-    FAILED=$((FAILED + 1))
     continue
   fi
 
@@ -107,12 +115,10 @@ Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRAC
     "$PROMPT" < /dev/null >/dev/null 2>&1; then
     # Success — delete the claimed file
     rm -f "$CLAIMED"
-    PROCESSED=$((PROCESSED + 1))
   else
     # Failed — rename back to .json for retry
     jq '.status = "pending"' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
       && mv "${CLAIMED}.tmp" "$entry" 2>/dev/null \
       || mv "$CLAIMED" "$entry" 2>/dev/null
-    FAILED=$((FAILED + 1))
   fi
 done

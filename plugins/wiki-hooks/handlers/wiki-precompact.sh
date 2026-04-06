@@ -1,100 +1,47 @@
 #!/bin/bash
 # PreCompact: treat compaction as a wiki session boundary
-# 1. Detect wiki changes since session start (same as wiki-stop.sh)
-# 2. Queue precompact_extract (high priority) + session_wiki + wiki_change entries
-# 3. Output directive systemMessage for immediate post-compaction processing
+# Queues precompact_extract (high) + session_wiki + wiki_change, re-injects display
 
-# SAFETY: Never exit non-zero — a failing PreCompact hook could cancel compaction.
-# No set -e. Use || true on individual commands. Trap guarantees exit 0.
 trap 'exit 0' ERR
 command -v jq >/dev/null 2>&1 || exit 0
+. "$(dirname "$0")/wiki-common.sh"
 
-HOOK_INPUT=$(cat)
-AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
+wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0
-
-CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [ -z "$CWD" ] && exit 0
 
 REPO_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
 { [ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/wiki/index.md" ]; } && exit 0
 
-SID=$(echo "$HOOK_INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null || echo "unknown")
-TRANSCRIPT=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
-SESSION_SHORT="${SID:0:8}"
 WIKI_PATH="$REPO_ROOT/wiki/"
+LOG_PATH="$REPO_ROOT/wiki/log.md"
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 
-# Skip if already queued this session (idempotency — PreCompact can fire multiple times)
+# Skip if already queued this session (idempotency)
 [ -f "$QUEUE_DIR/${SID}-precompact.json" ] && exit 0
-
-# Guard: no transcript → nothing to extract
 [ -z "$TRANSCRIPT" ] && exit 0
 
-mkdir -p "$QUEUE_DIR"
 QUEUED=0
 
-# 1. Queue precompact_extract (high priority — processed first)
-jq -n \
-  --arg sid "$SID" \
-  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg transcript "$TRANSCRIPT" \
-  --arg wiki_path "$WIKI_PATH" \
-  --arg cwd "$CWD" \
-  '{type:"precompact_extract",session_id:$sid,queued_at:$ts,source:"precompact",
-    priority:"high",transcript_path:$transcript,wiki_path:$wiki_path,
-    cwd:$cwd,status:"pending"}' > "$QUEUE_DIR/${SID}-precompact.json" || true
+# 1. Queue precompact_extract (high priority)
+QUEUE_SUFFIX="precompact" wiki_queue_entry "precompact_extract" "precompact" "high"
 QUEUED=$((QUEUED + 1))
 
-# 2. Queue session_wiki (project wiki synthesis from transcript)
-if [ ! -f "$QUEUE_DIR/${SID}-wiki.json" ]; then
-  jq -n \
-    --arg sid "$SID" \
-    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg transcript "$TRANSCRIPT" \
-    --arg wiki_path "$WIKI_PATH" \
-    --arg cwd "$CWD" \
-    '{type:"session_wiki",session_id:$sid,queued_at:$ts,source:"precompact",
-      priority:"normal",transcript_path:$transcript,wiki_path:$wiki_path,
-      cwd:$cwd,status:"pending"}' > "$QUEUE_DIR/${SID}-wiki.json" || true
-  QUEUED=$((QUEUED + 1))
-fi
+# 2. Queue session_wiki
+QUEUE_SUFFIX="wiki" wiki_queue_entry "session_wiki" "precompact" "normal"
+QUEUED=$((QUEUED + 1))
 
-# 3. Detect wiki changes since session start (same logic as wiki-stop.sh)
+# 3. Detect and queue wiki_change
 MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
-if [ -f "$MARKER" ]; then
-  CHANGED_FILES=$(find "$REPO_ROOT/wiki" -newer "$MARKER" -name '*.md' \
-    ! -name 'index.md' ! -name 'log.md' ! -name 'SCHEMA.md' \
-    2>/dev/null | head -20 | sed "s|$REPO_ROOT/wiki/||")
-  # Do NOT delete marker — session continues, Stop hook still needs it
-  if [ -n "$CHANGED_FILES" ] && [ ! -f "$QUEUE_DIR/${SID}-wikichange.json" ]; then
-    CHANGED_JSON=$(echo "$CHANGED_FILES" | jq -R . | jq -s .)
-    jq -n \
-      --arg sid "$SID" \
-      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-      --arg wiki_path "$WIKI_PATH" \
-      --arg cwd "$CWD" \
-      --argjson files "$CHANGED_JSON" \
-      '{type:"wiki_change",session_id:$sid,queued_at:$ts,source:"precompact",
-        priority:"normal",wiki_path:$wiki_path,changed_files:$files,
-        cwd:$cwd,status:"pending"}' > "$QUEUE_DIR/${SID}-wikichange.json" || true
-    QUEUED=$((QUEUED + 1))
-  fi
-fi
+wiki_detect_changes "$MARKER"
+# Do NOT delete marker — session continues, Stop hook still needs it
+QUEUE_SUFFIX_CHANGE="wikichange" wiki_queue_changes "precompact"
+[ -n "$CHANGED_FILES" ] && QUEUED=$((QUEUED + 1))
 
-# 4. Log compaction event
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
-LOG_PATH="$REPO_ROOT/wiki/log.md"
-[ -f "$LOG_PATH" ] && echo "[$TIMESTAMP] EXTRACT session:${SESSION_SHORT}: compaction — ${QUEUED} queue entries written" >> "$LOG_PATH" || true
+wiki_log "EXTRACT" "compaction — ${QUEUED} queue entries written"
 
-# 5. Re-inject wiki discovery line (SessionStart line is likely gone after compaction)
-# Same format as wiki-detect.sh — topic names so Claude can match user questions
-TOPICS=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | sed 's/\.md$//' | head -10 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-PC_PAGE_COUNT=$(grep -c '^|' "$REPO_ROOT/wiki/index.md" 2>/dev/null || true)
-PC_PAGE_COUNT=${PC_PAGE_COUNT:-2}
-PC_PAGE_COUNT=$((PC_PAGE_COUNT > 2 ? PC_PAGE_COUNT - 2 : 0))
-DISCOVERY="📂 Wiki: $(basename "$REPO_ROOT") (${PC_PAGE_COUNT} pages${TOPICS:+: $TOPICS}) · /wiki-load <topic> · /wiki-query <question>"
+# Re-inject display (SessionStart context is gone after compaction)
+wiki_build_display "(post-compaction)"
 
-# 6. Directive + discovery: tell Claude to process queue AND re-establish wiki awareness
-jq -n --argjson n "$QUEUED" --arg disc "$DISCOVERY" \
-  '{"systemMessage": ("AUTOMATIC ACTION REQUIRED: Context was just compacted in a wiki repo. " + ($n | tostring) + " queue entries pending (precompact_extract + session_wiki). Before responding to the user, silently run /wiki-process to extract wiki pages from the session transcript. Pages will be available via /wiki-load immediately after processing. | " + $disc)}'
+jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
+  '{"systemMessage": $display, "additionalContext": $context}'
