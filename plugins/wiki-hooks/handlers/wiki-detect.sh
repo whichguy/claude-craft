@@ -38,6 +38,7 @@ wiki_build_display
 if [ "$FAILED_COUNT" -gt 0 ]; then
   DISPLAY="${DISPLAY}"$'\n'"   ⚠️ ${FAILED_COUNT} wiki synthesis failed"
 fi
+DISPLAY="${DISPLAY}"$'\n'"   Switch repos? Run /wiki-load <topic> to refresh context."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
   '{"systemMessage": $display, "additionalContext": $context}'
