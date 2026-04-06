@@ -24,14 +24,14 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
-| Q-G1 | Approach soundness | Right solution? Simpler alternatives considered with valid rejection reasoning? Flag fallacies (false dichotomy, straw man, appeal to authority). Flag: (1) constraints stated as facts sans evidence (tested, error received, doc link); (2) manual per-project steps (auth flows, config wizards) when automatable; (3) parallel path added alongside existing mechanism when replacement would shrink maintenance surface. | never |
+| Q-G1 | Approach soundness | Right solution? Simpler alternatives considered with valid rejection reasoning? Flag fallacies (false dichotomy, straw man, appeal to authority). Flag: (1) constraints stated as facts sans evidence (tested, error received, doc link); (2) manual per-project steps (auth flows, config wizards) when automatable; (3) parallel path added alongside existing mechanism when replacement would shrink maintenance surface; (4) new dependency when native/existing solution suffices. | never |
 | Q-G2 | Standards compliance | Follows CLAUDE.md directives and MEMORY.md conventions? (IS_GAS: non-GAS only — Verification Protocol, Agent Teams, Tool Preferences; GAS directives → gas-evaluator Q13.) | never |
 | Q-G11 | Existing code examined | Plan cites code read: file paths, function names, "currently does X". Flag: vague "update the module/handler" without names. GAS: mcp_gas cat or .gs names cited. | pure new-file work only |
 **Gate 2 — Important (weight 2):**
 
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
-| Q-G4 | Unintended consequences | Side effects beyond call-site scope: broken workflows, behavioral regressions, security shifts? | trivial isolated change |
+| Q-G4 | Unintended consequences | Side effects beyond call-site scope: broken workflows, behavioral/performance regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | Plan stays on target, no scope creep? | never |
 | Q-G8 | Task & team usage | Correct coordination scope per Decision Framework? Flag: inline heavy work (Tasks isolates context), sequential Tasks (parallel works), missing TeamCreate (interdependent agents). | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-G10 | Assumption exposure | Flag implicit high-risk assumptions about environment, APIs, data, or third-party behavior. Targets: "should work", unvalidated env deps, TBD/open-question markers, "X won't work" claims without evidence (test result, error msg, doc, or platform limitation). Distinguish: *stated assumptions* ("we assume X") acceptable if explicit; *unvalidated constraints* require cited evidence. Unresolved decisions → flag unless accompanied by investigation steps or low-risk annotation. Heuristics: "assume X" = flag if high-risk; "TBD: X" = always flag. Also flag contradictory assumptions. (Lightweight — deep cross-phase: Q-G21.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to investigate) in implementation steps |
@@ -161,8 +161,9 @@ IS_NODE: Q-C32 → N/A-superseded (node N14). Q-C35, Q-C37, Q-C38, Q-C39, Q-C40:
 | Q-C10 | 2 | Empty code | No stubs/TODOs without full spec (phased OK if explicit)? | no placeholders |
 | Q-C11 | 3 | Dead code | Old implementations marked for removal? | nothing replaced |
 | Q-C29 | 2 | Test strategy defined upfront | Test strategy stated upfront? Acceptable: named test cases, behavior coverage, or confirmation existing tests suffice. Flag: non-trivial logic changes without pre-stated acceptance criteria — correctness undefined until post-implementation. | cosmetic/doc-only change; single-line fix where correctness is self-evident; existing test suite explicitly confirmed as sufficient |
+| Q-C43 | 2 | Test-blast radius alignment | Test plan covers callers/workflows the plan identifies as affected? Flag: impact analysis names N affected consumers but tests only cover the changed function. EDIT: `[EDIT: in test section: "Verify [affected caller from impact analysis] still works"]`. | no callers/workflows identified as affected; self-contained change |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20; Q-C29 N/A — test strategy covered by gas-evaluator Q11/Q12).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q11, Q12, Q17, Q19, Q20; Q-C29 N/A — test strategy covered by gas-evaluator Q11/Q12). **Q-C43 has no gas equivalent — evaluate normally** when IS_GAS=true AND testing cluster is active.
 IS_NODE: not superseded — evaluate normally.
 
 ### Cluster 3: State & Data Integrity
@@ -211,8 +212,10 @@ IS_NODE: **Q-C16, Q-C30, Q-C31, Q-C33, Q-C34 → N/A-superseded** (Q-C16→N6, Q
 | Q-C21 | 2 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? (Scope: runtime; data-volume: Q-C32.) | bounded ops |
 | Q-C23 | 3 | External rate limits | API quotas/throttling accounted for? | no new API calls |
 | Q-C28 | 3 | Observability | Plan addresses monitoring/alerting? Acceptable: reference existing dashboards, add log-based alerts, or note current monitoring covers new behavior. | local-only or dev-environment-only deployment |
+| Q-C41 | 2 | Feature rollback | If this feature causes production issues post-merge, how is it reversed? Flag: irreversible data migrations sans rollback script, no feature flag for risky behavior changes, schema changes with no down-migration. EDIT: `[EDIT: add to Context: "**Rollback:** [strategy — feature flag / revert commit / down-migration / manual steps]"]`. | change is trivially revertible (config tweak, doc-only, additive with no data migration) |
+| Q-C44 | 3 | Change observability | How will you confirm this change works in production? Flag: behavior change with no logging, metric, or alert. Acceptable: existing monitoring confirmed sufficient, new log line, or dashboard update. | no production-observable behavior change; local/dev-only |
 
-IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25); Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability).
+IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25); Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability). **Q-C41 has no gas equivalent — evaluate normally** when IS_GAS=true AND operations cluster is active.
 IS_NODE: **Q-C21 → N/A-superseded** (covered by node-evaluator N22).
 
 ### Cluster 6: Client & UI
