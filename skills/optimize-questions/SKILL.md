@@ -89,7 +89,17 @@ generate a concise variant → A/B test via compare-questions → update QUESTIO
    ╚══════════════════════════════════════════════════════════════╝
    ```
 
-**State output:** `targets[]` with `{q_id, current_text, plan_path, source_file, question_name}`
+6. **Create progress tasks** for each target with a test plan:
+   ```
+   FOR each target in targets[] WHERE plan exists:
+       TaskCreate(
+           subject = "Optimize {q_id}: {question_name}",
+           status = "pending"
+       )
+   ```
+   This gives the user a live dashboard of per-question progress.
+
+**State output:** `targets[]` with `{q_id, current_text, plan_path, source_file, question_name}`, `task_ids{}` (q_id → task ID)
 Consumed by: Step 1.
 
 ---
@@ -101,6 +111,17 @@ Create temp dir: `OPT_TMPDIR=$(mktemp -d /tmp/optimize-questions.XXXXXX)`
 **Results tracking:**
 ```
 results = []  # {q_id, original_tokens, optimized_tokens, savings_pct, verdict, attempt}
+```
+
+**Parallelization strategy:** Spawn all questions as independent background agents
+(one per question, `run_in_background: true`). Each agent handles the full pipeline:
+compress → apply both versions → judge → report result. Name agents `opt-{q_id}`
+for tracking (e.g., `opt-G10`, `opt-C39`).
+
+Update each question's task as it progresses:
+```
+TaskUpdate(task_ids[q_id], status = "in_progress",
+           activeForm = "Optimizing {q_id} (~{tokens} tokens)")
 ```
 
 For each question in `targets[]` (where test plan exists):
@@ -350,6 +371,8 @@ WHILE attempt < max_attempts AND NOT improved:
         best_version = optimized
         Print: "  ✅ attempt {attempt}: optimized wins — {decided_by} ({savings_pct}% fewer tokens)"
         results.append({q_id, original_tokens, optimized_tokens, savings_pct, verdict: "updated", attempt})
+        TaskUpdate(task_ids[q_id], status = "completed",
+                   subject = "Optimize {q_id}: {savings_pct}% smaller ✅")
     ELSE:
         Print: "  ❌ attempt {attempt}: original wins — {decided_by}"
         Print: "     Judge: {judge_result.reasoning}"
@@ -357,6 +380,8 @@ WHILE attempt < max_attempts AND NOT improved:
 IF NOT improved:
     Print: "  ➖ kept original after {max_attempts} attempts"
     results.append({q_id, original_tokens, original_tokens, 0, verdict: "kept", attempt: max_attempts})
+    TaskUpdate(task_ids[q_id], status = "completed",
+               subject = "Optimize {q_id}: kept original ➖")
 ```
 
 **State output:** `results[]`, `best_versions{}` (q_id → best text)

@@ -145,7 +145,16 @@ Build the list of plan test cases:
 
 [2/7] 📂 plans ── {N} test cases from {plans_source}
 
-**State output:** `plans[]` with `{name, contents}`, `N`
+**Create progress tasks** for each plan test case:
+```
+FOR each plan in plans[]:
+    TaskCreate(
+        subject = "Test {plan.name}: {label_a} vs {label_b}",
+        status = "pending"
+    )
+```
+
+**State output:** `plans[]` with `{name, contents}`, `N`, `plan_task_ids{}` (plan_name → task ID)
 Consumed by: Steps 2–6.
 
 ---
@@ -196,7 +205,14 @@ Each task:
 - `prompt`: constructed application prompt (above)
 - `run_in_background`: true
 
-Name tasks for tracking: `apply-A-{plan_name}`, `apply-B-{plan_name}`.
+Name agents for tracking: `apply-A-{plan_name}`, `apply-B-{plan_name}`.
+
+Update progress tasks:
+```
+FOR each plan:
+    TaskUpdate(plan_task_ids[plan.name], status = "in_progress",
+               activeForm = "Applying questions to {plan.name}")
+```
 
 [3/7] 🚀 applying ── {2*N} tasks launched
 
@@ -312,6 +328,14 @@ IF swapped[i]:
 - If `scores` key is missing but `winner` is present → use `winner` only, skip criterion tallies
 - If both missing → count overall winner as TIE
 - Note in Per-Plan Breakdown: `"judge error — counted as TIE"`. Use try/catch on JSON.parse().
+
+**Update progress tasks** as each judge completes:
+```
+FOR each judged plan:
+    winner_label = (winner == "A") ? label_a : (winner == "B") ? label_b : "TIE"
+    TaskUpdate(plan_task_ids[plan.name], status = "completed",
+               subject = "Test {plan.name}: {winner_label} wins")
+```
 
 [6/7] ✅ judging complete ── {label_a} {count_a}/{N} · {label_b} {count_b}/{N} · {count_tie} tied
 
