@@ -301,7 +301,7 @@ IF swapped[i]:
         // "TIE" unchanged
     if result.winner == "A": result.winner = "B"
     elif result.winner == "B": result.winner = "A"
-    // "TIE" unchanged
+    // "TIE" unchanged; "RECUSED" unchanged
 ```
 
 **Error handling:** If a judge task fails or returns malformed JSON:

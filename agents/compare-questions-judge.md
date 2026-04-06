@@ -73,7 +73,7 @@ between the original and each revision, not the revision in isolation.
 Count A scores and B scores across all 6 questions:
 - If A count > B count → `winner = "A"`
 - If B count > A count → `winner = "B"`
-- If equal (e.g. 2A, 2B, 1TIE) → `winner = "TIE"`
+- If equal (e.g. 3A, 3B, 0TIE or 2A, 2B, 2TIE) → `winner = "TIE"`
 
 ## Trial Validity Self-Check
 
@@ -83,6 +83,7 @@ Check these conditions — if ANY fails, recuse the trial:
 1. **Test plan exercises the question's detection boundary**: Both revisions should differ
    meaningfully from the original. If both produce NO_CHANGE or near-identical revisions,
    the test plan doesn't exercise this question's concern — the trial is inconclusive, not TIE.
+   Near-identical = >90% of text unchanged from original.
 2. **Questions target the same concern**: Both questions should address the same domain
    (both about security, both about testing, etc.). If they target different concerns,
    the comparison is invalid.
