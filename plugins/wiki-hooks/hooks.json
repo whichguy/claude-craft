@@ -1,7 +1,10 @@
 {
-  "description": "Wiki: 4-handler lifecycle — detect+mark, guard, precompact, stop+serialize",
+  "description": "Wiki: 6-handler lifecycle — detect+mark, clear+boundary, guard, precompact, stop+serialize, session-end+safety-net",
   "hooks": {
     "SessionStart": [{
+      "matcher": "clear",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-clear.sh", "timeout": 10, "async": true }]
+    }, {
       "matcher": "*",
       "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 5 }]
     }],

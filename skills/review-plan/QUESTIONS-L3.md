@@ -22,10 +22,10 @@ N/A counts as PASS for gate evaluation.
 | Q-U1 | Component structure | UI decomposed into reusable components? Flag: monolithic HTML, duplicated patterns, no layout/state/interaction separation. | no new UI components |
 | Q-U2 | State management | UI state (loading, error, empty, data) handled explicitly? Spinner/skeleton, error display, empty-state copy present? | purely presentational changes with no dynamic state |
 | Q-U3 | Interaction feedback | User actions (submit, click, async) give immediate feedback? Disable-during-submit, progress indicator, success/error toast. | no interactive elements |
-| Q-U4 | Responsive & layout constraints | UI respects container constraints? GAS sidebars 300px fixed; dialogs 600px max. No overflow assumptions or fixed widths breaking at sidebar size. | no layout/sizing changes |
+| Q-U4 | Responsive & layout constraints | UI respects container constraints? GAS sidebars 300px fixed; dialogs 600px max. No overflow or fixed widths breaking at sidebar size. | no layout/sizing changes |
 | Q-U5 | Accessibility basics | Interactive elements have accessible labels (`aria-label`, `for`/`id` on inputs). Logical tab order. Keyboard nav not broken. | no new interactive elements |
-| Q-U6 | Visual consistency | New UI matches existing design language (fonts, colors, spacing, buttons from CSS baseline). No one-off inline styles diverging from patterns. | no visual changes or the project has no existing baseline |
-| Q-U7 | UI design narrative | UI design narrative present: what user sees/does, interaction states, design rationale? Acceptable: `## UI Design Narrative`/`## User Experience`/`## Design Intent`, 2-5 sentences. Flag: jumps to impl sans rationale. EDIT: `[EDIT: inject "## UI Design Narrative\n**User experience**: [flow]\n**Design intent**: [rationale]\n**State transitions**: [loading/error/empty/success]"]`. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
+| Q-U6 | Visual consistency | New UI matches design system (fonts, colors, spacing, buttons from CSS baseline). No one-off inline styles diverging from patterns. | no visual changes or the project has no existing baseline |
+| Q-U7 | UI design narrative | UI design narrative present? Acceptable: `## UI Design Narrative`/`## User Experience`/`## Design Intent`, 2-5 sentences on user flow, states, rationale. Flag: jumps to impl sans narrative. EDIT: inject `## UI Design Narrative\n**User experience**: [flow]\n**Design intent**: [rationale]\n**State transitions**: [loading/error/empty/success]`. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
 
 ---
 
