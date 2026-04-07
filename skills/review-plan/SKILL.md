@@ -1204,10 +1204,10 @@ DO:
     name = "ui-evaluator-p" + pass_count,
     prompt = """
       You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
-      UI specialization and client concerns (9 questions in this cluster).
+      UI specialization and client concerns (11 questions in this cluster).
 
       Question definitions: Read <questions_l3_path>
-        (Q-U1 through Q-U7, plus Q-C17 and Q-C25 — merged from Client cluster).
+        (Q-U1 through Q-U9, plus Q-C17 and Q-C25 — merged from Client cluster).
 
       Context flags (substituted by team-lead at spawn time):
         IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>
@@ -1669,7 +1669,7 @@ DO:
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
     # L1 per-pass count: 3 (l1-blocking) + 6 (l1-advisory-structural) + 15 (l1-advisory-process) = 24
-    total_applicable_questions = 24 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (9 if HAS_UI else 0)
+    total_applicable_questions = 24 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
@@ -1997,8 +1997,8 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 
 ## Layer 3: UI Specialization
 
-Question definitions are in QUESTIONS-L3.md — ui-evaluator reads that file directly. 9 questions:
-Q-U1 through Q-U7 plus Q-C17 and Q-C25 (merged from Client cluster). Active when HAS_UI=true.
+Question definitions are in QUESTIONS-L3.md — ui-evaluator reads that file directly. 11 questions:
+Q-U1 through Q-U9 plus Q-C17 and Q-C25 (merged from Client cluster). Active when HAS_UI=true.
 Evaluated by ui-evaluator each pass (no separate client-evaluator spawned).
 
 Count ui-evaluator edits → `ui_plan_changes += count` (combined into `changes_this_pass` in Convergence Loop)
@@ -2060,10 +2060,10 @@ specific Node/TS framing where both are present. (Rationale: "specialization win
 ### Q-UI: UI Specialization (includes merged Client cluster)
 
 In HAS_UI mode, ui-designer runs as part of the evaluator set each pass (see Convergence Loop
-above). The ui-evaluator reads QUESTIONS-L3.md (not the full QUESTIONS.md) and covers 9 questions:
-Q-U1 through Q-U7 (UI specialization) plus Q-C17 and Q-C25 (merged from Client cluster). This means:
+above). The ui-evaluator reads QUESTIONS-L3.md (not the full QUESTIONS.md) and covers 11 questions:
+Q-U1 through Q-U9 (UI specialization) plus Q-C17 and Q-C25 (merged from Client cluster). This means:
 - ui-designer runs a SINGLE evaluation pass (no internal convergence loop)
-- Writes all 9-question findings (Q-U1 through Q-U7, Q-C17, Q-C25) to a JSON file in RESULTS_DIR
+- Writes all 11-question findings (Q-U1 through Q-U9, Q-C17, Q-C25) to a JSON file in RESULTS_DIR
 - Does NOT edit the plan or call ExitPlanMode
 - The outer review-plan loop handles convergence
 - No separate client-evaluator is spawned when HAS_UI=true

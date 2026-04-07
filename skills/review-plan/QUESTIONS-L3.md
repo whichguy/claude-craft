@@ -13,7 +13,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 3: UI Specialization
 
-*9 questions total: Q-U1 through Q-U7 + Q-C17 + Q-C25. Active when HAS_UI=true.*
+*11 questions total: Q-U1 through Q-U9 + Q-C17 + Q-C25. Active when HAS_UI=true.*
 
 *For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A***
 
@@ -26,6 +26,8 @@ N/A counts as PASS for gate evaluation.
 | Q-U5 | Accessibility basics | Accessible labels (aria-label, for/id on inputs)? Logical tab order, keyboard nav intact. | no new interactive elements |
 | Q-U6 | Visual consistency | Matches design system (fonts, colors, spacing, buttons)? No one-off inline styles diverging from patterns. | no visual changes or the project has no existing baseline |
 | Q-U7 | UI design narrative | Design narrative present? Section titled UI Design Narrative/User Experience/Design Intent, 2-5 sentences on flow+states+rationale. Flag: impl sans narrative. EDIT: `## UI Design Narrative\n**User experience**: [flow]\n**Design intent**: [rationale]\n**State transitions**: [loading/error/empty/success]`. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
+| Q-U8 | Iterative UI verification | Plan includes visual verification step using chrome-devtools, screenshots, or similar tooling to validate the UX after implementation? Flag: UI changes with no verification beyond "it renders." EDIT: `[EDIT: add verification step: "Take screenshot with chrome-devtools / open sidebar and verify [specific UX behavior]"]`. | no visual UI changes; backend-only; plan uses an existing E2E test suite that covers the UI |
+| Q-U9 | CSS/HTML organization | CSS/HTML follows cohesive organization? Flag: inline styles over classes, no separation of layout/theme/component styles, no naming convention, scattered style definitions, HTML mixing structure and presentation. | no CSS/HTML changes; purely JS/logic changes; project has no existing CSS baseline to align with |
 
 ---
 

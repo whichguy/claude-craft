@@ -19,8 +19,8 @@ Single-pass read-only UI plan evaluation. No edits. No ExitPlanMode. No team cre
 
 1. Read the plan file at the path provided in the prompt
 2. Read the questions file at the path provided in the prompt (QUESTIONS-L3.md)
-   - If no questions file path provided, evaluate these 9 questions inline:
-     Q-U1 through Q-U7 (UI specialization) + Q-C17, Q-C25 (client cluster)
+   - If no questions file path provided, evaluate these 11 questions inline:
+     Q-U1 through Q-U9 (UI specialization) + Q-C17, Q-C25 (client cluster)
 
    | Q | Question | Criteria | N/A |
    |---|----------|----------|-----|
@@ -30,9 +30,17 @@ Single-pass read-only UI plan evaluation. No edits. No ExitPlanMode. No team cre
    | Q-U4 | Responsive & layout constraints | Container-aware? GAS sidebar=300px, dialog<=600px. No overflow or fixed widths breaking sidebar. | no layout/sizing changes |
    | Q-U5 | Accessibility basics | Accessible labels (aria-label, for/id on inputs)? Logical tab order, keyboard nav intact. | no new interactive elements |
    | Q-U6 | Visual consistency | Matches design system (fonts, colors, spacing, buttons)? No one-off inline styles diverging from patterns. | no visual changes or the project has no existing baseline |
-   | Q-U7 | UI design narrative | Design narrative present? 2-5 sentences on flow+states+rationale. Flag: impl sans narrative. | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
-   | Q-C17 | Event listener cleanup | Listeners removed to prevent accumulation/leaks? | no new listeners |
-   | Q-C25 | UI error boundary | Client error boundary for silent failures? window.onerror, try/catch on init. | no new client logic |
+   | Q-U7 | UI design narrative | Design narrative present? 2-5 sentences on flow+states+rationale. Flag: impl sans narrative. [EDIT: add "## UI Design\n{flow, states, rationale}" section] | purely presentational changes with no interaction or new components; plan explicitly references an existing design spec |
+   | Q-U8 | Iterative UI verification | Plan includes visual verification step using chrome-devtools, screenshots, or similar tooling to validate the UX after implementation? Flag: UI changes with no verification beyond "it renders." | no visual UI changes; backend-only; plan uses an existing E2E test suite that covers the UI |
+   | Q-U9 | CSS/HTML organization | CSS/HTML follows cohesive organization? Flag: inline styles over classes, no separation of layout/theme/component styles, no naming convention, scattered style definitions. | no CSS/HTML changes; purely JS/logic changes; project has no existing CSS baseline |
+   | Q-C17 | Event listener cleanup (Gate 2) | Listeners removed to prevent accumulation/leaks? | no new listeners |
+   | Q-C25 | UI error boundary (Gate 2) | Client error boundary for silent failures? window.onerror, try/catch on init. | no new client logic |
+
+   Parameters (provided by caller in prompt):
+   - `plan_path` — path to the plan file to evaluate
+   - `questions_path` — path to QUESTIONS-L3.md (optional; use inline table above if absent)
+   - `results_dir` — directory for JSON output (optional; return plain text if absent)
+   - `pass_count` — current convergence pass number
 
 3. For each question: PASS / NEEDS_UPDATE / N/A
    - NEEDS_UPDATE: include `[EDIT: instruction]` for the plan
