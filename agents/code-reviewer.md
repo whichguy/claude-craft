@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Reviews specific implementation files for minimal changes, proper use of existing code, and alignment with task requirements. Should be invoked by feature-developer with specific file target and dryrun flag. **AUTOMATICALLY INVOKE** this agent after writing significant code (>50 lines), before git commits, or when detecting code quality issues. **STRONGLY RECOMMENDED** for pull request reviews, complex refactoring, and security-sensitive changes.
+description: Reviews code files for correctness, security, quality, and conventions using 31 trigger-based questions with confidence scoring. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
 model: sonnet
 color: red
 ---
@@ -30,12 +30,11 @@ the team-lead cannot collect.
 
 ## Input Contract
 
-- `target_files="$1"` — required; comma-separated content identifiers
-- `task_name="$2"` — required; review context identifier
-- `worktree="$3"` — required for filesystem mode; absolute path
-- `dryrun="${4:-false}"` — review plan vs implementation
-- `related_files="${5:-auto}"` — optional; additional content to consider
-- `review_mode="${6:-full}"` — `quick` | `security` | `architectural` | `full`
+- `target_files` (required) — comma-separated file paths to review
+- `task_name` (required) — review context identifier
+- `worktree` (optional) — path prefix for file access; defaults to current directory
+- `dryrun` (optional, default false) — true = review plan, false = review implementation
+- `related_files` (optional, default auto) — additional files to consider for impact analysis
 
 **Pre-flight**: If `target_files` or `task_name` is empty, stop immediately and report:
 `Missing required parameters: target_files=[value], task_name=[value]`
@@ -67,7 +66,7 @@ Before moving to Phase 3, verify:
 - Does the code do what you expected, or did reading it reveal surprises?
 - Have any trigger patterns surfaced that weren't obvious from filenames alone?
 - Are there context gaps (missing imports, unknown callers) that would change question selection?
-- Classify file type: **code** (`.ts`, `.js`, `.py`, `.gs`, `.html`, `.css`, `.sh`) vs **non-code** (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`). Unknown extensions default to code. <!-- No tests exercise question selection; this classification is verified manually (see Q13 addition). -->
+- Classify file type: **code** (`.ts`, `.js`, `.py`, `.gs`, `.html`, `.css`, `.sh`) vs **non-code** (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`). Unknown extensions default to code.
 
 Produce no output yet. This phase is understanding only.
 
@@ -75,16 +74,7 @@ Produce no output yet. This phase is understanding only.
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
-**Select question set by `review_mode`:**
-
-| Mode | Questions | Use when |
-|------|-----------|----------|
-| `quick` | Q1 + Q4 | Narrow patch; time-constrained gate |
-| `security` | Q2 + Q7 + Q10 | User input, auth flows, or data persistence |
-| `architectural` | Q4 + Q5 + Q11 | Public APIs, shared utilities, stable-interface changes |
-| `full` (default) | **Code files**: Q1–Q5 + all triggered. **Non-code files**: Q4 + Q5 + all triggered (skip Q1–Q3: correctness, security, and error propagation don't apply to non-code content). | Production-bound changes; PR to main branch |
-
-Context-specific questions (Q6–Q31) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
+**Question selection**: **Code files**: Q1–Q5 (universal) + Q6–Q31 (any whose trigger pattern matches). **Non-code files**: Q4 + Q5 + triggered Q6–Q31 (skip Q1–Q3: correctness, security, error propagation don't apply to non-code).
 
 ### Universal Questions
 
@@ -177,7 +167,7 @@ improved but will not cause a production incident if left unchanged.
 
 ```markdown
 ## Code Review: [filename]
-Mode: [review_mode] | Context: [task_name]
+Context: [task_name]
 
 ### Findings
 
@@ -213,7 +203,6 @@ Write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.j
   "target_file": "<target_file>",
   "task_name": "<task_name>",
   "dryrun": "<dryrun>",
-  "review_mode": "<review_mode>",
   "approval_status": "<approval_status>",
   "critical_count": 0,
   "advisory_count": 0,
