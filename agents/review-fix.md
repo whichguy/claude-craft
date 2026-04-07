@@ -69,26 +69,18 @@ Else (auto-detect):
     rationale = "last-commit"
     If empty: error "No changes to review"
 
-Filter (unless explicitly named in target_files):
-  # Config & metadata
-  .json, .lock, .gitignore, .gitattributes, .claspignore, .clasp.json
-  CLAUDE.md, LICENSE, .claude/**, .github/**
-  # Wiki & docs
-  wiki/**, docs/**, *.md (markdown is not reviewable code)
-  # OS & IDE junk
-  .DS_Store, Thumbs.db, .vscode/**, .idea/**, .cursor/**, *.swp
-  # Build output & generated
-  dist/**, build/**, out/**, .next/**, generated/**, vendor/**
-  *.min.js, *.min.css
-  # Binaries & media
-  *.png, *.jpg, *.jpeg, *.gif, *.ico, *.svg, *.pdf, *.zip, *.gz
-  *.woff, *.woff2, *.ttf, *.mp3, *.mp4
-  # Package managers & dependencies
-  node_modules/**
-  # Env & secrets
-  .env*
-  # Logs
-  *.log
+Filter (skip unless explicitly named in target_files):
+  DIRS: node_modules/ vendor/ dist/ build/ out/ .next/ generated/
+        wiki/ docs/ raw/ .claude/ .github/ .vscode/ .idea/ .cursor/
+        .eclipse/ .gradle/ .terraform/ coverage/ .nyc_output/
+        __snapshots__/ __pycache__/ .pytest_cache/ *.egg-info/ *.dist-info/
+  EXTS: .json .lock .md .map .d.ts .pyc .snap .log .env*
+        .min.js .min.css .bundle.js .chunk.js .pb.js .pb.ts
+        .png .jpg .jpeg .gif .ico .svg .pdf .zip .gz .bz2 .tar
+        .woff .woff2 .ttf .mp3 .mp4 .mov .sqlite .sqlite3 .db
+  FILES: .gitignore .gitattributes .gitkeep .keep .claspignore .clasp.json
+         .DS_Store Thumbs.db .project .classpath *.iml
+         *.swp *.swo *.bak *~ .session-* CLAUDE.md LICENSE
 Validate: each file exists on disk (warn about missing)
 If file_list empty after filtering: error "No reviewable files"
 
@@ -291,19 +283,40 @@ DO:
     Re-dispatching [N] files for recheck...
   ```
 
-  Re-dispatch all applicable reviewers for recheck files (same producer-consumer + resolve_reviewers as Step 3)
-  Update findings and LOOP_DIRECTIVE for each file
+  prev_findings_count = sum of all findings across recheck_files
+```
+
+> **MANDATORY RECHECK — do NOT skip this step.**
+> Fixes are unverified until rechecked. A fix can introduce new issues or fail to
+> resolve the original finding. You MUST re-dispatch reviewers for every file that
+> had fixes applied, even if all edits succeeded. The loop terminates ONLY when
+> reviewers return `LOOP_DIRECTIVE == COMPLETE` on a **recheck pass** — never after
+> a fix-only pass. Skipping recheck is the single most common failure mode of this agent.
+
+```
+  Re-dispatch ALL applicable reviewers for recheck_files using the same
+  producer-consumer pattern and resolve_reviewers() as Step 3.
+  Wait for ALL reviewer agents to complete before proceeding.
+
+  Update findings and LOOP_DIRECTIVE for each file from reviewer output.
+
+  current_findings_count = sum of all findings across recheck_files
 
   Print round summary:
   ```
   ──────────────────────────────────────────────────────
     Round [round]/[max_rounds]  [━×N][╌×M]  [fixes] fixes   [[elapsed]s]
-    Delta     ◐[prev] → ◐[current] ([↓N] | [↑N] | [→0])
+    Delta     ◐[prev_findings_count] → ◐[current_findings_count] ([↓N] | [↑N] | [→0])
     Gates     [❌N critical | ✅]   [⚠️N advisory | ✅]
   ──────────────────────────────────────────────────────
   ```
 WHILE recheck_files non-empty AND round <= max_rounds
 ```
+
+**Invariant**: If any fixes were applied in the final round but no recheck was performed,
+the loop has a bug. Every round that applies fixes MUST end with a recheck pass before
+the WHILE condition is evaluated. The round count in convergence output must reflect
+recheck passes, not fix-only passes.
 
 When fix loop exits (all COMPLETE or max rounds), print convergence:
 ```
