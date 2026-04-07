@@ -39,10 +39,15 @@ Respect `.gitignore` and `.claspignore` — never review files matched by either
 
 Setup:
 ```bash
+# Orphan cleanup (stale results from prior crashed reviews)
+find /tmp -maxdepth 1 -name 'review.*' -mmin +60 -exec rm -rf {} + 2>/dev/null
+
 RESULTS_DIR=$(mktemp -d /tmp/review.XXXXXX)
 MAX_CONCURRENT=12
 MAX_RECHECK_ROUNDS=3
 ```
+
+**Error handling**: If any unrecoverable error occurs during review, run `rm -rf "$RESULTS_DIR"` before surfacing the error. The orphan cleanup above catches any missed cases on the next run.
 
 ## Step 1 — Dispatch
 

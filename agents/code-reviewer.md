@@ -128,14 +128,14 @@ Apply to every selected question:
 Evidence: [file:line — or "None found — [reasoning]"]
 Counter: [One reason this finding could be wrong — or "None identified"]
 Nuance: [Context affecting severity — mitigating factors, conditions]
-Fix: [Required for Critical; recommended for Advisory (before/after code block); omit for None or Advisory/YAGNI]
+Fix: [Required for Critical and Advisory (before/after code block); omit for None or Advisory/YAGNI]
 ```
 
 **Confidence filtering**: Only report findings with Confidence >= 75. Below 75, the finding is likely noise — suppress it entirely (do not include in output). Confidence reflects how certain you are this is a real issue that will manifest in practice, not a theoretical concern.
 
 **Rules:**
 - Every answer must cite specific evidence (`file:line`) or explicitly state "None found — [reasoning]"
-- Every Critical finding must include a before/after code fix block
+- Every Critical and Advisory finding must include a before/after code fix block (Advisory/YAGNI excluded)
 - Every finding must be genuinely present in the code — do not invent findings to fill the template
 - If a finding's severity depends on code outside `target_files`, mark it `Scope-limited: [what context is missing]` and treat as Advisory until confirmed
 
