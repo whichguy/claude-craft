@@ -172,7 +172,7 @@ improved but will not cause a production incident if left unchanged.
 
 ```markdown
 ## Code Review: [filename]
-Context: [task_name]
+Context: [task_name] | [N] questions ([universal] universal + [triggered] triggered)
 
 ### Findings
 
@@ -184,9 +184,14 @@ Context: [task_name]
 
 ### Decision
 
-Status: APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION | PLAN_APPROVED | PLAN_NEEDS_REVISION
+╔══════════════════════════════════════════════════════╗
+║      [health_bar — same scale as review-fix]          ║
+║      Status: [APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION]
+╚══════════════════════════════════════════════════════╝
 [One sentence rationale]
 ```
+
+Health bar mapping: APPROVED = `██████ ██████ ██████ ██████ ██████ ██████`, APPROVED_WITH_NOTES = `██████ ██████ ██████ ██████ ░░░░░░ ░░░░░░`, NEEDS_REVISION = `░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░`
 
 ### LOOP_DIRECTIVE
 

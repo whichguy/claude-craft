@@ -70,7 +70,16 @@ Capture per-file diffs for change context:
   per_file_diffs = { file: git diff HEAD -- file }
 ```
 
-Print file list with rationale.
+Print setup banner:
+```
+╔══════════════════════════════════════════════╗
+║  ◆ REVIEW-FIX                               ║
+╚══════════════════════════════════════════════╝
+  Files      [N] ([rationale])
+  Reviewer   code-reviewer (Q1-Q36)
+  Mode       [review + fix | read-only]
+  Rounds     max [max_rounds]
+```
 
 ## Step 2: Impact Discovery
 
@@ -108,10 +117,17 @@ For each wave:
     Task(subagent_type="code-reviewer", prompt=reviewer_prompt(file))
 
   Collect results: parse each Task output for findings and LOOP_DIRECTIVE
-  Print per-file status:
-    ├ file.ts          ● APPROVED
-    ├ other.js         ◐ NEEDS_REVISION (2C 1A)
-    └ config.yaml      ● APPROVED_WITH_NOTES (0C 3A)
+
+  Print wave banner and per-file status:
+  ```
+  ┌──────────────────────────────────────────────────────┐
+  │  Wave [W]/[N] — [count] files                        │
+  └──────────────────────────────────────────────────────┘
+    ┌ file.ts               ● APPROVED                     [Ns]
+    ├ other.js              ◐ NEEDS_REVISION (2C 1A)       [Ns]
+    └ config.yaml           ● APPROVED_WITH_NOTES (0C 3A)  [Ns]
+    fan-in ── ●[approved]  ◐[needs_work]
+  ```
 ```
 
 ### Finding Parser
@@ -138,28 +154,63 @@ DO:
   IF round > max_rounds: BREAK (exhausted)
   IF read_only: BREAK (report only mode)
 
-  Print: "┌ Fix round [round]/[max_rounds] — [count] files"
+  Print fix round banner:
+  ```
+  ┌──────────────────────────────────────────────────────┐
+  │  Fix Round [round]/[max_rounds] — [count] files      │
+  └──────────────────────────────────────────────────────┘
+  ```
 
   For each recheck file:
     findings = current findings for this file
     fix_tasks = findings with Fix blocks, sorted: Critical first, then Advisory
 
+    Print per-file fix progress:
+    ```
+      ┌ [filename]
+      │  [i]/[N] ┌ [Q-ID] [title] — [first sentence of fix]
+      │          └ ✓ applied | ⚠ skipped (old_string not found) | ✗ failed
+      ...
+    ```
+
     For each fix_task:
       Apply via Edit tool:
         old_string = fix_task.fix_block.before (verbatim)
         new_string = fix_task.fix_block.after (verbatim)
-      If Edit succeeds: record as applied
-      If Edit fails (old_string not found): record as failed, continue
+      If Edit succeeds: record as applied, print ✓
+      If Edit fails (old_string not found): record as failed, print ⚠
 
     Track: files_changed += file (if any fix applied)
+
+  Print fix summary:
+  ```
+  ──────────────────────────────────────────────────────
+    [applied] applied   [skipped] skipped   [failed] failed
+    Re-dispatching [N] files for recheck...
+  ```
 
   Re-dispatch code-reviewer Tasks for recheck files (same wave logic as Step 3)
   Update findings and LOOP_DIRECTIVE for each file
 
-  applied = count of successful fixes this round
-  remaining = count of files still APPLY_AND_RECHECK
-  Print: "└ Round [round] — [applied] fixes applied, [remaining] files remaining"
+  Print round summary:
+  ```
+  ──────────────────────────────────────────────────────
+    Round [round]/[max_rounds]  [━×N][╌×M]  [fixes] fixes   [[elapsed]s]
+    Delta     ◐[prev] → ◐[current] ([↓N] | [↑N] | [→0])
+    Gates     [❌N critical | ✅]   [⚠️N advisory | ✅]
+  ──────────────────────────────────────────────────────
+  ```
 WHILE recheck_files non-empty AND round <= max_rounds
+```
+
+When fix loop exits (all COMPLETE or max rounds), print convergence:
+```
+╔══════════════════════════════════════════════╗
+║  🏁 CONVERGED                              ║
+╚══════════════════════════════════════════════╝
+  Rounds    [round]/[max_rounds]
+  Duration  [total_elapsed]s
+  Fixes     [applied] applied, [skipped] skipped
 ```
 
 ## Step 5: Git Operations
@@ -208,22 +259,55 @@ gh pr merge "$pr_url" --squash --delete-branch
 git checkout "$default_branch" && git pull --ff-only
 ```
 
-Output `<!-- PR_MERGED -->` on success. Print PR URL.
+Print git operation badges:
+```
+━━━ GIT ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ Staged [N] files
+  ✓ Committed: [short message]
+  ✓ Pushed to origin/[branch]        (pr mode only)
+  ✓ PR created: [url]                (pr mode only)
+  ✓ Squash merged to [default_branch] (pr mode only)
+  ✓ Branch deleted                    (pr mode only)
+```
+Output `<!-- PR_MERGED -->` on success (pr mode) or `<!-- COMMITTED -->` (commit mode).
 
 ## Step 6: Report
 
+Compute health_bar from overall status:
+- APPROVED: `██████ ██████ ██████ ██████ ██████ ██████`
+- APPROVED_WITH_NOTES: `██████ ██████ ██████ ██████ ░░░░░░ ░░░░░░`
+- NEEDS_REVISION: `░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░ ░░░░░░`
+
 ```
-## Review Report
+╔══════════════════════════════════════════════════════╗
+║                                                      ║
+║      [health_bar]       ║
+║                                                      ║
+║         review-fix Scorecard                          ║
+║                                                      ║
+║         Rating: [🟢 APPROVED | 🟡 WITH_NOTES | 🔴 NEEDS_REVISION]
+║         [N] files [clean | with notes | need revision]║
+║                                                      ║
+╚══════════════════════════════════════════════════════╝
 
-[N] files reviewed | [R] rounds | [F] fixes applied
+  Per-File Status
+  ─────────────────────────────────────
+    [✅|⚠️|❌]  [filename]              [status] [(fixed RN) if fixed]
 
-### Per-File Status
-| File | Status | Critical | Advisory | Fixes |
-|------|--------|----------|----------|-------|
-| ... | APPROVED / NEEDS_REVISION | N | N | N |
+  Summary
+  ─────────────────────────────────────
+    Files     [N] reviewed
+    Rounds    [R]
+    Fixes     [F] applied, [S] skipped
+    Duration  [T]s
 
-### Overall: [APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION]
-[Most severe status across all files]
+  Review History                          ← omit if only 1 round
+  ─────────────────────────────────────────────
+  Round │ Files │ Fixes │ Critical │ Advisory │ Time
+  ──────┼───────┼───────┼──────────┼──────────┼──────
+  [per round row]
+  ──────┴───────┴───────┴──────────┴──────────┴──────
+  Total: [R] rounds   [F] fixes   [T]s
 ```
 
 ## Step 7: Self-Reflection (after report)
