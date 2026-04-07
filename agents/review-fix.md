@@ -226,4 +226,21 @@ Output `<!-- PR_MERGED -->` on success. Print PR URL.
 [Most severe status across all files]
 ```
 
+## Step 7: Self-Reflection (after report)
+
+After printing the report, reflect on the review process itself:
+
+```
+### Prompt Improvement Signals
+- Were any questions consistently None across all files? (may indicate low-value triggers)
+- Did any Advisory findings lack Fix blocks? (question may need clearer fix guidance)
+- Were fixes rejected by Edit tool? (Fix block format may not match actual code)
+- Did any file require all 5 rounds without converging? (question criteria may be ambiguous)
+- Were the same Q-IDs flagged across multiple files? (may indicate systemic codebase issue, not per-file)
+
+Print 0-3 recommendations if signals fire. Otherwise: "No prompt improvements identified."
+```
+
+This creates a learning loop — each review run surfaces whether the Q1-Q36 framework or the orchestration should evolve.
+
 Cleanup: remove any temp files.
