@@ -70,8 +70,8 @@ Cite specific pages inline. Acknowledge when evidence is thin.
 If `SAVE` is true:
 - SLUG = first 8 words of QUESTION, lowercased, hyphens
 - Write answer to `WIKI_DIR/queries/SLUG.md` with full answer + metadata
-- Add row to `wiki/index.md`
-- Append to `wiki/log.md`: `[TIMESTAMP] QUERY SLUG: synthesized from N pages`
+- Add row to `WIKI_DIR/index.md`
+- Append to `WIKI_DIR/log.md`: `[TIMESTAMP] QUERY SLUG: synthesized from N pages`
 
 ## Step 7 — Print Answer
 

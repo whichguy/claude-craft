@@ -2,6 +2,7 @@
 # Stop: detect wiki changes via find-newer, queue for synthesis, log SESSION_END
 # Async — no session-close latency
 
+trap 'exit 0' ERR
 command -v jq >/dev/null 2>&1 || exit 0
 . "$(dirname "$0")/wiki-common.sh"
 

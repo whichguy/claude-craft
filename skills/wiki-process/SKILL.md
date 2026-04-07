@@ -73,9 +73,10 @@ Agent(
     Existing index: [read wiki_path/index.md]
 
     For each significant entity, decision, or concept discussed:
-    - If entity page exists in wiki: check if "## From Session [date]" already
-      present (idempotency). If absent → append subsection.
-    - If new: write entity page.
+    - If entity page exists in wiki/entities/: check if "**From Session [date]:**"
+      bullet already present (idempotency). If absent → append bullet:
+      - **From Session [date]:** [2-3 sentences]
+    - If new: write entity page using compact format (see wiki-ingest for template).
 
     Extraction criteria — write a page only if the concept meets ≥2 of:
       (a) Named 3+ times in the session

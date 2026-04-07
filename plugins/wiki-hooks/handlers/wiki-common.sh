@@ -1,6 +1,7 @@
 #!/bin/bash
 # Shared functions for wiki hook handlers
 # Source this file: . "$(dirname "$0")/wiki-common.sh"
+shopt -s nullglob
 
 # --- Input parsing ---
 # Reads hook JSON from stdin, sets: HOOK_INPUT, AGENT_ID, SID, SESSION_SHORT, TRANSCRIPT, CWD
@@ -13,8 +14,9 @@ wiki_parse_input() {
     read -r AGENT_ID
     read -r TRANSCRIPT
     read -r CWD
-    read -r PROMPT
-  } < <(echo "$HOOK_INPUT" | jq -r '(.session_id // "unknown"), (.agent_id // ""), (.transcript_path // ""), (.cwd // ""), (.prompt // "")' 2>/dev/null || printf 'unknown\n\n\n\n\n')
+  } < <(echo "$HOOK_INPUT" | jq -r '(.session_id // "unknown"), (.agent_id // ""), (.transcript_path // ""), (.cwd // "")' 2>/dev/null || printf 'unknown\n\n\n\n')
+  # Read PROMPT separately to preserve multi-line content
+  PROMPT=$(echo "$HOOK_INPUT" | jq -r '.prompt // ""' 2>/dev/null || true)
   SESSION_SHORT="${SID:0:8}"
 }
 
@@ -71,9 +73,10 @@ wiki_detect_changes() {
   local marker="$1"
   CHANGED_FILES=""
   [ -f "$marker" ] || return 0
+  local prefix="$REPO_ROOT/wiki/"
   CHANGED_FILES=$(find "$REPO_ROOT/wiki" -newer "$marker" -name '*.md' \
     ! -name 'index.md' ! -name 'log.md' ! -name 'SCHEMA.md' \
-    2>/dev/null | head -20 | sed "s|$REPO_ROOT/wiki/||")
+    2>/dev/null | head -20 | while IFS= read -r f; do echo "${f#$prefix}"; done)
 }
 
 # --- Queue wiki_change entry ---

@@ -4,7 +4,7 @@
 # Runs every session start as a background janitor.
 
 set -eo pipefail
-trap 'exit 0' ERR
+shopt -s nullglob
 command -v jq >/dev/null 2>&1 || exit 0
 . "$(dirname "$0")/wiki-common.sh"
 

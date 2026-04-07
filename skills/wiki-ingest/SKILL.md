@@ -7,7 +7,7 @@ description: |
   "process this document", "track this article", "add this URL to wiki",
   "ingest this paper", "add this to the knowledge base"
   NOT for: querying (use /wiki-query), loading context (use /wiki-load)
-allowed-tools: Agent, Bash, Read, Glob
+allowed-tools: Agent, Bash, Read, Write, Edit, Glob
 argument-hint: "<file-path-or-url> [--interactive]"
 ---
 
@@ -38,19 +38,24 @@ If SOURCE is a file path:
 - Verify path stays within REPO_ROOT (no `../` traversal)
 - If path escapes: abort with "File path must be within the repository."
 
-## Step 3 — Print Start Message
+## Step 3 — Collect Context (Interactive Only)
 
-Print: "📝 Ingesting [SOURCE] in background — keep working"
+If `INTERACTIVE` is true:
+- Ask: "What aspects of this source are most relevant to this project? Any context to add?"
+- Capture response as `CONTEXT_NOTES`
 
-## Step 4 — Spawn Background Agent
+## Step 4 — Print Start Message
 
-Spawn a background Sonnet agent:
+If `INTERACTIVE`: print "📝 Ingesting [SOURCE] (foreground)..."
+Else: print "📝 Ingesting [SOURCE] in background — keep working"
+
+## Step 5 — Spawn Agent
 
 ```
 Agent(
   subagent_type = "general-purpose",
   model = "claude-sonnet-4-6",
-  run_in_background = True,
+  run_in_background = NOT INTERACTIVE,
   prompt = """
     Ingest this source into the project wiki.
 
@@ -116,23 +121,19 @@ Agent(
        [TIMESTAMP] INGEST SOURCE_TITLE: created sources/SLUG.md; updated N entity pages
        If an INGEST entry for this source already exists from today: append (re-ingest) suffix.
 
+    [If CONTEXT_NOTES is set, add:]
+    User context to emphasize: CONTEXT_NOTES
+
     7. Return: "✓ Ingested SOURCE_TITLE — N pages written: [list of page paths]"
   """
 )
 ```
 
-## Step 5 — Handle Failure
+## Step 6 — Handle Failure
 
-If `--interactive` mode is active (foreground agent) and the agent returns an error or reports 0 pages written:
+If `INTERACTIVE` (foreground agent) and the agent returns an error or reports 0 pages written:
 Print: "⚠️ Ingest failed for [SOURCE]: [error]. Try /wiki-ingest again or check the source."
 
 For background (async) mode: monitor is not possible post-spawn. The agent logs its result
 to `WIKI_DIR/log.md` on completion. The session-start hook will surface any failed queue
 entries at the next session start.
-
-## Step 6 — Interactive Mode
-
-If `--interactive` flag was passed:
-Stay in foreground. Ask: "What aspects are most relevant to this project? Any context to add?"
-Capture the user's response as CONTEXT_NOTES and include it in the background agent prompt
-(add to the prompt: "User context to emphasize: CONTEXT_NOTES").

@@ -72,6 +72,10 @@ describe('Wiki Hooks', function () {
      * Note: exec() is used intentionally here — input is test-controlled JSON, not user input.
      */
     function runHook(handlerName, inputJson, extraEnv) {
+        // Validate handlerName to prevent shell injection (test-only, but good hygiene)
+        if (!/^[\w.-]+$/.test(handlerName)) {
+            throw new Error(`Invalid handler name: ${handlerName}`);
+        }
         const script = path.join(HANDLERS_DIR, handlerName);
         const jsonStr = JSON.stringify(inputJson);
         const env = { ...process.env, HOME: fakeClaudeHome, ...extraEnv };
@@ -94,8 +98,8 @@ describe('Wiki Hooks', function () {
             // Create session marker (simulates wiki-detect.sh at SessionStart)
             fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${shortSid}-start`), '');
 
-            // Wait so file mtimes differ from marker
-            await new Promise(r => setTimeout(r, 1100));
+            // Wait so file mtimes differ from marker (2s to clear 1s filesystem granularity on Linux)
+            await new Promise(r => setTimeout(r, 2000));
 
             // Simulate wiki changes during the session
             fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'test-entity.md'), '# Test Entity\n');

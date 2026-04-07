@@ -47,7 +47,7 @@ Collect BROKEN_LINKS with: page containing the link, link text, target path.
 ## Step 4 — Find Contradictions
 
 Read entity pages (cap at 20).
-Look for cases where two `## From SOURCE` subsections make incompatible factual claims
+Look for cases where two `- **From SOURCE:**` bullets make incompatible factual claims
 about the same entity (e.g., "X uses approach A" vs "X uses approach B").
 Collect CONTRADICTIONS with entity page, claim A, claim B, and their sources.
 

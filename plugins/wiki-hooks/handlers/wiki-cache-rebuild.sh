@@ -5,7 +5,7 @@
 # Uses atomic write pattern: write to .tmp, then mv.
 
 set -eo pipefail
-trap 'exit 0' ERR
+shopt -s nullglob
 
 # --- Fast exit for non-wiki contexts ---
 command -v jq >/dev/null 2>&1 || exit 0

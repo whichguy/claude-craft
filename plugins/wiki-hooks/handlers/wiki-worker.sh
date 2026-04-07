@@ -6,7 +6,7 @@
 # Includes retry cap (max 3 attempts per entry).
 
 set -o pipefail
-trap 'rm -f "$PID_FILE"; exit 0' EXIT ERR
+shopt -s nullglob
 command -v jq >/dev/null 2>&1 || exit 0
 command -v claude >/dev/null 2>&1 || exit 0
 
@@ -15,7 +15,7 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 [ -n "$AGENT_ID" ] && exit 0
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
-PID_FILE="$HOME/.claude/.wiki-processor-pid"
+LOCK_FILE="$HOME/.claude/.wiki-processor.lock"
 MAX_WORKERS=3
 
 # Quick pre-check: any pending entries? Exit early if not
@@ -23,14 +23,18 @@ MAX_WORKERS=3
 PENDING=$(grep -rl '"status".*"pending"' "$QUEUE_DIR/" 2>/dev/null | head -1)
 [ -z "$PENDING" ] && exit 0
 
-# Concurrency guard: only one processor at a time
-if [ -f "$PID_FILE" ]; then
-  EXISTING_PID=$(cat "$PID_FILE" 2>/dev/null)
+# Concurrency guard: atomic lock via ln -s (POSIX-atomic on APFS/ext4)
+if ! ln -s $$ "$LOCK_FILE" 2>/dev/null; then
+  # Lock exists — check if owner is alive
+  EXISTING_PID=$(readlink "$LOCK_FILE" 2>/dev/null || true)
   if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
     exit 0
   fi
+  # Stale lock — remove and retry
+  rm -f "$LOCK_FILE"
+  ln -s $$ "$LOCK_FILE" 2>/dev/null || exit 0  # lost the retry race
 fi
-echo $$ > "$PID_FILE"
+trap 'rm -f "$LOCK_FILE"; exit 0' EXIT ERR
 
 # Quiescence: wait until no new .json files appear for 5s (reduced from 10s)
 PREV_COUNT=0
@@ -142,12 +146,12 @@ Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRAC
 
   active_workers=$((active_workers + 1))
 
-  # Wait for a slot if at capacity
+  # Wait for a slot if at capacity (portable — wait -n requires bash 4.3+, macOS ships 3.2)
   if [ "$active_workers" -ge "$MAX_WORKERS" ]; then
-    wait -n 2>/dev/null || true  # wait for any one worker to finish
+    wait %% 2>/dev/null || wait 2>/dev/null || true
     active_workers=$((active_workers - 1))
   fi
 done
 
 # Wait for all remaining workers
-wait
+wait 2>/dev/null || true

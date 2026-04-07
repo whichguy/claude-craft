@@ -9,7 +9,8 @@ command -v jq >/dev/null 2>&1 || exit 0
 
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0
-[ -z "$CWD" ] && exit 0
+{ [ -z "$CWD" ] || [[ "$CWD" != /* ]]; } && exit 0
+[ "${#CWD}" -gt 4096 ] && exit 0
 
 wiki_find_root || exit 0
 
