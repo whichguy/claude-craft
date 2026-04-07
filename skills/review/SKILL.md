@@ -21,18 +21,20 @@ Fast path for small reviews; dispatches to agents for complex multi-file work.
 ## Step 0 — Parse Arguments
 
 From the invocation args, extract:
-- **target_files**: Specific files to review (paths, globs). If empty, detect from git diff.
+- **target_files**: Specific files/dirs/globs to review. If empty, detect from git.
+- **--all**: Review all tracked files in the repo (full-repo audit)
 - **mode**: "review" (default — read-only findings) or "fix" (review + auto-apply fixes)
 - **--dry-run**: Show what would be changed without applying (only with fix mode)
 
-If no target files specified:
+File detection (when no target_files specified):
 ```bash
-git diff --name-only HEAD
+# --all flag: every tracked file
+git ls-files
+
+# Default: uncommitted + staged + untracked (excluding .gitignore'd)
+{ git diff --name-only HEAD; git diff --cached --name-only; git status --porcelain | grep -v '^??' | cut -c4-; } | sort -u
 ```
-Use the output as the file list. If that's empty, check staged files:
-```bash
-git diff --cached --name-only
-```
+Filter out `.json`, `.lock` files unless explicitly named in target_files.
 
 ## Step 1 — Triage
 
