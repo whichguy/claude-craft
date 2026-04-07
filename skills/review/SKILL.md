@@ -1,8 +1,8 @@
 ---
 name: review
 description: |
-  Perform code review with optional auto-fix. Dispatches to code-reviewer or review-fix
-  agent for complex multi-file reviews.
+  Perform code review with optional auto-fix. Dispatches parallel code-reviewer Tasks
+  per file with wave-based concurrency (MAX_CONCURRENT=12).
 
   AUTOMATICALLY INVOKE when:
   - "review this", "check this code", "code review", "review my changes"
@@ -13,18 +13,18 @@ description: |
 allowed-tools: all
 ---
 
-# /review — Code Review with Optional Auto-Fix
+# /review — Parallel Code Review with Optional Auto-Fix
 
-Review code for bugs, logic errors, security vulnerabilities, and quality issues.
-Fast path for small reviews; dispatches to agents for complex multi-file work.
+Review files using the 32-question code-reviewer framework. Each file gets its own
+code-reviewer Task with full Q1-Q32 evaluation. Files with fixable issues get
+automatic recheck rounds.
 
-## Step 0 — Parse Arguments
+## Step 0 — Parse Arguments & Setup
 
 From the invocation args, extract:
 - **target_files**: Specific files/dirs/globs to review. If empty, detect from git.
 - **--all**: Review all tracked files in the repo (full-repo audit)
 - **mode**: "review" (default — read-only findings) or "fix" (review + auto-apply fixes)
-- **--dry-run**: Show what would be changed without applying (only with fix mode)
 
 File detection (when no target_files specified):
 ```bash
@@ -37,76 +37,118 @@ git ls-files
 Filter out `.json`, `.lock` files unless explicitly named in target_files.
 Respect `.gitignore` and `.claspignore` — never review files matched by either. `git ls-files` inherently respects `.gitignore`; for `.claspignore`, check if file exists at repo root and filter results through its patterns.
 
-## Step 1 — Triage
-
-Count the files and assess complexity:
-
-**Fast path** (inline review):
-- 1-2 files AND each file < 500 lines
-- No "fix" mode requested
-- Proceed to Step 2a
-
-**Agent path** (dispatch):
-- 3+ files, OR user said "fix", "review and fix", "clean up"
-- Any file > 500 lines
-- Proceed to Step 2b
-
-## Step 2a — Inline Review
-
-For each file:
-1. Read the file completely
-2. Evaluate against:
-   - **Bugs**: Logic errors, off-by-one, null/undefined access
-   - **Security**: Injection, XSS, hardcoded secrets, unsafe eval
-   - **Quality**: Dead code, unused imports, naming, complexity
-   - **Style**: Consistency with surrounding codebase patterns
-3. Report findings with file:line references
-
-Format:
-```
-## [filename]
-
-**Critical** (must fix):
-- [file:line] [finding]
-
-**Advisory** (should fix):
-- [file:line] [finding]
-
-**Note** (optional):
-- [file:line] [finding]
+Setup:
+```bash
+RESULTS_DIR=$(mktemp -d /tmp/review.XXXXXX)
+MAX_CONCURRENT=12
+MAX_RECHECK_ROUNDS=3
 ```
 
-If zero findings: "No issues found."
+## Step 1 — Dispatch
 
-## Step 2b — Agent Dispatch
-
-Spawn the appropriate agent:
-
-If mode is "fix" or user said "review and fix":
+**If mode="fix"**: dispatch to review-fix agent (it handles its own parallelization):
 ```
 Use the Agent tool:
   subagent_type: "review-fix"
   prompt: "target_files=\"[file list]\"
-task_name=\"[task context]\"
-worktree=\"[working directory]\"
-commit_mode=\"commit\"
-Review and apply all Critical and Advisory fixes. Loop until clean."
+           task_name=\"[task context]\"
+           worktree=\"[working directory]\"
+           commit_mode=\"commit\"
+           Review and apply all Critical and Advisory fixes. Loop until clean."
+```
+STOP after review-fix completes — it produces its own report.
+
+**If mode="review"**: proceed to Phase A below.
+
+### Phase A — Review Waves
+
+Route each file to the appropriate reviewer agent:
+- `.gs` files → `gas-code-review`
+- `.html` with GAS patterns (HtmlService, google.script.run) → `gas-ui-review`
+- All other files → `code-reviewer`
+
+Chunk files into waves of ≤ MAX_CONCURRENT (12).
+
+```
+For each wave:
+  Print: "┌ Wave [W]/[N] — [count] files"
+
+  Spawn parallel code-reviewer Tasks (one per file, single message).
+  Each Task prompt includes:
+    target_files="<single file>"
+    task_name="review"
+    worktree="<working directory>"
+
+  Each Task writes findings to: <RESULTS_DIR>/<sanitized-filename>.json
+  Output contract (same as review-plan evaluators):
+    {
+      "file": "<path>",
+      "status": "APPROVED|APPROVED_WITH_NOTES|NEEDS_REVISION|error",
+      "critical_count": N,
+      "advisory_count": N,
+      "findings": [...],
+      "loop_directive": "APPLY_AND_RECHECK|COMPLETE"
+    }
+
+  After wave completes, read each JSON and print per-file status:
+    ├ file.ts          ● APPROVED
+    ├ other.js         ◐ NEEDS_REVISION (2C 1A)
+    └ config.yaml      ● APPROVED_WITH_NOTES (0C 3A)
+
+  Print: "└ Wave [W] complete — [approved]/[total] clean"
 ```
 
-If mode is "review" (read-only):
+### Phase B — Error/Recheck Pass
+
 ```
-Use the Agent tool:
-  subagent_type: "code-reviewer"
-  prompt: "target_files=\"[file list]\"
-task_name=\"[task context]\"
-worktree=\"[working directory]\"
-review_mode=\"full\"
-Review all files for bugs, security vulnerabilities, and quality issues."
+round = 0
+DO:
+  round += 1
+  Read all <RESULTS_DIR>/*.json
+  recheck_files = files where loop_directive == "APPLY_AND_RECHECK" or status == "error"
+
+  IF recheck_files is empty: BREAK (all clean)
+  IF round > MAX_RECHECK_ROUNDS: BREAK (exhausted)
+
+  Print: "┌ Recheck round [round]/[MAX_RECHECK_ROUNDS] — [count] files"
+
+  For files with APPLY_AND_RECHECK:
+    Apply fixes from findings (Critical first, then Advisory with Fix blocks)
+
+  Re-queue recheck_files through another wave cycle (same wave logic as Phase A)
+  Updated results overwrite previous JSON in RESULTS_DIR
+
+  Print: "└ Round [round] complete — [resolved] resolved, [remaining] remaining"
+WHILE recheck_files is non-empty AND round <= MAX_RECHECK_ROUNDS
 ```
 
-## Step 3 — Post-Processing
+### Phase C — Final Report
 
-After review completes:
-- Summarize total findings by severity
-- If fixes were applied, list what changed
-- Suggest next steps: "Run tests to verify", "Commit when ready"
+```
+Read all <RESULTS_DIR>/*.json (final state)
+
+Print unified report:
+
+## Code Review Report
+
+[N] files reviewed | [W] waves | [R] recheck rounds
+
+### Critical Findings
+[Per-file critical findings with file:line references]
+
+### Advisory Findings
+[Per-file advisory findings]
+
+### Per-File Status
+| File | Status | Critical | Advisory |
+|------|--------|----------|----------|
+| ... | APPROVED / NEEDS_REVISION | N | N |
+
+### Overall: [APPROVED | APPROVED_WITH_NOTES | NEEDS_REVISION]
+[Most severe status across all files]
+```
+
+Cleanup:
+```bash
+rm -rf "$RESULTS_DIR"
+```
