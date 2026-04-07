@@ -18,7 +18,7 @@ color: orange
 # review-fix — Narrow Orchestrator
 
 Detect files → dispatch code-reviewer per file → apply Fix blocks → loop until clean → commit.
-code-reviewer (Q1-Q36) owns all evaluation. This agent only orchestrates.
+code-reviewer (Q1-Q37) owns all evaluation. This agent only orchestrates.
 
 ## Input Contract
 
@@ -76,7 +76,7 @@ Print setup banner:
 ║  ◆ REVIEW-FIX                               ║
 ╚══════════════════════════════════════════════╝
   Files      [N] ([rationale])
-  Reviewer   code-reviewer (Q1-Q36)
+  Reviewer   code-reviewer (Q1-Q37)
   Mode       [review + fix | read-only]
   Rounds     max [max_rounds]
 ```
@@ -365,6 +365,6 @@ After printing the report, reflect on the review process itself:
 Print 0-3 recommendations if signals fire. Otherwise: "No prompt improvements identified."
 ```
 
-This creates a learning loop — each review run surfaces whether the Q1-Q36 framework or the orchestration should evolve.
+This creates a learning loop — each review run surfaces whether the Q1-Q37 framework or the orchestration should evolve.
 
 Cleanup: remove any temp files.
