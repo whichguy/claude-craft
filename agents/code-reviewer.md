@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Reviews files for correctness, security, quality, and conventions using 34 trigger-based questions with confidence scoring. Works with any file type — triggers activate based on content patterns, not extensions. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
+description: Reviews files for correctness, security, quality, and conventions using 35 trigger-based questions with confidence scoring. Works with any file type — triggers activate based on content patterns, not extensions. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
 model: sonnet
 color: red
 ---
@@ -74,7 +74,7 @@ Produce no output yet. This phase is understanding only.
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
-**Question selection**: Q1–Q5 (universal, all files) + Q6–Q34 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
+**Question selection**: Q1–Q5 (universal, all files) + Q6–Q35 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
 
 ### Universal Questions
 
@@ -90,7 +90,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 |---|---------|----------|
 | Q6 | `useState\|useEffect\|useCallback` | Hook deps complete? Stale closures? |
 | Q7 | `async\|await\|\.then\(\|express\|router` | All async error paths handled? Unhandled rejections? |
-| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager` | Execution limits respected? Loops quota-safe? Null-guard before JSON.parse on getProperty/getCache/ConfigManager.get? Stale state migration? |
+| Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager\|_main\|__defineModule__\|__events__\|__global__\|module.exports` in `.gs` files | **GAS runtime**: Execution limits respected? Loops quota-safe? Null-guard before JSON.parse on getProperty/getCache? **CommonJS**: `_main(module, exports, log)` has 3 params? `require()` inside `_main` not at file top? `__defineModule__` at root level (not inside `_main`)? No nested `_main`? **Events**: `doGet/doPost/onOpen/onEdit` → `loadNow: true` (boolean, not null) + `__events__` entry? **Exports**: `module.exports` is object (not function/array)? `__global__` refs match `module.exports` (not bare fn bypassing wrapper)? **Null chains**: `getSheetByName()/getActiveSheet()` null-checked before chaining? **CacheService**: `getUserCache()` not used in time-based triggers (use DocumentCache/ScriptCache)? |
 | Q9 | `describe\|it\(\|expect\(` | Tests verify behavior (outputs, error paths) or just execution (no-throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | All query params parameterized? String interpolation → injection? |
 | Q11 | `dryrun=true` OR `**Impact context**` block + exports/endpoints | Breaks existing callers? Read impacted files from context block, verify signature/behavior compat. |
@@ -117,6 +117,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q32 | Changed imports, exports, property names, file paths, schema fields, config keys, or module references | Ripple impact complete? Grep codebase for old name/path/key — all references updated? Changed schema field → consumers updated? Renamed export → all importers updated? Modified config key → all readers updated? Flag: partial rename (changed definition but not all usages), orphaned references to old paths/names, schema change without migration of existing data. |
 | Q33 | Function/method calls, `new`, `await`, property access on return values | All exception paths at call sites handled? Flag: calling functions that can throw without try/catch or .catch(), accessing properties on potentially-null return values without guard, await without surrounding try/catch in non-top-level context. Not: calls to pure functions, standard library methods documented as non-throwing. |
 | Q34 | Any file when `task_name` or `plan_summary` provided | **Intent verification**: Does the code fully achieve what the task/plan described? Every stated goal implemented? No partial implementations where the code handles the happy path but skips stated edge cases, error handling, or secondary requirements? Flag: plan says "handle X and Y" but code only handles X. |
+| Q35 | `HtmlService\|createTemplateFromFile\|google.script.run\|createGasServer\|<?=\|<?!=` in `.html` files | **GAS HTML**: Template vs Output confusion (setHeight before evaluate, double-wrapping, scriptlets in createHtmlOutputFromFile)? IFRAME embedding (missing setXFrameOptionsMode)? Scriptlet errors (unclosed `<? ?>`, `<?!= include() ?>` inside comments)? **Client-server**: `google.script.run` calling private fn (trailing `_`)? Missing success/failure handlers? `createGasServer` wrong signature (`exec_api(null, module, fn, ...args)`)? **Security**: `<?!= userInput ?>` unescaped XSS? `.innerHTML = userData`? onclick attribute injection? API keys in client code? **Template literals**: URLs with `://` in included files (use string concat)? `</script>` in template literal? |
 
 ### Answer Format
 
