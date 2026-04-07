@@ -35,7 +35,26 @@ Output: 3-5 bullet summary of requirements and existing constraints. Then procee
 
 ## Phase 2: Evaluate 9 Technology Areas
 
-For each area, assign a priority level (0-9) starting at 0. **Escalate only when a specific requirement forces it.** Every priority > 2 must cite the requirement that demands it.
+Evaluate using **3-pass progressive deepening** — don't commit to technology choices prematurely.
+
+### Pass 1: Priority Assignment (target: 50% confidence)
+Assign initial priority levels (0-9) for each area based on requirements alone. Start at 0, escalate only when a specific requirement forces it. Every priority > 2 must cite the requirement.
+
+### Pass 2: Research (target: 80% confidence)
+For any area at Priority >= 3, research technology candidates using WebSearch. For each:
+- **Prior tech**: What's currently in use (if any)?
+- **Candidates**: 2-3 viable options researched
+- **Selection**: Which candidate and why — cite specific strengths vs requirements
+- **Trade-offs**: What you're giving up with this choice
+
+**Confidence gate**: Before proceeding, assess — can you defend every Priority >= 3 choice with evidence? If any area feels uncertain, research deeper before moving on.
+
+### Pass 3: Coherence Validation (target: 90% confidence)
+Validate the full stack works together. Resolve conflicts. Adjust priorities if the combination reveals issues. See Phase 3 for validation criteria.
+
+**Confidence gate**: If overall confidence < 90%, identify what's uncertain and address it. Do not write the ADR with unresolved uncertainty — flag it as a risk instead.
+
+### Priority Evaluation Table
 
 | Area | P0 (default) | Escalation Triggers |
 |------|-------------|---------------------|
