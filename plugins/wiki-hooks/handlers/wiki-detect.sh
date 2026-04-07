@@ -1,6 +1,7 @@
 #!/bin/bash
 # SessionStart: inject project wiki context via systemMessage + additionalContext
-# Pattern: fast check → build display → output JSON
+# Cache-first: reads pre-computed display/context from wiki/.cache/
+# Falls back to legacy computation on cache miss (first session after deploy)
 
 trap 'exit 0' ERR
 command -v jq >/dev/null 2>&1 || exit 0
@@ -11,12 +12,8 @@ wiki_parse_input
 { [ -z "$CWD" ] || [[ "$CWD" != /* ]]; } && exit 0
 [ "${#CWD}" -gt 4096 ] && exit 0
 
-REPO_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
-[ -z "$REPO_ROOT" ] && exit 0
-[ ! -f "$REPO_ROOT/wiki/index.md" ] && exit 0
-
-WIKI_PATH="$REPO_ROOT/wiki/"
-LOG_PATH="$REPO_ROOT/wiki/log.md"
+# Use wiki_find_root (pure directory walk, no git subprocess)
+wiki_find_root || exit 0
 
 # Session marker for change detection (consumed by wiki-stop.sh via find -newer)
 MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
@@ -24,17 +21,17 @@ touch "$MARKER" 2>/dev/null || true
 
 wiki_log "SESSION_START" "opened in $(basename "$REPO_ROOT")"
 
-# Expire old queue entries (housekeeping)
+# Read pre-computed display (cache hit: ~2ms, cache miss: legacy inline)
+wiki_build_display
+
+# Check for failed entries (moved from sync grep -rl to cached count)
 QUEUE_DIR="$HOME/.claude/reflection-queue"
+FAILED_COUNT=0
 if [ -d "$QUEUE_DIR" ]; then
-  find "$QUEUE_DIR" -name "*.json" -mtime +7 -delete 2>/dev/null || true
+  FAILED_COUNT=$(grep -rl '"status".*"failed"' "$QUEUE_DIR/" 2>/dev/null | grep -c -E '\-(wiki|wikichange)\.json$' || true)
+  FAILED_COUNT=${FAILED_COUNT:-0}
 fi
 
-# Check for failed entries (user-actionable alert)
-FAILED_COUNT=$(grep -rl '"status".*"failed"' "$HOME/.claude/reflection-queue/" 2>/dev/null | grep -c -E '\-(wiki|wikichange)\.json$' || true)
-FAILED_COUNT=${FAILED_COUNT:-0}
-
-wiki_build_display
 if [ "$FAILED_COUNT" -gt 0 ]; then
   DISPLAY="${DISPLAY}"$'\n'"   ⚠️ ${FAILED_COUNT} wiki synthesis failed"
 fi

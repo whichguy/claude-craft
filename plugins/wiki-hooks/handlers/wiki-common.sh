@@ -6,11 +6,16 @@
 # Reads hook JSON from stdin, sets: HOOK_INPUT, AGENT_ID, SID, SESSION_SHORT, TRANSCRIPT, CWD
 wiki_parse_input() {
   HOOK_INPUT=$(cat)
-  AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
-  SID=$(echo "$HOOK_INPUT" | jq -r '.session_id // "unknown"' 2>/dev/null || echo "unknown")
+  # Single jq call extracts all fields (4 pipes → 1, ~80ms → ~20ms).
+  # Uses read instead of eval to avoid shell injection.
+  {
+    read -r SID
+    read -r AGENT_ID
+    read -r TRANSCRIPT
+    read -r CWD
+    read -r PROMPT
+  } < <(echo "$HOOK_INPUT" | jq -r '(.session_id // "unknown"), (.agent_id // ""), (.transcript_path // ""), (.cwd // ""), (.prompt // "")' 2>/dev/null || printf 'unknown\n\n\n\n\n')
   SESSION_SHORT="${SID:0:8}"
-  TRANSCRIPT=$(echo "$HOOK_INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
-  CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 }
 
 # --- Wiki discovery ---
@@ -98,6 +103,21 @@ wiki_queue_changes() {
 # Builds separator-lines display + additionalContext. Sets: DISPLAY, CONTEXT
 wiki_build_display() {
   local label="${1:-}"  # optional suffix like "(post-compaction)"
+  local cache_dir="$REPO_ROOT/wiki/.cache"
+
+  # Cache hit: read pre-computed files (fast path, ~2ms)
+  if [ -f "$cache_dir/display.txt" ] && [ -f "$cache_dir/context.txt" ]; then
+    DISPLAY=$(cat "$cache_dir/display.txt")
+    CONTEXT=$(cat "$cache_dir/context.txt")
+    # Append label if provided (e.g., post-compaction)
+    if [ -n "$label" ]; then
+      # Insert label into first line of display
+      DISPLAY=$(echo "$DISPLAY" | sed "1s/$/ $label/")
+    fi
+    return 0
+  fi
+
+  # Cache miss: legacy computation inline (one-time cold start)
   local repo_name; repo_name=$(basename "$REPO_ROOT")
   local index_path="$REPO_ROOT/wiki/index.md"
 
@@ -124,14 +144,12 @@ wiki_build_display() {
     DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
   fi
 
-  # Rich context: inject full index table so Claude can match questions to pages by summary
   local index_content; index_content=$(grep '^|' "$index_path" 2>/dev/null | head -30 || true)
   if [ -n "$index_content" ]; then
     CONTEXT="Project wiki: ${repo_name}. Load pages with /wiki-load <topic>. Query with /wiki-query <question>."$'\n\n'"${index_content}"
   else
     CONTEXT="Wiki available: ${repo_name} (${page_count} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
   fi
-
 }
 
 # --- Log entry ---

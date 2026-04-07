@@ -10,11 +10,7 @@ wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0
 [ -z "$CWD" ] && exit 0
 
-REPO_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
-{ [ -z "$REPO_ROOT" ] || [ ! -f "$REPO_ROOT/wiki/index.md" ]; } && exit 0
-
-WIKI_PATH="$REPO_ROOT/wiki/"
-LOG_PATH="$REPO_ROOT/wiki/log.md"
+wiki_find_root || exit 0
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 
 # Skip if already queued this session (idempotency)

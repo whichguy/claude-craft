@@ -1,8 +1,8 @@
 #!/bin/bash
 # UserPromptSubmit: inject wiki context via two paths:
-#   1. Prompt-aware: keyword-match user prompt against entity slugs → inject summaries
+#   1. Prompt-aware: keyword-match user prompt against cached entity index → inject summaries
 #   2. New-page: inject newly-created entity pages since last check
-# Fast synchronous check — no sleep, no CLI spawning
+# Cache-first: reads entity-index.tsv instead of looping entity files
 
 trap 'exit 0' ERR
 command -v jq >/dev/null 2>&1 || exit 0
@@ -15,44 +15,48 @@ wiki_parse_input
 wiki_find_root || exit 0
 
 ENTITIES_DIR="$REPO_ROOT/wiki/entities"
+CACHE_DIR="$REPO_ROOT/wiki/.cache"
+ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
 CONTENT=""
 DISPLAY=""
 
-# --- Path 1: Prompt-aware entity matching ---
-PROMPT=$(echo "$HOOK_INPUT" | jq -r '.prompt // empty' 2>/dev/null || true)
-if [ -n "$PROMPT" ] && [ -d "$ENTITIES_DIR" ]; then
-  # Lowercase prompt words for matching
+# --- Path 1: Prompt-aware entity matching via cached index ---
+if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
   PROMPT_LOWER=$(echo "$PROMPT" | tr '[:upper:]' '[:lower:]')
   MATCH_COUNT=0
   MATCHED_NAMES=""
-  for file in "$ENTITIES_DIR"/*.md; do
-    [ -f "$file" ] || continue
+
+  while IFS=$'\t' read -r slug words; do
     [ "$MATCH_COUNT" -ge 3 ] && break
-    name=$(basename "$file" .md)
-    # Split slug on hyphens into words, check if any 3+ char word appears in prompt
+    [ -z "$slug" ] && continue
+
+    # Check word matches using bash case (no subprocess spawning)
     hits=0
     eligible=0
-    for word in $(echo "$name" | tr '-' ' '); do
+    for word in $words; do
       [ "${#word}" -lt 3 ] && continue
       eligible=$((eligible + 1))
-      if echo "$PROMPT_LOWER" | grep -qiw "${word}" 2>/dev/null; then
-        hits=$((hits + 1))
-      fi
+      case "$PROMPT_LOWER" in
+        *"$word"*) hits=$((hits + 1)) ;;
+      esac
     done
-    # Skip slugs with no eligible words (all words < 3 chars)
+
     [ "$eligible" -eq 0 ] && continue
-    # Require at least 2 eligible-word hits (or 1 if only 1 eligible word)
+    # Require at least 2 hits (or 1 if only 1 eligible word)
     if [ "$eligible" -le 1 ] && [ "$hits" -ge 1 ]; then
       :
     elif [ "$hits" -lt 2 ]; then
       continue
     fi
-    # Read first 10 lines (extended summary)
-    summary=$(head -10 "$file" 2>/dev/null)
-    CONTENT="${CONTENT}--- ${name} ---"$'\n'"${summary}"$'\n\n'
-    MATCHED_NAMES="${MATCHED_NAMES:+${MATCHED_NAMES}, }${name}"
+
+    # Read first 10 lines directly from entity file (max 3 files)
+    summary=$(head -10 "$ENTITIES_DIR/${slug}.md" 2>/dev/null)
+    [ -z "$summary" ] && continue
+    CONTENT="${CONTENT}--- ${slug} ---"$'\n'"${summary}"$'\n\n'
+    MATCHED_NAMES="${MATCHED_NAMES:+${MATCHED_NAMES}, }${slug}"
     MATCH_COUNT=$((MATCH_COUNT + 1))
-  done
+  done < "$ENTITY_INDEX"
+
   if [ "$MATCH_COUNT" -gt 0 ]; then
     DISPLAY="🔍 ${MATCH_COUNT} wiki match(es): ${MATCHED_NAMES}"
     CONTENT="Wiki pages matching your prompt (auto-loaded). Use /wiki-load for full content."$'\n\n'"${CONTENT}"
