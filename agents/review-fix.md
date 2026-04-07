@@ -169,7 +169,6 @@ Print: "  fan-in ── ●[approved]  ◐[needs_work]   [{total_elapsed}s]"
 
 **Fallback**: If background dispatch is unavailable, fall back to wave-based dispatch:
 chunk files into waves of MAX_CONCURRENT, spawn all in single message, wait for wave, repeat.
-```
 
 ### Finding Parser
 
