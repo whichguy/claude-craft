@@ -56,11 +56,11 @@ Record: what the task should accomplish and any acceptance criteria that will an
 
 ## Phase 2: Code Comprehension
 
-Read every file in `target_files`. For each file:
+Read every file in `target_files` **in full**. Review scope is the entire file, not just diffs. For each file:
 
 - Understand its **purpose**: what problem does this code solve?
-- Identify **what changed**: what is new vs. what existed before?
-- Detect **question triggers**: scan for React hooks, async patterns, GAS APIs, test framework, SQL, public API surface
+- **Review all code in the file** — pre-existing and new alike. Every line is in scope for all questions.
+- Detect **question triggers**: scan the entire file for React hooks, async patterns, GAS APIs, test framework, SQL, public API surface, shared state, sizing, naming conventions
 - Note any sections requiring closer inspection
 
 Before moving to Phase 3, verify:
