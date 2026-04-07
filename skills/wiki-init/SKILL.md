@@ -7,6 +7,7 @@ description: |
   "create knowledge base", "track what I read", "initialize wiki"
   NOT for: querying (use /wiki-query), ingesting sources (use /wiki-ingest)
 allowed-tools: Bash, Read, Write, Glob
+model: sonnet
 argument-hint: "[wiki-dir]"
 ---
 
@@ -22,10 +23,11 @@ From `$ARGUMENTS`, extract:
 
 Resolve `REPO_ROOT` via: `git rev-parse --show-toplevel`
 If not in a git repo: use current working directory.
+`REPO_NAME`: `basename "$REPO_ROOT"` — used in templates below wherever `[repo name]` appears.
 
 ## Step 1 — Idempotency Check
 
-Check if `REPO_ROOT/WIKI_DIR/index.md` already exists.
+Check if `REPO_ROOT/WIKI_DIR/log.md` already exists (sentinel file, matches hook detection).
 If yes: print "Wiki already initialized at WIKI_DIR/. The SessionStart hook will auto-inject
 context on next session start." and stop. Do not overwrite.
 
@@ -37,7 +39,7 @@ Use Bash `mkdir -p` to create:
 - `WIKI_DIR/sources/`
 - `WIKI_DIR/queries/`
 - `WIKI_DIR/maintenance/`
-- `raw/`
+- `REPO_ROOT/raw/` (at repo root, alongside WIKI_DIR — LLM-write-protected via hook)
 
 ## Step 3 — Write wiki/index.md
 

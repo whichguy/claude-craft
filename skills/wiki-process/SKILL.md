@@ -8,6 +8,7 @@ description: |
   Subcommands: --status (show queue), --consolidate <topic> (merge sessions into topic)
   NOT for: ingesting sources (use /wiki-ingest), querying (use /wiki-query)
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Glob, Grep
+model: sonnet
 argument-hint: "[--status] [--consolidate <topic>]"
 ---
 
@@ -32,7 +33,7 @@ QUEUE_DIR="$HOME/.claude/reflection-queue"
 ```
 
 Find all `.json` files with `status: "pending"`. Also find `status: "in_progress"`
-entries older than 30 minutes (stale) — mark them back to `pending` for retry.
+entries where `in_progress_at` is older than 30 minutes (stale) — mark them back to `pending` for retry.
 
 If no pending entries: print "No pending entries to process." and stop.
 

@@ -8,6 +8,7 @@ description: |
   "ingest this paper", "add this to the knowledge base"
   NOT for: querying (use /wiki-query), loading context (use /wiki-load)
 allowed-tools: Agent, Bash, Read, Write, Edit, Glob
+model: sonnet
 argument-hint: "<file-path-or-url> [--interactive]"
 ---
 
@@ -24,7 +25,7 @@ From `$ARGUMENTS`, extract:
 
 ## Step 1 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/index.md` starting from the git root.
+Locate `WIKI_DIR` by searching for `wiki/log.md` starting from the git root (matches hook sentinel).
 Walk up the directory tree (max 4 levels).
 If not found: print "No wiki found in this repo. Run /wiki-init first." and stop.
 

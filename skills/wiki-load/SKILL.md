@@ -5,9 +5,10 @@ description: |
   Loads raw pages into context — no synthesis. Zero overhead (user-invoked).
   This is the unified retrieval interface for all knowledge tiers.
   AUTOMATICALLY INVOKE when: "what do we know about", "load context for",
-  "pull in wiki context", "find in wiki", "look up", "load the wiki page for",
+  "pull in wiki context", "find in wiki", "look up in the wiki", "load the wiki page for",
   "what's in the wiki about", "load knowledge about"
   NOT for: synthesizing answers (use /wiki-query), ingesting sources (use /wiki-ingest)
+model: sonnet
 allowed-tools: Bash, Read, Glob, Grep
 argument-hint: "<topic> [--global] [--project]"
 ---
@@ -33,7 +34,7 @@ Find `REPO_ROOT` via `git rev-parse --show-toplevel` if in a repo (for project t
 
 If not `GLOBAL_ONLY` and in a git repo with a wiki:
 
-Locate `WIKI_DIR` (search for `wiki/index.md` from git root).
+Locate `WIKI_DIR` (search for `wiki/log.md` from git root — matches hook sentinel).
 If found:
 - Grep `WIKI_DIR/entities/` for TOPIC (case-insensitive) — select up to 3 best matches
 - Grep `WIKI_DIR/sources/` for TOPIC — select up to 2 additional matches

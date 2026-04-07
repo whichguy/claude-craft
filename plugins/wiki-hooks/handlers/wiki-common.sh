@@ -64,7 +64,7 @@ wiki_queue_entry() {
     --arg cwd "$CWD" \
     '{type:$type,session_id:$sid,queued_at:$ts,source:$source,
       priority:$priority,transcript_path:$transcript,wiki_path:$wiki_path,
-      cwd:$cwd,status:"pending"}' > "$queue_file" 2>/dev/null || true
+      cwd:$cwd,status:"pending",in_progress_at:null}' > "$queue_file" 2>/dev/null || true
 }
 
 # --- Wiki change detection ---

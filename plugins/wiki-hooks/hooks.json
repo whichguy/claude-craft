@@ -1,5 +1,5 @@
 {
-  "description": "Wiki: cache-first lifecycle — detect+inject, clear+boundary, notify+match, worker+extract, guard, cleanup+janitor, cache-rebuild, precompact, stop+serialize, session-end+safety-net",
+  "description": "Wiki: cache-first lifecycle — detect+inject, clear+boundary, notify+match, worker+extract, guard, cleanup+janitor, cache-rebuild, precompact, stop+serialize, session-end+safety-net. SessionStart 'clear' matcher fires when /clear creates a new session (Claude Code passes creation reason as matcher input).",
   "hooks": {
     "SessionStart": [{
       "matcher": "clear",

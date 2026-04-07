@@ -6,6 +6,7 @@ description: |
   AUTOMATICALLY INVOKE when: "wiki health check", "lint the wiki", "audit wiki",
   "find wiki issues", "check wiki quality", "wiki maintenance"
 allowed-tools: Bash, Read, Write, Glob, Grep
+model: sonnet
 argument-hint: ""
 ---
 
@@ -15,7 +16,7 @@ Run a comprehensive health check on the project wiki. Write a maintenance report
 
 ## Step 0 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/index.md` from the git root upward (max 4 levels).
+Locate `WIKI_DIR` by searching for `wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
 If not found: print "No wiki found. Run /wiki-init first." and stop.
 
 TODAY = current date YYYY-MM-DD

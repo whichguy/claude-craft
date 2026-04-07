@@ -1,7 +1,8 @@
 ---
 name: review-fix
 description: |
-  Iterative review-fix loop: dispatches code-reviewer per file, applies Fix blocks,
+  Iterative review-fix loop: routes each file to the appropriate reviewer (code-reviewer,
+  gas-code-review, gas-ui-review, gas-gmail-cards), applies Fix blocks,
   rechecks until clean (max 5 rounds), then commits/PRs.
   commit_mode="pr" (default): commit + push + PR + squash merge + delete branch.
   commit_mode="commit": commit only (POST_IMPLEMENT pipeline).
@@ -13,17 +14,20 @@ description: |
   Trigger phrases: "review and fix", "polish this", "clean this up", "make sure this is
   good", "before committing", "before merging", "loop until clean".
 color: orange
+model: sonnet
 ---
 
 # review-fix — Narrow Orchestrator
 
-Detect files → dispatch code-reviewer per file → apply Fix blocks → loop until clean → commit.
-code-reviewer (Q1-Q37) owns all evaluation. This agent only orchestrates.
+Detect files → route each file to the appropriate reviewer → apply Fix blocks → loop until clean → commit.
+Reviewer selection is per-file (see Reviewer Routing). This agent only orchestrates.
 
 ## Input Contract
 
 - `target_files` — optional; comma-separated file paths/dirs/globs. If omitted: WIP → last commit fallback.
-  - `--all` flag: all tracked files via `git ls-files`
+  - `--all` flag: all files in worktree (including untracked; filtered by .gitignore + .claspignore)
+  - `--tracked` flag: git-tracked files only (old `--all` behavior)
+- `reviewer_agent` — optional; override reviewer for ALL files (skips per-file routing)
 - `task_name` — required; review context identifier
 - `worktree` — required; absolute path to working directory (default: ".")
 - `max_rounds` — optional; max fix-and-recheck rounds (default: 5)
@@ -45,6 +49,9 @@ find /tmp -maxdepth 1 -name 'review-fix.*' -mmin +60 -exec rm -rf {} + 2>/dev/nu
 
 ```
 If --all:
+  file_list = git ls-files --cached --others --exclude-standard (tracked + untracked, respects .gitignore)
+  If .claspignore exists: filter through its patterns
+If --tracked:
   file_list = git ls-files (respect .gitignore)
   If .claspignore exists: filter through its patterns
 Else if target_files provided:
@@ -62,7 +69,26 @@ Else (auto-detect):
     rationale = "last-commit"
     If empty: error "No changes to review"
 
-Filter: exclude .json, .lock unless explicitly named
+Filter (unless explicitly named in target_files):
+  # Config & metadata
+  .json, .lock, .gitignore, .gitattributes, .claspignore, .clasp.json
+  CLAUDE.md, LICENSE, .claude/**, .github/**
+  # Wiki & docs
+  wiki/**, docs/**, *.md (markdown is not reviewable code)
+  # OS & IDE junk
+  .DS_Store, Thumbs.db, .vscode/**, .idea/**, .cursor/**, *.swp
+  # Build output & generated
+  dist/**, build/**, out/**, .next/**, generated/**, vendor/**
+  *.min.js, *.min.css
+  # Binaries & media
+  *.png, *.jpg, *.jpeg, *.gif, *.ico, *.svg, *.pdf, *.zip, *.gz
+  *.woff, *.woff2, *.ttf, *.mp3, *.mp4
+  # Package managers & dependencies
+  node_modules/**
+  # Env & secrets
+  .env*
+  # Logs
+  *.log
 Validate: each file exists on disk (warn about missing)
 If file_list empty after filtering: error "No reviewable files"
 
@@ -76,7 +102,8 @@ Print setup banner:
 ║  ◆ REVIEW-FIX                               ║
 ╚══════════════════════════════════════════════╝
   Files      [N] ([rationale])
-  Reviewer   code-reviewer (Q1-Q37)
+  Reviewers  per-file multi-routing (code-reviewer: N, gas-code-review: M, gas-ui-review: P, gas-gmail-cards: Q)
+  Tasks      [total queue entries] ([file_count] files × applicable reviewers)
   Mode       [review + fix | read-only]
   Rounds     max [max_rounds]
 ```
@@ -95,6 +122,30 @@ For each file in file_list:
 ```
 
 This feeds Q11 (backward compatibility) with real caller evidence.
+
+## Reviewer Routing
+
+Determine ALL applicable reviewers for each file. Every file gets `code-reviewer` as baseline,
+plus any specialized reviewers that match extension/content patterns.
+
+```
+resolve_reviewers(file):
+  If reviewer_agent param is set: return [reviewer_agent]
+
+  reviewers = ["code-reviewer"]   # baseline for all files
+
+  ext = file extension (lowercase)
+  If ext == ".gs":
+    reviewers.append("gas-code-review")
+  If ext == ".html":
+    content = Read first 200 lines of file
+    If content matches /CardService|newCardBuilder|newCardSection/:
+      reviewers.append("gas-gmail-cards")
+    If content matches /HtmlService|google\.script\.run|createGasServer/:
+      reviewers.append("gas-ui-review")
+
+  return reviewers
+```
 
 ## Step 3: Initial Review (parallel per-file)
 
@@ -119,49 +170,60 @@ MAX_CONCURRENT slots filled continuously — when one agent completes, the next 
 starts immediately without waiting for the entire wave.
 
 ```
-queue = [...file_list]           # files waiting to be reviewed
-active = {}                      # name → file mapping for in-flight agents
-results = {}                     # file → parsed findings + LOOP_DIRECTIVE
+# Build queue: one entry per (file, reviewer) pair
+queue = []
+for file in file_list:
+  reviewers = resolve_reviewers(file)
+  for reviewer in reviewers:
+    queue.append({ file, reviewer })
+
+active = {}                      # name → {file, reviewer} mapping for in-flight agents
+results = {}                     # file → [parsed findings + LOOP_DIRECTIVE per reviewer]
 completed = 0
+total = len(queue)
 
 # Fill initial slots
 While queue non-empty AND len(active) < MAX_CONCURRENT:
-  file = queue.shift()
-  name = sanitize(file)          # unique agent name for SendMessage
+  entry = queue.shift()
+  name = sanitize(entry.file) + "--" + entry.reviewer   # unique per file+reviewer
   Agent(
-    subagent_type = "code-reviewer",
+    subagent_type = entry.reviewer,
     name = name,
     run_in_background = true,
-    prompt = reviewer_prompt(file)
+    prompt = reviewer_prompt(entry.file)
   )
-  active[name] = file
-  Print: "  ▸ dispatched: [file]"
+  active[name] = entry
+  Print: "  ▸ dispatched: [entry.file] → [entry.reviewer]"
 
 # Process completions as they arrive
 # Background agents notify automatically when done — do NOT poll.
 # When notified of completion:
 For each completion notification:
+  entry = active[completed_name]   # {file, reviewer}
   Parse agent output → findings + LOOP_DIRECTIVE
-  results[file] = { findings, loop_directive, elapsed }
+  # Merge findings into per-file results (multiple reviewers contribute to same file)
+  If results[entry.file] not exists: results[entry.file] = { findings: [], loop_directive: "COMPLETE" }
+  results[entry.file].findings.push(...parsed_findings)
+  If loop_directive == "APPLY_AND_RECHECK": results[entry.file].loop_directive = "APPLY_AND_RECHECK"
   Remove from active
   completed += 1
 
   # Print progress inline
   status_icon = loop_directive == "COMPLETE" ? "●" : "◐"
-  Print: "  [status_icon] [file] — [status] ([Nc]C [Na]A) [elapsed]s   [{completed}/{total}]"
+  Print: "  [status_icon] [entry.file] → [entry.reviewer] — [status] ([Nc]C [Na]A) [elapsed]s   [{completed}/{total}]"
 
   # Refill: dispatch next from queue if slots available
   If queue non-empty AND len(active) < MAX_CONCURRENT:
-    next_file = queue.shift()
-    name = sanitize(next_file)
+    next_entry = queue.shift()
+    name = sanitize(next_entry.file) + "--" + next_entry.reviewer
     Agent(
-      subagent_type = "code-reviewer",
+      subagent_type = next_entry.reviewer,
       name = name,
       run_in_background = true,
-      prompt = reviewer_prompt(next_file)
+      prompt = reviewer_prompt(next_entry.file)
     )
-    active[name] = next_file
-    Print: "  ▸ dispatched: [next_file]"
+    active[name] = next_entry
+    Print: "  ▸ dispatched: [next_entry.file] → [next_entry.reviewer]"
 
 # All complete when: queue empty AND active empty
 Print: "  fan-in ── ●[approved]  ◐[needs_work]   [{total_elapsed}s]"
@@ -172,7 +234,7 @@ chunk files into waves of MAX_CONCURRENT, spawn all in single message, wait for 
 
 ### Finding Parser
 
-Extract from code-reviewer's output:
+Extract from reviewer output (code-reviewer, gas-code-review, gas-ui-review, or gas-gmail-cards):
 ```
 For each "**Q[N]: [Title]** | Finding: [severity]" block:
   Extract: q_number, title, severity, description
@@ -229,7 +291,7 @@ DO:
     Re-dispatching [N] files for recheck...
   ```
 
-  Re-dispatch code-reviewer for recheck files (same producer-consumer as Step 3)
+  Re-dispatch all applicable reviewers for recheck files (same producer-consumer + resolve_reviewers as Step 3)
   Update findings and LOOP_DIRECTIVE for each file
 
   Print round summary:

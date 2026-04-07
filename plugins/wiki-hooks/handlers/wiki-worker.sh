@@ -89,6 +89,10 @@ for entry in "${VALID_ENTRIES[@]}"; do
   CLAIMED="${entry%.json}.processing-$$"
   mv "$entry" "$CLAIMED" 2>/dev/null || continue
 
+  # Stamp in_progress_at for stale detection
+  jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.in_progress_at = $ts' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
+    && mv "${CLAIMED}.tmp" "$CLAIMED" 2>/dev/null
+
   # Read entry details
   TRANSCRIPT=$(jq -r '.transcript_path // empty' "$CLAIMED" 2>/dev/null)
   WIKI_PATH=$(jq -r '.wiki_path // empty' "$CLAIMED" 2>/dev/null)

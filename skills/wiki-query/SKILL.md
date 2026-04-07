@@ -7,6 +7,7 @@ description: |
   "synthesize from wiki", "wiki answer for", "ask the wiki about"
   NOT for: loading raw context (use /wiki-load), ingesting sources (use /wiki-ingest)
 allowed-tools: Bash, Read, Write, Glob, Grep
+model: sonnet
 argument-hint: "<question> [--save]"
 ---
 
@@ -22,7 +23,7 @@ From `$ARGUMENTS`, extract:
 
 ## Step 1 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/index.md` from the git root upward (max 4 levels).
+Locate `WIKI_DIR` by searching for `wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
 If not found: print "No wiki found. Run /wiki-init first." and stop.
 
 ## Step 2 — Read Index
