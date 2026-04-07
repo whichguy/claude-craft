@@ -40,37 +40,9 @@ the team-lead cannot collect.
 **Pre-flight**: If `target_files` or `task_name` is empty, stop immediately and report:
 `Missing required parameters: target_files=[value], task_name=[value]`
 
-## Setup: Content Addressing
+## Setup: File Access
 
-**Determine content access methods fresh for each review before performing file operations.**
-
-### Discovery Process
-
-**Step 0: Working Directory Resolution**
-- If `<worktree>` provided and non-empty: use as-is. Otherwise `<worktree>` = "."
-- If `<worktree>` starts with `/tmp/`: force MODE=filesystem for ALL operations (skip to Step 3)
-
-**Step 1: Discover MCP Server Name (Priority Order)**
-
-1. Read `<worktree>/tasks/in-progress/<task-name>.md` — look for `MCP-Server: <name>`
-   - Found with name → use server (go to Step 2)
-   - `MCP-Server: none` or `filesystem` → MODE=filesystem (skip to Step 3)
-   - File absent or no field → continue to step 2
-2. Check `<worktree>/planning/architecture.md` or `<worktree>/docs/planning/architecture.md`
-   - Look in `## Infrastructure State` for `mcp.server.name: <name>`
-   - Found → use server (go to Step 2); not found → MODE=filesystem
-
-**Step 2: Discover MCP Capabilities** (only if server found in Step 1)
-- Read `## Infrastructure State` from architecture.md
-- Extract: `mcp.server.writeCapable`, `mcp.server.writeFunctions`, `mcp.server.readFunctions`, `mcp.server.searchFunctions`
-- If section missing: log warning, fallback MODE=filesystem
-
-**Step 3: Access Method Per Operation Type**
-- **Reading**: MCP read function if available, else `cat <worktree>/<identifier>`
-- **Writing**: MCP write function if available + writeCapable=true, else filesystem write
-- **Searching**: MCP search function if available, else `ripgrep <pattern> <worktree>/<path>`
-
-**Error handling**: If MCP operation fails, report the error clearly. Do NOT silently fall back to filesystem — this could cause data inconsistency.
+Use Read/Grep/Glob tools directly with `<worktree>` as path prefix. If `<worktree>` is empty, use current directory.
 
 ## Phase 1: Context Loading
 
