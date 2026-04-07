@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Reviews files for correctness, security, quality, and conventions using 35 trigger-based questions with confidence scoring. Works with any file type — triggers activate based on content patterns, not extensions. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
+description: Reviews files for correctness, security, quality, and conventions using 36 trigger-based questions with confidence scoring. Works with any file type — triggers activate based on content patterns, not extensions. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
 model: sonnet
 color: red
 ---
@@ -74,7 +74,7 @@ Produce no output yet. This phase is understanding only.
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
-**Question selection**: Q1–Q5 (universal, all files) + Q6–Q35 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
+**Question selection**: Q1–Q5 (universal, all files) + Q6–Q36 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
 
 ### Universal Questions
 
@@ -115,9 +115,10 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q30 | Multiple `return` statements or `async` functions | Return type consistent across all paths? Mixed object/undefined, implicit fall-through, async void vs value? |
 | Q31 | `try\|catch\|throw`, error paths, API/entry-point functions | Production-debuggable? Catch sans logging, re-throw sans `{cause}`, no correlation ID, PII in logs, unaudited critical ops? |
 | Q32 | Changed imports, exports, property names, file paths, schema fields, config keys, or module references | Ripple impact complete? Grep codebase for old name/path/key — all references updated? Changed schema field → consumers updated? Renamed export → all importers updated? Modified config key → all readers updated? Flag: partial rename (changed definition but not all usages), orphaned references to old paths/names, schema change without migration of existing data. |
-| Q33 | Function/method calls, `new`, `await`, property access on return values | All exception paths at call sites handled? Flag: calling functions that can throw without try/catch or .catch(), accessing properties on potentially-null return values without guard, await without surrounding try/catch in non-top-level context. Not: calls to pure functions, standard library methods documented as non-throwing. |
+| Q33 | Function/method calls, `new`, `await`, property access on return values, `catch\|\.catch\|\?\.\w` | All exception paths handled? Flag: throwing calls sans try/catch, null-property access sans guard, await sans try/catch. **Untested failure paths**: catch returning defaults instead of propagating? Config fallbacks masking structural errors? `?.` yielding undefined that downstream treats as valid data? |
 | Q34 | Any file when `task_name` or `plan_summary` provided | **Intent verification**: Does the code fully achieve what the task/plan described? Every stated goal implemented? No partial implementations where the code handles the happy path but skips stated edge cases, error handling, or secondary requirements? Flag: plan says "handle X and Y" but code only handles X. |
-| Q35 | `HtmlService\|createTemplateFromFile\|google.script.run\|createGasServer\|<?=\|<?!=` in `.html` files | **GAS HTML**: Template vs Output confusion (setHeight before evaluate, double-wrapping, scriptlets in createHtmlOutputFromFile)? IFRAME embedding (missing setXFrameOptionsMode)? Scriptlet errors (unclosed `<? ?>`, `<?!= include() ?>` inside comments)? **Client-server**: `google.script.run` calling private fn (trailing `_`)? Missing success/failure handlers? `createGasServer` wrong signature (`exec_api(null, module, fn, ...args)`)? **Security**: `<?!= userInput ?>` unescaped XSS? `.innerHTML = userData`? onclick attribute injection? API keys in client code? **Template literals**: URLs with `://` in included files (use string concat)? `</script>` in template literal? |
+| Q35 | `HtmlService\|createTemplateFromFile\|google.script.run\|createGasServer\|<?=\|<?!=` in `.html` files |
+| Q36 | `as \w+\|<\w+>\|Record<string` in TypeScript files where types/interfaces are modified | **Type cast consistency**: Modified type/interface with stale `as Type`/`<Type>` casts elsewhere? Casts written pre-extension pin callers to old shape, hiding new fields from checker → silent field-access failures at runtime. Grep for casts of the modified type. | **GAS HTML**: Template vs Output confusion (setHeight before evaluate, double-wrapping, scriptlets in createHtmlOutputFromFile)? IFRAME embedding (missing setXFrameOptionsMode)? Scriptlet errors (unclosed `<? ?>`, `<?!= include() ?>` inside comments)? **Client-server**: `google.script.run` calling private fn (trailing `_`)? Missing success/failure handlers? `createGasServer` wrong signature (`exec_api(null, module, fn, ...args)`)? **Security**: `<?!= userInput ?>` unescaped XSS? `.innerHTML = userData`? onclick attribute injection? API keys in client code? **Template literals**: URLs with `://` in included files (use string concat)? `</script>` in template literal? |
 
 ### Answer Format
 

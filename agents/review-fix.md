@@ -54,19 +54,29 @@ Flow: Setup & Triage → Initial Review ─────────────�
 
 ## Input Contract
 
-- `target_files="$1"` — optional; comma-separated file paths. If omitted, cascading fallback: reviews **uncommitted/staged** if present, otherwise **last commit (HEAD)**. WIP takes priority.
+- `target_files` — optional; comma-separated file paths/dirs/globs. If omitted, cascading fallback: reviews **uncommitted/staged** if present, otherwise **last commit (HEAD)**. WIP takes priority.
+  - `--all` flag: review all tracked files via `git ls-files`
   - Examples:
     - Auto (WIP): `review-fix()` → reviews uncommitted/staged files
     - Auto (clean): `review-fix()` → reviews last commit
     - Explicit: `review-fix(target_files="src/auth.ts,src/server.ts")`
-- `task_name="$2"` — required; review context identifier
-- `worktree="${3:-.}"` — required; absolute path to working directory
-- `max_rounds="${4:-5}"` — optional; maximum fix-and-re-review rounds (default: 5)
-- `commit_mode="${6:-pr}"` — optional; one of:
+    - Full repo: `review-fix(--all)`
+- `task_name` — required; review context identifier
+- `worktree` — required; absolute path to working directory (default: ".")
+- `max_rounds` — optional; maximum fix-and-re-review rounds (default: 5)
+- `read_only` — optional; if true, report findings without applying fixes
+- `commit_mode` — optional; one of:
   - `"pr"` (default) — stage + commit + push + create PR + squash merge + delete branch + checkout default branch
-  - `"commit"` — stage + commit only (for POST_IMPLEMENT pipeline, which handles PR separately)
-- `plan_summary="${7:-}"` — optional; context string describing the plan intent; injected into reviewer prompts to enable intent-alignment evaluation
-- `max_clusters_per_file="${8:-4}"` — optional; max cluster Tasks per file per round (default: 4, range [1, 4])
+  - `"commit"` — stage + commit only (for POST_IMPLEMENT pipeline)
+  - `"none"` — no git operations (used with read_only)
+- `plan_summary` — optional; plan intent for Q34 intent-alignment evaluation
+
+File filtering: respect `.gitignore` (inherent via git) and `.claspignore` (if present at repo root, filter through its patterns). Filter out `.json`, `.lock` unless explicitly named.
+
+Orphan cleanup at startup:
+```bash
+find /tmp -maxdepth 1 -name 'review-fix.*' -mmin +60 -exec rm -rf {} + 2>/dev/null
+```
 
 **Pre-flight**: If `task_name` is empty, stop and report:
 `Missing required parameters: task_name=[value]`
@@ -319,37 +329,13 @@ function detect_project_context(file_path) {
 reviewer_map = {}
 cardservice_files = []  // tracked for Phase 4 summary warning
 
-// Process .gs files first so their extension-based GAS detection populates the cache
-// before .html files in the same directory call detect_project_context.
-const sorted_file_list = [...file_list].sort((a, b) => {
-  const aGs = a.endsWith('.gs') ? 0 : 1
-  const bGs = b.endsWith('.gs') ? 0 : 1
-  return aGs - bGs
-})
-
-for (const file of sorted_file_list) {
-  const ext = file.split('.').pop()
-  const context = detect_project_context(file)
-
-  if (ext === 'gs') {
-    // Triage: detect CardService patterns to route to gas-gmail-cards
-    const gsContent = readFile(file)
-    const hasCardService = gsContent.match(
-      /CardService|buildContextualCard|buildHomepageCard|GmailApp\.setCurrentMessageAccessToken|setOnClickAction|pushCard|popCard|updateCard/
-    )
-    if (hasCardService) {
-      reviewer_map[file] = 'gas-gmail-cards'
-      cardservice_files.push(file)
-    } else {
-      reviewer_map[file] = 'gas-code-review'
-    }
-  }
-  else if (ext === 'html') {
-    reviewer_map[file] = (context === 'gas') ? 'gas-ui-review' : 'code-reviewer'
-  }
-  else {
-    reviewer_map[file] = 'code-reviewer'
-  }
+// All files route to code-reviewer. Its Q1-Q36 trigger system handles language-specific
+// checks automatically: Q8 covers GAS .gs patterns (CommonJS, events, CacheService),
+// Q35 covers GAS .html patterns (HtmlService, client-server, security).
+// gas-code-review and gas-ui-review remain available as standalone specialists but are
+// not part of the automated review-fix loop.
+for (const file of file_list) {
+  reviewer_map[file] = 'code-reviewer'
 }
 ```
 
@@ -1759,7 +1745,20 @@ Analyze these tasks for conflicts at THREE levels — not just files, but logica
   "wave_count": 2
 }`
 
-// ═══ CLUSTER INFRASTRUCTURE: constants, activation, prompt template ═══
+// ═══ REVIEWER DELEGATION: code-reviewer owns all questions (Q1-Q36) ═══
+//
+// IMPORTANT: Do NOT embed question definitions here. code-reviewer (agents/code-reviewer.md)
+// is the single source of truth for all review questions. This agent dispatches code-reviewer
+// per file and consumes its structured output (Finding/Confidence/Evidence/Fix + LOOP_DIRECTIVE).
+//
+// Previous architecture used 4 domain clusters (safety, intent, integration, ecosystem) with
+// 16 embedded questions. This is replaced by a single code-reviewer Task per file that runs
+// all 36 trigger-based questions. The trigger system in code-reviewer handles question selection
+// automatically — no cluster activation logic needed here.
+//
+// For Phase 3A dispatch, replace cluster Tasks with:
+//   Task(subagent_type="code-reviewer", MODE=evaluate, target_files=<single file>)
+// Parse code-reviewer's standard output for LOOP_DIRECTIVE and finding extraction.
 
 // NON_CODE_EXTENSIONS: file types where only the intent cluster applies
 const NON_CODE_EXTENSIONS = new Set(['md', 'yaml', 'yml', 'json', 'txt', 'toml'])
