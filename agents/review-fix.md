@@ -62,7 +62,6 @@ Flow: Setup & Triage → Initial Review ─────────────�
 - `task_name="$2"` — required; review context identifier
 - `worktree="${3:-.}"` — required; absolute path to working directory
 - `max_rounds="${4:-5}"` — optional; maximum fix-and-re-review rounds (default: 5)
-- `review_mode="${5:-full}"` — optional; passed through to code-reviewer unchanged
 - `commit_mode="${6:-pr}"` — optional; one of:
   - `"pr"` (default) — stage + commit + push + create PR + squash merge + delete branch + checkout default branch
   - `"commit"` — stage + commit only (for POST_IMPLEMENT pipeline, which handles PR separately)
@@ -445,7 +444,6 @@ task_name="${task_name}"
 worktree="${worktree}"
 dryrun=false
 related_files="${related}"
-review_mode="${review_mode}"
 ${plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${plan_summary}` : ''}
 ${per_file_diffs[file] ? `
 **Change context** (focus your review on these changes and their surrounding context):
@@ -760,7 +758,6 @@ WHILE remaining_files.length > 0 AND round < max_rounds:
             is_recheck,
             round: per_file_rounds[file],
             worktree,
-            review_mode,
             task_name,
             fix_context: round_diffs[file] || null,
             output_path: `${REVIEW_TMPDIR}/round_${round}/${file_slug}_cluster_${cluster.id}.md`
@@ -1899,7 +1896,6 @@ Calibration: config misread returning wrong default → Functional. Schema acces
 
 ## Context
 worktree="${context.worktree}"
-review_mode="${context.review_mode}"
 task_name="${context.task_name}"
 ${context.plan_summary ? `\nPlan context (use to evaluate intent alignment):\n${context.plan_summary}` : ''}
 ${context.impact_files?.length > 0 ? `\n**Impact context**: The following files reference symbols changed in ${file}.\nCheck Q11 (backward compatibility) against these actual callers:\n${context.impact_files.map(f => '- ' + f).join('\n')}` : ''}
