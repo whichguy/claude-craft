@@ -6,6 +6,7 @@ find "$HOME/.claude" -maxdepth 1 -type f \( \
   -name ".gas-plan-memo-*" -o \
   -name ".node-plan-memo-*" \
 \) -mmin +60 -delete 2>/dev/null
-# Clean up stale gate files (slug-scoped breadcrumbs in plans dir)
+# Clean up stale gate files (new: /tmp/, old: ~/.claude/plans/)
+find /tmp -maxdepth 1 -name ".review-ready-*" -mmin +60 -delete 2>/dev/null
 find "$HOME/.claude/plans" -maxdepth 1 -name ".review-ready-*" -mmin +60 -delete 2>/dev/null
 exit 0
