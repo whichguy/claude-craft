@@ -1,8 +1,8 @@
 ---
 name: review
 description: |
-  Perform code review with optional auto-fix. Dispatches parallel code-reviewer Tasks
-  per file with wave-based concurrency (MAX_CONCURRENT=12).
+  Review and fix code. Default: review + apply fixes + recheck until clean.
+  Dispatches parallel code-reviewer Tasks per file (MAX_CONCURRENT=12).
 
   AUTOMATICALLY INVOKE when:
   - "review this", "check this code", "code review", "review my changes"
@@ -13,18 +13,19 @@ description: |
 allowed-tools: all
 ---
 
-# /review — Parallel Code Review with Optional Auto-Fix
+# /review — Review and Fix
 
-Review files using the 32-question code-reviewer framework. Each file gets its own
-code-reviewer Task with full Q1-Q32 evaluation. Files with fixable issues get
-automatic recheck rounds.
+Review files and apply fixes by default. Each file gets its own code-reviewer Task
+with full Q1-Q34 evaluation. Files with fixable issues get automatic recheck rounds
+(max 3). Use `--read-only` for report-only mode.
 
 ## Step 0 — Parse Arguments & Setup
 
 From the invocation args, extract:
 - **target_files**: Specific files/dirs/globs to review. If empty, detect from git.
 - **--all**: Review all tracked files in the repo (full-repo audit)
-- **mode**: "review" (default — read-only findings) or "fix" (review + auto-apply fixes)
+- **--read-only**: Report findings without applying fixes (default: review + fix)
+- **--commit**: Review + fix + commit (used by POST_IMPLEMENT pipeline)
 
 File detection (when no target_files specified):
 ```bash
@@ -51,19 +52,15 @@ MAX_RECHECK_ROUNDS=3
 
 ## Step 1 — Dispatch
 
-**If mode="fix"**: dispatch to review-fix agent (it handles its own parallelization):
-```
-Use the Agent tool:
-  subagent_type: "review-fix"
-  prompt: "target_files=\"[file list]\"
-           task_name=\"[task context]\"
-           worktree=\"[working directory]\"
-           commit_mode=\"commit\"
-           Review and apply all Critical and Advisory fixes. Loop until clean."
-```
-STOP after review-fix completes — it produces its own report.
+**Default behavior**: Review all files, apply fixes, recheck until clean (Phase A → B → C).
 
-**If mode="review"**: proceed to Phase A below.
+**If --read-only**: Skip Phase B (no fixes applied). Phase A → C only.
+
+**If --commit**: After Phase C, commit all changes:
+```bash
+git add [files with applied fixes]
+git commit -m "fix: apply code review findings ([N] critical, [M] advisory)"
+```
 
 ### Phase A — Review Waves
 
