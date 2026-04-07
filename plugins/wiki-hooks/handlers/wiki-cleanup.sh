@@ -88,7 +88,7 @@ fi
 if [ -d "$QUEUE_DIR" ]; then
   for f in "$QUEUE_DIR"/*.json; do
     [ -f "$f" ] || continue
-    tp=$(jq -r '.transcript_path // empty' "$f" 2>/dev/null)
+    tp=$(jq -r '.transcript_path // empty' "$f" 2>/dev/null || true)
     # Skip entries that don't have transcript_path (e.g., wiki_change entries)
     [ -z "$tp" ] && continue
     [ "$tp" = "null" ] && continue
