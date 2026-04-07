@@ -114,6 +114,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q29 | `if (!\|== null\|\|\|\|??\|?.` in JS/TS/GS | Falsy↔nullish confusion? `!val` catching `0`/`""`/`false` unintentionally, `\|\|`→`??` for defaults, `?.` result unchecked. |
 | Q30 | Multiple `return` statements or `async` functions | Return type consistent across all paths? Mixed object/undefined, implicit fall-through, async void vs value? |
 | Q31 | `try\|catch\|throw`, error paths, API/entry-point functions | Production-debuggable? Catch sans logging, re-throw sans `{cause}`, no correlation ID, PII in logs, unaudited critical ops? |
+| Q32 | Changed imports, exports, property names, file paths, schema fields, config keys, or module references | Ripple impact complete? Grep codebase for old name/path/key — all references updated? Changed schema field → consumers updated? Renamed export → all importers updated? Modified config key → all readers updated? Flag: partial rename (changed definition but not all usages), orphaned references to old paths/names, schema change without migration of existing data. |
 
 ### Answer Format
 
