@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Reviews code files for correctness, security, quality, and conventions using 31 trigger-based questions with confidence scoring. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
+description: Reviews files for correctness, security, quality, and conventions using 32 trigger-based questions with confidence scoring. Works with any file type — triggers activate based on content patterns, not extensions. **AUTOMATICALLY INVOKE** after writing significant code (>50 lines), before commits, or when detecting quality issues. **STRONGLY RECOMMENDED** for PR reviews, complex refactoring, and security-sensitive changes.
 model: sonnet
 color: red
 ---
@@ -66,7 +66,7 @@ Before moving to Phase 3, verify:
 - Does the code do what you expected, or did reading it reveal surprises?
 - Have any trigger patterns surfaced that weren't obvious from filenames alone?
 - Are there context gaps (missing imports, unknown callers) that would change question selection?
-- Classify file type: **code** (`.ts`, `.js`, `.py`, `.gs`, `.html`, `.css`, `.sh`) vs **non-code** (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`). Unknown extensions default to code.
+- Classify file type: **code** (any programming/scripting/markup language) vs **non-code** (`.md`, `.txt`, prose documentation). Config files (`.yaml`, `.json`, `.toml`, `.env`) are hybrid — apply Q1-Q5 for structural correctness + Q13 for content accuracy. Unknown extensions default to code.
 
 Produce no output yet. This phase is understanding only.
 
@@ -74,7 +74,7 @@ Produce no output yet. This phase is understanding only.
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
-**Question selection**: **Code files**: Q1–Q5 (universal) + Q6–Q31 (any whose trigger pattern matches). **Non-code files**: Q4 + Q5 + triggered Q6–Q31 (skip Q1–Q3: correctness, security, error propagation don't apply to non-code).
+**Question selection**: Q1–Q5 (universal, all files) + Q6–Q32 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
 
 ### Universal Questions
 
@@ -102,7 +102,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q17 | New file, export, or module path | Paths/names/exports follow repo conventions? Check CLAUDE.md + adjacent files. |
 | Q18 | External input, API boundaries, public entry points | **Validation**: Args/state validated early at boundary (fail-fast guards), not deep in chains. **Error clarity**: Messages name what failed + why (state + expectation). Flag: generic throws, swallowed cause, unchecked nulls consumed 3+ lines post-entry. |
 | Q19 | Function >50 lines, class >200, file >500 | Cohesion issue? Flag: multi-concern functions (extract helper), mixed-responsibility classes (split), concern-blending files. (Length alone ≠ problem; 3 unrelated side effects in 40 lines = problem.) |
-| Q20 | JS/TS/GS code files | Restrictive-first? Flag: `let`→`const`, `var` anywhere, `any`→specific type, mutable→immutable, class→function, `export default` in multi-export. (Match repo conventions.) |
+| Q20 | `let\|var\|any\|mut\|export default` or mutable-by-default patterns | Restrictive-first? Flag: `let`→`const`, `var` anywhere, `any`→specific type, mutable→immutable, class→function, `export default` in multi-export. (Match repo conventions.) |
 | Q21 | `.css\|.scss\|.html` or inline `style\|className\|class=` | **CSS↔HTML**: Classes match refs? Orphan/undefined classes? Inline styles duplicating classes? **CSS org**: Redundant selectors, duplicate properties, over-specificity, scattered related styles, inconsistent naming? |
 | Q22 | Any code file | **Conciseness**: Inlineable temporaries? Chainable calls unchained? Verbose identifiers where context suffices? **LLM breadcrumbs**: Complex logic (>10 lines) sans intent comment? Excessive narration of obvious ops? |
 | Q23 | Any code file | Dead code? `console.log`/`debugger` in prod paths, commented-out blocks (>2 lines), unused imports, TODO/FIXME sans issue link. (Not: flagged debug logging.) |
@@ -111,7 +111,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q26 | Literals in logic branches, URLs, ports, timeouts, retry counts | Magic values? Flag: unlabeled numbers in conditions, hardcoded URLs/ports/timeouts, string-as-enum. (Not: `0`/`1`/`-1` standard patterns.) |
 | Q27 | Status/enum fields, `if/else if` sans `else`, `switch` sans `default` | Impossible states reachable? Unhandled branches, unvalidated transitions, undefined enum values? |
 | Q28 | `Date\|moment\|dayjs\|Temporal\|timestamp\|timezone\|UTC\|toISOString\|getTime` | Time edge cases? TZ-naive comparisons, DST-unaware scheduling, manual date math, precision mismatch (ms vs s). |
-| Q29 | `if (!\|== null\|\|\|\|??\|?.` in JS/TS/GS | Falsy↔nullish confusion? `!val` catching `0`/`""`/`false` unintentionally, `\|\|`→`??` for defaults, `?.` result unchecked. |
+| Q29 | `if (!\|== null\|== None\|\|\|\|??\|?.` or language-equivalent nullish patterns | Falsy↔nullish confusion? `!val` catching `0`/`""`/`false` unintentionally, `\|\|`→`??` for defaults, `?.` result unchecked. |
 | Q30 | Multiple `return` statements or `async` functions | Return type consistent across all paths? Mixed object/undefined, implicit fall-through, async void vs value? |
 | Q31 | `try\|catch\|throw`, error paths, API/entry-point functions | Production-debuggable? Catch sans logging, re-throw sans `{cause}`, no correlation ID, PII in logs, unaudited critical ops? |
 | Q32 | Changed imports, exports, property names, file paths, schema fields, config keys, or module references | Ripple impact complete? Grep codebase for old name/path/key — all references updated? Changed schema field → consumers updated? Renamed export → all importers updated? Modified config key → all readers updated? Flag: partial rename (changed definition but not all usages), orphaned references to old paths/names, schema change without migration of existing data. |
