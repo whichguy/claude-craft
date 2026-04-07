@@ -7,8 +7,9 @@
 
 set -o pipefail
 shopt -s nullglob
-command -v jq >/dev/null 2>&1 || exit 0
-command -v claude >/dev/null 2>&1 || exit 0
+. "$(dirname "$0")/wiki-common.sh"
+wiki_check_deps true || exit 0
+wiki_resolve_claude_cmd
 
 HOOK_INPUT=$(cat)
 AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
@@ -121,26 +122,29 @@ Extraction criteria — write a page only if the concept meets 2+ of:
 Update ${WIKI_PATH%/}/index.md with any new pages.
 Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRACT session:${SID:0:8}: <pages created/updated>"
 
-    if claude -p --model sonnet \
+    CLAUDE_STDERR=$(mktemp "${TMPDIR:-/tmp}/wiki-claude-XXXXXX")
+    if timeout 120 "$CLAUDE_CMD" -p --model sonnet \
       --dangerously-skip-permissions --no-session-persistence \
-      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>&1; then
+      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>"$CLAUDE_STDERR"; then
       # Success — delete claimed file
-      rm -f "$CLAIMED"
+      rm -f "$CLAIMED" "$CLAUDE_STDERR"
     else
-      # Failed — check retry count
+      # Failed — capture stderr for diagnostics
       NEW_RETRY=$((RETRY_COUNT + 1))
       ORIG_ENTRY="${CLAIMED%.processing-*}.json"
+      CLAUDE_ERR=$(head -1 "$CLAUDE_STDERR" 2>/dev/null | cut -c1-200)
+      rm -f "$CLAUDE_STDERR"
       if [ "$NEW_RETRY" -ge 3 ]; then
-        # Max retries reached — mark as permanently failed
-        jq --argjson rc "$NEW_RETRY" \
-          '.status = "failed" | .error = "max retries reached" | .retry_count = $rc | .failed_at = (now | todate)' \
+        # Max retries reached — mark as permanently failed with actual error
+        jq --argjson rc "$NEW_RETRY" --arg err "${CLAUDE_ERR:-unknown error}" \
+          '.status = "failed" | .error = $err | .retry_count = $rc | .failed_at = (now | todate)' \
           "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
           && mv "${CLAIMED}.tmp" "$ORIG_ENTRY" 2>/dev/null \
           || mv "$CLAIMED" "$ORIG_ENTRY" 2>/dev/null
       else
-        # Increment retry count and restore to pending
-        jq --argjson rc "$NEW_RETRY" \
-          '.status = "pending" | .retry_count = $rc' \
+        # Increment retry count, record error, restore to pending
+        jq --argjson rc "$NEW_RETRY" --arg err "${CLAUDE_ERR:-unknown error}" \
+          '.status = "pending" | .retry_count = $rc | .last_error = $err' \
           "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
           && mv "${CLAIMED}.tmp" "$ORIG_ENTRY" 2>/dev/null \
           || mv "$CLAIMED" "$ORIG_ENTRY" 2>/dev/null

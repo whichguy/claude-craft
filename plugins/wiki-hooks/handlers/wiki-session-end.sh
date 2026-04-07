@@ -4,8 +4,8 @@
 # SAFETY: trap guarantees exit 0 — never interfere with session termination
 
 trap 'exit 0' ERR
-command -v jq >/dev/null 2>&1 || exit 0
 . "$(dirname "$0")/wiki-common.sh"
+wiki_check_deps || exit 0
 
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0

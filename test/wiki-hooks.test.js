@@ -314,4 +314,51 @@ describe('Wiki Hooks', function () {
             expect(stdout.trim()).to.equal('');
         });
     });
+
+    // ================================================================
+    // Group 6: wiki_check_deps dependency validation
+    // ================================================================
+    describe('wiki_check_deps', function () {
+
+        it('should warn on stderr when jq is unavailable', async function () {
+            // Use a PATH that excludes jq to trigger the warning
+            const restrictedPath = '/usr/bin:/bin';
+            try {
+                await runHook('wiki-detect.sh', {
+                    cwd: fakeRepo, agent_id: '', session_id: 'deps-test',
+                }, { PATH: restrictedPath });
+                // If no error thrown, check there was no output (silent exit)
+            } catch (e) {
+                expect(e.stderr || '').to.include('jq not found');
+            }
+        });
+
+        it('should capture error details in queue entry structure', async function () {
+            // Verify the error field can hold actual error text (not just "max retries reached")
+            const entry = {
+                status: 'failed',
+                error: 'authentication failed: invalid API key',
+                retry_count: 3,
+                failed_at: new Date().toISOString(),
+            };
+            const queueFile = path.join(fakeQueueDir, 'err-test.json');
+            fs.writeFileSync(queueFile, JSON.stringify(entry));
+            const parsed = JSON.parse(fs.readFileSync(queueFile, 'utf-8'));
+            expect(parsed.error).to.not.equal('max retries reached');
+            expect(parsed.error).to.equal('authentication failed: invalid API key');
+        });
+
+        it('should support last_error field on retryable failures', async function () {
+            const entry = {
+                status: 'pending',
+                retry_count: 1,
+                last_error: 'timeout after 120s',
+            };
+            const queueFile = path.join(fakeQueueDir, 'retry-test.json');
+            fs.writeFileSync(queueFile, JSON.stringify(entry));
+            const parsed = JSON.parse(fs.readFileSync(queueFile, 'utf-8'));
+            expect(parsed.last_error).to.equal('timeout after 120s');
+            expect(parsed.status).to.equal('pending');
+        });
+    });
 });

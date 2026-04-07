@@ -8,8 +8,8 @@ set -eo pipefail
 shopt -s nullglob
 
 # --- Fast exit for non-wiki contexts ---
-command -v jq >/dev/null 2>&1 || exit 0
 . "$(dirname "$0")/wiki-common.sh"
+wiki_check_deps || exit 0
 
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0

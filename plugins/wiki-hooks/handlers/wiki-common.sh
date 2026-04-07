@@ -162,6 +162,48 @@ wiki_log() {
   [ -f "$LOG_PATH" ] && echo "[$timestamp] $event session:${SESSION_SHORT}: $detail" >> "$LOG_PATH" 2>/dev/null || true
 }
 
+# --- Dependency validation ---
+# wiki_warn: stderr warning for hook diagnostics (surfaced by Claude Code hook system)
+wiki_warn() {
+  echo "wiki-hooks: $1" >&2
+}
+
+# wiki_check_deps: pre-flight validation. Pass "true" to also require claude CLI.
+wiki_check_deps() {
+  local need_claude="${1:-false}"
+  if ! command -v jq >/dev/null 2>&1; then
+    wiki_warn "jq not found — wiki hooks disabled (install: brew install jq)"
+    return 1
+  fi
+  if [ "$need_claude" = "true" ]; then
+    if ! command -v claude >/dev/null 2>&1; then
+      wiki_warn "claude CLI not found — wiki extraction disabled"
+      return 1
+    fi
+    if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -f "$HOME/.claude/.credentials.json" ]; then
+      wiki_warn "no API key or credentials found — claude extraction may fail"
+    fi
+  fi
+  return 0
+}
+
+# wiki_resolve_claude_cmd: find claude-router (Bedrock/OpenRouter/Ollama) or fall back to bare claude.
+# Sets CLAUDE_CMD variable for caller to use.
+wiki_resolve_claude_cmd() {
+  local router
+  for router in \
+    "$HOME/.claude/tools/claude-router" \
+    "$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)/tools/claude-router" \
+    "$(command -v claude-router 2>/dev/null)"; do
+    if [ -n "$router" ] && [ -x "$router" ]; then
+      CLAUDE_CMD="$router"
+      return 0
+    fi
+  done
+  CLAUDE_CMD="claude"
+  return 0
+}
+
 # --- Orphan cleanup ---
 # Clean up stale .processing-PID or .clearing-PID files
 wiki_cleanup_orphans() {
