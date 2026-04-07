@@ -112,6 +112,8 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 | Q11 | (`dryrun=true` OR prompt includes `**Impact context**` block) + exported functions, `module.exports`, public class methods, or REST endpoints | Would this break existing callers? When an `**Impact context**` block lists referencing files, read those files and verify changed signatures/behaviors remain compatible with actual call sites. Are there backwards-incompatible signature or behavior changes? |
 | Q12 | `.md` files containing question tables (`\| Q`) or evaluator prompt patterns (`Evaluate ALL\|evaluate.*questions\|FINDINGS FROM`) | Are question counts in section headers consistent with the actual number of table rows? Are all Q-IDs referenced in evaluator prompts defined in the question tables? Are all Q-IDs defined in question tables present in IS_GAS/IS_NODE suppression tables where those tables exist? Flag stale counts, orphaned Q-ID references, and missing suppression entries as Critical. |
 | Q13 | Non-code files (`.md`, `.yaml`, `.yml`, `.json`, `.txt`, `.toml`) | Does this change achieve its stated purpose? Is the modified content clear, accurate, and consistent with surrounding context? When `plan_summary` is provided: does the change match the described intent? Flag: ambiguity that could cause misinterpretation, factual errors, broken cross-references, inconsistencies with adjacent content, or changes that undermine rather than support the stated goal. |
+| Q14 | New function/class definition in `target_files` | Does this reimplement functionality available in an existing module? Grep the codebase for similar function names or patterns before flagging. |
+| Q15 | `global\|shared\|singleton\|static\|cache\|lock\|mutex\|concurrent` OR multiple writers to same resource | Are shared state mutations protected? Race conditions possible under concurrent access? |
 | Q16 | `open\|connect\|subscribe\|addEventListener\|setInterval\|setTimeout\|createReadStream\|createServer\|acquire` | Are opened resources (connections, handles, listeners, timers) closed on all paths including error paths? |
 
 ### Answer Format
@@ -119,13 +121,15 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 Apply to every selected question:
 
 ```
-**Q[N]: [Title]** | Finding: Critical / Advisory / Advisory/YAGNI / None
+**Q[N]: [Title]** | Finding: Critical / Advisory / Advisory/YAGNI / None | Confidence: [0-100]
 > [Definitive one-sentence answer]
 Evidence: [file:line — or "None found — [reasoning]"]
 Counter: [One reason this finding could be wrong — or "None identified"]
 Nuance: [Context affecting severity — mitigating factors, conditions]
 Fix: [Required for Critical; recommended for Advisory (before/after code block); omit for None or Advisory/YAGNI]
 ```
+
+**Confidence filtering**: Only report findings with Confidence >= 75. Below 75, the finding is likely noise — suppress it entirely (do not include in output). Confidence reflects how certain you are this is a real issue that will manifest in practice, not a theoretical concern.
 
 **Rules:**
 - Every answer must cite specific evidence (`file:line`) or explicitly state "None found — [reasoning]"
