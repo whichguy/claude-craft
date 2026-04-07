@@ -30,7 +30,7 @@ the team-lead cannot collect.
 
 ## Input Contract
 
-- `target_files` (required) — comma-separated file paths to review
+- `target_files` (required) — single file path to review (dispatched per-file by /review skill)
 - `task_name` (required) — review context identifier
 - `worktree` (optional) — path prefix for file access; defaults to current directory
 - `dryrun` (optional, default false) — true = review plan, false = review implementation
@@ -212,4 +212,4 @@ Write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.j
 }
 ```
 
-**Multiple files**: Repeat Phases 2–4 for each file in `target_files`. The overall approval status is the most severe status across all files.
+**Single-file scope**: This agent reviews one file per invocation. The `/review` skill handles multi-file orchestration by dispatching parallel code-reviewer Tasks (one per file) with wave-based concurrency.
