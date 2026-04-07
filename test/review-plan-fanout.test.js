@@ -168,7 +168,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('initializes l1_results in per-pass reset block', function () {
             const passInit = skillContent.substring(
                 skillContent.indexOf('pass_count += 1'),
-                skillContent.indexOf('Print: "Pass [')
+                skillContent.indexOf('Pass [pass_count]/5')
             );
             expect(passInit).to.include('l1_results = {}');
         });
@@ -176,7 +176,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('initializes l1_edits in per-pass reset block', function () {
             const passInit = skillContent.substring(
                 skillContent.indexOf('pass_count += 1'),
-                skillContent.indexOf('Print: "Pass [')
+                skillContent.indexOf('Pass [pass_count]/5')
             );
             expect(passInit).to.include('l1_edits = {}');
         });
@@ -184,7 +184,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('initializes cluster_results in per-pass reset block', function () {
             const passInit = skillContent.substring(
                 skillContent.indexOf('pass_count += 1'),
-                skillContent.indexOf('Print: "Pass [')
+                skillContent.indexOf('Pass [pass_count]/5')
             );
             expect(passInit).to.include('cluster_results = {}');
         });
@@ -192,7 +192,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('initializes ui_results in per-pass reset block', function () {
             const passInit = skillContent.substring(
                 skillContent.indexOf('pass_count += 1'),
-                skillContent.indexOf('Print: "Pass [')
+                skillContent.indexOf('Pass [pass_count]/5')
             );
             expect(passInit).to.include('ui_results = {}');
         });
@@ -200,7 +200,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('initializes all_results in per-pass reset block', function () {
             const passInit = skillContent.substring(
                 skillContent.indexOf('pass_count += 1'),
-                skillContent.indexOf('Print: "Pass [')
+                skillContent.indexOf('Pass [pass_count]/5')
             );
             expect(passInit).to.include('all_results = {}');
         });
@@ -237,7 +237,7 @@ describe('Review-Plan Task Fan-Out', function () {
 
         it('prints wave count and evaluator names per wave', function () {
             expect(skillContent).to.include('wave(s) (max [MAX_CONCURRENT] concurrent)');
-            expect(skillContent).to.include('wave [wave_idx+1]/[len(waves)]');
+            expect(skillContent).to.include('Wave [wave_idx+1]/[len(waves)]');
         });
     });
 
