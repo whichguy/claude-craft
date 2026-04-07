@@ -10,7 +10,7 @@ description: |
   QUESTION_A, QUESTION_B, REVISION_A, REVISION_B in its prompt. Returns JSON only — no prose.
 
   NOT for standalone use.
-model: opus
+model: inherit
 tools: []
 ---
 

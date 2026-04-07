@@ -12,7 +12,7 @@ description: |
   - Complex features spanning multiple files
   - Features with unclear scope
   - Sprint planning
-model: inherit
+model: sonnet
 ---
 
 **Template**: feature-task-creator

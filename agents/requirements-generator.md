@@ -14,7 +14,7 @@ description: |
   - New features before implementation
   - User stories that need breakdown
   - PRD/spec document creation
-model: inherit
+model: sonnet
 ---
 
 **Template**: requirements-generator
