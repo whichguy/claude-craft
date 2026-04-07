@@ -84,7 +84,7 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | `architectural` | Q4 + Q5 + Q11 | Public APIs, shared utilities, stable-interface changes |
 | `full` (default) | **Code files**: Q1–Q5 + all triggered. **Non-code files**: Q4 + Q5 + all triggered (skip Q1–Q3: correctness, security, and error propagation don't apply to non-code content). | Production-bound changes; PR to main branch |
 
-Context-specific questions (Q6–Q13) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
+Context-specific questions (Q6–Q31) are always added when their trigger pattern appears in the code, regardless of `review_mode`.
 
 ### Universal Questions
 
