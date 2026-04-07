@@ -115,6 +115,8 @@ Context-specific questions (Q6–Q13) are always added when their trigger patter
 | Q14 | New function/class definition in `target_files` | Does this reimplement functionality available in an existing module? Grep the codebase for similar function names or patterns before flagging. |
 | Q15 | `global\|shared\|singleton\|static\|cache\|lock\|mutex\|concurrent` OR multiple writers to same resource | Are shared state mutations protected? Race conditions possible under concurrent access? |
 | Q16 | `open\|connect\|subscribe\|addEventListener\|setInterval\|setTimeout\|createReadStream\|createServer\|acquire` | Are opened resources (connections, handles, listeners, timers) closed on all paths including error paths? |
+| Q17 | Any new file, export, or module path in `target_files` | Do file paths, module names, exports, and schema follow this repo's conventions? Check CLAUDE.md, adjacent files, and existing directory structure for naming patterns, path conventions, and organizational style. |
+| Q18 | Any code file in `target_files` | **Conciseness**: Are variable names, intermediates, and expressions as compact as readability allows? Flag: verbose temporaries that could be inlined, unchained calls that the language supports chaining, redundant destructuring, or unnecessarily long identifiers when context makes short names unambiguous. **LLM breadcrumbs**: Do complex or non-obvious sections have short navigational comments (// intent, not mechanics) that help an LLM interpret the code? Flag: complex new logic (>10 lines) with zero comments explaining *why*, or excessive comments that narrate obvious operations. |
 
 ### Answer Format
 
