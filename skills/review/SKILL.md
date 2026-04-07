@@ -35,6 +35,7 @@ git ls-files
 { git diff --name-only HEAD; git diff --cached --name-only; git status --porcelain | grep -v '^??' | cut -c4-; } | sort -u
 ```
 Filter out `.json`, `.lock` files unless explicitly named in target_files.
+Respect `.gitignore` and `.claspignore` — never review files matched by either. `git ls-files` inherently respects `.gitignore`; for `.claspignore`, check if file exists at repo root and filter results through its patterns.
 
 ## Step 1 — Triage
 
