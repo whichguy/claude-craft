@@ -110,24 +110,65 @@ reviewer_prompt = (file) => `
   ${per_file_diffs[file] ? '**Change context:**\n```diff\n' + per_file_diffs[file] + '\n```' : ''}
   ${impact_files[file]?.length > 0 ? '**Impact context** (callers for Q11):\n' + impact_files[file].map(f => '- ' + f).join('\n') : ''}
 `
+```
 
-waves = chunk(file_list, MAX_CONCURRENT)
-For each wave:
-  Spawn parallel Tasks (one per file, single message):
-    Task(subagent_type="code-reviewer", prompt=reviewer_prompt(file))
+### Producer-Consumer Dispatch
 
-  Collect results: parse each Task output for findings and LOOP_DIRECTIVE
+Use `run_in_background: true` agents as the concurrency mechanism. This keeps all
+MAX_CONCURRENT slots filled continuously — when one agent completes, the next file
+starts immediately without waiting for the entire wave.
 
-  Print wave banner and per-file status:
-  ```
-  ┌──────────────────────────────────────────────────────┐
-  │  Wave [W]/[N] — [count] files                        │
-  └──────────────────────────────────────────────────────┘
-    ┌ file.ts               ● APPROVED                     [Ns]
-    ├ other.js              ◐ NEEDS_REVISION (2C 1A)       [Ns]
-    └ config.yaml           ● APPROVED_WITH_NOTES (0C 3A)  [Ns]
-    fan-in ── ●[approved]  ◐[needs_work]
-  ```
+```
+queue = [...file_list]           # files waiting to be reviewed
+active = {}                      # name → file mapping for in-flight agents
+results = {}                     # file → parsed findings + LOOP_DIRECTIVE
+completed = 0
+
+# Fill initial slots
+While queue non-empty AND len(active) < MAX_CONCURRENT:
+  file = queue.shift()
+  name = sanitize(file)          # unique agent name for SendMessage
+  Agent(
+    subagent_type = "code-reviewer",
+    name = name,
+    run_in_background = true,
+    prompt = reviewer_prompt(file)
+  )
+  active[name] = file
+  Print: "  ▸ dispatched: [file]"
+
+# Process completions as they arrive
+# Background agents notify automatically when done — do NOT poll.
+# When notified of completion:
+For each completion notification:
+  Parse agent output → findings + LOOP_DIRECTIVE
+  results[file] = { findings, loop_directive, elapsed }
+  Remove from active
+  completed += 1
+
+  # Print progress inline
+  status_icon = loop_directive == "COMPLETE" ? "●" : "◐"
+  Print: "  [status_icon] [file] — [status] ([Nc]C [Na]A) [elapsed]s   [{completed}/{total}]"
+
+  # Refill: dispatch next from queue if slots available
+  If queue non-empty AND len(active) < MAX_CONCURRENT:
+    next_file = queue.shift()
+    name = sanitize(next_file)
+    Agent(
+      subagent_type = "code-reviewer",
+      name = name,
+      run_in_background = true,
+      prompt = reviewer_prompt(next_file)
+    )
+    active[name] = next_file
+    Print: "  ▸ dispatched: [next_file]"
+
+# All complete when: queue empty AND active empty
+Print: "  fan-in ── ●[approved]  ◐[needs_work]   [{total_elapsed}s]"
+```
+
+**Fallback**: If background dispatch is unavailable, fall back to wave-based dispatch:
+chunk files into waves of MAX_CONCURRENT, spawn all in single message, wait for wave, repeat.
 ```
 
 ### Finding Parser
@@ -189,7 +230,7 @@ DO:
     Re-dispatching [N] files for recheck...
   ```
 
-  Re-dispatch code-reviewer Tasks for recheck files (same wave logic as Step 3)
+  Re-dispatch code-reviewer for recheck files (same producer-consumer as Step 3)
   Update findings and LOOP_DIRECTIVE for each file
 
   Print round summary:
