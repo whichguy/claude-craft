@@ -12,7 +12,7 @@ description: |
   - Plan modifies async code, environment variables, or Node process lifecycle
   - User says "review plan", "check plan", "node-plan"
 
-  **NOT for:** GAS plans (use /gas-plan), code review (use /review-fix), non-Node plans
+  **NOT for:** GAS plans (use /gas-plan), code review (use /review), non-Node plans
 
 model: claude-sonnet-4-6
 allowed-tools: all

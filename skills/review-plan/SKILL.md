@@ -10,7 +10,7 @@ description: |
   - User says "review plan", "check plan", "plan ready?"
   - Any plan file needs review (GAS or non-GAS)
 
-  NOT for: Code review of existing files (use /gas-review or /review-fix)
+  NOT for: Code review of existing files (use /gas-review or /review)
 allowed-tools: all
 ---
 

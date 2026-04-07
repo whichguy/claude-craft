@@ -269,7 +269,7 @@ Identify affected project docs: MEMORY.md, CLAUDE.md, README, JSDoc. Update when
 
 **Q42: Is there a plan to review all changes after all code is applied?** (3, GAS, never N/A)
 Plan must include a post-implementation section after all implementation steps:
-(1) run `/review-fix` or `/gas-review` — loop until clean,
+(1) run `/review` or `/gas-review` — loop until clean,
 (2) run build/compile if applicable,
 (3) run tests.
 Steps 4–5 of CLAUDE.md POST_IMPLEMENT (fail recovery and PR creation) apply at runtime regardless of plan text — plan does not need to restate them.

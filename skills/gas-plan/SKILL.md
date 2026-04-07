@@ -284,7 +284,7 @@ DO:
       # Not memoized — evaluate directly:
       IF q_id == "Q1": check — does the plan name a branch and include a push-to-remote step? (blocking)
       IF q_id == "Q2": check — do the plan steps create a feature branch with incremental commits? (blocking)
-      IF q_id == "Q42": check — does the plan include a post-implementation review section (/review-fix or /gas-review + build + tests)? (blocking)
+      IF q_id == "Q42": check — does the plan include a post-implementation review section (/review or /gas-review + build + tests)? (blocking)
       Set results[q_id] = "PASS" or "NEEDS_UPDATE" based on the check above.
       IF results[q_id] == "NEEDS_UPDATE": never_na_findings.append(q_id)
     These three questions can never converge as N/A — any NEEDS_UPDATE here blocks exit.
@@ -705,7 +705,7 @@ Identify affected project docs: MEMORY.md, CLAUDE.md, README, JSDoc. Update when
 
 **Q42: Is there a plan to review all changes after all code is applied?** (3, GAS, never N/A)
 Plan must include a post-implementation section after all implementation steps:
-(1) run `/review-fix` or `/gas-review` — loop until clean,
+(1) run `/review` or `/gas-review` — loop until clean,
 (2) run build/compile if applicable,
 (3) run tests.
 Steps 4–5 of CLAUDE.md POST_IMPLEMENT (fail recovery and PR creation) apply at runtime regardless of plan text — plan does not need to restate them.
