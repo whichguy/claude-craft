@@ -58,8 +58,8 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
   done < "$ENTITY_INDEX"
 
   if [ "$MATCH_COUNT" -gt 0 ]; then
-    DISPLAY="🔍 ${MATCH_COUNT} wiki match(es): ${MATCHED_NAMES}"
-    CONTENT="Wiki pages matching your prompt (auto-loaded). Use /wiki-load for full content."$'\n\n'"${CONTENT}"
+    DISPLAY="🔍 Wiki auto-loaded ${MATCH_COUNT} page(s): ${MATCHED_NAMES} — /wiki-load ${MATCHED_NAMES%%,*} for full content"
+    CONTENT="Wiki pages matching your prompt (auto-loaded, first 10 lines each). Use /wiki-load <slug> to load full page content."$'\n\n'"${CONTENT}"
   fi
 fi
 

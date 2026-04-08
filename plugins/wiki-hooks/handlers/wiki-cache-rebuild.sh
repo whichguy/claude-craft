@@ -77,6 +77,12 @@ if [ "$topic_count" -gt 10 ]; then overflow=", +$((topic_count - 10)) more"; fi
 sep="   ─────────────────────────────────────"
 
 DISPLAY_TMP="$CACHE_DIR/display.txt.tmp"
+# Pick a random topic for dynamic example (rotate on each rebuild)
+example_topic=""
+if [ -d "$ENTITIES_DIR" ]; then
+  example_topic=$(ls "$ENTITIES_DIR/" 2>/dev/null | sed 's/\.md$//' | shuf -n 1 2>/dev/null || ls "$ENTITIES_DIR/" 2>/dev/null | sed 's/\.md$//' | head -1)
+fi
+
 if [ -n "$topics" ]; then
   topic_display=$(echo "$topics" | sed 's/, / · /g')
   {
@@ -84,7 +90,11 @@ if [ -n "$topics" ]; then
     echo "$sep"
     echo "   ${topic_display}${overflow}"
     echo "$sep"
-    echo "   /wiki-load <topic>  ·  /wiki-query <question>"
+    if [ -n "$example_topic" ]; then
+      echo "   /wiki-load ${example_topic}  ·  /wiki-query \"how does ${example_topic} work?\""
+    else
+      echo "   /wiki-load <topic>  ·  /wiki-query <question>"
+    fi
   } > "$DISPLAY_TMP"
 else
   {
