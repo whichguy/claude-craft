@@ -257,6 +257,41 @@ do_status() {
     printf "  %-14s %s\n" "Available:" "$total_available (in repo, not installed)"
     printf "  %-14s %s\n" "Total:" "$((total_registered + total_local + total_available))"
 
+    # Plugin health checks
+    local plugin_warnings=0
+    local settings_file="$CLAUDE_DIR/settings.json"
+    for plugin_dir in "$CLAUDE_DIR/plugins"/*/; do
+        [ -d "$plugin_dir" ] || continue
+        local pname=$(basename "$plugin_dir")
+        [[ "$pname" == .* || "$pname" == "cache" || "$pname" == "data" ]] && continue
+        # Skip non-symlink directories (marketplace plugins managed separately)
+        [ -L "${plugin_dir%/}" ] || continue
+
+        # Check enabledPlugins — warn if key absent (use has() to avoid false-positive on explicit false)
+        if command -v jq >/dev/null 2>&1 && [ -f "$settings_file" ]; then
+            if ! jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
+                echo -e "  ${YELLOW}⚠️  $pname: missing from enabledPlugins (run install.sh to register)${NC}"
+                plugin_warnings=$((plugin_warnings + 1))
+            fi
+        fi
+
+        # Check hooks.json location
+        if [ -f "$plugin_dir/hooks.json" ] && [ ! -f "$plugin_dir/hooks/hooks.json" ]; then
+            echo -e "  ${YELLOW}⚠️  $pname: hooks.json at root (should be hooks/hooks.json)${NC}"
+            plugin_warnings=$((plugin_warnings + 1))
+        fi
+
+        # Check manifest (advisory)
+        if [ ! -f "$plugin_dir/.claude-plugin/plugin.json" ]; then
+            echo -e "  ${YELLOW}⚠️  $pname: missing .claude-plugin/plugin.json (recommended)${NC}"
+            plugin_warnings=$((plugin_warnings + 1))
+        fi
+    done
+    if [ $plugin_warnings -gt 0 ]; then
+        echo ""
+        echo -e "${YELLOW}  $plugin_warnings plugin warning(s) — run install.sh or check settings.json to fix${NC}"
+    fi
+
     if [ $total_available -gt 0 ]; then
         echo ""
         echo -e "${YELLOW}Run '/craft sync' to install available items${NC}"

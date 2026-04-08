@@ -80,6 +80,48 @@ install_settings_hooks() {
     echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hook (PreToolUse)${NC}"
 }
 
+register_plugins() {
+    local settings_file="$CLAUDE_DIR/settings.json"
+
+    if ! command -v jq >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠️  jq not found — skipping plugin registration${NC}"
+        return
+    fi
+
+    [ ! -f "$settings_file" ] && echo '{}' > "$settings_file"
+
+    local registered=0
+
+    # Auto-detect plugins from repo's plugins/ directory
+    for plugin_dir in "$REPO_DIR/plugins"/*/; do
+        [ -d "$plugin_dir" ] || continue
+        local pname=$(basename "$plugin_dir")
+        [[ "$pname" == .* ]] && continue
+        # Only register plugins that have hooks (not all plugin dirs need enablement)
+        [ -f "$plugin_dir/hooks/hooks.json" ] || [ -f "$plugin_dir/hooks.json" ] || continue
+        # Idempotency: skip if key already present (regardless of value — respect explicit false)
+        if jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
+            continue
+        fi
+        local tmp
+        tmp=$(mktemp "${settings_file}.XXXXXX")
+        if jq --arg p "$pname" '.enabledPlugins[$p] = true' "$settings_file" > "$tmp"; then
+            mv "$tmp" "$settings_file"
+        else
+            rm -f "$tmp"
+            echo -e "${YELLOW}⚠️  Failed to register plugin $pname — skipping${NC}"
+            continue
+        fi
+        registered=$((registered + 1))
+    done
+
+    if [ $registered -gt 0 ]; then
+        echo -e "${GREEN}✅ Registered $registered plugin(s) in enabledPlugins${NC}"
+    else
+        echo -e "${GREEN}✅ All plugins already registered${NC}"
+    fi
+}
+
 # Main installation
 main() {
     echo -e "${YELLOW}🔍 Checking system requirements...${NC}"
@@ -155,6 +197,10 @@ main() {
     # Install settings hooks (e.g. ExitPlanMode review-plan gate)
     echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
     install_settings_hooks
+
+    # Register custom plugins in enabledPlugins
+    echo -e "${YELLOW}🔌 Registering plugins...${NC}"
+    register_plugins
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"
