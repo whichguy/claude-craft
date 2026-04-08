@@ -59,7 +59,7 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
 
   if [ "$MATCH_COUNT" -gt 0 ]; then
     DISPLAY="🔍 Wiki auto-loaded ${MATCH_COUNT} page(s): ${MATCHED_NAMES} — /wiki-load ${MATCHED_NAMES%%,*} for full content"
-    CONTENT="Wiki pages matching your prompt (auto-loaded, first 10 lines each). Use /wiki-load <slug> to load full page content."$'\n\n'"${CONTENT}"
+    CONTENT="WIKI_PARTIAL: auto-matched entities (10-line preview only). REQUIRED: invoke /wiki-load <slug> before planning, designing, debugging, or answering domain questions referencing these topics. Previews insufficient for substantive work."$'\n\n'"${CONTENT}"
   fi
 fi
 
@@ -86,7 +86,7 @@ if [ -f "$MARKER" ]; then
     else
       DISPLAY="📖 ${NEW_COUNT} new wiki page(s): ${NEW_NAMES}"
     fi
-    CONTENT="New wiki pages extracted from recent sessions: ${NEW_NAMES}."$'\n\n'"${CONTENT}"
+    CONTENT="WIKI_NEW: recently-extracted entity pages below. Reference this content when relevant to current task. For topics requiring deeper context, invoke /wiki-load <slug>."$'\n\n'"${CONTENT}"
   fi
 fi
 
