@@ -103,15 +103,17 @@ for entry in "${VALID_ENTRIES[@]}"; do
 
   # Spawn extraction in background subshell
   (
-    EXTRACT_PROMPT="Extract wiki knowledge from this session transcript.
+    EXTRACT_PROMPT="Extract and synthesize wiki knowledge from this session transcript.
 
 Transcript: $TRANSCRIPT (read last 2000 lines with the Read tool)
 Wiki path: $WIKI_PATH
-Read the existing index at ${WIKI_PATH%/}/index.md first.
 
-For each significant entity, decision, or concept discussed:
-- If entity page exists in wiki/entities/: append a '## From Session' subsection (check for idempotency — skip if already present)
-- If new entity: create wiki/entities/SLUG.md
+Step 1: Read ${WIKI_PATH%/}/index.md and ${WIKI_PATH%/}/SCHEMA.md to understand existing pages and required formats.
+
+Step 2: For each significant entity, decision, or concept discussed:
+- If entity page exists in wiki/entities/: add a '- **From Session ${SID:0:8}:**' bullet (NOT a ## header). Check for idempotency — skip if session ID already present.
+- If new entity: create wiki/entities/SLUG.md following the Entity format in SCHEMA.md:
+  Overview (2-3 sentences). Bullet list of sources. Cross-links (→ See also:).
 
 Extraction criteria — write a page only if the concept meets 2+ of:
   (a) Named 3+ times in the session
@@ -119,11 +121,22 @@ Extraction criteria — write a page only if the concept meets 2+ of:
   (c) It caused confusion or correction
   (d) It's a named architectural component or design pattern
 
-Update ${WIKI_PATH%/}/index.md with any new pages.
+Step 3: Synthesize (don't just extract):
+- Add cross-links (→ See also:) between related entities — update BOTH sides
+- If new information contradicts an older bullet, note the evolution explicitly
+- If multiple older bullets are now subsumed by deeper understanding, consolidate them
+- Index summaries must be retrieval-friendly: start with what the page IS, then add key search terms in parentheses
+
+Step 4: Update ${WIKI_PATH%/}/index.md with any new or updated pages.
 Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRACT session:${SID:0:8}: <pages created/updated>"
 
     CLAUDE_STDERR=$(mktemp "${TMPDIR:-/tmp}/wiki-claude-XXXXXX")
-    if timeout 120 "$CLAUDE_CMD" -p --model sonnet \
+    # Run with timeout: prefer gtimeout (Homebrew), fall back to timeout (Linux), then no-timeout
+    TIMEOUT_CMD=""
+    if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD="gtimeout 120"
+    elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout 120"
+    fi
+    if $TIMEOUT_CMD "$CLAUDE_CMD" -p --model sonnet \
       --dangerously-skip-permissions --no-session-persistence \
       "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>"$CLAUDE_STDERR"; then
       # Success — delete claimed file
