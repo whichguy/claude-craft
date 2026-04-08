@@ -501,6 +501,17 @@ main() {
 
     # Execute removal steps
     restore_from_backup
+
+    # Unmerge plugin hooks before removing symlinks (hooks reference symlinked paths)
+    if [ -x "$REPO_DIR/tools/merge-hooks.sh" ]; then
+        echo -e "${YELLOW}🔌 Unmerging plugin hooks...${NC}"
+        if [ "$DRY_RUN" = false ]; then
+            "$REPO_DIR/tools/merge-hooks.sh" --unmerge
+        else
+            "$REPO_DIR/tools/merge-hooks.sh" --unmerge --dry-run
+        fi
+    fi
+
     remove_symlinks
     remove_global_commands
     remove_git_hooks

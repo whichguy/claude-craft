@@ -82,9 +82,8 @@ install_settings_hooks() {
 
 merge_plugin_hooks() {
     # Merge plugin hooks into settings.json via merge-hooks.sh
-    # Plugins are symlinked: ~/.claude/plugins/<name> -> repo/plugins/<name>
-    # Hooks are resolved from ${CLAUDE_PLUGIN_ROOT} to ~/.claude/plugins/<name>
-    # and merged directly into settings.json's hooks section (tagged with _plugin)
+    # Reads plugin hooks.json, resolves ${CLAUDE_PLUGIN_ROOT} paths,
+    # merges into settings.json hooks section (idempotent — safe to re-run)
     if [ -x "$REPO_DIR/tools/merge-hooks.sh" ]; then
         "$REPO_DIR/tools/merge-hooks.sh"
     else
