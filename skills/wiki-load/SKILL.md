@@ -1,13 +1,16 @@
 ---
 name: wiki-load
 description: |
-  JIT context loader: searches both project wiki AND global wiki for a topic.
-  Loads raw pages into context — no synthesis. Zero overhead (user-invoked).
-  This is the unified retrieval interface for all knowledge tiers.
+  JIT wiki-context loader: searches project wiki + global wiki for topic.
+  Loads raw pages — no synthesis. Unified retrieval interface for all knowledge tiers.
   AUTOMATICALLY INVOKE when: "what do we know about", "load context for",
   "pull in wiki context", "find in wiki", "look up in the wiki", "load the wiki page for",
   "what's in the wiki about", "load knowledge about"
-  NOT for: synthesizing answers (use /wiki-query), ingesting sources (use /wiki-ingest)
+  PROACTIVELY INVOKE when: wiki-notify injects WIKI_PARTIAL previews and current task
+  involves planning/designing/debugging/answering those topics — full-page retrieval
+  required before substantive work. Also invoke when entering plan-mode for features
+  touching wiki-documented domains.
+  NOT for: synthesized answers (/wiki-query), source ingestion (/wiki-ingest)
 model: sonnet
 allowed-tools: Bash, Read, Glob, Grep
 argument-hint: "<topic> [--global] [--project]"
