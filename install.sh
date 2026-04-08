@@ -71,28 +71,13 @@ install_settings_hooks() {
     fi
 
     local pre_hook_cmd='plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); slug=$(basename "$plan_file" .md 2>/dev/null); if [ -n "$slug" ] && [ -f ~/.claude/plans/.review-ready-"$slug" ]; then printf '"'"'{}'"'"'; else printf '"'"'%s'"'"' '"'"'{"decision":"block","reason":"Gate file not found. Either review-plan has not been run yet (run it first), or ExitPlanMode already succeeded and the gate was cleaned up (do not retry)."}'"'"'; fi'
-    local post_hook_cmd='input=$(cat); tool_result=$(echo "$input" | jq -r '"'"'.tool_result // ""'"'"' 2>/dev/null); if echo "$tool_result" | grep -qi '"'"'error\|not in plan mode\|failed'"'"'; then printf '"'"'{}'"'"'; exit 0; fi; plan_file=$(ls -t ~/.claude/plans/*.md 2>/dev/null | head -1); if [ -n "$plan_file" ]; then slug=$(basename "$plan_file" .md); rm -f ~/.claude/plans/.review-ready-"$slug"; fi; printf '"'"'{}'"'"''
 
     local tmp="$settings_file.tmp"
-    jq --arg pre_cmd "$pre_hook_cmd" --arg post_cmd "$post_hook_cmd" \
-       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$pre_cmd,"statusMessage":"Checking review-plan was run..."}]}]) | .hooks.PostToolUse = ((.hooks.PostToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$post_cmd,"statusMessage":"Cleaning up review gate..."}]}])' \
+    jq --arg pre_cmd "$pre_hook_cmd" \
+       '.hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"ExitPlanMode","hooks":[{"type":"command","command":$pre_cmd,"statusMessage":"Checking review-plan was run..."}]}])' \
        "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
 
-    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hooks (PreToolUse + PostToolUse)${NC}"
-
-    # Wiki hooks: register 4 handlers in settings.json (plugin auto-discovery unreliable for local plugins)
-    if jq -e '.hooks.SessionStart[]? | select(.hooks[]?.command | contains("wiki-detect"))' "$settings_file" > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ Wiki hooks already installed${NC}"
-    else
-        jq '
-          .hooks.SessionStart = ((.hooks.SessionStart // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-detect.sh","timeout":5}]}]) |
-          .hooks.PreToolUse = ((.hooks.PreToolUse // []) + [{"matcher":"Write|Edit","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-raw-guard.sh","timeout":2}]}]) |
-          .hooks.PreCompact = ((.hooks.PreCompact // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-precompact.sh","timeout":5}]}]) |
-          .hooks.Stop = ((.hooks.Stop // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-stop.sh","timeout":15,"async":true}]}]) |
-          .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{"matcher":"*","hooks":[{"type":"command","command":"~/.claude/plugins/wiki-hooks/handlers/wiki-session-end.sh","timeout":5}]}])
-        ' "$settings_file" > "$tmp" && mv "$tmp" "$settings_file"
-        echo -e "${GREEN}✅ Installed wiki hooks (SessionStart, PreToolUse, PreCompact, Stop, SessionEnd)${NC}"
-    fi
+    echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hook (PreToolUse)${NC}"
 }
 
 # Main installation

@@ -1,0 +1,8 @@
+{
+  "name": "wiki-hooks",
+  "description": "Wiki lifecycle hooks: detect, guard, precompact, stop, session-end, cache-rebuild, worker, cleanup.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Claude Craft"
+  }
+}
