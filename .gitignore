@@ -16,3 +16,7 @@ wiki/maintenance/
 wiki/.session-*
 raw/
 !wiki/SCHEMA.md
+
+# Benchmark results — generated, not source
+results/*.json
+!results/.gitkeep

@@ -10,6 +10,9 @@
     "test:backup": "mocha test/backup.test.js",
     "test:sync": "mocha test/sync.test.js",
     "test:coverage": "nyc mocha test/**/*.test.js",
+    "test:bench": "mocha test/review-fix-bench.test.js --timeout 10000",
+    "bench:run": "bash tools/review-fix-bench.sh --run",
+    "bench:compare": "bash tools/review-fix-bench.sh --compare",
     "security:scan": "./tools/security-scan.sh . secrets false"
   },
   "keywords": [
