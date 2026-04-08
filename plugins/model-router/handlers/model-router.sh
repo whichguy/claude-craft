@@ -12,9 +12,37 @@ TOOL_INPUT=$(echo "$INPUT" | jq '.tool_input' 2>/dev/null) || { echo "$(date -u 
 
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 CURRENT_MODEL=$(echo "$TOOL_INPUT" | jq -r '.model // empty' 2>/dev/null)
-CONFIG="$HOME/.claude/model-map.json"
 
-[[ ! -f "$CONFIG" ]] && exit 0
+# Get CWD from input to resolve local config (mirrors Claude Code's precedence)
+HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+# Config precedence: local .claude/ > global ~/.claude/ (matches Claude Code)
+GLOBAL_CONFIG="$HOME/.claude/model-map.json"
+CONFIG=""
+
+# Check local config only if CWD is valid (absolute, sane length, exists)
+if [[ -n "$HOOK_CWD" && "$HOOK_CWD" == /* && ${#HOOK_CWD} -lt 4096 ]]; then
+  LOCAL_CONFIG="$HOOK_CWD/.claude/model-map.json"
+  # Canonicalize to prevent directory traversal
+  if [[ -f "$LOCAL_CONFIG" ]]; then
+    LOCAL_CONFIG_REAL=$(cd "$(dirname "$LOCAL_CONFIG")" 2>/dev/null && pwd -P)/$(basename "$LOCAL_CONFIG") || true
+    # Verify resolved path is under CWD (prevent symlink escape)
+    # Canonicalize CWD too for comparison
+    HOOK_CWD_REAL=$(cd "$HOOK_CWD" 2>/dev/null && pwd -P) || true
+    if [[ -n "$LOCAL_CONFIG_REAL" && -n "$HOOK_CWD_REAL" ]]; then
+      # Check that the config file is exactly at <cwd>/.claude/model-map.json
+      if [[ "$LOCAL_CONFIG_REAL" == "$HOOK_CWD_REAL/.claude/model-map.json" ]]; then
+        CONFIG="$LOCAL_CONFIG_REAL"
+      fi
+    fi
+  fi
+fi
+
+# Fallback to global config
+if [[ -z "$CONFIG" && -f "$GLOBAL_CONFIG" ]]; then
+  CONFIG="$GLOBAL_CONFIG"
+fi
+
+[[ -z "$CONFIG" ]] && exit 0
 
 NEW_MODEL=""
 

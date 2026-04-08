@@ -20,8 +20,8 @@ QUEUE_DIR="$HOME/.claude/reflection-queue"
 
 [ -z "$TRANSCRIPT" ] && exit 0
 
-# Derive wiki_path from CWD
-wiki_find_root || true  # wiki_path may be empty for non-wiki projects — that's OK
+# Derive wiki_path from CWD — skip queueing if no wiki found
+wiki_find_root || exit 0
 
 QUEUE_SUFFIX="wiki" wiki_queue_entry "session_wiki" "session-end" "normal"
 

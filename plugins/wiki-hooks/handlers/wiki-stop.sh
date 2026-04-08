@@ -29,4 +29,8 @@ fi
 # Queue wiki_change if files modified
 QUEUE_SUFFIX_CHANGE="wikichange" wiki_queue_changes "wiki_change"
 
+# Dedup: skip if this session already logged SESSION_END
+# Escape SESSION_SHORT for grep pattern (alphanumeric only, but be defensive)
+SESSION_SHORT_ESCAPED=$(printf '%s\n' "$SESSION_SHORT" | sed 's/[]\.*^$()+?{|[]/\\&/g')
+grep -q "SESSION_END session:${SESSION_SHORT_ESCAPED}:" "$LOG_PATH" 2>/dev/null && exit 0
 wiki_log "SESSION_END" "closed in $(basename "$REPO_ROOT")"

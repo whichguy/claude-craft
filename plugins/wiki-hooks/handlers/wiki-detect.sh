@@ -53,7 +53,13 @@ wiki_build_display
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 FAILED_COUNT=0
 if [ -d "$QUEUE_DIR" ]; then
-  FAILED_COUNT=$(grep -rl '"status".*"failed"' "$QUEUE_DIR/" 2>/dev/null | grep -c -E '\-(wiki|wikichange)\.json$' || true)
+  # Escape WIKI_PATH for use in grep pattern (convert to literal string)
+  WIKI_PATH_ESCAPED=$(printf '%s\n' "$WIKI_PATH" | sed 's/[]\.*^$()+?{|[]/\\&/g')
+  # Count failed queue entries for this wiki (BSD xargs compatible)
+  failed_files=$(grep -rl '"status".*"failed"' "$QUEUE_DIR/" 2>/dev/null | grep -E '\-(wiki|wikichange)\.json$' || true)
+  if [ -n "$failed_files" ]; then
+    FAILED_COUNT=$(echo "$failed_files" | xargs grep -l "\"wiki_path\":\"$WIKI_PATH_ESCAPED\"" 2>/dev/null | wc -l | tr -d ' ')
+  fi
   FAILED_COUNT=${FAILED_COUNT:-0}
 fi
 
