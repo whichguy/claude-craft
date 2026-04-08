@@ -10,7 +10,7 @@ description: |
   - User says "review plan", "check plan", "plan ready?"
   - Any plan file needs review (GAS or non-GAS)
 
-  NOT for: Code review of existing files (use /gas-review or /review)
+  NOT for: Code review of existing files (use /gas-review or /review-fix)
 allowed-tools: all
 ---
 
@@ -2371,6 +2371,33 @@ After the convergence loop exits (scorecard not yet printed):
      — or —
      None — prompt appears well-calibrated for this plan type
    ```
+
+   **Actionable follow-up (conditional — only if ≥1 signal fired):**
+
+   IF any signals fired above:
+     Analyze the fired signals and determine the single highest-impact skill change.
+     Categorize it:
+       - QUESTION_EDIT: an existing question's criteria needs refinement
+         → "Run `/optimize-questions [Q-ID]` to refine criteria"
+       - QUESTION_NEW: a gap in coverage was detected
+         → "Add a new question covering [topic] to QUESTIONS.md"
+       - EDIT_TEMPLATE: an injection or edit instruction is too weak
+         → "Strengthen edit template for [Q-ID] in SKILL.md"
+       - SIGNAL_NOISE: a signal fires too often without actionable output
+         → "Consider raising threshold or adding scoping condition for [signal]"
+
+     Print:
+     ```
+     🔧 Recommended Skill Improvement
+     ─────────────────────────────────
+       Category: [QUESTION_EDIT | QUESTION_NEW | EDIT_TEMPLATE | SIGNAL_NOISE]
+       Target:   [Q-ID or signal name]
+       Action:   [one-sentence recommendation with specific slash command or file to edit]
+       Why:      [which signal(s) drove this, ≤15 words]
+     ```
+
+   ELSE:
+     Do not print the recommendation block (the "None" line from the signals section is sufficient).
 
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to

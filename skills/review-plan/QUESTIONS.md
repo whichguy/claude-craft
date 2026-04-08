@@ -282,6 +282,6 @@ IS_GAS: N/A — covered by gas-evaluator Q1, Q2.
 
 | Q | Gate | Question | Criteria | N/A |
 |---|------|----------|----------|-----|
-| Q-E2 | 1 | Post-implementation workflow | Post-impl section (after impl, not bundled) has all 4: (1) `/review` loop→0 findings, (2) build if applicable, (3) tests if any, (4) fail→fix→re-run `/review`→re-run until pass. All imperative, not optional. Flag: user-optional or user-confirmation language. EDIT: absent→inject `## Post-Implementation Workflow` (all 4); missing step 4→append. | IS_GAS (covered by Q42 in gas-plan) |
+| Q-E2 | 1 | Post-implementation workflow | Post-impl section (after impl, not bundled) has all 4: (1) `/review-fix` loop→0 findings, (2) build if applicable, (3) tests if any, (4) fail→fix→re-run `/review-fix`→re-run until pass. All imperative, not optional. Flag: user-optional or user-confirmation language. EDIT: absent→inject `## Post-Implementation Workflow` (all 4); missing step 4→append. | IS_GAS (covered by Q42 in gas-plan) |
 
 IS_GAS: N/A — covered by gas-evaluator Q42.
