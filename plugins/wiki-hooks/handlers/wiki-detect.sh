@@ -13,7 +13,32 @@ wiki_parse_input
 [ "${#CWD}" -gt 4096 ] && exit 0
 
 # Use wiki_find_root (pure directory walk, no git subprocess)
-wiki_find_root || exit 0
+if ! wiki_find_root; then
+  # No wiki found — check if this is a git repo and suggest initialization
+  GIT_ROOT=""
+  dir="$CWD"
+  for i in 1 2 3 4; do
+    if [ -d "$dir/.git" ]; then GIT_ROOT="$dir"; break; fi
+    parent=$(dirname "$dir")
+    [ "$parent" = "$dir" ] && break
+    dir="$parent"
+  done
+  if [ -n "$GIT_ROOT" ]; then
+    # Only suggest once per repo (track in state file to avoid nagging)
+    STATE_FILE="$HOME/.claude/wiki-prompted-repos.json"
+    [ ! -f "$STATE_FILE" ] && echo '{}' > "$STATE_FILE"
+    REPO_KEY=$(echo "$GIT_ROOT" | sed 's/[^a-zA-Z0-9]/_/g')
+    if ! jq -e --arg k "$REPO_KEY" 'has($k)' "$STATE_FILE" >/dev/null 2>&1; then
+      # Mark as prompted
+      jq --arg k "$REPO_KEY" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.[$k] = $t' "$STATE_FILE" > "${STATE_FILE}.tmp" \
+        && mv "${STATE_FILE}.tmp" "$STATE_FILE" 2>/dev/null
+      REPO_NAME=$(basename "$GIT_ROOT")
+      jq -n --arg display "📂 ${REPO_NAME} — no wiki. Run /wiki-init to set one up." \
+        '{"systemMessage": $display}'
+    fi
+  fi
+  exit 0
+fi
 
 # Session marker for change detection (consumed by wiki-stop.sh via find -newer)
 MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
