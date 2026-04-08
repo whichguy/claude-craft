@@ -257,44 +257,28 @@ do_status() {
     printf "  %-14s %s\n" "Available:" "$total_available (in repo, not installed)"
     printf "  %-14s %s\n" "Total:" "$((total_registered + total_local + total_available))"
 
-    # Plugin health checks
+    # Plugin hook merge checks
     local plugin_warnings=0
     local settings_file="$CLAUDE_DIR/settings.json"
-    for plugin_dir in "$CLAUDE_DIR/plugins"/*/; do
-        [ -d "$plugin_dir" ] || continue
-        local pname=$(basename "$plugin_dir")
-        [[ "$pname" == .* || "$pname" == "cache" || "$pname" == "data" ]] && continue
-        # Skip non-symlink directories (marketplace plugins managed separately)
-        [ -L "${plugin_dir%/}" ] || continue
+    if command -v jq >/dev/null 2>&1 && [ -f "$settings_file" ]; then
+        for plugin_dir in "$CLAUDE_DIR/plugins"/*/; do
+            [ -d "$plugin_dir" ] || continue
+            local pname=$(basename "$plugin_dir")
+            [[ "$pname" == .* || "$pname" == "cache" || "$pname" == "data" ]] && continue
+            [ -L "${plugin_dir%/}" ] || continue
+            # Only check plugins that have hooks
+            [ -f "$plugin_dir/hooks/hooks.json" ] || [ -f "$plugin_dir/hooks.json" ] || continue
 
-        # Check enabledPlugins and installed_plugins.json
-        if command -v jq >/dev/null 2>&1 && [ -f "$settings_file" ]; then
-            if ! jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
-                echo -e "  ${YELLOW}⚠️  $pname: missing from enabledPlugins (run install.sh to register)${NC}"
+            # Check if hooks are merged into settings.json
+            if ! jq -e --arg p "$pname" '[.hooks[]?[]? | select(._plugin == $p)] | length > 0' "$settings_file" > /dev/null 2>&1; then
+                echo -e "  ${YELLOW}⚠️  $pname: hooks not merged (run merge-hooks.sh or install.sh)${NC}"
                 plugin_warnings=$((plugin_warnings + 1))
             fi
-            local installed_file="$CLAUDE_DIR/plugins/installed_plugins.json"
-            if [ -f "$installed_file" ] && ! jq -e --arg p "$pname" '.plugins | has($p)' "$installed_file" > /dev/null 2>&1; then
-                echo -e "  ${YELLOW}⚠️  $pname: missing from installed_plugins.json (run install.sh to register)${NC}"
-                plugin_warnings=$((plugin_warnings + 1))
-            fi
-        fi
-
-        # Check hooks.json location
-        if [ -f "$plugin_dir/hooks.json" ] && [ ! -f "$plugin_dir/hooks/hooks.json" ]; then
-            echo -e "  ${YELLOW}⚠️  $pname: hooks.json at root (should be hooks/hooks.json)${NC}"
-            plugin_warnings=$((plugin_warnings + 1))
-        fi
-
-        # Check manifest (advisory)
-        if [ ! -f "$plugin_dir/.claude-plugin/plugin.json" ]; then
-            echo -e "  ${YELLOW}⚠️  $pname: missing .claude-plugin/plugin.json (recommended)${NC}"
-            plugin_warnings=$((plugin_warnings + 1))
-        fi
-    done
+        done
+    fi
     if [ $plugin_warnings -gt 0 ]; then
         echo ""
-        echo -e "${YELLOW}  $plugin_warnings plugin warning(s) — run install.sh or check settings.json to fix${NC}"
+        echo -e "${YELLOW}  $plugin_warnings plugin warning(s)${NC}"
     fi
 
     if [ $total_available -gt 0 ]; then
