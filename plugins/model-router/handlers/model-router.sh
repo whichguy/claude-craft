@@ -2,6 +2,10 @@
 # Routes agent model selection based on session rules (forced) or model mappings (fallback).
 # Priority: session_rules > model_mappings > passthrough (no change).
 set -o pipefail
+if ! command -v jq >/dev/null 2>&1; then
+  echo "model-router: jq not found — model routing disabled (install: brew install jq)" >&2
+  exit 0
+fi
 LOG="$HOME/.claude/model-router.log"
 INPUT=$(cat)
 TOOL_INPUT=$(echo "$INPUT" | jq '.tool_input' 2>/dev/null) || { echo "$(date -u +%H:%M:%S) jq parse failed — passthrough" >> "$LOG"; echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'; exit 0; }

@@ -128,6 +128,14 @@ main() {
     # Make tools and scripts executable
     if [ -d "$REPO_DIR/tools" ]; then
         chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
+        chmod +x "$REPO_DIR/tools/claude-router" 2>/dev/null || true
+    fi
+
+    # Symlink claude-router (used by wiki-worker.sh for Bedrock/OpenRouter/Ollama support)
+    if [ -x "$REPO_DIR/tools/claude-router" ]; then
+        mkdir -p "$CLAUDE_DIR/tools"
+        ln -sfn "$REPO_DIR/tools/claude-router" "$CLAUDE_DIR/tools/claude-router"
+        echo -e "${GREEN}✅ Installed tool: claude-router${NC}"
     fi
 
     # Make uninstall script executable

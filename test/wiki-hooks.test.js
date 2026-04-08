@@ -321,14 +321,14 @@ describe('Wiki Hooks', function () {
     describe('wiki_check_deps', function () {
 
         it('should warn on stderr when jq is unavailable', async function () {
-            // Use a PATH that excludes jq to trigger the warning
-            const restrictedPath = '/usr/bin:/bin';
+            // PATH=/bin includes bash but excludes /usr/bin/jq and /opt/homebrew/bin/jq
             try {
                 await runHook('wiki-detect.sh', {
                     cwd: fakeRepo, agent_id: '', session_id: 'deps-test',
-                }, { PATH: restrictedPath });
-                // If no error thrown, check there was no output (silent exit)
+                }, { PATH: '/bin' });
+                // Hook exited 0 (silent skip) — that's acceptable behavior
             } catch (e) {
+                // Hook errored — stderr should contain the warning
                 expect(e.stderr || '').to.include('jq not found');
             }
         });

@@ -22,6 +22,69 @@ curl -fsSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.
 - **Local file preservation** - Never overwrites your existing non-repo files
 - **Security scanning** - Pre-commit and post-pull threat detection
 
+## Wiki System
+
+Claude Craft includes a self-building wiki system that captures knowledge from your sessions and makes it available across conversations.
+
+### Wiki Skills
+
+| Skill | Description |
+|-------|-------------|
+| `/wiki-init` | Initialize a project wiki with directory structure and SCHEMA.md |
+| `/wiki-ingest <source>` | Add a file or URL to the wiki (runs async in background) |
+| `/wiki-query <question>` | Synthesize an answer from wiki pages with citations |
+| `/wiki-load <topic>` | Load raw wiki pages into context (no synthesis overhead) |
+| `/wiki-process` | Process pending queue entries — the self-building engine |
+| `/wiki-lint` | Health check: find orphans, broken links, contradictions, stale pages |
+
+### Wiki Plugin (wiki-hooks)
+
+The wiki-hooks plugin provides 11 lifecycle handlers that run automatically:
+
+| Handler | Hook Type | Purpose |
+|---------|-----------|---------|
+| `wiki-detect.sh` | SessionStart | Inject wiki context via systemMessage |
+| `wiki-clear.sh` | SessionStart (clear) | Treat `/clear` as wiki session boundary |
+| `wiki-cleanup.sh` | SessionStart (async) | Expire stale markers, recover stuck entries |
+| `wiki-cache-rebuild.sh` | SessionStart + PostToolUse (async) | Rebuild cached display/context files |
+| `wiki-worker.sh` | UserPromptSubmit (async) | Background queue processor — spawns Sonnet for extraction |
+| `wiki-notify.sh` | UserPromptSubmit | Inject entity context matching user prompt keywords |
+| `wiki-raw-guard.sh` | PreToolUse (Write/Edit) | Block LLM writes to `raw/` directory |
+| `wiki-precompact.sh` | PreCompact | Queue extraction before context compaction |
+| `wiki-stop.sh` | Stop (async) | Detect wiki changes, queue extraction, log session end |
+| `wiki-session-end.sh` | SessionEnd | Safety net — queue extraction if Stop didn't fire |
+| `wiki-common.sh` | (shared library) | Shared functions: input parsing, wiki discovery, logging |
+
+### Provider Routing (Bedrock, OpenRouter, Ollama)
+
+Wiki extraction uses `claude-router` when available, enabling alternative API endpoints:
+
+```bash
+# Configure a Bedrock provider in ~/.claude/model-map.json:
+{
+  "providers": {
+    "sonnet": {
+      "env": {
+        "ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock-runtime.us-east-1.amazonaws.com",
+        "CLAUDE_CODE_USE_BEDROCK": "1"
+      }
+    }
+  }
+}
+```
+
+If `claude-router` is not found, wiki-worker falls back to the bare `claude` CLI (Anthropic direct).
+
+### Dependency Validation
+
+All hook scripts validate required dependencies (jq, claude CLI) at startup with descriptive stderr warnings:
+
+```
+wiki-hooks: jq not found — wiki hooks disabled (install: brew install jq)
+wiki-hooks: claude CLI not found — wiki extraction disabled
+wiki-hooks: no API key or credentials found — claude extraction may fail
+```
+
 ## Usage
 
 ### Daily Workflow
@@ -209,13 +272,18 @@ claude-craft/
 ├── prompts/               # Prompt templates (.md) → ~/.claude/prompts/
 ├── references/            # Reference docs (.md) → ~/.claude/references/
 ├── plugins/               # Plugin directories → ~/.claude/plugins/
+│   ├── wiki-hooks/        # Wiki lifecycle hooks (11 handlers)
+│   ├── craft-hooks/       # Security + auto-sync + utility hooks
+│   └── model-router/      # Model routing (Bedrock, OpenRouter, Ollama)
 ├── hooks/                 # Hook system
 │   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/
 ├── test/                  # Testing framework (Mocha/Chai)
-│   └── sync.test.js       # 26 tests for sync infrastructure
+│   ├── sync.test.js       # Sync infrastructure tests
+│   └── wiki-hooks.test.js # Wiki hooks tests (17 tests)
 ├── tools/                 # Management utilities
 │   ├── sync-status.sh     # Core sync engine (status/sync/add/publish)
 │   ├── auto-sync.sh       # Probabilistic background sync
+│   ├── claude-router      # Provider routing (Bedrock/OpenRouter/Ollama) → ~/.claude/tools/
 │   ├── install-git-hooks.sh
 │   ├── security-scan.sh
 │   └── backup.sh

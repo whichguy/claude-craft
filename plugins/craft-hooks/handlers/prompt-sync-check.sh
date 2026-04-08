@@ -4,6 +4,11 @@
 # Triggered when user submits a prompt
 # Uses probabilistic checking to avoid excessive syncing
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "craft-hooks: jq not found — auto-sync disabled (install: brew install jq)" >&2
+  exit 0
+fi
+
 # Configuration file location
 CONFIG_FILE="$HOME/.claude/claude-craft.json"
 

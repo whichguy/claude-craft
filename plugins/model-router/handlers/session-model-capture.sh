@@ -1,6 +1,10 @@
 #!/bin/bash
 # Captures the session model at startup and resolves the target child model
 # from config. Writes to a per-session file so PreToolUse can read it.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "model-router: jq not found — session model capture disabled (install: brew install jq)" >&2
+  exit 0
+fi
 INPUT=$(cat)
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
 CONFIG="$HOME/.claude/model-map.json"
