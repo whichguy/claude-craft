@@ -267,10 +267,15 @@ do_status() {
         # Skip non-symlink directories (marketplace plugins managed separately)
         [ -L "${plugin_dir%/}" ] || continue
 
-        # Check enabledPlugins — warn if key absent (use has() to avoid false-positive on explicit false)
+        # Check enabledPlugins and installed_plugins.json
         if command -v jq >/dev/null 2>&1 && [ -f "$settings_file" ]; then
             if ! jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
                 echo -e "  ${YELLOW}⚠️  $pname: missing from enabledPlugins (run install.sh to register)${NC}"
+                plugin_warnings=$((plugin_warnings + 1))
+            fi
+            local installed_file="$CLAUDE_DIR/plugins/installed_plugins.json"
+            if [ -f "$installed_file" ] && ! jq -e --arg p "$pname" '.plugins | has($p)' "$installed_file" > /dev/null 2>&1; then
+                echo -e "  ${YELLOW}⚠️  $pname: missing from installed_plugins.json (run install.sh to register)${NC}"
                 plugin_warnings=$((plugin_warnings + 1))
             fi
         fi

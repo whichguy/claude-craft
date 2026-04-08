@@ -82,6 +82,7 @@ install_settings_hooks() {
 
 register_plugins() {
     local settings_file="$CLAUDE_DIR/settings.json"
+    local installed_file="$CLAUDE_DIR/plugins/installed_plugins.json"
 
     if ! command -v jq >/dev/null 2>&1; then
         echo -e "${YELLOW}⚠️  jq not found — skipping plugin registration${NC}"
@@ -89,29 +90,52 @@ register_plugins() {
     fi
 
     [ ! -f "$settings_file" ] && echo '{}' > "$settings_file"
+    [ ! -f "$installed_file" ] && echo '{"version":2,"plugins":{}}' > "$installed_file"
 
     local registered=0
+    local now
+    now=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
 
     # Auto-detect plugins from repo's plugins/ directory
+    # Plugins are symlinked: ~/.claude/plugins/<name> -> repo/plugins/<name>
+    # installPath uses the symlink path for portability
     for plugin_dir in "$REPO_DIR/plugins"/*/; do
         [ -d "$plugin_dir" ] || continue
         local pname=$(basename "$plugin_dir")
         [[ "$pname" == .* ]] && continue
         # Only register plugins that have hooks (not all plugin dirs need enablement)
         [ -f "$plugin_dir/hooks/hooks.json" ] || [ -f "$plugin_dir/hooks.json" ] || continue
-        # Idempotency: skip if key already present (regardless of value — respect explicit false)
-        if jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
-            continue
+
+        local symlink_path="$CLAUDE_DIR/plugins/$pname"
+
+        # Register in enabledPlugins (idempotent — skip if key present)
+        if ! jq -e --arg p "$pname" '.enabledPlugins | has($p)' "$settings_file" > /dev/null 2>&1; then
+            local tmp
+            tmp=$(mktemp "${settings_file}.XXXXXX")
+            if jq --arg p "$pname" '.enabledPlugins[$p] = true' "$settings_file" > "$tmp"; then
+                mv "$tmp" "$settings_file"
+            else
+                rm -f "$tmp"
+                echo -e "${YELLOW}⚠️  Failed to register plugin $pname in enabledPlugins${NC}"
+                continue
+            fi
         fi
-        local tmp
-        tmp=$(mktemp "${settings_file}.XXXXXX")
-        if jq --arg p "$pname" '.enabledPlugins[$p] = true' "$settings_file" > "$tmp"; then
-            mv "$tmp" "$settings_file"
-        else
-            rm -f "$tmp"
-            echo -e "${YELLOW}⚠️  Failed to register plugin $pname — skipping${NC}"
-            continue
+
+        # Register in installed_plugins.json (idempotent — skip if key present)
+        if ! jq -e --arg p "$pname" '.plugins | has($p)' "$installed_file" > /dev/null 2>&1; then
+            local tmp
+            tmp=$(mktemp "${installed_file}.XXXXXX")
+            if jq --arg p "$pname" --arg path "$symlink_path" --arg now "$now" \
+                '.plugins[$p] = [{"scope":"user","installPath":$path,"version":"1.0.0","installedAt":$now,"lastUpdated":$now}]' \
+                "$installed_file" > "$tmp"; then
+                mv "$tmp" "$installed_file"
+            else
+                rm -f "$tmp"
+                echo -e "${YELLOW}⚠️  Failed to register plugin $pname in installed_plugins.json${NC}"
+                continue
+            fi
         fi
+
         registered=$((registered + 1))
     done
 
