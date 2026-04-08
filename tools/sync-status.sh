@@ -355,6 +355,13 @@ do_sync() {
         fi
     done
 
+    # Merge plugin hooks into settings.json after syncing
+    if [ -x "$REPO_PATH/tools/merge-hooks.sh" ]; then
+        echo ""
+        echo -e "🔌 Merging plugin hooks..."
+        "$REPO_PATH/tools/merge-hooks.sh"
+    fi
+
     echo ""
     echo -e "${GREEN}Synced $synced items across all extension types.${NC}"
 }

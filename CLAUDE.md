@@ -10,6 +10,7 @@ GIT:         always git -C "<dir>", never cd + git
 SHELL:       set -eo pipefail, shopt -s nullglob, trap cleanup
 TEST:        npm test (mocha/chai, fixture-based, no mocks)
 SECURITY:    pre-commit → simple-secrets-scan.sh (fast) | full → security-scan.sh
+SETUP:       install.sh + sync + merge-hooks = idempotent fixer — run repeatedly to converge
 ```
 
 ---
