@@ -138,7 +138,7 @@ Fix: [Required for Critical and Advisory (before/after code block); omit for Non
 
 **Rules:**
 - Every answer must cite specific evidence (`file:line`) or explicitly state "None found — [reasoning]"
-- Every Critical and Advisory finding must include a before/after code fix block (Advisory/YAGNI excluded)
+- Every Critical and Advisory finding MUST include a before/after code fix block (Advisory/YAGNI excluded). This applies to ALL Advisory findings — including those in pre-existing code not introduced by the current change. If the finding is real enough to report as Advisory, it is real enough to fix. An Advisory finding without a Fix block is a bug in the review.
 - Every finding must be genuinely present in the code — do not invent findings to fill the template
 - If a finding's severity depends on code outside `target_files`, mark it `Scope-limited: [what context is missing]` and treat as Advisory until confirmed
 
@@ -199,8 +199,8 @@ Health bar mapping: APPROVED = `██████ ██████ ███�
 Append to the end of every review output (after the Decision block):
 
 ```
-LOOP_DIRECTIVE: APPLY_AND_RECHECK   (when any Critical or non-YAGNI Advisory with Fix block exists)
-LOOP_DIRECTIVE: COMPLETE             (when APPROVED, or only Advisory/YAGNI or stuck-no-fix findings remain)
+LOOP_DIRECTIVE: APPLY_AND_RECHECK   (when any Critical or Advisory finding with Fix block exists)
+LOOP_DIRECTIVE: COMPLETE             (when APPROVED, or only Advisory/YAGNI or findings without Fix blocks remain)
 ```
 
 review-fix uses this to drive the per-file inner loop. Always emit exactly one of these two values.
