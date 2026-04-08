@@ -1999,6 +1999,12 @@ Count cluster edits → `cluster_changes_total += count` (combined into `changes
 
 ---
 
+| Q | Question | Criteria | N/A |
+|---|----------|----------|-----|
+| Q-C1 | Branching strategy | Branch named, merge target, PR workflow defined? Merge strategy specified (squash / rebase / merge commit)? Push-to-remote step included? | never |
+| Q-C2 | Branching usage | Steps actually use feature branch + incremental commits? Commit messages follow project conventions (e.g. conventional commits)? | never |
+| Q-C3 | Impact analysis | Other callers/features affected? Cross-ref call sites checked? | fully isolated |
+
 ## Layer 3: UI Specialization
 
 Question definitions are in QUESTIONS-L3.md — ui-evaluator reads that file directly. 11 questions:
