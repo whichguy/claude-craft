@@ -269,8 +269,8 @@ do_status() {
             # Only check plugins that have hooks
             [ -f "$plugin_dir/hooks/hooks.json" ] || [ -f "$plugin_dir/hooks.json" ] || continue
 
-            # Check if hooks are merged into settings.json
-            if ! jq -e --arg p "$pname" '[.hooks[]?[]? | select(._plugin == $p)] | length > 0' "$settings_file" > /dev/null 2>&1; then
+            # Check if hooks are merged into settings.json (identified by command path)
+            if ! jq -e --arg p "$pname" '[.hooks[]?[]? | select(.hooks // [] | any(.command // "" | contains("/.claude/plugins/" + $p + "/")))] | length > 0' "$settings_file" > /dev/null 2>&1; then
                 echo -e "  ${YELLOW}⚠️  $pname: hooks not merged (run merge-hooks.sh or install.sh)${NC}"
                 plugin_warnings=$((plugin_warnings + 1))
             fi
