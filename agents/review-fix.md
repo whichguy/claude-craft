@@ -25,8 +25,8 @@ Reviewer selection is per-file (see Reviewer Routing). This agent only orchestra
 ## Input Contract
 
 - `target_files` — optional; comma-separated file paths/dirs/globs. If omitted: WIP → last commit fallback.
-  - `--all` flag: all files in worktree (including untracked; filtered by .gitignore + .claspignore)
-  - `--tracked` flag: git-tracked files only (old `--all` behavior)
+  - `--all` flag: all files in worktree (including untracked; filtered by .gitignore + .claspignore + ~/.claude/reviewignore)
+  - `--tracked` flag: git-tracked files only (filtered by ~/.claude/reviewignore)
 - `reviewer_agent` — optional; override reviewer for ALL files (skips per-file routing)
 - `task_name` — required; review context identifier
 - `worktree` — required; absolute path to working directory (default: ".")
@@ -69,18 +69,23 @@ Else (auto-detect):
     rationale = "last-commit"
     If empty: error "No changes to review"
 
-Filter (skip unless explicitly named in target_files):
-  DIRS: node_modules/ vendor/ dist/ build/ out/ .next/ generated/
-        wiki/ docs/ raw/ .claude/ .github/ .vscode/ .idea/ .cursor/
-        .eclipse/ .gradle/ .terraform/ coverage/ .nyc_output/
-        __snapshots__/ __pycache__/ .pytest_cache/ *.egg-info/ *.dist-info/
-  EXTS: .json .lock .md .map .d.ts .pyc .snap .log .env*
-        .min.js .min.css .bundle.js .chunk.js .pb.js .pb.ts
-        .png .jpg .jpeg .gif .ico .svg .pdf .zip .gz .bz2 .tar
-        .woff .woff2 .ttf .mp3 .mp4 .mov .sqlite .sqlite3 .db
-  FILES: .gitignore .gitattributes .gitkeep .keep .claspignore .clasp.json
-         .DS_Store Thumbs.db .project .classpath *.iml
-         *.swp *.swo *.bak *~ .session-* CLAUDE.md LICENSE
+# Apply reviewignore filter ONLY for auto-detected, --all, and --tracked paths.
+# Skip when target_files were explicitly provided (user chose those files deliberately).
+If NOT explicit_target_files:
+  Filter file_list through ~/.claude/reviewignore (gitignore syntax):
+    ```bash
+    if [ -f ~/.claude/reviewignore ]; then
+      tmp_git=$(mktemp -d)
+      git init -q "$tmp_git"
+      cp ~/.claude/reviewignore "$tmp_git/.gitignore"
+      filtered=$(printf '%s\n' "${file_list[@]}" | \
+        git -C "$tmp_git" check-ignore --no-index --stdin -v -n 2>/dev/null | \
+        grep '^::\t' | cut -f2)
+      rm -rf "$tmp_git"
+      file_list=($filtered)
+    fi
+    ```
+    If ~/.claude/reviewignore missing: warn and skip filtering.
 Validate: each file exists on disk (warn about missing)
 If file_list empty after filtering: error "No reviewable files"
 
@@ -195,8 +200,27 @@ For each completion notification:
   Parse agent output → findings + LOOP_DIRECTIVE
   # Merge findings into per-file results (multiple reviewers contribute to same file)
   If results[entry.file] not exists: results[entry.file] = { findings: [], loop_directive: "COMPLETE" }
+  # Tag findings with source reviewer for dedup
+  for f in parsed_findings: f.source_reviewer = entry.reviewer
   results[entry.file].findings.push(...parsed_findings)
   If loop_directive == "APPLY_AND_RECHECK": results[entry.file].loop_directive = "APPLY_AND_RECHECK"
+
+  # Deduplicate: when multiple reviewers flag same Q-ID + same line on same file,
+  # keep the specialized reviewer (gas-code-review > code-reviewer, gas-ui-review > code-reviewer)
+  seen = {}  # key: "Q{N}:{line}" → finding
+  deduped = []
+  REVIEWER_PRIORITY = { "gas-code-review": 2, "gas-ui-review": 2, "gas-gmail-cards": 2, "code-reviewer": 1 }
+  for f in results[entry.file].findings:
+    key = f.q_number + ":" + (f.line or "0")
+    if key in seen:
+      if REVIEWER_PRIORITY.get(f.source_reviewer, 0) > REVIEWER_PRIORITY.get(seen[key].source_reviewer, 0):
+        deduped.remove(seen[key])
+        deduped.append(f)
+        seen[key] = f
+    else:
+      seen[key] = f
+      deduped.append(f)
+  results[entry.file].findings = deduped
   Remove from active
   completed += 1
 
