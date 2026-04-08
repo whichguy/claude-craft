@@ -66,39 +66,58 @@ Before moving to Phase 3, verify:
 - Does the code do what you expected, or did reading it reveal surprises?
 - Have any trigger patterns surfaced that weren't obvious from filenames alone?
 - Are there context gaps (missing imports, unknown callers) that would change question selection?
-- Classify file type: **code** (any programming/scripting/markup language) vs **non-code** (`.md`, `.txt`, prose documentation). Config files (`.yaml`, `.json`, `.toml`, `.env`) are hybrid — apply Q1-Q5 for structural correctness + Q13 for content accuracy. Unknown extensions default to code.
+- Classify file type: **code** (any programming/scripting/markup language) vs **non-code** (`.md`, `.txt`, prose documentation). Config files (`.yaml`, `.json`, `.toml`, `.env`) are hybrid — apply Q1-Q4 (safety tier) for structural correctness + Q5 (quality tier) + Q13 for content accuracy. Unknown extensions default to code.
 
 Produce no output yet. This phase is understanding only.
 
-## Phase 3: Quality Questions
+## Phase 3: Quality Questions (Tiered)
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
-**Question selection**: Q1–Q5 (universal, all files) + Q6–Q37 (any whose trigger pattern matches). Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
+**Question selection**: Tier 1 (safety) always evaluates first. Tier 2 (quality) evaluates only if Tier 1 finds no Critical issues. Within each tier: universal questions apply to all files, triggered questions apply when their pattern matches. Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
 
-### Universal Questions
+### Phase 3a — Safety Tier
+
+Questions that detect runtime failures, security vulnerabilities, and semantic correctness bugs. Evaluate these first.
+
+**Universal safety questions** (all files):
 
 **Q1 — Correctness**: Incorrect results, null derefs, silent failures? Check boundaries, null/empty inputs, integer extremes.
 **Q2 — Security**: Untrusted input reaching sensitive sink (DB, eval, FS, HTML) unvalidated?
 **Q3 — Error Propagation**: Errors swallowed, diagnostic context lost, recoverable failures silenced?
 **Q4 — Intent Alignment**: Names, return types, or behaviors contradict task description/acceptance criteria?
-**Q5 — Minimal Change**: Unjustified abstractions/dependencies/indirection where existing code extends? (Speculative: `Advisory/YAGNI`; actively harmful: `Advisory`)
 
-### Context-Specific Questions
+**Triggered safety questions** (fire when pattern matches):
 
 | Q | Trigger | Question |
 |---|---------|----------|
 | Q6 | `useState\|useEffect\|useCallback` | Hook deps complete? Stale closures? |
-| Q7 | `async\|await\|\.then\(\|express\|router` | All async error paths handled? Unhandled rejections? |
 | Q8 | `SpreadsheetApp\|DriveApp\|GmailApp\|PropertiesService\|CacheService\|ConfigManager\|_main\|__defineModule__\|__events__\|__global__\|module.exports` in `.gs` files | **GAS runtime**: Execution limits respected? Loops quota-safe? Null-guard before JSON.parse on getProperty/getCache? **CommonJS**: `_main(module, exports, log)` has 3 params? `require()` inside `_main` not at file top? `__defineModule__` at root level (not inside `_main`)? No nested `_main`? **Events**: `doGet/doPost/onOpen/onEdit` → `loadNow: true` (boolean, not null) + `__events__` entry? **Exports**: `module.exports` is object (not function/array)? `__global__` refs match `module.exports` (not bare fn bypassing wrapper)? **Null chains**: `getSheetByName()/getActiveSheet()` null-checked before chaining? **CacheService**: `getUserCache()` not used in time-based triggers (use DocumentCache/ScriptCache)? |
-| Q9 | `describe\|it\(\|expect\(` | Tests verify behavior (outputs, error paths) or just execution (no-throw)? |
 | Q10 | `SELECT\|INSERT\|query\(\|\.raw\(` | All query params parameterized? String interpolation → injection? |
+| Q15 | `global\|shared\|singleton\|static\|cache\|lock\|mutex\|concurrent` or multi-writer resource | Shared state mutations protected? Race conditions under concurrency? |
+| Q16 | `open\|connect\|subscribe\|addEventListener\|setInterval\|setTimeout\|createReadStream\|createServer\|acquire` | Resources closed on all paths (including error)? |
+| Q33 | Function/method calls, `new`, `await`, property access on return values, `catch\|\.catch\|\?\.\w` | All exception paths handled? Flag: throwing calls sans try/catch, null-property access sans guard, await sans try/catch. **Untested failure paths**: catch returning defaults instead of propagating? Config fallbacks masking structural errors? `?.` yielding undefined that downstream treats as valid data? |
+
+**Early-exit gate**: If Phase 3a produces ANY finding with severity = Critical → skip Phase 3b → proceed to Phase 4 with safety-tier findings only. The recheck pass (after fixes) will re-evaluate from Phase 3a; if clean, Phase 3b runs. When early-exit fires, note in findings: `_Quality tier deferred — Critical findings require fixes first._`
+
+### Phase 3b — Quality Tier
+
+Style, completeness, and improvement opportunities. Only evaluated when Phase 3a finds no Critical issues.
+
+**Universal quality questions** (all files):
+
+**Q5 — Minimal Change**: Unjustified abstractions/dependencies/indirection where existing code extends? (Speculative: `Advisory/YAGNI`; actively harmful: `Advisory`)
+
+**Triggered quality questions** (fire when pattern matches):
+
+| Q | Trigger | Question |
+|---|---------|----------|
+| Q7 | `async\|await\|\.then\(\|express\|router` | All async error paths handled? Unhandled rejections? |
+| Q9 | `describe\|it\(\|expect\(` | Tests verify behavior (outputs, error paths) or just execution (no-throw)? |
 | Q11 | `dryrun=true` OR `**Impact context**` block + exports/endpoints | Breaks existing callers? Read impacted files from context block, verify signature/behavior compat. |
 | Q12 | `.md` with question tables or evaluator prompts | Q-ID counts match table rows? All referenced Q-IDs defined? Suppression tables complete? (Critical) |
 | Q13 | Non-code files (`.md`, `.yaml`, `.json`, `.txt`, `.toml`) | Achieves stated purpose? Clear, accurate, consistent with surrounding context? If `plan_summary`: matches intent? Flag: ambiguity, factual errors, broken cross-refs. |
 | Q14 | New function/class definition | Reimplements existing utility? Grep codebase for similar names/patterns first. |
-| Q15 | `global\|shared\|singleton\|static\|cache\|lock\|mutex\|concurrent` or multi-writer resource | Shared state mutations protected? Race conditions under concurrency? |
-| Q16 | `open\|connect\|subscribe\|addEventListener\|setInterval\|setTimeout\|createReadStream\|createServer\|acquire` | Resources closed on all paths (including error)? |
 | Q17 | New file, export, or module path | Paths/names/exports follow repo conventions? Check CLAUDE.md + adjacent files. |
 | Q18 | External input, API boundaries, public entry points | **Validation**: Args/state validated early at boundary (fail-fast guards), not deep in chains. **Error clarity**: Messages name what failed + why (state + expectation). Flag: generic throws, swallowed cause, unchecked nulls consumed 3+ lines post-entry. |
 | Q19 | Function >50 lines, class >200, file >500 | Cohesion issue? Flag: multi-concern functions (extract helper), mixed-responsibility classes (split), concern-blending files. (Length alone ≠ problem; 3 unrelated side effects in 40 lines = problem.) |
@@ -115,7 +134,6 @@ _Apply to the code read in Phase 2. Evidence for each answer must come from that
 | Q30 | Multiple `return` statements or `async` functions | Return type consistent across all paths? Mixed object/undefined, implicit fall-through, async void vs value? |
 | Q31 | `try\|catch\|throw`, error paths, API/entry-point functions | Production-debuggable? Catch sans logging, re-throw sans `{cause}`, no correlation ID, PII in logs, unaudited critical ops? |
 | Q32 | Changed imports, exports, property names, file paths, schema fields, config keys, or module references | Ripple impact complete? Grep codebase for old name/path/key — all references updated? Changed schema field → consumers updated? Renamed export → all importers updated? Modified config key → all readers updated? Flag: partial rename (changed definition but not all usages), orphaned references to old paths/names, schema change without migration of existing data. |
-| Q33 | Function/method calls, `new`, `await`, property access on return values, `catch\|\.catch\|\?\.\w` | All exception paths handled? Flag: throwing calls sans try/catch, null-property access sans guard, await sans try/catch. **Untested failure paths**: catch returning defaults instead of propagating? Config fallbacks masking structural errors? `?.` yielding undefined that downstream treats as valid data? |
 | Q34 | Any file when `task_name` or `plan_summary` provided | **Intent verification**: Does the code fully achieve what the task/plan described? Every stated goal implemented? No partial implementations where the code handles the happy path but skips stated edge cases, error handling, or secondary requirements? Flag: plan says "handle X and Y" but code only handles X. |
 | Q35 | `HtmlService\|createTemplateFromFile\|google.script.run\|createGasServer\|<?=\|<?!=` in `.html` files | **GAS HTML**: Template vs Output confusion (setHeight before evaluate, double-wrapping, scriptlets in createHtmlOutputFromFile)? IFRAME embedding (missing setXFrameOptionsMode)? Scriptlet errors (unclosed `<? ?>`, `<?!= include() ?>` inside comments)? **Client-server**: `google.script.run` calling private fn (trailing `_`)? Missing success/failure handlers? `createGasServer` wrong signature (`exec_api(null, module, fn, ...args)`)? **Security**: `<?!= userInput ?>` unescaped XSS? `.innerHTML = userData`? onclick attribute injection? API keys in client code? **Template literals**: URLs with `://` in included files (use string concat)? `</script>` in template literal? |
 | Q36 | `as \w+\|<\w+>\|Record<string` in TypeScript files where types/interfaces are modified | **Type cast consistency**: Modified type/interface with stale `as Type`/`<Type>` casts elsewhere? Casts written pre-extension pin callers to old shape, hiding new fields from checker → silent field-access failures at runtime. Grep for casts of the modified type. |
@@ -144,7 +162,7 @@ Fix: [Required for Critical and Advisory (before/after code block); omit for Non
 
 ## Phase 4: Synthesis
 
-1. Order findings: Critical first, Advisory second, None last (condense None answers into a single line, e.g. `Q1, Q3, Q5 — None (no correctness, propagation, or scope issues found)`)
+1. Order findings: Critical first, Advisory second, None last (condense None answers into a single line, e.g. `Q1, Q3, Q4 — None (no correctness, propagation, or intent issues found)`)
 2. **Positive Observations**: Write ≥1 genuine positive observation. Never omit this section — even for fundamentally broken code, note what the intent was and what was correct in principle.
 3. **Approval status** (reasoning-based, not numeric):
    - `APPROVED` — no Critical findings; `Advisory/YAGNI` findings do not block approval
@@ -162,7 +180,7 @@ callers under conditions that can realistically occur. Use Advisory when the cod
 improved but will not cause a production incident if left unchanged.
 
 **Before producing output, verify:**
-- [ ] Every selected question was answered (no skipped questions)
+- [ ] Every selected question in evaluated tiers was answered (Phase 3b skipped if Phase 3a found Critical)
 - [ ] Every "None found" answer includes explicit reasoning, not just the phrase
 - [ ] Every Critical finding has a before/after code block
 - [ ] At least one Positive Observation is present
@@ -173,7 +191,7 @@ improved but will not cause a production incident if left unchanged.
 
 ```markdown
 ## Code Review: [filename]
-Context: [task_name] | [N] questions ([universal] universal + [triggered] triggered)
+Context: [task_name] | [N] questions ([safety] safety + [quality] quality) [SAFETY-ONLY if early-exit]
 
 ### Findings
 

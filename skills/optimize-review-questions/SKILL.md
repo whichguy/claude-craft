@@ -1,11 +1,11 @@
 ---
 name: optimize-review-questions
 description: |
-  Systematically optimize code-reviewer quality questions (Q1-Q16) for token efficiency
+  Systematically optimize code-reviewer quality questions (Q1-Q37) for token efficiency
   while maintaining detection quality. For each target question: generates 3 token-optimized
   variants (STRUCTURAL, SEMANTIC, RADICAL) in parallel, selects the best one, A/B tests it
   against code fixtures with known bugs using review-fix-judge for objective tp/fn/fp scoring,
-  and updates agents/code-reviewer.md + agents/review-fix.md CLUSTERS if the variant wins.
+  and updates agents/code-reviewer.md if the variant wins.
   Retries up to N times with judge feedback.
 
   AUTOMATICALLY INVOKE when user mentions:
@@ -26,7 +26,7 @@ allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop,
 
 Optimize code-reviewer quality questions for token efficiency. For each target question:
 generate 3 variants in parallel → select best → A/B test against code fixtures with ground truth →
-update agents/code-reviewer.md + agents/review-fix.md if better.
+update agents/code-reviewer.md if better.
 
 **Priority chain:** quality > input tokens > time.
 **Key difference from optimize-questions:** Uses objective ground-truth detection (tp/fn/fp)
@@ -44,15 +44,13 @@ test cases instead of plan files.
 
 **Group expansion:**
 - `universal` → Q1, Q2, Q3, Q4, Q5
-- `safety` → Q1, Q2, Q3, Q14 (review-fix cluster)
-- `intent` → Q4, Q5, Q12, Q13 (review-fix cluster)
-- `integration` → Q7, Q8, Q11, Q16 (review-fix cluster)
-- `ecosystem` → Q6, Q9, Q10, Q15 (review-fix cluster)
-- `all` → Q1..Q16
+- `safety` → Q1, Q2, Q3, Q4, Q6, Q8, Q10, Q15, Q16, Q33 (Tier 1 — safety tier in code-reviewer)
+- `quality` → Q5, Q7, Q9, Q11-Q14, Q17-Q32, Q34-Q37 (Tier 2 — quality tier in code-reviewer)
+- `all` → Q1..Q37
 
-**Note:** Q10-Q14 currently lack fixture coverage and will be automatically skipped with a
-warning. Q1-Q9, Q15, and Q16 have ground-truth fixtures. Groups containing uncovered Q-IDs
-(e.g., `safety` includes Q14, `all` includes Q10-Q14) will process the covered subset and skip the rest.
+**Note:** Many questions beyond Q1-Q9, Q15, Q16 currently lack fixture coverage and will be
+automatically skipped with a warning. Groups containing uncovered Q-IDs will process the
+covered subset and skip the rest.
 
 **Range expansion:** `Q1..Q8` → Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8.
 
@@ -73,15 +71,14 @@ warning. Q1-Q9, Q15, and Q16 have ground-truth fixtures. Groups containing uncov
 2. **Extract current question text** for each target Q-ID from canonical sources:
 
    **Source file mapping:**
-   - Q1-Q5 (Universal): `agents/code-reviewer.md` — paragraph format: `**Q{N} — {Title}**: {text}`
-   - Q6-Q13, Q16 (Context-Specific): `agents/code-reviewer.md` — table row: `| Q{N} | {trigger} | {question} |`
-   - Q14-Q15: `agents/review-fix.md` — CLUSTERS array `definition` field only (no code-reviewer.md entry)
+   - Q1-Q4 (Safety tier universal): `agents/code-reviewer.md` — paragraph format under "Phase 3a": `**Q{N} — {Title}**: {text}`
+   - Q5 (Quality tier universal): `agents/code-reviewer.md` — paragraph format under "Phase 3b": `**Q{N} — {Title}**: {text}`
+   - Q6, Q8, Q10, Q15, Q16, Q33 (Safety tier triggered): `agents/code-reviewer.md` — table row under "Phase 3a": `| Q{N} | {trigger} | {question} |`
+   - Q7, Q9, Q11-Q14, Q17-Q32, Q34-Q37 (Quality tier triggered): `agents/code-reviewer.md` — table row under "Phase 3b": `| Q{N} | {trigger} | {question} |`
 
    **Extraction:**
-   - Read `agents/code-reviewer.md`. For Q1-Q5: find line starting `**Q{N}` and extract full paragraph.
-     For Q6-Q13, Q16: find table row starting `| Q{N} |` and extract the Question column (3rd `|`-delimited field).
-   - Read `agents/review-fix.md`. For Q14-Q15: find the CLUSTERS `definition` field containing `**Q{N}`.
-   - For ALL Q-IDs: also extract the CLUSTERS `definition` field from `agents/review-fix.md` for sync verification.
+   - Read `agents/code-reviewer.md`. For Q1-Q4, Q5: find line starting `**Q{N}` and extract full paragraph.
+     For all triggered questions: find table row starting `| Q{N} |` and extract the Question column (3rd `|`-delimited field).
 
 3. **Find matching fixtures** for each target Q-ID:
    - Glob `test/fixtures/review-fix/*.ground-truth.json`
@@ -516,21 +513,11 @@ IF dry_run:
 
 For each question where `verdict == "updated"`:
 
-1. **Edit `agents/code-reviewer.md`** (canonical source — Q1-Q13 only):
-   - For Q1-Q5 (Universal): find the `**Q{N} — {Title}**:` paragraph and replace with `best_version`
-   - For Q6-Q13 (Context-Specific): find the table row `| Q{N} |` and replace the Question column
+1. **Edit `agents/code-reviewer.md`** (canonical source for all Q1-Q37):
+   - For Q1-Q4 (Safety tier universal): find the `**Q{N} — {Title}**:` paragraph and replace with `best_version`
+   - For Q5 (Quality tier universal): find the `**Q{N} — {Title}**:` paragraph and replace with `best_version`
+   - For triggered questions (both tiers): find the table row `| Q{N} |` and replace the Question column
    - Print: `"  ✏️  Q{N}: updated in agents/code-reviewer.md"`
-
-2. **Edit `agents/review-fix.md`** (CLUSTERS — ALL Q-IDs including Q14-Q15):
-   - Find the CLUSTERS entry containing `{ id: 'Q{N}'` and replace the `definition` field value
-   - For Q14-Q15: this is the ONLY write target (they exist exclusively in CLUSTERS, not in code-reviewer.md)
-   - Print: `"  ✏️  Q{N}: synced to agents/review-fix.md CLUSTERS"`
-
-3. **Verify consistency** (Q1-Q13 only — Q14-Q15 have single-source, no cross-check needed):
-   - Re-read both files
-   - Grep for Q{N} definition in both
-   - Confirm semantic equivalence (CLUSTERS definition may be shorter — that's OK as long as
-     the core question text matches)
 
 ---
 
