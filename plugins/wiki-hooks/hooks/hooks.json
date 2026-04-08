@@ -3,27 +3,27 @@
   "hooks": {
     "SessionStart": [{
       "matcher": "clear",
-      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-clear.sh", "timeout": 10, "async": true }]
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-clear.sh", "timeout": 30, "async": true }]
     }, {
       "matcher": "*",
       "hooks": [
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 2 },
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cleanup.sh", "timeout": 60, "async": true },
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cache-rebuild.sh", "timeout": 30, "async": true },
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-worker.sh", "timeout": 600, "async": true }
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-detect.sh", "timeout": 10 },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cleanup.sh", "timeout": 120, "async": true },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cache-rebuild.sh", "timeout": 60, "async": true },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-worker.sh", "timeout": 900, "async": true }
       ]
     }],
     "UserPromptSubmit": [{
       "matcher": "*",
       "hooks": [
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-notify.sh", "timeout": 2 },
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-worker.sh", "timeout": 600, "async": true }
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-notify.sh", "timeout": 5 },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-worker.sh", "timeout": 900, "async": true }
       ]
     }],
     "PostToolUse": [{
       "matcher": "Write|Edit",
       "hooks": [
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cache-rebuild.sh", "timeout": 10, "async": true }
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-cache-rebuild.sh", "timeout": 30, "async": true }
       ]
     }],
     "PreToolUse": [{
@@ -32,15 +32,15 @@
     }],
     "PreCompact": [{
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-precompact.sh", "timeout": 3 }]
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-precompact.sh", "timeout": 10 }]
     }],
     "Stop": [{
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-stop.sh", "timeout": 15, "async": true }]
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-stop.sh", "timeout": 30, "async": true }]
     }],
     "SessionEnd": [{
       "matcher": "*",
-      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-session-end.sh", "timeout": 5 }]
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-session-end.sh", "timeout": 10 }]
     }]
   }
 }
