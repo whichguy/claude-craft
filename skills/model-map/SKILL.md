@@ -98,6 +98,10 @@ if that section is empty (don't show an empty table).
 
   /model-map session <model> <child>  — force child model for a session
   /model-map map <from> <to>          — remap a specific model name
+  /model-map map <from> inherit       — strip model field, defer to native resolution
+
+  ℹ Standard names (sonnet, opus, haiku) are resolved natively by Claude Code.
+    Only add mappings for custom model IDs or use 'inherit' to strip the field.
 ```
 
 **Providers section** (only if `.providers` has entries):
@@ -138,6 +142,18 @@ Print: `Removed session rule: <model>`
 Then show the updated config.
 
 ### map <from> <to>
+
+**Warning check:** If `<from>` is a known Claude Code shorthand (`sonnet`, `opus`, `haiku`,
+`claude-sonnet-4-6`, `claude-opus-4-6`, `claude-haiku-4-5-20251001`) and `<to>` is NOT `"inherit"`,
+print a warning before applying:
+
+```
+⚠️  Claude Code natively resolves '<from>' — mapping it to a specific model ID
+    may break subagent routing. Use 'inherit' to defer to native resolution,
+    or proceed if you know your gateway requires a specific ID.
+```
+
+Still apply the mapping (the user may have a valid reason).
 
 ```bash
 jq --arg k "<from>" --arg v "<to>" '.model_mappings[$k] = $v' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"

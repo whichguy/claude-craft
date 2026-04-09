@@ -7,7 +7,16 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 INPUT=$(cat)
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null)
-CONFIG="$HOME/.claude/model-map.json"
+
+# Config precedence: local .claude/ > global ~/.claude/ (matches model-router.sh)
+HOOK_CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+GLOBAL_CONFIG="$HOME/.claude/model-map.json"
+CONFIG=""
+if [[ -n "$HOOK_CWD" && "$HOOK_CWD" == /* && ${#HOOK_CWD} -lt 4096 && -f "$HOOK_CWD/.claude/model-map.json" ]]; then
+  CONFIG="$HOOK_CWD/.claude/model-map.json"
+elif [[ -f "$GLOBAL_CONFIG" ]]; then
+  CONFIG="$GLOBAL_CONFIG"
+fi
 
 [[ -z "$SESSION_ID" ]] && exit 0
 
@@ -23,7 +32,7 @@ fi
 
 # Look up forced child model from config
 CHILD=""
-if [[ -f "$CONFIG" ]]; then
+if [[ -n "$CONFIG" && -f "$CONFIG" ]]; then
   CHILD=$(jq -r --arg m "$MODEL" '.session_rules[$m] // empty' "$CONFIG" 2>/dev/null)
 fi
 

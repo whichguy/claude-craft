@@ -168,21 +168,17 @@ main() {
     install_settings_hooks
 
     # Bootstrap default model-map.json if not present
+    # NOTE: Claude Code natively resolves shorthand names (sonnet, opus, haiku)
+    # and public model IDs. Only add mappings here for custom routing needs
+    # (e.g., "inherit" to strip model field, or non-standard model IDs).
     local model_map="$CLAUDE_DIR/model-map.json"
     if [ ! -f "$model_map" ]; then
         cat > "$model_map" <<'MODELMAP'
 {
-  "model_mappings": {
-    "sonnet": "us.anthropic.claude-sonnet-4-6-v1",
-    "claude-sonnet-4-6": "us.anthropic.claude-sonnet-4-6-v1",
-    "opus": "us.anthropic.claude-opus-4-6-v1",
-    "claude-opus-4-6": "us.anthropic.claude-opus-4-6-v1",
-    "haiku": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-    "claude-haiku-4-5-20251001": "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-  }
+  "model_mappings": {}
 }
 MODELMAP
-        echo -e "${GREEN}✅ Created default model-map.json (Bedrock model mappings)${NC}"
+        echo -e "${GREEN}✅ Created default model-map.json${NC}"
     else
         echo -e "${GREEN}✅ model-map.json already exists — skipping${NC}"
     fi
