@@ -69,53 +69,20 @@ page_count=$(grep -c '^|' "$index_path" 2>/dev/null || true)
 page_count=${page_count:-2}
 page_count=$((page_count > 2 ? page_count - 2 : 0))
 
-topics=$(ls "$ENTITIES_DIR/" 2>/dev/null | sed 's/\.md$//' | head -10 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
 topic_count=$(ls "$ENTITIES_DIR/" 2>/dev/null | wc -l | tr -d ' ')
-overflow=""
-if [ "$topic_count" -gt 10 ]; then overflow=", +$((topic_count - 10)) more"; fi
-
-sep="   ─────────────────────────────────────"
 
 DISPLAY_TMP="$CACHE_DIR/display.txt.tmp"
-# Pick a random topic for dynamic example (rotate on each rebuild)
-example_topic=""
-if [ -d "$ENTITIES_DIR" ]; then
-  example_topic=$(ls "$ENTITIES_DIR/" 2>/dev/null | sed 's/\.md$//' | shuf -n 1 2>/dev/null || ls "$ENTITIES_DIR/" 2>/dev/null | sed 's/\.md$//' | head -1)
-fi
-
-if [ -n "$topics" ]; then
-  topic_display=$(echo "$topics" | sed 's/, / · /g')
-  {
-    echo "📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics"
-    echo "$sep"
-    echo "   ${topic_display}${overflow}"
-    echo "$sep"
-    if [ -n "$example_topic" ]; then
-      echo "   /wiki-load ${example_topic}  ·  /wiki-query \"how does ${example_topic} work?\""
-    else
-      echo "   /wiki-load <topic>  ·  /wiki-query <question>"
-    fi
-  } > "$DISPLAY_TMP"
-else
-  {
-    echo "📂 ${repo_name} wiki · ${page_count} pages"
-    echo "   /wiki-load <topic>  ·  /wiki-query <question>"
-  } > "$DISPLAY_TMP"
-fi
+# ⚠ No topic names in display — they give the LLM enough context to skip /wiki-load
+{
+  echo "📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics"
+  echo "   /wiki-load <topic>  ·  /wiki-query <question>"
+} > "$DISPLAY_TMP"
 mv "$DISPLAY_TMP" "$CACHE_DIR/display.txt"
 
 # Build context.txt
 CONTEXT_TMP="$CACHE_DIR/context.txt.tmp"
-index_content=$(grep '^|' "$index_path" 2>/dev/null | head -30 || true)
-if [ -n "$index_content" ]; then
-  {
-    echo "Project wiki: ${repo_name}. Load pages with /wiki-load <topic>. Query with /wiki-query <question>."
-    echo ""
-    echo "$index_content"
-  } > "$CONTEXT_TMP"
-else
-  echo "Wiki available: ${repo_name} (${page_count} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers." > "$CONTEXT_TMP"
-fi
+# ⚠ No index content — directive only forces /wiki-load invocation (context-poison fix)
+echo "Wiki available: ${repo_name} (${page_count} pages, ${topic_count} topics). You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on topic names alone — wiki pages contain authoritative implementation details." > "$CONTEXT_TMP"
 mv "$CONTEXT_TMP" "$CACHE_DIR/context.txt"
 
 # --- Touch mtime + debounce markers ---

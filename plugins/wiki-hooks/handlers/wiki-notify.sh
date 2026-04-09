@@ -49,17 +49,16 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
       continue
     fi
 
-    # Read first 10 lines directly from entity file (max 3 files)
-    summary=$(head -10 "$ENTITIES_DIR/${slug}.md" 2>/dev/null)
-    [ -z "$summary" ] && continue
-    CONTENT="${CONTENT}--- ${slug} ---"$'\n'"${summary}"$'\n\n'
+    # ⚠ Directive only — no page content injected. Partial previews cause the LLM
+    # to skip /wiki-load (context poison). Force skill invocation instead.
+    [ ! -f "$ENTITIES_DIR/${slug}.md" ] && continue
     MATCHED_NAMES="${MATCHED_NAMES:+${MATCHED_NAMES}, }${slug}"
     MATCH_COUNT=$((MATCH_COUNT + 1))
   done < "$ENTITY_INDEX"
 
   if [ "$MATCH_COUNT" -gt 0 ]; then
-    DISPLAY="🔍 Wiki auto-loaded ${MATCH_COUNT} page(s): ${MATCHED_NAMES} — /wiki-load ${MATCHED_NAMES%%,*} for full content"
-    CONTENT="WIKI_PARTIAL: auto-matched entities (10-line preview only). REQUIRED: invoke /wiki-load <slug> before planning, designing, debugging, or answering domain questions referencing these topics. Previews insufficient for substantive work."$'\n\n'"${CONTENT}"
+    DISPLAY="🔍 Wiki matched ${MATCH_COUNT} page(s): ${MATCHED_NAMES}"
+    CONTENT="WIKI_MATCH: ${MATCH_COUNT} wiki page(s) matched this prompt: ${MATCHED_NAMES}. You MUST invoke /wiki-load ${MATCHED_NAMES%%,*} to load full context before proceeding. Do NOT answer domain questions from memory or partial context — the wiki pages contain authoritative project-specific information that may differ from your training data."
   fi
 fi
 

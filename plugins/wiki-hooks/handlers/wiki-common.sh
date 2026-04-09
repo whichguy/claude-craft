@@ -128,31 +128,14 @@ wiki_build_display() {
   page_count=${page_count:-2}
   page_count=$((page_count > 2 ? page_count - 2 : 0))
 
-  local topics; topics=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | sed 's/\.md$//' | head -10 | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
   local topic_count; topic_count=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
-  local overflow=""
-  if [ "$topic_count" -gt 10 ]; then overflow=", +$((topic_count - 10)) more"; fi
 
-  local sep="   ─────────────────────────────────────"
+  # ⚠ No topic names in display — they give the LLM enough context to skip /wiki-load
+  DISPLAY="📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics${label:+ $label}"
+  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
 
-  if [ -n "$topics" ]; then
-    local topic_display; topic_display=$(echo "$topics" | sed 's/, / · /g')
-    DISPLAY="📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics${label:+ $label}"
-    DISPLAY="${DISPLAY}"$'\n'"${sep}"
-    DISPLAY="${DISPLAY}"$'\n'"   ${topic_display}${overflow}"
-    DISPLAY="${DISPLAY}"$'\n'"${sep}"
-    DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
-  else
-    DISPLAY="📂 ${repo_name} wiki · ${page_count} pages${label:+ $label}"
-    DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
-  fi
-
-  local index_content; index_content=$(grep '^|' "$index_path" 2>/dev/null | head -30 || true)
-  if [ -n "$index_content" ]; then
-    CONTEXT="Project wiki: ${repo_name}. Load pages with /wiki-load <topic>. Query with /wiki-query <question>."$'\n\n'"${index_content}"
-  else
-    CONTEXT="Wiki available: ${repo_name} (${page_count} pages). Use /wiki-load <topic> to load context. Use /wiki-query <question> to synthesize answers."
-  fi
+  # ⚠ No index content — directive only forces /wiki-load invocation (context-poison fix)
+  CONTEXT="Wiki available: ${repo_name} (${page_count} pages, ${topic_count} topics). You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on topic names alone — wiki pages contain authoritative implementation details."
 }
 
 # --- Log entry ---

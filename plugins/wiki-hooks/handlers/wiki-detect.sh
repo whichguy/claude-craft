@@ -46,27 +46,11 @@ touch "$MARKER" 2>/dev/null || true
 
 wiki_log "SESSION_START" "opened in $(basename "$REPO_ROOT")"
 
-# Read pre-computed display (cache hit: ~2ms, cache miss: legacy inline)
-wiki_build_display
-
-# Check for failed entries (moved from sync grep -rl to cached count)
-QUEUE_DIR="$HOME/.claude/reflection-queue"
-FAILED_COUNT=0
-if [ -d "$QUEUE_DIR" ]; then
-  # Escape WIKI_PATH for use in grep pattern (convert to literal string)
-  WIKI_PATH_ESCAPED=$(printf '%s\n' "$WIKI_PATH" | sed 's/[]\.*^$()+?{|[]/\\&/g')
-  # Count failed queue entries for this wiki (BSD xargs compatible)
-  failed_files=$(grep -rl '"status".*"failed"' "$QUEUE_DIR/" 2>/dev/null | grep -E '\-(wiki|wikichange)\.json$' || true)
-  if [ -n "$failed_files" ]; then
-    FAILED_COUNT=$(echo "$failed_files" | xargs grep -l "\"wiki_path\":\"$WIKI_PATH_ESCAPED\"" 2>/dev/null | wc -l | tr -d ' ')
-  fi
-  FAILED_COUNT=${FAILED_COUNT:-0}
-fi
-
-if [ "$FAILED_COUNT" -gt 0 ]; then
-  DISPLAY="${DISPLAY}"$'\n'"   ⚠️ ${FAILED_COUNT} wiki synthesis failed"
-fi
-DISPLAY="${DISPLAY}"$'\n'"   Switch repos? Run /wiki-load <topic> to refresh context."
+# ⚠ No topic names/counts — they give the LLM enough to skip /wiki-load.
+# systemMessage = exactly what LLM sees (additionalContext), so user can audit.
+REPO_NAME=$(basename "$REPO_ROOT")
+CONTEXT="Wiki available for ${REPO_NAME}. You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on memory — wiki pages contain authoritative implementation details."
+DISPLAY="${CONTEXT}"$'\n'"Switch folders or repos? Run /wiki-load <topic> to refresh context."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
   '{"systemMessage": $display, "additionalContext": $context}'
