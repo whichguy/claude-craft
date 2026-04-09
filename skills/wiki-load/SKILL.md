@@ -33,6 +33,14 @@ From `$ARGUMENTS`, extract:
 
 Find `REPO_ROOT` via `git rev-parse --show-toplevel` if in a repo (for project tier).
 
+## Step 0.5 — Log Invocation
+
+If `REPO_ROOT` was found and `$REPO_ROOT/wiki/log.md` exists, append a log entry via Bash:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M')] WIKI_LOAD session:${CLAUDE_CODE_SESSION_ID:0:8}: /wiki-load $ARGUMENTS" >> "$REPO_ROOT/wiki/log.md"
+```
+
 ## Step 1 — Project Tier Search (default or --project)
 
 If not `GLOBAL_ONLY` and in a git repo with a wiki:
