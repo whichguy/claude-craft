@@ -4,6 +4,7 @@ description: |
   Ping someone on Slack — optionally about a GUS work item or GitHub PR,
   with optional URL intelligently hyperlinked into the message.
   Resolves identifiers, formats a rich message, previews, and sends on approval.
+  Can also post directly to a channel without tagging a specific person.
 
   **AUTOMATICALLY INVOKE** when:
   - "tag someone on slack about"
@@ -14,9 +15,11 @@ description: |
   - "let X know about W-"
   - "ping someone on slack"
   - "message someone on slack about"
+  - "post to #channel"
+  - "send to #channel"
 
   **NOT for:** General Slack announcements or channel summaries
-argument-hint: "<person> [work-item] [#channel] [url] [message]"
+argument-hint: "[person] [work-item] [#channel] [url] [message]"
 allowed-tools: all
 model: sonnet
 ---
@@ -25,8 +28,8 @@ model: sonnet
 
 Ping someone on Slack — with or without a work item. When a GUS record or
 GitHub PR is provided, resolves the item details and formats a rich message.
-Without a work item, sends a simple tagged message. Always previews before
-sending.
+Without a work item, sends a simple tagged message. Can also post directly to
+a channel without tagging a specific person. Always previews before sending.
 
 ---
 
@@ -51,21 +54,26 @@ Stop on any failure — don't attempt partial workflows.
 
 Extract from the user's input (flexible — natural language is fine):
 
-- **person** (required): name, email, or `@handle`
+- **person** (optional): name, email, or `@handle` — required for DMs, optional when a `#channel` is provided
 - **work-item** (optional): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
-- **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM
+- **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM (requires person)
 - **url** (optional): any `https://` URL — will be intelligently hyperlinked into the message
 - **message** (optional): quoted string or trailing text after the other args
 
 If no work item is provided, the message is sent as a simple ping (message only,
 no item metadata block).
 
-**Validation**: If both work-item and message are omitted, stop immediately:
-"Please provide either a work item or a message (or both)."
+**Validation**:
+- If both work-item and message are omitted, stop immediately:
+  "Please provide either a work item or a message (or both)."
+- If neither person nor channel is provided, stop immediately:
+  "Please provide a person to DM or a #channel to post to."
 
-Parse left-to-right: first token is always **person**, then look for work-item
-patterns (`W-XXXXX` or `owner/repo#N`), channel (`#channel`), and URL
-(`https://...`) in remaining tokens, then treat the rest as message.
+Parse left-to-right: scan all tokens for structured patterns first — work-item
+(`W-XXXXX` or `owner/repo#N`), channel (`#channel`), and URL (`https://...`).
+If a non-pattern token appears before any structured token, treat it as **person**.
+Remaining unmatched tokens form the **message**. If the first token is `#channel`
+and no person-like token is found, this is a channel-only post (no person).
 
 **Parse priority**: Work-item patterns are matched before the generic URL
 parameter. Full GitHub PR URLs (`https://github.com/owner/repo/pull/N`) are
@@ -82,6 +90,8 @@ Examples:
 /slack-tag john.doe https://confluence.internal/pages/12345 "Check out the new design doc"
 /slack-tag @jane W-12345678 https://docs.google.com/spreadsheets/d/abc "Data is in the tracker"
 /slack-tag @jane anthropics/claude-code#100 https://wiki.internal/runbook "See the runbook for context"
+/slack-tag #gov-leadership "Reminder: review deadline is Friday"
+/slack-tag #gov-cloud-all W-12345678 "FYI — this just got escalated"
 ```
 
 ---
@@ -99,6 +109,8 @@ resolve → format → preview → send. Proceed directly to Step 2.
 can run in parallel with each other and with GitHub CLI calls.
 
 ### 2a. Find the person on Slack
+
+Skip this step if no person was specified (channel-only post).
 
 Call `slack_search_users(query: "<person>")`.
 
@@ -144,7 +156,8 @@ number?"
 
 Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 
-- Not found: "Can't find #channel. Send as DM to @person instead?"
+- Not found (with person): "Can't find #channel. Send as DM to @person instead?"
+- Not found (no person): "Can't find #channel. Please check the channel name."
 - Omitted: use the person's `user_id` as the target (DM).
 
 ---
@@ -202,9 +215,10 @@ the URL most naturally describes. Examples:
 
 ### @mention behavior
 
-When posting to a **channel**, prefix the message with `<@USER_ID>` so the
-person gets a Slack notification. When sending a **DM**, skip the @mention
-(they'll see it directly).
+When posting to a **channel with a person**, prefix the message with `<@USER_ID>`
+so the person gets a Slack notification. When sending a **DM**, skip the @mention
+(they'll see it directly). When posting to a **channel without a person**
+(channel-only), skip the @mention entirely.
 
 ### Template — GUS work item
 
@@ -256,6 +270,11 @@ Channel version (with @mention):
 <@{user_id}> {message}
 ```
 
+Channel-only version (no person):
+```
+{message}
+```
+
 DM version (no @mention):
 ```
 {message}
@@ -271,7 +290,8 @@ Pick based on context:
 - GUS P0/P1: "Heads up — this could use some attention."
 - GUS general: "Hey — could use your eyes on this when you get a chance."
 - GitHub PR: "Mind taking a look when you have a minute?"
-- No work item: **a message is required** — ask the user what to say.
+- No work item (with person): **a message is required** — ask the user what to say.
+- No work item (channel-only): **a message is required** — ask the user what to say.
 
 ---
 
@@ -284,8 +304,8 @@ Show a terminal preview card before sending:
   │  slack-tag                                    │
   ╰──────────────────────────────────────────────╯
 
-  To        @{handle} ({Full Name})
-  Via       #{channel-name} (tagged)   ← or "DM" if no channel
+  To        @{handle} ({Full Name})   ← or omit if channel-only
+  Via       #{channel-name} (tagged)   ← or "DM" if no channel; "(broadcast)" if no person
   Item      {W-number} — {Subject}     ← or omit this line if no work item
   Ref       {url}                      ← omit if no user-provided URL
 
@@ -309,7 +329,7 @@ Then ask: **"Send this?"** (yes / no / edit)
 After a successful send, print a single confirmation line:
 
 ```
-  Sent to #{channel} · @{handle} · {work-item-id}     ← omit work-item-id if none
+  Sent to #{channel} · @{handle} · {work-item-id}     ← omit @handle if channel-only, omit work-item-id if none
 ```
 
 ---
