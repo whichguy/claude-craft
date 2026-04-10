@@ -279,12 +279,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
 
    IF REVIEW_TIER == SMALL:
-     # Build question set: 9 core + risk-activated conditional questions
+     # Build question set: 8 core + risk-activated conditional questions
      small_questions = [
        "Q-G1",   # Approach soundness (Gate 1)
        "Q-G11",  # Existing code examined (Gate 1)
        "Q-C3",   # Blast radius / call-site cross-ref (Gate 1)
-       "Q-G3",   # Scope clarity (Gate 2)
        "Q-G4",   # Assumptions / unintended consequences (Gate 2)
        "Q-G5",   # Scope focus (Gate 2)
        "Q-C26",  # Proportionality / migration tasks (Gate 2)
@@ -310,13 +309,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Dedup (guards against future overlap if risk domains share question IDs)
      small_questions = list(dict.fromkeys(small_questions))
      total_q = len(small_questions)
-     risk_count = total_q - 9
+     risk_count = total_q - 8
 
      Print: "╔══════════════════════════════════════════════╗"
      Print: "║  ⚡ FAST PATH                       SMALL  ║"
      Print: "╚══════════════════════════════════════════════╝"
      Print: "  Scope       single-pass review"
-     Print: "  Questions   [total_q] (9 core + [risk_count] risk-activated)"
+     Print: "  Questions   [total_q] (8 core + [risk_count] risk-activated)"
      IF risk_questions:
        Print: "  Risks       [comma-separated ACTIVE_RISKS]"
 
@@ -376,7 +375,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
            Gate 2 (Important)
            ─────────────────────────────────────
-             ✅  Scope clarity                   Q-G3
              ✅  Assumptions stated              Q-G4
              ✅  Scope focus                     Q-G5
              ✅  Proportionality                 Q-C26
