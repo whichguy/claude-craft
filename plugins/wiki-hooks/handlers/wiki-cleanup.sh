@@ -22,41 +22,30 @@ QUEUE_DIR="$HOME/.claude/reflection-queue"
 # --- 1. Expire stale session markers (>24h) ---
 # Exclude markers whose session ID matches a currently running claude process.
 # Get active PIDs from running claude processes (best-effort).
+# Narrow pattern: match the claude binary, not every process with "claude" in args
+# (e.g., editors with claude-craft files open, hook scripts in ~/.claude/).
 ACTIVE_PIDS=""
 if command -v pgrep >/dev/null 2>&1; then
-  ACTIVE_PIDS=$(pgrep -f 'claude' 2>/dev/null || true)
+  ACTIVE_PIDS=$(pgrep -x 'claude' 2>/dev/null || true)
 fi
 
 for marker in "$WIKI_DIR"/.session-*-start "$WIKI_DIR"/.session-*-notified; do
   [ -f "$marker" ] || continue
   # Check if marker is older than 24h
-  if [ "$(uname)" = "Darwin" ]; then
-    marker_age=$(( $(date +%s) - $(stat -f %m "$marker" 2>/dev/null || echo 0) ))
-  else
-    marker_age=$(( $(date +%s) - $(stat -c %Y "$marker" 2>/dev/null || echo 0) ))
-  fi
+  marker_age=$(( $(date +%s) - $(stat -f %m "$marker" 2>/dev/null || stat -c %Y "$marker" 2>/dev/null || echo 0) ))
   [ "$marker_age" -lt 86400 ] && continue
 
   # Extract session short ID from marker filename
-  marker_name=$(basename "$marker")
-  marker_sid=$(echo "$marker_name" | sed 's/^\.session-//;s/-start$//;s/-notified$//')
+  marker_sid=$(basename "$marker" | sed 's/^\.session-//;s/-start$//;s/-notified$//')
 
-  # Check if any running claude process might own this session
+  # Skip deletion if any running claude process references this session ID
   # (conservative: if we can't determine, expire it anyway after 24h)
-  skip=false
   if [ -n "$ACTIVE_PIDS" ]; then
     for pid in $ACTIVE_PIDS; do
-      # Check if the process's environment or args contain this session ID
-      if ps -p "$pid" -o args= 2>/dev/null | grep -q "$marker_sid" 2>/dev/null; then
-        skip=true
-        break
-      fi
+      ps -p "$pid" -o args= 2>/dev/null | grep -q "$marker_sid" && continue 2
     done
   fi
-
-  if [ "$skip" = "false" ]; then
-    rm -f "$marker"
-  fi
+  rm -f "$marker"
 done
 
 # --- 2. Recover .processing-* files from dead or stale PIDs ---
@@ -73,11 +62,7 @@ if [ -d "$QUEUE_DIR" ]; then
     fi
 
     # Check b: Stale claim — file older than 24h regardless of PID status
-    if [ "$(uname)" = "Darwin" ]; then
-      file_age=$(( $(date +%s) - $(stat -f %m "$f" 2>/dev/null || echo 0) ))
-    else
-      file_age=$(( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) ))
-    fi
+    file_age=$(( $(date +%s) - $(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null || echo 0) ))
     if [ "$file_age" -gt 86400 ]; then
       mv "$f" "$ORIG" 2>/dev/null || rm -f "$f"
     fi
@@ -108,4 +93,9 @@ if [ ! -f "$WIKI_DIR/.cache/display.txt" ]; then
   if [ -x "$HANDLER_DIR/wiki-cache-rebuild.sh" ]; then
     echo "$HOOK_INPUT" | "$HANDLER_DIR/wiki-cache-rebuild.sh" 2>/dev/null || true
   fi
+fi
+
+# --- 6. Clean stale .tmp files from queue dir ---
+if [ -d "$QUEUE_DIR" ]; then
+  find "$QUEUE_DIR" -name "*.tmp.*" -mmin +60 -delete 2>/dev/null || true
 fi

@@ -36,14 +36,7 @@ fi
 
 # --- Debounce: skip if rebuilt <30s ago ---
 mkdir -p "$CACHE_DIR"
-DEBOUNCE_FILE="$CACHE_DIR/last-rebuild"
-if [ -f "$DEBOUNCE_FILE" ]; then
-  LAST_REBUILD=$(stat -f %m "$DEBOUNCE_FILE" 2>/dev/null || stat -c %Y "$DEBOUNCE_FILE" 2>/dev/null || echo 0)
-  NOW=$(date +%s)
-  if [ $((NOW - LAST_REBUILD)) -lt 30 ]; then
-    exit 0
-  fi
-fi
+wiki_debounce "$CACHE_DIR/last-rebuild" 30 || exit 0
 
 # --- Build entity-index.tsv ---
 # Format: slug<TAB>word1 word2 word3 (one line per entity)
@@ -87,6 +80,5 @@ CONTEXT_TMP="$CACHE_DIR/context.txt.tmp"
 echo "Wiki available: ${repo_name} (${page_count} pages, ${topic_count} topics). You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on topic names alone — wiki pages contain authoritative implementation details." > "$CONTEXT_TMP"
 mv "$CONTEXT_TMP" "$CACHE_DIR/context.txt"
 
-# --- Touch mtime + debounce markers ---
+# --- Touch mtime marker ---
 touch "$CACHE_DIR/mtime"
-touch "$DEBOUNCE_FILE"

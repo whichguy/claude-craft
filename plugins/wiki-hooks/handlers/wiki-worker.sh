@@ -16,30 +16,39 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 
+# Configuration
+DEBOUNCE_SECONDS=30
+STALE_CLAIM_SECONDS=180
+EXTRACTION_TIMEOUT=120
+
 # --- Pre-check: any .json files at all? ---
 # ⚠ Pure glob — no grep/find subprocess (was grep -rl in old design)
 files=("$QUEUE_DIR"/*.json)
 [ ${#files[@]} -eq 0 ] && exit 0
 
 # --- Debounce: skip if another worker started <30s ago ---
-DEBOUNCE="$QUEUE_DIR/.last-worker"
-if [ -f "$DEBOUNCE" ]; then
-  age=$(( $(date +%s) - $(stat -f %m "$DEBOUNCE" 2>/dev/null || stat -c %Y "$DEBOUNCE" 2>/dev/null || echo 0) ))
-  [ "$age" -lt 30 ] && exit 0
-fi
-touch "$DEBOUNCE"
+wiki_debounce "$QUEUE_DIR/.last-worker" "$DEBOUNCE_SECONDS" || exit 0
 
 # --- Phase 0.5: Clean orphaned claims from crashed workers ---
-# ⚠ 10min threshold = 5× margin over 120s extraction timeout
+# Two checks: (a) owning PID is dead → clean immediately, (b) age >3min → clean regardless.
+# 3min = ~1.5× the 120s extraction timeout — generous but not glacially slow.
 for stale in "$QUEUE_DIR"/*.batch-*; do
   [ -f "$stale" ] || continue
+  stale_pid="${stale##*.batch-}"
+  # Fast path: if owning PID is dead, reclaim immediately
+  if ! kill -0 "$stale_pid" 2>/dev/null; then
+    rm -f "$stale"
+    continue
+  fi
+  # Slow path: PID alive but file too old (stuck extraction)
   stale_age=$(( $(date +%s) - $(stat -f %m "$stale" 2>/dev/null || stat -c %Y "$stale" 2>/dev/null || echo 0) ))
-  [ "$stale_age" -gt 600 ] && rm -f "$stale"
+  [ "$stale_age" -gt "$STALE_CLAIM_SECONDS" ] && rm -f "$stale"
 done
 
 # --- Phase 1: Claim — rename all .json to .batch-$$ ---
 # ⚠ Atomic: exactly one caller wins each file. Losers get "No such file" silently.
 for f in "$QUEUE_DIR"/*.json; do
+  [ -s "$f" ] || continue
   mv "$f" "${f%.json}.batch-$$" 2>/dev/null
 done
 
@@ -149,8 +158,8 @@ Every entity should link to related entities. When you add or create an entity:
 - Do NOT add the same session's content twice (always grep for session ID first)."
 
     TIMEOUT_CMD=""
-    if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD="gtimeout 120"
-    elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout 120"
+    if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD="gtimeout $EXTRACTION_TIMEOUT"
+    elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout $EXTRACTION_TIMEOUT"
     fi
 
     if $TIMEOUT_CMD "$CLAUDE_CMD" -p --model claude-sonnet-4-6 \
@@ -158,6 +167,7 @@ Every entity should link to related entities. When you add or create an entity:
       "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>/dev/null; then
       rm -f "$entry"
     else
+      echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) session:${SID:0:8} failed (attempt $((RETRY+1))/3)" >> "$QUEUE_DIR/.extract-failures.log" 2>/dev/null || true
       NEW_RETRY=$((RETRY + 1))
       if [ "$NEW_RETRY" -ge 3 ]; then
         rm -f "$entry"

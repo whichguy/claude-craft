@@ -42,4 +42,8 @@ mkdir -p "$SESSION_DIR"
 # Atomic write — prevents race if PreToolUse fires before write completes
 printf '%s' "$CHILD" > "$SESSION_DIR/session-model.tmp" && mv "$SESSION_DIR/session-model.tmp" "$SESSION_DIR/session-model"
 
+# Prune stale session-env dirs — self-cleanup
+SESSION_ENV_RETENTION_DAYS=7
+find "$HOME/.claude/session-env" -maxdepth 1 -mindepth 1 -type d -mtime +$SESSION_ENV_RETENTION_DAYS -exec rm -rf {} + 2>&1 | grep -v "Permission denied" | grep -v "No such file" >&2 || true
+
 exit 0

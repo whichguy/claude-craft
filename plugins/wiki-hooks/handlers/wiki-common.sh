@@ -50,9 +50,9 @@ wiki_queue_entry() {
 
   mkdir -p "$queue_dir"
 
-  # Skip if already queued (idempotency)
-  [ -f "$queue_file" ] && return 0
-
+  # Atomic idempotency: write to PID-tagged tmp, then mv -n (no-clobber).
+  # If another process already created queue_file, mv -n fails and we clean up.
+  local tmp_file="$queue_file.tmp.$$"
   jq -n \
     --arg sid "$SID" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -64,7 +64,9 @@ wiki_queue_entry() {
     --arg cwd "$CWD" \
     '{type:$type,session_id:$sid,queued_at:$ts,source:$source,
       priority:$priority,transcript_path:$transcript,wiki_path:$wiki_path,
-      cwd:$cwd,status:"pending",in_progress_at:null}' > "$queue_file" 2>/dev/null || true
+      cwd:$cwd,status:"pending",in_progress_at:null}' > "$tmp_file" 2>/dev/null || { rm -f "$tmp_file"; wiki_warn "queue entry failed: $SID ($type)"; return 0; }
+  # mv -n: atomic no-clobber — fails if queue_file already exists (another writer won)
+  mv -n "$tmp_file" "$queue_file" 2>/dev/null || rm -f "$tmp_file"
 }
 
 # --- Wiki change detection ---
@@ -86,7 +88,7 @@ wiki_queue_changes() {
   [ -z "$CHANGED_FILES" ] && return 0
   local suffix="${QUEUE_SUFFIX_CHANGE:-wikichange}"
   local queue_file="$HOME/.claude/reflection-queue/${SID}-${suffix}.json"
-  [ -f "$queue_file" ] && return 0
+  local tmp_file="$queue_file.tmp.$$"
 
   local changed_json
   changed_json=$(echo "$CHANGED_FILES" | jq -R . | jq -s .)
@@ -99,7 +101,8 @@ wiki_queue_changes() {
     --argjson files "$changed_json" \
     '{type:"wiki_change",session_id:$sid,queued_at:$ts,source:$source,
       priority:"normal",wiki_path:$wiki_path,changed_files:$files,
-      cwd:$cwd,status:"pending"}' > "$queue_file" 2>/dev/null || true
+      cwd:$cwd,status:"pending"}' > "$tmp_file" 2>/dev/null || { rm -f "$tmp_file"; wiki_warn "queue changes failed: $SID"; return 0; }
+  mv -n "$tmp_file" "$queue_file" 2>/dev/null || rm -f "$tmp_file"
 }
 
 # --- Display construction ---
@@ -184,6 +187,22 @@ wiki_resolve_claude_cmd() {
     fi
   done
   CLAUDE_CMD="claude"
+  return 0
+}
+
+# --- Atomic debounce ---
+# wiki_debounce DEBOUNCE_FILE SECONDS
+# Returns 0 if caller wins the debounce (proceed), 1 if debounced (exit).
+# Atomic: touch claim-$$, mv claim → debounce_file. Exactly one caller wins.
+wiki_debounce() {
+  local debounce_file="$1" seconds="${2:-30}"
+  if [ -f "$debounce_file" ]; then
+    local age=$(( $(date +%s) - $(stat -f %m "$debounce_file" 2>/dev/null || stat -c %Y "$debounce_file" 2>/dev/null || echo 0) ))
+    [ "$age" -lt "$seconds" ] && return 1
+  fi
+  local claim="${debounce_file}.claim-$$"
+  touch "$claim"
+  mv "$claim" "$debounce_file" 2>/dev/null || { rm -f "$claim"; return 1; }
   return 0
 }
 

@@ -84,28 +84,23 @@ else
 fi
 
 # ============================================
-# STEP 2: Load previous state
+# STEPS 2-6: Compare, notify, update (under flock)
 # ============================================
+# flock serializes the read-compare-write across concurrent SessionStart hooks.
+# FD 9 is used so we don't interfere with stdin/stdout.
+LOCK_FILE="$STATE_DIR/.notification.lock"
+exec 9>"$LOCK_FILE"
+flock -n 9 || exit 0  # Another instance holds the lock — skip (async hook, will retry next session)
 
 LAST_HASH=""
 if [[ -f "$STATE_FILE" ]]; then
   LAST_HASH=$(jq -r '.lastNotifiedHash // ""' "$STATE_FILE" 2>/dev/null || echo "")
 fi
 
-# ============================================
-# STEP 3: Compare and decide
-# ============================================
-
 # Exit if hash unchanged (no new changes since last notification)
-if [[ "$CURRENT_HASH" == "$LAST_HASH" ]]; then
+if [[ -n "$CURRENT_HASH" && "$CURRENT_HASH" == "$LAST_HASH" ]]; then
   exit 0
 fi
-
-# ============================================
-# STEP 4: Build notification for new changes
-# ============================================
-
-# SKILL_NAMES already populated in Step 1 (single find call)
 
 # Count skills (handle empty case properly)
 if [[ -z "$SKILL_NAMES" ]]; then
@@ -116,10 +111,8 @@ fi
 
 # Build message
 if [[ "$LAST_HASH" == "" ]]; then
-  # First time - welcome message
   MSG="Skills discovered: $SKILL_COUNT skill(s) available"
 else
-  # Change detected
   MSG="Skills updated since last session"
 fi
 
@@ -132,10 +125,7 @@ fi
 
 MSG="$MSG."
 
-# ============================================
-# STEP 5: Update state file (atomic write)
-# ============================================
-
+# Update state file (atomic write, under flock)
 SKILL_ARRAY=$(echo "$SKILL_NAMES" | tr ',' '\n' | jq -R . | jq -s .)
 TMP_STATE="${STATE_FILE}.tmp.$$"
 jq -n \
@@ -150,9 +140,8 @@ jq -n \
   }' > "$TMP_STATE"
 mv "$TMP_STATE" "$STATE_FILE"
 
-# ============================================
-# STEP 6: Output system message
-# ============================================
+# flock released automatically when FD 9 closes at exit
 
+# Output system message
 jq -n --arg msg "$MSG" '{"systemMessage": $msg}'
 exit 0
