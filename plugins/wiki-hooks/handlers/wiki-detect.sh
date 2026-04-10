@@ -58,7 +58,7 @@ else
   PAGE_COUNT=$((PAGE_COUNT > 2 ? PAGE_COUNT - 2 : 0))
   TOPIC_COUNT=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
   DISPLAY="📂 ${REPO_NAME} wiki · ${PAGE_COUNT} pages · ${TOPIC_COUNT} topics"
-  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> (read a page)  ·  /wiki-query <question> (search + synthesize)"
+  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 fi
 
 # ⚠ No topic names/counts in LLM context — they give the LLM enough to skip /wiki-load.
