@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*25 questions (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G28). Applies to every plan, every domain.*
+*23 questions (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -25,7 +25,6 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q | Question | Criteria | N/A |
 |---|----------|----------|-----|
 | Q-G1 | Approach soundness | Right solution? Simpler alternatives with valid rejection? Flag fallacies (false dichotomy, straw man, authority). Flag: (1) unsubstantiated constraints (need test/error/doc evidence); (2) manual steps when automatable; (3) additive path when replacement shrinks maintenance; (4) new dependency when native suffices. | never |
-| Q-G2 | Standards compliance | CLAUDE.md/MEMORY.md compliance? (IS_GAS: non-GAS scope only — Verification Protocol, Agent Teams, Tool Prefs; GAS directives → Q13.) | never |
 | Q-G11 | Existing code examined | Cites code read: paths, function names, current behavior. Flag: vague refs without names. GAS: .gs names or mcp_gas cat cited. | pure new-file work only |
 **Gate 2 — Important (weight 2):**
 
@@ -33,7 +32,6 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 |---|----------|----------|-----|
 | Q-G4 | Unintended consequences | Off-site side effects: broken workflows, behavioral/perf regressions, security shifts? | trivial isolated change |
 | Q-G5 | Scope focus | On-target, no scope creep? | never |
-| Q-G8 | Task & team usage | Decision Framework level correct? Flag: heavy work inline (->Task), serial-when-parallel Tasks, no TeamCreate for coordinated agents. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
 | Q-G10 | Assumption exposure | Flag implicit high-risk assumptions (environment, APIs, data, third-party). Targets: "should work", unvalidated env deps, TBD markers, evidence-free "won't work" claims. Stated assumptions acceptable if explicit; unvalidated constraints need cited evidence (test, error, doc, platform limit). Unresolved decisions → flag unless investigation steps or low-risk annotation present. Rules: "assume X" → flag if high-risk; "TBD" → always flag; contradictions → flag. (Lightweight — cross-phase depth: Q-G21.) | no external calls, no environment-specific dependencies, no pre-existing data assumptions; and no open-question markers (TBD / will need to investigate) in implementation steps |
 | Q-G12 | Code consolidation | Substantive overlap addressed? If overlap: consolidate or defer with reason. Flag: touches near-identical logic without acknowledging. (Structural overlap only; utility reuse → Q-C12.) | purely additive (new file / new feature) with no substantively similar existing implementations |
 | Q-G13 | Phased decomposition | Phases group distinct concerns, each completing implement→test→commit before next? Flag: (1) flat list mixing concerns without phase breaks; (2) commit before test; (3) implicit cross-phase deps without checkpoints; (4) per-phase `/review` (→ Q-E2). | single atomic concern with no cross-phase dependencies (e.g. fix exactly one bug, rename one identifier, add one isolated function) |
@@ -59,53 +57,12 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G19 | Phase failure recovery | Multi-phase: partial-commit risk addressed? Accept: phases independently safe, revert steps, or stop-and-assess gates. Flag: later-phase failure leaves prior commits broken with no acknowledgment. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 | Q-G28 | Context skills invoked | Domain decisions sans project context when retrieval skills available (system-reminder)? Flag: no invocation or confirmation unnecessary. EDIT: `[EDIT: before Phase 1: "Invoke [skill] for [topic] to load domain context"]`. | no context-gathering skills in system-reminder; or purely mechanical (rename, config tweak, dependency bump) |
 
-Count L1 edits → `l1_changes += count` (25 questions total, combined into `changes_this_pass` in Convergence Loop)
-
-### Q-G8 Decision Framework: Task Calls & Agent Teams
-
-Evaluate plans against three levels. Each level subsumes the previous.
-
-**Level 1 — Task calls for context isolation**
-Use Task (no team) when a step is independent but would pollute the main context:
-- Broad codebase exploration or file reads (>5 files)
-- Output-heavy operations (large grep results, full file dumps)
-- Research/investigation that produces intermediate artifacts not needed in main context
-- Long-running operations where progress doesn't need real-time visibility
-
-Flag: plan runs heavy exploration or multi-file reads inline instead of via Task.
-Note: context isolation is a valid reason to use Task even for sequential (non-parallel) work.
-
-**Level 2 — Parallel Task calls for independent work**
-Use multiple Task calls in a single message when steps are independent:
-- Editing multiple independent files (each file in its own Task)
-- Running tests while continuing other work (run_in_background: true)
-- Exploration from multiple angles simultaneously (up to 3 Explore agents)
-- Independent verification steps (lint + test + type-check in parallel)
-
-Flag: sequential steps that could run in parallel; steps that wait for results
-they don't depend on.
-
-**Level 3 — Agent teams (TeamCreate/SendMessage) for coordinated work**
-Use TeamCreate when multiple agents need to share findings or coordinate:
-- Multi-concern implementations (e.g., backend agent + frontend agent, with
-  team-lead merging results and resolving conflicts)
-- Iterative convergence (multiple evaluators per pass, like review-plan itself)
-- Parallel hypothesis testing (debugging with competing theories)
-- Complex features spanning 5+ files with cross-cutting concerns
-
-Flag: plans with 3+ agents working on related concerns without team coordination;
-plans where Agent A's output feeds into Agent B's work but there's no team structure;
-multi-file features where cross-file consistency needs a coordinator.
-
-**When NOT to escalate:**
-- Single file, simple change → no agents needed (inline)
-- 2 independent files, no shared concerns → Level 2 (parallel Tasks, no team)
-- Purely additive changes with no cross-file dependencies → Level 2
+Count L1 edits → `l1_changes += count` (23 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 25 (Q-G1 through Q-G8 + Q-G10 through Q-G14 + Q-G16 through Q-G28). Q-G9 is not included in*
+*L1 per-pass count stays at 23 (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
 *Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
@@ -210,14 +167,12 @@ IS_NODE: **Q-C16, Q-C30, Q-C31, Q-C33, Q-C34 → N/A-superseded** (Q-C16→N6, Q
 | Q-C6 | 2 | Deployment defined | Push steps, target env, verification specified? | local-only |
 | Q-C7 | 2 | Rollback plan | Recovery path if deployment fails? | no deployment |
 | Q-C20 | 3 | Logging | Informative but compact; no sensitive data? | no server changes |
-| Q-C21 | 2 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? (Scope: runtime; data-volume: Q-C32.) | bounded ops |
 | Q-C23 | 3 | External rate limits | API quotas/throttling accounted for? | no new API calls |
 | Q-C28 | 3 | Observability | Monitoring/alerting addressed? Acceptable: existing dashboards, log-based alerts, or current monitoring confirmed sufficient. | local-only or dev-environment-only deployment |
 | Q-C41 | 2 | Feature rollback | Post-merge production reversal strategy? Flag: irreversible data migrations sans rollback script, no feature flag for risky behavior changes, schema changes sans down-migration. EDIT: `[EDIT: add to Context: "**Rollback:** [strategy — feature flag / revert commit / down-migration / manual steps]"]`. | change is trivially revertible (config tweak, doc-only, additive with no data migration) |
 | Q-C44 | 3 | Change observability | Production verification strategy? Flag: behavior change sans logging/metric/alert. Acceptable: existing monitoring confirmed sufficient, new log line, or dashboard update. | no production-observable behavior change; local/dev-only |
 
 IS_GAS: **fully superseded** — skip this cluster when IS_GAS=true (gas-evaluator Q9, Q10, Q29, Q22, Q25); Q-C28 N/A (exec verification + Q6/Q12 cover GAS observability). **Q-C41 has no gas equivalent — evaluate normally** when IS_GAS=true AND operations cluster is active.
-IS_NODE: **Q-C21 → N/A-superseded** (covered by node-evaluator N22).
 
 ### Cluster 6: Client & UI
 
@@ -286,3 +241,74 @@ IS_GAS: N/A — covered by gas-evaluator Q1, Q2.
 | Q-E2 | 1 | Post-implementation workflow | Post-impl section (after impl, not bundled) has all 4: (1) `/review-fix` loop→0 findings, (2) build if applicable, (3) tests if any, (4) fail→fix→re-run `/review-fix`→re-run until pass. All imperative, not optional. Flag: user-optional or user-confirmation language. EDIT: absent→inject `## Post-Implementation Workflow` (all 4); missing step 4→append. | IS_GAS (covered by Q42 in gas-plan) |
 
 IS_GAS: N/A — covered by gas-evaluator Q42.
+
+---
+
+## Inactive Questions
+
+<!-- Inactivated 2026-04-10 per question-effectiveness-report.md §2 DROP: 0% hit rate across 18 plans including 6 adversarial. Retained here for historical reference; NOT evaluated by any active evaluator. -->
+
+### Q-G2 (was Gate 1): Standards compliance
+
+| Q | Question | Criteria | N/A |
+|---|----------|----------|-----|
+| Q-G2 | Standards compliance | CLAUDE.md/MEMORY.md compliance? (IS_GAS: non-GAS scope only — Verification Protocol, Agent Teams, Tool Prefs; GAS directives → Q13.) | never |
+
+**Why inactive:** 0% hit rate across 18 plans including 6 adversarial. Well-prompted plans inherently follow CLAUDE.md conventions; adversarial plans that violate conventions do so in ways caught by Q-G1 (Approach soundness) and Q-G4 (Unintended consequences). Dropped from Gate 1 — Gate 1 is now Q-G1 + Q-G11 (+ Q-C3 for non-GAS/non-NODE).
+
+### Q-G8 (was Gate 2): Task & team usage
+
+| Q | Question | Criteria | N/A |
+|---|----------|----------|-----|
+| Q-G8 | Task & team usage | Decision Framework level correct? Flag: heavy work inline (->Task), serial-when-parallel Tasks, no TeamCreate for coordinated agents. | plan involves only a single atomic change with no parallelizable steps and no heavy operations |
+
+**Why inactive:** 0% hit rate across 18 plans — no plans in the bench bank misused agent dispatch. All adversarial plans returned N/A.
+
+### Q-G8 Decision Framework: Task Calls & Agent Teams (archived)
+
+Evaluate plans against three levels. Each level subsumes the previous.
+
+**Level 1 — Task calls for context isolation**
+Use Task (no team) when a step is independent but would pollute the main context:
+- Broad codebase exploration or file reads (>5 files)
+- Output-heavy operations (large grep results, full file dumps)
+- Research/investigation that produces intermediate artifacts not needed in main context
+- Long-running operations where progress doesn't need real-time visibility
+
+Flag: plan runs heavy exploration or multi-file reads inline instead of via Task.
+Note: context isolation is a valid reason to use Task even for sequential (non-parallel) work.
+
+**Level 2 — Parallel Task calls for independent work**
+Use multiple Task calls in a single message when steps are independent:
+- Editing multiple independent files (each file in its own Task)
+- Running tests while continuing other work (run_in_background: true)
+- Exploration from multiple angles simultaneously (up to 3 Explore agents)
+- Independent verification steps (lint + test + type-check in parallel)
+
+Flag: sequential steps that could run in parallel; steps that wait for results
+they don't depend on.
+
+**Level 3 — Agent teams (TeamCreate/SendMessage) for coordinated work**
+Use TeamCreate when multiple agents need to share findings or coordinate:
+- Multi-concern implementations (e.g., backend agent + frontend agent, with
+  team-lead merging results and resolving conflicts)
+- Iterative convergence (multiple evaluators per pass, like review-plan itself)
+- Parallel hypothesis testing (debugging with competing theories)
+- Complex features spanning 5+ files with cross-cutting concerns
+
+Flag: plans with 3+ agents working on related concerns without team coordination;
+plans where Agent A's output feeds into Agent B's work but there's no team structure;
+multi-file features where cross-file consistency needs a coordinator.
+
+**When NOT to escalate:**
+- Single file, simple change → no agents needed (inline)
+- 2 independent files, no shared concerns → Level 2 (parallel Tasks, no team)
+- Purely additive changes with no cross-file dependencies → Level 2
+
+### Q-C21 (was Operations cluster): Runtime constraints
+
+| Q | Gate | Question | Criteria | N/A |
+|---|------|----------|----------|-----|
+| Q-C21 | 2 | Runtime constraints | Execution time/memory/platform limits addressed? Unbounded ops chunked? (Scope: runtime; data-volume: Q-C32.) | bounded ops |
+
+**Why inactive:** 0% hit rate across 18 plans. All adversarial plans returned N/A. IS_NODE was previously N/A-superseded by node-evaluator N22; with Q-C21 now inactive, the supersession note was also removed.

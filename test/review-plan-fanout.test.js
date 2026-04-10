@@ -390,7 +390,7 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('routes l1-advisory findings into l1_results', function () {
-            // l1-advisory is now split into structural (Q-G20–Q-G25) + process (Q-G4–Q-G19)
+            // l1-advisory is now split into structural (Q-G20–Q-G25) + process (Q-G4–Q-G7, Q-G10–Q-G19, Q-G26–Q-G28)
             expect(skillContent).to.include('evaluator_name == "l1-advisory-structural"');
             expect(skillContent).to.include('evaluator_name == "l1-advisory-process"');
         });
@@ -436,15 +436,16 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('L1 blocking/advisory split', function () {
-        it('defines l1-blocking evaluator config for Gate 1 (3 questions)', function () {
-            expect(skillContent).to.include('L1 Blocking Evaluator Config (Gate 1: 3 questions');
-            expect(skillContent).to.include('Evaluate ONLY these 3 questions: Q-G1, Q-G2, Q-G11');
+        it('defines l1-blocking evaluator config for Gate 1 (2 questions)', function () {
+            expect(skillContent).to.include('L1 Blocking Evaluator Config (Gate 1: 2 questions');
+            expect(skillContent).to.include('Evaluate ONLY these 2 questions: Q-G1, Q-G11');
         });
 
-        it('defines l1-advisory evaluator config for Gate 2/3 (22 questions)', function () {
-            // l1-advisory is now split: structural (6 questions) + process (16 questions) = 22 total
+        it('defines l1-advisory evaluator config for Gate 2/3 (21 questions)', function () {
+            // l1-advisory is now split: structural (6 questions) + process (15 questions) = 21 total
+            // (Q-G2 dropped from blocking, Q-G8 dropped from process per effectiveness report 2026-04-10)
             expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
-            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 16 standards/process questions');
+            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 15 standards/process questions');
             expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 
