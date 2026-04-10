@@ -62,7 +62,7 @@ getFileSHA1('your-project/YourModule.gs'); // "68990dce..."
 ```
 **Requirements:** Full path WITH extension required
 **Gotchas:**
-- `'ChatConstants.gs'` → "Not found" (missing path)
+- `'MyModule.gs'` → "Not found" (missing path prefix)
 - `'myproject/MyModule'` → "Not found" (missing extension)
 **Error:** "Not found"
 **Use Case:** Version hashing, self-documenting code, runtime introspection

@@ -78,8 +78,8 @@ COMPUTE {
 }
 
 VALIDATE {
-  base ∉ {"V2","V2a","V2b","V2c"}              → abort "Unknown base variant: <name>. Valid: V2, V2a, V2b, V2c"
-  any scenarios[i] ∉ [0..11]                  → abort "Invalid scenario index: <N>. Valid range: 0–11"
+  base ∉ {"V2","V2a","V2b","V2c"}              → abort "Unknown base variant: <name>. Valid: V2, V2a, V2b, V2c"  // update to match your project's variant names
+  any scenarios[i] ∉ [0..11]                  → abort "Invalid scenario index: <N>. Valid range: 0–11"  // update range to match your harness scenario count
   ideas < 1 && !refineHypothesis              → reset ideas=3, warn
   ideas < 1 && refineHypothesis               → valid (totalIdeas=1, only refinement runs)
 }
@@ -95,7 +95,7 @@ Read `your-project/ABTestHarness.gs` and verify:
 - `SCENARIOS` element schema: `.id`, `.message`, `.validates`, `.category`
 - `evaluateResponse(scenario, responseText)` return shape: `{ composite, scores }`
 
-Read `chat-core/ClaudeConversation.gs` and verify:
+Read `your-project-core/ConversationClient.gs` and verify:
 - Constructor: `new ClaudeConversation(apiKey, modelId, options)` where `options.system` is supported
 - `sendMessage({ messages: [], text: testMessage, enableThinking: false })` → `{ response, usage }`
 
@@ -572,7 +572,7 @@ Iterate over `cellSpecs[]` built in Step 2. Use a sliding window of **3 parallel
     var testMessage = <JSON_STRINGIFIED_MESSAGE>;
     var validates = <JSON_STRINGIFIED_VALIDATES>;
     var AB = require('your-project/ABTestHarness');
-    var CC = require('chat-core/ClaudeConversation');
+    var CC = require('your-project-core/ConversationClient');
     var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
     var scenario = { message: testMessage, validates: validates, category: <JSON_STRINGIFIED_CATEGORY> };
@@ -598,7 +598,7 @@ Iterate over `cellSpecs[]` built in Step 2. Use a sliding window of **3 parallel
     var testMessage = <JSON_STRINGIFIED_MESSAGE>;
     var validates = <JSON_STRINGIFIED_VALIDATES>;
     var AB = require('your-project/ABTestHarness');
-    var CC = require('chat-core/ClaudeConversation');
+    var CC = require('your-project-core/ConversationClient');
     var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
     var scenario = { message: testMessage, validates: validates, category: <JSON_STRINGIFIED_CATEGORY> };
@@ -1122,7 +1122,7 @@ Emit:
 - **Judge JSON parse failure ×2**: Skip that scenario in judge scoring, note in output.
 - **All judge agents fail**: Rank by heuristic_avg only; note `[Judge: unavailable]` in table.
 - **All cells fail**: Abort with diagnostic. Check that `require('your-project/ABTestHarness')` and
-  `require('chat-core/ClaudeConversation')` are available in exec context.
+  `require('your-project-core/ConversationClient')` are available in exec context.
 - **Baseline exec failure**: If >3 of 5 baseline cells fail, note that delta_vs_base is unreliable.
 
 ---

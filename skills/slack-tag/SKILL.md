@@ -108,7 +108,7 @@ Examples:
 /slack-tag #eng-alerts W-12345678 "FYI — this just got escalated"
 /slack-tag #eng-alerts thread:"deploy issue" "Here's the fix we discussed"
 /slack-tag #eng-alerts thread:last "Following up on this"
-/slack-tag thread:https://workspace.slack.com/archives/C05J88T8GHG/p1775762900190809 "Update on the rollout"
+/slack-tag thread:https://workspace.slack.com/archives/C0XXXXXXXXX/p0000000000000000 "Update on the rollout"
 ```
 
 ---
@@ -134,7 +134,7 @@ Call `slack_search_users(query: "<person>")`.
 - **Single match**: store `user_id` and `display_name`.
 - **Multiple matches**: show a numbered list with name, title, and department.
   Ask the user to pick one.
-- **No match**: try `<person>@salesforce.com` as a fallback query. If still
+- **No match**: try `<person>@your-org.com` as a fallback query. If still
   nothing, ask the user for the person's email or Slack handle.
 
 ### 2b. Look up the work item (if provided)
@@ -404,7 +404,7 @@ rigid template.
 
 | Situation | Response |
 |-----------|----------|
-| Person not found on Slack | Try `{name}@salesforce.com`, show suggestions, ask for email |
+| Person not found on Slack | Try `{name}@your-org.com`, show suggestions, ask for email |
 | Multiple Slack matches | Numbered list: name + title + department. Ask to pick. |
 | Work item not found | "{W-number} not found in GUS. Check the number?" |
 | Channel not found | "Can't find #{name}. Send as DM to @{person} instead?" |
