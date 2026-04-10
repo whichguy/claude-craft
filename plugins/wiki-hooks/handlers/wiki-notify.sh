@@ -14,6 +14,12 @@ wiki_parse_input
 
 wiki_find_root || exit 0
 
+# ⚠ Skip injection for wiki commands — they already handle their own wiki access.
+# Matching here just adds noise (e.g. "you MUST invoke /wiki-load" when already running it).
+case "$PROMPT" in
+  /wiki-load*|/wiki-query*|/wiki-ingest*|/wiki-process*|/wiki-lint*) exit 0 ;;
+esac
+
 ENTITIES_DIR="$REPO_ROOT/wiki/entities"
 CACHE_DIR="$REPO_ROOT/wiki/.cache"
 ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
@@ -69,23 +75,25 @@ if [ -f "$MARKER" ]; then
   REF_MARKER="$NOTIFIED"
   [ ! -f "$REF_MARKER" ] && REF_MARKER="$MARKER"
 
+  # ⚠ Directive only — no page content injected (context poison fix).
+  # Old code dumped head -200 of each new page, giving the LLM enough to skip /wiki-load.
   NEW_PAGES=$(find "$ENTITIES_DIR" -newer "$REF_MARKER" -name '*.md' 2>/dev/null)
   if [ -n "$NEW_PAGES" ]; then
     NEW_COUNT=0
+    NEW_NAMES=""
     while IFS= read -r page; do
-      NAME=$(basename "$page" .md)
-      PAGE_CONTENT=$(head -200 "$page" 2>/dev/null)
-      CONTENT="${CONTENT}--- ${NAME} (new) ---"$'\n'"${PAGE_CONTENT}"$'\n\n'
+      NAME="${page##*/}"
+      NAME="${NAME%.md}"
+      NEW_NAMES="${NEW_NAMES:+${NEW_NAMES}, }${NAME}"
       NEW_COUNT=$((NEW_COUNT + 1))
     done <<< "$NEW_PAGES"
     touch "$NOTIFIED" 2>/dev/null || true
-    NEW_NAMES=$(echo "$NEW_PAGES" | sed 's|.*/||;s|\.md$||' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
     if [ -n "$DISPLAY" ]; then
       DISPLAY="${DISPLAY} + 📖 ${NEW_COUNT} new: ${NEW_NAMES}"
     else
       DISPLAY="📖 ${NEW_COUNT} new wiki page(s): ${NEW_NAMES}"
     fi
-    CONTENT="WIKI_NEW: recently-extracted entity pages below. Reference this content when relevant to current task. For topics requiring deeper context, invoke /wiki-load <slug>."$'\n\n'"${CONTENT}"
+    CONTENT="WIKI_NEW: ${NEW_COUNT} new wiki page(s) extracted since session start: ${NEW_NAMES}. Invoke /wiki-load <slug> to read full content. Do NOT answer domain questions from memory — these pages contain authoritative project-specific details."$'\n\n'"${CONTENT}"
   fi
 fi
 

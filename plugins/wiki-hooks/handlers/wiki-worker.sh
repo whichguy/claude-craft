@@ -1,9 +1,8 @@
 #!/bin/bash
-# Async: parallel wiki queue processor.
-# Replaces wiki-queue-nudge.sh with:
-#   Phase 0: Validate entries (skip missing transcripts/wiki_path)
-#   Phase 1: Parallel Sonnet extraction (3 concurrent workers)
-# Includes retry cap (max 3 attempts per entry).
+# Lock-less wiki queue processor.
+# Concurrency: atomic mv-claim with PID verification. No lock files.
+# ⚠ mv is the ONLY concurrency primitive — exactly one caller wins each rename.
+# Claude extraction subshells are fire-and-forget (no wait, no detach wrapper).
 
 set -o pipefail
 shopt -s nullglob
@@ -16,163 +15,161 @@ AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 [ -n "$AGENT_ID" ] && exit 0
 
 QUEUE_DIR="$HOME/.claude/reflection-queue"
-LOCK_FILE="$HOME/.claude/.wiki-processor.lock"
-MAX_WORKERS=3
 
-# Quick pre-check: any pending entries? Exit early if not
-[ ! -d "$QUEUE_DIR" ] && exit 0
-PENDING=$(grep -rl '"status".*"pending"' "$QUEUE_DIR/" 2>/dev/null | head -1)
-[ -z "$PENDING" ] && exit 0
+# --- Pre-check: any .json files at all? ---
+# ⚠ Pure glob — no grep/find subprocess (was grep -rl in old design)
+files=("$QUEUE_DIR"/*.json)
+[ ${#files[@]} -eq 0 ] && exit 0
 
-# Concurrency guard: atomic lock via ln -s (POSIX-atomic on APFS/ext4)
-if ! ln -s $$ "$LOCK_FILE" 2>/dev/null; then
-  # Lock exists — check if owner is alive
-  EXISTING_PID=$(readlink "$LOCK_FILE" 2>/dev/null || true)
-  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
-    exit 0
-  fi
-  # Stale lock — remove and retry
-  rm -f "$LOCK_FILE"
-  ln -s $$ "$LOCK_FILE" 2>/dev/null || exit 0  # lost the retry race
+# --- Debounce: skip if another worker started <30s ago ---
+DEBOUNCE="$QUEUE_DIR/.last-worker"
+if [ -f "$DEBOUNCE" ]; then
+  age=$(( $(date +%s) - $(stat -f %m "$DEBOUNCE" 2>/dev/null || stat -c %Y "$DEBOUNCE" 2>/dev/null || echo 0) ))
+  [ "$age" -lt 30 ] && exit 0
 fi
-trap 'rm -f "$LOCK_FILE"; exit 0' EXIT ERR
+touch "$DEBOUNCE"
 
-# Quiescence: wait until no new .json files appear for 5s (reduced from 10s)
-PREV_COUNT=0
-STABLE=0
-for tick in $(seq 1 6); do
-  CURR_COUNT=$(find "$QUEUE_DIR" -maxdepth 1 -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$CURR_COUNT" -eq "$PREV_COUNT" ]; then
-    STABLE=$((STABLE + 1))
-    [ "$STABLE" -ge 2 ] && break  # stable for 2 checks (5s × 2 = 10s quiescence window, checked every 5s)
-  else
-    STABLE=0
-  fi
-  PREV_COUNT=$CURR_COUNT
-  sleep 5
+# --- Phase 0.5: Clean orphaned claims from crashed workers ---
+# ⚠ 10min threshold = 5× margin over 120s extraction timeout
+for stale in "$QUEUE_DIR"/*.batch-*; do
+  [ -f "$stale" ] || continue
+  stale_age=$(( $(date +%s) - $(stat -f %m "$stale" 2>/dev/null || stat -c %Y "$stale" 2>/dev/null || echo 0) ))
+  [ "$stale_age" -gt 600 ] && rm -f "$stale"
 done
 
-# --- Phase 0: Validation — skip invalid entries ---
-VALID_ENTRIES=()
-for entry in "$QUEUE_DIR"/*.json; do
-  [ -f "$entry" ] || continue
+# --- Phase 1: Claim — rename all .json to .batch-$$ ---
+# ⚠ Atomic: exactly one caller wins each file. Losers get "No such file" silently.
+for f in "$QUEUE_DIR"/*.json; do
+  mv "$f" "${f%.json}.batch-$$" 2>/dev/null
+done
 
-  STATUS=$(jq -r '.status // empty' "$entry" 2>/dev/null)
-  [ "$STATUS" != "pending" ] && continue
+# --- Phase 2: Verify — only work on files we actually own ---
+claimed=("$QUEUE_DIR"/*.batch-$$)
+[ ${#claimed[@]} -eq 0 ] && exit 0
 
-  # Validate transcript exists
-  TRANSCRIPT=$(jq -r '.transcript_path // empty' "$entry" 2>/dev/null)
+# --- Phase 3: Validate + process each claimed entry ---
+for entry in "${claimed[@]}"; do
+  # Skip 0-byte files (corrupted by previous herd)
+  [ ! -s "$entry" ] && { rm -f "$entry"; continue; }
+
+  # ⚠ read-based extraction (not eval) — same pattern as wiki_parse_input in wiki-common.sh
+  {
+    read -r STATUS
+    read -r TRANSCRIPT
+    read -r WIKI_PATH
+    read -r SID
+    read -r RETRY
+  } < <(jq -r '(.status // "pending"), (.transcript_path // ""), (.wiki_path // ""), (.session_id // ""), (.retry_count // 0)' "$entry" 2>/dev/null || printf 'invalid\n\n\n\n0\n')
+  [ "$STATUS" = "invalid" ] && { rm -f "$entry"; continue; }
+
+  # Skip non-pending
+  [ "$STATUS" != "pending" ] && { rm -f "$entry"; continue; }
+
+  # Validate transcript exists (if specified)
   if [ -n "$TRANSCRIPT" ] && [ "$TRANSCRIPT" != "null" ] && [ ! -f "$TRANSCRIPT" ]; then
-    # Missing transcript — mark failed (cleanup.sh will delete later)
-    jq '.status = "failed" | .error = "transcript missing" | .failed_at = (now | todate)' "$entry" > "${entry}.tmp" 2>/dev/null \
-      && mv "${entry}.tmp" "$entry" 2>/dev/null
-    continue
+    rm -f "$entry"; continue
   fi
 
-  # Validate wiki path exists
-  WIKI_PATH=$(jq -r '.wiki_path // empty' "$entry" 2>/dev/null)
+  # Validate wiki path
   if [ -z "$WIKI_PATH" ] || [ "$WIKI_PATH" = "null" ] || [ ! -d "$WIKI_PATH" ]; then
-    jq '.status = "failed" | .error = "wiki_path missing or invalid" | .failed_at = (now | todate)' "$entry" > "${entry}.tmp" 2>/dev/null \
-      && mv "${entry}.tmp" "$entry" 2>/dev/null
-    continue
+    rm -f "$entry"; continue
   fi
 
-  VALID_ENTRIES+=("$entry")
-done
-
-[ "${#VALID_ENTRIES[@]}" -eq 0 ] && exit 0
-
-# --- Phase 1: Parallel Sonnet extraction ---
-active_workers=0
-
-for entry in "${VALID_ENTRIES[@]}"; do
-  # Atomic claim via mv
-  CLAIMED="${entry%.json}.processing-$$"
-  mv "$entry" "$CLAIMED" 2>/dev/null || continue
-
-  # Stamp in_progress_at for stale detection
-  jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.in_progress_at = $ts' "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
-    && mv "${CLAIMED}.tmp" "$CLAIMED" 2>/dev/null
-
-  # Read entry details
-  TRANSCRIPT=$(jq -r '.transcript_path // empty' "$CLAIMED" 2>/dev/null)
-  WIKI_PATH=$(jq -r '.wiki_path // empty' "$CLAIMED" 2>/dev/null)
-  SID=$(jq -r '.session_id // empty' "$CLAIMED" 2>/dev/null)
-  RETRY_COUNT=$(jq -r '.retry_count // 0' "$CLAIMED" 2>/dev/null)
-  RETRY_COUNT=${RETRY_COUNT:-0}
-
-  # Spawn extraction in background subshell
+  # --- Spawn claude extraction (fire-and-forget background subshell) ---
   (
-    EXTRACT_PROMPT="Extract and synthesize wiki knowledge from this session transcript.
+    EXTRACT_PROMPT="You are a wiki curator for a software project. Your job is to read a conversation
+transcript and extract lasting knowledge into wiki entity pages.
 
-Transcript: $TRANSCRIPT (read last 2000 lines with the Read tool)
-Wiki path: $WIKI_PATH
+You have access to: Read, Write, Edit, Glob, Grep, Bash tools.
 
-Step 1: Read ${WIKI_PATH%/}/index.md and ${WIKI_PATH%/}/SCHEMA.md to understand existing pages and required formats.
+## Inputs
 
-Step 2: For each significant entity, decision, or concept discussed:
-- If entity page exists in wiki/entities/: add a '- **From Session ${SID:0:8}:**' bullet (NOT a ## header). Check for idempotency — skip if session ID already present.
-- If new entity: create wiki/entities/SLUG.md following the Entity format in SCHEMA.md:
-  Overview (2-3 sentences). Bullet list of sources. Cross-links (→ See also:).
+- Transcript: $TRANSCRIPT (read the last 2000 lines with the Read tool)
+- Wiki root: $WIKI_PATH
+- Session ID: ${SID:0:8}
 
-Extraction criteria — write a page only if the concept meets 2+ of:
-  (a) Named 3+ times in the session
-  (b) A non-obvious decision was made about it
-  (c) It caused confusion or correction
-  (d) It's a named architectural component or design pattern
+## Critical: read before you write — do not trust memory
 
-Step 3: Synthesize (don't just extract):
-- Add cross-links (→ See also:) between related entities — update BOTH sides
-- If new information contradicts an older bullet, note the evolution explicitly
-- If multiple older bullets are now subsumed by deeper understanding, consolidate them
-- Index summaries must be retrieval-friendly: start with what the page IS, then add key search terms in parentheses
+You know NOTHING about this wiki until you read it. Do not assume page names, formats,
+or content based on the transcript alone. You MUST read real files before every decision.
 
-Step 4: Update ${WIKI_PATH%/}/index.md with any new or updated pages.
-Append log entries to ${WIKI_PATH%/}/log.md in format: [YYYY-MM-DD HH:MM] EXTRACT session:${SID:0:8}: <pages created/updated>"
+1. Read ${WIKI_PATH%/}/SCHEMA.md — this defines all page formats, naming rules, and conventions.
+   Every page you create or edit MUST follow the schema exactly.
+2. Read ${WIKI_PATH%/}/index.md — this is the registry of all pages. You will update it at the end.
+3. Glob ${WIKI_PATH%/}/entities/*.md — know what already exists before creating anything.
+4. Before editing ANY existing entity: Read it first. Do not assume its content or structure.
 
-    CLAUDE_STDERR=$(mktemp "${TMPDIR:-/tmp}/wiki-claude-XXXXXX")
-    # Run with timeout: prefer gtimeout (Homebrew), fall back to timeout (Linux), then no-timeout
+## What to extract
+
+Read the transcript carefully. Look for concepts that meet 2+ of these criteria:
+  (a) Named 3+ times across the conversation
+  (b) A non-obvious decision or tradeoff was made about it
+  (c) It caused confusion, correction, or debugging
+  (d) It is a named architectural component, design pattern, or integration point
+
+Skip: routine tool usage, trivial file edits, boilerplate, anything already fully captured
+in an existing entity page for this session.
+
+## How to write entities
+
+For EXISTING entity pages (file already in entities/):
+- Grep the file for \"${SID:0:8}\" first — if this session is already recorded, skip it (idempotency).
+- Append a bullet: \`- **From Session ${SID:0:8}:** <2-3 sentences of what was learned>\`
+- Do NOT add ## headers — bullets only. This saves tokens when pages are loaded.
+- If your new bullet contradicts an older one, note the evolution explicitly.
+- If multiple older bullets are now subsumed by deeper understanding, consolidate them into one.
+
+For NEW entities (concept not yet in entities/):
+- Create entities/SLUG.md following the Entity format in SCHEMA.md exactly:
+  # Entity Name
+  Overview (2-3 sentences defining what this IS — retrieval-friendly, not narrative).
+  - **From Session ${SID:0:8}:** <detail>
+  → See also: [[related-entity-slug]]
+- Slug: lowercase, hyphens, max 50 chars.
+
+## Cross-linking
+
+Every entity should link to related entities. When you add or create an entity:
+- Add \`→ See also: [[slug]]\` links to related pages
+- Update BOTH sides — if A links to B, B should link back to A
+- Use Grep to find mentions of the new entity name in other pages
+
+## Finishing up
+
+1. Update ${WIKI_PATH%/}/index.md: add a row for each new page, update the summary/date for
+   modified pages. Format: \`| entities/SLUG.md | one-line summary (start with what it IS, then key search terms) | YYYY-MM-DD |\`
+2. Append to ${WIKI_PATH%/}/log.md: \`[YYYY-MM-DD HH:MM] EXTRACT session:${SID:0:8}: <comma-separated list of pages created/updated>\`
+
+## Anti-patterns — do NOT do these
+
+- Do NOT create pages for trivial concepts (a single file rename, a typo fix).
+- Do NOT duplicate content already in the transcript — synthesize and distill.
+- Do NOT create a page with only a title and no substantive content.
+- Do NOT remove or overwrite existing entity bullets from other sessions.
+- Do NOT add the same session's content twice (always grep for session ID first)."
+
     TIMEOUT_CMD=""
     if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD="gtimeout 120"
     elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout 120"
     fi
-    if $TIMEOUT_CMD "$CLAUDE_CMD" -p --model sonnet \
+
+    if $TIMEOUT_CMD "$CLAUDE_CMD" -p --model claude-sonnet-4-6 \
       --dangerously-skip-permissions --no-session-persistence \
-      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>"$CLAUDE_STDERR"; then
-      # Success — delete claimed file
-      rm -f "$CLAIMED" "$CLAUDE_STDERR"
+      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>/dev/null; then
+      rm -f "$entry"
     else
-      # Failed — capture stderr for diagnostics
-      NEW_RETRY=$((RETRY_COUNT + 1))
-      ORIG_ENTRY="${CLAIMED%.processing-*}.json"
-      CLAUDE_ERR=$(head -1 "$CLAUDE_STDERR" 2>/dev/null | cut -c1-200)
-      rm -f "$CLAUDE_STDERR"
+      NEW_RETRY=$((RETRY + 1))
       if [ "$NEW_RETRY" -ge 3 ]; then
-        # Max retries reached — mark as permanently failed with actual error
-        jq --argjson rc "$NEW_RETRY" --arg err "${CLAUDE_ERR:-unknown error}" \
-          '.status = "failed" | .error = $err | .retry_count = $rc | .failed_at = (now | todate)' \
-          "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
-          && mv "${CLAIMED}.tmp" "$ORIG_ENTRY" 2>/dev/null \
-          || mv "$CLAIMED" "$ORIG_ENTRY" 2>/dev/null
+        rm -f "$entry"
       else
-        # Increment retry count, record error, restore to pending
-        jq --argjson rc "$NEW_RETRY" --arg err "${CLAUDE_ERR:-unknown error}" \
-          '.status = "pending" | .retry_count = $rc | .last_error = $err' \
-          "$CLAIMED" > "${CLAIMED}.tmp" 2>/dev/null \
-          && mv "${CLAIMED}.tmp" "$ORIG_ENTRY" 2>/dev/null \
-          || mv "$CLAIMED" "$ORIG_ENTRY" 2>/dev/null
+        # ⚠ Restore as .json with incremented retry — makes it claimable by next worker
+        ORIG="${entry%.batch-*}.json"
+        jq --argjson rc "$NEW_RETRY" '.status="pending"|.retry_count=$rc' "$entry" > "${entry}.tmp" 2>/dev/null \
+          && mv "${entry}.tmp" "$ORIG" 2>/dev/null \
+          || rm -f "$entry" "${entry}.tmp"
       fi
     fi
   ) &
-
-  active_workers=$((active_workers + 1))
-
-  # Wait for a slot if at capacity (portable — wait -n requires bash 4.3+, macOS ships 3.2)
-  if [ "$active_workers" -ge "$MAX_WORKERS" ]; then
-    wait %% 2>/dev/null || wait 2>/dev/null || true
-    active_workers=$((active_workers - 1))
-  fi
 done
 
-# Wait for all remaining workers
-wait 2>/dev/null || true
+# ⚠ No wait — claude processes run independently. Hook returns immediately.

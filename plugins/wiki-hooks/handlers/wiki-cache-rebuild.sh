@@ -52,8 +52,10 @@ if [ -d "$ENTITIES_DIR" ]; then
   : > "$INDEX_TMP"
   for file in "$ENTITIES_DIR"/*.md; do
     [ -f "$file" ] || continue
-    name=$(basename "$file" .md)
-    words=$(echo "$name" | tr '-' ' ')
+    # ⚠ Pure bash — no basename/tr forks (was 2 forks × N entities)
+    name="${file##*/}"
+    name="${name%.md}"
+    words="${name//-/ }"
     printf '%s\t%s\n' "$name" "$words" >> "$INDEX_TMP"
   done
   mv "$INDEX_TMP" "$CACHE_DIR/entity-index.tsv"

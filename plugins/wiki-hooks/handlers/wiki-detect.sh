@@ -46,11 +46,23 @@ touch "$MARKER" 2>/dev/null || true
 
 wiki_log "SESSION_START" "opened in $(basename "$REPO_ROOT")"
 
-# ⚠ No topic names/counts — they give the LLM enough to skip /wiki-load.
-# systemMessage = exactly what LLM sees (additionalContext), so user can audit.
+# systemMessage = user-visible status line, additionalContext = LLM directive.
 REPO_NAME=$(basename "$REPO_ROOT")
+
+# Count pages/topics for display (fast — reads from cache or falls back to ls)
+CACHE_DIR="$REPO_ROOT/wiki/.cache"
+if [ -f "$CACHE_DIR/display.txt" ]; then
+  DISPLAY=$(cat "$CACHE_DIR/display.txt")
+else
+  PAGE_COUNT=$(grep -c '^|' "$REPO_ROOT/wiki/index.md" 2>/dev/null || echo 2)
+  PAGE_COUNT=$((PAGE_COUNT > 2 ? PAGE_COUNT - 2 : 0))
+  TOPIC_COUNT=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
+  DISPLAY="📂 ${REPO_NAME} wiki · ${PAGE_COUNT} pages · ${TOPIC_COUNT} topics"
+  DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic>  ·  /wiki-query <question>"
+fi
+
+# ⚠ No topic names/counts in LLM context — they give the LLM enough to skip /wiki-load.
 CONTEXT="Wiki available for ${REPO_NAME}. You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on memory — wiki pages contain authoritative implementation details."
-DISPLAY="${CONTEXT}"$'\n'"Switch folders or repos? Run /wiki-load <topic> to refresh context."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
   '{"systemMessage": $display, "additionalContext": $context}'
