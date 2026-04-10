@@ -20,8 +20,8 @@ The review-fix agent accepts a single `reviewer_agent` parameter. The routing ta
 2. Recognize $ARGUMENTS is non-empty → skip auto-detection steps
 3. Handle mixed file types: two files map to different agents (`code-reviewer` for `.ts`, `gas-code-review` for `.gs`)
 4. Select a routing strategy (e.g., route by majority type, or pass files in separate batches, or apply the routing table per-file to each spawn call)
-5. Note `commit_mode="commit"` — this affects POST_REVIEW_FIX behavior (no PR created; only a commit is made)
-6. After agent completes and if `<!-- COMMITTED -->` marker is present: apply POST_REVIEW_FIX rules in "commit" mode (not PR mode)
+5. Note `commit_mode="commit"` — this affects POST_IMPLEMENT behavior (no PR created; only a commit is made)
+6. After agent completes and if `<!-- COMMITTED -->` marker is present: apply POST_IMPLEMENT rules in "commit" mode (not PR mode)
 
 **What a correct response looks like:**
 The dispatcher must decide how to handle mixed-type files. The prompt's routing table gives per-file-type rules but the agent spawn takes one `reviewer_agent`. A correct response either: (a) routes by the dominant/first file type, (b) spawns separate agent calls per file type, or (c) uses `code-reviewer` as the default fallback. The key discriminating behavior: the dispatcher does NOT silently ignore the `.gs` file's routing requirement, and it correctly applies `commit_mode="commit"` semantics when the `<!-- COMMITTED -->` marker appears.

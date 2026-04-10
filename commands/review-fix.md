@@ -92,6 +92,6 @@ $ARGUMENTS
 
 After the agent completes (on either path above), output the review-fix agent's FULL report verbatim to the user — from the opening setup banner through the final summary output — including all per-file receipts and summary sections.
 Do not summarize or truncate. If the agent output contains a `<!-- PR_MERGED -->`
-or `<!-- COMMITTED -->` marker, apply POST_REVIEW_FIX rules (defined in
-`~/.claude/CLAUDE.md` under the `POST_REVIEW_FIX` heading) after printing the full report.
-Your run is complete when: (a) the full report is printed, and (b) POST_REVIEW_FIX rules are applied if a `<!-- PR_MERGED -->` or `<!-- COMMITTED -->` marker is present.
+or `<!-- COMMITTED -->` marker, apply POST_IMPLEMENT rules (defined in
+`~/.claude/CLAUDE.md` under the `POST_IMPLEMENT` heading) after printing the full report.
+Your run is complete when: (a) the full report is printed, and (b) POST_IMPLEMENT rules are applied if a `<!-- PR_MERGED -->` or `<!-- COMMITTED -->` marker is present.
