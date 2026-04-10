@@ -271,7 +271,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Apply edits inline (no team).
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
-       If all 6 now PASS:
+       If all 5 now PASS:
          Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
@@ -1998,13 +1998,13 @@ Question definitions are in QUESTIONS.md — evaluators read that file directly.
 parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G9 sub-questions follow below
 (team-lead evaluates inline post-convergence).
 
-L1 per-pass count: 23 questions (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28).
+L1 per-pass count: 23 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 23 (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
+*L1 per-pass count stays at 23 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly

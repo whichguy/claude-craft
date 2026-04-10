@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*23 questions (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Applies to every plan, every domain.*
+*23 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -62,7 +62,7 @@ Count L1 edits → `l1_changes += count` (23 questions total, combined into `cha
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 23 (Q-G1, Q-G3 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
+*L1 per-pass count stays at 23 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
 *Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
