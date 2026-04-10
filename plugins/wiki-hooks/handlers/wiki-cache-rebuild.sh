@@ -70,7 +70,7 @@ DISPLAY_TMP="$CACHE_DIR/display.txt.tmp"
 # ⚠ No topic names in display — they give the LLM enough context to skip /wiki-load
 {
   echo "📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics"
-  echo "   /wiki-load <topic>  ·  /wiki-query <question>"
+  echo "   /wiki-load <topic> (read a page)  ·  /wiki-query <question> (search + synthesize)"
 } > "$DISPLAY_TMP"
 mv "$DISPLAY_TMP" "$CACHE_DIR/display.txt"
 
