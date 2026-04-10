@@ -139,16 +139,16 @@ If it exists: check if `## Wiki` heading is already present (idempotency guard v
 If the heading is absent, append the directive block below.
 If it doesn't exist: create the file with just the wiki section.
 
-**Directive to append** (~30 tokens — behavioral backstop for 70% skill ignore rate):
+**Directive to append:**
 
 ```markdown
 
 ## Wiki
-WIKI: /wiki-load before answering project-domain questions. /wiki-query for synthesis.
+WIKI: /wiki-load <search> or browse wiki/index.md before answering project-domain questions. /wiki-query for synthesis.
 ```
 
-This is the behavioral directive. The SessionStart hook provides topic-level awareness
-(WHAT topics exist); this CLAUDE.md line tells Claude to actually USE the wiki (WHEN to check).
+This is the behavioral directive. The SessionStart hook provides location awareness;
+this CLAUDE.md line tells Claude WHEN to check the wiki.
 
 ## Step 7 — Print Summary
 

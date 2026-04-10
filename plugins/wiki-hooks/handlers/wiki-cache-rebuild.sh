@@ -76,8 +76,7 @@ mv "$DISPLAY_TMP" "$CACHE_DIR/display.txt"
 
 # Build context.txt
 CONTEXT_TMP="$CACHE_DIR/context.txt.tmp"
-# ⚠ No index content — directive only forces /wiki-load invocation (context-poison fix)
-echo "Wiki available: ${repo_name} (${page_count} pages, ${topic_count} topics). You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on topic names alone — wiki pages contain authoritative implementation details." > "$CONTEXT_TMP"
+echo "Project wiki: ${repo_name}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions." > "$CONTEXT_TMP"
 mv "$CONTEXT_TMP" "$CACHE_DIR/context.txt"
 
 # --- Touch mtime marker ---

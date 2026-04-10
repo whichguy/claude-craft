@@ -137,8 +137,7 @@ wiki_build_display() {
   DISPLAY="📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics${label:+ $label}"
   DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 
-  # ⚠ No index content — directive only forces /wiki-load invocation (context-poison fix)
-  CONTEXT="Wiki available: ${repo_name} (${page_count} pages, ${topic_count} topics). You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on topic names alone — wiki pages contain authoritative implementation details."
+  CONTEXT="Project wiki: ${repo_name}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
 }
 
 # --- Log entry ---

@@ -61,8 +61,8 @@ else
   DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 fi
 
-# ⚠ No topic names/counts in LLM context — they give the LLM enough to skip /wiki-load.
-CONTEXT="Wiki available for ${REPO_NAME}. You MUST invoke /wiki-load <topic> before answering project-domain questions. Do NOT rely on memory — wiki pages contain authoritative implementation details."
+# Minimal directive: location + tool availability. LLM decides when to use it.
+CONTEXT="Project wiki: ${REPO_NAME}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
   '{"systemMessage": $display, "additionalContext": $context}'

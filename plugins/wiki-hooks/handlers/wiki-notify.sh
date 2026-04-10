@@ -15,7 +15,7 @@ wiki_parse_input
 wiki_find_root || exit 0
 
 # ⚠ Skip injection for wiki commands — they already handle their own wiki access.
-# Matching here just adds noise (e.g. "you MUST invoke /wiki-load" when already running it).
+# Matching here just adds noise (e.g., directive to "Use /wiki-load" when already running it).
 case "$PROMPT" in
   /wiki-load*|/wiki-query*|/wiki-ingest*|/wiki-process*|/wiki-lint*) exit 0 ;;
 esac
@@ -64,7 +64,7 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
 
   if [ "$MATCH_COUNT" -gt 0 ]; then
     DISPLAY="🔍 Wiki matched ${MATCH_COUNT} page(s): ${MATCHED_NAMES}"
-    CONTENT="WIKI_MATCH: ${MATCH_COUNT} wiki page(s) matched this prompt: ${MATCHED_NAMES}. You MUST invoke /wiki-load ${MATCHED_NAMES%%,*} to load full context before proceeding. Do NOT answer domain questions from memory or partial context — the wiki pages contain authoritative project-specific information that may differ from your training data."
+    CONTENT="Wiki pages may be relevant: ${MATCHED_NAMES}. Use /wiki-load <search> to retrieve."
   fi
 fi
 
@@ -93,7 +93,7 @@ if [ -f "$MARKER" ]; then
     else
       DISPLAY="📖 ${NEW_COUNT} new wiki page(s): ${NEW_NAMES}"
     fi
-    CONTENT="WIKI_NEW: ${NEW_COUNT} new wiki page(s) extracted since session start: ${NEW_NAMES}. Invoke /wiki-load <slug> to read full content. Do NOT answer domain questions from memory — these pages contain authoritative project-specific details."$'\n\n'"${CONTENT}"
+    CONTENT="New wiki pages: ${NEW_NAMES}. Use /wiki-load <search> to retrieve."${CONTENT:+$'\n\n'"${CONTENT}"}
   fi
 fi
 

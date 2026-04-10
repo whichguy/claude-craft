@@ -32,5 +32,4 @@ Create file in repo subdir → `ln -sfn` to `~/.claude/` → test → commit. Us
 ```
 
 ## Wiki
-WIKI: /wiki-load before answering project-domain questions. /wiki-query for synthesis.
-WIKI_CONTEXT: invoke /wiki-load <slug> immediately when wiki-notify injects WIKI_PARTIAL or WIKI_NEW content — full retrieval required before plan/design/debug work on those topics.
+WIKI: /wiki-load <search> or browse wiki/index.md before answering project-domain questions. /wiki-query for synthesis.
