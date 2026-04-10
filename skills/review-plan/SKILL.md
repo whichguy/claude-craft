@@ -67,10 +67,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        (`~` makes all four portable across users — no hardcoded username.
        Update here if the install base changes; all evaluator spawns below use these variables.)
 
-3. **Set context flags** (Haiku classification):
+3. **Set context flags** (Sonnet classification — Haiku was tested but failed on HAS_EXISTING_INFRA discrimination, 2 of 3 wrong in 2026-04-10 spike):
    Task(
      subagent_type = "general-purpose",
-     model = "claude-haiku-4-5-20251001",
+     # No model override: use default (Sonnet). Phase 2 spike of
+     # skills/review-plan/question-effectiveness-report.md recommendations
+     # showed Haiku inverting the HAS_EXISTING_INFRA concept — Sonnet got 3/3 right.
      prompt = """
        Read the plan at <plan_path>.
 
@@ -96,6 +98,39 @@ You iterate until all layers and sub-skills report zero changes in the same pass
                implementations, or client-side JavaScript.
                False if plan only describes UI concepts in evaluator questions or
                architectural context.
+
+       ## Step 1b: Conditional question gates (per question-effectiveness-report.md 2026-04-10)
+
+       These flags gate specific L2 impact-cluster questions that only apply to plans
+       with matching patterns. Evaluate based on what the plan actually does, not prose.
+
+       HAS_EXISTING_INFRA: true if the plan creates a NEW module/file/system/endpoint
+               where existing code already serves an overlapping concern, AND the plan
+               does NOT evaluate extending/replacing the existing code.
+               Positive indicators:
+                 - Plan creates src/realtime/ when email notification system already exists for user alerts
+                 - Plan adds a new queue library when a queue already exists for other purposes
+                 - Plan builds a parallel auth flow when the codebase already has auth
+                 - Plan creates a new cron job that overlaps with existing schedulers
+                 Key: the NEW code could have been an EXTENSION of existing code, but the plan doesn't discuss that
+               Negative indicators:
+                 - Plan EXTENDS an existing file (e.g., "add exportCSV to userController.js") — extension is integration, not bolt-on
+                 - Plan is purely additive in a brand-new domain (first-time WebSocket with no existing real-time infra)
+                 - Plan explicitly states "cannot extend X because Y" with justification
+               Gates: Q-C14 (Bolt-on vs integrated).
+
+       HAS_UNBOUNDED_DATA: true if the plan contains queries, fetches, or iterations
+               without explicit size limits or pagination.
+               Positive indicators:
+                 - User.find({}) or db.query("SELECT * FROM users") without LIMIT
+                 - for user in all_users without slicing/batching
+                 - fs.readdir() without pagination, processing all files
+                 - Loading entire file into memory without size check
+                 - Caching full filtered result sets "at our scale" without pagination
+               Negative indicators:
+                 - Pagination, LIMIT clauses, batch sizes explicit ("in batches of 100")
+                 - Single-record lookups by ID
+               Gates: Q-C32 (Bulk data safety).
 
        ## Step 2: Review tier
 
@@ -142,12 +177,17 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        IS_GAS=true|false
        IS_NODE=true|false
        HAS_UI=true|false
+       HAS_EXISTING_INFRA=true|false
+       HAS_UNBOUNDED_DATA=true|false
      """
    )
-   Parse output → set REVIEW_TIER, ACTIVE_RISKS (as set of strings), IS_GAS, IS_NODE, HAS_UI
-   IF Haiku timeout or malformed output → REVIEW_TIER=FULL, IS_GAS=false, IS_NODE=false, HAS_UI=false,
+   Parse output → set REVIEW_TIER, ACTIVE_RISKS (as set of strings), IS_GAS, IS_NODE, HAS_UI, HAS_EXISTING_INFRA, HAS_UNBOUNDED_DATA
+   IF classifier timeout or malformed output → REVIEW_TIER=FULL, IS_GAS=false, IS_NODE=false, HAS_UI=false,
+     HAS_EXISTING_INFRA=false, HAS_UNBOUNDED_DATA=false,
      ACTIVE_RISKS={"testing", "security", "external_calls"}
-     (fallback activates impact, testing, security clusters unconditionally)
+     (fallback activates impact, testing, security clusters unconditionally; Q-C14 and Q-C32
+      evaluate as N/A per conditional gates, consistent with their default being inactive
+      when flags absent)
 
    Compute cluster activation (for FULL tier; SMALL uses its own question selection):
    ```
@@ -381,7 +421,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      HAS_UI only:         "  Review mode  Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "  Review mode  Standard ([N] clusters: [names])"
    Print: "  Clusters     [N] active: [comma-separated cluster names]"
-   (Raw flag debug line "REVIEW_TIER=[v] ACTIVE_RISKS=[v] IS_GAS=[v] IS_NODE=[v] HAS_UI=[v]"
+   (Raw flag debug line "REVIEW_TIER=[v] ACTIVE_RISKS=[v] IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_EXISTING_INFRA=[v] HAS_UNBOUNDED_DATA=[v]"
    is printed during the convergence loop when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
    would invalidate convergence state tracking).
@@ -1056,6 +1096,7 @@ DO:
 
       Context flags (substituted by team-lead at spawn time):
         IS_NODE=<IS_NODE>   IS_GAS=<IS_GAS>   HAS_UI=<HAS_UI>
+        HAS_EXISTING_INFRA=<HAS_EXISTING_INFRA>   HAS_UNBOUNDED_DATA=<HAS_UNBOUNDED_DATA>
         ACTIVE_RISKS=<ACTIVE_RISKS>
 
       IS_NODE suppression (apply only when IS_NODE=true above):
@@ -1070,6 +1111,13 @@ DO:
         responsibility — no other evaluator will assess them.
         If you are the state-evaluator and IS_GAS=true above, evaluate Q-C36 only;
         Q-C13, Q-C18, Q-C19, Q-C24 are N/A-superseded (covered by gas-evaluator).
+
+      Conditional question gates (per question-effectiveness-report.md 2026-04-10):
+        Q-C14 (Bolt-on vs integrated) → N/A when HAS_EXISTING_INFRA=false. Only evaluate
+          when the plan's classifier marked it true. Applies only in non-GAS mode (IS_GAS
+          already supersedes Q-C14).
+        Q-C32 (Bulk data safety) → N/A when HAS_UNBOUNDED_DATA=false. Applies only in
+          non-GAS/non-NODE mode (IS_GAS and IS_NODE already supersede Q-C32).
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1668,6 +1716,14 @@ DO:
     # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 15 (l1-advisory-process) = 23
     total_applicable_questions = 23 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
+    # Conditional question decrements (per question-effectiveness-report.md 2026-04-10):
+    # Q-C14 and Q-C32 are counted in the impact cluster sum above but evaluate N/A when
+    # their gate flags are false. Subtract from denominator so memo coverage % reflects
+    # actually-applicable questions for this run.
+    IF "impact" in active_clusters AND NOT IS_GAS AND NOT HAS_EXISTING_INFRA:
+      total_applicable_questions -= 1  # Q-C14 inactive this run
+    IF "impact" in active_clusters AND NOT IS_GAS AND NOT IS_NODE AND NOT HAS_UNBOUNDED_DATA:
+      total_applicable_questions -= 1  # Q-C32 inactive this run
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
