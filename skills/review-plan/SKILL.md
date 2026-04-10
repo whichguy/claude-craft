@@ -526,6 +526,12 @@ Gate tiers classify findings by severity and convergence impact. These definitio
 
 ---
 
+<!-- Question set updated 2026-04-10 per skills/review-plan/question-effectiveness-report.md:
+     Dropped Q-G2, Q-G8, Q-C21 (0% hit rate across 18 plans including 6 adversarial).
+     Conditional Q-C14 (HAS_EXISTING_INFRA), Q-C32 (HAS_UNBOUNDED_DATA).
+     L1 per-pass count: 25 → 23. Gate 1 count: 3 → 2 questions (Q-G1, Q-G11).
+     Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike). -->
+
 ## Convergence Loop
 
 ```
