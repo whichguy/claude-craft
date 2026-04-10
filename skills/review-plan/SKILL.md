@@ -2046,7 +2046,7 @@ Q-G9 results are included in the scorecard output (step 4 of "After Review Compl
 
 Question definitions are in QUESTIONS.md — cluster evaluators read that file directly. Team-lead
 only parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). 38 questions organized into 6
-concern clusters. Cluster-level triage activates/deactivates entire clusters based on Haiku
+concern clusters. Cluster-level triage activates/deactivates entire clusters based on Sonnet
 pre-classification. Active clusters are listed in `active_clusters` computed in Step 0.
 
 Count cluster edits → `cluster_changes_total += count` (combined into `changes_this_pass` in Convergence Loop)

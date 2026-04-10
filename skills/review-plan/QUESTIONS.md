@@ -82,7 +82,7 @@ Count L1 edits → `l1_changes += count` (23 questions total, combined into `cha
 ## Layer 2: Code Change Quality
 
 *38 questions organized into 6 concern clusters. Cluster-level triage activates/deactivates
-entire clusters based on Haiku pre-classification. Active clusters are listed in active_clusters
+entire clusters based on Sonnet pre-classification. Active clusters are listed in active_clusters
 computed in Step 0.*
 
 ### Cluster 1: Impact & Architecture
