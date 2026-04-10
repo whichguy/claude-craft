@@ -1,0 +1,13 @@
+{
+  "hooks": [
+    {
+      "name": "TodoWrite Quality Review Detection",
+      "event": "afterToolCall",
+      "filter": {
+        "toolName": "TodoWrite"
+      },
+      "handler": "./detect-quality-review.sh",
+      "description": "Detects when 'Run quality review' checkbox is checked and triggers async quality review"
+    }
+  ]
+}
