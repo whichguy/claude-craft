@@ -45,8 +45,8 @@ Before doing anything, verify the required tools are available:
 1. **Slack MCP**: Confirm `slack_search_users` is callable. If not:
    "Slack MCP server isn't connected. Run `/mcp` to authenticate, then try again."
 
-2. **GUS MCP** (only if work item is `W-XXXXX`): Confirm `query_gus_records` is callable. If not:
-   "GUS MCP server isn't connected. Check your MCP configuration."
+2. **GUS MCP** (only if work item is `W-XXXXX` — optional integration, configure if your org uses Salesforce GUS): Confirm `query_gus_records` is callable. If not:
+   "GUS MCP server isn't connected. Check your MCP configuration or omit the work item."
 
 3. **GitHub CLI** (only if work item is `owner/repo#N`): Run `gh auth status` to verify. If not authenticated:
    "GitHub CLI isn't authenticated. Run `! gh auth login` to set up."
@@ -61,7 +61,7 @@ Extract from the user's input (flexible — natural language is fine):
 
 - **person** (optional): name, email, or `@handle` — required for DMs, optional when a `#channel` is provided
 - **work-item** (optional): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
-- **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM (requires person)
+- **channel** (optional): must start with `#` (e.g. `#your-channel`) — if omitted, send as DM (requires person)
 - **thread** (optional): a loose reference to an existing thread to reply to. Can be:
   - A keyword, topic, or phrase (e.g. `thread:"deploy issue"`, `thread:migration`)
   - `thread:last` or `thread:latest` — the most recent thread the user participated in
@@ -97,17 +97,17 @@ link (e.g., a design doc), use shorthand for the PR: `owner/repo#N https://...`.
 Examples:
 ```
 /slack-tag john.doe W-12345678
-/slack-tag @jane W-12345678 #gov-cloud-all "Needs your eyes on the P1"
-/slack-tag jane anthropics/claude-code#100 "Thoughts on this approach?"
-/slack-tag john.doe #gov-cloud-all "Hey, got a minute to chat about the deploy?"
+/slack-tag @jane W-12345678 #eng-alerts "Needs your eyes on the P1"
+/slack-tag jane your-org/your-repo#100 "Thoughts on this approach?"
+/slack-tag john.doe #eng-alerts "Hey, got a minute to chat about the deploy?"
 /slack-tag @jane "Quick question about the migration"
-/slack-tag john.doe https://confluence.internal/pages/12345 "Check out the new design doc"
+/slack-tag john.doe https://your-wiki.example.com/pages/12345 "Check out the new design doc"
 /slack-tag @jane W-12345678 https://docs.google.com/spreadsheets/d/abc "Data is in the tracker"
-/slack-tag @jane anthropics/claude-code#100 https://wiki.internal/runbook "See the runbook for context"
-/slack-tag #gov-leadership "Reminder: review deadline is Friday"
-/slack-tag #gov-cloud-all W-12345678 "FYI — this just got escalated"
-/slack-tag #gov-cloud-all thread:"deploy issue" "Here's the fix we discussed"
-/slack-tag #gov-cloud-all thread:last "Following up on this"
+/slack-tag @jane your-org/your-repo#100 https://your-wiki.example.com/runbook "See the runbook for context"
+/slack-tag #general "Reminder: review deadline is Friday"
+/slack-tag #eng-alerts W-12345678 "FYI — this just got escalated"
+/slack-tag #eng-alerts thread:"deploy issue" "Here's the fix we discussed"
+/slack-tag #eng-alerts thread:last "Following up on this"
 /slack-tag thread:https://workspace.slack.com/archives/C05J88T8GHG/p1775762900190809 "Update on the rollout"
 ```
 
@@ -157,7 +157,7 @@ WHERE Name = '<W-number>'
 
 Build the GUS URL from the `Id` field:
 ```
-https://gus.lightning.force.com/lightning/r/ADM_Work__c/{Id}/view
+https://your-gus-instance.force.com/lightning/r/ADM_Work__c/{Id}/view
 ```
 
 **If GitHub PR** (matches `owner/repo#N` or a full GitHub URL):
@@ -242,9 +242,9 @@ the URL most naturally describes. Examples:
 
 | Message | URL | Result |
 |---------|-----|--------|
-| "Check out the new design doc" | `https://confluence.internal/...` | "Check out the new [design doc](https://...)" |
+| "Check out the new design doc" | `https://your-wiki.example.com/...` | "Check out the new [design doc](https://...)" |
 | "Data is in the tracker" | `https://docs.google.com/...` | "Data is in the [tracker](https://...)" |
-| "Here's the runbook for the migration" | `https://wiki.internal/...` | "Here's the [runbook](https://...) for the migration" |
+| "Here's the runbook for the migration" | `https://your-wiki.example.com/...` | "Here's the [runbook](https://...) for the migration" |
 | "Can you review this?" | `https://github.com/org/repo/pull/42` | "Can you [review this](https://...)?" |
 | "FYI" | `https://example.com/article` | "[FYI](https://...)" (fallback: hyperlink the whole message) |
 
@@ -258,7 +258,7 @@ the URL most naturally describes. Examples:
   ```
   :warning: **W-12345678: Fix auth flow**
   Bug · In Progress · P1 · Gov Cloud
-  [Open in GUS](https://gus.lightning.force.com/...)
+  [Open in GUS](https://your-gus-instance.force.com/...)
 
   > Data is in the [tracker](https://docs.google.com/spreadsheets/d/abc)
   ```

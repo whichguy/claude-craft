@@ -27,10 +27,14 @@ this skill generates *new* hypotheses on demand and benchmarks them immediately.
 
 ## Project Context
 
-- **ScriptId**: `1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C4HoZys75N5utGfkCUG`
+> **Project-specific skill** — adapt the values below to your own GAS project before use.
+> Replace `<YOUR_SCRIPT_ID>` with your Apps Script script ID, and update the module paths
+> and variant map to match your project's `SystemPrompt` and `ABTestHarness` module names.
+
+- **ScriptId**: `<YOUR_SCRIPT_ID>`
 - **GAS execution**: inline JS via `mcp__gas__exec` — no module to deploy
-- **Base prompt**: loaded from `require('sheets-chat/SystemPrompt')[variantFnName](null, null, SP.gatherEnvironmentContext())` — see variant map below
-- **Scenarios**: `require('sheets-chat/ABTestHarness').SCENARIOS` — 12 scenarios total (indices 0–11)
+- **Base prompt**: loaded from `require('your-project/SystemPrompt')[variantFnName](null, null, SP.gatherEnvironmentContext())` — see variant map below
+- **Scenarios**: `require('your-project/ABTestHarness').SCENARIOS` — update count to match your harness
 - **Variant map**: `{ V2: 'buildSystemPromptV2', V2a: 'buildSystemPromptV2a', V2b: 'buildSystemPromptV2b', V2c: 'buildSystemPromptV2c' }`
 
 ## Argument Resolution
@@ -87,7 +91,7 @@ VALIDATE {
 
 ### Pre-check
 
-Read `sheets-chat/ABTestHarness.gs` and verify:
+Read `your-project/ABTestHarness.gs` and verify:
 - `SCENARIOS` element schema: `.id`, `.message`, `.validates`, `.category`
 - `evaluateResponse(scenario, responseText)` return shape: `{ composite, scores }`
 
@@ -95,7 +99,7 @@ Read `chat-core/ClaudeConversation.gs` and verify:
 - Constructor: `new ClaudeConversation(apiKey, modelId, options)` where `options.system` is supported
 - `sendMessage({ messages: [], text: testMessage, enableThinking: false })` → `{ response, usage }`
 
-Read `sheets-chat/SystemPrompt.gs` and verify:
+Read `your-project/SystemPrompt.gs` and verify:
 - `build<base>` 3-arg signature: `(knowledge, historicalAnchors, environmentContext)`
 - `gatherEnvironmentContext()` is exported
 
@@ -109,7 +113,7 @@ Read `sheets-chat/SystemPrompt.gs` and verify:
 
 ```javascript
 (function() {
-  var SP = require('sheets-chat/SystemPrompt');
+  var SP = require('your-project/SystemPrompt');
   var envCtx = SP.gatherEnvironmentContext();
   return {
     basePromptText: SP['VARIANT_FN_NAME'](null, null, envCtx),
@@ -567,7 +571,7 @@ Iterate over `cellSpecs[]` built in Step 2. Use a sliding window of **3 parallel
     var promptText = <JSON_STRINGIFIED_PROMPT>;
     var testMessage = <JSON_STRINGIFIED_MESSAGE>;
     var validates = <JSON_STRINGIFIED_VALIDATES>;
-    var AB = require('sheets-chat/ABTestHarness');
+    var AB = require('your-project/ABTestHarness');
     var CC = require('chat-core/ClaudeConversation');
     var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
@@ -593,7 +597,7 @@ Iterate over `cellSpecs[]` built in Step 2. Use a sliding window of **3 parallel
     var promptText = <JSON_STRINGIFIED_BASE_PROMPT>;
     var testMessage = <JSON_STRINGIFIED_MESSAGE>;
     var validates = <JSON_STRINGIFIED_VALIDATES>;
-    var AB = require('sheets-chat/ABTestHarness');
+    var AB = require('your-project/ABTestHarness');
     var CC = require('chat-core/ClaudeConversation');
     var claude = new CC(null, <JSON_STRINGIFIED_MODEL>, { system: promptText });
     var result = claude.sendMessage({ messages: [], text: testMessage, enableThinking: false });
@@ -1117,7 +1121,7 @@ Emit:
   Threshold: >6 of 32 for default run (scales with actual cell count × 0.20).
 - **Judge JSON parse failure ×2**: Skip that scenario in judge scoring, note in output.
 - **All judge agents fail**: Rank by heuristic_avg only; note `[Judge: unavailable]` in table.
-- **All cells fail**: Abort with diagnostic. Check that `require('sheets-chat/ABTestHarness')` and
+- **All cells fail**: Abort with diagnostic. Check that `require('your-project/ABTestHarness')` and
   `require('chat-core/ClaudeConversation')` are available in exec context.
 - **Baseline exec failure**: If >3 of 5 baseline cells fail, note that delta_vs_base is unreliable.
 

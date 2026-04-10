@@ -63,7 +63,7 @@ getFileSHA1('your-project/YourModule.gs'); // "68990dce..."
 **Requirements:** Full path WITH extension required
 **Gotchas:**
 - `'ChatConstants.gs'` → "Not found" (missing path)
-- `'sheets-chat/ChatConstants'` → "Not found" (missing extension)
+- `'myproject/MyModule'` → "Not found" (missing extension)
 **Error:** "Not found"
 **Use Case:** Version hashing, self-documenting code, runtime introspection
 **Source:** https://ramblings.mcpher.com/google-apps-script-new-day-new-feature/
