@@ -4,7 +4,8 @@ description: |
   Ping someone on Slack — optionally about a GUS work item or GitHub PR,
   with optional URL intelligently hyperlinked into the message.
   Resolves identifiers, formats a rich message, previews, and sends on approval.
-  Can also post directly to a channel without tagging a specific person.
+  Can also post directly to a channel without tagging a specific person, or
+  reply to an existing thread using keywords, URLs, or 'last'.
 
   **AUTOMATICALLY INVOKE** when:
   - "tag someone on slack about"
@@ -18,8 +19,12 @@ description: |
   - "post to #channel"
   - "send to #channel"
 
+  - "reply to the thread about"
+  - "reply in thread" / "thread reply"
+  - "follow up on the slack thread"
+
   **NOT for:** General Slack announcements or channel summaries
-argument-hint: "[person] [work-item] [#channel] [url] [message]"
+argument-hint: "[person] [work-item] [#channel] [thread] [url] [message]"
 allowed-tools: all
 model: sonnet
 ---
@@ -57,6 +62,12 @@ Extract from the user's input (flexible — natural language is fine):
 - **person** (optional): name, email, or `@handle` — required for DMs, optional when a `#channel` is provided
 - **work-item** (optional): `W-XXXXX` (GUS) or `owner/repo#N` (GitHub PR)
 - **channel** (optional): must start with `#` (e.g. `#gov-cloud-all`) — if omitted, send as DM (requires person)
+- **thread** (optional): a loose reference to an existing thread to reply to. Can be:
+  - A keyword, topic, or phrase (e.g. `thread:"deploy issue"`, `thread:migration`)
+  - `thread:last` or `thread:latest` — the most recent thread the user participated in
+  - A raw Slack timestamp (e.g. `thread:1775762900.190809`)
+  - A Slack message URL (e.g. `thread:https://workspace.slack.com/archives/C.../p...`)
+  When present, the message is sent as a threaded reply. Requires a `#channel` (unless the thread reference is a URL that encodes the channel).
 - **url** (optional): any `https://` URL — will be intelligently hyperlinked into the message
 - **message** (optional): quoted string or trailing text after the other args
 
@@ -68,6 +79,9 @@ no item metadata block).
   "Please provide either a work item or a message (or both)."
 - If neither person nor channel is provided, stop immediately:
   "Please provide a person to DM or a #channel to post to."
+- If thread is provided and is NOT a Slack URL (doesn't match `https://.*slack.com/archives/`),
+  verify a channel is also provided. If not: "Thread references like 'thread:last' or
+  'thread:keywords' require a #channel. Either add a channel or use the full Slack message URL."
 
 Parse left-to-right: scan all tokens for structured patterns first — work-item
 (`W-XXXXX` or `owner/repo#N`), channel (`#channel`), and URL (`https://...`).
@@ -92,6 +106,9 @@ Examples:
 /slack-tag @jane anthropics/claude-code#100 https://wiki.internal/runbook "See the runbook for context"
 /slack-tag #gov-leadership "Reminder: review deadline is Friday"
 /slack-tag #gov-cloud-all W-12345678 "FYI — this just got escalated"
+/slack-tag #gov-cloud-all thread:"deploy issue" "Here's the fix we discussed"
+/slack-tag #gov-cloud-all thread:last "Following up on this"
+/slack-tag thread:https://workspace.slack.com/archives/C05J88T8GHG/p1775762900190809 "Update on the rollout"
 ```
 
 ---
@@ -159,6 +176,39 @@ Call `slack_search_channels(query: "<channel-name>")` to get `channel_id`.
 - Not found (with person): "Can't find #channel. Send as DM to @person instead?"
 - Not found (no person): "Can't find #channel. Please check the channel name."
 - Omitted: use the person's `user_id` as the target (DM).
+
+### 2d. Resolve the thread (if provided)
+
+Skip this step if no thread reference was specified.
+
+**If raw timestamp** (matches `^\d+\.\d+$`): use directly as `thread_ts`.
+
+**If Slack URL** (matches `https://.*slack.com/archives/(C[A-Z0-9]+)/p(\d+)`):
+extract `channel_id` from capture group 1, derive `thread_ts` by inserting a dot
+after the 10th digit of capture group 2. If a `#channel` was also provided,
+resolve both and compare. If they differ, ask: "The thread URL points to
+#{url_channel}, but you specified #{explicit_channel}. Which one should I use?"
+
+**If `last` or `latest`**: call `slack_read_channel(channel_id: "<channel_id>")`,
+scan recent messages for ones authored by or mentioning the current user, and use
+the most recent thread's parent `ts`. If no recent thread is found:
+"No recent threads found in #{channel}. Try a keyword instead?"
+
+**If keyword/topic/phrase** (anything else): search for the thread:
+
+1. Call `slack_search_public(query: "<keywords> in:#<channel>")`. If the search
+   call fails, report: "Slack search is temporarily unavailable. Try using the
+   thread URL or timestamp directly."
+2. From results, pick the best match — prefer messages that started threads
+   (have `reply_count > 0`). If multiple candidates, show the top 3 with a
+   snippet and ask the user to pick.
+3. If no results: "Couldn't find a thread about '{keywords}' in #{channel}.
+   Try different keywords?"
+
+Once resolved, call `slack_read_thread(channel_id, message_ts: "<thread_ts>")`
+to confirm the thread exists and grab the parent message text (used in the
+preview card). If the thread read fails: "That thread exists but couldn't be
+loaded (may have been deleted or restricted). Try a different thread?"
 
 ---
 
@@ -290,6 +340,7 @@ Pick based on context:
 - GUS P0/P1: "Heads up — this could use some attention."
 - GUS general: "Hey — could use your eyes on this when you get a chance."
 - GitHub PR: "Mind taking a look when you have a minute?"
+- Thread reply (no work item, no explicit message): "Following up on this."
 - No work item (with person): **a message is required** — ask the user what to say.
 - No work item (channel-only): **a message is required** — ask the user what to say.
 
@@ -306,6 +357,7 @@ Show a terminal preview card before sending:
 
   To        @{handle} ({Full Name})   ← or omit if channel-only
   Via       #{channel-name} (tagged)   ← or "DM" if no channel; "(broadcast)" if no person
+  Thread    ↳ "{first 60 chars of parent message}..."   ← only shown when replying to a thread
   Item      {W-number} — {Subject}     ← or omit this line if no work item
   Ref       {url}                      ← omit if no user-provided URL
 
@@ -316,9 +368,16 @@ Show a terminal preview card before sending:
   ────────────────────────────────────────────────
 ```
 
+If no `thread` argument was provided, show a tip below the card:
+```
+  💡 Tip: Add thread:"keyword" to reply to an existing thread in this channel.
+```
+Skip this tip when the user already supplied a `thread` argument.
+
 Then ask: **"Send this?"** (yes / no / edit)
 
-- **yes** → call `slack_send_message(channel_id: "<id>", message: "<formatted>")`
+- **yes** → call `slack_send_message(channel_id: "<id>", message: "<formatted>")`.
+  If replying to a thread, include `thread_ts: "<thread_ts>"` in the call.
 - **edit** → ask what to change, update the message, re-preview
 - **no** → abort cleanly
 
@@ -326,11 +385,18 @@ Then ask: **"Send this?"** (yes / no / edit)
 
 ## Step 5 — Delivery Confirmation
 
-After a successful send, print a single confirmation line:
+After a successful send, print the confirmation and thread context:
 
 ```
   Sent to #{channel} · @{handle} · {work-item-id}     ← omit @handle if channel-only, omit work-item-id if none
+  📌 This message landed in #{channel} ({channel_id}) at ts {message_ts}. Follow-ups should thread here.
 ```
+
+The breadcrumb uses the `channel_id` from Step 2c and the message timestamp
+returned by `slack_send_message`. It's open-ended guidance — any future Claude
+session reading the transcript will have enough context to thread a reply
+using `slack_send_message` with `thread_ts`, without being locked into a
+rigid template.
 
 ---
 
@@ -344,3 +410,7 @@ After a successful send, print a single confirmation line:
 | Channel not found | "Can't find #{name}. Send as DM to @{person} instead?" |
 | Slack send fails | Show the error. Offer to retry or save as draft via `slack_send_message_draft`. |
 | GUS MCP unavailable | "GUS is unavailable right now. Try again in a moment." |
+| Thread not found by keyword | "Couldn't find a thread about '{keywords}' in #{channel}. Try different keywords?" |
+| No recent threads (last/latest) | "No recent threads found in #{channel}. Try a keyword instead?" |
+| Thread URL parse failure | "Couldn't parse that Slack URL. Expected: https://WORKSPACE.slack.com/archives/CXXXXXXXX/pXXXXXXXXXXXXXXXX" |
+| Thread ts without channel | "Thread timestamp needs a #channel or use the full Slack message URL." |
