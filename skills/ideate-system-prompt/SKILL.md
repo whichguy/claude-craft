@@ -35,60 +35,51 @@ this skill generates *new* hypotheses on demand and benchmarks them immediately.
 
 ## Argument Resolution
 
-Read `$ARGUMENTS` (the full text after `/ideate-system-prompt`) and resolve the parameters below.
-Both formal `--flag` syntax and natural language are supported — use your understanding of intent
-to resolve values. Execute before Step 0; all subsequent steps reference these named variables.
+Parse `$ARGUMENTS` before Step 0. All steps reference these variables.
 
-### Parameters
+```
+ARGS {
+  base:             "V2a"                      // "V2"|"V2a"|"V2b"|"V2c" | NL: "use V2b" / "base V2b"
+  ideas:            3                          // int ≥ 0 (0 valid when refineHypothesis set) | NL: "try N ideas"
+  scenarios:        [0,1,2,3,4,5,6,7]         // int[] ∈ [0..11] | range "0-9", comma "0,2,4", or single | NL: "first N scenarios"
+  targeted:         4                          // int ≥ 0 | NL: "no targeted tests" → 0
+  model:            "claude-haiku-4-5-20251001" // benchmark model | NL: "use sonnet for bench" → claude-sonnet-4-6
+  ideaModel:        "claude-sonnet-4-6"        // ideation model
+  judgeModel:       "claude-opus-4-6"          // judge model
+  save:             false                      // presence flag | NL: "save the winner" / "with save"
+  refineHypothesis: null                       // string|null | NL: "refine: <text>" / "test this hypothesis: <text>"
+  learnings:        null                       // string|null | NL: "--learnings <text>" / "incorporating learnings: <text>" / "with prior findings: <text>"
+}
 
-| Parameter | Variable | Default | Accepted values |
-|-----------|----------|---------|-----------------|
-| `--base` | `base` | `V2a` | V2, V2a, V2b, V2c |
-| `--ideas` | `ideas` | `3` | positive integer |
-| `--scenarios` | `scenarios` | `[0,1,2,3,4]` | range (`0-9`), comma list (`0,1,5`), or single index |
-| `--targeted` | `targeted` | `4` | integer ≥ 0 |
-| `--model` | `model` | `claude-haiku-4-5-20251001` | Claude model ID |
-| `--ideation-model` | `ideaModel` | `claude-sonnet-4-6` | Claude model ID |
-| `--judge-model` | `judgeModel` | `claude-opus-4-6` | Claude model ID |
-| `--save` | `save` | `false` | presence flag |
+// Multi-param NL shortcuts (flag values take precedence)
+"quick test" | "smoke test" | "mini run"  → ideas=1, scenarios=[0], targeted=1
+"full run" | "default run"               → all defaults above
+"only compression"                       → ideas=1
+"no targeted" | "skip targeted"          → targeted=0
+"incorporating learnings: <text>" | "with prior findings: <text>" → learnings=<text>
+// If --learnings and --refine appear in same NL string: --learnings covers text before "refine:" / "test this:", --refine takes text after.
+// If ambiguous: treat all prior-context text as learnings, emit ⚠ and prompt user to use --refine explicitly.
 
-### Recognition examples
+// Resolution: --flag wins over NL wins over default. Contradictory signals → last explicit statement.
+// Unrecognized phrases → ignore (never abort).
 
-**Formal flags** (always recognized):
-- `--base V2b` → base=V2b
-- `--ideas 5` → ideas=5
-- `--scenarios 0-9` → scenarios=[0..9]
-- `--scenarios 0,2,4` → scenarios=[0,2,4]
-- `--targeted 2` → targeted=2
-- `--save` → save=true
+COMPUTE {
+  totalIdeas          = ideas + (refineHypothesis ? 1 : 0)
+  learningsText = learnings ?? null   // pass through as-is; no truncation
+  variantCells        = totalIdeas × (scenarios.length + targeted)
+  baselineCells       = scenarios.length
+  baselineTargetedCells = totalIdeas × targeted
+  totalCells          = variantCells + baselineCells + baselineTargetedCells
+  // default: 3 × (8 + 4) + 8 + 3×4 = 56 cells; --refine adds 1 extra idea
+}
 
-**Natural language** (understood by intent):
-- "quick test" / "smoke test" / "mini run" → ideas=1, scenarios=[0], targeted=1
-- "try 5 ideas" / "5 hypotheses" → ideas=5
-- "use V2b" / "start from V2b" / "base V2b" → base=V2b
-- "just 2 scenarios" / "first 3 scenarios" → scenarios=[0,1] / [0,1,2]
-- "save the winner" / "output winner text" / "with save" → save=true
-- "full run" / "default run" → all defaults (32 cells)
-- "only compression" / "compression angle only" → ideas=1 (angle cycling will pick compression)
-- "no targeted tests" / "skip targeted" → targeted=0
-- "test with sonnet" / "use sonnet for bench" → model=claude-sonnet-4-6
-
-### Resolution rules
-
-1. Formal `--flag` values take precedence over natural language for the same parameter.
-2. Contradictory signals → use the last explicit statement.
-3. Unrecognized phrases → treat as info, ignore (never abort on unknown text).
-4. After resolution, compute:
-   - `variantCells = ideas × (scenarios.length + targeted)`
-   - `baselineCells = scenarios.length`
-   - `totalCells = variantCells + baselineCells`
-   - Example for defaults: 3 × (5 + 4) + 5 = **32 cells**
-
-### Validation (abort if violated)
-
-- `base` ∉ {V2, V2a, V2b, V2c} → abort: `Unknown base variant: <name>. Valid: V2, V2a, V2b, V2c`
-- Any `scenarios` index outside [0..11] → abort: `Invalid scenario index: <N>. Valid range: 0–11`
-- `ideas` < 1 → reset to 3 with warning
+VALIDATE {
+  base ∉ {"V2","V2a","V2b","V2c"}              → abort "Unknown base variant: <name>. Valid: V2, V2a, V2b, V2c"
+  any scenarios[i] ∉ [0..11]                  → abort "Invalid scenario index: <N>. Valid range: 0–11"
+  ideas < 1 && !refineHypothesis              → reset ideas=3, warn
+  ideas < 1 && refineHypothesis               → valid (totalIdeas=1, only refinement runs)
+}
+```
 
 ---
 
@@ -119,12 +110,16 @@ Read `sheets-chat/SystemPrompt.gs` and verify:
 ```javascript
 (function() {
   var SP = require('sheets-chat/SystemPrompt');
-  return SP['VARIANT_FN_NAME'](null, null, SP.gatherEnvironmentContext());
+  var envCtx = SP.gatherEnvironmentContext();
+  return {
+    basePromptText: SP['VARIANT_FN_NAME'](null, null, envCtx),
+    envContextText: SP.formatEnvironmentContextJson(envCtx)
+  };
 })()
 ```
 
 Before sending to exec, replace the literal string `VARIANT_FN_NAME` with the function name from
-the variant map (e.g. `buildSystemPromptV2a`). The result is a plain string value — store it directly as `basePromptText`.
+the variant map (e.g. `buildSystemPromptV2a`). The result is an object: store `result.basePromptText` as `basePromptText` and `result.envContextText` as `envContextText` (the formatted ENVIRONMENT CONTEXT block, appended to variants in Step 2).
 
 If exec returns error, abort with: `Step 0 exec failed: <error>`. Emit:
 ```
@@ -138,7 +133,8 @@ Emit the banner after loading `basePromptText`. All values come from parsed args
 substitute each `<…>` token before printing. Do not print these as literal angle-bracket tokens.
 
 ```
-variantCells = ideas × (scenarios.length + targeted)   # total non-baseline cells
+totalIdeas   = ideas + (refineHypothesis ? 1 : 0)
+variantCells = totalIdeas × (scenarios.length + targeted)
 baselineCells = scenarios.length
 totalCells   = variantCells + baselineCells
 
@@ -147,6 +143,12 @@ totalCells   = variantCells + baselineCells
 ╠══════════════════════════════════════════╣
 ║  Base       : <base> (<basePromptText.length> chars)  ║
 ║  Ideas      : <ideas>                    ║
+[IF refineHypothesis is set:]
+║  Refine     : "<first 60 chars of refineHypothesis>…" ║
+[END IF]
+[IF learnings is set:]
+║  Learnings  : "<first 80 chars of learningsText>…" (<learningsText.length> chars) ║
+[END IF]
 ║  Scenarios  : <scenarios[0]>-<scenarios[last]> (<scenarios.length> standard) ║
 ║  Targeted   : <targeted> per idea        ║
 ║  Cells      : <totalCells> (<variantCells> variant + <baselineCells> base) ║
@@ -174,17 +176,65 @@ spawning ideation agents.
 You are analyzing a system prompt for a Google Sheets AI assistant.
 Identify the top 2 SPECIFIC opportunities from each angle below:
 
-1. COMPRESSION: Which sections are over-specified, redundant, or could be condensed
-   without losing critical behaviors? Name the section (quote its header or first line).
-2. MISSING-COV: Which user request types, edge cases, or failure modes does this prompt
-   handle poorly or not address at all? Name the specific gap.
-3. STRUCTURE: Where do instructions conflict, create confusing ordering, or work against
-   each other? Cite the specific sections involved.
+1. COMPRESSION (Q7-anti-patterns, Q11-parallelization):
+   - Q7: Does any section use hedging ("try to", "consider", "may want to") where imperative
+     language is needed? Are any instructions overloaded (>3 tasks in one directive)?
+   - Q11: Are there sequential steps that could execute in parallel? Any "do one at a time"
+     patterns in instructions that span multiple independent subtasks?
+   - Redundancy: Do any two sections repeat the same instruction in different words?
+   Name the specific section (quote its header or first line) for each opportunity.
+
+2. MISSING-COV (Q6-constraints, Q12-failure-modes, Q9-domain-specifics):
+   - Q6: What constraints are missing that would prevent hallucination or off-task output?
+   - Q12: Which edge cases and failure modes are unaddressed (happy-path-only design)?
+   - Q9: What domain terminology, Google Sheets conventions, or GAS-specific patterns
+     are absent but would improve output accuracy?
+   Name the specific gap for each opportunity.
+
+3. STRUCTURE (Q8-chain-of-thought, Q13-calibration, Q1-role, Q3-context):
+   - Q8: Would explicit step-by-step reasoning improve output quality for this task?
+   - Q13: Are decision thresholds precisely defined? Is the "present but weak" middle
+     case explicitly named (not just clear pass and clear fail extremes)?
+   - Q1/Q3: Is the role/persona clear? Is there enough context to avoid guessing?
+   Cite the specific sections involved.
 
 Base prompt:
 <BASE_PROMPT_TEXT>
 
+<PRIOR_LEARNINGS_SECTION>
+
 Return ONLY valid JSON — no prose, no markdown:
+<DIAGNOSTIC_JSON_SCHEMA>
+```
+
+Substitute `<PRIOR_LEARNINGS_SECTION>` as:
+- If `learningsText` is set:
+```
+Prior run findings (incorporate into your analysis per angle):
+<learningsText>
+
+Classify each finding as: confirmed-positive (worked — build on it), confirmed-negative
+(regressed — avoid unless a specific fix is described), or open (untested/inconclusive).
+For each angle, your items should address still-unaddressed issues from the above findings
+OR identify genuinely new opportunities beyond what's already known.
+Do not repeat findings verbatim — describe the underlying prompt mechanism.
+```
+- If null: omit block entirely (remove the `<PRIOR_LEARNINGS_SECTION>` line from the prompt).
+
+Substitute `<DIAGNOSTIC_JSON_SCHEMA>` as:
+- If `learningsText` is set (structured schema):
+```json
+{
+  "compression": [
+    { "opportunity": "...", "learningStatus": "open|confirmed-positive|confirmed-negative|conflict", "note": "one sentence" }
+  ],
+  "missing": [...same structure...],
+  "structure": [...same structure...],
+  "_marker": "DIAGNOSTIC_COMPLETE"
+}
+```
+- If `learningsText` is null (flat-string schema — unchanged behavior):
+```json
 {
   "compression": ["specific opportunity 1", "specific opportunity 2"],
   "missing": ["specific gap 1", "specific gap 2"],
@@ -213,15 +263,29 @@ ANGLES = [
   { id: "structure",     desc: "Identify instruction conflicts, confusing ordering, or sections that work against each other. Propose a restructured version with clearer hierarchy." }
 ]
 
+# Spawn refinement agent FIRST (before auto-generated) when --refine is set
+IF refineHypothesis is set:
+  ideaId    = "refinement-1"
+  angleDesc = refineHypothesis   # user's description IS the angle
+  # Inject all 3 diagnostic angles (refinement benefits from full context)
+  IF diagnosticContext is non-empty:
+    diagnosticInjection = combined bullet list of all items from
+      diagnosticContext.compression, diagnosticContext.missing, diagnosticContext.structure
+  ELSE:
+    omit diagnostic section
+  [Spawn this agent CONCURRENTLY in the same parallel wave as auto-generated agents]
+  [On success: PREPEND to ideas[] so refinement appears first in rankings]
+
 for i in 0 .. ideas-1:
   angle    = ANGLES[i % 3]                   # cycle: 0→compression, 1→missing-cov, 2→structure, 3→compression, ...
-  ideaId   = angle.id + "-1"                 # always append "-1" (one idea per agent per angle)
+  cycleNum = Math.floor(i / 3) + 1           # 1 for first cycle, 2 for second, etc.
+  ideaId   = angle.id + "-" + cycleNum       # compression-1, missing-cov-1, structure-1, compression-2, ...
   angleDesc = angle.desc
 ```
 
-The `-1` suffix is always appended because each agent produces exactly one idea.
-If `ideas > 3`, angles cycle (index % 3) and the suffix stays `-1` — they do NOT increment
-(e.g. a second compression agent still produces `"compression-1"`, not `"compression-2"`).
+The cycle number increments every 3 ideas. With `ideas=3`: compression-1, missing-cov-1,
+structure-1. With `ideas=6`: adds compression-2, missing-cov-2, structure-2. Each ideaId
+is unique and encodes both the angle and the cycle.
 
 **Ideation agent prompt template (construct once per agent, substituting from parsed args):**
 
@@ -239,6 +303,8 @@ Base prompt:
 <BASE_PROMPT_TEXT>
 
 Your angle: <ANGLE_DESCRIPTION>
+
+<PRIOR_LEARNINGS_FOR_IDEATION>
 
 <DIAGNOSTIC_FOR_THIS_ANGLE>
 
@@ -263,6 +329,27 @@ Rules:
 - Return ONLY the JSON object — no prose, no markdown fence, no explanation
 ```
 
+Substitute `<PRIOR_LEARNINGS_FOR_IDEATION>`:
+- If `learningsText` is set (for auto-generated agents):
+```
+Prior run findings (use these to steer your hypothesis):
+<learningsText>
+
+Your hypothesis must:
+- Directly address at least one confirmed failure mode OR extend a confirmed-positive finding
+- If a prior approach regressed, either avoid it OR explain specifically what makes this
+  attempt different (e.g. "adds a safety guard that was missing before")
+- Not reproduce a prior idea unchanged — describe how your approach differs or improves
+- If prior findings identify a regression scenario, include at least one targetedTest
+  message that would reproduce that failure condition
+```
+- If `learningsText` is set AND this is the refinement agent (`refineHypothesis` set): use softer framing:
+```
+Additional context from prior runs:
+<learningsText>
+```
+- If `learningsText` is null: omit block entirely (remove `<PRIOR_LEARNINGS_FOR_IDEATION>` line from prompt).
+
 **`<DIAGNOSTIC_FOR_THIS_ANGLE>` substitution**: If `diagnosticContext` is non-empty, replace
 `<DIAGNOSTIC_FOR_THIS_ANGLE>` with:
 
@@ -275,8 +362,18 @@ Use these as starting points for your hypothesis. Your hypothesis should address
 of the identified opportunities above, or explain why a different opportunity is more impactful.
 ```
 
-Where the bullet items come from the matching diagnostic key. If `diagnosticContext` is empty,
-remove the `<DIAGNOSTIC_FOR_THIS_ANGLE>` line entirely from the prompt.
+Where the bullet items come from the matching diagnostic key — formatted as:
+- If flat-string schema (no learnings): `- <string>` for each item (unchanged behavior)
+- If structured schema (learnings present): `- [<learningStatus>] <opportunity> — <note>` for each item
+  - Items where `learningStatus === "confirmed-negative"` include an explicit warning so ideation agents
+    are told to avoid that approach (e.g. `- [confirmed-negative] Removing caution phrasing — Prior run showed this caused hallucination on urgent scenarios`)
+
+If `diagnosticContext` is empty, remove the `<DIAGNOSTIC_FOR_THIS_ANGLE>` line entirely from the prompt.
+
+**Step 1 ideation summary** — when learnings are injected, add this annotation after the diagnostic line:
+```
+  [learnings: <learningsText.length> chars injected into diagnostic + all <totalIdeas> ideation agents]
+```
 
 **Error handling per agent:**
 - Agent timeout (60s): log warning `[Step 1] Agent <angle> timed out — skipping` and skip
@@ -292,17 +389,117 @@ remove the `<DIAGNOSTIC_FOR_THIS_ANGLE>` line entirely from the prompt.
 (`{ ideaId, hypothesis, variantPromptText, targetedTests[] }`). This array is consumed by
 Steps 2 and 3.
 
+**Section diff (compute per idea before printing summary):**
+Count `#`-prefixed header lines (lines starting with `#`) in `basePromptText` → `baseSectionCount`.
+For each idea, count `#`-prefixed headers in `idea.variantPromptText` → `variantSectionCount`.
+Find headers present in base but absent in variant → `missingSections[]` (by exact string match).
+Find headers present in both but with different following content → `modifiedSections[]`.
+Report as: `[sections: <variantSectionCount>/<baseSectionCount> preserved | <N> modified: <names>]`
+If `variantSectionCount < baseSectionCount`, append ` ⚠ <baseSectionCount - variantSectionCount> dropped`.
+
 Print ideation summary:
 ```
 Step 1 — Ideation complete (3/3 ideas generated)
   [diagnostic: compression×2, missing×2, structure×2 opportunities identified]
+  [IF refineHypothesis is set, show refinement-1 FIRST:]
+  refinement-1    : <first 80 chars of hypothesis from agent response>
+                    [sections: 12/14 preserved | 2 modified: THINKING PROTOCOL, SPREADSHEET CONTEXT]
   compression-1   : Removed redundant THINKING PROTOCOL phases 4-5 (-1,200 chars)
+                    [sections: 12/14 preserved | 2 modified: THINKING PROTOCOL, SPREADSHEET CONTEXT]
   missing-cov-1   : Added explicit handling for multi-sheet operations
+                    [sections: 14/14 preserved | 1 modified: MULTI-SHEET OPERATIONS]
   structure-1     : Reorganized KEY PRINCIPLES before TOOL USAGE section
+                    [sections: 14/14 preserved | 3 modified: KEY PRINCIPLES, TOOL USAGE, STRUCTURE]
 ```
 
 If `diagnosticContext` was empty (marker absent or parse failed), show instead:
 `[diagnostic: unavailable — proceeding without grounding context]`
+
+---
+
+## Step 1b — Hypothesis Quality Gate
+
+After collecting `ideas[]`, run a single gate agent (using `model`) to validate
+each hypothesis before building the cell matrix. Skip ideas that fail G1.
+
+**Gate prompt** (substitute `<IDEAS_JSON>` with JSON.stringify(ideas[]),
+`<BASE_PROMPT_TEXT>` with `basePromptText`, and `<BASE_PROMPT_LENGTH>` with
+`basePromptText.length`):
+
+```
+You are validating hypotheses for a prompt improvement experiment.
+
+Base prompt length: <BASE_PROMPT_LENGTH> chars
+Ideas to validate:
+<IDEAS_JSON>
+
+For each idea, evaluate 4 checks:
+G1 (COMPLETENESS): Is variantPromptText a complete, self-contained prompt? Fail if it
+   appears to be a diff, patch, or fragment (e.g. starts with "+" or "-", contains
+   "<<<", or is less than 60% of base prompt length, or has fewer than 75% of the
+   number of `#`-prefixed section headers present in the base prompt).
+   Note: the 60% length floor and 75% section floor are calibrated so that aggressive
+   but legitimate compression (targeting 60-80% of base) passes, while lossy
+   reproduction (missing entire sections, <50% length) fails. Use G3 (warn) for
+   variants that are trivially similar in length to base, not G1 (fail).
+G2 (SPECIFICITY): Is the hypothesis field specific and actionable? Fail if it:
+   - Is generic ("improve clarity", "make it better", fewer than 20 chars), OR
+   - Describes a prior finding without specifying a concrete change to the prompt
+     (e.g. "address confirmed regression on urgent tasks" with no prompt action stated).
+   Pass if the hypothesis names a specific structural change to the prompt
+   (e.g. contains "add", "remove", "restructure", "tighten", "replace", or names a
+   specific section being modified).
+G3 (DIFF): Is variantPromptText meaningfully different from the base prompt?
+   Warn if the edit distance is <3% of base length (trivially similar).
+G4 (UNIQUENESS): Do any two ideas appear to make the same change? Warn if two
+   variantPromptText values share >70% of their non-base content.
+
+Return ONLY valid JSON:
+{
+  "results": [
+    {
+      "ideaId": "...",
+      "G1": "pass|fail", "G1_reason": "...",
+      "G2": "pass|fail", "G2_reason": "...",
+      "G3": "pass|warn", "G3_reason": "...",
+      "G4": "pass|warn", "G4_reason": "..."
+    }
+  ],
+  "_marker": "HYPOTHESIS_GATE_COMPLETE"
+}
+```
+
+**Marker validation**: If `_marker` absent or JSON parse fails → emit warning
+`[Step 1b] Gate failed to parse — proceeding with all ideas unchecked` and skip filtering.
+
+**Filtering rules:**
+- Ideas where `G1 === "fail"` OR `G2 === "fail"` → remove from `ideas[]`, note in output
+- Ideas where `G3 === "warn"` OR `G4 === "warn"` → keep but emit warning
+
+Print:
+```
+Step 1b — Hypothesis Gate (<passed>/<total> ideas pass)
+  [IF any skipped:] Skipped: <ideaId> — <G1_reason or G2_reason>
+  [IF any warnings:] ⚠ <ideaId>: <G3 or G4 reason>
+```
+
+**If all ideas are removed** (rare but possible — e.g. all ideation agents returned diffs):
+Abort with: `Step 1b: all hypotheses failed quality gate. Re-run to generate new ideas.`
+
+**Update cell count banner** (Step 2 matrix print) to reflect the actual number of
+surviving ideas after gate filtering.
+
+**Env context injection (after Step 1b quality gate completes, before Step 2):**
+For each idea in ideas[]:
+  idea.variantPromptText = idea.variantPromptText + "\n\n" + envContextText
+
+Timing: injection occurs AFTER Step 1b so the G1 length check evaluates prompt
+instruction content only (without env context appended). This is intentional — G1
+validates instruction quality, not total deployed length. Injection is the last step
+before Step 2 builds the cell matrix.
+
+This gives every variant the same live spreadsheet context as the baseline, ensuring
+the benchmark tests prompt instruction quality rather than contextual awareness.
 
 ---
 
@@ -337,10 +534,19 @@ For each idea × (standard scenarios + targeted tests):
   - `ideaId` = `"baseline"`
   - `testType` = `"standard"`
   - `scenarioId` = String(scenarioIndex)
+- **Baseline targeted cells**: `basePromptText` × each idea's targeted test messages
+  - One set per idea (so the baseline is compared against the same targeted messages)
+  - `variantText` = `basePromptText`
+  - `testMessage` = `idea.targetedTests[i].message`
+  - `validates`   = `idea.targetedTests[i].validates`
+  - `category`    = `idea.targetedTests[i].category`
+  - `ideaId`      = `"baseline-targeted-" + idea.ideaId`
+  - `testType`    = `"baseline-targeted"`
+  - `scenarioId`  = `"targeted-" + String(i)`
 
 Print matrix summary:
 ```
-Idea matrix: 3 ideas × (5 std + 4 targeted) cells + 5 baseline cells = 32 cells
+Idea matrix: 3 ideas × (8 std + 4 targeted) cells + 8 baseline std cells + 3×4 baseline targeted cells = 56 cells
   Ideation model : claude-sonnet-4-6
   Benchmark model: claude-haiku-4-5-20251001
   Ideas: compression-1, missing-cov-1, structure-1
@@ -449,18 +655,29 @@ label = cell.ideaId + "/" + cell.testType.slice(0,3) + "/scenario-" + cell.scena
 returned object contains an `error` field → retry once. The inner JS try/catch always returns a
 valid object (never a raw exception), so `result.error` being set is the per-cell failure signal.
 
-**Circuit breaker**: Track `consecutive_cell_failures = 0`. After each cell completes:
-- If the cell has `error` (after retry) → increment `consecutive_cell_failures`
-- If the cell succeeds → reset `consecutive_cell_failures = 0`
+**Failure tracking**: Track two counters:
+- `consecutive_cell_failures = 0` — reset on each success
+- `total_failed_cells = 0` — never reset
 
-If `consecutive_cell_failures >= 3`, abort immediately with:
+After each cell completes:
+- If the cell has `error` (after retry) → increment both counters
+- If the cell succeeds → reset `consecutive_cell_failures = 0` only
+
+**Circuit breaker** (consecutive): If `consecutive_cell_failures >= 3`, abort immediately with:
 ```
 Step 3 circuit breaker: 3 consecutive cell failures.
 Last error: <last_error>
 Suggest: check GAS quota, verify require() paths are reachable.
 ```
 
-**Abort threshold**: If >20% of cells (>6 for 32-cell default; scales with actual cell count × 0.20) fail after retry → abort with diagnostic listing failed cells.
+**Cumulative abort**: After each cell, if `cells_processed >= 5` AND `total_failed_cells / cells_processed > 0.20`, abort:
+```
+Step 3 cumulative abort: <total_failed_cells>/<cells_processed> cells failed (>20%).
+Failed cells: <list of failed ideaId/scenarioId pairs>
+Suggest: check GAS quota, verify require() paths are reachable.
+```
+
+The threshold of 5 is chosen because: at 5 cells, 2 failures = 40% which clearly signals a systemic problem. At 3 cells (quick test), the cumulative check never fires — circuit breaker (3 consecutive) handles early runs.
 **Per-cell timeout**: 90s. On timeout, record cell as failed (with `error: "timeout"`) and continue.
 
 **State output**: After all cells complete, store results as `cellResults[]` — one entry per cell,
@@ -521,7 +738,7 @@ Validates: <scenario.validates>
 
 Context for each configuration (use to inform your reasoning, not to bias scoring):
 <FOR EACH label in shuffled labels — repeat this block once per config>
-  [<label>] Testing: "<idea.hypothesis for this ideaId>" (or "Baseline — unmodified <base>" for baseline)
+  [<label>] Testing: "<idea.hypothesis for this ideaId>" (or "Baseline — unmodified <base>" for baseline)[IF learningsText is set AND this config is non-baseline: append " | Prior context: "<first 120 chars of learningsText>…""]
 </END FOR>
 
 Configurations (labels assigned randomly — do not infer identity from order):
@@ -546,6 +763,13 @@ change is working as intended (use "achieved", "partial", or "unclear"):
   - partial   — some evidence the hypothesis is working, but inconsistent
   - unclear   — can't tell from this scenario alone
 
+Additionally, for each non-baseline configuration, assess regression risk:
+Does the variant's response miss, soften, or fail to apply any behavior the baseline
+response correctly demonstrates for this scenario?
+  - "none"  — no regression detected in this scenario
+  - "minor" — variant misses a secondary behavior baseline handles
+  - "major" — variant fails on a primary behavior baseline handles correctly
+
 Return ONLY valid JSON in this exact format (one key per config label — adjust to match
 the actual labels present above):
 {
@@ -558,6 +782,9 @@ the actual labels present above):
   "reasoning": "1-2 sentence explanation",
   "hypothesisEffectiveness": {
     "<label_for_non_baseline_idea>": {"assessment": "achieved|partial|unclear", "evidence": "one sentence"}
+  },
+  "regressionRisk": {
+    "<label_for_non_baseline_idea>": {"risk": "none|minor|major", "evidence": "one sentence or null"}
   },
   "_marker": "JUDGE_COMPLETE"
 }
@@ -590,6 +817,7 @@ must record:
 - `labelMap` — map of label → ideaId (populated only on `"ok"` entries)
 - `winner_ideaId` — remapped winner (populated only on `"ok"` entries)
 - `hypothesisEffectiveness` — raw map from judge output, populated only on `"ok"` entries
+- `regressionRisk` — raw map from judge output (`{label: {risk, evidence}}`), populated only on `"ok"` entries; use `labelMap` to identify the per-idea label
 
 Step 5 uses `judgeResults[]` to filter: only entries with `status === "ok"` contribute
 to judge averages. The `scenarioId` field identifies which scenarios to include per idea.
@@ -627,7 +855,7 @@ IF judge_data_available:
   baseline_judge   = mean(normalized judgment score for "baseline" label) over
                      judgeResults[] entries where status === "ok"
                      (use labelMap to identify which label mapped to "baseline" per scenario)
-  baseline_unified = 0.6 × baseline_heuristic + 0.4 × baseline_judge
+  baseline_unified = 0.4 × baseline_heuristic + 0.6 × baseline_judge
 ELSE:
   baseline_unified = baseline_heuristic
 ```
@@ -641,7 +869,7 @@ IF judge_data_available:
               judgeResults[] entries where status === "ok" and this idea participated
               (use labelMap per entry to find the label that mapped to this ideaId,
                then read judgments[label] for the normalized score)
-  unified   = 0.6 × heuristic_avg + 0.4 × judge_avg
+  unified   = 0.4 × heuristic_avg + 0.6 × judge_avg
 ELSE:
   unified   = heuristic_avg
 
@@ -669,6 +897,21 @@ For each idea:
     - hypothesisEffectiveness has a key for this idea's label
 ```
 
+**Regression tracking** (diagnostic only — used in Step 6 anomalies):
+```
+For each idea:
+  major_regression_count[idea.ideaId] = count of judgeResults[] entries where:
+    - status === "ok"
+    - regressionRisk exists AND regressionRisk[label_for_this_idea] exists
+      AND regressionRisk[label_for_this_idea].risk === "major"
+    (use labelMap to find the label for this ideaId per scenario entry;
+     guard against missing regressionRisk on partial/legacy judge responses)
+  major_regression_total[idea.ideaId] = count of judgeResults[] entries where:
+    - status === "ok"
+    - regressionRisk exists AND regressionRisk[label_for_this_idea] exists
+    (same guard as above — denominates only scenarios where regressionRisk was assessed)
+```
+
 Targeted test heuristic scores (not in ranking — shown in Step 6 as diagnostics only):
 ```
 targeted_heuristic[idea][i] = composite from the cellResults[] entry where
@@ -689,7 +932,11 @@ Ranking table (sort by unified descending):
 ```
 
 If judge data is unavailable for an idea (all judge agents failed for that idea's scenarios),
-note "judge N/A" and rank by heuristic_avg only; unified = heuristic_avg for that idea.
+show `[heuristic only]` in the Judge column and use heuristic_avg as unified:
+
+```
+║ missing-cov-1      │  7.6 [h-only] │   N/A    │  7.60    │  +0.12        ║
+```
 
 If an idea has 0 successful standard-scenario cells in `cellResults[]` (all failed in Step 3),
 exclude it from the ranking table entirely and note:
@@ -730,10 +977,61 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
   → Re-run with more scenarios (--scenarios 0-9) for higher signal
   → Try bolder angles (the current ideas may be too similar to base)
   → Inspect targeted test diagnostics below for hypotheses worth developing
+[IF learnings is set:]
+  → Check whether prior learnings still apply to the current base prompt version (prompt may have changed since last run)
+  → Try: --ideas 1 --scenarios 0-9 targeting the specific failure mode from learnings for higher statistical power
+[END IF]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 **When `delta_tier != "NOISE"`, emit winner block:**
+
+**Winner scope check** (runs only when `delta_tier != "NOISE"`):
+
+Spawn one lightweight agent (using `model`) comparing `winner.variantPromptText`
+against `basePromptText`:
+
+```
+Compare these two system prompt versions. Answer 5 questions:
+
+SW1 (SECTIONS): Does the winner preserve the major structural sections/topics of the
+    base? Answer: pass|warn|fail — name any dropped or merged sections.
+SW2 (DIRECTIVES): Did any mandatory/imperative language soften?
+    ("must"→"should", "always"→"consider", "never"→"avoid if possible")
+    Answer: pass|warn|fail — cite specific instances.
+SW3 (EXAMPLES): Were concrete examples, schema definitions, or worked samples removed?
+    Answer: pass|warn|fail — name what was removed.
+SW4 (LENGTH): Winner length vs base length ratio: <WINNER_LEN>/<BASE_LEN> = <RATIO>.
+    Answer: pass if ratio >= 0.70; warn if 0.50–0.70; fail if < 0.50.
+SW5 (EXCLUSIONS): Were new "NOT for", "do not", or exclusion constraints added?
+    Answer: pass|warn — list any additions (additions are not necessarily bad,
+    but should be surfaced).
+
+Return ONLY valid JSON:
+{
+  "SW1": "pass|warn|fail", "SW1_detail": "...",
+  "SW2": "pass|warn|fail", "SW2_detail": "...",
+  "SW3": "pass|warn|fail", "SW3_detail": "...",
+  "SW4": "pass|warn|fail", "SW4_detail": "...",
+  "SW5": "pass|warn",      "SW5_detail": "...",
+  "_marker": "SCOPE_CHECK_COMPLETE"
+}
+
+Base prompt:
+<basePromptText>
+
+Winner prompt:
+<winner.variantPromptText>
+```
+
+**Marker validation**: If parse fails → set `scopeCheckResult = null`, proceed.
+
+**Surface results in anomalies**:
+- Any `fail` result → add to anomalies list
+- `warn` on SW1, SW2, or SW3 → add to anomalies (structural content changes worth surfacing)
+- `warn` on SW4 alone (length drop, but SW1/SW2/SW3 all pass) → **do NOT add to anomalies** — a compression-angle winner shortening the prompt is the intended outcome, not a regression
+- `warn` on SW4 combined with SW1/SW2/SW3 warn/fail → add: compression removed content alongside length reduction
+- SW5 `warn` (new exclusions added) → add only if the exclusion appears to narrow the prompt's intended scope (judgment call — additions may be intentional)
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -747,10 +1045,14 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
   Prompt length: 16,800 chars (-1,200 vs base)
   Judge winner in: 4/5 standard scenarios
 
+**Targeted test discrimination**: For each targeted test, look up the matching
+`baseline-targeted-<ideaId>` cell result (same scenarioId). Show baseline composite
+and delta (variant minus baseline, signed) alongside variant composite.
+
   Targeted test diagnostics (hypothesis-specific, heuristic only — not in ranking):
-  ✓ Multi-step planning: 7.8 composite
-  ✓ Code gen constraint: 7.4 composite
-  ✗ Context window use: 5.2 composite  ← hypothesis weakness
+  ✓ Multi-step planning: 7.8  (baseline: 4.2  Δ+3.6)
+  ✓ Code gen constraint: 7.4  (baseline: 7.1  Δ+0.3)
+  ✗ Context window use: 5.2  (baseline: 6.8  Δ-1.6)
 
   ⚠ Anomalies:   (only show if any condition is true)
   - Judge quorum not met (2/5 scenarios): ranking is heuristic-only
@@ -769,6 +1071,7 @@ and pair each with its `cellResults[]` entry (match by `ideaId === winner.ideaId
 - `delta_tier == "MARGINAL"` → "Delta is marginal ({delta:.2f}): results may not be significant"
 - Winner's `effectiveness_count / effectiveness_total < 0.4` (and `effectiveness_total > 0`) → "Hypothesis effectiveness unclear: achieved in only {count}/{total} judge scenarios"
 - Any targeted test with `composite < 6.0` → "Targeted tests show weaknesses: {category} ({composite})"
+- `major_regression_count[winner.ideaId] > 0` → "Regression detected: winner scored 'major' regression in {major_regression_count[winner.ideaId]}/{major_regression_total[winner.ideaId]} judge scenarios — baseline handles something the winner misses"
 
 If no anomalies are true, omit the `⚠ Anomalies:` section entirely.
 
@@ -791,6 +1094,19 @@ markdown wrapping. The two separator lines are the only delimiters the user has.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <winner.variantPromptText printed verbatim — no extra indentation, no wrapping, no quoting>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**LEARNINGS block** (when `--save` is passed, always emit after winner or INCONCLUSIVE block):
+
+Construct a compact learnings string (target ≤200 chars) summarizing this run's key outcome:
+- If winner (not INCONCLUSIVE): `Winner: <ideaId> (Δ<delta:.2f> unified, <confidence> confidence). <winner.hypothesis first 100 chars>. Regressions: <major_regression_count[winner.ideaId]> major.[IF any targeted composite < 6.0: append " Targeted weakness: <category> (<composite>)."][END IF]`
+- If INCONCLUSIVE: `INCONCLUSIVE (best: <top_idea_id>, Δ<delta:.2f>). No clear winner vs <base> baseline. Top candidate: <first 60 chars of top_idea hypothesis>.`
+
+Emit:
+```
+━━━ LEARNINGS FOR NEXT RUN (paste as --learnings "...") ━━━
+<learnings string>
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
