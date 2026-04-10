@@ -1,0 +1,8 @@
+{
+  "name": "plan-red-team",
+  "description": "Red team review for implementation plans - assembles expert personas to critique plans before execution",
+  "version": "1.0.0",
+  "author": {
+    "name": "James Wiese"
+  }
+}
