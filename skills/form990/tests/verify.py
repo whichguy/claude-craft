@@ -335,7 +335,8 @@ def tc10(args):
 
     # Assertions
     ok = True
-    for ph in ["P4", "P5", "P6"]:
+    # All downstream phases P4–P9 must be reset to pending (VERIFY.md spec)
+    for ph in ["P4", "P5", "P6", "P7", "P8", "P9"]:
         if ph in machine_state["phase_status"]:
             ok &= assert_equal(tc, machine_state["phase_status"][ph], "pending",
                                f"phase_status.{ph} after force-override")
@@ -344,9 +345,18 @@ def tc10(args):
     ok &= assert_equal(tc, art.get("output_sha256"), None,
                        "dataset_core.output_sha256 cleared")
 
-    # Decision log should have an entry mentioning force-override
+    # input_fingerprint keys must be present with null values (VERIFY.md spec)
+    fp = art.get("input_fingerprint", {})
+    ok &= assert_true(tc, isinstance(fp, dict) and len(fp) > 0,
+                      "dataset_core.input_fingerprint should be non-empty dict")
+    for k, v in fp.items():
+        ok &= assert_equal(tc, v, None,
+                           f"dataset_core.input_fingerprint[{k!r}] should be null")
+
+    # Decision log must contain both "force-override P3" and "invalidated downstream" (VERIFY.md spec)
     dl_text = json.dumps(machine_state["decision_log"])
-    ok &= assert_in(tc, "force-override", dl_text, "Decision Log contains force-override")
+    ok &= assert_in(tc, "force-override P3", dl_text, "Decision Log contains force-override P3")
+    ok &= assert_in(tc, "invalidated downstream", dl_text, "Decision Log contains 'invalidated downstream'")
 
     if ok and tc not in RESULTS:
         pass_(tc)
@@ -476,9 +486,7 @@ def tc12(args):
     tc = "TC12"
     import hashlib
 
-    REAL_SHA   = hashlib.sha256(b"original content").hexdigest()
     STORED_SHA = hashlib.sha256(b"original content").hexdigest()
-    MUTATED    = hashlib.sha256(b"MUTATED content").hexdigest()
 
     # Minimal ARTIFACT_DEPS
     ARTIFACT_DEPS = {
