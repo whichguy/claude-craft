@@ -158,8 +158,9 @@ Passes if: public_support_pct ≥ 33⅓%
    OR if:  public_support_pct ≥ 10% WITH an attached facts-and-circumstances narrative
 ```
 
-"Excess contributions" = amount any single donor gave above 2% of total support in the 5-yr
-window (per Schedule A Part II instructions).
+"Excess contributions" = amount any single donor gave above 2% of total 5-year support
+(per Schedule A Part II instructions). The 2% threshold is computed ONCE over the full
+5-year window — not applied annually per year.
 
 **509(a)(2) test** (for fee-income charities) — note the 1% per-donor cap (NOT the 2% used
 in 509(a)(1)); see SCHEDULES.md §509(a)(2) Worksheet for the full two-prong formula:
@@ -193,8 +194,11 @@ public programs, community use, geographic reach; reference IRS Reg §1.170A-9(f
 
 ### Q-F5 — Part V Count Ties to Filings (Gate 2)
 
-**Purpose.** Part V lines 1a (number of W-2s filed) and 2a (number of 1099-MISC/NECs filed)
-must tie to the payroll provider export or the 1099 register.
+**Purpose.** Part V Line 1a (number of W-2s filed) must tie to the payroll provider's W-2 count
+for the tax year. Part V Line 2a (number of independent contractors paid >$100K) must tie to
+the count of 1099-NEC recipients in the 1099 register whose compensation exceeds $100K — not
+the total number of 1099s filed. These are distinct counts; conflating them overstates Line 2a
+for organizations with many small contractors.
 
 **Tier rationale (demoted G1→G2).** Tying these counts requires the payroll-provider export or
 1099 register — primary sources that may not be available until P1 discovery is complete. The
@@ -203,26 +207,46 @@ lands, P8 re-evaluates. Failing to find these sources does NOT block P5 completi
 creates an open question.
 
 **Pass criteria:**
-- W-2 count in Part V 1a matches payroll register row count for the tax year
-- 1099 count in Part V 2a matches 1099-MISC/NEC register row count
+- W-2 count in Part V Line 1a matches payroll register W-2 row count for the tax year
+- Contractor count in Part V Line 2a matches the number of 1099-NEC recipients whose
+  compensation for the tax year exceeds $100K (NOT the total 1099 register row count)
 - If either source is unavailable: open question status is `pending` with a Gmail draft; P8
   marks Q-F5 NEEDS_UPDATE until resolved
 
+**Common mistake:** Counting all 1099 recipients for Part V 2a instead of the subset above $100K.
+
 ---
 
-### Q-F6 — Part VII Officer Comp Ties to W-2/1099 (Gate 1)
+### Q-F6 — Part VII Section A Comp Ties to W-2/1099 (Gate 1)
 
-**Purpose.** Each officer listed in Part VII must have compensation amounts that tie to their
-W-2 Box 1 (wages) or 1099-NEC Box 1 (nonemployee comp), within the IRS-specified tolerance.
+**Purpose.** Part VII Section A must list every person in the following categories, and each
+listed person's reportable compensation must tie to their W-2 Box 1 (wages) or 1099-NEC Box 1
+(nonemployee comp) within $1 rounding tolerance:
+
+- **Officers, directors, and trustees** — all, regardless of compensation level
+- **Key employees** — any employee (not an officer/director/trustee) who:
+  (1) received more than $150,000 in reportable compensation from the org + related orgs,
+  AND (2) had substantial authority over org programs, finances, management, or compensation
+  decisions (IRC §4958 definition)
+- **Five highest-compensated employees** — any employees not already listed above who received
+  more than $100,000 in reportable compensation from the org + related orgs (pick the 5 with
+  highest comp; if fewer than 5 qualify, list all who qualify)
+
+Section B covers the five highest-compensated independent contractors (>$100K).
 
 **Pass criteria:**
-- For each officer with reportable compensation > $0: the amount matches the W-2/1099
-  source document within $1 (rounding)
-- Officers with $0 reportable compensation are explicitly listed with a $0 entry
-- If no officers are compensated: Part VII reflects the correct zero-compensation disclosure
+- Every person in the categories above is listed in Section A with name, title, hours/week,
+  and compensation amounts (column D = reportable, column E = other, column F = estimated other)
+- For each person with reportable comp > $0: amount matches the W-2/1099 source within $1
+- Officers/directors/trustees with $0 reportable compensation are explicitly listed ($0 entry)
+- Key employees and highest-compensated employees are not omitted to shorten the form
 
-**Common mistake:** Copying last year's compensation without updating for bonuses, raises, or
-mid-year employment changes.
+**Common mistakes:**
+- Listing only compensated officers and omitting unpaid board members (all officers/directors
+  must be listed regardless of whether they receive compensation)
+- Omitting key employees because they are not officers
+- Using last year's compensation without updating for bonuses, raises, or mid-year changes
+- Listing fewer than 5 highest-compensated employees when more than 5 qualify
 
 ---
 
@@ -267,7 +291,9 @@ the form. Do NOT hard-code a count. Enumerate from the current-year f990.pdf at 
 and the IRS Business Master File (BMF). Mismatches cause IRS processing errors.
 
 **Pass criteria:**
-- EIN matches prior 990 (or IRS determination letter if no prior 990 available)
+- EIN matches prior 990 (or IRS determination letter if no prior 990 available); cross-check
+  against IRS Tax Exempt Organization Search (TEOS) at apps.irs.gov/app/eos/ — TEOS is the
+  authoritative public IRS lookup for EIN, legal name, ruling date, and BMF status
 - Legal name matches IRS records exactly (including punctuation, capitalization, "Inc." vs
   "Incorporated")
 - Principal office address is current (changes require explanation in Schedule O)
@@ -323,7 +349,9 @@ require restatement of prior-year figures.
 **Pass criteria:**
 - `key_facts.accounting_method` matches the method shown on the prior-year 990 (Part XII)
 - If changed: Schedule O contains a disclosure paragraph explaining the change and its effect
-  on comparability
+  on comparability; note that a change in accounting method may also require IRS Form 3115
+  (Application for Change in Accounting Method) and a §481(a) catch-up adjustment — flag
+  for the organization's tax counsel, as this is beyond Form 990 scope
 - If first year: method is stated and no prior-year comparison is required
 
 ---

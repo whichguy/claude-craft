@@ -116,3 +116,7 @@ and enter numbers line by line into the provider's web form.
 File before the original due date for an automatic 6-month extension. An officer must sign
 Form 8868, but no IRS approval or explanation of cause is required — the extension is automatic
 upon timely filing.
+
+**Weekend/Holiday Shift (IRC §7503):** If the due date (original or extended) falls on a
+Saturday, Sunday, or legal holiday, the deadline automatically shifts to the next business day.
+Verify the actual due date for your specific tax year before filing.
