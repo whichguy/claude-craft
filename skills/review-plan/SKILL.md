@@ -2564,6 +2564,277 @@ After the convergence loop exits (scorecard not yet printed):
    ELSE:
      Do not print the recommendation block (the "None" line from the signals section is sufficient).
 
+5b. **Findings Digest** (aggregate and render findings by phase):
+
+   Aggregate `findings{}` (from all evaluators) into 4 bins:
+   - `applied_edits[]` — NEEDS_UPDATE items with `[EDIT: …]` applied during convergence
+   - `pass_with_finding[]` — PASS items with teachable nuance (`PASS — [nuance]`)
+   - `na_superseded[]` — N/A items (what was *not* checked, and why)
+   - `gate_warnings[]` — Gate 2/3 items that survived to SOLID/GAPS without being escalated
+
+   Render grouped by phase (Discovery / Classification / Convergence / Epilogue), not Q-ID:
+   - Per item: `phase → Q-ID → one-line change summary → citation`
+   - Citation priority: (1) best-effort grep of `wiki/entities/` for Q-ID → (2) CLAUDE.md directive if
+     traceable (e.g., Q-E2 → `POST_IMPLEMENT`) → (3) `QUESTIONS.md §Q-ID` fallback → else `(no external
+     citation)`, never fabricate
+
+5c. **Senior-Engineer Critic Loop** (holistic re-review, post-convergence):
+
+   Fast-path override: REVIEW_TIER ∈ {TRIVIAL, SMALL} → single iteration only (no loop), regardless of verdict.
+
+   ```
+   sr_iter = 0
+   sr_max_iters = 5
+   sr_converged = false
+   accumulated_conflicts = []
+   sr_applied_edits = []
+   temp_root = "/tmp/.review-plan-sr-${plan_slug}"
+   Bash "mkdir -p ${temp_root}"
+
+   WHILE sr_iter < sr_max_iters AND NOT sr_converged:
+       sr_iter += 1
+       iter_dir = "${temp_root}/iter-${sr_iter}"
+       Bash "mkdir -p ${iter_dir}"
+
+       critic_a_path = "${iter_dir}/critic-A.md"
+       critic_b_path = "${iter_dir}/critic-B.md"
+       consolidated_path = "${iter_dir}/consolidated.md"
+
+       # ── Step 1: spawn BOTH critic Tasks in parallel ──
+       # (single message, two Task tool calls — parallel dispatch)
+
+       Task(subagent_type = "general-purpose",
+            description = "SR critic A, iter ${sr_iter}",
+            prompt = """
+         You are senior-engineer critic A (of two running in parallel;
+         diversify perspective — do not collaborate).
+
+         Read the plan at <plan_path> in full.
+         Read ~/.claude/CLAUDE.md for directives.
+         Read up to 3 most-relevant wiki/entities/review-plan-*.md.
+
+         Your job is NOT to re-run per-question evaluation. Catch what
+         per-question evaluators cannot:
+           1. Cross-section consistency (do applied edits contradict
+              untouched sections?)
+           2. Strategic correctness (threat model, file classification,
+              false proportionality, missed prior art)
+           3. Citation discipline (flag unsupported assertions)
+
+         For each critique, cite the source: wiki entry name, CLAUDE.md
+         directive, or file path + line range. If you can't cite it, say
+         "no citable source" and mark the critique as advisory. Do not
+         fabricate citations.
+
+         Write your full critique as markdown to <critic_a_path>, using
+         the Write tool. Do not print the critique to your response — the
+         team-lead reads the file, not your chat output.
+
+         Format of <critic_a_path> contents:
+           # SR Critic A — Iteration ${sr_iter}
+           VERDICT: STABLE | REVISED
+           ## Critiques
+           1. [critique text] — see: [citation]
+              [EDIT: [concrete old_string → new_string]]
+           2. ...
+         If VERDICT=STABLE, write just the verdict line + a one-paragraph
+         rationale, no critiques.
+
+         Do not use Edit/Bash tools — you may only Read and Write. Return
+         'done' in your chat response after writing the file.
+       """)
+
+       Task(subagent_type = "general-purpose",
+            description = "SR critic B, iter ${sr_iter}",
+            prompt = """
+         You are senior-engineer critic B (parallel critic A; different
+         perspective — read with fresh eyes).
+
+         [same rules as critic A, but write to <critic_b_path>]
+
+         Specifically, where critic A focuses on *technical* correctness,
+         you should focus on *strategic/procedural* correctness: does the
+         plan's git lifecycle match CLAUDE.md POST_IMPLEMENT? Does the
+         commit split match the revertability story? Do the verification
+         steps actually verify the claimed property? Is the scope statement
+         honest about what changed?
+
+         Write to <critic_b_path>. Return 'done'.
+       """)
+
+       # Wait for BOTH Tasks to finish before proceeding.
+
+       # ── Step 2: spawn consolidator Task ──
+       Task(subagent_type = "general-purpose",
+            description = "SR consolidator, iter ${sr_iter}",
+            prompt = """
+         Read <critic_a_path> and <critic_b_path>.
+         Read the plan at <plan_path> for context.
+
+         Your job: merge the two critic outputs into a single action plan.
+
+         Dedup rules:
+           - Two critiques are duplicates if they share the same citation
+             OR touch the same old_string in their [EDIT: …] blocks.
+           - Keep the stronger citation (concrete file/line > wiki entry
+             > "no citable source").
+           - If critiques conflict (A says "add X", B says "remove X"),
+             flag as CONFLICT in the consolidated output — do NOT pick a
+             side. Team-lead resolves by skipping conflicting edits and
+             surfacing them in the HOLISTIC CHECK panel.
+           - If one critic says STABLE and the other says REVISED, the
+             consolidated verdict is REVISED (apply the non-STABLE
+             critiques). Only if BOTH say STABLE is the consolidated
+             verdict STABLE.
+
+         Write to <consolidated_path>:
+           # Consolidated Action Plan — Iteration ${sr_iter}
+           VERDICT: STABLE | REVISED
+           CRITIC_A_COUNT: [N]  CRITIC_B_COUNT: [N]  DEDUPED: [N]  CONFLICTS: [N]
+           ## Merged Edits (apply in order)
+           1. [description] — see: [citation]
+              [EDIT: old_string=...; new_string=...]
+           2. ...
+           ## Conflicts (not applied)
+           - [description of conflict]
+           - ...
+
+         Use Read and Write tools only. Return 'done'.
+       """)
+
+       # ── Step 3: team-lead reads consolidated action plan and applies ──
+       Read consolidated_path
+       Parse VERDICT and merged-edit list.
+
+       IF VERDICT == STABLE:
+           sr_converged = true
+           # Fall through to cleanup, then BREAK after cleanup.
+
+       IF VERDICT == REVISED:
+           For each merged edit:
+               Edit(plan_path, old_string, new_string)
+           # Conflicts are deliberately skipped — logged in
+           # accumulated_conflicts[] for the HOLISTIC CHECK panel.
+           accumulated_conflicts.extend(parsed_conflicts)
+
+       # ── Step 3b: mirror consolidated edits for A.2.4 teaching extraction ──
+       # Before deleting temp files, copy merged-edit list + critic verdicts
+       # into persistent `sr_applied_edits[]` (team-lead memory). Step 5d reads
+       # this array to include critic edits in 'Changes Made During Review'
+       # — without this mirror, step 5c destroys the only record of what the
+       # critic changed (the consolidated_path file is about to be rm'd, and
+       # `findings{}` contains only per-question-evaluator edits).
+       # Each entry: { iter, q_id_or_null, description, citation, applied: bool }
+       sr_applied_edits.extend(parsed_merged_edits)
+
+       # ── Step 4: cleanup per iteration ──
+       Bash "rm -f ${critic_a_path} ${critic_b_path} ${consolidated_path}"
+       Bash "rmdir ${iter_dir} 2>/dev/null || true"
+
+       IF sr_converged:
+           BREAK
+
+       # Fast-path override: single iteration only
+       IF REVIEW_TIER in {TRIVIAL, SMALL}:
+           BREAK
+
+   # ── Step 5: final cleanup after loop exits ──
+   Bash "rm -rf ${temp_root}"
+
+   # ── Step 6: set downgrade flag ──
+   IF sr_converged OR REVIEW_TIER in {TRIVIAL, SMALL}:
+       holistic_downgrade = 0
+   ELSE IF sr_iter >= sr_max_iters:
+       holistic_downgrade = 1   # non-convergence in 5 iterations
+       Print: "⚠ Senior-engineer critic did not stabilize within 5 iterations;
+               see HOLISTIC CHECK panel for outstanding critiques and conflicts."
+
+   # ── Step 7: apply downgrade to rating ──
+   convergence_rating = Rating  # saved from convergence loop
+   rating_order = ["READY", "SOLID", "GAPS", "REWORK"]
+   final_rating = rating_order[min(
+       rating_order.index(convergence_rating) + holistic_downgrade,
+       len(rating_order) - 1
+   )]
+   Rating = final_rating
+   ```
+
+5d. **Fancy Four-Panel Scorecard** (FULL tier; replaces the Unified Scorecard output from step 4 for FULL reviews):
+
+   Compute citation coverage: for each Q-ID in `applied_edits[]`, grep `wiki/entities/` — `citation_pct = matched / total`.
+
+   **FULL tier — 4-panel format:**
+   ```
+   ╔══════════════════════════════════════════════════════════════════╗
+   ║                                                                  ║
+   ║             review-plan Scorecard — FULL CONVERGENCE             ║
+   ║                                                                  ║
+   ║                    Rating: [emoji] [final_rating]                ║
+   ║                    [clear_count]/[total_count] clear + [na] N/A  ║
+   [IF holistic_downgrade == 1:]
+   ║              (senior critic did not stabilize — 5 passes)        ║
+   ╚══════════════════════════════════════════════════════════════════╝
+
+   ┌─ WHAT CHANGED ───────────────────────────────────────────────────┐
+   │                                                                  │
+   │  [For each applied_edit, grouped by phase:]                      │
+   │  Phase [N] · [phase name]                                        │
+   │    [Q-ID]  [FIXED|PASS]  [change title]                          │
+   │           → [one-line change summary]                            │
+   │           [why: reason from evaluator/critic rationale]          │
+   │           [see: citation or (no external citation)]              │
+   │                                                                  │
+   └──────────────────────────────────────────────────────────────────┘
+
+   ┌─ HOLISTIC CHECK ─────────────────────────────────────────────────┐
+   │  [IF accumulated_conflicts empty AND holistic_downgrade == 0:]   │
+   │  COHERENT — no cross-section contradictions detected.            │
+   │  [ELSE:]                                                         │
+   │  INCOHERENT — [N] unresolved conflicts:                          │
+   │    - [conflict description]                                      │
+   └──────────────────────────────────────────────────────────────────┘
+
+   ┌─ WHY THESE QUESTIONS ────────────────────────────────────────────┐
+   [Conditional: fires only when ≥1 Gate 1/2 finding was NEEDS_UPDATE or PASS-with-nuance]
+   [AND citation_pct >= 0.5 (below 50% → suppress panel, add footer to WHAT CHANGED)]
+   │                                                                  │
+   │  [For each Gate 1/2 applied edit with citation:]                 │
+   │  [Q-ID] ([question short name]) fires whenever [condition].      │
+   │  Rationale: [why it matters — teaching text from wiki or Q-def]  │
+   │             [see: [[wiki-entry]] or CLAUDE.md DIRECTIVE or       │
+   │                   QUESTIONS.md §Q-ID]                            │
+   │                                                                  │
+   │  [If citation_pct < 0.5: omit panel entirely; add to WHAT CHANGED footer:]
+   │  (teaching suppressed — <50% citation coverage; run wiki-lint to populate wiki/entities/review-plan-*)
+   │  [If 0.5 <= citation_pct < 0.8: render panel, mark ungrounded bullets [no citation]]
+   │  [If citation_pct >= 0.8: render as shown above]
+   │  [If all checks routine: All checks were routine — no teaching notes this run.]
+   └──────────────────────────────────────────────────────────────────┘
+
+   ┌─ GATE STATUS ────────────────────────────────────────────────────┐
+   │  Gate 1 (Blocking)     [✅/❌]  [N]/[total] clear                 │
+   │  Gate 2 (Important)    [✅/❌]  [N]/[total] clear[, M N/A-superseded] │
+   │  Gate 3 (Advisory)     [✅/❌]  [N]/[total] clear                 │
+   └──────────────────────────────────────────────────────────────────┘
+   ```
+
+   **Fast-path (TRIVIAL/SMALL) — compressed single-panel variant:**
+   ```
+   ╔══════════════════════════════════════════════════════╗
+   ║  review-plan Scorecard — [TRIVIAL|SMALL] Fast Path   ║
+   ║  Rating: [emoji] [Rating]                            ║
+   ║  [N]/[total] clear [+ M N/A]                         ║
+   ╚══════════════════════════════════════════════════════╝
+
+   [One-paragraph "what changed" covering applied edits, if any:]
+   [list of Q-ID fixes or "No changes applied — plan passed all checks."]
+
+   [Gate Status row:]
+   Gate 1 (Blocking):   [Q-G1 ✅] [Q-G11 ✅] [Q-C3 ✅/—]
+   Gate 2 (Important):  [per small_questions list]
+   Risk-Activated:      [if any]
+   ```
+
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
       strip all self-referential markers that served their purpose during the convergence loop
