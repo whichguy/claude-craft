@@ -240,6 +240,10 @@ SKIP_COUNT=0; MIGRATE_COUNT=0; CREATE_COUNT=0
 REPORT_LINES=()
 SEDIMENT_PAGES=()
 
+# Pre-run corpus state snapshot (disambiguates SKIP output on re-runs)
+PREMIGRATED=$(grep -rL "^confidence:" "$ENTITIES_DIR"/*.md "$SOURCES_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
+echo "Pre-run: $PREMIGRATED pages lacking confidence field"
+
 [[ "$DRY_RUN" == "true" ]] && echo "" && echo "=== wiki-migrate-to-v2.sh [DRY RUN] ===" && echo ""
 
 for f in "$ENTITIES_DIR"/*.md "$SOURCES_DIR"/*.md; do
