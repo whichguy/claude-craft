@@ -1,0 +1,8 @@
+{
+  "parts": {
+    "I": null,
+    "II": {"line_1": 100},
+    "III": {"mission": "fitness nonprofit"}
+  },
+  "schedule_dependencies": []
+}
