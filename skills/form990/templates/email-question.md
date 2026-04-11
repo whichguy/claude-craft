@@ -50,4 +50,5 @@ Before calling `gmail_create_draft`, verify all placeholders are filled:
   with Form 8868 extension)
 - [ ] `{{EXTENSION_DEADLINE}}` — November 15 for calendar-year orgs
 - [ ] `{{EASY_ANSWER_OPTION}}` — a simple "if X, just say so" fallback option
+- [ ] `{{LEGAL_NAME}}` — the organization's IRS-registered legal name
 - [ ] `{{PREPARER_NAME}}` — the ED's name

@@ -392,9 +392,6 @@ Draft creation dedup rule (P1):
 # Form 990 plan files often contain PII — opt in explicitly to commit them
 form990-plan-*.md
 
-# All artifacts directory contents (catch-all; individual exceptions below)
-artifacts/
-
 # Dataset JSONs contain financial detail
 artifacts/form990-dataset.json
 artifacts/form990-dataset-core.json
@@ -404,6 +401,21 @@ artifacts/form990-dataset-rollup.json
 # Schedule B filing version contains donor PII (IRC §6104(d)(3)(A))
 # schedule-b-public.md (redacted) is safe to commit
 artifacts/schedule-b-filing.md
+
+# Other artifacts with financial/PII data
+artifacts/balance-sheet.md
+artifacts/statement-of-activities.md
+artifacts/functional-expense.csv
+artifacts/coa-mapping.csv
+artifacts/part-iv-checklist.md
+artifacts/reconciliation-report.md
+artifacts/form990-reference-filled.pdf
+artifacts/efile-handoff-packet.md
+artifacts/schedule-[abcdefghijklmnopqr].md
+
+# NOTE: artifacts/scripts/ and artifacts/scripts/fixtures/ are NOT excluded —
+# Python scripts are committed to git as a first-class audit trail artifact.
+# They contain no PII (input paths are args; data stays in ignored files).
 
 # Sidecar memo cache
 .form990-memo-*.json
