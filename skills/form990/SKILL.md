@@ -97,12 +97,74 @@ subsequent phase work and gate evaluations.
 
 ---
 
-## Step 4 — Artifact Existence Check
+## Step 2b — Crash Recovery Sweep (runs after machine state parse, before persona re-injection)
 
-For every non-null path in `artifacts{}`:
-- Check existence via `stat` (not a full Read — existence check only)
-- If the file is missing: convert to an open question `"artifact missing at <path> — re-produce in phase <produced_in_phase>?"`
-- Set `phase_status[produced_in_phase] = "pending"` if the artifact is missing
+Detect and remediate half-write artifacts and dead-PID running phases left by a crashed
+prior session. Must run before dispatcher (Step 6) so dispatcher always sees a stable state.
+
+```
+# Step A: Orphan staging file sweep (HalfWrite path)
+for artifact_name, entry in state["artifacts"].items():
+    if entry.get("status") == "writing":
+        pid = entry.get("plan_lock_pid") or state["plan_lock"].get("pid")
+        if pid and not is_pid_alive(pid):  # os.kill(pid,0) raises OSError.ESRCH → dead
+            staging_path = entry.get("staging_path")
+            if staging_path and os.path.exists(staging_path):
+                os.unlink(staging_path)
+                breadcrumb(f"swept half-write orphan: {staging_path} (phase={entry['produced_in_phase']}, pid={pid})")
+            entry["status"] = "absent"
+            entry["staging_path"] = null
+            producer = entry["produced_in_phase"]
+            state["phase_status"][producer] = "failed"
+            state["artifacts"][artifact_name]["last_error"] = {
+                "error_class": "HalfWrite",
+                "phase": producer, "pid": pid,
+                "timestamp": now_iso(),
+            }
+
+# Step B: Dead-PID running phase sweep (RunningDeadPid — no orphan files)
+if state["phase_status"].get(state["current_phase"]) == "running":
+    pid = state["plan_lock"].get("pid")
+    if pid and not is_pid_alive(pid):
+        phase = state["current_phase"]
+        state["phase_status"][phase] = "failed"
+        state["artifacts_produced_by"] = [
+            name for name, e in state["artifacts"].items()
+            if e.get("produced_in_phase") == phase
+        ]
+        for name in state["artifacts_produced_by"]:
+            if "last_error" not in state["artifacts"][name]:
+                state["artifacts"][name]["last_error"] = {
+                    "error_class": "RunningDeadPid",
+                    "phase": phase, "pid": pid, "timestamp": now_iso(),
+                }
+        # Commit the failed state BEFORE dispatcher runs
+        atomic_commit(state, plan_path, pre_image_sha256)
+        breadcrumb(f"phase {phase} crashed (pid {pid} dead), status=failed+RunningDeadPid; resuming from Pre-check")
+
+# Step C: Temp-file orphan sweep (plan + sidecar tmp files)
+for tmp in glob(plan_dir + "/*.tmp.*") + glob("~/.claude/.form990-memo-*.tmp.*"):
+    pid = int(tmp.split(".")[-1])
+    if not is_pid_alive(pid):
+        os.unlink(tmp)
+        breadcrumb(f"swept orphaned temp {tmp} (pid {pid} not alive)")
+```
+
+---
+
+## Step 4 — Artifact Status Check
+
+For every entry in `artifacts{}`, check `status` field (v2 schema):
+
+| status | Meaning | Action |
+|---|---|---|
+| `"absent"` or missing | Not yet produced | Note for Phase Entry Protocol — will halt if needed |
+| `"writing"` | Half-write (cleared by Step 2b if PID dead) | If PID still alive → concurrent session; halt |
+| `"committed"` | Produced and sha256 recorded | Verify path exists on disk (stat); if missing, set `absent` |
+
+For any artifact with `status == "absent"` or missing from disk:
+- Convert to an open question `"artifact missing at <path> — re-produce in phase <produced_in_phase>?"`
+- `phase_status[produced_in_phase] = "pending"` (if currently "done", revert to "pending")
 
 ---
 
@@ -258,31 +320,70 @@ values for audit (they are not lost, only archived).
 
 ## Step 7 — Atomic State Commit (Content-SHA256 CAS)
 
-After every phase work block completes:
+Two sub-phases: **pre-write** (artifact staging → `status=writing`) and **post-write** (rename → `status=committed`).
+
+### 7a — Pre-artifact commit (before writing artifact file)
+
+For each artifact about to be written by the current phase:
+```python
+# Announce intent: status=writing + staging_path
+staging = f"{artifact_final_path}.writing.{os.getpid()}"
+state["artifacts"][name]["status"]       = "writing"
+state["artifacts"][name]["staging_path"] = staging
+state["artifacts"][name]["output_sha256"] = null  # not yet known
+atomic_commit(state, plan_path, pre_image_sha256)
+# Update pre_image_sha256 to the new plan sha256 after this write
+pre_image_sha256 = sha256(open(plan_path, 'rb').read())
+
+# Now write artifact bytes to staging path
+try:
+    with open(staging, 'w') as f:
+        f.write(artifact_bytes)
+        f.flush()
+        os.fsync(f.fileno())
+    actual_sha = sha256(open(staging, 'rb').read())
+    os.replace(staging, artifact_final_path)  # atomic rename
+    fsync_dir(os.path.dirname(artifact_final_path))  # flush directory entry
+except Exception as e:
+    # Cleanup: unlink staging if it exists
+    try: os.unlink(staging)
+    except FileNotFoundError: pass
+    raise
+```
+
+### 7b — Post-artifact commit (after successful rename)
+
+```python
+# Announce completion: status=committed + output_sha256
+state["artifacts"][name]["status"]        = "committed"
+state["artifacts"][name]["staging_path"]  = null
+state["artifacts"][name]["output_sha256"] = actual_sha
+state["artifacts"][name]["produced_at"]   = now_iso()
+state["artifacts"][name]["input_fingerprint"] = {
+    upstream_name: state["artifacts"][upstream_name]["output_sha256"]
+    for upstream_name in ARTIFACT_DEPS[name]["upstream"]
+}
+```
+
+### 7c — Phase-exit commit (after all artifacts written)
 
 ```
-a. pre_image_sha256 = sha256(plan file bytes as read in Step 2)
+a. pre_image_sha256 captured at Step 2 (updated after each interim commit)
 b. Mutate machine state in memory:
      - phase_status[phase] = "done"
-     - artifacts[...].output_sha256 = sha256(artifact bytes)
-     - artifacts[...].input_fingerprint = {upstream output_sha256 values}
-     - artifacts[...].produced_at = ISO timestamp
-     - gate_results_latest_pass = {Q-Fid: "PASS"|"NEEDS_UPDATE"|"N/A"}
+     - gate_results_latest_pass updated
      - plan_version += 1
      - plan_lock = {pid, acquired_at, host}
 c. Re-read plan file; compute current_sha256 = sha256(current bytes)
    If current_sha256 != pre_image_sha256:
      ABORT with "concurrent modification detected — reload and retry"
      Do NOT write
-d. Write mutated plan to <plan>.tmp.<pid> in same directory; os.replace to <plan>
-e. If --no-sidecar not set: write ~/.claude/.form990-memo-<fy>.json.tmp.<pid>; rename
-   On sidecar failure: breadcrumb warning, proceed (plan file is authoritative)
-f. Update plan_lock with current writer identity
-g. Temp-file hygiene (Q-C31):
-   try/finally around d+e: on any abort, unlink both tmp paths (ignore ENOENT)
-   breadcrumb "cleaned stale temp <path>"
-   On Step 2 (read), also scan plan dir + ~/.claude/ for *.tmp.<N> files whose PID is
-   not alive (os.kill(pid,0) catching OSError.errno==ESRCH — stdlib, no third-party deps); unlink + breadcrumb each
+d. Write mutated plan to <plan>.tmp.<pid>; os.replace → <plan>
+   try/finally: on abort, unlink tmp (ignore ENOENT); breadcrumb "cleaned stale temp <path>"
+e. fsync(<plan>.parent_dir) to flush directory entry
+f. Sidecar: write ~/.claude/.form990-memo-<fy>.json.tmp.<pid>; rename
+   On sidecar failure: breadcrumb warning, proceed (plan is authoritative)
+g. Update plan_lock with current writer identity
 ```
 
 **Sidecar format** (`~/.claude/.form990-memo-<fy>.json`):
