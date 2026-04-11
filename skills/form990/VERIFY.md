@@ -143,22 +143,24 @@ filing action.
 
 **Covers:** Writing-status orphan sweep, HalfWrite crash recovery, phase re-entry from Pre-check.
 
-**Fault-injection:** Uses `FORM990_TEST_CRASH_AFTER=<N>` environment variable (read by the
-test-only fault hook in test scripts) to trigger `os._exit(137)` after writing N bytes to
-a staging file — no SIGKILL race, deterministic exit.
+**Fault-injection:** `FORM990_TEST_CRASH_AFTER=<N>` / `os._exit(137)` is a full-runtime
+fault-inject mechanism used by the live skill harness. The unit test in `tests/verify.py`
+simulates the post-crash state directly (constructing a `status=writing` artifact with dead
+PID 99999) — no real crash is triggered. This is intentional for deterministic stdlib-only testing.
 
 **Steps:**
 1. Construct a synthetic "P3 running" machine state with a staging file at
    `artifacts/statement-of-activities.md.writing.99999`.
 2. Write ~100 bytes to the staging file (simulating partial write).
 3. Set `plan_lock.pid = 99999` (not alive).
-4. Run `/form990 resume <plan>`.
-5. Harness polls for staging file deletion (up to 2s timeout).
+4. Simulate the orphan sweep logic inline (no full skill invocation).
 
-**Assertions:**
+**Assertions (unit-test verifiable — `tests/verify.py`):**
 - Staging file is unlinked by the orphan sweep.
-- A per-orphan breadcrumb is appended mentioning `HalfWrite` and the path.
 - `phase_status.P3 == "failed"` with `last_error.error_class == "HalfWrite"`.
+
+**Assertions (full-runtime only — requires `/form990 resume`):**
+- A per-orphan breadcrumb is appended mentioning `HalfWrite` and the path.
 - On dispatch, P3 routes to Pre-check directly (not AskUserQuestion).
 - Breadcrumb contains: `"phase P3 crashed"`, `"HalfWrite"`, and `"resuming from Pre-check"`.
 
@@ -251,8 +253,10 @@ direct input.
 2. `verify_ancestors("dataset_core", state)` is called.
 3. Observe that the regression is detected at `coa_mapping` (2 hops from dataset_core).
 
-**Assertions:**
+**Assertions (unit-test verifiable — `tests/verify.py`):**
 - `verify_ancestors` returns `(False, [regressions])` listing `coa_mapping`.
+
+**Assertions (full-runtime only — requires full skill invocation):**
 - `phase_status.P2 == "failed"` with `last_error.error_class == "ancestor_regression"`.
 - Phase halts before the Work block.
 
@@ -275,10 +279,15 @@ Input text containing:
 **Assertions:** Each substitution produces the expected token.
 
 **13b — P9 coordinate_table staleness (Change 6):**
-1. Create a plan with `reference_pdf.input_fingerprint.coordinate_table` = `sha256("stale")`.
-2. In SKILL.md, the actual coordinate section hashes to `sha256("current")`.
-3. Run P9 Pre-check.
-4. Expect: `reference_pdf.status` reset to "absent", phase halts with staleness warning.
+
+Tested as a pure-function unit test via `p9_coord_check(stored_hash, current_block_content)`:
+
+1. Call `p9_coord_check(sha256("stale"), "current")` → expect `stale == True`.
+2. Call `p9_coord_check(sha256("same"), "same")` → expect `stale == False`.
+
+Full-runtime behaviour (verified by TC6 / live fire only): when `stored_hash != hash(current
+coordinate block)`, P9 Pre-check resets `reference_pdf.status` to `"absent"` and halts with
+a staleness warning before producing the filled PDF.
 
 ---
 
@@ -296,8 +305,10 @@ Input text containing:
 1. Write all 4 orphan files to disk.
 2. Run `/form990 resume <plan>`.
 
-**Assertions:**
+**Assertions (unit-test verifiable — `tests/verify.py`):**
 - All 4 files are deleted by the orphan sweep.
+
+**Assertions (full-runtime only — requires `/form990 resume`):**
 - 4 breadcrumbs are appended, each containing "swept orphaned temp" and the file path.
 
 ---

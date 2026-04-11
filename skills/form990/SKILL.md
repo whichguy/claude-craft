@@ -57,7 +57,7 @@ print a warning banner:
   all dataset JSONs, and the plan file itself.
 ```
 Then write `.gitignore` to the plan file's directory with the template from
-`§ Sensitive-data .gitignore template` below.
+`§ Sensitive-data .gitignore Template` below.
 
 **For `resume`/`review`/`status`/`ask`:** Resolve the plan-path argument to an absolute
 path. All relative artifact paths in MACHINE STATE are resolved relative to the **plan
@@ -122,7 +122,7 @@ For each row in `key_facts{}` where `source` is a derivable reference (Drive cel
    - Unchanged → set `validated_at = now`, proceed
    - Improved → unblock any phase waiting on this fact; update machine state
    - Regressed → append to `revalidation_events[]`, roll back consuming phases per
-     `§ Regression rollback protocol`
+     `§ Regression Rollback Protocol`
 
 **Open-question sweep:**
 For each `open_questions[]` entry:
