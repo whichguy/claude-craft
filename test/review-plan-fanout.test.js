@@ -445,7 +445,7 @@ describe('Review-Plan Task Fan-Out', function () {
             // l1-advisory is now split: structural (6 questions) + process (15 questions) = 21 total
             // (Q-G2 dropped from blocking, Q-G8 dropped from process per effectiveness report 2026-04-10)
             expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
-            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 16 standards/process questions');
+            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 17 standards/process questions');
             expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 

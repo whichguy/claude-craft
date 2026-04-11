@@ -30,7 +30,7 @@ allowed-tools: all
 │  1. Discovery        → plan_path, paths, context            │
 │  2. Classification   → tier + flags         [GATE: tier]    │
 │  3a. TRIVIAL exec    → 5 questions, inline                  │
-│  3b. SMALL exec      → 8 core + risk, inline                │
+│  3b. SMALL exec      → 9 core + risk, inline                │
 │  3c. FULL setup      → state init, RESULTS_DIR, memo_file   │
 │  4. Convergence loop → waves, memo, edits   [GATE: gate 1]  │
 │  5. Epilogue         → Q-E1, Q-E2, Q-G9     [GATE: rating]  │
@@ -346,7 +346,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Next:    Step 8 (interactive exit) OR Phase 3c (FULL setup)
      ═══════════════════════════════════════════════════════════════ -->
    IF REVIEW_TIER == SMALL:
-     # Build question set: 8 core + risk-activated conditional questions
+     # Build question set: 9 core + risk-activated conditional questions
      small_questions = [
        "Q-G1",   # Approach soundness (Gate 1)
        "Q-G11",  # Existing code examined (Gate 1)
@@ -356,6 +356,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        "Q-C26",  # Proportionality / migration tasks (Gate 2)
        "Q-E1",   # Git lifecycle (Gate 2)
        "Q-E2",   # Post-implementation workflow (Gate 2)
+       "Q-G30",  # Experiments required before execution (Gate 2)
      ]
      risk_questions = {}  # risk_domain → [question IDs]
      if "security" in ACTIVE_RISKS:
@@ -376,13 +377,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Dedup (guards against future overlap if risk domains share question IDs)
      small_questions = list(dict.fromkeys(small_questions))
      total_q = len(small_questions)
-     risk_count = total_q - 8
+     risk_count = total_q - 9
 
      Print: "╔══════════════════════════════════════════════╗"
      Print: "║  ⚡ FAST PATH                       SMALL  ║"
      Print: "╚══════════════════════════════════════════════╝"
      Print: "  Scope       single-pass review"
-     Print: "  Questions   [total_q] (8 core + [risk_count] risk-activated)"
+     Print: "  Questions   [total_q] (9 core + [risk_count] risk-activated)"
      IF risk_questions:
        Print: "  Risks       [comma-separated ACTIVE_RISKS]"
 
@@ -410,6 +411,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            IF IS_GAS=true: Q-C3 → N/A (covered by gas-evaluator Q18/Q16/Q39/Q41),
              Q-E1 → N/A (covered by Q1/Q2), Q-E2 → N/A (covered by Q42)
            IF IS_NODE=true: Q-C3 remains active (not superseded for Node)
+           When Q-G30 fires on the same assumption as Q-G27, Q-G27 → N/A-superseded by Q-G30.
 
          For each question:
            - Look up its full definition in <questions_path>
@@ -446,6 +448,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              ✅  Proportionality                 Q-C26
              ✅  Git lifecycle                   Q-E1   [or —  N/A if IS_GAS]
              ✅  Post-implementation             Q-E2   [or —  N/A if IS_GAS]
+             ✅  Experiments required            Q-G30
 
            Risk-Activated (if any)
            ─────────────────────────────────────
@@ -527,7 +530,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    l1_structural_memoized = false    # true when ALL 6 structural questions PASS/N/A for 2 consecutive passes AND no edits since
    l1_structural_memoized_since = 0
    l1_structural_clean_since = 0    # pass_count when first consecutive clean pass was observed (0 = not yet started)
-   l1_process_memoized = false       # true when ALL 16 process questions PASS/N/A AND no edits since
+   l1_process_memoized = false       # true when ALL 17 process questions PASS/N/A AND no edits since
    l1_process_memoized_since = 0
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
@@ -846,7 +849,7 @@ DO:
     Print: "  ⏭ l1-advisory-structural            locked since p[l1_structural_memoized_since]"
   IF l1_process_memoized:
     process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29"}
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30"}
     FOR q in process_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process               locked since p[l1_process_memoized_since]"
@@ -1029,18 +1032,18 @@ DO:
     """
   )
 
-  --- L1 Advisory Process Evaluator Config (Gate 2/3: 16 standards/process questions, group-memoizable) ---
-  --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29 ---
+  --- L1 Advisory Process Evaluator Config (Gate 2/3: 17 standards/process questions, group-memoizable) ---
+  --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
-      You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 16 questions).
+      You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 17 questions).
 
       Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ONLY these 16 standards/process questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29
+      Evaluate ONLY these 17 standards/process questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -1048,9 +1051,10 @@ DO:
       senior developer implementing this plan actually encounter this problem?" If the answer
       is "only under unusual circumstances," mark PASS.
       Apply triage (mark N/A per the N/A column).
+      N/A-supersession: When Q-G30 fires on the same assumption as Q-G27, Q-G27 → N/A-superseded by Q-G30.
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
-      [IF memoized_l1_questions intersects {Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29} is non-empty, append to prompt:]
+      [IF memoized_l1_questions intersects {Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30} is non-empty, append to prompt:]
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
@@ -1732,15 +1736,15 @@ DO:
   # Process group (Q-G4–Q-G19): 1 clean pass sufficient.
   #   Older question definitions with lower calibration risk.
 
-  # Group memoization for l1-advisory-process (16 questions — independently tracked)
+  # Group memoization for l1-advisory-process (17 questions — independently tracked)
   IF NOT l1_process_memoized:
     process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29"}
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30"}
     all_process_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in process_questions)
     IF all_process_clean:
       l1_process_memoized = true
       l1_process_memoized_since = pass_count
-      newly_memoized.append("l1-advisory-process (16 questions)")
+      newly_memoized.append("l1-advisory-process (17 questions)")
   ELSE:
     # Invalidate if ANY edit was applied this pass (edits can affect process questions)
     IF changes_this_pass > 0:
@@ -1793,8 +1797,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 16 (l1-advisory-process) = 24
-    total_applicable_questions = 24 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
+    # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 17 (l1-advisory-process) = 25
+    total_applicable_questions = 25 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
     # Conditional question decrements (per question-effectiveness-report.md 2026-04-10):
     # Q-C14 and Q-C32 are counted in the impact cluster sum above but evaluate N/A when
@@ -2079,13 +2083,13 @@ Question definitions are in QUESTIONS.md — evaluators read that file directly.
 parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G9 sub-questions follow below
 (team-lead evaluates inline post-convergence).
 
-L1 per-pass count: 24 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G29).
+L1 per-pass count: 25 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G30).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 24 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G29). Q-G9 is not included in*
+*L1 per-pass count stays at 25 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G30). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
