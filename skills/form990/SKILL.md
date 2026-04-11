@@ -196,7 +196,7 @@ g. Temp-file hygiene (Q-C31):
    try/finally around d+e: on any abort, unlink both tmp paths (ignore ENOENT)
    breadcrumb "cleaned stale temp <path>"
    On Step 2 (read), also scan plan dir + ~/.claude/ for *.tmp.<N> files whose PID is
-   not alive (os.kill(pid,0) POSIX; psutil.pid_exists fallback); unlink + breadcrumb each
+   not alive (os.kill(pid,0) catching OSError.errno==ESRCH — stdlib, no third-party deps); unlink + breadcrumb each
 ```
 
 **Sidecar format** (`~/.claude/.form990-memo-<fy>.json`):

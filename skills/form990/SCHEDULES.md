@@ -33,10 +33,11 @@ For each year y in [T-4, T-3, T-2, T-1, T]:
   govt_grants[y]          = Part VIII Line 1e for year y
   total_support[y]        = all revenue for year y (contributions + program fees +
                              investment income + other)
-  donor_threshold[y]      = 0.02 × sum(total_support[T-4..T])   ← 2% of 5-yr total support
+  # two_pct_threshold is computed ONCE from the 5-year total — same dollar for all years
+  two_pct_threshold       = 0.02 × sum(total_support[T-4..T])   ← 2% of 5-yr total support
   
   excess_contributions[y] = sum over all donors d:
-                              max(0, donor_contributions[d][y] − donor_threshold[y])
+                              max(0, donor_contributions[d][y] − two_pct_threshold)
 
 5yr_public_support = sum([total_contributions[y] − excess_contributions[y] for y in window])
 5yr_total_support  = sum([total_support[y] for y in window])
@@ -53,13 +54,35 @@ public_support_pct = 5yr_public_support / 5yr_total_support × 100
 
 ### 509(a)(2) Worksheet (if public_charity_basis == "509(a)(2)")
 
-```
-5yr_program_service_pct = sum(program_service_revenue[T-4..T]) / 5yr_total_support × 100
-5yr_investment_pct      = sum(investment_income[T-4..T]) / 5yr_total_support × 100
+The 509(a)(2) test has two prongs and a more complex numerator than 509(a)(1).
+The 1% per-donor cap used here differs from 509(a)(1)'s 2% cap — don't conflate them.
 
-PASS if: 5yr_program_service_pct ≥ 33⅓%
-  AND:   5yr_investment_pct       ≤ 33⅓%
+**Prong 1 — Public/government support ≥ 33⅓%:**
+
+The numerator is NOT just program service revenue. Per IRC §509(a)(2)(A):
 ```
+permitted_support_numerator =
+  government_grants           # no per-donor cap
+  + public_contributions      # capped per donor at max(1% of total_support_yr, $5,000)
+                              # Note: this is a 1% cap, NOT the 2% cap used in 509(a)(1)
+  + program_service_revenue   # fees from exempt-function activities
+
+one_pct_threshold = 0.01 × total_support_yr  # per-year, per-donor cap for Prong 1
+
+permitted_support_5yr = sum over [T-4..T] of:
+  government_grants[y]
+  + sum(min(d.amount[y], max(one_pct_threshold[y], 5000)) for d in public_donors[y])
+  + program_service_revenue[y]
+
+5yr_public_support_pct = permitted_support_5yr / 5yr_total_support × 100
+```
+
+**Prong 2 — Investment/unrelated income ≤ 33⅓%:**
+```
+5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / 5yr_total_support × 100
+```
+
+**PASS if:** `5yr_public_support_pct ≥ 33⅓%` **AND** `5yr_investment_pct ≤ 33⅓%`
 
 ### Facts-and-Circumstances Narrative (if 10%–33⅓%)
 
@@ -142,24 +165,33 @@ authorized, other expenditures, EOY balance; donor restrictions.
 
 ## Schedule G — Supplemental Information Regarding Fundraising or Gaming Activities
 
-**Purpose.** Detail fundraising activities exceeding $15,000 or gaming activities.
+**Purpose.** Detail professional fundraising services paid >$15,000 (Part I) and fundraising
+events where the combined gross income + contributions across ALL events exceeds $15,000 (Part II).
 
-**When triggered.** Part IV Lines 17 or 19.
+**When triggered.**
+- Part IV Line 17: org paid a professional fundraiser > $15,000 → Schedule G Part I
+- Part IV Line 18: gross income + contributions from ALL fundraising events > $15,000 aggregate → Schedule G Part II
+- Part IV Line 19: gaming activities → Schedule G Part III
 
-### Part I — Fundraising Activities
+### Part I — Professional Fundraising Activities
 
-List events where gross income + contributions > $15,000:
-- Event name, date, gross receipts, contributions received, gross income
-- Direct expenses (prizes, food/bev, entertainment, rent, other)
-- Net income (or loss)
+List each external professional fundraiser engaged during the year (contracted organization,
+not in-house staff):
+- Fundraiser name and address
+- Activity type
+- Gross receipts, retained by org, retained by fundraiser
+- Whether org retains custody of contributions
 
 ### Part II — Fundraising Events
 
-For each event type (dinners, auctions, etc.):
+Schedule G Part II attaches when combined gross income and contributions from ALL fundraising
+events for the year exceeds $15,000 (Form 990 Part IV Line 18). Within Part II, report each
+event separately:
+- Event name, type, date
 - Gross receipts
-- Charitable contribution portion
-- Direct expenses
-- Net income
+- Event name, date, gross receipts, contributions received, gross income
+- Direct expenses (prizes, food/bev, entertainment, rent, other)
+- Net income (or loss)
 
 ### Part III — Gaming
 

@@ -36,8 +36,9 @@
     "part_iv_checklist":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P4", "produced_at": null },
     "dataset_core":        { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P5", "produced_at": null },
     "dataset_schedules":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null },
-    "dataset_rollup":      { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
-    "dataset_merged":      { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7-merge", "produced_at": null,
+    "dataset_rollup":         { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
+    "reconciliation_report":  { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
+    "dataset_merged":         { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7-merge", "produced_at": null,
                              "notes": "disjoint-key composition product via pure-function merger; dataset_core owns parts.II-XII + schedule_dependencies, dataset_rollup owns parts.I + reconciliation, dataset_schedules owns schedules; never hand-authored; rebuildable; halts on key conflict" },
     "schedule_b_filing":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
                              "confidentiality": "irs_only",
@@ -151,6 +152,7 @@ The human preparer is the Executive Director of {{LEGAL_NAME}}. They are not an 
 | Form 990 dataset — core (Parts II–XII) | — | P5 | not yet |
 | Form 990 dataset — schedules | — | P6 | not yet |
 | Form 990 dataset — rollup (Part I + reconciliation) | — | P7 | not yet |
+| Reconciliation report | — | P7 | not yet |
 | Form 990 dataset — merged (consumable union) | — | P7-merge | not yet |
 | Schedule B — filing (IRS-only, PII) | — | P6 | not yet |
 | Schedule B — public (redacted) | — | P6 | not yet |
@@ -161,11 +163,10 @@ The human preparer is the Executive Director of {{LEGAL_NAME}}. They are not an 
 
 ## Programmatic Scripts
 
+*(Populated as each [PROG] phase runs — see PHASES.md §Cross-Cutting Pattern for entry schema.)*
+
 | Script | Purpose | Phase | Status |
 |---|---|---|---|
-| `artifacts/scripts/p2-coa-mapping.py` | CoA → 990 line classification | P2 | not yet |
-| `artifacts/scripts/p6-schedule-a.py` | 509(a)(1) 5-year public-support test | P6 | not yet |
-| `artifacts/scripts/p3-financial-statements.py` | Statement aggregation | P3 | not yet |
 
 *(Scripts are committed to git — they document how data was processed and enable re-runs.)*
 

@@ -113,5 +113,6 @@ and enter numbers line by line into the provider's web form.
 - Extended due date: {{EXTENDED_DUE_DATE}}
 
 **Form 8868 (Automatic Extension):** Available at https://www.irs.gov/forms-pubs/about-form-8868.
-File before the original due date for an automatic 6-month extension. No signature or
-explanation required for the first extension.
+File before the original due date for an automatic 6-month extension. An officer must sign
+Form 8868, but no IRS approval or explanation of cause is required — the extension is automatic
+upon timely filing.

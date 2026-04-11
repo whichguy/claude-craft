@@ -84,22 +84,33 @@ comparisons in Decision Log; update form_variant to "990" in machine state → P
 
 ### Q-F2 — Big-Square Reconciliation (Gate 1)
 
-**Purpose.** Verify that the core accounting identity holds:
+**Purpose.** Verify that the three core accounting anchors all hold. These are three SEPARATE
+checks — they are NOT a single equality chain. Revenue − Expenses ≠ EOY − BOY unless
+adjustment lines (unrealized gains, prior period adjustments, donated services on balance sheet)
+are all zero. Conflating them produces false failures for endowment orgs and investment holders.
 
 ```
-Part VIII Line 12 (total revenue)
-− Part IX Line 25 (total expenses)
-= Part XI Line 9 (change in net assets)
-= Part X Line 32 EOY − Part X Line 32 BOY (change per balance sheet)
+Check 1 (operating): Part XI Line 3 = Part VIII Line 12 − Part IX Line 25
+                     (operating excess/deficit = revenue − expenses — definitional)
+
+Check 2 (BOY anchor): Part XI Line 4 = Part X Line 32 BOY column A
+                      (beginning net assets agree between the two statements)
+
+Check 3 (EOY anchor): Part XI Line 10 = Part X Line 32 EOY column B
+                      (ending net assets agree — this is the primary anchor)
 ```
 
-All four values must be consistent (a rounding difference of ≤ $1 in absolute value is
-acceptable with a note explaining the source; any unexplained delta > $1 is NEEDS_UPDATE).
+Each check independently ≤ $1 rounding tolerance. An unexplained delta > $1 on any
+check is NEEDS_UPDATE. If adjustment lines 5–9 are non-zero (unrealized gains, prior period
+items, donated services, etc.), Check 1 will not equal (EOY − BOY); that is expected and
+correct — only Checks 2 and 3 must hold in those cases.
 
 **Pass criteria:**
-- `reconciliation.delta_match == true` in `dataset_rollup.json`
-- `artifacts/reconciliation-report.md` exists and shows the arithmetic
-- If cash-basis, Part XI line 1 and Part VIII line 12 agree
+- `reconciliation.line3_check == true` in `dataset_rollup.json`
+- `reconciliation.boy_check == true` in `dataset_rollup.json`
+- `reconciliation.eoy_check == true` in `dataset_rollup.json`
+- `artifacts/reconciliation-report.md` exists and shows all three checks with arithmetic
+- If cash-basis, Part XI Line 1 and Part VIII Line 12 agree
 
 **NEEDS_UPDATE example:**
 ```
@@ -150,12 +161,16 @@ Passes if: public_support_pct ≥ 33⅓%
 "Excess contributions" = amount any single donor gave above 2% of total support in the 5-yr
 window (per Schedule A Part II instructions).
 
-**509(a)(2) test** (for fee-income charities):
+**509(a)(2) test** (for fee-income charities) — note the 1% per-donor cap (NOT the 2% used
+in 509(a)(1)); see SCHEDULES.md §509(a)(2) Worksheet for the full two-prong formula:
 ```
-public_support_pct =
-  (program service revenue + small public contributions)
-  / total_support × 100
-Passes if ≥ 33⅓%, AND investment/unrelated income ≤ 33⅓%
+Numerator = government grants (uncapped)
+          + public contributions (per-donor cap: 1% of total support for the year)
+          + program service revenue from exempt activities
+public_support_pct = Numerator_5yr_sum / total_support_5yr × 100
+Prong 1 passes if: public_support_pct ≥ 33⅓%
+Prong 2 passes if: investment_income_pct ≤ 33⅓%
+Both prongs required for 509(a)(2) PASS.
 ```
 
 **Pass criteria:**
@@ -356,7 +371,9 @@ or have an active open question documenting the gap.
 - Board roster
 - Bylaws
 - Conflict-of-interest policy
-- Audit or review report (if gross receipts ≥ $750K or required by funder)
+- Audit or review report (if required by state law, funder covenants, or bond agreements;
+  OR if org receives federal awards ≥ $750K — the Single Audit Act / Uniform Guidance threshold
+  applies to federal grantees only, NOT a general Form 990 requirement)
 
 **Pass criteria:**
 - Each item above either has a non-null path in `artifacts[]` or has an `open_questions[]`
