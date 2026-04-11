@@ -39,10 +39,10 @@
     "dataset_rollup":      { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
     "dataset_merged":      { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7-merge", "produced_at": null,
                              "notes": "disjoint-key composition product via pure-function merger; dataset_core owns parts.II-XII + schedule_dependencies, dataset_rollup owns parts.I + reconciliation, dataset_schedules owns schedules; never hand-authored; rebuildable; halts on key conflict" },
-    "schedule_b_filing":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null,
+    "schedule_b_filing":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
                              "confidentiality": "irs_only",
                              "notes": "full donor names + addresses + amounts; IRC §6104(d)(3)(A) — disclose to IRS, redact for public inspection. MUST be in .gitignore." },
-    "schedule_b_public":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null,
+    "schedule_b_public":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
                              "confidentiality": "public",
                              "notes": "donor names replaced with 'Anonymous'; addresses stripped; amounts retained. Safe for VCS and public inspection copy." },
     "reference_pdf":       { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null },
@@ -64,7 +64,8 @@
     "fiscal_year_end": null
   },
   "decision_log": [],
-  "revalidation_events": []
+  "revalidation_events": [],
+  "programmatic_scripts": []
 }
 ```
 <!-- END MACHINE STATE -->
@@ -151,12 +152,22 @@ The human preparer is the Executive Director of Fortified Strength. They are not
 | Form 990 dataset — schedules | — | P6 | not yet |
 | Form 990 dataset — rollup (Part I + reconciliation) | — | P7 | not yet |
 | Form 990 dataset — merged (consumable union) | — | P7-merge | not yet |
-| Schedule B — filing (IRS-only, PII) | — | P9 | not yet |
-| Schedule B — public (redacted) | — | P9 | not yet |
+| Schedule B — filing (IRS-only, PII) | — | P6 | not yet |
+| Schedule B — public (redacted) | — | P6 | not yet |
 | Reference PDF (filled) | — | P9 | not yet |
 | Schedule O narratives | — | P6 | not yet |
 | CPA review report | — | P8 | not yet |
 | E-file handoff packet | — | P9 | not yet |
+
+## Programmatic Scripts
+
+| Script | Purpose | Phase | Status |
+|---|---|---|---|
+| `artifacts/scripts/p2-coa-mapping.py` | CoA → 990 line classification | P2 | not yet |
+| `artifacts/scripts/p6-schedule-a.py` | 509(a)(1) 5-year public-support test | P6 | not yet |
+| `artifacts/scripts/p3-financial-statements.py` | Statement aggregation | P3 | not yet |
+
+*(Scripts are committed to git — they document how data was processed and enable re-runs.)*
 
 ## Open Questions
 

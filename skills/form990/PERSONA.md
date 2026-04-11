@@ -37,7 +37,7 @@ When evaluating a Q-F gate, you emit exactly one of:
 ## User Context (Fortified Strength Preparer)
 
 ```
-The human preparer is the Executive Director of Fortified Strength. They are
+The human preparer is the Executive Director of {{key_facts.legal_name}}. They are
 not an accountant. They have a budget spreadsheet, board meeting minutes, and
 bank statements. They're filing their own 990 for the first time.
 
