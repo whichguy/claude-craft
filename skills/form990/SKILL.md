@@ -150,23 +150,109 @@ Record resolution in Decision Log.
 
 ## Step 6 — Phase Dispatch
 
+`phase_status` is a 5-valued state machine. Before dispatching, read `phase_status[current_phase]`:
+
 ```
-switch current_phase:
-  "P0" → run PHASES.md §P0
-  "P1" → run PHASES.md §P1
-  "P2" → run PHASES.md §P2
-  "P3" → run PHASES.md §P3
-  "P4" → run PHASES.md §P4
-  "P5" → run PHASES.md §P5
-  "P6" → run PHASES.md §P6
-  "P7" → run PHASES.md §P7
-  "P8" → run PHASES.md §P8
-  "P9" → run PHASES.md §P9
-  "done" → render completion banner; no work
+status = phase_status[current_phase]
+
+if status == "pending" or status == "paused":
+    → run Phase Entry Protocol (SKILL.md §Phase Entry Protocol)
+    → if HALTED (ancestor regression): stop
+    → else: run PHASES.md §<current_phase>
+
+elif status == "running":
+    pid = plan_lock.pid
+    if pid is alive (os.kill(pid, 0) does NOT raise OSError.ESRCH):
+        → halt: "concurrent session detected — PID <pid> on host <plan_lock.host> is still live"
+        → AskUserQuestion: "Wait for other session | Take over (risky)" — user must choose
+    else:
+        → crash recovery: handled by Step 2 orphan sweep (sets status=failed+HalfWrite or RunningDeadPid)
+        → after Step 2, re-read status (now "failed"); fall through to "failed" branch below
+
+elif status == "failed":
+    error_class = phase_status[current_phase].last_error.error_class
+    if error_class in {"HalfWrite", "RunningDeadPid"}:
+        → crash-recovery path: log breadcrumb "phase crashed, resuming from Pre-check"
+        → run Phase Entry Protocol (with current_phase's output artifacts)
+        → if HALTED: stop; else run PHASES.md §<current_phase> (Pre-check + Work)
+    else:
+        → surface last_error to user in halt banner
+        → AskUserQuestion options:
+            "Retry this phase" → reset status to pending, re-dispatch
+            "Skip and advance" → set status=done manually, advance current_phase
+            "Halt — I need to investigate" → stop
+        → record resolution in Decision Log
+
+elif status == "done":
+    → advance: current_phase = next phase in sequence; repeat Step 6
+
+elif current_phase == "done":
+    → render completion banner; no work
+
+else:
+    → halt: "unknown phase_status value '<status>' — plan file may be corrupted"
 ```
+
+**Phase sequence:** P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → done
 
 For `/form990 review`: skip dispatch, go directly to PHASES.md §P8.
 For `/form990 status`: skip dispatch, go directly to `§ Status UI Renderer`.
+For `/form990 phase <N> <plan>`: see `§ Force-Override Protocol`.
+
+---
+
+## commit_phase_entry() — Pre-Work Lifecycle Commit
+
+Writes a CAS'd atomic commit that sets `phase_status[phase] = "running"` BEFORE the phase's
+Work block executes. This ensures a SIGKILL during Work produces a `running` + dead-PID state
+that Step 2 orphan sweep can detect and recover from.
+
+```python
+def commit_phase_entry(phase_id, state, plan_path, pre_image_sha256):
+    """
+    CAS-write status=running into machine state before phase work begins.
+    Also sets plan_lock.pid = current process PID.
+    Raises ConcurrentModificationError if another session has touched the plan.
+    """
+    import os, time
+    state["phase_status"][phase_id] = "running"
+    state["plan_lock"] = {
+        "pid":         os.getpid(),
+        "acquired_at": now_iso(),
+        "host":        os.uname().nodename,
+        "note":        "informational only — CAS is the concurrency primitive",
+    }
+    # Delegates to the Step 7 CAS write; raises on sha256 mismatch
+    atomic_commit(state, plan_path, pre_image_sha256)
+```
+
+On successful commit: update `pre_image_sha256` to the new plan file sha256 so the
+phase-exit commit in Step 7 has the correct pre-image.
+
+---
+
+## Force-Override Protocol — /form990 phase <N>
+
+When the user invokes `/form990 phase <N> <plan>`:
+
+1. Read the plan and parse machine state.
+2. Walk ARTIFACT_DEPS forward from phase N: collect all phases N, N+1, …, P9 whose
+   produced artifacts have N as a transitive upstream dependency.
+3. For each downstream phase (including N itself):
+   - Snapshot current `output_sha256` + `input_fingerprint` values into Decision Log:
+     `"force-override P<N>: snapshotting prior output_sha256 for <artifact> before invalidation"`
+   - Set `phase_status[phase] = "pending"`
+   - Clear `artifacts[artifact].output_sha256 = null`
+   - Clear `artifacts[artifact].input_fingerprint = {}`
+4. Set `current_phase = P<N>`.
+5. Write Decision Log entry: `"force-override P<N> on <iso>: invalidated downstream phases <list>; prior sha256 values snapshotted above"`.
+6. Atomic commit.
+7. Dispatch to Phase Entry Protocol for P<N>.
+
+**Rationale:** clearing downstream sha256/fingerprints means `verify_ancestors()` will
+correctly detect them as "not yet produced" on the next P<N+1> entry, preventing stale
+artifacts from being silently re-consumed. The Decision Log snapshot preserves the prior
+values for audit (they are not lost, only archived).
 
 ---
 
