@@ -3,7 +3,7 @@
 <!-- BEGIN MACHINE STATE (do not hand-edit; skill rewrites atomically) -->
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "plan_version": 0,
   "skill_version": "form990@1.0.0",
   "tax_year": null,
@@ -29,27 +29,27 @@
   "required_schedules": [],
   "open_questions": [],
   "artifacts": {
-    "coa_mapping":         { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P2", "produced_at": null },
-    "statement_of_activities": { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
-    "balance_sheet":       { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
-    "functional_expense":  { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
-    "part_iv_checklist":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P4", "produced_at": null },
-    "dataset_core":        { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P5", "produced_at": null },
-    "dataset_schedules":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null },
-    "dataset_rollup":         { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
-    "reconciliation_report":  { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
-    "dataset_merged":         { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P7-merge", "produced_at": null,
+    "coa_mapping":         { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P2", "produced_at": null },
+    "statement_of_activities": { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
+    "balance_sheet":       { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
+    "functional_expense":  { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P3", "produced_at": null },
+    "part_iv_checklist":   { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P4", "produced_at": null },
+    "dataset_core":        { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P5", "produced_at": null },
+    "dataset_schedules":   { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null },
+    "dataset_rollup":         { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {"dataset_core": null}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
+    "reconciliation_report":  { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {"dataset_core": null}, "output_sha256": null, "produced_in_phase": "P7", "produced_at": null },
+    "dataset_merged":         { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {"dataset_core": null, "dataset_schedules": null, "dataset_rollup": null}, "output_sha256": null, "produced_in_phase": "P7-merge", "produced_at": null,
                              "notes": "disjoint-key composition product via pure-function merger; dataset_core owns parts.II-XII + schedule_dependencies, dataset_rollup owns parts.I + reconciliation, dataset_schedules owns schedules; never hand-authored; rebuildable; halts on key conflict" },
-    "schedule_b_filing":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
+    "schedule_b_filing":   { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
                              "confidentiality": "irs_only",
                              "notes": "full donor names + addresses + amounts; IRC §6104(d)(3)(A) — disclose to IRS, redact for public inspection. MUST be in .gitignore." },
-    "schedule_b_public":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
+    "schedule_b_public":   { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null,
                              "confidentiality": "public",
                              "notes": "donor names replaced with 'Anonymous'; addresses stripped; amounts retained. Safe for VCS and public inspection copy." },
-    "reference_pdf":       { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null },
-    "schedule_o":          { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null },
-    "cpa_review_report":   { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P8", "produced_at": null },
-    "efile_handoff":       { "path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null }
+    "reference_pdf":       { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {"dataset_merged": null, "blank_pdf": null, "coordinate_table": null}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null },
+    "schedule_o":          { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P6", "produced_at": null },
+    "cpa_review_report":   { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P8", "produced_at": null },
+    "efile_handoff":       { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null }
   },
   "plan_lock": { "pid": null, "acquired_at": null, "host": null, "note": "informational only — authoritative concurrency is content-SHA256 CAS; see Resume Protocol" },
   "key_facts": {
@@ -62,7 +62,8 @@
     "public_charity_basis": null,
     "sheet_schema": null,
     "fiscal_year_start": null,
-    "fiscal_year_end": null
+    "fiscal_year_end": null,
+    "donor_names": []
   },
   "decision_log": [],
   "revalidation_events": [],

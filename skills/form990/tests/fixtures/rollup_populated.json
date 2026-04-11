@@ -1,0 +1,12 @@
+{
+  "parts": {
+    "I": {"total_revenue": 200, "total_expenses": 180, "net_assets_eoy": 50}
+  },
+  "reconciliation": {
+    "revenue_total": 200,
+    "expense_total": 180,
+    "net_assets_boy": 30,
+    "net_assets_eoy": 50,
+    "delta_match": true
+  }
+}
