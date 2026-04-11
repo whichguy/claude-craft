@@ -73,8 +73,25 @@ Agent(
     2. Extract metadata:
        - SOURCE_TITLE: document title or meaningful filename
        - SOURCE_DATE: publication date if detectable, else today YYYY-MM-DD
-       - SOURCE_TYPE: article | paper | doc | book | code | other
+       - SOURCE_TYPE: article | paper | gist | session_log | doc | code | book | other
        - SLUG: SOURCE_TITLE lowercased, spaces→hyphens, truncated at 50 chars
+
+    2.5 Apply source-type extraction rubric. Adjust your extraction emphasis and confidence
+       assignment based on SOURCE_TYPE:
+
+       | SOURCE_TYPE     | Extraction emphasis                                              | Default confidence |
+       |-----------------|------------------------------------------------------------------|--------------------|
+       | article / blog  | Thesis, key arguments, author POV, counter-arguments            | medium             |
+       | paper           | Method, findings, limitations, stated gaps, replication caveats | high               |
+       | gist / code     | Architecture, interface surface, divergence from upstream        | high (if canonical author) / medium |
+       | session_log     | Participant decisions, outcome, blockers, follow-ups             | medium             |
+       | doc             | API surface, version, conventions, examples                      | high               |
+       | book            | Chapter/section, core claims, connection to existing entities    | high               |
+       | other           | General summary — no special rubric                              | medium             |
+
+       Write the assigned confidence value into the source page frontmatter (see step 3).
+       For gist: set high if the author is the originator of the referenced pattern (e.g., Karpathy
+       for LLM wiki); medium otherwise.
 
     3. Write WIKI_DIR/sources/SLUG.md (compact format — ~46% fewer tokens):
        # SOURCE_TITLE

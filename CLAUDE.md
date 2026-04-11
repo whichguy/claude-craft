@@ -33,3 +33,4 @@ Create file in repo subdir → `ln -sfn` to `~/.claude/` → test → commit. Us
 
 ## Wiki
 WIKI: /wiki-load <topic> or Read wiki/index.md before answering project-domain questions or starting plan/task/research/debug — enforced by wiki-notify.sh UserPromptSubmit context injection. /wiki-query for synthesis. Escape: WIKI_SKIP=1.
+SCHEMA: wiki/SCHEMA.md defines v2 frontmatter (name, type, description, tags, confidence, last_verified, created, last_updated, sources, related). All fields optional at write time; /wiki-lint flags missing fields advisory-only. See wiki/SCHEMA.md for confidence calibration and NOT-in-v2 list.

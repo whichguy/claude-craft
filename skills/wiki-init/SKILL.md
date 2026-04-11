@@ -73,37 +73,58 @@ Valid types: INIT, INGEST, QUERY, LINT, SESSION_START, SESSION_END, EXTRACT
 
 ## Entries
 
-[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at WIKI_DIR/ with schema v1
+[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at WIKI_DIR/ with schema v2
 ```
 
 (Replace CURRENT_TIMESTAMP with actual timestamp: `date '+%Y-%m-%d %H:%M'`)
 
 ## Step 5 — Write wiki/SCHEMA.md
 
-Write `REPO_ROOT/WIKI_DIR/SCHEMA.md` with the following token-compact content (~183 tokens vs ~945 in verbose format):
+Write `REPO_ROOT/WIKI_DIR/SCHEMA.md` by copying from the canonical schema at `REPO_ROOT/wiki/SCHEMA.md` if it exists in the repository (i.e., this is a claude-craft-based project). Otherwise write the following token-compact content:
 
 ```
 ---
-schema_version: 1
+schema_version: 2
 ---
-# Wiki Schema v1
+# Wiki Schema v2
 
 Dirs: wiki/{entities,sources,queries,maintenance}, raw/ (LLM-write-protected, hook enforced)
 Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches both tiers
 
 ## Page Formats
 
-**Source** (sources/SLUG.md):
-  # Title
-  TYPE | DATE | URL-or-path | Ingested: DATE
-  Summary (3-5 paragraphs). Concepts (bulleted key:description). Relevance (1-2 sentences).
-  → Related: entity-links
-
 **Entity** (entities/SLUG.md):
+  ---
+  name: Entity Name
+  type: entity
+  description: "One-line retrieval hook — what it IS + 2-3 search terms in parens"
+  tags: [tag1, tag2]
+  confidence: high | medium | low
+  last_verified: YYYY-MM-DD
+  created: YYYY-MM-DD
+  last_updated: YYYY-MM-DD
+  sources: [source-slug-1]
+  related: [entity-slug-1]
+  ---
   # Entity Name
   Overview (2-3 sentences).
-  - **From [Source]:** 2-3 sentences per source (bullet list, NOT separate ## headers — saves tokens)
+  - **From [Source]:** 2-3 sentences per source (bullet list, NOT separate headers)
   → See also: related-entity-links
+
+**Source** (sources/SLUG.md):
+  ---
+  name: Source Title
+  type: source
+  source_type: article | paper | gist | session_log | doc | code | book | other
+  url_or_path: https://...
+  ingested: YYYY-MM-DD
+  confidence: high | medium | low
+  tags: [tag1, tag2]
+  ---
+  # Title
+  SOURCE_TYPE | DATE | URL-or-path | Ingested: DATE
+  Summary (3-5 paragraphs). Concepts (bulleted key:description). Relevance (1-2 sentences).
+  → Related: entity-links
 
 **Query** (queries/SLUG.md):
   # Query: Question
@@ -116,6 +137,7 @@ Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches
 3. Always append log.md after ingest/query/lint
 4. Entity pages: add "- **From [Source]:**" bullet — never overwrite existing entries
 5. Cross-link entities. Prefer update over create. Lint before bulk ops.
+6. Frontmatter fields are all optional at write time (lint advisory only, never blocking)
 
 ## Formats
 Log: `[YYYY-MM-DD HH:MM] TYPE detail` (INIT,INGEST,QUERY,LINT,SESSION_START,SESSION_END,EXTRACT)
@@ -125,6 +147,7 @@ Slugs: lowercase, hyphens, max 50 chars
 
 ## Notes
 Entity extraction is LLM judgment (intentional). Concurrent ingests may race on index.md (accepted).
+Hooks do NOT parse YAML frontmatter — schema changes are invisible to the control path.
 ```
 
 ---

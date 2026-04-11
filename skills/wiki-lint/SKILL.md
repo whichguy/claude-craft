@@ -68,7 +68,32 @@ Collect MISSING_CONCEPTS.
 Count entries in `WIKI_DIR/log.md`.
 If count > 500: add suggestion to archive: "Log has N entries (>500) — consider archiving old entries to wiki/log-archive-YYYY.md"
 
-## Step 8 — Write Report + Print Dashboard
+## Step 8 — Find Missing v2 Frontmatter
+
+Read all entity pages under `WIKI_DIR/entities/` (cap at 100).
+A page is missing v2 frontmatter if its YAML frontmatter block (between `---` delimiters) lacks ANY of:
+`confidence`, `sources`, `related`
+(pages with no `---` block at all are also flagged)
+
+Collect MISSING_FRONTMATTER with page path and which fields are absent.
+
+## Step 9 — Find Unresolved Contradictions
+
+Read entity pages that contain a `## Contradictions` or `## Contradictions / Open Questions` section (grep first, then read those pages only — cap at 20).
+A contradiction section is *unresolved* if it contains no line starting with `Decision:`, `Resolved:`, or the word `Unresolved` as an explicit marker.
+An empty section body (section header with no content) counts as unresolved.
+
+Collect UNRESOLVED_CONTRADICTIONS with page path and the section content.
+
+## Step 10 — Find Stale High-Confidence Pages
+
+Read entity pages with `confidence: high` in frontmatter (grep first, then read those pages — cap at 30).
+A page is stale-high-confidence if `last_verified` is absent OR `last_verified` date is more than 180 days before TODAY.
+This is an **advisory** flag only — never modify the confidence field.
+
+Collect STALE_HIGH_CONFIDENCE with page path, last_verified date, and days elapsed.
+
+## Step 11 — Write Report + Print Dashboard
 
 Write `REPORT_PATH` with the full detailed report (markdown format for Obsidian readability).
 
@@ -81,12 +106,15 @@ Then print a **terminal dashboard** to the user:
 ╚═══════════════════════════════════════╝
 
   Health Checks
-  ┌─ Orphan pages        [✓ 0 | ⚠ N found]
-  ├─ Broken links        [✓ 0 | ✗ N broken]
-  ├─ Contradictions      [✓ 0 | ⚠ N flagged]
-  ├─ Stale pages (>180d) [✓ 0 | ⚠ N stale]
-  ├─ Missing concepts    [✓ 0 | ▸ N suggested]
-  └─ Log rotation        [✓ OK | ⚠ N entries > 500]
+  ┌─ Orphan pages           [✓ 0 | ⚠ N found]
+  ├─ Broken links           [✓ 0 | ✗ N broken]
+  ├─ Contradictions         [✓ 0 | ⚠ N flagged]
+  ├─ Stale pages (>180d)    [✓ 0 | ⚠ N stale]
+  ├─ Missing concepts       [✓ 0 | ▸ N suggested]
+  ├─ Log rotation           [✓ OK | ⚠ N entries > 500]
+  ├─ Missing v2 frontmatter [✓ 0 | ⚠ N of M pending]
+  ├─ Unresolved contradictions [✓ 0 | ⚠ N pages]
+  └─ Stale high-confidence  [✓ 0 | ⚠ N >180d]
 
   [If any issues found, list top 3 most actionable:]
   ━━━ Top Actions ━━━━━━━━━━━━━━━━━━━━━
@@ -99,7 +127,7 @@ Then print a **terminal dashboard** to the user:
 
 Use `✓` for clean checks, `✗` for critical issues (broken links), `⚠` for warnings, `▸` for suggestions.
 
-## Step 9 — Update Index and Log
+## Step 12 — Update Index and Log
 
 Add lint report to `WIKI_DIR/index.md`:
 `| maintenance/lint-TODAY.md | Lint report TODAY | TODAY |`
