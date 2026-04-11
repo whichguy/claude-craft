@@ -490,6 +490,146 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('cross-file question count invariants', function () {
+        const questionsPath = path.join(__dirname, '..', 'skills', 'review-plan', 'QUESTIONS.md');
+        let questionsContent;
+        let l1RowCount;
+
+        before(function () {
+            questionsContent = fs.readFileSync(questionsPath, 'utf-8');
+            const layer1Start = questionsContent.indexOf('## Layer 1');
+            const layer2Start = questionsContent.indexOf('## Layer 2');
+            const layer1 = questionsContent.substring(layer1Start, layer2Start);
+            l1RowCount = (layer1.match(/^\| Q-[GCE]\d+ \|/gm) || []).length;
+        });
+
+        function extractProcessQuestionsSet(content) {
+            const match = content.match(
+                /Evaluate ONLY these \d+ standards\/process questions: ([^\n]+)/
+            );
+            return match ? match[1].split(',').map(s => s.trim()) : [];
+        }
+
+        it('SKILL.md L1 total matches QUESTIONS.md row count', function () {
+            // Guards against L1 row additions in QUESTIONS.md that aren't reflected in SKILL.md counts
+            expect(skillContent).to.include(`L1 = ${l1RowCount}`);
+        });
+
+        it('SKILL.md per-pass sum matches QUESTIONS.md row count', function () {
+            // "2 + 6 + 18 = 26" shape — guard against partial sum drift
+            const sumMatch = skillContent.match(/(\d+) \+ (\d+) \+ (\d+) = (\d+)/);
+            expect(sumMatch, 'per-pass sum shape not found in SKILL.md').to.not.be.null;
+            const [, g1, struct, proc, total] = sumMatch;
+            expect(parseInt(g1, 10) + parseInt(struct, 10) + parseInt(proc, 10))
+                .to.equal(parseInt(total, 10), 'per-pass components must sum to total');
+            expect(parseInt(total, 10)).to.equal(l1RowCount,
+                `SKILL.md per-pass sum (${total}) must equal QUESTIONS.md L1 row count (${l1RowCount})`);
+        });
+
+        it('Priority 1c comment count matches process_questions set length', function () {
+            // L744-style drift catcher: comment literal must match live set cardinality
+            const processQuestions = extractProcessQuestionsSet(skillContent);
+            const commentMatch = skillContent.match(
+                /L1 advisory process \(Gate 2\/3, (\d+) questions/
+            );
+            expect(commentMatch, 'Priority 1c comment not found in SKILL.md').to.not.be.null;
+            expect(parseInt(commentMatch[1], 10)).to.equal(processQuestions.length,
+                `Priority 1c comment says ${commentMatch[1]} questions but process_questions set has ${processQuestions.length}`);
+        });
+
+        it('L1 Advisory Process Evaluator Config comment matches set length', function () {
+            // Guards the evaluator config header at L1038
+            const processQuestions = extractProcessQuestionsSet(skillContent);
+            const configMatch = skillContent.match(
+                /L1 Advisory Process Evaluator Config.*?(\d+) standards\/process questions/
+            );
+            expect(configMatch, 'L1 Advisory Process Evaluator Config header not found').to.not.be.null;
+            expect(parseInt(configMatch[1], 10)).to.equal(processQuestions.length,
+                `Evaluator config says ${configMatch[1]} questions but process_questions set has ${processQuestions.length}`);
+        });
+    });
+
+    describe('Phase 5c.5 Implementation Intent Questions', function () {
+        it('SKILL.md defines Phase 5c.5 intent-questions extraction', function () {
+            expect(skillContent).to.include('Phase 5c.5');
+            expect(skillContent).to.include('Implementation Intent Questions');
+            expect(skillContent).to.include('NO_INTENT_QUESTIONS');
+        });
+
+        it('intent-questions guards match teaching-notes guards (tier/VCS/fixture/opt-out)', function () {
+            // Use the section heading "5c.5." to find the implementation block, not the R&A mention
+            const idx = skillContent.indexOf('5c.5. **Implementation Intent Questions**');
+            expect(idx, '5c.5 section heading not found').to.be.greaterThan(0);
+            const section = skillContent.substring(idx, idx + 4000);
+            // Tier guard: FULL only
+            expect(section).to.match(/REVIEW_TIER.*FULL/);
+            // Opt-out frontmatter
+            expect(section).to.include('intent_questions: false');
+            // VCS guard: untracked check
+            expect(section).to.match(/ls-files --error-unmatch|VCS guard|render_to_terminal_5th_panel/);
+        });
+    });
+
+    describe('Phase 6b Teaching Summary', function () {
+        it('SKILL.md defines Phase 6b teaching summary panel', function () {
+            expect(skillContent).to.include('Phase 6b');
+            expect(skillContent).to.include('TEACHING SUMMARY');
+        });
+
+        it('Phase 6b fires on all tiers (not FULL only)', function () {
+            const phase6b = skillContent.indexOf('5f. **Phase 6b: Teaching Summary**');
+            expect(phase6b).to.be.greaterThan(0);
+            const phase6bBlock = skillContent.substring(phase6b, phase6b + 2000);
+            // Must NOT have a FULL-only guard
+            expect(phase6bBlock).to.not.match(/IF REVIEW_TIER.*!=.*FULL.*\n.*SKIP/);
+            // Must reference all-tiers intent
+            expect(phase6bBlock).to.match(/all tiers|ALL tiers/i);
+        });
+
+        it('Phase 6b uses shared resolve_citation helper', function () {
+            expect(skillContent).to.match(/helper: resolve_citation/);
+            const phase6b = skillContent.indexOf('5f. **Phase 6b: Teaching Summary**');
+            const phase6bBlock = skillContent.substring(phase6b, phase6b + 2500);
+            expect(phase6bBlock).to.include('resolve_citation');
+        });
+
+        it('Phase 5e Teaching Notes still references shared resolve_citation helper', function () {
+            // Regression guard: Phase 6b extraction must not orphan the Teaching-Notes citation path
+            const phase5e = skillContent.indexOf('5e. **Teaching Notes');
+            expect(phase5e, '5e Teaching Notes section not found').to.be.greaterThan(0);
+            const phase5eBlock = skillContent.substring(phase5e, phase5e + 2500);
+            expect(phase5eBlock).to.include('resolve_citation');
+        });
+    });
+
+    describe('Phase 7.5 Full Plan Re-display', function () {
+        it('SKILL.md defines Phase 7.5 re-display before interactive exit', function () {
+            expect(skillContent).to.include('Phase 7.5');
+            expect(skillContent).to.include('FINAL PLAN — FULL TEXT AFTER CONVERGENCE');
+            // Phase 7.5 must come before AskUserQuestion (step 8)
+            const phase7_5_idx = skillContent.indexOf('Phase 7.5');
+            const askUserIdx = skillContent.lastIndexOf('AskUserQuestion');
+            expect(phase7_5_idx).to.be.greaterThan(0);
+            expect(phase7_5_idx).to.be.lessThan(askUserIdx);
+        });
+
+        it('Phase 7.5 fires on all tiers (not FULL only)', function () {
+            const idx = skillContent.indexOf('Phase 7.5');
+            const section = skillContent.substring(idx, idx + 2000);
+            // Must NOT have a FULL-only guard that skips fast path
+            expect(section).to.not.match(/IF REVIEW_TIER.*TRIVIAL|IF REVIEW_TIER.*SMALL.*SKIP/);
+            // Must reference all-tiers intent
+            expect(section).to.match(/all tiers|ALL tiers|always runs/i);
+        });
+
+        it('Phase 7.5 re-reads plan from disk (not memoized)', function () {
+            const idx = skillContent.indexOf('Phase 7.5');
+            const section = skillContent.substring(idx, idx + 2000);
+            // Must use Read tool on plan_path
+            expect(section).to.match(/Read\s*\(\s*plan_path\s*\)/);
+        });
+    });
+
     describe('delta-aware evaluator prompts', function () {
         it('defines prev_pass_applied_edits variable', function () {
             expect(skillContent).to.include('prev_pass_applied_edits = []');

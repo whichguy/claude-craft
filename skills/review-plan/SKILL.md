@@ -20,6 +20,7 @@ allowed-tools: all
 2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
+5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review --commit` uses to catch intent-to-code drift.
 
 ---
 
@@ -619,7 +620,9 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      Dropped Q-G2, Q-G8, Q-C21 (0% hit rate across 18 plans including 6 adversarial).
      Conditional Q-C14 (HAS_EXISTING_INFRA), Q-C32 (HAS_UNBOUNDED_DATA).
      L1 per-pass count: 25 → 23. Gate 1 count: 3 → 2 questions (Q-G1, Q-G11).
-     Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike). -->
+     Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike).
+     Updated 2026-04-11: Q-G29, Q-G30, Q-G31 added (PRs #126/#127). L1 = 26 (2 Gate 1 + 6 advisory-structural + 18 advisory-process).
+     Per-pass wave breakdown: 2 + 6 + 18 = 26. -->
 
 <!-- STATE AT END OF PHASE 3c:
      pass_count=0, timestamp, tracking vars (prev_needs_update_set, pass1_needs_update_set,
@@ -741,7 +744,7 @@ DO:
   IF NOT l1_structural_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-structural", task_config: <l1_advisory_structural_config below>})
 
-  # Priority 1c: L1 advisory process (Gate 2/3, 15 questions — skip if group-memoized)
+  # Priority 1c: L1 advisory process (Gate 2/3, 18 questions — skip if group-memoized)
   IF NOT l1_process_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-process", task_config: <l1_advisory_process_config below>})
 
@@ -2843,12 +2846,134 @@ After the convergence loop exits (scorecard not yet printed):
    Risk-Activated:      [if any]
    ```
 
+5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
+
+   Extract plan-specific questions that verify the code actually implements what the plan claims.
+   These become the POST_IMPLEMENT verification contract for `/review --commit`.
+
+   **Guards (match Teaching Notes 5e guards for file-append path):**
+   - **Tier:** FULL tier only — TRIVIAL/SMALL skip this step (fast-path speed preserved)
+   - **VCS:** untracked plan file → append to plan; tracked → render as terminal 5th panel below GATE STATUS
+   - **Fixture:** skip `test/fixtures/`, `wiki/fixtures/`, `*-bench/inputs/`, `skills/*/fixtures/`
+   - **Opt-out:** plan frontmatter `intent_questions: false` → skip entirely
+
+   ```
+   # ── Phase 5c.5: Extract Implementation Intent Questions ──
+   # Runs after convergence + senior-critic loop (5c), BEFORE Teaching Notes (5e).
+
+   IF REVIEW_TIER != "FULL":
+       SKIP
+
+   render_to_terminal_5th_panel = (VCS guard fires OR fixture guard fires)
+
+   # Single-pass extraction: plan sections provide category scaffolding so the
+   # subagent can produce categorized questions without a 2-pass split.
+   # Spike MUST be run against 2 sample plans (D.0 in plan floofy-stirring-corbato)
+   # before landing this — validates subagent produces parseable, non-generic questions.
+   Task(
+     subagent_type = "general-purpose",
+     description = "Extract implementation intent questions",
+     prompt = """
+       Read the plan at <plan_path> in full.
+
+       Generate 5–15 SPECIFIC, VERIFIABLE questions that the plan's implementer
+       (or /review --commit at POST_IMPLEMENT time) must answer YES against the
+       code diff. NOT generic quality questions — intent-to-code traceability
+       questions from THIS plan's specific claims.
+
+       Good question criteria:
+         - Cites a specific claim (step number, named function, file path, or quote)
+         - Asks "does the code actually do X?" where X is diff-verifiable
+         - Covers ONE logical assertion (split compound questions)
+
+       Categories (skip any where the plan makes no claim):
+         BEHAVIORAL  — "Does step N's [function] actually do [claimed behavior]?"
+         INVARIANT   — "Is [stated invariant] preserved?"
+         BOUNDARY    — "Does the code handle [named edge case from the plan]?"
+         NON-CHANGE  — "Did the code leave unchanged what the plan said to leave untouched?"
+         REMOVAL     — "If the plan removed X, is X gone AND all callers updated?" (pairs Q-G31)
+
+       Output format per question:
+         - **[CATEGORY]** [question text]
+           Plan cite: [step number or quoted passage]
+           Verify by: [diff-level check]
+
+       Do NOT output:
+         - Generic questions ("are there tests?") — Q-C4 already scores this
+         - Aspirational questions ("is the code clean?") — unverifiable
+         - Duplicates of Q-G1..Q-G31 scorecard findings
+         - More than 15 — prioritize ruthlessly
+
+       If the plan has no verifiable behavioral claims (pure wording, pure rename):
+         Output exactly: NO_INTENT_QUESTIONS — plan has no behavioral claims to verify
+
+       Return question list as markdown. Read tool only — no Edit/Write/Bash.
+     """
+   )
+
+   Parse task output:
+     IF output starts with "NO_INTENT_QUESTIONS":
+       intent_questions = []
+     ELIF output parses into ≥1 bullet matching
+          "- **[CATEGORY]** ... Plan cite: ... Verify by: ..." shape:
+       intent_questions = <parsed list>
+     ELSE:
+       # Malformed or timeout — do NOT append to plan file
+       intent_questions = []
+       render_to_terminal_5th_panel = True
+       scorecard_intent_label = "— extraction failed (malformed subagent output)"
+
+   IF render_to_terminal_5th_panel OR append fails:
+       Print intent_questions as terminal 5th panel below GATE STATUS
+   ELSE:
+       Read plan_path
+       IF plan contains "## Implementation Intent Questions":
+           # Idempotent re-run: replace section. Unlike Teaching Notes (historical
+           # per-run record), intent questions reflect CURRENT plan state — last run wins.
+           Edit(plan_path, old_section, new_section)
+       ELSE:
+           # Insert BEFORE "## Teaching Notes" if present, else EOF
+           Edit(plan_path, <insertion_point>, new_section)
+   ```
+
+   **Scorecard integration** — add one row to GATE STATUS panel:
+   ```
+   │  Intent Questions      ✅  [N] generated (verify at /review)          │
+   ```
+   If `intent_questions = []` (NO_INTENT_QUESTIONS): `— no verifiable intent claims`.
+   If extraction failed: `— extraction failed (malformed subagent output)`.
+
+   **Section shape in plan file:**
+   ```markdown
+   ## Implementation Intent Questions
+
+   *Extracted by review-plan from this plan's specific claims. At POST_IMPLEMENT
+   time, answer each YES against the diff. A NO or MAYBE signals intent-to-code
+   drift — investigate before merging.*
+
+   ### Behavioral
+   - **[question]**
+     Plan cite: [step number or quoted passage]
+     Verify by: [diff-level check]
+
+   ### Invariant / Boundary / Non-Change / Removal
+   [same format]
+   ```
+
+   **Coupling with /review (POST_IMPLEMENT):**
+   No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
+   so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
+
 5e. **Teaching Notes append** (persist learning to plan file):
 
    **Sources of edits for Teaching Notes:**
    - `findings{}` — per-question-evaluator edits from convergence loop
    - `sr_applied_edits[]` — senior-critic consolidated edits (mirrored in step 5c before per-iteration cleanup)
    - Epilogue fixes (Q-E1/Q-E2/Q-G9) in `findings{}`
+
+   **Citation resolution:** `See:` fields in the section shape below use the shared `resolve_citation(q_id)` helper
+   (defined in Phase 6b). Priority: wiki entity → CLAUDE.md directive → QUESTIONS.md §Q-ID → `(no external citation)`.
+   This ensures Phase 5e (file append) and Phase 6b (terminal panel) produce identical citation text from the same helper.
 
    **Pre-flight guards — do NOT append when any guard fires:**
 
@@ -2938,6 +3063,49 @@ After the convergence loop exits (scorecard not yet printed):
    - **wiki-gap** — citation resolution returned empty for a Q-ID that fired with a non-trivial `[EDIT: …]`.
    - **process-improvement** — convergence loop exhibited pathological pattern (max_rounds, oscillation, dedup miss) surfaced by `holistic_downgrade=1` or meta-reflection.
 
+5f. **Phase 6b: Teaching Summary** (terminal panel, always fires on ALL tiers — Directive 2026-04-11):
+
+   Surfaces what the user should *learn* from this review run. Fires even on TRIVIAL/SMALL fast path
+   (user directive: "even when review-plan is in fast path mode, i want to review both the outcome
+   teaching me what it's doing and the plan itself"). No tier guard.
+
+   ```
+   # ── Phase 6b: Teaching Summary (terminal, always fires — all tiers) ──
+   # Runs after scorecard output, before cleanup. All tiers — no FULL-only guard.
+   # helper: resolve_citation(q_id) — priority:
+   #   1. grep wiki/entities/*.md for Q-ID → emit [[entity-name]] citation
+   #   2. CLAUDE.md directive name if traceable
+   #   3. QUESTIONS.md §Q-ID fallback
+   #   4. (no external citation) — never fabricate
+
+   all_changes = []
+   all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators
+   all_changes.extend(sr_critic_to_change_list(sr_applied_edits)) # senior critic (FULL only)
+   all_changes.extend(epilogue_to_change_list(epilogue_results))  # Q-E1/Q-E2/Q-G9 (FULL only)
+
+   IF len(all_changes) == 0:
+       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
+       Print: "│  No edits applied this review. Plan was clean on first read.   │"
+       Print: "│  Nothing to teach from this run's findings.                    │"
+       Print: "└────────────────────────────────────────────────────────────────┘"
+   ELSE:
+       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
+       Print: "│  [N] changes applied across [M] passes. Key takeaways below.  │"
+       Print: "├────────────────────────────────────────────────────────────────┤"
+       FOR change in all_changes:
+           Print: "│  [Q-ID] [change title]                                         │"
+           Print: "│    What:  [one-line summary of what the edit did]              │"
+           Print: "│    Why:   [rationale from evaluator/critic; 'not captured']   │"
+           Print: "│    See:   [resolve_citation(change.q_id)]                     │"
+       Print: "└────────────────────────────────────────────────────────────────┘"
+   ```
+
+   **Consistency with Teaching Notes (Phase 5e).**
+   Phase 5e appends `### Changes Made During Review` to the plan file using the same data.
+   Phase 6b prints the terminal panel. Both use the same `# helper: resolve_citation(q_id)` comment
+   block so citation logic never drifts between the two output paths. Phase 5e calls `resolve_citation`
+   to build wiki/directive citations; Phase 6b calls the same helper for the `See:` lines.
+
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
       strip all self-referential markers that served their purpose during the convergence loop
@@ -2961,6 +3129,52 @@ After the convergence loop exits (scorecard not yet printed):
      findings{}, Rating still in memory for step 7-8.
      Next phase reads: Rating, findings{} (for remaining issues summary).
      ════════════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 7.5 — RE-DISPLAY FULL PLAN (Directive 2026-04-11)
+     Inputs:  plan_path, REVIEW_TIER
+     Outputs: terminal display of final plan text
+     Next:    Phase 8 (interactive exit)
+     ═══════════════════════════════════════════════════════════════ -->
+
+6.5. **Phase 7.5: Re-display full plan for final read-through** (Directive 2026-04-11):
+
+   Runs on ALL tiers after cleanup — user directive: "even when review-plan is in fast path mode,
+   i want to review both the outcome teaching me what it's doing and the plan itself."
+   Opt-out: `redisplay: false` in plan frontmatter.
+
+   ```
+   # ── Phase 7.5: Re-display full plan ──
+   # Runs after cleanup (step 6), before interactive exit (step 7/8).
+   # Always runs on all tiers. Opt-out: plan frontmatter redisplay: false.
+
+   IF frontmatter_redisplay == false:
+       SKIP
+
+   # Re-read from disk (not cached) — verifies what the user will see in an editor
+   final_plan_text = Read(plan_path)
+   final_line_count = len(final_plan_text.splitlines())
+   final_byte_count = len(final_plan_text.encode())
+   final_sha256 = sha256(final_plan_text)[:12]
+
+   Print: "╔══════════════════════════════════════════════════════════════════╗"
+   Print: "║           FINAL PLAN — FULL TEXT AFTER CONVERGENCE               ║"
+   Print: "║  Re-read before approving ExitPlanMode.                          ║"
+   Print: "╚══════════════════════════════════════════════════════════════════╝"
+   Print: "── BEGIN PLAN ───────────────────────────────────────────────────────"
+
+   IF final_line_count > 2000:
+       Print: first 500 lines of final_plan_text
+       Print: "[… {final_line_count - 1000} lines omitted — read with: cat <plan_path> …]"
+       Print: last 500 lines of final_plan_text
+   ELSE:
+       Print: final_plan_text
+
+   Print: "── END PLAN ─────────────────────────────────────────────────────────"
+   Print: ""
+   Print: "Line count: [final_line_count] │ Byte count: [final_byte_count] │ SHA256: [final_sha256]"
+   Print: ""
+   ```
 
 <!-- ═══════════════════════════════════════════════════════════════
      PHASE 8 — INTERACTIVE EXIT
