@@ -324,7 +324,7 @@ def tc10(args):
                 art = machine_state["artifacts"][art_name]
                 machine_state["decision_log"].append({
                     "date": "2025-01-01", "phase": ph,
-                    "decision": f"forward-invalidated by force-override P{force_phase}",
+                    "decision": f"forward-invalidated by force-override {force_phase}",
                     "rationale": f"prior output_sha256={art.get('output_sha256','null')[:12]}...",
                 })
                 art["output_sha256"] = None

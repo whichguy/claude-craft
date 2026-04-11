@@ -202,6 +202,25 @@ For `/form990 phase <N> <plan>`: see `§ Force-Override Protocol`.
 
 ---
 
+## now_iso() / now_iso_date() — Timestamp Helpers
+
+Utility functions used by `commit_phase_entry()`, `Phase Entry Protocol`, `append_breadcrumb()`,
+and `auto_append_learning()`. Defined here before first use.
+
+```python
+def now_iso() -> str:
+    """Return current UTC timestamp as ISO 8601 string."""
+    import datetime
+    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def now_iso_date() -> str:
+    """Return current UTC date as YYYY-MM-DD."""
+    import datetime
+    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+```
+
+---
+
 ## commit_phase_entry() — Pre-Work Lifecycle Commit
 
 Writes a CAS'd atomic commit that sets `phase_status[phase] = "running"` BEFORE the phase's
@@ -794,16 +813,6 @@ def _rotate_learnings(learnings_path: str, entries: list, text: str,
         + text[end_idx:]
     )
     pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
-
-def now_iso() -> str:
-    """Return current UTC timestamp as ISO 8601 string."""
-    import datetime
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-
-def now_iso_date() -> str:
-    """Return current UTC date as YYYY-MM-DD."""
-    import datetime
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
 
 def auto_append_learning(learnings_path: str, phase_id: str,
                          error_class: str, message: str,
