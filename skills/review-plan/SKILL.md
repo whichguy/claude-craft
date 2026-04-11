@@ -17,7 +17,7 @@ allowed-tools: all
 ## Role & Authority
 
 1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
-2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. You must NOT call ExitPlanMode — the caller handles mode transitions after review completes.
+2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
 
@@ -245,7 +245,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all 5 PASS:
-       Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
        Output terminal-native fast-path scorecard:
          ╔══════════════════════════════════════════════════════╗
          ║                                                      ║
@@ -264,19 +263,21 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            ✅  Git lifecycle                   Q-E1
            ✅  Existing code examined          Q-G11
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       STOP — review complete, skip convergence loop entirely
-       (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 5 now PASS:
-         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
+         Output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). → Proceed to step 8.
+         # Gate file is written in step 8 only when the user confirms exit — not here.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
-         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
+         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
+         # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
 
    IF REVIEW_TIER == SMALL:
      # Build question set: 8 core + risk-activated conditional questions
@@ -354,7 +355,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      )
 
      If all PASS or N/A (no NEEDS_UPDATE):
-       Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
        na_count = count of N/A results; applicable_count = total_q - na_count
        Output terminal-native small fast-path scorecard:
          ╔══════════════════════════════════════════════════════╗
@@ -386,8 +386,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry:]
              ✅  [Name]                          [Q-ID]  [domain]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       STOP — review complete, skip convergence loop entirely
-       (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
@@ -402,11 +402,13 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate re_eval_questions once (same Task format, substituting
        re_eval_questions for question_list_str).
        If all now PASS or N/A:
-         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
+         Output small fast-path scorecard (same format, Rating 🟢 READY). → Proceed to step 8 (interactive completion prompt).
+         # Gate file is written in step 8 only when the user confirms exit — not here.
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
-         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop
+         # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
+         # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
 
    Print: "╔══════════════════════════════════════════════╗"
    Print: "║  ◆ CONFIG                            FULL   ║"
@@ -781,7 +783,7 @@ DO:
   # Constraints:
   #   - Do not use Edit or Write tools on the plan file — read-only
   #   - Use Bash ONLY to write your findings JSON to the specified path
-  #   - Do not call ExitPlanMode or touch marker files
+  #   - Do not call ExitPlanMode, AskUserQuestion, or touch marker files
   #   - Write exactly ONE JSON file
 
   --- L1 Blocking Evaluator Config (Gate 1: 2 questions, always runs, never memoized) ---
@@ -1178,7 +1180,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -1208,7 +1210,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -2283,7 +2285,7 @@ After the convergence loop exits (scorecard not yet printed):
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): By the time
    the loop exits, Gate 1 is either clean (→ READY/SOLID/GAPS rating) or still has unresolved
    issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 4)
-   and STOP (step 8). Do not re-run the REWORK check here.
+   and the interactive prompt (step 8). Do not re-run the REWORK check here.
 
 2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, **parallel**:
    Print: "╔══════════════════════════════════════════════╗"
@@ -2439,12 +2441,8 @@ After the convergence loop exits (scorecard not yet printed):
       - `" <!-- node-plan -->"` → `""` (remove)
       This delivers a clean plan file to the user for implementation (no stray HTML comments).
       Only strip the markers — do not remove the content they annotated.
-   b. **Gate file:** Write the review-complete breadcrumb:
-      Bash `echo '<plan_path>' > /tmp/.review-ready-${plan_slug}`
-      This signals the ExitPlanMode PreToolUse hook that review has completed. The gate
-      file is a separate breadcrumb — the plan file itself stays clean (no HTML comments).
-      Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after
-      successful exit.
+   b. **Gate file:** Written in step 8 when the user confirms exit — not here.
+      (Deferring ensures no stale gate file exists if the user chooses "Continue editing" in step 8.)
    c. **File teardown:** Use the Bash tool to run:
       ```
       rm -f <memo_file> && rm -rf "$RESULTS_DIR"
@@ -2455,7 +2453,7 @@ After the convergence loop exits (scorecard not yet printed):
 7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     No issues to print — proceed directly to step 8 (STOP)
+     No issues to print — proceed directly to step 8
    IF Rating == SOLID or GAPS:
      Print: "┌──────────────────────────────────────────────────────┐"
      Print: "│  ℹ️ [N] Gate 2 issues remaining (not blocking)         │"
@@ -2464,8 +2462,7 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ⚠️  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "──────────────────────────────────────────────────────"
-     Print: "  Reject ExitPlanMode to address before implementation"
-     STOP
+     # Fall through to step 8 — user decides whether to proceed or keep editing
    IF Rating == REWORK:
      Print: "╔══════════════════════════════════════════════════════╗"
      Print: "║  🔴 [N] Gate 1 issues remaining — BLOCKING            ║"
@@ -2474,9 +2471,40 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ❌  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "══════════════════════════════════════════════════════"
-     Print: "  Reject ExitPlanMode to continue fixing"
-     STOP
+     # Fall through to step 8 — user must describe fixes; ExitPlanMode blocked until READY/SOLID/GAPS
    ```
-   The caller's ExitPlanMode call is the approval point. review-plan does not participate in mode transitions.
 
-8. **STOP.** Review is complete. Print "Review complete." Do not call ExitPlanMode — the caller handles mode transitions.
+8. **Interactive completion prompt.** After every review pass (all tiers), ask the user what to do next:
+   ```
+   IF Rating == READY:
+     AskUserQuestion(
+       question = "Plan is READY — all checks pass. Proceed to implementation, or make further changes?",
+       options = ["Exit to implementation", "Continue editing"]
+     )
+   IF Rating == SOLID or GAPS:
+     AskUserQuestion(
+       question = "Plan has [N] non-blocking issue(s). Proceed to implementation anyway, or continue editing?",
+       options = ["Exit to implementation (proceed with warnings)", "Continue editing"]
+     )
+   IF Rating == REWORK:
+     AskUserQuestion(
+       question = "Gate 1 issues block exit. Describe the changes you want to make, or abandon.",
+       options = ["Describe changes", "Abandon review"]
+     )
+
+   IF user chooses to exit (first option for READY/SOLID/GAPS):
+     Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
+     # Gate file written here — after user confirms — so no stale file exists during editing cycles.
+     # Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after successful exit.
+     ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
+
+   IF user chooses to continue editing (or is in REWORK and describes changes):
+     Apply the user's requested changes to the plan file.
+     Re-run review from Step 3 (re-classify and re-evaluate — do not skip the classifier).
+     # This loop repeats until user confirms exit or abandons. No hard cap — user controls termination.
+
+   IF user chooses "Abandon review" (REWORK only):
+     Print: "Review abandoned. Plan is unchanged and still has Gate 1 issues."
+     Print: "You remain in plan mode — make changes and run /review-plan again when ready."
+     STOP  # ExitPlanMode is NOT called — user stays in plan mode to fix or manually exit
+   ```

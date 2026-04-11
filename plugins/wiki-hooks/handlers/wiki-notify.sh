@@ -1,7 +1,10 @@
 #!/bin/bash
 # UserPromptSubmit: inject wiki context via two paths:
-#   1. Prompt-aware: keyword-match user prompt against cached entity index → inject summaries
-#   2. New-page: inject newly-created entity pages since last check
+#   1. Mandate injection: unconditional WIKI_CHECK reminder on every prompt (WIKI_CHECK directive)
+#      — fires on every UserPromptSubmit to keep mandate in active context; WIKI_SKIP=1 to suppress
+#      See: ~/.claude/CLAUDE.md WIKI_CHECK directive + plan draft 3.5 (research-backed phrasing)
+#   2. Prompt-aware: keyword-match user prompt against cached entity index → inject summaries
+#   3. New-page: inject newly-created entity pages since last check
 # Cache-first: reads entity-index.tsv instead of looping entity files
 
 trap 'exit 0' ERR
@@ -25,6 +28,28 @@ CACHE_DIR="$REPO_ROOT/wiki/.cache"
 ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
 CONTENT=""
 DISPLAY=""
+
+# --- Mandate injection: fires on every UserPromptSubmit to keep WIKI_CHECK in active context ---
+# Honors WIKI_SKIP=1 escape valve for read-only review sessions (existing behavior unaffected).
+WIKI_CHECK_REMINDER=""
+if [ "${WIKI_SKIP:-}" != "1" ]; then
+  # Compute relative wiki path from stdin cwd (not $CLAUDE_PROJECT_DIR — unset in some wrappers).
+  # CWD is set by wiki_parse_input from stdin .cwd field (guaranteed per Anthropic hooks docs).
+  WIKI_REL="${WIKI_PATH%/}"     # remove trailing slash from WIKI_PATH set by wiki_find_root
+  WIKI_REL="${WIKI_REL#$CWD/}" # strip CWD prefix → relative path (e.g. "wiki")
+
+  # XML-tag wrapper distinguishes directive from Claude Code harness irrelevance-filter disclaimer.
+  # Positive imperative voice (Anthropic best practices). Quote-first compliance signal converts
+  # wiki consultation from unobservable commitment to grep-able audit signal. Named anti-patterns
+  # remove rhetorical escape hatches the model otherwise generates (ArXiv 2603.25056).
+  WIKI_CHECK_REMINDER="<wiki_grounding_required>
+REQUIRED: Before planning, tasking, researching, debugging, or answering project-domain questions, load wiki entries from ${WIKI_REL}/index.md via /wiki-load <topic>. The wiki records decisions and conventions that contradict what the code appears to do at face value — skipping it produces plausible-but-wrong plans.
+
+Compliance: in your first response, name the wiki entries you consulted and quote one relevant sentence from each. If none apply after scanning the index, state \"wiki/index.md scanned — no relevant entries\" and name 2-3 index entries you considered.
+
+Do not rationalize past this with \"execution-only session\", \"I already know the code\", or \"this is a trivial change\". Escape valve for read-only review sessions: set WIKI_SKIP=1 in the shell hosting Claude Code.
+</wiki_grounding_required>"
+fi
 
 # --- Path 1: Prompt-aware entity matching via cached index ---
 if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
@@ -97,8 +122,18 @@ if [ -f "$MARKER" ]; then
   fi
 fi
 
-# Output only if we have something to inject
-[ -z "$CONTENT" ] && exit 0
+# Exit only if nothing to output (no mandate — WIKI_SKIP=1 — and no entity content)
+[ -z "$WIKI_CHECK_REMINDER" ] && [ -z "$CONTENT" ] && exit 0
 
-jq -n --arg context "$CONTENT" --arg display "$DISPLAY" \
-  '{"systemMessage": $display, "additionalContext": $context}'
+# Combine mandate reminder + entity content; mandate prepended so it lands first in context.
+if [ -n "$WIKI_CHECK_REMINDER" ]; then
+  ADDITIONAL_CONTEXT="$WIKI_CHECK_REMINDER${CONTENT:+$'\n\n'$CONTENT}"
+else
+  ADDITIONAL_CONTEXT="$CONTENT"
+fi
+
+# Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
+# systemMessage = user-visible toast; additionalContext = LLM-visible per-turn context injection.
+SYSTEM_MSG="${DISPLAY:-Wiki available — /wiki-load <topic> or Read wiki/index.md}"
+jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$SYSTEM_MSG" \
+  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
