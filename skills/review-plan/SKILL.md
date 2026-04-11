@@ -2835,6 +2835,101 @@ After the convergence loop exits (scorecard not yet printed):
    Risk-Activated:      [if any]
    ```
 
+5e. **Teaching Notes append** (persist learning to plan file):
+
+   **Sources of edits for Teaching Notes:**
+   - `findings{}` — per-question-evaluator edits from convergence loop
+   - `sr_applied_edits[]` — senior-critic consolidated edits (mirrored in step 5c before per-iteration cleanup)
+   - Epilogue fixes (Q-E1/Q-E2/Q-G9) in `findings{}`
+
+   **Pre-flight guards — do NOT append when any guard fires:**
+
+   1. **Tier guard.** Skip TRIVIAL entirely. Skip SMALL unless ≥1 Gate 1/2 finding produced an applied edit.
+   2. **VCS guard:**
+      ```bash
+      git_root=$(git -C "$(dirname "$plan_path")" rev-parse --show-toplevel 2>/dev/null)
+      if [ -n "$git_root" ] && git -C "$git_root" ls-files --error-unmatch "$plan_path" >/dev/null 2>&1; then
+          is_tracked=true
+      else
+          is_tracked=false
+      fi
+      ```
+      If `is_tracked=true` → don't append; render Teaching Notes as terminal **5th panel below GATE STATUS** instead.
+      Rationale: mutating a VCS plan file produces surprise `git status` deltas, corrupts test fixtures and in-review PR plans.
+   3. **Fixture guard.** Skip paths matching `test/fixtures/`, `wiki/fixtures/`, `*-bench/inputs/`, `skills/*/fixtures/`.
+   4. **Opt-out.** YAML frontmatter `teaching_notes: false` (or legacy `key_learnings: false`) → skip.
+
+   When any guard fires → render Teaching Notes as terminal 5th panel (never silently dropped).
+
+   **Whole-section suppression:** zero applied edits AND zero retrospective actions → omit `## Teaching Notes` entirely.
+   Retrospective-only (zero edits, ≥1 action) → still emit Teaching Notes with only `### Retrospective Action Plan`.
+
+   **Append semantics (when guards pass):**
+
+   0. Build sources: concatenate `findings{}` applied edits + `sr_applied_edits[]` + epilogue fixes.
+   1. Read current plan contents via Read tool (don't rely on stale convergence-loop context).
+      Wrap the Edit call in try/catch: on write failure (EROFS/EACCES) → fall through to terminal-only 5th-panel
+      render, identical to VCS-guard path. Print: `⚠ Teaching Notes append failed (${errno}); rendered to terminal instead`.
+   2. Detect existing section:
+      - Scan for `## Teaching Notes`; bounds = that line to EOF or next `^## `.
+      - **Conflicting-state detection:** if BOTH `## Teaching Notes` AND legacy `## Key Learnings` exist
+        → abort with `⚠ Conflicting state: plan file has both ## Teaching Notes and ## Key Learnings — manual resolution required`
+        → fall through to terminal-only 5th-panel render.
+      - Legacy `## Key Learnings` only present → migrate once: rename to `## Teaching Notes`,
+        wrap existing bullets under `### Key Learnings` subheading.
+   3. Dedup within `### Key Learnings` and `### Retrospective Action Plan` by stable key:
+      - Learnings: `<!-- kl-key: Q-ID:citation-slug -->` — skip if already present.
+      - Retrospective actions: `<!-- rap-key: action-type:slug -->` — skip if present.
+      - `Resolved:` line under a bullet → skip (action closed, not fired again).
+      - `### Changes Made During Review` is NOT deduplicated — each run is a distinct historical record.
+   4. Chronological order: new `Run <date>` block at TOP of `### Changes Made During Review`.
+      New learning bullets at END of `### Key Learnings`.
+   5. Touch only the Teaching Notes section — no reflow above, no header renumbering.
+
+   **Section shape:**
+
+   ```markdown
+   ## Teaching Notes
+
+   ### Changes Made During Review
+
+   **Run [date]** ([N] edits applied)
+   - **[Q-ID]** [change title] — [one-line summary of the edit applied]
+     Purpose: [why this fix matters; what failure mode it prevents]
+     See: [citation — wiki entry, CLAUDE.md directive, or QUESTIONS.md §Q-ID]
+   - ...
+
+   ### Key Learnings
+   [Conditional — fires when: Gate 1/2 finding fixed via [EDIT:…]; senior-critic REVISED with generalizable pattern;
+   meta-reflection signal fired. Each bullet MUST illustrate with concrete example from this review's findings.
+   If no example extractable, omit the learning.]
+   - **[Learning title]**: [one-paragraph takeaway with concrete example]
+     See: [citation]
+     <!-- kl-key: Q-ID:citation-slug -->
+   - ...
+
+   ### Retrospective Action Plan
+   [Conditional — fires when: out-of-scope gaps/bugs surfaced; question-tuning signals; wiki citation gaps;
+   workflow pathology observed. Action types: follow-up-fix | question-tuning | wiki-gap | process-improvement.]
+   - **[Action title]** ([type: follow-up-fix | question-tuning | wiki-gap | process-improvement])
+     Trigger: [what this review surfaced]
+     Action: [concrete next step]
+     See: [citation]
+     <!-- rap-key: action-type:slug -->
+   - ...
+   ```
+
+   **`### Key Learnings` fire criteria:**
+   - Gate 1 or Gate 2 finding the convergence loop fixed via `[EDIT: …]`
+   - Senior-critic REVISED iteration whose rationale names a generalizable pattern
+   - Meta-reflection signal fired (`QUESTION_EDIT`/`QUESTION_NEW`/`EDIT_TEMPLATE`/`SIGNAL_NOISE`)
+
+   **`### Retrospective Action Plan` action types and fire criteria:**
+   - **follow-up-fix** — adjacent bug/gap not in-scope; triggered by senior critic advisory-with-citation or Q-E2 cross-cutting issue.
+   - **question-tuning** — meta-reflection signal concrete enough to propose a QUESTIONS.md diff; same Q-ID fired on ≥3 recent plans with common failure mode, OR question produced a false positive critic overrode.
+   - **wiki-gap** — citation resolution returned empty for a Q-ID that fired with a non-trivial `[EDIT: …]`.
+   - **process-improvement** — convergence loop exhibited pathological pattern (max_rounds, oscillation, dedup miss) surfaced by `holistic_downgrade=1` or meta-reflection.
+
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
       strip all self-referential markers that served their purpose during the convergence loop
