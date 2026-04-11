@@ -12,10 +12,11 @@ Parse the invocation string to determine subcommand and arguments.
 |---|---|
 | `/form990 init --sheet <id-or-url> --tax-year <YYYY> [--plan-path <path>]` | Create plan file, run P0 intake |
 | `/form990 resume <plan-path>` | Read plan, restore state, dispatch to current_phase |
-| `/form990 phase <N> <plan-path>` | Force-run phase N (override current_phase) |
+| `/form990 phase <N> <plan-path>` | Force-run phase N — invalidates downstream via ARTIFACT_DEPS walk (see §Force-Override Protocol) |
 | `/form990 review <plan-path>` | Run P8 CPA review pass only |
-| `/form990 status <plan-path>` | Render status UI; no work |
+| `/form990 status <plan-path>` | Render status UI + Q-C31 orphan sweep; no phase work |
 | `/form990 ask <plan-path> <question-id> <answer>` | Answer an open question and resume |
+| `/form990 verify [--case TC<N>]` | Run test harness `tests/verify.py`; exit 0=all pass, 1=fail, 2=harness error |
 
 **Global flags (accepted on every subcommand):**
 
