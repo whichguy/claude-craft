@@ -392,6 +392,9 @@ Draft creation dedup rule (P1):
 # Form 990 plan files often contain PII — opt in explicitly to commit them
 form990-plan-*.md
 
+# All artifacts directory contents (catch-all; individual exceptions below)
+artifacts/
+
 # Dataset JSONs contain financial detail
 artifacts/form990-dataset.json
 artifacts/form990-dataset-core.json

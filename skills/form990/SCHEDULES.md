@@ -102,6 +102,10 @@ writing. If not found in `.gitignore`: add it and breadcrumb the addition.
 
 ```
 total_contributions = Part VIII Line 1 sum
+# Note: this 2% test uses total_contributions (Part VIII Line 1h), NOT 5-year total support.
+# The Schedule A 509(a)(1) excess-contribution exclusion uses a *separate* 2% — computed as
+# 2% of 5-year total support (a much larger denominator). The two thresholds look similar
+# but serve different purposes and produce different dollar amounts.
 threshold = max(5000, 0.02 × total_contributions)
 
 reportable_contributors = [d for d in donor_list if d.amount >= threshold]

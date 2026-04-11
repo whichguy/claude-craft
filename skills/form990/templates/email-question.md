@@ -10,7 +10,7 @@ Subject: Form 990 Filing — {{TAX_YEAR}} — {{QUESTION_TOPIC}}
 
 Hi {{RECIPIENT_NAME}},
 
-I'm preparing Fortified Strength's Form 990 for the {{TAX_YEAR}} tax year and need your
+I'm preparing {{LEGAL_NAME}}'s Form 990 for the {{TAX_YEAR}} tax year and need your
 help with one item.
 
 **What I need:** {{SPECIFIC_ASK}}
@@ -27,7 +27,7 @@ If you have a question or prefer to discuss by phone, please let me know.
 
 Thank you,
 {{PREPARER_NAME}}
-Executive Director, Fortified Strength
+Executive Director, {{LEGAL_NAME}}
 
 ---
 
