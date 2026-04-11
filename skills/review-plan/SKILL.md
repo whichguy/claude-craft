@@ -45,7 +45,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - Read the plan file fully
    - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
      `Bash "touch /tmp/.review-ready-$(basename $(ls -t ~/.claude/plans/*.md | head -1) .md)"`
-     — this creates the gate file for the current plan, allowing ExitPlanMode to proceed without review.
+     — this creates the gate file for the most-recently-modified plan in `~/.claude/plans/`.
+     **Warning:** If multiple plan files exist, `ls -t` picks whichever was touched last, which may
+     not be the plan currently under review. Confirm with `ls -t ~/.claude/plans/*.md` first.
      (The hook checks file existence only — content is ignored, so `touch` is equivalent to the `echo` write in step 8.)
 
 2. **Load standards context:**
@@ -1700,6 +1702,13 @@ DO:
       total_applicable_questions -= 1  # Q-C14 inactive this run
     IF "impact" in active_clusters AND NOT IS_GAS AND NOT IS_NODE AND NOT HAS_UNBOUNDED_DATA:
       total_applicable_questions -= 1  # Q-C32 inactive this run
+    # IS_GAS + HAS_UI: Q-C17 and Q-C25 are N/A-superseded by gas-evaluator Q32/Q33 within ui-evaluator.
+    # Subtract so they don't inflate the denominator in this configuration.
+    IF IS_GAS AND HAS_UI:
+      total_applicable_questions -= 2  # Q-C17/Q-C25 never actually evaluated
+    # Note: IS_NODE suppresses up to 7 cluster questions (Q-C16, Q-C18, Q-C30–Q-C34) as N/A,
+    # but which of those are active depends on ACTIVE_RISKS, making the decrement variable.
+    # This is a cosmetic limitation — memo % is slightly conservative in IS_NODE mode.
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
