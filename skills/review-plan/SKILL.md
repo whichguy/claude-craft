@@ -401,7 +401,8 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate re_eval_questions once (same Task format, substituting
        re_eval_questions for question_list_str).
        If all now PASS or N/A:
-         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output small fast-path scorecard (same format, Rating 🟢 READY). STOP — review complete.
+         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output small fast-path scorecard (same format, Rating 🟢 READY). → Proceed to step 8 (interactive completion prompt).
+         (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -2500,4 +2501,9 @@ After the convergence loop exits (scorecard not yet printed):
    IF user chooses to continue editing (or is in REWORK and describes changes):
      Apply the user's requested changes to the plan file.
      Re-run review from Step 3 (re-classify and re-evaluate — do not skip the classifier).
+
+   IF user chooses "Abandon review" (REWORK only):
+     Print: "Review abandoned. Plan is unchanged and still has Gate 1 issues."
+     Print: "You remain in plan mode — make changes and run /review-plan again when ready."
+     STOP  # ExitPlanMode is NOT called — user stays in plan mode to fix or manually exit
    ```
