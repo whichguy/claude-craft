@@ -390,7 +390,7 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('routes l1-advisory findings into l1_results', function () {
-            // l1-advisory is now split into structural (Q-G20–Q-G25) + process (Q-G4–Q-G7, Q-G10–Q-G19, Q-G26–Q-G28)
+            // l1-advisory is now split into structural (Q-G20–Q-G25) + process (Q-G4–Q-G7, Q-G10–Q-G19, Q-G26–Q-G31)
             expect(skillContent).to.include('evaluator_name == "l1-advisory-structural"');
             expect(skillContent).to.include('evaluator_name == "l1-advisory-process"');
         });
@@ -441,8 +441,8 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('Evaluate ONLY these 2 questions: Q-G1, Q-G11');
         });
 
-        it('defines l1-advisory evaluator config for Gate 2/3 (21 questions)', function () {
-            // l1-advisory is now split: structural (6 questions) + process (15 questions) = 21 total
+        it('defines l1-advisory evaluator config for Gate 2/3 (24 questions)', function () {
+            // l1-advisory is now split: structural (6 questions) + process (18 questions) = 24 total
             // (Q-G2 dropped from blocking, Q-G8 dropped from process per effectiveness report 2026-04-10)
             expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
             expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 18 standards/process questions');
@@ -472,9 +472,21 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(processSection).to.include('Q-G27');
         });
 
+        it('l1-advisory-process evaluator prompt includes Q-G30 and Q-G31', function () {
+            const processStart = skillContent.indexOf('L1 Advisory Process Evaluator Config');
+            const processSection = skillContent.substring(processStart, processStart + 2000);
+            expect(processSection).to.include('Q-G30');
+            expect(processSection).to.include('Q-G31');
+        });
+
         it('process_questions memoization set includes Q-G26 and Q-G27', function () {
             // Both process_questions set definitions (in-loop and memoization block) must contain Q-G26 and Q-G27
             expect(skillContent).to.include('"Q-G26", "Q-G27"');
+        });
+
+        it('process_questions memoization set includes Q-G30 and Q-G31', function () {
+            // Both process_questions set definitions (in-loop and memoization block) must contain Q-G30 and Q-G31
+            expect(skillContent).to.include('"Q-G30", "Q-G31"');
         });
     });
 
