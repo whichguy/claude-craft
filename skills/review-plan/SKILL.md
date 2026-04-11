@@ -741,7 +741,7 @@ DO:
   IF NOT l1_structural_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-structural", task_config: <l1_advisory_structural_config below>})
 
-  # Priority 1c: L1 advisory process (Gate 2/3, 15 questions — skip if group-memoized)
+  # Priority 1c: L1 advisory process (Gate 2/3, 18 questions — skip if group-memoized)
   IF NOT l1_process_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-process", task_config: <l1_advisory_process_config below>})
 
