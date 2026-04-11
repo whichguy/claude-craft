@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*23 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Applies to every plan, every domain.*
+*24 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G29). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -56,13 +56,14 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G17 | Phase preambles | >=2 phases: 1-3 sentence intent preamble per phase — why it exists, downstream setup. Flag: steps sans narrative. EDIT if absent: [EDIT: before Phase N steps: "> Intent: [why + what it sets up]"]. One per missing. | single-phase plan (requires ≥ 2 distinct phases); IS_TRIVIAL |
 | Q-G19 | Phase failure recovery | Multi-phase: partial-commit risk addressed? Accept: phases independently safe, revert steps, or stop-and-assess gates. Flag: later-phase failure leaves prior commits broken with no acknowledgment. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 | Q-G28 | Context skills invoked | Domain decisions sans project context when retrieval skills available (system-reminder)? Flag: no invocation or confirmation unnecessary. EDIT: `[EDIT: before Phase 1: "Invoke [skill] for [topic] to load domain context"]`. | no context-gathering skills in system-reminder; or purely mechanical (rename, config tweak, dependency bump) |
+| Q-G29 | File/State Organization | **File/State Organization.** Do any of the files or state the plan creates/modifies need to be re-organized to align with existing project conventions — without being overly nuanced? Look for: (a) new files placed in a directory with a naming or subdirectory convention the plan ignores; (b) new state (config keys, env vars, cache paths, temp files) that duplicates an existing canonical location; (c) additions to a module with natural subdivision points the plan doesn't respect. **Not in scope**: bikeshedding on cosmetic ordering, hypothetical future conventions, refactors unrelated to the plan's core change. N/A: purely additive new-directory creation with no pre-existing convention to align with; or plan explicitly addresses organization in its scope statement. **Decision framework:** fire when a concrete convention violation is identifiable from the plan text (e.g., "plan adds config key to X.json but existing canonical location is Y.yaml"); apply the "overly nuanced" guard when the convention is implicit, contested, or requires subjective judgment about naming style. | purely additive new-directory creation with no pre-existing convention to align with; or plan explicitly addresses organization |
 
-Count L1 edits → `l1_changes += count` (23 questions total, combined into `changes_this_pass` in Convergence Loop)
+Count L1 edits → `l1_changes += count` (24 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 23 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G28). Q-G9 is not included in*
+*L1 per-pass count stays at 24 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G29). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
 *Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
