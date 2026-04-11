@@ -392,9 +392,11 @@ matrix from the CoA mapping.
 **Inputs.** `artifacts/coa-mapping.csv` from P2; budget sheet tab values.
 
 **Pre-check.**
-- Verify `artifacts.coa_mapping.output_sha256` matches fresh sha256 of on-disk file
-  (mismatch → regression per Resume Protocol step 5; roll back P2 and re-execute)
-- Verify `coa-mapping.csv` exists and contains all required columns
+- [→ verify_ancestors] `statement_of_activities`, `balance_sheet`, `functional_expense` —
+  the Phase Entry Protocol (SKILL.md §Phase Entry Protocol) calls `verify_ancestors()` on
+  each P3 output artifact before entering this phase, transitively re-hashing `coa_mapping`
+  on disk. Any sha256 mismatch halts with an ancestor-regression banner before Pre-check runs.
+- Verify `coa-mapping.csv` contains all required columns (existence already confirmed by verify_ancestors)
 - Verify zero rows with empty `mapped_line` (Q-F18 proxy — all rows must be mapped)
 - Verify at least one row per functional bucket or explicitly N/A
 
@@ -444,9 +446,9 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
 **Inputs.** Financial statements from P3, key facts, governance docs from P1.
 
 **Pre-check.**
-- Verify P3 three statements exist and `output_sha256` for each matches fresh hash
-- Verify `artifacts.statement_of_activities.output_sha256`, `artifacts.balance_sheet.output_sha256`,
-  `artifacts.functional_expense.output_sha256` all match fresh hashes of on-disk files
+- [→ verify_ancestors] `part_iv_checklist` — Phase Entry Protocol calls `verify_ancestors()`
+  on P4's output artifact, which transitively verifies `statement_of_activities`, `balance_sheet`,
+  `functional_expense`, and `coa_mapping`. Any hash mismatch or missing file halts before Pre-check.
 - Verify governance docs (bylaws, coi_policy, board_roster) present in `artifacts[]` or
   flagged as pending open question
 
@@ -493,11 +495,9 @@ structural placeholder (null) — populated by P7.
 **Inputs.** Statements from P3, Part IV answers from P4, governance docs from P1.
 
 **Pre-check.**
-- Verify `artifacts.statement_of_activities.output_sha256` matches fresh hash
-- Verify `artifacts.balance_sheet.output_sha256` matches fresh hash
-- Verify `artifacts.functional_expense.output_sha256` matches fresh hash
-- Verify `artifacts.part_iv_checklist.output_sha256` matches fresh hash
-- Any mismatch → regression per Resume Protocol step 5 → roll back producing phase
+- [→ verify_ancestors] `dataset_core` — Phase Entry Protocol calls `verify_ancestors()` on
+  P5's output artifact, which transitively verifies `part_iv_checklist`, all three P3
+  statements, and `coa_mapping`. Hash mismatches halt before Pre-check with a regression banner.
 - Verify `required_schedules[]` populated (even if empty list = "none triggered")
 - Verify `key_facts.accounting_method` set (influences Part XI and Schedule D)
 
@@ -616,9 +616,10 @@ P6 writes only `dataset_schedules.json` plus per-schedule markdown — never tou
 financial data, prior-year support data.
 
 **Pre-check.**
+- [→ verify_ancestors] `dataset_schedules` — Phase Entry Protocol calls `verify_ancestors()`
+  on P6's output artifact, which transitively verifies `dataset_core` and all its ancestors
+  (full upstream chain). Hash mismatches halt with ancestor-regression banner before Pre-check.
 - Verify `required_schedules[]` non-empty (Schedule A at minimum)
-- Verify `artifacts.dataset_core.output_sha256` matches fresh hash of `dataset_core.json`
-  (mismatch → regression → roll back P5)
 - Verify SCHEDULES.md is readable (Read the file; if it returns an error, halt with
   "SCHEDULES.md missing or unreadable — P6 cannot dispatch to schedule playbooks")
 - Verify 5 years of prior public-support data available for Schedule A (from prior 990 or
@@ -705,11 +706,11 @@ deterministic merger to produce the consumable `form990-dataset.json`.
 **Inputs.** `dataset_core.json`, `dataset_schedules.json`.
 
 **Pre-check.**
-- Verify `artifacts.dataset_core.output_sha256` matches fresh hash
-- Verify `artifacts.dataset_schedules.output_sha256` matches fresh hash
-- Any mismatch → regression → roll back the producing phase (P5 or P6)
+- [→ verify_ancestors] `dataset_rollup`, `dataset_merged` — Phase Entry Protocol calls
+  `verify_ancestors()` on P7's output artifacts, transitively verifying `dataset_core`,
+  `dataset_schedules`, and their full upstream chain. Hash mismatches halt before Pre-check.
 - Verify Part VIII Line 12, Part IX Line 25, Part X Line 32 (EOY), Part X Line 32 (BOY)
-  are all present and non-null in `dataset_core.json`
+  are all present and non-null in `dataset_core.json` (content check, not hash check)
 
 **Work.**
 
@@ -794,11 +795,11 @@ with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
 **Inputs.** Everything: all prior artifacts, key facts, all phase outputs.
 
 **Pre-check.**
-- Verify `artifacts.dataset_merged.output_sha256` matches fresh hash of `form990-dataset.json`
-- Verify Part I is populated (not null) in `dataset_merged`
-- Verify `artifacts.reconciliation_report.output_sha256` matches fresh sha256 of
-  `artifacts/reconciliation-report.md` (file-presence alone is insufficient — mismatch means
-  the reconciliation report is stale relative to P7 outputs; re-run P7 before CPA review)
+- [→ verify_ancestors] `cpa_review_report` — Phase Entry Protocol calls `verify_ancestors()`
+  on P8's output artifact, which transitively verifies `dataset_merged`, `reconciliation_report`,
+  and their full upstream chain (including `dataset_core`, `dataset_schedules`, `dataset_rollup`).
+  Any hash mismatch (including a stale `reconciliation_report`) halts before Pre-check.
+- Verify Part I is populated (not null) in `dataset_merged` (content check)
 - Verify all `required_schedules[]` have corresponding schedule artifacts in `dataset_schedules`
 
 **Work.**
@@ -854,18 +855,16 @@ the e-file handoff packet.
 **Inputs.** `form990-dataset.json` (merged), CPA review report, schedules, statements.
 
 **Pre-check.**
+- [→ verify_ancestors] `reference_pdf`, `efile_handoff` — Phase Entry Protocol calls
+  `verify_ancestors()` on P9's output artifacts, transitively verifying `dataset_merged`,
+  `cpa_review_report`, and their full upstream chain. Any hash mismatch halts before Pre-check.
 - Verify `gate_results_latest_pass` shows zero Gate-1 NEEDS_UPDATE from P8
-- Verify `artifacts.dataset_merged.output_sha256` matches fresh hash of `form990-dataset.json`
 - Verify `pdftk-java` (preferred fallback) or `pypdf` available:
   - Primary: `python3 -c "import pypdf; print(pypdf.__version__)"` — must succeed
   - Fallback: `which pdftk-java && pdftk-java --version`
   - If neither: halt and instruct user to `pip install pypdf`
-- Verify Python interpreter version matches TOOL-SIGNATURES.md pin:
-  ```python
-  import sys
-  if sys.version_info[:2] != PINNED_PYTHON_VERSION:
-      print(f"⚠ Python drift: pinned {PINNED_PYTHON_VERSION}, running {sys.version_info[:2]}")
-  ```
+- Verify Python interpreter version matches TOOL-SIGNATURES.md pin via `read_pinned_python()`
+  (SKILL.md §read_pinned_python); log drift warning if mismatch, do not halt
 - **Pre-flight network check (5s bound):** before the 30s fetch, run a tiny HEAD-equivalent
   fetch to irs.gov; if it fails, halt and offer `--local-pdf <path>`
 

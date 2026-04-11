@@ -344,6 +344,175 @@ if sys.version_info[:2] != PINNED_PYTHON_VERSION:  # from TOOL-SIGNATURES.md
 
 ---
 
+## ARTIFACT_DEPS — Dependency Graph
+
+Structured declaration of artifact producing phases and their upstream dependencies.
+Used by `verify_ancestors()` for transitive fingerprint verification before any phase runs.
+External sources (Drive budget sheet, prior 990) are NOT registered as artifacts — they are
+verified via `input_fingerprint` fields in producing artifact entries.
+
+```python
+ARTIFACT_DEPS = {
+    # P2 outputs
+    "coa_mapping": {
+        "phase": "P2",
+        "upstream": [],  # external: Drive budget sheet (verified via input_fingerprint)
+    },
+    # P3 outputs
+    "statement_of_activities": {"phase": "P3", "upstream": ["coa_mapping"]},
+    "balance_sheet":           {"phase": "P3", "upstream": ["coa_mapping"]},
+    "functional_expense":      {"phase": "P3", "upstream": ["coa_mapping"]},
+    # P4 output
+    "part_iv_checklist": {
+        "phase": "P4",
+        "upstream": ["statement_of_activities", "balance_sheet", "functional_expense"],
+    },
+    # P5 output
+    "dataset_core": {
+        "phase": "P5",
+        "upstream": [
+            "coa_mapping", "statement_of_activities", "balance_sheet",
+            "functional_expense", "part_iv_checklist",
+        ],
+    },
+    # P6 outputs
+    "dataset_schedules": {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_o":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_b_filing": {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_b_public": {"phase": "P6", "upstream": ["dataset_core"]},
+    # P7 outputs
+    "dataset_rollup":      {"phase": "P7",       "upstream": ["dataset_core"]},
+    "reconciliation_report": {"phase": "P7",     "upstream": ["dataset_core"]},
+    "dataset_merged":      {"phase": "P7-merge", "upstream": ["dataset_core", "dataset_schedules", "dataset_rollup"]},
+    # P8 output
+    "cpa_review_report": {
+        "phase": "P8",
+        "upstream": ["dataset_merged", "reconciliation_report"],
+    },
+    # P9 outputs
+    "reference_pdf":   {"phase": "P9", "upstream": ["dataset_merged"]},
+    "efile_handoff":   {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
+}
+```
+
+---
+
+## verify_ancestors() — Transitive Fingerprint Verification
+
+Called by the Phase Entry Protocol before any phase runs its Work block. Walks ARTIFACT_DEPS
+transitively, re-hashing each ancestor artifact on disk and comparing against the recorded
+`output_sha256` in machine state. Returns the complete set of regressions found.
+
+**Invocation:** called once per artifact this phase produces (memoized by name within one
+phase entry — each artifact re-hashed at most once even if referenced by multiple downstream
+artifacts).
+
+```python
+import hashlib, os, pathlib
+
+def verify_ancestors(artifact_name, state, _visited=None):
+    """
+    Walk ARTIFACT_DEPS transitively from artifact_name.
+    For each ancestor:
+      - No output_sha256 in state → regression ("not yet produced")
+      - File missing on disk → regression ("file deleted")
+      - sha256(disk bytes) != recorded output_sha256 → regression ("hash mismatch")
+    Returns: (ok: bool, regressions: list[str])
+    Memoizes by artifact_name to avoid redundant disk reads within one phase entry.
+    """
+    if _visited is None:
+        _visited = {}
+    if artifact_name in _visited:
+        return _visited[artifact_name]
+
+    deps = ARTIFACT_DEPS.get(artifact_name, {})
+    upstream = deps.get("upstream", [])
+    regressions = []
+
+    for parent in upstream:
+        parent_entry = state.get("artifacts", {}).get(parent, {})
+        recorded_sha = parent_entry.get("output_sha256")
+        artifact_path = parent_entry.get("path")
+
+        if not recorded_sha:
+            regressions.append(
+                f"{parent}: no output_sha256 recorded "
+                f"(produced_in_phase={parent_entry.get('produced_in_phase','?')}; "
+                f"re-run that phase first)"
+            )
+        elif artifact_path:
+            abs_path = pathlib.Path(artifact_path)
+            if not abs_path.exists():
+                regressions.append(f"{parent}: file missing on disk at {artifact_path}")
+            else:
+                actual_sha = hashlib.sha256(abs_path.read_bytes()).hexdigest()
+                if actual_sha != recorded_sha:
+                    regressions.append(
+                        f"{parent}: sha256 mismatch "
+                        f"(recorded {recorded_sha[:12]}…, disk {actual_sha[:12]}…)"
+                    )
+
+        # Recurse into this parent's own ancestors
+        ok, child_regressions = verify_ancestors(parent, state, _visited)
+        regressions.extend(child_regressions)
+
+    result = (len(regressions) == 0, regressions)
+    _visited[artifact_name] = result
+    return result
+```
+
+---
+
+## Phase Entry Protocol
+
+Called by the Phase Dispatcher (Step 6) at the start of every phase, before any Work block.
+Applies Changes 4 (DAG walker) and 1 (lifecycle state machine) together.
+
+```
+function phase_entry(phase_id, output_artifacts, state):
+    # Step 1: Transitive ancestor verification (Change 4)
+    all_regressions = []
+    for artifact in output_artifacts:
+        ok, regressions = verify_ancestors(artifact, state)
+        all_regressions.extend(regressions)
+
+    if all_regressions:
+        # Identify which producing phase owns each regressed artifact
+        for regression_msg in all_regressions:
+            parent_name = regression_msg.split(":")[0].strip()
+            producer_phase = ARTIFACT_DEPS.get(parent_name, {}).get("phase", "?")
+            state["phase_status"][producer_phase] = "failed"
+            state["artifacts"][parent_name]["last_error"] = {
+                "error_class": "ancestor_regression",
+                "message": regression_msg,
+                "detected_in_phase": phase_id,
+                "timestamp": now_iso(),
+            }
+        atomic_commit(state)  # Commit failed status BEFORE any running write
+        halt with banner:
+            ╔══════════════════════════════════════════╗
+            ║  ✖ Ancestor regression — cannot run P<n>  ║
+            ╚══════════════════════════════════════════╝
+              Regressed ancestors:
+              <list regressions>
+              Fix: re-run the producing phase(s) listed above, then resume.
+        return HALTED
+
+    # Step 2: Pre-entry lifecycle commit (Change 1)
+    commit_phase_entry(phase_id, status="running", state)
+
+    # Step 3: Phase-specific Pre-check (auth, tool availability — NOT hash re-verification)
+    # (delegated to each phase's Pre-check block in PHASES.md)
+
+    return OK
+```
+
+**Replaces:** the per-phase direct `output_sha256` hash checks in PHASES.md P3–P9 Pre-check
+sections (those checks are now performed transitively by `verify_ancestors` above and are
+marked `[→ verify_ancestors]` in PHASES.md).
+
+---
+
 ## Regression Rollback Protocol
 
 When a fact regression is detected (Resume Protocol step 5 or phase Pre-check):
