@@ -88,6 +88,10 @@ Slugs: lowercase, hyphens, max 50 chars
 - ❌ `supersedes` / `superseded_by` frontmatter fields
 - ❌ Auto-consolidation of narrative sediment (>8 bullets)
 
+## Formatting Eras
+
+**Pre-v2 pages** (created before 2026-04) may use `## Section` headers instead of `- **From Source:**` bullets. Both formats are valid and intentionally preserved. Tooling that counts `- **From Session:**` bullets must include a word-count fallback (>100 words → `medium` confidence) to correctly classify pre-v2 pages. Do not mass-convert section-header pages to bullet format — the content tradeoffs differ per page.
+
 ## Notes
 Entity extraction is LLM judgment (intentional). Concurrent ingests may race on index.md (accepted).
 Hooks (wiki-detect, wiki-notify, wiki-common.sh) do NOT parse YAML frontmatter — schema changes are invisible to the control path.
