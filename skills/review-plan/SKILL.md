@@ -17,7 +17,7 @@ allowed-tools: all
 ## Role & Authority
 
 1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
-2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. Call ExitPlanMode when review reaches READY or SOLID/GAPS (see step 8). Do NOT call ExitPlanMode for REWORK — Gate 1 issues must be fixed first.
+2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
 
@@ -264,15 +264,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            ✅  Git lifecycle                   Q-E1
            ✅  Existing code examined          Q-G11
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
-       (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
+       → Proceed to step 8 (interactive completion prompt).
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 5 now PASS:
-         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
+         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). → Proceed to step 8.
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -386,7 +385,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry:]
              ✅  [Name]                          [Q-ID]  [domain]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
+       → Proceed to step 8 (interactive completion prompt).
        (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
 
      If any NEEDS_UPDATE:
@@ -2464,8 +2463,7 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ⚠️  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "──────────────────────────────────────────────────────"
-     Print: "  Approve to proceed anyway — or reject to keep fixing"
-     # Fall through to step 8 (ExitPlanMode) — user approves or rejects at that prompt
+     # Fall through to step 8 — user decides whether to proceed or keep editing
    IF Rating == REWORK:
      Print: "╔══════════════════════════════════════════════════════╗"
      Print: "║  🔴 [N] Gate 1 issues remaining — BLOCKING            ║"
@@ -2474,10 +2472,32 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ❌  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "══════════════════════════════════════════════════════"
-     Print: "  Fix Gate 1 issues before proceeding"
-     STOP  # Do NOT call ExitPlanMode — Gate 1 must be resolved first
+     # Fall through to step 8 — user must describe fixes; ExitPlanMode blocked until READY/SOLID/GAPS
    ```
 
-8. **Call ExitPlanMode.** Review is complete (READY or SOLID/GAPS). Present plan to user for implementation approval:
-   ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
-   (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
+8. **Interactive completion prompt.** After every review pass (all tiers), ask the user what to do next:
+   ```
+   IF Rating == READY:
+     AskUserQuestion(
+       question = "Plan is READY — all checks pass. Proceed to implementation, or make further changes?",
+       options = ["Exit to implementation", "Continue editing"]
+     )
+   IF Rating == SOLID or GAPS:
+     AskUserQuestion(
+       question = "Plan has [N] non-blocking issue(s). Proceed to implementation anyway, or continue editing?",
+       options = ["Exit to implementation (proceed with warnings)", "Continue editing"]
+     )
+   IF Rating == REWORK:
+     AskUserQuestion(
+       question = "Gate 1 issues block exit. Describe the changes you want to make, or abandon.",
+       options = ["Describe changes", "Abandon review"]
+     )
+
+   IF user chooses to exit (first option for READY/SOLID/GAPS):
+     ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
+     (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
+
+   IF user chooses to continue editing (or is in REWORK and describes changes):
+     Apply the user's requested changes to the plan file.
+     Re-run review from Step 3 (re-classify and re-evaluate — do not skip the classifier).
+   ```
