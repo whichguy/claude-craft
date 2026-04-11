@@ -570,6 +570,66 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('Phase 6b Teaching Summary', function () {
+        it('SKILL.md defines Phase 6b teaching summary panel', function () {
+            expect(skillContent).to.include('Phase 6b');
+            expect(skillContent).to.include('TEACHING SUMMARY');
+        });
+
+        it('Phase 6b fires on all tiers (not FULL only)', function () {
+            const phase6b = skillContent.indexOf('5f. **Phase 6b: Teaching Summary**');
+            expect(phase6b).to.be.greaterThan(0);
+            const phase6bBlock = skillContent.substring(phase6b, phase6b + 2000);
+            // Must NOT have a FULL-only guard
+            expect(phase6bBlock).to.not.match(/IF REVIEW_TIER.*!=.*FULL.*\n.*SKIP/);
+            // Must reference all-tiers intent
+            expect(phase6bBlock).to.match(/all tiers|ALL tiers/i);
+        });
+
+        it('Phase 6b uses shared resolve_citation helper', function () {
+            expect(skillContent).to.match(/helper: resolve_citation/);
+            const phase6b = skillContent.indexOf('5f. **Phase 6b: Teaching Summary**');
+            const phase6bBlock = skillContent.substring(phase6b, phase6b + 2500);
+            expect(phase6bBlock).to.include('resolve_citation');
+        });
+
+        it('Phase 5e Teaching Notes still references shared resolve_citation helper', function () {
+            // Regression guard: Phase 6b extraction must not orphan the Teaching-Notes citation path
+            const phase5e = skillContent.indexOf('5e. **Teaching Notes');
+            expect(phase5e, '5e Teaching Notes section not found').to.be.greaterThan(0);
+            const phase5eBlock = skillContent.substring(phase5e, phase5e + 2500);
+            expect(phase5eBlock).to.include('resolve_citation');
+        });
+    });
+
+    describe('Phase 7.5 Full Plan Re-display', function () {
+        it('SKILL.md defines Phase 7.5 re-display before interactive exit', function () {
+            expect(skillContent).to.include('Phase 7.5');
+            expect(skillContent).to.include('FINAL PLAN — FULL TEXT AFTER CONVERGENCE');
+            // Phase 7.5 must come before AskUserQuestion (step 8)
+            const phase7_5_idx = skillContent.indexOf('Phase 7.5');
+            const askUserIdx = skillContent.lastIndexOf('AskUserQuestion');
+            expect(phase7_5_idx).to.be.greaterThan(0);
+            expect(phase7_5_idx).to.be.lessThan(askUserIdx);
+        });
+
+        it('Phase 7.5 fires on all tiers (not FULL only)', function () {
+            const idx = skillContent.indexOf('Phase 7.5');
+            const section = skillContent.substring(idx, idx + 2000);
+            // Must NOT have a FULL-only guard that skips fast path
+            expect(section).to.not.match(/IF REVIEW_TIER.*TRIVIAL|IF REVIEW_TIER.*SMALL.*SKIP/);
+            // Must reference all-tiers intent
+            expect(section).to.match(/all tiers|ALL tiers|always runs/i);
+        });
+
+        it('Phase 7.5 re-reads plan from disk (not memoized)', function () {
+            const idx = skillContent.indexOf('Phase 7.5');
+            const section = skillContent.substring(idx, idx + 2000);
+            // Must use Read tool on plan_path
+            expect(section).to.match(/Read\s*\(\s*plan_path\s*\)/);
+        });
+    });
+
     describe('delta-aware evaluator prompts', function () {
         it('defines prev_pass_applied_edits variable', function () {
             expect(skillContent).to.include('prev_pass_applied_edits = []');

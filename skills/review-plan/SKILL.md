@@ -2971,6 +2971,10 @@ After the convergence loop exits (scorecard not yet printed):
    - `sr_applied_edits[]` — senior-critic consolidated edits (mirrored in step 5c before per-iteration cleanup)
    - Epilogue fixes (Q-E1/Q-E2/Q-G9) in `findings{}`
 
+   **Citation resolution:** `See:` fields in the section shape below use the shared `resolve_citation(q_id)` helper
+   (defined in Phase 6b). Priority: wiki entity → CLAUDE.md directive → QUESTIONS.md §Q-ID → `(no external citation)`.
+   This ensures Phase 5e (file append) and Phase 6b (terminal panel) produce identical citation text from the same helper.
+
    **Pre-flight guards — do NOT append when any guard fires:**
 
    1. **Tier guard.** Skip TRIVIAL entirely. Skip SMALL unless ≥1 Gate 1/2 finding produced an applied edit.
@@ -3059,6 +3063,49 @@ After the convergence loop exits (scorecard not yet printed):
    - **wiki-gap** — citation resolution returned empty for a Q-ID that fired with a non-trivial `[EDIT: …]`.
    - **process-improvement** — convergence loop exhibited pathological pattern (max_rounds, oscillation, dedup miss) surfaced by `holistic_downgrade=1` or meta-reflection.
 
+5f. **Phase 6b: Teaching Summary** (terminal panel, always fires on ALL tiers — Directive 2026-04-11):
+
+   Surfaces what the user should *learn* from this review run. Fires even on TRIVIAL/SMALL fast path
+   (user directive: "even when review-plan is in fast path mode, i want to review both the outcome
+   teaching me what it's doing and the plan itself"). No tier guard.
+
+   ```
+   # ── Phase 6b: Teaching Summary (terminal, always fires — all tiers) ──
+   # Runs after scorecard output, before cleanup. All tiers — no FULL-only guard.
+   # helper: resolve_citation(q_id) — priority:
+   #   1. grep wiki/entities/*.md for Q-ID → emit [[entity-name]] citation
+   #   2. CLAUDE.md directive name if traceable
+   #   3. QUESTIONS.md §Q-ID fallback
+   #   4. (no external citation) — never fabricate
+
+   all_changes = []
+   all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators
+   all_changes.extend(sr_critic_to_change_list(sr_applied_edits)) # senior critic (FULL only)
+   all_changes.extend(epilogue_to_change_list(epilogue_results))  # Q-E1/Q-E2/Q-G9 (FULL only)
+
+   IF len(all_changes) == 0:
+       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
+       Print: "│  No edits applied this review. Plan was clean on first read.   │"
+       Print: "│  Nothing to teach from this run's findings.                    │"
+       Print: "└────────────────────────────────────────────────────────────────┘"
+   ELSE:
+       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
+       Print: "│  [N] changes applied across [M] passes. Key takeaways below.  │"
+       Print: "├────────────────────────────────────────────────────────────────┤"
+       FOR change in all_changes:
+           Print: "│  [Q-ID] [change title]                                         │"
+           Print: "│    What:  [one-line summary of what the edit did]              │"
+           Print: "│    Why:   [rationale from evaluator/critic; 'not captured']   │"
+           Print: "│    See:   [resolve_citation(change.q_id)]                     │"
+       Print: "└────────────────────────────────────────────────────────────────┘"
+   ```
+
+   **Consistency with Teaching Notes (Phase 5e).**
+   Phase 5e appends `### Changes Made During Review` to the plan file using the same data.
+   Phase 6b prints the terminal panel. Both use the same `# helper: resolve_citation(q_id)` comment
+   block so citation logic never drifts between the two output paths. Phase 5e calls `resolve_citation`
+   to build wiki/directive citations; Phase 6b calls the same helper for the `See:` lines.
+
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
       strip all self-referential markers that served their purpose during the convergence loop
@@ -3082,6 +3129,52 @@ After the convergence loop exits (scorecard not yet printed):
      findings{}, Rating still in memory for step 7-8.
      Next phase reads: Rating, findings{} (for remaining issues summary).
      ════════════════════════════════════════════════════ -->
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 7.5 — RE-DISPLAY FULL PLAN (Directive 2026-04-11)
+     Inputs:  plan_path, REVIEW_TIER
+     Outputs: terminal display of final plan text
+     Next:    Phase 8 (interactive exit)
+     ═══════════════════════════════════════════════════════════════ -->
+
+6.5. **Phase 7.5: Re-display full plan for final read-through** (Directive 2026-04-11):
+
+   Runs on ALL tiers after cleanup — user directive: "even when review-plan is in fast path mode,
+   i want to review both the outcome teaching me what it's doing and the plan itself."
+   Opt-out: `redisplay: false` in plan frontmatter.
+
+   ```
+   # ── Phase 7.5: Re-display full plan ──
+   # Runs after cleanup (step 6), before interactive exit (step 7/8).
+   # Always runs on all tiers. Opt-out: plan frontmatter redisplay: false.
+
+   IF frontmatter_redisplay == false:
+       SKIP
+
+   # Re-read from disk (not cached) — verifies what the user will see in an editor
+   final_plan_text = Read(plan_path)
+   final_line_count = len(final_plan_text.splitlines())
+   final_byte_count = len(final_plan_text.encode())
+   final_sha256 = sha256(final_plan_text)[:12]
+
+   Print: "╔══════════════════════════════════════════════════════════════════╗"
+   Print: "║           FINAL PLAN — FULL TEXT AFTER CONVERGENCE               ║"
+   Print: "║  Re-read before approving ExitPlanMode.                          ║"
+   Print: "╚══════════════════════════════════════════════════════════════════╝"
+   Print: "── BEGIN PLAN ───────────────────────────────────────────────────────"
+
+   IF final_line_count > 2000:
+       Print: first 500 lines of final_plan_text
+       Print: "[… {final_line_count - 1000} lines omitted — read with: cat <plan_path> …]"
+       Print: last 500 lines of final_plan_text
+   ELSE:
+       Print: final_plan_text
+
+   Print: "── END PLAN ─────────────────────────────────────────────────────────"
+   Print: ""
+   Print: "Line count: [final_line_count] │ Byte count: [final_byte_count] │ SHA256: [final_sha256]"
+   Print: ""
+   ```
 
 <!-- ═══════════════════════════════════════════════════════════════
      PHASE 8 — INTERACTIVE EXIT
