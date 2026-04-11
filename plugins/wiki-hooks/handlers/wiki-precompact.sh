@@ -40,4 +40,4 @@ wiki_log "EXTRACT" "compaction — ${QUEUED} queue entries written"
 wiki_build_display "(post-compaction)"
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
-  '{"systemMessage": $display, "additionalContext": $context}'
+  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "PreCompact", "additionalContext": $context}}'

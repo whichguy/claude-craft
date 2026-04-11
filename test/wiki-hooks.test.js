@@ -251,7 +251,8 @@ describe('Wiki Hooks', function () {
             expect(parsed).to.have.property('systemMessage');
             expect(parsed.systemMessage).to.include('wiki');
             expect(parsed.systemMessage).to.include('/wiki-load');
-            expect(parsed).to.have.property('additionalContext');
+            expect(parsed).to.have.property('hookSpecificOutput');
+            expect(parsed.hookSpecificOutput).to.have.property('additionalContext');
         });
 
         it('should be silent for non-wiki repos', async function () {
