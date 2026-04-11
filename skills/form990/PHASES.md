@@ -210,7 +210,9 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    ├─ board_roster      (for Part VI and Part VII)
    ├─ bylaws            (for Part VI governance questions)
    ├─ coi_policy        (conflict-of-interest, for Part VI Line 12a)
-   └─ audit_report      (if GR ≥ $750K or required by major funder)
+   └─ audit_report      (if required by state law, funder covenants, or bond agreements;
+                         OR if federal award expenditures ≥ $750K per Uniform Guidance /
+                         Single Audit Act — gross receipts alone do NOT trigger Single Audit)
    ```
 5. For each missing artifact: create an Open Question. If addressed to an external party,
    create a Gmail draft via `gmail_create_draft` using `templates/email-question.md`:
@@ -403,9 +405,11 @@ matrix from the CoA mapping.
   balance-sheet accounts are in a separate tab)
 - Output: JSON with `{statement_of_activities: {...}, balance_sheet: {boy: {...}, eoy: {...}},
   functional_expense: {rows: [...], column_check_pass: true|false}, flags: [...]}`
-- Sample fixture: `artifacts/scripts/fixtures/p3-sample.json` (10 mapped rows: at least 3
-  Part IX expense lines with functional splits, 2 Part VIII revenue lines, and 1 balance-sheet
-  account pair BOY/EOY)
+- Sample fixture: `artifacts/scripts/fixtures/p3-sample.json` (10 mapped rows — larger than
+  the canonical 5-row default because the script must exercise three output dimensions in one
+  run: ≥3 Part IX expense lines with functional splits to validate Q-F3 column sums, ≥2 Part
+  VIII revenue lines to validate Statement of Activities totals, and ≥1 balance-sheet account
+  pair BOY/EOY to validate Part X anchors; fewer rows would leave one output dimension untested)
 - The script performs Steps 1–4 below; `column_check_pass` is the Q-F3 inline check
 
 1. Aggregate revenue rows by Part VIII line → compute line totals → write Statement of
@@ -518,10 +522,19 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 - Lines 1–19: answer each governance question
 - Lines marked "if Yes, describe in Schedule O": create Schedule O placeholder entries
 
-**Part VII — Compensation of Officers, Directors, Trustees, Key Employees:**
-- Section A: list every officer, director, trustee by name + title + hours/week + compensation
-- Section B: five highest-compensated independent contractors (if applicable)
-- Compensation values must tie to W-2 Box 1 or 1099-NEC Box 1 (Q-F6 proxy)
+**Part VII — Compensation of Officers, Directors, Trustees, Key Employees, and
+Highest-Compensated Employees:**
+- **Section A** must include ALL of the following:
+  - All officers, directors, and trustees — regardless of compensation level (list even if $0)
+  - Key employees: any employee (not an officer/director/trustee) who (1) received >$150K
+    in reportable comp from org + related orgs AND (2) had substantial authority over org
+    programs, finances, management, or compensation decisions (IRC §4958 definition)
+  - Five highest-compensated employees not already listed above who received >$100K from
+    org + related orgs; if fewer than 5 qualify, list all who qualify
+  - For each person: name, title, average hours/week, comp from org (column D), comp from
+    related orgs (column E), estimated other comp (column F)
+- **Section B:** five highest-compensated independent contractors who received >$100K
+- Reportable compensation values must tie to W-2 Box 1 or 1099-NEC Box 1 (Q-F6 proxy)
 
 **Part VIII — Statement of Revenue:**
 - Lines 1a–12: copy from Statement of Activities aggregated by P3
@@ -572,8 +585,11 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
   }
   ```
   Part I is `null` — structural placeholder; `dataset_rollup` owns Part I content.
+  Part IV is `null` — structural placeholder; Part IV yes/no answers are stored in
+  `artifacts/part-iv-checklist.md` and `required_schedules[]`, not in dataset_core.json.
 - Artifact registered: `artifacts.dataset_core.path`, `output_sha256`,
-  `input_fingerprint` = all four upstream `output_sha256` values + `part_iv_checklist` sha
+  `input_fingerprint` = the four upstream `output_sha256` values: statement_of_activities,
+  balance_sheet, functional_expense, part_iv_checklist
 
 **Idempotency.** Overwrite mode — `dataset_core.json` fully rewritten on re-run.
 
@@ -603,6 +619,8 @@ financial data, prior-year support data.
 - Verify `required_schedules[]` non-empty (Schedule A at minimum)
 - Verify `artifacts.dataset_core.output_sha256` matches fresh hash of `dataset_core.json`
   (mismatch → regression → roll back P5)
+- Verify SCHEDULES.md is readable (Read the file; if it returns an error, halt with
+  "SCHEDULES.md missing or unreadable — P6 cannot dispatch to schedule playbooks")
 - Verify 5 years of prior public-support data available for Schedule A (from prior 990 or
   user-entered); if missing, create Open Question for years 1–4
 
@@ -726,7 +744,12 @@ Write `artifacts/form990-dataset-rollup.json`:
     "net_assets_boy": ..., "net_assets_eoy": ...,
     "line3_check": true|false, "boy_check": true|false, "eoy_check": true|false,
     "delta_match": true|false,
-    "note": "delta_match=true requires all three sub-checks; line3_check may be false for orgs with non-zero adjustment lines (expected)"
+    "sources": {
+      "part_xi_line3":  "dataset_core.parts.XI.line_3_excess_deficit",
+      "part_xi_line4":  "dataset_core.parts.XI.line_4_net_assets_boy",
+      "part_xi_line10": "dataset_core.parts.XI.line_10_net_assets_eoy"
+    },
+    "note": "delta_match=true requires all three sub-checks to pass. line3_check (Part XI Line 3 = Revenue − Expenses) is definitional and should always hold. If adjustment lines 5–9 are non-zero, EOY − BOY will not equal Revenue − Expenses — that is expected and correct, not a failure."
   }
 }
 ```
@@ -773,7 +796,9 @@ with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
 **Pre-check.**
 - Verify `artifacts.dataset_merged.output_sha256` matches fresh hash of `form990-dataset.json`
 - Verify Part I is populated (not null) in `dataset_merged`
-- Verify `artifacts/reconciliation-report.md` present
+- Verify `artifacts.reconciliation_report.output_sha256` matches fresh sha256 of
+  `artifacts/reconciliation-report.md` (file-presence alone is insufficient — mismatch means
+  the reconciliation report is stale relative to P7 outputs; re-run P7 before CPA review)
 - Verify all `required_schedules[]` have corresponding schedule artifacts in `dataset_schedules`
 
 **Work.**
@@ -880,6 +905,15 @@ Write `artifacts/efile-handoff-packet.md` with:
 - Signature/date requirements (who signs, officer title, due date)
 - Disambiguation: TaxBandits / Tax990 / ExpressTaxExempt are all SPAN Enterprises products
 - Disclaimer: "Verify current IRS-authorized status at the official IRS provider page before use"
+- Fill all template placeholders before writing:
+  - `{{LEGAL_NAME}}`: `key_facts.legal_name`
+  - `{{YYYY}}`: `key_facts.tax_year`
+  - `{{DATE}}`: today's date (packet preparation date)
+  - `{{FISCAL_YEAR_START}}`: `key_facts.fiscal_year_start`
+  - `{{FISCAL_YEAR_END}}`: `key_facts.fiscal_year_end`
+  - `{{ORIGINAL_DUE_DATE}}`: if `fiscal_year_end` is Dec 31 → May 15 of (`tax_year` + 1);
+    else → 4.5 calendar months after `fiscal_year_end` (round to nearest day)
+  - `{{EXTENDED_DUE_DATE}}`: `ORIGINAL_DUE_DATE` + 6 months (Form 8868 automatic extension)
 
 **Step 4: Schedule B two-output contract (if Schedule B triggered).**
 - `artifacts/schedule-b-filing.md` — full donor info (IRS-only, never public)
