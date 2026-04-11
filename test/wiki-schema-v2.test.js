@@ -1,0 +1,238 @@
+const { expect } = require('chai');
+const fs = require('fs');
+const path = require('path');
+
+const REPO_ROOT = path.join(__dirname, '..');
+const FIXTURES_DIR = path.join(__dirname, 'fixtures', 'wiki-v2');
+
+describe('Wiki Schema v2', function () {
+    this.timeout(5000);
+
+    // ── SCHEMA.md ──────────────────────────────────────────────────────────
+
+    describe('wiki/SCHEMA.md', function () {
+        const schemaPath = path.join(REPO_ROOT, 'wiki', 'SCHEMA.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(schemaPath, 'utf8');
+        });
+
+        it('has schema_version: 2', function () {
+            expect(content).to.include('schema_version: 2');
+        });
+
+        it('defines entity frontmatter block with v2 fields', function () {
+            expect(content).to.include('confidence:');
+            expect(content).to.include('last_verified:');
+            expect(content).to.include('sources:');
+            expect(content).to.include('related:');
+        });
+
+        it('defines source frontmatter with source_type field', function () {
+            expect(content).to.include('source_type:');
+            expect(content).to.include('gist');
+            expect(content).to.include('session_log');
+        });
+
+        it('documents optional Contradictions section', function () {
+            expect(content).to.include('## Contradictions');
+        });
+
+        it('explicitly lists NOT-in-v2 items', function () {
+            expect(content).to.include('NOT in v2');
+            expect(content).to.include('SUPERSEDES');
+            expect(content).to.include('auto-decay');
+        });
+
+        it('documents confidence calibration rules', function () {
+            expect(content).to.include('discipline scaffold');
+            expect(content).to.include('180d');
+        });
+
+        it('notes hooks do not parse frontmatter', function () {
+            expect(content).to.include('Hooks');
+            expect(content).to.include('do NOT parse YAML frontmatter');
+        });
+    });
+
+    // ── wiki-lint SKILL.md ─────────────────────────────────────────────────
+
+    describe('skills/wiki-lint/SKILL.md', function () {
+        const lintPath = path.join(REPO_ROOT, 'skills', 'wiki-lint', 'SKILL.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(lintPath, 'utf8');
+        });
+
+        it('contains missing v2 frontmatter check', function () {
+            expect(content).to.include('Missing v2 Frontmatter');
+            expect(content).to.include('confidence');
+            expect(content).to.include('sources');
+            expect(content).to.include('related');
+        });
+
+        it('contains unresolved contradictions check', function () {
+            expect(content).to.include('Unresolved Contradictions');
+            expect(content).to.include('## Contradictions');
+            expect(content).to.include('Decision:');
+        });
+
+        it('contains stale high-confidence check', function () {
+            expect(content).to.include('Stale High-Confidence');
+            expect(content).to.include('confidence: high');
+            expect(content).to.include('180 days');
+        });
+
+        it('advisory-only — no auto-demotion language', function () {
+            expect(content).to.include('advisory');
+            // must NOT say auto-demotion
+            expect(content).to.not.include('auto-demotion');
+            expect(content).to.not.include('automatically demote');
+        });
+
+        it('dashboard shows 3 new rows', function () {
+            expect(content).to.include('Missing v2 frontmatter');
+            expect(content).to.include('Unresolved contradictions');
+            expect(content).to.include('Stale high-confidence');
+        });
+    });
+
+    // ── wiki-ingest SKILL.md ───────────────────────────────────────────────
+
+    describe('skills/wiki-ingest/SKILL.md', function () {
+        const ingestPath = path.join(REPO_ROOT, 'skills', 'wiki-ingest', 'SKILL.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(ingestPath, 'utf8');
+        });
+
+        it('source_type includes gist and session_log (v2 additions)', function () {
+            expect(content).to.include('gist');
+            expect(content).to.include('session_log');
+        });
+
+        it('contains source-type extraction rubric (Step 2.5)', function () {
+            expect(content).to.include('2.5');
+            expect(content).to.include('extraction rubric');
+        });
+
+        it('rubric covers all 6 source types', function () {
+            expect(content).to.include('article');
+            expect(content).to.include('paper');
+            expect(content).to.include('gist');
+            expect(content).to.include('session_log');
+            expect(content).to.include('doc');
+            expect(content).to.include('book');
+        });
+
+        it('rubric assigns confidence based on source authority', function () {
+            expect(content).to.include('Default confidence');
+        });
+    });
+
+    // ── wiki-init SKILL.md ─────────────────────────────────────────────────
+
+    describe('skills/wiki-init/SKILL.md', function () {
+        const initPath = path.join(REPO_ROOT, 'skills', 'wiki-init', 'SKILL.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(initPath, 'utf8');
+        });
+
+        it('initializes schema v2', function () {
+            expect(content).to.include('schema_version: 2');
+            expect(content).to.include('schema v2');
+        });
+
+        it('template includes v2 entity frontmatter fields', function () {
+            expect(content).to.include('confidence:');
+            expect(content).to.include('last_verified:');
+            expect(content).to.include('sources:');
+            expect(content).to.include('related:');
+        });
+    });
+
+    // ── CLAUDE.md ──────────────────────────────────────────────────────────
+
+    describe('CLAUDE.md (project)', function () {
+        const claudePath = path.join(REPO_ROOT, 'CLAUDE.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(claudePath, 'utf8');
+        });
+
+        it('references v2 frontmatter fields', function () {
+            expect(content).to.include('confidence');
+            expect(content).to.include('last_verified');
+            expect(content).to.include('sources');
+            expect(content).to.include('related');
+        });
+
+        it('references SCHEMA.md for conventions', function () {
+            expect(content).to.include('wiki/SCHEMA.md');
+        });
+    });
+
+    // ── Fixtures ───────────────────────────────────────────────────────────
+
+    describe('test/fixtures/wiki-v2/', function () {
+        it('fixture directory exists', function () {
+            expect(fs.existsSync(FIXTURES_DIR)).to.be.true;
+        });
+
+        describe('entity-full-v2.md', function () {
+            let content;
+            before(function () {
+                content = fs.readFileSync(path.join(FIXTURES_DIR, 'entity-full-v2.md'), 'utf8');
+            });
+
+            it('has all required v2 frontmatter fields', function () {
+                expect(content).to.include('confidence:');
+                expect(content).to.include('last_verified:');
+                expect(content).to.include('sources:');
+                expect(content).to.include('related:');
+            });
+
+            it('has type: entity', function () {
+                expect(content).to.include('type: entity');
+            });
+        });
+
+        describe('entity-missing-frontmatter.md', function () {
+            let content;
+            before(function () {
+                content = fs.readFileSync(path.join(FIXTURES_DIR, 'entity-missing-frontmatter.md'), 'utf8');
+            });
+
+            it('is missing confidence, sources, and related', function () {
+                // has frontmatter delimiters
+                expect(content).to.include('---');
+                // but missing v2 fields
+                expect(content).to.not.include('confidence:');
+                expect(content).to.not.include('sources:');
+                expect(content).to.not.include('related:');
+            });
+        });
+
+        describe('entity-unresolved-contradiction.md', function () {
+            let content;
+            before(function () {
+                content = fs.readFileSync(path.join(FIXTURES_DIR, 'entity-unresolved-contradiction.md'), 'utf8');
+            });
+
+            it('has a Contradictions section', function () {
+                expect(content).to.include('## Contradictions');
+            });
+
+            it('has no resolution line (intentionally unresolved)', function () {
+                expect(content).to.not.match(/^Decision:/m);
+                expect(content).to.not.match(/^Resolved:/m);
+            });
+        });
+    });
+});
