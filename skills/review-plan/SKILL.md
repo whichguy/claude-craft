@@ -20,6 +20,7 @@ allowed-tools: all
 2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
+5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review --commit` uses to catch intent-to-code drift.
 
 ---
 
@@ -2844,6 +2845,124 @@ After the convergence loop exits (scorecard not yet printed):
    Gate 2 (Important):  [per small_questions list]
    Risk-Activated:      [if any]
    ```
+
+5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
+
+   Extract plan-specific questions that verify the code actually implements what the plan claims.
+   These become the POST_IMPLEMENT verification contract for `/review --commit`.
+
+   **Guards (match Teaching Notes 5e guards for file-append path):**
+   - **Tier:** FULL tier only — TRIVIAL/SMALL skip this step (fast-path speed preserved)
+   - **VCS:** untracked plan file → append to plan; tracked → render as terminal 5th panel below GATE STATUS
+   - **Fixture:** skip `test/fixtures/`, `wiki/fixtures/`, `*-bench/inputs/`, `skills/*/fixtures/`
+   - **Opt-out:** plan frontmatter `intent_questions: false` → skip entirely
+
+   ```
+   # ── Phase 5c.5: Extract Implementation Intent Questions ──
+   # Runs after convergence + senior-critic loop (5c), BEFORE Teaching Notes (5e).
+
+   IF REVIEW_TIER != "FULL":
+       SKIP
+
+   render_to_terminal_5th_panel = (VCS guard fires OR fixture guard fires)
+
+   # Single-pass extraction: plan sections provide category scaffolding so the
+   # subagent can produce categorized questions without a 2-pass split.
+   # Spike MUST be run against 2 sample plans (D.0 in plan floofy-stirring-corbato)
+   # before landing this — validates subagent produces parseable, non-generic questions.
+   Task(
+     subagent_type = "general-purpose",
+     description = "Extract implementation intent questions",
+     prompt = """
+       Read the plan at <plan_path> in full.
+
+       Generate 5–15 SPECIFIC, VERIFIABLE questions that the plan's implementer
+       (or /review --commit at POST_IMPLEMENT time) must answer YES against the
+       code diff. NOT generic quality questions — intent-to-code traceability
+       questions from THIS plan's specific claims.
+
+       Good question criteria:
+         - Cites a specific claim (step number, named function, file path, or quote)
+         - Asks "does the code actually do X?" where X is diff-verifiable
+         - Covers ONE logical assertion (split compound questions)
+
+       Categories (skip any where the plan makes no claim):
+         BEHAVIORAL  — "Does step N's [function] actually do [claimed behavior]?"
+         INVARIANT   — "Is [stated invariant] preserved?"
+         BOUNDARY    — "Does the code handle [named edge case from the plan]?"
+         NON-CHANGE  — "Did the code leave unchanged what the plan said to leave untouched?"
+         REMOVAL     — "If the plan removed X, is X gone AND all callers updated?" (pairs Q-G31)
+
+       Output format per question:
+         - **[CATEGORY]** [question text]
+           Plan cite: [step number or quoted passage]
+           Verify by: [diff-level check]
+
+       Do NOT output:
+         - Generic questions ("are there tests?") — Q-C4 already scores this
+         - Aspirational questions ("is the code clean?") — unverifiable
+         - Duplicates of Q-G1..Q-G31 scorecard findings
+         - More than 15 — prioritize ruthlessly
+
+       If the plan has no verifiable behavioral claims (pure wording, pure rename):
+         Output exactly: NO_INTENT_QUESTIONS — plan has no behavioral claims to verify
+
+       Return question list as markdown. Read tool only — no Edit/Write/Bash.
+     """
+   )
+
+   Parse task output:
+     IF output starts with "NO_INTENT_QUESTIONS":
+       intent_questions = []
+     ELIF output parses into ≥1 bullet matching
+          "- **[CATEGORY]** ... Plan cite: ... Verify by: ..." shape:
+       intent_questions = <parsed list>
+     ELSE:
+       # Malformed or timeout — do NOT append to plan file
+       intent_questions = []
+       render_to_terminal_5th_panel = True
+       scorecard_intent_label = "— extraction failed (malformed subagent output)"
+
+   IF render_to_terminal_5th_panel OR append fails:
+       Print intent_questions as terminal 5th panel below GATE STATUS
+   ELSE:
+       Read plan_path
+       IF plan contains "## Implementation Intent Questions":
+           # Idempotent re-run: replace section. Unlike Teaching Notes (historical
+           # per-run record), intent questions reflect CURRENT plan state — last run wins.
+           Edit(plan_path, old_section, new_section)
+       ELSE:
+           # Insert BEFORE "## Teaching Notes" if present, else EOF
+           Edit(plan_path, <insertion_point>, new_section)
+   ```
+
+   **Scorecard integration** — add one row to GATE STATUS panel:
+   ```
+   │  Intent Questions      ✅  [N] generated (verify at /review)          │
+   ```
+   If `intent_questions = []` (NO_INTENT_QUESTIONS): `— no verifiable intent claims`.
+   If extraction failed: `— extraction failed (malformed subagent output)`.
+
+   **Section shape in plan file:**
+   ```markdown
+   ## Implementation Intent Questions
+
+   *Extracted by review-plan from this plan's specific claims. At POST_IMPLEMENT
+   time, answer each YES against the diff. A NO or MAYBE signals intent-to-code
+   drift — investigate before merging.*
+
+   ### Behavioral
+   - **[question]**
+     Plan cite: [step number or quoted passage]
+     Verify by: [diff-level check]
+
+   ### Invariant / Boundary / Non-Change / Removal
+   [same format]
+   ```
+
+   **Coupling with /review (POST_IMPLEMENT):**
+   No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
+   so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
 
 5e. **Teaching Notes append** (persist learning to plan file):
 

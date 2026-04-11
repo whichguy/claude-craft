@@ -549,6 +549,27 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('Phase 5c.5 Implementation Intent Questions', function () {
+        it('SKILL.md defines Phase 5c.5 intent-questions extraction', function () {
+            expect(skillContent).to.include('Phase 5c.5');
+            expect(skillContent).to.include('Implementation Intent Questions');
+            expect(skillContent).to.include('NO_INTENT_QUESTIONS');
+        });
+
+        it('intent-questions guards match teaching-notes guards (tier/VCS/fixture/opt-out)', function () {
+            // Use the section heading "5c.5." to find the implementation block, not the R&A mention
+            const idx = skillContent.indexOf('5c.5. **Implementation Intent Questions**');
+            expect(idx, '5c.5 section heading not found').to.be.greaterThan(0);
+            const section = skillContent.substring(idx, idx + 4000);
+            // Tier guard: FULL only
+            expect(section).to.match(/REVIEW_TIER.*FULL/);
+            // Opt-out frontmatter
+            expect(section).to.include('intent_questions: false');
+            // VCS guard: untracked check
+            expect(section).to.match(/ls-files --error-unmatch|VCS guard|render_to_terminal_5th_panel/);
+        });
+    });
+
     describe('delta-aware evaluator prompts', function () {
         it('defines prev_pass_applied_edits variable', function () {
             expect(skillContent).to.include('prev_pass_applied_edits = []');
