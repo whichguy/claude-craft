@@ -483,6 +483,12 @@ Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18
 These questions apply at the skill infrastructure level (not phase-specific). Evaluated
 automatically by the Phase Entry Protocol and resume sweep — not part of the P8 gate catalog.
 
+**Note on inline Q-code annotations in SKILL.md:**
+`Q-C20`, `Q-C34`, and `Q-G9f` appear as inline comments in SKILL.md and PHASES.md code
+blocks. They are implementation-level annotations (not formal gate definitions) that indicate
+which quality requirement a code construct satisfies. They are not evaluated in P8 or defined
+here; treat them as internal traceability labels only.
+
 ### Q-C31 — Tempfile / Resource Lifecycle
 
 **Tier:** Cross-cutting infrastructure (not a P8 CPA gate).

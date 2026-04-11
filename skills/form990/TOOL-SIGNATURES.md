@@ -156,6 +156,7 @@ notes: null
 
 Format: `{ line_id: { page, x, y, width, height, font_size } }`
 
+<!-- BEGIN COORDINATES null -->
 ```json
 {
   "I.1":  { "page": 1, "x": null, "y": null, "width": null, "height": null, "font_size": null },
@@ -164,5 +165,6 @@ Format: `{ line_id: { page, x, y, width, height, font_size } }`
   "I.22": { "page": 1, "x": null, "y": null, "width": null, "height": null, "font_size": null }
 }
 ```
+<!-- END COORDINATES null -->
 
-*(Add all Part I, III, V, VI, VII, VIII, IX, X, XI, XII lines after coordinate sweep)*
+*(Replace `null` in the sentinel comments above with the actual tax year once the coordinate sweep is run. Add all Part I, III, V, VI, VII, VIII, IX, X, XI, XII lines after coordinate sweep.)*

@@ -886,7 +886,7 @@ the e-file handoff packet.
   - Primary: `python3 -c "import pypdf; print(pypdf.__version__)"` — must succeed
   - Fallback: `which pdftk-java && pdftk-java --version`
   - If neither: halt and instruct user to `pip install pypdf`
-- **Coordinate table staleness check:** slice SKILL.md between `<!-- BEGIN COORDINATES <tax_year> -->` /
+- **Coordinate table staleness check:** slice TOOL-SIGNATURES.md between `<!-- BEGIN COORDINATES <tax_year> -->` /
   `<!-- END COORDINATES <tax_year> -->` sentinels, sha256 the slice, compare to
   `artifacts.reference_pdf.input_fingerprint.coordinate_table` (if set from prior run).
   If absent: warn "coordinate table not yet captured — run Pre-build Verification step 3a" and halt.
@@ -915,7 +915,7 @@ field_count = len(reader.get_fields() or {})
 
 **Step 2: Primary fill path — coordinate overlay.**
 Using `pypdf`, render a flat annotation layer over the blank PDF at line coordinates from
-`SKILL.md §form990_coordinates_<tax_year>`. If the coordinate table is absent: halt.
+`TOOL-SIGNATURES.md §f990 Coordinate Table`. If the coordinate table is absent: halt.
 Shell-safety: all values flow through the Python API — no shell concatenation.
 UTF-8 preserved; control characters stripped; NUL bytes rejected.
 
@@ -949,9 +949,9 @@ Write `artifacts/efile-handoff-packet.md` with:
 
 **Outputs.**
 - `artifacts/form990-reference-filled.pdf`
-  - `reference_pdf.input_fingerprint` = `{dataset_merged: <sha>, blank_pdf: <sha-of-cached-blank>, coordinate_table: <sha-of-SKILL.md-coordinates-section>}`
+  - `reference_pdf.input_fingerprint` = `{dataset_merged: <sha>, blank_pdf: <sha-of-cached-blank>, coordinate_table: <sha-of-TOOL-SIGNATURES.md-coordinates-section>}`
   - `blank_pdf` sha: sha256 of `artifacts/f990-blank-<tax_year>.pdf`
-  - `coordinate_table` sha: sha256 of SKILL.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
+  - `coordinate_table` sha: sha256 of TOOL-SIGNATURES.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
 - `artifacts/efile-handoff-packet.md`
 - `artifacts/schedule-b-filing.md` + `artifacts/schedule-b-public.md` (if Schedule B triggered)
 

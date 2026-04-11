@@ -775,6 +775,36 @@ MACHINE_LEARNINGS_BEGIN = "<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not h
 MACHINE_LEARNINGS_END   = "<!-- END MACHINE LEARNINGS -->"
 MAX_MACHINE_ENTRIES = 100
 
+def _rotate_learnings(learnings_path: str, entries: list, text: str,
+                      begin_idx: int, end_idx: int) -> None:
+    """
+    Move oldest entries to LEARNINGS.archive.md when count >= MAX_MACHINE_ENTRIES.
+    Keeps the most recent (MAX_MACHINE_ENTRIES - 1) entries in LEARNINGS.md.
+    """
+    archive_path = pathlib.Path(learnings_path).with_name("LEARNINGS.archive.md")
+    overflow = entries[:len(entries) - MAX_MACHINE_ENTRIES + 1]
+    kept = entries[len(overflow):]
+    archive_header = "# Form 990 Skill — Learnings Archive\n\n"
+    archive_text = archive_path.read_text(encoding="utf-8") if archive_path.exists() else archive_header
+    archive_path.write_text(archive_text + "\n".join(overflow) + "\n", encoding="utf-8")
+    new_inner = "\n".join(kept)
+    new_text = (
+        text[:begin_idx + len(MACHINE_LEARNINGS_BEGIN)]
+        + "\n" + new_inner + "\n"
+        + text[end_idx:]
+    )
+    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
+
+def now_iso() -> str:
+    """Return current UTC timestamp as ISO 8601 string."""
+    import datetime
+    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+def now_iso_date() -> str:
+    """Return current UTC date as YYYY-MM-DD."""
+    import datetime
+    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+
 def auto_append_learning(learnings_path: str, phase_id: str,
                          error_class: str, message: str,
                          donor_names: list[str] = None) -> None:
@@ -892,7 +922,10 @@ Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into wor
 
 *This table is populated during Pre-build Verification step 3a (AcroForm probe + coordinate
 sweep) and is specific to each tax-year's PDF revision. It is not pre-filled here — run
-the probe script, record the table in TOOL-SIGNATURES.md, and reference it from P9.*
+the probe script, then record the table in `TOOL-SIGNATURES.md §f990 Coordinate Table`
+wrapped in `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels.
+P9 reads coordinates from TOOL-SIGNATURES.md (not this file) and hashes that sentinel block
+for change detection.*
 
 Format per entry:
 ```json

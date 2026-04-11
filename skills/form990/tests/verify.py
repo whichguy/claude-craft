@@ -310,7 +310,7 @@ def tc10(args):
     decision = {
         "date": "2025-01-01",
         "phase": force_phase,
-        "decision": f"force-override P{force_phase}: invalidated downstream {', '.join(downstream_phases)}",
+        "decision": f"force-override {force_phase}: invalidated downstream {', '.join(downstream_phases)}",
         "rationale": "user invoked /form990 phase P3",
     }
 
@@ -709,13 +709,18 @@ def tc15(args):
     FOOTER = "<!-- END MACHINE LEARNINGS -->"
     MAX = 100
 
+    # Entry format matches SKILL.md §auto_append_learning():
+    # "- **YYYY-MM-DD - <phase> - <error_class>:** <message> _(resolution: pending)_"
+    def make_entry(date, phase, error_class, message):
+        return f"- **{date} - {phase} - {error_class}:** {message} _(resolution: pending)_"
+
     def append_learning(text, entry):
         start = text.find(HEADER)
         end   = text.find(FOOTER)
         if start == -1 or end == -1:
             return text + f"\n{HEADER}\n{entry}\n{FOOTER}\n"
         inner = text[start + len(HEADER):end].strip()
-        entries = [l for l in inner.splitlines() if l.startswith("- {")]
+        entries = [l for l in inner.splitlines() if l.startswith("- **")]
         entries.append(entry)
         new_inner = "\n".join(entries)
         return text[:start] + HEADER + "\n" + new_inner + "\n" + FOOTER + text[end + len(FOOTER):]
@@ -725,7 +730,7 @@ def tc15(args):
         end   = text.find(FOOTER)
         if start == -1 or end == -1: return 0
         inner = text[start + len(HEADER):end].strip()
-        return sum(1 for l in inner.splitlines() if l.startswith("- {"))
+        return sum(1 for l in inner.splitlines() if l.startswith("- **"))
 
     tmp = pathlib.Path(tempfile.mkdtemp())
     try:
@@ -736,25 +741,24 @@ def tc15(args):
         learnings.write_text(base, encoding="utf-8")
 
         # TC15a: single append
-        entry = json.dumps({"date": "2025-01-01", "phase": "P3",
-                             "error_class": "TestError",
-                             "message_scrubbed": "test error",
-                             "resolution": "pending"})
+        entry = make_entry("2025-01-01", "P3", "TestError", "test error")
         text = learnings.read_text()
-        text = append_learning(text, f"- {entry}")
+        text = append_learning(text, entry)
         learnings.write_text(text)
 
         count = count_entries(learnings.read_text())
         assert_equal(tc, count, 1, "TC15a: single entry count")
+        # Verify format matches SKILL.md
+        assert_in(tc, "- **2025-01-01 - P3 - TestError:**", learnings.read_text(),
+                  "TC15a: entry format matches auto_append_learning()")
+        assert_in(tc, "_(resolution: pending)_", learnings.read_text(),
+                  "TC15a: resolution suffix present")
 
         # TC15b: rotation — inject 101 entries then add 1 more
         text = learnings.read_text()
         for i in range(101):
-            e = json.dumps({"date": "2025-01-01", "phase": "P3",
-                            "error_class": f"TestError{i}",
-                            "message_scrubbed": f"msg {i}",
-                            "resolution": "pending"})
-            text = append_learning(text, f"- {e}")
+            e = make_entry("2025-01-01", "P3", f"TestError{i}", f"msg {i}")
+            text = append_learning(text, e)
         learnings.write_text(text)
 
         # Simulate rotation when adding one more
@@ -762,19 +766,16 @@ def tc15(args):
         start = text.find(HEADER)
         end   = text.find(FOOTER)
         inner = text[start + len(HEADER):end].strip()
-        entries = [l for l in inner.splitlines() if l.startswith("- {")]
+        entries = [l for l in inner.splitlines() if l.startswith("- **")]
 
         if len(entries) >= MAX:
             overflow = entries[:len(entries) - MAX + 1]
-            archive_text = archive.read_text() if archive.exists() else "# LEARNINGS Archive\n\n"
+            archive_text = archive.read_text() if archive.exists() else "# Form 990 Skill — Learnings Archive\n\n"
             archive.write_text(archive_text + "\n".join(overflow) + "\n")
             entries = entries[len(overflow):]
 
-        new_entry = json.dumps({"date": "2025-01-02", "phase": "P3",
-                                "error_class": "FinalError",
-                                "message_scrubbed": "final",
-                                "resolution": "pending"})
-        entries.append(f"- {new_entry}")
+        new_entry = make_entry("2025-01-02", "P3", "FinalError", "final message")
+        entries.append(new_entry)
         new_inner = "\n".join(entries)
         learnings.write_text(
             text[:start] + HEADER + "\n" + new_inner + "\n" + FOOTER + text[end + len(FOOTER):]
