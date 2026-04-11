@@ -46,6 +46,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
      `Bash "touch /tmp/.review-ready-$(basename $(ls -t ~/.claude/plans/*.md | head -1) .md)"`
      — this creates the gate file for the current plan, allowing ExitPlanMode to proceed without review.
+     (The hook checks file existence only — content is ignored, so `touch` is equivalent to the `echo` write in step 8.)
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
@@ -240,7 +241,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
          If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion, and do not touch marker files — read-only.
        """
      )
 
@@ -350,7 +351,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            - Evaluate against the plan (mark N/A per supersession rules above)
            - Output: Q-ID PASS | NEEDS_UPDATE | N/A — [finding]
            - If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion, and do not touch marker files — read-only.
        """
      )
 
@@ -2492,7 +2493,7 @@ After the convergence loop exits (scorecard not yet printed):
        options = ["Describe changes", "Abandon review"]
      )
 
-   IF user chooses to exit (first option for READY/SOLID/GAPS):
+   IF user selected "Exit to implementation" or "Exit to implementation (proceed with warnings)":
      Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
      # Gate file written here — after user confirms — so no stale file exists during editing cycles.
      # Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after successful exit.
@@ -2500,7 +2501,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    IF user chooses to continue editing (or is in REWORK and describes changes):
      Apply the user's requested changes to the plan file.
-     Re-run review from the context-flags classifier (Step 0, item 3 — the full outer flow including any TRIVIAL/SMALL fast-path; do not skip re-classification).
+     Re-run review from Step 0 item 3 (context-flags classifier) through the full outer flow — re-classify, then branch to TRIVIAL/SMALL/FULL as appropriate. Do not skip re-classification.
      # This loop repeats until user confirms exit or abandons. No hard cap — user controls termination.
 
    IF user chooses "Abandon review" (REWORK only):
