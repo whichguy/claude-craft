@@ -562,12 +562,16 @@ def merge_datasets(core_path, schedules_path, rollup_path, output_path):
     return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
 ```
 
-**Python version drift guard:** Before running merger, check:
+**Python version drift guard:** Before running merger, call `read_pinned_python()` (SKILL.md §read_pinned_python):
 ```python
 import sys
-if sys.version_info[:2] != PINNED_PYTHON_VERSION:  # from TOOL-SIGNATURES.md
-    print(f"⚠ Python version drift: pinned {PINNED_PYTHON_VERSION}, running {sys.version_info[:2]}")
-    print("  merger output_sha256 may churn — rerun E3 to revalidate byte-stability")
+pinned = read_pinned_python()
+if sys.version_info[:2] != pinned:
+    append_breadcrumb(scrub_pii(
+        f"Python version drift: pinned {pinned}, running {sys.version_info[:2]} — "
+        f"merger output_sha256 may churn; rerun E3 to revalidate byte-stability."
+    ), plan_path)
+    # Continue (warning only, not halt)
 ```
 
 ---

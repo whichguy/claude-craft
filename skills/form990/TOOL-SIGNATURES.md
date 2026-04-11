@@ -88,14 +88,18 @@ Tool: get_file_metadata
 *(Populated by Pre-build Verification step 3)*
 
 ```
-python_pin: null         ← fill in: e.g., "3.12"
+python_pin: "3.11"       ← format: "MAJOR.MINOR" in double quotes; parsed by read_pinned_python()
 pypdf_version: null      ← fill in: e.g., "4.3.1"
 pdftk_java_available: null  ← fill in: true/false
 pdftk_java_version: null    ← fill in: e.g., "3.3.3"
 ```
 
-**Runtime drift guard:** If `sys.version_info[:2] != python_pin`, the merger logs:
-`"⚠ Python version drift (pinned <pin>, running <actual>) — rerun E3 before trusting hashes"`
+**Format note:** `python_pin` MUST be a double-quoted string literal (`"3.X"`). The
+`read_pinned_python()` helper in SKILL.md parses it via `regex r'python_pin:\s*"(\d+)\.(\d+)"'`.
+If the line is missing or malformed, the helper falls back to `(3, 11)` with a warning breadcrumb.
+
+**Runtime drift guard:** If `sys.version_info[:2] != read_pinned_python()`, the merger logs:
+`"⚠ Python version drift (pinned <pin>, running <actual>) — rerun E3 before trusting hashes"` (warning, not halt)
 
 ---
 

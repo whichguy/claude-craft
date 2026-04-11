@@ -794,7 +794,10 @@ On success: register `artifacts.dataset_merged` with `output_sha256` returned by
 - `artifacts/form990-dataset-rollup.json`
 - `artifacts/form990-dataset.json` (the merged union — sole downstream-readable dataset)
 - `artifacts/reconciliation-report.md`
-- All three registered in machine state with `output_sha256` + `input_fingerprint`
+- All three registered in machine state with `output_sha256` + `input_fingerprint`:
+  - `dataset_rollup.input_fingerprint` = `{dataset_core: <sha>}`
+  - `reconciliation_report.input_fingerprint` = `{dataset_core: <sha>}`
+  - `dataset_merged.input_fingerprint` = `{dataset_core: <sha>, dataset_schedules: <sha>, dataset_rollup: <sha>}`
 
 **Idempotency.** Overwrite mode — all three fully rewritten. Merger is pure function;
 same inputs → byte-identical output (E3 verified).
@@ -884,6 +887,12 @@ the e-file handoff packet.
   - If neither: halt and instruct user to `pip install pypdf`
 - Verify Python interpreter version matches TOOL-SIGNATURES.md pin via `read_pinned_python()`
   (SKILL.md §read_pinned_python); log drift warning if mismatch, do not halt
+- **Coordinate table staleness check:** slice SKILL.md between `<!-- BEGIN COORDINATES <tax_year> -->` /
+  `<!-- END COORDINATES <tax_year> -->` sentinels, sha256 the slice, compare to
+  `artifacts.reference_pdf.input_fingerprint.coordinate_table` (if set from prior run).
+  If absent: warn "coordinate table not yet captured — run Pre-build Verification step 3a" and halt.
+  If mismatch: set `artifacts.reference_pdf.status = "absent"` and re-fill. Ensures the
+  coordinate overlay always matches the current PDF coordinate spec.
 - **Pre-flight network check (5s bound):** before the 30s fetch, run a tiny HEAD-equivalent
   fetch to irs.gov; if it fails, halt and offer `--local-pdf <path>`
 
@@ -941,6 +950,9 @@ Write `artifacts/efile-handoff-packet.md` with:
 
 **Outputs.**
 - `artifacts/form990-reference-filled.pdf`
+  - `reference_pdf.input_fingerprint` = `{dataset_merged: <sha>, blank_pdf: <sha-of-cached-blank>, coordinate_table: <sha-of-SKILL.md-coordinates-section>}`
+  - `blank_pdf` sha: sha256 of `artifacts/f990-blank-<tax_year>.pdf`
+  - `coordinate_table` sha: sha256 of SKILL.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
 - `artifacts/efile-handoff-packet.md`
 - `artifacts/schedule-b-filing.md` + `artifacts/schedule-b-public.md` (if Schedule B triggered)
 
