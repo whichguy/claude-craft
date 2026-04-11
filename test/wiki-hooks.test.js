@@ -316,6 +316,129 @@ describe('Wiki Hooks', function () {
     });
 
     // ================================================================
+    // Group 5b: wiki-notify.sh mandate injection (WIKI_CHECK directive)
+    // ================================================================
+    describe('wiki-notify.sh mandate injection', function () {
+
+        it('should emit <wiki_grounding_required> in hookSpecificOutput.additionalContext when wiki/log.md exists', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-test-1234',
+                cwd: fakeRepo,
+                prompt: 'review the recent changes',
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            expect(parsed).to.have.nested.property('hookSpecificOutput.additionalContext');
+            expect(parsed.hookSpecificOutput.additionalContext).to.include('<wiki_grounding_required>');
+        });
+
+        it('should omit <wiki_grounding_required> when WIKI_SKIP=1 (escape valve)', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-skip-1234',
+                cwd: fakeRepo,
+                prompt: 'review the recent changes',
+            }, { WIKI_SKIP: '1' });
+
+            // May emit empty output or entity content, but never the mandate
+            if (stdout.trim()) {
+                const parsed = JSON.parse(stdout.trim());
+                const context = parsed.hookSpecificOutput && parsed.hookSpecificOutput.additionalContext || '';
+                expect(context).to.not.include('<wiki_grounding_required>');
+            }
+            // Empty output is also valid (no entity content + WIKI_SKIP suppresses mandate)
+        });
+
+        it('should return early with no injection for cwd without wiki/log.md', async function () {
+            const nonWikiDir = path.join(fakeRepo, '..', 'nowiki');
+            fs.mkdirSync(nonWikiDir, { recursive: true });
+
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-nowiki-1234',
+                cwd: nonWikiDir,
+                prompt: 'hello',
+            });
+
+            expect(stdout.trim()).to.equal('');
+        });
+
+        it('should coexist: mandate reminder AND entity content in one payload when keyword matches', async function () {
+            // Create a minimal entity-index.tsv so keyword matching fires
+            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            fs.mkdirSync(cacheDir, { recursive: true });
+            fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'test-entity\ttest entity review changes\n');
+            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'test-entity.md'), '# Test Entity\n');
+
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-coexist-1234',
+                cwd: fakeRepo,
+                prompt: 'review the test entity changes',
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            const context = parsed.hookSpecificOutput.additionalContext;
+            expect(context).to.include('<wiki_grounding_required>');
+            expect(context).to.include('test-entity');
+        });
+
+        it('should include key directive strings in the mandate text', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-strings-1234',
+                cwd: fakeRepo,
+                prompt: 'hello',
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            const context = parsed.hookSpecificOutput.additionalContext;
+            expect(context).to.include('wiki_grounding_required');
+            expect(context).to.include('/wiki-load');
+            expect(context).to.include('quote one relevant sentence');
+            expect(context).to.include('WIKI_SKIP=1');
+        });
+
+        it('should use canonical hookSpecificOutput schema with hookEventName UserPromptSubmit', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-schema-1234',
+                cwd: fakeRepo,
+                prompt: 'hello',
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            // additionalContext must be nested under hookSpecificOutput, not top-level
+            expect(parsed).to.not.have.property('additionalContext');
+            expect(parsed).to.have.nested.property('hookSpecificOutput.additionalContext');
+            expect(parsed).to.have.nested.property('hookSpecificOutput.hookEventName', 'UserPromptSubmit');
+        });
+
+        it('should inject the opening <wiki_grounding_required> tag exactly once (no duplication)', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-dedup-1234',
+                cwd: fakeRepo,
+                prompt: 'hello',
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            const context = parsed.hookSpecificOutput.additionalContext;
+            // Count opening tags only (closing tag is </wiki_grounding_required>)
+            const openingTagCount = (context.match(/<wiki_grounding_required>/g) || []).length;
+            expect(openingTagCount).to.equal(1);
+        });
+
+        it('should produce a payload under 10000 bytes (Anthropic injected-context cap)', async function () {
+            const { stdout } = await runHook('wiki-notify.sh', {
+                session_id: 'notify-size-1234',
+                cwd: fakeRepo,
+                prompt: 'hello',
+            });
+
+            const byteSize = Buffer.byteLength(stdout, 'utf8');
+            if (byteSize >= 8000) {
+                console.warn(`wiki-notify payload approaching cap: ${byteSize} bytes`);
+            }
+            expect(byteSize).to.be.lessThan(10000);
+        });
+    });
+
+    // ================================================================
     // Group 6: wiki_check_deps dependency validation
     // ================================================================
     describe('wiki_check_deps', function () {

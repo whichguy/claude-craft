@@ -32,4 +32,4 @@ Create file in repo subdir → `ln -sfn` to `~/.claude/` → test → commit. Us
 ```
 
 ## Wiki
-WIKI: /wiki-load <search> or browse wiki/index.md before answering project-domain questions. /wiki-query for synthesis.
+WIKI: /wiki-load <topic> or Read wiki/index.md before answering project-domain questions or starting plan/task/research/debug — enforced by wiki-notify.sh UserPromptSubmit context injection. /wiki-query for synthesis. Escape: WIKI_SKIP=1.
