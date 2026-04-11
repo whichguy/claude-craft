@@ -350,7 +350,7 @@ raw_label: "Donated Legal Services (in-kind)"
 → This is NOT reportable revenue unless the org has a policy to record and report
   in-kind contributions under GAAP. For cash-basis filers: skip (no line entry).
   For accrual filers with in-kind policy: revenue VIII.1g + equal expense IX.24.
-  Open Question: "Does Fortified Strength have a policy to record donated services?
+  Open Question: "Does {{key_facts.legal_name}} have a policy to record donated services?
   If yes, what is the FMV?"
   confidence: 0.40 → always creates an Open Question; no auto-commit
 ```
@@ -623,12 +623,18 @@ See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
 
 Algorithm sketch (509(a)(1)/§170(b)(1)(A)(vi)):
 ```
-For each year in 5-yr window:
-  two_pct_threshold = 0.02 × sum(total_support[T-4..T])   # 2% of 5-yr total support
-  public_support += contributions − sum(max(0, d.amount − two_pct_threshold) for d in donors)
-  total_support  += contributions + investment_income + other_revenue
+# IMPORTANT: Pre-compute the 5-yr total ONCE from the input data before the loop.
+# two_pct_threshold is the SAME dollar amount for every year in the window
+# (it uses the 5-year total denominator, not the single-year denominator).
+five_yr_total_support = sum(total_support[y] for y in [T-4..T])
+two_pct_threshold = 0.02 × five_yr_total_support   # same for all years in window
 
-public_support_pct = public_support / total_support × 100
+public_support = 0
+for each year y in [T-4..T]:
+  excess = sum(max(0, d.amount[y] − two_pct_threshold) for d in donors_in_year[y])
+  public_support += contributions[y] − excess
+
+public_support_pct = public_support / five_yr_total_support × 100
 PASS if ≥ 33⅓%; or ≥ 10% with facts-and-circumstances narrative
 ```
 

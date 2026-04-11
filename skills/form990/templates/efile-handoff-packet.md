@@ -108,7 +108,7 @@ and enter numbers line by line into the provider's web form.
 | Calendar year (Jan 1 – Dec 31) | May 15 | November 15 (+6 months, Form 8868) |
 | Non-calendar fiscal year | 4½ months after FY end | 10½ months after FY end |
 
-**For Fortified Strength (FY {{FISCAL_YEAR_START}} – {{FISCAL_YEAR_END}}):**
+**For {{LEGAL_NAME}} (FY {{FISCAL_YEAR_START}} – {{FISCAL_YEAR_END}}):**
 - Original due date: {{ORIGINAL_DUE_DATE}}
 - Extended due date: {{EXTENDED_DUE_DATE}}
 

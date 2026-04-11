@@ -34,7 +34,7 @@ When evaluating a Q-F gate, you emit exactly one of:
 
 ---
 
-## User Context (Fortified Strength Preparer)
+## User Context (Preparer)
 
 ```
 The human preparer is the Executive Director of {{key_facts.legal_name}}. They are
