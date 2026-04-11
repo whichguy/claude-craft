@@ -17,7 +17,7 @@ allowed-tools: all
 ## Role & Authority
 
 1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
-2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. You must NOT call ExitPlanMode — the caller handles mode transitions after review completes.
+2. **Authority:** You may call Edit, Write, Bash, and Read tools. You may spawn Task agents. Call ExitPlanMode when review reaches READY or SOLID/GAPS (see step 8). Do NOT call ExitPlanMode for REWORK — Gate 1 issues must be fixed first.
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
 
@@ -264,7 +264,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            ✅  Git lifecycle                   Q-E1
            ✅  Existing code examined          Q-G11
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       STOP — review complete, skip convergence loop entirely
+       Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
        (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
 
      If any NEEDS_UPDATE:
@@ -272,7 +272,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 5 now PASS:
-         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). STOP — review complete.
+         Write gate file (echo '<plan_path>' > /tmp/.review-ready-${plan_slug}), output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
@@ -386,7 +386,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry:]
              ✅  [Name]                          [Q-ID]  [domain]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       STOP — review complete, skip convergence loop entirely
+       Call ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
        (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
 
      If any NEEDS_UPDATE:
@@ -2455,7 +2455,7 @@ After the convergence loop exits (scorecard not yet printed):
 7. **Remaining issues summary (non-READY ratings):**
    ```
    IF Rating == READY:
-     No issues to print — proceed directly to step 8 (STOP)
+     No issues to print — proceed directly to step 8
    IF Rating == SOLID or GAPS:
      Print: "┌──────────────────────────────────────────────────────┐"
      Print: "│  ℹ️ [N] Gate 2 issues remaining (not blocking)         │"
@@ -2464,8 +2464,8 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ⚠️  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "──────────────────────────────────────────────────────"
-     Print: "  Reject ExitPlanMode to address before implementation"
-     STOP
+     Print: "  Approve to proceed anyway — or reject to keep fixing"
+     # Fall through to step 8 (ExitPlanMode) — user approves or rejects at that prompt
    IF Rating == REWORK:
      Print: "╔══════════════════════════════════════════════════════╗"
      Print: "║  🔴 [N] Gate 1 issues remaining — BLOCKING            ║"
@@ -2474,9 +2474,10 @@ After the convergence loop exits (scorecard not yet printed):
        Print: "  ❌  [question short name] ([ID])"
        Print: "     [one-sentence summary of finding]"
      Print: "══════════════════════════════════════════════════════"
-     Print: "  Reject ExitPlanMode to continue fixing"
-     STOP
+     Print: "  Fix Gate 1 issues before proceeding"
+     STOP  # Do NOT call ExitPlanMode — Gate 1 must be resolved first
    ```
-   The caller's ExitPlanMode call is the approval point. review-plan does not participate in mode transitions.
 
-8. **STOP.** Review is complete. Print "Review complete." Do not call ExitPlanMode — the caller handles mode transitions.
+8. **Call ExitPlanMode.** Review is complete (READY or SOLID/GAPS). Present plan to user for implementation approval:
+   ExitPlanMode(allowedPrompts=[{tool:"Bash",prompt:"run tests"},{tool:"Bash",prompt:"run build"},{tool:"Bash",prompt:"run linter"},{tool:"Bash",prompt:"git add and commit"},{tool:"Bash",prompt:"git status"},{tool:"Bash",prompt:"git diff"},{tool:"Bash",prompt:"git push to remote"}])
+   (Do NOT delete the gate file — the ExitPlanMode PostToolUse hook handles cleanup.)
