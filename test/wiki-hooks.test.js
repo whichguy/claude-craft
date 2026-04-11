@@ -253,6 +253,10 @@ describe('Wiki Hooks', function () {
             expect(parsed.systemMessage).to.include('/wiki-load');
             expect(parsed).to.have.property('hookSpecificOutput');
             expect(parsed.hookSpecificOutput).to.have.property('additionalContext');
+            // hookEventName must match the actual hook event (SessionStart)
+            expect(parsed.hookSpecificOutput).to.have.property('hookEventName', 'SessionStart');
+            // additionalContext must be nested, never top-level
+            expect(parsed).to.not.have.property('additionalContext');
         });
 
         it('should be silent for non-wiki repos', async function () {
@@ -278,6 +282,32 @@ describe('Wiki Hooks', function () {
 
             const marker = path.join(fakeRepo, 'wiki', `.session-${sid.substring(0, 8)}-start`);
             expect(fs.existsSync(marker)).to.be.true;
+        });
+    });
+
+    // ================================================================
+    // Group 4b: wiki-precompact.sh hook output schema
+    // ================================================================
+    describe('wiki-precompact.sh', function () {
+
+        it('should emit nested hookSpecificOutput with hookEventName PreCompact', async function () {
+            // Provide a fake transcript so the hook does not skip on empty TRANSCRIPT
+            const fakeTranscript = path.join(tmpDir, 'fake-transcript.jsonl');
+            fs.writeFileSync(fakeTranscript, '');
+
+            const { stdout } = await runHook('wiki-precompact.sh', {
+                cwd: fakeRepo, agent_id: '', session_id: 'precompact-test-1234',
+                transcript_path: fakeTranscript,
+            });
+
+            const parsed = JSON.parse(stdout.trim());
+            // systemMessage must be present (display line)
+            expect(parsed).to.have.property('systemMessage');
+            // additionalContext must be nested under hookSpecificOutput, never top-level
+            expect(parsed).to.not.have.property('additionalContext');
+            expect(parsed).to.have.nested.property('hookSpecificOutput.additionalContext');
+            // hookEventName must match the PreCompact hook event
+            expect(parsed).to.have.nested.property('hookSpecificOutput.hookEventName', 'PreCompact');
         });
     });
 
