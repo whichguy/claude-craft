@@ -40,3 +40,6 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
 ---
 
 *[Append new entries below after each run — never delete existing entries]*
+
+<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->
+<!-- END MACHINE LEARNINGS -->

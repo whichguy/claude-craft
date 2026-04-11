@@ -1016,6 +1016,143 @@ if actual != pinned:
 
 ---
 
+## scrub_pii() — PII Redaction Helper
+
+Every breadcrumb write, LEARNINGS auto-append, and `ScriptError` breadcrumb serialization
+MUST flow through `scrub_pii()` before being written to the plan file or LEARNINGS.md.
+
+```python
+import re
+
+def scrub_pii(text: str, donor_names: list[str] = None) -> str:
+    """
+    Strip legally-sensitive PII from text before writing to plan breadcrumbs or logs.
+
+    Rules applied in order:
+    1. SSN/ITIN: \b\d{3}-\d{2}-\d{4}\b  → [REDACTED-SSN]
+    2. Bare 9-digit run: \b\d{9}\b        → [REDACTED-9DIGIT]
+       (does NOT touch hyphenated EINs like 12-3456789 — only bare unformatted runs)
+    3. Donor names from key_facts.donor_names — verbatim match → [REDACTED-DONOR]
+       Case-insensitive. Empty list = no-op.
+    4. Contiguous digit run ≥10 digits: \d{10,} → [REDACTED-LONGNUM]
+       (catches bank account numbers, routing numbers with leading zeros)
+
+    Safe to log: EIN in canonical XX-XXXXXXX form, legal_name, gross_receipts totals,
+    Part I/VIII/IX/X aggregated line values (all public on the filed return).
+    """
+    if donor_names is None:
+        donor_names = []
+
+    # Rule 1: SSN/ITIN (hyphenated)
+    text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
+
+    # Rule 2: bare 9-digit run (SSN without hyphens, ITIN)
+    # Must run before Rule 4 to apply the specific label
+    text = re.sub(r'\b\d{9}\b', '[REDACTED-9DIGIT]', text)
+
+    # Rule 3: donor names (longest first to prevent partial-match issues)
+    for name in sorted(donor_names, key=len, reverse=True):
+        if name:
+            text = re.sub(re.escape(name), '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
+
+    # Rule 4: long numeric runs (bank accounts, routing)
+    text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
+
+    return text
+```
+
+### Usage at all breadcrumb write sites
+
+```python
+def append_breadcrumb(raw_text: str, plan_path: str,
+                       donor_names: list[str] = None) -> None:
+    """Scrub PII then append to the plan file's ## Breadcrumbs section."""
+    safe_text = scrub_pii(raw_text, donor_names=donor_names or [])
+    # ... actual file append logic ...
+```
+
+All phase breadcrumbs, error handlers, and LEARNINGS auto-appends call
+`append_breadcrumb(...)` — never write to Breadcrumbs directly.
+
+### LEARNINGS auto-append on phase failure
+
+When `phase_status[P] = "failed"` is committed, auto-append to `LEARNINGS.md`
+machine section:
+
+```python
+LEARNINGS_MACHINE_SECTION_HEADER = "<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->"
+LEARNINGS_MACHINE_SECTION_FOOTER = "<!-- END MACHINE LEARNINGS -->"
+LEARNINGS_MAX_ENTRIES = 100
+LEARNINGS_ARCHIVE_PATH = "LEARNINGS.archive.md"  # relative to skills/form990/
+
+def auto_append_learning(phase_id: str, error_class: str,
+                          raw_message: str, donor_names: list[str],
+                          learnings_path: str) -> None:
+    """
+    Append a failure digest to LEARNINGS.md machine section.
+    Rotates oldest entries to LEARNINGS.archive.md when count exceeds 100.
+    Applies scrub_pii before writing.
+    """
+    import json, pathlib, datetime
+
+    safe_message = scrub_pii(raw_message, donor_names)[:200]
+    entry = {
+        "date": datetime.datetime.utcnow().isoformat() + "Z",
+        "phase": phase_id,
+        "error_class": error_class,
+        "message_scrubbed": safe_message,
+        "resolution": "pending",
+    }
+    entry_line = f"- {json.dumps(entry, ensure_ascii=False)}"
+
+    text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
+    start = text.find(LEARNINGS_MACHINE_SECTION_HEADER)
+    end   = text.find(LEARNINGS_MACHINE_SECTION_FOOTER)
+
+    if start == -1 or end == -1:
+        # Section not yet created; append it
+        section = (
+            f"\n{LEARNINGS_MACHINE_SECTION_HEADER}\n"
+            f"{entry_line}\n"
+            f"{LEARNINGS_MACHINE_SECTION_FOOTER}\n"
+        )
+        pathlib.Path(learnings_path).write_text(
+            text + section, encoding="utf-8"
+        )
+        return
+
+    inner = text[start + len(LEARNINGS_MACHINE_SECTION_HEADER):end].strip()
+    entries = [l for l in inner.splitlines() if l.startswith("- {")]
+
+    if len(entries) >= LEARNINGS_MAX_ENTRIES:
+        # Rotate oldest entries to archive
+        archive_path = pathlib.Path(learnings_path).parent / LEARNINGS_ARCHIVE_PATH
+        overflow = entries[: len(entries) - LEARNINGS_MAX_ENTRIES + 1]
+        archive_text = archive_path.read_text(encoding="utf-8") \
+            if archive_path.exists() else "# LEARNINGS Archive\n\n"
+        archive_path.write_text(
+            archive_text + "\n".join(overflow) + "\n", encoding="utf-8"
+        )
+        entries = entries[len(overflow):]
+        append_breadcrumb(
+            f"rotated {len(overflow)} legacy LEARNINGS entries to {LEARNINGS_ARCHIVE_PATH}",
+            plan_path=None,  # breadcrumb to plan if available, else just log
+        )
+
+    entries.append(entry_line)
+    new_inner = "\n".join(entries)
+    new_text = (
+        text[:start]
+        + LEARNINGS_MACHINE_SECTION_HEADER + "\n"
+        + new_inner + "\n"
+        + LEARNINGS_MACHINE_SECTION_FOOTER
+        + text[end + len(LEARNINGS_MACHINE_SECTION_FOOTER):]
+    )
+    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
+```
+
+---
+
 ## form990_coordinates_{tax_year}
 
 *This table is populated during Pre-build Verification step 3a (AcroForm probe + coordinate
