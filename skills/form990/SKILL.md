@@ -385,6 +385,20 @@ def merge_datasets(core_path, schedules_path, rollup_path, output_path):
 
     merged = {}
 
+    # --- Positive-ownership assertions before composition ---
+    core_I = core.get("parts", {}).get("I", "__ABSENT__")
+    assert core_I in (None, "__ABSENT__"), \
+        "merger: dataset_core.parts.I MUST be null or absent (P5 ownership contract)"
+    rollup_I = rollup.get("parts", {}).get("I")
+    assert rollup_I is not None, \
+        "merger: dataset_rollup.parts.I must be populated (not null) — P7 partial-write detected"
+    assert set(rollup.get("parts", {}).keys()) <= {"I"}, \
+        f"merger: dataset_rollup.parts MAY only contain 'I', got {sorted(rollup.get('parts', {}).keys())}"
+    assert "schedule_dependencies" not in rollup and "schedule_dependencies" not in schedules, \
+        "merger: schedule_dependencies is owned by dataset_core only"
+    assert "reconciliation" not in core and "reconciliation" not in schedules, \
+        "merger: reconciliation is owned by dataset_rollup only"
+
     # --- parts from core (II..XII) ---
     core_parts = core.get("parts", {})
     for k, v in core_parts.items():
@@ -560,14 +574,16 @@ function phase_entry(phase_id, output_artifacts, state):
         for regression_msg in all_regressions:
             parent_name = regression_msg.split(":")[0].strip()
             producer_phase = ARTIFACT_DEPS.get(parent_name, {}).get("phase", "?")
-            state["phase_status"][producer_phase] = "failed"
+            # P7-merge is a sub-phase, not in phase_status — map to P7 for status tracking
+            status_phase = "P7" if producer_phase == "P7-merge" else producer_phase
+            state["phase_status"][status_phase] = "failed"
             state["artifacts"][parent_name]["last_error"] = {
                 "error_class": "ancestor_regression",
                 "message": regression_msg,
                 "detected_in_phase": phase_id,
                 "timestamp": now_iso(),
             }
-        atomic_commit(state)  # Commit failed status BEFORE any running write
+        atomic_commit(state, plan_path, pre_image_sha256)  # Commit failed status BEFORE any running write
         halt with banner:
             ╔══════════════════════════════════════════╗
             ║  ✖ Ancestor regression — cannot run P<n>  ║
@@ -578,7 +594,7 @@ function phase_entry(phase_id, output_artifacts, state):
         return HALTED
 
     # Step 2: Pre-entry lifecycle commit (Change 1)
-    commit_phase_entry(phase_id, status="running", state)
+    commit_phase_entry(phase_id, state, plan_path, pre_image_sha256)
 
     # Step 3: Phase-specific Pre-check (auth, tool availability — NOT hash re-verification)
     # (delegated to each phase's Pre-check block in PHASES.md)
@@ -611,6 +627,185 @@ When a fact regression is detected (Resume Protocol step 5 or phase Pre-check):
    ```
 6. Append to Decision Log: date, phase, `"regressed: <fact_id> from <old> to <new>"`, rationale
 7. Check circuit breaker (3-strike rule)
+
+---
+
+## run_script() — Canonical Subprocess Runner
+
+All programmatic analysis scripts (P2 CoA mapping, P3 financials, P6 schedule computations)
+MUST be invoked via this helper. Direct `subprocess` calls are prohibited — they bypass
+SCRIPT_ALLOWLIST enforcement, arg sanitization, and structured error surfacing.
+
+```python
+import subprocess, sys, json, os, pathlib
+
+# Allowlist of scripts run_script will invoke (absolute paths, populated at dispatch time).
+SCRIPT_ALLOWLIST: set[str] = set()
+
+# Per-phase wall-clock deadlines (Q-C34).
+PHASE_DEADLINES_S = {"P2": 180, "P3": 120, "P6": 300, "default": 60}
+
+class ScriptError(Exception):
+    def __init__(self, script, rc, stderr, stdout=""):
+        super().__init__(f"{script} exit {rc}: {stderr[-500:]}")
+        self.returncode = rc
+        self.stderr_tail = _codepoint_safe_tail(stderr, 2000)
+        self.stdout_tail = _codepoint_safe_tail(stdout, 2000)
+        self.structured_error = None  # populated if stdout is error-JSON
+
+def _codepoint_safe_tail(s: str, max_chars: int) -> str:
+    """Truncate from the right without bisecting a UTF-8 codepoint (Q-C20)."""
+    if len(s) <= max_chars:
+        return s
+    return s[-max_chars:]
+
+def run_script(script_path, args, phase_id=None, cwd=None):
+    """
+    Canonical runner. Contract:
+    - argv-only (no shell=True); stdout MUST be pure JSON.
+    - script_path MUST be in SCRIPT_ALLOWLIST (absolute path).
+    - args reject null bytes and '..' path-traversal tokens.
+    - Deadline from PHASE_DEADLINES_S[phase_id] or 'default'.
+    - On non-zero exit, inspect stdout for error-JSON; attach as structured_error.
+    - On timeout: kill + wait in finally, raise ScriptError.
+    Scripts MUST accept --json-only flag and redirect all debug prints to stderr when set.
+    """
+    abs_path = str(pathlib.Path(script_path).resolve())
+    if abs_path not in SCRIPT_ALLOWLIST:
+        raise ScriptError(script_path, -1, f"script not in SCRIPT_ALLOWLIST: {abs_path}")
+    for a in args:
+        if "\x00" in str(a):
+            raise ScriptError(script_path, -1, f"rejected arg (null byte): {a!r}")
+        if ".." in pathlib.PurePosixPath(str(a)).parts:
+            raise ScriptError(script_path, -1, f"rejected arg (path traversal): {a!r}")
+    deadline_s = PHASE_DEADLINES_S.get(phase_id, PHASE_DEADLINES_S["default"])
+    proc = subprocess.Popen(
+        [sys.executable, abs_path, "--json-only", *[str(a) for a in args]],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=cwd,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=deadline_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except Exception:
+            stdout, stderr = "", "<timeout: no output captured>"
+        raise ScriptError(script_path, -2, f"timeout after {deadline_s}s\nstderr: {stderr}", stdout)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+    if proc.returncode != 0:
+        err = ScriptError(script_path, proc.returncode, stderr, stdout)
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict) and parsed.get("status") == "error":
+                err.structured_error = parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        raise err
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise ScriptError(script_path, 0,
+                          f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}", stdout)
+```
+
+On `ScriptError`: call `append_breadcrumb(scrub_pii(str(err)))`, set `phase_status=failed`,
+atomic commit, surface in status UI.
+
+---
+
+## scrub_pii() — PII Redaction Helper
+
+All breadcrumb writes, LEARNINGS auto-appends, and ScriptError messages MUST flow through
+`scrub_pii()` before being written to the plan file or LEARNINGS.md.
+
+```python
+import re
+
+def scrub_pii(text: str, donor_names: list[str] = None) -> str:
+    """
+    Redact PII before writing to plan file breadcrumbs or LEARNINGS.
+    Rules applied in order:
+    1. SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
+    2. Bare 9-digit run: ddddddddd → [REDACTED-9DIGIT]  (EINs are XX-XXXXXXX, not bare)
+    3. Donor names from key_facts.donor_names (longest first to avoid partial match)
+    4. Long numeric run >= 10 digits → [REDACTED-LONGNUM]  (bank accounts, routing)
+    """
+    if donor_names is None:
+        donor_names = []
+    text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
+    text = re.sub(r'\b\d{9}\b', '[REDACTED-9DIGIT]', text)
+    for name in sorted(donor_names, key=len, reverse=True):
+        if name:
+            text = re.sub(re.escape(name), '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
+    text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
+    return text
+```
+
+Note: hyphenated EINs (`XX-XXXXXXX`) are NOT redacted — they are public (IRS BMF).
+The 9-digit rule catches bare SSN/ITIN patterns; hyphenated EINs never match `\b\d{9}\b`.
+
+---
+
+## append_breadcrumb() — Scrubbed Breadcrumb Writer
+
+```python
+def append_breadcrumb(msg: str, plan_state: dict) -> None:
+    """Write a breadcrumb. Always scrubs PII before appending."""
+    donor_names = plan_state.get("key_facts", {}).get("donor_names", [])
+    safe_msg = scrub_pii(msg, donor_names)
+    plan_state.setdefault("breadcrumbs", []).append({
+        "at": now_iso(),
+        "msg": safe_msg,
+    })
+```
+
+---
+
+## auto_append_learning() — LEARNINGS.md Auto-Append on Failure
+
+When `phase_status[P] = "failed"` is committed, auto-append to `LEARNINGS.md`:
+
+```python
+import pathlib
+
+MACHINE_LEARNINGS_BEGIN = "<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->"
+MACHINE_LEARNINGS_END   = "<!-- END MACHINE LEARNINGS -->"
+MAX_MACHINE_ENTRIES = 100
+
+def auto_append_learning(learnings_path: str, phase_id: str,
+                         error_class: str, message: str,
+                         donor_names: list[str] = None) -> None:
+    """
+    Append a scrubbed failure entry to the MACHINE LEARNINGS section of LEARNINGS.md.
+    Rotates to LEARNINGS.archive.md if count exceeds MAX_MACHINE_ENTRIES.
+    """
+    safe_msg = scrub_pii(message[:200], donor_names or [])
+    entry = (
+        f"- **{now_iso_date()} - {phase_id} - {error_class}:** "
+        f"{safe_msg} _(resolution: pending)_\n"
+    )
+    text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
+    begin_idx = text.find(MACHINE_LEARNINGS_BEGIN)
+    end_idx   = text.find(MACHINE_LEARNINGS_END)
+    if begin_idx == -1 or end_idx == -1:
+        return  # Guard: delimiters missing — do not corrupt file
+    inner = text[begin_idx + len(MACHINE_LEARNINGS_BEGIN):end_idx]
+    entries = [e for e in inner.strip().splitlines(keepends=True) if e.strip()]
+    if len(entries) >= MAX_MACHINE_ENTRIES:
+        _rotate_learnings(learnings_path, entries, text, begin_idx, end_idx)
+        text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
+        begin_idx = text.find(MACHINE_LEARNINGS_BEGIN)
+        end_idx   = text.find(MACHINE_LEARNINGS_END)
+    new_text = (
+        text[:begin_idx + len(MACHINE_LEARNINGS_BEGIN)]
+        + "\n" + entry
+        + text[end_idx:]
+    )
+    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
+```
 
 ---
 
@@ -687,6 +882,7 @@ Valid keys in `key_facts{}`:
 | `sheet_schema` | object | `{column_name: inferred_type}` from P1 header scan |
 | `fiscal_year_start` | ISO date | Start of the fiscal year being filed |
 | `fiscal_year_end` | ISO date | End of the fiscal year being filed |
+| `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 

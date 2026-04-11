@@ -604,8 +604,31 @@ def tc13(args):
 
     if failures:
         fail_(tc, "; ".join(failures))
-    else:
-        pass_(tc)
+        return
+
+    # TC13b — P9 coordinate_table staleness check logic
+    # Simulates: stored hash != hash of current coordinate block → artifact reset to "absent"
+    import hashlib as _hl
+
+    def _coord_hash(content: str) -> str:
+        return _hl.sha256(content.encode("utf-8")).hexdigest()
+
+    def p9_coord_check(stored_hash, current_block_content):
+        """Returns (stale: bool, new_hash: str)"""
+        current_hash = _coord_hash(current_block_content)
+        return current_hash != stored_hash, current_hash
+
+    stale, _ = p9_coord_check(_coord_hash("stale"), "current")
+    if not stale:
+        fail_(tc, "TC13b: stale coordinate block should be detected as stale")
+        return
+
+    not_stale, _ = p9_coord_check(_coord_hash("same"), "same")
+    if not_stale:
+        fail_(tc, "TC13b: matching coordinate block incorrectly detected as stale")
+        return
+
+    pass_(tc)
 
 
 # ---------------------------------------------------------------------------

@@ -117,7 +117,7 @@ On `ScriptError`: write breadcrumb via `scrub_pii()` (SKILL.md §scrub_pii), set
 correct 990 variant, and write all key facts into machine state.
 
 **Inputs.** `--sheet` (Google Sheets ID or URL), `--tax-year` (YYYY), prior 990 if
-available (prompt user), prior-2 and prior-3 year gross receipts (for 3-yr averaging).
+available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr averaging with current year).
 
 **Pre-check.**
 - Verify `--sheet` ID/URL is accessible: call `mcp__claude_ai_Google_Drive__read_file_content`
@@ -149,9 +149,10 @@ available (prompt user), prior-2 and prior-3 year gross receipts (for 3-yr avera
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
-5. Write `key_facts`: legal_name, ein, fiscal_year_start/end, accounting_method,
-   gross_receipts_current, gross_receipts_3yr_average, total_assets_eoy, public_charity_basis,
-   form_variant
+5. Write top-level machine state: `tax_year`, `fiscal_year_start`, `fiscal_year_end`,
+   `form_variant`. Write `key_facts`: legal_name, ein, accounting_method,
+   gross_receipts_current, gross_receipts_3yr_average, total_assets_eoy, public_charity_basis.
+   (`form_variant` is a top-level field, NOT inside `key_facts`.)
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
