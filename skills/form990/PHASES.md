@@ -885,8 +885,6 @@ the e-file handoff packet.
   - Primary: `python3 -c "import pypdf; print(pypdf.__version__)"` — must succeed
   - Fallback: `which pdftk-java && pdftk-java --version`
   - If neither: halt and instruct user to `pip install pypdf`
-- Verify Python interpreter version matches TOOL-SIGNATURES.md pin via `read_pinned_python()`
-  (SKILL.md §read_pinned_python); log drift warning if mismatch, do not halt
 - **Coordinate table staleness check:** slice SKILL.md between `<!-- BEGIN COORDINATES <tax_year> -->` /
   `<!-- END COORDINATES <tax_year> -->` sentinels, sha256 the slice, compare to
   `artifacts.reference_pdf.input_fingerprint.coordinate_table` (if set from prior run).

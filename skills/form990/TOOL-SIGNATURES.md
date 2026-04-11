@@ -2,7 +2,6 @@
 
 Populated during Pre-build Verification (run before build step 1). Records:
 - MCP tool schemas + observed argument shapes and return types
-- Python interpreter version pin
 - PDF backend availability
 - Experiment results (E1–E3)
 - Per-tax-year f990 coordinate table (added by step 3a, once per tax year)
@@ -16,7 +15,7 @@ Populated during Pre-build Verification (run before build step 1). Records:
 | 1. Sentinel re-pin | ⬜ pending | — | Re-pin review-plan/ideate/wiki-init line-number refs |
 | 2a. Gmail MCP schema | ⬜ pending | — | gmail_create_draft, gmail_list_drafts, gmail_search_messages |
 | 2b. Drive MCP schema | ⬜ pending | — | search_files, read_file_content, get_file_metadata |
-| 3. Python pin + pypdf | ⬜ pending | — | python3 -c "import sys, pypdf; print(sys.version_info[:2], pypdf.__version__)" |
+| 3. pypdf availability | ⬜ pending | — | python3 -c "import pypdf; print(pypdf.__version__)" |
 | 3a. f990 coordinate table | ⬜ pending | — | One-time per tax year; requires blank PDF + pypdf visual inspection |
 | 4a. WebFetch f990.pdf | ⬜ pending | — | HEAD verify of https://www.irs.gov/pub/irs-pdf/f990.pdf |
 | 4b. WebFetch provider list | ⬜ pending | — | https://www.irs.gov/e-file-providers/... |
@@ -88,18 +87,14 @@ Tool: get_file_metadata
 *(Populated by Pre-build Verification step 3)*
 
 ```
-python_pin: "3.11"       ← format: "MAJOR.MINOR" in double quotes; parsed by read_pinned_python()
 pypdf_version: null      ← fill in: e.g., "4.3.1"
 pdftk_java_available: null  ← fill in: true/false
 pdftk_java_version: null    ← fill in: e.g., "3.3.3"
 ```
 
-**Format note:** `python_pin` MUST be a double-quoted string literal (`"3.X"`). The
-`read_pinned_python()` helper in SKILL.md parses it via `regex r'python_pin:\s*"(\d+)\.(\d+)"'`.
-If the line is missing or malformed, the helper falls back to `(3, 11)` with a warning breadcrumb.
-
-**Runtime drift guard:** If `sys.version_info[:2] != read_pinned_python()`, the merger logs:
-`"⚠ Python version drift (pinned <pin>, running <actual>) — rerun E3 before trusting hashes"` (warning, not halt)
+**Note on Python version:** No version pin is enforced. E3 experiment verifies merger
+byte-stability empirically across available Python minors. If hashes diverge, remediation
+options: (a) vendor a JCS canonicalizer, (b) recompute sha256 only on input change.
 
 ---
 
