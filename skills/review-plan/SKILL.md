@@ -2945,10 +2945,18 @@ After the convergence loop exits (scorecard not yet printed):
            old_section_start = index of "## Implementation Intent Questions" in plan_contents
            old_section_end   = next line matching "^## " after old_section_start, or EOF
            old_section       = plan_contents[old_section_start : old_section_end]
+           # old_section_end = char index of first '#' of the next "^## " header, so the
+           # slice ends with '\n' (the blank line before that header). EOF: len(plan_contents).
+           # Assert: old_section in plan_contents before calling Edit (guards stale reads).
            Edit(plan_path, old_section, new_section)
        ELSE:
-           # Insert BEFORE "## Teaching Notes" if present, else EOF
-           Edit(plan_path, <insertion_point>, new_section)
+           # Insert BEFORE "## Teaching Notes" if present, else append at EOF.
+           IF "## Teaching Notes" in plan_contents:
+               Edit(plan_path, "## Teaching Notes", new_section + "\n## Teaching Notes")
+           ELSE:
+               # Edit() has no EOF position anchor — use Write to append.
+               separator = "" if plan_contents.endswith("\n\n") else "\n"
+               Write(plan_path, plan_contents + separator + new_section)
    ```
 
    **Scorecard integration** — add one row to GATE STATUS panel:
@@ -3094,17 +3102,17 @@ After the convergence loop exits (scorecard not yet printed):
    #   4. (no external citation) — never fabricate
 
    # Each helper returns list of {q_id: str, change_title: str, what: str, why: str} dicts.
+   # Each helper returns list of {q_id: str, change_title: str, what: str, why: str} dicts.
    # findings_to_change_list: iterate findings{} — for each Q-ID with applied_edit, extract
    #   change_title from the [EDIT:] label, what from the diff description, why from the
-   #   evaluator rationale field.
+   #   evaluator "finding" field (findings[q_id]["finding"]).
+   #   NOTE: Q-E1/Q-E2/Q-G9 epilogue results are stored in findings{} by the epilogue phase
+   #   and are therefore already captured here — no separate epilogue_results variable exists.
    # sr_critic_to_change_list: iterate sr_applied_edits[] — each entry is a dict with
    #   {q_id: "SR", change_title, what, why} from the consolidated critic output.
-   # epilogue_to_change_list: iterate epilogue_results for Q-E1/Q-E2/Q-G9 applied edits;
-   #   shape matches findings_to_change_list output.
    all_changes = []
-   all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators
+   all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators + epilogue (Q-E1/Q-E2/Q-G9)
    all_changes.extend(sr_critic_to_change_list(sr_applied_edits)) # senior critic (FULL only)
-   all_changes.extend(epilogue_to_change_list(epilogue_results))  # Q-E1/Q-E2/Q-G9 (FULL only)
 
    IF len(all_changes) == 0:
        Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
@@ -3180,8 +3188,8 @@ After the convergence loop exits (scorecard not yet printed):
    final_plan_text = Read(plan_path)
    final_line_count = len(final_plan_text.splitlines())
    final_byte_count = len(final_plan_text.encode())
-   # SHA256 of file on disk — concrete invocation: sha256sum <plan_path> | cut -c1-12
-   final_sha256 = Bash("sha256sum {plan_path} | cut -c1-12")
+   # SHA256 first 12 chars — use shasum -a 256 (macOS-compatible)
+   final_sha256 = Bash("shasum -a 256 {plan_path} | cut -c1-12")
 
    Print: "╔══════════════════════════════════════════════════════════════════╗"
    Print: "║           FINAL PLAN — FULL TEXT AFTER CONVERGENCE               ║"

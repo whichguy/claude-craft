@@ -578,6 +578,17 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(section).to.include('intent_questions == []');
             expect(section).to.match(/intent_questions == \[\][\s\S]{0,200}SKIP/);
         });
+
+        it('Phase 5c.5 ELSE branch resolves insertion_point concretely (no angle-bracket placeholder in Edit call)', function () {
+            const idx = skillContent.indexOf('5c.5. **Implementation Intent Questions**');
+            expect(idx, '5c.5 section heading not found').to.be.greaterThan(0);
+            const section = skillContent.substring(idx, idx + 5000);
+            const elseIdx = section.lastIndexOf('ELSE:');
+            expect(elseIdx, 'ELSE branch not found in 5c.5 section').to.be.greaterThan(0);
+            const elseBranch = section.substring(elseIdx, elseIdx + 600);
+            // Must NOT contain the unresolved token <insertion_point> inside an Edit call
+            expect(elseBranch).to.not.match(/Edit\s*\([^)]*<insertion_point>/);
+        });
     });
 
     describe('Phase 6b Teaching Summary', function () {
@@ -637,6 +648,14 @@ describe('Review-Plan Task Fan-Out', function () {
             const section = skillContent.substring(idx, idx + 2000);
             // Must use Read tool on plan_path
             expect(section).to.match(/Read\s*\(\s*plan_path\s*\)/);
+        });
+
+        it('Phase 7.5 uses macOS-compatible shasum -a 256 (not Linux-only sha256sum)', function () {
+            const idx = skillContent.indexOf('Phase 7.5');
+            const section = skillContent.substring(idx, idx + 2000);
+            // sha256sum does not exist on macOS (platform: darwin) — must use shasum -a 256
+            expect(section).to.not.include('sha256sum');
+            expect(section).to.include('shasum -a 256');
         });
     });
 
