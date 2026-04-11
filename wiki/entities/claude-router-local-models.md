@@ -15,6 +15,8 @@ related: [wiki-lifecycle-hooks, wiki-common-sh]
 
 Routing layer between Claude Code and alternative model providers. `tools/claude-router` intercepts `claude` invocations, resolves the correct provider for the requested model, sets env vars (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`, etc.), then `exec claude "$@"` with all original args unchanged.
 
+- **From Session 05018c0a:** Entity created when Task #6 registered `qwen3-coder:30b` as a second Ollama provider alongside the existing `gemma4:26b`. Key design decision: `qwen3-coder:30b` goes in the `providers` block only (no `session_rule` — available on explicit request, not auto-forced onto subagents). The distinction between `providers` (read exclusively by `claude-router`) and `model_mappings`/`session_rules` (Claude Code internal routing) was confirmed: these are orthogonal systems. Smoke test confirmed the Anthropic→Ollama API bridge works end-to-end on this machine. User asked "does model-map.json have the ability to use the ollama model URL behind the scenes?" — confirmed yes, via claude-router's tier-1 provider resolution.
+
 ## Components
 
 - **`tools/claude-router`** (L1-125) — bash script implementing a 3-tier priority chain:
@@ -59,8 +61,23 @@ For Bedrock, Vertex, or OpenRouter — see `skills/model-map/SKILL.md` for provi
 
 `plugins/wiki-hooks/handlers/wiki-worker.sh:165` hardcodes `--model claude-sonnet-4-6` for wiki extraction. `wiki_resolve_claude_cmd` resolves to claude-router when present, but the model flag still pins Sonnet. Swapping the extraction model to a local Ollama model requires validating extraction quality and is deferred to a future task.
 
-## Bridge Caveat
+## Ollama Native Anthropic Protocol
 
-Claude Code sends Anthropic API requests; Ollama speaks its own protocol. The translation layer (`ANTHROPIC_BASE_URL=http://localhost:11434`) relies on a shim that bridges the API formats. Bridge confirmed working end-to-end on this machine as of 2026-04-11 (smoke-tested both gemma4:26b and qwen3-coder:30b). Internal mechanism not traced in claude-router source — see a future router-internals entity if needed.
+As of Ollama v0.14.0 (confirmed on v0.20.5 via direct `curl`), Ollama **natively serves `/v1/messages` with the full Anthropic Messages schema**. No shim, no middleware, no proxy is required. The `ANTHROPIC_BASE_URL=http://localhost:11434` env var routes claude-router directly to Ollama's built-in endpoint. Response format matches exactly: `msg_*` ID, `content[].text`, `stop_reason`, `usage`.
 
-→ See also: [[wiki-lifecycle-hooks]], [[wiki-common-sh]]
+**What works natively:** streaming, system prompts, multi-turn, vision (base64), tool calling + tool results, extended thinking (`budget_tokens` accepted but not enforced).
+
+**What's not implemented (Ollama gaps):**
+
+| Missing feature | Claude Code impact |
+|---|---|
+| `/v1/messages/count_tokens` | Context meter shows approximate counts or errors |
+| `tool_choice` parameter | Can't force a specific tool; model picks freely |
+| Prompt caching (`cache_control`) | No-op — Ollama ignores the field |
+| Claude model name enumeration | Ollama returns its own model names, not `claude-*` |
+
+**Note (contradiction fix):** An earlier version of this entity said "Ollama speaks its own protocol and relies on a shim that bridges the API formats." That claim was incorrect — Ollama's native API support was confirmed in session 05018c0a via direct `curl` against `localhost:11434/v1/messages`.
+
+- **From Session 05018c0a (Ollama native protocol confirmation):** Direct `curl` against `http://localhost:11434/v1/messages` with Anthropic schema returned a valid response: `msg_*` ID, `content[].text`, `stop_reason`, `usage`. No wrapper invoked. The "bridge" is Ollama itself. Research also compared with MITM proxy approach — native Ollama support is simpler (no ops overhead, no extra latency, no single point of failure) but the proxy approach offers finer-grained protocol shaping and feature injection at cost of complexity. For the current use case (wiki extraction, code tasks), native Ollama suffices.
+
+→ See also: [[wiki-lifecycle-hooks]], [[wiki-common-sh]], [[claude-code-hook-events]], [[claude-craft-routing-architecture]]
