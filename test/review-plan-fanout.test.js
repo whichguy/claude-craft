@@ -758,4 +758,78 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('ACTIVE_RISKS={"testing", "security", "external_calls"}');
         });
     });
+
+    // ── U1-U7: Async Research Lane (Phase 3c.5 dispatch + Phase 5b.5 join) ──
+    describe('async research lane', function () {
+        // U1: dispatch uses run_in_background=true
+        it('U1: Phase 3c.5 dispatch block contains run_in_background = true', function () {
+            const idx = skillContent.indexOf('Phase 3c.5');
+            expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
+            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            expect(phase3c5Block).to.include('run_in_background = true');
+        });
+
+        // U2: heuristic risk gate (ACTIVE_RISKS + grep markers)
+        it('U2: Phase 3c.5 contains heuristic risk gate with ACTIVE_RISKS and grep markers', function () {
+            const idx = skillContent.indexOf('Phase 3c.5');
+            expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
+            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            expect(phase3c5Block).to.include('ACTIVE_RISKS');
+            expect(phase3c5Block).to.include('spike|proof.of.concept|unproven|benchmark|unknown|assume|tbd');
+        });
+
+        // U3: TRIVIAL/SMALL tier early exit
+        it('U3: Phase 3c.5 contains REVIEW_TIER != "FULL" early exit', function () {
+            const idx = skillContent.indexOf('Phase 3c.5');
+            expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
+            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            expect(phase3c5Block).to.match(/REVIEW_TIER\s*!=\s*["']FULL["']/);
+        });
+
+        // U4: injection-hardening imperative filter list (pinned to prevent drift)
+        it('U4: Phase 3c.5 imperative filter pins the full list to prevent drift', function () {
+            const idx = skillContent.indexOf('Phase 3c.5');
+            expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
+            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            // Each imperative must appear in the filter list
+            expect(phase3c5Block).to.include('"ignore"');
+            expect(phase3c5Block).to.include('"disregard"');
+            expect(phase3c5Block).to.include('"system:"');
+            expect(phase3c5Block).to.include('"assistant:"');
+            expect(phase3c5Block).to.include('"you must"');
+            expect(phase3c5Block).to.include('"new instructions"');
+        });
+
+        // U5: join phase has GRACE_SECONDS, date +%s, and degraded path print
+        it('U5: Phase 5b.5 section contains GRACE_SECONDS, date +%s, and degraded path print', function () {
+            // Use the section heading to find the right block (not the early prose mention)
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 5000);
+            expect(phase5b5Block).to.include('GRACE_SECONDS');
+            expect(phase5b5Block).to.include('date +%s');
+            expect(phase5b5Block).to.include('Degraded');
+        });
+
+        // U6: degraded path sets research_findings_block to empty string
+        it('U6: Phase 5b.5 degraded path results in empty research_findings_block', function () {
+            // Use the section heading to find the right block (not the early prose mention)
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 5000);
+            // Both the empty-research-done branch and the early-skip path must set the block to ""
+            const emptyStringMatches = (phase5b5Block.match(/research_findings_block\s*=\s*""/g) || []).length;
+            expect(emptyStringMatches, 'research_findings_block must be set to "" in at least 2 code paths').to.be.greaterThanOrEqual(2);
+        });
+
+        // U7: memo writer in Phase 4 checkpoint preserves research_pending/done/missing
+        it('U7: Phase 4 memo checkpoint preserves research_pending, research_done, research_missing', function () {
+            const checkpointIdx = skillContent.indexOf('-- Checkpoint: persist memoized state');
+            expect(checkpointIdx, 'Checkpoint section not found').to.be.greaterThan(0);
+            const checkpointBlock = skillContent.substring(checkpointIdx, checkpointIdx + 2000);
+            expect(checkpointBlock).to.include('research_pending');
+            expect(checkpointBlock).to.include('research_done');
+            expect(checkpointBlock).to.include('research_missing');
+        });
+    });
 });
