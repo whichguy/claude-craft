@@ -68,12 +68,12 @@ Collect MISSING_CONCEPTS.
 Count entries in `WIKI_DIR/log.md`.
 If count > 500: add suggestion to archive: "Log has N entries (>500) — consider archiving old entries to wiki/log-archive-YYYY.md"
 
-## Step 8 — Find Missing v2 Frontmatter
+## Step 8 — Find Missing v2 Frontmatter (advisory)
 
-Read all entity pages under `WIKI_DIR/entities/` (cap at 100).
+Read all entity pages under `WIKI_DIR/entities/` (cap at 200).
 A page is missing v2 frontmatter if its YAML frontmatter block (between `---` delimiters) lacks ANY of:
-`confidence`, `sources`, `related`
-(pages with no `---` block at all are also flagged)
+`confidence`, `sources`, `related`, `description`
+(a `description:` whose value is an empty string `""` counts as missing; pages with no `---` block at all are also flagged)
 
 Collect MISSING_FRONTMATTER with page path and which fields are absent.
 

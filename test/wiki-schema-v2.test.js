@@ -71,6 +71,8 @@ describe('Wiki Schema v2', function () {
             expect(content).to.include('confidence');
             expect(content).to.include('sources');
             expect(content).to.include('related');
+            expect(content).to.include('description');
+            expect(content).to.include('empty string');
         });
 
         it('contains unresolved contradictions check', function () {
@@ -196,6 +198,7 @@ describe('Wiki Schema v2', function () {
                 expect(content).to.include('last_verified:');
                 expect(content).to.include('sources:');
                 expect(content).to.include('related:');
+                expect(content).to.include('description:');
             });
 
             it('has type: entity', function () {
@@ -209,7 +212,7 @@ describe('Wiki Schema v2', function () {
                 content = fs.readFileSync(path.join(FIXTURES_DIR, 'entity-missing-frontmatter.md'), 'utf8');
             });
 
-            it('is missing confidence, sources, and related', function () {
+            it('is missing confidence, sources, related, and description', function () {
                 // has frontmatter delimiters
                 expect(content).to.include('---');
                 // but missing v2 fields

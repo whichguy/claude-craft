@@ -13,7 +13,11 @@ Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches
 ---
 name: Entity Name
 type: entity
-description: "One-line retrieval hook — what it IS + 2-3 search terms in parens"
+description: "One-line retrieval hook. Include:
+  (a) what the page IS (noun phrase, not just the slug)
+  (b) 2-3 distinctive search terms a reader might grep
+  (c) disambiguation from similar pages (if applicable)
+Empty string '' or absent field is flagged by wiki-lint Step 8."
 tags: [tag1, tag2]
 confidence: high | medium | low      # discipline scaffold: commit at write time
 last_verified: YYYY-MM-DD            # human-updated; lint flags high+>180d as advisory
