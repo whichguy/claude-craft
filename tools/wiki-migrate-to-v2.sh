@@ -17,7 +17,7 @@
 #   wiki/maintenance/.migrate.lock               — concurrency guard (auto-released)
 #
 # Rollback:   git revert <migration-commit>
-# Idempotency: re-running is safe; migrated pages (with confidence: field) are skipped.
+# Idempotency: re-running is safe; migrated pages are skipped automatically.
 
 set -eo pipefail
 shopt -s nullglob
@@ -75,21 +75,24 @@ if [[ "$DRY_RUN" == "false" ]]; then
     echo "$$" > "$LOCK_FILE"
 fi
 
-# ── Source list (for backref matching) — bash 3 compatible ───────────────────
+# ── Source list (for backref matching) ───────────────────────────────────────
 
+# Build list of available source slugs from wiki/sources/*.md filenames (bash 3 compatible)
 SOURCE_SLUGS=()
 for f in "$SOURCES_DIR"/*.md; do
     [[ -f "$f" ]] && SOURCE_SLUGS+=("$(basename "$f" .md)")
 done
+
+# ── Entity list (for related matching) ───────────────────────────────────────
 
 ENTITY_SLUGS=()
 for f in "$ENTITIES_DIR"/*.md; do
     [[ -f "$f" ]] && ENTITY_SLUGS+=("$(basename "$f" .md)")
 done
 
-# ── Python3 per-page processor ────────────────────────────────────────────────
-# Args: filepath dry_run(0|1) source_slugs(colon-sep) entity_slugs(colon-sep)
-# Stdout: "SKIP|MIGRATE|CREATE <path> [<fields>]"
+# ── Python3 helper: process one page ─────────────────────────────────────────
+# Accepts: filepath, dry_run (0/1), source_slugs (colon-separated), entity_slugs
+# Prints: "SKIP|MIGRATE|CREATE [path] [fields_added]"
 
 PYTHON_HELPER='
 import sys, re, subprocess, os
@@ -100,6 +103,8 @@ source_slugs = sys.argv[3].split(":") if sys.argv[3] else []
 entity_slugs = sys.argv[4].split(":") if sys.argv[4] else []
 
 content = open(filepath, encoding="utf-8").read()
+
+# ── Parse frontmatter ─────────────────────────────────────────────────────────
 fm_pattern = re.compile(r"^---\n(.*?)^---\n", re.DOTALL | re.MULTILINE)
 fm_match = fm_pattern.match(content)
 
@@ -115,30 +120,31 @@ else:
 def has_field(fm, field):
     return bool(re.search(r"^" + re.escape(field) + r":", fm, re.MULTILINE))
 
-# Idempotency
+# ── Idempotency check ─────────────────────────────────────────────────────────
 if has_fm and has_field(fm_text, "confidence"):
-    print("SKIP {} already_migrated".format(filepath))
+    print(f"SKIP {filepath} already_migrated")
     sys.exit(0)
 
-# Confidence heuristic
+# ── Infer confidence ──────────────────────────────────────────────────────────
 session_count = len(re.findall(r"- \*\*From Session", body))
 bullet_count  = len(re.findall(r"- \*\*From ", body))
-see_also_match = re.search(r"see also:(.*?)(?:\n|$)", body, re.IGNORECASE)
+see_also_match = re.search(r"→ See also:(.*?)(?:\n|$)", body)
 see_also_items = [x.strip() for x in see_also_match.group(1).split(",") if x.strip()] if see_also_match else []
 wiki_count = len(re.findall(r"\[\[", content))
 ref_count = len(see_also_items) + wiki_count
-body_word_count = len(body.split())
 
+body_word_count = len(body.split())
 if session_count >= 3 and ref_count >= 2:
     confidence = "high"
 elif session_count >= 1 or bullet_count >= 1:
     confidence = "medium"
 elif body_word_count > 100:
+    # Well-documented page using headers rather than Session bullets; not speculative
     confidence = "medium"
 else:
     confidence = "low"
 
-# Sources: match From bullets against known source slugs
+# ── Infer sources ─────────────────────────────────────────────────────────────
 from_bullets = re.findall(r"- \*\*From ([^:*\n]+)[\*:]", content)
 sources_found = []
 for raw in from_bullets:
@@ -149,36 +155,47 @@ for raw in from_bullets:
                 sources_found.append(slug)
 sources_yaml = "[" + ", ".join(sources_found) + "]" if sources_found else "[]"
 
-# Related: extract from See also + wikilinks, filter to known entity slugs
+# ── Infer related ─────────────────────────────────────────────────────────────
 related_candidates = []
+# From → See also: line
 for item in see_also_items:
     item = re.sub(r"[\[\]]", "", item).strip()
     if item:
         related_candidates.append(item)
+# From [[wikilinks]]
 for link in re.findall(r"\[\[([^\]]+)\]\]", content):
     if link not in related_candidates:
         related_candidates.append(link)
+# Filter to known entity slugs
 related_found = [r for r in related_candidates if r in entity_slugs][:6]
 related_yaml = "[" + ", ".join(related_found) + "]" if related_found else "[]"
 
-# Dates via git
+# ── Infer dates via git ───────────────────────────────────────────────────────
 def git_date(args, filepath):
     try:
-        out = subprocess.check_output(
+        result = subprocess.check_output(
             ["git", "log"] + args + ["--format=%cs", "--", filepath],
             cwd=os.path.dirname(os.path.abspath(filepath)),
             stderr=subprocess.DEVNULL
         ).decode().strip()
-        lines = [l for l in out.splitlines() if l]
+        lines = [l for l in result.splitlines() if l]
         return lines[-1] if lines else ""
     except Exception:
         return ""
 
-created = git_date(["--diff-filter=A", "--follow"], filepath) or git_date(["--follow"], filepath) or "2026-04-05"
-existing_lu = re.search(r"^last_updated:\s*(.+)", fm_text, re.MULTILINE)
-last_updated = existing_lu.group(1).strip() if existing_lu else (git_date(["-1"], filepath) or "2026-04-11")
+created = (
+    git_date(["--diff-filter=A", "--follow"], filepath) or
+    git_date(["--follow"], filepath) or
+    "2026-04-05"
+)
+last_updated = (
+    has_field(fm_text, "last_updated") and
+    re.search(r"^last_updated:\s*(.+)", fm_text, re.MULTILINE) and
+    re.search(r"^last_updated:\s*(.+)", fm_text, re.MULTILINE).group(1).strip()
+) or git_date(["-1"], filepath) or "2026-04-11"
 last_verified = last_updated
 
+# ── Determine which fields to add ────────────────────────────────────────────
 to_add = {}
 if not has_field(fm_text, "confidence"):    to_add["confidence"] = confidence
 if not has_field(fm_text, "last_verified"): to_add["last_verified"] = last_verified
@@ -187,139 +204,201 @@ if not has_field(fm_text, "last_updated"):  to_add["last_updated"] = last_update
 if not has_field(fm_text, "sources"):       to_add["sources"] = sources_yaml
 if not has_field(fm_text, "related"):       to_add["related"] = related_yaml
 
-fields_str = " ".join(to_add.keys()) if to_add else "(none)"
+fields_str = " ".join(to_add.keys())
 
+# ── Build new frontmatter ─────────────────────────────────────────────────────
 if has_fm:
-    new_lines = "\n".join("{}: {}".format(k, v) for k, v in to_add.items())
-    new_fm_text = fm_text.rstrip("\n") + ("\n" + new_lines if new_lines else "") + "\n"
-    new_content = "---\n" + new_fm_text + "---\n" + body
+    # Insert new fields before the closing ---
+    new_fm_text = fm_text
+    new_lines = "\n".join(f"{k}: {v}" for k, v in to_add.items())
+    new_fm_text = fm_text.rstrip("\n") + "\n" + new_lines + "\n"
+    new_content = f"---\n{new_fm_text}---\n{body}"
     action = "MIGRATE"
 else:
+    # No frontmatter — create minimal block from heading
     heading_match = re.search(r"^#\s+(.+)", content, re.MULTILINE)
     name = heading_match.group(1).strip() if heading_match else os.path.splitext(os.path.basename(filepath))[0]
+    # Detect type from path
     ftype = "source" if "/sources/" in filepath else "entity"
     fm_lines = [
-        "name: {}".format(name),
-        "type: {}".format(ftype),
+        f"name: {name}",
+        f"type: {ftype}",
         "description: \"\"",
         "tags: []",
-        "confidence: {}".format(confidence),
-        "last_verified: {}".format(last_verified),
-        "created: {}".format(created),
-        "last_updated: {}".format(last_updated),
-        "sources: {}".format(sources_yaml),
-        "related: {}".format(related_yaml),
+        f"confidence: {confidence}",
+        f"last_verified: {last_verified}",
+        f"created: {created}",
+        f"last_updated: {last_updated}",
+        f"sources: {sources_yaml}",
+        f"related: {related_yaml}",
     ]
-    new_content = "---\n" + "\n".join(fm_lines) + "\n---\n" + content
+    new_fm_text = "\n".join(fm_lines) + "\n"
+    new_content = f"---\n{new_fm_text}---\n{content}"
     action = "CREATE"
     fields_str = "name type description tags confidence last_verified created last_updated sources related"
 
+# ── Write or dry-run ──────────────────────────────────────────────────────────
 if not dry_run:
-    with open(filepath, "w", encoding="utf-8") as fh:
-        fh.write(new_content)
+    open(filepath, "w", encoding="utf-8").write(new_content)
 
-print("{} {} [{}]".format(action, filepath, fields_str))
+print(f"{action} {filepath} [{fields_str}]")
 '
 
-# ── Backup (live mode only) ───────────────────────────────────────────────────
+# ── Backup ────────────────────────────────────────────────────────────────────
 
 if [[ "$DRY_RUN" == "false" ]]; then
-    echo "Backing up wiki content..."
-    tar -czf "$BACKUP_PATH" -C "$WIKI_DIR" entities/ sources/ 2>/dev/null || \
-        echo "Warning: Backup failed — git history is the primary rollback" >&2
-    echo "  Backup: $BACKUP_PATH"
+    echo "📦 Creating backup tarball..."
+    tar -czf "$BACKUP_PATH" -C "$WIKI_DIR" entities/ sources/ 2>/dev/null || {
+        echo "Warning: Backup failed — proceeding anyway (git history is the primary rollback)" >&2
+    }
+    echo "   Backup: $BACKUP_PATH"
 fi
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
 
 SOURCE_SLUGS_STR=$(IFS=':'; echo "${SOURCE_SLUGS[*]}")
 ENTITY_SLUGS_STR=$(IFS=':'; echo "${ENTITY_SLUGS[*]}")
-DRY_FLAG="$([ "$DRY_RUN" == "true" ] && echo 1 || echo 0)"
 
-SKIP_COUNT=0; MIGRATE_COUNT=0; CREATE_COUNT=0
+SKIP_COUNT=0
+MIGRATE_COUNT=0
+CREATE_COUNT=0
 REPORT_LINES=()
 SEDIMENT_PAGES=()
 
-# Pre-run corpus state snapshot (disambiguates SKIP output on re-runs)
-PREMIGRATED=$(grep -rL "^confidence:" "$ENTITIES_DIR"/*.md "$SOURCES_DIR"/*.md 2>/dev/null | wc -l | tr -d ' ')
-echo "Pre-run: $PREMIGRATED pages lacking confidence field"
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo ""
+    echo "╔═══════════════════════════════════════════╗"
+    echo "║  wiki-migrate-to-v2.sh  [DRY RUN]        ║"
+    echo "╚═══════════════════════════════════════════╝"
+    echo ""
+fi
 
-[[ "$DRY_RUN" == "true" ]] && echo "" && echo "=== wiki-migrate-to-v2.sh [DRY RUN] ===" && echo ""
+process_pages() {
+    local dir="$1"
+    for f in "$dir"/*.md; do
+        [[ -f "$f" ]] || continue
 
-for f in "$ENTITIES_DIR"/*.md "$SOURCES_DIR"/*.md; do
-    [[ -f "$f" ]] || continue
+        # Check sediment (>8 "From Session" bullets)
+        session_count=$(grep -c "^\- \*\*From Session" "$f" 2>/dev/null || true)
+        if (( session_count > 8 )); then
+            SEDIMENT_PAGES+=("$(basename "$f") (${session_count} From Session bullets)")
+        fi
 
-    # Sediment detection
-    sc=$(grep -c "^\- \*\*From Session" "$f" 2>/dev/null || true)
-    (( sc > 8 )) && SEDIMENT_PAGES+=("$(basename "$f") (${sc} bullets)")
+        # Run Python3 helper
+        result=$(python3 -c "$PYTHON_HELPER" "$f" "$([ "$DRY_RUN" == "true" ] && echo 1 || echo 0)" "$SOURCE_SLUGS_STR" "$ENTITY_SLUGS_STR" 2>/dev/null) || {
+            echo "  ⚠️  Error processing: $(basename "$f")" >&2
+            continue
+        }
 
-    # Process page
-    result=$(python3 -c "$PYTHON_HELPER" "$f" "$DRY_FLAG" "$SOURCE_SLUGS_STR" "$ENTITY_SLUGS_STR" 2>/dev/null) || {
-        echo "  WARNING: Error processing $(basename "$f")" >&2
-        continue
-    }
+        action="${result%% *}"
+        rest="${result#* }"
 
-    action="${result%% *}"
-    rest="${result#* }"
+        case "$action" in
+            SKIP)
+                SKIP_COUNT=$((SKIP_COUNT + 1))
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    echo "  -- $(basename "$f") -- already migrated"
+                fi
+                REPORT_LINES+=("| $(basename "$f") | SKIP | already had confidence field |")
+                ;;
+            MIGRATE)
+                MIGRATE_COUNT=$((MIGRATE_COUNT + 1))
+                fields="${rest#* }"  # "[field1 field2 ...]"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    echo "  ++ $(basename "$f") -- adding: ${fields//[\[\]]/}"
+                fi
+                REPORT_LINES+=("| $(basename "$f") | MIGRATE | added ${fields//[\[\]]/} |")
+                ;;
+            CREATE)
+                CREATE_COUNT=$((CREATE_COUNT + 1))
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    echo "  ** $(basename "$f") -- no frontmatter, creating full block"
+                fi
+                REPORT_LINES+=("| $(basename "$f") | CREATE | no prior frontmatter -- full block created |")
+                ;;
+        esac
+    done
+}
 
-    case "$action" in
-        SKIP)
-            SKIP_COUNT=$((SKIP_COUNT + 1))
-            [[ "$DRY_RUN" == "true" ]] && echo "  -- $(basename "$f") (already migrated)"
-            REPORT_LINES+=("| $(basename "$f") | SKIP | already had confidence field |")
-            ;;
-        MIGRATE)
-            MIGRATE_COUNT=$((MIGRATE_COUNT + 1))
-            fields="${rest#* }"
-            [[ "$DRY_RUN" == "true" ]] && echo "  ++ $(basename "$f") [${fields//[\[\]]/}]"
-            REPORT_LINES+=("| $(basename "$f") | MIGRATE | added ${fields//[\[\]]/} |")
-            ;;
-        CREATE)
-            CREATE_COUNT=$((CREATE_COUNT + 1))
-            [[ "$DRY_RUN" == "true" ]] && echo "  ** $(basename "$f") (no prior frontmatter)"
-            REPORT_LINES+=("| $(basename "$f") | CREATE | full block created |")
-            ;;
-    esac
-done
+process_pages "$ENTITIES_DIR"
+process_pages "$SOURCES_DIR"
 
 TOTAL=$((SKIP_COUNT + MIGRATE_COUNT + CREATE_COUNT))
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
 echo ""
-echo "=== wiki-migrate-to-v2.sh Results ==="
-[[ "$DRY_RUN" == "true" ]] && echo "Mode: DRY RUN" || echo "Mode: LIVE"
-printf "  Total     %d pages\n" "$TOTAL"
-printf "  Skipped   %d (already migrated)\n" "$SKIP_COUNT"
-printf "  Migrated  %d (fields added)\n" "$MIGRATE_COUNT"
-printf "  Created   %d (full blocks)\n" "$CREATE_COUNT"
+echo "╔═══════════════════════════════════════════╗"
+echo "║  wiki-migrate-to-v2.sh  Results          ║"
+if [[ "$DRY_RUN" == "true" ]]; then
+echo "║  Mode: DRY RUN (no files written)        ║"
+else
+echo "║  Mode: LIVE                               ║"
+fi
+echo "╚═══════════════════════════════════════════╝"
+printf "  %-12s %d pages processed\n" "Total:" "$TOTAL"
+printf "  %-12s %d already migrated (skipped)\n" "Skipped:" "$SKIP_COUNT"
+printf "  %-12s %d frontmatter fields added\n" "Migrated:" "$MIGRATE_COUNT"
+printf "  %-12s %d full frontmatter blocks created\n" "Created:" "$CREATE_COUNT"
 
 if [[ ${#SEDIMENT_PAGES[@]} -gt 0 ]]; then
     echo ""
-    echo "  Sediment (>8 From Session bullets) — manual review:"
-    for p in "${SEDIMENT_PAGES[@]}"; do echo "    - $p"; done
+    echo "  ⚠️  Sediment review (>8 'From Session' bullets):"
+    for p in "${SEDIMENT_PAGES[@]}"; do
+        echo "    - $p"
+    done
 fi
 
-# ── Audit report ──────────────────────────────────────────────────────────────
+if [[ "$DRY_RUN" == "false" ]] && [[ $MIGRATE_COUNT -gt 0 || $CREATE_COUNT -gt 0 ]]; then
+    echo ""
+    echo "  Backup:  $BACKUP_PATH"
+    echo "  Report:  $REPORT_PATH"
+fi
+
+# ── Write audit report ────────────────────────────────────────────────────────
 
 if [[ "$DRY_RUN" == "false" ]]; then
     {
-        echo "# Wiki v2 Migration Report -- $TODAY"
-        echo "Run at: $TIMESTAMP | Total: $TOTAL | Skipped: $SKIP_COUNT | Migrated: $MIGRATE_COUNT | Created: $CREATE_COUNT"
+        echo "# Wiki v2 Migration Report — $TODAY"
+        echo ""
+        echo "Run at: $TIMESTAMP"
+        echo "Mode: LIVE"
+        echo ""
+        echo "## Summary"
+        echo ""
+        echo "- Total pages processed: $TOTAL"
+        echo "- Skipped (already migrated): $SKIP_COUNT"
+        echo "- Migrated (fields added): $MIGRATE_COUNT"
+        echo "- Created (full frontmatter): $CREATE_COUNT"
         echo ""
         if [[ ${#SEDIMENT_PAGES[@]} -gt 0 ]]; then
-            echo "## Manual Review (sediment)"
-            for p in "${SEDIMENT_PAGES[@]}"; do echo "- $p"; done
+            echo "## Pages Requiring Manual Review (Sediment: >8 From Session bullets)"
+            echo ""
+            for p in "${SEDIMENT_PAGES[@]}"; do
+                echo "- $p"
+            done
+            echo ""
+            echo "Decision note: Review each page above and add a ## Contradictions section if needed."
             echo ""
         fi
-        echo "## Page Results"
+        echo "## Page-by-Page Results"
+        echo ""
         echo "| Page | Action | Notes |"
         echo "|------|--------|-------|"
-        for line in "${REPORT_LINES[@]}"; do echo "$line"; done
+        for line in "${REPORT_LINES[@]}"; do
+            echo "$line"
+        done
         echo ""
-        echo "Rollback: git revert <migration-commit> OR tar -xzf $BACKUP_PATH -C $WIKI_DIR"
+        echo "## Rollback"
+        echo ""
+        echo "Primary: \`git revert <migration-commit>\`"
+        echo "Secondary: Extract backup tarball: \`tar -xzf $BACKUP_PATH -C $WIKI_DIR\`"
     } > "$REPORT_PATH"
     echo ""
-    echo "  Report: $REPORT_PATH"
-    [[ $TOTAL -gt 0 ]] && echo "  Next: /wiki-lint to verify 0 missing v2 frontmatter pages"
+    echo "  ✓ Audit report written: $REPORT_PATH"
+fi
+
+if [[ "$DRY_RUN" == "false" && $TOTAL -gt 0 ]]; then
+    echo ""
+    echo "  Next: /wiki-lint to verify 0 missing v2 frontmatter pages"
 fi
