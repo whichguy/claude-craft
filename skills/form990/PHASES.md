@@ -250,7 +250,8 @@ line plus a functional bucket (Program / M&G / Fundraising) with a documented al
 - Verify `key_facts.sheet_schema` is populated (non-null) from P1
 - Verify `artifacts` has non-null budget-sheet handle
 - Verify total row count ≤ 500 (if > 500: halt and ask user to narrow scope or batch)
-- If 100 < rows ≤ 500: plan batch reads in chunks of 100 with progress breadcrumbs
+- If 100 < rows ≤ 500: read the Sheets tab in 100-row chunks (MCP calls only — the assembled
+  CSV is passed whole to the script; chunking applies to the Drive MCP fetch, not script invocation)
 
 **Work.**
 
@@ -289,15 +290,17 @@ For each budget row, apply the mapping methodology:
 | Grants to US individuals | Line 2 |
 | Grants to foreign orgs / individuals | Line 3 |
 | Officer / key-employee compensation | Line 5 |
+| Compensation to disqualified persons (IRC §4958) | Line 6 |
 | Other salaries / wages | Line 7 |
 | Pension / retirement contributions | Line 8 |
 | Other employee benefits | Line 9 |
 | Payroll taxes | Line 10 |
 | Legal fees | Line 11a |
 | Accounting / auditing fees | Line 11b |
-| Lobbying fees | Line 11c |
-| Professional fundraising | Line 11d |
-| Management / IT consulting | Line 11f |
+| Lobbying / government affairs | Line 11c |
+| Professional fundraising services | Line 11d |
+| Investment management fees | Line 11e |
+| Management / IT consulting / other fees | Line 11f |
 | Other fees for services | Line 11g |
 | Advertising / promotion | Line 12 |
 | Office expenses / supplies | Line 13 |
@@ -305,6 +308,7 @@ For each budget row, apply the mapping methodology:
 | Royalties | Line 15 |
 | Occupancy / rent | Line 16 |
 | Travel | Line 17 |
+| Travel / entertainment for federal/state/local public officials | Line 18 |
 | Conferences / meetings | Line 19 |
 | Interest expense | Line 20 |
 | Depreciation / amortization | Line 22 |
@@ -469,8 +473,9 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
 **Idempotency.** Overwrite mode — checklist rewritten on re-run; `required_schedules[]`
 fully rebuilt from answers (no append).
 
-**Applicable Gates.** Q-F4 (Schedule A always present for 501(c)(3)), Q-F8 (all questions
-answered, all yes → schedule present).
+**Applicable Gates.** Q-F4 (proxy check only at P4: verify Schedule A is in `required_schedules[]`;
+full Q-F4 PASS requires P6 Schedule A generation — cannot fully pass at P4), Q-F8 (all Part IV
+questions answered or queued as open question; all `yes` answers added to `required_schedules[]`).
 
 **Transition.** → P5.
 
@@ -696,26 +701,38 @@ Part I Line 8  = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
-Compute `reconciliation`:
+Compute `reconciliation` using THREE SEPARATE CHECKS (not a single equality chain —
+see Q-F2 for rationale). Revenue − Expenses ≠ EOY − BOY when adjustment lines are non-zero:
 ```
-revenue_total  = Part I Line 8
-expense_total  = Part I Line 18
-net_assets_boy = dataset_core.parts.X["line_32_boy_net_assets"]
-net_assets_eoy = Part I Line 22
-delta_match    = (revenue_total − expense_total) == (net_assets_eoy − net_assets_boy)
+revenue_total    = Part I Line 8   (= dataset_core.parts.VIII["line_12_total_revenue"])
+expense_total    = Part I Line 18  (= dataset_core.parts.IX["line_25_total_expenses"])
+net_assets_boy   = dataset_core.parts.X["line_32_boy_net_assets"]
+net_assets_eoy   = Part I Line 22  (= dataset_core.parts.X["line_32_eoy_net_assets"])
+part_xi_line3    = dataset_core.parts.XI["line_3_excess_deficit"]
+part_xi_line4    = dataset_core.parts.XI["line_4_net_assets_boy"]
+part_xi_line10   = dataset_core.parts.XI["line_10_net_assets_eoy"]
+
+line3_check  = abs(part_xi_line3 − (revenue_total − expense_total)) <= 1
+boy_check    = abs(part_xi_line4 − net_assets_boy) <= 1
+eoy_check    = abs(part_xi_line10 − net_assets_eoy) <= 1
+delta_match  = line3_check and boy_check and eoy_check
 ```
 Write `artifacts/form990-dataset-rollup.json`:
 ```json
 {
   "parts": {"I": {"line_8": ..., "line_18": ..., "line_22": ...}},
-  "reconciliation": {"revenue_total": ..., "expense_total": ...,
-                     "net_assets_boy": ..., "net_assets_eoy": ...,
-                     "delta_match": true|false}
+  "reconciliation": {
+    "revenue_total": ..., "expense_total": ...,
+    "net_assets_boy": ..., "net_assets_eoy": ...,
+    "line3_check": true|false, "boy_check": true|false, "eoy_check": true|false,
+    "delta_match": true|false,
+    "note": "delta_match=true requires all three sub-checks; line3_check may be false for orgs with non-zero adjustment lines (expected)"
+  }
 }
 ```
-Emit `artifacts/reconciliation-report.md` with the arithmetic shown step by step.
-If `delta_match == false`: breadcrumb the discrepancy, flag Q-F2 NEEDS_UPDATE inline,
-do NOT advance to merge sub-phase until resolved.
+Emit `artifacts/reconciliation-report.md` with each check shown step by step.
+If any check fails by > $1: breadcrumb the discrepancy with the specific check name,
+flag Q-F2 NEEDS_UPDATE inline, do NOT advance to merge sub-phase until resolved.
 
 **Step 2: Deterministic merge (P7-merge sub-phase).**
 Run `SKILL.md §merge_datasets()` with the three sibling paths:
