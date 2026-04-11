@@ -219,6 +219,7 @@ describe('Wiki Schema v2', function () {
                 expect(content).to.not.include('confidence:');
                 expect(content).to.not.include('sources:');
                 expect(content).to.not.include('related:');
+                expect(content).to.not.include('description:');
             });
         });
 
