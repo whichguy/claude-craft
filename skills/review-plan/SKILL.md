@@ -688,6 +688,7 @@ DO:
       evaluator_name = extract name from task_result  # matches wave entry
       IF task_result indicates tool-level failure (error, crash, context limit):
         # Write error sentinel immediately — fail fast on task errors
+        # Note: strip or truncate [brief error] to avoid shell quoting issues before interpolating.
         Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task failed: [brief error]"}' > '<RESULTS_DIR>/[evaluator_name].json'
         Print: "    ✗ [evaluator_name] — task failed: [brief error]"
       ELSE:
@@ -864,6 +865,11 @@ DO:
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
+      # Defense-in-depth: Q-G20–Q-G25 are group-memoized (l1_structural_memoized gate prevents
+      # spawning this evaluator entirely once the group locks). They are never individually added
+      # to memoized_l1_questions via the per-Q stability loop (line 1595 excludes them).
+      # This block is therefore a no-op under normal operation but guards against malformed memo
+      # recovery that might populate memoized_l1_questions with stale individual entries.
       [IF memoized_l1_questions intersects {Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25} is non-empty, append to prompt:]
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
@@ -2377,6 +2383,9 @@ After the convergence loop exits (scorecard not yet printed):
    "Output: Unified Scorecard" section for the full template. Include the "Organization Quality
    (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
    in the Gate 1 section of the scorecard.
+   The scorecard template ends with a `📊 Prompt Improvement Recommendations` section header —
+   **render the header only (no content)** in this step. Step 5 (Meta-Reflection) fills the
+   recommendations content. This prevents the section from being rendered twice.
 
 5. **Meta-Reflection Pass** (inline, no agent spawn):
    Analyze signals accumulated during the convergence loop to surface 0–5 concise
