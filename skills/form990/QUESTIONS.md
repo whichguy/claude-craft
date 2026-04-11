@@ -90,11 +90,11 @@ comparisons in Decision Log; update form_variant to "990" in machine state → P
 Part VIII Line 12 (total revenue)
 − Part IX Line 25 (total expenses)
 = Part XI Line 9 (change in net assets)
-= Part X Line 22 EOY − Part X Line 22 BOY (change per balance sheet)
+= Part X Line 32 EOY − Part X Line 32 BOY (change per balance sheet)
 ```
 
-All four values must be consistent (delta ≤ $0 due to rounding is acceptable with a note;
-any unexplained delta > $0 is NEEDS_UPDATE).
+All four values must be consistent (a rounding difference of ≤ $1 in absolute value is
+acceptable with a note explaining the source; any unexplained delta > $1 is NEEDS_UPDATE).
 
 **Pass criteria:**
 - `reconciliation.delta_match == true` in `dataset_rollup.json`
@@ -218,7 +218,7 @@ mid-year employment changes.
 ```
 Part I Line 8  = Part VIII Line 12 (total revenue)
 Part I Line 18 = Part IX Line 25 (total expenses)
-Part I Line 22 = Part X Line 22 EOY (net assets/fund balances)
+Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
 ```
 
 **Pass criteria:**

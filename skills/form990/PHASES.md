@@ -11,6 +11,87 @@ execution-graph analysis. Use them consistently on every phase.
 
 ---
 
+## Cross-Cutting Pattern: Programmatic Analysis
+
+Several phases involve processing enough data (50–500+ budget rows, 5-year support histories,
+multi-column expense matrices) that an LLM working row-by-row in conversational turns risks
+error accumulation, token burn, and non-reproducible arithmetic. For any phase marked
+**[PROG]** in its header, apply this pattern instead of inline computation:
+
+### When to apply
+
+Apply when the phase processes data that meets ANY of:
+- More than 20 rows/records to aggregate, classify, or transform
+- Multi-dimensional arithmetic (e.g., Part IX: 25 rows × 4 functional columns = 100 cells)
+- 5-year sliding window calculations (Schedule A public-support test)
+- Needs to be reproducible and verifiable (sha256 output fingerprinting)
+
+### The pattern (4 steps)
+
+**Step 1 — Write the script.**
+Write a self-contained Python 3 script to `artifacts/scripts/<phase>-<purpose>.py`.
+The script must:
+- Accept input paths as command-line arguments (no hardcoded paths)
+- Print a JSON result to stdout on success (`{"status": "ok", "result": {...}}`)
+- Print a JSON error to stdout on failure (`{"status": "error", "message": "..."}`)
+- Be idempotent (re-running on the same input produces identical output)
+- Log processing steps to stderr (not stdout) so stdout stays machine-parseable
+
+**Step 2 — Sample run (validate logic before full dataset).**
+Run the script on a small sample first:
+- For tabular data: pass the first 5 rows as a fixture (either a sliced CSV or a tiny
+  JSON fixture file written to `artifacts/scripts/fixtures/<phase>-sample.json`)
+- For multi-year calculations: use 2 years of data instead of 5
+- Inspect the output manually; verify the arithmetic matches hand-calculation on the sample
+- If the output looks wrong: fix the script and re-run the sample before proceeding
+- Write a breadcrumb: `"Script <name> — sample run PASS (N rows, result: <summary>)"`
+
+**Step 3 — Full run.**
+Once the sample validates:
+- Run the script on the full dataset
+- Capture stdout (JSON result) and sha256 the output for `input_fingerprint` tracking
+- Write the result to the appropriate artifact file
+- Write a breadcrumb: `"Script <name> — full run: <N> rows processed, <M> Open Questions created"`
+
+**Step 4 — Human review of flags.**
+The script output should include a `flags` array listing rows/items that need human review
+(low-confidence mappings, ambiguous cases, Open Questions). Display these to the user in a
+formatted table before closing the phase. The user resolves flags by answering inline or
+by updating the source data and re-running.
+
+### Script registration
+
+Scripts are tracked in machine state under `programmatic_scripts[]`:
+```json
+"programmatic_scripts": [
+  {
+    "phase": "P2",
+    "purpose": "coa-mapping",
+    "script_path": "artifacts/scripts/p2-coa-mapping.py",
+    "sample_fixture": "artifacts/scripts/fixtures/p2-sample.json",
+    "last_run": "<iso>",
+    "last_run_sha256_input": "<sha256-of-input-data>",
+    "last_run_sha256_output": "<sha256-of-output-json>",
+    "rows_processed": 47,
+    "flags_count": 3
+  }
+]
+```
+Scripts are committed to git along with skill files (they are not PII). The script itself is
+a first-class artifact: it documents *how* the data was processed, enables re-runs after
+source corrections, and is reviewable by the CPA as part of the audit trail.
+
+### Safety rules
+
+- Scripts write output to stdout only — never modify source data (Drive sheets, prior 990s)
+- Scripts never create Gmail drafts or call external APIs — data processing only
+- Scripts are Python 3 standard library only (no `pip install` required): `csv`, `json`,
+  `sys`, `math`, `collections`. If a third-party library would simplify logic, note it in
+  a comment but implement without it so the script runs anywhere `python3` is available
+- Scripts run via Bash tool: `python3 artifacts/scripts/<script>.py <args>`
+
+---
+
 ## P0 — Intake & Variant Routing
 
 **Goal.** Identify the organization, determine gross receipts / total assets, select the
@@ -154,10 +235,14 @@ or queued as open question).
 
 ---
 
-## P2 — Chart-of-Accounts → 990 Line Mapping
+## P2 — Chart-of-Accounts → 990 Line Mapping [PROG]
 
 **Goal.** Every budget line gets mapped to a Part VIII (revenue) or Part IX (expense) 990
 line plus a functional bucket (Program / M&G / Fundraising) with a documented allocation basis.
+
+> **Programmatic analysis required** (see Cross-Cutting Pattern above). Budget sheets routinely
+> have 30–300 rows. Apply the 4-step script pattern: write `artifacts/scripts/p2-coa-mapping.py`,
+> validate on a 5-row sample fixture, run full dataset, review flags with user.
 
 **Inputs.** Budget sheet tabs from P1 (`key_facts.sheet_schema`, budget tab content).
 
@@ -168,6 +253,13 @@ line plus a functional bucket (Program / M&G / Fundraising) with a documented al
 - If 100 < rows ≤ 500: plan batch reads in chunks of 100 with progress breadcrumbs
 
 **Work.**
+
+**Script: `artifacts/scripts/p2-coa-mapping.py`**
+- Input args: `--sheet-csv <path>` (normalized CSV dump of budget tab), `--tax-year <YYYY>`
+- Output: JSON with `{mapped_rows: [...], flags: [...], summary: {revenue_total, expense_total, unmapped_count}}`
+- Sample fixture: `artifacts/scripts/fixtures/p2-sample.json` (5 rows covering at least one
+  revenue, one salary, and one ambiguous row)
+- The script applies Steps 1–5 below algorithmically; human review happens on the `flags` output
 
 For each budget row, apply the mapping methodology:
 
@@ -280,10 +372,16 @@ Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5).
 
 ---
 
-## P3 — Financial Statement Production
+## P3 — Financial Statement Production [PROG]
 
 **Goal.** Produce Statement of Activities, Balance Sheet (BOY + EOY), and Functional Expense
 matrix from the CoA mapping.
+
+> **Programmatic analysis required** (see Cross-Cutting Pattern above). P3 aggregates the
+> CoA mapping into three financial statements — 25 Part IX rows × 4 columns = 100 cells that
+> must be arithmetically exact. Apply the 4-step script pattern:
+> write `artifacts/scripts/p3-financial-statements.py`, validate on a 5-row sample of the
+> CoA mapping CSV, then run the full mapping.
 
 **Inputs.** `artifacts/coa-mapping.csv` from P2; budget sheet tab values.
 
@@ -295,6 +393,17 @@ matrix from the CoA mapping.
 - Verify at least one row per functional bucket or explicitly N/A
 
 **Work.**
+
+**Script: `artifacts/scripts/p3-financial-statements.py`**
+- Input args: `--coa-csv artifacts/coa-mapping.csv`, `--balance-sheet-csv <path>` (if
+  balance-sheet accounts are in a separate tab)
+- Output: JSON with `{statement_of_activities: {...}, balance_sheet: {boy: {...}, eoy: {...}},
+  functional_expense: {rows: [...], column_check_pass: true|false}, flags: [...]}`
+- Sample fixture: `artifacts/scripts/fixtures/p3-sample.json` (10 mapped rows: at least 3
+  Part IX expense lines with functional splits, 2 Part VIII revenue lines, and 1 balance-sheet
+  account pair BOY/EOY)
+- The script performs Steps 1–4 below; `column_check_pass` is the Q-F3 inline check
+
 1. Aggregate revenue rows by Part VIII line → compute line totals → write Statement of
    Activities (total revenue, total expenses, change in net assets, beginning/ending net assets)
 2. Aggregate balance-sheet accounts → produce Part X: BOY + EOY columns (assets, liabilities,
@@ -424,9 +533,11 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 - Line 1: total revenue (Part VIII Line 12)
 - Line 2: total expenses (Part IX Line 25)
 - Line 3: revenue less expenses (lines 1−2)
-- Lines 4–8: adjustments (unrealized gains, prior period adjustments, etc.)
-- Line 9: net assets EOY (Part X Line 33 EOY)
-- Line 10: net assets BOY (Part X Line 33 BOY)
+- Line 4: net assets or fund balances at beginning of year (Part X Line 32 column A / BOY)
+- Lines 5–8: adjustments (unrealized gains on investments, donated services, prior period
+  adjustments, other named changes — see current-year 990 instructions for exact labels)
+- Line 9: other changes in net assets or fund balances (catch-all adjustment line)
+- Line 10: net assets or fund balances at end of year (must equal Part X Line 32 column B / EOY)
 
 **Part XII — Financial Statements and Reporting:**
 - Line 1: accounting method (cash/accrual/other)
@@ -469,10 +580,16 @@ accomplishments substantive).
 
 ---
 
-## P6 — Schedule Generation
+## P6 — Schedule Generation [PROG: Schedule A]
 
 **Goal.** Produce every triggered schedule. Schedule A always; Schedule O nearly always.
 P6 writes only `dataset_schedules.json` plus per-schedule markdown — never touches `dataset_core.json`.
+
+> **Programmatic analysis required for Schedule A** (see Cross-Cutting Pattern above). The
+> 509(a)(1) public-support test involves 5 years × multiple donor/revenue columns × excess-
+> contribution exclusion arithmetic across donors — error-prone to compute inline. Apply the
+> 4-step script pattern for Schedule A: write `artifacts/scripts/p6-schedule-a.py`, validate
+> on 2 years of data as a sample fixture, then run the full 5-year window.
 
 **Inputs.** `required_schedules[]`, `artifacts/form990-dataset-core.json` (read-only),
 financial data, prior-year support data.
@@ -490,10 +607,25 @@ Dispatch to SCHEDULES.md playbooks for each schedule in `required_schedules[]`.
 
 **Schedule A (always — 501(c)(3) public charity):**
 See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
+
+**Script: `artifacts/scripts/p6-schedule-a.py`**
+- Input args: `--support-json <path>` (a JSON file with 5-year support history per donor,
+  shape: `{years: [T-4..T], donors: [{name, year, amount}], totals: {year: {contributions,
+  investment_income, other_revenue, program_service_revenue}}}`)
+- Output: JSON with `{public_support_pct: float, result: "PASS"|"BORDERLINE"|"FAIL",
+  test_used: "509a1"|"509a2", five_year_detail: [...], excess_contributions_by_year: {...},
+  facts_and_circumstances_needed: bool, flags: [...]}`
+- Sample fixture: `artifacts/scripts/fixtures/p6-schedule-a-sample.json` — use 2-year window
+  with 3 donors (one clearly below 2% threshold, one right at it, one above) to verify
+  excess-contribution exclusion logic before running the full 5-year dataset
+- On BORDERLINE (10%–33⅓%): set `facts_and_circumstances_needed: true` and add a flag
+  prompting the user to provide the Schedule A facts-and-circumstances narrative inputs
+
 Algorithm sketch (509(a)(1)/§170(b)(1)(A)(vi)):
 ```
 For each year in 5-yr window:
-  public_support += (contributions − max(0, donor_amount − 2pct_of_total_support))
+  two_pct_threshold = 0.02 × sum(total_support[T-4..T])   # 2% of 5-yr total support
+  public_support += contributions − sum(max(0, d.amount − two_pct_threshold) for d in donors)
   total_support  += contributions + investment_income + other_revenue
 
 public_support_pct = public_support / total_support × 100
@@ -547,7 +679,7 @@ deterministic merger to produce the consumable `form990-dataset.json`.
 - Verify `artifacts.dataset_core.output_sha256` matches fresh hash
 - Verify `artifacts.dataset_schedules.output_sha256` matches fresh hash
 - Any mismatch → regression → roll back the producing phase (P5 or P6)
-- Verify Part VIII Line 12, Part IX Line 25, Part X Line 22 (EOY), Part X Line 22 (BOY)
+- Verify Part VIII Line 12, Part IX Line 25, Part X Line 32 (EOY), Part X Line 32 (BOY)
   are all present and non-null in `dataset_core.json`
 
 **Work.**
@@ -556,13 +688,13 @@ deterministic merger to produce the consumable `form990-dataset.json`.
 ```
 Part I Line 8  = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
-Part I Line 22 = dataset_core.parts.X["line_33_eoy_net_assets"]
+Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
 Compute `reconciliation`:
 ```
 revenue_total  = Part I Line 8
 expense_total  = Part I Line 18
-net_assets_boy = dataset_core.parts.X["line_33_boy_net_assets"]
+net_assets_boy = dataset_core.parts.X["line_32_boy_net_assets"]
 net_assets_eoy = Part I Line 22
 delta_match    = (revenue_total − expense_total) == (net_assets_eoy − net_assets_boy)
 ```
