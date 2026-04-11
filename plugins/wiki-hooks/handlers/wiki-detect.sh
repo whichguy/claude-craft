@@ -65,4 +65,4 @@ fi
 CONTEXT="Project wiki: ${REPO_NAME}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
-  '{"systemMessage": $display, "additionalContext": $context}'
+  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": $context}}'
