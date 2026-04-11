@@ -142,12 +142,27 @@ if state["phase_status"].get(state["current_phase"]) == "running":
         atomic_commit(state, plan_path, pre_image_sha256)
         breadcrumb(f"phase {phase} crashed (pid {pid} dead), status=failed+RunningDeadPid; resuming from Pre-check")
 
-# Step C: Temp-file orphan sweep (plan + sidecar tmp files)
-for tmp in glob(plan_dir + "/*.tmp.*") + glob("~/.claude/.form990-memo-*.tmp.*"):
-    pid = int(tmp.split(".")[-1])
-    if not is_pid_alive(pid):
-        os.unlink(tmp)
-        breadcrumb(f"swept orphaned temp {tmp} (pid {pid} not alive)")
+# Step C: Temp-file orphan sweep (all known tempfile patterns — Q-C31)
+# Runs on every resume AND on /form990 status entry (not just crash recovery).
+# Pattern set covers all transient files created by Steps 7a, 7c, P9 WebFetch.
+orphan_globs = [
+    plan_dir + "/*.tmp.*",                         # plan tmp: <plan>.tmp.<pid>
+    "~/.claude/.form990-memo-*.tmp.*",             # sidecar tmp: .form990-memo-<fy>.json.tmp.<pid>
+    artifacts_dir + "/**/*.writing.*",             # artifact staging: <name>.writing.<pid>
+    artifacts_dir + "/f990-blank-*.pdf.partial.*", # P9 WebFetch partial download
+]
+for pattern in orphan_globs:
+    for tmp in glob(pattern, recursive=True):
+        try:
+            pid = int(tmp.rsplit(".", 1)[-1])
+        except ValueError:
+            continue  # not a pid-suffixed tmp — skip
+        if not is_pid_alive(pid):
+            try:
+                os.unlink(tmp)
+                breadcrumb(f"swept orphaned temp {tmp} (pid {pid} not alive)")
+            except FileNotFoundError:
+                pass  # another sweep path already cleaned it
 ```
 
 ---

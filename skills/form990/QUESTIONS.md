@@ -475,3 +475,33 @@ if pass == 5 and gate1_open:
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9
 Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18
+
+---
+
+## Cross-Cutting Quality Gates
+
+These questions apply at the skill infrastructure level (not phase-specific). Evaluated
+automatically by the Phase Entry Protocol and resume sweep — not part of the P8 gate catalog.
+
+### Q-C31 — Tempfile / Resource Lifecycle
+
+**Tier:** Cross-cutting infrastructure (not a P8 CPA gate).
+
+**Trigger:** Always active — evaluated on every resume and `/form990 status` invocation.
+
+**Criteria:** All external resources acquired during phase execution (temporary files,
+subprocess handles, staging artifacts) must be:
+1. Released on phase abort via `try/finally` in the write path (Step 7a).
+2. Orphan-swept on the next resume via the Step 2b dead-PID glob patterns:
+   - `<plan-dir>/*.tmp.<pid>` — plan file atomic write temps
+   - `~/.claude/.form990-memo-*.tmp.<pid>` — sidecar memo temps
+   - `artifacts/**/*.writing.<pid>` — artifact staging files (Change 2)
+   - `artifacts/f990-blank-*.pdf.partial.<pid>` — P9 WebFetch partial downloads
+3. Per-orphan breadcrumb logged on unlink: `{path, phase, size_bytes, age_s}`.
+
+**Pass criteria:** No `.writing.<pid>`, `.tmp.<pid>`, or `.partial.<pid>` files remain in
+the plan directory or `artifacts/` after a successful resume sweep.
+
+**Fail signal:** A `status=writing` artifact whose `plan_lock.pid` is no longer alive, or
+a `.tmp.*` file whose PID suffix is a dead process — indicates a prior crash left
+unreleased resources.
