@@ -513,6 +513,31 @@ def merge_datasets(core_path, schedules_path, rollup_path, output_path):
             raise ValueError("merger_conflict: schedules key appears in two inputs")
         merged["schedules"] = schedules["schedules"]
 
+    # --- Positive-ownership assertions (Change 5) ---
+    core_I = core.get("parts", {}).get("I", "__ABSENT__")
+    assert core_I in (None, "__ABSENT__"), (
+        f"merger: dataset_core.parts.I MUST be null or absent (P5 ownership contract); "
+        f"got type={type(core_I).__name__}"
+    )
+    rollup_I = rollup.get("parts", {}).get("I")
+    assert rollup_I is not None, (
+        "merger: dataset_rollup.parts.I must be populated (not null) — "
+        "P7 partial-write detected; re-run P7 before merging"
+    )
+    rollup_part_keys = set(rollup.get("parts", {}).keys())
+    assert rollup_part_keys <= {"I"}, (
+        f"merger: dataset_rollup.parts may only contain 'I', got extras: "
+        f"{sorted(rollup_part_keys - {'I'})}"
+    )
+    assert "schedule_dependencies" not in rollup, \
+        "merger: schedule_dependencies owned by dataset_core only — found in rollup"
+    assert "schedule_dependencies" not in schedules, \
+        "merger: schedule_dependencies owned by dataset_core only — found in schedules"
+    assert "reconciliation" not in core, \
+        "merger: reconciliation owned by dataset_rollup only — found in core"
+    assert "reconciliation" not in schedules, \
+        "merger: reconciliation owned by dataset_rollup only — found in schedules"
+
     # Deterministic serialization (sort_keys ensures byte-stability across Python minors)
     serialized = json.dumps(merged, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
     with open(output_path, 'w', encoding='utf-8') as f:
