@@ -2867,7 +2867,12 @@ After the convergence loop exits (scorecard not yet printed):
    IF frontmatter.get("intent_questions") == false:
        SKIP  # explicit opt-out
 
-   render_to_terminal_5th_panel = (VCS guard fires OR fixture guard fires)
+   is_fixture_path = (fixture guard fires)   # test/fixtures/, wiki/fixtures/, *-bench/inputs/, skills/*/fixtures/
+   render_to_terminal_5th_panel = (VCS guard fires OR is_fixture_path)
+
+   IF is_fixture_path:
+       SKIP  # fixture plan: no real implementer consuming intent questions; skip subagent spawn
+             # VCS-tracked plans still spawn — terminal panel output is meaningful there
 
    # Single-pass extraction: plan sections provide category scaffolding so the
    # subagent can produce categorized questions without a 2-pass split.
@@ -2924,7 +2929,6 @@ After the convergence loop exits (scorecard not yet printed):
        # Malformed or timeout — do NOT append to plan file
        intent_questions = []
        render_to_terminal_5th_panel = True
-       scorecard_intent_label = "— extraction failed (malformed subagent output)"
 
    IF intent_questions == [] AND NOT render_to_terminal_5th_panel:
        SKIP  # NO_INTENT_QUESTIONS — do not write empty section to plan file
@@ -2932,10 +2936,15 @@ After the convergence loop exits (scorecard not yet printed):
    IF render_to_terminal_5th_panel OR append fails:
        Print intent_questions as terminal 5th panel below GATE STATUS
    ELSE:
-       Read plan_path
+       Read plan_path into plan_contents
+       new_section = build_intent_questions_section(intent_questions)  # per §5c.5 section shape below
        IF plan contains "## Implementation Intent Questions":
            # Idempotent re-run: replace section. Unlike Teaching Notes (historical
            # per-run record), intent questions reflect CURRENT plan state — last run wins.
+           # Bounds: from "## Implementation Intent Questions" to next "^## " (exclusive) or EOF.
+           old_section_start = index of "## Implementation Intent Questions" in plan_contents
+           old_section_end   = next line matching "^## " after old_section_start, or EOF
+           old_section       = plan_contents[old_section_start : old_section_end]
            Edit(plan_path, old_section, new_section)
        ELSE:
            # Insert BEFORE "## Teaching Notes" if present, else EOF
@@ -3084,6 +3093,14 @@ After the convergence loop exits (scorecard not yet printed):
    #   3. QUESTIONS.md §Q-ID fallback
    #   4. (no external citation) — never fabricate
 
+   # Each helper returns list of {q_id: str, change_title: str, what: str, why: str} dicts.
+   # findings_to_change_list: iterate findings{} — for each Q-ID with applied_edit, extract
+   #   change_title from the [EDIT:] label, what from the diff description, why from the
+   #   evaluator rationale field.
+   # sr_critic_to_change_list: iterate sr_applied_edits[] — each entry is a dict with
+   #   {q_id: "SR", change_title, what, why} from the consolidated critic output.
+   # epilogue_to_change_list: iterate epilogue_results for Q-E1/Q-E2/Q-G9 applied edits;
+   #   shape matches findings_to_change_list output.
    all_changes = []
    all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators
    all_changes.extend(sr_critic_to_change_list(sr_applied_edits)) # senior critic (FULL only)
@@ -3154,14 +3171,17 @@ After the convergence loop exits (scorecard not yet printed):
    # Runs after cleanup (step 6), before interactive exit (step 7/8).
    # Always runs on all tiers. Opt-out: plan frontmatter redisplay: false.
 
-   IF frontmatter_redisplay == false:
+   # frontmatter is the parsed YAML front matter dict from plan_path (read in Phase 1).
+   # If Phase 1 did not parse frontmatter, default all opt-out keys to nil/unset.
+   IF frontmatter.get("redisplay") == false:
        SKIP
 
    # Re-read from disk (not cached) — verifies what the user will see in an editor
    final_plan_text = Read(plan_path)
    final_line_count = len(final_plan_text.splitlines())
    final_byte_count = len(final_plan_text.encode())
-   final_sha256 = sha256(final_plan_text)[:12]
+   # SHA256 of file on disk — concrete invocation: sha256sum <plan_path> | cut -c1-12
+   final_sha256 = Bash("sha256sum {plan_path} | cut -c1-12")
 
    Print: "╔══════════════════════════════════════════════════════════════════╗"
    Print: "║           FINAL PLAN — FULL TEXT AFTER CONVERGENCE               ║"
@@ -3171,7 +3191,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    IF final_line_count > 2000:
        Print: first 500 lines of final_plan_text
-       Print: "[… {final_line_count - 1000} lines omitted — read with: cat <plan_path> …]"
+       Print: "[… {final_line_count - 1000} lines omitted — read with: cat {plan_path} …]"
        Print: last 500 lines of final_plan_text
    ELSE:
        Print: final_plan_text

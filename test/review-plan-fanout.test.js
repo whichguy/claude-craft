@@ -572,7 +572,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('Phase 5c.5 does not append to plan when intent_questions is empty', function () {
             const idx = skillContent.indexOf('5c.5. **Implementation Intent Questions**');
             expect(idx, '5c.5 section heading not found').to.be.greaterThan(0);
-            const section = skillContent.substring(idx, idx + 4000);
+            const section = skillContent.substring(idx, idx + 5000);
             // Must guard the append branch against empty list (NO_INTENT_QUESTIONS path).
             // Guard may be multi-line ("IF intent_questions == []\n    SKIP"), so check components.
             expect(section).to.include('intent_questions == []');
