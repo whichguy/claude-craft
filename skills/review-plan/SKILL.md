@@ -45,7 +45,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    - Read the plan file fully
    - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
      `Bash "touch /tmp/.review-ready-$(basename $(ls -t ~/.claude/plans/*.md | head -1) .md)"`
-     — this creates the gate file for the current plan, allowing ExitPlanMode to proceed without review.
+     — this creates the gate file for the most-recently-modified plan in `~/.claude/plans/`.
+     **Warning:** If multiple plan files exist, `ls -t` picks whichever was touched last, which may
+     not be the plan currently under review. Confirm with `ls -t ~/.claude/plans/*.md` first.
+     (The hook checks file existence only — content is ignored, so `touch` is equivalent to the `echo` write in step 8.)
 
 2. **Load standards context:**
    - Read `~/.claude/CLAUDE.md` for directives and conventions
@@ -240,7 +243,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
          If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion, and do not touch marker files — read-only.
        """
      )
 
@@ -350,7 +353,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            - Evaluate against the plan (mark N/A per supersession rules above)
            - Output: Q-ID PASS | NEEDS_UPDATE | N/A — [finding]
            - If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion, and do not touch marker files — read-only.
        """
      )
 
@@ -685,6 +688,7 @@ DO:
       evaluator_name = extract name from task_result  # matches wave entry
       IF task_result indicates tool-level failure (error, crash, context limit):
         # Write error sentinel immediately — fail fast on task errors
+        # Note: strip or truncate [brief error] to avoid shell quoting issues before interpolating.
         Bash: echo '{"evaluator":"[evaluator_name]","pass":[pass_count],"status":"error","error":"Task failed: [brief error]"}' > '<RESULTS_DIR>/[evaluator_name].json'
         Print: "    ✗ [evaluator_name] — task failed: [brief error]"
       ELSE:
@@ -861,6 +865,11 @@ DO:
       Apply triage (mark N/A per the N/A column).
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
+      # Defense-in-depth: Q-G20–Q-G25 are group-memoized (l1_structural_memoized gate prevents
+      # spawning this evaluator entirely once the group locks). They are never individually added
+      # to memoized_l1_questions via the per-Q stability loop (line 1595 excludes them).
+      # This block is therefore a no-op under normal operation but guards against malformed memo
+      # recovery that might populate memoized_l1_questions with stale individual entries.
       [IF memoized_l1_questions intersects {Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25} is non-empty, append to prompt:]
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
@@ -1180,7 +1189,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode, AskUserQuestion, or touch marker files.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -1210,7 +1219,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode, AskUserQuestion, or touch marker files.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -1699,6 +1708,13 @@ DO:
       total_applicable_questions -= 1  # Q-C14 inactive this run
     IF "impact" in active_clusters AND NOT IS_GAS AND NOT IS_NODE AND NOT HAS_UNBOUNDED_DATA:
       total_applicable_questions -= 1  # Q-C32 inactive this run
+    # IS_GAS + HAS_UI: Q-C17 and Q-C25 are N/A-superseded by gas-evaluator Q32/Q33 within ui-evaluator.
+    # Subtract so they don't inflate the denominator in this configuration.
+    IF IS_GAS AND HAS_UI:
+      total_applicable_questions -= 2  # Q-C17/Q-C25 never actually evaluated
+    # Note: IS_NODE suppresses up to 7 cluster questions (Q-C16, Q-C18, Q-C30–Q-C34) as N/A,
+    # but which of those are active depends on ACTIVE_RISKS, making the decrement variable.
+    # This is a cosmetic limitation — memo % is slightly conservative in IS_NODE mode.
   total_memo_count = len(memoized_l1_questions) + sum(questions in each memoized_cluster) + len(memoized_gas_questions) + len(memoized_node_questions)
   memo_pct = Math.round(100 * total_memo_count / total_applicable_questions)
   FOR threshold in [25, 50, 75]:
@@ -1951,7 +1967,7 @@ DO:
 
 WHILE TRUE
 
--- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → STOP. --
+-- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → step 7 (remaining issues) → step 8 (interactive prompt). --
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
@@ -2367,6 +2383,9 @@ After the convergence loop exits (scorecard not yet printed):
    "Output: Unified Scorecard" section for the full template. Include the "Organization Quality
    (Q-G9)" section when Q-G9 ran (plan had >= 3 implementation steps). Include Q-E1 and Q-E2
    in the Gate 1 section of the scorecard.
+   The scorecard template ends with a `📊 Prompt Improvement Recommendations` section header —
+   **render the header only (no content)** in this step. Step 5 (Meta-Reflection) fills the
+   recommendations content. This prevents the section from being rendered twice.
 
 5. **Meta-Reflection Pass** (inline, no agent spawn):
    Analyze signals accumulated during the convergence loop to surface 0–5 concise
@@ -2492,7 +2511,7 @@ After the convergence loop exits (scorecard not yet printed):
        options = ["Describe changes", "Abandon review"]
      )
 
-   IF user chooses to exit (first option for READY/SOLID/GAPS):
+   IF user selected "Exit to implementation" or "Exit to implementation (proceed with warnings)":
      Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
      # Gate file written here — after user confirms — so no stale file exists during editing cycles.
      # Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after successful exit.
@@ -2500,7 +2519,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    IF user chooses to continue editing (or is in REWORK and describes changes):
      Apply the user's requested changes to the plan file.
-     Re-run review from Step 3 (re-classify and re-evaluate — do not skip the classifier).
+     Re-run review from Step 0 item 3 (context-flags classifier) through the full outer flow — re-classify, then branch to TRIVIAL/SMALL/FULL as appropriate. Do not skip re-classification.
      # This loop repeats until user confirms exit or abandons. No hard cap — user controls termination.
 
    IF user chooses "Abandon review" (REWORK only):
