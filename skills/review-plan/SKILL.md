@@ -2864,6 +2864,9 @@ After the convergence loop exits (scorecard not yet printed):
    IF REVIEW_TIER != "FULL":
        SKIP
 
+   IF frontmatter.get("intent_questions") == false:
+       SKIP  # explicit opt-out
+
    render_to_terminal_5th_panel = (VCS guard fires OR fixture guard fires)
 
    # Single-pass extraction: plan sections provide category scaffolding so the
@@ -2922,6 +2925,9 @@ After the convergence loop exits (scorecard not yet printed):
        intent_questions = []
        render_to_terminal_5th_panel = True
        scorecard_intent_label = "— extraction failed (malformed subagent output)"
+
+   IF intent_questions == [] AND NOT render_to_terminal_5th_panel:
+       SKIP  # NO_INTENT_QUESTIONS — do not write empty section to plan file
 
    IF render_to_terminal_5th_panel OR append fails:
        Print intent_questions as terminal 5th panel below GATE STATUS

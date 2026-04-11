@@ -563,10 +563,20 @@ describe('Review-Plan Task Fan-Out', function () {
             const section = skillContent.substring(idx, idx + 4000);
             // Tier guard: FULL only
             expect(section).to.match(/REVIEW_TIER.*FULL/);
-            // Opt-out frontmatter
-            expect(section).to.include('intent_questions: false');
+            // Opt-out frontmatter guard must be in pseudocode, not just prose
+            expect(section).to.match(/frontmatter.*intent_questions.*false.*SKIP|frontmatter\.get.*intent_questions.*==.*false/i);
             // VCS guard: untracked check
             expect(section).to.match(/ls-files --error-unmatch|VCS guard|render_to_terminal_5th_panel/);
+        });
+
+        it('Phase 5c.5 does not append to plan when intent_questions is empty', function () {
+            const idx = skillContent.indexOf('5c.5. **Implementation Intent Questions**');
+            expect(idx, '5c.5 section heading not found').to.be.greaterThan(0);
+            const section = skillContent.substring(idx, idx + 4000);
+            // Must guard the append branch against empty list (NO_INTENT_QUESTIONS path).
+            // Guard may be multi-line ("IF intent_questions == []\n    SKIP"), so check components.
+            expect(section).to.include('intent_questions == []');
+            expect(section).to.match(/intent_questions == \[\][\s\S]{0,200}SKIP/);
         });
     });
 
