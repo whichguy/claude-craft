@@ -659,6 +659,52 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('Phase 5g Skill-Learnings Review', function () {
+        it('SKILL.md defines Phase 5g skill-learnings review', function () {
+            expect(skillContent).to.include('5g. **Skill-Learnings Review**');
+            expect(skillContent).to.include('SKILL LEARNINGS');
+            expect(skillContent).to.include('NO_SKILL_LEARNINGS');
+        });
+
+        it('Phase 5g comes after Phase 5f and before Step 6 cleanup', function () {
+            const phase5g = skillContent.indexOf('5g. **Skill-Learnings Review**');
+            const phase5f = skillContent.indexOf('5f. **Phase 6b: Teaching Summary**');
+            const step6   = skillContent.indexOf('6. **Cleanup and teardown**');
+            expect(phase5g, 'Phase 5g not found').to.be.greaterThan(0);
+            expect(phase5g).to.be.greaterThan(phase5f);
+            expect(phase5g).to.be.lessThan(step6);
+        });
+
+        it('Phase 5g is FULL-tier only (not all tiers)', function () {
+            const idx = skillContent.indexOf('5g. **Skill-Learnings Review**');
+            const section = skillContent.substring(idx, idx + 3000);
+            expect(section).to.match(/IF REVIEW_TIER.*!=.*["\']FULL["\'].*\n\s*SKIP/);
+        });
+
+        it('Phase 5g has skill_audit opt-out guard', function () {
+            const idx = skillContent.indexOf('5g. **Skill-Learnings Review**');
+            const section = skillContent.substring(idx, idx + 3000);
+            expect(section).to.include('skill_audit');
+        });
+
+        it('Phase 5g spawns a Task() agent with questions_path and findings_summary', function () {
+            const idx = skillContent.indexOf('5g. **Skill-Learnings Review**');
+            const section = skillContent.substring(idx, idx + 3000);
+            expect(section).to.include('Task(');
+            expect(section).to.include('questions_path');
+            expect(section).to.include('findings_summary');
+            expect(section).to.include('sr_applied_edits');
+        });
+
+        it('Phase 5g directive listed in Role & Authority', function () {
+            const roleStart = skillContent.indexOf('## Role & Authority');
+            const roleEnd   = skillContent.indexOf('\n---\n', roleStart);
+            const roleSection = skillContent.substring(roleStart, roleEnd);
+            expect(roleSection).to.include('Phase 5g');
+            expect(roleSection).to.include('SKILL LEARNINGS');
+        });
+    });
+
     describe('delta-aware evaluator prompts', function () {
         it('defines prev_pass_applied_edits variable', function () {
             expect(skillContent).to.include('prev_pass_applied_edits = []');

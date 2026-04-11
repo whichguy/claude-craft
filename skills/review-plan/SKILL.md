@@ -21,6 +21,7 @@ allowed-tools: all
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
 5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review --commit` uses to catch intent-to-code drift.
+6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 concrete improvements to the review-plan skill itself — distinct from plan-level retrospective actions. Output renders as a terminal `SKILL LEARNINGS` panel before cleanup.
 
 ---
 
@@ -3136,6 +3137,123 @@ After the convergence loop exits (scorecard not yet printed):
    Phase 6b prints the terminal panel. Both use the same `# helper: resolve_citation(q_id)` comment
    block so citation logic never drifts between the two output paths. Phase 5e calls `resolve_citation`
    to build wiki/directive citations; Phase 6b calls the same helper for the `See:` lines.
+
+5g. **Skill-Learnings Review** (senior-engineer meta-read, Directive 2026-04-11):
+
+   Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup). Spawns a single senior-engineer
+   Task() agent to perform a holistic, judgment-based read of what this review run reveals about
+   review-plan's own gaps or blindspots — distinct from Phase 5 Meta-Reflection (inline signal-table,
+   quantitative) and Phase 5f (user-facing teaching about plan changes). Phase 5g asks: *"what should
+   the skill itself learn from this run?"*
+
+   ```
+   # ── Phase 5g: Skill-Learnings Review (senior-engineer meta-read) ──
+   # Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup).
+   # FULL tier only — TRIVIAL/SMALL have insufficient question coverage for meta-insights.
+   # Opt-out: plan frontmatter `skill_audit: false`.
+
+   IF REVIEW_TIER != "FULL":
+       SKIP
+
+   IF frontmatter.get("skill_audit") == false:
+       SKIP
+
+   # Skip all-clean first-pass runs — nothing to surface as meta-learning.
+   total_needs_update = len([q for q in findings if findings[q].status == "NEEDS_UPDATE"])
+   IF total_needs_update == 0 AND len(sr_applied_edits) == 0:
+       SKIP
+
+   # Summarize findings for senior-engineer context.
+   findings_summary = ""
+   for q_id, result in findings.items():
+       if result.status == "NEEDS_UPDATE":
+           findings_summary += f"  {q_id}: {result.finding}\n    Edit applied: {result.edit}\n"
+
+   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
+
+   Task(
+     subagent_type = "general-purpose",
+     description   = "Phase 5g: skill-learnings senior-engineer meta-read",
+     prompt        = """
+       You are a senior engineer who designs and maintains AI code-review skill prompts.
+
+       You have just observed a review-plan run with these findings:
+
+       ## Run Context
+       Tier: {REVIEW_TIER} | IS_GAS={IS_GAS} | IS_NODE={IS_NODE} | Active risks: {ACTIVE_RISKS}
+       Final rating: {rating}
+
+       ## Question Findings (NEEDS_UPDATE — edits applied)
+       {findings_summary}
+
+       ## Senior-Critic Loop Changes (sr_applied_edits)
+       {critic_summary}
+
+       ## Your task
+
+       Read the question definitions at {questions_path}.
+
+       Based ONLY on the findings above, identify 0–5 improvements to the review-plan
+       skill itself — not the plan being reviewed. Surface genuine insights about the
+       skill's gaps, blindspots, or miscalibrations.
+
+       For each improvement, output:
+
+         - **[CATEGORY]** [title ≤10 words]
+           Evidence: [which Q-ID or critic change suggests this — cite specifically]
+           Action:   [file to edit + what to change, ≤25 words]
+           Priority: [HIGH | MEDIUM | LOW]
+
+       CATEGORY must be one of:
+         QUESTIONS.md — add a question or refine an existing one's criteria/gate
+         SKILL.md     — change pseudocode, a guard, a threshold, or a phase step
+         DIRECTIVE    — add a new item to Role & Authority
+
+       Guidelines:
+       - Only surface patterns from THIS run — no hypotheticals.
+       - A finding the senior-critic caught but Q-driven evaluators missed is a strong
+         QUESTIONS.md signal.
+       - Repeated or expected findings (e.g. Q-G1 fires on a vague approach) are NOT
+         meta-insights — skip them.
+       - If the run was well-covered and findings were expected, output exactly:
+           NO_SKILL_LEARNINGS — run produced no novel meta-insights for the skill
+
+       Use Read tool only. Do not Edit/Write/Bash.
+     """
+   )
+
+   # Parse and render output.
+   IF task output starts with "NO_SKILL_LEARNINGS":
+       Print: ""
+       Print: "┌─ SKILL LEARNINGS ────────────────────────────────────────────────┐"
+       Print: "│  No skill-level improvements surfaced from this run.             │"
+       Print: "│  (Senior engineer: findings were expected and well-covered.)     │"
+       Print: "└──────────────────────────────────────────────────────────────────┘"
+   ELIF task output matches ≥1 "- **[CATEGORY]**" bullet:
+       skill_learnings = <parsed list>
+       Print: ""
+       Print: "┌─ SKILL LEARNINGS ────────────────────────────────────────────────┐"
+       Print: "│  Senior-engineer meta-read: {N} improvement(s) surfaced.         │"
+       Print: "├──────────────────────────────────────────────────────────────────┤"
+       FOR each rec in skill_learnings:
+           Print: "│                                                                  │"
+           Print: "│  [{rec.category}] {rec.title}"
+           Print: "│    Evidence: {rec.evidence}"
+           Print: "│    Action:   {rec.action}"
+           Print: "│    Priority: {rec.priority}"
+       Print: "│                                                                  │"
+       Print: "└──────────────────────────────────────────────────────────────────┘"
+   ELSE:
+       # Malformed — do not silently drop.
+       Print: "⚠ Phase 5g: skill-learnings agent returned malformed output — raw output:"
+       Print: <task output>
+   ```
+
+   **Interaction with Phase 5 Meta-Reflection.** Phase 5 (inline signal-table) catches quantitative
+   patterns: N/A rate, oscillation count, coverage gaps. Phase 5g catches qualitative patterns: a
+   finding type the signal table has no signal for, a critic edit that reveals a question with weak
+   criteria, a guard that fired incorrectly. They are complementary — Phase 5g reads Phase 5's output
+   as part of its context implicitly (via findings{} and sr_applied_edits), not redundantly.
 
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
