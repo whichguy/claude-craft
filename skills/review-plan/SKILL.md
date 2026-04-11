@@ -480,7 +480,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
 
 <!-- STATE AT END OF PHASE 3b:
-     Rating, findings (8+ questions), REVIEW_TIER (may have been upgraded to FULL).
+     Rating, findings (9+ questions), REVIEW_TIER (may have been upgraded to FULL).
      Next phase: Phase 3c (FULL setup) | Step 8 (interactive exit).
      ════════════════════════════════════════════════════ -->
 
