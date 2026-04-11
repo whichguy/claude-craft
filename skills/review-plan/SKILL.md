@@ -419,6 +419,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      HAS_UI only:         "  Review mode  Standard + UI ([N] clusters: [names] + ui-evaluator)"
      All false:           "  Review mode  Standard ([N] clusters: [names])"
    Print: "  Clusters     [N] active: [comma-separated cluster names]"
+   # Surface conditional gate flags so users can validate classifier decisions at pass 1.
+   # Rendered as question-gate decisions (not raw booleans) to make misclassification obvious.
+   Print: "  Gates        Q-C14 [✓ active | — N/A (HAS_EXISTING_INFRA=false)]"  # pick one branch based on flag
+   Print: "               Q-C32 [✓ active | — N/A (HAS_UNBOUNDED_DATA=false)]"  # pick one branch based on flag
    (Raw flag debug line "REVIEW_TIER=[v] ACTIVE_RISKS=[v] IS_GAS=[v] IS_NODE=[v] HAS_UI=[v] HAS_EXISTING_INFRA=[v] HAS_UNBOUNDED_DATA=[v]"
    is printed during the convergence loop when pass_count >= 3, as a diagnostic aid for slow-convergence reviews.)
    Flags are set once and do NOT change between passes (evaluator set changes mid-loop
@@ -744,41 +748,6 @@ DO:
     FOR q in process_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process               locked since p[l1_process_memoized_since]"
-
-  --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
-  # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
-  # Gas-evaluator and node-evaluator use their own output contracts (defined in external eval files).
-  #
-  # Output contract — write findings to JSON file:
-  #   Write your findings to: <RESULTS_DIR>/EVALUATOR_NAME.json
-  #
-  #   JSON schema:
-  #   {
-  #     "evaluator": "EVALUATOR_NAME",
-  #     "pass": <pass_count>,
-  #     "status": "complete",
-  #     "elapsed_s": <seconds_from_start>,
-  #     "findings": {
-  #       "<Q-ID>": {"status": "PASS|NEEDS_UPDATE|N/A", "finding": "<text>", "edit": "<instruction or null>"},
-  #       ...
-  #     },
-  #     "counts": {"pass": N, "needs_update": N, "na": N}
-  #   }
-  #
-  #   Write atomically using Bash (ensures clean reads by orchestrator):
-  #     cat > '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' << 'EVAL_EOF'
-  #     <json>
-  #     EVAL_EOF
-  #     mv '<RESULTS_DIR>/EVALUATOR_NAME.json.tmp' '<RESULTS_DIR>/EVALUATOR_NAME.json'
-  #
-  #   If you encounter an error reading inputs, write:
-  #     {"evaluator": "EVALUATOR_NAME", "pass": <pass_count>, "status": "error", "error": "<message>"}
-  #
-  # Constraints:
-  #   - Do not use Edit or Write tools on the plan file — read-only
-  #   - Use Bash ONLY to write your findings JSON to the specified path
-  #   - Do not call ExitPlanMode or touch marker files
-  #   - Write exactly ONE JSON file
 
   --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
   # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
