@@ -41,8 +41,9 @@ must review and sign, and an authorized provider must transmit via IRS Modernize
    items show PASS.
 3. **Sign the return.** An officer of the organization must sign (printed name, title, date).
    Your e-file provider will capture this digitally.
-4. **Submit to your e-file provider.** Share this entire package (excluding `schedule-b-filing.md`
-   from any public channels) with your chosen provider.
+4. **Submit to your e-file provider.** Share this entire package with your chosen provider,
+   including `schedule-b-filing.md` — the e-file provider must submit it to the IRS on your behalf.
+   Do NOT share `schedule-b-filing.md` via any public channel, website, or public inspection copy.
 5. **Keep a copy.** Retain the signed return and supporting documents for at least 7 years.
 
 ---
