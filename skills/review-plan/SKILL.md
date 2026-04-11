@@ -1180,7 +1180,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode, AskUserQuestion, or touch marker files.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -1210,7 +1210,7 @@ DO:
 
       Plan to evaluate: <plan_path>
 
-      Constraints: read-only — do not edit the plan, do not call ExitPlanMode or AskUserQuestion.
+      Constraints: read-only — do not edit the plan, do not call ExitPlanMode, AskUserQuestion, or touch marker files.
       Write exactly ONE JSON file to the results_dir.
     """
   )
@@ -2500,7 +2500,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    IF user chooses to continue editing (or is in REWORK and describes changes):
      Apply the user's requested changes to the plan file.
-     Re-run review from Step 3 (re-classify and re-evaluate — do not skip the classifier).
+     Re-run review from the context-flags classifier (Step 0, item 3 — the full outer flow including any TRIVIAL/SMALL fast-path; do not skip re-classification).
      # This loop repeats until user confirms exit or abandons. No hard cap — user controls termination.
 
    IF user chooses "Abandon review" (REWORK only):
