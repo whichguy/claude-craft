@@ -515,4 +515,113 @@ describe('Wiki Hooks', function () {
             expect(parsed.status).to.equal('pending');
         });
     });
+
+    // ================================================================
+    // Group 7: wiki-periodic-extract.sh
+    // ================================================================
+    describe('wiki-periodic-extract.sh', function () {
+        const fakeTranscriptPath = '/tmp/fake-periodic-transcript.jsonl';
+
+        function periodicQueueFiles() {
+            return fs.readdirSync(fakeQueueDir).filter(f => f.includes('-periodic-'));
+        }
+
+        it('fires and writes a queue entry when WIKI_PERIODIC_MOD=1', async function () {
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: fakeRepo,
+                agent_id: '',
+                session_id: 'periodic-fire-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            const files = periodicQueueFiles();
+            expect(files).to.have.lengthOf(1);
+        });
+
+        it('never fires when WIKI_PERIODIC_MOD=99999 (50 invocations)', async function () {
+            const sid = 'periodic-nofire';
+            const invocations = [];
+            for (let i = 0; i < 50; i++) {
+                invocations.push(runHook('wiki-periodic-extract.sh', {
+                    cwd: fakeRepo,
+                    agent_id: '',
+                    session_id: `${sid}-${i}`,
+                    transcript_path: fakeTranscriptPath,
+                }, { WIKI_PERIODIC_MOD: '99999' }));
+            }
+            await Promise.all(invocations);
+            expect(periodicQueueFiles()).to.have.lengthOf(0);
+        });
+
+        it('exits silently when agent_id is set (subagent guard)', async function () {
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: fakeRepo,
+                agent_id: 'test-agent-id',
+                session_id: 'periodic-subagent-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            expect(periodicQueueFiles()).to.have.lengthOf(0);
+        });
+
+        it('exits silently for non-wiki repos', async function () {
+            const nonWikiRepo = path.join(tmpDir, 'non-wiki-periodic');
+            fs.mkdirSync(nonWikiRepo, { recursive: true });
+            require('child_process').execSync('git init -q && echo x > f && git add -A && git commit -q -m init', {
+                cwd: nonWikiRepo, stdio: 'pipe',
+            });
+
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: nonWikiRepo,
+                agent_id: '',
+                session_id: 'periodic-nowiki-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            expect(periodicQueueFiles()).to.have.lengthOf(0);
+        });
+
+        it('queue entry has expected schema fields', async function () {
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: fakeRepo,
+                agent_id: '',
+                session_id: 'periodic-schema-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            const files = periodicQueueFiles();
+            expect(files).to.have.lengthOf(1);
+
+            const entry = JSON.parse(fs.readFileSync(path.join(fakeQueueDir, files[0]), 'utf-8'));
+            expect(entry.status).to.equal('pending');
+            expect(entry.type).to.equal('periodic_extract');
+            expect(entry.source).to.equal('userpromptsubmit');
+            expect(entry.priority).to.equal('normal');
+            expect(entry.transcript_path).to.be.a('string').and.not.empty;
+            expect(entry.wiki_path).to.be.a('string').and.not.empty;
+        });
+
+        it('two consecutive fires produce two distinct queue files', async function () {
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: fakeRepo,
+                agent_id: '',
+                session_id: 'periodic-unique-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            // Sleep > 1s to guarantee different date +%s suffix
+            await new Promise(r => setTimeout(r, 1100));
+
+            await runHook('wiki-periodic-extract.sh', {
+                cwd: fakeRepo,
+                agent_id: '',
+                session_id: 'periodic-unique-1234',
+                transcript_path: fakeTranscriptPath,
+            }, { WIKI_PERIODIC_MOD: '1' });
+
+            const files = periodicQueueFiles();
+            expect(files).to.have.lengthOf(2);
+            expect(files[0]).to.not.equal(files[1]);
+        });
+    });
 });
