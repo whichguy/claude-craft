@@ -122,18 +122,29 @@ if [ -f "$MARKER" ]; then
   fi
 fi
 
-# Exit only if nothing to output (no mandate — WIKI_SKIP=1 — and no entity content)
-[ -z "$WIKI_CHECK_REMINDER" ] && [ -z "$CONTENT" ] && exit 0
+# --- Periodic lint nudge (~1 in 23 prompts) ---
+# Uses bash $RANDOM builtin (0-32767); % 23 gives ~4.3% probability per prompt.
+# Honors WIKI_SKIP=1 — automated/read-only sessions skip lint nudge same as mandate.
+LINT_NUDGE=""
+if [ "${WIKI_SKIP:-}" != "1" ] && [ $(( RANDOM % 23 )) -eq 0 ]; then
+  LINT_NUDGE="<wiki_lint_scheduled>
+Periodic wiki health check (~1 in 23 prompts) — run /wiki-lint before your next substantive response. Checks: orphans, broken links, missing v2 frontmatter, unresolved contradictions, stale high-confidence pages.
+</wiki_lint_scheduled>"
+fi
 
-# Combine mandate reminder + entity content; mandate prepended so it lands first in context.
+# Exit only if nothing to output (no mandate — WIKI_SKIP=1 — and no entity content)
+[ -z "$WIKI_CHECK_REMINDER" ] && [ -z "$LINT_NUDGE" ] && [ -z "$CONTENT" ] && exit 0
+
+# Combine mandate + lint nudge + entity content; mandate prepended so it lands first in context.
 if [ -n "$WIKI_CHECK_REMINDER" ]; then
-  ADDITIONAL_CONTEXT="$WIKI_CHECK_REMINDER${CONTENT:+$'\n\n'$CONTENT}"
+  ADDITIONAL_CONTEXT="$WIKI_CHECK_REMINDER${LINT_NUDGE:+$'\n\n'$LINT_NUDGE}${CONTENT:+$'\n\n'$CONTENT}"
 else
-  ADDITIONAL_CONTEXT="$CONTENT"
+  ADDITIONAL_CONTEXT="${LINT_NUDGE}${CONTENT:+${LINT_NUDGE:+$'\n\n'}$CONTENT}"
 fi
 
 # Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
 # systemMessage = user-visible toast; additionalContext = LLM-visible per-turn context injection.
 SYSTEM_MSG="${DISPLAY:-Wiki available — /wiki-load <topic> or Read wiki/index.md}"
+[ -n "$LINT_NUDGE" ] && SYSTEM_MSG="${SYSTEM_MSG} | 🔔 wiki-lint due"
 jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$SYSTEM_MSG" \
   '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
