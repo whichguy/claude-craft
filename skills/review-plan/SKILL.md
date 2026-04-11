@@ -240,7 +240,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
          Output for each: PASS | NEEDS_UPDATE — [finding]
          If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion — read-only.
        """
      )
 
@@ -350,7 +350,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            - Evaluate against the plan (mark N/A per supersession rules above)
            - Output: Q-ID PASS | NEEDS_UPDATE | N/A — [finding]
            - If NEEDS_UPDATE: include [EDIT: instruction]
-         Do not use Edit/Write/Bash tools — read-only.
+         Do not use Edit/Write/Bash tools, ExitPlanMode, or AskUserQuestion — read-only.
        """
      )
 
@@ -1951,7 +1951,7 @@ DO:
 
 WHILE TRUE
 
--- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → STOP. --
+-- Convergence complete. Proceed to "After Review Completes" below: epilogue (Q-E1, Q-E2) → Q-G9 → scorecard output → marker cleanup → teardown → step 7 (remaining issues) → step 8 (interactive prompt). --
 ```
 
 **Self-referential protection:** Mark all additions with `<!-- review-plan -->` suffix.
