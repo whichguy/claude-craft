@@ -490,6 +490,65 @@ describe('Review-Plan Task Fan-Out', function () {
         });
     });
 
+    describe('cross-file question count invariants', function () {
+        const questionsPath = path.join(__dirname, '..', 'skills', 'review-plan', 'QUESTIONS.md');
+        let questionsContent;
+        let l1RowCount;
+
+        before(function () {
+            questionsContent = fs.readFileSync(questionsPath, 'utf-8');
+            const layer1Start = questionsContent.indexOf('## Layer 1');
+            const layer2Start = questionsContent.indexOf('## Layer 2');
+            const layer1 = questionsContent.substring(layer1Start, layer2Start);
+            l1RowCount = (layer1.match(/^\| Q-[GCE]\d+ \|/gm) || []).length;
+        });
+
+        function extractProcessQuestionsSet(content) {
+            const match = content.match(
+                /Evaluate ONLY these \d+ standards\/process questions: ([^\n]+)/
+            );
+            return match ? match[1].split(',').map(s => s.trim()) : [];
+        }
+
+        it('SKILL.md L1 total matches QUESTIONS.md row count', function () {
+            // Guards against L1 row additions in QUESTIONS.md that aren't reflected in SKILL.md counts
+            expect(skillContent).to.include(`L1 = ${l1RowCount}`);
+        });
+
+        it('SKILL.md per-pass sum matches QUESTIONS.md row count', function () {
+            // "2 + 6 + 18 = 26" shape — guard against partial sum drift
+            const sumMatch = skillContent.match(/(\d+) \+ (\d+) \+ (\d+) = (\d+)/);
+            expect(sumMatch, 'per-pass sum shape not found in SKILL.md').to.not.be.null;
+            const [, g1, struct, proc, total] = sumMatch;
+            expect(parseInt(g1, 10) + parseInt(struct, 10) + parseInt(proc, 10))
+                .to.equal(parseInt(total, 10), 'per-pass components must sum to total');
+            expect(parseInt(total, 10)).to.equal(l1RowCount,
+                `SKILL.md per-pass sum (${total}) must equal QUESTIONS.md L1 row count (${l1RowCount})`);
+        });
+
+        it('Priority 1c comment count matches process_questions set length', function () {
+            // L744-style drift catcher: comment literal must match live set cardinality
+            const processQuestions = extractProcessQuestionsSet(skillContent);
+            const commentMatch = skillContent.match(
+                /L1 advisory process \(Gate 2\/3, (\d+) questions/
+            );
+            expect(commentMatch, 'Priority 1c comment not found in SKILL.md').to.not.be.null;
+            expect(parseInt(commentMatch[1], 10)).to.equal(processQuestions.length,
+                `Priority 1c comment says ${commentMatch[1]} questions but process_questions set has ${processQuestions.length}`);
+        });
+
+        it('L1 Advisory Process Evaluator Config comment matches set length', function () {
+            // Guards the evaluator config header at L1038
+            const processQuestions = extractProcessQuestionsSet(skillContent);
+            const configMatch = skillContent.match(
+                /L1 Advisory Process Evaluator Config.*?(\d+) standards\/process questions/
+            );
+            expect(configMatch, 'L1 Advisory Process Evaluator Config header not found').to.not.be.null;
+            expect(parseInt(configMatch[1], 10)).to.equal(processQuestions.length,
+                `Evaluator config says ${configMatch[1]} questions but process_questions set has ${processQuestions.length}`);
+        });
+    });
+
     describe('delta-aware evaluator prompts', function () {
         it('defines prev_pass_applied_edits variable', function () {
             expect(skillContent).to.include('prev_pass_applied_edits = []');

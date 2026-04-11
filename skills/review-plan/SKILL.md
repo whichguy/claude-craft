@@ -619,7 +619,9 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      Dropped Q-G2, Q-G8, Q-C21 (0% hit rate across 18 plans including 6 adversarial).
      Conditional Q-C14 (HAS_EXISTING_INFRA), Q-C32 (HAS_UNBOUNDED_DATA).
      L1 per-pass count: 25 → 23. Gate 1 count: 3 → 2 questions (Q-G1, Q-G11).
-     Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike). -->
+     Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike).
+     Updated 2026-04-11: Q-G29, Q-G30, Q-G31 added (PRs #126/#127). L1 = 26 (2 Gate 1 + 6 advisory-structural + 18 advisory-process).
+     Per-pass wave breakdown: 2 + 6 + 18 = 26. -->
 
 <!-- STATE AT END OF PHASE 3c:
      pass_count=0, timestamp, tracking vars (prev_needs_update_set, pass1_needs_update_set,
