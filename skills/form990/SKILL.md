@@ -12,11 +12,11 @@ Parse the invocation string to determine subcommand and arguments.
 |---|---|
 | `/form990 init --sheet <id-or-url> --tax-year <YYYY> [--plan-path <path>]` | Create plan file, run P0 intake |
 | `/form990 resume <plan-path>` | Read plan, restore state, dispatch to current_phase |
-| `/form990 phase <N> <plan-path>` | Force-run phase N — invalidates downstream via ARTIFACT_DEPS walk (see §Force-Override Protocol) |
+| `/form990 phase <N> <plan-path>` | Force-run phase N (override current_phase) |
 | `/form990 review <plan-path>` | Run P8 CPA review pass only |
-| `/form990 status <plan-path>` | Render status UI + Q-C31 orphan sweep; no phase work |
+| `/form990 status <plan-path>` | Render status UI; no work |
 | `/form990 ask <plan-path> <question-id> <answer>` | Answer an open question and resume |
-| `/form990 verify [--case TC<N>]` | Run test harness `tests/verify.py`; exit 0=all pass, 1=fail, 2=harness error |
+| `/form990 verify [--case TC<N>]` | Run the verification harness (`tests/verify.py`); exit 0 = all pass |
 
 **Global flags (accepted on every subcommand):**
 
@@ -98,89 +98,12 @@ subsequent phase work and gate evaluations.
 
 ---
 
-## Step 2b — Crash Recovery Sweep (runs after machine state parse, before persona re-injection)
+## Step 4 — Artifact Existence Check
 
-Detect and remediate half-write artifacts and dead-PID running phases left by a crashed
-prior session. Must run before dispatcher (Step 6) so dispatcher always sees a stable state.
-
-```
-# Step A: Orphan staging file sweep (HalfWrite path)
-for artifact_name, entry in state["artifacts"].items():
-    if entry.get("status") == "writing":
-        pid = entry.get("plan_lock_pid") or state["plan_lock"].get("pid")
-        if pid and not is_pid_alive(pid):  # os.kill(pid,0) raises OSError.ESRCH → dead
-            staging_path = entry.get("staging_path")
-            if staging_path and os.path.exists(staging_path):
-                os.unlink(staging_path)
-                breadcrumb(f"swept half-write orphan: {staging_path} (phase={entry['produced_in_phase']}, pid={pid})")
-            entry["status"] = "absent"
-            entry["staging_path"] = null
-            producer = entry["produced_in_phase"]
-            state["phase_status"][producer] = "failed"
-            state["artifacts"][artifact_name]["last_error"] = {
-                "error_class": "HalfWrite",
-                "phase": producer, "pid": pid,
-                "timestamp": now_iso(),
-            }
-
-# Step B: Dead-PID running phase sweep (RunningDeadPid — no orphan files)
-if state["phase_status"].get(state["current_phase"]) == "running":
-    pid = state["plan_lock"].get("pid")
-    if pid and not is_pid_alive(pid):
-        phase = state["current_phase"]
-        state["phase_status"][phase] = "failed"
-        state["artifacts_produced_by"] = [
-            name for name, e in state["artifacts"].items()
-            if e.get("produced_in_phase") == phase
-        ]
-        for name in state["artifacts_produced_by"]:
-            if "last_error" not in state["artifacts"][name]:
-                state["artifacts"][name]["last_error"] = {
-                    "error_class": "RunningDeadPid",
-                    "phase": phase, "pid": pid, "timestamp": now_iso(),
-                }
-        # Commit the failed state BEFORE dispatcher runs
-        atomic_commit(state, plan_path, pre_image_sha256)
-        breadcrumb(f"phase {phase} crashed (pid {pid} dead), status=failed+RunningDeadPid; resuming from Pre-check")
-
-# Step C: Temp-file orphan sweep (all known tempfile patterns — Q-C31)
-# Runs on every resume AND on /form990 status entry (not just crash recovery).
-# Pattern set covers all transient files created by Steps 7a, 7c, P9 WebFetch.
-orphan_globs = [
-    plan_dir + "/*.tmp.*",                         # plan tmp: <plan>.tmp.<pid>
-    "~/.claude/.form990-memo-*.tmp.*",             # sidecar tmp: .form990-memo-<fy>.json.tmp.<pid>
-    artifacts_dir + "/**/*.writing.*",             # artifact staging: <name>.writing.<pid>
-    artifacts_dir + "/f990-blank-*.pdf.partial.*", # P9 WebFetch partial download
-]
-for pattern in orphan_globs:
-    for tmp in glob(pattern, recursive=True):
-        try:
-            pid = int(tmp.rsplit(".", 1)[-1])
-        except ValueError:
-            continue  # not a pid-suffixed tmp — skip
-        if not is_pid_alive(pid):
-            try:
-                os.unlink(tmp)
-                breadcrumb(f"swept orphaned temp {tmp} (pid {pid} not alive)")
-            except FileNotFoundError:
-                pass  # another sweep path already cleaned it
-```
-
----
-
-## Step 4 — Artifact Status Check
-
-For every entry in `artifacts{}`, check `status` field (v2 schema):
-
-| status | Meaning | Action |
-|---|---|---|
-| `"absent"` or missing | Not yet produced | Note for Phase Entry Protocol — will halt if needed |
-| `"writing"` | Half-write (cleared by Step 2b if PID dead) | If PID still alive → concurrent session; halt |
-| `"committed"` | Produced and sha256 recorded | Verify path exists on disk (stat); if missing, set `absent` |
-
-For any artifact with `status == "absent"` or missing from disk:
-- Convert to an open question `"artifact missing at <path> — re-produce in phase <produced_in_phase>?"`
-- `phase_status[produced_in_phase] = "pending"` (if currently "done", revert to "pending")
+For every non-null path in `artifacts{}`:
+- Check existence via `stat` (not a full Read — existence check only)
+- If the file is missing: convert to an open question `"artifact missing at <path> — re-produce in phase <produced_in_phase>?"`
+- Set `phase_status[produced_in_phase] = "pending"` if the artifact is missing
 
 ---
 
@@ -336,70 +259,31 @@ values for audit (they are not lost, only archived).
 
 ## Step 7 — Atomic State Commit (Content-SHA256 CAS)
 
-Two sub-phases: **pre-write** (artifact staging → `status=writing`) and **post-write** (rename → `status=committed`).
-
-### 7a — Pre-artifact commit (before writing artifact file)
-
-For each artifact about to be written by the current phase:
-```python
-# Announce intent: status=writing + staging_path
-staging = f"{artifact_final_path}.writing.{os.getpid()}"
-state["artifacts"][name]["status"]       = "writing"
-state["artifacts"][name]["staging_path"] = staging
-state["artifacts"][name]["output_sha256"] = null  # not yet known
-atomic_commit(state, plan_path, pre_image_sha256)
-# Update pre_image_sha256 to the new plan sha256 after this write
-pre_image_sha256 = sha256(open(plan_path, 'rb').read())
-
-# Now write artifact bytes to staging path
-try:
-    with open(staging, 'w') as f:
-        f.write(artifact_bytes)
-        f.flush()
-        os.fsync(f.fileno())
-    actual_sha = sha256(open(staging, 'rb').read())
-    os.replace(staging, artifact_final_path)  # atomic rename
-    fsync_dir(os.path.dirname(artifact_final_path))  # flush directory entry
-except Exception as e:
-    # Cleanup: unlink staging if it exists
-    try: os.unlink(staging)
-    except FileNotFoundError: pass
-    raise
-```
-
-### 7b — Post-artifact commit (after successful rename)
-
-```python
-# Announce completion: status=committed + output_sha256
-state["artifacts"][name]["status"]        = "committed"
-state["artifacts"][name]["staging_path"]  = null
-state["artifacts"][name]["output_sha256"] = actual_sha
-state["artifacts"][name]["produced_at"]   = now_iso()
-state["artifacts"][name]["input_fingerprint"] = {
-    upstream_name: state["artifacts"][upstream_name]["output_sha256"]
-    for upstream_name in ARTIFACT_DEPS[name]["upstream"]
-}
-```
-
-### 7c — Phase-exit commit (after all artifacts written)
+After every phase work block completes:
 
 ```
-a. pre_image_sha256 captured at Step 2 (updated after each interim commit)
+a. pre_image_sha256 = sha256(plan file bytes as read in Step 2)
 b. Mutate machine state in memory:
      - phase_status[phase] = "done"
-     - gate_results_latest_pass updated
+     - artifacts[...].output_sha256 = sha256(artifact bytes)
+     - artifacts[...].input_fingerprint = {upstream output_sha256 values}
+     - artifacts[...].produced_at = ISO timestamp
+     - gate_results_latest_pass = {Q-Fid: "PASS"|"NEEDS_UPDATE"|"N/A"}
      - plan_version += 1
      - plan_lock = {pid, acquired_at, host}
 c. Re-read plan file; compute current_sha256 = sha256(current bytes)
    If current_sha256 != pre_image_sha256:
      ABORT with "concurrent modification detected — reload and retry"
      Do NOT write
-d. Write mutated plan to <plan>.tmp.<pid>; os.replace → <plan>
-   try/finally: on abort, unlink tmp (ignore ENOENT); breadcrumb "cleaned stale temp <path>"
-e. fsync(<plan>.parent_dir) to flush directory entry
-f. Sidecar: write ~/.claude/.form990-memo-<fy>.json.tmp.<pid>; rename
-   On sidecar failure: breadcrumb warning, proceed (plan is authoritative)
-g. Update plan_lock with current writer identity
+d. Write mutated plan to <plan>.tmp.<pid> in same directory; os.replace to <plan>
+e. If --no-sidecar not set: write ~/.claude/.form990-memo-<fy>.json.tmp.<pid>; rename
+   On sidecar failure: breadcrumb warning, proceed (plan file is authoritative)
+f. Update plan_lock with current writer identity
+g. Temp-file hygiene (Q-C31):
+   try/finally around d+e: on any abort, unlink both tmp paths (ignore ENOENT)
+   breadcrumb "cleaned stale temp <path>"
+   On Step 2 (read), also scan plan dir + ~/.claude/ for *.tmp.<N> files whose PID is
+   not alive (os.kill(pid,0) catching OSError.errno==ESRCH — stdlib, no third-party deps); unlink + breadcrumb each
 ```
 
 **Sidecar format** (`~/.claude/.form990-memo-<fy>.json`):
@@ -529,49 +413,12 @@ def merge_datasets(core_path, schedules_path, rollup_path, output_path):
             raise ValueError("merger_conflict: schedules key appears in two inputs")
         merged["schedules"] = schedules["schedules"]
 
-    # --- Positive-ownership assertions (Change 5) ---
-    core_I = core.get("parts", {}).get("I", "__ABSENT__")
-    assert core_I in (None, "__ABSENT__"), (
-        f"merger: dataset_core.parts.I MUST be null or absent (P5 ownership contract); "
-        f"got type={type(core_I).__name__}"
-    )
-    rollup_I = rollup.get("parts", {}).get("I")
-    assert rollup_I is not None, (
-        "merger: dataset_rollup.parts.I must be populated (not null) — "
-        "P7 partial-write detected; re-run P7 before merging"
-    )
-    rollup_part_keys = set(rollup.get("parts", {}).keys())
-    assert rollup_part_keys <= {"I"}, (
-        f"merger: dataset_rollup.parts may only contain 'I', got extras: "
-        f"{sorted(rollup_part_keys - {'I'})}"
-    )
-    assert "schedule_dependencies" not in rollup, \
-        "merger: schedule_dependencies owned by dataset_core only — found in rollup"
-    assert "schedule_dependencies" not in schedules, \
-        "merger: schedule_dependencies owned by dataset_core only — found in schedules"
-    assert "reconciliation" not in core, \
-        "merger: reconciliation owned by dataset_rollup only — found in core"
-    assert "reconciliation" not in schedules, \
-        "merger: reconciliation owned by dataset_rollup only — found in schedules"
-
     # Deterministic serialization (sort_keys ensures byte-stability across Python minors)
     serialized = json.dumps(merged, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(serialized)
 
     return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
-```
-
-**Python version drift guard:** Before running merger, call `read_pinned_python()` (SKILL.md §read_pinned_python):
-```python
-import sys
-pinned = read_pinned_python()
-if sys.version_info[:2] != pinned:
-    append_breadcrumb(scrub_pii(
-        f"Python version drift: pinned {pinned}, running {sys.version_info[:2]} — "
-        f"merger output_sha256 may churn; rerun E3 to revalidate byte-stability."
-    ), plan_path)
-    # Continue (warning only, not halt)
 ```
 
 ---
@@ -842,314 +689,6 @@ Valid keys in `key_facts{}`:
 | `fiscal_year_end` | ISO date | End of the fiscal year being filed |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
-
----
-
-## run_script() — Canonical Subprocess Runner
-
-All programmatic analysis scripts (P2 CoA mapping, P3 financial statements, P6 schedule
-generation) MUST be invoked through this helper — never via bare `subprocess.run` or Bash.
-
-```python
-import subprocess, sys, json, pathlib
-
-# Allowlist populated at phase-dispatch time from SKILL.md §programmatic_scripts table.
-# Any path not in this set is rejected — prevents arbitrary-script execution (Q-C15).
-SCRIPT_ALLOWLIST: set[str] = set()
-
-# Per-phase deadlines (seconds). Tune here; all phases read from this dict.
-PHASE_DEADLINES_S = {
-    "P2": 180,   # CoA mapping over large budget sheets
-    "P3": 120,   # Financial statement aggregation
-    "P6": 300,   # Schedule generation (multiple schedules)
-    "default": 60,
-}
-
-class ScriptError(Exception):
-    """Raised when a programmatic script exits non-zero or emits non-JSON stdout."""
-    def __init__(self, script, returncode, stderr_tail, stdout_tail=""):
-        # NOTE: caller must pipe through scrub_pii() before logging to a breadcrumb.
-        super().__init__(f"{script} exit {returncode}: {stderr_tail[-500:]}")
-        self.returncode = returncode
-        self.stderr_tail = _codepoint_safe_tail(stderr_tail, 2000)
-        self.stdout_tail = _codepoint_safe_tail(stdout_tail, 2000)
-        self.structured_error = None  # populated if stdout parses as error-JSON
-
-def _codepoint_safe_tail(s: str, max_chars: int) -> str:
-    """Truncate from the right without bisecting a UTF-8 codepoint (Q-C20 compliance)."""
-    if len(s) <= max_chars:
-        return s
-    return s[-max_chars:]
-
-def run_script(script_path, args, phase_id=None, cwd=None):
-    """
-    Invoke a Programmatic Analysis script with full safety and observability.
-
-    Contract:
-    - script_path MUST be in SCRIPT_ALLOWLIST (absolute path); rejected if not.
-    - args reject items containing null bytes or '..' path-traversal tokens.
-    - Passes '--json-only' as the first arg; script MUST emit pure JSON on stdout.
-    - deadline from PHASE_DEADLINES_S[phase_id] or 'default'.
-    - On non-zero exit: inspect stdout for {"status":"error",...} and attach as
-      structured_error; always raise ScriptError.
-    - On timeout: kills subprocess, raises ScriptError with "<timeout>" note.
-    - On JSON parse failure: raises ScriptError with 'stdout unparseable'.
-    """
-    abs_path = str(pathlib.Path(script_path).resolve())
-    if abs_path not in SCRIPT_ALLOWLIST:
-        raise ScriptError(script_path, -1, f"script not in SCRIPT_ALLOWLIST: {abs_path}")
-    for a in args:
-        if "\x00" in str(a):
-            raise ScriptError(script_path, -1, f"rejected arg (null byte): {a!r}")
-        if ".." in pathlib.PurePosixPath(str(a)).parts:
-            raise ScriptError(script_path, -1, f"rejected arg (path traversal): {a!r}")
-
-    deadline_s = PHASE_DEADLINES_S.get(phase_id, PHASE_DEADLINES_S["default"])
-    proc = subprocess.Popen(
-        [sys.executable, abs_path, "--json-only", *[str(a) for a in args]],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        cwd=cwd,
-    )
-    try:
-        stdout, stderr = proc.communicate(timeout=deadline_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        try:
-            stdout, stderr = proc.communicate(timeout=5)
-        except Exception:
-            stdout, stderr = "", "<timeout: no output captured>"
-        raise ScriptError(script_path, -2,
-                          f"timeout after {deadline_s}s\nstderr: {stderr}", stdout)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-
-    if proc.returncode != 0:
-        err = ScriptError(script_path, proc.returncode, stderr, stdout)
-        try:
-            parsed = json.loads(stdout)
-            if isinstance(parsed, dict) and parsed.get("status") == "error":
-                err.structured_error = parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
-        raise err
-
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError as e:
-        raise ScriptError(script_path, 0,
-                          f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}", stdout)
-```
-
-### Script authoring contract (for every P2/P3/P6 script)
-
-Scripts MUST:
-1. Accept `--json-only` CLI flag; when set, all debug/progress output goes to **stderr** only.
-2. On success: emit one JSON object to stdout and exit 0.
-3. On error: emit `{"status":"error","error_class":"<class>","error_message":"<msg>","trace":"<tb>"}` to stdout, exit 1.
-4. Never import third-party packages — stdlib only (`csv`, `json`, `sys`, `math`, `collections`).
-
-### On ScriptError
-
-```python
-except ScriptError as e:
-    breadcrumb = scrub_pii(
-        f"### {now_iso()} — {phase_id} ERROR: script {script_path} exit {e.returncode}\n"
-        f"  stderr: {e.stderr_tail}\n"
-        f"  structured: {e.structured_error}"
-    )
-    append_breadcrumb(breadcrumb, plan_path)
-    state["phase_status"][phase_id] = "failed"
-    state["last_error"] = {
-        "op": f"run_script({script_path})",
-        "message": str(e)[-500:],
-        "remediation": "Fix the script error and re-run this phase.",
-    }
-    atomic_commit(state, plan_path, pre_image_sha256)
-    render_status_ui(state)
-    raise  # surface to dispatcher
-```
-
----
-
-## read_pinned_python() — Python Interpreter Pin
-
-Replaces the bare `PINNED_PYTHON_VERSION` symbol (which would `NameError` at runtime).
-Reads the pinned Python minor version from `TOOL-SIGNATURES.md`.
-
-```python
-def read_pinned_python(tool_signatures_path="skills/form990/TOOL-SIGNATURES.md") -> tuple:
-    """
-    Parse 'python_pin: "3.X"' from TOOL-SIGNATURES.md.
-    Returns a (major, minor) tuple, e.g. (3, 12).
-    Falls back to (3, 11) if the file is missing or the line is absent,
-    logging a breadcrumb warning — drift is visible but not fatal.
-    """
-    import re
-    fallback = (3, 11)
-    try:
-        text = pathlib.Path(tool_signatures_path).read_text(encoding="utf-8")
-        m = re.search(r'python_pin:\s*"(\d+)\.(\d+)"', text)
-        if m:
-            return (int(m.group(1)), int(m.group(2)))
-        # Line absent — warn and fall back
-        log_warning(f"python_pin not found in {tool_signatures_path} — falling back to {fallback}")
-        return fallback
-    except FileNotFoundError:
-        log_warning(f"{tool_signatures_path} missing — falling back to {fallback}")
-        return fallback
-```
-
-**Usage at runtime (e.g. P7 merge guard, P9 Pre-check):**
-```python
-pinned = read_pinned_python()
-actual = sys.version_info[:2]
-if actual != pinned:
-    append_breadcrumb(scrub_pii(
-        f"Python version drift: pinned {pinned}, running {actual} — "
-        f"merger output_sha256 may churn; rerun E3 to revalidate byte-stability."
-    ), plan_path)
-    # Continue (warning only, not halt)
-```
-
----
-
-## scrub_pii() — PII Redaction Helper
-
-Every breadcrumb write, LEARNINGS auto-append, and `ScriptError` breadcrumb serialization
-MUST flow through `scrub_pii()` before being written to the plan file or LEARNINGS.md.
-
-```python
-import re
-
-def scrub_pii(text: str, donor_names: list[str] = None) -> str:
-    """
-    Strip legally-sensitive PII from text before writing to plan breadcrumbs or logs.
-
-    Rules applied in order:
-    1. SSN/ITIN: \b\d{3}-\d{2}-\d{4}\b  → [REDACTED-SSN]
-    2. Bare 9-digit run: \b\d{9}\b        → [REDACTED-9DIGIT]
-       (does NOT touch hyphenated EINs like 12-3456789 — only bare unformatted runs)
-    3. Donor names from key_facts.donor_names — verbatim match → [REDACTED-DONOR]
-       Case-insensitive. Empty list = no-op.
-    4. Contiguous digit run ≥10 digits: \d{10,} → [REDACTED-LONGNUM]
-       (catches bank account numbers, routing numbers with leading zeros)
-
-    Safe to log: EIN in canonical XX-XXXXXXX form, legal_name, gross_receipts totals,
-    Part I/VIII/IX/X aggregated line values (all public on the filed return).
-    """
-    if donor_names is None:
-        donor_names = []
-
-    # Rule 1: SSN/ITIN (hyphenated)
-    text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
-
-    # Rule 2: bare 9-digit run (SSN without hyphens, ITIN)
-    # Must run before Rule 4 to apply the specific label
-    text = re.sub(r'\b\d{9}\b', '[REDACTED-9DIGIT]', text)
-
-    # Rule 3: donor names (longest first to prevent partial-match issues)
-    for name in sorted(donor_names, key=len, reverse=True):
-        if name:
-            text = re.sub(re.escape(name), '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
-
-    # Rule 4: long numeric runs (bank accounts, routing)
-    text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
-
-    return text
-```
-
-### Usage at all breadcrumb write sites
-
-```python
-def append_breadcrumb(raw_text: str, plan_path: str,
-                       donor_names: list[str] = None) -> None:
-    """Scrub PII then append to the plan file's ## Breadcrumbs section."""
-    safe_text = scrub_pii(raw_text, donor_names=donor_names or [])
-    # ... actual file append logic ...
-```
-
-All phase breadcrumbs, error handlers, and LEARNINGS auto-appends call
-`append_breadcrumb(...)` — never write to Breadcrumbs directly.
-
-### LEARNINGS auto-append on phase failure
-
-When `phase_status[P] = "failed"` is committed, auto-append to `LEARNINGS.md`
-machine section:
-
-```python
-LEARNINGS_MACHINE_SECTION_HEADER = "<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->"
-LEARNINGS_MACHINE_SECTION_FOOTER = "<!-- END MACHINE LEARNINGS -->"
-LEARNINGS_MAX_ENTRIES = 100
-LEARNINGS_ARCHIVE_PATH = "LEARNINGS.archive.md"  # relative to skills/form990/
-
-def auto_append_learning(phase_id: str, error_class: str,
-                          raw_message: str, donor_names: list[str],
-                          learnings_path: str) -> None:
-    """
-    Append a failure digest to LEARNINGS.md machine section.
-    Rotates oldest entries to LEARNINGS.archive.md when count exceeds 100.
-    Applies scrub_pii before writing.
-    """
-    import json, pathlib, datetime
-
-    safe_message = scrub_pii(raw_message, donor_names)[:200]
-    entry = {
-        "date": datetime.datetime.utcnow().isoformat() + "Z",
-        "phase": phase_id,
-        "error_class": error_class,
-        "message_scrubbed": safe_message,
-        "resolution": "pending",
-    }
-    entry_line = f"- {json.dumps(entry, ensure_ascii=False)}"
-
-    text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
-    start = text.find(LEARNINGS_MACHINE_SECTION_HEADER)
-    end   = text.find(LEARNINGS_MACHINE_SECTION_FOOTER)
-
-    if start == -1 or end == -1:
-        # Section not yet created; append it
-        section = (
-            f"\n{LEARNINGS_MACHINE_SECTION_HEADER}\n"
-            f"{entry_line}\n"
-            f"{LEARNINGS_MACHINE_SECTION_FOOTER}\n"
-        )
-        pathlib.Path(learnings_path).write_text(
-            text + section, encoding="utf-8"
-        )
-        return
-
-    inner = text[start + len(LEARNINGS_MACHINE_SECTION_HEADER):end].strip()
-    entries = [l for l in inner.splitlines() if l.startswith("- {")]
-
-    if len(entries) >= LEARNINGS_MAX_ENTRIES:
-        # Rotate oldest entries to archive
-        archive_path = pathlib.Path(learnings_path).parent / LEARNINGS_ARCHIVE_PATH
-        overflow = entries[: len(entries) - LEARNINGS_MAX_ENTRIES + 1]
-        archive_text = archive_path.read_text(encoding="utf-8") \
-            if archive_path.exists() else "# LEARNINGS Archive\n\n"
-        archive_path.write_text(
-            archive_text + "\n".join(overflow) + "\n", encoding="utf-8"
-        )
-        entries = entries[len(overflow):]
-        append_breadcrumb(
-            f"rotated {len(overflow)} legacy LEARNINGS entries to {LEARNINGS_ARCHIVE_PATH}",
-            plan_path=None,  # breadcrumb to plan if available, else just log
-        )
-
-    entries.append(entry_line)
-    new_inner = "\n".join(entries)
-    new_text = (
-        text[:start]
-        + LEARNINGS_MACHINE_SECTION_HEADER + "\n"
-        + new_inner + "\n"
-        + LEARNINGS_MACHINE_SECTION_FOOTER
-        + text[end + len(LEARNINGS_MACHINE_SECTION_FOOTER):]
-    )
-    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
-```
 
 ---
 
