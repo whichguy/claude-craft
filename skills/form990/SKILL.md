@@ -841,6 +841,177 @@ Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into wor
 
 ---
 
+## run_script() — Canonical Subprocess Runner
+
+All programmatic analysis scripts (P2 CoA mapping, P3 financial statements, P6 schedule
+generation) MUST be invoked through this helper — never via bare `subprocess.run` or Bash.
+
+```python
+import subprocess, sys, json, pathlib
+
+# Allowlist populated at phase-dispatch time from SKILL.md §programmatic_scripts table.
+# Any path not in this set is rejected — prevents arbitrary-script execution (Q-C15).
+SCRIPT_ALLOWLIST: set[str] = set()
+
+# Per-phase deadlines (seconds). Tune here; all phases read from this dict.
+PHASE_DEADLINES_S = {
+    "P2": 180,   # CoA mapping over large budget sheets
+    "P3": 120,   # Financial statement aggregation
+    "P6": 300,   # Schedule generation (multiple schedules)
+    "default": 60,
+}
+
+class ScriptError(Exception):
+    """Raised when a programmatic script exits non-zero or emits non-JSON stdout."""
+    def __init__(self, script, returncode, stderr_tail, stdout_tail=""):
+        # NOTE: caller must pipe through scrub_pii() before logging to a breadcrumb.
+        super().__init__(f"{script} exit {returncode}: {stderr_tail[-500:]}")
+        self.returncode = returncode
+        self.stderr_tail = _codepoint_safe_tail(stderr_tail, 2000)
+        self.stdout_tail = _codepoint_safe_tail(stdout_tail, 2000)
+        self.structured_error = None  # populated if stdout parses as error-JSON
+
+def _codepoint_safe_tail(s: str, max_chars: int) -> str:
+    """Truncate from the right without bisecting a UTF-8 codepoint (Q-C20 compliance)."""
+    if len(s) <= max_chars:
+        return s
+    return s[-max_chars:]
+
+def run_script(script_path, args, phase_id=None, cwd=None):
+    """
+    Invoke a Programmatic Analysis script with full safety and observability.
+
+    Contract:
+    - script_path MUST be in SCRIPT_ALLOWLIST (absolute path); rejected if not.
+    - args reject items containing null bytes or '..' path-traversal tokens.
+    - Passes '--json-only' as the first arg; script MUST emit pure JSON on stdout.
+    - deadline from PHASE_DEADLINES_S[phase_id] or 'default'.
+    - On non-zero exit: inspect stdout for {"status":"error",...} and attach as
+      structured_error; always raise ScriptError.
+    - On timeout: kills subprocess, raises ScriptError with "<timeout>" note.
+    - On JSON parse failure: raises ScriptError with 'stdout unparseable'.
+    """
+    abs_path = str(pathlib.Path(script_path).resolve())
+    if abs_path not in SCRIPT_ALLOWLIST:
+        raise ScriptError(script_path, -1, f"script not in SCRIPT_ALLOWLIST: {abs_path}")
+    for a in args:
+        if "\x00" in str(a):
+            raise ScriptError(script_path, -1, f"rejected arg (null byte): {a!r}")
+        if ".." in pathlib.PurePosixPath(str(a)).parts:
+            raise ScriptError(script_path, -1, f"rejected arg (path traversal): {a!r}")
+
+    deadline_s = PHASE_DEADLINES_S.get(phase_id, PHASE_DEADLINES_S["default"])
+    proc = subprocess.Popen(
+        [sys.executable, abs_path, "--json-only", *[str(a) for a in args]],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=deadline_s)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except Exception:
+            stdout, stderr = "", "<timeout: no output captured>"
+        raise ScriptError(script_path, -2,
+                          f"timeout after {deadline_s}s\nstderr: {stderr}", stdout)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+    if proc.returncode != 0:
+        err = ScriptError(script_path, proc.returncode, stderr, stdout)
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict) and parsed.get("status") == "error":
+                err.structured_error = parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+        raise err
+
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as e:
+        raise ScriptError(script_path, 0,
+                          f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}", stdout)
+```
+
+### Script authoring contract (for every P2/P3/P6 script)
+
+Scripts MUST:
+1. Accept `--json-only` CLI flag; when set, all debug/progress output goes to **stderr** only.
+2. On success: emit one JSON object to stdout and exit 0.
+3. On error: emit `{"status":"error","error_class":"<class>","error_message":"<msg>","trace":"<tb>"}` to stdout, exit 1.
+4. Never import third-party packages — stdlib only (`csv`, `json`, `sys`, `math`, `collections`).
+
+### On ScriptError
+
+```python
+except ScriptError as e:
+    breadcrumb = scrub_pii(
+        f"### {now_iso()} — {phase_id} ERROR: script {script_path} exit {e.returncode}\n"
+        f"  stderr: {e.stderr_tail}\n"
+        f"  structured: {e.structured_error}"
+    )
+    append_breadcrumb(breadcrumb, plan_path)
+    state["phase_status"][phase_id] = "failed"
+    state["last_error"] = {
+        "op": f"run_script({script_path})",
+        "message": str(e)[-500:],
+        "remediation": "Fix the script error and re-run this phase.",
+    }
+    atomic_commit(state, plan_path, pre_image_sha256)
+    render_status_ui(state)
+    raise  # surface to dispatcher
+```
+
+---
+
+## read_pinned_python() — Python Interpreter Pin
+
+Replaces the bare `PINNED_PYTHON_VERSION` symbol (which would `NameError` at runtime).
+Reads the pinned Python minor version from `TOOL-SIGNATURES.md`.
+
+```python
+def read_pinned_python(tool_signatures_path="skills/form990/TOOL-SIGNATURES.md") -> tuple:
+    """
+    Parse 'python_pin: "3.X"' from TOOL-SIGNATURES.md.
+    Returns a (major, minor) tuple, e.g. (3, 12).
+    Falls back to (3, 11) if the file is missing or the line is absent,
+    logging a breadcrumb warning — drift is visible but not fatal.
+    """
+    import re
+    fallback = (3, 11)
+    try:
+        text = pathlib.Path(tool_signatures_path).read_text(encoding="utf-8")
+        m = re.search(r'python_pin:\s*"(\d+)\.(\d+)"', text)
+        if m:
+            return (int(m.group(1)), int(m.group(2)))
+        # Line absent — warn and fall back
+        log_warning(f"python_pin not found in {tool_signatures_path} — falling back to {fallback}")
+        return fallback
+    except FileNotFoundError:
+        log_warning(f"{tool_signatures_path} missing — falling back to {fallback}")
+        return fallback
+```
+
+**Usage at runtime (e.g. P7 merge guard, P9 Pre-check):**
+```python
+pinned = read_pinned_python()
+actual = sys.version_info[:2]
+if actual != pinned:
+    append_breadcrumb(scrub_pii(
+        f"Python version drift: pinned {pinned}, running {actual} — "
+        f"merger output_sha256 may churn; rerun E3 to revalidate byte-stability."
+    ), plan_path)
+    # Continue (warning only, not halt)
+```
+
+---
+
 ## form990_coordinates_{tax_year}
 
 *This table is populated during Pre-build Verification step 3a (AcroForm probe + coordinate

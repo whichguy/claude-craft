@@ -88,7 +88,26 @@ source corrections, and is reviewable by the CPA as part of the audit trail.
 - Scripts are Python 3 standard library only (no `pip install` required): `csv`, `json`,
   `sys`, `math`, `collections`. If a third-party library would simplify logic, note it in
   a comment but implement without it so the script runs anywhere `python3` is available
-- Scripts run via Bash tool: `python3 artifacts/scripts/<script>.py <args>`
+
+### Invocation via run_script() (mandatory — do NOT use bare subprocess.run)
+
+All script invocations go through `SKILL.md §run_script()`. Before invoking:
+1. Add the script's absolute path to `SCRIPT_ALLOWLIST`.
+2. Pass `phase_id=` so the correct deadline from `PHASE_DEADLINES_S` applies.
+
+```python
+# Example (P2 CoA mapping)
+SCRIPT_ALLOWLIST.add(str(pathlib.Path("artifacts/scripts/p2-coa-mapping.py").resolve()))
+result = run_script(
+    "artifacts/scripts/p2-coa-mapping.py",
+    args=["--sheet-csv", "artifacts/budget-export.csv"],
+    phase_id="P2",
+)
+# result is parsed JSON dict; ScriptError raised on failure
+```
+
+On `ScriptError`: write breadcrumb via `scrub_pii()` (SKILL.md §scrub_pii), set
+`phase_status = "failed"` + `last_error`, atomic commit, surface in UI.
 
 ---
 
