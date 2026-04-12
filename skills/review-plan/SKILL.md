@@ -643,6 +643,40 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      Next:    Phase 4 (convergence loop — runs unaware of research lane)
      Cost:    max 3 background Tasks × one Sonnet call each
      ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT
+
+     DISPATCH READS   (must be stable by end of Phase 3c):
+       REVIEW_TIER, ACTIVE_RISKS, frontmatter.research_lane,
+       IS_GAS/IS_NODE/HAS_UI, plan_path, RESULTS_DIR, memo_file
+
+     DISPATCH WRITES  (consumed by Phase 5b.5 and Phase 5c):
+       research_pending[{slug, path, query, dispatched_at}],
+       dispatch_epoch, plan_sha_at_dispatch, memo_file
+
+     BLIND ZONE       (phases 4, 5a, 5b run without research grounding —
+                       accepted v1 tradeoff, documented in
+                       wiki/entities/async-research-lane-pattern.md):
+       Phase 4: Edit(plan_path, …) per pass (up to 5 passes, ~2–20 edits each)
+       Phase 5 epilogue Q-E1/Q-E2: Edit(plan_path, …) injection
+       Phase 5 Q-G9: Edit(plan_path, …) organization pass
+
+     JOIN READS       (Phase 5b.5):
+       research_pending, memo_file, research result files at
+       ${RESULTS_DIR}/research/*.md
+
+     JOIN WRITES      (consumed by Phase 5c):
+       research_done, research_missing, research_findings_block,
+       research_findings_block_header (staleness annotation),
+       memo.research_pending = [] post-join
+
+     SOLE CONSUMER    (Phase 5c inject-only v1):
+       research_findings_block injected into Critic A and Critic B
+       prompts; consolidator dedup applies citation-strength rules;
+       surviving research-grounded edits flow into sr_applied_edits[]
+       and Teaching Notes via the normal bridge.
+     ═══════════════════════════════════════════════════════════════ -->
+
 ## Phase 3c.5 — Async Research Lane Dispatch
 
 Research lane dispatches background research Tasks in parallel with the
