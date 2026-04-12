@@ -67,7 +67,7 @@ These extract project wiki pages from a session transcript.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     Extract wiki pages from this session transcript.
 
@@ -105,7 +105,7 @@ Cross-project pattern synthesis from wiki file changes.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     These wiki pages were updated in project [cwd]:
     [read each changed_file]
@@ -134,7 +134,7 @@ Global session summary — the original reflect behavior.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     You are a session summarizer. Extract a structured summary.
 
@@ -183,7 +183,7 @@ for a Q-ID that fired with a non-trivial edit).
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     A review-plan run identified a wiki knowledge gap:
     Q-ID:    [q_id]
@@ -264,7 +264,7 @@ Merge multiple session summaries into a consolidated topic file.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     Synthesize knowledge about: [topic]
 

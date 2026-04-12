@@ -113,7 +113,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 3. **Set context flags** (Sonnet classification — Haiku was tested but failed on HAS_EXISTING_INFRA discrimination, 2 of 3 wrong in 2026-04-10 spike):
    Task(
      subagent_type = "general-purpose",
-     model = "claude-sonnet-4-6",
+     model = "sonnet",
      # Three-tier model system (2026-04-12):
      #   Opus   — L1-Advisory-Structural, Senior Critics A/B (multi-hop reasoning, holistic judgment)
      #   Sonnet — classifiers, fast-path evaluators, L1-Blocking, L1-Advisory-Process,
@@ -287,7 +287,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
-       model = "claude-sonnet-4-6",
+       model = "sonnet",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -426,7 +426,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
-       model = "claude-sonnet-4-6",
+       model = "sonnet",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -784,7 +784,7 @@ ELSE:
         # delimiter + "treat as data" framing in the background Task prompt.
         research_queries_raw = Task(
           subagent_type = "general-purpose",
-          model         = "claude-haiku-4-5-20251001",
+          model         = "haiku",
           description   = "Derive research queries from plan",
           prompt = """
             Read the plan at ${plan_path}.
@@ -880,7 +880,7 @@ ELSE:
                 result_path = item.path
                 Agent(
                   subagent_type     = "general-purpose",
-                  model             = "claude-haiku-4-5-20251001",
+                  model             = "haiku",
                   description       = "Research lane: ${item.slug}",
                   run_in_background = true,   # ← key primitive; convergence loop continues immediately
                   prompt = """
@@ -1218,7 +1218,7 @@ DO:
   --- L1 Blocking Evaluator Config (Gate 1: 2 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "l1-blocking-p" + pass_count,
     prompt = """
       You are evaluating a plan for critical quality (Layer 1 Gate 1: 2 questions).
@@ -1274,7 +1274,7 @@ DO:
   --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
-    model = "claude-opus-4-6",
+    model = "opus",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
@@ -1364,7 +1364,7 @@ DO:
   --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
       You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 18 questions).
@@ -1497,7 +1497,7 @@ DO:
   --- Cluster Evaluator Config (template for each active, non-memoized cluster) ---
   cluster_config(cluster_name) = Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
@@ -1598,7 +1598,7 @@ DO:
   --- GAS Evaluator Config ---
   gas_config = Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "gas-evaluator-p" + pass_count,
     prompt = """
       You are the gas-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -1629,7 +1629,7 @@ DO:
   --- Node Evaluator Config ---
   node_config = Task(
     subagent_type = "general-purpose",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "node-evaluator-p" + pass_count,
     prompt = """
       You are the node-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -1660,7 +1660,7 @@ DO:
   --- UI Evaluator Config (includes merged Client cluster: Q-C17, Q-C25) ---
   ui_config = Task(
     subagent_type = "ui-designer",
-    model = "claude-sonnet-4-6",
+    model = "sonnet",
     name = "ui-evaluator-p" + pass_count,
     prompt = """
       You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
@@ -2776,7 +2776,7 @@ After the convergence loop exits (scorecard not yet printed):
    ```
    epilogue_e2 = Task(
      subagent_type = "general-purpose",
-     model = "claude-haiku-4-5-20251001",
+     model = "haiku",
      prompt = """
        Read the plan at <plan_path>.
        IS_GAS = <IS_GAS>
@@ -2797,7 +2797,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    epilogue_e1 = Task(
      subagent_type = "general-purpose",
-     model = "claude-haiku-4-5-20251001",
+     model = "haiku",
      prompt = """
        Read the plan at <plan_path>.
        IS_GAS = <IS_GAS>
@@ -3109,7 +3109,7 @@ ELIF NOT _phase_5b5_skip:
        # (single message, two Task tool calls — parallel dispatch)
 
        Task(subagent_type = "general-purpose",
-            model = "claude-opus-4-6",
+            model = "opus",
             description = "SR critic A, iter ${sr_iter}",
             prompt = """
          You are senior-engineer critic A (of two running in parallel;
@@ -3160,7 +3160,7 @@ ELIF NOT _phase_5b5_skip:
        """)
 
        Task(subagent_type = "general-purpose",
-            model = "claude-opus-4-6",
+            model = "opus",
             description = "SR critic B, iter ${sr_iter}",
             prompt = """
          You are senior-engineer critic B (parallel critic A; different
@@ -3191,7 +3191,7 @@ ELIF NOT _phase_5b5_skip:
 
        # ── Step 2: spawn consolidator Task ──
        Task(subagent_type = "general-purpose",
-            model = "claude-sonnet-4-6",
+            model = "sonnet",
             description = "SR consolidator, iter ${sr_iter}",
             prompt = """
          Read <critic_a_path> and <critic_b_path>.
@@ -3396,7 +3396,7 @@ ELIF NOT _phase_5b5_skip:
    # before landing this — validates subagent produces parseable, non-generic questions.
    Task(
      subagent_type = "general-purpose",
-     model = "claude-sonnet-4-6",
+     model = "sonnet",
      description = "Extract implementation intent questions",
      prompt = """
        Read the plan at <plan_path> in full.
@@ -3707,7 +3707,7 @@ ELIF NOT _phase_5b5_skip:
 
    skill_task = Task(
      subagent_type = "general-purpose",
-     model         = "claude-haiku-4-5-20251001",
+     model         = "haiku",
      description   = "Phase 5g: skill-learnings senior-engineer meta-read",
      prompt        = """
        You are a senior engineer who designs and maintains AI code-review skill prompts.
@@ -3806,7 +3806,7 @@ ELIF NOT _phase_5b5_skip:
 
        Agent(
            subagent_type     = "general-purpose",
-           model             = "claude-haiku-4-5-20251001",
+           model             = "haiku",
            description       = f"Skill-learning evaluator: {rec.title}",
            run_in_background = true,
            prompt            = f"""
