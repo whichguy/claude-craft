@@ -181,7 +181,6 @@ For each tool in `ready` (run silently, no prompts):
     ── [label] ──────────────────────────────────────────
     [raw output, max 60 lines; "… [N] more lines" if longer]
     Exit [code] — [N issue(s) | clean]
-  If tool.fix_cmd AND exit_code != 0: prompt auto-fix (same as needs_dl branch)
 ```
 
 For each tool in `needs_dl` (prompt before installing):
