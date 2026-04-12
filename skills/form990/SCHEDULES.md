@@ -281,3 +281,213 @@ Functional Expense Allocation Methodology:
   ]
 }
 ```
+
+---
+
+## Schedule C — Political Campaign and Lobbying Activities (STUB)
+
+**Purpose.** Report political campaign or lobbying activities.
+
+**Triggered by.** Part IV Lines 3 (political activities) or 4 (lobbying activities).
+
+**Primary-source requirements:**
+- Documentation of any political campaign expenditures
+- If electing §501(h) expenditure test: lobbying and grassroots expenditure totals
+- If not electing: substantial part test facts
+- C3 organizations: verify no candidate campaign activity (disqualifying)
+
+**Playbook (stub — P6 halts with Open Question per B4):**
+1. Confirm Part IV Line 3/4 answers with governance docs
+2. Identify lobbying election status (h-election vs substantial-part test)
+3. Surface Open Question: "Provide total lobbying expenditures and description of activities"
+4. Record in `dataset_schedules.json` under `"C": {...}`
+
+> **Note:** Full playbook deferred to a later pass. P6 will halt with an Open Question
+> directing the preparer to complete Schedule C manually before proceeding.
+
+---
+
+## Schedule E — Schools (STUB)
+
+**Purpose.** Certify that the organization, as a school, has a racially nondiscriminatory policy.
+
+**Triggered by.** Part IV Line 13 (school per IRC §170(b)(1)(A)(ii)).
+
+**Primary-source requirements:**
+- Governing documents establishing nondiscrimination policy
+- Documentation that policy has been publicized (annual notice, scholarship info, etc.)
+- Student statistics or enrollment records if requested
+
+**Playbook (stub):**
+1. Confirm organization operates a school per §170(b)(1)(A)(ii) definition
+2. Verify nondiscrimination policy is documented and publicized
+3. Surface Open Question: "Provide copy of nondiscrimination policy and most recent public notice"
+4. Record in `dataset_schedules.json` under `"E": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question.
+
+---
+
+## Schedule F — Statement of Activities Outside the United States (STUB)
+
+**Purpose.** Report activities conducted outside the US through grants, programs, or offices.
+
+**Triggered by.** Part IV Lines 14b, 15, or 16 (foreign activities, offices, grants).
+
+**Primary-source requirements:**
+- List of foreign grantees/sub-recipients with country and amount
+- Description of programs conducted outside the US
+- Any foreign office or employee count
+
+**Playbook (stub):**
+1. Identify all foreign grants from COA mapping (any payee in a non-US country)
+2. Surface Open Question: "Provide a list of foreign grants, recipients, and countries"
+3. Record in `dataset_schedules.json` under `"F": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question.
+
+---
+
+## Schedule H — Hospitals (STUB)
+
+**Purpose.** Report community benefit activities and financial assistance for hospital organizations.
+
+**Triggered by.** Part IV Line 20a (hospital facility).
+
+**Primary-source requirements:**
+- Community benefit cost accounting
+- Financial assistance policy documentation
+- Charges and collection policy
+
+**Playbook (stub):**
+1. Confirm hospital facility status via IRS determination or governing docs
+2. Surface Open Question: "Provide community benefit cost data and financial assistance policy"
+3. Record in `dataset_schedules.json` under `"H": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question. Schedule H is highly
+> specialized — most 501(c)(3) community benefit orgs will NOT trigger this schedule.
+
+---
+
+## Schedule I — Grants and Other Assistance to Organizations, Governments, and Individuals (STUB)
+
+**Purpose.** Report grants and assistance to domestic organizations, governments, and individuals.
+
+**Triggered by.** Part IV Line 21 or 22 (grants to US orgs/govts or to individuals).
+
+**Primary-source requirements:**
+- Complete list of grantees with EIN, name, address, purpose, amount
+- For individual grants: aggregate amounts by purpose (individual names not required in public filing)
+- Grant selection criteria documentation
+
+**Playbook (stub):**
+1. Pull grant expense rows from COA mapping (Part IX Line 1-3 mapped rows)
+2. Identify domestic vs foreign split (foreign → Schedule F)
+3. Surface Open Question: "Provide grantee list with EIN, purpose, and amounts for domestic grants"
+4. Record in `dataset_schedules.json` under `"I": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question.
+
+---
+
+## Schedule J — Compensation Information (STUB — higher fidelity)
+
+**Purpose.** Report compensation details for officers, directors, key employees, and highest-paid employees.
+
+**Triggered by.** Part IV Line 23 (compensation > $150,000 to any individual listed in Part VII).
+Also triggered when total compensation to any single listed individual exceeds $150,000
+from the organization AND related organizations combined.
+
+**Primary-source requirements (critical — Schedule J is the most IRS-examined schedule):**
+- W-2 Box 1 (wages) for each officer/key employee
+- W-2 Box 5 (Medicare wages) — used to verify reasonable compensation claims
+- 1099-NEC if any are independent contractors
+- Board-approved compensation study or comparability data (required for rebuttable presumption)
+- Deferred compensation amounts (403(b), 457(b), 457(f)) per plan documents
+- Expense account / car allowance / housing detail
+- Severance amounts if any
+
+**Playbook (higher fidelity):**
+1. **Identify triggered individuals.** Pull Part VII Column D (total compensation) for each
+   officer/KE/HCE listed. Trigger if any single individual's total (from org + related) > $150,000.
+2. **Collect W-2 / 1099-NEC detail per individual.** Create Open Question to bookkeeper:
+   - W-2 Box 1, Box 5, Box 12 (deferred comp codes D/E/F/G), Box 14 (other)
+   - Any expense reimbursement or car allowance not in W-2 Box 1
+   - Paid severance or deferred compensation vested during the year
+3. **Comparability data.** Ask whether the board has a compensation study or used Form 990
+   compensation data from peer organizations. If not, surface advisory: "IRS rebuttable
+   presumption of reasonableness requires contemporaneous documentation of comparability data."
+4. **Complete Part I, II, III columns** for each triggered individual per W-2/1099 detail.
+5. **Q-F6 cross-check.** Part VII reported compensation must equal the sum of Part I
+   columns (B) through (F) for each individual. Mismatch → NEEDS_UPDATE.
+6. Record in `dataset_schedules.json` under `"J": {...}`
+
+**Common errors (high IRS scrutiny):**
+- Omitting compensation from related organizations (column C must include related-org amounts)
+- Reporting W-2 Box 1 only and forgetting Box 12 deferred comp
+- No contemporaneous comparability data → exposes officer to intermediate sanctions (IRC §4958)
+
+> **Note:** J is the single schedule most likely to trigger an IRS correspondence exam.
+> Do NOT stub with zero values — always surface the Open Question to the bookkeeper.
+
+---
+
+## Schedule K — Tax-Exempt Bond Obligations (STUB)
+
+**Purpose.** Report tax-exempt bonds issued by the organization.
+
+**Triggered by.** Part IV Line 24a (tax-exempt bonds outstanding).
+
+**Primary-source requirements:**
+- Bond documents and original issue amount
+- Outstanding principal balance at year-end
+- Arbitrage compliance documentation
+
+**Playbook (stub):**
+1. Confirm tax-exempt bonds via prior Schedule K or bond documents
+2. Surface Open Question: "Provide bond documents, outstanding balance, and arbitrage compliance records"
+3. Record in `dataset_schedules.json` under `"K": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question. Most small 501(c)(3)s
+> will NOT trigger Schedule K.
+
+---
+
+## Schedule N — Liquidation, Termination, Dissolution, or Significant Disposition of Assets (STUB)
+
+**Purpose.** Report significant asset dispositions or organizational restructuring.
+
+**Triggered by.** Part IV Lines 31 or 32 (liquidation, dissolution, or significant disposition).
+
+**Primary-source requirements:**
+- Board resolution authorizing the transaction
+- Documentation of assets disposed: description, date, amount, recipient
+- State dissolution filing (if applicable)
+
+**Playbook (stub):**
+1. Confirm trigger from Part IV Lines 31/32
+2. Surface Open Question: "Provide board resolution and documentation of the asset disposition or dissolution"
+3. Record in `dataset_schedules.json` under `"N": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question.
+
+---
+
+## Schedule R — Related Organizations and Unrelated Partnerships (STUB)
+
+**Purpose.** Report related organizations and certain partnership transactions.
+
+**Triggered by.** Part IV Lines 33–37 (related organizations, unrelated business income from
+partnerships, real estate partnerships).
+
+**Primary-source requirements:**
+- List of related organizations with EIN, type, and relationship description
+- Partnership K-1s if applicable
+- Any transactions between related organizations and the filer
+
+**Playbook (stub):**
+1. Identify any related organizations from intake (parent, subsidiaries, common control)
+2. Surface Open Question: "Provide a list of related organizations with EIN and relationship description"
+3. Record in `dataset_schedules.json` under `"R": {...}`
+
+> **Note:** Full playbook deferred. P6 halts with Open Question.

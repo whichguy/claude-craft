@@ -647,7 +647,17 @@ financial data, prior-year support data.
 
 **Work.**
 
-Dispatch to SCHEDULES.md playbooks for each schedule in `required_schedules[]`.
+**B4 guard — halt on unknown schedule letter.** Before dispatching to any playbook, assert
+every letter in `required_schedules[]` has a corresponding playbook section in SCHEDULES.md
+(known set: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R). If an unknown letter is present:
+```
+halt with breadcrumb: "required schedule <L> has no playbook — manual preparation required"
+create Open Question: "Schedule <L> was triggered but has no automated playbook.
+  Please prepare it manually and attach it to the return before P7."
+```
+Do NOT skip unknown letters silently — they represent triggered legal obligations.
+
+Dispatch to SCHEDULES.md playbooks for each known letter in `required_schedules[]`.
 
 **Schedule A (always — 501(c)(3) public charity):**
 See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
