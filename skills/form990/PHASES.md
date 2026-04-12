@@ -141,11 +141,35 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
        variant = HALTED-CHURCH
    ELIF gross_receipts_3yr_average <= 50000:
        variant = 990-N
+       # 3-year averaging per Rev. Proc. 2011-15 §3.01
+       # NEW ORGS (< 3 years): use available-years average
+       #   1st year: current year only
+       #   2nd year: (yr1 + yr2) / 2
+       #   3rd+ year: standard 3-year average
+       # If org was not in existence for all 3 years, document in Decision Log
    ELIF gross_receipts_current < 200000 AND total_assets_eoy < 500000:
        variant = 990-EZ           ← CONJUNCTIVE; both prongs required
+       # 990-EZ gross receipts = gross receipts (NOT net of refunds or Line 12 total revenue)
+       # Includes: contributions, program fees, investment income GROSS of expenses
+       # Does NOT equal Part VIII Line 12 (which nets certain items)
    ELSE:
        variant = 990
    ```
+
+   **Additional checks before finalizing variant:**
+   - **509(a)(3) supporting organizations.** If `key_facts.public_charity_basis == "509(a)(3)"`,
+     determine the support organization type (Type I, II, or III). Type III functional integral
+     organizations have additional Schedule A requirements. Create an Open Question if the type
+     is uncertain. Do NOT halt — 509(a)(3)s file 990 (or 990-EZ/N per size) just like other public charities.
+   - **UBTI / 990-T detection.** If the budget sheet shows income from an activity that might be
+     Unrelated Business Taxable Income (e.g., advertising revenue, certain rental income from
+     debt-financed property, income unrelated to the exempt purpose), surface a non-blocking
+     advisory: "UBTI may be present — a Form 990-T may also be required. Recommend review with
+     a CPA." Do NOT halt; record in Decision Log with `severity: "advisory"`.
+   - **§6033(a)(3)(B) mission societies.** If the user confirms the organization is a mission
+     society of a church (IRC §6033(a)(3)(B)(i)) or certain educational organizations (§6033(a)(3)(B)(ii)),
+     route to HALTED-CHURCH with a specific breadcrumb noting the §6033(a)(3)(B) sub-section.
+
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
@@ -157,17 +181,31 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
      ```
-     ╔══════════════════════════════════════════════════╗
-     ║  ✖ HALTED — Private Foundation                   ║
-     ║  Form 990-PF required. This skill covers only    ║
-     ║  Form 990, 990-EZ, and 990-N.                    ║
-     ║  Contact a CPA specializing in 990-PF returns.   ║
-     ╚══════════════════════════════════════════════════╝
+     ╔══════════════════════════════════════════════════════╗
+     ║  ✖ HALTED — Private Foundation                        ║
+     ║  Form 990-PF required. This skill covers only         ║
+     ║  Form 990, 990-EZ, and 990-N.                         ║
+     ║  Contact a CPA specializing in 990-PF returns.        ║
+     ╠══════════════════════════════════════════════════════╣
+     ║  ↩ If you answered "private foundation" by mistake:   ║
+     ║  Use /form990 phase P0 <plan> to restart intake.      ║
+     ╚══════════════════════════════════════════════════════╝
      ```
    - Stop; do not advance to P1
 7. If `variant == HALTED-CHURCH`:
-   - Write terminal breadcrumb: `"Halted: IRC §6033(a)(3)(A)(i) exempt — no 990 required"`
-   - Render halt banner with appropriate message
+   - Write terminal breadcrumb: `"Halted: IRC §6033(a)(3) exempt — no 990 required"`
+   - Render halt banner:
+     ```
+     ╔══════════════════════════════════════════════════════╗
+     ║  ✖ HALTED — Church / §6033(a)(3) Exempt              ║
+     ║  No Form 990-series filing required per IRC           ║
+     ║  §6033(a)(3). Retain this determination in your       ║
+     ║  records in case of IRS inquiry.                      ║
+     ╠══════════════════════════════════════════════════════╣
+     ║  ↩ If you answered "church" by mistake:               ║
+     ║  Use /form990 phase P0 <plan> to restart intake.      ║
+     ╚══════════════════════════════════════════════════════╝
+     ```
    - Stop; do not advance to P1
 8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
 
