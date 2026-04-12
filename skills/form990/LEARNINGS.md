@@ -29,9 +29,12 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   a phase Pre-check still count toward the 3-strike rule — the breaker cannot be escaped
   by deferring a flapping fact past resume-time.
 
-- **pypdf coordinate-overlay is primary; pdftk-java AcroForm is fallback.** Recent
-  f990.pdf revisions (2024, 2025) are flat PDFs with zero AcroForm fields. Plan for
-  the coordinate-overlay path being the only viable route.
+- **AcroForm (pdftk-java) is primary; pypdf coordinate-overlay is the fallback.**
+  E1 (2026-04-11) confirmed the 2025 f990.pdf ships with 1307 AcroForm fields —
+  name-based fill via pdftk-java FDF intermediate is the primary path. Coordinate-
+  overlay applies only when pdftk-java is unavailable. Earlier guidance stating
+  "coordinate-overlay is primary" was based on pre-E1 assumptions and is superseded
+  by the E1 empirical result.
 
 - **Drive headRevisionId may not be available.** If the Drive MCP doesn't expose
   Revisions API data, fall back to `{modifiedTime, tab_snapshot_sha256}`. E2 experiment

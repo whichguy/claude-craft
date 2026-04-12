@@ -183,7 +183,7 @@ Passes if: public_support_pct ≥ 33⅓%
 in 509(a)(1)); see SCHEDULES.md §509(a)(2) Worksheet for the full two-prong formula:
 ```
 Numerator = government grants (uncapped)
-          + public contributions (per-donor cap: max(1% × total_support_5yr, $5,000))
+          + public contributions (per-donor cap: max(1% × total_5yr_support, $5,000))
           + program service revenue from exempt activities
 public_support_pct = Numerator_5yr_sum / total_support_5yr × 100
 Prong 1 passes if: public_support_pct ≥ 33⅓%
@@ -275,13 +275,14 @@ Section B covers the five highest-compensated independent contractors (>$100K).
 **Purpose.** Part I is a summary page. Its totals must roll up from the authoritative Parts:
 
 ```
-Part I Line 8  = Part VIII Line 12 (total revenue)
+Part I Line 8  = Part VIII Line 1h (total contributions, gifts, grants — NOT Line 12)
+Part I Line 12 = Part VIII Line 12 (total revenue)
 Part I Line 18 = Part IX Line 25 (total expenses)
 Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
 ```
 
 **Pass criteria:**
-- All three equalities hold to the dollar (no tolerance)
+- All four equalities hold to the dollar (no tolerance)
 - `dataset_rollup.json` `parts.I` values are sourced from `dataset_core.json` line references
   (not manually entered)
 - `reconciliation.delta_match == true`

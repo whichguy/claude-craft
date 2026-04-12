@@ -7,8 +7,9 @@
 # Usage: claude-router --model gemma4:26b          — Ollama (auto-detected)
 #        claude-router --model bedrock-opus        — Bedrock (from model-map.json)
 #        claude-router --model opus                — Anthropic (passthrough)
-#        claude-router --model gemma4:26b -p .      — provider config + pass -p to claude
-#        claude-router --list                       — show all available models
+#        claude-router --route background          — named route from model-map.json .routes
+#        claude-router --route background -p .     — route + pass -p to claude
+#        claude-router --list                       — show all available models and routes
 #        claude-router                              — show help + available models
 set -eo pipefail
 
@@ -19,6 +20,13 @@ OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 
 # --- Show available models from all sources ---
 show_models() {
+  # Configured routes
+  if [[ -f "$CONFIG" ]] && jq -e '.routes | length > 0' "$CONFIG" >/dev/null 2>&1; then
+    echo "Configured routes (model-map.json):"
+    jq -r '.routes | to_entries[] | "  \(.key)  →  \(.value)"' "$CONFIG" 2>/dev/null
+    echo ""
+  fi
+
   # Configured providers
   if [[ -f "$CONFIG" ]] && jq -e '.providers | length > 0' "$CONFIG" >/dev/null 2>&1; then
     echo "Configured providers (model-map.json):"
@@ -28,7 +36,7 @@ show_models() {
 
   # Local Ollama
   local ollama_models
-  ollama_models=$(curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -r '.models[].name' 2>/dev/null)
+  ollama_models=$(curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -r '.models[].name' 2>/dev/null) || true
   if [[ -n "$ollama_models" ]]; then
     echo "Local Ollama ($OLLAMA_URL):"
     echo "$ollama_models" | while read -r m; do
@@ -47,9 +55,12 @@ show_models() {
 # --- Help / no args ---
 if [[ $# -eq 0 ]]; then
   echo "Usage: claude-router --model <model> [claude args...]"
+  echo "       claude-router --route <name>  [claude args...]"
   echo "       claude-router --list"
   echo ""
   echo "Routes Claude Code to the right provider for any model."
+  echo "  --route <name>   use a named route from model-map.json .routes block"
+  echo "  --model <model>  explicit model (wins over --route if both given)"
   echo "Priority: configured providers → local Ollama → Anthropic (default)"
   echo ""
   show_models
@@ -61,22 +72,43 @@ if [[ "$1" == "--list" ]]; then
   exit 0
 fi
 
-# --- Extract model from args (peek — don't consume) ---
+# --- Extract --route and --model from args (peek — don't consume) ---
 MODEL=""
+ROUTE=""
 prev=""
 for arg in "$@"; do
   if [[ "$prev" == "--model" ]]; then
-    MODEL="$arg"; break
+    MODEL="$arg"
+  elif [[ "$prev" == "--route" ]]; then
+    ROUTE="$arg"
   fi
   if [[ "$arg" == --model=* ]]; then
-    MODEL="${arg#--model=}"; break
+    MODEL="${arg#--model=}"
+  fi
+  if [[ "$arg" == --route=* ]]; then
+    ROUTE="${arg#--route=}"
   fi
   prev="$arg"
 done
 
+# --- Resolve route → model (only when --model not explicitly set) ---
+if [[ -n "$ROUTE" && -z "$MODEL" ]]; then
+  if [[ ! -f "$CONFIG" ]] || ! jq -e 'has("routes")' "$CONFIG" >/dev/null 2>&1; then
+    echo "claude-router: --route '$ROUTE' requires a 'routes' block in $CONFIG — run '/model-map route $ROUTE <model>' to add one" >&2
+    exit 1
+  fi
+  MODEL=$(jq -r --arg k "$ROUTE" '.routes[$k] | select(type == "string" and length > 0) // empty' "$CONFIG" 2>/dev/null)
+  if [[ -z "$MODEL" ]]; then
+    available=$(jq -r '.routes | keys | join(", ")' "$CONFIG" 2>/dev/null || echo "(none)")
+    echo "claude-router: route '$ROUTE' not found or invalid in $CONFIG; available routes: $available" >&2
+    exit 1
+  fi
+fi
+
 if [[ -z "$MODEL" ]]; then
-  echo "Error: --model <model> is required"
+  echo "Error: --model <model> or --route <name> is required"
   echo "Usage: claude-router --model <model> [claude args...]"
+  echo "       claude-router --route <name>  [claude args...]"
   exit 1
 fi
 
@@ -120,6 +152,26 @@ elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.mode
 fi
 
 # 3) No match = Anthropic passthrough (no env vars set, claude uses its defaults)
+
+# Build final argv: if --route was used, strip it (and any existing --model) then inject
+# --model with the resolved value. Use explicit array rebuild to preserve multi-word -p prompts.
+if [[ -n "$ROUTE" ]]; then
+  new_args=()
+  skip_next=0
+  for arg in "$@"; do
+    if [[ "$skip_next" == 1 ]]; then
+      skip_next=0
+      continue
+    fi
+    case "$arg" in
+      --route|--model) skip_next=1 ;;    # drop "--route <name>" and "--model <name>" pairs
+      --route=*|--model=*) ;;            # drop "--route=<name>" and "--model=<name>"
+      *)           new_args+=("$arg") ;;
+    esac
+  done
+  new_args+=(--model "$MODEL")
+  exec claude "${new_args[@]}"
+fi
 
 # Pass ALL original args through to claude unchanged
 exec claude "$@"

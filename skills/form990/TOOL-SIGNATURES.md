@@ -87,8 +87,8 @@ Tool: get_file_metadata
 *(Populated by Pre-build Verification step 3)*
 
 ```
-pypdf_version: null      ← fill in: e.g., "4.3.1"
-pdftk_java_available: null  ← fill in: true/false
+pypdf_version: "6.10.0"     ← confirmed by E1 (2026-04-11, Python 3.12)
+pdftk_java_available: null  ← fill in: true/false (not yet tested)
 pdftk_java_version: null    ← fill in: e.g., "3.3.3"
 ```
 

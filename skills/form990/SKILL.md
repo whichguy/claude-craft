@@ -800,14 +800,28 @@ The 9-digit rule catches bare SSN/ITIN patterns; hyphenated EINs never match `\b
 ## append_breadcrumb() — Scrubbed Breadcrumb Writer
 
 ```python
-def append_breadcrumb(msg: str, plan_state: dict) -> None:
-    """Write a breadcrumb. Always scrubs PII before appending."""
-    donor_names = plan_state.get("key_facts", {}).get("donor_names", [])
+def append_breadcrumb(
+    state: dict,
+    phase: str,
+    msg: str,
+    error_class: str | None = None,
+    duration_ms: int | None = None,
+) -> None:
+    """
+    Write a scrubbed breadcrumb into state["breadcrumbs"].
+
+    A6: structured error_class (must be in ERROR_CLASSES) and optional
+    duration_ms for phase timing. Call sites: append_breadcrumb(state, phase_id, "msg").
+    """
+    assert error_class is None or error_class in ERROR_CLASSES
+    donor_names = state.get("key_facts", {}).get("donor_names", [])
     safe_msg = scrub_pii(msg, donor_names)
-    plan_state.setdefault("breadcrumbs", []).append({
-        "at": now_iso(),
-        "msg": safe_msg,
-    })
+    entry = {"at": now_iso(), "phase": phase, "msg": safe_msg}
+    if error_class is not None:
+        entry["error_class"] = error_class
+    if duration_ms is not None:
+        entry["duration_ms"] = duration_ms
+    state.setdefault("breadcrumbs", []).append(entry)
 ```
 
 ---
@@ -850,7 +864,9 @@ def auto_append_learning(learnings_path: str, phase_id: str,
     Append a scrubbed failure entry to the MACHINE LEARNINGS section of LEARNINGS.md.
     Rotates to LEARNINGS.archive.md if count exceeds MAX_MACHINE_ENTRIES.
     """
-    safe_msg = scrub_pii(message[:200], donor_names or [])
+    # C2: scrub THEN truncate — prevents SSN near the 200-char boundary from escaping redaction
+    scrubbed = scrub_pii(message, donor_names or [])
+    safe_msg = scrubbed[:200]
     entry = (
         f"- **{now_iso_date()} - {phase_id} - {error_class}:** "
         f"{safe_msg} _(resolution: pending)_\n"

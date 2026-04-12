@@ -290,7 +290,7 @@ describe('Wiki Hooks', function () {
     // ================================================================
     describe('wiki-precompact.sh', function () {
 
-        it('should emit nested hookSpecificOutput with hookEventName PreCompact', async function () {
+        it('should emit only top-level systemMessage (PreCompact rejects hookSpecificOutput)', async function () {
             // Provide a fake transcript so the hook does not skip on empty TRANSCRIPT
             const fakeTranscript = path.join(tmpDir, 'fake-transcript.jsonl');
             fs.writeFileSync(fakeTranscript, '');
@@ -301,13 +301,11 @@ describe('Wiki Hooks', function () {
             });
 
             const parsed = JSON.parse(stdout.trim());
-            // systemMessage must be present (display line)
+            // PreCompact does NOT support hookSpecificOutput.additionalContext
+            // (primary-source schema; only top-level systemMessage is accepted)
             expect(parsed).to.have.property('systemMessage');
-            // additionalContext must be nested under hookSpecificOutput, never top-level
+            expect(parsed).to.not.have.property('hookSpecificOutput');
             expect(parsed).to.not.have.property('additionalContext');
-            expect(parsed).to.have.nested.property('hookSpecificOutput.additionalContext');
-            // hookEventName must match the PreCompact hook event
-            expect(parsed).to.have.nested.property('hookSpecificOutput.hookEventName', 'PreCompact');
         });
     });
 

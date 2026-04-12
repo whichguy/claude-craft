@@ -19,14 +19,15 @@ Routing layer between Claude Code and alternative model providers. `tools/claude
 
 ## Components
 
-- **`tools/claude-router`** (L1-125) — bash script implementing a 3-tier priority chain:
+- **`tools/claude-router`** — bash script implementing a 3-tier priority chain:
   1. Explicit provider config from `~/.claude/model-map.json` (any provider: Ollama, Bedrock, Vertex, custom)
-  2. Auto-detected local Ollama model via `curl $OLLAMA_URL/api/tags` (L113) — applies Ollama defaults even without a model-map.json entry
+  2. Auto-detected local Ollama model via `curl $OLLAMA_URL/api/tags` — applies Ollama defaults even without a model-map.json entry
   3. Anthropic passthrough — no env vars set; claude uses its own defaults
+  **`--route <name>` flag** (added 2026-04-11): resolves a named route to a model before the 3-tier lookup. Route names (`default`, `background`, `think`, `longContext`) defined in `model-map.json .routes` block.
 
-- **`skills/model-map/SKILL.md`** — Claude Code skill that manages `~/.claude/model-map.json`. Invoked as `/model-map` in session. `provider <model> <base_url>` subcommand auto-applies Ollama defaults for localhost URLs.
+- **`skills/model-map/SKILL.md`** — Claude Code skill that manages `~/.claude/model-map.json`. Invoked as `/model-map` in session. `provider <model> <base_url>` subcommand auto-applies Ollama defaults for localhost URLs. **`route <name> <model>` subcommand** (added 2026-04-11): add/remove named routes. `clear` preserves both providers and routes.
 
-- **`~/.claude/model-map.json`** — provider config (outside repo, not version-controlled). Separate from `session_rules` / `model_mappings` which route subagent models. The `providers` block is read exclusively by `claude-router`.
+- **`~/.claude/model-map.json`** — provider config (outside repo, not version-controlled). Separate from `session_rules` / `model_mappings` which route subagent models. The `providers` block and new `routes` block are both read exclusively by `claude-router`. Routes are additive at the schema level (no-routes config still works for non-route callers); `--route` callers require the named route to exist (fail-fast exit 1 on missing route).
 
 - **`plugins/wiki-hooks/handlers/wiki-common.sh::wiki_resolve_claude_cmd`** (L177-190) — resolves the `claude` command through `claude-router` when available. Hook handlers (e.g., `wiki-worker.sh`) call this to get the correct `claude` binary, enabling future local-model extraction.
 
@@ -57,9 +58,28 @@ jq --arg m "model-name" --arg url "http://localhost:11434" \
 
 For Bedrock, Vertex, or OpenRouter — see `skills/model-map/SKILL.md` for provider-specific jq patterns.
 
+## How to Add a Route
+
+```bash
+# Via /model-map skill in session:
+# /model-map route background qwen3-coder:30b
+
+# Or directly via jq:
+CONFIG="$HOME/.claude/model-map.json"
+jq --arg k "background" --arg v "qwen3-coder:30b" '.routes[$k] = $v' \
+  "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG" && chmod 600 "$CONFIG"
+```
+
+**Rollback (remove routes block entirely):**
+```bash
+jq 'del(.routes)' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG" && chmod 600 "$CONFIG"
+```
+
+**Cross-machine bootstrap:** after pulling main to a new machine, run the Execution step 1 jq one-liner (or `/model-map route ...` for each route) — the `routes` block is not in the repo, so other machines won't have it. The wiki-worker's feature-detect guard will log actionable errors to `.extract-failures.log` if the block is missing.
+
 ## Current Wiki-Hooks Usage
 
-`plugins/wiki-hooks/handlers/wiki-worker.sh:165` hardcodes `--model claude-sonnet-4-6` for wiki extraction. `wiki_resolve_claude_cmd` resolves to claude-router when present, but the model flag still pins Sonnet. Swapping the extraction model to a local Ollama model requires validating extraction quality and is deferred to a future task.
+`plugins/wiki-hooks/handlers/wiki-worker.sh` now uses `--route "$WIKI_WORKER_ROUTE"` (default: `background` → `qwen3-coder:30b`) for wiki extraction, with a feature-detect guard that falls back to `--model claude-sonnet-4-6` if the installed `claude-router` doesn't support `--route`. Emergency rollback without code changes: `export WIKI_WORKER_ROUTE=default` in shell.
 
 ## Ollama Native Anthropic Protocol
 

@@ -39,5 +39,5 @@ wiki_log "EXTRACT" "compaction — ${QUEUED} queue entries written"
 # Re-inject display (SessionStart context is gone after compaction)
 wiki_build_display "(post-compaction)"
 
-jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
-  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "PreCompact", "additionalContext": $context}}'
+jq -n --arg display "$DISPLAY" \
+  '{"systemMessage": $display}'

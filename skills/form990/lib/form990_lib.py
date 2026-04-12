@@ -431,30 +431,44 @@ def _sweep_orphaned_tmps(plan_dir: pathlib.Path) -> list[str]:
     Patterns swept:
       - <plan_dir>/*.tmp.<pid>           (plan file temps)
       - ~/.claude/.form990-memo-*.json.tmp.<pid>   (sidecar temps)
-      - <plan_dir>/artifacts/**/*.writing.<pid>    (artifact staging)
-      - <plan_dir>/artifacts/**/*.partial.<pid>    (WebFetch partial)
+      - <plan_dir>/artifacts/**/*.writing.<pid>    (artifact staging — recursive)
+      - <plan_dir>/artifacts/**/*.partial.<pid>    (WebFetch partial — recursive)
     """
     swept: list[str] = []
-    patterns = [
+    # Flat patterns (non-recursive): plan dir and sidecar memo dir
+    flat_patterns: list[tuple[pathlib.Path, str]] = [
         (plan_dir, "*.tmp.*"),
         (pathlib.Path.home() / ".claude", ".form990-memo-*.json.tmp.*"),
+    ]
+    # Recursive patterns (rglob): artifact staging/partial per Q-C31 spec (**/*.writing.<pid>)
+    rglob_patterns: list[tuple[pathlib.Path, str]] = [
         (plan_dir / "artifacts", "*.writing.*"),
         (plan_dir / "artifacts", "*.partial.*"),
     ]
-    for base_dir, glob_pat in patterns:
+
+    def _check_and_sweep(candidate: pathlib.Path) -> None:
+        pid_str = candidate.suffix.lstrip(".")
+        if pid_str.isdigit():
+            pid = int(pid_str)
+            if _pid_dead(pid):
+                try:
+                    candidate.unlink(missing_ok=True)
+                    swept.append(str(candidate))
+                except OSError:
+                    # Log as non-fatal; don't re-raise
+                    pass
+
+    for base_dir, glob_pat in flat_patterns:
         if not base_dir.exists():
             continue
         for candidate in base_dir.glob(glob_pat):
-            pid_str = candidate.suffix.lstrip(".")
-            if pid_str.isdigit():
-                pid = int(pid_str)
-                if _pid_dead(pid):
-                    try:
-                        candidate.unlink(missing_ok=True)
-                        swept.append(str(candidate))
-                    except OSError as e:
-                        # Log as non-fatal; don't re-raise
-                        pass
+            _check_and_sweep(candidate)
+
+    for base_dir, glob_pat in rglob_patterns:
+        if not base_dir.exists():
+            continue
+        for candidate in base_dir.rglob(glob_pat):
+            _check_and_sweep(candidate)
     return swept
 
 
