@@ -908,6 +908,26 @@ Draft creation dedup rule (P1):
     still `"pending"` → create fresh draft, log breadcrumb
   - Transient error → surface + halt P1 (do not recreate)
 
+**`{{WHY_IT_MATTERS}}` lookup table (C3).**
+When drafting an email via `gmail_create_draft`, fill `{{WHY_IT_MATTERS}}` from
+this lookup instead of asking the ED to write it. Use the most specific match;
+fall back to the generic entry if no specific match applies.
+
+| Open Question type (topic keyword) | `{{WHY_IT_MATTERS}}` value |
+|---|---|
+| Prior-year 990 / gross receipts history | "The IRS uses 3-year average gross receipts to determine which 990 form the org must file, and prior-year Schedule A data is required for the 5-year public support test." |
+| Payroll register / W-2 counts | "Part V of Form 990 asks how many W-2s and 1099s you issued; the number must match your actual filings or the IRS will flag a discrepancy." |
+| 1099-MISC / NEC register | "Part V Line 2 asks for the number of 1099s issued; mismatches with IRS third-party data are a common audit trigger." |
+| Officer or director compensation | "Part VII requires each officer, director, and key employee's compensation reported separately; the figures must tie to W-2 Box 1 or 1099-NEC to avoid Schedule J scrutiny." |
+| Donor list / contribution breakdown | "Schedule B requires a list of contributors who gave more than $5,000 (or more than 2% of total contributions); this schedule is filed with the IRS but not disclosed publicly." |
+| Board roster / board minutes | "Part VI asks whether the board reviewed the 990 before filing, lists independent directors, and confirms whether meeting minutes are documented." |
+| Conflict-of-interest policy | "Part VI Line 12 asks whether the org has a written conflict-of-interest policy; answering yes without attaching the actual policy can invite follow-up." |
+| Bylaws / articles of incorporation | "Part VI governance questions (lines 6, 7, 19) reference the org's governing documents; the preparer must confirm the documents are current and on file." |
+| Audit / review report (financial) | "Part XII asks whether the org had an independent financial audit or review; if yes, the auditor's name and hours must be disclosed." |
+| Bank statements / cash balance | "The Part X balance sheet (beginning and end of year) must reconcile to bank statement ending balances; unexplained differences are a red flag." |
+| Schedule A public-support data (prior years) | "Schedule A requires 5 years of public support data; without prior-year numbers the public support percentage cannot be computed and the 509(a)(1) test cannot be confirmed." |
+| Generic / other | "The IRS requires this information to complete a specific line of the Form 990; without it the return will be incomplete and may be rejected." |
+
 ---
 
 ## Sensitive-data .gitignore Template
