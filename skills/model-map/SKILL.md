@@ -33,7 +33,9 @@ Extract from `$ARGUMENTS`:
 - `map <from> --remove` → **remove** model mapping
 - `provider <model> <base_url>` → **add/update** provider endpoint
 - `provider <model> --remove` → **remove** provider config
-- `clear` → **reset** to empty config (preserves providers)
+- `route <name> <model>` → **add/update** named route for `claude-router --route`
+- `route <name> --remove` → **remove** named route
+- `clear` → **reset** to empty config (preserves providers and routes)
 
 ## Step 1 — Ensure Config Exists
 
@@ -102,6 +104,19 @@ if that section is empty (don't show an empty table).
 
   ℹ Standard names (sonnet, opus, haiku) are resolved natively by Claude Code.
     Only add mappings for custom model IDs or use 'inherit' to strip the field.
+```
+
+**Routes section** (only if `.routes` has entries):
+```
+Routes (use with: claude-router --route <name>)
+  ┌──────────────────┬──────────────────────────┐
+  │ Route            │ Model                    │
+  ├──────────────────┼──────────────────────────┤
+  │ default          │ claude-sonnet-4-6        │
+  │ background       │ qwen3-coder:30b          │
+  │ think            │ claude-sonnet-4-6        │
+  │ longContext      │ claude-sonnet-4-6        │
+  └──────────────────┴──────────────────────────┘
 ```
 
 **Providers section** (only if `.providers` has entries):
@@ -228,11 +243,36 @@ jq --arg m "<model>" 'del(.providers[$m])' "$CONFIG" > "$CONFIG.tmp" && mv "$CON
 Print: `Removed provider: <model>`
 Then show the updated config.
 
-### clear
+### route <name> <model>
 
-Write config with empty rules but preserve providers:
+Add or update a named route. Route name maps to a model string used by `claude-router --route`.
+
 ```bash
-jq '.session_rules = {} | .model_mappings = {}' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+# Validate: model arg must be a non-empty string
+[ -z "<model>" ] && { echo "model name required" >&2; exit 1; }
+jq --arg k "<name>" --arg v "<model>" '.routes[$k] = $v' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+chmod 600 "$CONFIG"
 ```
 
-Print: `Model routing rules cleared (providers preserved).`
+Print: `Added route: <name> → <model>`
+Print: `Use with: claude-router --route <name>`
+Then show the updated config.
+
+### route <name> --remove
+
+```bash
+jq --arg k "<name>" 'del(.routes[$k])' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+chmod 600 "$CONFIG"
+```
+
+Print: `Removed route: <name>`
+Then show the updated config.
+
+### clear
+
+Write config with empty rules but preserve providers and routes:
+```bash
+jq '.session_rules = {} | .model_mappings = {} | .providers = (.providers // {}) | .routes = (.routes // {})' "$CONFIG" > "$CONFIG.tmp" && mv "$CONFIG.tmp" "$CONFIG"
+```
+
+Print: `Model routing rules cleared (providers and routes preserved).`
