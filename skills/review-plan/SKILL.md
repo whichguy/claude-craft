@@ -342,7 +342,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
      # Fires on TRIVIAL success paths only (REVIEW_TIER not yet upgraded to FULL).
-     # User directive: teaching output on all tiers (see Phase 5f / Phase 7.5).
+     # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
      IF REVIEW_TIER == TRIVIAL:
        IF any edits were applied during fast-path re-eval:
          Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
@@ -516,7 +516,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
      # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
      # Fires on SMALL success paths only (REVIEW_TIER not yet upgraded to FULL).
-     # User directive: teaching output on all tiers (see Phase 5f / Phase 7.5).
+     # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
      IF REVIEW_TIER == SMALL:
        IF any edits were applied during fast-path re-eval:
          Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
@@ -3340,40 +3340,21 @@ ELIF NOT _phase_5b5_skip:
    └──────────────────────────────────────────────────────────────────┘
    ```
 
-5c.5. **Implementation Intent Questions + Skill-Learnings Parallel Dispatch** (Directive 2026-04-11):
+5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
 
-   Phase 5c.5 (Intent Questions) and Phase 5g Step 1 (Skill Learnings) are independent — dispatch
-   both as a single message so they run in parallel. Phase 5g Step 1 also needs `findings_summary`
-   and `critic_summary` derived from `findings{}` and `sr_applied_edits[]`, which are available here.
+   Extract plan-specific questions that verify the code actually implements what the plan claims.
+   These become the POST_IMPLEMENT verification contract for `/review --commit`.
 
-   **Dispatch both in ONE message before processing either result.**
+   **Parallel dispatch note:** 5c.5 (`intent_task`) and 5g Step 1 (`skill_task`) are dispatched in
+   a single message — no dependency between them. See pre-dispatch block at end of code block below.
 
-   **Guards for 5c.5:**
+   **Guards (match Teaching Notes 5e guards for file-append path):**
    - **Tier:** FULL tier only — TRIVIAL/SMALL skip this step (fast-path speed preserved)
    - **VCS:** untracked plan file → append to plan; tracked → render as terminal 5th panel below GATE STATUS
    - **Fixture:** skip `test/fixtures/`, `wiki/fixtures/`, `*-bench/inputs/`, `skills/*/fixtures/`
    - **Opt-out:** plan frontmatter `intent_questions: false` → skip entirely
 
    ```
-   # ── Phase 5c.5 + 5g Step 1: Parallel Dispatch ──
-   # Dispatch BOTH tasks in a SINGLE message. No dependency between them.
-   # intent_task:  Intent Questions (5c.5) — Sonnet, read-only
-   # skill_task:   Skill Learnings foreground (5g Step 1) — Haiku, read-only
-   #
-   # Guards for skill_task:
-   #   FULL tier only; not opt-out via skill_audit: false; skip if total_needs_update==0 AND sr_applied_edits==[]
-   #   Build findings_summary + critic_summary from findings{} and sr_applied_edits[] now (pre-dispatch).
-   findings_summary = ""
-   for q_id, result in findings.items():
-       if result.status == "NEEDS_UPDATE":
-           findings_summary += f"  {q_id}: {result.finding}\n    Edit applied: {result.edit}\n"
-   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
-   spawn_skill_task = (
-       REVIEW_TIER == "FULL"
-       AND frontmatter.get("skill_audit") != false
-       AND (total_needs_update > 0 OR len(sr_applied_edits) > 0)
-   )
-
    # ── Phase 5c.5: Extract Implementation Intent Questions ──
    # Runs after convergence + senior-critic loop (5c), BEFORE Teaching Notes (5e).
 
@@ -3503,6 +3484,26 @@ ELIF NOT _phase_5b5_skip:
    **Coupling with /review (POST_IMPLEMENT):**
    No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
    so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
+
+   **Parallel dispatch block (5c.5 + 5g Step 1 — single message):**
+   After processing `intent_task` output above, also compute `spawn_skill_task` for 5g Step 1
+   and dispatch `skill_task` in the SAME message as `intent_task`. No dependency between them.
+   ```python
+   # Pre-dispatch: build 5g Step 1 context (computed once, before spawning both tasks).
+   findings_summary = "".join(
+       f"  {q}: {r.finding}\n    Edit applied: {r.edit}\n"
+       for q, r in findings.items() if r.status == "NEEDS_UPDATE"
+   )
+   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
+   spawn_skill_task = (
+       REVIEW_TIER == "FULL"
+       AND frontmatter.get("skill_audit") != false
+       AND (total_needs_update > 0 OR len(sr_applied_edits) > 0)
+   )
+   # Single message: intent_task (5c.5, above) + skill_task (5g Step 1, below) dispatched together.
+   # Process intent_task output first (write to plan), then process skill_task output (render panel),
+   # then dispatch 5g Step 2 background agents.
+   ```
 
 5e. **Teaching Notes append** (persist learning to plan file):
 
@@ -3701,9 +3702,18 @@ ELIF NOT _phase_5b5_skip:
    # ── Phase 5g Step 1: Skill-Learnings foreground Task ──
    # Dispatched ALONGSIDE Phase 5c.5 in a single message (see 5c.5 dispatch block above).
    # skill_task is stored; result processed after BOTH intent_task and skill_task complete.
-   #
-   # IF spawn_skill_task == false: skip — do not dispatch skill_task; skill_learnings = []
-   # Otherwise:
+   # FULL tier only — TRIVIAL/SMALL have insufficient question coverage for meta-insights.
+   # Opt-out: plan frontmatter `skill_audit: false`.
+
+   IF REVIEW_TIER != "FULL":
+       SKIP  # insufficient coverage for meta-insights on fast-path tiers
+
+   IF frontmatter.get("skill_audit") == false:
+       SKIP  # explicit opt-out
+
+   # spawn_skill_task flag (computed in 5c.5 dispatch block) aggregates the above guards
+   # plus the all-clean check. Checked again here for clarity.
+   # IF spawn_skill_task == false: skill_learnings = []; skip task dispatch
 
    skill_task = Task(
      subagent_type = "general-purpose",
