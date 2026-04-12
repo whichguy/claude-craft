@@ -189,7 +189,8 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   [[ -n "$BASE_URL" ]] && export ANTHROPIC_BASE_URL="$BASE_URL"
   [[ -n "$AUTH_TOKEN" ]] && export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
   if echo "$PROVIDER" | jq -e 'has("api_key")' >/dev/null 2>&1; then
-    export ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+    ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+    export ANTHROPIC_API_KEY
   fi
   [[ -n "$CONFIG_DIR" ]] && export CLAUDE_CONFIG_DIR="${CONFIG_DIR//\$HOME/$HOME}"
   [[ "$DISABLE_TRAFFIC" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
@@ -199,7 +200,7 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   if [[ -n "$ENV_KEYS" ]]; then
     while IFS= read -r key; do
       val=$(echo "$PROVIDER" | jq -r --arg k "$key" '.env[$k]' 2>/dev/null)
-      export "$key=$val"
+      export -- "$key=$val"
     done <<< "$ENV_KEYS"
   fi
 
