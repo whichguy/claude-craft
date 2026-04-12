@@ -30,6 +30,13 @@ else
   CLAUDE_CMD="claude"
 fi
 
+# --route default is only valid when claude-router is the runner; bare claude rejects it.
+if [[ "$CLAUDE_CMD" != "claude" ]]; then
+  BENCH_ROUTE_ARGS=(--route default)
+else
+  BENCH_ROUTE_ARGS=()
+fi
+
 # ── Argument parsing ──────────────────────────────────────────────────
 
 usage() {
@@ -320,7 +327,7 @@ ${judge_prompt}"
 
   if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
     local raw
-    raw=$(timeout 120 "$CLAUDE_CMD" --print --route default -p "$judge_prompt" --output-format json 2>/dev/null \
+    raw=$(timeout 120 "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" -p "$judge_prompt" --output-format json 2>/dev/null \
           || echo '{"result":"{\"tp\":[],\"fp_count\":0,\"fn\":[],\"reasoning\":\"judge error\"}"}')
     # Extract and validate JSON from judge response
     python3 -c "
@@ -460,7 +467,7 @@ ${base_prompt}"
       local tokens_est=0
       if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
         local raw_response
-        raw_response=$(timeout 120 "$CLAUDE_CMD" --print --route default -p "$prompt" --output-format json 2>/dev/null \
+        raw_response=$(timeout 120 "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" -p "$prompt" --output-format json 2>/dev/null \
                        || echo '{"result":"error: reviewer timed out or failed"}')
         # Extract text from JSON response
         local text_response
