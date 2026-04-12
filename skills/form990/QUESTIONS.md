@@ -166,13 +166,16 @@ Passes if: public_support_pct ≥ 33⅓%
 in 509(a)(1)); see SCHEDULES.md §509(a)(2) Worksheet for the full two-prong formula:
 ```
 Numerator = government grants (uncapped)
-          + public contributions (per-donor cap: 1% of total support for the year)
+          + public contributions (per-donor cap: max(1% × total_support_5yr, $5,000))
           + program service revenue from exempt activities
 public_support_pct = Numerator_5yr_sum / total_support_5yr × 100
 Prong 1 passes if: public_support_pct ≥ 33⅓%
 Prong 2 passes if: investment_income_pct ≤ 33⅓%
 Both prongs required for 509(a)(2) PASS.
 ```
+**$5,000 floor on the 1% cap:** The per-donor cap is `max(1% × total_5yr_support, $5,000)` per
+§509(a)(2) statutory floor. For orgs with total 5-year support < $500,000, the floor of $5,000
+applies and the effective cap is higher than 1%. This matches SCHEDULES.md Schedule A playbook.
 
 **Pass criteria:**
 - The correct test (509(a)(1) vs 509(a)(2)) is applied per `key_facts.public_charity_basis`
