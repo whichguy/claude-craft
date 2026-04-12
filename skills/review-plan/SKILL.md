@@ -325,21 +325,45 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            ✅  Git lifecycle                   Q-E1
            ✅  Existing code examined          Q-G11
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       → Proceed to step 8 (interactive completion prompt).
-       # Gate file is written in step 8 only when the user confirms exit — not here.
+       # (all-pass path — teaching block below fires before step 8)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 5 now PASS:
-         Output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). → Proceed to step 8.
-         # Gate file is written in step 8 only when the user confirms exit — not here.
+         Output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY).
+         # (re-eval success path — teaching block below fires before step 8)
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
+
+     # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
+     # Fires on TRIVIAL success paths only (REVIEW_TIER not yet upgraded to FULL).
+     # User directive: teaching output on all tiers (see Phase 5f / Phase 7.5).
+     IF REVIEW_TIER == TRIVIAL:
+       IF any edits were applied during fast-path re-eval:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
+         FOR each Q-ID that was NEEDS_UPDATE then fixed:
+           Print: "│  [Q-ID] [change title] — [one-line summary] │"
+         Print: "└──────────────────────────────────────────────┘"
+       ELSE:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
+         Print: "│  No edits applied — plan passed all 5 checks │"
+         Print: "└──────────────────────────────────────────────┘"
+
+       # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
+       plan_contents = Read(plan_path)
+       IF len(plan_contents.splitlines()) > 2000:
+         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       ELSE:
+         Print plan_contents
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
+       Print: "  Plan fingerprint: {sha}"
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3a:
      Rating, findings (5 questions), REVIEW_TIER (may have been upgraded to FULL).
@@ -467,8 +491,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry:]
              ✅  [Name]                          [Q-ID]  [domain]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       → Proceed to step 8 (interactive completion prompt).
-       # Gate file is written in step 8 only when the user confirms exit — not here.
+       # (all-pass path — teaching block below fires before step 8)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
@@ -483,13 +506,38 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate re_eval_questions once (same Task format, substituting
        re_eval_questions for question_list_str).
        If all now PASS or N/A:
-         Output small fast-path scorecard (same format, Rating 🟢 READY). → Proceed to step 8 (interactive completion prompt).
-         # Gate file is written in step 8 only when the user confirms exit — not here.
+         Output small fast-path scorecard (same format, Rating 🟢 READY).
+         # (re-eval success path — teaching block below fires before step 8)
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
+
+     # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
+     # Fires on SMALL success paths only (REVIEW_TIER not yet upgraded to FULL).
+     # User directive: teaching output on all tiers (see Phase 5f / Phase 7.5).
+     IF REVIEW_TIER == SMALL:
+       IF any edits were applied during fast-path re-eval:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
+         FOR each Q-ID that was NEEDS_UPDATE then fixed:
+           Print: "│  [Q-ID] [change title] — [one-line summary]     │"
+         Print: "└────────────────────────────────────────────────── ┘"
+       ELSE:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
+         Print: "│  No edits applied — plan passed all checks        │"
+         Print: "└────────────────────────────────────────────────── ┘"
+
+       # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
+       plan_contents = Read(plan_path)
+       IF len(plan_contents.splitlines()) > 2000:
+         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       ELSE:
+         Print plan_contents
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
+       Print: "  Plan fingerprint: {sha}"
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3b:
      Rating, findings (9+ questions), REVIEW_TIER (may have been upgraded to FULL).
