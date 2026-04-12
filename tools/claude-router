@@ -30,17 +30,17 @@ ensure_ollama_running() {
   # router startup for the ~75s OS TCP default. On timeout or error, fall through
   # to background-warm (safe: if host is truly down, the nohup call will also fail
   # silently and routing proceeds — `claude` surfaces the real error).
-  local timeout_cmd=""
+  local -a timeout_cmd=()
   if command -v timeout >/dev/null 2>&1; then
-    timeout_cmd="timeout 3"
+    timeout_cmd=(timeout 3)
   elif command -v gtimeout >/dev/null 2>&1; then
-    timeout_cmd="gtimeout 3"
+    timeout_cmd=(gtimeout 3)
   fi
   # If no timeout CLI available (bare macOS without coreutils), skip the probe
   # entirely and always background-warm — `ollama run` on an already-loaded model
   # is a no-op, so false-warms are cheap.
-  if [[ -n "$timeout_cmd" ]]; then
-    if OLLAMA_HOST="$host" $timeout_cmd ollama ps 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$model"; then
+  if [[ "${#timeout_cmd[@]}" -gt 0 ]]; then
+    if OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama ps 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$model"; then
       return 0   # already loaded on that host
     fi
   fi
