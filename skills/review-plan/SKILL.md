@@ -2921,7 +2921,21 @@ ELIF NOT _phase_5b5_skip:
     MIN_GRACE_SECONDS    = 30   # floor; preserves today's behavior for slow-converge plans
     POLL_INTERVAL        = 2    # 2s polling for finer granularity
 
-    dispatch_epoch = memo.get("dispatch_epoch") if memo_file exists else None
+    # Load memo for adaptive grace and staleness guard.
+    # On the hot path, dispatch_epoch and plan_sha_at_dispatch are already
+    # set in memory (Phase 3c.5); memo read is only needed after context
+    # compression which resets preamble variables to None.
+    _lane_memo = {}
+    IF memo_file exists:
+        TRY:
+            _lane_memo = Read(memo_file) as JSON
+        CATCH:
+            pass  # non-fatal; will fall back to None values below
+    IF dispatch_epoch is None:
+        dispatch_epoch       = _lane_memo.get("dispatch_epoch")
+    IF plan_sha_at_dispatch is None:
+        plan_sha_at_dispatch = _lane_memo.get("plan_sha_at_dispatch")
+
     IF dispatch_epoch is None:
         # Legacy memo (pre-upgrade) or skipped-dispatch path — safe fallback.
         grace = MIN_GRACE_SECONDS
@@ -2967,7 +2981,8 @@ ELIF NOT _phase_5b5_skip:
             memo["research_pending"] = []
             memo["research_done"]    = research_done
             memo["research_missing"] = research_missing
-            Write(memo_file, json.dumps(memo))
+            Write("${memo_file}.tmp", json.dumps(memo))
+            Bash('mv "${memo_file}.tmp" "${memo_file}"')
         CATCH:
             pass  # non-fatal; join result is in memory
 
@@ -2981,7 +2996,7 @@ ELIF NOT _phase_5b5_skip:
     # (3) memo.research_pending was already cleared above — do NOT re-clear.
     # NOTE: dispatch_epoch and plan_sha_at_dispatch are NOT cleared here;
     #       they are immutable provenance retained until Phase 7 sweeps memo_file.
-    plan_hash_at_dispatch = memo.get("plan_sha_at_dispatch") if memo_file exists else None
+    plan_hash_at_dispatch = plan_sha_at_dispatch  # already resolved above (Phase 3c.5 preamble or _lane_memo fallback)
     plan_hash_at_join     = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
 
     IF plan_hash_at_dispatch is None:
