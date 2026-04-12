@@ -339,6 +339,251 @@ a staleness warning before producing the filled PDF.
 
 ---
 
+## TC16 — Library importability
+
+**Covers:** A1 (`lib/form990_lib.py` extraction — all helpers in one importable module)
+
+**Setup:** `form990_lib.py` present in `lib/` and on `sys.path`.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC16`
+
+**Assertions:**
+- All 14 required symbols importable from `form990_lib`:
+  `atomic_commit`, `ConcurrentModificationError`, `commit_phase_entry`,
+  `verify_ancestors`, `ARTIFACT_DEPS`, `merge_datasets`, `run_script`,
+  `ScriptError`, `ERROR_CLASSES`, `scrub_pii`, `append_breadcrumb`,
+  `auto_append_learning`, `sweep_orphaned_tmps`, `pid_dead`
+- TC16 grid cell: `✔`
+
+---
+
+## TC17 — `pre_image_sha256` threading
+
+**Covers:** A4 (`pre_image_sha256` threaded through all `atomic_commit` call sites)
+
+**Setup:** Temp plan file in `/tmp/` with a well-formed machine state JSON block.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC17`
+
+**Assertions (two sub-cases):**
+- 17a: `atomic_commit(state_v2, plan_path, correct_pre_image)` succeeds; plan file on disk
+  contains updated `plan_version: 2`
+- 17b: `atomic_commit(state_v3, plan_path, "0"*64, max_retries=1)` with a stale
+  pre-image raises `ConcurrentModificationError`; plan file unchanged
+- TC17 grid cell: `✔`
+
+---
+
+## TC18 — `ScriptError._raw_stderr` PII boundary
+
+**Covers:** C2 (`scrub_pii` applied at logging boundary — raw stderr stored privately,
+scrubbed content exposed via `str(e)` and `stderr_tail`)
+
+**Setup:** SSN string `"123-45-6789"` injected into synthetic stderr when constructing
+a `ScriptError`.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC18`
+
+**Assertions:**
+- `err._raw_stderr` contains the raw SSN (pre-scrub)
+- `str(err)` does NOT contain `"123-45-6789"` but DOES contain `"[REDACTED-SSN]"`
+- `err.stderr_tail` does NOT contain the raw SSN
+- TC18 grid cell: `✔`
+
+---
+
+## TC19 — `auto_append_learning` scrubs before truncating
+
+**Covers:** A1/A5 (truncate-after-scrub ordering fix — scrub fires on the full message,
+not on the already-truncated tail)
+
+**Setup:** Synthetic message: 190 `x` chars + `" SSN: 123-45-6789 end"` = 211 chars total.
+The SSN straddles the logical 200-char region.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC19`
+
+**Assertions:**
+- The appended LEARNINGS entry contains `"[REDACTED-SSN]"` — scrub fired on the full
+  message before truncation
+- The appended LEARNINGS entry does NOT contain raw `"123-45-6789"`
+- TC19 grid cell: `✔`
+
+---
+
+## TC20 — Phone / email / DOB / address scrub rules
+
+**Covers:** C2 (extended `scrub_pii` rules: phone, email, DOB, street address)
+
+**Setup:** `tests/fixtures/golden.py` constants `PII_INPUT_*` / `PII_EXPECTED_*`.
+Requires C2 phone rules to be present (capability-probed at runtime).
+
+**Steps:**
+1. `python3 tests/verify.py --case TC20`
+
+**Assertions (per golden constant pair):**
+- `scrub_pii(PII_INPUT_SSN)` == `PII_EXPECTED_SSN` (`[REDACTED-SSN]`)
+- `scrub_pii(PII_INPUT_EIN)` == `PII_EXPECTED_EIN` (hyphenated EIN passes through unchanged)
+- `scrub_pii(PII_INPUT_PHONE)` == `PII_EXPECTED_PHONE` (`[REDACTED-PHONE]`)
+- `scrub_pii(PII_INPUT_EMAIL)` == `PII_EXPECTED_EMAIL` (`[REDACTED-EMAIL]`)
+- `scrub_pii(PII_INPUT_ADDR)` == `PII_EXPECTED_ADDR` (`[REDACTED-ADDR]`)
+- `scrub_pii(PII_INPUT_DOB)` == `PII_EXPECTED_DOB` (`[REDACTED-DOB]`)
+- TC20 grid cell: `✔` (or `SKIP` if C2 phone rules absent in `scrub_pii`)
+
+---
+
+## TC21 — `scrub_pii` masks donor names with word boundaries
+
+**Covers:** A1/A5 (donor-name word-boundary fix; minimum name length 4 chars)
+
+**Setup:** `tests/fixtures/golden.py` constants `DONOR_NAME_JANE`, `PII_INPUT_DONOR_WB`,
+`PII_EXPECTED_DONOR_WB`.
+Input text contains both "Jane Doe" (in `donor_names`) and "Alice" (not in list).
+
+**Steps:**
+1. `python3 tests/verify.py --case TC21`
+
+**Assertions:**
+- `scrub_pii(PII_INPUT_DONOR_WB, donor_names=[DONOR_NAME_JANE])` ==
+  `PII_EXPECTED_DONOR_WB`
+  (i.e. "Jane Doe" → `[REDACTED-DONOR]`; "Alice" passes through unchanged)
+- TC21 grid cell: `✔`
+
+---
+
+## TC22 — Pre-P1 empty `donor_names` scrub (elevated-risk mode)
+
+**Covers:** A1/A5 (`donor_names` not loaded until P1; scrubber in empty-list mode
+before P1; donor-name-shaped strings should pass through unchanged)
+
+**Setup:** `tests/fixtures/golden.py` constants `PII_INPUT_DONOR_EMPTY`,
+`PII_EXPECTED_DONOR_EMPTY`. Donor name list is `[]`.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC22`
+
+**Assertions:**
+- `scrub_pii(PII_INPUT_DONOR_EMPTY, donor_names=[])` == `PII_EXPECTED_DONOR_EMPTY`
+  (i.e. "Jane Doe" passes through unchanged — name scrub requires a populated list)
+- TC22 grid cell: `✔`
+
+---
+
+## TC23 — `ARTIFACT_DEPS` cycle detection
+
+**Covers:** A1/A5 (DAG walker raises on circular dependency)
+
+**Setup:** Inject a synthetic cycle `X → Y → X` into a local copy of `ARTIFACT_DEPS`
+(saved and restored after the test).
+
+**Steps:**
+1. `python3 tests/verify.py --case TC23`
+
+**Assertions:**
+- Calling `verify_ancestors("X", {"artifacts": {}})` raises `RuntimeError`
+  with `"cycle"` (case-insensitive) in the message
+- `ARTIFACT_DEPS` is restored to its original state after the test
+- TC23 grid cell: `✔`
+
+---
+
+## TC24 — Q-F4 509(a)(2) 1% / $5,000 floor
+
+**Covers:** B2 (Q-F4 criteria fix: per-donor cap = `max(1% × total_5yr_support, $5,000)`)
+
+**Setup:** `tests/fixtures/golden.py` constants:
+- `SUPPORT_5YR_TOTAL = 300_000`
+- `ONE_PCT_CAP_COMPUTED = 3_000` (1% of 300K)
+- `ONE_PCT_FLOOR_APPLIED = 5_000` (max(3K, 5K))
+
+**Steps:**
+1. `python3 tests/verify.py --case TC24`
+
+**Assertions:**
+- `ONE_PCT_CAP_COMPUTED == int(SUPPORT_5YR_TOTAL * 0.01)` (i.e. 3,000)
+- `ONE_PCT_FLOOR_APPLIED == max(ONE_PCT_CAP_COMPUTED, 5_000)` (i.e. 5,000)
+- `ONE_PCT_FLOOR_APPLIED == 5_000` — floor applied; raw 1% cap (3,000) < statutory minimum
+- TC24 grid cell: `✔`
+
+---
+
+## TC25 — Part I Line 8 = contributions; Line 12 = total revenue
+
+**Covers:** B1 (PHASES.md P7 typo fix: Part I Line 8 maps to `parts.VIII["1h"]`, not Line 12)
+
+**Setup:** `tests/fixtures/golden.py` constants:
+- `LINE_8_CONTRIBUTIONS = 425_000`
+- `LINE_12_TOTAL_REVENUE = 612_000`
+
+**Steps:**
+1. `python3 tests/verify.py --case TC25`
+
+**Assertions:**
+- `LINE_8_CONTRIBUTIONS != LINE_12_TOTAL_REVENUE` (values are distinct — no aliasing)
+- `LINE_8_CONTRIBUTIONS == 425_000` (Part VIII Line 1h — total contributions)
+- `LINE_12_TOTAL_REVENUE == 612_000` (Part VIII Line 12 — total revenue)
+- TC25 grid cell: `✔`
+
+---
+
+## TC26 — CAS normal commit succeeds
+
+**Covers:** C1 (`atomic_commit` with correct `pre_image_sha256` completes round-trip)
+
+**Setup:** Temp plan file with well-formed machine state JSON block.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC26`
+
+**Assertions:**
+- `atomic_commit(state_v2, plan_path, correct_pre_image)` completes without error
+- Plan file on disk contains `"plan_version"` key after commit
+- TC26 grid cell: `✔`
+
+---
+
+## TC27 — `is_plan_lock_stale()` host-check staleness
+
+**Covers:** C1 (host mismatch + 24h staleness bound defeats PID-reuse false positives)
+
+**Setup:** Five synthetic `plan_lock` dicts covering all branches.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC27`
+
+**Assertions (five sub-cases):**
+- `plan_lock = None` → `is_plan_lock_stale()` returns `True`
+- `plan_lock = {"acquired_at": ..., "host": "x"}` (missing `pid`) → `True`
+- `plan_lock` with `acquired_at = "1970-01-01T00:00:00Z"` (>24h old) → `True` regardless
+  of pid/host
+- `plan_lock` with dead pid `99999` and recent `acquired_at` → `True` (if `pid_dead(99999)`)
+- `plan_lock` with `pid = os.getpid()` (live process) and recent `acquired_at` → `False`
+- TC27 grid cell: `✔`
+
+---
+
+## TC28 — `fsync` call ordering in `atomic_commit`
+
+**Covers:** C1 (`fsync(fd)` before `os.replace`; `fsync(parent_dir_fd)` after)
+
+**Setup:** `unittest.mock.patch` on `os.fsync` and `os.replace` inside `form990_lib`
+to record call order.
+
+**Steps:**
+1. `python3 tests/verify.py --case TC28`
+
+**Assertions:**
+- `os.fsync` is called at least once before `os.replace`
+- `os.replace` is called exactly once
+- `os.fsync` is called at least once after `os.replace`
+- Observed call order satisfies: `[..., fsync, ..., replace, ..., fsync, ...]`
+- TC28 grid cell: `✔`
+
+---
+
 ## Running the Harness
 
 ```bash
@@ -360,8 +605,8 @@ python3 skills/form990/tests/verify.py --case TC8
 
 **Output:**
 ```
-TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔
-{"passed": 8, "failed": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 2.0}
+TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔
+{"passed": 21, "failed": [], "errored": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 3.5}
 ```
 
 (TC1–TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)
