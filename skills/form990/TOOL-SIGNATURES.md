@@ -105,16 +105,20 @@ options: (a) vendor a JCS canonicalizer, (b) recompute sha256 only on input chan
 ### E1 — AcroForm probe on live f990.pdf
 
 ```
-date: null
-f990_pdf_field_count: null          ← 0 = flat PDF (expected); >0 = AcroForm present
-revision_date_embedded: null        ← date string from PDF metadata
-fill_path: null                     ← "coordinate-overlay" | "acroform" | "markdown-fallback"
-coordinate_overlay_feasible: null   ← true/false (confirmed by visual smoke test)
-notes: null
+date: 2026-04-11
+f990_pdf_field_count: 1307
+revision_date_embedded: 2025
+fill_path: "acroform"
+coordinate_overlay_feasible: n/a
+notes: >
+  Fetched https://www.irs.gov/pub/irs-pdf/f990.pdf on 2026-04-11 (pypdf 6.10.0,
+  Python 3.12). AcroForm fields present: 1307. The 2025 f990.pdf ships with
+  AcroForm — name-based fill via pdftk-java FDF intermediate is the primary path.
+  Coordinate-overlay is the fallback only if pdftk-java is unavailable.
 ```
 
 **Pass criteria:**
-- Path A (AcroForm): `field_count > 0` AND names stable → AcroForm path primary
+- Path A (AcroForm): `field_count > 0` AND names stable → AcroForm path primary ← **RESULT: PASS**
 - Path B (flat, overlay OK): `field_count == 0` AND coordinate overlay works → overlay primary
 - Fail: `field_count == 0` AND overlay infeasible → drop PDF artifact, produce markdown table
 
@@ -176,17 +180,19 @@ notes: null
 ```
 date: 2026-04-11
 tax_year: 2025
-method_used: "pinned-count"
+method_used: "empirical + pinned-count"
 part_iv_item_count: 38
-extraction_method: "manual-count-from-published-instructions"
+extraction_method: "pypdf 6.10.0 text extraction from fetched f990.pdf (3 runs)"
 deterministic_across_runs: true
 notes: >
-  IRS Form 990 (2025) Part IV contains 38 yes/no checklist items (Lines 1–38).
-  Count verified against published Form 990 instructions.
-  Runtime extraction via pypdf text parsing was not tested in this spike;
-  pinned-count fallback is in effect for tax_year 2025.
-  Re-run spike when tax_year changes to verify count is still 38 or update.
-result: PASS (pinned-count branch)
+  pypdf extracted Part IV text from pages 3-4 of the live f990.pdf.
+  3 independent runs: identical results each time (items 1-34, 36-38 captured
+  by regex; item 35 is 35a/35b composite — regex misses it but it exists on page
+  4 line 57). Total: 38 outer checklist items (items 1-38).
+  AcroForm "PartIV" field prefix not found in IRS naming convention — runtime
+  enumeration via AcroForm names not viable; pinned count of 38 is in effect.
+  Re-run when tax_year changes to verify count.
+result: PASS (pinned-count branch — 38 confirmed empirically, 3/3 runs)
 ```
 
 ---
