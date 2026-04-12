@@ -16,6 +16,42 @@ set -eo pipefail
 CONFIG="$HOME/.claude/model-map.json"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 
+# Ensure target Ollama model is loaded on the given host; warm it in a subprocess if not.
+# Per-model host support: cloud models may live on :11435, local on :11434 — each provider
+# passes its own expanded BASE_URL here. Non-fatal — failures do not block routing.
+ensure_ollama_running() {
+  local model="$1"
+  local host="$2"
+  command -v ollama >/dev/null 2>&1 || return 0   # no CLI → skip silently
+
+  # `OLLAMA_HOST=<host> ollama ps` queries that specific Ollama instance.
+  # First column is NAME; awk NR>1 skips the header row.
+  # Wrap in a 3s timeout so an unreachable host (e.g., down cloud port) can't block
+  # router startup for the ~75s OS TCP default. On timeout or error, fall through
+  # to background-warm (safe: if host is truly down, the nohup call will also fail
+  # silently and routing proceeds — `claude` surfaces the real error).
+  local -a timeout_cmd=()
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd=(timeout 3)
+  elif command -v gtimeout >/dev/null 2>&1; then
+    timeout_cmd=(gtimeout 3)
+  fi
+  # If no timeout CLI available (bare macOS without coreutils), skip the probe
+  # entirely and always background-warm — `ollama run` on an already-loaded model
+  # is a no-op, so false-warms are cheap.
+  if [[ "${#timeout_cmd[@]}" -gt 0 ]]; then
+    if OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama ps 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$model"; then
+      return 0   # already loaded on that host
+    fi
+  fi
+
+  echo "claude-router: warming '$model' on $host (background)..." >&2
+  # `ollama run <model> ""` loads the model and exits quickly on empty prompt.
+  # Fully detached: stdin from /dev/null, outputs to /dev/null, backgrounded + disowned.
+  OLLAMA_HOST="$host" nohup ollama run "$model" "" </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+}
+
 [[ -f "$CONFIG" ]] && chmod 600 "$CONFIG" 2>/dev/null
 
 # --- Show available models from all sources ---
@@ -121,6 +157,10 @@ fi
 if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   # 1) Explicit provider config from model-map.json (any provider: Ollama, OpenRouter, custom)
   BASE_URL=$(echo "$PROVIDER" | jq -r '.base_url // empty')
+  # Expand $OLLAMA_URL / $OLLAMA_BASE_URL placeholders. Literal URLs pass through unchanged,
+  # so per-model overrides (e.g., http://localhost:11435 for cloud) just work.
+  BASE_URL="${BASE_URL/\$OLLAMA_URL/$OLLAMA_URL}"
+  BASE_URL="${BASE_URL/\$OLLAMA_BASE_URL/$OLLAMA_URL}"
   AUTH_TOKEN=$(echo "$PROVIDER" | jq -r '.auth_token // empty')
   CONFIG_DIR=$(echo "$PROVIDER" | jq -r '.config_dir // empty')
   DISABLE_TRAFFIC=$(echo "$PROVIDER" | jq -r '.disable_nonessential_traffic // false')
@@ -142,6 +182,10 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
     done <<< "$ENV_KEYS"
   fi
 
+  if [[ "$AUTH_TOKEN" == "ollama" ]]; then
+    ensure_ollama_running "$MODEL" "$BASE_URL"
+  fi
+
 elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
   # 2) Auto-detected in local Ollama — apply defaults
   export ANTHROPIC_BASE_URL="$OLLAMA_URL"
@@ -149,6 +193,7 @@ elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.mode
   export ANTHROPIC_API_KEY=""
   export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
   export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  ensure_ollama_running "$MODEL" "$OLLAMA_URL"
 fi
 
 # 3) No match = Anthropic passthrough (no env vars set, claude uses its defaults)
