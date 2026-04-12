@@ -877,11 +877,11 @@ describe('Review-Plan Task Fan-Out', function () {
             const phase3c5Block = skillContent.substring(dispatch3c5Idx, dispatch3c5Idx + 10000);
             expect(phase3c5Block).to.include('plan_sha_at_dispatch');
             expect(phase3c5Block).to.include('shasum -a 256');
-            // Phase 5b.5 consumer: reads from memo and emits annotated header
+            // Phase 5b.5 consumer: reads plan_sha_at_dispatch from _lane_memo (safe-read fallback) and emits annotated header
             const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
             expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
             const phase5b5Block = skillContent.substring(idx, idx + 10000);
-            expect(phase5b5Block).to.include('memo.get("plan_sha_at_dispatch")');
+            expect(phase5b5Block).to.include('_lane_memo.get("plan_sha_at_dispatch")');
             expect(phase5b5Block).to.include('citations may reference superseded text');
             // Must NOT use Linux-only sha256sum
             expect(phase5b5Block).to.not.include('sha256sum');
@@ -913,6 +913,50 @@ describe('Review-Plan Task Fan-Out', function () {
             const writerBlock = skillContent.substring(anchorIdx, anchorIdx + 500);
             expect(writerBlock).to.include('dispatch_epoch');
             expect(writerBlock).to.include('plan_sha_at_dispatch');
+        });
+
+        // U14: Phase 5b.5 poll block opens with _lane_memo safe-read and None-fallback guards
+        it('U14: Phase 5b.5 poll block initialises _lane_memo and uses None-fallback guards for dispatch_epoch and plan_sha_at_dispatch', function () {
+            // Anchor on the ELIF guard that opens the poll block
+            const anchorIdx = skillContent.indexOf('ELIF NOT _phase_5b5_skip:');
+            expect(anchorIdx, 'Phase 5b.5 ELIF NOT _phase_5b5_skip: not found').to.be.greaterThan(0);
+            // Scan the first 2000 chars of the poll block for the _lane_memo initialisation
+            // (the block starts with Print lines + multi-line grace comment before reaching _lane_memo)
+            const pollBlock = skillContent.substring(anchorIdx, anchorIdx + 2000);
+            expect(pollBlock).to.include('_lane_memo = {}');
+            expect(pollBlock).to.include('IF dispatch_epoch is None:');
+            expect(pollBlock).to.include('IF plan_sha_at_dispatch is None:');
+        });
+
+        // U15: Phase 5b.5 contains no bare memo.get() outside a TRY block
+        it('U15: Phase 5b.5 contains no bare memo.get() references outside a TRY block', function () {
+            // Find Phase 5b.5 section by its heading anchor
+            const phase5b5Start = skillContent.indexOf('# ── Phase 5b.5: Research Lane Join ──');
+            expect(phase5b5Start, 'Phase 5b.5 heading anchor not found').to.be.greaterThan(0);
+            // Phase 5b.5 ends at the next top-level phase comment (Phase 5c)
+            const phase5cStart = skillContent.indexOf('5c. **Senior-Engineer Critic Loop**', phase5b5Start);
+            expect(phase5cStart, 'Phase 5c anchor not found after 5b.5').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(phase5b5Start, phase5cStart);
+            // Any bare `memo.get(` (not `_lane_memo.get(`) must be inside a TRY block.
+            // Strategy: find all occurrences where `memo.get(` is NOT preceded by `_lane`
+            // (i.e., the identifier starts with just `memo`, not `_lane_memo`).
+            let searchFrom = 0;
+            while (true) {
+                const memoGetIdx = phase5b5Block.indexOf('memo.get(', searchFrom);
+                if (memoGetIdx === -1) break;
+                // Skip if this is `_lane_memo.get(` — walk back to see if `_lane` precedes it
+                const prefix = phase5b5Block.substring(Math.max(0, memoGetIdx - 6), memoGetIdx);
+                if (prefix.endsWith('_lane_')) {
+                    searchFrom = memoGetIdx + 1;
+                    continue;
+                }
+                // Bare memo.get() — must be inside a TRY block.
+                // Look back up to 600 chars: the deepest call (memo.get("research_missing",...))
+                // is inside Sub-case B which starts ~500 chars after TRY:.
+                const lookback = phase5b5Block.substring(Math.max(0, memoGetIdx - 600), memoGetIdx);
+                expect(lookback, `bare memo.get() found at offset ${memoGetIdx} in Phase 5b.5 without enclosing TRY:`).to.include('TRY:');
+                searchFrom = memoGetIdx + 1;
+            }
         });
     });
 });
