@@ -6,7 +6,7 @@
 
 trap 'exit 0' ERR
 . "$(dirname "$0")/wiki-common.sh"
-wiki_check_deps true || exit 0
+wiki_check_deps || exit 0
 
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0          # subagent guard
@@ -18,14 +18,12 @@ wiki_find_root || exit 0
 CACHE_DIR="$REPO_ROOT/wiki/.cache"
 TODAY=$(date +%Y-%m-%d)
 
-# --- Gate 0: Global 45-minute cooldown (cheapest gate — check first) ---
-# Most invocations exit here without rolling dice.
+# --- Gate 0: Global 45-minute cooldown — atomic claim via wiki_debounce ---
+# Most invocations exit here without rolling dice. Atomic mv prevents concurrent
+# sessions from both spawning lint when the cooldown window expires simultaneously.
 GLOBAL_COOLDOWN="$CACHE_DIR/.lint-last-run"
 COOLDOWN_SECONDS=2700  # 45 minutes
-if [ -f "$GLOBAL_COOLDOWN" ]; then
-  age=$(( $(date +%s) - $(stat -f %m "$GLOBAL_COOLDOWN" 2>/dev/null || stat -c %Y "$GLOBAL_COOLDOWN" 2>/dev/null || echo 0) ))
-  [ "$age" -lt "$COOLDOWN_SECONDS" ] && exit 0
-fi
+wiki_debounce "$GLOBAL_COOLDOWN" "$COOLDOWN_SECONDS" || exit 0
 
 # --- Gate 1: Probability roll (~1 in MOD prompts) ---
 MOD=${WIKI_LINT_MOD:-37}
@@ -40,12 +38,10 @@ SESSION_MARKER="$CACHE_DIR/.lint-session-${SESSION_SHORT}"
 REPORT_PATH="$REPO_ROOT/wiki/maintenance/lint-${TODAY}-bg.md"
 [ -f "$REPORT_PATH" ] && exit 0
 
-# --- All gates passed: claim this run ---
-# Touch global cooldown atomically (best-effort; concurrent sessions will see it)
-touch "$GLOBAL_COOLDOWN" 2>/dev/null || true
+# --- All gates passed: claim session marker + resolve claude command ---
 touch "$SESSION_MARKER" 2>/dev/null || true
 
-# --- Resolve claude command ---
+# --- Resolve claude command (handles claude-router fallback) ---
 wiki_resolve_claude_cmd
 
 # --- Feature-detect --route support (same pattern as wiki-worker.sh) ---
