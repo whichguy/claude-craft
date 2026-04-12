@@ -129,6 +129,31 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
 - Ask the user: is this organization a private foundation? (yes/no — or check prior 990 Part I)
 
 **Work.**
+0. **Scope-exclusion banner (one-time, before intake questions).** Render the following banner
+   and use `AskUserQuestion` to confirm the user's situation is in scope. Record acknowledgment
+   in Decision Log. If they stop, halt cleanly without writing machine state.
+   ```
+   ╔══════════════════════════════════════════════════════════════════╗
+   ║  ℹ  What this skill handles — and what it does NOT              ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  ✔  Standard annual Form 990 / 990-EZ / 990-N filing            ║
+   ║  ✔  501(c)(3) public charities (Schedules A, B, D, G, L, M, O)  ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  ✖  Short-period returns (first year or change of fiscal year)  ║
+   ║  ✖  Initial returns (brand-new organization, first filing year) ║
+   ║  ✖  Final returns (dissolving or merging organization)          ║
+   ║  ✖  Amended returns (Form 990 with "Amended Return" checked)    ║
+   ║  ✖  State filings (CA RRF-1, NY CHAR500, IL AG990-IL, etc.)     ║
+   ║  ✖  Group returns (parent filing on behalf of subordinates)     ║
+   ║  ✖  Private foundations (990-PF — halted at variant routing)    ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  If any ✖ above describes your situation, stop here and         ║
+   ║  consult a CPA before using this skill for that return.         ║
+   ╚══════════════════════════════════════════════════════════════════╝
+   ```
+   Ask: "Does any of the ✖ items apply to this return? (yes → stop; no → proceed)"
+   If no: continue to step 1.
+
 1. Pull sheet tab list via Drive MCP (`read_file_content` → tab list); ask for: EIN, legal
    name, fiscal year start/end, accounting method, public charity basis
 2. Capture gross-receipts history: current year + prior-1 + prior-2 (from prior 990 or user
