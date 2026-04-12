@@ -736,14 +736,15 @@ deterministic merger to produce the consumable `form990-dataset.json`.
 
 **Step 1: Rollup.**
 ```
-Part I Line 8  = dataset_core.parts.VIII["line_12_total_revenue"]
+Part I Line 8  = dataset_core.parts.VIII["line_1h_total_contributions"]
+Part I Line 12 = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
 Compute `reconciliation` using THREE SEPARATE CHECKS (not a single equality chain —
 see Q-F2 for rationale). Revenue − Expenses ≠ EOY − BOY when adjustment lines are non-zero:
 ```
-revenue_total    = Part I Line 8   (= dataset_core.parts.VIII["line_12_total_revenue"])
+revenue_total    = Part I Line 12  (= dataset_core.parts.VIII["line_12_total_revenue"])
 expense_total    = Part I Line 18  (= dataset_core.parts.IX["line_25_total_expenses"])
 net_assets_boy   = dataset_core.parts.X["line_32_boy_net_assets"]
 net_assets_eoy   = Part I Line 22  (= dataset_core.parts.X["line_32_eoy_net_assets"])
