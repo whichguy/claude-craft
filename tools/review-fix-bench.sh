@@ -17,6 +17,19 @@ MODE=""
 AGENT_FILE=""
 JUDGE_FILE=""
 
+# ── Router-aware claude command resolution ────────────────────────────
+# Prefer claude-router (enables --route flag); fall back to bare claude.
+CLAUDE_CMD=""
+if [[ -x "$HOME/.claude/tools/claude-router" ]]; then
+  CLAUDE_CMD="$HOME/.claude/tools/claude-router"
+elif [[ -x "$REPO_DIR/tools/claude-router" ]]; then
+  CLAUDE_CMD="$REPO_DIR/tools/claude-router"
+elif command -v claude-router >/dev/null 2>&1; then
+  CLAUDE_CMD="claude-router"
+else
+  CLAUDE_CMD="claude"
+fi
+
 # ── Argument parsing ──────────────────────────────────────────────────
 
 usage() {
@@ -305,9 +318,9 @@ print(prompt)
 ${judge_prompt}"
   fi
 
-  if command -v claude >/dev/null 2>&1; then
+  if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
     local raw
-    raw=$(timeout 120 claude --print -p "$judge_prompt" --output-format json 2>/dev/null \
+    raw=$(timeout 120 "$CLAUDE_CMD" --print --route default -p "$judge_prompt" --output-format json 2>/dev/null \
           || echo '{"result":"{\"tp\":[],\"fp_count\":0,\"fn\":[],\"reasoning\":\"judge error\"}"}')
     # Extract and validate JSON from judge response
     python3 -c "
@@ -329,7 +342,7 @@ else:
     print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [], 'reasoning': 'no JSON found'}))
 " <<< "$raw"
   else
-    # Dry-run fallback: no claude CLI, return empty result
+    # Dry-run fallback: no claude CLI or claude-router, return empty result
     echo '{"tp":[],"fp_count":0,"fn":[],"reasoning":"dry-run: no claude CLI"}'
   fi
 }
@@ -445,9 +458,9 @@ ${base_prompt}"
 
       local response=""
       local tokens_est=0
-      if command -v claude >/dev/null 2>&1; then
+      if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
         local raw_response
-        raw_response=$(timeout 120 claude --print -p "$prompt" --output-format json 2>/dev/null \
+        raw_response=$(timeout 120 "$CLAUDE_CMD" --print --route default -p "$prompt" --output-format json 2>/dev/null \
                        || echo '{"result":"error: reviewer timed out or failed"}')
         # Extract text from JSON response
         local text_response
@@ -470,7 +483,7 @@ except:
         response="$text_response"
         tokens_est=$(printf '%s' "$response" | python3 -c "import sys; print(len(sys.stdin.read().split()) * 2)")
       else
-        echo "  Warning: claude CLI not found — using dry-run mode" >&2
+        echo "  Warning: claude CLI / claude-router not found — using dry-run mode" >&2
         response="[Dry run — no Claude CLI available]"
         tokens_est=0
       fi

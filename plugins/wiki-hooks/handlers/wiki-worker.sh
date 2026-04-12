@@ -10,6 +10,17 @@ shopt -s nullglob
 wiki_check_deps true || exit 0
 wiki_resolve_claude_cmd
 
+# Named route for extraction (rollback: export WIKI_WORKER_ROUTE=default to use Sonnet)
+WIKI_WORKER_ROUTE="${WIKI_WORKER_ROUTE:-background}"
+
+# Feature-detect: does CLAUDE_CMD support --route? Guards against stale router installs.
+if "$CLAUDE_CMD" --help 2>&1 | grep -q -- '--route'; then
+  WIKI_WORKER_USE_ROUTE=1
+else
+  wiki_log "WARN" "claude-router at $CLAUDE_CMD lacks --route support; falling back to --model claude-sonnet-4-6"
+  WIKI_WORKER_USE_ROUTE=0
+fi
+
 HOOK_INPUT=$(cat)
 AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
 [ -n "$AGENT_ID" ] && exit 0
@@ -162,9 +173,15 @@ Every entity should link to related entities. When you add or create an entity:
     elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout $EXTRACTION_TIMEOUT"
     fi
 
-    if $TIMEOUT_CMD "$CLAUDE_CMD" -p --model claude-sonnet-4-6 \
+    if [[ "$WIKI_WORKER_USE_ROUTE" == 1 ]]; then
+      ROUTE_OR_MODEL=(--route "$WIKI_WORKER_ROUTE")
+    else
+      ROUTE_OR_MODEL=(--model claude-sonnet-4-6)
+    fi
+
+    if $TIMEOUT_CMD "$CLAUDE_CMD" -p "${ROUTE_OR_MODEL[@]}" \
       --dangerously-skip-permissions --no-session-persistence \
-      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>/dev/null; then
+      "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>>"$QUEUE_DIR/.extract-failures.log"; then
       rm -f "$entry"
     else
       echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) session:${SID:0:8} failed (attempt $((RETRY+1))/3)" >> "$QUEUE_DIR/.extract-failures.log" 2>/dev/null || true
