@@ -57,6 +57,8 @@ try:
         ERROR_CLASSES,
         # Sweep helpers (public aliases)
         sweep_orphaned_tmps, pid_dead,
+        # C1: host-staleness check
+        is_plan_lock_stale,
     )
     _LIB_AVAILABLE = True
 except ImportError as _e:
@@ -723,7 +725,7 @@ def tc15(args):
 # ---------------------------------------------------------------------------
 
 _XFAIL_MODE: bool = os.environ.get("FORM990_TEST_XFAIL", "").lower() == "skip"
-_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4"})
+_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "C1"})
 
 
 def _xfail_guard(tc, change_id):
@@ -1047,13 +1049,39 @@ def tc26(args):
 
 
 def tc27(args):
-    """TC27 — host-check staleness (C1 xfail)."""
+    """TC27 — host-check staleness: is_plan_lock_stale() (C1 — GREEN)."""
     tc = "TC27"
-    if not _xfail_guard(tc, "C1"):
-        return
     if not _require_lib(tc):
         return
-    skip_(tc, "TC27: C1 not yet landed")
+    from form990_lib import is_plan_lock_stale, pid_dead
+
+    # 1. None → stale
+    assert_true(tc, is_plan_lock_stale(None), "None lock should be stale")
+
+    # 2. Missing pid → stale
+    assert_true(tc, is_plan_lock_stale({"acquired_at": "1970-01-01T00:00:00Z", "host": "x"}),
+                "missing pid should be stale")
+
+    # 3. acquired_at > 24h ago → stale regardless of pid/host
+    old_ts = "1970-01-01T00:00:00Z"
+    assert_true(tc, is_plan_lock_stale({"pid": 1, "acquired_at": old_ts, "host": "some-other-machine"}),
+                "old acquired_at should be stale")
+
+    # 4. Dead pid with recent timestamp → stale
+    import datetime as _dt
+    recent = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    if pid_dead(99999):
+        dead_pid_lock = {"pid": 99999, "acquired_at": recent, "host": "same-host"}
+        assert_true(tc, is_plan_lock_stale(dead_pid_lock),
+                    "dead pid with recent timestamp should be stale")
+
+    # 5. Live pid (current process) with recent timestamp → NOT stale
+    import os as _os27
+    live_lock = {"pid": _os27.getpid(), "acquired_at": recent, "host": "current"}
+    assert_true(tc, not is_plan_lock_stale(live_lock),
+                "live pid with recent timestamp should NOT be stale")
+
+    pass_(tc)
 
 
 def tc28(args):

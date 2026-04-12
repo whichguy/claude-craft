@@ -465,6 +465,66 @@ def _hostname() -> str:
 
 
 # ---------------------------------------------------------------------------
+# is_plan_lock_stale() — C1 host-check + 24h staleness bound
+# ---------------------------------------------------------------------------
+
+_PLAN_LOCK_STALE_HOURS = 24
+
+
+def is_plan_lock_stale(plan_lock: dict | None) -> bool:
+    """
+    Return True if plan_lock should be treated as stale, meaning the dispatcher
+    should route to crash-recovery rather than treating the phase as concurrently running.
+
+    Staleness criteria (C1):
+      1. plan_lock is None or missing pid/acquired_at → stale (nothing to trust)
+      2. pid is dead (ESRCH) → stale (crash recovery path)
+      3. host != current host AND acquired_at older than 24h → stale
+         (avoids PID-reuse false positives across machines / after long suspend)
+      4. acquired_at older than 24h regardless of host → stale
+         (bounds unbounded "running" state left by a SIGKILL'd process
+          even if the PID was later reused by the OS)
+
+    Note: a live pid on the SAME host with acquired_at < 24h ago is NOT stale —
+    that is the genuine concurrent-session case that should block.
+    """
+    if not plan_lock:
+        return True
+
+    pid = plan_lock.get("pid")
+    acquired_at_str = plan_lock.get("acquired_at")
+    host = plan_lock.get("host") or ""
+
+    if pid is None:
+        return True
+
+    # Check if acquired_at is older than the staleness threshold
+    age_exceeded = False
+    if acquired_at_str:
+        try:
+            acquired_dt = datetime.datetime.strptime(acquired_at_str, "%Y-%m-%dT%H:%M:%SZ")
+            age_s = (datetime.datetime.utcnow() - acquired_dt).total_seconds()
+            age_exceeded = age_s > _PLAN_LOCK_STALE_HOURS * 3600
+        except (ValueError, TypeError):
+            age_exceeded = True  # Unparseable → treat as stale
+    else:
+        age_exceeded = True  # No timestamp → treat as stale
+
+    if age_exceeded:
+        return True
+
+    # Check host mismatch — a different host's lock is only trusted if < 24h old
+    # (already handled above by age_exceeded). So if we reach here, age < 24h.
+    # A different host with recent lock: could be a legitimate concurrent session
+    # on another machine. Treat as NOT stale (the CAS will protect against conflicts).
+    # A dead PID, however, is always stale regardless of host.
+    if _pid_dead(pid):
+        return True
+
+    return False
+
+
+# ---------------------------------------------------------------------------
 # ARTIFACT_DEPS — Dependency graph (Change 4)
 # ---------------------------------------------------------------------------
 
