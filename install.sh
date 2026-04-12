@@ -200,12 +200,14 @@ main() {
     fi
 
     # Count installed items per type
-    local agent_count=$(find "$CLAUDE_DIR/agents" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
-    local command_count=$(find "$CLAUDE_DIR/commands" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
-    local prompt_count=$(find "$CLAUDE_DIR/prompts" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
-    local skill_count=$(find "$CLAUDE_DIR/skills" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
-    local reference_count=$(find "$CLAUDE_DIR/references" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
-    local plugin_count=$(find "$CLAUDE_DIR/plugins" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    # Split local + assignment to avoid local masking subshell exit under set -e
+    local agent_count command_count prompt_count skill_count reference_count plugin_count
+    agent_count=$(find "$CLAUDE_DIR/agents" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    command_count=$(find "$CLAUDE_DIR/commands" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    prompt_count=$(find "$CLAUDE_DIR/prompts" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    skill_count=$(find "$CLAUDE_DIR/skills" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    reference_count=$(find "$CLAUDE_DIR/references" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
+    plugin_count=$(find "$CLAUDE_DIR/plugins" -maxdepth 1 -type l -exec readlink {} \; 2>/dev/null | grep -c "claude-craft" || echo "0")
     echo ""
     echo -e "${GREEN}✅ Claude Craft installation complete!${NC}"
     echo ""
