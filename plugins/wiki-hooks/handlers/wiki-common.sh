@@ -218,3 +218,41 @@ wiki_cleanup_orphans() {
     fi
   done
 }
+
+# --- Unclaim batch files ---
+# Restores .batch-PID files back to .json (exact content, no jq rewrite).
+# Usage: wiki_unclaim_batch QUEUE_DIR PID
+wiki_unclaim_batch() {
+  local queue_dir="$1" pid="$2"
+  for f in "$queue_dir"/*.batch-"$pid"; do
+    [ -f "$f" ] || continue
+    mv "$f" "${f%.batch-*}.json" 2>/dev/null || rm -f "$f"
+  done
+}
+
+# --- Wait for foreign batch files to clear ---
+# Returns 0 if clear (proceed), 1 if timed out.
+# Usage: wiki_wait_foreign_batches QUEUE_DIR MY_PID MAX_SECONDS POLL_INTERVAL
+wiki_wait_foreign_batches() {
+  local queue_dir="$1" my_pid="$2" max_seconds="${3:-86400}" poll="${4:-20}"
+  local elapsed=0
+  while [ "$elapsed" -lt "$max_seconds" ]; do
+    local found=0
+    for f in "$queue_dir"/*.batch-*; do
+      [ -f "$f" ] || continue
+      local pid="${f##*.batch-}"
+      [ "$pid" = "$my_pid" ] && continue
+      # Dead PID? Clean it up and keep checking
+      if ! kill -0 "$pid" 2>/dev/null; then
+        rm -f "$f"
+        continue
+      fi
+      found=1
+      break
+    done
+    [ "$found" -eq 0 ] && return 0
+    sleep "$poll"
+    elapsed=$((elapsed + poll))
+  done
+  return 1
+}

@@ -67,6 +67,18 @@ done
 claimed=("$QUEUE_DIR"/*.batch-$$)
 [ ${#claimed[@]} -eq 0 ] && exit 0
 
+# --- Phase 2.5: Wait for foreign workers to finish ---
+# Prevents concurrent wiki operations. If killed or timed out, unclaim files.
+cleanup_unclaim() { wiki_unclaim_batch "$QUEUE_DIR" "$$"; }
+trap 'cleanup_unclaim; exit 0' INT TERM HUP
+
+if ! wiki_wait_foreign_batches "$QUEUE_DIR" "$$" 86400 20; then
+  cleanup_unclaim
+  exit 0
+fi
+
+trap - INT TERM HUP
+
 # --- Phase 3: Validate + process each claimed entry ---
 for entry in "${claimed[@]}"; do
   # Skip 0-byte files (corrupted by previous herd)
