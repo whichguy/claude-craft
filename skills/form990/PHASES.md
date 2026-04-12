@@ -129,6 +129,31 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
 - Ask the user: is this organization a private foundation? (yes/no — or check prior 990 Part I)
 
 **Work.**
+0. **Scope-exclusion banner (one-time, before intake questions).** Render the following banner
+   and use `AskUserQuestion` to confirm the user's situation is in scope. Record acknowledgment
+   in Decision Log. If they stop, halt cleanly without writing machine state.
+   ```
+   ╔══════════════════════════════════════════════════════════════════╗
+   ║  ℹ  What this skill handles — and what it does NOT              ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  ✔  Standard annual Form 990 / 990-EZ / 990-N filing            ║
+   ║  ✔  501(c)(3) public charities (Schedules A, B, D, G, L, M, O)  ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  ✖  Short-period returns (first year or change of fiscal year)  ║
+   ║  ✖  Initial returns (brand-new organization, first filing year) ║
+   ║  ✖  Final returns (dissolving or merging organization)          ║
+   ║  ✖  Amended returns (Form 990 with "Amended Return" checked)    ║
+   ║  ✖  State filings (CA RRF-1, NY CHAR500, IL AG990-IL, etc.)     ║
+   ║  ✖  Group returns (parent filing on behalf of subordinates)     ║
+   ║  ✖  Private foundations (990-PF — halted at variant routing)    ║
+   ╠══════════════════════════════════════════════════════════════════╣
+   ║  If any ✖ above describes your situation, stop here and         ║
+   ║  consult a CPA before using this skill for that return.         ║
+   ╚══════════════════════════════════════════════════════════════════╝
+   ```
+   Ask: "Does any of the ✖ items apply to this return? (yes → stop; no → proceed)"
+   If no: continue to step 1.
+
 1. Pull sheet tab list via Drive MCP (`read_file_content` → tab list); ask for: EIN, legal
    name, fiscal year start/end, accounting method, public charity basis
 2. Capture gross-receipts history: current year + prior-1 + prior-2 (from prior 990 or user
@@ -141,11 +166,35 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
        variant = HALTED-CHURCH
    ELIF gross_receipts_3yr_average <= 50000:
        variant = 990-N
+       # 3-year averaging per Rev. Proc. 2011-15 §3.01
+       # NEW ORGS (< 3 years): use available-years average
+       #   1st year: current year only
+       #   2nd year: (yr1 + yr2) / 2
+       #   3rd+ year: standard 3-year average
+       # If org was not in existence for all 3 years, document in Decision Log
    ELIF gross_receipts_current < 200000 AND total_assets_eoy < 500000:
        variant = 990-EZ           ← CONJUNCTIVE; both prongs required
+       # 990-EZ gross receipts = gross receipts (NOT net of refunds or Line 12 total revenue)
+       # Includes: contributions, program fees, investment income GROSS of expenses
+       # Does NOT equal Part VIII Line 12 (which nets certain items)
    ELSE:
        variant = 990
    ```
+
+   **Additional checks before finalizing variant:**
+   - **509(a)(3) supporting organizations.** If `key_facts.public_charity_basis == "509(a)(3)"`,
+     determine the support organization type (Type I, II, or III). Type III functional integral
+     organizations have additional Schedule A requirements. Create an Open Question if the type
+     is uncertain. Do NOT halt — 509(a)(3)s file 990 (or 990-EZ/N per size) just like other public charities.
+   - **UBTI / 990-T detection.** If the budget sheet shows income from an activity that might be
+     Unrelated Business Taxable Income (e.g., advertising revenue, certain rental income from
+     debt-financed property, income unrelated to the exempt purpose), surface a non-blocking
+     advisory: "UBTI may be present — a Form 990-T may also be required. Recommend review with
+     a CPA." Do NOT halt; record in Decision Log with `severity: "advisory"`.
+   - **§6033(a)(3)(B) mission societies.** If the user confirms the organization is a mission
+     society of a church (IRC §6033(a)(3)(B)(i)) or certain educational organizations (§6033(a)(3)(B)(ii)),
+     route to HALTED-CHURCH with a specific breadcrumb noting the §6033(a)(3)(B) sub-section.
+
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
@@ -157,19 +206,54 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
      ```
-     ╔══════════════════════════════════════════════════╗
-     ║  ✖ HALTED — Private Foundation                   ║
-     ║  Form 990-PF required. This skill covers only    ║
-     ║  Form 990, 990-EZ, and 990-N.                    ║
-     ║  Contact a CPA specializing in 990-PF returns.   ║
-     ╚══════════════════════════════════════════════════╝
+     ╔══════════════════════════════════════════════════════╗
+     ║  ✖ HALTED — Private Foundation                        ║
+     ║  Form 990-PF required. This skill covers only         ║
+     ║  Form 990, 990-EZ, and 990-N.                         ║
+     ║  Contact a CPA specializing in 990-PF returns.        ║
+     ╠══════════════════════════════════════════════════════╣
+     ║  ↩ If you answered "private foundation" by mistake:   ║
+     ║  Use /form990 phase P0 <plan> to restart intake.      ║
+     ╚══════════════════════════════════════════════════════╝
      ```
    - Stop; do not advance to P1
 7. If `variant == HALTED-CHURCH`:
-   - Write terminal breadcrumb: `"Halted: IRC §6033(a)(3)(A)(i) exempt — no 990 required"`
-   - Render halt banner with appropriate message
+   - Write terminal breadcrumb: `"Halted: IRC §6033(a)(3) exempt — no 990 required"`
+   - Render halt banner:
+     ```
+     ╔══════════════════════════════════════════════════════╗
+     ║  ✖ HALTED — Church / §6033(a)(3) Exempt              ║
+     ║  No Form 990-series filing required per IRC           ║
+     ║  §6033(a)(3). Retain this determination in your       ║
+     ║  records in case of IRS inquiry.                      ║
+     ╠══════════════════════════════════════════════════════╣
+     ║  ↩ If you answered "church" by mistake:               ║
+     ║  Use /form990 phase P0 <plan> to restart intake.      ║
+     ╚══════════════════════════════════════════════════════╝
+     ```
    - Stop; do not advance to P1
-8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8. **Scope-exclusion banner (B6 — render once on first P0 run only).**
+   Before proceeding to P1, display the following notice. Record in breadcrumb that it was shown.
+   Do NOT show again on resume (check `breadcrumbs` for `"scope_exclusion_shown": true`).
+   ```
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │  ℹ This skill prepares Form 990 / 990-EZ / 990-N only.             │
+   │                                                                     │
+   │  OUT OF SCOPE — use a licensed preparer for these:                 │
+   │  • Short-period returns (first or final year ≠ 12 months)          │
+   │  • Initial returns (first year of existence — special rules apply) │
+   │  • Final returns (dissolution, termination, significant disposal)  │
+   │  • Amended returns (Form 990-X)                                    │
+   │  • State charitable registration filings (CA RRF-1, NY CHAR500…)  │
+   │  • Group exemption returns (Form 990 with group ruling)            │
+   │  • Form 990-PF (private foundations)                               │
+   │  • Form 990-T (unrelated business income — may accompany 990)      │
+   │                                                                     │
+   │  This tool prepares a filing-ready package for your e-file         │
+   │  provider. It does NOT submit the return to the IRS.               │
+   └─────────────────────────────────────────────────────────────────────┘
+   ```
+9. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
 
 **Outputs.**
 - Machine state JSON populated: tax_year, fiscal_year_*, form_variant, all key_facts fields
@@ -473,8 +557,18 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
   flagged as pending open question
 
 **Work.**
-1. Read the current-year f990.pdf Part IV section (runtime enumeration — do NOT hard-code
-   question count; IRS revises it across years). Enumerate all yes/no questions.
+1. **Part IV question enumeration (B7 + Spike-S3).** The IRS revises Part IV between tax
+   years; do not hard-code the count. Use the following approach in order of availability:
+   - **Runtime enumeration (preferred):** if `artifacts/f990-blank-<tax_year>.pdf` is cached
+     from P9's fetch or provided via `--local-pdf`, extract Part IV text via `pypdf`
+     (`PdfReader.pages[3].extract_text()` — Part IV is typically on page 4 of the blank)
+     and count yes/no items by scanning for "Yes" / "No" checkbox patterns.
+   - **Pinned count (fallback):** use the pinned count from TOOL-SIGNATURES.md
+     §Pre-build Experiments §S3. For tax year 2025: **38 yes/no items** (verified by
+     Spike-S3, 2026-04-11). If tax_year ≠ 2025, surface an Open Question:
+     "Part IV count has not been verified for tax year {N} — re-run Spike-S3 before P4."
+   Record which path was used in the breadcrumb. If neither path succeeds, halt P4 and
+   ask the user to provide the blank PDF via `--local-pdf`.
 2. For each question: answer `yes | no | need-info` based on available data
 3. `need-info` → create Open Question with the specific information needed
 4. `yes` → add corresponding schedule letter to `required_schedules[]`
@@ -647,7 +741,17 @@ financial data, prior-year support data.
 
 **Work.**
 
-Dispatch to SCHEDULES.md playbooks for each schedule in `required_schedules[]`.
+**B4 guard — halt on unknown schedule letter.** Before dispatching to any playbook, assert
+every letter in `required_schedules[]` has a corresponding playbook section in SCHEDULES.md
+(known set: A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, R). If an unknown letter is present:
+```
+halt with breadcrumb: "required schedule <L> has no playbook — manual preparation required"
+create Open Question: "Schedule <L> was triggered but has no automated playbook.
+  Please prepare it manually and attach it to the return before P7."
+```
+Do NOT skip unknown letters silently — they represent triggered legal obligations.
+
+Dispatch to SCHEDULES.md playbooks for each known letter in `required_schedules[]`.
 
 **Schedule A (always — 501(c)(3) public charity):**
 See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
@@ -736,14 +840,15 @@ deterministic merger to produce the consumable `form990-dataset.json`.
 
 **Step 1: Rollup.**
 ```
-Part I Line 8  = dataset_core.parts.VIII["line_12_total_revenue"]
+Part I Line 8  = dataset_core.parts.VIII["line_1h_total_contributions"]
+Part I Line 12 = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
 Compute `reconciliation` using THREE SEPARATE CHECKS (not a single equality chain —
 see Q-F2 for rationale). Revenue − Expenses ≠ EOY − BOY when adjustment lines are non-zero:
 ```
-revenue_total    = Part I Line 8   (= dataset_core.parts.VIII["line_12_total_revenue"])
+revenue_total    = Part I Line 12  (= dataset_core.parts.VIII["line_12_total_revenue"])
 expense_total    = Part I Line 18  (= dataset_core.parts.IX["line_25_total_expenses"])
 net_assets_boy   = dataset_core.parts.X["line_32_boy_net_assets"]
 net_assets_eoy   = Part I Line 22  (= dataset_core.parts.X["line_32_eoy_net_assets"])
@@ -901,7 +1006,16 @@ the e-file handoff packet.
 - Check cache: `artifacts/f990-blank-<tax_year>.pdf`
 - If present: verify embedded revision date matches `tax_year`; if mismatch → halt + ask user
 - If absent: `WebFetch https://www.irs.gov/pub/irs-pdf/f990.pdf` with 30s deadline;
-  on failure → retry once with 5s backoff → if still fails → halt and request `--local-pdf`
+  on failure → retry once with 5s backoff → if still fails → halt with user-friendly banner (C3):
+  ```
+  Couldn't reach irs.gov to download the blank Form 990 PDF.
+  Options:
+    (1) Check your internet connection and try again
+        → run: /form990 resume <plan-path>
+    (2) Download the blank form yourself and provide it:
+        → visit https://www.irs.gov/pub/irs-pdf/f990.pdf to download
+        → then re-run with: /form990 resume <plan-path> --local-pdf <path-to-downloaded-file>
+  ```
 - Save to cache path on first fetch
 
 **Step 1a: Enumerate AcroForm fields (capability probe).**

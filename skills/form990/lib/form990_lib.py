@@ -469,7 +469,6 @@ def _sweep_orphaned_tmps(plan_dir: pathlib.Path) -> list[str]:
             continue
         for candidate in base_dir.rglob(glob_pat):
             _check_and_sweep(candidate)
-
     return swept
 
 
