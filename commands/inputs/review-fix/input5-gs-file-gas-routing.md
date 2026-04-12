@@ -32,11 +32,10 @@ var SheetSync = (function() {
 
 **Expected dispatcher behavior:**
 1. Derive `task_name` via `git rev-parse --abbrev-ref HEAD`
-2. Detect `.gs` extension → route to `gas-code-review` (NOT `code-reviewer`)
-3. Pass `reviewer_agent: "gas-code-review"` to the review-fix agent
-4. Pass `target_files: "src/gas/sheetSync.gs"` and `task_name` to the agent
-5. Do NOT use `code-reviewer` — this is a GAS file
-6. Relay the full agent output verbatim after completion
+2. Recognize `$ARGUMENTS` is non-empty → pass file directly to the review-fix agent (Path B)
+3. Pass `target_files: "src/gas/sheetSync.gs"` and `task_name` to the agent — do NOT set `reviewer_agent`
+4. The review-fix agent handles routing internally: `.gs` files automatically get `gas-code-review` added alongside the `code-reviewer` baseline
+5. Relay the full agent output verbatim after completion
 
 **What a correct response looks like:**
-The dispatcher selects `gas-code-review` from the Agent Routing table (`.gs` files row), passes it as `reviewer_agent`, and spawns the review-fix agent with the correct parameters. It does NOT fall through to `code-reviewer` (which would be incorrect for `.gs` files).
+The dispatcher passes the file as `target_files` to the review-fix agent without specifying `reviewer_agent` (routing is handled internally by the agent per the Agent Routing table). The `reviewer_agent` override parameter exists only for forcing all files through a single reviewer — the dispatcher does not set it for normal per-file-type routing.

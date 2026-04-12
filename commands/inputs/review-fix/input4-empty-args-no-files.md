@@ -17,7 +17,7 @@ Both files are filtered out (`.json` and `.lock` exclusion rules apply).
 2. Enter the empty-args path (Steps 1–3)
 3. Run git detection — finds `package-lock.json`, `tsconfig.json`
 4. Apply filter — both are `.json` files, filter removes them
-5. Print: `"  → No reviewable files detected after filtering — exiting."`
+5. Print: `"  → No reviewable files detected — exiting."`
 6. Stop — do not spawn the review-fix agent
 7. Do not output a review report (there is nothing to review)
 
