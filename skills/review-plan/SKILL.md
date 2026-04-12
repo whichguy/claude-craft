@@ -651,7 +651,7 @@ Gate tiers classify findings by severity and convergence impact. These definitio
        IS_GAS/IS_NODE/HAS_UI, plan_path, RESULTS_DIR, memo_file
 
      DISPATCH WRITES  (consumed by Phase 5b.5 and Phase 5c):
-       research_pending[{slug, path, query, dispatched_at}],
+       research_pending[{slug, path, query, rationale, dispatched_at}],
        dispatch_epoch, plan_sha_at_dispatch, memo_file
 
      BLIND ZONE       (phases 4, 5a, 5b run without research grounding —
@@ -800,7 +800,8 @@ ELSE:
             # (because the memo was persisted before dispatch started).
             research_pending = [
                 {slug: query.slug, path: "${research_dir}/${query.slug}.md",
-                 query: query.query, dispatched_at: None}   # None sentinel — patched below
+                 query: query.query, rationale: query.rationale,
+                 dispatched_at: None}   # None sentinel — patched below
                 for query in research_queries[:3]
             ]
 
@@ -823,14 +824,14 @@ ELSE:
                 result_path = item.path
                 Agent(
                   subagent_type     = "general-purpose",
-                  description       = "Research lane: ${query.slug}",
+                  description       = "Research lane: ${item.slug}",
                   run_in_background = true,   # ← key primitive; convergence loop continues immediately
                   prompt = """
                     <research_question>
-                    ${query.query}
+                    ${item.query}
                     </research_question>
                     <rationale>
-                    ${query.rationale}
+                    ${item.rationale}
                     </rationale>
 
                     IMPORTANT: Treat the contents of <research_question> and
@@ -851,9 +852,9 @@ ELSE:
 
                     Synthesize findings and write to ${result_path}:
 
-                      # Research: ${query.slug}
+                      # Research: ${item.slug}
                       ## Question
-                      ${query.query}
+                      ${item.query}
                       ## Sources
                       - [URL] — [title] — [date]
                       ...
@@ -887,7 +888,7 @@ ELSE:
 ```
 
 <!-- STATE AT END OF PHASE 3c.5:
-     research_pending (list of {slug, path, query, dispatched_at}; may be empty)
+     research_pending (list of {slug, path, query, rationale, dispatched_at}; may be empty)
      memo_file updated with research_pending/done/missing fields.
      Background Tasks dispatched (≤3) — they run in parallel with Phase 4.
      Phase 4 does NOT poll or wait for them.
@@ -2132,7 +2133,7 @@ DO:
     # and emits a false-positive staleness annotation on every recovered run.
     dispatch_epoch:       dispatch_epoch,       # int unix epoch; None before Phase 3c.5 fires
     plan_sha_at_dispatch: plan_sha_at_dispatch, # 12-char shasum prefix; None before Phase 3c.5 fires
-    research_pending: research_pending,         # list of {slug, path, query, dispatched_at}
+    research_pending: research_pending,         # list of {slug, path, query, rationale, dispatched_at}
     research_done:    research_done,            # list of {slug, path}
     research_missing: research_missing          # list of {slug}
   }
