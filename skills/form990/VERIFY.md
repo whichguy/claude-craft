@@ -454,10 +454,10 @@ Input text contains both "Jane Doe" (in `donor_names`) and "Alice" (not in list)
 
 ---
 
-## TC22 — Pre-P6 empty `donor_names` scrub (elevated-risk mode)
+## TC22 — Pre-P1 empty `donor_names` scrub (elevated-risk mode)
 
 **Covers:** A1/A5 (`donor_names` not loaded until P1; scrubber in empty-list mode
-before then; donor-name-shaped strings should pass through unchanged)
+before P1; donor-name-shaped strings should pass through unchanged)
 
 **Setup:** `tests/fixtures/golden.py` constants `PII_INPUT_DONOR_EMPTY`,
 `PII_EXPECTED_DONOR_EMPTY`. Donor name list is `[]`.
@@ -606,7 +606,7 @@ python3 skills/form990/tests/verify.py --case TC8
 **Output:**
 ```
 TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔
-{"passed": 21, "failed": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 3.5}
+{"passed": 21, "failed": [], "errored": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 3.5}
 ```
 
 (TC1–TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)

@@ -719,8 +719,6 @@ def tc15(args):
 
 
 # ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # TC16–TC28 — Theme A (A5) new test cases
 # ---------------------------------------------------------------------------
 
@@ -929,11 +927,12 @@ def tc21(args):
 
 
 def tc22(args):
-    """TC22 — pre-P6 empty donor_names: Jane Doe is NOT masked (A1/A5 — GREEN).
+    """TC22 — pre-P1 empty donor_names: Jane Doe is NOT masked (A1/A5 — GREEN).
 
-    When donor_names=[] (pre-P1 scenario), the scrubber runs without any names
-    to mask. Donor-name-shaped strings must pass through unchanged — the test
-    verifies the elevated-PII-risk mode is documented, not silently broken.
+    When donor_names=[] (pre-P1 scenario, before donor list is loaded), the
+    scrubber runs without any names to mask. Donor-name-shaped strings must
+    pass through unchanged — the test verifies the elevated-PII-risk mode is
+    documented, not silently broken.
     SSN/phone/etc. rules (not donor-name rules) still fire where implemented.
     """
     tc = "TC22"
