@@ -17,34 +17,55 @@ CONFIG="$HOME/.claude/model-map.json"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 
 # Ensure target Ollama model is loaded on the given host; warm it in a subprocess if not.
-# Per-model host support: cloud models may live on :11435, local on :11434 — each provider
-# passes its own expanded BASE_URL here. Non-fatal — failures do not block routing.
+# Three-state probe: unreachable → skip with hint; loaded → skip; cached-not-loaded → warm.
+# Avoids silent model pulls: if the model isn't cached on the target host, prints a pull
+# hint instead of firing `ollama run` (which would trigger a multi-GB download in background).
+# Non-fatal — failures do not block routing.
 ensure_ollama_running() {
   local model="$1"
   local host="$2"
   command -v ollama >/dev/null 2>&1 || return 0   # no CLI → skip silently
 
-  # `OLLAMA_HOST=<host> ollama ps` queries that specific Ollama instance.
-  # First column is NAME; awk NR>1 skips the header row.
-  # Wrap in a 3s timeout so an unreachable host (e.g., down cloud port) can't block
-  # router startup for the ~75s OS TCP default. On timeout or error, fall through
-  # to background-warm (safe: if host is truly down, the nohup call will also fail
-  # silently and routing proceeds — `claude` surfaces the real error).
+  # 3s timeout prevents unreachable-host hangs (~75s default TCP). Fall back to direct
+  # invocation if no timeout CLI is available (bare macOS) — the `ollama` CLI itself
+  # still has its own internal timeout, which is a bit longer but bounded.
   local -a timeout_cmd=()
   if command -v timeout >/dev/null 2>&1; then
     timeout_cmd=(timeout 3)
   elif command -v gtimeout >/dev/null 2>&1; then
     timeout_cmd=(gtimeout 3)
   fi
-  # If no timeout CLI available (bare macOS without coreutils), skip the probe
-  # entirely and always background-warm — `ollama run` on an already-loaded model
-  # is a no-op, so false-warms are cheap.
-  if [[ "${#timeout_cmd[@]}" -gt 0 ]]; then
-    if OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama ps 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx "$model"; then
-      return 0   # already loaded on that host
-    fi
+
+  # --- Probe 1: is the server reachable AND is the model already loaded? ---
+  # Capture stdout and exit code separately so we can distinguish "unreachable"
+  # (exit non-zero) from "up but model not loaded" (exit 0, model absent from output).
+  local ps_output
+  if ! ps_output=$(OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama ps 2>/dev/null); then
+    echo "claude-router: cannot reach Ollama on $host — is 'ollama serve' running there? Skipping warm-up." >&2
+    return 0
   fi
 
+  # grep -Fxq: Fixed-string, whole-line, quiet — handles model names with regex chars
+  if echo "$ps_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
+    return 0   # already loaded on that host
+  fi
+
+  # --- Probe 2: is the model cached on that host? ---
+  # Server is up but model isn't loaded. Before firing `ollama run` (which would
+  # transparently trigger `ollama pull` for an uncached model — a multi-GB silent
+  # download), verify the model is actually cached and give the user a pull hint if not.
+  local list_output
+  list_output=$(OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama list 2>/dev/null) || {
+    # ps worked but list didn't — unexpected; bail safely without warming
+    return 0
+  }
+
+  if ! echo "$list_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
+    echo "claude-router: '$model' not cached on $host — run 'OLLAMA_HOST=$host ollama pull $model' first to avoid a slow first request" >&2
+    return 0
+  fi
+
+  # --- Cached + not loaded + reachable → fire background warm-up ---
   echo "claude-router: warming '$model' on $host (background)..." >&2
   # `ollama run <model> ""` loads the model and exits quickly on empty prompt.
   # Fully detached: stdin from /dev/null, outputs to /dev/null, backgrounded + disowned.
@@ -168,7 +189,8 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   [[ -n "$BASE_URL" ]] && export ANTHROPIC_BASE_URL="$BASE_URL"
   [[ -n "$AUTH_TOKEN" ]] && export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
   if echo "$PROVIDER" | jq -e 'has("api_key")' >/dev/null 2>&1; then
-    export ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+    ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
+    export ANTHROPIC_API_KEY
   fi
   [[ -n "$CONFIG_DIR" ]] && export CLAUDE_CONFIG_DIR="${CONFIG_DIR//\$HOME/$HOME}"
   [[ "$DISABLE_TRAFFIC" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
@@ -178,7 +200,7 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   if [[ -n "$ENV_KEYS" ]]; then
     while IFS= read -r key; do
       val=$(echo "$PROVIDER" | jq -r --arg k "$key" '.env[$k]' 2>/dev/null)
-      export "$key=$val"
+      export -- "$key=$val"
     done <<< "$ENV_KEYS"
   fi
 
