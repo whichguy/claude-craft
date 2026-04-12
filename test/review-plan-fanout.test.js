@@ -831,5 +831,88 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(checkpointBlock).to.include('research_done');
             expect(checkpointBlock).to.include('research_missing');
         });
+
+        // U8: dependency-graph comment block at Phase 3c.5 header
+        it('U8: Phase 3c.5 dependency-graph comment block present with all required sections and variables', function () {
+            const idx = skillContent.indexOf('PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT');
+            expect(idx, 'Dependency-graph comment block not found at Phase 3c.5 header').to.be.greaterThan(0);
+            const block = skillContent.substring(idx, idx + 2000);
+            // All 6 section labels
+            expect(block).to.include('DISPATCH READS');
+            expect(block).to.include('DISPATCH WRITES');
+            expect(block).to.include('BLIND ZONE');
+            expect(block).to.include('JOIN READS');
+            expect(block).to.include('JOIN WRITES');
+            expect(block).to.include('SOLE CONSUMER');
+            // BLIND ZONE must name all three Edit sites by phase
+            expect(block).to.include('Phase 4');
+            expect(block).to.include('Q-G9');
+            expect(block).to.include('Q-E1');
+            // All 7 key variables must appear in the contract
+            expect(block).to.include('dispatch_epoch');
+            expect(block).to.include('plan_sha_at_dispatch');
+            expect(block).to.include('research_pending');
+            expect(block).to.include('research_done');
+            expect(block).to.include('research_missing');
+            expect(block).to.include('research_findings_block');
+            expect(block).to.include('research_findings_block_header');
+        });
+
+        // U9: Phase 5b.5 adaptive grace formula
+        it('U9: Phase 5b.5 adaptive grace formula has TARGET_TOTAL_SECONDS=90, MIN_GRACE_SECONDS=30, remaining_budget formula', function () {
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
+            expect(phase5b5Block).to.include('TARGET_TOTAL_SECONDS = 90');
+            expect(phase5b5Block).to.include('MIN_GRACE_SECONDS    = 30');
+            expect(phase5b5Block).to.include('remaining_budget       = max(0,');
+        });
+
+        // U10: plan_sha_at_dispatch round-trip: Phase 3c.5 writes it, Phase 5b.5 reads it,
+        //      annotated header emitted when hashes differ, shasum -a 256 used (not sha256sum)
+        it('U10: plan_sha_at_dispatch written in Phase 3c.5 and read in Phase 5b.5 with shasum -a 256', function () {
+            // Phase 3c.5 producer: dispatch block writes plan_sha_at_dispatch alongside research_pending
+            const dispatch3c5Idx = skillContent.indexOf('Phase 3c.5');
+            expect(dispatch3c5Idx, 'Phase 3c.5 section not found').to.be.greaterThan(0);
+            const phase3c5Block = skillContent.substring(dispatch3c5Idx, dispatch3c5Idx + 10000);
+            expect(phase3c5Block).to.include('plan_sha_at_dispatch');
+            expect(phase3c5Block).to.include('shasum -a 256');
+            // Phase 5b.5 consumer: reads from memo and emits annotated header
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
+            expect(phase5b5Block).to.include('memo.get("plan_sha_at_dispatch")');
+            expect(phase5b5Block).to.include('citations may reference superseded text');
+            // Must NOT use Linux-only sha256sum
+            expect(phase5b5Block).to.not.include('sha256sum');
+        });
+
+        // U11: Sub-case B rehydration (ELIF memo.get("research_done"):) in Phase 5b.5
+        it('U11: Phase 5b.5 contains Sub-case B rehydration branch (ELIF memo.get("research_done"):)', function () {
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
+            expect(phase5b5Block).to.include('ELIF memo.get("research_done"):');
+        });
+
+        // U12: _phase_5b5_skip guards both the no-op gate and the poll block gate
+        it('U12: Phase 5b.5 has _phase_5b5_skip initialization, no-op gate, and poll-block gate', function () {
+            const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
+            expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
+            expect(phase5b5Block).to.include('_phase_5b5_skip = false');
+            expect(phase5b5Block).to.include('AND NOT _phase_5b5_skip:');
+            expect(phase5b5Block).to.include('ELIF NOT _phase_5b5_skip:');
+        });
+
+        // U13: Phase 4 memo writer preserves dispatch_epoch and plan_sha_at_dispatch
+        it('U13: Phase 4 memo writer preserves dispatch_epoch and plan_sha_at_dispatch across convergence passes', function () {
+            // Anchor on the unique comment that the implementer added specifically for this test
+            const anchorIdx = skillContent.indexOf('Research lane fields — preserve unmodified each pass');
+            expect(anchorIdx, 'Phase 4 memo writer anchor comment not found').to.be.greaterThan(0);
+            const writerBlock = skillContent.substring(anchorIdx, anchorIdx + 500);
+            expect(writerBlock).to.include('dispatch_epoch');
+            expect(writerBlock).to.include('plan_sha_at_dispatch');
+        });
     });
 });
