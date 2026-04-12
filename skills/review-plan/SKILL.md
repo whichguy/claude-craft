@@ -348,11 +348,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
          FOR each Q-ID that was NEEDS_UPDATE then fixed:
            Print: "│  [Q-ID] [change title] — [one-line summary] │"
-         Print: "└──────────────────────────────────────────────┘"
+         Print: "└─────────────────────────────────────────────┘"
        ELSE:
          Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
-         Print: "│  No edits applied — plan passed all 5 checks │"
-         Print: "└──────────────────────────────────────────────┘"
+         Print: "│  No edits — plan passed all 5 checks        │"
+         Print: "└─────────────────────────────────────────────┘"
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
@@ -522,11 +522,11 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
          FOR each Q-ID that was NEEDS_UPDATE then fixed:
            Print: "│  [Q-ID] [change title] — [one-line summary]     │"
-         Print: "└────────────────────────────────────────────────── ┘"
+         Print: "└─────────────────────────────────────────────────┘"
        ELSE:
          Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
-         Print: "│  No edits applied — plan passed all checks        │"
-         Print: "└────────────────────────────────────────────────── ┘"
+         Print: "│  No edits — plan passed all checks              │"
+         Print: "└─────────────────────────────────────────────────┘"
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
@@ -3713,7 +3713,9 @@ ELIF NOT _phase_5b5_skip:
 
    # spawn_skill_task flag (computed in 5c.5 dispatch block) aggregates the above guards
    # plus the all-clean check. Checked again here for clarity.
-   # IF spawn_skill_task == false: skill_learnings = []; skip task dispatch
+   IF NOT spawn_skill_task:
+       skill_learnings = []
+       SKIP  # no edits applied on this run — no meta-insights possible
 
    skill_task = Task(
      subagent_type = "general-purpose",
@@ -3800,7 +3802,7 @@ ELIF NOT _phase_5b5_skip:
    skill_learnings_target_map = {
        "QUESTIONS.md": questions_path,
        "SKILL.md":     skill_path,
-       "DIRECTIVE":    "~/.claude/CLAUDE.md"
+       "DIRECTIVE":    "$HOME/.claude/CLAUDE.md"   # $HOME consistent with queue_path below
    }
 
    FOR rec in skill_learnings:
@@ -3809,10 +3811,11 @@ ELIF NOT _phase_5b5_skip:
            CONTINUE  # unknown category — skip
        rec_slug   = slugify(f"skill-learning-{rec.category}-{rec.title}")
        queue_path = f"$HOME/.claude/reflection-queue/{rec_slug}.json"
-       IF Bash(f"test -f '{queue_path}'").exit_ok:
+       IF Bash(f'test -f "{queue_path}"').exit_ok:
            CONTINUE  # idempotent — already queued
 
-       source_hash = Bash(f"shasum -a 256 '{target_file}' | cut -c1-12").stdout.strip()
+       # Use double-quoted path so shell expands $HOME (single quotes suppress $ expansion)
+       source_hash = Bash(f'shasum -a 256 "{target_file}" | cut -c1-12').stdout.strip()
 
        Agent(
            subagent_type     = "general-purpose",
