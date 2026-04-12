@@ -725,7 +725,7 @@ def tc15(args):
 # ---------------------------------------------------------------------------
 
 _XFAIL_MODE: bool = os.environ.get("FORM990_TEST_XFAIL", "").lower() == "skip"
-_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "C1"})
+_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4", "C1", "C2"})
 
 
 def _xfail_guard(tc, change_id):
@@ -805,13 +805,31 @@ def tc17(args):
 
 
 def tc18(args):
-    """TC18 — ScriptError._raw_stderr boundary (C2 xfail)."""
+    """TC18 — ScriptError._raw_stderr stores raw; str(e) is scrubbed (C2 — GREEN)."""
     tc = "TC18"
-    if not _xfail_guard(tc, "C2"):
-        return
     if not _require_lib(tc):
         return
-    skip_(tc, "TC18: C2 not yet landed")
+
+    raw_stderr = "SSN: 123-45-6789 from a donor"
+    err = ScriptError("test_script.py", 1, raw_stderr)
+
+    # _raw_stderr contains the original unscubbed content
+    assert_true(tc, hasattr(err, "_raw_stderr"), "ScriptError must have _raw_stderr attr")
+    assert_true(tc, "123-45-6789" in err._raw_stderr,
+                "raw SSN should be present in _raw_stderr")
+
+    # str(e) must NOT contain raw SSN
+    err_str = str(err)
+    assert_true(tc, "123-45-6789" not in err_str,
+                "raw SSN must NOT appear in str(ScriptError)")
+    assert_true(tc, "[REDACTED-SSN]" in err_str,
+                "[REDACTED-SSN] must appear in str(ScriptError)")
+
+    # stderr_tail must also be scrubbed
+    assert_true(tc, "123-45-6789" not in err.stderr_tail,
+                "raw SSN must NOT appear in stderr_tail")
+
+    pass_(tc)
 
 
 def tc19(args):

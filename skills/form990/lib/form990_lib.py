@@ -68,25 +68,66 @@ def scrub_pii(text: str, donor_names: list[str] | None = None) -> str:
     """
     Redact PII before writing to plan file breadcrumbs or LEARNINGS.
 
-    Rules applied in order (A1 basic set; C2 adds phone/email/DOB/addr):
-      1. SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
-      2. Bare 9-digit run → [REDACTED-9DIGIT]  (EINs are XX-XXXXXXX, skip)
-      3. Donor names from donor_names list (longest first, word-boundary)
-      4. Long numeric run >= 10 digits → [REDACTED-LONGNUM] (bank accts)
+    Rules applied in order (A1 basic set + C2 phone/email/DOB/addr extensions):
+      1.  SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
+      2.  Bare 9-digit run → [REDACTED-9DIGIT]  (EINs are XX-XXXXXXX, skip)
+      3.  Donor names from donor_names list (longest first, word-boundary, ≥4 chars)
+      4.  Long numeric run >= 10 digits → [REDACTED-LONGNUM] (bank accts)
+      5.  (C2) Phone numbers: ddd[-.]ddd[-.]dddd → [REDACTED-PHONE]
+      6.  (C2) Email addresses → [REDACTED-EMAIL]
+      7.  (C2) Date of birth MM/DD/YYYY → [REDACTED-DOB]
+      8.  (C2) Street address: "<number> <words> <suffix>" → [REDACTED-ADDR], <city>
     """
     if donor_names is None:
         donor_names = []
 
+    # 1. SSN/ITIN (hyphenated) — must come before bare-9 to avoid double-matching
     text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
-    text = re.sub(r'\b\d{9}\b', '[REDACTED-9DIGIT]', text)
+    # 2. Bare 9-digit run (not preceded/followed by hyphen — avoids EIN XX-XXXXXXX)
+    text = re.sub(r'(?<![-\d])\b\d{9}\b(?![-\d])', '[REDACTED-9DIGIT]', text)
 
-    # Donor names: longest first, word boundary, minimum 4 chars to avoid partial matches
+    # 3. Donor names: longest first, word boundary, minimum 4 chars
     for name in sorted(donor_names, key=len, reverse=True):
         if name and len(name) >= 4:
             pattern = r'\b' + re.escape(name) + r'\b'
             text = re.sub(pattern, '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
 
+    # 4. Long numeric run >= 10 digits (bank acct, ITIN without dashes, etc.)
     text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
+
+    # 5. (C2) Phone: ddd[-. ]?ddd[-. ]?dddd — covers US formats including dots/spaces
+    text = re.sub(
+        r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',
+        '[REDACTED-PHONE]',
+        text,
+    )
+
+    # 6. (C2) Email addresses
+    text = re.sub(
+        r'\b[\w.+\-]+@[\w\-]+\.[\w.\-]+\b',
+        '[REDACTED-EMAIL]',
+        text,
+    )
+
+    # 7. (C2) Date of birth: MM/DD/YYYY or MM/DD/YY
+    text = re.sub(
+        r'\b\d{1,2}/\d{1,2}/(19|20)\d{2}\b',
+        '[REDACTED-DOB]',
+        text,
+    )
+
+    # 8. (C2) Street address: one or more digits + whitespace + title-cased words +
+    #    street suffix. Preserve everything after the comma (city/state).
+    #    Pattern: start of string or whitespace, digits, space, words, suffix
+    _ADDR_SUFFIXES = (
+        r'St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl|Pkwy|Hwy|Cir|Ter|Sq|Loop'
+    )
+    text = re.sub(
+        r'\b\d+\s+(?:[A-Z][a-z]*\s+)+(?:' + _ADDR_SUFFIXES + r')\b\.?',
+        '[REDACTED-ADDR]',
+        text,
+    )
+
     return text
 
 
@@ -787,7 +828,11 @@ def _codepoint_safe_tail(s: str, max_chars: int) -> str:
 
 
 class ScriptError(Exception):
-    """Raised by run_script() on non-zero exit, timeout, or JSON parse failure."""
+    """Raised by run_script() on non-zero exit, timeout, or JSON parse failure.
+
+    C2: Raw stderr stored in private _raw_stderr (never serialized/logged).
+    Public str(e) and stderr_tail use scrubbed content only.
+    """
 
     def __init__(
         self,
@@ -796,11 +841,14 @@ class ScriptError(Exception):
         stderr: str,
         stdout: str = "",
     ) -> None:
-        # scrub_pii is applied at breadcrumb-write time, not here —
-        # callers must route through scrub_pii before logging.
-        super().__init__(f"{script} exit {returncode}: {stderr[-500:]}")
+        # C2: Store raw stderr privately; scrub before exposing publicly.
+        # The exception message (str(e)) uses scrubbed content so it is safe
+        # to log without an additional scrub pass at the call site.
+        self._raw_stderr: str = stderr  # never logged; for internal diagnosis only
+        scrubbed_stderr = scrub_pii(_codepoint_safe_tail(stderr, 500))
+        super().__init__(f"{script} exit {returncode}: {scrubbed_stderr}")
         self.returncode = returncode
-        self.stderr_tail = _codepoint_safe_tail(stderr, 2000)
+        self.stderr_tail = scrub_pii(_codepoint_safe_tail(stderr, 2000))
         self.stdout_tail = _codepoint_safe_tail(stdout, 2000)
         self.structured_error: dict | None = None
 
