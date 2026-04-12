@@ -3615,6 +3615,7 @@ ELIF NOT _phase_5b5_skip:
    ```python
    Bash("mkdir -p $HOME/.claude/reflection-queue/")  # $HOME matches queue_path below
    action_slug = slugify(f"{action_title}")  # lowercase, hyphens, no spaces
+   wiki_path  = Bash("pwd").stdout.strip() + "/wiki"  # absolute path — correct when CWD=project root
    queue_path = f"$HOME/.claude/reflection-queue/wiki-gap-{action_slug}.json"
    tmp_path   = queue_path + ".tmp"
    IF NOT Bash(f"test -f '{queue_path}'").exit_ok:  # idempotency check
@@ -3624,6 +3625,7 @@ ELIF NOT _phase_5b5_skip:
            "status": "pending",
            "created_at": Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip(),
            "source": "review-plan-phase-5e",
+           "wiki_path": wiki_path,
            "q_id": "<Q-ID that triggered the gap>",
            "trigger": "<what was missing from citation resolution>",
            "action": "<suggested wiki page content or entity to create>"

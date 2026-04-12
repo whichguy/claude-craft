@@ -177,7 +177,8 @@ Agent(
 Wiki knowledge gap identified by review-plan Phase 5e (citation resolution returned empty
 for a Q-ID that fired with a non-trivial edit).
 
-1. Read queue entry. Verify required fields: `q_id`, `trigger`, `action`. If missing → mark "failed", skip.
+1. Read queue entry. Verify required fields: `q_id`, `trigger`, `action`, `wiki_path`. If missing → mark "failed", skip.
+   Then `Bash(f"test -d '{wiki_path}'")` — if not a directory → mark "failed", skip.
 2. Spawn a Sonnet subagent to create or update the wiki entity page:
 
 ```
@@ -189,21 +190,22 @@ Agent(
     Q-ID:    [q_id]
     Trigger: [trigger — what was missing from citation resolution]
     Action:  [action — suggested wiki entity or content to create]
+    Wiki:    [wiki_path]
 
-    Read wiki/index.md and wiki/entities/ to check if a relevant page already exists.
+    Read {wiki_path}/index.md and {wiki_path}/entities/ to check if a relevant page already exists.
 
     If relevant page exists: append a new "## From review-plan [date]" subsection
     with the content described in the Action field.
 
-    If no relevant page exists: create wiki/entities/review-plan-[slug].md with
+    If no relevant page exists: create {wiki_path}/entities/review-plan-[slug].md with
     standard v2 frontmatter (name, type="pattern", description, tags, confidence,
     last_verified, created) and a concise body (≤50 lines) capturing:
     - What the Q-ID checks and why it matters
     - The trigger pattern that caused the gap
     - Guidance for future citation resolution
 
-    Update wiki/index.md with a one-line entry for the new/updated page.
-    Append to wiki/log.md: "WIKI_GAP [date]: created/updated [page] from Q-[q_id] gap"
+    Update {wiki_path}/index.md with a one-line entry for the new/updated page.
+    Append to {wiki_path}/log.md: "WIKI_GAP [date]: created/updated [page] from Q-[q_id] gap"
     Return: "created [page]" or "updated [page]"
   """
 )
