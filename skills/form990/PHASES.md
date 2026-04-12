@@ -557,8 +557,18 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
   flagged as pending open question
 
 **Work.**
-1. Read the current-year f990.pdf Part IV section (runtime enumeration — do NOT hard-code
-   question count; IRS revises it across years). Enumerate all yes/no questions.
+1. **Part IV question enumeration (B7 + Spike-S3).** The IRS revises Part IV between tax
+   years; do not hard-code the count. Use the following approach in order of availability:
+   - **Runtime enumeration (preferred):** if `artifacts/f990-blank-<tax_year>.pdf` is cached
+     from P9's fetch or provided via `--local-pdf`, extract Part IV text via `pypdf`
+     (`PdfReader.pages[3].extract_text()` — Part IV is typically on page 4 of the blank)
+     and count yes/no items by scanning for "Yes" / "No" checkbox patterns.
+   - **Pinned count (fallback):** use the pinned count from TOOL-SIGNATURES.md
+     §Pre-build Experiments §S3. For tax year 2025: **38 yes/no items** (verified by
+     Spike-S3, 2026-04-11). If tax_year ≠ 2025, surface an Open Question:
+     "Part IV count has not been verified for tax year {N} — re-run Spike-S3 before P4."
+   Record which path was used in the breadcrumb. If neither path succeeds, halt P4 and
+   ask the user to provide the blank PDF via `--local-pdf`.
 2. For each question: answer `yes | no | need-info` based on available data
 3. `need-info` → create Open Question with the specific information needed
 4. `yes` → add corresponding schedule letter to `required_schedules[]`

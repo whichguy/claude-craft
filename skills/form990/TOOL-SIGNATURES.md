@@ -148,6 +148,47 @@ notes: null
 **Fail options:** (a) vendor JCS canonicalizer, (b) pin Python version in all phase dispatches,
 (c) drop byte-identical idempotency claim (compute sha256 only when inputs change).
 
+
+### S1 — PID reuse / os.kill ESRCH behavior (Change 1 spike)
+
+```
+date: null
+false_positive_rate_pct: null       ← measured under fork-stress test
+platform_tested: null               ← e.g., "macOS 15.3"
+pass_criteria: "false_positive_rate < 1%"
+result: null                        ← PASS | FAIL | PENDING
+notes: null
+```
+
+### S2 — Existing stdout in P2/P3/P6 scripts (Change 3 spike)
+
+```
+date: null
+scripts_audited: []                 ← list of script paths checked
+scripts_with_stdout: []             ← scripts that print() to stdout
+all_gatable_behind_json_only: null  ← true/false
+result: null                        ← PASS | FAIL | PENDING
+notes: null
+```
+
+### S3 — Part IV yes/no item count (B7 spike)
+
+```
+date: 2026-04-11
+tax_year: 2025
+method_used: "pinned-count"
+part_iv_item_count: 38
+extraction_method: "manual-count-from-published-instructions"
+deterministic_across_runs: true
+notes: >
+  IRS Form 990 (2025) Part IV contains 38 yes/no checklist items (Lines 1–38).
+  Count verified against published Form 990 instructions.
+  Runtime extraction via pypdf text parsing was not tested in this spike;
+  pinned-count fallback is in effect for tax_year 2025.
+  Re-run spike when tax_year changes to verify count is still 38 or update.
+result: PASS (pinned-count branch)
+```
+
 ---
 
 ## f990 Coordinate Table (tax_year: null)
