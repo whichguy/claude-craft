@@ -218,12 +218,12 @@ and `auto_append_learning()`. Defined here before first use.
 def now_iso() -> str:
     """Return current UTC timestamp as ISO 8601 string."""
     import datetime
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 def now_iso_date() -> str:
     """Return current UTC date as YYYY-MM-DD."""
     import datetime
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 ```
 
 ---
@@ -759,8 +759,9 @@ def run_script(script_path, args, phase_id=None, cwd=None):
                           f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}", stdout)
 ```
 
-On `ScriptError`: call `append_breadcrumb(scrub_pii(str(err)))`, set `phase_status=failed`,
-atomic commit, surface in status UI.
+On `ScriptError`: call `append_breadcrumb(state, phase_id, str(err), error_class="ScriptNonZero")`,
+set `phase_status=failed`, atomic commit, surface in status UI.
+(`ScriptError.__init__` already scrubs the message internally — no additional `scrub_pii()` wrapper needed.)
 
 ---
 
@@ -775,25 +776,39 @@ import re
 def scrub_pii(text: str, donor_names: list[str] = None) -> str:
     """
     Redact PII before writing to plan file breadcrumbs or LEARNINGS.
-    Rules applied in order:
+    Rules applied in order (A1 base rules + C2 extensions):
     1. SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
-    2. Bare 9-digit run: ddddddddd → [REDACTED-9DIGIT]  (EINs are XX-XXXXXXX, not bare)
-    3. Donor names from key_facts.donor_names (longest first to avoid partial match)
+    2. Bare 9-digit run (not hyphen-adjacent): ddddddddd → [REDACTED-9DIGIT]
+       (EINs are XX-XXXXXXX — hyphenated form is public IRS BMF data, never matched)
+    3. Donor names from key_facts.donor_names (longest first; word-boundary + min 4 chars)
     4. Long numeric run >= 10 digits → [REDACTED-LONGNUM]  (bank accounts, routing)
+    5. [C2] Phone numbers: 555-123-4567 / 555.123.4567 / 555 123 4567 → [REDACTED-PHONE]
+    6. [C2] Email addresses → [REDACTED-EMAIL]
+    7. [C2] Dates of birth (MM/DD/YYYY) → [REDACTED-DOB]
+    8. [C2] US street addresses (number + street name + type) → [REDACTED-ADDR]
+    Canonical implementation lives in lib/form990_lib.py. This prose is illustrative.
     """
     if donor_names is None:
         donor_names = []
     text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
-    text = re.sub(r'\b\d{9}\b', '[REDACTED-9DIGIT]', text)
+    text = re.sub(r'(?<![-\d])\b\d{9}\b(?![-\d])', '[REDACTED-9DIGIT]', text)
     for name in sorted(donor_names, key=len, reverse=True):
-        if name:
-            text = re.sub(re.escape(name), '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
+        if name and len(name) >= 4:
+            text = re.sub(r'\b' + re.escape(name) + r'\b', '[REDACTED-DONOR]',
+                          text, flags=re.IGNORECASE)
     text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
+    text = re.sub(r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b', '[REDACTED-PHONE]', text)
+    text = re.sub(r'\b[\w.+\-]+@[\w\-]+\.[\w.\-]+\b', '[REDACTED-EMAIL]', text)
+    text = re.sub(r'\b\d{1,2}/\d{1,2}/(19|20)\d{2}\b', '[REDACTED-DOB]', text)
+    text = re.sub(r'\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+'
+                  r'(?:St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl)\b',
+                  '[REDACTED-ADDR]', text)
     return text
 ```
 
 Note: hyphenated EINs (`XX-XXXXXXX`) are NOT redacted — they are public (IRS BMF).
-The 9-digit rule catches bare SSN/ITIN patterns; hyphenated EINs never match `\b\d{9}\b`.
+The bare-9-digit rule uses a negative-lookbehind/lookahead for hyphens and adjacent digits
+so that the `XX-XXXXXXX` format is never accidentally caught.
 
 ---
 
