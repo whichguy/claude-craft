@@ -222,13 +222,14 @@ Skill-learning evaluation verdict produced by review-plan Phase 5g Step 2 async 
    - **`DEFER`**: Read-modify-write `defer_count` atomically (write to `.tmp` then `mv`):
      ```python
      entry["defer_count"] = entry.get("defer_count", 0) + 1
+     entry["status"] = "pending"      # explicit reset — required for re-pickup next run
      IF entry["defer_count"] >= 3:
          entry["verdict"] = "RECOMMEND_CHANGE"
          # Escalate: treat as RECOMMEND_CHANGE on next /wiki-process run
      Write(queue_path + ".tmp", json.dumps(entry))
      Bash(f"mv '{queue_path}.tmp' '{queue_path}'")
      ```
-     Keep `status: "pending"` so it is picked up again next run.
+     Entry is reset to `status: "pending"` so it is picked up again next run.
    - **`REJECT`**: Mark `status: "completed"` silently (recommendation already implemented
      or contradicted by current file state).
 

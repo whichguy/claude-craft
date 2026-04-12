@@ -91,9 +91,10 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        ```
      - `questions_path` = `~/.claude/skills/review-plan/QUESTIONS.md`
      - `questions_l3_path` = `~/.claude/skills/review-plan/QUESTIONS-L3.md`
+     - `skill_path`     = `~/.claude/skills/review-plan/SKILL.md`
      - `gas_eval_path`  = `~/.claude/skills/gas-plan/EVALUATE.md`
      - `node_eval_path` = `~/.claude/skills/node-plan/EVALUATE.md`
-       (`~` makes all four portable across users — no hardcoded username.
+       (`~` makes all five portable across users — no hardcoded username.
        Update here if the install base changes; all evaluator spawns below use these variables.)
 
 <!-- STATE AT END OF PHASE 1:
@@ -3498,7 +3499,7 @@ ELIF NOT _phase_5b5_skip:
    spawn_skill_task = (
        REVIEW_TIER == "FULL"
        AND frontmatter.get("skill_audit") != false
-       AND (total_needs_update > 0 OR len(sr_applied_edits) > 0)
+       AND (total_changes_all_passes > 0 OR len(sr_applied_edits) > 0)
    )
    # Single message: intent_task (5c.5, above) + skill_task (5g Step 1, below) dispatched together.
    # Process intent_task output first (write to plan), then process skill_task output (render panel),
@@ -3593,7 +3594,7 @@ ELIF NOT _phase_5b5_skip:
    - ...
    ```
 
-   **Phase 3a — TaskCreate persistence (session-scoped tracking):**
+   **Step 5e.A — TaskCreate persistence (session-scoped tracking):**
    After writing each `<!-- rap-key: ... -->` bullet to the plan file, also create a session task:
    ```python
    # After each retrospective action bullet is written:
@@ -3605,10 +3606,10 @@ ELIF NOT _phase_5b5_skip:
    # Does not persist across sessions.
    ```
 
-   **Phase 3b — wiki-gap queue entries (persistent, picked up by /wiki-process):**
+   **Step 5e.B — wiki-gap queue entries (persistent, picked up by /wiki-process):**
    For each `wiki-gap` action type in the Retrospective Action Plan:
    ```python
-   Bash("mkdir -p ~/.claude/reflection-queue/")
+   Bash("mkdir -p $HOME/.claude/reflection-queue/")  # $HOME matches queue_path below
    action_slug = slugify(f"{action_title}")  # lowercase, hyphens, no spaces
    queue_path = f"$HOME/.claude/reflection-queue/wiki-gap-{action_slug}.json"
    tmp_path   = queue_path + ".tmp"
