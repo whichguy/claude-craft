@@ -44,6 +44,8 @@ Process entries in this order:
 2. `session_wiki` — project wiki synthesis from transcript
 3. `wiki_change` — global cross-project pattern synthesis
 4. `session` (no type field, or type="session") — global session summary
+5. `wiki_gap` (priority: normal) — review-plan wiki gap backfill
+6. `skill_learning_evaluation` (priority: low) — review-plan skill learning verdicts
 
 For each entry:
 1. Read the queue entry JSON
@@ -65,7 +67,7 @@ These extract project wiki pages from a session transcript.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     Extract wiki pages from this session transcript.
 
@@ -103,7 +105,7 @@ Cross-project pattern synthesis from wiki file changes.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     These wiki pages were updated in project [cwd]:
     [read each changed_file]
@@ -132,7 +134,7 @@ Global session summary — the original reflect behavior.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     You are a session summarizer. Extract a structured summary.
 
@@ -170,6 +172,66 @@ Agent(
    (Create `~/.claude/wiki/sessions/` if needed)
    Also write to `~/.claude/reflection-knowledge/sessions/{session_id}.md` (backward compat)
 
+### Type: `wiki_gap`
+
+Wiki knowledge gap identified by review-plan Phase 5e (citation resolution returned empty
+for a Q-ID that fired with a non-trivial edit).
+
+1. Read queue entry. Verify required fields: `q_id`, `trigger`, `action`. If missing → mark "failed", skip.
+2. Spawn a Sonnet subagent to create or update the wiki entity page:
+
+```
+Agent(
+  subagent_type = "general-purpose",
+  model = "sonnet",
+  prompt = """
+    A review-plan run identified a wiki knowledge gap:
+    Q-ID:    [q_id]
+    Trigger: [trigger — what was missing from citation resolution]
+    Action:  [action — suggested wiki entity or content to create]
+
+    Read wiki/index.md and wiki/entities/ to check if a relevant page already exists.
+
+    If relevant page exists: append a new "## From review-plan [date]" subsection
+    with the content described in the Action field.
+
+    If no relevant page exists: create wiki/entities/review-plan-[slug].md with
+    standard v2 frontmatter (name, type="pattern", description, tags, confidence,
+    last_verified, created) and a concise body (≤50 lines) capturing:
+    - What the Q-ID checks and why it matters
+    - The trigger pattern that caused the gap
+    - Guidance for future citation resolution
+
+    Update wiki/index.md with a one-line entry for the new/updated page.
+    Append to wiki/log.md: "WIKI_GAP [date]: created/updated [page] from Q-[q_id] gap"
+    Return: "created [page]" or "updated [page]"
+  """
+)
+```
+
+3. Mark entry `status: "completed"` with `processed_at` timestamp.
+
+### Type: `skill_learning_evaluation`
+
+Skill-learning evaluation verdict produced by review-plan Phase 5g Step 2 async agents.
+
+1. Read queue entry. If missing or malformed JSON → log warning, mark "error", skip.
+2. Check `verdict`:
+   - **`RECOMMEND_CHANGE`**: Present `concrete_edit` to user with context from `category`,
+     `title`, `evidence`, `action`. User applies or dismisses → mark `status: "completed"`.
+   - **`DEFER`**: Read-modify-write `defer_count` atomically (write to `.tmp` then `mv`):
+     ```python
+     entry["defer_count"] = entry.get("defer_count", 0) + 1
+     IF entry["defer_count"] >= 3:
+         entry["verdict"] = "RECOMMEND_CHANGE"
+         # Escalate: treat as RECOMMEND_CHANGE on next /wiki-process run
+     Write(queue_path + ".tmp", json.dumps(entry))
+     Bash(f"mv '{queue_path}.tmp' '{queue_path}'")
+     ```
+     Keep `status: "pending"` so it is picked up again next run.
+   - **`REJECT`**: Mark `status: "completed"` silently (recommendation already implemented
+     or contradicted by current file state).
+
 ## Step 4 — Status Mode (`--status`)
 
 Display:
@@ -202,7 +264,7 @@ Merge multiple session summaries into a consolidated topic file.
 ```
 Agent(
   subagent_type = "general-purpose",
-  model = "claude-sonnet-4-6",
+  model = "sonnet",
   prompt = """
     Synthesize knowledge about: [topic]
 

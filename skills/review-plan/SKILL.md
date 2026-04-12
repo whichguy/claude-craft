@@ -113,9 +113,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 3. **Set context flags** (Sonnet classification — Haiku was tested but failed on HAS_EXISTING_INFRA discrimination, 2 of 3 wrong in 2026-04-10 spike):
    Task(
      subagent_type = "general-purpose",
-     # No model override: use default (Sonnet). Phase 2 spike of
-     # skills/review-plan/question-effectiveness-report.md recommendations
-     # showed Haiku inverting the HAS_EXISTING_INFRA concept — Sonnet got 3/3 right.
+     model = "sonnet",
+     # Three-tier model system (2026-04-12):
+     #   Opus   — L1-Advisory-Structural, Senior Critics A/B (multi-hop reasoning, holistic judgment)
+     #   Sonnet — classifiers, fast-path evaluators, L1-Blocking, L1-Advisory-Process,
+     #            L2 clusters, gas/node/ui evaluators, consolidator, intent questions
+     #   Haiku  — epilogue presence checks (Q-E1/Q-E2), skill-learnings foreground,
+     #            research query derivation, research background agents
+     # Phase 2 spike: Haiku inverted HAS_EXISTING_INFRA concept (2/3 wrong); Sonnet got 3/3 right.
      prompt = """
        Read the plan at <plan_path>.
 
@@ -282,6 +287,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
+       model = "sonnet",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -319,21 +325,45 @@ You iterate until all layers and sub-skills report zero changes in the same pass
            ✅  Git lifecycle                   Q-E1
            ✅  Existing code examined          Q-G11
          (Replace ✅ with ❌ for any NEEDS_UPDATE — but this branch is all-PASS.)
-       → Proceed to step 8 (interactive completion prompt).
-       # Gate file is written in step 8 only when the user confirms exit — not here.
+       # (all-pass path — teaching block below fires before step 8)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team).
        Re-evaluate the same 5 questions once (same Task format above,
        including substitution of plan_path and questions_path).
        If all 5 now PASS:
-         Output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY). → Proceed to step 8.
-         # Gate file is written in step 8 only when the user confirms exit — not here.
+         Output terminal-native fast-path scorecard (same format as above, Rating 🟢 READY).
+         # (re-eval success path — teaching block below fires before step 8)
        If still NEEDS_UPDATE:
          Print: "⚡ Fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
+
+     # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
+     # Fires on TRIVIAL success paths only (REVIEW_TIER not yet upgraded to FULL).
+     # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
+     IF REVIEW_TIER == TRIVIAL:
+       IF any edits were applied during fast-path re-eval:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
+         FOR each Q-ID that was NEEDS_UPDATE then fixed:
+           Print: "│  [Q-ID] [change title] — [one-line summary] │"
+         Print: "└──────────────────────────────────────────────┘"
+       ELSE:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
+         Print: "│  No edits applied — plan passed all 5 checks │"
+         Print: "└──────────────────────────────────────────────┘"
+
+       # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
+       plan_contents = Read(plan_path)
+       IF len(plan_contents.splitlines()) > 2000:
+         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       ELSE:
+         Print plan_contents
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
+       Print: "  Plan fingerprint: {sha}"
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3a:
      Rating, findings (5 questions), REVIEW_TIER (may have been upgraded to FULL).
@@ -396,6 +426,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
+       model = "sonnet",
        prompt = """
          Read the plan at <plan_path>.
          Read ~/.claude/CLAUDE.md for standards context.
@@ -460,8 +491,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
              [for each risk_questions entry:]
              ✅  [Name]                          [Q-ID]  [domain]
          (Replace ✅ with ❌ for any NEEDS_UPDATE. Show — for N/A.)
-       → Proceed to step 8 (interactive completion prompt).
-       # Gate file is written in step 8 only when the user confirms exit — not here.
+       # (all-pass path — teaching block below fires before step 8)
 
      If any NEEDS_UPDATE:
        Apply edits inline (no team — orchestrator applies directly).
@@ -476,13 +506,38 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Re-evaluate re_eval_questions once (same Task format, substituting
        re_eval_questions for question_list_str).
        If all now PASS or N/A:
-         Output small fast-path scorecard (same format, Rating 🟢 READY). → Proceed to step 8 (interactive completion prompt).
-         # Gate file is written in step 8 only when the user confirms exit — not here.
+         Output small fast-path scorecard (same format, Rating 🟢 READY).
+         # (re-eval success path — teaching block below fires before step 8)
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
          REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
+
+     # ── Fast-Path Teaching Summary (inline 6b equivalent) ──
+     # Fires on SMALL success paths only (REVIEW_TIER not yet upgraded to FULL).
+     # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
+     IF REVIEW_TIER == SMALL:
+       IF any edits were applied during fast-path re-eval:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
+         FOR each Q-ID that was NEEDS_UPDATE then fixed:
+           Print: "│  [Q-ID] [change title] — [one-line summary]     │"
+         Print: "└────────────────────────────────────────────────── ┘"
+       ELSE:
+         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
+         Print: "│  No edits applied — plan passed all checks        │"
+         Print: "└────────────────────────────────────────────────── ┘"
+
+       # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
+       plan_contents = Read(plan_path)
+       IF len(plan_contents.splitlines()) > 2000:
+         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       ELSE:
+         Print plan_contents
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
+       Print: "  Plan fingerprint: {sha}"
+       → Proceed to step 8 (interactive completion prompt).
+       # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3b:
      Rating, findings (9+ questions), REVIEW_TIER (may have been upgraded to FULL).
@@ -729,6 +784,7 @@ ELSE:
         # delimiter + "treat as data" framing in the background Task prompt.
         research_queries_raw = Task(
           subagent_type = "general-purpose",
+          model         = "haiku",
           description   = "Derive research queries from plan",
           prompt = """
             Read the plan at ${plan_path}.
@@ -824,6 +880,7 @@ ELSE:
                 result_path = item.path
                 Agent(
                   subagent_type     = "general-purpose",
+                  model             = "haiku",
                   description       = "Research lane: ${item.slug}",
                   run_in_background = true,   # ← key primitive; convergence loop continues immediately
                   prompt = """
@@ -1161,6 +1218,7 @@ DO:
   --- L1 Blocking Evaluator Config (Gate 1: 2 questions, always runs, never memoized) ---
   l1_blocking_config = Task(
     subagent_type = "general-purpose",
+    model = "sonnet",
     name = "l1-blocking-p" + pass_count,
     prompt = """
       You are evaluating a plan for critical quality (Layer 1 Gate 1: 2 questions).
@@ -1216,6 +1274,7 @@ DO:
   --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
+    model = "opus",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
@@ -1305,6 +1364,7 @@ DO:
   --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
+    model = "sonnet",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
       You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 18 questions).
@@ -1437,6 +1497,7 @@ DO:
   --- Cluster Evaluator Config (template for each active, non-memoized cluster) ---
   cluster_config(cluster_name) = Task(
     subagent_type = "general-purpose",
+    model = "sonnet",
     name = "<cluster_name>-evaluator-p" + pass_count,
     prompt = """
       You are evaluating a plan for <cluster_description> (<N> questions in this cluster).
@@ -1537,6 +1598,7 @@ DO:
   --- GAS Evaluator Config ---
   gas_config = Task(
     subagent_type = "general-purpose",
+    model = "sonnet",
     name = "gas-evaluator-p" + pass_count,
     prompt = """
       You are the gas-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -1567,6 +1629,7 @@ DO:
   --- Node Evaluator Config ---
   node_config = Task(
     subagent_type = "general-purpose",
+    model = "sonnet",
     name = "node-evaluator-p" + pass_count,
     prompt = """
       You are the node-eval running inside a review-plan evaluator task. Follow the instructions in
@@ -1597,6 +1660,7 @@ DO:
   --- UI Evaluator Config (includes merged Client cluster: Q-C17, Q-C25) ---
   ui_config = Task(
     subagent_type = "ui-designer",
+    model = "sonnet",
     name = "ui-evaluator-p" + pass_count,
     prompt = """
       You are the ui-evaluator running inside a review-plan evaluator task. Evaluate the plan for
@@ -2712,6 +2776,7 @@ After the convergence loop exits (scorecard not yet printed):
    ```
    epilogue_e2 = Task(
      subagent_type = "general-purpose",
+     model = "haiku",
      prompt = """
        Read the plan at <plan_path>.
        IS_GAS = <IS_GAS>
@@ -2732,6 +2797,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    epilogue_e1 = Task(
      subagent_type = "general-purpose",
+     model = "haiku",
      prompt = """
        Read the plan at <plan_path>.
        IS_GAS = <IS_GAS>
@@ -3021,8 +3087,6 @@ ELIF NOT _phase_5b5_skip:
 
 5c. **Senior-Engineer Critic Loop** (holistic re-review, post-convergence):
 
-   Fast-path override: REVIEW_TIER ∈ {TRIVIAL, SMALL} → single iteration only (no loop), regardless of verdict.
-
    ```
    sr_iter = 0
    sr_max_iters = 5
@@ -3045,6 +3109,7 @@ ELIF NOT _phase_5b5_skip:
        # (single message, two Task tool calls — parallel dispatch)
 
        Task(subagent_type = "general-purpose",
+            model = "opus",
             description = "SR critic A, iter ${sr_iter}",
             prompt = """
          You are senior-engineer critic A (of two running in parallel;
@@ -3095,6 +3160,7 @@ ELIF NOT _phase_5b5_skip:
        """)
 
        Task(subagent_type = "general-purpose",
+            model = "opus",
             description = "SR critic B, iter ${sr_iter}",
             prompt = """
          You are senior-engineer critic B (parallel critic A; different
@@ -3125,6 +3191,7 @@ ELIF NOT _phase_5b5_skip:
 
        # ── Step 2: spawn consolidator Task ──
        Task(subagent_type = "general-purpose",
+            model = "sonnet",
             description = "SR consolidator, iter ${sr_iter}",
             prompt = """
          Read <critic_a_path> and <critic_b_path>.
@@ -3191,10 +3258,6 @@ ELIF NOT _phase_5b5_skip:
        Bash "rmdir ${iter_dir} 2>/dev/null || true"
 
        IF sr_converged:
-           BREAK
-
-       # Fast-path override: single iteration only
-       IF REVIEW_TIER in {TRIVIAL, SMALL}:
            BREAK
 
    # ── Step 5: final cleanup after loop exits ──
@@ -3277,27 +3340,13 @@ ELIF NOT _phase_5b5_skip:
    └──────────────────────────────────────────────────────────────────┘
    ```
 
-   **Fast-path (TRIVIAL/SMALL) — compressed single-panel variant:**
-   ```
-   ╔══════════════════════════════════════════════════════╗
-   ║  review-plan Scorecard — [TRIVIAL|SMALL] Fast Path   ║
-   ║  Rating: [emoji] [Rating]                            ║
-   ║  [N]/[total] clear [+ M N/A]                         ║
-   ╚══════════════════════════════════════════════════════╝
-
-   [One-paragraph "what changed" covering applied edits, if any:]
-   [list of Q-ID fixes or "No changes applied — plan passed all checks."]
-
-   [Gate Status row:]
-   Gate 1 (Blocking):   [Q-G1 ✅] [Q-G11 ✅] [Q-C3 ✅/—]
-   Gate 2 (Important):  [per small_questions list]
-   Risk-Activated:      [if any]
-   ```
-
 5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
 
    Extract plan-specific questions that verify the code actually implements what the plan claims.
    These become the POST_IMPLEMENT verification contract for `/review --commit`.
+
+   **Parallel dispatch note:** 5c.5 (`intent_task`) and 5g Step 1 (`skill_task`) are dispatched in
+   a single message — no dependency between them. See pre-dispatch block at end of code block below.
 
    **Guards (match Teaching Notes 5e guards for file-append path):**
    - **Tier:** FULL tier only — TRIVIAL/SMALL skip this step (fast-path speed preserved)
@@ -3328,6 +3377,7 @@ ELIF NOT _phase_5b5_skip:
    # before landing this — validates subagent produces parseable, non-generic questions.
    Task(
      subagent_type = "general-purpose",
+     model = "sonnet",
      description = "Extract implementation intent questions",
      prompt = """
        Read the plan at <plan_path> in full.
@@ -3435,6 +3485,26 @@ ELIF NOT _phase_5b5_skip:
    No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
    so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
 
+   **Parallel dispatch block (5c.5 + 5g Step 1 — single message):**
+   After processing `intent_task` output above, also compute `spawn_skill_task` for 5g Step 1
+   and dispatch `skill_task` in the SAME message as `intent_task`. No dependency between them.
+   ```python
+   # Pre-dispatch: build 5g Step 1 context (computed once, before spawning both tasks).
+   findings_summary = "".join(
+       f"  {q}: {r.finding}\n    Edit applied: {r.edit}\n"
+       for q, r in findings.items() if r.status == "NEEDS_UPDATE"
+   )
+   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
+   spawn_skill_task = (
+       REVIEW_TIER == "FULL"
+       AND frontmatter.get("skill_audit") != false
+       AND (total_needs_update > 0 OR len(sr_applied_edits) > 0)
+   )
+   # Single message: intent_task (5c.5, above) + skill_task (5g Step 1, below) dispatched together.
+   # Process intent_task output first (write to plan), then process skill_task output (render panel),
+   # then dispatch 5g Step 2 background agents.
+   ```
+
 5e. **Teaching Notes append** (persist learning to plan file):
 
    **Sources of edits for Teaching Notes:**
@@ -3523,6 +3593,40 @@ ELIF NOT _phase_5b5_skip:
    - ...
    ```
 
+   **Phase 3a — TaskCreate persistence (session-scoped tracking):**
+   After writing each `<!-- rap-key: ... -->` bullet to the plan file, also create a session task:
+   ```python
+   # After each retrospective action bullet is written:
+   TaskCreate(
+     description = "[action-type]: [action title] — [trigger one-liner]",
+     status = "pending"
+   )
+   # Session-scoped only — visible via task list during the current session.
+   # Does not persist across sessions.
+   ```
+
+   **Phase 3b — wiki-gap queue entries (persistent, picked up by /wiki-process):**
+   For each `wiki-gap` action type in the Retrospective Action Plan:
+   ```python
+   Bash("mkdir -p ~/.claude/reflection-queue/")
+   action_slug = slugify(f"{action_title}")  # lowercase, hyphens, no spaces
+   queue_path = f"$HOME/.claude/reflection-queue/wiki-gap-{action_slug}.json"
+   tmp_path   = queue_path + ".tmp"
+   IF NOT Bash(f"test -f '{queue_path}'").exit_ok:  # idempotency check
+       Write(tmp_path, json.dumps({
+           "schema_version": 1,
+           "type": "wiki_gap",
+           "status": "pending",
+           "created_at": Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip(),
+           "source": "review-plan-phase-5e",
+           "q_id": "<Q-ID that triggered the gap>",
+           "trigger": "<what was missing from citation resolution>",
+           "action": "<suggested wiki page content or entity to create>"
+       }))
+       Bash(f"mv '{tmp_path}' '{queue_path}'")
+   # Picked up by /wiki-process wiki_gap handler (Step 3 of wiki-process SKILL.md).
+   ```
+
    **`### Key Learnings` fire criteria:**
    - Gate 1 or Gate 2 finding the convergence loop fixed via `[EDIT: …]`
    - Senior-critic REVISED iteration whose rationale names a generalizable pattern
@@ -3587,39 +3691,33 @@ ELIF NOT _phase_5b5_skip:
 
 5g. **Skill-Learnings Review** (senior-engineer meta-read, Directive 2026-04-11):
 
-   Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup). Spawns a single senior-engineer
-   Task() agent to perform a holistic, judgment-based read of what this review run reveals about
-   review-plan's own gaps or blindspots — distinct from Phase 5 Meta-Reflection (inline signal-table,
-   quantitative) and Phase 5f (user-facing teaching about plan changes). Phase 5g asks: *"what should
-   the skill itself learn from this run?"*
+   **Step 1 is dispatched in parallel with Phase 5c.5 above** (single message). This section
+   covers Step 1 task definition (reference only — already dispatched) and Step 2 (async
+   background evaluators dispatched after Step 1 result arrives).
+
+   Phase 5g asks: *"what should the skill itself learn from this run?"* — distinct from Phase 5
+   Meta-Reflection (quantitative signal-table) and Phase 5f (user-facing teaching).
 
    ```
-   # ── Phase 5g: Skill-Learnings Review (senior-engineer meta-read) ──
-   # Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup).
+   # ── Phase 5g Step 1: Skill-Learnings foreground Task ──
+   # Dispatched ALONGSIDE Phase 5c.5 in a single message (see 5c.5 dispatch block above).
+   # skill_task is stored; result processed after BOTH intent_task and skill_task complete.
    # FULL tier only — TRIVIAL/SMALL have insufficient question coverage for meta-insights.
    # Opt-out: plan frontmatter `skill_audit: false`.
 
    IF REVIEW_TIER != "FULL":
-       SKIP
+       SKIP  # insufficient coverage for meta-insights on fast-path tiers
 
    IF frontmatter.get("skill_audit") == false:
-       SKIP
+       SKIP  # explicit opt-out
 
-   # Skip all-clean first-pass runs — nothing to surface as meta-learning.
-   total_needs_update = len([q for q in findings if findings[q].status == "NEEDS_UPDATE"])
-   IF total_needs_update == 0 AND len(sr_applied_edits) == 0:
-       SKIP
+   # spawn_skill_task flag (computed in 5c.5 dispatch block) aggregates the above guards
+   # plus the all-clean check. Checked again here for clarity.
+   # IF spawn_skill_task == false: skill_learnings = []; skip task dispatch
 
-   # Summarize findings for senior-engineer context.
-   findings_summary = ""
-   for q_id, result in findings.items():
-       if result.status == "NEEDS_UPDATE":
-           findings_summary += f"  {q_id}: {result.finding}\n    Edit applied: {result.edit}\n"
-
-   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
-
-   Task(
+   skill_task = Task(
      subagent_type = "general-purpose",
+     model         = "haiku",
      description   = "Phase 5g: skill-learnings senior-engineer meta-read",
      prompt        = """
        You are a senior engineer who designs and maintains AI code-review skill prompts.
@@ -3694,6 +3792,59 @@ ELIF NOT _phase_5b5_skip:
        # Malformed — do not silently drop.
        Print: "⚠ Phase 5g: skill-learnings agent returned malformed output — raw output:"
        Print: <task output>
+
+   # ── Phase 5g Step 2: Async Skill-Learning Evaluators ──
+   # Dispatch one background agent per skill_learning recommendation (after Step 1 result parsed).
+   # Agents verify each recommendation against the target file before writing to reflection-queue.
+
+   skill_learnings_target_map = {
+       "QUESTIONS.md": questions_path,
+       "SKILL.md":     skill_path,
+       "DIRECTIVE":    "~/.claude/CLAUDE.md"
+   }
+
+   FOR rec in skill_learnings:
+       target_file = skill_learnings_target_map.get(rec.category)
+       IF target_file is None:
+           CONTINUE  # unknown category — skip
+       rec_slug   = slugify(f"skill-learning-{rec.category}-{rec.title}")
+       queue_path = f"$HOME/.claude/reflection-queue/{rec_slug}.json"
+       IF Bash(f"test -f '{queue_path}'").exit_ok:
+           CONTINUE  # idempotent — already queued
+
+       source_hash = Bash(f"shasum -a 256 '{target_file}' | cut -c1-12").stdout.strip()
+
+       Agent(
+           subagent_type     = "general-purpose",
+           model             = "haiku",
+           description       = f"Skill-learning evaluator: {rec.title}",
+           run_in_background = true,
+           prompt            = f"""
+             Read {target_file}.
+             Compute: actual_hash = shasum -a 256 {target_file} | cut -c1-12
+             If actual_hash != {source_hash}:
+               Write JSON atomically (tmp + mv) to {queue_path}:
+                 {{"schema_version":1,"type":"skill_learning_evaluation","status":"pending",
+                   "verdict":"DEFER","source_hash":"{source_hash}",
+                   "defer_reason":"target_file_changed"}}
+               Stop.
+
+             Otherwise evaluate the recommendation against current file content:
+               RECOMMEND_CHANGE: recommended edit is missing or contradicted in file
+               DEFER:            plausible but file partially addresses it already
+               REJECT:           already implemented or contradicted
+
+             Write atomically (tmp + mv) to {queue_path}:
+               {{"schema_version":1,"type":"skill_learning_evaluation","status":"pending",
+                 "verdict":"<verdict>","source_hash":"{source_hash}",
+                 "category":"{rec.category}","title":"{rec.title}",
+                 "evidence":"{rec.evidence}","action":"{rec.action}","priority":"{rec.priority}",
+                 "concrete_edit":"<edit if RECOMMEND_CHANGE, else null>",
+                 "defer_criteria":"<reasoning if DEFER, else null>"}}
+
+             Use Read and Write tools only. No Edit/Bash except the shasum check.
+           """
+       )
    ```
 
    **Interaction with Phase 5 Meta-Reflection.** Phase 5 (inline signal-table) catches quantitative
