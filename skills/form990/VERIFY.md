@@ -1,7 +1,11 @@
 # Form 990 Skill — Verification Plan
 
-Human-readable spec for all 15 test cases. Each maps 1:1 to a test function in `tests/verify.py`.
+Human-readable spec for all 15 automated test cases (TC8–TC15) plus 7 manual tests (TC1–TC7).
+Each maps 1:1 to a test function in `tests/verify.py`.
 Run with `/form990 verify` or directly via `python3 tests/verify.py`.
+
+**Note on test count:** The harness header says "TC1–TC15 (7 original + 8 hardening)". TC16–TC28
+are planned but not yet implemented in `verify.py`. This document covers the 15 current cases.
 
 ---
 
@@ -356,8 +360,8 @@ python3 skills/form990/tests/verify.py --case TC8
 
 **Output:**
 ```
-TC1 ✔ | TC2 ✔ | TC3 ✔ | TC4 ✔ | TC5 - | TC6 - | TC7 - | TC8 ✔ | ...
-{"passed": 8, "failed": [], "skipped": ["TC5","TC6","TC7"], "duration_s": 12.3}
+TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔
+{"passed": 8, "failed": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 2.0}
 ```
 
-(TC5, TC6, TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)
+(TC1–TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)
