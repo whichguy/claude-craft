@@ -69,6 +69,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Print: "  Pass a file path as argument, or run from a directory with ~/.claude/plans/*.md"
      STOP — do not proceed
    - Read the plan file fully
+   - `plan_sha_at_read` = `Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()`
    - **Escape hatch:** To bypass review-plan and exit plan mode directly, the user can run:
      `Bash "touch /tmp/.review-ready-$(basename $(ls -t ~/.claude/plans/*.md | head -1) .md)"`
      — this creates the gate file for the most-recently-modified plan in `~/.claude/plans/`.
@@ -285,6 +286,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      Print: "╚══════════════════════════════════════════════╝"
      Print: "  Scope       1 file ([ext]), additive only"
      Print: "  Questions   5"
+     # Stale-plan guard — re-read if file changed since initial capture
+     _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+     IF _current_sha != plan_sha_at_read:
+       Print: "  ⚠ plan file changed since initial read — re-reading before evaluator spawn"
+       Re-read plan_path fully
+       plan_sha_at_read = _current_sha
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
@@ -425,6 +432,12 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Build question list string for evaluator prompt
      question_list_str = "\n".join(f"  {qid}" for qid in small_questions)
 
+     # Stale-plan guard — re-read if file changed since initial capture
+     _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+     IF _current_sha != plan_sha_at_read:
+       Print: "  ⚠ plan file changed since initial read — re-reading before evaluator spawn"
+       Re-read plan_path fully
+       plan_sha_at_read = _current_sha
      [Substitute plan_path and questions_path (resolved in step 2) before spawning]
      Run single Task(
        subagent_type = "general-purpose",
@@ -844,6 +857,13 @@ ELSE:
             # Step 2: dispatch background research Tasks (one per query, max 3).
             research_dir = "${RESULTS_DIR}/research"
             Bash("mkdir -p ${research_dir}")
+
+            # Stale-plan guard — re-read if file changed since initial capture
+            _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+            IF _current_sha != plan_sha_at_read:
+              Print: "  ⚠ plan file changed since initial read — re-reading before evaluator spawn"
+              Re-read plan_path fully
+              plan_sha_at_read = _current_sha
 
             # Capture dispatch_epoch and plan_sha_at_dispatch in a SINGLE Bash call
             # to eliminate the hook-race window between separate date and shasum calls.
