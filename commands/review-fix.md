@@ -40,6 +40,16 @@ git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'review-fix'
 ```
 Use the result as the `task_name` parameter when spawning the review-fix agent.
 
+**Step 0b — auto-detect `plan_summary`** (C1: intent anchor for POST_IMPLEMENT):
+
+If `plan_summary` is not already present in `$ARGUMENTS`:
+```bash
+find ~/.claude/plans -maxdepth 1 -name '*.md' -mmin -1440 2>/dev/null | xargs ls -t 2>/dev/null | head -1
+```
+If a plan file path is returned: read its contents via the Read tool and pass as `plan_summary` when spawning the review-fix agent. Print: `"  → plan_summary: auto-detected [filename]"`
+
+If no plan file found within 24h, or `plan_summary` already provided in `$ARGUMENTS`: proceed without it (no warning).
+
 Parse `$ARGUMENTS` into **flags** and **file paths**:
 - Flags: `--all` (all files including untracked), `--tracked` (git-tracked only), any token starting with `--`
 - File paths: everything else (space- or comma-separated, relative to repo root)
@@ -79,6 +89,24 @@ Detect recently modified files:
    If >15 files detected, also print: `"  ⚠ Large file set ([N] files) — consider passing explicit targets for focused review."` Then proceed with all detected files.
 
 3. **If no reviewable files remain** (either nothing was detected, or all detected files were `.json`/`.lock` and filtered out) — print `"  → No reviewable files detected — exiting."` and **stop**. Do not spawn the agent.
+
+**Step 0c — self-review detection** (C4: recursion guard):
+
+After resolving target files via Path A, B, or C above, check if any resolved file lives under `agents/` or `skills/`:
+```bash
+echo "$resolved_files" | tr ',' '\n' | grep -E '^(agents/|skills/)'
+```
+If matches found, grep each matching file for reviewer pseudocode markers:
+```bash
+grep -l 'LOOP_DIRECTIVE\|reviewer_prompt\|APPLY_AND_RECHECK\|recheck_model' <matched_files>
+```
+If any matched file contains these patterns, print once before dispatching:
+```
+⚠  Self-review detected — [filename] defines reviewer behavior.
+   Recursive review may revert intentional design decisions.
+   Ensure plan_summary is set to anchor intent (auto-detected or pass explicitly).
+```
+Continue normally — do not abort.
 
 ## Edge Cases
 

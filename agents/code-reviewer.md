@@ -70,6 +70,16 @@ Before moving to Phase 3, verify:
 
 Produce no output yet. This phase is understanding only.
 
+## Annotation Override (apply before any Phase 3 finding)
+
+Before flagging **any** finding about absent code, missing parameters, removed branches, or deleted functionality — scan within ±5 lines of the apparent gap in the **current file** for these markers (markers must exist in the surviving code; a marker on the deleted code itself is no longer visible and does not apply):
+
+- `INTENTIONAL:` — explicitly stated design decision
+- `INTENT_LOCK:` — locked behavior, must not be restored
+- `DO NOT RESTORE` — previously removed on purpose
+
+If any marker is found, **do not flag the finding**. Set severity to None and note: `"Annotation override: [marker text]"`. This applies to all Q-IDs but especially Q1, Q4, Q34, and any question that would propose re-adding removed code or a "missing" element.
+
 ## Phase 3: Quality Questions (Tiered)
 
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
