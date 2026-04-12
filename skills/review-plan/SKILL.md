@@ -1336,13 +1336,46 @@ DO:
         (3) if source does not exist or contradicts the claim → NEEDS_UPDATE.
         Before writing PASS, confirm you traced the reference to its source — not just
         scanned for keyword presence.
-      - For Q-G23 (Proportionality): Compare plan step count and detail level to the scope of
-        the change. Cite the specific mismatch (e.g., "Phase 3 has 12 sub-steps for a one-line
-        config change"). If step density is proportionate to complexity → PASS.
-      - For Q-G24 (Core-vs-derivative): Identify the most foundational new function or schema
-        introduced by the plan. Verify it is fully specified before steps that depend on it
-        (wiring, callers, tests). If wiring or derivative steps precede the core logic
-        specification → NEEDS_UPDATE.
+      - For Q-G23 (Proportionality): Is the plan's structure proportionate to the problem's scope?
+        First, count the distinct user-visible or domain-level concerns in the problem statement
+        (e.g., "add JWT auth", "redesign login UI", "add rate limiting" = 3 concerns).
+        PASS: each phase maps to a distinct domain concern, and step density within phases matches
+        that concern's complexity.
+        NEEDS_UPDATE if any of these patterns are present — cite the specific mismatch:
+        (1) Single-concern decomposed into multiple phases: implementation sub-steps of ONE feature
+            split across separate phases each with its own commit (e.g., 5 phases for a single
+            endpoint: utility + controller + route + tests + docs; collapse to 1–2 phases).
+        (2) Bug fix or single-file config change with 3+ phases and architectural restructuring.
+        (3) Single-use abstraction introduced with no reuse case stated.
+        (4) Unnecessary parallelism: spawning parallel agents or teams for work a single
+            sequential agent or inline steps would handle in ≤2 steps.
+        (5) Phase-per-file: files are not phases (e.g., "Phase 1: edit routes.ts", "Phase 2:
+            edit controller.ts" for the same feature concern).
+        Example — PASS: "7 phases for 5 distinct concerns (JWT strategy, auth endpoints, login UI,
+          rate limiting, API keys) — each phase is a separate domain concern."
+        Example — NEEDS_UPDATE: "5 phases (utility, controller, route, tests, docs) for a single
+          CSV export endpoint — all sub-steps of one concern; collapse to 1–2 phases. [EDIT:
+          consolidate Phases 1–3 into single 'Implementation' phase]"
+        N/A: IS_TRIVIAL; plan is already single-phase; or scope is explicitly a new system, multi-
+        service integration, or architectural migration (cite the scope justification).
+      - For Q-G24 (Core-vs-derivative ordering): Are foundational constructs specified before steps
+        that depend on them?
+        Note: QUESTIONS.md lists "plan defines no question batteries or evaluation criteria" as N/A.
+        That N/A condition applies ONLY to documentation/config-only plans that introduce NO new code.
+        For any plan that introduces new functions, schemas, interfaces, or classes, this question IS
+        applicable regardless of whether it has "criteria batteries."
+        Decision tree:
+        Step 1: Does the plan introduce a foundational new construct — a schema, interface, function
+        signature, or class that other steps (callers, wiring, tests) depend on? If NO → N/A.
+        Step 2: Is that construct fully specified (interface, signature, schema columns, or contract
+        stated) BEFORE the steps that wire to it, call it, or test it?
+        PASS: core specification appears before wiring/derivative steps.
+        NEEDS_UPDATE: wiring, callers, or tests appear in earlier phases than the step defining the
+        construct's specification. Cite the specific ordering inversion.
+        Example — NEEDS_UPDATE: "Phase 2 adds callers that import AuthService, but AuthService
+          interface is defined in Phase 4. [EDIT: move AuthService interface spec to Phase 1]"
+        Example — PASS: "UserSchema defined in Phase 1 Step 1; all callers in Phase 3 post-date it."
+        Example — N/A: "Plan updates .env.example and README only — no new code constructs."
       - For Q-G25 (Feedback loop): Identify who or what downstream consumes this change's outputs
         (callers, automated tests, named acceptance criteria, or stakeholder verification steps).
         NEEDS_UPDATE: No feedback mechanism of any kind is present — no test step, no acceptance
