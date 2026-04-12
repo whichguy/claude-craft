@@ -805,7 +805,7 @@ describe('Review-Plan Task Fan-Out', function () {
             // Use the section heading to find the right block (not the early prose mention)
             const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
             expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
-            const phase5b5Block = skillContent.substring(idx, idx + 5000);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
             expect(phase5b5Block).to.include('GRACE_SECONDS');
             expect(phase5b5Block).to.include('date +%s');
             expect(phase5b5Block).to.include('Degraded');
@@ -816,7 +816,7 @@ describe('Review-Plan Task Fan-Out', function () {
             // Use the section heading to find the right block (not the early prose mention)
             const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
             expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
-            const phase5b5Block = skillContent.substring(idx, idx + 5000);
+            const phase5b5Block = skillContent.substring(idx, idx + 10000);
             // Both the empty-research-done branch and the early-skip path must set the block to ""
             const emptyStringMatches = (phase5b5Block.match(/research_findings_block\s*=\s*""/g) || []).length;
             expect(emptyStringMatches, 'research_findings_block must be set to "" in at least 2 code paths').to.be.greaterThanOrEqual(2);

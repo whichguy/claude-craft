@@ -2875,15 +2875,32 @@ ELIF NOT _phase_5b5_skip:
     Print: "║  ◆ RESEARCH LANE                  joining   ║"
     Print: "╚══════════════════════════════════════════════╝"
 
-    # Grace period: convergence loop typically takes 60-180s; research Tasks
-    # usually complete in 30-60s. Grace period covers the tail.
+    # Adaptive grace period: the effective research budget is measured from dispatch
+    # time, not from Phase 5b.5 start. A fast-converging FULL plan (pass-1, ~15s)
+    # previously got only 30+15s = 45s total wall clock; under the adaptive formula
+    # it gets min(90, 90-15) = 75s — enough for WebSearch ≤3 + WebFetch ≤5.
+    # Slow-converging plans (180s+) collapse to MIN_GRACE_SECONDS = 30 (today's behavior).
     #
-    # Time primitive: now() is not a Claude Code primitive. Measure wall clock
-    # via Bash("date +%s"). Effective grace ceiling is GRACE_SECONDS +
-    # POLL_INTERVAL + driver_latency (typically a few seconds).
-    GRACE_SECONDS = 30
-    POLL_INTERVAL = 2   # 2s polling for finer granularity
-    deadline_epoch = int(Bash("date +%s").stdout.strip()) + GRACE_SECONDS
+    # Time primitive: now() is not a Claude Code primitive — measure via Bash("date +%s").
+    TARGET_TOTAL_SECONDS = 90   # abort-criterion A2 ceiling, now measured from dispatch
+    MIN_GRACE_SECONDS    = 30   # floor; preserves today's behavior for slow-converge plans
+    POLL_INTERVAL        = 2    # 2s polling for finer granularity
+
+    dispatch_epoch = memo.get("dispatch_epoch") if memo_file exists else None
+    IF dispatch_epoch is None:
+        # Legacy memo (pre-upgrade) or skipped-dispatch path — safe fallback.
+        grace = MIN_GRACE_SECONDS
+        Print: "  Research     legacy memo (no dispatch_epoch) — grace=${grace}s (floor)"
+    ELSE:
+        elapsed_since_dispatch = int(Bash("date +%s").stdout.strip()) - dispatch_epoch
+        remaining_budget       = max(0, TARGET_TOTAL_SECONDS - elapsed_since_dispatch)
+        grace                  = max(MIN_GRACE_SECONDS, remaining_budget)
+        grace                  = min(grace, TARGET_TOTAL_SECONDS)   # hard cap against clock skew
+        Print: "  Research     grace window ${grace}s (dispatch +${elapsed_since_dispatch}s, target ${TARGET_TOTAL_SECONDS}s)"
+        IF grace == MIN_GRACE_SECONDS AND remaining_budget == 0:
+            Print: "  Research     adaptive grace floored — slow-converge consumed full budget"
+
+    deadline_epoch = int(Bash("date +%s").stdout.strip()) + grace
     research_done    = []
     research_missing = []
 
@@ -2921,7 +2938,7 @@ ELIF NOT _phase_5b5_skip:
 
     Print: "  Completed    ${len(research_done)}/${len(research_done) + len(research_missing)}"
     IF len(research_missing) > 0:
-        Print: "  Degraded     ${len(research_missing)} research task(s) did not finish within ${GRACE_SECONDS}s"
+        Print: "  Degraded     ${len(research_missing)} research task(s) did not finish within ${grace}s"
         Print: "               (research lane is best-effort; senior critics will run without it)"
 
     # Build research findings block to inject into Critic A and Critic B prompts.
