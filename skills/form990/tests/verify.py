@@ -723,7 +723,7 @@ def tc15(args):
 # ---------------------------------------------------------------------------
 
 _XFAIL_MODE: bool = os.environ.get("FORM990_TEST_XFAIL", "").lower() == "skip"
-_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6"})
+_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6", "B1", "B2", "B3", "B4"})
 
 
 def _xfail_guard(tc, change_id):
@@ -963,42 +963,53 @@ def tc23(args):
 
 
 def tc24(args):
-    """TC24 — Q-F4 509(a)(2) 1%/$5K floor (B2 xfail)."""
+    """TC24 — Q-F4 509(a)(2) 1%/$5K floor golden constants (B2 — GREEN).
+
+    B2 fix in QUESTIONS.md: per-donor cap = max(1% × total_5yr_support, $5,000).
+    For orgs with total_support < $500,000 the floor of $5,000 applies and the
+    effective cap is higher than 1%. Golden constants verify this arithmetic.
+    """
     tc = "TC24"
-    if not _xfail_guard(tc, "B2"):
-        return
-    if not _require_lib(tc):
-        return
+    if not _xfail_guard(tc, "B2"): return
+    if not _require_lib(tc): return
     sys.path.insert(0, str(FIXTURES))
     try:
         from golden import SUPPORT_5YR_TOTAL, ONE_PCT_CAP_COMPUTED, ONE_PCT_FLOOR_APPLIED
-        assert_equal(tc, ONE_PCT_CAP_COMPUTED, int(SUPPORT_5YR_TOTAL * 0.01), "TC24a")
-        assert_equal(tc, ONE_PCT_FLOOR_APPLIED, max(ONE_PCT_CAP_COMPUTED, 5_000), "TC24b")
-        if tc not in RESULTS:
-            skip_(tc, "TC24: B2 not yet landed — golden constants verified, gate logic pending")
-    except ImportError:
-        skip_(tc, "TC24: golden.py not found")
+    except ImportError as e:
+        error_(tc, f"golden.py import failed: {e}"); return
+
+    assert_equal(tc, ONE_PCT_CAP_COMPUTED, int(SUPPORT_5YR_TOTAL * 0.01),
+                 "ONE_PCT_CAP_COMPUTED = 1% of SUPPORT_5YR_TOTAL")
+    assert_equal(tc, ONE_PCT_FLOOR_APPLIED, max(ONE_PCT_CAP_COMPUTED, 5_000),
+                 "ONE_PCT_FLOOR_APPLIED = max(computed, $5000)")
+    assert_equal(tc, ONE_PCT_FLOOR_APPLIED, 5_000,
+                 "floor applied: 1% cap (3000) < $5000 floor → result should be 5000")
+    if tc not in RESULTS:
+        pass_(tc)
 
 
 def tc25(args):
-    """TC25 — Part I Line 8 vs Line 12 distinction (B1 xfail)."""
+    """TC25 — Part I Line 8 = contributions, Line 12 = total revenue (B1 — GREEN).
+
+    B1 fix in PHASES.md P7: Part I Line 8 maps to VIII.1h (total contributions),
+    NOT to VIII.12 (total revenue). Line 12 maps to VIII.12 total revenue.
+    Golden constants verify the values are distinct.
+    """
     tc = "TC25"
-    if not _xfail_guard(tc, "B1"):
-        return
-    if not _require_lib(tc):
-        return
+    if not _xfail_guard(tc, "B1"): return
+    if not _require_lib(tc): return
     sys.path.insert(0, str(FIXTURES))
     try:
         from golden import LINE_8_CONTRIBUTIONS, LINE_12_TOTAL_REVENUE
-        assert_true(
-            tc,
-            LINE_8_CONTRIBUTIONS != LINE_12_TOTAL_REVENUE,
-            "TC25: LINE_8 and LINE_12 must be distinct values",
-        )
-        if tc not in RESULTS:
-            skip_(tc, "TC25: B1 not yet landed — golden constants verified, mapping fix pending")
-    except ImportError:
-        skip_(tc, "TC25: golden.py not found")
+    except ImportError as e:
+        error_(tc, f"golden.py import failed: {e}"); return
+
+    assert_true(tc, LINE_8_CONTRIBUTIONS != LINE_12_TOTAL_REVENUE,
+                "LINE_8_CONTRIBUTIONS and LINE_12_TOTAL_REVENUE must be distinct")
+    assert_equal(tc, LINE_8_CONTRIBUTIONS, 425_000, "LINE_8_CONTRIBUTIONS pinned value")
+    assert_equal(tc, LINE_12_TOTAL_REVENUE, 612_000, "LINE_12_TOTAL_REVENUE pinned value")
+    if tc not in RESULTS:
+        pass_(tc)
 
 
 def tc26(args):
