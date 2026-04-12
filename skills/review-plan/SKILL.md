@@ -2941,10 +2941,27 @@ ELIF NOT _phase_5b5_skip:
         Print: "  Degraded     ${len(research_missing)} research task(s) did not finish within ${grace}s"
         Print: "               (research lane is best-effort; senior critics will run without it)"
 
+    # Plan-staleness guard: compare hash at dispatch vs hash at join.
+    # Ordering invariant: (1) compute hash, (2) build findings block,
+    # (3) memo.research_pending was already cleared above — do NOT re-clear.
+    # NOTE: dispatch_epoch and plan_sha_at_dispatch are NOT cleared here;
+    #       they are immutable provenance retained until Phase 7 sweeps memo_file.
+    plan_hash_at_dispatch = memo.get("plan_sha_at_dispatch") if memo_file exists else None
+    plan_hash_at_join     = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+
+    IF plan_hash_at_dispatch is None:
+        # Legacy memo (pre-upgrade) — no baseline to compare against.
+        research_findings_block_header = "## External Research (background lane)"
+    ELIF plan_hash_at_dispatch != plan_hash_at_join:
+        research_findings_block_header = "## External Research (background lane — plan edited between dispatch and join; citations may reference superseded text)"
+        Print: "  Research     staleness: plan edited during lane (Phase 4 [EDIT:] and/or Phase 5 Q-E1/Q-E2/Q-G9 injection)"
+    ELSE:
+        research_findings_block_header = "## External Research (background lane)"
+
     # Build research findings block to inject into Critic A and Critic B prompts.
     # Empty string when no research completed — critics use their existing grounding.
     IF len(research_done) > 0:
-        research_findings_block = "## External Research (background lane)\n\n"
+        research_findings_block = research_findings_block_header + "\n\n"
         FOR item in research_done:
             contents = Read(item.path)
             research_findings_block += f"### {item.slug}\n{contents}\n\n"
