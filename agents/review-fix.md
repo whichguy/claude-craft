@@ -52,11 +52,14 @@ find /tmp -maxdepth 1 -name 'review-fix.*' -mmin +60 -exec rm -rf {} + 2>/dev/nu
 If --all:
   file_list = git ls-files --cached --others --exclude-standard (tracked + untracked, respects .gitignore)
   If .claspignore exists: filter through its patterns
-If --tracked:
+  explicit_target_files = false
+Else if --tracked:
   file_list = git ls-files (respect .gitignore)
   If .claspignore exists: filter through its patterns
+  explicit_target_files = false
 Else if target_files provided:
   file_list = expand globs, validate paths exist
+  explicit_target_files = true
 Else (auto-detect):
   uncommitted = git diff --name-only HEAD
   staged = git diff --cached --name-only
@@ -69,6 +72,7 @@ Else (auto-detect):
     file_list = git diff --name-only HEAD~1..HEAD
     rationale = "last-commit"
     If empty: error "No changes to review"
+  explicit_target_files = false
 
 # Apply reviewignore filter ONLY for auto-detected, --all, and --tracked paths.
 # Skip when target_files were explicitly provided (user chose those files deliberately).
@@ -177,6 +181,7 @@ For each tool in `ready` (run silently, no prompts):
     ── [label] ──────────────────────────────────────────
     [raw output, max 60 lines; "… [N] more lines" if longer]
     Exit [code] — [N issue(s) | clean]
+  If tool.fix_cmd AND exit_code != 0: prompt auto-fix (same as needs_dl branch)
 ```
 
 For each tool in `needs_dl` (prompt before installing):
@@ -452,6 +457,16 @@ When fix loop exits (all COMPLETE or max rounds), print convergence:
 ```
 
 ## Step 5: Git Operations
+
+Derive final_status from fix loop results:
+```
+If ALL files have loop_directive == "COMPLETE" AND no Critical findings remain:
+  final_status = "APPROVED"
+Else if max_rounds exhausted AND no Critical findings remain (only Advisory):
+  final_status = "APPROVED_WITH_NOTES"
+Else (any Critical findings remain, or max_rounds exhausted with Critical findings):
+  final_status = "NEEDS_REVISION"
+```
 
 **Conditions**: files_changed non-empty AND final_status is APPROVED or APPROVED_WITH_NOTES.
 Skip entirely if NEEDS_REVISION or no changes or commit_mode == "none".
