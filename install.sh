@@ -167,18 +167,22 @@ main() {
     echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
     install_settings_hooks
 
-    # Bootstrap default model-map.json if not present
-    # NOTE: Claude Code natively resolves shorthand names (sonnet, opus, haiku)
-    # and public model IDs. Only add mappings here for custom routing needs
-    # (e.g., "inherit" to strip model field, or non-standard model IDs).
+    # Bootstrap default model-map.json if not present.
+    # Source of truth: config/model-map.json in the repo (Ollama providers + routes).
+    # Existing user configs are never overwritten.
     local model_map="$CLAUDE_DIR/model-map.json"
+    local default_map="$REPO_DIR/config/model-map.json"
     if [ ! -f "$model_map" ]; then
-        cat > "$model_map" <<'MODELMAP'
-{
-  "model_mappings": {}
-}
-MODELMAP
-        echo -e "${GREEN}✅ Created default model-map.json${NC}"
+        if [ -f "$default_map" ]; then
+            cp "$default_map" "$model_map"
+            chmod 600 "$model_map"
+            echo -e "${GREEN}✅ Created default model-map.json (from config/model-map.json)${NC}"
+        else
+            # Fallback: minimal config if the default file is missing
+            printf '{\n  "session_rules": {},\n  "model_mappings": {}\n}\n' > "$model_map"
+            chmod 600 "$model_map"
+            echo -e "${GREEN}✅ Created minimal model-map.json${NC}"
+        fi
     else
         echo -e "${GREEN}✅ model-map.json already exists — skipping${NC}"
     fi
