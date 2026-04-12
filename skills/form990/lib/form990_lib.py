@@ -52,12 +52,12 @@ ERROR_CLASSES: frozenset[str] = frozenset({
 
 def now_iso() -> str:
     """Return current UTC timestamp as ISO 8601 string."""
-    return datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def now_iso_date() -> str:
     """Return current UTC date as YYYY-MM-DD."""
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d")
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -557,8 +557,8 @@ def is_plan_lock_stale(plan_lock: dict | None) -> bool:
     age_exceeded = False
     if acquired_at_str:
         try:
-            acquired_dt = datetime.datetime.strptime(acquired_at_str, "%Y-%m-%dT%H:%M:%SZ")
-            age_s = (datetime.datetime.utcnow() - acquired_dt).total_seconds()
+            acquired_dt = datetime.datetime.strptime(acquired_at_str, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+            age_s = (datetime.datetime.now(datetime.timezone.utc) - acquired_dt).total_seconds()
             age_exceeded = age_s > _PLAN_LOCK_STALE_HOURS * 3600
         except (ValueError, TypeError):
             age_exceeded = True  # Unparseable → treat as stale

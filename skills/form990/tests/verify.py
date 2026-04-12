@@ -1087,7 +1087,7 @@ def tc27(args):
 
     # 4. Dead pid with recent timestamp → stale
     import datetime as _dt
-    recent = _dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     if pid_dead(99999):
         dead_pid_lock = {"pid": 99999, "acquired_at": recent, "host": "same-host"}
         assert_true(tc, is_plan_lock_stale(dead_pid_lock),
