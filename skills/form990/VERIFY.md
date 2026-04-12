@@ -1,11 +1,11 @@
 # Form 990 Skill — Verification Plan
 
-Human-readable spec for all 15 automated test cases (TC8–TC15) plus 7 manual tests (TC1–TC7).
+Human-readable spec for all 28 test cases:
+- **TC1–TC7**: manual tests (require live MCP/network/user interaction, marked `?` in harness)
+- **TC8–TC28**: automated tests (21 cases, all runnable with `python3 tests/verify.py`)
+
 Each maps 1:1 to a test function in `tests/verify.py`.
 Run with `/form990 verify` or directly via `python3 tests/verify.py`.
-
-**Note on test count:** The harness header says "TC1–TC15 (7 original + 8 hardening)". TC16–TC28
-are planned but not yet implemented in `verify.py`. This document covers the 15 current cases.
 
 ---
 

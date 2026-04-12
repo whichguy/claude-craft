@@ -1262,12 +1262,14 @@ def main():
     print(" | ".join(grid_parts))
 
     passed  = [t for t in all_tc if RESULTS.get(t) == "PASS"]
-    failed  = [t for t in all_tc if RESULTS.get(t) in ("FAIL", "ERROR")]
+    failed  = [t for t in all_tc if RESULTS.get(t) == "FAIL"]
+    errored = [t for t in all_tc if RESULTS.get(t) == "ERROR"]
     skipped = [t for t in all_tc if RESULTS.get(t) == "SKIP"]
 
     summary = {
         "passed": len(passed),
         "failed": failed,
+        "errored": errored,
         "skipped": skipped,
         "duration_s": round(duration, 1),
     }
@@ -1276,10 +1278,12 @@ def main():
     # Print failure details
     for tc_id in failed:
         print(f"\n  {tc_id} FAIL: {ERRORS.get(tc_id, 'no detail')}", file=sys.stderr)
+    for tc_id in errored:
+        print(f"\n  {tc_id} ERROR: {ERRORS.get(tc_id, 'no detail')}", file=sys.stderr)
 
     if failed:
         sys.exit(1)
-    elif any(RESULTS.get(t) == "ERROR" for t in all_tc):
+    elif errored:
         sys.exit(2)
     else:
         sys.exit(0)
