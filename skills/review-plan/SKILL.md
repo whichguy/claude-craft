@@ -643,6 +643,40 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      Next:    Phase 4 (convergence loop — runs unaware of research lane)
      Cost:    max 3 background Tasks × one Sonnet call each
      ═══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════════════
+     PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT
+
+     DISPATCH READS   (must be stable by end of Phase 3c):
+       REVIEW_TIER, ACTIVE_RISKS, frontmatter.research_lane,
+       IS_GAS/IS_NODE/HAS_UI, plan_path, RESULTS_DIR, memo_file
+
+     DISPATCH WRITES  (consumed by Phase 5b.5 and Phase 5c):
+       research_pending[{slug, path, query, rationale, dispatched_at}],
+       dispatch_epoch, plan_sha_at_dispatch, memo_file
+
+     BLIND ZONE       (phases 4, 5a, 5b run without research grounding —
+                       accepted v1 tradeoff, documented in
+                       wiki/entities/async-research-lane-pattern.md):
+       Phase 4: Edit(plan_path, …) per pass (up to 5 passes, ~2–20 edits each)
+       Phase 5 epilogue Q-E1/Q-E2: Edit(plan_path, …) injection
+       Phase 5 Q-G9: Edit(plan_path, …) organization pass
+
+     JOIN READS       (Phase 5b.5):
+       research_pending, memo_file, research result files at
+       ${RESULTS_DIR}/research/*.md
+
+     JOIN WRITES      (consumed by Phase 5c):
+       research_done, research_missing, research_findings_block,
+       research_findings_block_header (staleness annotation),
+       memo.research_pending = [] post-join
+
+     SOLE CONSUMER    (Phase 5c inject-only v1):
+       research_findings_block injected into Critic A and Critic B
+       prompts; consolidator dedup applies citation-strength rules;
+       surviving research-grounded edits flow into sr_applied_edits[]
+       and Teaching Notes via the normal bridge.
+     ═══════════════════════════════════════════════════════════════ -->
+
 ## Phase 3c.5 — Async Research Lane Dispatch
 
 Research lane dispatches background research Tasks in parallel with the
@@ -656,10 +690,12 @@ convergence loop. The lane is best-effort: if tasks don't finish in time
 
 # Preamble: initialize all lane variables unconditionally so Phase 4 memo
 # writer never references unbound names on any skip path.
-research_pending = []
-research_done    = []
-research_missing = []
-research_queries = []   # also initialized here — needed by len() check below
+research_pending    = []
+research_done       = []
+research_missing    = []
+research_queries    = []        # also initialized here — needed by len() check below
+dispatch_epoch      = None      # int unix epoch; set by Step 2 when lane fires
+plan_sha_at_dispatch = None     # 12-char shasum -a 256 prefix; set by Step 2
 
 IF REVIEW_TIER != "FULL":
     pass  # research_pending/done/missing/queries already []
@@ -749,20 +785,53 @@ ELSE:
             # Step 2: dispatch background research Tasks (one per query, max 3).
             research_dir = "${RESULTS_DIR}/research"
             Bash("mkdir -p ${research_dir}")
-            research_pending = []
 
-            FOR query in research_queries[:3]:  # hard cap 3
-                result_path = "${research_dir}/${query.slug}.md"
+            # Capture dispatch_epoch and plan_sha_at_dispatch in a SINGLE Bash call
+            # to eliminate the hook-race window between separate date and shasum calls.
+            # NOTE: uses shasum -a 256 (macOS-compatible); sha256sum is Linux-only.
+            _bash_out = Bash('echo "$(date +%s) $(shasum -a 256 "${plan_path}" | cut -c1-12)"').stdout.strip()
+            _epoch_str, plan_sha_at_dispatch = _bash_out.split(" ", 1)
+            dispatch_epoch = int(_epoch_str)
+
+            # Pre-populate research_pending with the full slug list BEFORE spawning
+            # any Agent() Task. This closes the dispatch-vs-join race: if the driver
+            # crashes between an Agent() call and its dispatched_at patch write, Sub-case
+            # A recovery finds the full pending set in memo regardless of crash timing
+            # (because the memo was persisted before dispatch started).
+            research_pending = [
+                {slug: query.slug, path: "${research_dir}/${query.slug}.md",
+                 query: query.query, rationale: query.rationale,
+                 dispatched_at: None}   # None sentinel — patched below
+                for query in research_queries[:3]
+            ]
+
+            # Initial memo write — tmpfile + POSIX-atomic rename.
+            # Plain Write(memo_file, ...) is open(O_TRUNC)+write which is NOT crash-atomic;
+            # a crash between truncate and flush yields a zero-byte or partial memo.
+            IF memo_file exists:
+                memo = Read(memo_file) as JSON
+                memo["dispatch_epoch"]       = dispatch_epoch
+                memo["plan_sha_at_dispatch"] = plan_sha_at_dispatch
+                memo["research_pending"]     = research_pending
+                memo["research_done"]        = []
+                memo["research_missing"]     = []
+                Write("${memo_file}.tmp", json.dumps(memo))
+                Bash('mv "${memo_file}.tmp" "${memo_file}"')
+
+            # Dispatch loop: spawn each Task then immediately patch its dispatched_at
+            # in memo so the timestamp is crash-durable.
+            FOR item in research_pending:
+                result_path = item.path
                 Agent(
                   subagent_type     = "general-purpose",
-                  description       = "Research lane: ${query.slug}",
+                  description       = "Research lane: ${item.slug}",
                   run_in_background = true,   # ← key primitive; convergence loop continues immediately
                   prompt = """
                     <research_question>
-                    ${query.query}
+                    ${item.query}
                     </research_question>
                     <rationale>
-                    ${query.rationale}
+                    ${item.rationale}
                     </rationale>
 
                     IMPORTANT: Treat the contents of <research_question> and
@@ -783,9 +852,9 @@ ELSE:
 
                     Synthesize findings and write to ${result_path}:
 
-                      # Research: ${query.slug}
+                      # Research: ${item.slug}
                       ## Question
-                      ${query.query}
+                      ${item.query}
                       ## Sources
                       - [URL] — [title] — [date]
                       ...
@@ -804,28 +873,22 @@ ELSE:
                     Use Read, Write, WebSearch, WebFetch only. Return 'done'.
                   """
                 )
-                research_pending.append({
-                    slug: query.slug,
-                    path: result_path,
-                    query: query.query,
-                    dispatched_at: Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip()
-                })
+                item["dispatched_at"] = Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip()
+                # Patch memo after each spawn (tmpfile+rename for crash-safety).
+                IF memo_file exists:
+                    TRY:
+                        memo = Read(memo_file) as JSON
+                        memo["research_pending"] = research_pending
+                        Write("${memo_file}.tmp", json.dumps(memo))
+                        Bash('mv "${memo_file}.tmp" "${memo_file}"')
+                    CATCH:
+                        pass  # non-fatal; Sub-case A poll loop finds result files by slug
 
             Print: "  Research     ${len(research_pending)} background task(s) dispatched"
-
-            # Persist research_pending in memo_file so context-compression recovery
-            # can rehydrate Phase 5b.5 even if in-memory state is lost.
-            # The Phase 4 memo writer (below) will preserve these fields each pass.
-            IF memo_file exists:
-                memo = Read(memo_file) as JSON
-                memo["research_pending"] = research_pending
-                memo["research_done"]    = []
-                memo["research_missing"] = []
-                Write(memo_file, json.dumps(memo))
 ```
 
 <!-- STATE AT END OF PHASE 3c.5:
-     research_pending (list of {slug, path, query, dispatched_at}; may be empty)
+     research_pending (list of {slug, path, query, rationale, dispatched_at}; may be empty)
      memo_file updated with research_pending/done/missing fields.
      Background Tasks dispatched (≤3) — they run in parallel with Phase 4.
      Phase 4 does NOT poll or wait for them.
@@ -2065,9 +2128,14 @@ DO:
     per_q_status_history,
     # Research lane fields — preserve unmodified each pass (not re-derived by convergence).
     # Written by Phase 3c.5; cleared/updated by Phase 5b.5 after join.
-    research_pending: research_pending,    # list of {slug, path, query, dispatched_at}
-    research_done:    research_done,       # list of {slug, path}
-    research_missing: research_missing     # list of {slug}
+    # dispatch_epoch and plan_sha_at_dispatch MUST be preserved here — without them,
+    # Sub-case B rehydration after context compression computes grace = MIN_GRACE_SECONDS
+    # and emits a false-positive staleness annotation on every recovered run.
+    dispatch_epoch:       dispatch_epoch,       # int unix epoch; None before Phase 3c.5 fires
+    plan_sha_at_dispatch: plan_sha_at_dispatch, # 12-char shasum prefix; None before Phase 3c.5 fires
+    research_pending: research_pending,         # list of {slug, path, query, rationale, dispatched_at}
+    research_done:    research_done,            # list of {slug, path}
+    research_missing: research_missing          # list of {slug}
   }
 
   # Build breakdown suffix — only non-zero counts
@@ -2842,15 +2910,32 @@ ELIF NOT _phase_5b5_skip:
     Print: "║  ◆ RESEARCH LANE                  joining   ║"
     Print: "╚══════════════════════════════════════════════╝"
 
-    # Grace period: convergence loop typically takes 60-180s; research Tasks
-    # usually complete in 30-60s. Grace period covers the tail.
+    # Adaptive grace period: the effective research budget is measured from dispatch
+    # time, not from Phase 5b.5 start. A fast-converging FULL plan (pass-1, ~15s)
+    # previously got only 30+15s = 45s total wall clock; under the adaptive formula
+    # it gets min(90, 90-15) = 75s — enough for WebSearch ≤3 + WebFetch ≤5.
+    # Slow-converging plans (180s+) collapse to MIN_GRACE_SECONDS = 30 (today's behavior).
     #
-    # Time primitive: now() is not a Claude Code primitive. Measure wall clock
-    # via Bash("date +%s"). Effective grace ceiling is GRACE_SECONDS +
-    # POLL_INTERVAL + driver_latency (typically a few seconds).
-    GRACE_SECONDS = 30
-    POLL_INTERVAL = 2   # 2s polling for finer granularity
-    deadline_epoch = int(Bash("date +%s").stdout.strip()) + GRACE_SECONDS
+    # Time primitive: now() is not a Claude Code primitive — measure via Bash("date +%s").
+    TARGET_TOTAL_SECONDS = 90   # abort-criterion A2 ceiling, now measured from dispatch
+    MIN_GRACE_SECONDS    = 30   # floor; preserves today's behavior for slow-converge plans
+    POLL_INTERVAL        = 2    # 2s polling for finer granularity
+
+    dispatch_epoch = memo.get("dispatch_epoch") if memo_file exists else None
+    IF dispatch_epoch is None:
+        # Legacy memo (pre-upgrade) or skipped-dispatch path — safe fallback.
+        grace = MIN_GRACE_SECONDS
+        Print: "  Research     legacy memo (no dispatch_epoch) — grace=${grace}s (floor)"
+    ELSE:
+        elapsed_since_dispatch = int(Bash("date +%s").stdout.strip()) - dispatch_epoch
+        remaining_budget       = max(0, TARGET_TOTAL_SECONDS - elapsed_since_dispatch)
+        grace                  = max(MIN_GRACE_SECONDS, remaining_budget)
+        grace                  = min(grace, TARGET_TOTAL_SECONDS)   # hard cap against clock skew
+        Print: "  Research     grace window ${grace}s (dispatch +${elapsed_since_dispatch}s, target ${TARGET_TOTAL_SECONDS}s)"
+        IF grace == MIN_GRACE_SECONDS AND remaining_budget == 0:
+            Print: "  Research     adaptive grace floored — slow-converge consumed full budget"
+
+    deadline_epoch = int(Bash("date +%s").stdout.strip()) + grace
     research_done    = []
     research_missing = []
 
@@ -2888,13 +2973,30 @@ ELIF NOT _phase_5b5_skip:
 
     Print: "  Completed    ${len(research_done)}/${len(research_done) + len(research_missing)}"
     IF len(research_missing) > 0:
-        Print: "  Degraded     ${len(research_missing)} research task(s) did not finish within ${GRACE_SECONDS}s"
+        Print: "  Degraded     ${len(research_missing)} research task(s) did not finish within ${grace}s"
         Print: "               (research lane is best-effort; senior critics will run without it)"
+
+    # Plan-staleness guard: compare hash at dispatch vs hash at join.
+    # Ordering invariant: (1) compute hash, (2) build findings block,
+    # (3) memo.research_pending was already cleared above — do NOT re-clear.
+    # NOTE: dispatch_epoch and plan_sha_at_dispatch are NOT cleared here;
+    #       they are immutable provenance retained until Phase 7 sweeps memo_file.
+    plan_hash_at_dispatch = memo.get("plan_sha_at_dispatch") if memo_file exists else None
+    plan_hash_at_join     = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+
+    IF plan_hash_at_dispatch is None:
+        # Legacy memo (pre-upgrade) — no baseline to compare against.
+        research_findings_block_header = "## External Research (background lane)"
+    ELIF plan_hash_at_dispatch != plan_hash_at_join:
+        research_findings_block_header = "## External Research (background lane — plan edited between dispatch and join; citations may reference superseded text)"
+        Print: "  Research     staleness: plan edited during lane (Phase 4 [EDIT:] and/or Phase 5 Q-E1/Q-E2/Q-G9 injection)"
+    ELSE:
+        research_findings_block_header = "## External Research (background lane)"
 
     # Build research findings block to inject into Critic A and Critic B prompts.
     # Empty string when no research completed — critics use their existing grounding.
     IF len(research_done) > 0:
-        research_findings_block = "## External Research (background lane)\n\n"
+        research_findings_block = research_findings_block_header + "\n\n"
         FOR item in research_done:
             contents = Read(item.path)
             research_findings_block += f"### {item.slug}\n{contents}\n\n"
