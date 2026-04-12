@@ -1,0 +1,38 @@
+{
+  "fixture": "two-round-forcing.ts",
+  "description": "Two-round forcing fixture: ROUND1 bugs must be fixed before ROUND2 bug becomes fully visible. Fixing 'any' type (ROUND1-1) reveals profile is optional; fixing off-by-one (ROUND1-2) ensures all users are processed; only then is ROUND2-1 reliably triggered.",
+  "categories_present": ["correctness"],
+  "issues": [
+    {
+      "id": "ROUND1-1",
+      "line": 65,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q20",
+      "description": "processUsers accepts 'any' type for data parameter — hides that profile is optional, allowing callers to pass untyped records that crash at line 83",
+      "expected_fix": "Replace 'data: any' with 'data: User | User[]'"
+    },
+    {
+      "id": "ROUND1-2",
+      "line": 73,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Off-by-one: loop starts at index 1 instead of 0, always skipping the first active user",
+      "expected_fix": "Change 'index = 1' to 'index = 0'"
+    },
+    {
+      "id": "ROUND2-1",
+      "line": 83,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "user.profile is optional (UserProfile | undefined) but accessed directly without null guard — throws TypeError when profile is undefined",
+      "expected_fix": "Guard with 'if (!user.profile) { stats.skipped++; continue; }' before line 83, or use optional chaining with fallback"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 53: formatUserLabel has proper null check on user.name (ternary guard) — NOT a missing null check"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "fixture": "fp-security-patterns.ts",
+  "description": "Clean security-sensitive TypeScript — innerHTML to sanitized value, eval-like function name without eval, SQL pattern in comment, process.env with defaults — zero real bugs",
+  "categories_present": [],
+  "issues": [],
+  "total_issues": 0,
+  "false_positive_traps": [
+    "Line 73: container.innerHTML = safeHtml — safeHtml is the output of DOMPurify.sanitize() called on line 65 with an explicit allowlist config; this is the correct safe pattern for innerHTML assignment",
+    "Line 87: evaluateTemplateString — function name contains 'evaluate' but the implementation uses String.replace() with a regex and escapeHtml() on substituted values; eval() is never called",
+    "Line 114-116: process.env accesses — all three have ?? fallback defaults; no unchecked direct access to env vars",
+    "Line 133: SQL-like SELECT statement appears only inside a JSDoc comment to explain conceptual logic — it is not executed as a query anywhere in the code"
+  ]
+}

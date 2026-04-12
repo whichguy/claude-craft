@@ -1,0 +1,13 @@
+{
+  "fixture": "fp-async-patterns.ts",
+  "description": "Clean TypeScript async patterns — Promise.all with individual catch, then/catch chain, intentional !val check, and useEffect with setTimeout cleanup — zero real bugs",
+  "categories_present": [],
+  "issues": [],
+  "total_issues": 0,
+  "false_positive_traps": [
+    "Lines 52-62: Promise.all with per-item .catch() — each rejection is caught individually and returns a typed FetchResult with error: string; the batch never rejects",
+    "Lines 70-79: .then().catch() chain — both success and error paths are handled; this is not a missing .catch()",
+    "Line 86: !count check — intentional per inline comment: 0 means 'checked and none found' which should return false; the !val pattern is correct here because 0 is semantically equivalent to absent",
+    "Lines 128-137: setTimeout stored in timerRef.current and cleared in useEffect cleanup return — correct React pattern for recurring timers that avoids memory leaks on unmount"
+  ]
+}

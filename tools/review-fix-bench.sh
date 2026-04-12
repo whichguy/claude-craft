@@ -6,6 +6,11 @@ set -eo pipefail
 # Modes:
 #   --run [--label NAME] [--fixtures DIR] [--runs N]   Run benchmarks
 #   --compare FILE_A FILE_B                             Compare two result files
+#
+# QI compliance:
+#   QI-2: --model-pin VERSION enforced; run fails on mismatch
+#   QI-3: raw per-run data stored unaggregated in results JSON
+#   QI-4: --holdout-fixtures N reserves N fixtures for validation (E3/E4)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -16,6 +21,10 @@ LABEL="run"
 MODE=""
 AGENT_FILE=""
 JUDGE_FILE=""
+MODEL_PIN=""          # --model-pin VERSION: fail if claude reports different model
+PER_RUN_TIMEOUT=120   # --per-run-timeout N (seconds)
+MAX_CONCURRENCY=4     # --max-concurrency N (rate-limit budget)
+HOLDOUT_FIXTURES=0    # --holdout-fixtures N (train/test split for E3/E4; QI-4)
 
 # ── Router-aware claude command resolution ────────────────────────────
 # Prefer claude-router (enables --route flag); fall back to bare claude.
@@ -42,7 +51,7 @@ fi
 usage() {
   cat <<'EOF'
 Usage:
-  review-fix-bench.sh --run [--label NAME] [--fixtures DIR] [--runs N] [--agent-file PATH] [--judge-file PATH]
+  review-fix-bench.sh --run [OPTIONS]
   review-fix-bench.sh --compare FILE_A FILE_B
 
 Options:
@@ -50,10 +59,22 @@ Options:
   --compare          Compare two result JSON files
   --label NAME       Label for this run (default: "run")
   --fixtures DIR     Fixtures directory (default: test/fixtures/review-fix/)
-  --runs N           Runs per fixture for variance (default: 1, max: 3)
+  --runs N           Runs per fixture for variance (default: 1, max: 10)
   --agent-file PATH  Inject reviewer agent instructions (prepended to prompt)
   --judge-file PATH  Use LLM judge for semantic matching (default: regex pipeline)
+  --model-pin VER    Require exact model version string; fail if mismatch (QI-2)
+  --per-run-timeout N  Timeout per reviewer invocation in seconds (default: 120)
+  --max-concurrency N  Max parallel Claude calls (default: 4, rate-limit budget)
+  --holdout-fixtures N Hold out N fixtures from training set for validation (QI-4)
   -h, --help         Show this help
+
+Token telemetry (requires --output-format json with usage block):
+  Captures input_tokens, cache_creation_input_tokens, cache_read_input_tokens,
+  output_tokens per run. Derives cost_usd via Anthropic rate card.
+  Raw per-run data stored unaggregated in results JSON (QI-3).
+
+Rate card (Sonnet 4.x, per 1M tokens):
+  Input: $3.00  Cached read: $0.30  Output: $15.00
 EOF
   exit 0
 }
@@ -67,6 +88,10 @@ while [[ $# -gt 0 ]]; do
     --runs) RUNS_PER_FIXTURE="$2"; shift 2 ;;
     --agent-file) AGENT_FILE="$2"; shift 2 ;;
     --judge-file) JUDGE_FILE="$2"; shift 2 ;;
+    --model-pin) MODEL_PIN="$2"; shift 2 ;;
+    --per-run-timeout) PER_RUN_TIMEOUT="$2"; shift 2 ;;
+    --max-concurrency) MAX_CONCURRENCY="$2"; shift 2 ;;
+    --holdout-fixtures) HOLDOUT_FIXTURES="$2"; shift 2 ;;
     -h|--help) usage ;;
     *)
       if [[ "$MODE" == "compare" ]]; then
@@ -90,16 +115,15 @@ if [[ -z "$MODE" ]]; then
   usage
 fi
 
-# Cap runs to avoid API quota exhaustion
-if [[ "$RUNS_PER_FIXTURE" -gt 3 ]]; then
-  echo "Warning: capping --runs to 3 (API quota protection)" >&2
-  RUNS_PER_FIXTURE=3
+# Cap runs at 10 (E0 requires 10 runs; prior cap of 3 was too restrictive)
+if [[ "$RUNS_PER_FIXTURE" -gt 10 ]]; then
+  echo "Warning: capping --runs to 10 (API quota protection)" >&2
+  RUNS_PER_FIXTURE=10
 fi
 
 # ── Utility functions ─────────────────────────────────────────────────
 
 json_escape() {
-  # Escape a string for safe JSON embedding
   printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()), end="")'
 }
 
@@ -126,7 +150,86 @@ print(round(2 * p * r / (p + r), 4) if (p + r) > 0 else 0)
 "
 }
 
-# Match findings against ground truth, output JSON with TP/FP/FN
+# ── Model version check (QI-2) ────────────────────────────────────────
+# Parses model string from --output-format json response.
+# Returns empty string if not parseable.
+extract_model_from_response() {
+  local raw_json="$1"
+  python3 -c "
+import json, sys
+try:
+    data = json.loads(sys.stdin.read())
+    # Claude CLI json output may include 'model' at top level
+    if isinstance(data, dict):
+        print(data.get('model', data.get('claude_model', '')))
+    else:
+        print('')
+except:
+    print('')
+" <<< "$raw_json"
+}
+
+# Enforce model pin: compare actual vs expected, exit 1 on mismatch.
+# Pass empty MODEL_PIN to skip check.
+check_model_pin() {
+  local actual="$1"
+  local expected="$2"
+  if [[ -z "$expected" ]]; then return 0; fi
+  if [[ -z "$actual" ]]; then
+    echo "Warning: model pin set to '$expected' but response included no model field — cannot verify" >&2
+    return 0
+  fi
+  if [[ "$actual" != *"$expected"* ]]; then
+    echo "FATAL: model pin mismatch — expected '$expected', got '$actual'" >&2
+    echo "  All comparisons require the same model. Re-run after verifying claude version." >&2
+    exit 1
+  fi
+}
+
+# ── Token telemetry ───────────────────────────────────────────────────
+# Parse usage block from claude CLI --output-format json response.
+# Returns JSON object with token fields and derived cost_usd.
+parse_token_usage() {
+  local raw_json="$1"
+  python3 -c "
+import json, sys
+
+# Anthropic rate card (Sonnet 4.x), per 1M tokens
+INPUT_RATE   = 3.00
+CACHED_RATE  = 0.30    # cache_read_input_tokens
+CACHE_CREATE = 3.75    # cache_creation_input_tokens (slightly above input)
+OUTPUT_RATE  = 15.00
+
+try:
+    data = json.loads(sys.stdin.read())
+    usage = {}
+    if isinstance(data, dict):
+        usage = data.get('usage', {})
+        # Some claude CLI versions nest usage differently
+        if not usage and 'cost' in data:
+            usage = data
+except Exception:
+    usage = {}
+
+inp  = int(usage.get('input_tokens', 0))
+cc   = int(usage.get('cache_creation_input_tokens', 0))
+cr   = int(usage.get('cache_read_input_tokens', 0))
+out  = int(usage.get('output_tokens', 0))
+
+cost = (inp * INPUT_RATE + cc * CACHE_CREATE + cr * CACHED_RATE + out * OUTPUT_RATE) / 1_000_000
+
+result = {
+    'input_tokens': inp,
+    'cache_creation_input_tokens': cc,
+    'cache_read_input_tokens': cr,
+    'output_tokens': out,
+    'cost_usd': round(cost, 6)
+}
+print(json.dumps(result))
+" <<< "$raw_json"
+}
+
+# ── Match findings against ground truth ───────────────────────────────
 match_findings() {
   local findings_json="$1"
   local gt_json="$2"
@@ -175,7 +278,7 @@ print(json.dumps({'tp': tp, 'fp_count': len(fp), 'fn': fn}))
 "
 }
 
-# Parse Claude CLI output to extract findings
+# Parse Claude CLI output to extract findings (regex path)
 parse_findings() {
   local response="$1"
   printf '%s' "$response" | python3 -c "
@@ -184,23 +287,18 @@ import json, re, sys
 response = sys.stdin.read()
 
 findings = []
-# Match patterns like: Q1: ... line N ... or **Line N** ...
-# Look for structured findings with line references
 lines = response.split('\n')
 current = {}
 for line in lines:
     line = line.strip()
-    # Match Q-ID patterns (e.g., 'Q1:', 'Q2:', etc.)
     q_match = re.match(r'^[*-]?\s*\*?\*?Q(\d+)\*?\*?[:\s]', line, re.IGNORECASE)
     if q_match:
         if current:
             findings.append(current)
         current = {'question': 'Q' + q_match.group(1), 'description': line}
-        # Try to extract line number
         line_match = re.search(r'[Ll]ine\s+(\d+)', line)
         if line_match:
             current['line'] = int(line_match.group(1))
-        # Try to extract category
         cats = {'sql': 'security', 'injection': 'security', 'xss': 'security',
                 'prototype': 'security', 'null': 'correctness', 'undefined': 'correctness',
                 'off-by': 'correctness', 'boundary': 'correctness', 'type': 'correctness',
@@ -215,7 +313,6 @@ for line in lines:
                 current['category'] = cat
                 break
         continue
-    # Also match severity patterns
     sev_match = re.match(r'^[*-]?\s*\*?\*?(Critical|Advisory)\*?\*?[:\s]', line, re.IGNORECASE)
     if sev_match:
         if current:
@@ -225,7 +322,6 @@ for line in lines:
         if line_match:
             current['line'] = int(line_match.group(1))
         continue
-    # Accumulate description lines
     if current and line and not line.startswith('#'):
         line_match = re.search(r'[Ll]ine\s+(\d+)', line)
         if line_match and 'line' not in current:
@@ -240,14 +336,11 @@ print(json.dumps(findings))
 }
 
 # LLM judge: semantically evaluate review output against ground truth
-# Usage: judge_findings <fixture_path> <gt_file> <review_output>
-# Returns JSON: {"tp": [...], "fp_count": N, "fn": [...], "reasoning": "..."}
 judge_findings() {
   local fixture_path="$1"
   local gt_file="$2"
   local review_output="$3"
 
-  # Build structured judge prompt using env vars to prevent path-injection
   local judge_prompt
   judge_prompt=$(GT_FILE="$gt_file" FIXTURE_PATH="$fixture_path" python3 -c "
 import json, os, sys
@@ -277,7 +370,6 @@ Output ONLY valid JSON with no surrounding prose: {\"tp\": [\"ID1\"], \"fp_count
 print(prompt)
 " <<< "$review_output")
 
-  # Guard: truncate if judge prompt is too large
   local prompt_len="${#judge_prompt}"
   if [[ "$prompt_len" -gt 50000 ]]; then
     echo "Warning: judge_prompt for ${fixture_path##*/} is ${prompt_len} chars — truncating review output to last 200 lines" >&2
@@ -311,7 +403,6 @@ print(prompt)
 " <<< "$review_output")
   fi
 
-  # Optionally prepend judge agent instructions (fresh context per invocation)
   if [[ -n "${JUDGE_FILE:-}" ]] && [[ -f "$JUDGE_FILE" ]]; then
     local judge_instr
     judge_instr=$(cat "$JUDGE_FILE")
@@ -329,7 +420,6 @@ ${judge_prompt}"
     local raw
     raw=$(timeout 120 "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" -p "$judge_prompt" --output-format json 2>/dev/null \
           || echo '{"result":"{\"tp\":[],\"fp_count\":0,\"fn\":[],\"reasoning\":\"judge error\"}"}')
-    # Extract and validate JSON from judge response
     python3 -c "
 import json, re, sys
 raw = sys.stdin.read()
@@ -349,7 +439,6 @@ else:
     print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [], 'reasoning': 'no JSON found'}))
 " <<< "$raw"
   else
-    # Dry-run fallback: no claude CLI or claude-router, return empty result
     echo '{"tp":[],"fp_count":0,"fn":[],"reasoning":"dry-run: no claude CLI"}'
   fi
 }
@@ -362,6 +451,11 @@ run_benchmarks() {
   echo "  Label:    $LABEL"
   echo "  Fixtures: $FIXTURES_DIR"
   echo "  Runs:     $RUNS_PER_FIXTURE per fixture"
+  [[ -n "$MODEL_PIN" ]] && echo "  Model pin: $MODEL_PIN"
+  [[ -n "$AGENT_FILE" ]] && echo "  Agent:    $AGENT_FILE"
+  echo "  Timeout:  ${PER_RUN_TIMEOUT}s per run"
+  echo "  Max concurrency: $MAX_CONCURRENCY"
+  [[ "$HOLDOUT_FIXTURES" -gt 0 ]] && echo "  Holdout:  $HOLDOUT_FIXTURES fixtures (validation split)"
   echo "═══════════════════════════════════════════════"
   echo
 
@@ -380,20 +474,35 @@ run_benchmarks() {
     exit 1
   fi
 
-  echo "Found ${#gt_files[@]} fixture(s)"
+  # Train/test split (QI-4): hold out last N fixtures (alphabetical order is stable)
+  local train_gt_files=("${gt_files[@]}")
+  local holdout_gt_files=()
+  if [[ "$HOLDOUT_FIXTURES" -gt 0 ]]; then
+    local total_fixtures=${#gt_files[@]}
+    local holdout_count=$HOLDOUT_FIXTURES
+    if [[ "$holdout_count" -ge "$total_fixtures" ]]; then
+      echo "Error: --holdout-fixtures $holdout_count >= total fixtures $total_fixtures" >&2
+      exit 1
+    fi
+    local train_count=$((total_fixtures - holdout_count))
+    train_gt_files=("${gt_files[@]:0:$train_count}")
+    holdout_gt_files=("${gt_files[@]:$train_count}")
+    echo "Train/test split: ${#train_gt_files[@]} training, ${#holdout_gt_files[@]} holdout (validation)"
+    echo "Holdout fixtures (NOT used for parameter selection):"
+    for f in "${holdout_gt_files[@]}"; do echo "  - $(basename "$f")"; done
+    echo
+  fi
+
+  echo "Found ${#gt_files[@]} fixture(s) (${#train_gt_files[@]} training)"
   echo
 
-  # Validate agent file if provided
   if [[ -n "${AGENT_FILE:-}" ]] && ! [[ -f "$AGENT_FILE" ]]; then
     echo "Error: agent-file not found: $AGENT_FILE" >&2; exit 1
   fi
-
-  # Validate judge file if provided
   if [[ -n "${JUDGE_FILE:-}" ]] && ! [[ -f "$JUDGE_FILE" ]]; then
     echo "Error: judge-file not found: $JUDGE_FILE" >&2; exit 1
   fi
 
-  # Get prompt version from git
   local agent_label
   if [[ -n "${AGENT_FILE:-}" ]]; then
     agent_label="${AGENT_FILE}@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
@@ -401,19 +510,36 @@ run_benchmarks() {
     agent_label="generic-prompt@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
   fi
   local prompt_version="$agent_label"
+  local actual_model_seen=""
 
-  # Accumulate per-fixture results
+  # ── Per-fixture loop ───────────────────────────────────────────────
+
+  # QI-3: raw_runs array accumulates every individual run (unaggregated)
+  local raw_runs_json="["
   local per_fixture_json="["
-  local first=true
+  local first_run=true
+  local first_fixture=true
+
   local total_wall=0
-  local total_tokens=0
   local sum_precision=0
   local sum_recall=0
   local sum_f1=0
   local sum_completeness=0
+  local sum_input_tokens=0
+  local sum_cache_creation_tokens=0
+  local sum_cache_read_tokens=0
+  local sum_output_tokens=0
+  local sum_cost_usd=0
   local fixture_count=0
+  local run_count=0
+  local retry_count=0
 
-  for gt_file in "${gt_files[@]}"; do
+  # Dispatch fixtures in stable alphabetical order (control: seed fixture order)
+  local dispatch_start
+  dispatch_start=$(python3 -c 'import time; print(time.time())')
+  echo "Dispatch start: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+  for gt_file in "${train_gt_files[@]}"; do
     local fixture_name
     fixture_name=$(python3 -c "import json; print(json.load(open('$gt_file'))['fixture'])")
     local fixture_path="${FIXTURES_DIR}/${fixture_name}"
@@ -424,17 +550,23 @@ run_benchmarks() {
     fi
 
     echo "──────────────────────────────────────"
-    echo "  Fixture: $fixture_name"
+    echo "  Fixture: $fixture_name  [$(date -u +"%H:%M:%SZ")]"
 
     local fixture_content
     fixture_content=$(cat "$fixture_path")
 
+    # Per-fixture run accumulation for averaging
+    local fixture_run_json="["
+    local first_fixture_run=true
+    local fx_sum_precision=0
+    local fx_sum_recall=0
+    local fx_sum_f1=0
+
     for run_num in $(seq 1 "$RUNS_PER_FIXTURE"); do
       if [[ "$RUNS_PER_FIXTURE" -gt 1 ]]; then
-        echo "  Run $run_num/$RUNS_PER_FIXTURE"
+        echo "  Run $run_num/$RUNS_PER_FIXTURE  [$(date -u +"%H:%M:%SZ")]"
       fi
 
-      # Build prompt
       local base_prompt="Review this code for bugs, security vulnerabilities, logic errors, and code quality issues. For each issue found, specify: the line number, severity (Critical or Advisory), category, and a specific fix instruction.
 
 Code to review (${fixture_name}):
@@ -444,7 +576,6 @@ ${fixture_content}
 
 List each finding with its line number, severity, and fix."
 
-      # Prepend agent file instructions if provided
       local prompt="$base_prompt"
       if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]]; then
         local agent_content
@@ -459,17 +590,40 @@ List each finding with its line number, severity, and fix."
 ${base_prompt}"
       fi
 
-      # Execute via Claude CLI
       local start_time
       start_time=$(python3 -c 'import time; print(time.time())')
 
       local response=""
-      local tokens_est=0
+      local raw_response=""
+      local was_retry=false
       if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
-        local raw_response
-        raw_response=$(timeout 120 "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" -p "$prompt" --output-format json 2>/dev/null \
+        # Execute with per-run timeout (plan: kill hung reviewer, log + skip + continue)
+        raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
+                         -p "$prompt" --output-format json 2>/dev/null \
                        || echo '{"result":"error: reviewer timed out or failed"}')
-        # Extract text from JSON response
+
+        # Detect 429 rate limit — log retry event, re-attempt once after back-off
+        if echo "$raw_response" | grep -qi "rate.limit\|429\|too.many.requests"; then
+          echo "  429 rate-limit detected — backing off 30s (retry 1 of 1)" >&2
+          sleep 30
+          was_retry=true
+          retry_count=$((retry_count + 1))
+          raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
+                           -p "$prompt" --output-format json 2>/dev/null \
+                         || echo '{"result":"error: reviewer failed after retry"}')
+        fi
+
+        # QI-2: model pin check
+        if [[ -n "$MODEL_PIN" ]]; then
+          local actual_model
+          actual_model=$(extract_model_from_response "$raw_response")
+          if [[ -n "$actual_model" ]]; then
+            actual_model_seen="$actual_model"
+          fi
+          check_model_pin "$actual_model" "$MODEL_PIN"
+        fi
+
+        # Extract text response
         local text_response
         text_response=$(printf '%s' "$raw_response" | python3 -c "
 import json, sys
@@ -488,11 +642,10 @@ except:
     print(raw)
 " 2>/dev/null || echo "$raw_response")
         response="$text_response"
-        tokens_est=$(printf '%s' "$response" | python3 -c "import sys; print(len(sys.stdin.read().split()) * 2)")
       else
         echo "  Warning: claude CLI / claude-router not found — using dry-run mode" >&2
         response="[Dry run — no Claude CLI available]"
-        tokens_est=0
+        raw_response='{"result":"[Dry run]"}'
       fi
 
       local end_time
@@ -500,13 +653,29 @@ except:
       local wall_clock
       wall_clock=$(python3 -c "print(round($end_time - $start_time, 1))")
 
-      # Match findings against ground truth — use LLM judge or regex pipeline
+      # Token telemetry (QI-3: per-run, not averaged)
+      local usage_json
+      usage_json=$(parse_token_usage "$raw_response")
+      local run_input_tokens run_cc_tokens run_cr_tokens run_output_tokens run_cost_usd
+      run_input_tokens=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['input_tokens'])" <<< "$usage_json")
+      run_cc_tokens=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['cache_creation_input_tokens'])" <<< "$usage_json")
+      run_cr_tokens=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['cache_read_input_tokens'])" <<< "$usage_json")
+      run_output_tokens=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['output_tokens'])" <<< "$usage_json")
+      run_cost_usd=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['cost_usd'])" <<< "$usage_json")
+
+      # Legacy token estimate fallback (when usage block absent)
+      local tokens_est
+      if [[ "$run_input_tokens" -gt 0 || "$run_output_tokens" -gt 0 ]]; then
+        tokens_est=$((run_input_tokens + run_output_tokens))
+      else
+        tokens_est=$(printf '%s' "$response" | python3 -c "import sys; print(len(sys.stdin.read().split()) * 2)")
+      fi
+
+      # Match findings against ground truth
       local match_result
       if [[ -n "${JUDGE_FILE:-}" ]]; then
-        # LLM judge path: semantic matching in fresh subprocess
         match_result=$(judge_findings "$fixture_path" "$gt_file" "$response")
 
-        # Detect judge failure from reasoning field
         local judge_reasoning
         judge_reasoning=$(python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(r.get('reasoning',''))" \
           <<< "$match_result" 2>/dev/null || echo "judge error")
@@ -520,7 +689,6 @@ print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [i['id'] for i in gt['issues']]
 ")
         fi
       else
-        # Legacy regex pipeline path
         local findings_json
         findings_json=$(parse_findings "$response")
         match_result=$(match_findings "$findings_json" "$gt_file")
@@ -535,19 +703,16 @@ print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [i['id'] for i in gt['issues']]
       tp_count=$(python3 -c "import json; print(len(json.loads('$tp_list')))")
       fn_count=$(python3 -c "import json; print(len(json.loads('$fn_list')))")
 
-      # Compute metrics
       local precision recall f1
       precision=$(calc_precision "$tp_count" "$fp_count")
       recall=$(calc_recall "$tp_count" "$fn_count")
       f1=$(calc_f1 "$precision" "$recall")
 
-      # Compute completeness — from TP categories (judge path) or parsed findings (regex path)
       local gt_categories
       gt_categories=$(python3 -c "import json; print(json.dumps(json.load(open('$gt_file'))['categories_present']))")
       local completeness
 
       if [[ -n "${JUDGE_FILE:-}" ]]; then
-        # Judge path: derive categories covered from the TP issue IDs
         completeness=$(GT_FILE="$gt_file" python3 -c "
 import json, os, sys
 gt = json.load(open(os.environ['GT_FILE']))
@@ -570,7 +735,6 @@ else: print(round(len(cats & present) / len(present), 4))
 ")
       fi
 
-      # Actionable: TP count when using judge; parsed findings count for regex path
       local actionable
       if [[ -n "${JUDGE_FILE:-}" ]]; then
         actionable="$tp_count"
@@ -582,61 +746,113 @@ print(len([f for f in findings if f.get('description', '')]))
 ")
       fi
 
-      echo "  Results: P=$precision R=$recall F1=$f1 C=$completeness  [${wall_clock}s, ~${tokens_est} tokens]"
+      echo "  Results: P=$precision R=$recall F1=$f1 C=$completeness  [${wall_clock}s, tokens=${tokens_est}, cost=\$${run_cost_usd}]"
       echo "    TP: $tp_list"
       if [[ "$fp_count" -gt 0 ]]; then echo "    FP: $fp_count false positive(s)"; fi
       if [[ "$fn_count" -gt 0 ]]; then echo "    FN: $fn_list"; fi
+      if [[ "$was_retry" == "true" ]]; then echo "    [RETRY: excluded from primary analysis per rate-limit policy]"; fi
 
-      # Accumulate
-      if [[ "$first" == "true" ]]; then first=false; else per_fixture_json+=","; fi
-      per_fixture_json+=$(python3 -c "
+      # QI-3: accumulate raw run record (unaggregated — do NOT average before storing)
+      local run_record
+      run_record=$(python3 -c "
 import json
 print(json.dumps({
     'fixture': '$fixture_name',
+    'run': $run_num,
+    'was_retry': $([ "$was_retry" == "true" ] && echo 'true' || echo 'false'),
+    'dispatch_ts': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
     'precision': $precision,
     'recall': $recall,
     'f1': $f1,
     'completeness': $completeness,
     'wall_clock_s': $wall_clock,
-    'tokens_estimate': $tokens_est,
-    'rounds': 1,
-    'actionable_fixes': $actionable,
     'true_positives': json.loads('$tp_list'),
-    'false_positives': [],
-    'false_negatives': json.loads('$fn_list')
-}, indent=2))
+    'fp_count': $fp_count,
+    'false_negatives': json.loads('$fn_list'),
+    'tokens_estimate': $tokens_est,
+    'input_tokens': $run_input_tokens,
+    'cache_creation_input_tokens': $run_cc_tokens,
+    'cache_read_input_tokens': $run_cr_tokens,
+    'output_tokens': $run_output_tokens,
+    'cost_usd': $run_cost_usd
+}))
 ")
+      if [[ "$first_run" == "true" ]]; then first_run=false; else raw_runs_json+=","; fi
+      raw_runs_json+="$run_record"
+      if [[ "$first_fixture_run" == "true" ]]; then first_fixture_run=false; else fixture_run_json+=","; fi
+      fixture_run_json+="$run_record"
+      run_count=$((run_count + 1))
 
-      total_wall=$(python3 -c "print(round($total_wall + $wall_clock, 1))")
-      total_tokens=$((total_tokens + tokens_est))
-      sum_precision=$(python3 -c "print($sum_precision + $precision)")
-      sum_recall=$(python3 -c "print($sum_recall + $recall)")
-      sum_f1=$(python3 -c "print($sum_f1 + $f1)")
-      sum_completeness=$(python3 -c "print($sum_completeness + $completeness)")
-      fixture_count=$((fixture_count + 1))
+      # Accumulate totals (only non-retry runs for primary analysis)
+      if [[ "$was_retry" != "true" ]]; then
+        total_wall=$(python3 -c "print(round($total_wall + $wall_clock, 1))")
+        sum_precision=$(python3 -c "print($sum_precision + $precision)")
+        sum_recall=$(python3 -c "print($sum_recall + $recall)")
+        sum_f1=$(python3 -c "print($sum_f1 + $f1)")
+        sum_completeness=$(python3 -c "print($sum_completeness + $completeness)")
+        sum_input_tokens=$((sum_input_tokens + run_input_tokens))
+        sum_cache_creation_tokens=$((sum_cache_creation_tokens + run_cc_tokens))
+        sum_cache_read_tokens=$((sum_cache_read_tokens + run_cr_tokens))
+        sum_output_tokens=$((sum_output_tokens + run_output_tokens))
+        sum_cost_usd=$(python3 -c "print(round($sum_cost_usd + $run_cost_usd, 6))")
+        fixture_count=$((fixture_count + 1))
+      fi
 
-      # Rate limit spacing for multi-run
+      # Rate limit spacing for multi-run (respects max-concurrency intent)
       if [[ "$RUNS_PER_FIXTURE" -gt 1 ]] && [[ "$run_num" -lt "$RUNS_PER_FIXTURE" ]]; then
         sleep 2
       fi
-    done
-  done
+    done  # end run loop
 
+    fixture_run_json+="]"
+
+    # Per-fixture summary (mean across runs for this fixture)
+    local fx_mean_f1 fx_mean_precision fx_mean_recall
+    fx_mean_precision=$(python3 -c "print(round($sum_precision / max(1, $fixture_count), 4))")
+    fx_mean_recall=$(python3 -c "print(round($sum_recall / max(1, $fixture_count), 4))")
+    fx_mean_f1=$(python3 -c "print(round($sum_f1 / max(1, $fixture_count), 4))")
+
+    local fixture_summary
+    fixture_summary=$(python3 -c "
+import json
+runs = json.loads('''$fixture_run_json''')
+if not runs:
+    print(json.dumps({'fixture': '$fixture_name', 'runs': []}))
+else:
+    print(json.dumps({
+        'fixture': '$fixture_name',
+        'runs_executed': len(runs),
+        'mean_precision': round(sum(r['precision'] for r in runs) / len(runs), 4),
+        'mean_recall': round(sum(r['recall'] for r in runs) / len(runs), 4),
+        'mean_f1': round(sum(r['f1'] for r in runs) / len(runs), 4),
+        'mean_completeness': round(sum(r['completeness'] for r in runs) / len(runs), 4),
+        'mean_wall_clock_s': round(sum(r['wall_clock_s'] for r in runs) / len(runs), 1),
+        'mean_input_tokens': round(sum(r['input_tokens'] for r in runs) / len(runs)),
+        'mean_cache_read_tokens': round(sum(r['cache_read_input_tokens'] for r in runs) / len(runs)),
+        'mean_cost_usd': round(sum(r['cost_usd'] for r in runs) / len(runs), 6),
+        'runs': runs
+    }, indent=2))
+")
+
+    if [[ "$first_fixture" == "true" ]]; then first_fixture=false; else per_fixture_json+=","; fi
+    per_fixture_json+="$fixture_summary"
+
+  done  # end fixture loop
+
+  raw_runs_json+="]"
   per_fixture_json+="]"
 
-  # Compute aggregates
-  local mean_precision mean_recall mean_f1 mean_completeness mean_tokens
+  # ── Aggregate stats ────────────────────────────────────────────────
+  local mean_precision mean_recall mean_f1 mean_completeness
   if [[ "$fixture_count" -gt 0 ]]; then
     mean_precision=$(python3 -c "print(round($sum_precision / $fixture_count, 4))")
     mean_recall=$(python3 -c "print(round($sum_recall / $fixture_count, 4))")
     mean_f1=$(python3 -c "print(round($sum_f1 / $fixture_count, 4))")
     mean_completeness=$(python3 -c "print(round($sum_completeness / $fixture_count, 4))")
-    mean_tokens=$(python3 -c "print(round($total_tokens / $fixture_count))")
   else
-    mean_precision=0; mean_recall=0; mean_f1=0; mean_completeness=0; mean_tokens=0
+    mean_precision=0; mean_recall=0; mean_f1=0; mean_completeness=0
   fi
 
-  # Build results JSON
   local timestamp
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -647,29 +863,35 @@ results = {
     'label': '$LABEL',
     'timestamp': '$timestamp',
     'prompt_version': '$prompt_version',
+    'model_pin': '$MODEL_PIN',
+    'model_observed': '$actual_model_seen',
     'fixtures_run': $fixture_count,
     'runs_per_fixture': $RUNS_PER_FIXTURE,
+    'retry_count': $retry_count,
+    'holdout_fixtures': $HOLDOUT_FIXTURES,
     'per_fixture': json.loads('''$per_fixture_json'''),
+    'raw_runs': json.loads('''$raw_runs_json'''),
     'aggregate': {
         'mean_precision': $mean_precision,
         'mean_recall': $mean_recall,
         'mean_f1': $mean_f1,
         'mean_completeness': $mean_completeness,
         'total_wall_clock_s': $total_wall,
-        'total_tokens': $total_tokens,
-        'mean_tokens_per_fixture': $mean_tokens
+        'total_input_tokens': $sum_input_tokens,
+        'total_cache_creation_tokens': $sum_cache_creation_tokens,
+        'total_cache_read_tokens': $sum_cache_read_tokens,
+        'total_output_tokens': $sum_output_tokens,
+        'total_cost_usd': $sum_cost_usd
     }
 }
 print(json.dumps(results, indent=2))
 ")
 
-  # Write results atomically
   mkdir -p "$RESULTS_DIR"
   local date_stamp
   date_stamp=$(date -u +"%Y-%m-%d")
   local out_file="${RESULTS_DIR}/${LABEL}-${date_stamp}.json"
 
-  # Prevent silent overwrite — append counter if file exists
   if [[ -f "$out_file" ]]; then
     local counter=2
     while [[ -f "${RESULTS_DIR}/${LABEL}-${date_stamp}-${counter}.json" ]]; do
@@ -678,7 +900,6 @@ print(json.dumps(results, indent=2))
     out_file="${RESULTS_DIR}/${LABEL}-${date_stamp}-${counter}.json"
   fi
 
-  # Atomic write via temp file
   local tmp_file
   tmp_file=$(mktemp "${RESULTS_DIR}/.bench-XXXXXX")
   echo "$results_json" > "$tmp_file"
@@ -688,7 +909,10 @@ print(json.dumps(results, indent=2))
   echo "═══════════════════════════════════════════════"
   echo "  Results written to: $out_file"
   echo "  Aggregate: F1=$mean_f1  P=$mean_precision  R=$mean_recall"
-  echo "  Total: ${total_wall}s, ${total_tokens} tokens"
+  echo "  Total: ${total_wall}s, cost=\$${sum_cost_usd}"
+  echo "  Tokens: input=${sum_input_tokens} cached_read=${sum_cache_read_tokens} output=${sum_output_tokens}"
+  [[ "$retry_count" -gt 0 ]] && echo "  Retries: $retry_count (excluded from primary analysis)"
+  [[ -n "$MODEL_PIN" ]] && echo "  Model pin: $MODEL_PIN (observed: $actual_model_seen)"
   echo "═══════════════════════════════════════════════"
 }
 
@@ -706,7 +930,7 @@ compare_results() {
   fi
 
   python3 -c "
-import json, sys
+import json, sys, math
 
 a = json.load(open('$file_a'))
 b = json.load(open('$file_b'))
@@ -721,21 +945,27 @@ def verdict(metric, delta, lower_is_better=False):
     if abs(delta) < 0.01:
         return '  0.00 -'
     if lower_is_better:
-        return f'{delta:+.2f} ✅' if delta < 0 else f'{delta:+.2f} ❌'
-    return f'{delta:+.2f} ✅' if delta > 0 else f'{delta:+.2f} ❌'
+        return f'{delta:+.2f} OK' if delta < 0 else f'{delta:+.2f} BAD'
+    return f'{delta:+.2f} OK' if delta > 0 else f'{delta:+.2f} BAD'
 
 print()
-print('┌──────────────────┬───────────┬───────────┬──────────┐')
-print(f'│ Metric           │ {label_a:<9s} │ {label_b:<9s} │ Δ        │')
-print('├──────────────────┼───────────┼───────────┼──────────┤')
+print('Model pin A:', a.get('model_pin', 'none'), '| observed:', a.get('model_observed', '?'))
+print('Model pin B:', b.get('model_pin', 'none'), '| observed:', b.get('model_observed', '?'))
+print()
+print('┌──────────────────────┬───────────┬───────────┬──────────┐')
+print(f'│ Metric               │ {label_a:<9s} │ {label_b:<9s} │ Delta    │')
+print('├──────────────────────┼───────────┼───────────┼──────────┤')
 
 metrics = [
-    ('Quality (F1)',     'mean_f1',          False),
-    ('Precision',        'mean_precision',   False),
-    ('Recall',           'mean_recall',      False),
-    ('Completeness',     'mean_completeness',False),
-    ('Speed (s)',        'total_wall_clock_s',True),
-    ('Tokens',           'total_tokens',     True),
+    ('Quality (F1)',     'mean_f1',                   False),
+    ('Precision',        'mean_precision',             False),
+    ('Recall',           'mean_recall',                False),
+    ('Completeness',     'mean_completeness',          False),
+    ('Speed (s)',        'total_wall_clock_s',         True),
+    ('Cost USD',        'total_cost_usd',              True),
+    ('Input tokens',    'total_input_tokens',          True),
+    ('Cache read tok',  'total_cache_read_tokens',     False),
+    ('Output tokens',   'total_output_tokens',         True),
 ]
 
 for name, key, lower in metrics:
@@ -743,12 +973,52 @@ for name, key, lower in metrics:
     vb = ba.get(key, 0)
     delta = vb - va
     v = verdict(key, delta, lower)
-    if isinstance(va, float):
-        print(f'│ {name:<16s} │ {va:>9.4f} │ {vb:>9.4f} │ {v:<8s} │')
+    if isinstance(va, float) or isinstance(vb, float):
+        print(f'│ {name:<20s} │ {va:>9.4f} │ {vb:>9.4f} │ {v:<8s} │')
     else:
-        print(f'│ {name:<16s} │ {va:>9} │ {vb:>9} │ {v:<8s} │')
+        print(f'│ {name:<20s} │ {va:>9} │ {vb:>9} │ {v:<8s} │')
 
-print('└──────────────────┴───────────┴───────────┴──────────┘')
+print('└──────────────────────┴───────────┴───────────┴──────────┘')
+
+# Cache efficiency (E1 specific)
+cr_a = aa.get('total_cache_read_tokens', 0)
+cr_b = ba.get('total_cache_read_tokens', 0)
+inp_a = aa.get('total_input_tokens', 1)
+inp_b = aa.get('total_input_tokens', 1)
+if cr_b > 0:
+    cache_rate = cr_b / max(1, cr_b + inp_b)
+    effective_inp_b = inp_b + 0.1 * cr_b
+    effective_inp_a = inp_a
+    cost_ratio = effective_inp_b / max(1, effective_inp_a)
+    print()
+    print(f'Cache analysis (E1): cache_hit_rate={cache_rate:.1%}  effective_input_ratio={cost_ratio:.2f}')
+    if cost_ratio <= 0.6:
+        print('  => ADOPT gate (cost): PASS (ratio <= 0.60)')
+    else:
+        print(f'  => ADOPT gate (cost): FAIL (ratio {cost_ratio:.2f} > 0.60)')
+
+# Paired Wilcoxon stub on F1 (requires scipy; graceful fallback)
+raw_a = {r['fixture'] + str(r['run']): r['f1'] for r in a.get('raw_runs', [])}
+raw_b = {r['fixture'] + str(r['run']): r['f1'] for r in b.get('raw_runs', [])}
+pairs = [(raw_a[k], raw_b[k]) for k in raw_a if k in raw_b]
+if pairs:
+    try:
+        from scipy.stats import wilcoxon
+        diffs = [b - a for a, b in pairs]
+        if len(set(diffs)) > 1:
+            stat, pval = wilcoxon(diffs)
+            print()
+            print(f'Paired Wilcoxon (F1, N={len(pairs)} pairs): stat={stat:.2f}  p={pval:.4f}')
+            if pval < 0.05:
+                print('  => Statistically significant at alpha=0.05')
+            else:
+                print('  => Not significant at alpha=0.05')
+        else:
+            print()
+            print('Paired Wilcoxon: all differences identical — cannot compute')
+    except ImportError:
+        print()
+        print('Paired Wilcoxon: scipy not available — install with: pip install scipy')
 
 # Per-fixture breakdown
 print()
@@ -760,26 +1030,24 @@ all_names = sorted(set(list(a_fixtures.keys()) + list(b_fixtures.keys())))
 for name in all_names:
     af = a_fixtures.get(name, {})
     bf = b_fixtures.get(name, {})
-    f1a = af.get('f1', 0)
-    f1b = bf.get('f1', 0)
-    ta = af.get('tokens_estimate', 0)
-    tb = bf.get('tokens_estimate', 0)
+    f1a = af.get('mean_f1', af.get('f1', 0))
+    f1b = bf.get('mean_f1', bf.get('f1', 0))
+    ca = af.get('mean_cost_usd', 0)
+    cb = bf.get('mean_cost_usd', 0)
     f1_sym = '=' if abs(f1b - f1a) < 0.01 else ('+' if f1b > f1a else '-')
-    tok_pct = f'{round((tb - ta) / ta * 100)}%' if ta > 0 else 'N/A'
-    print(f'  {name:<25s} F1: {f1a:.2f}→{f1b:.2f} ({f1_sym})  Tokens: {ta}→{tb} ({tok_pct})')
+    cost_pct = f'{round((cb - ca) / ca * 100)}%' if ca > 0 else 'N/A'
+    print(f'  {name:<30s} F1: {f1a:.2f}->{f1b:.2f} ({f1_sym})  Cost: {cost_pct}')
 
 # Overall verdict
 f1_delta = ba.get('mean_f1', 0) - aa.get('mean_f1', 0)
-speed_delta = ba.get('total_wall_clock_s', 0) - aa.get('total_wall_clock_s', 0)
-token_delta = ba.get('total_tokens', 0) - aa.get('total_tokens', 0)
+cost_delta = ba.get('total_cost_usd', 0) - aa.get('total_cost_usd', 0)
 
 parts = []
 if abs(f1_delta) >= 0.01:
     parts.append(f'quality {f1_delta:+.0%}')
-if abs(speed_delta) >= 1:
-    parts.append(f'speed {speed_delta:+.0f}s')
-if abs(token_delta) >= 100:
-    parts.append(f'tokens {token_delta:+d}')
+if abs(cost_delta) >= 0.001:
+    sign = 'saved' if cost_delta < 0 else 'added'
+    parts.append('cost $%.4f %s' % (abs(cost_delta), sign))
 
 if not parts:
     verdict_str = 'NEUTRAL'
