@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Form 990 Skill — Verification Harness
-Runs TC1–TC15 (7 original + 8 hardening). Stdlib-only.
+Runs TC1–TC28 (7 original + 8 hardening + 13 new A5 cases). Stdlib-only.
 
 A2 change: test cases import from lib/form990_lib.py rather than re-implementing
 logic inline. A spec bug now breaks tests — the library is the single source of truth.
@@ -717,6 +717,350 @@ def tc15(args):
 
 
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# TC16–TC28 — Theme A (A5) new test cases
+# ---------------------------------------------------------------------------
+
+_XFAIL_MODE: bool = os.environ.get("FORM990_TEST_XFAIL", "").lower() == "skip"
+_LANDED_CHANGES: frozenset = frozenset({"A1", "A2", "A3", "A4", "A5", "A6"})
+
+
+def _xfail_guard(tc, change_id):
+    """Return False (skip) if change_id not landed and XFAIL mode active."""
+    if change_id not in _LANDED_CHANGES and _XFAIL_MODE:
+        skip_(tc, f"xfail: requires change {change_id} (not yet landed)")
+        return False
+    return True
+
+
+def tc16(args):
+    """TC16 — Library importability (A1 landed — GREEN)."""
+    tc = "TC16"
+    if not _require_lib(tc):
+        return
+    required = [
+        "atomic_commit", "ConcurrentModificationError", "commit_phase_entry",
+        "verify_ancestors", "ARTIFACT_DEPS", "merge_datasets", "run_script",
+        "ScriptError", "ERROR_CLASSES", "scrub_pii", "append_breadcrumb",
+        "auto_append_learning", "sweep_orphaned_tmps", "pid_dead",
+    ]
+    import form990_lib as _lib_check
+    for sym in required:
+        if not hasattr(_lib_check, sym):
+            fail_(tc, f"TC16: form990_lib missing '{sym}'")
+            return
+    pass_(tc)
+
+
+def tc17(args):
+    """TC17 — pre_image_sha256 threading + CAS conflict (A4 — GREEN)."""
+    tc = "TC17"
+    if not _require_lib(tc):
+        return
+    import tempfile as _tf17
+    import json as _j17
+    import hashlib as _h17
+
+    _B = "<!-- BEGIN MACHINE STATE (do not hand-edit; skill rewrites atomically) -->"
+    _E = "<!-- END MACHINE STATE -->"
+
+    tmp = pathlib.Path(_tf17.mkdtemp())
+    try:
+        st = {
+            "schema_version": 2, "plan_version": 1,
+            "current_phase": "P0", "phase_status": {"P0": "pending"},
+            "breadcrumbs": [],
+        }
+        c1 = "# Plan\n" + _B + "\n```json\n" + _j17.dumps(st, indent=2) + "\n```\n" + _E + "\n"
+        plan = tmp / "plan.md"
+        plan.write_text(c1, encoding="utf-8")
+        pre = _h17.sha256(c1.encode("utf-8")).hexdigest()
+
+        # TC17a: correct pre_image → commit succeeds
+        st2 = dict(st)
+        st2["plan_version"] = 2
+        atomic_commit(st2, str(plan), pre)
+        assert_in(tc, '"plan_version": 2', plan.read_text(encoding="utf-8"), "TC17a")
+
+        # TC17b: stale pre_image → ConcurrentModificationError
+        plan.write_text(c1, encoding="utf-8")
+        st3 = dict(st)
+        st3["plan_version"] = 3
+        try:
+            atomic_commit(st3, str(plan), "0" * 64, max_retries=1)
+            fail_(tc, "TC17b: expected ConcurrentModificationError")
+        except ConcurrentModificationError:
+            pass
+        except Exception as e:
+            fail_(tc, f"TC17b: unexpected {type(e).__name__}: {e}")
+
+        if tc not in RESULTS:
+            pass_(tc)
+    finally:
+        import shutil as _sh17
+        _sh17.rmtree(tmp, ignore_errors=True)
+
+
+def tc18(args):
+    """TC18 — ScriptError._raw_stderr boundary (C2 xfail)."""
+    tc = "TC18"
+    if not _xfail_guard(tc, "C2"):
+        return
+    if not _require_lib(tc):
+        return
+    skip_(tc, "TC18: C2 not yet landed")
+
+
+def tc19(args):
+    """TC19 — truncate-after-scrub ordering (C2 xfail)."""
+    tc = "TC19"
+    if not _xfail_guard(tc, "C2"):
+        return
+    if not _require_lib(tc):
+        return
+    skip_(tc, "TC19: C2 not yet landed")
+
+
+def tc20(args):
+    """TC20 — phone/email/DOB/addr scrub rules (C2 xfail + capability probe)."""
+    tc = "TC20"
+    if not _xfail_guard(tc, "C2"):
+        return
+    if not _require_lib(tc):
+        return
+    # Capability probe: C2 phone rules absent → skip gracefully in default mode
+    if scrub_pii("call 555-123-4567") != "call [REDACTED-PHONE]":
+        skip_(tc, "TC20: C2 not yet landed — phone rules absent")
+        return
+    # Import golden constants
+    sys.path.insert(0, str(FIXTURES))
+    try:
+        from golden import (
+            PII_INPUT_SSN, PII_EXPECTED_SSN,
+            PII_INPUT_EIN, PII_EXPECTED_EIN,
+            PII_INPUT_PHONE, PII_EXPECTED_PHONE,
+            PII_INPUT_EMAIL, PII_EXPECTED_EMAIL,
+            PII_INPUT_ADDR, PII_EXPECTED_ADDR,
+            PII_INPUT_DOB, PII_EXPECTED_DOB,
+        )
+    except ImportError:
+        skip_(tc, "TC20: golden.py not found")
+        return
+    assert_equal(tc, scrub_pii(PII_INPUT_SSN), PII_EXPECTED_SSN, "TC20-SSN")
+    assert_equal(tc, scrub_pii(PII_INPUT_EIN), PII_EXPECTED_EIN, "TC20-EIN")
+    assert_equal(tc, scrub_pii(PII_INPUT_PHONE), PII_EXPECTED_PHONE, "TC20-PHONE")
+    assert_equal(tc, scrub_pii(PII_INPUT_EMAIL), PII_EXPECTED_EMAIL, "TC20-EMAIL")
+    assert_equal(tc, scrub_pii(PII_INPUT_ADDR), PII_EXPECTED_ADDR, "TC20-ADDR")
+    assert_equal(tc, scrub_pii(PII_INPUT_DOB), PII_EXPECTED_DOB, "TC20-DOB")
+    if tc not in RESULTS:
+        pass_(tc)
+
+
+def tc21(args):
+    """TC21 — donor word boundary (C2 xfail)."""
+    tc = "TC21"
+    if not _xfail_guard(tc, "C2"):
+        return
+    if not _require_lib(tc):
+        return
+    skip_(tc, "TC21: C2 not yet landed")
+
+
+def tc22(args):
+    """TC22 — pre-P6 empty donor_names scenario (C2 xfail)."""
+    tc = "TC22"
+    if not _xfail_guard(tc, "C2"):
+        return
+    if not _require_lib(tc):
+        return
+    skip_(tc, "TC22: C2 not yet landed")
+
+
+def tc23(args):
+    """TC23 — ARTIFACT_DEPS cycle detection via _CYCLE_SENTINEL (A1/A5 — GREEN)."""
+    tc = "TC23"
+    if not _require_lib(tc):
+        return
+    import form990_lib as _lib23
+
+    saved = dict(_lib23.ARTIFACT_DEPS)
+    _lib23.ARTIFACT_DEPS.clear()
+    _lib23.ARTIFACT_DEPS.update({
+        "X": {"phase": "P1", "upstream": ["Y"]},
+        "Y": {"phase": "P2", "upstream": ["X"]},
+    })
+    try:
+        state_: dict = {"artifacts": {}}
+        try:
+            verify_ancestors("X", state_)
+            fail_(tc, "TC23: expected RuntimeError for cycle, got no exception")
+        except RuntimeError as e:
+            if "cycle" in str(e).lower():
+                pass_(tc)
+            else:
+                fail_(tc, f"TC23: RuntimeError raised but 'cycle' not in message: {e}")
+        except Exception as e:
+            fail_(tc, f"TC23: unexpected {type(e).__name__}: {e}")
+    finally:
+        _lib23.ARTIFACT_DEPS.clear()
+        _lib23.ARTIFACT_DEPS.update(saved)
+
+
+def tc24(args):
+    """TC24 — Q-F4 509(a)(2) 1%/$5K floor (B2 xfail)."""
+    tc = "TC24"
+    if not _xfail_guard(tc, "B2"):
+        return
+    if not _require_lib(tc):
+        return
+    sys.path.insert(0, str(FIXTURES))
+    try:
+        from golden import SUPPORT_5YR_TOTAL, ONE_PCT_CAP_COMPUTED, ONE_PCT_FLOOR_APPLIED
+        assert_equal(tc, ONE_PCT_CAP_COMPUTED, int(SUPPORT_5YR_TOTAL * 0.01), "TC24a")
+        assert_equal(tc, ONE_PCT_FLOOR_APPLIED, max(ONE_PCT_CAP_COMPUTED, 5_000), "TC24b")
+        if tc not in RESULTS:
+            skip_(tc, "TC24: B2 not yet landed — golden constants verified, gate logic pending")
+    except ImportError:
+        skip_(tc, "TC24: golden.py not found")
+
+
+def tc25(args):
+    """TC25 — Part I Line 8 vs Line 12 distinction (B1 xfail)."""
+    tc = "TC25"
+    if not _xfail_guard(tc, "B1"):
+        return
+    if not _require_lib(tc):
+        return
+    sys.path.insert(0, str(FIXTURES))
+    try:
+        from golden import LINE_8_CONTRIBUTIONS, LINE_12_TOTAL_REVENUE
+        assert_true(
+            tc,
+            LINE_8_CONTRIBUTIONS != LINE_12_TOTAL_REVENUE,
+            "TC25: LINE_8 and LINE_12 must be distinct values",
+        )
+        if tc not in RESULTS:
+            skip_(tc, "TC25: B1 not yet landed — golden constants verified, mapping fix pending")
+    except ImportError:
+        skip_(tc, "TC25: golden.py not found")
+
+
+def tc26(args):
+    """TC26 — CAS normal commit succeeds (C1/A1 — GREEN)."""
+    tc = "TC26"
+    if not _require_lib(tc):
+        return
+    import tempfile as _tf26
+    import json as _j26
+    import hashlib as _h26
+
+    _B = "<!-- BEGIN MACHINE STATE (do not hand-edit; skill rewrites atomically) -->"
+    _E = "<!-- END MACHINE STATE -->"
+
+    tmp = pathlib.Path(_tf26.mkdtemp())
+    try:
+        st = {
+            "schema_version": 2, "plan_version": 1,
+            "current_phase": "P0", "phase_status": {"P0": "pending"},
+            "breadcrumbs": [],
+        }
+        content = "# Plan\n" + _B + "\n```json\n" + _j26.dumps(st) + "\n```\n" + _E + "\n"
+        plan = tmp / "plan.md"
+        plan.write_text(content, encoding="utf-8")
+        pre = _h26.sha256(content.encode("utf-8")).hexdigest()
+        st2 = dict(st)
+        st2["plan_version"] = 2
+        atomic_commit(st2, str(plan), pre)
+        assert_in(tc, "plan_version", plan.read_text(encoding="utf-8"), "TC26")
+        if tc not in RESULTS:
+            pass_(tc)
+    finally:
+        import shutil as _sh26
+        _sh26.rmtree(tmp, ignore_errors=True)
+
+
+def tc27(args):
+    """TC27 — host-check staleness (C1 xfail)."""
+    tc = "TC27"
+    if not _xfail_guard(tc, "C1"):
+        return
+    if not _require_lib(tc):
+        return
+    skip_(tc, "TC27: C1 not yet landed")
+
+
+def tc28(args):
+    """TC28 — fsync call ordering in atomic_commit (C1/A1 — GREEN)."""
+    tc = "TC28"
+    if not _require_lib(tc):
+        return
+    import tempfile as _tf28
+    import json as _j28
+    import hashlib as _h28
+    from unittest.mock import patch
+
+    _B = "<!-- BEGIN MACHINE STATE (do not hand-edit; skill rewrites atomically) -->"
+    _E = "<!-- END MACHINE STATE -->"
+
+    tmp = pathlib.Path(_tf28.mkdtemp())
+    try:
+        st = {
+            "schema_version": 2, "plan_version": 1,
+            "current_phase": "P0", "phase_status": {"P0": "pending"},
+            "breadcrumbs": [],
+        }
+        content = "# Plan\n" + _B + "\n```json\n" + _j28.dumps(st) + "\n```\n" + _E + "\n"
+        plan = tmp / "plan.md"
+        plan.write_text(content, encoding="utf-8")
+        pre = _h28.sha256(content.encode("utf-8")).hexdigest()
+
+        call_order: list = []
+        real_fsync = os.fsync
+        real_replace = os.replace
+
+        def _mock_fsync(fd):
+            call_order.append("fsync")
+            real_fsync(fd)
+
+        def _mock_replace(s, d):
+            call_order.append("replace")
+            real_replace(s, d)
+
+        import form990_lib as _lib28
+        st2 = dict(st)
+        st2["plan_version"] = 2
+        with (
+            patch.object(_lib28.os, "fsync", side_effect=_mock_fsync),
+            patch.object(_lib28.os, "replace", side_effect=_mock_replace),
+        ):
+            atomic_commit(st2, str(plan), pre)
+
+        replace_idx = next(
+            (i for i, c in enumerate(call_order) if c == "replace"), None
+        )
+        if replace_idx is None:
+            fail_(tc, f"TC28: os.replace not called; order={call_order}")
+            return
+        if not assert_true(
+            tc,
+            any(c == "fsync" for c in call_order[:replace_idx]),
+            "TC28: fsync before replace",
+        ):
+            return
+        if not assert_true(
+            tc,
+            any(c == "fsync" for c in call_order[replace_idx + 1:]),
+            "TC28: fsync(dir) after replace",
+        ):
+            return
+        if tc not in RESULTS:
+            pass_(tc)
+    finally:
+        import shutil as _sh28
+        _sh28.rmtree(tmp, ignore_errors=True)
+
+
 # Skipped manual tests (TC1–TC7 require MCP or human involvement)
 # ---------------------------------------------------------------------------
 
@@ -739,6 +1083,19 @@ AUTOMATED_TCS = {
     "TC13": tc13,
     "TC14": tc14,
     "TC15": tc15,
+    "TC16": tc16,
+    "TC17": tc17,
+    "TC18": tc18,
+    "TC19": tc19,
+    "TC20": tc20,
+    "TC21": tc21,
+    "TC22": tc22,
+    "TC23": tc23,
+    "TC24": tc24,
+    "TC25": tc25,
+    "TC26": tc26,
+    "TC27": tc27,
+    "TC28": tc28,
 }
 
 # ---------------------------------------------------------------------------

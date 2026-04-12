@@ -515,6 +515,9 @@ ARTIFACT_DEPS: dict[str, dict] = {
 # verify_ancestors() — Transitive fingerprint verification (Change 4)
 # ---------------------------------------------------------------------------
 
+_CYCLE_SENTINEL = object()  # Unique sentinel; identity-checked to detect DAG cycles
+
+
 def verify_ancestors(
     artifact_name: str,
     state: dict,
@@ -535,10 +538,17 @@ def verify_ancestors(
     if _visited is None:
         _visited = {}
     if artifact_name in _visited:
-        return _visited[artifact_name]
+        val = _visited[artifact_name]
+        if val is _CYCLE_SENTINEL:
+            raise RuntimeError(
+                f"cycle detected in ARTIFACT_DEPS: artifact '{artifact_name}' "
+                f"appears as its own transitive ancestor "
+                f"(error_class=ArtifactCycle)"
+            )
+        return val  # type: ignore[return-value]
 
     # Cycle detection: mark as in-progress before recursion
-    _visited[artifact_name] = (True, [])  # placeholder to break cycles
+    _visited[artifact_name] = _CYCLE_SENTINEL
 
     deps = ARTIFACT_DEPS.get(artifact_name, {})
     upstream = deps.get("upstream", [])
