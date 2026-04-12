@@ -108,6 +108,69 @@ Print setup banner:
   Rounds     max [max_rounds]
 ```
 
+## Step 1.5: Lint Pre-flight
+
+Detect available lint tools in `worktree`, filter to those applicable to `file_list`, then ask the user before running any.
+
+```
+# Detect candidate linters by looking for config files / package.json scripts
+lint_candidates = []
+
+# Node/JS/TS
+If package.json exists at worktree root:
+  scripts = parse package.json scripts object
+  If scripts["lint"] exists:
+    lint_candidates.append({ label: "npm run lint", cmd: "npm run lint", fix_cmd: scripts["lint:fix"] ? "npm run lint:fix" : null, exts: [".js",".ts",".jsx",".tsx",".mjs",".cjs"] })
+  If scripts["typecheck"] or scripts["type-check"] exists:
+    key = whichever exists
+    lint_candidates.append({ label: "npm run " + key, cmd: "npm run " + key, fix_cmd: null, exts: [".ts",".tsx"] })
+
+# Python
+If pyproject.toml or .ruff.toml or ruff.toml exists:
+  lint_candidates.append({ label: "ruff check", cmd: "ruff check " + joined(file_list filtered to .py), fix_cmd: "ruff check --fix " + same, exts: [".py"] })
+Else if .pylintrc or setup.cfg (with [pylint]) exists:
+  lint_candidates.append({ label: "pylint", cmd: "pylint " + joined(file_list filtered to .py), fix_cmd: null, exts: [".py"] })
+
+# Ruby
+If .rubocop.yml or .rubocop exists:
+  lint_candidates.append({ label: "rubocop", cmd: "rubocop " + joined(file_list filtered to .rb), fix_cmd: "rubocop -A " + same, exts: [".rb"] })
+
+# Shell
+If .shellcheckrc exists OR any .sh file in file_list:
+  If shellcheck binary exists (which shellcheck):
+    lint_candidates.append({ label: "shellcheck", cmd: "shellcheck " + joined(file_list filtered to .sh), fix_cmd: null, exts: [".sh"] })
+
+# Filter: remove candidates whose exts don't overlap any file in file_list
+applicable = [c for c in lint_candidates if any file in file_list has extension in c.exts]
+```
+
+If `applicable` is non-empty:
+```
+  Print detected summary:
+  ┌─ Lint tools detected ─────────────────────────────────┐
+  │  [label]   ([exts])                                    │  ← one line per tool
+  └────────────────────────────────────────────────────────┘
+
+  Use AskUserQuestion:
+    question = "Run lint before review? " + applicable.map(c => c.label).join(", ")
+    options  = ["Yes — run and show output", "Yes — run and auto-fix if available", "No — skip lint"]
+```
+
+If user selects "Yes — run and show output" or "Yes — run and auto-fix if available":
+```
+  For each tool in applicable:
+    Run tool.cmd via Bash, capture stdout+stderr, note exit code
+    Print:
+      ── [label] ──────────────────────────────────────────
+      [raw output, max 60 lines; truncate with "… [N] more lines" if longer]
+      Exit [code] — [N warning(s)/error(s) | clean]
+    If user chose auto-fix AND tool.fix_cmd AND exit_code != 0:
+      Run tool.fix_cmd via Bash
+      Print: "  ✓ auto-fix applied ([tool.fix_cmd])"
+```
+
+If `applicable` is empty OR user selects "No": skip silently, continue to Step 2.
+
 ## Step 2: Impact Discovery
 
 For files with exported functions/classes: grep codebase for callers.
