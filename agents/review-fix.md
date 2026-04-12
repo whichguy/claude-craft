@@ -37,6 +37,7 @@ Reviewer selection is per-file (see Reviewer Routing). This agent only orchestra
   - `"commit"` — stage + commit only (POST_IMPLEMENT)
   - `"none"` — no git operations
 - `plan_summary` — optional; plan context for Q34 intent alignment
+- `recheck_model` — optional; model override for recheck rounds (default: "haiku"). Set to "sonnet" to disable tiering and run full Q1-Q37 framework on rechecks.
 
 Pre-flight: if `task_name` empty, stop with error.
 
@@ -102,6 +103,7 @@ Print setup banner:
   Reviewers  per-file multi-routing (code-reviewer: N, gas-code-review: M, gas-ui-review: P, gas-gmail-cards: Q)
   Tasks      [total queue entries] ([file_count] files × applicable reviewers)
   Mode       [review + fix | read-only]
+  Model      sonnet (initial) → [recheck_model] (recheck)
   Rounds     max [max_rounds]
 ```
 
@@ -148,6 +150,7 @@ resolve_reviewers(file):
 
 ```
 MAX_CONCURRENT = 12
+recheck_model = params.recheck_model ?? "haiku"
 
 reviewer_prompt = (file) => `
   target_files="${file}"
@@ -157,6 +160,45 @@ reviewer_prompt = (file) => `
   ${plan_summary ? 'Plan context:\n' + plan_summary : ''}
   ${per_file_diffs[file] ? '**Change context:**\n```diff\n' + per_file_diffs[file] + '\n```' : ''}
   ${impact_files[file]?.length > 0 ? '**Impact context** (callers for Q11):\n' + impact_files[file].map(f => '- ' + f).join('\n') : ''}
+`
+
+recheck_prompt = (file, prior_findings) => `
+  target_files="${file}"
+  worktree="${worktree}"
+
+  RECHECK MODE — You are verifying fixes, not discovering new bugs.
+  Do NOT run the Q1-Q37 trigger framework. Your ONLY task is the checklist below.
+
+  Prior findings from initial review:
+  ${prior_findings.map(f => `  - ${f.q_number}: ${f.title} (${f.severity}) — ${f.description.slice(0, 100)}`).join('\n')}
+
+  For EACH prior finding:
+  1. Read the file at the cited location.
+  2. Is the Before code replaced by the After code? → RESOLVED or STILL_PRESENT
+  3. Read the entire function/block containing the fix. Did applying the fix
+     introduce a NEW bug anywhere in that function? → CLEAN or NEW_ISSUE
+     (Read the whole function — fixes can have non-local effects like changed
+     return types, renamed variables, or altered control flow.)
+
+  If any finding is STILL_PRESENT: re-emit it using the EXACT format:
+    **Q[N]: [Original Title]** | Finding: [original severity]
+    [Description of what's still wrong]
+    ```
+    Before:
+    [current code]
+    ```
+    ```
+    After:
+    [expected fix]
+    ```
+
+  If a NEW bug was introduced: emit it as:
+    **Q[N]: [Original Title] — regression** | Finding: Critical
+    [Description of regression]
+    Before: [current broken code]  After: [corrected code]
+
+  LOOP_DIRECTIVE: COMPLETE if all prior findings RESOLVED and no NEW_ISSUE.
+  LOOP_DIRECTIVE: APPLY_AND_RECHECK if any STILL_PRESENT or any NEW_ISSUE.
 `
 ```
 
@@ -319,7 +361,25 @@ DO:
 
 ```
   Re-dispatch ALL applicable reviewers for recheck_files using the same
-  producer-consumer pattern and resolve_reviewers() as Step 3.
+  producer-consumer pattern and resolve_reviewers() as Step 3, but with
+  Haiku model tiering and purpose-built recheck prompts:
+
+  For each recheck (file, reviewer) pair:
+    prior = results[file].findings  # populated by Step 3 / prior recheck
+    # NOTE: recheck_prompt overrides the reviewer's default Q1-Q37 pipeline.
+    # The RECHECK MODE instruction at the top of the prompt must be strong enough
+    # to suppress the reviewer's built-in framework. If the reviewer agent ignores
+    # RECHECK MODE and runs full Q1-Q37, the recheck will be equivalent to a full
+    # re-review and model tiering will not yield cost savings.
+    # Verify reviewer agents honor RECHECK MODE before relying on this optimization.
+    Agent(
+      subagent_type = reviewer,
+      model = recheck_model,        # "haiku" by default; "sonnet" if override set
+      name = sanitize(file) + "--" + reviewer,
+      run_in_background = true,
+      prompt = recheck_prompt(file, prior)   # purpose-built checklist, NOT reviewer_prompt
+    )
+
   Wait for ALL reviewer agents to complete before proceeding.
 
   Update findings and LOOP_DIRECTIVE for each file from reviewer output.
@@ -329,7 +389,7 @@ DO:
   Print round summary:
   ```
   ──────────────────────────────────────────────────────
-    Round [round]/[max_rounds]  [━×N][╌×M]  [fixes] fixes   [[elapsed]s]
+    Round [round]/[max_rounds]  model:[recheck_model]  [━×N][╌×M]  [fixes] fixes   [[elapsed]s]
     Delta     ◐[prev_findings_count] → ◐[current_findings_count] ([↓N] | [↑N] | [→0])
     Gates     [❌N critical | ✅]   [⚠️N advisory | ✅]
   ──────────────────────────────────────────────────────
