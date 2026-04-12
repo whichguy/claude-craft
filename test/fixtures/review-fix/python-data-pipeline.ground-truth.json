@@ -1,0 +1,57 @@
+{
+  "fixture": "python-data-pipeline.py",
+  "description": "Python ETL log pipeline with command injection, swallowed exceptions, unguarded dict access, file handle leak, and unbounded retry sleep",
+  "categories_present": ["security", "correctness", "error-handling"],
+  "issues": [
+    {
+      "id": "PY-1",
+      "line": 40,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "Command injection: subprocess.run(f\"grep {pattern} {filename}\", shell=True) — pattern and filename come from caller and are interpolated directly into a shell command string",
+      "expected_fix": "use shell=False with list args: subprocess.run(['grep', pattern, filename], shell=False)"
+    },
+    {
+      "id": "PY-2",
+      "line": 90,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q8",
+      "description": "Bare except clause (except: pass) swallows all exceptions including KeyboardInterrupt, SystemExit, and MemoryError — parse failures are silently discarded with no logging",
+      "expected_fix": "catch specific exceptions: except (json.JSONDecodeError, ValueError) as exc: logger.debug(...)"
+    },
+    {
+      "id": "PY-3",
+      "line": 130,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Unguarded dict access on user-controlled key: geo_db[ip_address] raises KeyError when the IP is not in the database — callers do not always catch this",
+      "expected_fix": "use geo_db.get(ip_address) and handle the None case, or raise a typed exception"
+    },
+    {
+      "id": "PY-4",
+      "line": 169,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "open() without context manager: fh = open(field_map_path) — if an exception occurs during CSV reading the file handle is never closed, leaking a file descriptor",
+      "expected_fix": "wrap in 'with open(field_map_path) as fh:' context manager"
+    },
+    {
+      "id": "PY-5",
+      "line": 240,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "Unbounded retry sleep: time.sleep(retry_count * 10) — with retry_limit=3 the maximum wait is 30s but if retry_limit is increased (e.g. 100) threads block for 1000s with no maximum cap",
+      "expected_fix": "cap the sleep: time.sleep(min(retry_count * 10, MAX_RETRY_SLEEP)) with a defined constant"
+    }
+  ],
+  "total_issues": 5,
+  "false_positive_traps": [
+    "Line ~358: subprocess.run(['wc', '-l', filename], shell=False) with explicit list args — NOT injection",
+    "Line ~395: with open(db_path) as fh: proper context manager usage — NOT a file handle leak"
+  ]
+}

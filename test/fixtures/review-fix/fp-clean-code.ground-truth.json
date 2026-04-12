@@ -1,0 +1,14 @@
+{
+  "fixture": "fp-clean-code.ts",
+  "description": "Clean TypeScript config parser with intentional patterns that look suspicious but are all correct — zero real bugs",
+  "categories_present": [],
+  "issues": [],
+  "total_issues": 0,
+  "false_positive_traps": [
+    "Line 69: evaluateExpression function name sounds like eval usage — it is NOT; the function only does arithmetic on already-parsed number literals via a switch statement",
+    "Line 284: mergeConfigs parameter typed as 'any' in comment but function signature uses ParsedConfig — the any is in a comment describing intent, not in actual code; return type is fully typed",
+    "Line 319: non-null assertion (!) on sectionData[field] — safe because lines 309 and 314 both throw before reaching this point if the value is absent; the assertion is post-runtime-check",
+    "Line 330: catch block in parseConfigSafe catches and rethrows with cause — this is the correct error wrapping pattern (Error cause chain), NOT swallowing exceptions",
+    "No var in executable code — 'var' does not appear in any actual declarations, only in comments or strings"
+  ]
+}

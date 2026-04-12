@@ -1,0 +1,39 @@
+{
+  "fixture": "gas-html-service.html",
+  "description": "GAS HTML template with unescaped scriptlet XSS, silent google.script.run call, and innerHTML from server response",
+  "categories_present": ["security", "error-handling"],
+  "issues": [
+    {
+      "id": "HTML-1",
+      "line": 20,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q35",
+      "description": "Unescaped GAS scriptlet output: <?!= userInput ?> renders userInput without HTML encoding — if userInput contains <script> or event handlers, it executes in the client's browser (stored XSS)",
+      "expected_fix": "use <?= userInput ?> (escaped output) instead of <?!= userInput ?>"
+    },
+    {
+      "id": "HTML-2",
+      "line": 61,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q35",
+      "description": "google.script.run.processData(data) called without .withSuccessHandler() or .withFailureHandler() — server errors are silently discarded and the user receives no feedback on success or failure",
+      "expected_fix": "add .withSuccessHandler(fn).withFailureHandler(fn) before .processData(data)"
+    },
+    {
+      "id": "HTML-3",
+      "line": 78,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q35",
+      "description": "innerHTML assigned from server response: document.getElementById('output').innerHTML = response — response comes from google.script.run and is not sanitized; if the server ever returns HTML containing scripts this is XSS",
+      "expected_fix": "use textContent for plain text, or sanitize with DOMPurify before innerHTML assignment"
+    }
+  ],
+  "total_issues": 3,
+  "false_positive_traps": [
+    "Line 23: <?= escapedValue ?> uses the safe escaped scriptlet syntax — NOT XSS",
+    "Lines 66-73: loadHistory() uses both .withSuccessHandler() and .withFailureHandler() — NOT missing handlers"
+  ]
+}

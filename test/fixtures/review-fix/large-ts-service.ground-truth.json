@@ -1,0 +1,57 @@
+{
+  "fixture": "large-ts-service.ts",
+  "description": "TypeScript service class with unbounded cache, SQL injection, null-deref on find, unguarded Promise.all, and stale closure in setInterval",
+  "categories_present": ["security", "correctness", "error-handling"],
+  "issues": [
+    {
+      "id": "SVC-1",
+      "line": 45,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q24",
+      "description": "Unbounded cache: private cache: Map<string, any> accumulates entries indefinitely — no eviction, TTL, or size cap; long-running processes will exhaust memory",
+      "expected_fix": "add TTL-based eviction (like logCache pattern in same class) or use LRU with a max size"
+    },
+    {
+      "id": "SVC-2",
+      "line": 94,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "SQL injection: template literal `SELECT * FROM items WHERE id=${id}` interpolates id directly into the query string — id comes from the caller and is unsanitized",
+      "expected_fix": "use parameterized query: this.db.query('SELECT * FROM items WHERE id = ?', [id])"
+    },
+    {
+      "id": "SVC-3",
+      "line": 213,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Missing null check on Array.find result: result.name accessed without guard — Array.find returns undefined when no element matches, causing TypeError at runtime",
+      "expected_fix": "check result before access: if (!result) throw new Error(...) or return a default"
+    },
+    {
+      "id": "SVC-4",
+      "line": 194,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q8",
+      "description": "No error boundary in Promise.all: one rejected item causes the entire batch to reject, losing all successful results — callers receive an error instead of partial results",
+      "expected_fix": "use Promise.allSettled or wrap each item: items.map(id => this.processItem(id).catch(err => ({ itemId: id, success: false, error: String(err) })))"
+    },
+    {
+      "id": "SVC-5",
+      "line": 70,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "Stale closure: const threshold = config.alertThreshold captured at construction time inside setInterval — later changes to config.alertThreshold are never seen by the interval callback",
+      "expected_fix": "reference this.config.alertThreshold directly inside the callback instead of capturing a local copy"
+    }
+  ],
+  "total_issues": 5,
+  "false_positive_traps": [
+    "Line ~404: this.db.query('SELECT * FROM logs WHERE user_id = ?', [userId]) — parameterized query, NOT SQL injection",
+    "Line ~246: logCache (Map with TTL eviction via expiresAt) — NOT unbounded; evictExpiredLogs() manages it"
+  ]
+}

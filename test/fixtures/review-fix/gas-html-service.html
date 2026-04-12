@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <title>Data Entry Form</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 16px; }
+      .field { margin-bottom: 12px; }
+      label { display: block; font-weight: bold; margin-bottom: 4px; }
+      input, select { width: 100%; padding: 6px; box-sizing: border-box; }
+      button { padding: 8px 16px; cursor: pointer; }
+      #output { margin-top: 16px; padding: 8px; background: #f5f5f5; min-height: 40px; }
+      .error { color: red; font-size: 0.9em; }
+    </style>
+  </head>
+  <body>
+
+    <!-- [ISSUE: HTML-1] Unescaped scriptlet output — userInput is user-controlled -->
+    <div class="welcome-banner">Welcome, <?!= userInput ?>!</div>
+
+    <!-- [TRAP] Properly escaped output — NOT XSS -->
+    <div class="user-label">Logged in as: <?= escapedValue ?></div>
+
+    <h2>Submit Data</h2>
+
+    <div class="field">
+      <label for="category">Category</label>
+      <select id="category">
+        <option value="sales">Sales</option>
+        <option value="support">Support</option>
+        <option value="engineering">Engineering</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="amount">Amount</label>
+      <input type="number" id="amount" placeholder="0.00" min="0" step="0.01">
+    </div>
+
+    <div class="field">
+      <label for="notes">Notes</label>
+      <input type="text" id="notes" placeholder="Optional notes">
+    </div>
+
+    <button onclick="submitData()">Submit</button>
+    <button onclick="loadHistory()">Load History</button>
+
+    <div id="output"></div>
+    <div id="error" class="error"></div>
+
+    <script>
+      // [ISSUE: HTML-2] google.script.run without success/failure handlers — silent failure
+      function submitData() {
+        var category = document.getElementById('category').value;
+        var amount    = parseFloat(document.getElementById('amount').value) || 0;
+        var notes     = document.getElementById('notes').value;
+
+        var data = { category: category, amount: amount, notes: notes };
+
+        google.script.run.processData(data);
+      }
+
+      // [TRAP] Proper google.script.run WITH both handlers — NOT missing handlers
+      function loadHistory() {
+        google.script.run
+          .withSuccessHandler(function(rows) {
+            renderHistory(rows);
+          })
+          .withFailureHandler(function(err) {
+            document.getElementById('error').textContent = 'Load failed: ' + err.message;
+          })
+          .getHistory();
+      }
+
+      // [ISSUE: HTML-3] innerHTML assignment from server response — XSS via innerHTML
+      function renderResponse(response) {
+        document.getElementById('output').innerHTML = response;
+      }
+
+      function renderHistory(rows) {
+        if (!rows || rows.length === 0) {
+          document.getElementById('output').textContent = 'No history found.';
+          return;
+        }
+
+        var html = '<table><thead><tr><th>Date</th><th>Category</th><th>Amount</th></tr></thead><tbody>';
+        rows.forEach(function(row) {
+          html += '<tr>'
+            + '<td>' + escapeHtml(String(row.date)) + '</td>'
+            + '<td>' + escapeHtml(String(row.category)) + '</td>'
+            + '<td>' + escapeHtml(String(row.amount)) + '</td>'
+            + '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('output').innerHTML = html;
+      }
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function clearForm() {
+        document.getElementById('amount').value = '';
+        document.getElementById('notes').value = '';
+        document.getElementById('output').textContent = '';
+        document.getElementById('error').textContent = '';
+      }
+    </script>
+  </body>
+</html>

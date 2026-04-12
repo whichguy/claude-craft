@@ -1,0 +1,57 @@
+{
+  "fixture": "large-shell.sh",
+  "description": "Bash deployment pipeline with command injection, path injection, off-by-one, subshell variable loss, and pipeline exit code issues",
+  "categories_present": ["security", "correctness", "error-handling"],
+  "issues": [
+    {
+      "id": "SHELL-1",
+      "line": 53,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "Command injection via unquoted variable in eval: eval \"process_$type $input\" where input comes from user-supplied argument — arbitrary command execution",
+      "expected_fix": "validate input against allowlist before eval, or redesign dispatch without eval"
+    },
+    {
+      "id": "SHELL-2",
+      "line": 116,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "rm -rf with unquoted variable: rm -rf $dir/${files[$i]} — if dir contains spaces or special characters, word splitting causes unintended path deletion",
+      "expected_fix": "quote the variable: rm -rf \"$dir/${files[$i]}\""
+    },
+    {
+      "id": "SHELL-3",
+      "line": 141,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Off-by-one: seq 1 $count produces indices 1..N but bash arrays are 0-based (0..N-1), so index 0 (first element) is skipped and index N causes an empty/undefined access",
+      "expected_fix": "use seq 0 $((count - 1)) or iterate with for (( i=0; i<count; i++ ))"
+    },
+    {
+      "id": "SHELL-4",
+      "line": 226,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Pipe to while-read creates a subshell: cat file | while read line; do ... done — loaded_count increments and exports inside the loop are lost after the loop ends",
+      "expected_fix": "use process substitution: while read -r line; do ...; done < \"$env_file\""
+    },
+    {
+      "id": "SHELL-5",
+      "line": 306,
+      "category": "error-handling",
+      "severity": "Advisory",
+      "question": "Q8",
+      "description": "Pipeline exit code without set -o pipefail: gunzip | tar | grep — $? only reflects grep's exit code; if gunzip or tar fails silently the verification still passes",
+      "expected_fix": "add set -o pipefail at script top, or use PIPESTATUS to check each stage"
+    }
+  ],
+  "total_issues": 5,
+  "false_positive_traps": [
+    "Line 170 area: deploy_with_tags uses \"${tags[@]}\" with proper quoting — NOT a shell injection issue",
+    "Line 331: run_plugin_hook uses eval but only after strict alphanumeric validation and checking declare -f — INTENTIONAL with sanitized input, comment marks it as such"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "session_rules": {},
+  "model_mappings": {},
+  "providers": {
+    "gemma4:26b": {
+      "base_url": "$OLLAMA_URL",
+      "auth_token": "ollama",
+      "api_key": "",
+      "config_dir": "$HOME/.claude-ollama",
+      "disable_nonessential_traffic": true
+    },
+    "qwen3-coder:30b": {
+      "base_url": "$OLLAMA_URL",
+      "auth_token": "ollama",
+      "api_key": "",
+      "config_dir": "$HOME/.claude-ollama",
+      "disable_nonessential_traffic": true
+    },
+    "qwen3-coder-next:cloud": {
+      "base_url": "http://localhost:11435",
+      "auth_token": "ollama",
+      "api_key": "",
+      "config_dir": "$HOME/.claude-ollama",
+      "disable_nonessential_traffic": true
+    }
+  },
+  "routes": {
+    "default": "claude-sonnet-4-6",
+    "background": "qwen3-coder:30b",
+    "think": "claude-sonnet-4-6",
+    "longContext": "claude-sonnet-4-6"
+  }
+}
