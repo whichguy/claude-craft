@@ -165,7 +165,7 @@ Nuance: [Context affecting severity — mitigating factors, conditions]
 Fix: [Required for Critical and Advisory (before/after code block); omit for None or Advisory/YAGNI]
 ```
 
-**Confidence filtering**: Only report findings with Confidence >= 80. Below 75, the finding is likely noise — suppress it entirely (do not include in output). Confidence reflects how certain you are this is a real issue that will manifest in practice, not a theoretical concern.
+**Confidence filtering**: Only report findings with Confidence >= 80. Below 80, the finding is likely noise — suppress it entirely (do not include in output). Confidence reflects how certain you are this is a real issue that will manifest in practice, not a theoretical concern.
 
 **Rules:**
 - Every answer must cite specific evidence (`file:line`) or explicitly state "None found — [reasoning]"

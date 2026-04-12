@@ -370,10 +370,12 @@ Output ONLY valid JSON with no surrounding prose: {\"tp\": [\"ID1\"], \"fp_count
 print(prompt)
 " <<< "$review_output")
 
+  local JUDGE_MAX_CHARS=50000   # ~12k tokens; above this truncate to fit context window
+  local JUDGE_TRUNCATE_LINES=200
   local prompt_len="${#judge_prompt}"
-  if [[ "$prompt_len" -gt 50000 ]]; then
-    echo "Warning: judge_prompt for ${fixture_path##*/} is ${prompt_len} chars — truncating review output to last 200 lines" >&2
-    review_output=$(echo "$review_output" | tail -n 200)
+  if [[ "$prompt_len" -gt "$JUDGE_MAX_CHARS" ]]; then
+    echo "Warning: judge_prompt for ${fixture_path##*/} is ${prompt_len} chars — truncating review output to last $JUDGE_TRUNCATE_LINES lines" >&2
+    review_output=$(echo "$review_output" | tail -n "$JUDGE_TRUNCATE_LINES")
     judge_prompt=$(GT_FILE="$gt_file" FIXTURE_PATH="$fixture_path" python3 -c "
 import json, os, sys
 gt = json.load(open(os.environ['GT_FILE']))
@@ -558,9 +560,6 @@ run_benchmarks() {
     # Per-fixture run accumulation for averaging
     local fixture_run_json="["
     local first_fixture_run=true
-    local fx_sum_precision=0
-    local fx_sum_recall=0
-    local fx_sum_f1=0
 
     for run_num in $(seq 1 "$RUNS_PER_FIXTURE"); do
       if [[ "$RUNS_PER_FIXTURE" -gt 1 ]]; then
@@ -695,9 +694,9 @@ print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [i['id'] for i in gt['issues']]
       fi
 
       local tp_list fp_count fn_list
-      tp_list=$(python3 -c "import json; print(json.dumps(json.loads('''$match_result''')['tp']))")
-      fp_count=$(python3 -c "import json; print(json.loads('''$match_result''')['fp_count'])")
-      fn_list=$(python3 -c "import json; print(json.dumps(json.loads('''$match_result''')['fn']))")
+      tp_list=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(json.dumps(r['tp']))")
+      fp_count=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(r['fp_count'])")
+      fn_list=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(json.dumps(r['fn']))")
 
       local tp_count fn_count
       tp_count=$(python3 -c "import json; print(len(json.loads('$tp_list')))")
@@ -806,12 +805,7 @@ print(json.dumps({
 
     fixture_run_json+="]"
 
-    # Per-fixture summary (mean across runs for this fixture)
-    local fx_mean_f1 fx_mean_precision fx_mean_recall
-    fx_mean_precision=$(python3 -c "print(round($sum_precision / max(1, $fixture_count), 4))")
-    fx_mean_recall=$(python3 -c "print(round($sum_recall / max(1, $fixture_count), 4))")
-    fx_mean_f1=$(python3 -c "print(round($sum_f1 / max(1, $fixture_count), 4))")
-
+    # Per-fixture summary (mean across runs for this fixture — computed from fixture_run_json below)
     local fixture_summary
     fixture_summary=$(python3 -c "
 import json
