@@ -3340,18 +3340,40 @@ ELIF NOT _phase_5b5_skip:
    └──────────────────────────────────────────────────────────────────┘
    ```
 
-5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
+5c.5. **Implementation Intent Questions + Skill-Learnings Parallel Dispatch** (Directive 2026-04-11):
 
-   Extract plan-specific questions that verify the code actually implements what the plan claims.
-   These become the POST_IMPLEMENT verification contract for `/review --commit`.
+   Phase 5c.5 (Intent Questions) and Phase 5g Step 1 (Skill Learnings) are independent — dispatch
+   both as a single message so they run in parallel. Phase 5g Step 1 also needs `findings_summary`
+   and `critic_summary` derived from `findings{}` and `sr_applied_edits[]`, which are available here.
 
-   **Guards (match Teaching Notes 5e guards for file-append path):**
+   **Dispatch both in ONE message before processing either result.**
+
+   **Guards for 5c.5:**
    - **Tier:** FULL tier only — TRIVIAL/SMALL skip this step (fast-path speed preserved)
    - **VCS:** untracked plan file → append to plan; tracked → render as terminal 5th panel below GATE STATUS
    - **Fixture:** skip `test/fixtures/`, `wiki/fixtures/`, `*-bench/inputs/`, `skills/*/fixtures/`
    - **Opt-out:** plan frontmatter `intent_questions: false` → skip entirely
 
    ```
+   # ── Phase 5c.5 + 5g Step 1: Parallel Dispatch ──
+   # Dispatch BOTH tasks in a SINGLE message. No dependency between them.
+   # intent_task:  Intent Questions (5c.5) — Sonnet, read-only
+   # skill_task:   Skill Learnings foreground (5g Step 1) — Haiku, read-only
+   #
+   # Guards for skill_task:
+   #   FULL tier only; not opt-out via skill_audit: false; skip if total_needs_update==0 AND sr_applied_edits==[]
+   #   Build findings_summary + critic_summary from findings{} and sr_applied_edits[] now (pre-dispatch).
+   findings_summary = ""
+   for q_id, result in findings.items():
+       if result.status == "NEEDS_UPDATE":
+           findings_summary += f"  {q_id}: {result.finding}\n    Edit applied: {result.edit}\n"
+   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
+   spawn_skill_task = (
+       REVIEW_TIER == "FULL"
+       AND frontmatter.get("skill_audit") != false
+       AND (total_needs_update > 0 OR len(sr_applied_edits) > 0)
+   )
+
    # ── Phase 5c.5: Extract Implementation Intent Questions ──
    # Runs after convergence + senior-critic loop (5c), BEFORE Teaching Notes (5e).
 
@@ -3570,6 +3592,40 @@ ELIF NOT _phase_5b5_skip:
    - ...
    ```
 
+   **Phase 3a — TaskCreate persistence (session-scoped tracking):**
+   After writing each `<!-- rap-key: ... -->` bullet to the plan file, also create a session task:
+   ```python
+   # After each retrospective action bullet is written:
+   TaskCreate(
+     description = "[action-type]: [action title] — [trigger one-liner]",
+     status = "pending"
+   )
+   # Session-scoped only — visible via task list during the current session.
+   # Does not persist across sessions.
+   ```
+
+   **Phase 3b — wiki-gap queue entries (persistent, picked up by /wiki-process):**
+   For each `wiki-gap` action type in the Retrospective Action Plan:
+   ```python
+   Bash("mkdir -p ~/.claude/reflection-queue/")
+   action_slug = slugify(f"{action_title}")  # lowercase, hyphens, no spaces
+   queue_path = f"$HOME/.claude/reflection-queue/wiki-gap-{action_slug}.json"
+   tmp_path   = queue_path + ".tmp"
+   IF NOT Bash(f"test -f '{queue_path}'").exit_ok:  # idempotency check
+       Write(tmp_path, json.dumps({
+           "schema_version": 1,
+           "type": "wiki_gap",
+           "status": "pending",
+           "created_at": Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip(),
+           "source": "review-plan-phase-5e",
+           "q_id": "<Q-ID that triggered the gap>",
+           "trigger": "<what was missing from citation resolution>",
+           "action": "<suggested wiki page content or entity to create>"
+       }))
+       Bash(f"mv '{tmp_path}' '{queue_path}'")
+   # Picked up by /wiki-process wiki_gap handler (Step 3 of wiki-process SKILL.md).
+   ```
+
    **`### Key Learnings` fire criteria:**
    - Gate 1 or Gate 2 finding the convergence loop fixed via `[EDIT: …]`
    - Senior-critic REVISED iteration whose rationale names a generalizable pattern
@@ -3634,38 +3690,22 @@ ELIF NOT _phase_5b5_skip:
 
 5g. **Skill-Learnings Review** (senior-engineer meta-read, Directive 2026-04-11):
 
-   Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup). Spawns a single senior-engineer
-   Task() agent to perform a holistic, judgment-based read of what this review run reveals about
-   review-plan's own gaps or blindspots — distinct from Phase 5 Meta-Reflection (inline signal-table,
-   quantitative) and Phase 5f (user-facing teaching about plan changes). Phase 5g asks: *"what should
-   the skill itself learn from this run?"*
+   **Step 1 is dispatched in parallel with Phase 5c.5 above** (single message). This section
+   covers Step 1 task definition (reference only — already dispatched) and Step 2 (async
+   background evaluators dispatched after Step 1 result arrives).
+
+   Phase 5g asks: *"what should the skill itself learn from this run?"* — distinct from Phase 5
+   Meta-Reflection (quantitative signal-table) and Phase 5f (user-facing teaching).
 
    ```
-   # ── Phase 5g: Skill-Learnings Review (senior-engineer meta-read) ──
-   # Runs after Phase 5f (Teaching Summary), before Step 6 (Cleanup).
-   # FULL tier only — TRIVIAL/SMALL have insufficient question coverage for meta-insights.
-   # Opt-out: plan frontmatter `skill_audit: false`.
+   # ── Phase 5g Step 1: Skill-Learnings foreground Task ──
+   # Dispatched ALONGSIDE Phase 5c.5 in a single message (see 5c.5 dispatch block above).
+   # skill_task is stored; result processed after BOTH intent_task and skill_task complete.
+   #
+   # IF spawn_skill_task == false: skip — do not dispatch skill_task; skill_learnings = []
+   # Otherwise:
 
-   IF REVIEW_TIER != "FULL":
-       SKIP
-
-   IF frontmatter.get("skill_audit") == false:
-       SKIP
-
-   # Skip all-clean first-pass runs — nothing to surface as meta-learning.
-   total_needs_update = len([q for q in findings if findings[q].status == "NEEDS_UPDATE"])
-   IF total_needs_update == 0 AND len(sr_applied_edits) == 0:
-       SKIP
-
-   # Summarize findings for senior-engineer context.
-   findings_summary = ""
-   for q_id, result in findings.items():
-       if result.status == "NEEDS_UPDATE":
-           findings_summary += f"  {q_id}: {result.finding}\n    Edit applied: {result.edit}\n"
-
-   critic_summary = "\n".join(f"  {e}" for e in sr_applied_edits) or "  (none)"
-
-   Task(
+   skill_task = Task(
      subagent_type = "general-purpose",
      model         = "claude-haiku-4-5-20251001",
      description   = "Phase 5g: skill-learnings senior-engineer meta-read",
@@ -3742,6 +3782,59 @@ ELIF NOT _phase_5b5_skip:
        # Malformed — do not silently drop.
        Print: "⚠ Phase 5g: skill-learnings agent returned malformed output — raw output:"
        Print: <task output>
+
+   # ── Phase 5g Step 2: Async Skill-Learning Evaluators ──
+   # Dispatch one background agent per skill_learning recommendation (after Step 1 result parsed).
+   # Agents verify each recommendation against the target file before writing to reflection-queue.
+
+   skill_learnings_target_map = {
+       "QUESTIONS.md": questions_path,
+       "SKILL.md":     skill_path,
+       "DIRECTIVE":    "~/.claude/CLAUDE.md"
+   }
+
+   FOR rec in skill_learnings:
+       target_file = skill_learnings_target_map.get(rec.category)
+       IF target_file is None:
+           CONTINUE  # unknown category — skip
+       rec_slug   = slugify(f"skill-learning-{rec.category}-{rec.title}")
+       queue_path = f"$HOME/.claude/reflection-queue/{rec_slug}.json"
+       IF Bash(f"test -f '{queue_path}'").exit_ok:
+           CONTINUE  # idempotent — already queued
+
+       source_hash = Bash(f"shasum -a 256 '{target_file}' | cut -c1-12").stdout.strip()
+
+       Agent(
+           subagent_type     = "general-purpose",
+           model             = "claude-haiku-4-5-20251001",
+           description       = f"Skill-learning evaluator: {rec.title}",
+           run_in_background = true,
+           prompt            = f"""
+             Read {target_file}.
+             Compute: actual_hash = shasum -a 256 {target_file} | cut -c1-12
+             If actual_hash != {source_hash}:
+               Write JSON atomically (tmp + mv) to {queue_path}:
+                 {{"schema_version":1,"type":"skill_learning_evaluation","status":"pending",
+                   "verdict":"DEFER","source_hash":"{source_hash}",
+                   "defer_reason":"target_file_changed"}}
+               Stop.
+
+             Otherwise evaluate the recommendation against current file content:
+               RECOMMEND_CHANGE: recommended edit is missing or contradicted in file
+               DEFER:            plausible but file partially addresses it already
+               REJECT:           already implemented or contradicted
+
+             Write atomically (tmp + mv) to {queue_path}:
+               {{"schema_version":1,"type":"skill_learning_evaluation","status":"pending",
+                 "verdict":"<verdict>","source_hash":"{source_hash}",
+                 "category":"{rec.category}","title":"{rec.title}",
+                 "evidence":"{rec.evidence}","action":"{rec.action}","priority":"{rec.priority}",
+                 "concrete_edit":"<edit if RECOMMEND_CHANGE, else null>",
+                 "defer_criteria":"<reasoning if DEFER, else null>"}}
+
+             Use Read and Write tools only. No Edit/Bash except the shasum check.
+           """
+       )
    ```
 
    **Interaction with Phase 5 Meta-Reflection.** Phase 5 (inline signal-table) catches quantitative
