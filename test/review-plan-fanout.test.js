@@ -765,7 +765,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('U1: Phase 3c.5 dispatch block contains run_in_background = true', function () {
             const idx = skillContent.indexOf('Phase 3c.5');
             expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
-            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            const phase3c5Block = skillContent.substring(idx, idx + 10000);
             expect(phase3c5Block).to.include('run_in_background = true');
         });
 
@@ -773,7 +773,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('U2: Phase 3c.5 contains heuristic risk gate with ACTIVE_RISKS and grep markers', function () {
             const idx = skillContent.indexOf('Phase 3c.5');
             expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
-            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            const phase3c5Block = skillContent.substring(idx, idx + 10000);
             expect(phase3c5Block).to.include('ACTIVE_RISKS');
             expect(phase3c5Block).to.include('spike|proof.of.concept|unproven|benchmark|unknown|assume|tbd');
         });
@@ -782,7 +782,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('U3: Phase 3c.5 contains REVIEW_TIER != "FULL" early exit', function () {
             const idx = skillContent.indexOf('Phase 3c.5');
             expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
-            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            const phase3c5Block = skillContent.substring(idx, idx + 10000);
             expect(phase3c5Block).to.match(/REVIEW_TIER\s*!=\s*["']FULL["']/);
         });
 
@@ -790,7 +790,7 @@ describe('Review-Plan Task Fan-Out', function () {
         it('U4: Phase 3c.5 imperative filter pins the full list to prevent drift', function () {
             const idx = skillContent.indexOf('Phase 3c.5');
             expect(idx, 'Phase 3c.5 not found').to.be.greaterThan(0);
-            const phase3c5Block = skillContent.substring(idx, idx + 6000);
+            const phase3c5Block = skillContent.substring(idx, idx + 10000);
             // Each imperative must appear in the filter list
             expect(phase3c5Block).to.include('"ignore"');
             expect(phase3c5Block).to.include('"disregard"');

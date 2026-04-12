@@ -656,10 +656,12 @@ convergence loop. The lane is best-effort: if tasks don't finish in time
 
 # Preamble: initialize all lane variables unconditionally so Phase 4 memo
 # writer never references unbound names on any skip path.
-research_pending = []
-research_done    = []
-research_missing = []
-research_queries = []   # also initialized here — needed by len() check below
+research_pending    = []
+research_done       = []
+research_missing    = []
+research_queries    = []        # also initialized here — needed by len() check below
+dispatch_epoch      = None      # int unix epoch; set by Step 2 when lane fires
+plan_sha_at_dispatch = None     # 12-char shasum -a 256 prefix; set by Step 2
 
 IF REVIEW_TIER != "FULL":
     pass  # research_pending/done/missing/queries already []
@@ -749,10 +751,42 @@ ELSE:
             # Step 2: dispatch background research Tasks (one per query, max 3).
             research_dir = "${RESULTS_DIR}/research"
             Bash("mkdir -p ${research_dir}")
-            research_pending = []
 
-            FOR query in research_queries[:3]:  # hard cap 3
-                result_path = "${research_dir}/${query.slug}.md"
+            # Capture dispatch_epoch and plan_sha_at_dispatch in a SINGLE Bash call
+            # to eliminate the hook-race window between separate date and shasum calls.
+            # NOTE: uses shasum -a 256 (macOS-compatible); sha256sum is Linux-only.
+            _bash_out = Bash('echo "$(date +%s) $(shasum -a 256 "${plan_path}" | cut -c1-12)"').stdout.strip()
+            _epoch_str, plan_sha_at_dispatch = _bash_out.split(" ", 1)
+            dispatch_epoch = int(_epoch_str)
+
+            # Pre-populate research_pending with the full slug list BEFORE spawning
+            # any Agent() Task. This closes the dispatch-vs-join race: if the driver
+            # crashes between an Agent() call and its dispatched_at patch write, Sub-case
+            # A recovery finds the full pending set in memo regardless of crash timing
+            # (because the memo was persisted before dispatch started).
+            research_pending = [
+                {slug: query.slug, path: "${research_dir}/${query.slug}.md",
+                 query: query.query, dispatched_at: None}   # None sentinel — patched below
+                for query in research_queries[:3]
+            ]
+
+            # Initial memo write — tmpfile + POSIX-atomic rename.
+            # Plain Write(memo_file, ...) is open(O_TRUNC)+write which is NOT crash-atomic;
+            # a crash between truncate and flush yields a zero-byte or partial memo.
+            IF memo_file exists:
+                memo = Read(memo_file) as JSON
+                memo["dispatch_epoch"]       = dispatch_epoch
+                memo["plan_sha_at_dispatch"] = plan_sha_at_dispatch
+                memo["research_pending"]     = research_pending
+                memo["research_done"]        = []
+                memo["research_missing"]     = []
+                Write("${memo_file}.tmp", json.dumps(memo))
+                Bash('mv "${memo_file}.tmp" "${memo_file}"')
+
+            # Dispatch loop: spawn each Task then immediately patch its dispatched_at
+            # in memo so the timestamp is crash-durable.
+            FOR item in research_pending:
+                result_path = item.path
                 Agent(
                   subagent_type     = "general-purpose",
                   description       = "Research lane: ${query.slug}",
@@ -804,24 +838,18 @@ ELSE:
                     Use Read, Write, WebSearch, WebFetch only. Return 'done'.
                   """
                 )
-                research_pending.append({
-                    slug: query.slug,
-                    path: result_path,
-                    query: query.query,
-                    dispatched_at: Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip()
-                })
+                item["dispatched_at"] = Bash("date -u +%Y-%m-%dT%H:%M:%SZ").stdout.strip()
+                # Patch memo after each spawn (tmpfile+rename for crash-safety).
+                IF memo_file exists:
+                    TRY:
+                        memo = Read(memo_file) as JSON
+                        memo["research_pending"] = research_pending
+                        Write("${memo_file}.tmp", json.dumps(memo))
+                        Bash('mv "${memo_file}.tmp" "${memo_file}"')
+                    CATCH:
+                        pass  # non-fatal; Sub-case A poll loop finds result files by slug
 
             Print: "  Research     ${len(research_pending)} background task(s) dispatched"
-
-            # Persist research_pending in memo_file so context-compression recovery
-            # can rehydrate Phase 5b.5 even if in-memory state is lost.
-            # The Phase 4 memo writer (below) will preserve these fields each pass.
-            IF memo_file exists:
-                memo = Read(memo_file) as JSON
-                memo["research_pending"] = research_pending
-                memo["research_done"]    = []
-                memo["research_missing"] = []
-                Write(memo_file, json.dumps(memo))
 ```
 
 <!-- STATE AT END OF PHASE 3c.5:
@@ -2065,9 +2093,14 @@ DO:
     per_q_status_history,
     # Research lane fields — preserve unmodified each pass (not re-derived by convergence).
     # Written by Phase 3c.5; cleared/updated by Phase 5b.5 after join.
-    research_pending: research_pending,    # list of {slug, path, query, dispatched_at}
-    research_done:    research_done,       # list of {slug, path}
-    research_missing: research_missing     # list of {slug}
+    # dispatch_epoch and plan_sha_at_dispatch MUST be preserved here — without them,
+    # Sub-case B rehydration after context compression computes grace = MIN_GRACE_SECONDS
+    # and emits a false-positive staleness annotation on every recovered run.
+    dispatch_epoch:       dispatch_epoch,       # int unix epoch; None before Phase 3c.5 fires
+    plan_sha_at_dispatch: plan_sha_at_dispatch, # 12-char shasum prefix; None before Phase 3c.5 fires
+    research_pending: research_pending,         # list of {slug, path, query, dispatched_at}
+    research_done:    research_done,            # list of {slug, path}
+    research_missing: research_missing          # list of {slug}
   }
 
   # Build breakdown suffix — only non-zero counts
