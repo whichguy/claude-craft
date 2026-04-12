@@ -140,7 +140,8 @@ substitute each `<…>` token before printing. Do not print these as literal ang
 totalIdeas   = ideas + (refineHypothesis ? 1 : 0)
 variantCells = totalIdeas × (scenarios.length + targeted)
 baselineCells = scenarios.length
-totalCells   = variantCells + baselineCells
+baselineTargetedCells = totalIdeas × targeted
+totalCells   = variantCells + baselineCells + baselineTargetedCells
 
 ╔══════════════════════════════════════════╗
 ║     ideate-system-prompt                 ║
@@ -155,7 +156,7 @@ totalCells   = variantCells + baselineCells
 [END IF]
 ║  Scenarios  : <scenarios[0]>-<scenarios[last]> (<scenarios.length> standard) ║
 ║  Targeted   : <targeted> per idea        ║
-║  Cells      : <totalCells> (<variantCells> variant + <baselineCells> base) ║
+║  Cells      : <totalCells> (<variantCells> variant + <baselineCells> base + <baselineTargetedCells> base-targeted) ║
 ║  Bench model: <model>                    ║
 ║  Ideation   : <ideaModel>                ║
 ║  Judge      : <judgeModel>               ║
@@ -643,7 +644,7 @@ be placed verbatim into the JS source — do not add extra quotes around it.
 
 **Progress display** (update after each cell completes):
 ```
-[▓▓▓▓▓▓▓░░░░░░░░░░░░░] 12/32 cells  (compression-1/std/scenario-3 ✓)
+[▓▓▓▓▓▓▓░░░░░░░░░░░░░] 12/56 cells  (compression-1/std/scenario-3 ✓)
 ```
 
 The progress label is computed per cell as:
@@ -851,6 +852,12 @@ Ranking is computed on **standard scenarios only** (filter `cellResults[]` to
 `testType === "standard"`) so baseline is directly comparable.
 
 **Compute `baseline_unified` first** (needed for delta calculation):
+
+Note: unified weights are 0.4 heuristic + 0.6 judge — judge-weighted because novel hypothesis quality
+is better assessed qualitatively. (Compare: /improve-system-prompt uses 0.6 heuristic + 0.4 judge
+for pre-coded variants where heuristic consistency matters more. Scores across the two skills are
+not directly comparable.)
+
 ```
 baseline_cells     = cellResults[] where ideaId === "baseline" and testType === "standard"
 baseline_heuristic = mean(composite) over baseline_cells
@@ -1139,7 +1146,7 @@ Emit:
 # Small: 1 idea, 5 std + 2 targeted + 5 baseline = 12 cells
 /ideate-system-prompt --ideas 1 --scenarios 0-4 --targeted 2
 
-# Full default run (32 cells)
+# Full default run (56 cells)
 /ideate-system-prompt
 
 # Full run with save, natural language
