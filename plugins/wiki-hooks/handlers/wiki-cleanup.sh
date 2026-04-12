@@ -99,3 +99,13 @@ fi
 if [ -d "$QUEUE_DIR" ]; then
   find "$QUEUE_DIR" -name "*.tmp.*" -mmin +60 -delete 2>/dev/null || true
 fi
+
+# --- 7. Expire stale .lint-session-* markers (>24h) ---
+LINT_CACHE_DIR="$WIKI_DIR/.cache"
+if [ -d "$LINT_CACHE_DIR" ]; then
+  for marker in "$LINT_CACHE_DIR"/.lint-session-*; do
+    [ -f "$marker" ] || continue
+    marker_age=$(( $(date +%s) - $(stat -f %m "$marker" 2>/dev/null || stat -c %Y "$marker" 2>/dev/null || echo 0) ))
+    [ "$marker_age" -gt 86400 ] && rm -f "$marker"
+  done
+fi

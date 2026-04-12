@@ -18,7 +18,8 @@
       "hooks": [
         { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-notify.sh", "timeout": 5 },
         { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-worker.sh", "timeout": 900, "async": true },
-        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-periodic-extract.sh", "timeout": 10, "async": true }
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-periodic-extract.sh", "timeout": 10, "async": true },
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-periodic-lint.sh", "timeout": 600, "async": true }
       ]
     }],
     "PostToolUse": [{
