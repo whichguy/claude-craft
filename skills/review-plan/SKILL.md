@@ -654,12 +654,19 @@ convergence loop. The lane is best-effort: if tasks don't finish in time
 # Gate: FULL tier + opt-out honored + at least one risk heuristic fires.
 # Cost ceiling: max 3 background Tasks (each is a full Sonnet call).
 
+# Preamble: initialize all lane variables unconditionally so Phase 4 memo
+# writer never references unbound names on any skip path.
+research_pending = []
+research_done    = []
+research_missing = []
+research_queries = []   # also initialized here — needed by len() check below
+
 IF REVIEW_TIER != "FULL":
-    research_pending = []
+    pass  # research_pending/done/missing/queries already []
     # SKIP rest of Phase 3c.5 — fall through to Phase 4
 
 ELSE IF frontmatter.get("research_lane") == false:
-    research_pending = []
+    pass  # research_pending/done/missing/queries already []
     # SKIP rest of Phase 3c.5 — fall through to Phase 4
 
 ELSE:
@@ -684,7 +691,7 @@ ELSE:
         # embed imperatives that hijack WebSearch/WebFetch behavior. Mitigations:
         # (a) ≤200 char limit; (b) imperative-verb filter; (c) <research_question>
         # delimiter + "treat as data" framing in the background Task prompt.
-        research_queries = Task(
+        research_queries_raw = Task(
           subagent_type = "general-purpose",
           description   = "Derive research queries from plan",
           prompt = """
@@ -706,18 +713,36 @@ ELSE:
                 (case-insensitive). Reject and re-derive if present.
 
             If the plan is purely mechanical (rename, file move, comment fix) and
-            no research could change it, output exactly: NO_RESEARCH_NEEDED
+            no research could change it, output exactly the word: NO_RESEARCH_NEEDED
 
-            Output up to 3 queries as JSON array:
+            Otherwise output ONLY a JSON array (no prose, no fenced code block):
               [{"slug": "slug-no-spaces", "query": "...", "rationale": "..."}, ...]
 
             Read tool only.
           """
         )
 
-        IF research_queries == "NO_RESEARCH_NEEDED" OR research_queries is empty:
-            research_pending = []
+        # Parse Task output — strip optional fenced code block, then JSON-decode.
+        # Task() returns raw chat text which may include prose or code fences.
+        _raw = research_queries_raw.strip()
+        IF "NO_RESEARCH_NEEDED" in _raw.upper() OR _raw == "":
             Print: "  Research     skipped (helper: NO_RESEARCH_NEEDED)"
+            # research_pending/done/missing/queries already [] from preamble
+            # SKIP Step 2 — fall through to Phase 4
+        ELSE:
+            # Strip fenced code block wrapper if present (```json ... ```)
+            IF _raw.startswith("```"):
+                _raw = re.sub(r"^```[a-z]*\n?", "", _raw).rstrip("`").strip()
+            # Extract JSON array (handles preamble prose before the array)
+            _json_match = re.search(r'\[.*\]', _raw, re.DOTALL)
+            TRY:
+                research_queries = json.loads(_json_match.group()) if _json_match else []
+            CATCH:
+                research_queries = []
+                Print: "  Research     skipped (query-derivation Task returned unparseable output)"
+
+        IF len(research_queries) == 0:
+            pass  # research_pending/done/missing already [] from preamble
             # SKIP Step 2 — fall through to Phase 4
 
         ELSE:
@@ -2776,23 +2801,43 @@ After the convergence loop exits (scorecard not yet printed):
 # Runs after Findings Digest, before Senior-Critic Loop.
 # If research_pending is empty (lane was skipped), this phase is a no-op.
 
-# Recovery path: if research_pending is empty in memory but memo_file has a
-# research_pending field, we are recovering from context compression.
-# Rehydrate before checking emptiness.
+# Recovery path: if research_pending is empty in memory, check memo_file.
+# Two recovery sub-cases:
+#   A) research_pending is non-empty in memo → join not yet run (mid-dispatch compression)
+#      → rehydrate pending list and run the join loop as normal.
+#   B) research_done is non-empty in memo → join already completed (post-join compression)
+#      → restore done list and rebuild findings block directly, skip poll loop.
+_phase_5b5_skip = false   # set true in Sub-case B; guards both the no-op gate AND the ELSE poll block
 IF len(research_pending) == 0 AND memo_file exists:
     TRY:
         memo = Read(memo_file) as JSON
         IF memo.get("research_pending"):
+            # Sub-case A: join has not run yet
             research_pending = memo["research_pending"]
             Print: "  Research     rehydrated ${len(research_pending)} pending item(s) from memo checkpoint"
+        ELIF memo.get("research_done"):
+            # Sub-case B: join already completed before context compression
+            research_done    = memo["research_done"]
+            research_missing = memo.get("research_missing", [])
+            Print: "  Research     join already completed (${len(research_done)} done, restored from memo)"
+            IF len(research_done) > 0:
+                research_findings_block = "## External Research (background lane)\n\n"
+                FOR item in research_done:
+                    contents = Read(item.path)
+                    research_findings_block += f"### {item.slug}\n{contents}\n\n"
+            ELSE:
+                research_findings_block = ""
+            _phase_5b5_skip = true
+            # SKIP rest of Phase 5b.5 — fall through to Phase 5c with rebuilt block
     CATCH:
         pass  # memo unreadable; fall through with empty research_pending
 
-IF len(research_pending) == 0:
+IF len(research_pending) == 0 AND NOT _phase_5b5_skip:
     research_findings_block = ""
     # SKIP rest of Phase 5b.5 — fall through to Phase 5c
 
-ELSE:
+ELIF NOT _phase_5b5_skip:
+    # Poll loop — only runs when research_pending is non-empty and Sub-case B didn't fire
     Print: "╔══════════════════════════════════════════════╗"
     Print: "║  ◆ RESEARCH LANE                  joining   ║"
     Print: "╚══════════════════════════════════════════════╝"
