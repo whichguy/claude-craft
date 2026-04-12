@@ -232,7 +232,28 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
      ╚══════════════════════════════════════════════════════╝
      ```
    - Stop; do not advance to P1
-8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8. **Scope-exclusion banner (B6 — render once on first P0 run only).**
+   Before proceeding to P1, display the following notice. Record in breadcrumb that it was shown.
+   Do NOT show again on resume (check `breadcrumbs` for `"scope_exclusion_shown": true`).
+   ```
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │  ℹ This skill prepares Form 990 / 990-EZ / 990-N only.             │
+   │                                                                     │
+   │  OUT OF SCOPE — use a licensed preparer for these:                 │
+   │  • Short-period returns (first or final year ≠ 12 months)          │
+   │  • Initial returns (first year of existence — special rules apply) │
+   │  • Final returns (dissolution, termination, significant disposal)  │
+   │  • Amended returns (Form 990-X)                                    │
+   │  • State charitable registration filings (CA RRF-1, NY CHAR500…)  │
+   │  • Group exemption returns (Form 990 with group ruling)            │
+   │  • Form 990-PF (private foundations)                               │
+   │  • Form 990-T (unrelated business income — may accompany 990)      │
+   │                                                                     │
+   │  This tool prepares a filing-ready package for your e-file         │
+   │  provider. It does NOT submit the return to the IRS.               │
+   └─────────────────────────────────────────────────────────────────────┘
+   ```
+9. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
 
 **Outputs.**
 - Machine state JSON populated: tax_year, fiscal_year_*, form_variant, all key_facts fields
