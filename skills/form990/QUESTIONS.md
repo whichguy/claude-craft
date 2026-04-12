@@ -8,6 +8,23 @@ Gate output contract:
 - `NEEDS_UPDATE` — defect found; MUST include `[EDIT: <instruction> → <target-phase-or-file>]`
 - `N/A` — question does not apply to this org/variant; brief reason required
 
+**C3 — User-facing translation of `[EDIT: ...]` directives:**
+Machine `[EDIT: ...]` directives are for skill routing — not for display to the user.
+Every `NEEDS_UPDATE` output MUST also include a `[USER: ...]` companion line written
+in plain language the Executive Director can understand. Example:
+
+```
+Q-F3: NEEDS_UPDATE
+[EDIT: Adjust functional-expense.csv Line 7 allocation → P3]
+[USER: The Program, Management, and Fundraising columns for "Staff salaries" don't add
+up to the total. I'll go back and fix the expense breakdown — this is a required IRS check.]
+```
+
+The `[USER: ...]` line:
+- Uses plain language (no IRS jargon unless explained in parentheses)
+- Explains *what is wrong* and *what will happen next* — never just echoes the machine directive
+- Is displayed in the status UI under "What I'm fixing" during the convergence loop
+
 Memoization: Gate-2 and Gate-3 questions auto-memoize after 2 stable PASS results in P8's
 convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass.
 

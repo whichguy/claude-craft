@@ -1006,7 +1006,16 @@ the e-file handoff packet.
 - Check cache: `artifacts/f990-blank-<tax_year>.pdf`
 - If present: verify embedded revision date matches `tax_year`; if mismatch → halt + ask user
 - If absent: `WebFetch https://www.irs.gov/pub/irs-pdf/f990.pdf` with 30s deadline;
-  on failure → retry once with 5s backoff → if still fails → halt and request `--local-pdf`
+  on failure → retry once with 5s backoff → if still fails → halt with user-friendly banner (C3):
+  ```
+  Couldn't reach irs.gov to download the blank Form 990 PDF.
+  Options:
+    (1) Check your internet connection and try again
+        → run: /form990 resume <plan-path>
+    (2) Download the blank form yourself and provide it:
+        → visit https://www.irs.gov/pub/irs-pdf/f990.pdf to download
+        → then re-run with: /form990 resume <plan-path> --local-pdf <path-to-downloaded-file>
+  ```
 - Save to cache path on first fetch
 
 **Step 1a: Enumerate AcroForm fields (capability probe).**

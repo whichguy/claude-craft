@@ -12,10 +12,10 @@ Parse the invocation string to determine subcommand and arguments.
 |---|---|
 | `/form990 init --sheet <id-or-url> --tax-year <YYYY> [--plan-path <path>]` | Create plan file, run P0 intake |
 | `/form990 resume <plan-path>` | Read plan, restore state, dispatch to current_phase |
-| `/form990 phase <N> <plan-path>` | Force-run phase N (override current_phase) |
+| `/form990 phase <N> <plan-path> [--dry-run]` | Force-run phase N (override current_phase); `--dry-run` shows what would be invalidated without writing |
 | `/form990 review <plan-path>` | Run P8 CPA review pass only |
 | `/form990 status <plan-path>` | Render status UI; no work |
-| `/form990 ask <plan-path> <question-id> <answer>` | Answer an open question and resume |
+| `/form990 ask <plan-path> [<question-id> <answer>]` | Answer an open question and resume; if question-id omitted, lists pending questions interactively |
 | `/form990 verify [--case TC<N>]` | Run the verification harness (`tests/verify.py`); exit 0 = all pass |
 
 **Global flags (accepted on every subcommand):**
@@ -133,14 +133,18 @@ For each `open_questions[]` entry:
 
 **Revalidation circuit breaker:**
 Track `revalidation_events[]` per `fact_id`. If same `fact_id` appears as `"regression"` 3×
-consecutively (no intervening stable resumes), HALT with:
+consecutively (no intervening stable resumes), HALT with a user-friendly banner (C3):
 ```
-⚠ revalidation circuit breaker tripped
-  fact: <fact_id>
-  regressed 3× consecutively
-  likely cause: unstable source (file being edited?)
+⚠ Heads up — the same number has changed 3 times in a row
+  What changed: <fact_id> (e.g. "Total revenue from your spreadsheet")
+  This can happen if someone is editing the budget sheet at the same time,
+  or if there's a formula recalculating. It's not an error — I just want
+  to make sure I'm using the right number before continuing.
 ```
-Then AskUserQuestion with options: `"Lock current value"` / `"Reset counter, retry once"` / `"Halt"`.
+Then AskUserQuestion with humanized options (C3):
+  - `"Use what we've got right now and keep going (you can fix it later)"`
+  - `"Try one more time — I think the source just settled"`
+  - `"Stop here so I can check the source data myself"`
 Record resolution in Decision Log.
 
 **Progression decision:**
@@ -164,8 +168,11 @@ if status == "pending" or status == "paused":
 elif status == "running":
     pid = plan_lock.pid
     if pid is alive (os.kill(pid, 0) does NOT raise OSError.ESRCH):
-        → halt: "concurrent session detected — PID <pid> on host <plan_lock.host> is still live"
-        → AskUserQuestion: "Wait for other session | Take over (risky)" — user must choose
+        → halt with humanized banner (C3):
+          "Someone (or another terminal) was editing this plan <N> seconds ago on <host>.
+           If that was you in another window, you can keep going. If someone else is helping
+           you right now, wait for them to finish before resuming here."
+        → AskUserQuestion: "That was me — continue anyway (I closed the other window)" / "Someone else is using this — I'll wait" — user must choose
     else:
         → crash recovery: handled by Step 2 orphan sweep (sets status=failed+HalfWrite or RunningDeadPid)
         → after Step 2, re-read status (now "failed"); fall through to "failed" branch below
@@ -253,7 +260,7 @@ phase-exit commit in Step 7 has the correct pre-image.
 
 ## Force-Override Protocol — /form990 phase <N>
 
-When the user invokes `/form990 phase <N> <plan>`:
+When the user invokes `/form990 phase <N> <plan>` (with optional `--dry-run`):
 
 1. Read the plan and parse machine state.
 2. Walk ARTIFACT_DEPS forward from phase N: collect all phases N, N+1, …, P9 whose
@@ -268,6 +275,24 @@ When the user invokes `/form990 phase <N> <plan>`:
 5. Write Decision Log entry: `"force-override P<N> on <iso>: invalidated downstream phases <list>; prior sha256 values snapshotted above"`.
 6. Atomic commit.
 7. Dispatch to Phase Entry Protocol for P<N>.
+
+**`--dry-run` behavior (C3):** If `--dry-run` is passed, perform steps 1–2 only (read plan +
+compute downstream set), then print the preview and STOP — do not write anything:
+```
+⚠ Dry run — no changes will be written
+  Force-running P<N> would invalidate:
+    P<N+1>  →  <artifact list>
+    P<N+2>  →  <artifact list>
+    ...
+  Total: <K> phase(s), <M> artifact(s) cleared
+  Run without --dry-run to proceed.
+```
+Without `--dry-run`: after computing the downstream set (step 2), print the confirmation prompt:
+```
+This will re-run P<N> and invalidate P<N+1>..P<last_affected_phase>
+(<K> committed artifact hashes will be cleared). Continue? [y/N]
+```
+If the user answers N → stop without writing. If Y → proceed with steps 3–7.
 
 **Rationale:** clearing downstream sha256/fingerprints means `verify_ancestors()` will
 correctly detect them as "not yet produced" on the next P<N+1> entry, preventing stale
@@ -290,6 +315,10 @@ b. Mutate machine state in memory:
      - gate_results_latest_pass = {Q-Fid: "PASS"|"NEEDS_UPDATE"|"N/A"}
      - plan_version += 1
      - plan_lock = {pid, acquired_at, host}
+     - (C3) Recompute "## Next Action" block: second-person imperative describing the exact
+       next step for a cold resume. If open_questions[] has pending items, list the first 2.
+       Otherwise describe the first sub-step of the next phase. Written as plain prose the
+       ED can understand (no skill-internal jargon).
 c. Re-read plan file; compute current_sha256 = sha256(current bytes)
    If current_sha256 != pre_image_sha256:
      ABORT with "concurrent modification detected — reload and retry"
@@ -852,7 +881,20 @@ def auto_append_learning(learnings_path: str, phase_id: str,
 
 Three question classes:
 1. **To the user:** AskUserQuestion or Open Question block in plan file; user answers via
-   `/form990 ask <plan> <OQ-id> <answer>`
+   `/form990 ask <plan> <OQ-id> <answer>` (explicit) or `/form990 ask <plan>` (interactive).
+
+   **Interactive mode (C3):** When invoked without a question-id, list all pending open questions
+   in a numbered menu and ask the user to pick one:
+   ```
+   ┌─ Open Questions ─────────────────────────────────────────────────────┐
+   │  1. OQ-1  (P1)  What is the prior-year gross receipts total?         │
+   │  2. OQ-2  (P1)  Is there a payroll register from the fiscal year?    │
+   │  3. OQ-3  (P2)  "Office supplies" — Program or Management & General? │
+   └───────────────────────────────────────────────────────────────────────┘
+   Pick a number to answer, or press Enter to skip: _
+   ```
+   After the user picks and answers, record the answer and offer to continue answering
+   remaining questions. Mark each answered question in machine state and breadcrumb.
 2. **To external party:** `gmail_create_draft` — **never auto-sends**. Draft ID recorded in
    `open_questions[].draft_id`. User reviews + sends manually from Gmail.
 3. **Inbound replies:** On resume, `gmail_search_messages` with draft thread; found replies
