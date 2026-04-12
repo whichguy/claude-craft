@@ -99,7 +99,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 <!-- STATE AT END OF PHASE 1:
      plan_path, plan_slug, questions_path, questions_l3_path,
-     gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md loaded in context.
+     skill_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md loaded in context.
      Next phase reads ALL of the above.
      ════════════════════════════════════════════════════ -->
 
@@ -357,8 +357,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
-       IF len(plan_contents.splitlines()) > 2000:
-         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       plan_line_count = len(plan_contents.splitlines())
+       IF plan_line_count > 2000:
+         Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
        sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
@@ -531,8 +532,9 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
-       IF len(plan_contents.splitlines()) > 2000:
-         Print first 500 lines + "  [... plan truncated — {total} lines ...]" + last 500 lines
+       plan_line_count = len(plan_contents.splitlines())
+       IF plan_line_count > 2000:
+         Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
        sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
@@ -3359,6 +3361,8 @@ ELIF NOT _phase_5b5_skip:
    # ── Phase 5c.5: Extract Implementation Intent Questions ──
    # Runs after convergence + senior-critic loop (5c), BEFORE Teaching Notes (5e).
 
+   spawn_skill_task = False  # default; overwritten below when all guards pass and edits exist
+
    IF REVIEW_TIER != "FULL":
        SKIP
 
@@ -3846,7 +3850,9 @@ ELIF NOT _phase_5b5_skip:
                  "concrete_edit":"<edit if RECOMMEND_CHANGE, else null>",
                  "defer_criteria":"<reasoning if DEFER, else null>"}}
 
-             Use Read and Write tools only. No Edit/Bash except the shasum check.
+             Permitted tools: Read, Write, Bash. The ONLY permitted Bash call is:
+               shasum -a 256 {target_file} | cut -c1-12
+             Do not use Edit. Do not run any other Bash commands.
            """
        )
    ```
