@@ -110,66 +110,92 @@ Print setup banner:
 
 ## Step 1.5: Lint Pre-flight
 
-Detect available lint tools in `worktree`, filter to those applicable to `file_list`, then ask the user before running any.
+Detect lint config files, check if each tool's binary is installed, run installed tools automatically, and prompt only when a tool needs to be pulled down first.
 
 ```
-# Detect candidate linters by looking for config files / package.json scripts
+# Detect candidate linters from config signals at worktree root
 lint_candidates = []
 
-# Node/JS/TS
-If package.json exists at worktree root:
+# Node/JS/TS — npm scripts run via node_modules, no separate binary check needed
+If package.json exists:
   scripts = parse package.json scripts object
   If scripts["lint"] exists:
-    lint_candidates.append({ label: "npm run lint", cmd: "npm run lint", fix_cmd: scripts["lint:fix"] ? "npm run lint:fix" : null, exts: [".js",".ts",".jsx",".tsx",".mjs",".cjs"] })
+    lint_candidates.append({ label: "npm run lint", cmd: "npm run lint",
+      fix_cmd: scripts["lint:fix"] ? "npm run lint:fix" : null,
+      install_cmd: "npm install", needs_install_check: "node_modules/.bin",
+      exts: [".js",".ts",".jsx",".tsx",".mjs",".cjs"] })
   If scripts["typecheck"] or scripts["type-check"] exists:
     key = whichever exists
-    lint_candidates.append({ label: "npm run " + key, cmd: "npm run " + key, fix_cmd: null, exts: [".ts",".tsx"] })
+    lint_candidates.append({ label: "npm run " + key, cmd: "npm run " + key,
+      fix_cmd: null, install_cmd: "npm install", needs_install_check: "node_modules/.bin",
+      exts: [".ts",".tsx"] })
 
 # Python
 If pyproject.toml or .ruff.toml or ruff.toml exists:
-  lint_candidates.append({ label: "ruff check", cmd: "ruff check " + joined(file_list filtered to .py), fix_cmd: "ruff check --fix " + same, exts: [".py"] })
-Else if .pylintrc or setup.cfg (with [pylint]) exists:
-  lint_candidates.append({ label: "pylint", cmd: "pylint " + joined(file_list filtered to .py), fix_cmd: null, exts: [".py"] })
+  lint_candidates.append({ label: "ruff", cmd: "ruff check " + joined(.py files),
+    fix_cmd: "ruff check --fix " + same, binary: "ruff",
+    install_cmd: "pip install ruff", exts: [".py"] })
+Else if .pylintrc or setup.cfg (with [pylint] section) exists:
+  lint_candidates.append({ label: "pylint", cmd: "pylint " + joined(.py files),
+    fix_cmd: null, binary: "pylint", install_cmd: "pip install pylint", exts: [".py"] })
 
 # Ruby
 If .rubocop.yml or .rubocop exists:
-  lint_candidates.append({ label: "rubocop", cmd: "rubocop " + joined(file_list filtered to .rb), fix_cmd: "rubocop -A " + same, exts: [".rb"] })
+  lint_candidates.append({ label: "rubocop", cmd: "rubocop " + joined(.rb files),
+    fix_cmd: "rubocop -A " + same, binary: "rubocop",
+    install_cmd: "gem install rubocop", exts: [".rb"] })
 
 # Shell
 If .shellcheckrc exists OR any .sh file in file_list:
-  If shellcheck binary exists (which shellcheck):
-    lint_candidates.append({ label: "shellcheck", cmd: "shellcheck " + joined(file_list filtered to .sh), fix_cmd: null, exts: [".sh"] })
+  lint_candidates.append({ label: "shellcheck", cmd: "shellcheck " + joined(.sh files),
+    fix_cmd: null, binary: "shellcheck",
+    install_cmd: "brew install shellcheck  # or apt install shellcheck", exts: [".sh"] })
 
-# Filter: remove candidates whose exts don't overlap any file in file_list
+# Filter: only tools whose exts overlap file_list
 applicable = [c for c in lint_candidates if any file in file_list has extension in c.exts]
+
+# For each applicable tool: check if binary/node_modules is available
+For each tool in applicable:
+  If tool.binary:
+    tool.installed = (which tool.binary) exits 0
+  Else (npm-based):
+    tool.installed = node_modules/.bin directory exists at worktree root
 ```
 
-If `applicable` is non-empty:
-```
-  Print detected summary:
-  ┌─ Lint tools detected ─────────────────────────────────┐
-  │  [label]   ([exts])                                    │  ← one line per tool
-  └────────────────────────────────────────────────────────┘
+**Run installed tools automatically; prompt only for missing ones:**
 
+```
+ready     = [t for t in applicable if t.installed]
+needs_dl  = [t for t in applicable if NOT t.installed]
+```
+
+For each tool in `ready` (run without prompting):
+```
+  Print: "  ▸ [label] running..."
+  Run tool.cmd via Bash (cwd=worktree), capture stdout+stderr, note exit code
+  Print:
+    ── [label] ──────────────────────────────────────────
+    [raw output, max 60 lines; "… [N] more lines" if longer]
+    Exit [code] — [N issue(s) | clean]
+  If tool.fix_cmd AND exit_code != 0:
+    Use AskUserQuestion:
+      question = "[label] found [N] issue(s). Auto-fix?"
+      options  = ["Yes — run " + tool.fix_cmd, "No — continue to review"]
+    If yes: run fix_cmd, print "  ✓ auto-fix applied"
+```
+
+For each tool in `needs_dl` (prompt before installing):
+```
   Use AskUserQuestion:
-    question = "Run lint before review? " + applicable.map(c => c.label).join(", ")
-    options  = ["Yes — run and show output", "Yes — run and auto-fix if available", "No — skip lint"]
+    question = "[label] config found but binary not installed. Install and run?"
+    options  = ["Yes — run: " + tool.install_cmd, "No — skip"]
+  If yes:
+    Run tool.install_cmd via Bash
+    Run tool.cmd, show output (same format as above)
+    If tool.fix_cmd AND exit_code != 0: prompt auto-fix (same as above)
 ```
 
-If user selects "Yes — run and show output" or "Yes — run and auto-fix if available":
-```
-  For each tool in applicable:
-    Run tool.cmd via Bash, capture stdout+stderr, note exit code
-    Print:
-      ── [label] ──────────────────────────────────────────
-      [raw output, max 60 lines; truncate with "… [N] more lines" if longer]
-      Exit [code] — [N warning(s)/error(s) | clean]
-    If user chose auto-fix AND tool.fix_cmd AND exit_code != 0:
-      Run tool.fix_cmd via Bash
-      Print: "  ✓ auto-fix applied ([tool.fix_cmd])"
-```
-
-If `applicable` is empty OR user selects "No": skip silently, continue to Step 2.
+If `applicable` is empty: skip silently, continue to Step 2.
 
 ## Step 2: Impact Discovery
 
