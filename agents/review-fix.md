@@ -169,7 +169,7 @@ ready     = [t for t in applicable if t.installed]
 needs_dl  = [t for t in applicable if NOT t.installed]
 ```
 
-For each tool in `ready` (run without prompting):
+For each tool in `ready` (run silently, no prompts):
 ```
   Print: "  ▸ [label] running..."
   Run tool.cmd via Bash (cwd=worktree), capture stdout+stderr, note exit code
@@ -177,11 +177,6 @@ For each tool in `ready` (run without prompting):
     ── [label] ──────────────────────────────────────────
     [raw output, max 60 lines; "… [N] more lines" if longer]
     Exit [code] — [N issue(s) | clean]
-  If tool.fix_cmd AND exit_code != 0:
-    Use AskUserQuestion:
-      question = "[label] found [N] issue(s). Auto-fix?"
-      options  = ["Yes — run " + tool.fix_cmd, "No — continue to review"]
-    If yes: run fix_cmd, print "  ✓ auto-fix applied"
 ```
 
 For each tool in `needs_dl` (prompt before installing):
