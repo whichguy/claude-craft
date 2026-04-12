@@ -877,11 +877,11 @@ describe('Review-Plan Task Fan-Out', function () {
             const phase3c5Block = skillContent.substring(dispatch3c5Idx, dispatch3c5Idx + 10000);
             expect(phase3c5Block).to.include('plan_sha_at_dispatch');
             expect(phase3c5Block).to.include('shasum -a 256');
-            // Phase 5b.5 consumer: reads from memo and emits annotated header
+            // Phase 5b.5 consumer: reads plan_sha_at_dispatch from _lane_memo (safe-read fallback) and emits annotated header
             const idx = skillContent.indexOf('5b.5. **Research Lane Join**');
             expect(idx, '5b.5. **Research Lane Join** section heading not found').to.be.greaterThan(0);
             const phase5b5Block = skillContent.substring(idx, idx + 10000);
-            expect(phase5b5Block).to.include('memo.get("plan_sha_at_dispatch")');
+            expect(phase5b5Block).to.include('_lane_memo.get("plan_sha_at_dispatch")');
             expect(phase5b5Block).to.include('citations may reference superseded text');
             // Must NOT use Linux-only sha256sum
             expect(phase5b5Block).to.not.include('sha256sum');
