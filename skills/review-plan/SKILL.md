@@ -1274,10 +1274,10 @@ DO:
   )
 
   --- L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions, group-memoizable) ---
-  --- Pass A runs first (while model is at full attention): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
+  --- Sonnet per spike 2026-04-12 (73% agreement, 0 adversarial regressions, Q-G21 binary gate PASS): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
-    model = "opus",
+    model = "sonnet",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).
