@@ -1,0 +1,66 @@
+#!/bin/bash
+# claude-shim — transparent PATH shim for claude-proxy routing.
+# Installed as ~/.claude/bin/claude (ahead of real claude in PATH).
+# Ensures the proxy is running, then exec's the real claude binary.
+#
+# Escape hatch: CLAUDE_PROXY_BYPASS=1 claude ... — skips proxy entirely.
+set -eo pipefail
+
+PORT="${CLAUDE_PROXY_PORT:-9999}"
+SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+# ── 1. Ensure proxy is running ────────────────────────────────────────
+# Hot path: if /ping succeeds immediately, skip locking entirely.
+if ! curl -sf --max-time 0.3 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then
+  (
+    # flock prevents parallel cold-start races (three terminals at once).
+    flock -n 9 || exit 0
+    # Re-check inside lock — another shim may have spawned by now.
+    if ! curl -sf --max-time 0.3 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then
+      nohup node "$HOME/.claude/tools/claude-proxy" \
+        >"$HOME/.claude/proxy.log" 2>&1 &
+      disown 2>/dev/null || true
+      # Wait up to 2s for proxy readiness (10 × 0.2s probes).
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        curl -sf --max-time 0.2 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1 && break
+        sleep 0.2
+      done
+    fi
+  ) 9>"$HOME/.claude/proxy.lock"
+fi
+
+# ── 2. Resolve the real claude binary ────────────────────────────────
+# Walk PATH entries manually — `command -v` only finds the first match
+# (which is this shim itself). We need the *next* one.
+IFS=':' read -ra P_ENTRIES <<< "$PATH"
+REAL_CLAUDE=""
+for dir in "${P_ENTRIES[@]}"; do
+  cand="$dir/claude"
+  if [[ -x "$cand" ]]; then
+    # Resolve symlinks for canonical comparison so a symlinked shim
+    # doesn't match itself at a different path depth.
+    cand_real="$(readlink -f "$cand" 2>/dev/null || echo "$cand")"
+    self_real="$(readlink -f "$SELF"  2>/dev/null || echo "$SELF")"
+    [[ "$cand_real" == "$self_real" ]] && continue
+    REAL_CLAUDE="$cand"
+    break
+  fi
+done
+
+if [[ -z "$REAL_CLAUDE" ]]; then
+  echo "claude shim: real claude binary not found in PATH (after $SELF)" >&2
+  exit 127
+fi
+
+# ── 3. Route through proxy ────────────────────────────────────────────
+export ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT"
+# Preserve an existing real API key; set placeholder if none present
+# so Claude CLI has a non-empty value to send (proxy replaces it).
+export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-proxied-placeholder}"
+
+# ── 4. Escape hatch ───────────────────────────────────────────────────
+if [[ "$CLAUDE_PROXY_BYPASS" == "1" ]]; then
+  unset ANTHROPIC_BASE_URL
+fi
+
+exec "$REAL_CLAUDE" "$@"

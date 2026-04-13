@@ -125,14 +125,49 @@ main() {
     if [ -d "$REPO_DIR/tools" ]; then
         chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
         chmod +x "$REPO_DIR/tools/claude-router" 2>/dev/null || true
+        chmod +x "$REPO_DIR/tools/claude-proxy" 2>/dev/null || true
+        chmod +x "$REPO_DIR/tools/claude-shim" 2>/dev/null || true
     fi
 
-    # Symlink claude-router (used by wiki-worker.sh for Bedrock/OpenRouter/Ollama support)
+    # Symlink claude-router (used for Bedrock/Vertex — needs pre-launch env vars)
     if [ -x "$REPO_DIR/tools/claude-router" ]; then
         mkdir -p "$CLAUDE_DIR/tools"
         ln -sfn "$REPO_DIR/tools/claude-router" "$CLAUDE_DIR/tools/claude-router"
         echo -e "${GREEN}✅ Installed tool: claude-router${NC}"
     fi
+
+    # Symlink claude-proxy (long-running HTTP proxy; auto-spawned by the PATH shim)
+    if [ -x "$REPO_DIR/tools/claude-proxy" ]; then
+        mkdir -p "$CLAUDE_DIR/tools"
+        ln -sfn "$REPO_DIR/tools/claude-proxy" "$CLAUDE_DIR/tools/claude-proxy"
+        echo -e "${GREEN}✅ Installed tool: claude-proxy${NC}"
+    fi
+
+    # Install PATH shim: copy (not symlink) so it's runnable without repo traversal.
+    # Placed at ~/.claude/bin/claude — ahead of the real claude in PATH.
+    if [ -f "$REPO_DIR/tools/claude-shim" ]; then
+        mkdir -p "$CLAUDE_DIR/bin"
+        cp "$REPO_DIR/tools/claude-shim" "$CLAUDE_DIR/bin/claude"
+        chmod +x "$CLAUDE_DIR/bin/claude"
+        echo -e "${GREEN}✅ Installed PATH shim: ~/.claude/bin/claude${NC}"
+    fi
+
+    # Inject ~/.claude/bin into PATH (idempotent marker block).
+    # Uses ~/.zshenv (all zsh invocations incl. non-interactive) and ~/.bashrc (bash users).
+    inject_path_block() {
+        local rcfile="$1"
+        local marker_start="# BEGIN claude-craft proxy shim (managed by install.sh)"
+        local marker_end="# END claude-craft proxy shim"
+        if grep -qF "$marker_start" "$rcfile" 2>/dev/null; then
+            return 0   # already injected
+        fi
+        printf '\n%s\ncase ":$PATH:" in\n  *":$HOME/.claude/bin:"*) ;;\n  *) export PATH="$HOME/.claude/bin:$PATH" ;;\nesac\n%s\n' \
+            "$marker_start" "$marker_end" >> "$rcfile"
+        echo -e "${GREEN}✅ Added ~/.claude/bin to PATH in $rcfile${NC}"
+    }
+    inject_path_block "$HOME/.zshenv"
+    inject_path_block "$HOME/.bashrc"
+    echo -e "${YELLOW}⚠️  Run: exec \$SHELL   (or open a new terminal) to activate the claude shim${NC}"
 
     # Make uninstall script executable
     if [ -f "$REPO_DIR/uninstall.sh" ]; then
@@ -167,19 +202,32 @@ main() {
     echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
     install_settings_hooks
 
-    # Bootstrap default model-map.json if not present.
-    # Source of truth: config/model-map.json in the repo (Ollama providers + routes).
-    # Existing user configs are never overwritten.
+    # Bootstrap / migrate model-map.json.
+    # Source of truth: config/model-map.json in the repo (new backends+model_routes schema).
+    # Migration: detect old schema (providers/session_rules/model_mappings keys) →
+    #   back up the old file, install the new default, and tell the user.
     local model_map="$CLAUDE_DIR/model-map.json"
     local default_map="$REPO_DIR/config/model-map.json"
-    if [ ! -f "$model_map" ]; then
+    if [ -f "$model_map" ] && command -v jq >/dev/null 2>&1; then
+        if jq -e 'has("providers") or has("session_rules") or has("model_mappings")' "$model_map" >/dev/null 2>&1; then
+            local bak="$model_map.bak.$(date +%Y%m%d%H%M%S)"
+            cp "$model_map" "$bak"
+            cp "$default_map" "$model_map"
+            chmod 600 "$model_map"
+            echo -e "${YELLOW}⚠️  Old-schema model-map.json detected and backed up to:${NC}"
+            echo -e "   $bak"
+            echo -e "${YELLOW}   New default schema installed. Port custom routes by hand — see docs.${NC}"
+        else
+            echo -e "${GREEN}✅ model-map.json already uses new schema — skipping${NC}"
+        fi
+    elif [ ! -f "$model_map" ]; then
         if [ -f "$default_map" ]; then
             cp "$default_map" "$model_map"
             chmod 600 "$model_map"
             echo -e "${GREEN}✅ Created default model-map.json (from config/model-map.json)${NC}"
         else
             # Fallback: minimal config if the default file is missing
-            printf '{\n  "session_rules": {},\n  "model_mappings": {}\n}\n' > "$model_map"
+            printf '{\n  "backends": {},\n  "model_routes": {},\n  "routes": {}\n}\n' > "$model_map"
             chmod 600 "$model_map"
             echo -e "${GREEN}✅ Created minimal model-map.json${NC}"
         fi
@@ -231,9 +279,13 @@ main() {
     echo "  3. Use /alias --list to see available aliases"
     echo "  4. Check ~/.claude/backups/ if you need to restore anything"
     echo ""
-    echo -e "${YELLOW}Model routing (optional):${NC}"
-    echo "  • $CLAUDE_DIR/tools/claude-router --list  — show configured providers/routes"
-    echo "  • /model-map                              — manage model routing (add/remove routes)"
+    echo -e "${YELLOW}Model routing (transparent proxy):${NC}"
+    echo "  • claude                             — now routes automatically via ~/.claude/bin/claude shim"
+    echo "  • /model-map                         — manage model routing (add/remove routes)"
+    echo "  • tail ~/.claude/proxy.log           — troubleshoot proxy startup or routing issues"
+    echo "  • pkill -f claude-proxy              — restart proxy after config edits"
+    echo "  • CLAUDE_PROXY_BYPASS=1 claude ...   — bypass proxy for direct Anthropic access"
+    echo "  • claude-router --list               — Bedrock/Vertex routing (opt-in, use --route)"
     echo ""
     echo -e "${YELLOW}💡 Uninstall anytime with:${NC} $REPO_DIR/uninstall.sh --dry-run"
     echo ""
