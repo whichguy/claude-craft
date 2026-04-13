@@ -73,22 +73,26 @@ assert_contains \
   "Next steps header present" \
   "$OUTPUT" "Next steps:"
 
-# New model routing block
+# Model routing block (transparent proxy)
 assert_contains \
   "Model routing section header present" \
-  "$OUTPUT" "Model routing (optional):"
-
-assert_contains \
-  "claude-router --list line present" \
-  "$OUTPUT" "claude-router --list"
-
-assert_contains \
-  "claude-router path uses CLAUDE_DIR expansion" \
-  "$OUTPUT" "$CLAUDE_DIR/tools/claude-router"
+  "$OUTPUT" "Model routing (transparent proxy):"
 
 assert_contains \
   "/model-map skill mentioned" \
   "$OUTPUT" "/model-map"
+
+assert_contains \
+  "proxy.log troubleshooting hint present" \
+  "$OUTPUT" "proxy.log"
+
+assert_contains \
+  "CLAUDE_PROXY_BYPASS escape hatch mentioned" \
+  "$OUTPUT" "CLAUDE_PROXY_BYPASS=1"
+
+assert_contains \
+  "claude-router Bedrock/Vertex fallback still mentioned" \
+  "$OUTPUT" "claude-router --list"
 
 # Sanity: existing steps still present
 assert_contains \
