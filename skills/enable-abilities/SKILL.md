@@ -36,7 +36,7 @@ Determine which config area the user wants to change:
 | Signal | Area | Jump to |
 |--------|------|---------|
 | No arguments | Overview | Step 1 |
-| permissions, allowed tools, permission mode, env, defaultMode | Settings | Step 2 |
+| permissions, allowed tools, permission mode, env, defaultMode, plan, clear context, showClearContextOnPlanAccept | Settings | Step 2 |
 | hook, event, PreToolUse, PostToolUse, SessionStart, matcher | Hooks | Step 3 |
 | MCP, server, stdio, http, sse, .mcp.json, .claude.json | MCP Servers | Step 4 |
 | CLAUDE.md, instructions, rules, project instructions | CLAUDE.md | Step 5 |
@@ -87,7 +87,7 @@ mcp__server__tool_name   # Specific MCP tool
 { "env": { "MY_API_KEY": "value" } }
 ```
 
-**Other fields:** `model`, `effortLevel` ("low"/"medium"/"high"), `autoUpdatesChannel` ("stable"/"latest"), `skipDangerousModePermissionPrompt`, `sandbox`
+**Other fields:** `model`, `effortLevel` ("low"/"medium"/"high"), `autoUpdatesChannel` ("stable"/"latest"), `skipDangerousModePermissionPrompt`, `showClearContextOnPlanAccept` (boolean, enables "clear context" option when accepting plans), `sandbox`
 
 ### Workflow
 
