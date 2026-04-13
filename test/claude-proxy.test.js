@@ -309,30 +309,33 @@ describe('claude-proxy — Ollama text translator', () => {
       });
     });
 
-    await postProxy(PROXY_PORT, {
-      model: 'qwen3-coder:30b',
-      system: 'You are helpful.',
-      messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 10,
-    });
-
-    expect(ollamaReceivedBody).to.not.be.null;
-    const systemMsg = ollamaReceivedBody.messages.find(m => m.role === 'system');
-    expect(systemMsg).to.exist;
-    expect(systemMsg.content).to.equal('You are helpful.');
-
-    // Restore default handler
-    ollamaMock.removeAllListeners('request');
-    ollamaMock.on('request', (req, res) => {
-      const chunks = [];
-      req.on('data', c => chunks.push(c));
-      req.on('end', () => {
-        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
-        res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: 'Hello' }, done: false }) + '\n');
-        res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: '' }, done: true, eval_count: 2 }) + '\n');
-        res.end();
+    try {
+      await postProxy(PROXY_PORT, {
+        model: 'qwen3-coder:30b',
+        system: 'You are helpful.',
+        messages: [{ role: 'user', content: 'hi' }],
+        max_tokens: 10,
       });
-    });
+
+      expect(ollamaReceivedBody).to.not.be.null;
+      const systemMsg = ollamaReceivedBody.messages.find(m => m.role === 'system');
+      expect(systemMsg).to.exist;
+      expect(systemMsg.content).to.equal('You are helpful.');
+    } finally {
+      // Always restore default handler, even if assertions fail, to avoid
+      // poisoning subsequent tests that depend on the default mock response.
+      ollamaMock.removeAllListeners('request');
+      ollamaMock.on('request', (req, res) => {
+        const chunks = [];
+        req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+          res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+          res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: 'Hello' }, done: false }) + '\n');
+          res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: '' }, done: true, eval_count: 2 }) + '\n');
+          res.end();
+        });
+      });
+    }
   });
 });
 
@@ -347,6 +350,47 @@ describe('claude-proxy — routing', () => {
     const body = JSON.parse(r.body);
     expect(body.error).to.include('unknown model');
     expect(body.available).to.be.an('array').and.include('claude-sonnet-4-6');
+  });
+
+  it('returns 404 for unknown non-v1 path', async function () {
+    this.timeout(1000);
+    const r = await new Promise((resolve, reject) => {
+      const req = http.request(
+        { hostname: '127.0.0.1', port: PROXY_PORT, path: '/notapath', method: 'GET' },
+        res => {
+          const chunks = [];
+          res.on('data', c => chunks.push(c));
+          res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString() }));
+        }
+      );
+      req.on('error', reject);
+      req.end();
+    });
+    expect(r.status).to.equal(404);
+    expect(JSON.parse(r.body).error).to.include('unknown path');
+  });
+
+  it('returns 400 for invalid JSON body', async function () {
+    this.timeout(1000);
+    const r = await new Promise((resolve, reject) => {
+      const bad = 'not-json{{{';
+      const req = http.request(
+        {
+          hostname: '127.0.0.1', port: PROXY_PORT, path: '/v1/messages', method: 'POST',
+          headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(bad) },
+        },
+        res => {
+          const chunks = [];
+          res.on('data', c => chunks.push(c));
+          res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString() }));
+        }
+      );
+      req.on('error', reject);
+      req.write(bad);
+      req.end();
+    });
+    expect(r.status).to.equal(400);
+    expect(JSON.parse(r.body).error).to.include('invalid json');
   });
 
   it('three concurrent requests to different backends complete independently', async function () {
