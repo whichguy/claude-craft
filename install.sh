@@ -39,8 +39,13 @@ sync_extensions() {
     if [ -x "$REPO_DIR/tools/sync-status.sh" ]; then
         REPO_DIR="$REPO_DIR" CLAUDE_DIR="$CLAUDE_DIR" "$REPO_DIR/tools/sync-status.sh" sync
     else
-        echo -e "${RED}❌ sync-status.sh not found or not executable${NC}"
-        echo -e "${YELLOW}Try: chmod +x $REPO_DIR/tools/sync-status.sh${NC}"
+        if [ -f "$REPO_DIR/tools/sync-status.sh" ]; then
+            echo -e "${RED}❌ sync-status.sh exists but is not executable${NC}"
+            echo -e "${YELLOW}Try: chmod +x $REPO_DIR/tools/sync-status.sh${NC}"
+        else
+            echo -e "${RED}❌ sync-status.sh not found at: $REPO_DIR/tools/sync-status.sh${NC}"
+            echo -e "${YELLOW}Repository may be incomplete. Try re-cloning.${NC}"
+        fi
         exit 1
     fi
 }
@@ -106,10 +111,11 @@ main() {
         fi
 
         test_github_connectivity
-        if git -C "$REPO_DIR" pull --ff-only origin main 2>&1; then
+        if git_output=$(git -C "$REPO_DIR" pull --ff-only origin main 2>&1); then
             echo -e "${GREEN}✅ Updated to latest version${NC}"
         else
-            echo -e "${YELLOW}⚠️  Could not fast-forward. Continuing with existing version.${NC}"
+            echo -e "${YELLOW}⚠️  Could not fast-forward: ${git_output}${NC}"
+            echo -e "${YELLOW}   Continuing with existing version.${NC}"
         fi
     else
         # Fresh install: clone
@@ -234,10 +240,6 @@ main() {
     else
         echo -e "${GREEN}✅ model-map.json already exists — skipping${NC}"
     fi
-
-    # Merge plugin hooks into settings.json
-    echo -e "${YELLOW}🔌 Merging plugin hooks...${NC}"
-    merge_plugin_hooks
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"
