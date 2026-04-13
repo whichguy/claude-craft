@@ -3216,7 +3216,7 @@ ELIF NOT _phase_5b5_skip:
        """)
 
        Task(subagent_type = "general-purpose",
-            model = "opus",
+            model = "sonnet",
             description = "SR critic B, iter ${sr_iter}",
             prompt = """
          You are senior-engineer critic B (parallel critic A; different
