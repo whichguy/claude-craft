@@ -1,12 +1,12 @@
 #!/bin/bash
 # claude-router — route Claude Code to any model provider
-# Provider lookup: 1) model-map.json providers  2) local Ollama auto-detect  3) Anthropic passthrough
+# Provider lookup: 1) model-map.json providers  2) local Ollama tag match  3) assume Ollama (name passthrough)
 # Supports: Ollama (local), OpenRouter, LiteLLM, Bedrock, Vertex, any custom endpoint.
 # All args pass through to claude unchanged.
 #
 # Usage: claude-router --model gemma4:26b          — Ollama (auto-detected)
 #        claude-router --model bedrock-opus        — Bedrock (from model-map.json)
-#        claude-router --model opus                — Anthropic (passthrough)
+#        claude-router --model opus                — Ollama if not in model-map (name passed through)
 #        claude-router --route background          — named route from model-map.json .routes
 #        claude-router --route background -p .     — route + pass -p to claude
 #        claude-router --list                       — show all available models and routes
@@ -69,7 +69,7 @@ ensure_ollama_running() {
   echo "claude-router: warming '$model' on $host (background)..." >&2
   # `ollama run <model> ""` loads the model and exits quickly on empty prompt.
   # Fully detached: stdin from /dev/null, outputs to /dev/null, backgrounded + disowned.
-  OLLAMA_HOST="$host" nohup ollama run "$model" "" </dev/null >/dev/null 2>&1 &
+  OLLAMA_HOST="$host" nohup ollama run "$model" "--options" "num_ctx=65536" </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
 }
 
@@ -106,7 +106,7 @@ show_models() {
     echo ""
   fi
 
-  echo "Any other model name passes through to Anthropic (default)."
+  echo "Any other model name is assumed to be available from local Ollama ($OLLAMA_URL)."
 }
 
 # --- Help / no args ---
@@ -118,7 +118,7 @@ if [[ $# -eq 0 ]]; then
   echo "Routes Claude Code to the right provider for any model."
   echo "  --route <name>   use a named route from model-map.json .routes block"
   echo "  --model <model>  explicit model (wins over --route if both given)"
-  echo "Priority: configured providers → local Ollama → Anthropic (default)"
+  echo "Priority: configured providers → Ollama (tag match) → Ollama (assumed for unknown names)"
   echo ""
   show_models
   exit 1
@@ -209,7 +209,16 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   fi
 
 elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
-  # 2) Auto-detected in local Ollama — apply defaults
+  # 2) Listed in local Ollama /api/tags — apply defaults
+  export ANTHROPIC_BASE_URL="$OLLAMA_URL"
+  export ANTHROPIC_AUTH_TOKEN="ollama"
+  export ANTHROPIC_API_KEY=""
+  export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
+  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  ensure_ollama_running "$MODEL" "$OLLAMA_URL"
+else
+  # 3) Unknown to model-map and not in tag list — still assume Ollama; pass model name through
+  echo "claude-router: '$MODEL' not in model-map providers or local Ollama tags — assuming Ollama at $OLLAMA_URL" >&2
   export ANTHROPIC_BASE_URL="$OLLAMA_URL"
   export ANTHROPIC_AUTH_TOKEN="ollama"
   export ANTHROPIC_API_KEY=""
@@ -217,8 +226,6 @@ elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.mode
   export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
   ensure_ollama_running "$MODEL" "$OLLAMA_URL"
 fi
-
-# 3) No match = Anthropic passthrough (no env vars set, claude uses its defaults)
 
 # Build final argv: if --route was used, strip it (and any existing --model) then inject
 # --model with the resolved value. Use explicit array rebuild to preserve multi-word -p prompts.

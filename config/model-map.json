@@ -26,7 +26,8 @@
     "qwen3-coder:30b": "ollama_local",
     "gemma4:26b": "ollama_local",
     "qwen3-coder:480b-cloud": "ollama_cloud",
-    "deepseek/deepseek-v3": "openrouter"
+    "deepseek/deepseek-v3": "openrouter",
+    "qwen3.5:35b-a3b-coding-nvfp4": "ollama_local"
   },
   "routes": {
     "default": "claude-sonnet-4-6",
@@ -34,5 +35,8 @@
     "cloud_background": "qwen3-coder:480b-cloud",
     "think": "claude-opus-4-6",
     "longContext": "claude-sonnet-4-6"
+  },
+  "ollama_defaults": {
+    "num_ctx": 65536
   }
 }

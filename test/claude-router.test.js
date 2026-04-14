@@ -142,6 +142,16 @@ describe('claude-router --route flag', () => {
     expect(r.stdout).to.include('default');
     expect(r.stdout).to.include('claude-sonnet-4-6');
   });
+
+  it('unknown --model (no provider, tags unreachable) assumes Ollama with notice', () => {
+    const bare = makeTestHome(undefined, {}); // no routes/providers
+    const r = runRouter(['--model', 'my-local:7b', '-p', 'hi'], bare);
+    expect(r.status).to.equal(0, r.stderr);
+    expect(r.stderr).to.match(/assuming Ollama at/);
+    expect(r.stderr).to.include('my-local:7b');
+    expect(r.stdout).to.include('my-local:7b');
+    fs.rmSync(bare.homeDir, { recursive: true, force: true });
+  });
 });
 
 // ── ensure_ollama_running ─────────────────────────────────────────────
