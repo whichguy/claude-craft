@@ -16,6 +16,59 @@ set -eo pipefail
 CONFIG="$HOME/.claude/model-map.json"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 
+# If you're using claude-router directly (not via tools/claude-shim),
+# nothing auto-starts claude-proxy. This opt-in helper mirrors the shim:
+# start the proxy when ANTHROPIC_BASE_URL points at a local port and /ping fails.
+proxy_port_from_base_url() {
+  local url="$1"
+  # Extract explicit port if present, else empty
+  echo "$url" | sed -nE 's#^https?://[^/:]+:([0-9]+).*$#\1#p'
+}
+
+is_local_http_base_url() {
+  local url="$1"
+  case "$url" in
+    http://127.0.0.1:*|http://localhost:*|http://0.0.0.0:*|http://[::1]:*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+ensure_proxy_running() {
+  local base_url="$1"
+  local port
+  port="$(proxy_port_from_base_url "$base_url")"
+  [[ -z "$port" ]] && return 0
+  is_local_http_base_url "$base_url" || return 0
+
+  # Hot path: if /ping succeeds immediately, skip locking entirely.
+  curl -sf --max-time 0.3 "http://127.0.0.1:$port/ping" >/dev/null 2>&1 && return 0
+
+  (
+    # Lock to prevent parallel cold-start races.
+    LOCK_DIR="$HOME/.claude/proxy.$port.lock.d"
+    mkdir "$LOCK_DIR" 2>/dev/null || exit 0
+    trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
+    # Re-check inside lock — another router invocation may have spawned by now.
+    curl -sf --max-time 0.3 "http://127.0.0.1:$port/ping" >/dev/null 2>&1 && exit 0
+
+    # Spawn proxy on requested port.
+    CLAUDE_PROXY_PORT="$port" nohup node "$HOME/.claude/tools/claude-proxy" \
+      >"$HOME/.claude/proxy.$port.log" 2>&1 &
+    disown 2>/dev/null || true
+
+    # Wait up to 2s for proxy readiness (10 × 0.2s probes).
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      curl -sf --max-time 0.2 "http://127.0.0.1:$port/ping" >/dev/null 2>&1 && break
+      sleep 0.2
+    done
+  )
+}
+
 # Normalize an Ollama base URL to a CLI-safe host (scheme://host[:port], no path).
 # Also tolerates users setting OLLAMA_BASE_URL to ".../api" by stripping that suffix.
 ollama_cli_host() {
@@ -51,6 +104,10 @@ ensure_ollama_running() {
   local model="$1"
   local host="$2"
   command -v ollama >/dev/null 2>&1 || return 0   # no CLI → skip silently
+
+  # Cloud-backed models (convention: suffix ":cloud") should never be warmed via
+  # `ollama run` since that can trigger UI/auth flows or long pulls.
+  [[ "$model" == *":cloud" ]] && return 0
 
   local cli_host
   cli_host="$(ollama_cli_host "$host")"
@@ -218,63 +275,100 @@ if [[ -z "$MODEL" ]]; then
   exit 1
 fi
 
+# --- Helper: expand placeholders and export resolved provider env vars ---
+apply_provider_block() {
+  local base_url="$1" auth_token="$2" api_key="$3" config_dir="$4" disable="$5" env_json="$6"
+  base_url="${base_url/\$OLLAMA_URL/$OLLAMA_URL}"
+  base_url="${base_url/\$OLLAMA_BASE_URL/$OLLAMA_URL}"
+  [[ -n "$base_url"   ]] && export ANTHROPIC_BASE_URL="$base_url"
+  [[ -n "$auth_token" ]] && export ANTHROPIC_AUTH_TOKEN="$auth_token"
+  # Export api_key even when blank (explicit empty overrides any env-inherited key)
+  export ANTHROPIC_API_KEY="$api_key"
+  [[ -n "$config_dir" ]] && export CLAUDE_CONFIG_DIR="${config_dir//\$HOME/$HOME}"
+  [[ "$disable" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+  if [[ -n "$env_json" && "$env_json" != "{}" && "$env_json" != "null" ]]; then
+    while IFS= read -r key; do
+      val=$(printf '%s' "$env_json" | jq -r --arg k "$key" '.[$k]' 2>/dev/null)
+      export -- "$key=$val"
+    done < <(printf '%s' "$env_json" | jq -r 'keys[]' 2>/dev/null)
+  fi
+}
+
 # --- Provider lookup chain ---
+# Priority: 1a old-schema .providers  →  1b new-schema .model_routes+.backends
+#           →  2 Ollama tag auto-detect  →  3 assume Ollama (passthrough)
+OLLAMA_HTTP_BASE="${OLLAMA_URL%/api}"
 PROVIDER=""
 if [[ -f "$CONFIG" ]]; then
   PROVIDER=$(jq -r --arg m "$MODEL" '.providers[$m] // empty' "$CONFIG" 2>/dev/null)
 fi
 
 if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
-  # 1) Explicit provider config from model-map.json (any provider: Ollama, OpenRouter, custom)
-  BASE_URL=$(echo "$PROVIDER" | jq -r '.base_url // empty')
-  # Expand $OLLAMA_URL / $OLLAMA_BASE_URL placeholders. Literal URLs pass through unchanged,
-  # so per-model overrides (e.g., http://localhost:11435 for cloud) just work.
-  BASE_URL="${BASE_URL/\$OLLAMA_URL/$OLLAMA_URL}"
-  BASE_URL="${BASE_URL/\$OLLAMA_BASE_URL/$OLLAMA_URL}"
-  AUTH_TOKEN=$(echo "$PROVIDER" | jq -r '.auth_token // empty')
-  CONFIG_DIR=$(echo "$PROVIDER" | jq -r '.config_dir // empty')
-  DISABLE_TRAFFIC=$(echo "$PROVIDER" | jq -r '.disable_nonessential_traffic // false')
-
-  [[ -n "$BASE_URL" ]] && export ANTHROPIC_BASE_URL="$BASE_URL"
-  [[ -n "$AUTH_TOKEN" ]] && export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
-  if echo "$PROVIDER" | jq -e 'has("api_key")' >/dev/null 2>&1; then
-    ANTHROPIC_API_KEY="$(echo "$PROVIDER" | jq -r '.api_key')"
-    export ANTHROPIC_API_KEY
-  fi
-  [[ -n "$CONFIG_DIR" ]] && export CLAUDE_CONFIG_DIR="${CONFIG_DIR//\$HOME/$HOME}"
-  [[ "$DISABLE_TRAFFIC" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-
-  # Generic env block — supports Bedrock, Vertex, or any custom env vars
-  ENV_KEYS=$(echo "$PROVIDER" | jq -r '.env // {} | keys[]' 2>/dev/null)
-  if [[ -n "$ENV_KEYS" ]]; then
-    while IFS= read -r key; do
-      val=$(echo "$PROVIDER" | jq -r --arg k "$key" '.env[$k]' 2>/dev/null)
-      export -- "$key=$val"
-    done <<< "$ENV_KEYS"
-  fi
-
+  # 1a) Old schema: explicit .providers[$MODEL] object
+  BASE_URL=$(echo "$PROVIDER"    | jq -r '.base_url   // empty')
+  AUTH_TOKEN=$(echo "$PROVIDER"  | jq -r '.auth_token // empty')
+  API_KEY=$(echo "$PROVIDER"     | jq -r 'if has("api_key") then .api_key else "" end')
+  CONFIG_DIR=$(echo "$PROVIDER"  | jq -r '.config_dir // empty')
+  DISABLE=$(echo "$PROVIDER"     | jq -r '.disable_nonessential_traffic // "false"')
+  ENV_JSON=$(echo "$PROVIDER"    | jq -c '.env // {}' 2>/dev/null)
+  apply_provider_block "$BASE_URL" "$AUTH_TOKEN" "$API_KEY" "$CONFIG_DIR" "$DISABLE" "$ENV_JSON"
   if [[ "$AUTH_TOKEN" == "ollama" ]]; then
+    [[ "${CLAUDE_ROUTER_PROXY_AUTOSTART:-0}" == "1" && -n "${ANTHROPIC_BASE_URL:-}" ]] && \
+      ensure_proxy_running "$ANTHROPIC_BASE_URL"
     ensure_ollama_running "$MODEL" "$BASE_URL"
   fi
 
-else_ollama_http_base="${OLLAMA_URL%/api}"
-elif curl -sf "$else_ollama_http_base/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
+elif [[ -f "$CONFIG" ]] && BACKEND_ID=$(jq -r --arg m "$MODEL" '.model_routes[$m] // empty' "$CONFIG" 2>/dev/null) && [[ -n "$BACKEND_ID" ]]; then
+  # 1b) New schema: .model_routes[$MODEL] → .backends[$id]
+  BACKEND=$(jq -c --arg id "$BACKEND_ID" '.backends[$id] // empty' "$CONFIG" 2>/dev/null)
+  if [[ -z "$BACKEND" || "$BACKEND" == "null" ]]; then
+    echo "claude-router: backend '$BACKEND_ID' not defined for model '$MODEL' in $CONFIG" >&2
+    exit 1
+  fi
+  KIND=$(printf '%s' "$BACKEND"     | jq -r '.kind    // "anthropic"')
+  BASE_URL=$(printf '%s' "$BACKEND" | jq -r '.url     // empty')
+  AUTH_ENV=$(printf '%s' "$BACKEND" | jq -r '.auth_env // empty')
+  if [[ "$KIND" == "ollama" ]]; then
+    apply_provider_block "$BASE_URL" "ollama" "" "$HOME/.claude-ollama" "true" "{}"
+    [[ "${CLAUDE_ROUTER_PROXY_AUTOSTART:-0}" == "1" && -n "${ANTHROPIC_BASE_URL:-}" ]] && \
+      ensure_proxy_running "$ANTHROPIC_BASE_URL"
+    ensure_ollama_running "$MODEL" "$BASE_URL"
+  else
+    # anthropic / openrouter / custom: resolve API key from named env var
+    API_KEY="${AUTH_ENV:+${!AUTH_ENV}}"
+    apply_provider_block "$BASE_URL" "" "$API_KEY" "" "false" "{}"
+  fi
+
+elif curl -sf "$OLLAMA_HTTP_BASE/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
   # 2) Listed in local Ollama /api/tags — apply defaults
-  export ANTHROPIC_BASE_URL="$else_ollama_http_base"
-  export ANTHROPIC_AUTH_TOKEN="ollama"
-  export ANTHROPIC_API_KEY=""
-  export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
-  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-  ensure_ollama_running "$MODEL" "$else_ollama_http_base"
+  apply_provider_block "$OLLAMA_HTTP_BASE" "ollama" "" "$HOME/.claude-ollama" "true" "{}"
+  ensure_ollama_running "$MODEL" "$OLLAMA_HTTP_BASE"
 else
   # 3) Unknown to model-map and not in tag list — still assume Ollama; pass model name through
-  echo "claude-router: '$MODEL' not in model-map providers or local Ollama tags — assuming Ollama at $else_ollama_http_base" >&2
-  export ANTHROPIC_BASE_URL="$else_ollama_http_base"
-  export ANTHROPIC_AUTH_TOKEN="ollama"
-  export ANTHROPIC_API_KEY=""
-  export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
-  export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-  ensure_ollama_running "$MODEL" "$else_ollama_http_base"
+  echo "claude-router: '$MODEL' not in model-map or local Ollama tags — assuming Ollama at $OLLAMA_HTTP_BASE" >&2
+  apply_provider_block "$OLLAMA_HTTP_BASE" "ollama" "" "$HOME/.claude-ollama" "true" "{}"
+  ensure_ollama_running "$MODEL" "$OLLAMA_HTTP_BASE"
+fi
+
+# --- Optional debug: print resolved routing env (masked) ---
+if [[ "${CLAUDE_ROUTER_DEBUG_ENV:-0}" == "1" ]]; then
+  echo "claude-router debug:" >&2
+  echo "  MODEL=$MODEL" >&2
+  [[ -n "$ROUTE" ]] && echo "  ROUTE=$ROUTE" >&2
+  echo "  ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-<unset>}" >&2
+  if [[ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]]; then
+    echo "  ANTHROPIC_AUTH_TOKEN=<set:${#ANTHROPIC_AUTH_TOKEN} chars>" >&2
+  else
+    echo "  ANTHROPIC_AUTH_TOKEN=<unset>" >&2
+  fi
+  if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+    echo "  ANTHROPIC_API_KEY=<set:${#ANTHROPIC_API_KEY} chars>" >&2
+  else
+    echo "  ANTHROPIC_API_KEY=<unset>" >&2
+  fi
+  echo "  CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-<unset>}" >&2
+  echo "  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-<unset>}" >&2
+  echo "" >&2
 fi
 
 # Build final argv: if --route was used, strip it (and any existing --model) then inject
