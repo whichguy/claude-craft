@@ -134,6 +134,12 @@ fi
 
 # Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
 # systemMessage = user-visible toast; additionalContext = LLM-visible per-turn context injection.
-SYSTEM_MSG="${DISPLAY:-Wiki available — /wiki-load <topic> or Read wiki/index.md}"
-jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$SYSTEM_MSG" \
-  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
+# Only show systemMessage when there's actual content (matches or new pages).
+if [ -n "$DISPLAY" ]; then
+  jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$DISPLAY" \
+    '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
+else
+  # Silent mode: no systemMessage when nothing to display (only WIKI_CHECK_REMINDER)
+  jq -n --arg context "$ADDITIONAL_CONTEXT" \
+    '{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
+fi
