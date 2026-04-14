@@ -165,6 +165,10 @@ before(async function () {
       HOME: homeDir,
       CLAUDE_PROXY_PORT: String(PROXY_PORT),
       TEST_ANTHROPIC_KEY: 'real-test-key-from-env',
+      // Unknown models fall back to local Ollama — point at mock server
+      OLLAMA_BASE_URL: `http://127.0.0.1:${ollamaPort}`,
+      // Real `ollama` CLI would hit OLLAMA_HOST with non-/api/chat requests; mock only speaks /api/chat
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -340,16 +344,48 @@ describe('claude-proxy — Ollama text translator', () => {
 });
 
 describe('claude-proxy — routing', () => {
-  it('routes unknown model → 400 with available list', async function () {
+  it('routes unknown model → local Ollama (OLLAMA_BASE_URL) with name passthrough', async function () {
     this.timeout(2000);
-    const r = await postProxy(PROXY_PORT, {
-      model: 'bogus:99b',
-      messages: [{ role: 'user', content: 'hi' }],
+    let ollamaReceivedBody = null;
+    ollamaMock.removeAllListeners('request');
+    ollamaMock.on('request', (req, res) => {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => {
+        if (req.method !== 'POST' || req.url !== '/api/chat') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end('{}');
+          return;
+        }
+        const raw = Buffer.concat(chunks).toString();
+        ollamaReceivedBody = JSON.parse(raw || '{}');
+        res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+        res.write(JSON.stringify({ model: 'bogus:99b', message: { role: 'assistant', content: 'ok' }, done: true, eval_count: 1 }) + '\n');
+        res.end();
+      });
     });
-    expect(r.status).to.equal(400);
-    const body = JSON.parse(r.body);
-    expect(body.error).to.include('unknown model');
-    expect(body.available).to.be.an('array').and.include('claude-sonnet-4-6');
+    try {
+      const r = await postProxy(PROXY_PORT, {
+        model: 'bogus:99b',
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      expect(r.status).to.equal(200);
+      expect(ollamaReceivedBody).to.not.be.null;
+      expect(ollamaReceivedBody.model).to.equal('bogus:99b');
+      expect(r.body).to.include('content_block_delta');
+    } finally {
+      ollamaMock.removeAllListeners('request');
+      ollamaMock.on('request', (req, res) => {
+        const chunks = [];
+        req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+          res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+          res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: 'Hello' }, done: false }) + '\n');
+          res.write(JSON.stringify({ model: 'qwen3-coder:30b', message: { role: 'assistant', content: '' }, done: true, eval_count: 2 }) + '\n');
+          res.end();
+        });
+      });
+    }
   });
 
   it('returns 404 for unknown non-v1 path', async function () {

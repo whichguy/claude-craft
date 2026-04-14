@@ -6,9 +6,11 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawn, spawnSync } = require('child_process');
 
 const CONFIG_PATH = path.join(process.env.HOME, '.claude', 'model-map.json');
 const PORT = Number(process.env.CLAUDE_PROXY_PORT) || 9999;
+// Tests: set CLAUDE_PROXY_SKIP_OLLAMA_WARMUP=1 so the real ollama CLI does not hit a stub HTTP server.
 
 let CONFIG;
 try {
@@ -18,12 +20,104 @@ try {
   process.exit(1);
 }
 
+function ollamaHostEnvFromUrl(urlStr) {
+  try {
+    const u = new URL(urlStr);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return 'http://127.0.0.1:11434';
+  }
+}
+
+/** Mirror tools/claude-router ensure_ollama_running: warm cached models only; never pull. */
+function ensureOllamaModelLoaded(model, backendUrl) {
+  if (process.env.CLAUDE_PROXY_SKIP_OLLAMA_WARMUP === '1') return;
+
+  const ollamaHost = ollamaHostEnvFromUrl(backendUrl);
+  const run = args =>
+    spawnSync('ollama', args, {
+      env: { ...process.env, OLLAMA_HOST: ollamaHost },
+      encoding: 'utf8',
+      timeout: 3000,
+    });
+
+  const ps = run(['ps']);
+  if (ps.error && ps.error.code === 'ENOENT') return;
+
+  if (ps.status !== 0) {
+    console.error(
+      `claude-proxy: cannot reach Ollama on ${ollamaHost} — is 'ollama serve' running? Skipping warm-up.`,
+    );
+    return;
+  }
+
+  const loaded = ps.stdout
+    .split('\n')
+    .slice(1)
+    .map(l => l.trim().split(/\s+/)[0])
+    .filter(Boolean);
+  if (loaded.includes(model)) return;
+
+  const list = run(['list']);
+  if (list.status !== 0) return;
+
+  const cached = list.stdout
+    .split('\n')
+    .slice(1)
+    .map(l => l.trim().split(/\s+/)[0])
+    .filter(Boolean);
+  if (!cached.includes(model)) {
+    console.error(
+      `claude-proxy: '${model}' not cached on ${ollamaHost} — run OLLAMA_HOST=${ollamaHost} ollama pull ${model} first`,
+    );
+    return;
+  }
+
+  const numCtx = (CONFIG.ollama_defaults && CONFIG.ollama_defaults.num_ctx) || 65536;
+  console.error(`claude-proxy: warming '${model}' on ${ollamaHost} (background)...`);
+  const child = spawn('ollama', ['run', model, '--options', `num_ctx=${numCtx}`], {
+    env: { ...process.env, OLLAMA_HOST: ollamaHost },
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+}
+
+/**
+ * @returns {{ backend: object } | { error: string, status?: number, extra?: object }}
+ */
 function resolveBackend(model) {
-  const id = CONFIG.model_routes && CONFIG.model_routes[model];
-  if (!id) return null;
-  const backend = CONFIG.backends && CONFIG.backends[id];
-  if (!backend) return null;
-  return { id, ...backend };
+  if (model == null || typeof model !== 'string' || !model.trim()) {
+    return { error: 'model is required', status: 400 };
+  }
+
+  const routes = CONFIG.model_routes || {};
+  const backends = CONFIG.backends || {};
+  const defaultOllamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+
+  if (Object.prototype.hasOwnProperty.call(routes, model)) {
+    const id = routes[model];
+    const backend = backends[id];
+    if (!backend) {
+      return {
+        error: `backend '${id}' not defined for model '${model}'`,
+        status: 500,
+      };
+    }
+    return { backend: { id, ...backend } };
+  }
+
+  console.error(
+    `claude-proxy: '${model}' not in model_routes — assuming local Ollama at ${defaultOllamaUrl}`,
+  );
+  return {
+    backend: {
+      id: '__ollama_fallback__',
+      kind: 'ollama',
+      url: defaultOllamaUrl,
+      _ollamaFallback: true,
+    },
+  };
 }
 
 function send(res, code, obj) {
@@ -123,6 +217,9 @@ function forwardOllama(req, res, body, backend) {
     options: {},
   };
   if (body.max_tokens) ollamaBody.options.num_predict = body.max_tokens;
+
+  const ollamaDefaults = CONFIG.ollama_defaults || {};
+  if (ollamaDefaults.num_ctx) ollamaBody.options.num_ctx = ollamaDefaults.num_ctx;
 
   const ollamaBodyStr = JSON.stringify(ollamaBody);
   const headers = {
@@ -267,13 +364,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 400, { error: 'invalid json' });
   }
 
-  const backend = resolveBackend(body.model);
-  if (!backend) {
-    return send(res, 400, {
-      error: `unknown model: ${body.model}`,
-      available: Object.keys(CONFIG.model_routes || {}),
-    });
+  const resolved = resolveBackend(body.model);
+  if (resolved.error) {
+    const code = resolved.status || 400;
+    const payload = { error: resolved.error };
+    if (resolved.extra) Object.assign(payload, resolved.extra);
+    return send(res, code, payload);
   }
+
+  const { backend } = resolved;
+  if (backend._ollamaFallback) ensureOllamaModelLoaded(body.model, backend.url);
 
   if (backend.kind === 'anthropic') return forwardAnthropic(req, res, body, backend);
   if (backend.kind === 'ollama')    return forwardOllama(req, res, body, backend);
