@@ -16,6 +16,32 @@ set -eo pipefail
 CONFIG="$HOME/.claude/model-map.json"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 
+# Normalize an Ollama base URL to a CLI-safe host (scheme://host[:port], no path).
+# Also tolerates users setting OLLAMA_BASE_URL to ".../api" by stripping that suffix.
+ollama_cli_host() {
+  local url="$1"
+  # Strip trailing "/api" (common confusion: cloud docs sometimes show /api base)
+  url="${url%/api}"
+  # Strip any trailing slash
+  url="${url%/}"
+  # Keep only scheme://host[:port]
+  # shellcheck disable=SC2001
+  echo "$url" | sed -E 's#^(https?://[^/]+).*$#\1#'
+}
+
+# Only warm models for local Ollama to avoid launching Ollama UI/auth flows for cloud endpoints.
+is_local_ollama_host() {
+  local host="$1"
+  case "$host" in
+    http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|http://[::1]:*|http://localhost|http://127.0.0.1|http://0.0.0.0)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Ensure target Ollama model is loaded on the given host; warm it in a subprocess if not.
 # Three-state probe: unreachable → skip with hint; loaded → skip; cached-not-loaded → warm.
 # Avoids silent model pulls: if the model isn't cached on the target host, prints a pull
@@ -25,6 +51,15 @@ ensure_ollama_running() {
   local model="$1"
   local host="$2"
   command -v ollama >/dev/null 2>&1 || return 0   # no CLI → skip silently
+
+  local cli_host
+  cli_host="$(ollama_cli_host "$host")"
+  is_local_ollama_host "$cli_host" || return 0
+
+  # Optional: if local Ollama isn't reachable, start it once and retry.
+  # Opt-in to avoid unexpectedly spawning daemons in CI/tests or when users
+  # intentionally point at remote Ollama hosts.
+  local autostart="${CLAUDE_ROUTER_OLLAMA_AUTOSTART:-0}"
 
   # 3s timeout prevents unreachable-host hangs (~75s default TCP). Fall back to direct
   # invocation if no timeout CLI is available (bare macOS) — the `ollama` CLI itself
@@ -40,9 +75,21 @@ ensure_ollama_running() {
   # Capture stdout and exit code separately so we can distinguish "unreachable"
   # (exit non-zero) from "up but model not loaded" (exit 0, model absent from output).
   local ps_output
-  if ! ps_output=$(OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama ps 2>/dev/null); then
-    echo "claude-router: cannot reach Ollama on $host — is 'ollama serve' running there? Skipping warm-up." >&2
-    return 0
+  if ! ps_output=$(OLLAMA_HOST="$cli_host" "${timeout_cmd[@]}" ollama ps 2>/dev/null); then
+    if [[ "$autostart" == "1" ]]; then
+      # `ollama serve` blocks; detach it and retry a single time.
+      # Note: for local desktop installs, this should start the daemon without opening UI.
+      nohup ollama serve </dev/null >/dev/null 2>&1 &
+      disown 2>/dev/null || true
+      sleep 0.3
+      ps_output=$(OLLAMA_HOST="$cli_host" "${timeout_cmd[@]}" ollama ps 2>/dev/null) || {
+        echo "claude-router: cannot reach Ollama on $cli_host — is 'ollama serve' running there? Skipping warm-up." >&2
+        return 0
+      }
+    else
+      echo "claude-router: cannot reach Ollama on $cli_host — is 'ollama serve' running there? Skipping warm-up." >&2
+      return 0
+    fi
   fi
 
   # grep -Fxq: Fixed-string, whole-line, quiet — handles model names with regex chars
@@ -55,21 +102,21 @@ ensure_ollama_running() {
   # transparently trigger `ollama pull` for an uncached model — a multi-GB silent
   # download), verify the model is actually cached and give the user a pull hint if not.
   local list_output
-  list_output=$(OLLAMA_HOST="$host" "${timeout_cmd[@]}" ollama list 2>/dev/null) || {
+  list_output=$(OLLAMA_HOST="$cli_host" "${timeout_cmd[@]}" ollama list 2>/dev/null) || {
     # ps worked but list didn't — unexpected; bail safely without warming
     return 0
   }
 
   if ! echo "$list_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
-    echo "claude-router: '$model' not cached on $host — run 'OLLAMA_HOST=$host ollama pull $model' first to avoid a slow first request" >&2
+    echo "claude-router: '$model' not cached on $cli_host — run 'OLLAMA_HOST=$cli_host ollama pull $model' first to avoid a slow first request" >&2
     return 0
   fi
 
   # --- Cached + not loaded + reachable → fire background warm-up ---
-  echo "claude-router: warming '$model' on $host (background)..." >&2
+  echo "claude-router: warming '$model' on $cli_host (background)..." >&2
   # `ollama run <model> ""` loads the model and exits quickly on empty prompt.
   # Fully detached: stdin from /dev/null, outputs to /dev/null, backgrounded + disowned.
-  OLLAMA_HOST="$host" nohup ollama run "$model" "--options" "num_ctx=65536" </dev/null >/dev/null 2>&1 &
+  OLLAMA_HOST="$cli_host" nohup ollama run "$model" "--options" "num_ctx=65536" </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
 }
 
@@ -93,9 +140,11 @@ show_models() {
 
   # Local Ollama
   local ollama_models
-  ollama_models=$(curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -r '.models[].name' 2>/dev/null) || true
+  local ollama_http_base
+  ollama_http_base="${OLLAMA_URL%/api}"
+  ollama_models=$(curl -sf "$ollama_http_base/api/tags" 2>/dev/null | jq -r '.models[].name' 2>/dev/null) || true
   if [[ -n "$ollama_models" ]]; then
-    echo "Local Ollama ($OLLAMA_URL):"
+    echo "Local Ollama ($ollama_http_base):"
     echo "$ollama_models" | while read -r m; do
       if [[ -f "$CONFIG" ]] && jq -e --arg m "$m" '.providers[$m]' "$CONFIG" >/dev/null 2>&1; then
         echo "  $m  (custom config)"
@@ -106,7 +155,7 @@ show_models() {
     echo ""
   fi
 
-  echo "Any other model name is assumed to be available from local Ollama ($OLLAMA_URL)."
+  echo "Any other model name is assumed to be available from local Ollama ($ollama_http_base)."
 }
 
 # --- Help / no args ---
@@ -208,23 +257,24 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
     ensure_ollama_running "$MODEL" "$BASE_URL"
   fi
 
-elif curl -sf "$OLLAMA_URL/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
+else_ollama_http_base="${OLLAMA_URL%/api}"
+elif curl -sf "$else_ollama_http_base/api/tags" 2>/dev/null | jq -e --arg m "$MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
   # 2) Listed in local Ollama /api/tags — apply defaults
-  export ANTHROPIC_BASE_URL="$OLLAMA_URL"
+  export ANTHROPIC_BASE_URL="$else_ollama_http_base"
   export ANTHROPIC_AUTH_TOKEN="ollama"
   export ANTHROPIC_API_KEY=""
   export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
   export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-  ensure_ollama_running "$MODEL" "$OLLAMA_URL"
+  ensure_ollama_running "$MODEL" "$else_ollama_http_base"
 else
   # 3) Unknown to model-map and not in tag list — still assume Ollama; pass model name through
-  echo "claude-router: '$MODEL' not in model-map providers or local Ollama tags — assuming Ollama at $OLLAMA_URL" >&2
-  export ANTHROPIC_BASE_URL="$OLLAMA_URL"
+  echo "claude-router: '$MODEL' not in model-map providers or local Ollama tags — assuming Ollama at $else_ollama_http_base" >&2
+  export ANTHROPIC_BASE_URL="$else_ollama_http_base"
   export ANTHROPIC_AUTH_TOKEN="ollama"
   export ANTHROPIC_API_KEY=""
   export CLAUDE_CONFIG_DIR="$HOME/.claude-ollama"
   export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-  ensure_ollama_running "$MODEL" "$OLLAMA_URL"
+  ensure_ollama_running "$MODEL" "$else_ollama_http_base"
 fi
 
 # Build final argv: if --route was used, strip it (and any existing --model) then inject

@@ -16,8 +16,7 @@
     },
     "ollama_cloud": {
       "kind": "ollama",
-      "url": "https://ollama.com",
-      "auth_env": "OLLAMA_CLOUD_API_KEY"
+      "url": "http://localhost:11434"
     }
   },
   "model_routes": {
@@ -27,6 +26,7 @@
     "gemma4:26b": "ollama_local",
     "qwen3-coder:480b-cloud": "ollama_cloud",
     "deepseek/deepseek-v3": "openrouter",
+    "qwen3-coder-next:cloud": "ollama_cloud",
     "qwen3.5:35b-a3b-coding-nvfp4": "ollama_local"
   },
   "routes": {
