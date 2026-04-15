@@ -1,3 +1,17 @@
+---
+name: form990
+description: |
+  Form 990 Skill — Orchestrator for end-to-end IRS Form 990 preparation.
+
+  Guides a nonprofit Executive Director through all 10 phases (P0–P9):
+  intake, source discovery, chart-of-accounts mapping, financial statements,
+  Part IV checklist, core parts, schedule generation, Part I rollup,
+  CPA quality review (26 gates, 3 tiers), and reference PDF fill + e-file
+  handoff packet. Stateful plan-file journal enables cold-resume across sessions.
+
+  Invoke as: /form990 init | resume | phase | review | status | ask | verify
+---
+
 # Form 990 Skill — Orchestrator
 
 Invoke via: `/form990 <subcommand> [args]`
