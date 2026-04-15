@@ -442,10 +442,10 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         it('defines l1-advisory evaluator config for Gate 2/3 (24 questions)', function () {
-            // l1-advisory is now split: structural (6 questions) + process (18 questions) = 24 total
-            // (Q-G2 dropped from blocking, Q-G8 dropped from process per effectiveness report 2026-04-10)
+            // l1-advisory is now split: structural (6 questions) + process (19 questions) = 25 total
+            // (Q-G2 dropped from blocking, Q-G8 dropped from process per effectiveness report 2026-04-10; Q-G32 added 2026-04-15)
             expect(skillContent).to.include('L1 Advisory Structural Evaluator Config (Gate 2/3: 6 abstract/structural questions');
-            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 18 standards/process questions');
+            expect(skillContent).to.include('L1 Advisory Process Evaluator Config (Gate 2/3: 19 standards/process questions');
             expect(skillContent).to.include('Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25');
         });
 

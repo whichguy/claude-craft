@@ -606,7 +606,7 @@ You iterate until all layers and sub-skills report zero changes in the same pass
    l1_structural_memoized = false    # true when ALL 6 structural questions PASS/N/A for 2 consecutive passes AND no edits since
    l1_structural_memoized_since = 0
    l1_structural_clean_since = 0    # pass_count when first consecutive clean pass was observed (0 = not yet started)
-   l1_process_memoized = false       # true when ALL 18 process questions PASS/N/A AND no edits since
+   l1_process_memoized = false       # true when ALL 19 process questions PASS/N/A AND no edits since
    l1_process_memoized_since = 0
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
@@ -694,7 +694,8 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      L1 per-pass count: 25 → 23. Gate 1 count: 3 → 2 questions (Q-G1, Q-G11).
      Classifier: Haiku → Sonnet (Haiku failed HAS_EXISTING_INFRA discrimination in Phase 2 spike).
      Updated 2026-04-11: Q-G29, Q-G30, Q-G31 added (PRs #126/#127). L1 = 26 (2 Gate 1 + 6 advisory-structural + 18 advisory-process).
-     Per-pass wave breakdown: 2 + 6 + 18 = 26. -->
+     Updated 2026-04-15: Q-G32 added (source-path tracking). L1 = 27 (2 Gate 1 + 6 advisory-structural + 19 advisory-process).
+     Per-pass wave breakdown: 2 + 6 + 19 = 27. -->
 
 <!-- STATE AT END OF PHASE 3c:
      pass_count=0, timestamp, tracking vars (prev_needs_update_set, pass1_needs_update_set,
@@ -1087,7 +1088,7 @@ DO:
   IF NOT l1_structural_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-structural", task_config: <l1_advisory_structural_config below>})
 
-  # Priority 1c: L1 advisory process (Gate 2/3, 18 questions — skip if group-memoized)
+  # Priority 1c: L1 advisory process (Gate 2/3, 19 questions — skip if group-memoized)
   IF NOT l1_process_memoized:
     evaluators_to_spawn.append({name: "l1-advisory-process", task_config: <l1_advisory_process_config below>})
 
@@ -1198,7 +1199,7 @@ DO:
     Print: "  ⏭ l1-advisory-structural            locked since p[l1_structural_memoized_since]"
   IF l1_process_memoized:
     process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31"}
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31", "Q-G32"}
     FOR q in process_questions:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process               locked since p[l1_process_memoized_since]"
@@ -1416,19 +1417,19 @@ DO:
     """
   )
 
-  --- L1 Advisory Process Evaluator Config (Gate 2/3: 18 standards/process questions, group-memoizable) ---
-  --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31 ---
+  --- L1 Advisory Process Evaluator Config (Gate 2/3: 19 standards/process questions, group-memoizable) ---
+  --- Pass B runs second: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31, Q-G32 ---
   l1_advisory_process_config = Task(
     subagent_type = "general-purpose",
     model = "sonnet",
     name = "l1-advisory-process-p" + pass_count,
     prompt = """
-      You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 18 questions).
+      You are evaluating a plan for standards/process quality (Layer 1 Gate 2/3: 19 questions).
 
       Question definitions: Read <questions_path> (Layer 1, Gate 2 and Gate 3 sections)
       Standards: Read ~/.claude/CLAUDE.md as needed
 
-      Evaluate ONLY these 18 standards/process questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31
+      Evaluate ONLY these 19 standards/process questions: Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31, Q-G32
       Calibration: Prioritize practical production implications over theoretical concerns.
       Flag findings that would cause real failures, wasted effort, or incorrect implementations
       at development time — not hypothetical risks that require unlikely conditions to manifest.
@@ -1438,9 +1439,10 @@ DO:
       Apply triage (mark N/A per the N/A column).
       N/A-supersession: When Q-G30 fires on the same assumption as Q-G27, Q-G27 → N/A-superseded by Q-G30.
       Q-G31 N/A: plan is purely additive — no code is removed, commented out, or disabled.
+      Q-G32 N/A: variable is always set by a single upstream path, or all branches produce equivalent results at the consumption point.
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
-      [IF memoized_l1_questions intersects {Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31} is non-empty, append to prompt:]
+      [IF memoized_l1_questions intersects {Q-G4, Q-G5, Q-G6, Q-G7, Q-G10, Q-G12, Q-G13, Q-G14, Q-G16, Q-G17, Q-G18, Q-G19, Q-G26, Q-G27, Q-G28, Q-G29, Q-G30, Q-G31, Q-G32} is non-empty, append to prompt:]
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
@@ -1543,6 +1545,24 @@ DO:
           POC, benchmark) BEFORE the dependent implementation? Distinguish from Q-G10:
           Q-G10 flags the missing evidence; Q-G27 flags the missing validation step.
           Low-risk assertions (well-documented APIs, standard library features) → N/A.
+      - For Q-G32 (Source-path tracking): Check whether the plan introduces any variable
+          that can be assigned by two or more upstream branches and is then consumed in a
+          downstream conditional or argument whose correct value depends on *which* branch
+          set it. If so, check that the plan introduces a tracking flag/discriminant to
+          carry that context. N/A when all branches produce equivalent results at the
+          consumption point, or when the variable is always set by a single path.
+          Example — NEEDS_UPDATE: "Plan adds `const bResult = await startFlow(brokerUrl)`
+          but brokerUrl can come from loadBootstrapConfig() (saved, needs 9s probe) OR
+          auto-deploy (fresh, needs 120s). Plan does not track which path set it."
+
+      Plan domain context: IS_GAS=<IS_GAS>
+
+      Early-warning Q-E2 (pass-1 advisory — authoritative check is in epilogue):
+      Also evaluate Q-E2 (Post-implementation workflow) as an early warning. If the plan
+      is clearly missing a post-impl section entirely, flag it now (NEEDS_UPDATE) so the
+      section can be injected before other convergence work. If a partial section exists,
+      report it as advisory (PASS) and let the epilogue do the authoritative check.
+      N/A when IS_GAS=true (covered by Q42). Output Q-E2 status in your JSON findings object.
 
       [See: EVALUATOR_OUTPUT_CONTRACT above, with EVALUATOR_NAME = "l1-advisory-process" and RESULTS_DIR = <RESULTS_DIR>]
 
@@ -1912,6 +1932,50 @@ DO:
     impact-evaluator says "callers affected" and Q18 from gas-evaluator says "GAS triggers
     invalidated" → complementary, keep both.
 
+  -- Finding-diff: detect re-raised vs. resolved vs. new NEEDS_UPDATE per Q-ID --
+  # Runs only on pass 2+, before edit application. prev_needs_update_set tracks Q-IDs that
+  # were NEEDS_UPDATE last pass. current NEEDS_UPDATE = set from all_results this pass.
+  IF pass_count > 1:
+    # all_results is keyed by evaluator name → {findings: {q_id: {status, finding, edit}}, ...}
+    # Flatten to per-Q-ID status for set operations.
+    current_needs_update_set = {
+      q_id
+      for eval_entry in all_results.values()
+      for q_id, q_entry in eval_entry.findings.items()
+      if q_entry.status == "NEEDS_UPDATE"
+    }
+    re_raised_qids = current_needs_update_set ∩ prev_needs_update_set  # NEEDS_UPDATE in both passes
+    newly_resolved = prev_needs_update_set - current_needs_update_set   # was NEEDS_UPDATE, now PASS/N/A
+    newly_surfaced = current_needs_update_set - prev_needs_update_set   # was PASS/N/A, now NEEDS_UPDATE
+    IF re_raised_qids:
+      # Build a flat q_id → finding map from all_results for lookup
+      curr_finding_map = {
+        q_id: q_entry.finding
+        for eval_entry in all_results.values()
+        for q_id, q_entry in eval_entry.findings.items()
+      }
+      FOR q_id in re_raised_qids:
+        prev_finding = prev_pass_applied_edits where q_id matches → .summary (or "(edit summary unavailable)")
+        curr_finding = curr_finding_map.get(q_id, "")
+        # Determine if finding text shifted (edit resolved old concern but surfaced a new one on same Q-ID)
+        IF prev_finding and curr_finding and prev_finding not in curr_finding and curr_finding not in prev_finding:
+          Print: "  ⚡ [q_id] re-raised — finding SHIFTED after edit (new concern on same Q-ID, not residual):"
+          Print: "     prev: [prev_finding[:120]]"
+          Print: "     curr: [curr_finding[:120]]"
+          # This signals the edit resolved the original but uncovered an adjacent issue — normal, not an error.
+          # The orchestrator should verify the edit was correctly applied before accepting the new finding.
+        ELSE:
+          Print: "  ⚡ [q_id] re-raised — edit may not have resolved the finding (same Q-ID still NEEDS_UPDATE)"
+    IF newly_resolved:
+      Print: "  ✓  resolved this pass: [', '.join(sorted(newly_resolved))]"
+    IF newly_surfaced:
+      Print: "  ✦  newly surfaced this pass: [', '.join(sorted(newly_surfaced))]"
+    # Note: authoritative prev_needs_update_set update is done at line ~2413 (before Gate2_stable check).
+    # Do NOT update prev_needs_update_set here — leave it for the convergence check section.
+  ELSE:
+    # Pass 1 — no finding-diff output. prev_needs_update_set will be initialized at the
+    # convergence check section (line ~2434) from current_needs_update_set, same as all passes.
+
   (If changes_this_pass == 0, skip the entire APPLYING section — no banner, no narration.)
 
   IF changes_to_apply > 0:
@@ -2126,15 +2190,15 @@ DO:
   # Process group (Q-G4–Q-G19): 1 clean pass sufficient.
   #   Older question definitions with lower calibration risk.
 
-  # Group memoization for l1-advisory-process (18 questions — independently tracked)
+  # Group memoization for l1-advisory-process (19 questions — independently tracked)
   IF NOT l1_process_memoized:
     process_questions = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
-      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31"}
+      "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19", "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31", "Q-G32"}
     all_process_clean = all(l1_results.get(q, "PASS") in [PASS, N/A] for q in process_questions)
     IF all_process_clean:
       l1_process_memoized = true
       l1_process_memoized_since = pass_count
-      newly_memoized.append("l1-advisory-process (18 questions)")
+      newly_memoized.append("l1-advisory-process (19 questions)")
   ELSE:
     # Invalidate if ANY edit was applied this pass (edits can affect process questions)
     IF changes_this_pass > 0:
@@ -2187,8 +2251,8 @@ DO:
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
-    # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 18 (l1-advisory-process) = 26
-    total_applicable_questions = 26 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
+    # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 19 (l1-advisory-process) = 27
+    total_applicable_questions = 27 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
     # Conditional question decrements (per question-effectiveness-report.md 2026-04-10):
     # Q-C14 and Q-C32 are counted in the impact cluster sum above but evaluate N/A when
@@ -2483,13 +2547,13 @@ Question definitions are in QUESTIONS.md — evaluators read that file directly.
 parses evaluator output (`Q-ID: PASS/NEEDS_UPDATE/N/A`). Q-G9 sub-questions follow below
 (team-lead evaluates inline post-convergence).
 
-L1 per-pass count: 26 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G31).
+L1 per-pass count: 27 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G32).
 Count L1 edits → `l1_changes += count` (combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 26 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G31). Q-G9 is not included in*
+*L1 per-pass count stays at 27 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G32). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass). N/A if plan has fewer than 3 implementation steps.*
 
 After convergence exits, evaluate Q-G9 inline (no Task spawn — team-lead evaluates directly
@@ -3830,6 +3894,7 @@ ELIF NOT _phase_5b5_skip:
    )
 
    # Parse and render output.
+   skill_learnings = []  # default — ensures Step 2 FOR loop and TODO block are safe on all paths
    IF task output starts with "NO_SKILL_LEARNINGS":
        Print: ""
        Print: "┌─ SKILL LEARNINGS ────────────────────────────────────────────────┐"
@@ -3855,15 +3920,35 @@ ELIF NOT _phase_5b5_skip:
        Print: "⚠ Phase 5g: skill-learnings agent returned malformed output — raw output:"
        Print: <task output>
 
-   # ── Phase 5g Step 2: Async Skill-Learning Evaluators ──
-   # Dispatch one background agent per skill_learning recommendation (after Step 1 result parsed).
-   # Agents verify each recommendation against the target file before writing to reflection-queue.
-
+   # ── Phase 5g TODO Tasks ──
+   # After rendering the SKILL LEARNINGS panel, create a TaskCreate for each learning
+   # so the user has a persistent, actionable record to investigate and implement each one.
    skill_learnings_target_map = {
        "QUESTIONS.md": questions_path,
        "SKILL.md":     skill_path,
        "DIRECTIVE":    "$HOME/.claude/CLAUDE.md"   # $HOME consistent with queue_path below
    }
+
+   IF skill_learnings is non-empty:
+       FOR each rec in skill_learnings:
+           TaskCreate(
+               subject     = "[Skill learning] [{rec.category}] {rec.title}",
+               description = """Investigate and apply this review-plan skill improvement surfaced by the senior-engineer meta-read.
+
+Category: {rec.category}
+Title:     {rec.title}
+Evidence:  {rec.evidence}
+Action:    {rec.action}
+Priority:  {rec.priority}
+
+To implement: read the target file ({skill_learnings_target_map.get(rec.category, "see category")}),
+confirm the learning is still valid against the current content, then apply the recommended change."""
+           )
+       Print: "  → {len(skill_learnings)} TODO task(s) created — one per skill learning"
+
+   # ── Phase 5g Step 2: Async Skill-Learning Evaluators ──
+   # Dispatch one background agent per skill_learning recommendation (after Step 1 result parsed).
+   # Agents verify each recommendation against the target file before writing to reflection-queue.
 
    FOR rec in skill_learnings:
        target_file = skill_learnings_target_map.get(rec.category)

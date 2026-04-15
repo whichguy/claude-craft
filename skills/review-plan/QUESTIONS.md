@@ -12,7 +12,7 @@ N/A counts as PASS for gate evaluation.
 
 ## Layer 1: General Quality
 
-*26 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G31). Applies to every plan, every domain.*
+*27 questions (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G32). Applies to every plan, every domain.*
 
 For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 - PASS: criterion is met
@@ -59,13 +59,14 @@ For each question: evaluate → **PASS** / **NEEDS_UPDATE** / **N/A**
 | Q-G19 | Phase failure recovery | Multi-phase: partial-commit risk addressed? Accept: phases independently safe, revert steps, or stop-and-assess gates. Flag: later-phase failure leaves prior commits broken with no acknowledgment. | single-phase plan; or phases are purely additive with no inter-dependency (each phase's commit is independently valid) |
 | Q-G28 | Context skills invoked | Domain decisions sans project context when retrieval skills available (system-reminder)? Flag: no invocation or confirmation unnecessary. EDIT: `[EDIT: before Phase 1: "Invoke [skill] for [topic] to load domain context"]`. | no context-gathering skills in system-reminder; or purely mechanical (rename, config tweak, dependency bump) |
 | Q-G29 | File/State Organization | **File/State Organization.** Do any of the files or state the plan creates/modifies need to be re-organized to align with existing project conventions — without being overly nuanced? Look for: (a) new files placed in a directory with a naming or subdirectory convention the plan ignores; (b) new state (config keys, env vars, cache paths, temp files) that duplicates an existing canonical location; (c) additions to a module with natural subdivision points the plan doesn't respect. **Not in scope**: bikeshedding on cosmetic ordering, hypothetical future conventions, refactors unrelated to the plan's core change. N/A: purely additive new-directory creation with no pre-existing convention to align with; or plan explicitly addresses organization in its scope statement. **Decision framework:** fire when a concrete convention violation is identifiable from the plan text (e.g., "plan adds config key to X.json but existing canonical location is Y.yaml"); apply the "overly nuanced" guard when the convention is implicit, contested, or requires subjective judgment about naming style. | purely additive new-directory creation with no pre-existing convention to align with; or plan explicitly addresses organization |
+| Q-G32 | Source-path tracking | When new code uses a variable that can be set by two or more upstream branches, does the plan introduce a tracking flag/discriminant to carry the branch context to the consumption point? Flag: variable assigned in N≥2 upstream branches but used in a downstream conditional or argument whose correct value depends on *which* branch set it — with no plan step to track that. EDIT: `[EDIT: step N: "introduce [flag] set to [value-A] after [branch A] and [value-B] after [branch B]; use [flag] to select [behavior] at [consumption point]"]`. | variable is always set by a single upstream path; or all branches produce equivalent results at the consumption point (no per-branch context needed) |
 
-Count L1 edits → `l1_changes += count` (26 questions total, combined into `changes_this_pass` in Convergence Loop)
+Count L1 edits → `l1_changes += count` (27 questions total, combined into `changes_this_pass` in Convergence Loop)
 
 ### Q-G9 Post-Convergence Organization Pass
 
 *Runs once after the convergence loop exits. Not part of per-pass L1 evaluation.*
-*L1 per-pass count stays at 26 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G31). Q-G9 is not included in*
+*L1 per-pass count stays at 27 (Q-G1, Q-G4 through Q-G7, Q-G10 through Q-G14, Q-G16 through Q-G32). Q-G9 is not included in*
 *convergence loop scoring. Q-E1 and Q-E2 are post-convergence epilogue questions (not per-pass).*
 *Q-G9 is N/A if plan has fewer than 3 implementation steps.*
 
@@ -136,7 +137,7 @@ IS_NODE: not superseded — evaluate normally.
 |---|------|----------|----------|-----|
 | Q-C13 | 2 | State edge cases | Persistent storage: state-exists + state-absent covered? | no storage |
 | Q-C18 | 2 | Concurrency | Shared state locked; background tasks: concurrency plan? | read-only |
-| Q-C19 | 2 | Idempotency | Retry-safe operations; mutations deduped? | read-only |
+| Q-C19 | 2 | Idempotency | Retry-safe operations; mutations deduped? If the plan raises idempotency as a concern, it must prescribe concrete remediation (existence check, dedup guard, or explicit idempotency confirmation step) — noting the risk without a fix → NEEDS_UPDATE. EDIT: `[EDIT: after "[quoted risk note]": "If [operation] is not idempotent, add [existence check / dedup guard] before calling; annotate with // ARCH: comment explaining the invariant."]` | read-only |
 | Q-C24 | 2 | Local↔remote sync | Local→remote sync strategy explicit? Stale reads avoided? | local-only |
 | Q-C36 | 2 | Persistence staleness | Persisted artifacts reused: staleness check (hash/timestamp/version)? Flag: reuse sans source-change verification → silent downstream errors. EDIT: `[EDIT: step N: "Before reusing [artifact], verify [source] unchanged (compare [hash/timestamp/version])"]`. | no persistent intermediate artifacts; all artifacts are ephemeral within a single run |
 
