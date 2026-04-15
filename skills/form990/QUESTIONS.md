@@ -470,6 +470,13 @@ accomplishments. It is public-facing and should communicate program impact.
 - Language is specific ("served 1,200 youth in after-school programs") not vague ("supported
   the community")
 
+**Explicit checklist (evaluate each — NEEDS_UPDATE if any item is absent):**
+- [ ] Headcount (number of persons served) stated or computable from description
+- [ ] Hours of service delivered stated or computable (hours = weekly_hours × operating_weeks)
+- [ ] Specific competitions or events named (not just "national competitions")
+- [ ] Team USA / national team selection achievements included (if any occurred)
+- [ ] New program services (Part III Line 2 = Yes) flagged and described if applicable
+
 ---
 
 ### Q-F19 — Payroll Tax Artifact: Part IX Line 10 / Line 7 Ratio (Gate 2)

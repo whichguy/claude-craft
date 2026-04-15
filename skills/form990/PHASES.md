@@ -1175,6 +1175,13 @@ if pass == 5 and gate1_unresolved > 0:
 Memoization: Gate-2/3 items stable across 2 consecutive passes → auto-memoize for pass 3+.
 Gate-1 items never memoized.
 
+**New-program advisory check (P8 — run once, before gate pass 1):**
+If `dataset_core.parts.III.line_2_new_programs == false` (or null), scan available org context
+(board minutes, mission documents, any P0 intake notes) for phrases like "new for this year,"
+"launching," "piloting," or "first time." If found: flag advisory — "Part III Line 2 says no
+new programs, but context mentions [quote]. Confirm whether a new program service was offered
+this year." Do not auto-flip Line 2; wait for user confirmation before updating.
+
 Write `artifacts/cpa-review-report.md` with full Q-F results after each pass.
 
 **Outputs.**
