@@ -568,6 +568,15 @@ matrix from the CoA mapping.
 - Verify `coa-mapping.csv` contains all required columns (existence already confirmed by verify_ancestors)
 - Verify zero rows with empty `mapped_line` (Q-F18 proxy — all rows must be mapped)
 - Verify at least one row per functional bucket or explicitly N/A
+- **Blocking: Gross wages source.** Tiller captures net payroll (take-home amounts). Part IX
+  Line 7 requires W-2 Box 1 gross wages. If `open_questions[]` still has `payroll_w2_annual`
+  pending: HALT with "Gusto (or payroll processor) W-2 annual summary required before P3 can
+  compute Part IX Line 7. Provide the W-2 Box 1 total for all employees." Do NOT populate
+  Part IX Line 7 from Tiller payroll lines.
+- **Blocking: Payroll tax composition.** If `payroll_tax_source == "combined_tiller"` (set at P2)
+  and no Gusto employer taxes summary is in `artifacts`: HALT with "Gusto employer taxes summary
+  required before P3 can compute Part IX Line 10. Provide employer-only FICA/FUTA amounts." Do
+  NOT populate Part IX Line 10 from combined Tiller payroll tax lines.
 
 **Work.**
 
@@ -582,6 +591,13 @@ matrix from the CoA mapping.
   VIII revenue lines to validate Statement of Activities totals, and ≥1 balance-sheet account
   pair BOY/EOY to validate Part X anchors; fewer rows would leave one output dimension untested)
 - The script performs Steps 1–4 below; `column_check_pass` is the Q-F3 inline check
+
+**Merchandise COGS accounting rule:** Merchandise COGS shown in Tiller's expense total MUST
+be excluded from Part IX and reported ONLY in Part VIII Line 10b. As a result:
+- Part VIII Line 12 (total revenue) ≠ Tiller total income by exactly the COGS amount
+- Part IX Line 25 (total expenses) ≠ Tiller total expenses by exactly the COGS amount
+If merchandise lines are present in the CoA mapping: verify COGS is flagged
+`exclude_from_part_ix = true` before aggregating Part IX.
 
 1. Aggregate revenue rows by Part VIII line → compute line totals → write Statement of
    Activities (total revenue, total expenses, change in net assets, beginning/ending net assets)
