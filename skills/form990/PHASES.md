@@ -1009,6 +1009,20 @@ Emit `artifacts/reconciliation-report.md` with each check shown step by step.
 If any check fails by > $1: breadcrumb the discrepancy with the specific check name,
 flag Q-F2 NEEDS_UPDATE inline, do NOT advance to merge sub-phase until resolved.
 
+**Reconciliation gap diagnostic (runs when `delta_match = false`):**
+Compute: `gap = abs((revenue_total − expense_total) − (net_assets_eoy − net_assets_boy))`
+If `gap > 1000` AND Part XI Lines 5–9 are all zero (no recorded adjustments):
+  Auto-prompt: "The math doesn't close by $[gap]. Likely causes:
+    (1) Prior period adjustment needed — does the BOY ($[net_assets_boy]) match the
+        filed prior year EOY ($[key_facts.prior_year_990_eoy_net_assets])?
+    (2) Is there a Tiller UNCATEGORIZED line that represents a real expense not
+        captured in Part IX?
+    (3) Was any income or expense recorded in Tiller but excluded from the 990
+        (e.g., pass-through funds, loan proceeds)?
+  Please resolve before P7 can advance to merge."
+If `gap > 1000` AND Part XI Lines 5–9 are non-zero: the gap is explained by adjustments;
+  log "Gap of $[gap] accounted for by Part XI Lines 5–9 adjustments" and continue.
+
 **Step 2: Deterministic merge (P7-merge sub-phase).**
 Run `SKILL.md §merge_datasets()` with the three sibling paths:
 ```
