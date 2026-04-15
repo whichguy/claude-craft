@@ -64,6 +64,10 @@ Parse the invocation string to determine subcommand and arguments.
 - `--ascii` defaults OFF (fancy box-drawing on)
 - `--no-sidecar` defaults OFF (sidecar writes on)
 
+**Proposals check (for `init` and `resume` at P0):** Read `{SKILL_ROOT}/PROPOSALS.md` and
+surface any item marked `PENDING USER APPROVAL` before beginning intake. If no pending items,
+skip silently. This ensures design decisions don't silently drift.
+
 ---
 
 ## Step 1 — Plan File Location
@@ -231,6 +235,26 @@ else:
 For `/form990 review`: skip dispatch, go directly to PHASES.md §P8.
 For `/form990 status`: skip dispatch, go directly to `§ Status UI Renderer`.
 For `/form990 phase <N> <plan>`: see `§ Force-Override Protocol`.
+
+---
+
+## Context Loading Directives
+
+Load only what the current phase needs. Files not listed for a phase must NOT be loaded.
+
+| File | Load when |
+|------|-----------|
+| `PHASES.md` | Always — every phase invocation |
+| `SKILL.md` | Always — dispatch, helpers, schemas |
+| `PERSONA.md` | Always — injected on every phase and gate evaluation |
+| `QUESTIONS.md` | **P8 only** (CPA review pass). Do not load at P0–P7. Gates are evaluated only during the CPA review pass; loading them earlier wastes ~10K tokens per phase with no benefit. Also load if `/form990 review` subcommand is used. |
+| `SCHEDULES.md` | **P6 only** (schedule generation). Do not load at P8 entry — P8 evaluates `dataset_schedules.json` output, not playbooks. Load at P8 only if a NEEDS_UPDATE triggers a P6 re-run. |
+| `LEARNINGS.md` | **Do not load at phase entry.** Load only: (a) when `auto_append_learning()` is triggered on phase failure, or (b) during the Post-Run Review prompt at P9 close when the operator is explicitly reviewing learnings. |
+| `TOOL-SIGNATURES.md` | **P4** (pinned Part IV question count fallback) and **P9** (coordinate table for PDF fill). Do not load at P0–P3 or P5–P7. |
+| `VERIFY.md` | **`/form990 verify` subcommand only.** Do not load during normal phase execution. |
+| `PROPOSALS.md` | Load at P0 start (or when `/form990 proposals` is invoked) to surface pending design decisions requiring approval. Do not load at other phases. |
+
+**Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
 
 ---
 
