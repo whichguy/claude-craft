@@ -1129,6 +1129,7 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 | `payroll_tax_source` | `"combined_tiller"` \| `"gusto_register"` \| null | Set at P2 payroll commingling check. `"combined_tiller"` triggers blocking halt at P3 Pre-check until Gusto employer taxes are provided. null = not yet evaluated. |
 | `skill_root` | string | Absolute path to skill install directory. Set by Step 0.0; non-nullable after P0. |
 | `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
+| `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
 
 ---
 

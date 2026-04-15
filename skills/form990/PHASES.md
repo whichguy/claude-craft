@@ -257,6 +257,57 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
      ```
    - Stop; do not advance to P1
 8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8b. **Artifact pre-scan (non-blocking — run after variant routing, before P1):**
+
+Scan `artifacts/` for key source documents that Drive MCP cannot access (org-account Drive
+files are invisible to personal-OAuth MCP). Record found paths in machine state under
+`artifact_local_paths{}`. Queue an open question for each missing item.
+
+> **Why at P0:** Drive MCP uses personal OAuth — any file stored in the org's Google Drive
+> account is inaccessible. Operators must copy these files into `artifacts/` manually.
+> Surfacing gaps at P0 gives the operator time to collect documents before P1–P3 need them.
+
+**a. Blank Form 990 PDF (`f990-blank-<tax_year>.pdf`):**
+- Check `artifacts/f990-blank-<tax_year>.pdf`
+- If absent: fetch from IRS now (WebFetch, 30s timeout) and cache at that path
+- If IRS unreachable: add open question `OQ-blank-pdf` — "Download the blank Form 990 PDF
+  from irs.gov/pub/irs-pdf/f990.pdf and place it at artifacts/f990-blank-<tax_year>.pdf"
+- **Do not defer to P9** — a missing blank PDF discovered at P9 wastes 8 phases of work.
+
+**b. Prior year filed 990 PDF:**
+- Check `artifacts/` for files matching (case-insensitive): `*990*<prior_year>*.pdf`,
+  `*form*990*<prior_year>*.pdf`, `*<prior_year>*990*.pdf`
+- Also check `artifacts/` for any file with both "990" and a 4-digit year in the name
+- If found: set `artifact_local_paths.prior_990_pdf = <absolute_path>`; breadcrumb path
+- If not found: add open question `OQ-prior-990-pdf` —
+  "Copy the filed prior year Form 990 PDF into artifacts/. Filename can be anything
+  containing '990' and '<prior_year>'. This is required for BOY reconciliation (Part X),
+  Schedule A Line 16, and board-member comparison."
+- Note: IRS TEOS check at P1 may also retrieve this — if P1 TEOS succeeds, close OQ-prior-990-pdf.
+
+**c. Payroll / W-2 annual summary:**
+- Check `artifacts/` for files matching: `*payroll*<tax_year>*.pdf`, `*w-2*<tax_year>*.pdf`,
+  `*w2*<tax_year>*.pdf`, `*gusto*<tax_year>*.pdf`, `*wages*<tax_year>*.pdf`
+- If found: set `artifact_local_paths.payroll_w2_pdf = <absolute_path>`; breadcrumb path
+- If not found: add open question `OQ-payroll-w2` —
+  "Export the W-2 annual summary from Gusto (or your payroll processor) as a PDF and place
+  it in artifacts/. Required for Part IX Line 7 (gross wages) and Part VII compensation.
+  Tiller shows net pay — the 990 requires W-2 Box 1 gross wages."
+- P3 Pre-check will block on this; better to surface at P0.
+
+**d. CA Secretary of State filing (if CA org):**
+- Only check if `key_facts.public_charity_basis` indicates CA registration (or state = CA
+  from address)
+- Check `artifacts/` for: `*sec*state*.pdf`, `*statement*information*.pdf`, `*si-100*.pdf`,
+  `*ca*filing*.pdf`
+- If found: set `artifact_local_paths.ca_sec_state_pdf = <absolute_path>`
+- If not found: add advisory open question `OQ-ca-sec-state` (non-blocking) —
+  "Copy the CA Secretary of State Statement of Information (SI-100) into artifacts/ if
+  available. Used for Part VI governance questions and board-change detection."
+
+**Output:** `artifact_local_paths{}` populated in machine state; open questions queued for
+any missing item. This step never blocks P0 completion — all gaps become open questions.
+
 8a. **Board change detector (non-blocking advisory — run if prior_990_analysis available):**
     If `prior_990_analysis.board_members` is populated (from P1 TEOS extraction or operator
     prior 990 PDF), compare against the current board roster provided by the operator.
@@ -320,12 +371,12 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
 3. Register findings into `artifacts[]` with Drive file ID as path reference
 4. For each missing artifact in the required checklist (below), create an Open Question:
    ```
-   Required source checklist:
-   ├─ prior_990         (prior year Form 990 — or note "first-year filer")
+   Required source checklist (✔ = already found at P0 pre-scan; check artifact_local_paths):
+   ├─ prior_990         (prior year Form 990) ← ✔ if artifact_local_paths.prior_990_pdf set, or "first-year filer"
    ├─ budget_sheet      (already have from P0 --sheet flag) ✔
    ├─ bank_statements   (covering fiscal year)
    ├─ payroll_report    (W-2 register or payroll provider export)
-   ├─ payroll_w2_annual (Gusto or payroll processor W-2 annual summary PDF — required
+   ├─ payroll_w2_annual (Gusto annual summary) ← ✔ if artifact_local_paths.payroll_w2_pdf set; else required
    │                     alongside bank statements. Tiller net pay is always wrong for
    │                     Part VII/IX. Request before P3. If not immediately available:
    │                     add open_questions entry and continue; P3 Pre-check will block.)
