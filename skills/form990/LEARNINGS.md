@@ -225,3 +225,205 @@ Identified gaps in the skill based on real-world execution. Add to the next hard
   (if available) against Part VII from prior year 990. If different directors, prompt for
   transition date, departing/joining members, and whether Part IV Line 4 (significant changes
   to governing documents) was triggered.
+
+---
+
+## Quality Gate Improvements (2026-04-14) — from FY2025 live-fire run
+
+New Q-F gates and SKILL directives identified as missing. Each maps to a concrete gap
+caught during the live-fire execution. Add to QUESTIONS.md + SKILL.md in next hardening pass.
+
+---
+
+### New Quality Gates
+
+**Q-F19 (Gate-2) — Payroll Tax Composition: Part IX Line 10 = Employer Share Only**
+
+Proposed definition:
+```
+Trigger: Part IX Line 7 (salaries) > 0
+Check: Line 10 / Line 7 ≤ 15%
+  - Employer FICA (7.65% up to SS wage base) + FUTA (0.6% on first $7K/employee) +
+    state SUI/ETT ≈ 9–13% of gross wages total.
+  - If Line 10 / Line 7 > 15%, the bookkeeping system likely commingled employee
+    withholdings (income tax, employee FICA) into the payroll tax deposit bucket.
+  - FAIL pattern: Tiller captures combined employer+employee payroll deposits as a
+    single cash transaction; Line 10 shows as ~30%+ of Line 7.
+Remediation: obtain Gusto (or payroll processor) "Employer Taxes" column; replace Line 10
+with employer-only amount.
+```
+Gap exposed: FY2025 Tiller had $34,088 vs correct Gusto employer-only $10,625 (24%
+vs 8.2% of gross wages). A >15% ratio would have flagged this immediately.
+
+---
+
+**Q-F20 (Gate-1) — Part X BOY = Filed Prior Year 990 EOY**
+
+Proposed definition:
+```
+Trigger: A prior year Form 990 was filed with the IRS
+Check: Part X Line 32 BOY == prior_990_analysis.eoy_net_assets
+  - If equal: PASS
+  - If different AND Part XI Line 9 contains a prior period adjustment that exactly
+    reconciles the difference: PASS (with Schedule O explanation required)
+  - If different AND no prior period adjustment: FAIL
+Pass criteria:
+  - Tolerance $0 (exact match or prior period adj must account for every dollar)
+Remediation: compute `prior_period_adj = tiller_boy - filed_prior_eoy`; enter in
+Part XI Line 9; document in Schedule O describing what accounts the CPA excluded.
+```
+Gap exposed: FY2025 filed 2024 EOY = $35,901; Tiller BOY = $40,991; $5,090 difference
+required prior period adjustment. No gate caught this until manual comparison at P8.
+**Gate-1** because IRS e-file systems reject returns where BOY ≠ prior EOY without explanation.
+
+---
+
+**Q-F21 (Gate-2) — Insider Transaction Investigation: Facility and Vendor Ownership**
+
+Proposed definition:
+```
+Trigger: Any vendor paid >$10,000 during the year (especially occupancy/facility lease)
+Check: For each such vendor, the skill must explicitly verify: "Does any current or former
+  officer, director, trustee, or key employee (or their family member) have an ownership
+  interest ≥ 35% in this vendor?"
+  - If NO for all vendors: Part IV Lines 28a/28b = No → PASS
+  - If YES for any vendor: Part IV Line 28a = Yes; Schedule L Part IV required → NEEDS_UPDATE
+Pass criteria: the question was actively asked and answered for every vendor >$10K, not
+just defaulted to No.
+```
+Gap exposed: FY2025 CrossFit San Ramon ($47K lease) was flagged in CPA delta analysis but
+not proactively asked until P8 quality review. A gate would surface this at P4 (Part IV
+checklist phase) instead.
+
+---
+
+**Q-F22 (Gate-3, Advisory) — Schedule A DQ List Reflects Current Board + Prior Contributors**
+
+Proposed definition:
+```
+Trigger: Board composition changed between prior year and current year
+Check: Any person who left the board during the current year but was a substantial
+  contributor (gave >$5,000 AND >2% of cumulative contributions) must remain on the
+  DQ exclusion list for Schedule A Line 7a. Leaving the board does NOT remove DQ status
+  under IRC §4946 for substantial contributors.
+Pass criteria: DQ list includes all current board members with past contributions AND
+  all prior board members who were substantial contributors within the 5-year window.
+```
+Gap exposed: Christine Do and Quoc Do left the board in 2025 but their prior contributions
+(2021–2024, ~$10K/yr) still required full DQ exclusion in the 2025 Schedule A.
+
+---
+
+**Q-F23 (Gate-3, Advisory) — Schedule A Methodology Consistency with Prior Year**
+
+Proposed definition:
+```
+Trigger: A prior year Schedule A Part III is available
+Check: Our Schedule A methodology (Line 1 vs Line 2 classification, DQ person identification)
+  is consistent with the prior year CPA's approach. Key tests:
+  (a) Did prior year include PSR in Line 2? If yes, we must include it.
+  (b) Did prior year include or exclude Wiese/Do family in Line 7a? If excluded (zero Line 7a),
+      document the methodology difference in Schedule O.
+  (c) If prior year result was 100% and ours is materially different, explain the difference.
+Pass criteria: consistent with prior year OR methodology difference documented in Schedule O.
+```
+Gap exposed: FY2024 CPA Schedule A showed 100% (PSR not in Line 2; no DQ exclusions);
+our FY2025 Schedule A shows 74.41% (PSR in Line 2; full DQ exclusions). Line 16 shows 100%
+(prior year), which will prompt CPA questions about the methodology difference.
+
+---
+
+### Q-F6 Extension (Gate-1) — Add Part IX Line 7 Source Verification
+
+Current Q-F6 verifies Part VII Section A compensation ties to W-2/1099. Extension needed:
+
+```
+ALSO CHECK: Part IX Line 7 (other salaries and wages)
+  - Line 7 must equal the sum of W-2 Box 1 gross wages for all non-officer employees
+  - Not net pay (Tiller), not gross wages minus any benefits
+  - Cross-check: sum(gusto_total_earnings_for_non_officers) == Line 7 col_a
+  - Red flag: if Line 7 matches Tiller net payroll deposits exactly (implying net pay used)
+```
+Gap exposed: FY2025 had $100,948 (net pay) in Line 7; correct was $129,011 (gross wages).
+A $28K understatement of compensation expense that Q-F6 didn't catch.
+
+---
+
+### Q-F11 Extension (Gate-2) — Source Requirement for Schedule A Line 16
+
+Current Q-F11 checks that prior-year comparatives are present. Extension needed:
+
+```
+ALSO CHECK: Schedule A Part III Line 16 source
+  - Line 16 must reference the FILED prior year return's Part III Line 15
+  - Must NOT be re-computed from our own data using a different methodology
+  - Acceptable: "% from prior year filed return" even if methodology differs
+  - Not acceptable: silently using our own re-computed value if a filed return exists
+```
+Gap exposed: FY2025 prior year CPA computed 100%; our re-computation would give ~74%.
+These are methodologically different; Line 16 must show 100% from the filed return.
+
+---
+
+### New SKILL.md Directives
+
+**PAYROLL_GROSS**: At P1 discovery, add "payroll provider annual summary" to the required
+source artifact list. Template prompt: "Please provide the Gusto Payroll Journal Report
+(or equivalent W-2/annual payroll summary) for the calendar year. This is required for
+Part VII and Part IX Lines 5–10 — Tiller net pay cannot be used." Stage as `artifacts/
+payroll_summary_<year>.pdf`. If absent by end of P1, create OQ with due date.
+
+**PRIOR_990_EXTRACT**: At P1, after the general Drive/Gmail search, run a targeted search
+for the prior year's filed Form 990. Read it and extract into `prior_990_analysis` in the
+plan machine state: `{eoy_net_assets, schedule_a_pct, board_members, schedule_i_treatment,
+w2_employee_count, part_ix_line7_amount, part_ix_line10_amount, efile_accepted: bool}`.
+Gate P2 on this extraction — do not proceed without either the data or a documented reason
+why the prior year is not available.
+
+**BOY_RECONCILE_GATE**: At P7 Pre-check (or P5 if balance sheet is produced in P3), compare
+`prior_990_analysis.eoy_net_assets` with `artifacts.balance_sheet BOY net assets`. If diff
+> $500: (a) prompt user "Which is authoritative — the filed return or Tiller?", (b) if filed
+return is authoritative, auto-compute the prior period adjustment and pre-populate Part XI
+Line 9 + Schedule O narrative, (c) update Part X BOY to the filed return's EOY. This should
+be a deterministic computation, not a discovery at P8.
+
+**INSIDER_VENDOR_CHECK**: At P4 (Part IV checklist), for each vendor paid >$10,000 in the
+year (read from CoA mapping), explicitly ask: "Does any current or former officer, director,
+trustee, or key employee have an ownership interest ≥ 35% in [vendor name]?" Do not default
+to No. Require an explicit yes/no from the user. The most common insider vendor for small
+nonprofits: their training facility, shared office, or member vendor.
+
+**DQ_PERSISTENCE_CHECK**: At P6 before computing Schedule A, after building the DQ persons
+list from the current year: (a) load the prior year's board composition from `prior_990_
+analysis.board_members`, (b) identify any person who appears in the prior year board but NOT
+in the current year board, (c) for each departed board member, check if they were a substantial
+contributor (gave >$5,000 AND >2% of cumulative contributions in any of the 5-year window
+years). If yes, KEEP them on the DQ exclusion list and add a Schedule O note: "[Name] left
+the board in [year] but remains a disqualified person as a substantial contributor under IRC
+§4946."
+
+**PAYMENT_PROCESSOR_1099K**: At P6 or P8, if PSR includes card-based membership fees
+(common for Stripe/PushPress/Square integrations): (a) search Drive for the prior year 1099-K
+from the payment processor, (b) verify that PSR reconciles to the 1099-K gross transaction
+amount (differences should be explainable by non-card revenue, adjustments, or year-cutoff
+timing), (c) if 1099-K > reported PSR, investigate whether unreported revenue exists.
+
+---
+
+### Summary Table
+
+| ID | Tier | New/Extend | Description |
+|---|---|---|---|
+| Q-F19 | G2 | **NEW** | Part IX Line 10 / Line 7 ratio < 15% (employer taxes only) |
+| Q-F20 | G1 | **NEW** | Part X BOY = filed prior year EOY (or prior period adj documented) |
+| Q-F21 | G2 | **NEW** | Insider vendor investigation for transactions >$10K |
+| Q-F22 | G3 | **NEW** | DQ list includes departed board substantial contributors |
+| Q-F23 | G3 | **NEW** | Schedule A methodology consistent with prior year or documented |
+| Q-F6 | G1 | **EXTEND** | Also check Part IX Line 7 = gross W-2 wages (not net pay) |
+| Q-F11 | G2 | **EXTEND** | Schedule A Line 16 sourced from filed prior year return |
+| PAYROLL_GROSS | Directive | **NEW** | P1: require payroll provider annual summary as source artifact |
+| PRIOR_990_EXTRACT | Directive | **NEW** | P1: extract prior_990_analysis from filed return |
+| BOY_RECONCILE_GATE | Directive | **NEW** | P7: auto-detect and compute BOY/prior-EOY discrepancy |
+| INSIDER_VENDOR_CHECK | Directive | **NEW** | P4: explicit yes/no for each vendor >$10K re: insider ownership |
+| DQ_PERSISTENCE_CHECK | Directive | **NEW** | P6: cross-check departed board members for DQ persistence |
+| PAYMENT_PROCESSOR_1099K | Directive | **NEW** | P6/P8: reconcile PSR against 1099-K from payment processor |
