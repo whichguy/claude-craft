@@ -179,20 +179,24 @@ Passes if: public_support_pct ≥ 33⅓%
 (per Schedule A Part II instructions). The 2% threshold is computed ONCE over the full
 5-year window — not applied annually per year.
 
-**509(a)(2) test** (for fee-income charities) — note the 1% per-donor cap (NOT the 2% used
-in 509(a)(1)); see SCHEDULES.md §509(a)(2) Worksheet for the full two-prong formula:
+**509(a)(2) test** (for fee-income charities) — see SCHEDULES.md §509(a)(2) Worksheet for
+the full algorithm. Key structural rule that differs from 509(a)(1):
 ```
-Numerator = government grants (uncapped)
-          + public contributions (per-donor cap: max(1% × total_5yr_support, $5,000))
-          + program service revenue from exempt activities
-public_support_pct = Numerator_5yr_sum / total_support_5yr × 100
-Prong 1 passes if: public_support_pct ≥ 33⅓%
-Prong 2 passes if: investment_income_pct ≤ 33⅓%
-Both prongs required for 509(a)(2) PASS.
+Schedule A Part III:
+  Line 7a: FULL EXCLUSION of disqualified person contributions + PSR + UBI (no cap)
+  Line 7b: Excess of any non-DQ person's PSR/UBI (Lines 2-3 only) over
+           max($5,000, 1% × five_yr_total_support) — does NOT apply to contributions
+  Public support = 5yr total − Line 7a − Line 7b
+  Prong 1: public_support_pct ≥ 33⅓%
+  Prong 2: investment_income_pct ≤ 33⅓%
+  Both prongs required for 509(a)(2) PASS.
 ```
-**$5,000 floor on the 1% cap:** The per-donor cap is `max(1% × total_5yr_support, $5,000)` per
-§509(a)(2) statutory floor. For orgs with total 5-year support < $500,000, the floor of $5,000
-applies and the effective cap is higher than 1%. This matches SCHEDULES.md Schedule A playbook.
+**Critical distinction from 509(a)(1):** 509(a)(1) uses a 2% per-donor cap on ALL
+contributions from any single source. 509(a)(2) uses FULL EXCLUSION of disqualified
+persons (Line 7a) — never a 1% or 2% cap on contributions. The 1%/$5,000 threshold
+exists only for Line 7b (non-DQ PSR/UBI sources), not for contributions (Line 1).
+For membership-based orgs where no single non-DQ member's PSR exceeds max($5,000,
+1% of 5-yr support), Line 7b = $0.
 
 **Pass criteria:**
 - The correct test (509(a)(1) vs 509(a)(2)) is applied per `key_facts.public_charity_basis`

@@ -54,35 +54,80 @@ public_support_pct = 5yr_public_support / 5yr_total_support × 100
 
 ### 509(a)(2) Worksheet (if public_charity_basis == "509(a)(2)")
 
-The 509(a)(2) test has two prongs and a more complex numerator than 509(a)(1).
-The 1% per-donor cap used here differs from 509(a)(1)'s 2% cap — don't conflate them.
+**⚠ FORMULA WARNING — read before computing:**
+509(a)(2) does NOT use a per-donor cap on contributions. Disqualified person contributions
+are **excluded in their entirety** (Line 7a). The 1%/$5,000 threshold (Line 7b) applies
+**only to PSR/UBI from non-disqualified persons** — not to contributions at all.
+This is distinct from 509(a)(1), which uses a 2% per-donor cap on all contributions.
 
-**Prong 1 — Public/government support ≥ 33⅓%:**
+**Schedule A Part III structure (for 509(a)(2)):**
 
-The numerator is NOT just program service revenue. Per IRC §509(a)(2)(A):
 ```
-permitted_support_numerator =
-  government_grants           # no per-donor cap
-  + public_contributions      # capped per donor at max(1% of total_support_yr, $5,000)
-                              # Note: this is a 1% cap, NOT the 2% cap used in 509(a)(1)
-  + program_service_revenue   # fees from exempt-function activities
+Line 1: Gifts, grants, contributions, membership fees (all sources)
+Line 2: Gross receipts from related activities / PSR (all sources)
+Line 3: Gross receipts from unrelated trade or business (all sources)
+Line 4–5: Tax revenues, govt services furnished (if any)
+Line 6 = Lines 1–5  (5-yr total support for EACH year)
 
-one_pct_threshold = 0.01 × total_support_yr  # per-year, per-donor cap for Prong 1
-
-permitted_support_5yr = sum over [T-4..T] of:
-  government_grants[y]
-  + sum(min(d.amount[y], max(one_pct_threshold[y], 5000)) for d in public_donors[y])
-  + program_service_revenue[y]
-
-5yr_public_support_pct = permitted_support_5yr / 5yr_total_support × 100
+Line 7a: Subtract FULL amounts from disqualified persons (IRC §4946)
+         in Lines 1–3 — no cap, no floor, full exclusion
+Line 7b: For non-disqualified persons only, subtract excess of any single
+         person's Lines 2–3 amounts over max($5,000, 1% × five_yr_total_support)
+         (This cap does NOT apply to Line 1 contributions)
+Line 8 = Line 6 − Line 7a − Line 7b  (public support for each year)
 ```
+
+**Algorithm — Prong 1 (public support ≥ 33⅓%):**
+
+```python
+# Step 1: compute 5-yr total once
+five_yr_total = sum(total_support[y] for y in [T-4..T])
+
+# Step 2: Line 7b threshold (computed from 5-yr total, same for all years)
+cap_7b = max(5000, 0.01 * five_yr_total)
+
+# Step 3: Line 7a — disqualified person exclusion (FULL AMOUNT — no cap)
+line_7a = sum(dq_contributions[y] + dq_psr[y] + dq_ubi[y]
+              for y in [T-4..T])
+
+# Step 4: Line 7b — non-DQ PSR/UBI excess (contributions NOT capped here)
+# Aggregate each non-DQ person's Lines 2-3 across the 5-year window
+for each non_dq_person d:
+    d.psr_ubi_5yr = sum(d.psr[y] + d.ubi[y] for y in [T-4..T])
+    d.line_7b_excess = max(0, d.psr_ubi_5yr - cap_7b)
+line_7b = sum(d.line_7b_excess for all non-DQ persons)
+
+# Step 5: public support percentage
+public_support_5yr = sum(total_support[y] for y in [T-4..T]) - line_7a - line_7b
+public_support_pct = public_support_5yr / five_yr_total * 100
+```
+
+> **Line 7b in practice:** For membership-fee-based organizations (e.g., athletic clubs,
+> community nonprofits), the Line 7b cap only fires if a single non-DQ person's PSR
+> payments over 5 years exceed max($5,000, 1% of total support). For most small orgs
+> with many small individual memberships, Line 7b = $0.
 
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```
-5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / 5yr_total_support × 100
+5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / five_yr_total × 100
 ```
 
-**PASS if:** `5yr_public_support_pct ≥ 33⅓%` **AND** `5yr_investment_pct ≤ 33⅓%`
+**PASS if:** `public_support_pct ≥ 33⅓%` **AND** `5yr_investment_pct ≤ 33⅓%`
+
+**Merchandise revenue treatment in Schedule A Part III:**
+Merchandise sales (Part VIII Lines 10a–10c in the core dataset) are included in
+Schedule A Part III as **Line 2 (gross receipts from related activities)** using the
+**gross revenue** (Line 10a), not the net amount (Line 10c). Merchandise is a related
+activity for most program-selling nonprofits (e.g., T-shirts, branded equipment).
+Exception: if merchandise was sold to a disqualified person at above-FMV prices, that
+specific transaction's proceeds are DQ'd. A general "merchandise" tag in an internal
+budget system (e.g., a PST tab flag) does NOT make it disqualified under Schedule A.
+
+**⚠ PST tab warning — current-year only:**
+A "Public Support Test" or similar named tab in client spreadsheets (e.g., Tiller) often
+tracks **current-year data only** — not the 5-year historical window required by IRS
+Schedule A. Always verify by reading each prior-year P&L tab directly. Never assume the
+PST tab contains multi-year accumulated Schedule A data.
 
 ### Facts-and-Circumstances Narrative (if 10%–33⅓%)
 

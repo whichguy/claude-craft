@@ -630,7 +630,38 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
 - Line 1b: number of employees receiving wages > $100K (from payroll register)
 - Line 2a: number of independent contractors receiving > $100K (from 1099 register)
-- Lines 3–13: answer each governance/compliance question
+- Line 3a: YES if gross receipts ≥ $200,000 OR total assets ≥ $500,000
+- **Line 3b (state return filed):** If Line 3a = YES, answer whether all required state
+  returns were filed. See §State/Ancillary Filing Guidance below before answering.
+- Lines 4–13: answer each governance/compliance question
+
+**§ State/Ancillary Filing Guidance (Part V Line 3b)**
+
+This skill produces only the federal Form 990. State companion filings are out of scope
+for automated production, but must be identified and disclosed here so the preparers
+can confirm they are current.
+
+**California nonprofits (GR > $50,000)** must file ALL THREE annually:
+
+| Form | Agency | Trigger | Notes |
+|------|--------|---------|-------|
+| CA Form 199 | Franchise Tax Board (FTB) | GR > $50,000 | CA exempt org annual return; NOT the same as federal 990; FTB does not accept 990 as substitute |
+| RRF-1 | CA AG Registry of Charitable Trusts | Registration required | Annual Registration Renewal Fee Report; must file if registered (most 501(c)(3)s) |
+| CT-TR-1 | CA AG Registry | GR < $2M AND no audit | Treasurer's Report; accompanies RRF-1 |
+
+Common CA nonprofit filing triggers (use as checklist):
+- `CA Form 199` due: 15th day of 5th month after fiscal year end (same as federal 990: May 15 for calendar-year org), or extended
+- `RRF-1 + CT-TR-1` due: 4.5 months after fiscal year end = April 15 for calendar-year org (NOT the same as Form 199 deadline)
+- Solicitation in California without RRF-1 registration is a violation of the Supervision of Trustees and Fundraisers for Charitable Purposes Act
+
+**How to answer Part V Line 3b:**
+- If all required state filings are current → answer YES (or "Yes, CA Form 199 + RRF-1 + CT-TR-1")
+- If uncertain or filings are late → create an Open Question; answer "pending" in dataset; mention in Schedule O
+
+**Other states:** If the organization solicits in other states, those states may have
+their own charitable solicitation registration requirements. Common states with active
+enforcement: NY (CHAR500 + EPTL-8.8), IL (AG990-IL), FL (FDACS), MA (PC), WA (Char).
+The skill does not produce these filings; if present, surface as an Open Question.
 
 **Part VI — Governance, Management, and Disclosure:**
 - Lines 1–19: answer each governance question
@@ -755,6 +786,14 @@ Dispatch to SCHEDULES.md playbooks for each known letter in `required_schedules[
 
 **Schedule A (always — 501(c)(3) public charity):**
 See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
+
+> **⚠ PST tab warning:** A "Public Support Test" or similarly named tab in the client's
+> spreadsheet (e.g., Tiller, QuickBooks export) typically tracks **current-year data only**
+> — NOT the 5-year window required by IRS Schedule A. Do NOT read the PST tab and assume
+> it contains multi-year Schedule A data. Instead, read each prior-year P&L tab directly
+> (e.g., P&L Report 2024, P&L Report 2023, etc.) using the section-tracking exec pattern
+> to extract each year's fundraising and PSR totals separately. The PST tab may be useful
+> as a sanity check for the current year but is insufficient for the 5-year computation.
 
 **Script: `artifacts/scripts/p6-schedule-a.py`**
 - Input args: `--support-json <path>` (a JSON file with 5-year support history per donor,
