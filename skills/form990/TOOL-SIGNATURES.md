@@ -152,6 +152,39 @@ notes: null
 **Fail options:** (a) vendor JCS canonicalizer, (b) pin Python version in all phase dispatches,
 (c) drop byte-identical idempotency claim (compute sha256 only when inputs change).
 
+---
+
+## f990 AcroForm Field Map — Tax Year 2025
+
+**File:** `templates/f990-field-map-2025.json`
+
+| Property | Value |
+|---|---|
+| Source PDF | `https://www.irs.gov/pub/irs-pdf/f990.pdf` |
+| IRS Revision Date | 2025-12-12 |
+| AcroForm field count | 1,307 |
+| Labeled entries in map | 923 |
+| Extraction method | XFA template stream (array item 5, ~1.5MB); `<assist><speak>` elements via regex |
+| XFA tool | Adobe Designer 6.5 (embedded in PDF) |
+| Fill method | `pypdf PdfWriter.update_page_form_field_values()` with full XFA path keys |
+| pypdf version | 6.10.0 (confirmed E1, 2026-04-11) |
+| Page 1 fields filled FY2025 | 35 |
+
+**Path format:** Short field key format is `short[0]` → full XFA path is
+`topmostSubform[0].PageN[0]...<group>[0].short[0]`
+
+**Usage:**
+```python
+import json
+with open("templates/f990-field-map-2025.json") as f:
+    field_map = json.load(f)  # { "short[0]": "Human-readable label", ... }
+```
+
+**Critical note:** Re-run E1 probe each tax year — IRS renumbers XFA fields when the form
+is revised. The 2025 field map must not be used for tax year 2026+ without re-extraction.
+The 384 unlabeled fields (1,307 − 923) are checkboxes and calculated-total cells that carry
+no `<assist><speak>` element; they can be identified by inspecting the XFA template directly.
+
 
 ### S1 — PID reuse / os.kill ESRCH behavior (Change 1 spike)
 

@@ -552,6 +552,73 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print plan_contents
        sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
        Print: "  Plan fingerprint: {sha}"
+
+       # ── SMALL fast-path: lightweight senior-engineer pass ──
+       # Single-pass, single critic (Sonnet), no loop, no consolidator.
+       # Focuses on strategic/procedural correctness: git lifecycle,
+       # scope honesty, verification step quality, POST_IMPLEMENT alignment.
+       Print: "  Senior review  running…"
+       sr_path = "/tmp/.review-plan-sr-small-${plan_slug}.md"
+
+       Task(subagent_type = "general-purpose",
+            model = "sonnet",
+            description = "SMALL senior-engineer critic",
+            prompt = """
+         You are a senior-engineer critic performing a single-pass holistic
+         review of a SMALL-tier implementation plan.
+
+         Read the plan at <plan_path> in full.
+         Read ~/.claude/CLAUDE.md for directives.
+
+         Your job is NOT to re-run per-question evaluation. Catch what
+         per-question evaluators cannot:
+           1. Strategic/procedural correctness: does the plan's git
+              lifecycle match CLAUDE.md POST_IMPLEMENT? Does the commit
+              split match the revertability story?
+           2. Scope honesty: is the scope statement accurate about what
+              actually changes?
+           3. Verification quality: do the verification steps actually
+              verify the claimed property, or are they vacuous?
+
+         For each critique, cite the source: CLAUDE.md directive or file
+         path + line range. If you can't cite it, mark it as advisory. Do
+         not fabricate citations.
+
+         Write your full critique as markdown to <sr_path> using the Write
+         tool. Do not print it to your response — the team-lead reads the
+         file.
+
+         Format of <sr_path> contents:
+           # SR Critic — SMALL fast-path
+           VERDICT: STABLE | REVISED
+           ## Critiques
+           1. [critique text] — see: [citation]
+              [EDIT: old_string → new_string]
+           2. ...
+         If VERDICT=STABLE, write just the verdict line + a one-paragraph
+         rationale, no critiques.
+
+         Do not use Edit/Bash tools — you may only Read and Write. Return
+         'done' in your chat response after writing the file.
+       """)
+
+       # Wait for Task to finish, then read its output and apply edits.
+       sr_result = Read(sr_path)
+       sr_verdict = parse "VERDICT: (STABLE|REVISED)" from sr_result
+
+       IF sr_verdict == "REVISED":
+           # Extract and apply [EDIT: old → new] blocks (same pattern as Phase 5c).
+           edits = parse all "[EDIT: <old_string> → <new_string>]" blocks from sr_result
+           FOR edit in edits:
+               TRY:
+                   Edit(plan_path, old_string=edit.old, new_string=edit.new)
+               EXCEPT:
+                   # Skip silently if old_string not found (plan may not match exactly)
+                   PASS
+           Print: "  Senior review  REVISED — {len(edits)} edit(s) applied"
+       ELSE:
+           Print: "  Senior review  STABLE — no changes"
+
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 

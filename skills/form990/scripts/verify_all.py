@@ -21,6 +21,8 @@ import pathlib
 SCRIPTS = [
     "verify_big_square.py",
     "verify_part_ix_columns.py",
+    "verify_part_iii.py",
+    "verify_schedule_a.py",
 ]
 
 TAG = "verify_all"
