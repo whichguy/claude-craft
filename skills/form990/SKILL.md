@@ -102,9 +102,14 @@ print a warning banner:
 Then write `.gitignore` to the plan file's directory with the template from
 `§ Sensitive-data .gitignore Template` below.
 
-**For `resume`/`review`/`status`/`ask`:** Resolve the plan-path argument to an absolute
-path. All relative artifact paths in MACHINE STATE are resolved relative to the **plan
-file's directory** (not the invocation cwd).
+**For `resume`/`review`/`status`/`ask`:** If `<plan-path>` is omitted, auto-discover:
+1. Glob `./form990-plan-*.md` in the invocation cwd
+2. If exactly one match: use it silently (print `"Resuming form990-plan-<year>.md"`)
+3. If multiple matches: list them and ask which to resume (never auto-pick when ambiguous)
+4. If zero matches: halt with `"No form990-plan-*.md found in current directory. Pass --plan-path <path> explicitly."`
+
+Resolve the plan-path to an absolute path. All relative artifact paths in MACHINE STATE
+are resolved relative to the **plan file's directory** (not the invocation cwd).
 
 ---
 
