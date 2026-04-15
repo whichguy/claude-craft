@@ -184,8 +184,10 @@ the full algorithm. Key structural rule that differs from 509(a)(1):
 ```
 Schedule A Part III:
   Line 7a: FULL EXCLUSION of disqualified person contributions + PSR + UBI (no cap)
-  Line 7b: Excess of any non-DQ person's PSR/UBI (Lines 2-3 only) over
-           max($5,000, 1% × five_yr_total_support) — does NOT apply to contributions
+  Line 7b: Excess of any non-DQ person's PSR/UBI (Lines 2-3 only) THAT YEAR over
+           max($5,000, 1% × that_year_Line13) — cap is PER-YEAR per IRS instructions
+           ("1% of the amount on line 13 for the applicable year" — not column (f) total)
+           Does NOT apply to contributions (Line 1)
   Public support = 5yr total − Line 7a − Line 7b
   Prong 1: public_support_pct ≥ 33⅓%
   Prong 2: investment_income_pct ≤ 33⅓%
@@ -195,8 +197,8 @@ Schedule A Part III:
 contributions from any single source. 509(a)(2) uses FULL EXCLUSION of disqualified
 persons (Line 7a) — never a 1% or 2% cap on contributions. The 1%/$5,000 threshold
 exists only for Line 7b (non-DQ PSR/UBI sources), not for contributions (Line 1).
-For membership-based orgs where no single non-DQ member's PSR exceeds max($5,000,
-1% of 5-yr support), Line 7b = $0.
+For membership-based orgs where no single non-DQ member's PSR in any single year
+exceeds max($5,000, 1% of that year's total support), Line 7b = $0.
 
 **Pass criteria:**
 - The correct test (509(a)(1) vs 509(a)(2)) is applied per `key_facts.public_charity_basis`

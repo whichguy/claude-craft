@@ -64,6 +64,37 @@ PII_INPUT_DOB       = "born 03/15/1980"
 PII_EXPECTED_DOB    = "born [REDACTED-DOB]"
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# TC24b — Line 7b per-year vs aggregate application
+# Scenario: a single non-DQ member with varying PSR across 5 years.
+# Annual cap = $5,000 (fixture: annual total support = $60,000/yr → 1% = $600 < $5,000)
+# This is per-year: the cap is max($5,000, 0.01 × annual_support) each year.
+# IRS primary source: "1% of the amount on line 13 for the applicable year"
+# ---------------------------------------------------------------------------
+
+# Annual cap — same for all years in this fixture because floor always applies.
+LINE_7B_ANNUAL_CAP = 5_000  # = ONE_PCT_FLOOR_APPLIED (1% of any single year < $5K)
+
+# Single non-DQ member's PSR/UBI by year.
+LINE_7B_MEMBER_PSR_BY_YEAR = {
+    2021: 4_000,    # below cap → $0 excess
+    2022: 3_500,    # below cap → $0 excess
+    2023: 6_000,    # ABOVE cap → $1,000 excess
+    2024: 4_800,    # below cap → $0 excess
+    2025: 5_200,    # ABOVE cap → $200 excess
+}
+
+# Correct per-year result: sum(max(0, psr - cap) for each year)
+# = max(0,4000-5000) + max(0,3500-5000) + max(0,6000-5000) + max(0,4800-5000) + max(0,5200-5000)
+# = 0 + 0 + 1000 + 0 + 200 = 1200
+LINE_7B_CORRECT_EXCESS = 1_200
+
+# Wrong aggregate result: treat all years as a lump sum, subtract cap once.
+# = sum(4000+3500+6000+4800+5200) - 5000 = 23500 - 5000 = 18500
+# This is wildly different from 1200 — confirms the test is discriminative.
+LINE_7B_AGGREGATE_EXCESS = 18_500
+
+# ---------------------------------------------------------------------------
 # TC21 / TC22 — donor name scrubbing
 # ---------------------------------------------------------------------------
 

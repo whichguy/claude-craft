@@ -490,23 +490,47 @@ before P1; donor-name-shaped strings should pass through unchanged)
 
 ---
 
-## TC24 — Q-F4 509(a)(2) 1% / $5,000 floor
+## TC24 — Q-F4 509(a)(2) 1% / $5,000 floor + per-year application
 
-**Covers:** B2 (Q-F4 criteria fix: per-donor cap = `max(1% × total_5yr_support, $5,000)`)
+**Covers:** B2 (Q-F4 criteria fix) + IRS-confirmed per-year cap formula
 
-**Setup:** `tests/fixtures/golden.py` constants:
+**IRS primary source (confirmed 2026-04-14):** Schedule A Part III instructions state
+"the greater of $5,000 or 1% of the amount on line 13 **for the applicable year**" —
+cap is per-year (each year's own Line 13 column total), NOT the 5-year column (f) total.
+SCHEDULES.md updated to use `cap_7b = {y: max(5000, 0.01 * total_support[y]) for y in ...}`.
+
+**Sub-test A — threshold arithmetic:**
+
+Setup constants in `tests/fixtures/golden.py`:
 - `SUPPORT_5YR_TOTAL = 300_000`
 - `ONE_PCT_CAP_COMPUTED = 3_000` (1% of 300K)
 - `ONE_PCT_FLOOR_APPLIED = 5_000` (max(3K, 5K))
 
+Assertions:
+- `ONE_PCT_CAP_COMPUTED == int(SUPPORT_5YR_TOTAL * 0.01)` (3,000)
+- `ONE_PCT_FLOOR_APPLIED == max(ONE_PCT_CAP_COMPUTED, 5_000)` (5,000)
+- `ONE_PCT_FLOOR_APPLIED == 5_000` — floor applied; raw 1% cap (3,000) < statutory minimum
+
+**Sub-test B — per-year application produces correct excess:**
+
+Setup constants in `tests/fixtures/golden.py`:
+- `LINE_7B_ANNUAL_CAP = 5_000`
+- `LINE_7B_MEMBER_PSR_BY_YEAR = {2021:4000, 2022:3500, 2023:6000, 2024:4800, 2025:5200}`
+- `LINE_7B_CORRECT_EXCESS = 1_200` — per-year: only 2023 (+$1K) and 2025 (+$200) exceed cap
+- `LINE_7B_AGGREGATE_EXCESS = 18_500` — wrong aggregate: $23,500 total − $5,000 cap
+
+Assertions:
+- `sum(max(0, psr - cap) for psr in PSR_BY_YEAR.values()) == 1_200`
+- `aggregate_excess != 1_200` — confirms the two approaches are discriminative
+
+**Sub-test C — discriminative check:**
+- Aggregate approach ($18,500) ≠ per-year approach ($1,200) — test is not vacuous
+- `aggregate_excess == LINE_7B_AGGREGATE_EXCESS` (documents the wrong answer)
+
 **Steps:**
 1. `python3 tests/verify.py --case TC24`
 
-**Assertions:**
-- `ONE_PCT_CAP_COMPUTED == int(SUPPORT_5YR_TOTAL * 0.01)` (i.e. 3,000)
-- `ONE_PCT_FLOOR_APPLIED == max(ONE_PCT_CAP_COMPUTED, 5_000)` (i.e. 5,000)
-- `ONE_PCT_FLOOR_APPLIED == 5_000` — floor applied; raw 1% cap (3,000) < statutory minimum
-- TC24 grid cell: `✔`
+**Expected:** TC24 grid cell: `✔`
 
 ---
 

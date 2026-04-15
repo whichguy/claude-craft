@@ -72,7 +72,10 @@ Line 6 = Lines 1–5  (5-yr total support for EACH year)
 Line 7a: Subtract FULL amounts from disqualified persons (IRC §4946)
          in Lines 1–3 — no cap, no floor, full exclusion
 Line 7b: For non-disqualified persons only, subtract excess of any single
-         person's Lines 2–3 amounts over max($5,000, 1% × five_yr_total_support)
+         person's Lines 2–3 amounts THAT YEAR over max($5,000, 1% × that_year_Line13)
+         where "that_year_Line13" = total support for the applicable year column
+         (IRS Sched A Part III instructions: "1% of the amount on line 13 for the
+         applicable year" — per-year column total, NOT the 5-year column (f) total)
          (This cap does NOT apply to Line 1 contributions)
 Line 8 = Line 6 − Line 7a − Line 7b  (public support for each year)
 ```
@@ -83,11 +86,12 @@ Line 8 = Line 6 − Line 7a − Line 7b  (public support for each year)
 # Step 1: compute 5-yr total once
 five_yr_total = sum(total_support[y] for y in [T-4..T])
 
-# Step 2: Line 7b threshold — derived from 5-yr total, but applied PER-YEAR PER-PERSON
-# IRS Sched A Part III instructions: "For each column, enter amounts from non-DQ persons
-# to the extent the amounts from any single person exceeded the greater of $5,000 or
-# 1% of the amount on Line 13." — comparison is PER YEAR, not across the 5-yr aggregate.
-cap_7b = max(5000, 0.01 * five_yr_total)  # same cap for all years; from 5-yr total
+# Step 2: Line 7b threshold — PER-YEAR cap from each year's own Line 13
+# IRS Schedule A Part III instructions (primary source confirmed 2026-04-14):
+# "the greater of $5,000 or 1% of the amount on line 13 FOR THE APPLICABLE YEAR"
+# "applicable year" = each year's own annual column total, NOT the 5-year column (f).
+# Cap is recomputed for every year column (a)–(e); it changes year by year.
+cap_7b = {y: max(5000, 0.01 * total_support[y]) for y in [T-4..T]}
 
 # Step 3: Line 7a — disqualified person exclusion (FULL AMOUNT — no cap)
 line_7a = sum(dq_contributions[y] + dq_psr[y] + dq_ubi[y]
@@ -99,22 +103,28 @@ line_7a = sum(dq_contributions[y] + dq_psr[y] + dq_ubi[y]
 line_7b = 0
 for y in [T-4..T]:
     for each non_dq_person d:
-        line_7b += max(0, d.psr_ubi[y] - cap_7b)  # year y only, not 5-yr sum
+        line_7b += max(0, d.psr_ubi[y] - cap_7b[y])  # year-specific cap
 
 # Step 5: public support percentage
 public_support_5yr = five_yr_total - line_7a - line_7b
 public_support_pct = public_support_5yr / five_yr_total * 100
 ```
 
-> **Line 7b critical note — PER-YEAR comparison, not aggregate.**
-> A non-DQ person paying $8,000/year for 5 years ($40,000 total) has ZERO Line 7b
-> excess if the annual threshold is $9,987 — because each year's $8,000 < $9,987.
-> The wrong approach (aggregate first: $40,000 − $9,987 = $30,013) dramatically
+> **Line 7b critical note — PER-YEAR comparison AND per-year cap.**
+> Both the comparison AND the cap threshold are per-year:
+> `cap[y] = max($5,000, 0.01 × total_support[y])` where `total_support[y]` is that year's
+> Line 13 column value. A non-DQ person paying $6,000/year against a $7,000 per-year cap
+> (total support = $700K/yr) has ZERO Line 7b excess — each year's $6,000 < $7,000.
+> The wrong aggregate approach (sum 5 years of PSR, subtract cap once) dramatically
 > over-deducts. The IRS form has per-year columns (a)–(e) for Line 7b entries.
 >
+> **Primary source (IRS Schedule A Part III instructions):** "the greater of $5,000 or
+> 1% of the amount on line 13 **for the applicable year**" — not column (f) 5-year total.
+>
 > **In practice:** Line 7b = $0 whenever every non-DQ person's SINGLE-YEAR PSR/UBI
-> is below the cap. For membership-based orgs where individual annual dues are well
-> below max($5,000, 1% of 5-yr support), Line 7b is always $0.
+> is below `max($5,000, 1% × that_year_total_support)`. For most membership-based orgs
+> with annual total support below $500K, the $5,000 floor always applies (1% < $5,000),
+> making Line 7b = $0.
 
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```

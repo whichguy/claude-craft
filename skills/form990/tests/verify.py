@@ -982,27 +982,58 @@ def tc23(args):
 
 
 def tc24(args):
-    """TC24 — Q-F4 509(a)(2) 1%/$5K floor golden constants (B2 — GREEN).
+    """TC24 — Q-F4 509(a)(2) 1%/$5K floor + per-year application (B2 — GREEN).
 
-    B2 fix in QUESTIONS.md: per-donor cap = max(1% × total_5yr_support, $5,000).
-    For orgs with total_support < $500,000 the floor of $5,000 applies and the
-    effective cap is higher than 1%. Golden constants verify this arithmetic.
+    Sub-test A — threshold arithmetic:
+      B2 fix in QUESTIONS.md: per-donor cap = max(1% × annual_support, $5,000).
+      For orgs with annual support < $500K, the floor of $5,000 applies.
+      Golden constants verify this arithmetic.
+
+    Sub-test B — per-year vs aggregate application:
+      IRS Schedule A Part III instructions: "1% of the amount on line 13 for the
+      applicable year" — comparison is PER-YEAR PER-PERSON, cap is per-year.
+      Fixture has one non-DQ member with varying PSR across 5 years.
+      Per-year result ($1,200) is radically different from the wrong aggregate
+      result ($18,500), confirming the tests are discriminative.
     """
     tc = "TC24"
     if not _xfail_guard(tc, "B2"): return
     if not _require_lib(tc): return
     sys.path.insert(0, str(FIXTURES))
     try:
-        from golden import SUPPORT_5YR_TOTAL, ONE_PCT_CAP_COMPUTED, ONE_PCT_FLOOR_APPLIED
+        from golden import (
+            SUPPORT_5YR_TOTAL, ONE_PCT_CAP_COMPUTED, ONE_PCT_FLOOR_APPLIED,
+            LINE_7B_ANNUAL_CAP, LINE_7B_MEMBER_PSR_BY_YEAR,
+            LINE_7B_CORRECT_EXCESS, LINE_7B_AGGREGATE_EXCESS,
+        )
     except ImportError as e:
         error_(tc, f"golden.py import failed: {e}"); return
 
+    # Sub-test A — threshold arithmetic
     assert_equal(tc, ONE_PCT_CAP_COMPUTED, int(SUPPORT_5YR_TOTAL * 0.01),
                  "ONE_PCT_CAP_COMPUTED = 1% of SUPPORT_5YR_TOTAL")
     assert_equal(tc, ONE_PCT_FLOOR_APPLIED, max(ONE_PCT_CAP_COMPUTED, 5_000),
                  "ONE_PCT_FLOOR_APPLIED = max(computed, $5000)")
     assert_equal(tc, ONE_PCT_FLOOR_APPLIED, 5_000,
                  "floor applied: 1% cap (3000) < $5000 floor → result should be 5000")
+
+    # Sub-test B — per-year application produces correct excess
+    per_year_excess = sum(
+        max(0, psr - LINE_7B_ANNUAL_CAP)
+        for psr in LINE_7B_MEMBER_PSR_BY_YEAR.values()
+    )
+    assert_equal(tc, per_year_excess, LINE_7B_CORRECT_EXCESS,
+                 "per-year excess = sum(max(0, psr[y] - cap) for each year)")
+
+    # Sub-test C — aggregate approach gives a different (wrong) answer
+    # This confirms the two approaches are discriminative — the test is not vacuous.
+    aggregate_excess = sum(LINE_7B_MEMBER_PSR_BY_YEAR.values()) - LINE_7B_ANNUAL_CAP
+    assert_true(tc, aggregate_excess != LINE_7B_CORRECT_EXCESS,
+                "aggregate approach gives different result — confirms test discriminates "
+                f"per-year ({LINE_7B_CORRECT_EXCESS}) vs aggregate ({aggregate_excess})")
+    assert_equal(tc, aggregate_excess, LINE_7B_AGGREGATE_EXCESS,
+                 "aggregate excess matches golden constant (documents the wrong answer)")
+
     if tc not in RESULTS:
         pass_(tc)
 
