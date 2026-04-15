@@ -201,7 +201,8 @@ For membership-based orgs where no single non-DQ member's PSR exceeds max($5,000
 **Pass criteria:**
 - The correct test (509(a)(1) vs 509(a)(2)) is applied per `key_facts.public_charity_basis`
 - 5 years of prior gross-receipts data are present in Schedule A worksheet
-- Excess-contribution exclusions are applied (or explicitly marked zero if no donor exceeds 2%)
+- For 509(a)(1): excess-contribution exclusions applied (or marked zero if no donor exceeds 2% of 5-yr total)
+- For 509(a)(2): Line 7a (DQ person full exclusion) and Line 7b (non-DQ PSR/UBI excess) both documented
 - If borderline (10%–33%), a facts-and-circumstances narrative exists in Schedule O
 
 **NEEDS_UPDATE example:**

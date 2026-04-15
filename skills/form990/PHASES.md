@@ -651,7 +651,7 @@ can confirm they are current.
 
 Common CA nonprofit filing triggers (use as checklist):
 - `CA Form 199` due: 15th day of 5th month after fiscal year end (same as federal 990: May 15 for calendar-year org), or extended
-- `RRF-1 + CT-TR-1` due: 4.5 months after fiscal year end = April 15 for calendar-year org (NOT the same as Form 199 deadline)
+- `RRF-1 + CT-TR-1` due: 15th day of 5th month after fiscal year end = May 15 for calendar-year org (same deadline as CA Form 199 and federal 990)
 - Solicitation in California without RRF-1 registration is a violation of the Supervision of Trustees and Fundraisers for Charitable Purposes Act
 
 **How to answer Part V Line 3b:**
