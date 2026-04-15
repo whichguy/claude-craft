@@ -98,9 +98,7 @@ ELSE:
 
 **NEEDS_UPDATE example:**
 ```
-Q-F1: NEEDS_UPDATE — 990-EZ was selected using only the gross-receipts prong ($180K < $200K)
-without verifying the total-assets prong. Total assets are $650K which fails the < $500K
-threshold, making the correct variant full Form 990.
+Q-F1: NEEDS_UPDATE — 990-EZ selected: GR prong only ($180K < $200K); TA = $650K ≥ $500K → full Form 990 required.
 [EDIT: Re-run P0 variant decision tree; record both GR ($180K < $200K) and TA ($650K ≥ $500K)
 comparisons in Decision Log; update form_variant to "990" in machine state → P0]
 ```
@@ -137,9 +135,7 @@ correct — only Checks 2 and 3 must hold in those cases.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F2: NEEDS_UPDATE — Part I shows net revenue of $12,000 but Part X shows net-assets change
-of $14,500. Unexplained $2,500 delta. Likely a balance-sheet-only entry (depreciation or
-unrealized gain) not flowing through Part VIII.
+Q-F2: NEEDS_UPDATE — Part I net revenue ($12,000) vs Part X net-assets change ($14,500): unexplained $2,500 delta.
 [EDIT: Re-examine Part X EOY vs BOY delta; identify source of $2,500 discrepancy; add
 explanatory note to reconciliation-report.md and resolve in dataset_rollup.json → P7]
 ```
@@ -158,8 +154,7 @@ General, Fundraising) must sum to the total (Column A).
 
 **NEEDS_UPDATE example:**
 ```
-Q-F3: NEEDS_UPDATE — Part IX Line 7 (Other Salaries): Col A = $45,000 but B+C+D = $43,200.
-Gap of $1,800. Likely a rounding artifact in the 60/30/10 allocation split.
+Q-F3: NEEDS_UPDATE — Part IX Line 7 Col A ($45,000) ≠ B+C+D ($43,200); gap $1,800.
 [EDIT: Adjust functional-expense.csv Line 7 allocation: add $1,800 to the Program column
 (Column B) to reconcile to Column A total → P3 / artifacts/functional-expense.csv]
 ```
@@ -215,9 +210,7 @@ exceeds max($5,000, 1% of that year's total support), Line 7b = $0.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F4: NEEDS_UPDATE — Schedule A computes public support percentage at 28%, which is below
-the 33⅓% bright-line threshold. No facts-and-circumstances narrative exists in Schedule O.
-Without the narrative, the organization may not pass the 509(a)(1) test.
+Q-F4: NEEDS_UPDATE — Schedule A public support = 28% (below 33⅓%); no facts-and-circumstances narrative in Schedule O.
 [EDIT: Draft facts-and-circumstances narrative for Schedule O: describe donor diversity,
 public programs, community use, geographic reach; reference IRS Reg §1.170A-9(f)(3) factors
 → P6 / artifacts/schedule-o-narratives.md]
@@ -504,10 +497,7 @@ if ratio > 0.15:  flag → NEEDS_UPDATE (expected FICA+FUTA ≈ 7.65% + state; >
 
 **NEEDS_UPDATE example:**
 ```
-Q-F19: NEEDS_UPDATE — Part IX Line 10 ($38,200) / Line 7 ($156,000) = 24.5%. This exceeds
-the 15% threshold and likely reflects Tiller commingling employer + employee payroll tax
-deposits. Employee FICA withholding ($9,300) should not appear in Line 10 — it is an employee
-liability collected by the org, not an employer expense.
+Q-F19: NEEDS_UPDATE — Part IX Line 10 / Line 7 = $38,200 / $156,000 = 24.5% > 15% threshold.
 [EDIT: Review payroll register to separate employer-side taxes (FICA 7.65%, FUTA, CA UI/SDI)
 from employee withholding; remove employee FICA from Line 10; reconcile to W-2 Box 4/6 totals
 → P3 / artifacts/functional-expense.csv]
@@ -534,8 +524,7 @@ require disclosure.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F20: NEEDS_UPDATE — Current return Part XI Line 4 = $42,180 but prior-year 990-EZ
-Part I Line 21 EOY = $39,950. Unexplained $2,230 difference with Part XI Line 9 = $0.
+Q-F20: NEEDS_UPDATE — Part XI Line 4 ($42,180) vs prior-year 990-EZ EOY ($39,950): unexplained $2,230 gap, Part XI Line 9 = $0.
 [EDIT: Identify source of $2,230 BOY discrepancy; if restatement, set Part XI Line 9 = $2,230
 and add Schedule O prior-period adjustment narrative → P3 / dataset_core.json]
 [USER: The starting net assets don't match last year's ending balance. We need to find out
@@ -561,8 +550,7 @@ Schedule L, and may trigger excess-benefit concerns under IRC §4958.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F21: NEEDS_UPDATE — Vendor "Garrison Engineering LLC" received $62,000 in 2025 but no
-insider-ownership check is documented in the Decision Log.
+Q-F21: NEEDS_UPDATE — Vendor "Garrison Engineering LLC" ($62,000 in 2025): no insider-ownership check in Decision Log.
 [EDIT: Confirm or deny board/officer ownership of Garrison Engineering; if insider-owned,
 add Part IV Line 28 = Yes, Schedule L entry, and Schedule O narrative → P5 / plan Decision Log]
 [USER: I need to verify whether any board members or family members own Garrison Engineering
@@ -615,8 +603,7 @@ is a red flag in IRS correspondence exams.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F23: NEEDS_UPDATE — Line 15 = 74.4%, Line 16 = 100.0%. Divergence = 25.6pp exceeds 10pp
-threshold with no Schedule O explanation.
+Q-F23: NEEDS_UPDATE — Line 15 = 74.4%, Line 16 = 100.0%; divergence 25.6pp > 10pp, no Schedule O explanation.
 [EDIT: Add Schedule O narrative explaining the 25.6pp drop: prior year was 990-EZ with 100%
 contribution-only revenue; current year includes $150K PSR that enters denominator but is
 capped in numerator (non-DQ PSR ≤ $5,000/year threshold) → P6 / artifacts/schedule-o-narratives.md]
@@ -643,9 +630,7 @@ For organizations transitioning from 990-EZ to full Form 990, a documented mappi
 
 **NEEDS_UPDATE example:**
 ```
-Q-F24: NEEDS_UPDATE — Part I Prior Year column is entirely blank. Organization filed Form 990-EZ
-for FY2024 — a mapping is possible for revenue lines (990-EZ Part I maps to 990 Part I Lines 8,
-12) even if expense detail differs.
+Q-F24: NEEDS_UPDATE — Part I Prior Year column blank; prior year was 990-EZ (FY2024) — revenue-line mapping is possible.
 [EDIT: Populate mappable Part I Prior Year fields from FY2024 990-EZ; add Schedule O note for
 lines that cannot be mapped; cite source document → P3 / dataset_core.json]
 [USER: The prior-year comparison column is blank — I'll fill in what I can from last year's
@@ -672,8 +657,7 @@ paid >$100K. Counting all high-compensation vendors regardless of entity type ov
 
 **NEEDS_UPDATE example:**
 ```
-Q-F25: NEEDS_UPDATE — Part V Line 2a = 3, but the vendor register includes Garrison Engineering
-LLC ($62,000 — below threshold) and two individuals. Entity type was not verified for any vendor.
+Q-F25: NEEDS_UPDATE — Part V Line 2a = 3; entity type not verified for any vendor.
 [EDIT: Verify entity type for each contractor; if Garrison Engineering files as a corp, confirm
 exclusion from 1099-NEC requirement; re-count qualified individuals only for Line 2a → P5]
 [USER: The contractor count needs to exclude any companies — the IRS only wants individuals and
@@ -703,8 +687,7 @@ the 5-year window.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F26: NEEDS_UPDATE — Garrison Engineering LLC contributed $62,000 across the 5-year window.
-No board-ownership check recorded.
+Q-F26: NEEDS_UPDATE — Garrison Engineering LLC ($62,000 / 5yr): no board-ownership check recorded.
 [EDIT: Confirm % board/officer ownership of Garrison Engineering; if any board member owns ≥35%,
 move $62,000 to Schedule A Part III Line 7a (DQ exclusion) → P5 / Decision Log]
 [USER: For a company that donated significant funds, I need to verify whether any board members
