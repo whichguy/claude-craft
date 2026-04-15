@@ -175,7 +175,7 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
 
 ## TODO — Skill Improvements from FY2025 Live Run (2026-04-14)
 
-Identified gaps in the skill based on real-world execution. Add to the next hardening pass.
+*All items below implemented 2026-04-15. Preserved for reference; see git log for details.*
 
 **P1 (Source Discovery):**
 - TODO-1: At P1, explicitly prompt for the Gusto (or payroll processor) W-2 annual summary
@@ -234,8 +234,7 @@ Identified gaps in the skill based on real-world execution. Add to the next hard
 
 ## Quality Gate Improvements (2026-04-14) — from FY2025 live-fire run
 
-New Q-F gates and SKILL directives identified as missing. Each maps to a concrete gap
-caught during the live-fire execution. Add to QUESTIONS.md + SKILL.md in next hardening pass.
+*Q-F19–Q-F23 and associated directives implemented 2026-04-15. Preserved for reference.*
 
 ---
 
@@ -436,8 +435,7 @@ timing), (c) if 1099-K > reported PSR, investigate whether unreported revenue ex
 
 ## Quality Gate Improvements — Second Pass (2026-04-14)
 
-Subtler patterns from the FY2025 live run not captured in the first TODO batch above.
-All 7 items are distinct from TODO-1 through TODO-11 and Q-F19 through Q-F23.
+*Q-F24–Q-F26, Q-F5/Q-F18 extensions, and all directives implemented 2026-04-15. Preserved for reference.*
 
 ---
 
