@@ -892,6 +892,28 @@ public_support_pct = public_support / five_yr_total_support × 100
 PASS if ≥ 33⅓%; or ≥ 10% with facts-and-circumstances narrative
 ```
 
+**Schedule A Line 16 — prior year percentage (always from filed return, never re-computed):**
+Line 16 of Schedule A Part II asks for the "Public support percentage from 2023 Schedule A,
+Part II, line 15" (the prior year's filed percentage). Always populate this from
+`prior_990_analysis.schedule_a_line15_pct` — the verbatim percentage as reported on the
+most recently filed Schedule A. Do NOT re-compute the prior year percentage from raw data.
+The prior CPA's methodology may have differed (different donor classifications, rounding);
+re-computing risks a mismatch with the filed return that triggers IRS scrutiny.
+- If `prior_990_analysis.schedule_a_line15_pct` is null (no prior filing): Line 16 = N/A or 0.
+- If TEOS extraction succeeded: use `prior_990_analysis.schedule_a_line15_pct` verbatim.
+- If prior 990 not available from TEOS or operator: create Open Question; do not leave blank.
+
+**Schedule A DQ cross-check (run after computing Line 7a):**
+After computing the DQ exclusion (Line 7a), verify: for every person listed in Part VII
+Section A (officers, directors, trustees, key employees), were their donations classified
+as disqualified contributions (full exclusion, Line 7a)?
+Prompt: "The following Part VII persons also appear in the donor data:
+  [list names]. Are all their donations classified as DQ contributions (IRC §4946)?
+  If yes, they should be fully excluded in Line 7a — not capped at Line 7b.
+  If any were NOT classified as DQ: confirm whether they are a 'substantial contributor'
+  per IRC §507(d)(2); if yes, treat as DQ."
+Flag any board member donation NOT in Line 7a as a potential DQ classification error.
+
 **Schedule O (always):**
 - Collect every Part VI "describe in Schedule O" placeholder from P5
 - For each: draft a narrative with the user or from governance documents
