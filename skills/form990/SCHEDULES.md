@@ -83,29 +83,38 @@ Line 8 = Line 6 − Line 7a − Line 7b  (public support for each year)
 # Step 1: compute 5-yr total once
 five_yr_total = sum(total_support[y] for y in [T-4..T])
 
-# Step 2: Line 7b threshold (computed from 5-yr total, same for all years)
-cap_7b = max(5000, 0.01 * five_yr_total)
+# Step 2: Line 7b threshold — derived from 5-yr total, but applied PER-YEAR PER-PERSON
+# IRS Sched A Part III instructions: "For each column, enter amounts from non-DQ persons
+# to the extent the amounts from any single person exceeded the greater of $5,000 or
+# 1% of the amount on Line 13." — comparison is PER YEAR, not across the 5-yr aggregate.
+cap_7b = max(5000, 0.01 * five_yr_total)  # same cap for all years; from 5-yr total
 
 # Step 3: Line 7a — disqualified person exclusion (FULL AMOUNT — no cap)
 line_7a = sum(dq_contributions[y] + dq_psr[y] + dq_ubi[y]
               for y in [T-4..T])
 
-# Step 4: Line 7b — non-DQ PSR/UBI excess (contributions NOT capped here)
-# Aggregate each non-DQ person's Lines 2-3 across the 5-year window
-for each non_dq_person d:
-    d.psr_ubi_5yr = sum(d.psr[y] + d.ubi[y] for y in [T-4..T])
-    d.line_7b_excess = max(0, d.psr_ubi_5yr - cap_7b)
-line_7b = sum(d.line_7b_excess for all non-DQ persons)
+# Step 4: Line 7b — per-year per-person excess (NOT aggregate across years)
+# For each year, for each non-DQ person, is that year's PSR/UBI > cap?
+# The excess in each year is entered in the corresponding column (a)-(e).
+line_7b = 0
+for y in [T-4..T]:
+    for each non_dq_person d:
+        line_7b += max(0, d.psr_ubi[y] - cap_7b)  # year y only, not 5-yr sum
 
 # Step 5: public support percentage
-public_support_5yr = sum(total_support[y] for y in [T-4..T]) - line_7a - line_7b
+public_support_5yr = five_yr_total - line_7a - line_7b
 public_support_pct = public_support_5yr / five_yr_total * 100
 ```
 
-> **Line 7b in practice:** For membership-fee-based organizations (e.g., athletic clubs,
-> community nonprofits), the Line 7b cap only fires if a single non-DQ person's PSR
-> payments over 5 years exceed max($5,000, 1% of total support). For most small orgs
-> with many small individual memberships, Line 7b = $0.
+> **Line 7b critical note — PER-YEAR comparison, not aggregate.**
+> A non-DQ person paying $8,000/year for 5 years ($40,000 total) has ZERO Line 7b
+> excess if the annual threshold is $9,987 — because each year's $8,000 < $9,987.
+> The wrong approach (aggregate first: $40,000 − $9,987 = $30,013) dramatically
+> over-deducts. The IRS form has per-year columns (a)–(e) for Line 7b entries.
+>
+> **In practice:** Line 7b = $0 whenever every non-DQ person's SINGLE-YEAR PSR/UBI
+> is below the cap. For membership-based orgs where individual annual dues are well
+> below max($5,000, 1% of 5-yr support), Line 7b is always $0.
 
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```

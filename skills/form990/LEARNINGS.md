@@ -65,12 +65,15 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   (Lines 2–3), never to contributions (Line 1). The 2% per-donor cap is the 509(a)(1)
   rule. (SCHEDULES.md corrected 2026-04-14.)
 
-- **Line 7b threshold is based on the 5-year total, not annual.** The cap for Schedule A
-  Part III Line 7b is `max($5,000, 1% × five_yr_total_support)` — computed once from the
-  full 5-year support window. For small orgs with total 5-yr support < $500,000, the
-  $5,000 floor dominates. For larger orgs (Fortified Strength: $998,718 5-yr total), the
-  1% floor = $9,987. Members paying $2,000+/year for 5 years trigger it. Per-member data
-  is required for a precise Line 7b; aggregate P&L reads are insufficient.
+- **Line 7b is per-year per-person, not 5-year aggregate.** The cap is
+  `max($5,000, 1% × five_yr_total_support)` (derived from the 5-yr total, same for all
+  years), but the comparison is made **independently for each year**: if a single non-DQ
+  person's PSR/UBI in year Y exceeds the cap, only year Y's excess is excluded. A member
+  paying $8,000/year for 5 years has $0 Line 7b impact if $8,000 < cap each year — the
+  5-year aggregate ($40,000) is never compared to the cap. The IRS form has per-year
+  columns (a)–(e) for Line 7b entries. Aggregating first then comparing over-deducts.
+  For orgs where every member's annual payment is below max($5,000, 1% of 5-yr support),
+  Line 7b = $0 definitively without per-member data.
 
 - **Part XI Line 5 placeholder not auto-resolved by P7.** `dataset_core.json` Part XI
   Line 5 retains its P5-era placeholder after P7 runs because P7 only writes to
