@@ -654,6 +654,18 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 - Line 4d: other program services (aggregate)
 - Line 4e: total program service expenses
 
+**Competition assistance / scholarship classification prompt (P5 — ask before filling Lines 4a–4c):**
+If any grant, scholarship, or competition-assistance amount appears in the program expenses, ask:
+"What form did competition assistance or scholarships take? Options:
+  (a) Voucher / discount code — org reduces its own fee; NOT a grant; reports as reduced revenue
+  (b) Direct cash payment to the athlete/student — Part IX Line 2 (grants to US individuals)
+  (c) Payment to competition organizer on behalf of the athlete — Part IX Line 2 (grants to US individuals)"
+- Path (a): no Schedule I triggered; adjust Part VIII revenue line; note in Part III description
+- Paths (b) or (c): Part IV Line 22 = Yes → Schedule I triggered; record grant amounts in Schedule I
+- Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
+  "Prior year used [methodology]. Use the same treatment unless org changed its policy."
+- Do NOT auto-commit classification. Create Open Question if ambiguous.
+
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
 - Line 1b: number of employees receiving wages > $100K (from payroll register)
