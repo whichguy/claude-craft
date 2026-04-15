@@ -98,7 +98,130 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   reportable compensation (gross wages minus pre-tax deductions). Never use Tiller net pay
   figures for Part VII; request the Gusto W-2 summary. (Q-F6 NEEDS_UPDATE P8 Pass 1.)
 
+- **Line 7b cap is PER-YEAR not 5-year (IRS primary source confirmed 2026-04-14).** Schedule A
+  Part III Line 7b instructions say "1% of the amount on line 13 **for the applicable year**" —
+  "applicable year" = each year's annual column total (columns a–e), NOT the 5-year column (f)
+  total. The cap formula is `cap[y] = max($5,000, 0.01 × total_support[y])` with a different
+  value for each year column. SCHEDULES.md corrected accordingly. For orgs with annual support
+  below $500K, the $5,000 floor always applies (1% < $5K), making Line 7b = $0 regardless of
+  interpretation. (IRS Schedule A Part III instructions fetched via WebFetch 2026-04-14.)
+
+- **Part IX Line 10 = EMPLOYER taxes only — never commingled employee taxes.** Tiller captures
+  combined payroll tax deposits (both employer and employee shares) as a single bank debit.
+  Part IX Line 10 must reflect ONLY the employer's share (employer FICA, FUTA, state SUI/ETT).
+  Employee withholdings are included in gross wages (Line 7), not Line 10. Always use the
+  payroll processor's "Employer Taxes" column (e.g., Gusto column 3). (Tiller had $34,088
+  vs correct Gusto employer-only $10,625 — $23K discrepancy caught at P8 Pass 1.)
+
+- **Get gross W-2 wages from payroll processor, not Tiller.** Tiller records NET paychecks
+  (after employee withholding). Part IX Line 7 and Part VII require W-2 Box 1 gross wages.
+  Request the Gusto Payroll Journal Report (or equivalent) at P1 or P5. The gross/net
+  difference can be large: in FY2025, Tiller showed $100,948 vs Gusto gross $129,011 (+$28K).
+
+- **Prior year 990 EOY ≠ Tiller BOY is common.** CPA preparers often use main checking
+  account only; Tiller captures all accounts including PayPal and CC liabilities. When they
+  diverge, accept the FILED prior year number as Part X BOY and enter a prior period
+  adjustment in Part XI Line 9. Compute: `xi_adj = EOY_actual - (BOY_filed + revenue - expenses)`.
+  Document in Schedule O. (FY2025: filed 2024 EOY $35,901 vs Tiller BOY $40,991 → $5,090 adj.)
+
+- **Schedule I Part III = aggregate reporting only.** For grants to domestic individuals,
+  Schedule I Part III requires: (a) type of grant, (b) number of recipients, (c) total
+  cash grant — NOT individual names/addresses. Individual PII is NOT required in Part III.
+  (Confirmed by FY2024 CPA precedent: "Scholarship to attend competitions, 23 recipients,
+  $7,350" without any individual names.) Only Part II (grants to domestic organizations) lists
+  specific grantees.
+
+- **Competition assistance classification: Schedule I > Part IX Line 24 for consistency.**
+  Voucher discount codes for competition attendance — even if available to all geographic
+  region members without individual selection — should be treated as Schedule I grants (not
+  program expense) when the prior year CPA used Schedule I for similar items. Economic
+  benefit flows to individuals (reducing their out-of-pocket cost), which supports grants
+  treatment. Changing treatment mid-stream creates audit risk. (FY2025 Fortified Strength:
+  $21,980 to 102 athletes.)
+
+- **Do Family leaves board but remains DQ.** Substantial contributors (IRC §4946) remain
+  disqualified persons even after leaving the governing board. Their contributions in all
+  years must still be excluded from Schedule A Line 7a (DQ person exclusion) for the entire
+  5-year window. Also verify: board composition changes trigger Part VI Line 2 updates and
+  may change the count of independent members (Line 1b).
+
+- **Prior year Schedule A % must come from filed prior year return, not re-computation.**
+  If the prior year CPA used a different Schedule A methodology (e.g., reporting all revenue
+  as Line 1 contributions instead of separating PSR into Line 2), the Schedule A % they
+  computed is what appears in the filed return. Our Line 16 "prior year %" must reference
+  THEIR result, even if our methodology would produce a different number. Always read the
+  prior year Schedule A Part III Line 15 directly from the filed return.
+
+- **Board family relationships: two married couples on the board = Part VI Line 2 YES.**
+  When two or more board members are spouses, Part VI Line 2 = YES. Document each pair
+  in Schedule O narrative. No Schedule L is triggered unless there are actual financial
+  transactions between the org and those individuals (beyond charitable donations to the org).
+
+- **OQ-12 pattern: small unclassified Tiller entries.** "Owed by others recovery" ($528.26)
+  is a typical Tiller artifact — a prior-year A/R or inter-account transfer that shows up
+  as income. Classify at P5 or include in Part IX M&G. Don't leave in UNCATEGORIZED.
+  Ask the user: "Was this a reimbursement from someone, a returned check, or a bank credit?"
+
 *[Append new entries below after each run — never delete existing entries]*
 
 <!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->
 <!-- END MACHINE LEARNINGS -->
+
+---
+
+## TODO — Skill Improvements from FY2025 Live Run (2026-04-14)
+
+Identified gaps in the skill based on real-world execution. Add to the next hardening pass.
+
+**P1 (Source Discovery):**
+- TODO-1: At P1, explicitly prompt for the Gusto (or payroll processor) W-2 annual summary
+  PDF. Do not defer to P5. Tiller net pay is always wrong for Part VII/IX. Add to P1 discovery
+  checklist alongside bank statements and donor list.
+- TODO-2: At P1, check if the org has filed 990s in prior years via IRS TEOS
+  (apps.irs.gov/app/eos/) and download the most recent filed 990 PDF. Extract: (a) EOY net
+  assets (becomes our BOY), (b) Schedule A Part III Line 15 (prior year %), (c) board composition,
+  (d) Schedule I methodology. Store in plan file as `prior_990_analysis`.
+
+**P2 (CoA Mapping):**
+- TODO-3: When mapping payroll lines, always check for commingled employer/employee taxes in
+  Tiller "Payroll Taxes" category. Prompt: "Does your bookkeeping system show payroll taxes
+  as a single lump (employer + employee deposits) or separately? If combined, request the
+  Gusto Employer Taxes column." Flag for Part IX Line 10 correction.
+
+**P5 (Core Parts):**
+- TODO-4: At P5 Part X, compare BOY from Tiller against the prior year 990 EOY (if filed).
+  If they differ, auto-compute the prior period adjustment amount and pre-populate Part XI
+  Line 9 + Schedule O narrative. Do not silently accept Tiller BOY if a filed prior year
+  exists with a different number.
+- TODO-5: Explicitly ask: "What did competition assistance or scholarships look like? Were
+  they: (a) voucher/discount codes, (b) direct cash payments to athletes, or (c) payments
+  to competition organizers on behalf of athletes?" Each path has a different classification.
+  Cross-check against prior year Schedule I. Default to prior year treatment for consistency.
+
+**P6 (Schedule Generation):**
+- TODO-6: For Schedule A Line 16, always fetch the prior year's Schedule A Part III Line 15
+  from the prior year filed 990, not from re-computation. The prior year CPA's methodology
+  may differ from ours — use their reported % verbatim in Line 16.
+- TODO-7: After computing Schedule A 5-year %, cross-check the Part III PSR amounts against
+  what was included vs. excluded (DQ person entries). Verify: are all board member donations
+  properly classified as DQ contributions (full exclusion, Line 7a)?
+
+**P7 (Rollup):**
+- TODO-8: During P7 reconciliation, detect when `revenue - expenses ≠ EOY - BOY` by more
+  than $1,000 and automatically prompt the user: "The math doesn't close. Likely causes:
+  (1) prior period adjustment needed — does the BOY match the filed prior year EOY? (2) Is
+  there a Tiller UNCATEGORIZED line that represents a real expense?"
+
+**Schedule I:**
+- TODO-9: Add a Schedule I aggregate-format template to SCHEDULES.md that generates the
+  Part III table without individual PII: type of grant, recipient count, total. Note that
+  this is always appropriate for competition-related youth assistance.
+
+**General:**
+- TODO-10: Add `prior_year_990_eoy_net_assets` as a required key_facts field at P0. At P0
+  Transition, prompt: "Do you have a filed prior year 990? If yes, what were the reported
+  EOY net assets on that return?" This prevents the BOY discrepancy from surfacing at P8.
+- TODO-11: Add a "board change detector" at P0: compare current CA Sec of State filing
+  (if available) against Part VII from prior year 990. If different directors, prompt for
+  transition date, departing/joining members, and whether Part IV Line 4 (significant changes
+  to governing documents) was triggered.
