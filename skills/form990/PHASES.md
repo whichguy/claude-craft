@@ -29,7 +29,10 @@ Apply when the phase processes data that meets ANY of:
 ### The pattern (4 steps)
 
 **Step 1 — Write the script.**
-Write a self-contained Python 3 script to `artifacts/scripts/<phase>-<purpose>.py`.
+Write a self-contained Python 3 script to `{SKILL_ROOT}/scripts/<phase>-<purpose>.py`.
+Scripts are skill-owned and reusable across runs — they are org-agnostic (all org-specific
+data flows in via command-line args). Do NOT write scripts to `artifacts/scripts/`; that
+directory is reserved for per-run fixtures only.
 The script must:
 - Accept input paths as command-line arguments (no hardcoded paths)
 - Print a JSON result to stdout on success (`{"status": "ok", "result": {...}}`)
@@ -40,7 +43,8 @@ The script must:
 **Step 2 — Sample run (validate logic before full dataset).**
 Run the script on a small sample first:
 - For tabular data: pass the first 5 rows as a fixture (either a sliced CSV or a tiny
-  JSON fixture file written to `artifacts/scripts/fixtures/<phase>-sample.json`)
+  JSON fixture file written to `artifacts/scripts/fixtures/<phase>-sample.json` — fixtures
+  are per-run and stay in `artifacts/`, unlike the scripts themselves)
 - For multi-year calculations: use 2 years of data instead of 5
 - Inspect the output manually; verify the arithmetic matches hand-calculation on the sample
 - If the output looks wrong: fix the script and re-run the sample before proceeding
@@ -67,7 +71,7 @@ Scripts are tracked in machine state under `programmatic_scripts[]`:
   {
     "phase": "P2",
     "purpose": "coa-mapping",
-    "script_path": "artifacts/scripts/p2-coa-mapping.py",
+    "script_path": "{SKILL_ROOT}/scripts/p2-coa-mapping.py",
     "sample_fixture": "artifacts/scripts/fixtures/p2-sample.json",
     "last_run": "<iso>",
     "last_run_sha256_input": "<sha256-of-input-data>",
@@ -77,9 +81,9 @@ Scripts are tracked in machine state under `programmatic_scripts[]`:
   }
 ]
 ```
-Scripts are committed to git along with skill files (they are not PII). The script itself is
-a first-class artifact: it documents *how* the data was processed, enables re-runs after
-source corrections, and is reviewable by the CPA as part of the audit trail.
+Scripts live in `{SKILL_ROOT}/scripts/` and are committed to the skill repo (not PII).
+The `script_path` stored in machine state is the absolute resolved path. Scripts document
+*how* data was processed and enable re-runs after source corrections — reviewable by the CPA.
 
 ### Safety rules
 
@@ -97,9 +101,9 @@ All script invocations go through `SKILL.md §run_script()`. Before invoking:
 
 ```python
 # Example (P2 CoA mapping)
-SCRIPT_ALLOWLIST.add(str(pathlib.Path("artifacts/scripts/p2-coa-mapping.py").resolve()))
+SCRIPT_ALLOWLIST.add(str(pathlib.Path(f"{SKILL_ROOT}/scripts/p2-coa-mapping.py").resolve()))
 result = run_script(
-    "artifacts/scripts/p2-coa-mapping.py",
+    f"{SKILL_ROOT}/scripts/p2-coa-mapping.py",
     args=["--sheet-csv", "artifacts/budget-export.csv"],
     phase_id="P2",
 )
@@ -380,7 +384,7 @@ or queued as open question).
 line plus a functional bucket (Program / M&G / Fundraising) with a documented allocation basis.
 
 > **Programmatic analysis required** (see Cross-Cutting Pattern above). Budget sheets routinely
-> have 30–300 rows. Apply the 4-step script pattern: write `artifacts/scripts/p2-coa-mapping.py`,
+> have 30–300 rows. Apply the 4-step script pattern: write `{SKILL_ROOT}/scripts/p2-coa-mapping.py`,
 > validate on a 5-row sample fixture, run full dataset, review flags with user.
 
 **Inputs.** Budget sheet tabs from P1 (`key_facts.sheet_schema`, budget tab content).
@@ -401,7 +405,7 @@ allocation source. Do NOT infer functional allocation from P&L row labels alone 
 may say "Supplies" while the Group field says "Program." Record the `Group` → bucket mapping
 before running Step 4 below.
 
-**Script: `artifacts/scripts/p2-coa-mapping.py`**
+**Script: `{SKILL_ROOT}/scripts/p2-coa-mapping.py`**
 - Input args: `--sheet-csv <path>` (normalized CSV dump of budget tab), `--tax-year <YYYY>`
 - Output: JSON with `{mapped_rows: [...], flags: [...], summary: {revenue_total, expense_total, unmapped_count}}`
 - Sample fixture: `artifacts/scripts/fixtures/p2-sample.json` (5 rows covering at least one
@@ -555,7 +559,7 @@ matrix from the CoA mapping.
 > **Programmatic analysis required** (see Cross-Cutting Pattern above). P3 aggregates the
 > CoA mapping into three financial statements — 25 Part IX rows × 4 columns = 100 cells that
 > must be arithmetically exact. Apply the 4-step script pattern:
-> write `artifacts/scripts/p3-financial-statements.py`, validate on a 5-row sample of the
+> write `{SKILL_ROOT}/scripts/p3-financial-statements.py`, validate on a 5-row sample of the
 > CoA mapping CSV, then run the full mapping.
 
 **Inputs.** `artifacts/coa-mapping.csv` from P2; budget sheet tab values.
@@ -580,7 +584,7 @@ matrix from the CoA mapping.
 
 **Work.**
 
-**Script: `artifacts/scripts/p3-financial-statements.py`**
+**Script: `{SKILL_ROOT}/scripts/p3-financial-statements.py`**
 - Input args: `--coa-csv artifacts/coa-mapping.csv`, `--balance-sheet-csv <path>` (if
   balance-sheet accounts are in a separate tab)
 - Output: JSON with `{statement_of_activities: {...}, balance_sheet: {boy: {...}, eoy: {...}},
@@ -885,7 +889,7 @@ P6 writes only `dataset_schedules.json` plus per-schedule markdown — never tou
 > **Programmatic analysis required for Schedule A** (see Cross-Cutting Pattern above). The
 > 509(a)(1) public-support test involves 5 years × multiple donor/revenue columns × excess-
 > contribution exclusion arithmetic across donors — error-prone to compute inline. Apply the
-> 4-step script pattern for Schedule A: write `artifacts/scripts/p6-schedule-a.py`, validate
+> 4-step script pattern for Schedule A: write `{SKILL_ROOT}/scripts/p6-schedule-a.py`, validate
 > on 2 years of data as a sample fixture, then run the full 5-year window.
 
 **Inputs.** `required_schedules[]`, `artifacts/form990-dataset-core.json` (read-only),
@@ -926,14 +930,14 @@ See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
 > to extract each year's fundraising and PSR totals separately. The PST tab may be useful
 > as a sanity check for the current year but is insufficient for the 5-year computation.
 
-**Script: `artifacts/scripts/p6-schedule-a.py`**
+**Script: `{SKILL_ROOT}/scripts/p6-schedule-a.py`**
 - Input args: `--support-json <path>` (a JSON file with 5-year support history per donor,
   shape: `{years: [T-4..T], donors: [{name, year, amount}], totals: {year: {contributions,
   investment_income, other_revenue, program_service_revenue}}}`)
 - Output: JSON with `{public_support_pct: float, result: "PASS"|"BORDERLINE"|"FAIL",
   test_used: "509a1"|"509a2", five_year_detail: [...], excess_contributions_by_year: {...},
   facts_and_circumstances_needed: bool, flags: [...]}`
-- Sample fixture: `artifacts/scripts/fixtures/p6-schedule-a-sample.json` — use 2-year window
+- Sample fixture: `artifacts/scripts/fixtures/p6-schedule-a-sample.json` (per-run, stays in artifacts/) — use 2-year window
   with 3 donors (one clearly below 2% threshold, one right at it, one above) to verify
   excess-contribution exclusion logic before running the full 5-year dataset
 - On BORDERLINE (10%–33⅓%): set `facts_and_circumstances_needed: true` and add a flag

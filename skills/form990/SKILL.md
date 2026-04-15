@@ -541,6 +541,11 @@ Used by `verify_ancestors()` for transitive fingerprint verification before any 
 External sources (Drive budget sheet, prior 990) are NOT registered as artifacts — they are
 verified via `input_fingerprint` fields in producing artifact entries.
 
+**Downstream consumer note:** `artifacts/form990-dataset.json` (produced by P7 merge) is the
+sole artifact downstream phases and external tools should read. The three siblings
+(`dataset-core.json`, `dataset-schedules.json`, `dataset-rollup.json`) are intermediate
+producer outputs — do not read them directly outside their producing phase.
+
 ```python
 ARTIFACT_DEPS = {
     # P2 outputs
@@ -1059,9 +1064,9 @@ artifacts/form990-reference-filled.pdf
 artifacts/efile-handoff-packet.md
 artifacts/schedule-[abcdefghijklmnopqr].md
 
-# NOTE: artifacts/scripts/ and artifacts/scripts/fixtures/ are NOT excluded —
-# Python scripts are committed to git as a first-class audit trail artifact.
-# They contain no PII (input paths are args; data stays in ignored files).
+# NOTE: artifacts/scripts/fixtures/ is NOT excluded — per-run sample fixtures
+# are committed as audit trail. Scripts themselves live in {SKILL_ROOT}/scripts/
+# (skill-owned, org-agnostic) and are committed to the skill repo, not here.
 
 # Sidecar memo cache
 .form990-memo-*.json
