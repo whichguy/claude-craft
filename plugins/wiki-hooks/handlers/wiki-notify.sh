@@ -1,8 +1,7 @@
 #!/bin/bash
-# UserPromptSubmit: inject wiki context via two paths:
-#   1. Mandate injection: unconditional WIKI_CHECK reminder on every prompt (WIKI_CHECK directive)
-#      — fires on every UserPromptSubmit to keep mandate in active context; WIKI_SKIP=1 to suppress
-#      See: ~/.claude/CLAUDE.md WIKI_CHECK directive + plan draft 3.5 (research-backed phrasing)
+# UserPromptSubmit: inject wiki context when content exists:
+#   1. Mandate injection: WIKI_CHECK reminder — only when entity matches or new pages found
+#      — WIKI_SKIP=1 suppresses entirely; silent when nothing to surface
 #   2. Prompt-aware: keyword-match user prompt against cached entity index → inject summaries
 #   3. New-page: inject newly-created entity pages since last check
 # Cache-first: reads entity-index.tsv instead of looping entity files
@@ -122,8 +121,8 @@ if [ -f "$MARKER" ]; then
   fi
 fi
 
-# Exit only if nothing to output (no mandate — WIKI_SKIP=1 — and no entity content)
-[ -z "$WIKI_CHECK_REMINDER" ] && [ -z "$CONTENT" ] && exit 0
+# Exit when nothing concrete to surface — mandate alone adds no value without results
+[ -z "$CONTENT" ] && exit 0
 
 # Combine mandate + entity content; mandate prepended so it lands first in context.
 if [ -n "$WIKI_CHECK_REMINDER" ]; then
