@@ -967,6 +967,19 @@ re-computing risks a mismatch with the filed return that triggers IRS scrutiny.
 - If TEOS extraction succeeded: use `prior_990_analysis.schedule_a_line15_pct` verbatim.
 - If prior 990 not available from TEOS or operator: create Open Question; do not leave blank.
 
+**Entity donor DQ ownership check (P6 — run during Schedule A prep, before finalizing Line 7a):**
+For each non-individual donor (business entity, LLC, foundation, DAF) that contributed
+more than $5,000 in ANY of the 5-year Schedule A window, ask:
+"Does any current or former officer, director, trustee, or key employee of [org] have a
+direct or indirect ownership interest ≥ 35% in [entity name]?"
+- If YES → entity is a disqualified person; contributions excluded from Schedule A Line 7a
+  (same as individual DQ contributors — full exclusion, no cap)
+- If NO → entity is a public donor; include in public support
+- If UNKNOWN → create Open Question: "Check business registration or ask CEO";
+  mark Q-F26 NEEDS_UPDATE until resolved
+This is distinct from the individual DQ check and the insider vendor check — it
+specifically addresses corporate and entity donors.
+
 **Schedule A DQ cross-check (run after computing Line 7a):**
 After computing the DQ exclusion (Line 7a), verify: for every person listed in Part VII
 Section A (officers, directors, trustees, key employees), were their donations classified
@@ -982,6 +995,14 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 - Collect every Part VI "describe in Schedule O" placeholder from P5
 - For each: draft a narrative with the user or from governance documents
 - Include: functional expense allocation methodology (Q-F17)
+- **Disclosure accuracy check (Part VI Line 18):** When populating the public availability
+  statement, verify:
+  (a) Any named third-party website is still active (GuideStar → Candid in 2022; use
+      candid.org or apps.irs.gov as fallbacks)
+  (b) Whether the org has its own website where the 990 can be posted — if yes, check
+      "Own website" in Part VI Line 18
+  (c) Default if no website: "Upon request" + "Another's website (www.candid.org or
+      apps.irs.gov/app/eos/)" — do not name inactive or renamed sites
 
 **Schedule B (if triggered):**
 - Collect donor names, amounts, addresses from `donor_list` artifact
@@ -1035,6 +1056,19 @@ Part I Line 12 = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
+
+**Part I Prior Year column (populate immediately after current-year rollup):**
+If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
+```
+Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
+Part I Line 9  Prior Year = prior_990_analysis.program_service_rev  (Part VIII Line 2)
+Part I Line 12 Prior Year = prior_990_analysis.total_revenue        (Part VIII Line 12)
+Part I Line 18 Prior Year = prior_990_analysis.total_expenses       (Part IX Line 25)
+Part I Line 19 Prior Year = total_revenue − total_expenses          (computed)
+```
+Store in `dataset_rollup.parts.I.prior_year`. If `prior_990_analysis` is absent: leave
+Prior Year column null and flag Q-F24 NEEDS_UPDATE (non-blocking — Part I Prior Year is
+not required for e-file transmission but is required on the public-facing reference PDF).
 Compute `reconciliation` using THREE SEPARATE CHECKS (not a single equality chain —
 see Q-F2 for rationale). Revenue − Expenses ≠ EOY − BOY when adjustment lines are non-zero:
 ```
@@ -1144,6 +1178,10 @@ with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
   Any hash mismatch (including a stale `reconciliation_report`) halts before Pre-check.
 - Verify Part I is populated (not null) in `dataset_merged` (content check)
 - Verify all `required_schedules[]` have corresponding schedule artifacts in `dataset_schedules`
+- **Context loading:** Do NOT load SCHEDULES.md at P8 entry. P8 Q-F gates evaluate values
+  in `dataset_schedules.json` output artifacts — not SCHEDULES.md playbooks. Load SCHEDULES.md
+  only if a NEEDS_UPDATE triggers a P6 re-run (dispatched via `call PHASES.md §P6`).
+  This saves ~6,100 tokens per evaluation pass.
 
 **Work.**
 
