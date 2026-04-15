@@ -220,10 +220,12 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
-5. Write top-level machine state: `tax_year`, `fiscal_year_start`, `fiscal_year_end`,
-   `form_variant`. Write `key_facts`: legal_name, ein, accounting_method,
-   gross_receipts_current, gross_receipts_3yr_average, total_assets_eoy, public_charity_basis.
-   (`form_variant` is a top-level field, NOT inside `key_facts`.)
+5. Write **top-level machine state** (siblings of `key_facts`, NOT inside it):
+   `tax_year`, `form_variant`, `skill_root`.
+   Write **`key_facts`** (inside the key_facts object):
+   `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
+   `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
+   `public_charity_basis`.
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -1359,7 +1361,7 @@ Write `artifacts/efile-handoff-packet.md` with:
 - Disclaimer: "Verify current IRS-authorized status at the official IRS provider page before use"
 - Fill all template placeholders before writing:
   - `{{LEGAL_NAME}}`: `key_facts.legal_name`
-  - `{{YYYY}}`: `key_facts.tax_year`
+  - `{{YYYY}}`: `tax_year` (top-level state field, not inside key_facts)
   - `{{DATE}}`: today's date (packet preparation date)
   - `{{FISCAL_YEAR_START}}`: `key_facts.fiscal_year_start`
   - `{{FISCAL_YEAR_END}}`: `key_facts.fiscal_year_end`

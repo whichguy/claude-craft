@@ -449,7 +449,7 @@ Trigger: prior_990_analysis exists in plan machine state
 Check: Part I "Prior Year" columns (Lines 8-19) must be populated with data from the
   filed prior year 990 Part I, not left blank.
   - Line 8 prior year = prior_990_analysis.contributions
-  - Line 9 prior year = prior_990_analysis.program_service_revenue
+  - Line 9 prior year = prior_990_analysis.program_service_rev
   - Line 12 prior year = prior_990_analysis.total_revenue
   - Line 18 prior year = prior_990_analysis.total_expenses
   - Line 19 prior year = revenue - expenses from prior year

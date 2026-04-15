@@ -21,7 +21,7 @@ Run with `/form990 verify` or directly via `python3 tests/verify.py`.
 2. Check plan file was created at specified path.
 3. Parse the fenced JSON machine state block.
 4. Verify P0 = done, P1 = pending in `phase_status`.
-5. Verify `key_facts.legal_name`, `key_facts.ein`, `key_facts.tax_year` are non-null.
+5. Verify `key_facts.legal_name`, `key_facts.ein` are non-null; verify top-level `tax_year` is non-null (not `key_facts.tax_year` — tax_year is a top-level state field).
 6. Verify Phase Status Grid shows `[✔] P0` and `[ ] P1`.
 
 **Assertions:**
