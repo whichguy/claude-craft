@@ -550,10 +550,10 @@ Schedule L, and may trigger excess-benefit concerns under IRC §4958.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F21: NEEDS_UPDATE — Vendor "Garrison Engineering LLC" ($62,000 in 2025): no insider-ownership check in Decision Log.
-[EDIT: Confirm or deny board/officer ownership of Garrison Engineering; if insider-owned,
+Q-F21: NEEDS_UPDATE — Vendor "Acme Services LLC" ($62,000 in 2025): no insider-ownership check in Decision Log.
+[EDIT: Confirm or deny board/officer ownership of Acme Services; if insider-owned,
 add Part IV Line 28 = Yes, Schedule L entry, and Schedule O narrative → P5 / plan Decision Log]
-[USER: I need to verify whether any board members or family members own Garrison Engineering
+[USER: I need to verify whether any board members or family members own Acme Services
 LLC before we finalize — payments over $10,000 to insider-owned companies must be disclosed.]
 ```
 
@@ -658,7 +658,7 @@ paid >$100K. Counting all high-compensation vendors regardless of entity type ov
 **NEEDS_UPDATE example:**
 ```
 Q-F25: NEEDS_UPDATE — Part V Line 2a = 3; entity type not verified for any vendor.
-[EDIT: Verify entity type for each contractor; if Garrison Engineering files as a corp, confirm
+[EDIT: Verify entity type for each contractor; if Acme Services files as a corp, confirm
 exclusion from 1099-NEC requirement; re-count qualified individuals only for Line 2a → P5]
 [USER: The contractor count needs to exclude any companies — the IRS only wants individuals and
 certain pass-through businesses in that line. Let me check what type of entity each vendor is.]
@@ -687,8 +687,8 @@ the 5-year window.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F26: NEEDS_UPDATE — Garrison Engineering LLC ($62,000 / 5yr): no board-ownership check recorded.
-[EDIT: Confirm % board/officer ownership of Garrison Engineering; if any board member owns ≥35%,
+Q-F26: NEEDS_UPDATE — Acme Services LLC ($62,000 / 5yr): no board-ownership check recorded.
+[EDIT: Confirm % board/officer ownership of Acme Services; if any board member owns ≥35%,
 move $62,000 to Schedule A Part III Line 7a (DQ exclusion) → P5 / Decision Log]
 [USER: For a company that donated significant funds, I need to verify whether any board members
 own 35% or more of it — if so, IRS rules require us to exclude those donations from our public

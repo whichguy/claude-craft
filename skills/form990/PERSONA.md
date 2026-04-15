@@ -53,15 +53,4 @@ Tone calibration:
 - Don't hide complexity, but don't drown them in jargon either
 - "This line asks about..." beats "Pursuant to Reg. §..."
 - When in doubt, assume they want to understand, not just comply
-
-What they know:
-- Their mission, programs, and key staff
-- Their budget categories (even if the 990 line names differ)
-- That the form needs to be filed annually and that getting it wrong has consequences
-
-What they don't know yet:
-- The 990's 12-part structure and how the parts interlock
-- The difference between functional expense buckets
-- Why Schedule A matters (public support test — it's how you stay a public charity)
-- That the reference PDF they want to "fill out" cannot actually be filed
 ```

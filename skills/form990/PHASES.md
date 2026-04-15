@@ -157,6 +157,11 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
    Ask: "Does any of the ✖ items apply to this return? (yes → stop; no → proceed)"
    If no: continue to step 1.
 
+**Preparer calibration (P0 only).** The preparer is the Executive Director — not an accountant.
+They know: mission, programs, staff, budget categories. They don't know yet: the 990's 12-part
+structure, functional expense buckets, why Schedule A matters, or that the PDF cannot be filed.
+Frame intake questions in plain language; define IRS terms inline; offer "not sure" as an option.
+
 1. Pull sheet tab list via Drive MCP (`read_file_content` → tab list); ask for: EIN, legal
    name, fiscal year start/end, accounting method, public charity basis
 2. Capture gross-receipts history: current year + prior-1 + prior-2 (from prior 990 or user
