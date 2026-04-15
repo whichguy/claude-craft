@@ -1277,6 +1277,18 @@ Write `artifacts/efile-handoff-packet.md` with:
     else → 4.5 calendar months after `fiscal_year_end` (round to nearest day)
   - `{{EXTENDED_DUE_DATE}}`: `ORIGINAL_DUE_DATE` + 6 months (Form 8868 automatic extension)
 
+**Step 3b: Assemble CPA memo.**
+Write `artifacts/cpa-memo-fy<tax_year>.md` — a distinct deliverable from the handoff packet.
+Audience: the signing CPA or financial reviewer (not the e-file provider).
+Content:
+- Summary of key figures (total revenue, total expenses, net assets BOY/EOY)
+- Significant judgments made during preparation (functional allocation basis, competition
+  assistance classification, prior period adjustment rationale if Line 9 non-zero)
+- Open items or caveats requiring CPA sign-off before transmission
+- Any Gate-2/3 items that resolved as acceptable risk (not Gate-1 PASS, but documented)
+Fill template placeholder `{{LEGAL_NAME}}`, `{{YYYY}}`, `{{DATE}}` before writing.
+Register in machine state as `artifacts.cpa_memo`.
+
 **Step 4: Schedule B two-output contract (if Schedule B triggered).**
 - `artifacts/schedule-b-filing.md` — full donor info (IRS-only, never public)
 - `artifacts/schedule-b-public.md` — `"Anonymous"` names, addresses stripped
@@ -1289,6 +1301,7 @@ Write `artifacts/efile-handoff-packet.md` with:
   - `blank_pdf` sha: sha256 of `artifacts/f990-blank-<tax_year>.pdf`
   - `coordinate_table` sha: sha256 of TOOL-SIGNATURES.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
 - `artifacts/efile-handoff-packet.md`
+- `artifacts/cpa-memo-fy<tax_year>.md`
 - `artifacts/schedule-b-filing.md` + `artifacts/schedule-b-public.md` (if Schedule B triggered)
 
 **Idempotency.**
@@ -1314,6 +1327,7 @@ Write `artifacts/efile-handoff-packet.md` with:
   ├─ artifacts/form990-reference-filled.pdf  (reference PDF for board/CPA review)
   ├─ artifacts/schedule-o-narratives.md      (paste into e-file provider)
   ├─ artifacts/cpa-review-report.md          (pre-signature review)
+  ├─ artifacts/cpa-memo-fy<tax_year>.md      (summary memo for signing CPA)
   └─ artifacts/efile-handoff-packet.md       (hand to your e-file provider)
 
   ⚠ This return has NOT been filed. Next steps:

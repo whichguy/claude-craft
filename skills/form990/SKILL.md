@@ -933,6 +933,28 @@ def auto_append_learning(learnings_path: str, phase_id: str,
 
 ---
 
+## Mid-Session Data Refresh Rules
+
+**Rule GEN-1 — Tiller PDF re-read diff (applies any time a Tiller export is re-read mid-session):**
+When reading a Tiller P&L, net worth, or balance sheet PDF that was already read earlier in
+the session, immediately compute and display a structured diff against current dataset values
+before making any changes:
+```
+Revenue:  $[old] → $[new]  (Δ $[diff])
+Expenses: $[old] → $[new]  (Δ $[diff])
+Net:      $[old] → $[new]  (Δ $[diff])
+```
+Do NOT silently update dataset values. Show the diff and confirm before applying. If the diff
+is zero (no change), breadcrumb "re-read confirms no change" and continue.
+
+**Rule GEN-2 — Net worth / P&L linkage (applies when user reports a Tiller update):**
+If the user says "I updated the P&L" (or similar), always ask:
+"Did the net worth/balance sheet also update? The EOY net assets figure may have changed."
+Re-read BOTH the P&L PDF and the net worth PDF before updating any dataset value. The two
+documents are linked in Tiller — a P&L change nearly always affects the balance sheet.
+
+---
+
 ## Email Workflow
 
 Three question classes:
