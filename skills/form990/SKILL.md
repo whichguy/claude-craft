@@ -277,6 +277,61 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 
 ---
 
+## Form Discovery Directive
+
+**Trigger:** Runs at P0 step 8b (artifact pre-scan) for every new `tax_year`. If a required
+form is not cached locally in `{SKILL_ROOT}/templates/` or `artifacts/`, fetch it now.
+
+**Do not assume prior-year forms are valid for the current tax year.** The IRS revises
+Form 990 and its schedules annually. A 2024 blank PDF will have wrong field names and
+coordinates for a 2025 return. Always verify the revision date embedded in the PDF
+(look for "Rev. <year>" in the footer) matches `tax_year`.
+
+### Federal Forms (irs.gov)
+
+| Form | URL | Cache path | Required when |
+|---|---|---|---|
+| Form 990 (blank) | `https://www.irs.gov/pub/irs-pdf/f990.pdf` | `artifacts/f990-blank-<year>.pdf` | Always (P9 fill) |
+| Form 990-EZ (blank) | `https://www.irs.gov/pub/irs-pdf/f990ez.pdf` | `artifacts/f990ez-blank-<year>.pdf` | If variant = 990-EZ |
+| Form 8868 (extension) | `https://www.irs.gov/pub/irs-pdf/f8868.pdf` | `artifacts/f8868-<year>.pdf` | Always (deadline info) |
+| Form 990 instructions | `https://www.irs.gov/pub/irs-pdf/i990.pdf` | `artifacts/i990-<year>.pdf` | On demand (CPA review) |
+
+**Fetch protocol:**
+1. Check cache path — if exists and revision date matches `tax_year`: skip.
+2. WebFetch with 30s timeout, 1 retry on failure.
+3. On success: save to cache path; breadcrumb "fetched <form> rev <date>".
+4. On failure: add `open_questions[]` entry with manual download URL and target path.
+   Never block P0 completion on a failed form fetch — queue and continue.
+
+**Revision date check:** After fetching, extract the revision date from the PDF footer
+(pattern: `Rev. <month>-<year>` or `<year>` in filename). If revision year < `tax_year`,
+warn: "Form revision date [rev] may not match tax year [year] — verify with IRS before P9."
+
+### California State Forms
+
+Fetch only if org is CA-registered (inferred from address or confirmed at intake).
+
+| Form | Agency | URL | Cache path | Required when |
+|---|---|---|---|---|
+| Form 199 | CA FTB | `https://www.ftb.ca.gov/forms/2024/2024-199.pdf` *(update year)* | `artifacts/ca-199-<year>.pdf` | GR > $50K |
+| RRF-1 | CA AG Registry | `https://oag.ca.gov/sites/all/files/agweb/pdfs/charities/charitable/rrf1_form.pdf` | `artifacts/ca-rrf1-<year>.pdf` | Registered charity |
+| CT-TR-1 | CA AG Registry | `https://oag.ca.gov/sites/all/files/agweb/pdfs/charities/charitable/ct-tr-1.pdf` | `artifacts/ca-cttr1-<year>.pdf` | GR < $2M, no audit |
+
+> **CA form URLs change annually.** Before fetching, do a WebSearch for
+> "California Form 199 <tax_year> FTB" and "CA RRF-1 <tax_year> Attorney General"
+> to confirm current URLs. The AG Registry PDF link in particular is not year-versioned
+> on the URL — verify the revision date in the downloaded PDF.
+
+### Form Discovery Failure Handling
+
+If any fetch fails and the form is needed for a current phase:
+- **Form 990 blank (P9):** Halt P9 with offer to use `--local-pdf <path>`
+- **CA companion forms:** Non-blocking advisory; note in Output Document Catalog that
+  operator must download manually before filing
+- **Form 8868 (extension):** Advisory only; not needed unless org files for an extension
+
+---
+
 ## now_iso() / now_iso_date() — Timestamp Helpers
 
 Utility functions used by `commit_phase_entry()`, `Phase Entry Protocol`, `append_breadcrumb()`,

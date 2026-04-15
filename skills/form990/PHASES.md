@@ -267,12 +267,12 @@ files are invisible to personal-OAuth MCP). Record found paths in machine state 
 > account is inaccessible. Operators must copy these files into `artifacts/` manually.
 > Surfacing gaps at P0 gives the operator time to collect documents before P1–P3 need them.
 
-**a. Blank Form 990 PDF (`f990-blank-<tax_year>.pdf`):**
-- Check `artifacts/f990-blank-<tax_year>.pdf`
-- If absent: fetch from IRS now (WebFetch, 30s timeout) and cache at that path
-- If IRS unreachable: add open question `OQ-blank-pdf` — "Download the blank Form 990 PDF
-  from irs.gov/pub/irs-pdf/f990.pdf and place it at artifacts/f990-blank-<tax_year>.pdf"
-- **Do not defer to P9** — a missing blank PDF discovered at P9 wastes 8 phases of work.
+**a. Federal and state blank forms (see SKILL.md §Form Discovery Directive for URLs and protocol):**
+- Run the Form Discovery Directive now for `tax_year` — do not defer to P9.
+- Minimum: fetch `f990-blank-<tax_year>.pdf` (or 990-EZ if variant = 990-EZ).
+- Also fetch `f8868-<year>.pdf` (extension form) and CA companion forms if CA org.
+- Verify revision date in each fetched PDF matches `tax_year` (see Directive for check).
+- On any fetch failure: queue an open question with manual URL; do not block P0 completion.
 
 **b. Prior year filed 990 PDF:**
 - Check `artifacts/` for files matching (case-insensitive): `*990*<prior_year>*.pdf`,
