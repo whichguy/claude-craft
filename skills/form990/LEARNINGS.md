@@ -427,3 +427,183 @@ timing), (c) if 1099-K > reported PSR, investigate whether unreported revenue ex
 | INSIDER_VENDOR_CHECK | Directive | **NEW** | P4: explicit yes/no for each vendor >$10K re: insider ownership |
 | DQ_PERSISTENCE_CHECK | Directive | **NEW** | P6: cross-check departed board members for DQ persistence |
 | PAYMENT_PROCESSOR_1099K | Directive | **NEW** | P6/P8: reconcile PSR against 1099-K from payment processor |
+
+---
+
+## Quality Gate Improvements — Second Pass (2026-04-14)
+
+Subtler patterns from the FY2025 live run not captured in the first TODO batch above.
+All 7 items are distinct from TODO-1 through TODO-11 and Q-F19 through Q-F23.
+
+---
+
+### New Quality Gates (Second Pass)
+
+**Q-F24 (Gate-3, Advisory) — Part I Prior Year Column Populated and Consistent**
+
+Proposed definition:
+```
+Trigger: prior_990_analysis exists in plan machine state
+Check: Part I "Prior Year" columns (Lines 8-19) must be populated with data from the
+  filed prior year 990 Part I, not left blank.
+  - Line 8 prior year = prior_990_analysis.contributions
+  - Line 9 prior year = prior_990_analysis.program_service_revenue
+  - Line 12 prior year = prior_990_analysis.total_revenue
+  - Line 18 prior year = prior_990_analysis.total_expenses
+  - Line 19 prior year = revenue - expenses from prior year
+Pass criteria: prior year column populated; values match filed prior year Part I within $1
+  (rounding); if discrepancy, documented in plan.
+```
+Gap exposed: FY2025 dataset included `prior_year_comparison` block but the Part I
+"Prior Year" columns in the 990 form template were never explicitly wired to it.
+This leaves the prior year comparison columns blank on the printed reference PDF.
+
+---
+
+**Q-F25 (Gate-2) — Form 1096 Count Ties to Part V Line 1a**
+
+Proposed definition:
+```
+Trigger: Part V Line 2a (1099-NEC/MISC count) > 0
+Check: Part V Line 1a = the number on Box 3 of the corresponding Form 1096
+  - If the org filed 1099-NECs for N recipients, a Form 1096 was required; Box 3 = N
+  - Line 1a must equal N (or 0 if no 1099-MISC/NEC were filed)
+  - Due date: 1099-NEC and 1096 must be filed by January 31
+Pass criteria: Line 1a matches; user confirms 1099s and 1096 were actually filed (not
+  just identified as required).
+NEEDS_UPDATE pattern: "Part V Line 1a shows [N] but we cannot confirm Form 1096 was
+  filed by January 31. Advise: contact your payroll processor or accountant to confirm
+  filing. If not filed, penalties apply ($60-$630 per form)."
+```
+Gap exposed: FY2025 Redwood + Socal Coaching identified as 1099-NEC recipients; Part V
+Line 2a set to 2 and Line 2b = Yes — but no gate confirmed the 1099s/1096 were actually
+filed. Line 1a = 0 (per Part V in dataset) vs 2 expected is a discrepancy.
+
+---
+
+**Q-F26 (Gate-2) — Entity-Donor DQ Ownership Check**
+
+Proposed definition:
+```
+Trigger: Any non-individual donor (company, LLC, foundation) contributed > $5,000 in ANY
+  of the 5-year Schedule A window
+Check: For each such entity, verify whether any officer, director, trustee, or key employee
+  of the filing organization has a direct or indirect ownership interest ≥ 35% in the donor entity.
+  - If YES → entity is a disqualified person; contributions excluded from Schedule A Line 7a
+  - If NO → entity is a public donor; contributions included in Schedule A public support
+  - If UNKNOWN → create OQ with "check business registration or ask CEO"
+Pass criteria: all donor entities with >$5K contributions are either confirmed non-DQ or
+  confirmed DQ with exclusion already applied.
+```
+Gap exposed: Garrison Engineering Inc. donated $22,825 (2021) + $13,300 (2022) = $36,125.
+If any board member has ≥35% ownership in Garrison, these are DQ and must be excluded.
+Sensitivity analysis showed public support remains >33⅓% either way — but the classification
+is legally required regardless of materiality. This check was surfaced in wiki but never
+executed as a formal gate step.
+
+---
+
+### Q-F18 Extension (Gate-3) — Part III Must Include Quantified Metrics
+
+Current Q-F18 advises "Part III well-written (mission, 3 largest programs)." Extension needed:
+
+```
+ALSO REQUIRE (from 990 instructions for Part III):
+  - For each of the 3 largest programs (by expense), include:
+    (a) Number of individuals/beneficiaries served (e.g., "81 youth athletes")
+    (b) At least one specific measurable outcome (e.g., "16 youth competed at nationals")
+    (c) Expense total and grant amount (from Part IX)
+    (d) Revenue from that program (if any)
+  - First-year full 990 filers (transitioning from 990-EZ) commonly omit metrics
+    because 990-EZ required only a brief description
+Red flag: Part III description that is entirely narrative without any numbers
+```
+Gap exposed: The FY2025 delta analysis doc explicitly called out this requirement as
+"EXPANDED: Part III - Program Service Accomplishments." Our P5 dataset has program
+accomplishments marked "See Schedule O" but the Schedule O narrative may lack specific
+counts and metrics.
+
+---
+
+### Q-F5 Extension (Gate-2) — 1099-NEC Filing Confirmation (Not Just Count)
+
+Current Q-F5 checks that W-2/1099 counts tie to filings. Extension needed:
+
+```
+ALSO CHECK: 1099-NEC and Form 1096 ACTUAL filing
+  - Q-F5 currently verifies that Part V Lines 2a (W-2 count) and 2b tie to payroll records
+  - Extension: for any vendor identified as needing a 1099-NEC (payments ≥ $600,
+    non-corporate), explicitly ask: "Did you file the 1099-NEC and Form 1096 by January 31?"
+  - If YES: mark Q-F5 PASS for this sub-check
+  - If NO: NEEDS_UPDATE — late filing penalties may apply; advise to file immediately
+    (corrected/late filing is still better than non-filing)
+```
+
+---
+
+### New SKILL.md Directives (Second Pass)
+
+**PROG_METRICS**: At P5 (Part III program accomplishments), for each of the three largest
+programs by expense, collect at minimum: (a) number of individuals served, (b) one
+quantified outcome (competitions, awards, training hours, etc.). Pre-populate from
+plan file's prior year accomplishments data if available. The delta analysis doc
+identified this as the most commonly underspecified section for 990-EZ-to-990 transitions.
+
+**ENTITY_DONOR_CHECK**: At P6 (Schedule A preparation), for each non-individual donor
+(business entity, LLC, foundation, DAF) that contributed more than $5,000 in ANY of the
+5-year Schedule A window: ask "Does any current or former officer, director, trustee, or
+key employee of [org] have a direct or indirect ownership interest ≥ 35% in [entity]?"
+Create an OQ if unknown. This is distinct from the individual DQ check and the insider
+vendor check — it specifically addresses corporate donors.
+
+**PART_I_PRIOR_YEAR**: At P7 (Part I rollup), after computing current-year Part I values,
+auto-populate the Prior Year column from `prior_990_analysis` if available. Specifically:
+contributions, PSR, investment income, other revenue, total revenue, grants, benefits,
+salaries, other expenses, total expenses, and revenue-less-expenses. Store in
+`dataset_rollup.parts.I.prior_year`. If prior_990_analysis is absent, leave as null but
+flag as Q-F24 NEEDS_UPDATE.
+
+**DISCLOSURE_ACCURACY**: At P6 (Schedule O finalization), when populating the Part VI
+Line 18 public availability statement: (a) verify that any named third-party site is still
+active (GuideStar → Candid, etc.), (b) check whether the org has a website where the 990
+can be posted (Part VI Line 18 "Own website" checkbox), (c) if no website, default to
+"Upon request" + "Another's website (www.candid.org or apps.irs.gov)."
+
+---
+
+### Summary Table (Second Pass)
+
+| ID | Tier | New/Extend | Description |
+|---|---|---|---|
+| Q-F24 | G3 | **NEW** | Part I Prior Year column populated from filed prior year return |
+| Q-F25 | G2 | **NEW** | Form 1096 count = Part V Line 1a; 1099s confirmed actually filed |
+| Q-F26 | G2 | **NEW** | Entity donors >$5K checked for ≥35% board member ownership (DQ) |
+| Q-F18 | G3 | **EXTEND** | Part III must include quantified metrics (people served, outcomes) |
+| Q-F5 | G2 | **EXTEND** | 1099-NEC filing confirmation, not just count identification |
+| PROG_METRICS | Directive | **NEW** | P5: collect quantified program metrics for Part III |
+| ENTITY_DONOR_CHECK | Directive | **NEW** | P6: check corporate donors for ≥35% board ownership |
+| PART_I_PRIOR_YEAR | Directive | **NEW** | P7: auto-populate Part I Prior Year column from prior_990_analysis |
+| DISCLOSURE_ACCURACY | Directive | **NEW** | P6: verify public availability site is still active and accurate |
+
+---
+
+### Complete Gate Catalog After Both Passes
+
+Original (Q-F1..Q-F18) + First pass (Q-F19..Q-F23) + Second pass (Q-F24..Q-F26):
+
+| ID | Tier | Status |
+|---|---|---|
+| Q-F1..Q-F9 | G1 | Existing |
+| Q-F10..Q-F18 | G2/G3 | Existing |
+| Q-F19 | G2 | NEW — employer payroll tax ratio |
+| Q-F20 | **G1** | NEW — BOY = filed prior year EOY |
+| Q-F21 | G2 | NEW — insider vendor ownership |
+| Q-F22 | G3 | NEW — DQ persistence after board departure |
+| Q-F23 | G3 | NEW — Schedule A methodology consistency |
+| Q-F24 | G3 | NEW — Part I prior year column |
+| Q-F25 | G2 | NEW — Form 1096 and 1099-NEC filing confirmation |
+| Q-F26 | G2 | NEW — entity-donor DQ ownership check |
+| Q-F6 | G1 | EXTEND — add Part IX Line 7 gross wages check |
+| Q-F11 | G2 | EXTEND — Schedule A Line 16 from filed return |
+| Q-F18 | G3 | EXTEND — require quantified metrics in Part III |
+| Q-F5 | G2 | EXTEND — add 1099-NEC filing confirmation |
