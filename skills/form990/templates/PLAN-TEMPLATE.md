@@ -7,8 +7,6 @@
   "plan_version": 0,
   "skill_version": "form990@1.0.0",
   "tax_year": null,
-  "fiscal_year_start": null,
-  "fiscal_year_end": null,
   "form_variant": null,
   "current_phase": "P0",
   "phase_status": {

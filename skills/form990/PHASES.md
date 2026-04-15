@@ -939,7 +939,7 @@ See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
 **Script: `{SKILL_ROOT}/scripts/p6-schedule-a.py`**
 - Input args: `--support-json <path>` (a JSON file with 5-year support history per donor,
   shape: `{years: [T-4..T], donors: [{name, year, amount}], totals: {year: {contributions,
-  investment_income, other_revenue, program_service_revenue}}}`)
+  investment_income, other_revenue, program_service_rev}}}`)
 - Output: JSON with `{public_support_pct: float, result: "PASS"|"BORDERLINE"|"FAIL",
   test_used: "509a1"|"509a2", five_year_detail: [...], excess_contributions_by_year: {...},
   facts_and_circumstances_needed: bool, flags: [...]}`
