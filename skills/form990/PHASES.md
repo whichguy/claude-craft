@@ -1318,14 +1318,15 @@ for m in re.finditer(
     full_path = f"form1[0].Page{page}[0].{short_name}[0]"  # adjust page from context
     fields[f"{short_name}[0]"] = {"label": label, "full_path": full_path}
 
-json.dump(fields, open(f"artifacts/f990-field-map-{tax_year}.json", "w"), indent=2)
+json.dump(fields, open(f"{SKILL_ROOT}/templates/f990-field-map-{tax_year}.json", "w"), indent=2)
 ```
 Cache the resulting map:
-- Local: `artifacts/f990-field-map-<tax_year>.json`
+- Canonical location: `{SKILL_ROOT}/templates/f990-field-map-<tax_year>.json` (skill-owned, reusable across runs)
 - Persistent: record the sha256 of the map in `TOOL-SIGNATURES.md §form990_field_map` under
   `<!-- BEGIN FIELD MAP <year> --> ... <!-- END FIELD MAP <year> -->` sentinels
 
-On cache hit (same sha256): skip extraction, reuse cached map.
+On cache hit (same sha256 in TOOL-SIGNATURES.md): skip extraction, reuse `{SKILL_ROOT}/templates/f990-field-map-<tax_year>.json`.
+Do NOT write a copy to `artifacts/` — the templates/ location is authoritative and shared across all runs for this tax year.
 
 **XFA fill sequence (when using AcroForm name-based fill — Step 2a).**
 Short field name `f1_28` maps to a full XFA path ending in `.f1_28[0]`. Use the extracted
