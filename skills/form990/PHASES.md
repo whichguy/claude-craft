@@ -345,6 +345,10 @@ If a prior filing exists:
    - `schedule_a_line15_pct` (Schedule A Part III Line 15)
    - `board_members` (Part VII Section A — name, title, hours)
    - `schedule_i_methodology` (did they use Part II or Part III for individual grants?)
+   - `contributions` (Part VIII Line 1h — total contributions; used by P7 Prior Year column)
+   - `program_service_rev` (Part VIII Line 2 — PSR; used by P7 Prior Year column)
+   - `total_revenue` (Part VIII Line 12; used by P7 Prior Year column)
+   - `total_expenses` (Part IX Line 25; used by P7 Prior Year column)
 If no TEOS record found: breadcrumb "no prior filing on TEOS — new filer or EIN lookup failed"
 If TEOS is inaccessible: add `open_questions[]` entry requesting prior 990 PDF directly from
 operator; continue without blocking.
@@ -1170,7 +1174,7 @@ same inputs → byte-identical output (E3 verified).
 
 ## P8 — CPA Quality Review Pass
 
-**Goal.** Run the full Q-F1..Q-F18 catalog with the CPA Reviewer persona. Convergence loop
+**Goal.** Run the full Q-F1..Q-F26 catalog with the CPA Reviewer persona. Convergence loop
 with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
 
 **Inputs.** Everything: all prior artifacts, key facts, all phase outputs.
@@ -1194,7 +1198,7 @@ pass = 0
 memoized = {}
 
 while pass < 5:
-    evaluate Q-F1..Q-F18 applicable to current state (CPA Reviewer persona)
+    evaluate Q-F1..Q-F26 applicable to current state (CPA Reviewer persona)
     update gate_results_latest_pass, increment gate_pass_count
 
     for each NEEDS_UPDATE:

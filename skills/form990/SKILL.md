@@ -587,6 +587,7 @@ ARTIFACT_DEPS = {
     # P9 outputs
     "reference_pdf":   {"phase": "P9", "upstream": ["dataset_merged"]},
     "efile_handoff":   {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
+    "cpa_memo":        {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
 }
 ```
 
@@ -1095,6 +1096,20 @@ Valid keys in `key_facts{}`:
 | `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
+
+---
+
+## Top-Level Machine State Fields (non-key_facts)
+
+Fields stored at the top level of machine state (siblings of `key_facts`, not inside it):
+
+| Field | Type | Description |
+|---|---|---|
+| `tax_year` | string | 4-digit filing year |
+| `form_variant` | `"990"` \| `"990-EZ"` \| `"990-N"` \| `"HALTED-PF"` \| `"HALTED-CHURCH"` | Determined at P0 variant routing |
+| `payroll_tax_source` | `"combined_tiller"` \| `"gusto_register"` \| null | Set at P2 payroll commingling check. `"combined_tiller"` triggers blocking halt at P3 Pre-check until Gusto employer taxes are provided. null = not yet evaluated. |
+| `skill_root` | string | Absolute path to skill install directory. Set by Step 0.0; non-nullable after P0. |
+| `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
 
 ---
 

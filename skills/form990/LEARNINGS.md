@@ -162,14 +162,14 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   as income. Classify at P5 or include in Part IX M&G. Don't leave in UNCATEGORIZED.
   Ask the user: "Was this a reimbursement from someone, a returned check, or a bank credit?"
 
+- **PERSONA.md and PLAN-TEMPLATE.md §Persona are separate copies.** When either changes,
+  update the other. Drift was detected 2026-04-15 (PLAN-TEMPLATE.md was more condensed
+  without tracking).
+
 *[Append new entries below after each run — never delete existing entries]*
 
 <!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->
 <!-- END MACHINE LEARNINGS -->
-
-- **PERSONA.md and PLAN-TEMPLATE.md §Persona are separate copies.** When either changes,
-  update the other. Drift was detected 2026-04-15 (PLAN-TEMPLATE.md was more condensed
-  without tracking).
 
 ---
 
