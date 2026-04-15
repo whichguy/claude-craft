@@ -1073,6 +1073,19 @@ Emit `artifacts/reconciliation-report.md` with each check shown step by step.
 If any check fails by > $1: breadcrumb the discrepancy with the specific check name,
 flag Q-F2 NEEDS_UPDATE inline, do NOT advance to merge sub-phase until resolved.
 
+**Part XI Line 9 materiality check:** After computing Part XI Line 9 (other changes in net
+assets), evaluate: if `abs(Part XI Line 9) < $500`, log "Prior period adjustment is negligible
+($[amount]) — likely rounding. No Schedule O narrative required unless CPA requests it." Do
+NOT auto-generate a Schedule O narrative for amounts < $500. Only generate Schedule O content
+if `abs(Part XI Line 9) >= $500`.
+
+**Mid-session P&L re-check:** If the user updates the Tiller P&L mid-session (or says "I
+updated the P&L"), immediately re-read BOTH the P&L PDF and the net worth/balance sheet PDF
+before making any changes. Compute and display a structured diff:
+"Revenue: $[old] → $[new] (Δ$[diff]), Expenses: $[old] → $[new] (Δ$[diff]),
+Net: $[old] → $[new] (Δ$[diff]). EOY net assets: $[old] → $[new] (Δ$[diff])."
+Do NOT update dataset values silently — always show the diff and confirm before applying.
+
 **Reconciliation gap diagnostic (runs when `delta_match = false`):**
 Compute: `gap = abs((revenue_total − expense_total) − (net_assets_eoy − net_assets_boy))`
 If `gap > 1000` AND Part XI Lines 5–9 are all zero (no recorded adjustments):
