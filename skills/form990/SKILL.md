@@ -6,6 +6,31 @@ Invoke via: `/form990 <subcommand> [args]`
 
 ## Step 0 — Argument Parsing
 
+**Step 0.0 — Skill Root Resolution (runs before any argument parsing)**
+
+Locate the skill's own directory and bind `SKILL_ROOT`. This must run once at P0/resume time
+and the resolved value stored in machine state as `skill_root` (non-nullable after P0).
+
+Resolution order:
+1. Check `~/claude-craft/skills/form990/` — verify `SKILL.md` exists there
+2. Check `~/.claude/skills/form990/` — verify `SKILL.md` exists there
+3. If none found: halt with "Cannot locate skill root. Install to
+   ~/claude-craft/skills/form990/ or ~/.claude/skills/form990/"
+
+Set `SKILL_ROOT = <resolved absolute path>`. All subsequent file references use this variable.
+
+Convention:
+- `{SKILL_ROOT}/templates/...` — skill-owned templates (PLAN-TEMPLATE.md, email-question.md, etc.)
+- `{SKILL_ROOT}/scripts/...` — skill-owned scripts (p2-coa-mapping.py, etc.)
+- `{SKILL_ROOT}/lib/...` — skill-owned library modules (form990_lib.py, etc.)
+- `{plan_dir}/artifacts/...` — per-run output artifacts (relative to plan file, NOT SKILL_ROOT)
+
+**Step 0.0 output:** Store `skill_root` in machine state JSON so resume paths don't need to
+re-detect. On resume, if `skill_root` is absent from an existing state JSON (pre-change
+in-flight run), re-run Step 0.0 resolution rather than halting (backward-compatible default).
+
+---
+
 Parse the invocation string to determine subcommand and arguments.
 
 | Invocation | Behavior |
@@ -43,7 +68,7 @@ Parse the invocation string to determine subcommand and arguments.
 
 ## Step 1 — Plan File Location
 
-**For `init`:** Write the new plan file using `templates/PLAN-TEMPLATE.md` as the scaffold.
+**For `init`:** Write the new plan file using `{SKILL_ROOT}/templates/PLAN-TEMPLATE.md` as the scaffold.
 Fill `{{LEGAL_NAME}}` and `{{YYYY}}` placeholders. Write to `--plan-path` (default:
 `./form990-plan-<tax-year>.md`). Record `plan_lock.pid` + `acquired_at` + `host`.
 
@@ -786,7 +811,7 @@ def scrub_pii(text: str, donor_names: list[str] = None) -> str:
     6. [C2] Email addresses → [REDACTED-EMAIL]
     7. [C2] Dates of birth (MM/DD/YYYY) → [REDACTED-DOB]
     8. [C2] US street addresses (number + street name + type) → [REDACTED-ADDR]
-    Canonical implementation lives in lib/form990_lib.py. This prose is illustrative.
+    Canonical implementation lives in {SKILL_ROOT}/lib/form990_lib.py. This prose is illustrative.
     """
     if donor_names is None:
         donor_names = []

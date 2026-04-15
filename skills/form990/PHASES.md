@@ -306,7 +306,7 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
                          Single Audit Act — gross receipts alone do NOT trigger Single Audit)
    ```
 5. For each missing artifact: create an Open Question. If addressed to an external party,
-   create a Gmail draft via `gmail_create_draft` using `templates/email-question.md`:
+   create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
    - Record `draft_id` in `open_questions[].draft_id`
    - Apply dedup rule (see SKILL.md §Email Workflow): check existing draft_id before creating
