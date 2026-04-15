@@ -394,6 +394,13 @@ line plus a functional bucket (Program / M&G / Fundraising) with a documented al
 
 **Work.**
 
+**Categories tab (read before mapping).** Read the Tiller `Categories` tab (or equivalent
+functional-allocation tab) at the start of P2. The `Group` field on that tab defines the
+Program / M&G / Fundraising allocation for each budget category and is the authoritative
+allocation source. Do NOT infer functional allocation from P&L row labels alone — the label
+may say "Supplies" while the Group field says "Program." Record the `Group` → bucket mapping
+before running Step 4 below.
+
 **Script: `artifacts/scripts/p2-coa-mapping.py`**
 - Input args: `--sheet-csv <path>` (normalized CSV dump of budget tab), `--tax-year <YYYY>`
 - Output: JSON with `{mapped_rows: [...], flags: [...], summary: {revenue_total, expense_total, unmapped_count}}`
@@ -406,6 +413,11 @@ For each budget row, apply the mapping methodology:
 **Step 1: Classify sign/type.**
 - Revenue if: account-type = income, or amount is a credit balance
 - Expense if: account-type = expense, or amount is a debit balance
+- **Negative income line:** If a row has account-type = income but a negative amount
+  (reversal/refund in an income category), do NOT auto-classify. Prompt:
+  "This appears to be a reversal of prior income. Which Part VIII line does this reduce?
+  Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue."
+  Record the answer and offset against the indicated line. Never auto-commit.
 
 **Step 2: Map Revenue → Part VIII line by source taxonomy.**
 | Revenue type | Part VIII line |
@@ -421,6 +433,14 @@ For each budget row, apply the mapping methodology:
 | Gaming | Line 9a |
 | Sales of inventory | Line 10a |
 | Other revenue (unclassified) | Line 11 (a–e) |
+
+> **Merchandise Revenue special case:** Even if Tiller places merchandise sales in the
+> Fundraising income group, it maps to **Part VIII Line 10a** (gross sales of inventory),
+> NOT Line 1 (contributions) or Line 8 (fundraising events). Prompt the user to confirm
+> the COGS amount (from the `Merchandise Sales Inventory` expense line or equivalent).
+> Record: `part_viii_line10a = gross_merchandise_sales`, `part_viii_line10b = COGS`,
+> `part_viii_line10c = net = line10a − line10b`. Merchandise COGS must NOT appear in
+> Part IX — it is reported only in Part VIII Line 10b.
 
 **Step 3: Map Expense → Part IX line by nature.**
 | Expense type | Part IX line |
