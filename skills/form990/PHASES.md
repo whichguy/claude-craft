@@ -1247,7 +1247,50 @@ reader = pypdf.PdfReader('artifacts/f990-blank-<tax_year>.pdf')
 field_count = len(reader.get_fields() or {})
 ```
 - `field_count == 0` (expected for recent flat PDFs) → proceed to Step 2 (coordinate overlay)
-- `field_count > 0` (rare, older or special revision) → log breadcrumb, attempt Step 2a first
+- `field_count > 0` (XFA form — 2025 f990.pdf has 1,307 AcroForm fields) → proceed to Step 1b
+
+**Step 1b: XFA field map extraction (runs when field_count > 0 and no cached map exists).**
+The 2025 f990.pdf is an XFA form. The XFA template stream (array item 5 of the `/XFA` key
+in the PDF trailer) contains `<assist><speak>` labels for every field. Extract them to build
+the `f990-field-map-YYYY.json` coordinate table:
+```python
+import pypdf, re, json
+
+reader = pypdf.PdfReader('artifacts/f990-blank-<tax_year>.pdf')
+xfa = reader.trailer["/Root"]["/AcroForm"]["/XFA"]
+# XFA is an array; item 5 (index 4 of stream objects) is the template
+template_stream = xfa[4].get_object().get_data().decode("utf-8", errors="replace")
+
+fields = {}
+for m in re.finditer(
+    r'<field name="([^"]+)".*?<assist><speak>([^<]+)</speak>',
+    template_stream, re.DOTALL
+):
+    short_name, label = m.group(1), m.group(2).strip()
+    full_path = f"form1[0].Page{page}[0].{short_name}[0]"  # adjust page from context
+    fields[f"{short_name}[0]"] = {"label": label, "full_path": full_path}
+
+json.dump(fields, open(f"artifacts/f990-field-map-{tax_year}.json", "w"), indent=2)
+```
+Cache the resulting map:
+- Local: `artifacts/f990-field-map-<tax_year>.json`
+- Persistent: record the sha256 of the map in `TOOL-SIGNATURES.md §form990_field_map` under
+  `<!-- BEGIN FIELD MAP <year> --> ... <!-- END FIELD MAP <year> -->` sentinels
+
+On cache hit (same sha256): skip extraction, reuse cached map.
+
+**XFA fill sequence (when using AcroForm name-based fill — Step 2a).**
+Short field name `f1_28` maps to a full XFA path ending in `.f1_28[0]`. Use the extracted
+`short_to_full` map from Step 1b:
+```python
+# CORRECT: exact key lookup
+full_path = short_to_full[f"{short_name}[0]"]
+
+# WRONG — fails for XFA nested paths:
+# full_path = next(p for p in all_paths if p.endswith(f'.{short_name}'))
+```
+The `.endswith()` pattern silently fails when a short name appears as a suffix of a longer
+path segment. Always use the pre-built `short_to_full` dict.
 
 **Step 2: Primary fill path — coordinate overlay.**
 Using `pypdf`, render a flat annotation layer over the blank PDF at line coordinates from
@@ -1257,6 +1300,7 @@ UTF-8 preserved; control characters stripped; NUL bytes rejected.
 
 **Step 2a: Fallback fill path — AcroForm name-based (only if field_count > 0).**
 Use `pdftk-java` with an FDF intermediate file written through a library (not hand-concatenated).
+XFA path resolution: use `short_to_full` lookup from Step 1b (see XFA fill sequence above).
 On `pdftk-java` non-zero exit: capture stderr to breadcrumb, fall through to Step 2.
 
 **Step 3: Assemble e-file handoff packet.**
