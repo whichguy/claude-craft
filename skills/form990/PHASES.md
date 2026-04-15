@@ -699,7 +699,15 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 **Part III — Statement of Program Service Accomplishments:**
 - Line 1: mission statement (≤ 300 characters)
 - Lines 4a–4c: three largest programs by expense (program name, expenses, grants, revenue,
-  description of beneficiaries/outputs)
+  description of beneficiaries/outputs). Before drafting descriptions, prompt:
+  1. "How many individual athletes/students were enrolled on average during the year?"
+  2. "What is the weekly class schedule (days + hours)? How many weeks did you operate?"
+     → Compute: `hours = (weekly_hours × operating_weeks) − individual_holiday_hours`
+  3. "Were any new program services launched this year (not offered in prior years)?"
+     → If yes: set Part III Line 2 = Yes; require a description of the new service.
+  4. "Did any athletes achieve notable competitive accomplishments (national team selections,
+     championship placements, state/regional rankings)?" → Include in description if yes.
+  Include headcount and computed hours in the description (IRS expects quantified outputs).
 - Line 4d: other program services (aggregate)
 - Line 4e: total program service expenses
 
@@ -779,6 +787,13 @@ Highest-Compensated Employees:**
 - Confirm Part IX Line 25 Column A = Statement of Activities total expenses (Q-F2 proxy)
 
 **Part X — Balance Sheet:**
+- **Liability pre-check (before copying from balance-sheet.md):** Read the balance sheet's
+  LIABILITY section from Tiller (or the net worth report). Do NOT set Part X liabilities to $0
+  without verifying. Credit card balances on personal cards used for org expenses are real
+  liabilities even if not tracked in a dedicated Tiller liability account. Ask: "Does the org
+  have any outstanding credit card balances, loans, or accrued payables at year-end — including
+  on personal cards used for org expenses?" Record any confirmed liabilities in Part X before
+  copying from balance-sheet.md.
 - Lines 1–33: copy from `balance-sheet.md` (BOY + EOY columns)
 
 **BOY reconciliation check (after Tiller BOY is read from balance-sheet.md):**
