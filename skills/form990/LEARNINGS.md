@@ -167,6 +167,10 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
 <!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->
 <!-- END MACHINE LEARNINGS -->
 
+- **PERSONA.md and PLAN-TEMPLATE.md §Persona are separate copies.** When either changes,
+  update the other. Drift was detected 2026-04-15 (PLAN-TEMPLATE.md was more condensed
+  without tracking).
+
 ---
 
 ## TODO — Skill Improvements from FY2025 Live Run (2026-04-14)
