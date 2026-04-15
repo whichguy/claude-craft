@@ -607,3 +607,39 @@ Original (Q-F1..Q-F18) + First pass (Q-F19..Q-F23) + Second pass (Q-F24..Q-F26):
 | Q-F11 | G2 | EXTEND — Schedule A Line 16 from filed return |
 | Q-F18 | G3 | EXTEND — require quantified metrics in Part III |
 | Q-F5 | G2 | EXTEND — add 1099-NEC filing confirmation |
+
+## FY2025 Live Run — Session e8817f27 (2026-04-15)
+
+### Learnings applied to task backlog (see TODO items in form990 skill)
+
+**P2 / CoA Mapping:**
+- Tiller Categories tab `Group` field defines Program/M&G/Fundraising — P2 must read this tab directly, not infer from P&L category labels alone
+- Merchandise Revenue ($1,528) is inside the "Fundraising" group in Tiller but maps to Part VIII Line 10 (sales of inventory), not contributions — P2 must handle this split
+- Scholarship Donations negative income ($-1,580) = donation reversal → reduce Line 1 contributions, not Line 2 PSR
+
+**P3 / Financial Statements:**
+- Tiller net payroll ≠ 990 gross wages: ALWAYS flag "payroll lines require Gusto/payroll-provider reconciliation — do not use Tiller net paychecks as Part IX Line 7"
+- Tiller combined payroll tax deposits ≠ employer-only: ALWAYS flag Part IX Line 10 requires employer-only FICA/FUTA from Gusto
+
+**Part VIII / Revenue:**
+- Merchandise COGS appear in Tiller expense total — must be EXCLUDED from Part IX and shown only in Part VIII Line 10b
+- Part VIII Line 12 ≠ Tiller total income (because COGS nets in Part VIII, not Part IX); typical difference ≈ COGS amount
+
+**Part X / Balance Sheet:**
+- Credit card balances (personal cards used for org expenses) show as liabilities in Tiller — Part X Line 17 must capture these, not assume $0 liabilities
+
+**Part XI / Reconciliation:**
+- If Part XI Line 9 < $500 after computing from actual balance sheet, treat as rounding — no Schedule O narrative required
+- Prior period adjustment can collapse to near-$0 if user corrects Tiller BOY data between sessions
+
+**Part III / Program Accomplishments:**
+- IRS expects: (1) headcount, (2) hours of service, (3) named events/competitions, (4) notable achievements (Team USA selections etc.)
+- Hours formula: (weekly_schedule_hours × operating_weeks) − individual_holiday_hours
+- Voucher/grant programs: explicitly state whether open to community beyond org membership (important for Schedule A public benefit narrative)
+
+**P9 / PDF Fill:**
+- 2025 f990.pdf has 1,307 AcroForm fields (XFA form, Designer 6.5, mod date 2025-12-12)
+- XFA template stream (Item 5 of XFA array) contains `<assist><speak>` labels for each field — extract via regex to build field→label mapping
+- pypdf `update_page_form_field_values()` works for AcroForm layer; XFA layer may override in Adobe Reader
+- Short field names end with `[0]` (e.g. `f1_28[0]`) — must use full XFA path for fill dict keys
+- Field map saved to `f990-field-map-2025.json` for reuse in future tax years
