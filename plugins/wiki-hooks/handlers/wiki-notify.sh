@@ -28,8 +28,8 @@ ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
 CONTENT=""
 DISPLAY=""
 
-# --- Mandate injection: fires on every UserPromptSubmit to keep WIKI_CHECK in active context ---
-# Honors WIKI_SKIP=1 escape valve for read-only review sessions (existing behavior unaffected).
+# --- Mandate injection: prepended to content when entity matches or new pages found ---
+# WIKI_SKIP=1 suppresses entirely; no-content case already exits above.
 WIKI_CHECK_REMINDER=""
 if [ "${WIKI_SKIP:-}" != "1" ]; then
   # Compute relative wiki path from stdin cwd (not $CLAUDE_PROJECT_DIR — unset in some wrappers).
@@ -133,12 +133,5 @@ fi
 
 # Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
 # systemMessage = user-visible toast; additionalContext = LLM-visible per-turn context injection.
-# Only show systemMessage when there's actual content (matches or new pages).
-if [ -n "$DISPLAY" ]; then
-  jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$DISPLAY" \
-    '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
-else
-  # Silent mode: no systemMessage when nothing to display (only WIKI_CHECK_REMINDER)
-  jq -n --arg context "$ADDITIONAL_CONTEXT" \
-    '{"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
-fi
+jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$DISPLAY" \
+  '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'
