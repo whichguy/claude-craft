@@ -129,9 +129,11 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
 - Ask the user: is this organization a private foundation? (yes/no — or check prior 990 Part I)
 
 **Work.**
-0. **Scope-exclusion banner (one-time, before intake questions).** Render the following banner
-   and use `AskUserQuestion` to confirm the user's situation is in scope. Record acknowledgment
-   in Decision Log. If they stop, halt cleanly without writing machine state.
+0. **Scope-exclusion banner (one-time, before intake questions).** Check breadcrumbs for
+   `scope_exclusion_shown` before rendering; skip if already shown. Render the following banner
+   and use `AskUserQuestion` to confirm the user's situation is in scope. Record
+   `scope_exclusion_shown: true` in Decision Log after user acknowledges. If they stop, halt
+   cleanly without writing machine state.
    ```
    ╔══════════════════════════════════════════════════════════════════╗
    ║  ℹ  What this skill handles — and what it does NOT              ║
@@ -146,6 +148,7 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
    ║  ✖  State filings (CA RRF-1, NY CHAR500, IL AG990-IL, etc.)     ║
    ║  ✖  Group returns (parent filing on behalf of subordinates)     ║
    ║  ✖  Private foundations (990-PF — halted at variant routing)    ║
+   ║  ✖  Form 990-T (unrelated business income — may accompany 990)  ║
    ╠══════════════════════════════════════════════════════════════════╣
    ║  If any ✖ above describes your situation, stop here and         ║
    ║  consult a CPA before using this skill for that return.         ║
@@ -232,28 +235,7 @@ available (prompt user), prior-1 and prior-2 year gross receipts (for 3-yr avera
      ╚══════════════════════════════════════════════════════╝
      ```
    - Stop; do not advance to P1
-8. **Scope-exclusion banner (B6 — render once on first P0 run only).**
-   Before proceeding to P1, display the following notice. Record in breadcrumb that it was shown.
-   Do NOT show again on resume (check `breadcrumbs` for `"scope_exclusion_shown": true`).
-   ```
-   ┌─────────────────────────────────────────────────────────────────────┐
-   │  ℹ This skill prepares Form 990 / 990-EZ / 990-N only.             │
-   │                                                                     │
-   │  OUT OF SCOPE — use a licensed preparer for these:                 │
-   │  • Short-period returns (first or final year ≠ 12 months)          │
-   │  • Initial returns (first year of existence — special rules apply) │
-   │  • Final returns (dissolution, termination, significant disposal)  │
-   │  • Amended returns (Form 990-X)                                    │
-   │  • State charitable registration filings (CA RRF-1, NY CHAR500…)  │
-   │  • Group exemption returns (Form 990 with group ruling)            │
-   │  • Form 990-PF (private foundations)                               │
-   │  • Form 990-T (unrelated business income — may accompany 990)      │
-   │                                                                     │
-   │  This tool prepares a filing-ready package for your e-file         │
-   │  provider. It does NOT submit the return to the IRS.               │
-   └─────────────────────────────────────────────────────────────────────┘
-   ```
-9. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
 
 **Outputs.**
 - Machine state JSON populated: tax_year, fiscal_year_*, form_variant, all key_facts fields
@@ -478,8 +460,6 @@ raw_label: "Donated Legal Services (in-kind)"
 **Applicable Gates.** Q-F3 (functional columns sum), Q-F10 (ED allocation documented),
 Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5).
 
-**Transition.** → P3.
-
 ---
 
 ## P3 — Financial Statement Production [PROG]
@@ -539,8 +519,6 @@ matrix from the CoA mapping.
 Q-F3 (functional columns sum per row), Q-F11 (prior-year comparatives — BOY from prior 990),
 Q-F12 (fundraising expense non-zero if contributions > 0).
 
-**Transition.** → P4.
-
 ---
 
 ## P4 — Part IV Checklist → Schedule Trigger
@@ -596,8 +574,6 @@ fully rebuilt from answers (no append).
 **Applicable Gates.** Q-F4 (proxy check only at P4: verify Schedule A is in `required_schedules[]`;
 full Q-F4 PASS requires P6 Schedule A generation — cannot fully pass at P4), Q-F8 (all Part IV
 questions answered or queued as open question; all `yes` answers added to `required_schedules[]`).
-
-**Transition.** → P5.
 
 ---
 
@@ -742,8 +718,6 @@ Highest-Compensated Employees:**
 missing), Q-F6 (Part VII compensation ties to source docs), Q-F18 (Part III program
 accomplishments substantive).
 
-**Transition.** → P6.
-
 ---
 
 ## P6 — Schedule Generation [PROG: Schedule A]
@@ -857,8 +831,6 @@ artifacts explicitly deleted (tracked via manifest inside `dataset_schedules.jso
 **Applicable Gates.** Q-F4 (Schedule A computation), Q-F8 (all required schedules present),
 Q-F14 (Schedule O covers all Part VI "describe" prompts).
 
-**Transition.** → P7.
-
 ---
 
 ## P7 — Part I Rollup & Reconciliation + Deterministic Merge
@@ -949,8 +921,6 @@ same inputs → byte-identical output (E3 verified).
 
 **Applicable Gates.** Q-F2 (big square closes — blocking; delta_match must be true), Q-F7
 (Part I ties to downstream parts).
-
-**Transition.** → P8.
 
 ---
 

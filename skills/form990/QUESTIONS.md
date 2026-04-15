@@ -32,26 +32,34 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 
 ## Tier / Gate Summary
 
-| ID | Tier | Name | Triggered In | Applies When |
-|---|---|---|---|---|
-| Q-F1 | **G1** | Correct form variant | P0, P8 | always |
-| Q-F2 | **G1** | Big-square reconciliation | P7, P8 | always |
-| Q-F3 | **G1** | Functional columns sum | P2, P3, P8 | always |
-| Q-F4 | **G1** | Schedule A public-support computation | P6, P8 | 501(c)(3) non-PF |
-| Q-F5 | G2 | Part V 1099/W-2 count ties to filings | P5, P8 | always |
-| Q-F6 | **G1** | Part VII officer comp ties to W-2/1099 | P5, P8 | always |
-| Q-F7 | **G1** | Part I totals tie to downstream parts | P7, P8 | always |
-| Q-F8 | **G1** | Part IV fully answered; all yes → schedule | P4, P6, P8 | always |
-| Q-F9 | **G1** | EIN + legal name + address match prior year | P0, P8 | always |
-| Q-F10 | G2 | ED/shared-cost time allocation documented | P2, P8 | always |
-| Q-F11 | G2 | Prior-year comparatives populated | P3, P6, P8 | always |
-| Q-F12 | G2 | Fundraising expense > 0 if contributions > 0 | P3, P8 | contributions > 0 |
-| Q-F13 | G2 | Accounting method consistent year-over-year | P0, P8 | always |
-| Q-F14 | G2 | Schedule O covers every Part VI "describe" | P6, P8 | always |
-| Q-F15 | G2 | Signature block populated | P9, P8 | always |
-| Q-F16 | G2 | Source-discovery completeness | P1, P8 | always |
-| Q-F17 | G3 | Functional allocation methodology narrated | P2, P8 | always |
-| Q-F18 | G3 | Part III program accomplishments well-written | P5, P8 | always |
+| ID | Tier | Name | Applies When |
+|---|---|---|---|
+| Q-F1 | **G1** | Correct form variant | always |
+| Q-F2 | **G1** | Big-square reconciliation | always |
+| Q-F3 | **G1** | Functional columns sum | always |
+| Q-F4 | **G1** | Schedule A public-support computation | 501(c)(3) non-PF |
+| Q-F5 | G2 | Part V 1099/W-2 count ties to filings | always |
+| Q-F6 | **G1** | Part VII officer comp ties to W-2/1099 | always |
+| Q-F7 | **G1** | Part I totals tie to downstream parts | always |
+| Q-F8 | **G1** | Part IV fully answered; all yes → schedule | always |
+| Q-F9 | **G1** | EIN + legal name + address match prior year | always |
+| Q-F10 | G2 | ED/shared-cost time allocation documented | always |
+| Q-F11 | G2 | Prior-year comparatives populated | always |
+| Q-F12 | G2 | Fundraising expense > 0 if contributions > 0 | contributions > 0 |
+| Q-F13 | G2 | Accounting method consistent year-over-year | always |
+| Q-F14 | G2 | Schedule O covers every Part VI "describe" | always |
+| Q-F15 | G2 | Signature block populated | always |
+| Q-F16 | G2 | Source-discovery completeness | always |
+| Q-F17 | G3 | Functional allocation methodology narrated | always |
+| Q-F18 | G3 | Part III program accomplishments well-written | always |
+| Q-F19 | G2 | Payroll tax artifact: Part IX Line 10/Line 7 ratio check | Tiller-sourced payroll data |
+| Q-F20 | **G1** | BOY equals filed prior-year EOY | always |
+| Q-F21 | G2 | Vendor >$10K insider-ownership check before P9 | always |
+| Q-F22 | G3 | Departed board members DQ status for Schedule A | Schedule A required |
+| Q-F23 | G3 | Schedule A Line 15 vs Line 16 divergence narrative | Schedule A required |
+| Q-F24 | G3 | Part I Prior Year column sourced from filed prior return | always |
+| Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
+| Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 
 ---
 
@@ -101,10 +109,7 @@ comparisons in Decision Log; update form_variant to "990" in machine state → P
 
 ### Q-F2 — Big-Square Reconciliation (Gate 1)
 
-**Purpose.** Verify that the three core accounting anchors all hold. These are three SEPARATE
-checks — they are NOT a single equality chain. Revenue − Expenses ≠ EOY − BOY unless
-adjustment lines (unrealized gains, prior period adjustments, donated services on balance sheet)
-are all zero. Conflating them produces false failures for endowment orgs and investment holders.
+**Purpose.** Verify that the three core accounting anchors all hold.
 
 ```
 Check 1 (operating): Part XI Line 3 = Part VIII Line 12 − Part IX Line 25
@@ -115,6 +120,7 @@ Check 2 (BOY anchor): Part XI Line 4 = Part X Line 32 BOY column A
 
 Check 3 (EOY anchor): Part XI Line 10 = Part X Line 32 EOY column B
                       (ending net assets agree — this is the primary anchor)
+# Check 1 ≠ EOY − BOY when adj lines 5–9 are non-zero (endowment, unrealized gains)
 ```
 
 Each check independently ≤ $1 rounding tolerance. An unexplained delta > $1 on any
@@ -240,8 +246,6 @@ creates an open question.
 - If either source is unavailable: open question status is `pending` with a Gmail draft; P8
   marks Q-F5 NEEDS_UPDATE until resolved
 
-**Common mistake:** Counting all 1099 recipients for Part V 2a instead of the subset above $100K.
-
 ---
 
 ### Q-F6 — Part VII Section A Comp Ties to W-2/1099 (Gate 1)
@@ -267,6 +271,11 @@ Section B covers the five highest-compensated independent contractors (>$100K).
 - For each person with reportable comp > $0: amount matches the W-2/1099 source within $1
 - Officers/directors/trustees with $0 reportable compensation are explicitly listed ($0 entry)
 - Key employees and highest-compensated employees are not omitted to shorten the form
+- **Part IX Line 7 tie:** total wages on Part IX Line 7 (Column A) must equal W-2 Box 1
+  *gross wages* from the payroll register — not net pay, not take-home pay. Gross wages
+  include pre-tax deductions (health insurance, 401k, FSA) that reduce Box 1 only if they
+  are IRC §125 or §401(k) exclusions; verify gross-to-net reconciliation. If Tiller or
+  bookkeeping data shows net payroll deposits, do not use deposits as Part IX Line 7.
 
 **Common mistakes:**
 - Listing only compensated officers and omitting unpaid board members (all officers/directors
@@ -326,8 +335,6 @@ and the IRS Business Master File (BMF). Mismatches cause IRS processing errors.
   "Incorporated")
 - Principal office address is current (changes require explanation in Schedule O)
 
-**Common mistake:** Using a DBA name instead of the legal name on the determination letter.
-
 ---
 
 ### Q-F10 — ED/Shared-Cost Allocation Documented (Gate 2)
@@ -352,7 +359,13 @@ prior year's EOY figures. Schedule A requires 4 prior years of public-support da
 **Pass criteria:**
 - Part X BOY column is populated (not zero/blank)
 - Schedule A Part II shows 5 years of contributions data (current + 4 prior)
-- If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note
+- Schedule A Line 16 (prior-year public support percentage) is populated from the *filed*
+  prior-year Form 990 or 990-EZ — not estimated or back-computed. If the prior return is
+  a 990-EZ, map the 990-EZ public support % directly to Line 16; document the source file
+  in a Decision Log entry (e.g., "Paula Wallin CPA, FY2024 990-EZ, Part III Line 16 = 100%").
+  A computed or assumed Line 16 value without a filed-return citation is NEEDS_UPDATE.
+- If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note;
+  Schedule A Line 16 may be marked N/A with a transition-year note in Schedule O
 
 ---
 
@@ -466,6 +479,241 @@ accomplishments. It is public-facing and should communicate program impact.
 
 ---
 
+### Q-F19 — Payroll Tax Artifact: Part IX Line 10 / Line 7 Ratio (Gate 2)
+
+**Purpose.** Tiller-sourced payroll data may commingle employer payroll tax deposits with
+employee wage deposits, inflating Part IX Line 10 (payroll taxes) relative to Line 7 (wages).
+If the ratio of payroll taxes to wages exceeds 15%, it is likely a data artifact — not a
+genuine expense — and must be reviewed before the return is filed.
+
+**Trigger:** Applies when payroll data originates from Tiller, bookkeeping bank feeds, or
+any source that records gross payroll deposits rather than net-wage deposits separately from
+tax deposits. Not triggered if source is a payroll-provider W-2 register.
+
+**Algorithm:**
+```
+ratio = Part IX Line 10 col_a / Part IX Line 7 col_a
+if ratio > 0.15:  flag → NEEDS_UPDATE (expected FICA+FUTA ≈ 7.65% + state; > 15% → suspect)
+```
+
+**Pass criteria:**
+- `ratio <= 0.15` (15% is a conservative upper bound; employer-side FICA is 7.65%, plus FUTA
+  ~0.6%, plus CA UI/SDI ≈ 3–4% → expected combined ≈ 11–12%)
+- OR: a Decision Log entry explains why the ratio exceeds 15% (e.g., mid-year retroactive
+  tax deposit correction, state audit settlement payment)
+
+**NEEDS_UPDATE example:**
+```
+Q-F19: NEEDS_UPDATE — Part IX Line 10 ($38,200) / Line 7 ($156,000) = 24.5%. This exceeds
+the 15% threshold and likely reflects Tiller commingling employer + employee payroll tax
+deposits. Employee FICA withholding ($9,300) should not appear in Line 10 — it is an employee
+liability collected by the org, not an employer expense.
+[EDIT: Review payroll register to separate employer-side taxes (FICA 7.65%, FUTA, CA UI/SDI)
+from employee withholding; remove employee FICA from Line 10; reconcile to W-2 Box 4/6 totals
+→ P3 / artifacts/functional-expense.csv]
+[USER: The payroll tax line looks too high — likely the bank feed is double-counting employee
+tax withholding. I need to pull the payroll register to split out what the organization actually
+owed vs. what was withheld from employees' paychecks.]
+```
+
+---
+
+### Q-F20 — BOY Net Assets Equal Filed Prior-Year EOY (Gate 1)
+
+**Purpose.** The beginning-of-year net assets on the current return (Part X Line 32 BOY,
+Part XI Line 4) must equal the ending net assets on the filed prior-year return. A mismatch
+indicates either a restatement, a prior-period adjustment, or a data error — all of which
+require disclosure.
+
+**Pass criteria:**
+- Part XI Line 4 (BOY net assets) equals the prior-year filed return's Part X Line 32 EOY
+  (or Part I Line 21 if prior year was 990-EZ) within $1 rounding tolerance
+- If mismatch: Part XI Line 9 (prior-period adjustment) is non-zero AND a Schedule O entry
+  explains the adjustment (nature, amount, corrected period)
+- If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note
+
+**NEEDS_UPDATE example:**
+```
+Q-F20: NEEDS_UPDATE — Current return Part XI Line 4 = $42,180 but prior-year 990-EZ
+Part I Line 21 EOY = $39,950. Unexplained $2,230 difference with Part XI Line 9 = $0.
+[EDIT: Identify source of $2,230 BOY discrepancy; if restatement, set Part XI Line 9 = $2,230
+and add Schedule O prior-period adjustment narrative → P3 / dataset_core.json]
+[USER: The starting net assets don't match last year's ending balance. We need to find out
+if there was a correction made after the prior year was filed, and disclose it on the return.]
+```
+
+---
+
+### Q-F21 — Vendor >$10K Insider-Ownership Check Before P9 (Gate 2)
+
+**Purpose.** Any vendor paid more than $10,000 in the tax year should be screened for insider
+(board member, officer, family member) ownership before the return is finalized. Payments to
+insider-owned vendors are related-party transactions that must be disclosed in Part IV and
+Schedule L, and may trigger excess-benefit concerns under IRC §4958.
+
+**Pass criteria:**
+- For each vendor with total payments > $10,000 in the tax year: confirm in the Decision Log
+  that insider ownership was checked (either confirmed none, or disclosed per Schedule L)
+- If insider ownership found: Part IV Line 28 = Yes, Schedule L entry present, and a
+  Schedule O narrative explains the arm's-length nature of the transaction
+- If vendor list is not available: open question status is `pending` with a note; P8 marks
+  Q-F21 NEEDS_UPDATE until resolved
+
+**NEEDS_UPDATE example:**
+```
+Q-F21: NEEDS_UPDATE — Vendor "Garrison Engineering LLC" received $62,000 in 2025 but no
+insider-ownership check is documented in the Decision Log.
+[EDIT: Confirm or deny board/officer ownership of Garrison Engineering; if insider-owned,
+add Part IV Line 28 = Yes, Schedule L entry, and Schedule O narrative → P5 / plan Decision Log]
+[USER: I need to verify whether any board members or family members own Garrison Engineering
+LLC before we finalize — payments over $10,000 to insider-owned companies must be disclosed.]
+```
+
+---
+
+### Q-F22 — Departed Board Members DQ Status for Schedule A (Gate 3)
+
+**Purpose.** A board member who departed during or before the filing year may still be a
+"disqualified person" under IRC §4958 if they were a substantial contributor to the organization
+(as defined in IRC §509(a)(3)(B)). If so, their contributions cannot count as public support
+in Schedule A. Failure to check DQ status for departed board members overstates public support.
+
+**Trigger:** Applies only when Schedule A is required (501(c)(3) non-private-foundation).
+
+**Pass criteria:**
+- For each board member who departed within the 5-year Schedule A window: a Decision Log
+  entry records whether they are a disqualified person (by gift history, substantial contributor
+  test, or otherwise)
+- If DQ: their contributions are excluded from Schedule A Part III Line 1 or treated as Line 7a
+  (509(a)(2)) / excess contributions (509(a)(1)) in the applicable year(s)
+
+**NEEDS_UPDATE example:**
+```
+Q-F22: NEEDS_UPDATE — Former board member departed in 2023 with no DQ-status check recorded.
+[EDIT: Review 5-year gift history for departed board member; if cumulative gifts > $5,000 and
+> 2% of total support, classify as disqualified person; adjust Schedule A accordingly → P6]
+[USER: A former board member's donations may need to be excluded from our public support
+calculation — we need to check whether they qualify as a "substantial contributor" under IRS rules.]
+```
+
+---
+
+### Q-F23 — Schedule A Line 15 vs Line 16 Divergence Narrative (Gate 3)
+
+**Purpose.** If the current-year public support percentage (Schedule A Line 15) differs from
+the prior-year percentage (Line 16) by more than 10 percentage points, Schedule O must explain
+the methodology difference or one-time factor driving the swing. A large unexplained change
+is a red flag in IRS correspondence exams.
+
+**Trigger:** Applies only when Schedule A is required and Line 16 is populated.
+
+**Pass criteria:**
+- `abs(Line 15 − Line 16) <= 10pp` — no narrative required
+- `abs(Line 15 − Line 16) > 10pp` — a Schedule O entry explains the variance (e.g., large
+  one-time contribution in current year, departure of a major disqualified-person donor,
+  change in program service revenue mix, transition from 990-EZ to full 990 methodology)
+
+**NEEDS_UPDATE example:**
+```
+Q-F23: NEEDS_UPDATE — Line 15 = 74.4%, Line 16 = 100.0%. Divergence = 25.6pp exceeds 10pp
+threshold with no Schedule O explanation.
+[EDIT: Add Schedule O narrative explaining the 25.6pp drop: prior year was 990-EZ with 100%
+contribution-only revenue; current year includes $150K PSR that enters denominator but is
+capped in numerator (non-DQ PSR ≤ $5,000/year threshold) → P6 / artifacts/schedule-o-narratives.md]
+[USER: The public support percentage dropped significantly from last year — I'll add an
+explanation to the return so the IRS can see this was expected given the change in revenue mix.]
+```
+
+---
+
+### Q-F24 — Part I Prior Year Column Sourced from Filed Prior Return (Gate 3)
+
+**Purpose.** Part I of Form 990 includes a "Prior Year" column alongside the current year.
+These figures must come from the filed prior-year return — not re-computed or estimated.
+For organizations transitioning from 990-EZ to full Form 990, a documented mapping is required.
+
+**Pass criteria:**
+- Each Part I Prior Year figure has a Decision Log citation of the source (e.g., "FY2024
+  990-EZ Part I Line 9, $XX" or "transition year — see mapping in Schedule O")
+- If prior year was 990-EZ: a Schedule O note documents the mapping methodology and any
+  structural differences (e.g., 990-EZ does not have functional expense columns)
+- If this is the first year of filing: Prior Year column blank is acceptable with Schedule O note
+- A Prior Year column that is entirely blank without explanation is NEEDS_UPDATE even if
+  the organization transitioned from 990-EZ (some Part I lines map directly)
+
+**NEEDS_UPDATE example:**
+```
+Q-F24: NEEDS_UPDATE — Part I Prior Year column is entirely blank. Organization filed Form 990-EZ
+for FY2024 — a mapping is possible for revenue lines (990-EZ Part I maps to 990 Part I Lines 8,
+12) even if expense detail differs.
+[EDIT: Populate mappable Part I Prior Year fields from FY2024 990-EZ; add Schedule O note for
+lines that cannot be mapped; cite source document → P3 / dataset_core.json]
+[USER: The prior-year comparison column is blank — I'll fill in what I can from last year's
+return and add a note explaining where the two forms don't line up.]
+```
+
+---
+
+### Q-F25 — Part V Line 2a Entity-Type Filter for 1099-NEC Count (Gate 2)
+
+**Purpose.** Part V Line 2a asks for the number of independent contractors receiving more than
+$100,000 in compensation. The IRS instructions specify that corporations and LLCs taxed as
+corporations are exempt from 1099-NEC filing — they should not be counted in Line 2a even if
+paid >$100K. Counting all high-compensation vendors regardless of entity type overstates Line 2a.
+
+**Trigger:** Applies when the 1099-NEC register contains entries >$100K.
+
+**Pass criteria:**
+- Part V Line 2a count includes only individuals, partnerships, and single-member LLCs (treated
+  as disregarded entities) who received >$100K — not C-corps, S-corps, or LLCs filing as corps
+- The 1099 register (or vendor entity-type check in the Decision Log) documents the entity-type
+  verification for each vendor near the $100K threshold
+- Contractors excluded due to entity type are noted in the Decision Log with their entity type
+
+**NEEDS_UPDATE example:**
+```
+Q-F25: NEEDS_UPDATE — Part V Line 2a = 3, but the vendor register includes Garrison Engineering
+LLC ($62,000 — below threshold) and two individuals. Entity type was not verified for any vendor.
+[EDIT: Verify entity type for each contractor; if Garrison Engineering files as a corp, confirm
+exclusion from 1099-NEC requirement; re-count qualified individuals only for Line 2a → P5]
+[USER: The contractor count needs to exclude any companies — the IRS only wants individuals and
+certain pass-through businesses in that line. Let me check what type of entity each vendor is.]
+```
+
+---
+
+### Q-F26 — Corporate Donor ≥$35K Board-Ownership Check for 509(a)(2) (Gate 2)
+
+**Purpose.** Under 509(a)(2), a corporate contribution is excluded as a disqualified-person
+contribution (Line 7a) if any board member or officer owns ≥35% of the corporation (IRC §4946
+attribution rules). Failure to apply this exclusion overstates public support. The $35K
+threshold here is heuristic — any corporate donor whose contribution is material to the
+public-support percentage should be screened, but ≥$35K is a practical trigger.
+
+**Trigger:** Applies when Schedule A Part III (509(a)(2) basis) is required AND a corporate
+entity (not an individual) appears in the donor list with cumulative contributions ≥$35K in
+the 5-year window.
+
+**Pass criteria:**
+- For each qualifying corporate donor: a Decision Log entry records the board-ownership check
+  result (confirmed <35%, confirmed ≥35%, or unable to verify)
+- If ≥35% board ownership found: the corporate donor's contributions are reclassified to Line 7a
+  (disqualified person full exclusion) in the Schedule A Part III worksheet
+- If ownership is unclear: open question status is `pending`; P8 marks Q-F26 NEEDS_UPDATE
+
+**NEEDS_UPDATE example:**
+```
+Q-F26: NEEDS_UPDATE — Garrison Engineering LLC contributed $62,000 across the 5-year window.
+No board-ownership check recorded.
+[EDIT: Confirm % board/officer ownership of Garrison Engineering; if any board member owns ≥35%,
+move $62,000 to Schedule A Part III Line 7a (DQ exclusion) → P5 / Decision Log]
+[USER: For a company that donated significant funds, I need to verify whether any board members
+own 35% or more of it — if so, IRS rules require us to exclude those donations from our public
+support calculation.]
+```
+
+---
+
 ## Convergence Loop (P8 Evaluation Protocol)
 
 ```
@@ -500,9 +748,9 @@ if pass == 5 and gate1_open:
     HALT → AskUserQuestion; do not auto-advance to P9
 ```
 
-Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16
-Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18
+Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26
+Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 
 ---
 
