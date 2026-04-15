@@ -251,6 +251,19 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
      ```
    - Stop; do not advance to P1
 8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8a. **Board change detector (non-blocking advisory — run if prior_990_analysis available):**
+    If `prior_990_analysis.board_members` is populated (from P1 TEOS extraction or operator
+    prior 990 PDF), compare against the current board roster provided by the operator.
+    For each person in `prior_990_analysis.board_members` NOT in the current roster:
+      Prompt: "[Name] was listed as a director/officer in the prior year 990. Have they
+      departed? If yes: (a) what was their last date of service? (b) was this a mid-year
+      departure? (c) did the board amend the bylaws, change authorized positions, or alter
+      the governing structure in connection with this change?"
+    For each person in the current roster NOT in `prior_990_analysis.board_members`:
+      Prompt: "[Name] is new to the board. Since when have they served?"
+    If any governing-document change is reported: set Part IV Line 4 = Yes → Schedule O required.
+    Record all transitions in Decision Log with dates.
+    If no prior_990_analysis: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
 
 **Outputs.**
 - Machine state JSON populated: tax_year, fiscal_year_*, form_variant, all key_facts fields
