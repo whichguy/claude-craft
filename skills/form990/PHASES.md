@@ -402,9 +402,27 @@ When TEOS extraction succeeds:
 This ensures Cluster C always reads a populated key_facts field when prior year data exists,
 regardless of whether it came from P0 (operator-stated) or P1 (TEOS-extracted).
 
-**Board change detector (P1 — run after TEOS extraction, non-blocking advisory):**
-Now that `prior_990_analysis.board_members` may be populated, compare against the current
-board roster provided by the operator (from board_roster artifact or P0 intake).
+**CA Secretary of State board discovery (P1 — non-blocking, CA orgs only):**
+The CA SOS `bizfileonline.sos.ca.gov` portal is JavaScript-rendered and requires a paid
+API subscription for programmatic access. Instead, use WebSearch to find the org's current
+officers/directors from public search engine results:
+
+1. WebSearch: `"[key_facts.legal_name]" "California Secretary of State" "Statement of Information" officers directors`
+2. If results reference a CA SOS entity page or SI-100 filing with officer names: extract
+   names and titles into `ca_sos_officers[]` — a list of `{name, title}` dicts stored in
+   machine state alongside `artifact_local_paths`.
+3. If `artifact_local_paths.ca_sec_state_pdf` was found at P0: attempt to read the PDF
+   directly and extract officer/director names from the "Officers" section.
+4. If neither works: close `OQ-ca-sec-state` with "CA SOS auto-discovery not available —
+   officer list will be confirmed via board_roster artifact or operator input at P5/P6."
+
+Store result as `ca_sos_officers: [{name, title}, ...]` in top-level machine state (null if
+not found). The board-change detector and Part VII (Section A) both read from this field
+when `prior_990_analysis.board_members` alone is insufficient.
+
+**Board change detector (P1 — run after TEOS extraction and CA SOS discovery, non-blocking advisory):**
+Compare known prior-year board (`prior_990_analysis.board_members`) and current CA SOS
+officers (`ca_sos_officers`) against the operator-provided current roster.
 - For each person in `prior_990_analysis.board_members` NOT in the current roster:
   Prompt: "[Name] was listed as a director/officer in the prior year 990. Have they
   departed? If yes: (a) last date of service? (b) mid-year departure? (c) did the board
