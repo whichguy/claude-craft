@@ -720,6 +720,35 @@ Highest-Compensated Employees:**
 **Part X — Balance Sheet:**
 - Lines 1–33: copy from `balance-sheet.md` (BOY + EOY columns)
 
+**BOY reconciliation check (after Tiller BOY is read from balance-sheet.md):**
+
+If `key_facts.prior_year_990_eoy_net_assets` is not null AND differs from Tiller BOY:
+```
+filed_eoy = key_facts.prior_year_990_eoy_net_assets
+tiller_boy = <Tiller opening balance from balance-sheet.md>
+
+1. Accept filed_eoy as the authoritative Part X BOY (override Tiller)
+2. Auto-compute Part XI Line 9 prior-period adjustment:
+   Assumptions (verify against IRS Form 990 Part XI instructions before implementing):
+   - EOY_actual = current-year Part X Line 33 col B (EOY net assets — from
+     key_facts.total_assets_eoy minus liabilities, or from dataset_core.json Part X)
+   - revenue = Part VIII Line 12 col A (total revenue)
+   - expenses = Part IX Line 25 col A (total expenses)
+   - Formula: xi_adj = EOY_actual − (filed_eoy + revenue − expenses)
+   - Sign convention: verify against IRS Form 990 Part XI instructions; a wrong sign
+     would silently produce an incorrect Schedule O narrative
+3. Pre-populate Schedule O narrative template:
+   "During FY[prior], our bookkeeping system recorded beginning net assets of
+   $[tiller_boy], which differed from the filed Form 990 ending net assets of
+   $[filed_eoy] (a difference of $[filed_eoy − tiller_boy]). We have adjusted
+   beginning net assets to match the filed return."
+4. Record in Decision Log: "Part X BOY adjusted from Tiller $[tiller_boy] to
+   filed prior year $[filed_eoy] — prior period adj $[xi_adj] in Part XI Line 9
+   (source: [key_facts.prior_year_990_eoy_net_assets_source])"
+```
+
+If `prior_year_990_eoy_net_assets` is null: proceed with Tiller BOY, no adjustment.
+
 **Part XI — Reconciliation of Net Assets:**
 - Line 1: total revenue (Part VIII Line 12)
 - Line 2: total expenses (Part IX Line 25)
