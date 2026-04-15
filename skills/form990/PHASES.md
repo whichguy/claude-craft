@@ -441,6 +441,20 @@ For each budget row, apply the mapping methodology:
 | Insurance | Line 23 |
 | All other expenses | Line 24 (a–e) |
 
+**Payroll commingling check (P2 — run when any "Payroll Tax" or equivalent category is encountered):**
+
+Prompt: "Does your bookkeeping show payroll taxes as a single combined deposit
+(employer + employee withholdings together) or separately?"
+- If combined: flag for Part IX Line 10 correction; set
+  `payroll_tax_source = "combined_tiller"` in machine state; add open_questions
+  entry requiring Gusto employer taxes summary before P5.
+  If no Gusto column provided by P5 Pre-check → blocking halt per Q-F19.
+- If separate: proceed normally.
+
+Note: If Tiller uses non-standard or user-renamed categories that don't match "Payroll Tax"
+literally, default to asking unconditionally: "Does your bookkeeping show payroll taxes as
+combined or separate?"
+
 **Step 4: Assign functional bucket.**
 - Direct assignment: row label clearly names a program/M&G/fundraising activity
 - FTE-weighted: salaries allocated by headcount fraction per function
