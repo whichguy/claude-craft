@@ -21,7 +21,7 @@ applying Tier B changes.
 | **Total** | **4,311** | **~51,279** | |
 
 Not all files load simultaneously. The heaviest single-phase load is P8:
-SKILL.md + QUESTIONS.md + PERSONAS.md + relevant PHASES.md/SCHEDULES.md sections
+SKILL.md + QUESTIONS.md + PERSONA.md + relevant PHASES.md/SCHEDULES.md sections
 ≈ ~22,000–28,000 tokens before the dataset itself.
 
 ---
