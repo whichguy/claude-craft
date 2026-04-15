@@ -1040,6 +1040,8 @@ Valid keys in `key_facts{}`:
 | `fiscal_year_start` | ISO date | Start of the fiscal year being filed |
 | `fiscal_year_end` | ISO date | End of the fiscal year being filed |
 | `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
+| `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
+| `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 

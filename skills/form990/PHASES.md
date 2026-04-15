@@ -166,6 +166,16 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    name, fiscal year start/end, accounting method, public charity basis
 2. Capture gross-receipts history: current year + prior-1 + prior-2 (from prior 990 or user
    input). Compute `gross_receipts_3yr_average = (yr_current + yr_prior1 + yr_prior2) / 3`
+2a. Prior year 990 check. Ask:
+    "Do you have a filed prior year Form 990? If yes, what were the total net assets
+    (End of Year) on that return? (You can find this on the prior 990 Part X Line 33,
+    column B — End of Year.)"
+    - If user provides: set `key_facts.prior_year_990_eoy_net_assets = <amount>`,
+      set `key_facts.prior_year_990_eoy_net_assets_source = "operator_stated"`
+    - If no prior filing: set `key_facts.prior_year_990_eoy_net_assets = null`,
+      breadcrumb "no prior filing — Part X BOY will use Tiller opening balance"
+    - If deferred: set to null, add `open_questions[]` entry
+      `{id: "OQ-py990", type: "prior_990_eoy_net_assets", status: "pending"}`
 3. Run variant decision tree (verbatim — do not paraphrase):
    ```
    IF is_private_foundation:
@@ -296,6 +306,10 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    ├─ budget_sheet      (already have from P0 --sheet flag) ✔
    ├─ bank_statements   (covering fiscal year)
    ├─ payroll_report    (W-2 register or payroll provider export)
+   ├─ payroll_w2_annual (Gusto or payroll processor W-2 annual summary PDF — required
+   │                     alongside bank statements. Tiller net pay is always wrong for
+   │                     Part VII/IX. Request before P3. If not immediately available:
+   │                     add open_questions entry and continue; P3 Pre-check will block.)
    ├─ 1099_register     (if contractors paid ≥ $600)
    ├─ donor_list        (if Schedule B may be triggered)
    ├─ board_roster      (for Part VI and Part VII)
@@ -305,6 +319,25 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
                          OR if federal award expenditures ≥ $750K per Uniform Guidance /
                          Single Audit Act — gross receipts alone do NOT trigger Single Audit)
    ```
+
+**Prior year 990 TEOS check (P1):** Check apps.irs.gov/app/eos/ for the org's EIN.
+If a prior filing exists:
+1. Download the most recent year's 990 PDF
+2. Extract and store as `prior_990_analysis` in machine state:
+   - `eoy_net_assets` (Part X Line 33 col B)
+   - `schedule_a_line15_pct` (Schedule A Part III Line 15)
+   - `board_members` (Part VII Section A — name, title, hours)
+   - `schedule_i_methodology` (did they use Part II or Part III for individual grants?)
+If no TEOS record found: breadcrumb "no prior filing on TEOS — new filer or EIN lookup failed"
+If TEOS is inaccessible: add `open_questions[]` entry requesting prior 990 PDF directly from
+operator; continue without blocking.
+When TEOS extraction succeeds:
+- Set `prior_990_analysis.eoy_net_assets = <extracted value>`
+- If `key_facts.prior_year_990_eoy_net_assets` is still null (user deferred at P0):
+  populate it now from `prior_990_analysis.eoy_net_assets`
+- Set `key_facts.prior_year_990_eoy_net_assets_source = "teos_extracted"`
+This ensures Cluster C always reads a populated key_facts field when prior year data exists,
+regardless of whether it came from P0 (operator-stated) or P1 (TEOS-extracted).
 5. For each missing artifact: create an Open Question. If addressed to an external party,
    create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
