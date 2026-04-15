@@ -1090,7 +1090,7 @@ Write `artifacts/efile-handoff-packet.md` with:
 
 **Applicable Gates.** Q-F15 (signature block populated in dataset before filling PDF).
 
-**Transition.** Done. Print completion banner.
+**Transition.** Done. Print completion banner. See Post-Run Review section below; print the prompt box to the operator before closing the session.
 
 ---
 
@@ -1115,6 +1115,38 @@ Write `artifacts/efile-handoff-packet.md` with:
 
   Filing deadline for calendar-year returns: May 15 (+ 6-month extension via Form 8868)
 ```
+
+---
+
+## Post-Run Review (P9 closing step — operator performs before closing session)
+
+After printing the Completion Banner, prompt the operator with:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  Post-Run Review — capture learnings before you close        ║
+╠══════════════════════════════════════════════════════════════╣
+║  1. Did this run reveal any skill gaps? If yes, add a task   ║
+║     to form990-skill-todo.md under one of:                   ║
+║       (a) new quality gate needed                            ║
+║       (b) phase improvement (wrong prompt / missing check)   ║
+║       (c) data-source handling (new source type encountered) ║
+║       (d) error pattern (unexpected input or edge case)      ║
+║                                                              ║
+║  2. Were any unexpected org-specific decisions made that      ║
+║     future runs should know about? If yes, append to         ║
+║     LEARNINGS.md with date + phase + finding.               ║
+║                                                              ║
+║  3. Review NEEDS_UPDATE examples in QUESTIONS.md for         ║
+║     org-specific details that crept in during this run       ║
+║     (vendor names, donor names, real dollar amounts that      ║
+║     could identify the org). Replace with generic stand-ins  ║
+║     (e.g., "Acme Services LLC") before closing the run.      ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+This is a **manual operator prompt** — not automated. The operator decides what to record.
+No AskUserQuestion required. Print and continue to session close.
 
 ---
 
