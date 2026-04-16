@@ -52,19 +52,15 @@ def main(dataset_path: str) -> int:
 
         log(f"── {script_name} ──────────────────────────────────────")
         try:
-            result = subprocess.run(
-                [sys.executable, str(script_path), dataset_path],
-                capture_output=False,  # let output stream to stdout
-                text=True,
-                timeout=30,
-            )
-            # The last line of stdout is JSON summary
             output = subprocess.run(
                 [sys.executable, str(script_path), dataset_path],
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
+            # Stream the trace to stdout, then parse the last line for JSON summary
+            if output.stdout:
+                print(output.stdout, end="")
             lines = output.stdout.strip().splitlines()
             summary_line = lines[-1] if lines else "{}"
             try:
