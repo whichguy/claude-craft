@@ -162,6 +162,10 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   as income. Classify at P5 or include in Part IX M&G. Don't leave in UNCATEGORIZED.
   Ask the user: "Was this a reimbursement from someone, a returned check, or a bank credit?"
 
+- **PERSONA.md and PLAN-TEMPLATE.md §Persona are separate copies.** When either changes,
+  update the other. Drift was detected 2026-04-15 (PLAN-TEMPLATE.md was more condensed
+  without tracking).
+
 *[Append new entries below after each run — never delete existing entries]*
 
 <!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->
@@ -171,7 +175,7 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
 
 ## TODO — Skill Improvements from FY2025 Live Run (2026-04-14)
 
-Identified gaps in the skill based on real-world execution. Add to the next hardening pass.
+*All items below implemented 2026-04-15. Preserved for reference; see git log for details.*
 
 **P1 (Source Discovery):**
 - TODO-1: At P1, explicitly prompt for the Gusto (or payroll processor) W-2 annual summary
@@ -230,8 +234,7 @@ Identified gaps in the skill based on real-world execution. Add to the next hard
 
 ## Quality Gate Improvements (2026-04-14) — from FY2025 live-fire run
 
-New Q-F gates and SKILL directives identified as missing. Each maps to a concrete gap
-caught during the live-fire execution. Add to QUESTIONS.md + SKILL.md in next hardening pass.
+*Q-F19–Q-F23 and associated directives implemented 2026-04-15. Preserved for reference.*
 
 ---
 
@@ -432,8 +435,7 @@ timing), (c) if 1099-K > reported PSR, investigate whether unreported revenue ex
 
 ## Quality Gate Improvements — Second Pass (2026-04-14)
 
-Subtler patterns from the FY2025 live run not captured in the first TODO batch above.
-All 7 items are distinct from TODO-1 through TODO-11 and Q-F19 through Q-F23.
+*Q-F24–Q-F26, Q-F5/Q-F18 extensions, and all directives implemented 2026-04-15. Preserved for reference.*
 
 ---
 
@@ -447,7 +449,7 @@ Trigger: prior_990_analysis exists in plan machine state
 Check: Part I "Prior Year" columns (Lines 8-19) must be populated with data from the
   filed prior year 990 Part I, not left blank.
   - Line 8 prior year = prior_990_analysis.contributions
-  - Line 9 prior year = prior_990_analysis.program_service_revenue
+  - Line 9 prior year = prior_990_analysis.program_service_rev
   - Line 12 prior year = prior_990_analysis.total_revenue
   - Line 18 prior year = prior_990_analysis.total_expenses
   - Line 19 prior year = revenue - expenses from prior year

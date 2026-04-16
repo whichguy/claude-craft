@@ -29,7 +29,10 @@ Apply when the phase processes data that meets ANY of:
 ### The pattern (4 steps)
 
 **Step 1 — Write the script.**
-Write a self-contained Python 3 script to `artifacts/scripts/<phase>-<purpose>.py`.
+Write a self-contained Python 3 script to `{SKILL_ROOT}/scripts/<phase>-<purpose>.py`.
+Scripts are skill-owned and reusable across runs — they are org-agnostic (all org-specific
+data flows in via command-line args). Do NOT write scripts to `artifacts/scripts/`; that
+directory is reserved for per-run fixtures only.
 The script must:
 - Accept input paths as command-line arguments (no hardcoded paths)
 - Print a JSON result to stdout on success (`{"status": "ok", "result": {...}}`)
@@ -40,7 +43,8 @@ The script must:
 **Step 2 — Sample run (validate logic before full dataset).**
 Run the script on a small sample first:
 - For tabular data: pass the first 5 rows as a fixture (either a sliced CSV or a tiny
-  JSON fixture file written to `artifacts/scripts/fixtures/<phase>-sample.json`)
+  JSON fixture file written to `artifacts/scripts/fixtures/<phase>-sample.json` — fixtures
+  are per-run and stay in `artifacts/`, unlike the scripts themselves)
 - For multi-year calculations: use 2 years of data instead of 5
 - Inspect the output manually; verify the arithmetic matches hand-calculation on the sample
 - If the output looks wrong: fix the script and re-run the sample before proceeding
@@ -67,7 +71,7 @@ Scripts are tracked in machine state under `programmatic_scripts[]`:
   {
     "phase": "P2",
     "purpose": "coa-mapping",
-    "script_path": "artifacts/scripts/p2-coa-mapping.py",
+    "script_path": "{SKILL_ROOT}/scripts/p2-coa-mapping.py",
     "sample_fixture": "artifacts/scripts/fixtures/p2-sample.json",
     "last_run": "<iso>",
     "last_run_sha256_input": "<sha256-of-input-data>",
@@ -77,9 +81,9 @@ Scripts are tracked in machine state under `programmatic_scripts[]`:
   }
 ]
 ```
-Scripts are committed to git along with skill files (they are not PII). The script itself is
-a first-class artifact: it documents *how* the data was processed, enables re-runs after
-source corrections, and is reviewable by the CPA as part of the audit trail.
+Scripts live in `{SKILL_ROOT}/scripts/` and are committed to the skill repo (not PII).
+The `script_path` stored in machine state is the absolute resolved path. Scripts document
+*how* data was processed and enable re-runs after source corrections — reviewable by the CPA.
 
 ### Safety rules
 
@@ -97,9 +101,9 @@ All script invocations go through `SKILL.md §run_script()`. Before invoking:
 
 ```python
 # Example (P2 CoA mapping)
-SCRIPT_ALLOWLIST.add(str(pathlib.Path("artifacts/scripts/p2-coa-mapping.py").resolve()))
+SCRIPT_ALLOWLIST.add(str(pathlib.Path(f"{SKILL_ROOT}/scripts/p2-coa-mapping.py").resolve()))
 result = run_script(
-    "artifacts/scripts/p2-coa-mapping.py",
+    f"{SKILL_ROOT}/scripts/p2-coa-mapping.py",
     args=["--sheet-csv", "artifacts/budget-export.csv"],
     phase_id="P2",
 )
@@ -166,6 +170,16 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    name, fiscal year start/end, accounting method, public charity basis
 2. Capture gross-receipts history: current year + prior-1 + prior-2 (from prior 990 or user
    input). Compute `gross_receipts_3yr_average = (yr_current + yr_prior1 + yr_prior2) / 3`
+2a. Prior year 990 check. Ask:
+    "Do you have a filed prior year Form 990? If yes, what were the total net assets
+    (End of Year) on that return? (You can find this on the prior 990 Part X Line 33,
+    column B — End of Year.)"
+    - If user provides: set `key_facts.prior_year_990_eoy_net_assets = <amount>`,
+      set `key_facts.prior_year_990_eoy_net_assets_source = "operator_stated"`
+    - If no prior filing: set `key_facts.prior_year_990_eoy_net_assets = null`,
+      breadcrumb "no prior filing — Part X BOY will use Tiller opening balance"
+    - If deferred: set to null, add `open_questions[]` entry
+      `{id: "OQ-py990", type: "prior_990_eoy_net_assets", status: "pending"}`
 3. Run variant decision tree (verbatim — do not paraphrase):
    ```
    IF is_private_foundation:
@@ -206,10 +220,12 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
-5. Write top-level machine state: `tax_year`, `fiscal_year_start`, `fiscal_year_end`,
-   `form_variant`. Write `key_facts`: legal_name, ein, accounting_method,
-   gross_receipts_current, gross_receipts_3yr_average, total_assets_eoy, public_charity_basis.
-   (`form_variant` is a top-level field, NOT inside `key_facts`.)
+5. Write **top-level machine state** (siblings of `key_facts`, NOT inside it):
+   `tax_year`, `form_variant`, `skill_root`.
+   Write **`key_facts`** (inside the key_facts object):
+   `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
+   `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
+   `public_charity_basis`.
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -241,6 +257,56 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
      ```
    - Stop; do not advance to P1
 8. Mirror key facts into the `## Key Facts` markdown table (human-readable section)
+8b. **Artifact pre-scan (non-blocking — run after variant routing, before P1):**
+
+Scan `artifacts/` for key source documents that Drive MCP cannot access (org-account Drive
+files are invisible to personal-OAuth MCP). Record found paths in machine state under
+`artifact_local_paths{}`. Queue an open question for each missing item.
+
+> **Why at P0:** Drive MCP uses personal OAuth — any file stored in the org's Google Drive
+> account is inaccessible. Operators must copy these files into `artifacts/` manually.
+> Surfacing gaps at P0 gives the operator time to collect documents before P1–P3 need them.
+
+**a. Federal and state blank forms (see SKILL.md §Form Discovery Directive for URLs and protocol):**
+- Run the Form Discovery Directive now for `tax_year` — do not defer to P9.
+- Minimum: fetch `f990-blank-<tax_year>.pdf` (or 990-EZ if variant = 990-EZ).
+- Also fetch `f8868-<year>.pdf` (extension form) and CA companion forms if CA org.
+- Verify revision date in each fetched PDF matches `tax_year` (see Directive for check).
+- On any fetch failure: queue an open question with manual URL; do not block P0 completion.
+
+**b. Prior year filed 990 PDF:**
+- Check `artifacts/` for files matching (case-insensitive): `*990*<prior_year>*.pdf`,
+  `*form*990*<prior_year>*.pdf`, `*<prior_year>*990*.pdf`
+- Also check `artifacts/` for any file with both "990" and a 4-digit year in the name
+- If found: set `artifact_local_paths.prior_990_pdf = <absolute_path>`; breadcrumb path
+- If not found: add open question `OQ-prior-990-pdf` —
+  "Copy the filed prior year Form 990 PDF into artifacts/. Filename can be anything
+  containing '990' and '<prior_year>'. This is required for BOY reconciliation (Part X),
+  Schedule A Line 16, and board-member comparison."
+- Note: IRS TEOS check at P1 may also retrieve this — if P1 TEOS succeeds, close OQ-prior-990-pdf.
+
+**c. Payroll / W-2 annual summary:**
+- Check `artifacts/` for files matching: `*payroll*<tax_year>*.pdf`, `*w-2*<tax_year>*.pdf`,
+  `*w2*<tax_year>*.pdf`, `*gusto*<tax_year>*.pdf`, `*wages*<tax_year>*.pdf`
+- If found: set `artifact_local_paths.payroll_w2_pdf = <absolute_path>`; breadcrumb path
+- If not found: add open question `OQ-payroll-w2` —
+  "Export the W-2 annual summary from Gusto (or your payroll processor) as a PDF and place
+  it in artifacts/. Required for Part IX Line 7 (gross wages) and Part VII compensation.
+  Tiller shows net pay — the 990 requires W-2 Box 1 gross wages."
+- P3 Pre-check will block on this; better to surface at P0.
+
+**d. CA Secretary of State filing (if CA org):**
+- Only check if `key_facts.public_charity_basis` indicates CA registration (or state = CA
+  from address)
+- Check `artifacts/` for: `*sec*state*.pdf`, `*statement*information*.pdf`, `*si-100*.pdf`,
+  `*ca*filing*.pdf`
+- If found: set `artifact_local_paths.ca_sec_state_pdf = <absolute_path>`
+- If not found: add advisory open question `OQ-ca-sec-state` (non-blocking) —
+  "Copy the CA Secretary of State Statement of Information (SI-100) into artifacts/ if
+  available. Used for Part VI governance questions and board-change detection."
+
+**Output:** `artifact_local_paths{}` populated in machine state; open questions queued for
+any missing item. This step never blocks P0 completion — all gaps become open questions.
 
 **Outputs.**
 - Machine state JSON populated: tax_year, fiscal_year_*, form_variant, all key_facts fields
@@ -291,11 +357,18 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
 3. Register findings into `artifacts[]` with Drive file ID as path reference
 4. For each missing artifact in the required checklist (below), create an Open Question:
    ```
-   Required source checklist:
-   ├─ prior_990         (prior year Form 990 — or note "first-year filer")
+   Required source checklist (✔ = already found at P0 pre-scan; check artifact_local_paths):
+   ├─ prior_990         (prior year Form 990) ← ✔ source PDF located (artifact_local_paths.prior_990_pdf set), or "first-year filer"
+   │                    NOTE: PDF presence ≠ data extracted. TEOS check or local-PDF
+   │                    parsing below still required to populate prior_990_analysis.
+   │                    Do NOT skip the TEOS check because this shows ✔.
    ├─ budget_sheet      (already have from P0 --sheet flag) ✔
    ├─ bank_statements   (covering fiscal year)
    ├─ payroll_report    (W-2 register or payroll provider export)
+   ├─ payroll_w2_annual (Gusto annual summary) ← ✔ if artifact_local_paths.payroll_w2_pdf set; else required
+   │                     alongside bank statements. Tiller net pay is always wrong for
+   │                     Part VII/IX. Request before P3. If not immediately available:
+   │                     add open_questions entry and continue; P3 Pre-check will block.)
    ├─ 1099_register     (if contractors paid ≥ $600)
    ├─ donor_list        (if Schedule B may be triggered)
    ├─ board_roster      (for Part VI and Part VII)
@@ -305,8 +378,63 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
                          OR if federal award expenditures ≥ $750K per Uniform Guidance /
                          Single Audit Act — gross receipts alone do NOT trigger Single Audit)
    ```
+
+**Prior year 990 TEOS check (P1):** Check apps.irs.gov/app/eos/ for the org's EIN.
+If a prior filing exists:
+1. Download the most recent year's 990 PDF
+2. Extract and store as `prior_990_analysis` in machine state:
+   - `eoy_net_assets` (Part X Line 33 col B)
+   - `schedule_a_line15_pct` (Schedule A Part III Line 15)
+   - `board_members` (Part VII Section A — name, title, hours)
+   - `schedule_i_methodology` (did they use Part II or Part III for individual grants?)
+   - `contributions` (Part VIII Line 1h — total contributions; used by P7 Prior Year column)
+   - `program_service_rev` (Part VIII Line 2 — PSR; used by P7 Prior Year column)
+   - `total_revenue` (Part VIII Line 12; used by P7 Prior Year column)
+   - `total_expenses` (Part IX Line 25; used by P7 Prior Year column)
+If no TEOS record found: breadcrumb "no prior filing on TEOS — new filer or EIN lookup failed"
+If TEOS is inaccessible: add `open_questions[]` entry requesting prior 990 PDF directly from
+operator; continue without blocking.
+When TEOS extraction succeeds:
+- Set `prior_990_analysis.eoy_net_assets = <extracted value>`
+- If `key_facts.prior_year_990_eoy_net_assets` is still null (user deferred at P0):
+  populate it now from `prior_990_analysis.eoy_net_assets`
+- Set `key_facts.prior_year_990_eoy_net_assets_source = "teos_extracted"`
+This ensures Cluster C always reads a populated key_facts field when prior year data exists,
+regardless of whether it came from P0 (operator-stated) or P1 (TEOS-extracted).
+
+**CA Secretary of State board discovery (P1 — non-blocking, CA orgs only):**
+The CA SOS `bizfileonline.sos.ca.gov` portal is JavaScript-rendered and requires a paid
+API subscription for programmatic access. Instead, use WebSearch to find the org's current
+officers/directors from public search engine results:
+
+1. WebSearch: `"[key_facts.legal_name]" "California Secretary of State" "Statement of Information" officers directors`
+2. If results reference a CA SOS entity page or SI-100 filing with officer names: extract
+   names and titles into `ca_sos_officers[]` — a list of `{name, title}` dicts stored in
+   machine state alongside `artifact_local_paths`.
+3. If `artifact_local_paths.ca_sec_state_pdf` was found at P0: attempt to read the PDF
+   directly and extract officer/director names from the "Officers" section.
+4. If neither works: close `OQ-ca-sec-state` with "CA SOS auto-discovery not available —
+   officer list will be confirmed via board_roster artifact or operator input at P5/P6."
+
+Store result as `ca_sos_officers: [{name, title}, ...]` in top-level machine state (null if
+not found). The board-change detector and Part VII (Section A) both read from this field
+when `prior_990_analysis.board_members` alone is insufficient.
+
+**Board change detector (P1 — run after TEOS extraction and CA SOS discovery, non-blocking advisory):**
+Compare known prior-year board (`prior_990_analysis.board_members`) and current CA SOS
+officers (`ca_sos_officers`) against the operator-provided current roster.
+- For each person in `prior_990_analysis.board_members` NOT in the current roster:
+  Prompt: "[Name] was listed as a director/officer in the prior year 990. Have they
+  departed? If yes: (a) last date of service? (b) mid-year departure? (c) did the board
+  amend bylaws, change authorized positions, or alter governing structure?"
+- For each person in the current roster NOT in `prior_990_analysis.board_members`:
+  Prompt: "[Name] is new to the board. Since when have they served?"
+- If any governing-document change reported: set Part IV Line 4 = Yes → Schedule O required.
+- Record all transitions in Decision Log with dates.
+- If `prior_990_analysis` is null: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
+
 5. For each missing artifact: create an Open Question. If addressed to an external party,
-   create a Gmail draft via `gmail_create_draft` using `templates/email-question.md`:
+   create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
    - Record `draft_id` in `open_questions[].draft_id`
    - Apply dedup rule (see SKILL.md §Email Workflow): check existing draft_id before creating
@@ -334,7 +462,7 @@ or queued as open question).
 line plus a functional bucket (Program / M&G / Fundraising) with a documented allocation basis.
 
 > **Programmatic analysis required** (see Cross-Cutting Pattern above). Budget sheets routinely
-> have 30–300 rows. Apply the 4-step script pattern: write `artifacts/scripts/p2-coa-mapping.py`,
+> have 30–300 rows. Apply the 4-step script pattern: write `{SKILL_ROOT}/scripts/p2-coa-mapping.py`,
 > validate on a 5-row sample fixture, run full dataset, review flags with user.
 
 **Inputs.** Budget sheet tabs from P1 (`key_facts.sheet_schema`, budget tab content).
@@ -348,7 +476,14 @@ line plus a functional bucket (Program / M&G / Fundraising) with a documented al
 
 **Work.**
 
-**Script: `artifacts/scripts/p2-coa-mapping.py`**
+**Categories tab (read before mapping).** Read the Tiller `Categories` tab (or equivalent
+functional-allocation tab) at the start of P2. The `Group` field on that tab defines the
+Program / M&G / Fundraising allocation for each budget category and is the authoritative
+allocation source. Do NOT infer functional allocation from P&L row labels alone — the label
+may say "Supplies" while the Group field says "Program." Record the `Group` → bucket mapping
+before running Step 4 below.
+
+**Script: `{SKILL_ROOT}/scripts/p2-coa-mapping.py`**
 - Input args: `--sheet-csv <path>` (normalized CSV dump of budget tab), `--tax-year <YYYY>`
 - Output: JSON with `{mapped_rows: [...], flags: [...], summary: {revenue_total, expense_total, unmapped_count}}`
 - Sample fixture: `artifacts/scripts/fixtures/p2-sample.json` (5 rows covering at least one
@@ -360,6 +495,11 @@ For each budget row, apply the mapping methodology:
 **Step 1: Classify sign/type.**
 - Revenue if: account-type = income, or amount is a credit balance
 - Expense if: account-type = expense, or amount is a debit balance
+- **Negative income line:** If a row has account-type = income but a negative amount
+  (reversal/refund in an income category), do NOT auto-classify. Prompt:
+  "This appears to be a reversal of prior income. Which Part VIII line does this reduce?
+  Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue."
+  Record the answer and offset against the indicated line. Never auto-commit.
 
 **Step 2: Map Revenue → Part VIII line by source taxonomy.**
 | Revenue type | Part VIII line |
@@ -375,6 +515,14 @@ For each budget row, apply the mapping methodology:
 | Gaming | Line 9a |
 | Sales of inventory | Line 10a |
 | Other revenue (unclassified) | Line 11 (a–e) |
+
+> **Merchandise Revenue special case:** Even if Tiller places merchandise sales in the
+> Fundraising income group, it maps to **Part VIII Line 10a** (gross sales of inventory),
+> NOT Line 1 (contributions) or Line 8 (fundraising events). Prompt the user to confirm
+> the COGS amount (from the `Merchandise Sales Inventory` expense line or equivalent).
+> Record: `part_viii_line10a = gross_merchandise_sales`, `part_viii_line10b = COGS`,
+> `part_viii_line10c = net = line10a − line10b`. Merchandise COGS must NOT appear in
+> Part IX — it is reported only in Part VIII Line 10b.
 
 **Step 3: Map Expense → Part IX line by nature.**
 | Expense type | Part IX line |
@@ -407,6 +555,20 @@ For each budget row, apply the mapping methodology:
 | Depreciation / amortization | Line 22 |
 | Insurance | Line 23 |
 | All other expenses | Line 24 (a–e) |
+
+**Payroll commingling check (P2 — run when any "Payroll Tax" or equivalent category is encountered):**
+
+Prompt: "Does your bookkeeping show payroll taxes as a single combined deposit
+(employer + employee withholdings together) or separately?"
+- If combined: flag for Part IX Line 10 correction; set
+  `payroll_tax_source = "combined_tiller"` in machine state; add open_questions
+  entry requiring Gusto employer taxes summary before P5.
+  If no Gusto column provided by P5 Pre-check → blocking halt per Q-F19.
+- If separate: proceed normally.
+
+Note: If Tiller uses non-standard or user-renamed categories that don't match "Payroll Tax"
+literally, default to asking unconditionally: "Does your bookkeeping show payroll taxes as
+combined or separate?"
 
 **Step 4: Assign functional bucket.**
 - Direct assignment: row label clearly names a program/M&G/fundraising activity
@@ -475,7 +637,7 @@ matrix from the CoA mapping.
 > **Programmatic analysis required** (see Cross-Cutting Pattern above). P3 aggregates the
 > CoA mapping into three financial statements — 25 Part IX rows × 4 columns = 100 cells that
 > must be arithmetically exact. Apply the 4-step script pattern:
-> write `artifacts/scripts/p3-financial-statements.py`, validate on a 5-row sample of the
+> write `{SKILL_ROOT}/scripts/p3-financial-statements.py`, validate on a 5-row sample of the
 > CoA mapping CSV, then run the full mapping.
 
 **Inputs.** `artifacts/coa-mapping.csv` from P2; budget sheet tab values.
@@ -488,10 +650,19 @@ matrix from the CoA mapping.
 - Verify `coa-mapping.csv` contains all required columns (existence already confirmed by verify_ancestors)
 - Verify zero rows with empty `mapped_line` (Q-F18 proxy — all rows must be mapped)
 - Verify at least one row per functional bucket or explicitly N/A
+- **Blocking: Gross wages source.** Tiller captures net payroll (take-home amounts). Part IX
+  Line 7 requires W-2 Box 1 gross wages. If `open_questions[]` still has `payroll_w2_annual`
+  pending: HALT with "Gusto (or payroll processor) W-2 annual summary required before P3 can
+  compute Part IX Line 7. Provide the W-2 Box 1 total for all employees." Do NOT populate
+  Part IX Line 7 from Tiller payroll lines.
+- **Blocking: Payroll tax composition.** If `payroll_tax_source == "combined_tiller"` (set at P2)
+  and no Gusto employer taxes summary is in `artifacts`: HALT with "Gusto employer taxes summary
+  required before P3 can compute Part IX Line 10. Provide employer-only FICA/FUTA amounts." Do
+  NOT populate Part IX Line 10 from combined Tiller payroll tax lines.
 
 **Work.**
 
-**Script: `artifacts/scripts/p3-financial-statements.py`**
+**Script: `{SKILL_ROOT}/scripts/p3-financial-statements.py`**
 - Input args: `--coa-csv artifacts/coa-mapping.csv`, `--balance-sheet-csv <path>` (if
   balance-sheet accounts are in a separate tab)
 - Output: JSON with `{statement_of_activities: {...}, balance_sheet: {boy: {...}, eoy: {...}},
@@ -502,6 +673,13 @@ matrix from the CoA mapping.
   VIII revenue lines to validate Statement of Activities totals, and ≥1 balance-sheet account
   pair BOY/EOY to validate Part X anchors; fewer rows would leave one output dimension untested)
 - The script performs Steps 1–4 below; `column_check_pass` is the Q-F3 inline check
+
+**Merchandise COGS accounting rule:** Merchandise COGS shown in Tiller's expense total MUST
+be excluded from Part IX and reported ONLY in Part VIII Line 10b. As a result:
+- Part VIII Line 12 (total revenue) ≠ Tiller total income by exactly the COGS amount
+- Part IX Line 25 (total expenses) ≠ Tiller total expenses by exactly the COGS amount
+If merchandise lines are present in the CoA mapping: verify COGS is flagged
+`exclude_from_part_ix = true` before aggregating Part IX.
 
 1. Aggregate revenue rows by Part VIII line → compute line totals → write Statement of
    Activities (total revenue, total expenses, change in net assets, beginning/ending net assets)
@@ -603,9 +781,29 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
 **Part III — Statement of Program Service Accomplishments:**
 - Line 1: mission statement (≤ 300 characters)
 - Lines 4a–4c: three largest programs by expense (program name, expenses, grants, revenue,
-  description of beneficiaries/outputs)
+  description of beneficiaries/outputs). Before drafting descriptions, prompt:
+  1. "How many individual athletes/students were enrolled on average during the year?"
+  2. "What is the weekly class schedule (days + hours)? How many weeks did you operate?"
+     → Compute: `hours = (weekly_hours × operating_weeks) − individual_holiday_hours`
+  3. "Were any new program services launched this year (not offered in prior years)?"
+     → If yes: set Part III Line 2 = Yes; require a description of the new service.
+  4. "Did any athletes achieve notable competitive accomplishments (national team selections,
+     championship placements, state/regional rankings)?" → Include in description if yes.
+  Include headcount and computed hours in the description (IRS expects quantified outputs).
 - Line 4d: other program services (aggregate)
 - Line 4e: total program service expenses
+
+**Competition assistance / scholarship classification prompt (P5 — ask before filling Lines 4a–4c):**
+If any grant, scholarship, or competition-assistance amount appears in the program expenses, ask:
+"What form did competition assistance or scholarships take? Options:
+  (a) Voucher / discount code — org reduces its own fee; NOT a grant; reports as reduced revenue
+  (b) Direct cash payment to the athlete/student — Part IX Line 2 (grants to US individuals)
+  (c) Payment to competition organizer on behalf of the athlete — Part IX Line 2 (grants to US individuals)"
+- Path (a): no Schedule I triggered; adjust Part VIII revenue line; note in Part III description
+- Paths (b) or (c): Part IV Line 22 = Yes → Schedule I triggered; record grant amounts in Schedule I
+- Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
+  "Prior year used [methodology]. Use the same treatment unless org changed its policy."
+- Do NOT auto-commit classification. Create Open Question if ambiguous.
 
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
@@ -671,7 +869,43 @@ Highest-Compensated Employees:**
 - Confirm Part IX Line 25 Column A = Statement of Activities total expenses (Q-F2 proxy)
 
 **Part X — Balance Sheet:**
+- **Liability pre-check (before copying from balance-sheet.md):** Read the balance sheet's
+  LIABILITY section from Tiller (or the net worth report). Do NOT set Part X liabilities to $0
+  without verifying. Credit card balances on personal cards used for org expenses are real
+  liabilities even if not tracked in a dedicated Tiller liability account. Ask: "Does the org
+  have any outstanding credit card balances, loans, or accrued payables at year-end — including
+  on personal cards used for org expenses?" Record any confirmed liabilities in Part X before
+  copying from balance-sheet.md.
 - Lines 1–33: copy from `balance-sheet.md` (BOY + EOY columns)
+
+**BOY reconciliation check (after Tiller BOY is read from balance-sheet.md):**
+
+If `key_facts.prior_year_990_eoy_net_assets` is not null AND differs from Tiller BOY:
+```
+filed_eoy = key_facts.prior_year_990_eoy_net_assets
+tiller_boy = <Tiller opening balance from balance-sheet.md>
+
+1. Accept filed_eoy as the authoritative Part X BOY (override Tiller)
+2. Auto-compute Part XI Line 9 prior-period adjustment:
+   Assumptions (verify against IRS Form 990 Part XI instructions before implementing):
+   - EOY_actual = current-year Part X Line 33 col B (EOY net assets — from
+     key_facts.total_assets_eoy minus liabilities, or from dataset_core.json Part X)
+   - revenue = Part VIII Line 12 col A (total revenue)
+   - expenses = Part IX Line 25 col A (total expenses)
+   - Formula: xi_adj = EOY_actual − (filed_eoy + revenue − expenses)
+   - Sign convention: verify against IRS Form 990 Part XI instructions; a wrong sign
+     would silently produce an incorrect Schedule O narrative
+3. Pre-populate Schedule O narrative template:
+   "During FY[prior], our bookkeeping system recorded beginning net assets of
+   $[tiller_boy], which differed from the filed Form 990 ending net assets of
+   $[filed_eoy] (a difference of $[filed_eoy − tiller_boy]). We have adjusted
+   beginning net assets to match the filed return."
+4. Record in Decision Log: "Part X BOY adjusted from Tiller $[tiller_boy] to
+   filed prior year $[filed_eoy] — prior period adj $[xi_adj] in Part XI Line 9
+   (source: [key_facts.prior_year_990_eoy_net_assets_source])"
+```
+
+If `prior_year_990_eoy_net_assets` is null: proceed with Tiller BOY, no adjustment.
 
 **Part XI — Reconciliation of Net Assets:**
 - Line 1: total revenue (Part VIII Line 12)
@@ -733,7 +967,7 @@ P6 writes only `dataset_schedules.json` plus per-schedule markdown — never tou
 > **Programmatic analysis required for Schedule A** (see Cross-Cutting Pattern above). The
 > 509(a)(1) public-support test involves 5 years × multiple donor/revenue columns × excess-
 > contribution exclusion arithmetic across donors — error-prone to compute inline. Apply the
-> 4-step script pattern for Schedule A: write `artifacts/scripts/p6-schedule-a.py`, validate
+> 4-step script pattern for Schedule A: write `{SKILL_ROOT}/scripts/p6-schedule-a.py`, validate
 > on 2 years of data as a sample fixture, then run the full 5-year window.
 
 **Inputs.** `required_schedules[]`, `artifacts/form990-dataset-core.json` (read-only),
@@ -774,14 +1008,14 @@ See SCHEDULES.md §Schedule-A for the full 5-year public-support worksheet.
 > to extract each year's fundraising and PSR totals separately. The PST tab may be useful
 > as a sanity check for the current year but is insufficient for the 5-year computation.
 
-**Script: `artifacts/scripts/p6-schedule-a.py`**
+**Script: `{SKILL_ROOT}/scripts/p6-schedule-a.py`**
 - Input args: `--support-json <path>` (a JSON file with 5-year support history per donor,
   shape: `{years: [T-4..T], donors: [{name, year, amount}], totals: {year: {contributions,
-  investment_income, other_revenue, program_service_revenue}}}`)
+  investment_income, other_revenue, program_service_rev}}}`)
 - Output: JSON with `{public_support_pct: float, result: "PASS"|"BORDERLINE"|"FAIL",
   test_used: "509a1"|"509a2", five_year_detail: [...], excess_contributions_by_year: {...},
   facts_and_circumstances_needed: bool, flags: [...]}`
-- Sample fixture: `artifacts/scripts/fixtures/p6-schedule-a-sample.json` — use 2-year window
+- Sample fixture: `artifacts/scripts/fixtures/p6-schedule-a-sample.json` (per-run, stays in artifacts/) — use 2-year window
   with 3 donors (one clearly below 2% threshold, one right at it, one above) to verify
   excess-contribution exclusion logic before running the full 5-year dataset
 - On BORDERLINE (10%–33⅓%): set `facts_and_circumstances_needed: true` and add a flag
@@ -804,10 +1038,53 @@ public_support_pct = public_support / five_yr_total_support × 100
 PASS if ≥ 33⅓%; or ≥ 10% with facts-and-circumstances narrative
 ```
 
+**Schedule A Line 16 — prior year percentage (always from filed return, never re-computed):**
+Line 16 of Schedule A Part II asks for the "Public support percentage from 2023 Schedule A,
+Part II, line 15" (the prior year's filed percentage). Always populate this from
+`prior_990_analysis.schedule_a_line15_pct` — the verbatim percentage as reported on the
+most recently filed Schedule A. Do NOT re-compute the prior year percentage from raw data.
+The prior CPA's methodology may have differed (different donor classifications, rounding);
+re-computing risks a mismatch with the filed return that triggers IRS scrutiny.
+- If `prior_990_analysis.schedule_a_line15_pct` is null (no prior filing): Line 16 = N/A or 0.
+- If TEOS extraction succeeded: use `prior_990_analysis.schedule_a_line15_pct` verbatim.
+- If prior 990 not available from TEOS or operator: create Open Question; do not leave blank.
+
+**Entity donor DQ ownership check (P6 — run during Schedule A prep, before finalizing Line 7a):**
+For each non-individual donor (business entity, LLC, foundation, DAF) that contributed
+more than $5,000 in ANY of the 5-year Schedule A window, ask:
+"Does any current or former officer, director, trustee, or key employee of [org] have a
+direct or indirect ownership interest ≥ 35% in [entity name]?"
+- If YES → entity is a disqualified person; contributions excluded from Schedule A Line 7a
+  (same as individual DQ contributors — full exclusion, no cap)
+- If NO → entity is a public donor; include in public support
+- If UNKNOWN → create Open Question: "Check business registration or ask CEO";
+  mark Q-F26 NEEDS_UPDATE until resolved
+This is distinct from the individual DQ check and the insider vendor check — it
+specifically addresses corporate and entity donors.
+
+**Schedule A DQ cross-check (run after computing Line 7a):**
+After computing the DQ exclusion (Line 7a), verify: for every person listed in Part VII
+Section A (officers, directors, trustees, key employees), were their donations classified
+as disqualified contributions (full exclusion, Line 7a)?
+Prompt: "The following Part VII persons also appear in the donor data:
+  [list names]. Are all their donations classified as DQ contributions (IRC §4946)?
+  If yes, they should be fully excluded in Line 7a — not capped at Line 7b.
+  If any were NOT classified as DQ: confirm whether they are a 'substantial contributor'
+  per IRC §507(d)(2); if yes, treat as DQ."
+Flag any board member donation NOT in Line 7a as a potential DQ classification error.
+
 **Schedule O (always):**
 - Collect every Part VI "describe in Schedule O" placeholder from P5
 - For each: draft a narrative with the user or from governance documents
 - Include: functional expense allocation methodology (Q-F17)
+- **Disclosure accuracy check (Part VI Line 18):** When populating the public availability
+  statement, verify:
+  (a) Any named third-party website is still active (GuideStar → Candid in 2022; use
+      candid.org or apps.irs.gov as fallbacks)
+  (b) Whether the org has its own website where the 990 can be posted — if yes, check
+      "Own website" in Part VI Line 18
+  (c) Default if no website: "Upon request" + "Another's website (www.candid.org or
+      apps.irs.gov/app/eos/)" — do not name inactive or renamed sites
 
 **Schedule B (if triggered):**
 - Collect donor names, amounts, addresses from `donor_list` artifact
@@ -861,6 +1138,19 @@ Part I Line 12 = dataset_core.parts.VIII["line_12_total_revenue"]
 Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
+
+**Part I Prior Year column (populate immediately after current-year rollup):**
+If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
+```
+Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
+Part I Line 9  Prior Year = prior_990_analysis.program_service_rev  (Part VIII Line 2)
+Part I Line 12 Prior Year = prior_990_analysis.total_revenue        (Part VIII Line 12)
+Part I Line 18 Prior Year = prior_990_analysis.total_expenses       (Part IX Line 25)
+Part I Line 19 Prior Year = total_revenue − total_expenses          (computed)
+```
+Store in `dataset_rollup.parts.I.prior_year`. If `prior_990_analysis` is absent: leave
+Prior Year column null and flag Q-F24 NEEDS_UPDATE (non-blocking — Part I Prior Year is
+not required for e-file transmission but is required on the public-facing reference PDF).
 Compute `reconciliation` using THREE SEPARATE CHECKS (not a single equality chain —
 see Q-F2 for rationale). Revenue − Expenses ≠ EOY − BOY when adjustment lines are non-zero:
 ```
@@ -899,6 +1189,33 @@ Emit `artifacts/reconciliation-report.md` with each check shown step by step.
 If any check fails by > $1: breadcrumb the discrepancy with the specific check name,
 flag Q-F2 NEEDS_UPDATE inline, do NOT advance to merge sub-phase until resolved.
 
+**Part XI Line 9 materiality check:** After computing Part XI Line 9 (other changes in net
+assets), evaluate: if `abs(Part XI Line 9) < $500`, log "Prior period adjustment is negligible
+($[amount]) — likely rounding. No Schedule O narrative required unless CPA requests it." Do
+NOT auto-generate a Schedule O narrative for amounts < $500. Only generate Schedule O content
+if `abs(Part XI Line 9) >= $500`.
+
+**Mid-session P&L re-check:** If the user updates the Tiller P&L mid-session (or says "I
+updated the P&L"), immediately re-read BOTH the P&L PDF and the net worth/balance sheet PDF
+before making any changes. Compute and display a structured diff:
+"Revenue: $[old] → $[new] (Δ$[diff]), Expenses: $[old] → $[new] (Δ$[diff]),
+Net: $[old] → $[new] (Δ$[diff]). EOY net assets: $[old] → $[new] (Δ$[diff])."
+Do NOT update dataset values silently — always show the diff and confirm before applying.
+
+**Reconciliation gap diagnostic (runs when `delta_match = false`):**
+Compute: `gap = abs((revenue_total − expense_total) − (net_assets_eoy − net_assets_boy))`
+If `gap > 1000` AND Part XI Lines 5–9 are all zero (no recorded adjustments):
+  Auto-prompt: "The math doesn't close by $[gap]. Likely causes:
+    (1) Prior period adjustment needed — does the BOY ($[net_assets_boy]) match the
+        filed prior year EOY ($[key_facts.prior_year_990_eoy_net_assets])?
+    (2) Is there a Tiller UNCATEGORIZED line that represents a real expense not
+        captured in Part IX?
+    (3) Was any income or expense recorded in Tiller but excluded from the 990
+        (e.g., pass-through funds, loan proceeds)?
+  Please resolve before P7 can advance to merge."
+If `gap > 1000` AND Part XI Lines 5–9 are non-zero: the gap is explained by adjustments;
+  log "Gap of $[gap] accounted for by Part XI Lines 5–9 adjustments" and continue.
+
 **Step 2: Deterministic merge (P7-merge sub-phase).**
 Run `SKILL.md §merge_datasets()` with the three sibling paths:
 ```
@@ -931,7 +1248,7 @@ same inputs → byte-identical output (E3 verified).
 
 ## P8 — CPA Quality Review Pass
 
-**Goal.** Run the full Q-F1..Q-F18 catalog with the CPA Reviewer persona. Convergence loop
+**Goal.** Run the full Q-F1..Q-F26 catalog with the CPA Reviewer persona. Convergence loop
 with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
 
 **Inputs.** Everything: all prior artifacts, key facts, all phase outputs.
@@ -943,6 +1260,10 @@ with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
   Any hash mismatch (including a stale `reconciliation_report`) halts before Pre-check.
 - Verify Part I is populated (not null) in `dataset_merged` (content check)
 - Verify all `required_schedules[]` have corresponding schedule artifacts in `dataset_schedules`
+- **Context loading:** Do NOT load SCHEDULES.md at P8 entry. P8 Q-F gates evaluate values
+  in `dataset_schedules.json` output artifacts — not SCHEDULES.md playbooks. Load SCHEDULES.md
+  only if a NEEDS_UPDATE triggers a P6 re-run (dispatched via `call PHASES.md §P6`).
+  This saves ~6,100 tokens per evaluation pass.
 
 **Work.**
 
@@ -951,7 +1272,7 @@ pass = 0
 memoized = {}
 
 while pass < 5:
-    evaluate Q-F1..Q-F18 applicable to current state (CPA Reviewer persona)
+    evaluate Q-F1..Q-F26 applicable to current state (CPA Reviewer persona)
     update gate_results_latest_pass, increment gate_pass_count
 
     for each NEEDS_UPDATE:
@@ -973,6 +1294,13 @@ if pass == 5 and gate1_unresolved > 0:
 
 Memoization: Gate-2/3 items stable across 2 consecutive passes → auto-memoize for pass 3+.
 Gate-1 items never memoized.
+
+**New-program advisory check (P8 — run once, before gate pass 1):**
+If `dataset_core.parts.III.line_2_new_programs == false` (or null), scan available org context
+(board minutes, mission documents, any P0 intake notes) for phrases like "new for this year,"
+"launching," "piloting," or "first time." If found: flag advisory — "Part III Line 2 says no
+new programs, but context mentions [quote]. Confirm whether a new program service was offered
+this year." Do not auto-flip Line 2; wait for user confirmation before updating.
 
 Write `artifacts/cpa-review-report.md` with full Q-F results after each pass.
 
@@ -1039,7 +1367,51 @@ reader = pypdf.PdfReader('artifacts/f990-blank-<tax_year>.pdf')
 field_count = len(reader.get_fields() or {})
 ```
 - `field_count == 0` (expected for recent flat PDFs) → proceed to Step 2 (coordinate overlay)
-- `field_count > 0` (rare, older or special revision) → log breadcrumb, attempt Step 2a first
+- `field_count > 0` (XFA form — 2025 f990.pdf has 1,307 AcroForm fields) → proceed to Step 1b
+
+**Step 1b: XFA field map extraction (runs when field_count > 0 and no cached map exists).**
+The 2025 f990.pdf is an XFA form. The XFA template stream (array item 5 of the `/XFA` key
+in the PDF trailer) contains `<assist><speak>` labels for every field. Extract them to build
+the `f990-field-map-YYYY.json` coordinate table:
+```python
+import pypdf, re, json
+
+reader = pypdf.PdfReader('artifacts/f990-blank-<tax_year>.pdf')
+xfa = reader.trailer["/Root"]["/AcroForm"]["/XFA"]
+# XFA is an array; item 5 (index 4 of stream objects) is the template
+template_stream = xfa[4].get_object().get_data().decode("utf-8", errors="replace")
+
+fields = {}
+for m in re.finditer(
+    r'<field name="([^"]+)".*?<assist><speak>([^<]+)</speak>',
+    template_stream, re.DOTALL
+):
+    short_name, label = m.group(1), m.group(2).strip()
+    full_path = f"form1[0].Page{page}[0].{short_name}[0]"  # adjust page from context
+    fields[f"{short_name}[0]"] = {"label": label, "full_path": full_path}
+
+json.dump(fields, open(f"{SKILL_ROOT}/templates/f990-field-map-{tax_year}.json", "w"), indent=2)
+```
+Cache the resulting map:
+- Canonical location: `{SKILL_ROOT}/templates/f990-field-map-<tax_year>.json` (skill-owned, reusable across runs)
+- Persistent: record the sha256 of the map in `TOOL-SIGNATURES.md §form990_field_map` under
+  `<!-- BEGIN FIELD MAP <year> --> ... <!-- END FIELD MAP <year> -->` sentinels
+
+On cache hit (same sha256 in TOOL-SIGNATURES.md): skip extraction, reuse `{SKILL_ROOT}/templates/f990-field-map-<tax_year>.json`.
+Do NOT write a copy to `artifacts/` — the templates/ location is authoritative and shared across all runs for this tax year.
+
+**XFA fill sequence (when using AcroForm name-based fill — Step 2a).**
+Short field name `f1_28` maps to a full XFA path ending in `.f1_28[0]`. Use the extracted
+`short_to_full` map from Step 1b:
+```python
+# CORRECT: exact key lookup
+full_path = short_to_full[f"{short_name}[0]"]
+
+# WRONG — fails for XFA nested paths:
+# full_path = next(p for p in all_paths if p.endswith(f'.{short_name}'))
+```
+The `.endswith()` pattern silently fails when a short name appears as a suffix of a longer
+path segment. Always use the pre-built `short_to_full` dict.
 
 **Step 2: Primary fill path — coordinate overlay.**
 Using `pypdf`, render a flat annotation layer over the blank PDF at line coordinates from
@@ -1049,6 +1421,7 @@ UTF-8 preserved; control characters stripped; NUL bytes rejected.
 
 **Step 2a: Fallback fill path — AcroForm name-based (only if field_count > 0).**
 Use `pdftk-java` with an FDF intermediate file written through a library (not hand-concatenated).
+XFA path resolution: use `short_to_full` lookup from Step 1b (see XFA fill sequence above).
 On `pdftk-java` non-zero exit: capture stderr to breadcrumb, fall through to Step 2.
 
 **Step 3: Assemble e-file handoff packet.**
@@ -1061,13 +1434,25 @@ Write `artifacts/efile-handoff-packet.md` with:
 - Disclaimer: "Verify current IRS-authorized status at the official IRS provider page before use"
 - Fill all template placeholders before writing:
   - `{{LEGAL_NAME}}`: `key_facts.legal_name`
-  - `{{YYYY}}`: `key_facts.tax_year`
+  - `{{YYYY}}`: `tax_year` (top-level state field, not inside key_facts)
   - `{{DATE}}`: today's date (packet preparation date)
   - `{{FISCAL_YEAR_START}}`: `key_facts.fiscal_year_start`
   - `{{FISCAL_YEAR_END}}`: `key_facts.fiscal_year_end`
   - `{{ORIGINAL_DUE_DATE}}`: if `fiscal_year_end` is Dec 31 → May 15 of (`tax_year` + 1);
     else → 4.5 calendar months after `fiscal_year_end` (round to nearest day)
   - `{{EXTENDED_DUE_DATE}}`: `ORIGINAL_DUE_DATE` + 6 months (Form 8868 automatic extension)
+
+**Step 3b: Assemble CPA memo.**
+Write `artifacts/cpa-memo-fy<tax_year>.md` — a distinct deliverable from the handoff packet.
+Audience: the signing CPA or financial reviewer (not the e-file provider).
+Content:
+- Summary of key figures (total revenue, total expenses, net assets BOY/EOY)
+- Significant judgments made during preparation (functional allocation basis, competition
+  assistance classification, prior period adjustment rationale if Line 9 non-zero)
+- Open items or caveats requiring CPA sign-off before transmission
+- Any Gate-2/3 items that resolved as acceptable risk (not Gate-1 PASS, but documented)
+Fill template placeholder `{{LEGAL_NAME}}`, `{{YYYY}}`, `{{DATE}}` before writing.
+Register in machine state as `artifacts.cpa_memo`.
 
 **Step 4: Schedule B two-output contract (if Schedule B triggered).**
 - `artifacts/schedule-b-filing.md` — full donor info (IRS-only, never public)
@@ -1081,6 +1466,7 @@ Write `artifacts/efile-handoff-packet.md` with:
   - `blank_pdf` sha: sha256 of `artifacts/f990-blank-<tax_year>.pdf`
   - `coordinate_table` sha: sha256 of TOOL-SIGNATURES.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
 - `artifacts/efile-handoff-packet.md`
+- `artifacts/cpa-memo-fy<tax_year>.md`
 - `artifacts/schedule-b-filing.md` + `artifacts/schedule-b-public.md` (if Schedule B triggered)
 
 **Idempotency.**
@@ -1090,7 +1476,82 @@ Write `artifacts/efile-handoff-packet.md` with:
 
 **Applicable Gates.** Q-F15 (signature block populated in dataset before filling PDF).
 
-**Transition.** Done. Print completion banner.
+**Transition.** Done. Print completion banner. See Post-Run Review section below; print the prompt box to the operator before closing the session.
+
+---
+
+## Output Document Catalog
+
+All documents produced by the skill, organized by audience and purpose.
+
+### Tier 1 — Required for MeF E-File Submission
+*Hand these to your e-file provider. These constitute the return.*
+
+| Document | File | Notes |
+|---|---|---|
+| Return data (all parts + schedules) | `artifacts/form990-dataset.json` | Primary input for provider data entry or JSON import |
+| Schedule O narratives | `artifacts/schedule-o-narratives.md` | Paste into provider UI for Part VI and other "describe" lines |
+| Schedule B — IRS copy | `artifacts/schedule-b-filing.md` | Full donor names + addresses — IRS only; never post publicly (IRC §6104(d)(3)(A)) |
+| Other triggered schedules | `artifacts/schedule-<letter>.md` | A, D, G, I, L, M, R — include all triggered letters |
+| **Form 8453-EO** | *Generated by e-file provider* | Officer signature authorization; your provider creates this — officer signs it before transmission |
+
+### Tier 2 — Required Before Officer Signs
+*The signing officer (and CPA if involved) must review these before authorizing e-file.*
+
+| Document | File | Notes |
+|---|---|---|
+| Reference filled PDF | `artifacts/form990-reference-filled.pdf` | Visual copy of the completed return; review every part |
+| CPA quality review report | `artifacts/cpa-review-report.md` | All 26 Q-F gate results; all Gate-1 must show PASS |
+| CPA preparation memo | `artifacts/cpa-memo-fy<tax_year>.md` | Explains methodology, non-obvious decisions, open items |
+| E-file handoff packet | `artifacts/efile-handoff-packet.md` | Filing instructions, provider options, CA companion filings |
+
+### Tier 3 — Supporting Workpapers (retain; not submitted to IRS)
+*Keep these for audit trail and record retention (7-year minimum).*
+
+| Document | File | Notes |
+|---|---|---|
+| Statement of activities | `artifacts/statement-of-activities.md` | Revenue/expense reconciliation |
+| Balance sheet | `artifacts/balance-sheet.md` | BOY + EOY asset/liability detail |
+| Functional expense matrix | `artifacts/functional-expense.csv` | Part IX source data (Program/M&G/Fundraising splits) |
+| CoA mapping | `artifacts/coa-mapping.csv` | Every budget line mapped to a 990 line with confidence score |
+| Reconciliation report | `artifacts/reconciliation-report.md` | Big-square closure verification (Q-F2) |
+| Plan file | `form990-plan-<year>.md` | Full preparation journal — machine state, decisions, breadcrumbs |
+
+### Tier 4 — California Companion Filings (separate from Form 990)
+*These are NOT produced by this skill. File separately with the indicated agency.*
+
+| Form | Agency | Trigger | Due date |
+|---|---|---|---|
+| **Form 199** | CA Franchise Tax Board | Gross receipts > $50,000 | May 15 (same as federal 990) |
+| **RRF-1** | CA AG Registry of Charitable Trusts | Registered charity | May 15 |
+| **CT-TR-1** | CA AG Registry | GR < $2M AND no audit | With RRF-1 |
+| **SI-100** | CA Secretary of State | All CA nonprofit corps | Biennial; within 90 days of incorporation anniversary |
+
+> CA 199 and RRF-1/CT-TR-1 are NOT substitutes for the federal 990. FTB does not accept
+> the federal 990 in place of Form 199.
+
+### Tier 5 — Public Inspection Requirements (IRC §6104)
+*The organization must make these available for public inspection.*
+
+| What | How long | Format |
+|---|---|---|
+| Most recent **3 years** of Form 990 | 3 years from due date | At principal office during business hours; copy within 30 days of written request |
+| Form 1023 (exemption application) + IRS determination letter | Permanent | Same |
+| **Not required publicly:** Schedule B donor names | — | Do not disclose; provide `schedule-b-public.md` (redacted) version only |
+| Schedule B — public copy | `artifacts/schedule-b-public.md` | "Anonymous" names, addresses stripped — use for public inspection, website posting, Candid/GuideStar |
+
+> Posting on GuideStar/Candid or the org's own website satisfies public inspection
+> requirements without responding to individual requests. See Part VI Line 18.
+
+### Tier 6 — Optional (Recommended for Well-Run Nonprofits)
+*Not required, but common at organizations with active boards or CPA relationships.*
+
+| Document | Purpose | Current skill support |
+|---|---|---|
+| Board presentation summary | High-level financial narrative for non-accountant board members | ✗ Not produced — draft manually from CPA memo |
+| Internal control memo | CPA identifies risks, management letter items | ✗ Not produced — CPA prepares separately |
+| 1099-NEC + Form 1096 confirmation | Evidence that contractor filings were made by Jan 31 | ✗ Not produced — confirm with payroll processor |
+| CA Form 199 worksheet | Pre-fill for CA FTB filing | ✗ Not produced — use CA FTB form directly |
 
 ---
 
@@ -1106,6 +1567,7 @@ Write `artifacts/efile-handoff-packet.md` with:
   ├─ artifacts/form990-reference-filled.pdf  (reference PDF for board/CPA review)
   ├─ artifacts/schedule-o-narratives.md      (paste into e-file provider)
   ├─ artifacts/cpa-review-report.md          (pre-signature review)
+  ├─ artifacts/cpa-memo-fy<tax_year>.md      (summary memo for signing CPA)
   └─ artifacts/efile-handoff-packet.md       (hand to your e-file provider)
 
   ⚠ This return has NOT been filed. Next steps:
@@ -1118,65 +1580,34 @@ Write `artifacts/efile-handoff-packet.md` with:
 
 ---
 
-## TODO — Skill Improvements from FY2025 Live Run (2026-04-15)
+## Post-Run Review (P9 closing step — operator performs before closing session)
 
-The following improvements were identified during the first full FY2025 live run against Fortified Strength Inc. Each item is a concrete change to a specific phase or gate.
+After printing the Completion Banner, prompt the operator with:
 
-### P2 — Chart of Accounts Mapping
+```
+╔══════════════════════════════════════════════════════════════╗
+║  Post-Run Review — capture learnings before you close        ║
+╠══════════════════════════════════════════════════════════════╣
+║  1. Did this run reveal any skill gaps? If yes, add a task   ║
+║     to form990-skill-todo.md under one of:                   ║
+║       (a) new quality gate needed                            ║
+║       (b) phase improvement (wrong prompt / missing check)   ║
+║       (c) data-source handling (new source type encountered) ║
+║       (d) error pattern (unexpected input or edge case)      ║
+║                                                              ║
+║  2. Were any unexpected org-specific decisions made that      ║
+║     future runs should know about? If yes, append to         ║
+║     LEARNINGS.md with date + phase + finding.               ║
+║                                                              ║
+║  3. Review NEEDS_UPDATE examples in QUESTIONS.md for         ║
+║     org-specific details that crept in during this run       ║
+║     (vendor names, donor names, real dollar amounts that      ║
+║     could identify the org). Replace with generic stand-ins  ║
+║     (e.g., "Acme Services LLC") before closing the run.      ║
+╚══════════════════════════════════════════════════════════════╝
+```
 
-**TODO-P2-1:** Read the Tiller `Categories` tab explicitly in the P2 Work block. The `Group` field on that tab defines the Program/M&G/Fundraising allocation for each category. Do not infer functional allocation from P&L labels alone — the Group field is the authoritative allocation source.
+This is a **manual operator prompt** — not automated. The operator decides what to record.
+No AskUserQuestion required. Print and continue to session close.
 
-**TODO-P2-2:** Add a special-case rule for Merchandise Revenue: even if Tiller places it in the Fundraising income group, it maps to Part VIII Line 10 (gross sales of inventory), not Line 1 (contributions). Prompt the user to confirm the COGS amount (from the `Merchandise Sales Inventory` expense line).
-
-**TODO-P2-3:** When a negative income line is encountered (e.g., a reversal/refund in an income category), ask the user: "This appears to be a reversal of prior income. Which Part VIII line does this reduce? Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue." Do not auto-commit a classification.
-
-### P3 — Financial Statement Production
-
-**TODO-P3-1:** Add a blocking Pre-check flag: "Tiller captures net payroll (take-home amounts). Part IX Line 7 requires W-2 Box 1 gross wages. Please provide the Gusto Payroll Journal Report or equivalent before proceeding." Do not populate Part IX Line 7 from Tiller payroll lines.
-
-**TODO-P3-2:** Add a blocking Pre-check flag: "Tiller captures combined payroll tax deposits (employer + employee). Part IX Line 10 requires employer-only FICA/FUTA. Please provide the Gusto employer taxes summary." Do not populate Part IX Line 10 from Tiller payroll tax lines.
-
-**TODO-P3-3:** Document the merchandise COGS accounting rule explicitly: "Merchandise COGS shown in Tiller expense total must be EXCLUDED from Part IX and reported only in Part VIII Line 10b. Part VIII Line 12 (total revenue) ≠ Tiller total income by exactly the COGS amount."
-
-### P5 — Core Parts
-
-**TODO-P5-1:** Part X liability pre-check: Read the balance sheet's LIABILITY section from Tiller (or the net worth report) before setting Part X to $0 liabilities. Credit card balances on personal cards used for org expenses are real liabilities.
-
-**TODO-P5-2:** Part III program accomplishments — add explicit prompts:
-  1. "How many individual athletes/students were enrolled on average during the year?"
-  2. "What is the weekly class schedule (days + hours)? How many weeks did you operate?"
-  3. From those answers, compute: `hours = (weekly_hours × operating_weeks) − individual_holiday_hours`
-  4. "Were any new program services launched this year (not offered in prior years)?"
-  5. "Did any athletes achieve notable competitive accomplishments (national team selections, championship placements)?"
-
-### P7 — Reconciliation
-
-**TODO-P7-1:** After computing Part XI Line 9 (other changes), check: if `abs(Line 9) < $500`, log "Prior period adjustment is negligible ($X) — likely rounding. No Schedule O narrative required unless CPA requests it." Only generate a Schedule O narrative if `abs(Line 9) >= $500`.
-
-**TODO-P7-2:** Add a re-check if the user updates the Tiller P&L mid-session: "P&L figures have been updated. Running structured diff of old vs new totals: Revenue Δ={}, Expenses Δ={}, Net Δ={}. Re-running Part VIII/IX/XI calculations."
-
-### P8 — Quality Review
-
-**TODO-P8-1:** Q-F18 (program accomplishments) — add explicit checklist:
-  - [ ] Headcount (# of persons served) stated
-  - [ ] Hours of service delivered stated or computable from schedule
-  - [ ] Specific competitions/events named (not just "national competitions")
-  - [ ] Any Team USA / national selection achievements included
-  - [ ] New program services (Part III Line 2) flagged if applicable
-
-**TODO-P8-2:** Add a new advisory check: if Part III Line 2 (new programs) = false but any V2MOM or board minutes mention "new for this year" or "launching" a program, flag for user confirmation.
-
-### P9 — PDF Fill
-
-**TODO-P9-1:** The 2025 f990.pdf is an XFA form with 1,307 AcroForm fields. The XFA template stream (array item 5 of the `/XFA` key) contains `<assist><speak>` labels for each field. Extract these via regex to build the `f990-field-map-YYYY.json` coordinate table. Cache this per tax year in `TOOL-SIGNATURES.md §form990_field_map`.
-
-**TODO-P9-2:** Fill sequence: short field name `f1_28` maps to full XFA path ending in `.f1_28[0]`. Use `short_to_full[f"{short}[0]"]` lookup. Do not use `.endswith(f'.{short}')` — this fails for XFA nested paths.
-
-**TODO-P9-3:** Add the `cpa-memo-fy2025.md` artifact to the P9 output list alongside `efile-handoff-packet.md`. The CPA memo is a distinct deliverable from the handoff packet (audience: CPA; handoff packet audience: e-file provider).
-
-### General
-
-**TODO-GEN-1:** When re-reading a Tiller PDF export mid-session, immediately compute and display the diff against the current dataset values before making any changes. Format: "Revenue: $X → $Y (+$Z), Expenses: $A → $B (ΔC), Net: ...". This prevents silent partial updates.
-
-**TODO-GEN-2:** Net worth PDF and P&L are linked in Tiller. If user says "I updated the P&L," always ask: "Did the net worth/balance sheet also update? The EOY net assets figure may have changed." Re-read both before updating the dataset.
 

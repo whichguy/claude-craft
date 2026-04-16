@@ -10,7 +10,7 @@ Senior-Engineer Review — Theme A "pinned golden fixture table".
 """
 
 # ---------------------------------------------------------------------------
-# TC24 — Q-F4 public support test (509(a)(1) 33⅓% floor)
+# TC24 — Q-F4 public support test (509(a)(2) 1%/$5K per-donor cap)
 # Fixture: tests/fixtures/schedule_a_support.json (TC24-specific)
 # ---------------------------------------------------------------------------
 

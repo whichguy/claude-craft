@@ -444,13 +444,31 @@ Functional Expense Allocation Methodology:
 - For individual grants: aggregate amounts by purpose (individual names not required in public filing)
 - Grant selection criteria documentation
 
-**Playbook (stub):**
+**Playbook:**
 1. Pull grant expense rows from COA mapping (Part IX Line 1-3 mapped rows)
 2. Identify domestic vs foreign split (foreign → Schedule F)
-3. Surface Open Question: "Provide grantee list with EIN, purpose, and amounts for domestic grants"
-4. Record in `dataset_schedules.json` under `"I": {...}`
+3. Determine format: Part II (organizations/governments) or Part III (individuals)
 
-> **Note:** Full playbook deferred. P6 halts with Open Question.
+**Part III — Grants to US Individuals (aggregate format):**
+For competition-related youth assistance, scholarships, or similar individual grants,
+Schedule I Part III uses an aggregate table — individual recipient names are NOT required
+in the public filing (and should NOT be included to protect minor athletes/students).
+
+Aggregate template:
+```
+| Type of grant or assistance | Number of recipients | Amount of cash grant | Amount of non-cash assistance | Method of valuation | Description |
+|---|---|---|---|---|---|
+| Competition fee assistance — individual athletes | [N] | $[total] | $0 | N/A | Fee subsidies paid on behalf of enrolled youth athletes |
+| Scholarship / tuition reduction | [N] | $[total] | $0 | N/A | Reduced participation fees for qualifying athletes per written criteria |
+```
+- Use generic descriptions (no individual names, no org-identifying dollar amounts)
+- "Number of recipients" = headcount of individuals who received assistance during the year
+- Method of valuation: "N/A" for cash grants; "FMV" for non-cash goods
+- Grant selection criteria: document in Schedule O (written criteria required for Part I Line 1 = Yes)
+
+4. For Part II (grants to domestic organizations): individual EIN + name + address + amount
+   required; surface Open Question for full grantee list.
+5. Record in `dataset_schedules.json` under `"I": {...}`
 
 ---
 

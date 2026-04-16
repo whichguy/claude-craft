@@ -1,6 +1,6 @@
 # Form 990 Skill — CPA Quality Gate Catalog
 
-**Q-F1..Q-F18** in three tiers. Import this file into every Q-F evaluation pass;
+**Q-F1..Q-F26** in three tiers. Import this file into every Q-F evaluation pass;
 do not duplicate definitions in other files.
 
 Gate output contract:
@@ -236,6 +236,10 @@ creates an open question.
 - W-2 count in Part V Line 1a matches payroll register W-2 row count for the tax year
 - Contractor count in Part V Line 2a matches the number of 1099-NEC recipients whose
   compensation for the tax year exceeds $100K (NOT the total 1099 register row count)
+- **1099-NEC filing confirmation:** For any vendor identified as requiring a 1099-NEC
+  (payments ≥ $600, non-corporate entity), explicitly confirm: "Did you file the 1099-NEC
+  and Form 1096 by January 31?" If YES: PASS for this sub-check. If NO: NEEDS_UPDATE —
+  late filing penalties apply ($60–$630 per form); advise immediate corrected/late filing.
 - If either source is unavailable: open question status is `pending` with a Gmail draft; P8
   marks Q-F5 NEEDS_UPDATE until resolved
 
@@ -469,6 +473,16 @@ accomplishments. It is public-facing and should communicate program impact.
   beneficiaries or output metric
 - Language is specific ("served 1,200 youth in after-school programs") not vague ("supported
   the community")
+
+**Explicit checklist (evaluate each — NEEDS_UPDATE if any item is absent):**
+- [ ] Headcount (number of persons served) stated or computable from description
+- [ ] Hours of service delivered stated or computable (hours = weekly_hours × operating_weeks)
+- [ ] Specific competitions or events named (not just "national competitions")
+- [ ] Team USA / national team selection achievements included (if any occurred)
+- [ ] New program services (Part III Line 2 = Yes) flagged and described if applicable
+- [ ] Expense total stated for each of the three largest programs (from Part IX)
+- [ ] Grant amount stated for each program (or explicitly $0 if none)
+- [ ] Revenue from each program stated (or explicitly $0 if none)
 
 ---
 

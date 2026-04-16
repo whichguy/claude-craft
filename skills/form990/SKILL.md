@@ -1,3 +1,17 @@
+---
+name: form990
+description: |
+  Form 990 Skill — Orchestrator for end-to-end IRS Form 990 preparation.
+
+  Guides a nonprofit Executive Director through all 10 phases (P0–P9):
+  intake, source discovery, chart-of-accounts mapping, financial statements,
+  Part IV checklist, core parts, schedule generation, Part I rollup,
+  CPA quality review (26 gates, 3 tiers), and reference PDF fill + e-file
+  handoff packet. Stateful plan-file journal enables cold-resume across sessions.
+
+  Invoke as: /form990 init | resume | phase | review | status | ask | verify
+---
+
 # Form 990 Skill — Orchestrator
 
 Invoke via: `/form990 <subcommand> [args]`
@@ -5,6 +19,31 @@ Invoke via: `/form990 <subcommand> [args]`
 ---
 
 ## Step 0 — Argument Parsing
+
+**Step 0.0 — Skill Root Resolution (runs before any argument parsing)**
+
+Locate the skill's own directory and bind `SKILL_ROOT`. This must run once at P0/resume time
+and the resolved value stored in machine state as `skill_root` (non-nullable after P0).
+
+Resolution order:
+1. Check `~/claude-craft/skills/form990/` — verify `SKILL.md` exists there
+2. Check `~/.claude/skills/form990/` — verify `SKILL.md` exists there
+3. If none found: halt with "Cannot locate skill root. Install to
+   ~/claude-craft/skills/form990/ or ~/.claude/skills/form990/"
+
+Set `SKILL_ROOT = <resolved absolute path>`. All subsequent file references use this variable.
+
+Convention:
+- `{SKILL_ROOT}/templates/...` — skill-owned templates (PLAN-TEMPLATE.md, email-question.md, etc.)
+- `{SKILL_ROOT}/scripts/...` — skill-owned scripts (p2-coa-mapping.py, etc.)
+- `{SKILL_ROOT}/lib/...` — skill-owned library modules (form990_lib.py, etc.)
+- `{plan_dir}/artifacts/...` — per-run output artifacts (relative to plan file, NOT SKILL_ROOT)
+
+**Step 0.0 output:** Store `skill_root` in machine state JSON so resume paths don't need to
+re-detect. On resume, if `skill_root` is absent from an existing state JSON (pre-change
+in-flight run), re-run Step 0.0 resolution rather than halting (backward-compatible default).
+
+---
 
 Parse the invocation string to determine subcommand and arguments.
 
@@ -39,11 +78,15 @@ Parse the invocation string to determine subcommand and arguments.
 - `--ascii` defaults OFF (fancy box-drawing on)
 - `--no-sidecar` defaults OFF (sidecar writes on)
 
+**Proposals check (for `init` and `resume` at P0):** Read `{SKILL_ROOT}/PROPOSALS.md` and
+surface any item marked `PENDING USER APPROVAL` before beginning intake. If no pending items,
+skip silently. This ensures design decisions don't silently drift.
+
 ---
 
 ## Step 1 — Plan File Location
 
-**For `init`:** Write the new plan file using `templates/PLAN-TEMPLATE.md` as the scaffold.
+**For `init`:** Write the new plan file using `{SKILL_ROOT}/templates/PLAN-TEMPLATE.md` as the scaffold.
 Fill `{{LEGAL_NAME}}` and `{{YYYY}}` placeholders. Write to `--plan-path` (default:
 `./form990-plan-<tax-year>.md`). Record `plan_lock.pid` + `acquired_at` + `host`.
 
@@ -59,9 +102,14 @@ print a warning banner:
 Then write `.gitignore` to the plan file's directory with the template from
 `§ Sensitive-data .gitignore Template` below.
 
-**For `resume`/`review`/`status`/`ask`:** Resolve the plan-path argument to an absolute
-path. All relative artifact paths in MACHINE STATE are resolved relative to the **plan
-file's directory** (not the invocation cwd).
+**For `resume`/`review`/`status`/`ask`:** If `<plan-path>` is omitted, auto-discover:
+1. Glob `./form990-plan-*.md` in the invocation cwd
+2. If exactly one match: use it silently (print `"Resuming form990-plan-<year>.md"`)
+3. If multiple matches: list them and ask which to resume (never auto-pick when ambiguous)
+4. If zero matches: halt with `"No form990-plan-*.md found in current directory. Pass --plan-path <path> explicitly."`
+
+Resolve the plan-path to an absolute path. All relative artifact paths in MACHINE STATE
+are resolved relative to the **plan file's directory** (not the invocation cwd).
 
 ---
 
@@ -206,6 +254,81 @@ else:
 For `/form990 review`: skip dispatch, go directly to PHASES.md §P8.
 For `/form990 status`: skip dispatch, go directly to `§ Status UI Renderer`.
 For `/form990 phase <N> <plan>`: see `§ Force-Override Protocol`.
+
+---
+
+## Context Loading Directives
+
+Load only what the current phase needs. Files not listed for a phase must NOT be loaded.
+
+| File | Load when |
+|------|-----------|
+| `PHASES.md` | Always — every phase invocation |
+| `SKILL.md` | Always — dispatch, helpers, schemas |
+| `PERSONA.md` | Always — injected on every phase and gate evaluation |
+| `QUESTIONS.md` | **P8 only** (CPA review pass). Do not load at P0–P7. Gates are evaluated only during the CPA review pass; loading them earlier wastes ~10K tokens per phase with no benefit. Also load if `/form990 review` subcommand is used. |
+| `SCHEDULES.md` | **P6 only** (schedule generation). Do not load at P8 entry — P8 evaluates `dataset_schedules.json` output, not playbooks. Load at P8 only if a NEEDS_UPDATE triggers a P6 re-run. |
+| `LEARNINGS.md` | **Do not load at phase entry.** Load only: (a) when `auto_append_learning()` is triggered on phase failure, or (b) during the Post-Run Review prompt at P9 close when the operator is explicitly reviewing learnings. |
+| `TOOL-SIGNATURES.md` | **P4** (pinned Part IV question count fallback) and **P9** (coordinate table for PDF fill). Do not load at P0–P3 or P5–P7. |
+| `VERIFY.md` | **`/form990 verify` subcommand only.** Do not load during normal phase execution. |
+| `PROPOSALS.md` | Load at P0 start (or when `/form990 proposals` is invoked) to surface pending design decisions requiring approval. Do not load at other phases. |
+
+**Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
+
+---
+
+## Form Discovery Directive
+
+**Trigger:** Runs at P0 step 8b (artifact pre-scan) for every new `tax_year`. If a required
+form is not cached locally in `{SKILL_ROOT}/templates/` or `artifacts/`, fetch it now.
+
+**Do not assume prior-year forms are valid for the current tax year.** The IRS revises
+Form 990 and its schedules annually. A 2024 blank PDF will have wrong field names and
+coordinates for a 2025 return. Always verify the revision date embedded in the PDF
+(look for "Rev. <year>" in the footer) matches `tax_year`.
+
+### Federal Forms (irs.gov)
+
+| Form | URL | Cache path | Required when |
+|---|---|---|---|
+| Form 990 (blank) | `https://www.irs.gov/pub/irs-pdf/f990.pdf` | `artifacts/f990-blank-<year>.pdf` | Always (P9 fill) |
+| Form 990-EZ (blank) | `https://www.irs.gov/pub/irs-pdf/f990ez.pdf` | `artifacts/f990ez-blank-<year>.pdf` | If variant = 990-EZ |
+| Form 8868 (extension) | `https://www.irs.gov/pub/irs-pdf/f8868.pdf` | `artifacts/f8868-<year>.pdf` | Always (deadline info) |
+| Form 990 instructions | `https://www.irs.gov/pub/irs-pdf/i990.pdf` | `artifacts/i990-<year>.pdf` | On demand (CPA review) |
+
+**Fetch protocol:**
+1. Check cache path — if exists and revision date matches `tax_year`: skip.
+2. WebFetch with 30s timeout, 1 retry on failure.
+3. On success: save to cache path; breadcrumb "fetched <form> rev <date>".
+4. On failure: add `open_questions[]` entry with manual download URL and target path.
+   Never block P0 completion on a failed form fetch — queue and continue.
+
+**Revision date check:** After fetching, extract the revision date from the PDF footer
+(pattern: `Rev. <month>-<year>` or `<year>` in filename). If revision year < `tax_year`,
+warn: "Form revision date [rev] may not match tax year [year] — verify with IRS before P9."
+
+### California State Forms
+
+Fetch only if org is CA-registered (inferred from address or confirmed at intake).
+
+| Form | Agency | URL | Cache path | Required when |
+|---|---|---|---|---|
+| Form 199 | CA FTB | `https://www.ftb.ca.gov/forms/2024/2024-199.pdf` *(update year)* | `artifacts/ca-199-<year>.pdf` | GR > $50K |
+| RRF-1 | CA AG Registry | `https://oag.ca.gov/sites/all/files/agweb/pdfs/charities/charitable/rrf1_form.pdf` | `artifacts/ca-rrf1-<year>.pdf` | Registered charity |
+| CT-TR-1 | CA AG Registry | `https://oag.ca.gov/sites/all/files/agweb/pdfs/charities/charitable/ct-tr-1.pdf` | `artifacts/ca-cttr1-<year>.pdf` | GR < $2M, no audit |
+
+> **CA form URLs change annually.** Before fetching, do a WebSearch for
+> "California Form 199 <tax_year> FTB" and "CA RRF-1 <tax_year> Attorney General"
+> to confirm current URLs. The AG Registry PDF link in particular is not year-versioned
+> on the URL — verify the revision date in the downloaded PDF.
+
+### Form Discovery Failure Handling
+
+If any fetch fails and the form is needed for a current phase:
+- **Form 990 blank (P9):** Halt P9 with offer to use `--local-pdf <path>`
+- **CA companion forms:** Non-blocking advisory; note in Output Document Catalog that
+  operator must download manually before filing
+- **Form 8868 (extension):** Advisory only; not needed unless org files for an extension
 
 ---
 
@@ -492,6 +615,11 @@ Used by `verify_ancestors()` for transitive fingerprint verification before any 
 External sources (Drive budget sheet, prior 990) are NOT registered as artifacts — they are
 verified via `input_fingerprint` fields in producing artifact entries.
 
+**Downstream consumer note:** `artifacts/form990-dataset.json` (produced by P7 merge) is the
+sole artifact downstream phases and external tools should read. The three siblings
+(`dataset-core.json`, `dataset-schedules.json`, `dataset-rollup.json`) are intermediate
+producer outputs — do not read them directly outside their producing phase.
+
 ```python
 ARTIFACT_DEPS = {
     # P2 outputs
@@ -533,6 +661,7 @@ ARTIFACT_DEPS = {
     # P9 outputs
     "reference_pdf":   {"phase": "P9", "upstream": ["dataset_merged"]},
     "efile_handoff":   {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
+    "cpa_memo":        {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
 }
 ```
 
@@ -786,7 +915,7 @@ def scrub_pii(text: str, donor_names: list[str] = None) -> str:
     6. [C2] Email addresses → [REDACTED-EMAIL]
     7. [C2] Dates of birth (MM/DD/YYYY) → [REDACTED-DOB]
     8. [C2] US street addresses (number + street name + type) → [REDACTED-ADDR]
-    Canonical implementation lives in lib/form990_lib.py. This prose is illustrative.
+    Canonical implementation lives in {SKILL_ROOT}/lib/form990_lib.py. This prose is illustrative.
     """
     if donor_names is None:
         donor_names = []
@@ -908,6 +1037,28 @@ def auto_append_learning(learnings_path: str, phase_id: str,
 
 ---
 
+## Mid-Session Data Refresh Rules
+
+**Rule GEN-1 — Tiller PDF re-read diff (applies any time a Tiller export is re-read mid-session):**
+When reading a Tiller P&L, net worth, or balance sheet PDF that was already read earlier in
+the session, immediately compute and display a structured diff against current dataset values
+before making any changes:
+```
+Revenue:  $[old] → $[new]  (Δ $[diff])
+Expenses: $[old] → $[new]  (Δ $[diff])
+Net:      $[old] → $[new]  (Δ $[diff])
+```
+Do NOT silently update dataset values. Show the diff and confirm before applying. If the diff
+is zero (no change), breadcrumb "re-read confirms no change" and continue.
+
+**Rule GEN-2 — Net worth / P&L linkage (applies when user reports a Tiller update):**
+If the user says "I updated the P&L" (or similar), always ask:
+"Did the net worth/balance sheet also update? The EOY net assets figure may have changed."
+Re-read BOTH the P&L PDF and the net worth PDF before updating any dataset value. The two
+documents are linked in Tiller — a P&L change nearly always affects the balance sheet.
+
+---
+
 ## Email Workflow
 
 Three question classes:
@@ -988,9 +1139,9 @@ artifacts/form990-reference-filled.pdf
 artifacts/efile-handoff-packet.md
 artifacts/schedule-[abcdefghijklmnopqr].md
 
-# NOTE: artifacts/scripts/ and artifacts/scripts/fixtures/ are NOT excluded —
-# Python scripts are committed to git as a first-class audit trail artifact.
-# They contain no PII (input paths are args; data stays in ignored files).
+# NOTE: artifacts/scripts/fixtures/ is NOT excluded — per-run sample fixtures
+# are committed as audit trail. Scripts themselves live in {SKILL_ROOT}/scripts/
+# (skill-owned, org-agnostic) and are committed to the skill repo, not here.
 
 # Sidecar memo cache
 .form990-memo-*.json
@@ -1015,8 +1166,26 @@ Valid keys in `key_facts{}`:
 | `fiscal_year_start` | ISO date | Start of the fiscal year being filed |
 | `fiscal_year_end` | ISO date | End of the fiscal year being filed |
 | `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
+| `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
+| `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
+
+---
+
+## Top-Level Machine State Fields (non-key_facts)
+
+Fields stored at the top level of machine state (siblings of `key_facts`, not inside it):
+
+| Field | Type | Description |
+|---|---|---|
+| `tax_year` | string | 4-digit filing year |
+| `form_variant` | `"990"` \| `"990-EZ"` \| `"990-N"` \| `"HALTED-PF"` \| `"HALTED-CHURCH"` | Determined at P0 variant routing |
+| `payroll_tax_source` | `"combined_tiller"` \| `"gusto_register"` \| null | Set at P2 payroll commingling check. `"combined_tiller"` triggers blocking halt at P3 Pre-check until Gusto employer taxes are provided. null = not yet evaluated. |
+| `skill_root` | string | Absolute path to skill install directory. Set by Step 0.0; non-nullable after P0. |
+| `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
+| `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
+| `ca_sos_officers` | `[{name: string, title: string}]` \| null | Current officers/directors from CA Secretary of State discovery at P1 (WebSearch or local SI-100 PDF parse). null = CA org but discovery failed or not CA org. Consumed by board-change detector (P1) and Part VII Section A (P5). |
 
 ---
 
