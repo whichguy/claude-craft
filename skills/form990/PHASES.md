@@ -1176,6 +1176,27 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 - Both registered in machine state with appropriate `confidentiality` tags
 - `.gitignore` entry verified for `schedule-b-filing.md`
 
+**Schedule B Donor Address Collection (if triggered — P6 sub-procedure):**
+If Schedule B is triggered (Part IV Line 2 = Yes):
+
+1. For each donor in `schedule_b_donors[]`:
+   a. If donor is an officer or director listed in Part VII:
+      - Extract address from prior-year 990, CA SOS filing, or Articles of Incorporation.
+      - Do NOT ask the user for their own address — extract from source documents first.
+      - Log source document in Decision Log entry: `{donor, source, address}`.
+   b. Otherwise:
+      - AskUserQuestion: "Schedule B requires a full mailing address for [Donor Name] who
+        contributed [amount]. Can you provide their current address?"
+      - If user provides: store in `artifacts/schedule-b-filing.md` under confidential section.
+      - If user defers: create `open_questions[]` entry:
+          `{ type: "donor_address", donor: <name>, threshold: <amount>,
+            status: "pending", message: "Address required for Schedule B" }`
+
+2. Mark Q-F8 re-evaluation pending if any donor address is still missing.
+
+IMPORTANT: Donor addresses are PII. Do NOT write them to plan file breadcrumbs,
+Decision Log entries, or any artifact other than `artifacts/schedule-b-filing.md`.
+
 **Other triggered schedules (D, G, L, M, R):** See SCHEDULES.md for per-schedule playbooks.
 
 **Outputs.**

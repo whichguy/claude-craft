@@ -8,7 +8,7 @@ before implementation. Do NOT apply these edits to PHASES.md without approval.
 ## Proposal #7 — Schedule B Donor Address Collection
 
 **Source:** Task #7, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P6 Schedule B Donor Address Collection sub-procedure added with officer-donor extraction, AskUserQuestion for non-officer donors, PII containment, and Q-F8 re-evaluation flag.
 
 ### Problem
 
