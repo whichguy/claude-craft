@@ -54,7 +54,7 @@ If `public_charity_basis == "509(a)(3)"`:
 
 ```
 For each year y in [T-4, T-3, T-2, T-1, T]:
-  total_contributions[y]  = Part VIII Line 1h for year y (total contributions)
+  total_line1h[y]         = Part VIII Line 1h for year y (total contributions, includes Line 1e govt grants)
   govt_grants[y]          = Part VIII Line 1e for year y
   exempt_function_income[y] = Part VIII Line 2g for year y (program service revenue)
   total_support[y]        = all revenue for year y (contributions + program fees +
@@ -78,11 +78,10 @@ For each year y in [T-4, T-3, T-2, T-1, T]:
   # Government grants are NOT subject to the 2% cap — they are public support by definition
   # (IRS Schedule A Part II Line 5b excludes government grants from excess computation)
 
-5yr_public_support = sum(total_contributions[y] for y in window) + sum(exempt_function_income[y] for y in window) − total_excess
-  # NOTE: numerator includes both Line 1h (contributions) and Line 2g (PSR/exempt function
-  # income) per IRS Schedule A Part II Lines 1+2, minus excess contributions.
-  # Government grants (Line 1e) are included in total_contributions and are NOT
-  # subject to the 2% cap — they count as public support in full.
+5yr_public_support = sum(total_line1h[y] for y in window) + sum(exempt_function_income[y] for y in window) − total_excess
+  # NOTE: total_line1h = Part VIII Line 1h total contributions (which INCLUDES Line 1e
+  # government grants). Government grants are NOT subject to the 2% cap — they count
+  # as public support in full per IRS Schedule A Part II Line 5b.
 5yr_total_support  = sum(total_support[y] for y in window)
 
 public_support_pct = 5yr_public_support / 5yr_total_support × 100
@@ -182,8 +181,10 @@ for members?" Record the answer in the Schedule O narrative.
 
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```
-5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / five_yr_total × 100
+5yr_investment_pct = sum(investment_income[T-4..T] + gross_unrelated_receipts[T-4..T]) / five_yr_total × 100
 ```
+Note: `gross_unrelated_receipts` = Schedule A Part III Line 3 (gross receipts from unrelated trade or
+business), NOT net UBTI. The IRS uses gross receipts for the 33⅓% test.
 
 **PASS if:** `public_support_pct ≥ 33⅓%` **AND** `5yr_investment_pct ≤ 33⅓%`
 
@@ -261,6 +262,14 @@ threshold = max(5000, 0.02 × total_contributions)
 
 reportable_contributors = [d for d in donor_list if d.amount >= threshold]
 ```
+
+**Special thresholds:**
+- Noncash contributions: If any single noncash contribution exceeds $5,000, Form 8283
+  (Noncash Charitable Contributions) may also be required. Note the amount on Schedule B
+  and flag in `open_questions` if Form 8283 has not been filed.
+- Foreign donors: Foreign organizations and foreign individuals contributing ≥ $5,000
+  must be listed with their foreign address. No additional threshold applies, but IRS
+  scrutiny is higher — verify EIN/foreign TIN or note "foreign" in the address field.
 
 For each reportable contributor: list Part I (name, address, total contribution, type).
 
@@ -392,36 +401,42 @@ For each Part VI question that says "If Yes, describe in Schedule O":
   voting members of the governing body elected or selected?")
 - Provide a substantive narrative (not just a sentence)
 
-### Common Part VI "Describe in Schedule O" Triggers
+### Common Part VI "Describe in Schedule O" Triggers (per 2025 form instructions)
 
 | Line | If "Yes" | If "No" |
 |------|----------|----------|
+| 1a | Explain material differences in voting rights or broad authority delegated to executive committee | — |
 | 2 | Describe any changes to governing documents (bylaws, articles) | — |
+| 3 | Describe organization's process for reviewing CEO/ED compensation | — |
+| 4 | Describe organization's process for reviewing officer/key employee compensation | — |
+| 5 | Describe organization's process for reviewing board member compensation | — |
 | 6 | Describe how voting members are elected/selected | — |
-| 8 | List related organizations (name, EIN, relationship) | — |
-| 11b | Describe the process used to review the Form 990 before filing | — |
+| 7a | Describe relationship and transactions with related organizations | — |
+| 7b | Describe relationship and transactions with unrelated organizations with common board member | — |
+| 8a | — | Explain absence of audit/review committee |
+| 8b | — | Explain absence of audit/review |
+| 10b | — | Explain failure to make Form 990 available for public inspection |
+| 11a | Describe process used to review Form 990 before filing | — |
 | 12a | Describe conflict-of-interest policy | — |
 | 12b | Describe how COI policy is monitored | — |
 | 12c | Describe how COI policy is enforced | — |
-| 13 | Describe whistleblower policy (or explain absence) | Describe why no whistleblower policy |
-| 14 | Describe document retention/destruction policy (or explain absence) | Describe why no document retention policy |
-| 15a/b | Describe compensation review process for CEO and key employees | — |
-| 15c | List persons compensated >$100K who are not listed in Part VII Section A | — |
-| 17 | Describe financial statement basis and audit/review | — |
+| 13 | Describe whistleblower policy (or explain absence) | Explain why no whistleblower policy |
+| 14 | Describe document retention/destruction policy (or explain absence) | Explain why no document retention policy |
+| 15a | Describe compensation review process for CEO and key employees | — |
+| 15b | Describe compensation review process for other officers | — |
 | 18 | Describe how governing documents and Form 990 are made available to the public | — |
-| 19 | Describe how governing documents are made available | — |
 
 ### Standard Sections (always include for most organizations):
 
 **Functional Expense Allocation Methodology** (Q-F17):
 ```
 Part VI, Line 6 — [Board election process]
-Part VI, Line 11b — [Review process for Form 990 prior to filing]
+Part VI, Line 11a — [Review process for Form 990 prior to filing]
 Part VI, Line 12a — [Conflict-of-interest policy description]
 Part VI, Line 12b — [How COI policy is monitored]
 Part VI, Line 12c — [How COI policy is enforced]
 Part VI, Line 15a/b — [Compensation review process for CEO and key employees]
-Part VI, Line 19 — [How governing documents are made available]
+Part VI, Line 18 — [How governing documents and Form 990 are made available]
 
 Functional Expense Allocation Methodology:
   The organization allocates expenses to functional categories using the following methods:

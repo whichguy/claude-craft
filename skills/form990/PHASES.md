@@ -546,11 +546,13 @@ For each budget row, apply the mapping methodology:
 | Revenue type | Part VIII line |
 |---|---|
 | Contributions / grants / gifts | Line 1 (a–h by source sub-type) |
-| Program service fees | Line 2 |
-| Membership dues | Line 3 |
-| Investment income | Line 4 |
-| Dividends / interest on investments | Line 4 |
-| Real estate / rental income | Line 5 |
+| Program service fees | Line 2 (a–g by program; Line 2g = total) |
+| Membership dues | Line 1b (membership dues assessed, NOT Line 3) |
+| Investment income (dividends, interest, other) | Line 3 (NOT Line 4) |
+| Income from tax-exempt bond proceeds | Line 4 |
+| Royalties | Line 5 |
+| Gross rental income | Line 6a (with 6a(i) real, 6a(ii) personal) |
+| Net rental income/loss | Line 6c (6a minus 6b) |
 | Gain/loss on asset sales | Line 7 |
 | Fundraising events (gross) | Line 8a |
 | Gaming | Line 9a |
@@ -571,19 +573,20 @@ For each budget row, apply the mapping methodology:
 | Grants to US orgs / governments | Line 1 |
 | Grants to US individuals | Line 2 |
 | Grants to foreign orgs / individuals | Line 3 |
+| Benefits paid to or for members | Line 4 |
 | Officer / key-employee compensation | Line 5 |
 | Compensation to disqualified persons (IRC §4958) | Line 6 |
 | Other salaries / wages | Line 7 |
 | Pension / retirement contributions | Line 8 |
 | Other employee benefits | Line 9 |
 | Payroll taxes | Line 10 |
-| Legal fees | Line 11a |
-| Accounting / auditing fees | Line 11b |
-| Lobbying / government affairs | Line 11c |
-| Professional fundraising services | Line 11d |
-| Investment management fees | Line 11e |
-| Management / IT consulting / other fees | Line 11f |
-| Other fees for services | Line 11g |
+| Management fees | Line 11a |
+| Legal fees | Line 11b |
+| Accounting / auditing fees | Line 11c |
+| Lobbying / government affairs | Line 11d |
+| Professional fundraising services | Line 11e |
+| Investment management fees | Line 11f |
+| Other fees for services (nonemployees) | Line 11g |
 | Advertising / promotion | Line 12 |
 | Office expenses / supplies | Line 13 |
 | Information technology | Line 14 |
@@ -678,7 +681,7 @@ assets figure derived from the COA mapping differs from P0's `gross_receipts_cur
 `total_assets_eoy`, re-run the variant decision tree per the P0 variant re-evaluation procedure.
 
 **Applicable Gates.** Q-F3 (functional columns sum), Q-F10 (ED allocation documented),
-Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5).
+Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5), Q-F19 (payroll tax source — commingling flag set at P2 determines Q-F19 applicability), Q-F28 (no disallowed negatives — revenue classification step at P2 Step 2 determines sign correctness).
 
 ---
 
@@ -753,7 +756,7 @@ If merchandise lines are present in the CoA mapping: verify COGS is flagged
 
 **Applicable Gates.** Q-F2 (big-square preview — not authoritative until P7 but flag early),
 Q-F3 (functional columns sum per row), Q-F11 (prior-year comparatives — BOY from prior 990),
-Q-F12 (fundraising expense non-zero if contributions > 0).
+Q-F12 (fundraising expense non-zero if contributions > 0), Q-F19 (payroll tax Line 10/7 ratio — first computed at P3 from functional expense matrix).
 
 ---
 
@@ -814,7 +817,8 @@ fully rebuilt from answers (no append).
 
 **Applicable Gates.** Q-F4 (proxy check only at P4: verify Schedule A is in `required_schedules[]`;
 full Q-F4 PASS requires P6 Schedule A generation — cannot fully pass at P4), Q-F8 (all Part IV
-questions answered or queued as open question; all `yes` answers added to `required_schedules[]`).
+questions answered or queued as open question; all `yes` answers added to `required_schedules[]`),
+Q-F21 (vendor >$10K insider-ownership check — [INSIDER_VENDOR_CHECK] directive runs at P4).
 
 ---
 
@@ -961,19 +965,23 @@ A Form 990-T may be required. Recommend CPA review." Record in Decision Log with
   have any outstanding credit card balances, loans, or accrued payables at year-end — including
   on personal cards used for org expenses?" Record any confirmed liabilities in Part X before
   copying from balance-sheet.md.
-- **Net asset classification pre-check:** Ask: "Does the organization have any temporarily restricted
-  or permanently restricted net assets (e.g., endowment funds, donor-restricted gifts, board-designated
-  funds with restrictions)?" If yes: require three-class breakdown (unrestricted / temporarily
-  restricted / permanently restricted) for both BOY and EOY columns. Each line has both columns:
-  Line 27 = unrestricted (col A = BOY, col B = EOY); Line 28 = temporarily restricted (col A, col B);
-  Line 29 = permanently restricted (col A, col B); Line 30 = total net assets (col A = sum(27+28+29),
-  col B = sum of EOY columns). Line 32 = total liabilities and net assets.
-  **Note on form version:** For orgs following ASC 958 (most 501(c)(3) orgs for FY2025+), use
-  2-class: Line 26 = net assets without donor restrictions; Line 27 = net assets with donor restrictions;
-  Line 28 = total net assets; Line 29 = total liabilities and net assets. Verify which structure
-  applies before populating Part X.
-  If no restricted net assets: temporarily and permanently restricted lines = $0; all net assets
-  flow to the unrestricted/without-donor-restrictions line.
+- **Net asset classification pre-check:** Ask: "Does the organization have net assets with
+  donor restrictions (e.g., endowment funds, donor-restricted gifts, board-designated
+  funds with restrictions)?" If yes: require breakdown for both BOY and EOY columns.
+  Each line has both columns:
+  Line 27 = net assets without donor restrictions (col A = BOY, col B = EOY);
+  Line 28 = net assets with donor restrictions (col A, col B);
+  Line 32 = total net assets or fund balances (col A = sum of Lines 27–31 BOY,
+  col B = sum of Lines 27–31 EOY). Line 33 = total liabilities and net assets/fund balances.
+  **Note on form version:** Per the 2023+ Form 990 revision, Part X uses 2-class ASC 958:
+  Line 26 = total liabilities; Line 27 = net assets without donor restrictions; Line 28 = net assets
+  with donor restrictions; Lines 29–31 = capital stock / paid-in surplus / retained earnings
+  (typically $0 for most 501(c)(3) orgs); Line 32 = total net assets; Line 33 = total liabilities
+  and net assets. For pre-2023 forms using 3-class (unrestricted / temporarily restricted /
+  permanently restricted), line numbers differ — resolve via the field map per
+  SKILL.md §Form Year Dependency.
+  If no restricted net assets: Line 28 = $0 for both columns; all net assets
+  flow to Line 27 (net assets without donor restrictions).
   **Schedule D trigger:** If restricted net assets exist, verify Schedule D is in `required_schedules[]`
   (Part IV Line 8 or Line 9 should be "Yes"). If not, add an Open Question: "Restricted net assets
   identified — should Schedule D (Supplemental Financial Statements) be filed?"
@@ -1257,7 +1265,7 @@ artifacts explicitly deleted (tracked via manifest inside `dataset_schedules.jso
 
 **Applicable Gates.** Q-F4 (Schedule A computation), Q-F8 (all required schedules present),
 Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (departed board members DQ
-status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F27 (payment processor 1099-K),
+status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F26 (corporate donor board-ownership check for 509(a)(2) — [ENTITY_DONOR_CHECK] directive runs at P6), Q-F27 (payment processor 1099-K),
 Q-F30 (Schedule B donor threshold completeness).
 
 ---

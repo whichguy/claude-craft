@@ -61,7 +61,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 | Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
-| Q-F28 | G1 | No disallowed negative values | always |
+| Q-F28 | **G1** | No disallowed negative values | always |
 | Q-F29 | G1 | Part X balance sheet balances | always |
 | Q-F30 | G2 | Schedule B donor threshold completeness | if Schedule B triggered |
 
@@ -142,8 +142,8 @@ correct — only Checks 2 and 3 must hold in those cases.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F2: NEEDS_UPDATE — Part I net revenue ($12,000) vs Part X net-assets change ($14,500): unexplained $2,500 delta.
-[EDIT: Re-examine Part X EOY vs BOY delta; identify source of $2,500 discrepancy; add
+Q-F2: NEEDS_UPDATE — Part XI Line 10 ($42,180) ≠ Part X Line 32 EOY ($39,950): unexplained $2,230 delta.
+[EDIT: Re-examine Part XI Lines 3, 4, and 10; identify source of discrepancy; add
 explanatory note to reconciliation-report.md and resolve in dataset_rollup.json → P7]
 [USER: The math doesn't close — your revenue minus expenses doesn't match the change in net
 assets. There's a $2,500 gap. I need to find where the discrepancy comes from before the
@@ -343,6 +343,9 @@ Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
 **Pass criteria:**
 - All four equalities hold to the dollar (no tolerance)
 - Part VIII Line 1h = sum(Lines 1a + 1b + 1c + 1d + 1e + 1f) within $1 rounding
+  (Note: Line 1g "noncash contributions" is a disclosure line showing the noncash portion
+  already included in 1a–1f; it is NOT added to 1h. Per 2023+ form revision, noncash
+  contributions are included in the 1a–1f sub-lines, not summed separately.)
 - Part VIII Line 12 = sum(Lines 1h + 2 + 3 + ... + 11e) within $1 rounding
 - `dataset_rollup.json` `parts.I` values are sourced from `dataset_core.json` line references
   (not manually entered)
@@ -521,6 +524,12 @@ a separate IRS form (Form 3115) is needed — your tax advisor should confirm.]
 
 **Purpose.** Part VI contains several questions that say "If Yes, describe in Schedule O."
 Each such description must exist.
+
+**Common Schedule O triggers in Part VI (per 2025 form instructions):**
+- Lines 2–7b (if Yes): Lines 2, 3, 4, 5, 6, 7a, 7b
+- Lines 8a, 8b, 10b (if No)
+- Line 1a (if material differences in voting rights or broad authority delegated to executive committee)
+- Lines 11a, 12a–12c, 13, 14, 15a, 15b, 18 (if applicable)
 
 **Pass criteria:**
 - Every Part VI question that received a "Yes" answer AND requires a Schedule O description
@@ -937,8 +946,8 @@ impossible negative values.
 **Trigger:** Always (all filers).
 
 **Lines where negative values are disallowed:**
-- Part VIII revenue sub-lines (1a–1g, 2, 3, 4, 5, 6, 8a–8c, 9a–9c, 10a, 11e): negative amounts
-  indicate a classification error (e.g., a refund that should reduce a different line)
+- Part VIII revenue sub-lines (1a–1f, 1g, 2a–2g, 3, 4, 5, 6a, 6b, 8a, 8b, 9a, 9b, 10a, 10b, 11a–11e):
+  negative amounts indicate a classification error (e.g., a refund that should reduce a different line)
 - Part VII Section A columns D, E, F (reportable compensation, other compensation, estimated
   other compensation): negative compensation is impossible
 - Part IX expense lines (1–25): negative expenses indicate a classification error
@@ -946,7 +955,10 @@ impossible negative values.
   depreciation on Line 23, which is a contra-asset and should be positive)
 
 **Lines where negative values ARE allowed:**
+- Part VIII Line 6c (net rental income/loss): rental losses are negative
 - Part VIII Line 7 (net gain/loss on sale of assets): losses are negative
+- Part VIII Line 8c (net fundraising income/loss): can be negative if expenses exceed gross
+- Part VIII Line 9c (net gaming income/loss): can be negative
 - Part VIII Line 10b (cost of goods sold): can exceed 10a if net is negative
 - Part XI Lines 5–9 (adjustments): prior-period and other adjustments can be negative
 - Part I Line 19 (revenue less expenses): negative indicates a deficit
@@ -975,8 +987,11 @@ a negative sub-line, which the IRS doesn't allow on this line.]
 A balance sheet that doesn't balance indicates a data error that must be corrected before filing.
 
 **Pass criteria:**
-- Part X Line 16 (Total Assets) = Part X Line 26 (Total Liabilities) + Line 30 (Total Net Assets)
+- Part X Line 16 (Total Assets) = Part X Line 26 (Total Liabilities) + Line 32 (Total Net Assets)
   for both BOY and EOY columns, within $1 rounding tolerance
+  (Equivalently: Line 33 (Total Liabilities and Net Assets) must equal Line 16.
+  Line references target the 2023+ Form 990 revision; if prior-year form uses different line
+  numbers, resolve via the field map per SKILL.md §Form Year Dependency)
 - If the org reports restricted net asset classes: individual class amounts sum correctly
 
 **NEEDS_UPDATE example:**

@@ -66,14 +66,17 @@ from `ideate-system-prompt/SKILL.md §learningsText`.
   rule. (SCHEDULES.md corrected 2026-04-14.)
 
 - **Line 7b is per-year per-person, not 5-year aggregate.** The cap is
-  `max($5,000, 1% × five_yr_total_support)` (derived from the 5-yr total, same for all
-  years), but the comparison is made **independently for each year**: if a single non-DQ
-  person's PSR/UBI in year Y exceeds the cap, only year Y's excess is excluded. A member
-  paying $8,000/year for 5 years has $0 Line 7b impact if $8,000 < cap each year — the
-  5-year aggregate ($40,000) is never compared to the cap. The IRS form has per-year
-  columns (a)–(e) for Line 7b entries. Aggregating first then comparing over-deducts.
-  For orgs where every member's annual payment is below max($5,000, 1% of 5-yr support),
-  Line 7b = $0 definitively without per-member data.
+  `max($5,000, 1% × total_support[y])` where `total_support[y]` is THAT YEAR's own
+  Line 13 annual column total (NOT the 5-year aggregate). The cap is recomputed for each
+  year column (a)–(e) and changes year by year. The comparison is made **independently
+  for each year**: if a single non-DQ person's PSR/UBI in year Y exceeds that year's cap,
+  only year Y's excess is excluded. A member paying $8,000/year for 5 years has $0 Line 7b
+  impact if $8,000 < cap[y] each year — the 5-year aggregate ($40,000) is never compared to
+  the cap. The IRS form has per-year columns (a)–(e) for Line 7b entries. Aggregating first
+  then comparing over-deducts. For orgs where every member's annual payment is below
+  max($5,000, 1% of that year's support), Line 7b = $0 definitively without per-member data.
+  (IRS Schedule A Part III instructions: "1% of the amount on line 13 for the applicable
+  year" — confirmed via WebFetch 2026-04-14.)
 
 - **Part XI Line 5 placeholder not auto-resolved by P7.** `dataset_core.json` Part XI
   Line 5 retains its P5-era placeholder after P7 runs because P7 only writes to
@@ -462,9 +465,9 @@ This leaves the prior year comparison columns blank on the printed reference PDF
 
 ---
 
-**Q-F25 (Gate-2) — Form 1096 Count Ties to Part V Line 1a**
+**Q-F25 (Gate-2) — ~~Form 1096 Count Ties to Part V Line 1a~~** *(Superseded — see QUESTIONS.md Q-F25 for current definition: Part V Line 2a entity-type filter)*
 
-Proposed definition:
+Original proposed definition (superseded by audit refinement):
 ```
 Trigger: Part V Line 2a (1099-NEC/MISC count) > 0
 Check: Part V Line 1a = the number on Box 3 of the corresponding Form 1096
@@ -578,7 +581,7 @@ can be posted (Part VI Line 18 "Own website" checkbox), (c) if no website, defau
 | ID | Tier | New/Extend | Description |
 |---|---|---|---|
 | Q-F24 | G3 | **NEW** | Part I Prior Year column populated from filed prior year return |
-| Q-F25 | G2 | **NEW** | Form 1096 count = Part V Line 1a; 1099s confirmed actually filed |
+| Q-F25 | G2 | **NEW** | Part V Line 2a entity-type filter (corps/LLCs excluded) |
 | Q-F26 | G2 | **NEW** | Entity donors >$5K checked for ≥35% board member ownership (DQ) |
 | Q-F18 | G3 | **EXTEND** | Part III must include quantified metrics (people served, outcomes) |
 | Q-F5 | G2 | **EXTEND** | 1099-NEC filing confirmation, not just count identification |
@@ -589,9 +592,10 @@ can be posted (Part VI Line 18 "Own website" checkbox), (c) if no website, defau
 
 ---
 
-### Complete Gate Catalog After Both Passes
+### Complete Gate Catalog After Both Passes + Audit Refinements
 
-Original (Q-F1..Q-F18) + First pass (Q-F19..Q-F23) + Second pass (Q-F24..Q-F26):
+Original (Q-F1..Q-F18) + First pass (Q-F19..Q-F23) + Second pass (Q-F24..Q-F26) +
+Audit pass refinements (Q-F27..Q-F30):
 
 | ID | Tier | Status |
 |---|---|---|
@@ -603,8 +607,12 @@ Original (Q-F1..Q-F18) + First pass (Q-F19..Q-F23) + Second pass (Q-F24..Q-F26):
 | Q-F22 | G3 | NEW — DQ persistence after board departure |
 | Q-F23 | G3 | NEW — Schedule A methodology consistency |
 | Q-F24 | G3 | NEW — Part I prior year column |
-| Q-F25 | G2 | NEW — Form 1096 and 1099-NEC filing confirmation |
-| Q-F26 | G2 | NEW — entity-donor DQ ownership check |
+| Q-F25 | G2 | NEW — Part V Line 2a entity-type filter (corps/LLCs excluded) |
+| Q-F26 | G2 | NEW — corporate donor ≥$35K board-ownership check for 509(a)(2) |
+| Q-F27 | G2 | NEW — PSR reconciles to payment processor 1099-K |
+| Q-F28 | **G1** | NEW — no disallowed negative values |
+| Q-F29 | **G1** | NEW — Part X balance sheet balances |
+| Q-F30 | G2 | NEW — Schedule B donor threshold completeness |
 | Q-F6 | G1 | EXTEND — add Part IX Line 7 gross wages check |
 | Q-F11 | G2 | EXTEND — Schedule A Line 16 from filed return |
 | Q-F18 | G3 | EXTEND — require quantified metrics in Part III |

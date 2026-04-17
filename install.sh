@@ -59,6 +59,8 @@ verify_sync_script() {
     fi
 }
 
+
+
 install_settings_hooks() {
     local settings_file="$CLAUDE_DIR/settings.json"
 
@@ -84,6 +86,7 @@ install_settings_hooks() {
 
     echo -e "${GREEN}✅ Installed ExitPlanMode review-plan hook (PreToolUse)${NC}"
 }
+
 
 merge_plugin_hooks() {
     # Merge plugin hooks into settings.json via merge-hooks.sh
@@ -130,31 +133,9 @@ main() {
     # Make tools and scripts executable
     if [ -d "$REPO_DIR/tools" ]; then
         chmod +x "$REPO_DIR/tools"/*.sh 2>/dev/null || true
-        chmod +x "$REPO_DIR/tools/claude-router" 2>/dev/null || true
-        chmod +x "$REPO_DIR/tools/claude-proxy" 2>/dev/null || true
-        chmod +x "$REPO_DIR/tools/claude-shim" 2>/dev/null || true
-        chmod +x "$REPO_DIR/tools/llm-capabilities-mcp.js" 2>/dev/null || true
     fi
 
-    # Symlink claude-router (used for Bedrock/Vertex — needs pre-launch env vars)
-    if [ -x "$REPO_DIR/tools/claude-router" ]; then
-        mkdir -p "$CLAUDE_DIR/tools"
-        ln -sfn "$REPO_DIR/tools/claude-router" "$CLAUDE_DIR/tools/claude-router"
-        echo -e "${GREEN}✅ Installed tool: claude-router${NC}"
-    fi
-
-    # Symlink claude-proxy (long-running HTTP proxy; auto-spawned by claude-router for Ollama backends)
-    if [ -x "$REPO_DIR/tools/claude-proxy" ]; then
-        mkdir -p "$CLAUDE_DIR/tools"
-        ln -sfn "$REPO_DIR/tools/claude-proxy" "$CLAUDE_DIR/tools/claude-proxy"
-        echo -e "${GREEN}✅ Installed tool: claude-proxy${NC}"
-    fi
-
-    if [ -x "$REPO_DIR/tools/llm-capabilities-mcp.js" ]; then
-        mkdir -p "$CLAUDE_DIR/tools"
-        ln -sfn "$REPO_DIR/tools/llm-capabilities-mcp.js" "$CLAUDE_DIR/tools/llm-capabilities-mcp"
-        echo -e "${GREEN}✅ Installed tool: llm-capabilities-mcp${NC}"
-    fi
+    # Router/proxy and model-map tooling moved to c-thru: https://github.com/whichguy/c-thru
 
     # Remove legacy PATH shim: keep the vendor `claude` binary from PATH untouched.
     if [ -f "$CLAUDE_DIR/bin/claude" ]; then
@@ -226,38 +207,8 @@ PY
     echo -e "${YELLOW}🔌 Merging plugin hooks (model-router uses PreToolUse only)...${NC}"
     merge_plugin_hooks
 
-    # Bootstrap / migrate model-map.json.
-    # Source of truth: config/model-map.json in the repo (new backends+model_routes schema).
-    # Migration: detect old schema (providers/session_rules/model_mappings keys) →
-    #   back up the old file, install the new default, and tell the user.
-    local model_map="$CLAUDE_DIR/model-map.json"
-    local default_map="$REPO_DIR/config/model-map.json"
-    if [ -f "$model_map" ] && command -v jq >/dev/null 2>&1; then
-        if jq -e 'has("providers") or has("model_mappings") or ((has("backends") or has("model_routes") or has("routes")) | not)' "$model_map" >/dev/null 2>&1; then
-            local bak="$model_map.bak.$(date +%Y%m%d%H%M%S)"
-            cp "$model_map" "$bak"
-            cp "$default_map" "$model_map"
-            chmod 600 "$model_map"
-            echo -e "${YELLOW}⚠️  Old-schema model-map.json detected and backed up to:${NC}"
-            echo -e "   $bak"
-            echo -e "${YELLOW}   New default schema installed. Port custom routes by hand — see docs.${NC}"
-        else
-            echo -e "${GREEN}✅ model-map.json already uses new schema — skipping${NC}"
-        fi
-    elif [ ! -f "$model_map" ]; then
-        if [ -f "$default_map" ]; then
-            cp "$default_map" "$model_map"
-            chmod 600 "$model_map"
-            echo -e "${GREEN}✅ Created default model-map.json (from config/model-map.json)${NC}"
-        else
-            # Fallback: minimal config if the default file is missing
-            printf '{\n  "backends": {},\n  "model_routes": {},\n  "routes": {}\n}\n' > "$model_map"
-            chmod 600 "$model_map"
-            echo -e "${GREEN}✅ Created minimal model-map.json${NC}"
-        fi
-    else
-        echo -e "${GREEN}✅ model-map.json already exists — skipping${NC}"
-    fi
+    # MCP registration and model-map bootstrap moved to c-thru:
+    # https://github.com/whichguy/c-thru
 
     # Install git hooks for security
     echo -e "${YELLOW}🔒 Installing security hooks...${NC}"
@@ -301,14 +252,11 @@ PY
     echo ""
     echo -e "${YELLOW}Model routing (transparent proxy):${NC}"
     echo "  • claude                             — uses the vendor Claude binary already on your PATH"
-    echo "  • ~/.claude/tools/claude-router      — optional wrapper for routed/proxied runs"
-    echo "  • ~/.claude/tools/llm-capabilities-mcp — local MCP server for review_plan/review_code"
-    echo "  • add ~/.claude/tools/llm-capabilities-mcp to .mcp.json to expose review_plan/review_code"
-    echo "  • /map-model                         — manage model routing and fallback strategies"
-    echo "  • tail ~/.claude/proxy.*.log         — troubleshoot proxy startup or routing issues"
-    echo "  • pkill -f claude-proxy              — restart proxy after config edits"
-    echo "  • CLAUDE_PROXY_BYPASS=1 claude ...   — bypass proxy for direct Anthropic access"
-    echo "  • ~/.claude/tools/claude-router --list — list routes / local models (router)"
+    echo "  • claude-router + claude-proxy extracted to https://github.com/whichguy/c-thru"
+    echo "  • hooks/plugins live in ~/.claude (profile-level) so they apply consistently across sessions"
+    echo "  • ~/.claude.json is managed in local MCP scope for this repo, so tools load from nested dirs too"
+    echo "  • use project .mcp.json only if you want to share this MCP server with the whole team"
+    echo "  • restart Claude Code or reload MCP/plugins after install to pick up newly registered tools"
     echo ""
     echo -e "${YELLOW}💡 Uninstall anytime with:${NC} $REPO_DIR/uninstall.sh --dry-run"
     echo ""

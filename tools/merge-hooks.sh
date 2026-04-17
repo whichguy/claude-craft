@@ -78,7 +78,13 @@ backup() {
     local ts
     ts=$(date +%Y%m%d-%H%M%S)
     cp "$SETTINGS_FILE" "$backup_dir/settings.json.pre-merge-hooks.$ts"
-    ls -t "$backup_dir"/settings.json.pre-merge-hooks.* 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null || true
+    local old_backups=()
+    while IFS= read -r old_backup; do
+        [ -n "$old_backup" ] && old_backups+=("$old_backup")
+    done < <(ls -t -- "$backup_dir"/settings.json.pre-merge-hooks.* 2>/dev/null | tail -n +6 || true)
+    if [ "${#old_backups[@]}" -gt 0 ]; then
+        rm -f -- "${old_backups[@]}" 2>/dev/null || true
+    fi
 }
 
 # --- Strip all plugin-contributed matcher-groups ---

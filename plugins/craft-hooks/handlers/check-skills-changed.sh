@@ -63,7 +63,7 @@ SKILL_NAMES=""
 while IFS= read -r skill_md; do
   if [[ -n "$skill_md" ]]; then
     if [[ "$(basename "$skill_md")" == "SKILL.md" ]]; then
-      skill_name=$(dirname "$skill_md" | xargs basename)
+      skill_name=$(basename -- "$(dirname "$skill_md")")
     else
       skill_name=$(basename "$skill_md" .md)
     fi
