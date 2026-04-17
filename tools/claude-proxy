@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 
 const CONFIG_PATH = path.join(process.env.HOME, '.claude', 'model-map.json');
-const PORT = Number(process.env.CLAUDE_PROXY_PORT) || 9999;
+const PORT = Number(process.env.CLAUDE_PROXY_PORT) || 11000;
 // Tests: set CLAUDE_PROXY_SKIP_OLLAMA_WARMUP=1 so the real ollama CLI does not hit a stub HTTP server.
 
 let CONFIG;
@@ -216,7 +216,12 @@ function forwardOllama(req, res, body, backend) {
     stream: true,    // always stream from Ollama; we translate to SSE
     options: {},
   };
-  if (body.max_tokens) ollamaBody.options.num_predict = body.max_tokens;
+  if (body.max_tokens)                               ollamaBody.options.num_predict  = body.max_tokens;
+  if (body.temperature != null)                      ollamaBody.options.temperature  = body.temperature;
+  if (body.top_p != null)                            ollamaBody.options.top_p        = body.top_p;
+  if (body.top_k != null)                            ollamaBody.options.top_k        = body.top_k;
+  if (body.stop_sequences && body.stop_sequences.length)
+                                                     ollamaBody.options.stop         = body.stop_sequences;
 
   const ollamaDefaults = CONFIG.ollama_defaults || {};
   if (ollamaDefaults.num_ctx) ollamaBody.options.num_ctx = ollamaDefaults.num_ctx;
