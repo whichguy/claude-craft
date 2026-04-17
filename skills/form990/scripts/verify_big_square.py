@@ -151,19 +151,34 @@ def main(dataset_path: str) -> int:
     all_pass = all_pass and ok
 
     # ────────────────────────────────────────────────────────────
-    # CHECK 6 — Part VIII Line 12 = Line 1h + Line 2f + Line 10c
+    # CHECK 6 — Part VIII Line 12 = sum of all revenue lines
     # ────────────────────────────────────────────────────────────
     log(tag, "")
-    log(tag, "=== CHECK 6: Part VIII Line 12 = 1h + 2f + 10c ===")
+    log(tag, "=== CHECK 6: Part VIII Line 12 = sum of all revenue lines ===")
 
-    contrib = float(p8["1h_total_contributions_column_a"])
-    psr = float(p8["2f_total_program_service_revenue"])
-    merch_net = float(p8["10c_net_income_from_sales"])
-    p8_computed = contrib + psr + merch_net
+    line_keys = [
+        "1h_total_contributions_column_a",
+        "2f_total_program_service_revenue",
+        "3_investment_income",
+        "4_income_from_investment_securities",
+        "5_real_estate",
+        "6a_gross_rents",
+        "7a_gross_amount_from_assets",
+        "8a_gross_fundraising_events",
+        "9a_gross_gaming",
+        "10c_net_income_from_sales",
+        "11e_total_other_revenue",
+    ]
+    components = {}
+    for k in line_keys:
+        val = float(p8.get(k, 0) or 0)
+        if val != 0:
+            components[k] = val
+    p8_computed = sum(components.values())
 
-    log(tag, f"  Line 1h (contributions):  {fmt(contrib)}")
-    log(tag, f"  Line 2f (PSR):            {fmt(psr)}")
-    log(tag, f"  Line 10c (net merch):     {fmt(merch_net)}")
+    for k, v in components.items():
+        label = k.split("_", 1)[1] if "_" in k else k
+        log(tag, f"  {label}: {fmt(v)}")
     log(tag, f"  = Computed Line 12:       {fmt(p8_computed)}")
     log(tag, f"  Declared Line 12:         {fmt(p8_line12)}")
 

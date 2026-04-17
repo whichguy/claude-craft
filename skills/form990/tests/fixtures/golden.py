@@ -10,7 +10,7 @@ Senior-Engineer Review — Theme A "pinned golden fixture table".
 """
 
 # ---------------------------------------------------------------------------
-# TC24 — Q-F4 public support test (509(a)(1) 33⅓% floor)
+# TC24 — Q-F4 public support test (509(a)(2) 1%/$5K per-donor cap)
 # Fixture: tests/fixtures/schedule_a_support.json (TC24-specific)
 # ---------------------------------------------------------------------------
 
@@ -59,6 +59,12 @@ PII_EXPECTED_EMAIL  = "to [REDACTED-EMAIL]"
 
 PII_INPUT_ADDR      = "123 Main St, Anytown"
 PII_EXPECTED_ADDR   = "[REDACTED-ADDR], Anytown"
+
+PII_INPUT_ADDR_UPPER    = "123 MAIN ST, Anytown"
+PII_EXPECTED_ADDR_UPPER = "[REDACTED-ADDR], Anytown"
+
+PII_INPUT_ADDR_LOWER    = "123 elm St, Anytown"
+PII_EXPECTED_ADDR_LOWER = "[REDACTED-ADDR], Anytown"
 
 PII_INPUT_DOB       = "born 03/15/1980"
 PII_EXPECTED_DOB    = "born [REDACTED-DOB]"
