@@ -275,11 +275,13 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 
 **Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
 
+=======
 **PERSONA.md / PLAN-TEMPLATE.md §Persona sync:** `PERSONA.md` and `PLAN-TEMPLATE.md §Persona`
 are separate copies. When either changes, update the other. On `/form990 init`, compare the
 two sections; if they diverge, surface a warning: "PERSONA.md and PLAN-TEMPLATE.md §Persona
 have diverged — reconcile before proceeding."
 
+>>>>>>> origin/main
 ---
 
 ## Form Discovery Directive
@@ -1173,7 +1175,7 @@ Valid keys in `key_facts{}`:
 | `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
 | `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
 | `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
-| `transition_from_ez` | boolean | `true` if the org filed Form 990-EZ (or 990-N) in the prior year and is now filing the full Form 990. Set at P0 after variant routing. Controls Prior Year column mapping strategy at P7. Default `false`. |
+<<<<<<< HEAD
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 
@@ -1193,6 +1195,8 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 | `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
 | `ca_sos_officers` | `[{name: string, title: string}]` \| null | Current officers/directors from CA Secretary of State discovery at P1 (WebSearch or local SI-100 PDF parse). null = CA org but discovery failed or not CA org. Consumed by board-change detector (P1) and Part VII Section A (P5). |
 
+<<<<<<< HEAD
+=======
 ### Directive: PAYMENT_PROCESSOR_1099K
 
 At P6 (Schedule A preparation) or P8 (CPA review), if PSR includes card-based membership
@@ -1215,6 +1219,7 @@ collect at minimum: (a) number of individuals served, (b) one quantified outcome
 awards, training hours, etc.). Pre-populate from prior year accomplishments data if available.
 Enforced by Q-F18 at P8 (headcount, hours, and specific achievements checklist).
 
+>>>>>>> origin/main
 ---
 
 ## form990_coordinates_{tax_year}

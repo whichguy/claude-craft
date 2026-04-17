@@ -248,6 +248,7 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
    `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
    `public_charity_basis`.
+=======
 5b. **Transition year detection (runs after variant is set):**
    If this is the first year filing full Form 990 and a prior 990-EZ is available in
    `prior_990_analysis`:
@@ -258,6 +259,7 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
      (prior year was 990-EZ). I'll use your prior 990-EZ to populate the comparison
      columns where possible. Lines without a 990-EZ equivalent will be left blank
      with a Schedule O note explaining the transition."
+>>>>>>> origin/main
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -472,25 +474,7 @@ officers (`ca_sos_officers`) against the operator-provided current roster.
 - Record all transitions in Decision Log with dates.
 - If `prior_990_analysis` is null: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
 
-**Donor name pre-population for PII scrubbing (P1 — run after TEOS extraction, non-blocking):**
-After document discovery and TEOS extraction, attempt to populate `key_facts.donor_names`:
-
-1. Check prior 990 Schedule B (if available in `artifacts[]` or extracted from TEOS PDF) → extract
-   donor names listed above the applicable threshold.
-2. Check P&L / bank transactions for any entry labeled "donation," "contribution," or similar
-   with amount ≥ $5,000 → extract counterparty names.
-3. If donors can be identified: set `key_facts.donor_names = [<name>, ...]` (sorted longest-first
-   for `scrub_pii()` matching).
-4. If donors CANNOT be identified at P1:
-   - Set `key_facts.donor_names = []` (empty list — not null).
-   - Write Decision Log entry: `{ severity: "elevated_pii_risk",
-       note: "donor_names unknown at P1; scrub_pii() may not mask all donor references
-              in P2–P5 breadcrumbs. Review at P6 when Schedule B is built." }`
-
-All subsequent breadcrumb writes (P1 onward) call `scrub_pii(donor_names)` before writing.
-This ensures donor names are redacted in breadcrumbs from the earliest possible phase, rather
-than waiting until P6 when Schedule B is generated.
-
+<<<<<<< HEAD
 5. For each missing artifact: create an Open Question. If addressed to an external party,
    create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
@@ -558,11 +542,13 @@ For each budget row, apply the mapping methodology:
   "This appears to be a reversal of prior income. Which Part VIII line does this reduce?
   Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue."
   Record the answer and offset against the indicated line. Never auto-commit.
+=======
   **Donation reversal specific case:** If the negative income label contains "scholarship,"
   "donation," or "contribution" (e.g., "Scholarship Donations -$1,580"), this is a donation
   reversal — reduce Part VIII Line 1 (contributions), NOT Line 2 (PSR). Rationale: the
   original donation was classified as a contribution; its reversal must offset the same
   line. A misclassification to Line 2 changes Schedule A composition and public support %.
+>>>>>>> origin/main
 
 **Step 2: Map Revenue → Part VIII line by source taxonomy.**
 | Revenue type | Part VIII line |
@@ -873,11 +859,7 @@ If any grant, scholarship, or competition-assistance amount appears in the progr
 - Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
   "Prior year used [methodology]. Use the same treatment unless org changed its policy."
 - Do NOT auto-commit classification. Create Open Question if ambiguous.
-- **Community scope question (also ask for each program):** "Is this voucher/grant program
-  open to community members beyond your organization's membership, or only to current members?"
-  Document the answer in the Part III description (e.g., "open to all youth athletes in the
-  community" vs. "available to enrolled members only"). This affects Schedule A public benefit
-  narrative for 509(a)(2) organizations.
+<<<<<<< HEAD
 
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
@@ -1244,8 +1226,10 @@ Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 
 **Part I Prior Year column (populate immediately after current-year rollup):**
 If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
+=======
 
 **Standard case (prior year was full Form 990):**
+>>>>>>> origin/main
 ```
 Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
 Part I Line 9  Prior Year = prior_990_analysis.program_service_rev  (Part VIII Line 2)
@@ -1253,21 +1237,7 @@ Part I Line 12 Prior Year = prior_990_analysis.total_revenue        (Part VIII L
 Part I Line 18 Prior Year = prior_990_analysis.total_expenses       (Part IX Line 25)
 Part I Line 19 Prior Year = total_revenue − total_expenses          (computed)
 ```
-
-**Transition year case (prior year was 990-EZ or 990-N):**
-If `key_facts.transition_from_ez == true`, use direct line mapping from the prior 990-EZ:
-```
-Part I Line 8  Prior Year = prior_990_analysis.contributions       (990-EZ Line 1)
-Part I Line 12 Prior Year = prior_990_analysis.total_revenue      (990-EZ Line 9)
-Part I Line 18 Prior Year = prior_990_analysis.total_expenses     (990-EZ Line 17)
-Part I Line 22 Prior Year = prior_990_analysis.eoy_net_assets     (990-EZ Line 21)
-```
-Lines without a 990-EZ equivalent (e.g., Line 9 program service revenue, Line 19
-revenue-less-expenses when expenses include functional detail not on 990-EZ): leave blank.
-Add Schedule O entry: "Prior Year column in Part I reflects figures from the
-organization's FY[prior year] Form 990-EZ. Functional expense columns are not
-available from the 990-EZ format and are left blank for the prior year."
-
+<<<<<<< HEAD
 Store in `dataset_rollup.parts.I.prior_year`. If `prior_990_analysis` is absent: leave
 Prior Year column null and flag Q-F24 NEEDS_UPDATE (non-blocking — Part I Prior Year is
 not required for e-file transmission but is required on the public-facing reference PDF).
@@ -1315,6 +1285,8 @@ assets), evaluate: if `abs(Part XI Line 9) < $500`, log "Prior period adjustment
 NOT auto-generate a Schedule O narrative for amounts < $500. Only generate Schedule O content
 if `abs(Part XI Line 9) >= $500`.
 
+<<<<<<< HEAD
+=======
 **Part XI Line 5 backfill (after Q-F2 PASS confirmed):** `dataset_core.json` Part XI Line 5
 (`line_5_unrealized_gains`) may still contain a P5-era placeholder value after P7 rollup,
 because P7 writes to `dataset_rollup.json` (Parts I + reconciliation) only — it does not
@@ -1324,6 +1296,7 @@ placeholder (e.g., `null` or a P5-era sentinel), compute the correct value from 
 reconciliation inputs and write it back to `dataset_core.json` before proceeding to the
 merge sub-phase.
 
+>>>>>>> origin/main
 **Mid-session P&L re-check:** If the user updates the Tiller P&L mid-session (or says "I
 updated the P&L"), immediately re-read BOTH the P&L PDF and the net worth/balance sheet PDF
 before making any changes. Compute and display a structured diff:
