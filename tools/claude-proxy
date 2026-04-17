@@ -5,6 +5,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
 
@@ -35,7 +36,32 @@ function findParentModelMap(dir) {
   return null;
 }
 
+function repoDefaultsPath() {
+  const candidate = canonicalizeFile(path.join(__dirname, '..', 'config', 'model-map.json'));
+  return candidate || null;
+}
+
+function maybeSyncLayeredProfileModelMap() {
+  const defaultsPath = repoDefaultsPath();
+  const claudeDir = canonicalizeDir(process.env.CLAUDE_DIR || process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME || '', '.claude'));
+  if (!defaultsPath || !claudeDir) return;
+  const overridesPath = path.join(claudeDir, 'model-map.overrides.json');
+  if (!fs.existsSync(overridesPath)) return;
+  const effectivePath = path.join(claudeDir, 'model-map.json');
+  const syncTool = path.join(__dirname, 'model-map-sync.js');
+  if (!fs.existsSync(syncTool)) return;
+  try {
+    const result = spawnSync(process.execPath, [syncTool, defaultsPath, overridesPath, effectivePath, effectivePath], { encoding: 'utf8', timeout: 5000 });
+    if (result.status !== 0 && DEBUG) {
+      console.error(`claude-proxy: layered model-map sync failed: ${result.stderr || result.stdout || 'unknown error'}`);
+    }
+  } catch {
+    /* layered sync is best effort here */
+  }
+}
+
 function resolveConfigPath() {
+  maybeSyncLayeredProfileModelMap();
   const override = process.env.CLAUDE_MODEL_MAP_PATH;
   if (override) {
     const real = canonicalizeFile(override);
@@ -68,16 +94,33 @@ function resolveConfigPath() {
 
 // ── Config loading & reload ────────────────────────────────────────────
 
-const INITIAL_PORT = Number(process.env.CLAUDE_PROXY_PORT) || 11000;
+const EXPLICIT_PORT = process.env.CLAUDE_PROXY_PORT;
+const INITIAL_PORT = EXPLICIT_PORT ? Number(EXPLICIT_PORT) : 0;
 const SKIP_WARMUP = process.env.CLAUDE_PROXY_SKIP_OLLAMA_WARMUP === '1';
 const ANNOTATE_MODEL = process.env.CLAUDE_PROXY_ANNOTATE_MODEL === '1';
-const OLLAMA_LEGACY = process.env.CLAUDE_PROXY_OLLAMA_LEGACY_TRANSLATE === '1';
-const DEBUG = Number(process.env.CLAUDE_ROUTER_DEBUG || '0');
+function numberFromEnv(name, fallback) {
+  if (process.env[name] == null || process.env[name] === '') return fallback;
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+const DEBUG = numberFromEnv('CLAUDE_PROXY_DEBUG', numberFromEnv('CLAUDE_ROUTER_DEBUG', 0));
 const DEFAULT_OLLAMA_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 
 let CONFIG;
 let CONFIG_PATH;
 let CONFIG_SOURCE;
+let CONFIG_MTIME_MS = 0;
+
+function debugLog(event, fields = {}) {
+  if (!DEBUG) return;
+  console.error(`claude-proxy debug ${JSON.stringify({
+    event,
+    pid: process.pid,
+    ts: nowIso(),
+    ...fields,
+  })}`);
+}
 
 function loadConfig() {
   const resolved = resolveConfigPath();
@@ -89,6 +132,7 @@ function loadConfig() {
   CONFIG_SOURCE = resolved.source;
   try {
     CONFIG = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    CONFIG_MTIME_MS = fs.statSync(CONFIG_PATH).mtimeMs;
   } catch (e) {
     console.error(`claude-proxy: failed to load ${CONFIG_PATH}: ${e.message}`);
     process.exit(1);
@@ -136,6 +180,27 @@ function validateWithNode() {
 
 loadConfig();
 
+function reloadConfigFromDisk() {
+  try {
+    const nextConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+    CONFIG = nextConfig;
+    CONFIG_MTIME_MS = fs.statSync(CONFIG_PATH).mtimeMs;
+    validateRouteGraph();
+    validateWithNode();
+    return true;
+  } catch (e) {
+    console.error(`claude-proxy: config reload failed, keeping old config: ${e.message}`);
+    return false;
+  }
+}
+
+function refreshConfigIfChanged() {
+  try {
+    const nextMtime = fs.statSync(CONFIG_PATH).mtimeMs;
+    if (nextMtime !== CONFIG_MTIME_MS) reloadConfigFromDisk();
+  } catch { /* ignore transient stat failures */ }
+}
+
 // Watch for config changes
 let configWatcher = null;
 let reloadTimer = null;
@@ -146,10 +211,9 @@ try {
       if (reloadTimer) clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => {
         try {
-          const newConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-          CONFIG = newConfig;
-          validateRouteGraph();
-          console.error(`claude-proxy: reloaded config from ${CONFIG_PATH}`);
+          if (reloadConfigFromDisk()) {
+            console.error(`claude-proxy: reloaded config from ${CONFIG_PATH}`);
+          }
         } catch (e) {
           console.error(`claude-proxy: config reload failed, keeping old config: ${e.message}`);
         }
@@ -198,6 +262,40 @@ function lookupPatternValue(section, model) {
   return null;
 }
 
+const LLM_PROFILE_ALIASES = new Set(['classifier', 'explorer', 'reviewer', 'workhorse', 'coder', 'general-default']);
+
+function profileAliasKey(alias) {
+  return alias === 'general-default' ? 'default' : alias;
+}
+
+function detectMemoryProfile() {
+  const override = process.env.CLAUDE_LLM_MEMORY_GB;
+  const totalGb = override && /^\d+$/.test(override) ? Number(override) : Math.ceil(os.totalmem() / (1024 ** 3));
+  return totalGb >= 96 ? '128gb' : '64gb';
+}
+
+function resolveProfileName() {
+  if (process.env.CLAUDE_LLM_PROFILE) return process.env.CLAUDE_LLM_PROFILE;
+  const configured = CONFIG.llm_active_profile || 'auto';
+  return configured === 'auto' ? detectMemoryProfile() : configured;
+}
+
+function resolveConnectivityMode() {
+  const mode = process.env.CLAUDE_CONNECTIVITY_MODE || process.env.CLAUDE_LLM_CONNECTIVITY_MODE || CONFIG.llm_connectivity_mode || 'connected';
+  return mode === 'disconnect' ? 'disconnect' : 'connected';
+}
+
+function resolveLogicalAlias(model) {
+  if (!LLM_PROFILE_ALIASES.has(model)) return model;
+  const profiles = CONFIG.llm_profiles || {};
+  const profile = profiles[resolveProfileName()];
+  if (!profile) return model;
+  const alias = profile[profileAliasKey(model)];
+  if (!alias || typeof alias !== 'object') return model;
+  const field = resolveConnectivityMode() === 'disconnect' ? 'disconnect_model' : 'connected_model';
+  return typeof alias[field] === 'string' && alias[field] ? alias[field] : model;
+}
+
 // ── Request stats tracking ─────────────────────────────────────────────
 
 const stats = {
@@ -206,9 +304,250 @@ const stats = {
   byBackendKind: {},
   byClientModel: {},
   byEffectiveModel: {},
+  byFailureClass: {},
   byStatus: {},
+  byBackendId: {},
   currentInFlight: 0,
 };
+
+const CLAUDE_PROFILE_DIR = process.env.CLAUDE_DIR || process.env.CLAUDE_CONFIG_DIR || path.join(process.env.HOME || os.homedir(), '.claude');
+const USAGE_STATS_FILE = process.env.CLAUDE_PROXY_USAGE_STATS_FILE || path.join(CLAUDE_PROFILE_DIR, 'proxy-usage-stats.json');
+const USAGE_LOG_FILE = process.env.CLAUDE_PROXY_USAGE_LOG_FILE || '';
+const USAGE_FLUSH_DEBOUNCE_MS = numberFromEnv('CLAUDE_PROXY_USAGE_FLUSH_DEBOUNCE_MS', 250);
+const USAGE_LOG_INCLUDE_ZERO_TOKEN_CALLS = process.env.CLAUDE_PROXY_USAGE_LOG_INCLUDE_ZERO_TOKEN_CALLS !== '0';
+let usagePersistTimer = null;
+let usagePersistPending = false;
+let usageLogChain = Promise.resolve();
+
+const persistentUsage = loadPersistentUsageStats();
+
+const HEALTH_STATE_FILE = path.join(process.env.HOME || os.homedir(), '.claude', 'proxy-health.json');
+const HEALTH_SLOW_THRESHOLD_MS = numberFromEnv('CLAUDE_PROXY_HEALTH_SLOW_THRESHOLD_MS', 8000);
+const HEALTH_DEGRADE_FAILURES = numberFromEnv('CLAUDE_PROXY_HEALTH_DEGRADE_FAILURES', 2);
+const HEALTH_DISCONNECT_FAILURES = numberFromEnv('CLAUDE_PROXY_HEALTH_DISCONNECT_FAILURES', 3);
+const HEALTH_DEGRADE_SLOW_STREAK = numberFromEnv('CLAUDE_PROXY_HEALTH_DEGRADE_SLOW_STREAK', 3);
+const HEALTH_HEAL_SUCCESS_COUNT = numberFromEnv('CLAUDE_PROXY_HEALTH_HEAL_SUCCESS_COUNT', 2);
+const HEALTH_RECOVERY_PROBE_MS = numberFromEnv('CLAUDE_PROXY_HEALTH_RECOVERY_PROBE_MS', 30000);
+const HEALTH_EWMA_ALPHA = numberFromEnv('CLAUDE_PROXY_HEALTH_EWMA_ALPHA', 0.3);
+const HEALTH_LATENCY_WINDOW = numberFromEnv('CLAUDE_PROXY_HEALTH_LATENCY_WINDOW', 20);
+const HEALTH_EVENT_LOG_LIMIT = numberFromEnv('CLAUDE_PROXY_HEALTH_EVENT_LOG_LIMIT', 20);
+const FATAL_CALL_TIMEOUT_MS = numberFromEnv('CLAUDE_PROXY_FATAL_CALL_TIMEOUT_MS', 40 * 60 * 1000);
+
+const healthMeta = {
+  version: 1,
+  eventSeq: 0,
+  lastTransition: null,
+  recentEvents: [],
+};
+
+function defaultPersistentUsageStats() {
+  return {
+    version: 1,
+    updated_at: null,
+    last_request_at: null,
+    totals: {
+      requests_completed: 0,
+      input_tokens_total: 0,
+      output_tokens_total: 0,
+    },
+    byClientModel: {},
+    byEffectiveModel: {},
+    byBackendId: {},
+    byMapping: {},
+  };
+}
+
+function loadPersistentUsageStats() {
+  try {
+    if (!fs.existsSync(USAGE_STATS_FILE)) return defaultPersistentUsageStats();
+    const parsed = JSON.parse(fs.readFileSync(USAGE_STATS_FILE, 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return defaultPersistentUsageStats();
+    return {
+      ...defaultPersistentUsageStats(),
+      ...parsed,
+      totals: {
+        ...defaultPersistentUsageStats().totals,
+        ...(parsed.totals || {}),
+      },
+      byClientModel: parsed.byClientModel || {},
+      byEffectiveModel: parsed.byEffectiveModel || {},
+      byBackendId: parsed.byBackendId || {},
+      byMapping: parsed.byMapping || {},
+    };
+  } catch {
+    return defaultPersistentUsageStats();
+  }
+}
+
+function ensureUsageBucket(parent, key, seed = {}) {
+  if (!key) return null;
+  if (!parent[key]) {
+    parent[key] = {
+      requests: 0,
+      input_tokens_total: 0,
+      output_tokens_total: 0,
+      first_used_at: null,
+      last_used_at: null,
+      last_status: null,
+      ...seed,
+    };
+  }
+  return parent[key];
+}
+
+function schedulePersistentUsageFlush() {
+  usagePersistPending = true;
+  if (usagePersistTimer) return;
+  usagePersistTimer = setTimeout(() => {
+    usagePersistTimer = null;
+    if (!usagePersistPending) return;
+    usagePersistPending = false;
+    const tmpPath = `${USAGE_STATS_FILE}.tmp`;
+    fs.promises.mkdir(path.dirname(USAGE_STATS_FILE), { recursive: true })
+      .then(() => fs.promises.writeFile(tmpPath, `${JSON.stringify(persistentUsage, null, 2)}\n`))
+      .then(() => fs.promises.rename(tmpPath, USAGE_STATS_FILE))
+      .catch(error => {
+        debugLog('proxy.usage.persist.failed', { error: error.message, file: USAGE_STATS_FILE });
+      });
+  }, USAGE_FLUSH_DEBOUNCE_MS);
+  if (typeof usagePersistTimer.unref === 'function') usagePersistTimer.unref();
+}
+
+function flushPersistentUsageNowSync() {
+  if (!usagePersistPending && !fs.existsSync(USAGE_STATS_FILE)) return;
+  try {
+    fs.mkdirSync(path.dirname(USAGE_STATS_FILE), { recursive: true });
+    const tmpPath = `${USAGE_STATS_FILE}.tmp`;
+    fs.writeFileSync(tmpPath, `${JSON.stringify(persistentUsage, null, 2)}\n`);
+    fs.renameSync(tmpPath, USAGE_STATS_FILE);
+    usagePersistPending = false;
+  } catch (error) {
+    debugLog('proxy.usage.persist_sync.failed', { error: error.message, file: USAGE_STATS_FILE });
+  }
+}
+
+function appendUsageLog(entry) {
+  if (!USAGE_LOG_FILE) return;
+  if (!USAGE_LOG_INCLUDE_ZERO_TOKEN_CALLS && !entry.input_tokens && !entry.output_tokens) return;
+  const line = `${JSON.stringify(entry)}\n`;
+  usageLogChain = usageLogChain
+    .then(() => fs.promises.mkdir(path.dirname(USAGE_LOG_FILE), { recursive: true }))
+    .then(() => fs.promises.appendFile(USAGE_LOG_FILE, line))
+    .catch(error => {
+      debugLog('proxy.usage.log.failed', { error: error.message, file: USAGE_LOG_FILE });
+    });
+}
+
+function notePersistentUsage(entry) {
+  const ts = nowIso();
+  const inputTokens = Number.isFinite(entry.input_tokens) ? entry.input_tokens : 0;
+  const outputTokens = Number.isFinite(entry.output_tokens) ? entry.output_tokens : 0;
+  const status = entry.status_code == null ? null : Number(entry.status_code);
+  persistentUsage.updated_at = ts;
+  persistentUsage.last_request_at = ts;
+  persistentUsage.totals.requests_completed += 1;
+  persistentUsage.totals.input_tokens_total += inputTokens;
+  persistentUsage.totals.output_tokens_total += outputTokens;
+
+  const clientBucket = ensureUsageBucket(persistentUsage.byClientModel, entry.client_model, { model: entry.client_model });
+  const effectiveBucket = ensureUsageBucket(persistentUsage.byEffectiveModel, entry.effective_model, { model: entry.effective_model });
+  const backendBucket = ensureUsageBucket(persistentUsage.byBackendId, entry.backend_id, {
+    backend_id: entry.backend_id,
+    backend_kind: entry.backend_kind || null,
+  });
+  const mappingKey = `${entry.client_model || '<none>'}=>${entry.effective_model || '<none>'}`;
+  const mappingBucket = ensureUsageBucket(persistentUsage.byMapping, mappingKey, {
+    client_model: entry.client_model || null,
+    effective_model: entry.effective_model || null,
+  });
+
+  for (const bucket of [clientBucket, effectiveBucket, backendBucket, mappingBucket]) {
+    if (!bucket) continue;
+    bucket.requests += 1;
+    bucket.input_tokens_total += inputTokens;
+    bucket.output_tokens_total += outputTokens;
+    bucket.first_used_at = bucket.first_used_at || ts;
+    bucket.last_used_at = ts;
+    bucket.last_status = status;
+  }
+
+  schedulePersistentUsageFlush();
+  appendUsageLog({
+    ts,
+    endpoint: entry.endpoint,
+    client_model: entry.client_model || null,
+    effective_model: entry.effective_model || null,
+    backend_id: entry.backend_id || null,
+    backend_kind: entry.backend_kind || null,
+    status_code: status,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    duration_ms: entry.duration_ms == null ? null : entry.duration_ms,
+    stream: Boolean(entry.stream),
+    stop_reason: entry.stop_reason || null,
+  });
+}
+
+function usageFromJsonPayload(payload) {
+  if (!payload || typeof payload !== 'object') return { input_tokens: 0, output_tokens: 0, stop_reason: null };
+  const usage = payload.usage || {};
+  return {
+    input_tokens: Number.isFinite(usage.input_tokens) ? usage.input_tokens : (Number.isFinite(payload.input_tokens) ? payload.input_tokens : 0),
+    output_tokens: Number.isFinite(usage.output_tokens) ? usage.output_tokens : 0,
+    stop_reason: typeof payload.stop_reason === 'string' ? payload.stop_reason : null,
+  };
+}
+
+function createStreamUsageTracker() {
+  return {
+    buffer: '',
+    input_tokens: 0,
+    output_tokens: 0,
+    stop_reason: null,
+  };
+}
+
+function noteStreamUsageChunk(tracker, chunk) {
+  tracker.buffer += chunk.toString();
+  const blocks = tracker.buffer.split('\n\n');
+  tracker.buffer = blocks.pop();
+  for (const block of blocks) {
+    const dataLines = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trim());
+    if (!dataLines.length) continue;
+    let parsed;
+    try {
+      parsed = JSON.parse(dataLines.join('\n'));
+    } catch {
+      continue;
+    }
+    if (parsed.type === 'message_start' && parsed.message?.usage?.input_tokens != null) {
+      tracker.input_tokens = Math.max(tracker.input_tokens, Number(parsed.message.usage.input_tokens) || 0);
+    }
+    if (parsed.type === 'message_delta' && parsed.usage?.output_tokens != null) {
+      tracker.output_tokens = Math.max(tracker.output_tokens, Number(parsed.usage.output_tokens) || 0);
+    }
+    if (typeof parsed.stop_reason === 'string') {
+      tracker.stop_reason = parsed.stop_reason;
+    } else if (parsed.delta?.stop_reason) {
+      tracker.stop_reason = parsed.delta.stop_reason;
+    }
+  }
+}
+
+function finalizeTrackedUsage(meta, extra = {}) {
+  if (!meta || meta._usageFinalized) return;
+  meta._usageFinalized = true;
+  notePersistentUsage({
+    endpoint: meta.endpoint,
+    client_model: meta.clientModel,
+    effective_model: meta.effectiveModel,
+    backend_id: meta.backend?.id || null,
+    backend_kind: meta.backend?.kind || null,
+    duration_ms: nowMs() - meta.startedAtMs,
+    stream: meta.stream,
+    ...extra,
+  });
+}
 
 function recordStats(endpoint, backend, clientModel, effectiveModel, statusCode) {
   stats.requestsTotal++;
@@ -224,7 +563,241 @@ function recordStats(endpoint, backend, clientModel, effectiveModel, statusCode)
 const VALID_FAILURE_CLASSES = new Set(['network', 'rate_limit', 'account_quota', 'context_limit']);
 const cooldowns = new Map(); // model -> { untilMs, failureClass }
 
-function classifyError(statusCode, headers) {
+function recordFailureClass(failureClass) {
+  stats.byFailureClass[failureClass] = (stats.byFailureClass[failureClass] || 0) + 1;
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function nowMs() {
+  return Date.now();
+}
+
+function isLocalHostName(hostname) {
+  return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(hostname);
+}
+
+function isManagedCloudBackend(backend, effectiveModel) {
+  if (!backend || !backend.id || !backend.url) return false;
+  if (backend.id === '__ollama_fallback__') return false;
+  if (String(effectiveModel || '').endsWith(':cloud')) return true;
+  try {
+    const url = new URL(backend.url);
+    return !isLocalHostName(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function ensureBackendHealthEntry(backend, effectiveModel) {
+  if (!backend || !backend.id) return null;
+  if (!stats.byBackendId[backend.id]) {
+    const now = nowIso();
+    const nowAt = nowMs();
+    stats.byBackendId[backend.id] = {
+      backend_id: backend.id,
+      backend_kind: backend.kind || 'unknown',
+      backend_url: backend.url || '',
+      managed: isManagedCloudBackend(backend, effectiveModel),
+      state: 'healthy',
+      state_since: now,
+      state_since_ms: nowAt,
+      last_failure_class: null,
+      last_failure_at: null,
+      last_failure_at_ms: null,
+      last_success_at: null,
+      last_success_at_ms: null,
+      last_healed_at: null,
+      last_healed_at_ms: null,
+      next_probe_at_ms: 0,
+      request_count: 0,
+      success_count: 0,
+      failure_count: 0,
+      consecutive_failures: 0,
+      consecutive_successes: 0,
+      slow_streak: 0,
+      last_latency_ms: null,
+      ewma_latency_ms: null,
+      recent_latencies_ms: [],
+    };
+  }
+  const entry = stats.byBackendId[backend.id];
+  entry.backend_kind = backend.kind || entry.backend_kind;
+  entry.backend_url = backend.url || entry.backend_url;
+  entry.managed = isManagedCloudBackend(backend, effectiveModel);
+  return entry;
+}
+
+function persistHealthState() {
+  try {
+    fs.mkdirSync(path.dirname(HEALTH_STATE_FILE), { recursive: true });
+    const tmpPath = `${HEALTH_STATE_FILE}.tmp.${process.pid}`;
+    fs.writeFileSync(tmpPath, JSON.stringify({
+      version: healthMeta.version,
+      generated_at: nowIso(),
+      event_seq: healthMeta.eventSeq,
+      last_transition: healthMeta.lastTransition,
+      recent_events: healthMeta.recentEvents,
+      backends: stats.byBackendId,
+    }, null, 2));
+    fs.renameSync(tmpPath, HEALTH_STATE_FILE);
+  } catch {
+    // Best-effort observability only.
+  }
+}
+
+function transitionBackendState(entry, nextState, reason) {
+  if (!entry || entry.state === nextState) return;
+  const at = nowIso();
+  const atMs = nowMs();
+  debugLog('proxy.health.transition.before', {
+    backend_id: entry.backend_id,
+    from: entry.state,
+    to: nextState,
+    reason,
+    consecutive_failures: entry.consecutive_failures,
+    consecutive_successes: entry.consecutive_successes,
+    ewma_latency_ms: entry.ewma_latency_ms,
+    last_latency_ms: entry.last_latency_ms,
+    next_probe_at_ms: entry.next_probe_at_ms,
+  });
+  const event = {
+    event_id: ++healthMeta.eventSeq,
+    backend_id: entry.backend_id,
+    from: entry.state,
+    to: nextState,
+    reason,
+    at,
+    at_ms: atMs,
+  };
+  entry.state = nextState;
+  entry.state_since = at;
+  entry.state_since_ms = atMs;
+  if (nextState === 'healthy') {
+    entry.last_healed_at = at;
+    entry.last_healed_at_ms = atMs;
+    entry.next_probe_at_ms = 0;
+  } else if (nextState === 'recovering') {
+    entry.next_probe_at_ms = 0;
+  }
+  healthMeta.lastTransition = event;
+  healthMeta.recentEvents.push(event);
+  if (healthMeta.recentEvents.length > HEALTH_EVENT_LOG_LIMIT) {
+    healthMeta.recentEvents = healthMeta.recentEvents.slice(-HEALTH_EVENT_LOG_LIMIT);
+  }
+  debugLog('proxy.health.transition.after', {
+    backend_id: entry.backend_id,
+    state: entry.state,
+    reason,
+    event_id: event.event_id,
+    state_since_ms: entry.state_since_ms,
+    next_probe_at_ms: entry.next_probe_at_ms,
+    last_healed_at_ms: entry.last_healed_at_ms,
+  });
+}
+
+function updateLatency(entry, latencyMs) {
+  if (!entry || !Number.isFinite(latencyMs)) return;
+  entry.last_latency_ms = latencyMs;
+  entry.recent_latencies_ms.push(latencyMs);
+  if (entry.recent_latencies_ms.length > HEALTH_LATENCY_WINDOW) {
+    entry.recent_latencies_ms = entry.recent_latencies_ms.slice(-HEALTH_LATENCY_WINDOW);
+  }
+  if (entry.ewma_latency_ms == null) {
+    entry.ewma_latency_ms = latencyMs;
+  } else {
+    entry.ewma_latency_ms = Math.round((HEALTH_EWMA_ALPHA * latencyMs) + ((1 - HEALTH_EWMA_ALPHA) * entry.ewma_latency_ms));
+  }
+}
+
+function noteBackendSuccess(backend, effectiveModel, latencyMs) {
+  const entry = ensureBackendHealthEntry(backend, effectiveModel);
+  if (!entry || !entry.managed) return;
+
+  const at = nowIso();
+  const atMs = nowMs();
+  const previousState = entry.state;
+  entry.request_count++;
+  entry.success_count++;
+  entry.consecutive_successes++;
+  entry.consecutive_failures = 0;
+  entry.last_success_at = at;
+  entry.last_success_at_ms = atMs;
+  updateLatency(entry, latencyMs);
+
+  const isSlow = Number.isFinite(latencyMs) && latencyMs >= HEALTH_SLOW_THRESHOLD_MS;
+  entry.slow_streak = isSlow ? entry.slow_streak + 1 : 0;
+
+  if ((entry.state === 'degraded' || entry.state === 'disconnected') && !isSlow) {
+    transitionBackendState(entry, 'recovering', 'successful_probe');
+  } else if ((entry.state === 'degraded' || entry.state === 'disconnected') && isSlow) {
+    entry.next_probe_at_ms = atMs + HEALTH_RECOVERY_PROBE_MS;
+  } else if (entry.state === 'recovering' && isSlow) {
+    transitionBackendState(entry, 'degraded', 'slow_recovery_response');
+    entry.next_probe_at_ms = atMs + HEALTH_RECOVERY_PROBE_MS;
+  }
+
+  if (entry.state === 'recovering' && entry.consecutive_successes >= HEALTH_HEAL_SUCCESS_COUNT && (entry.ewma_latency_ms == null || entry.ewma_latency_ms < HEALTH_SLOW_THRESHOLD_MS)) {
+    transitionBackendState(entry, 'healthy', 'recovered');
+  } else if (entry.state === 'healthy' && entry.slow_streak >= HEALTH_DEGRADE_SLOW_STREAK) {
+    transitionBackendState(entry, 'degraded', 'slow_responses');
+    entry.next_probe_at_ms = atMs + HEALTH_RECOVERY_PROBE_MS;
+  }
+
+  if (previousState !== entry.state && (entry.state === 'recovering' || entry.state === 'healthy')) {
+    debugLog('proxy.health.cooldown.clear', {
+      backend_id: entry.backend_id,
+      effective_model: effectiveModel,
+      previous_state: previousState,
+      next_state: entry.state,
+    });
+    clearCooldown(effectiveModel);
+  }
+
+  persistHealthState();
+}
+
+function noteBackendFailure(backend, effectiveModel, failureClass, latencyMs, reason) {
+  const entry = ensureBackendHealthEntry(backend, effectiveModel);
+  if (!entry || !entry.managed) return;
+
+  const at = nowIso();
+  const atMs = nowMs();
+  entry.request_count++;
+  entry.failure_count++;
+  entry.consecutive_failures++;
+  entry.consecutive_successes = 0;
+  entry.slow_streak = 0;
+  entry.last_failure_class = failureClass || null;
+  entry.last_failure_at = at;
+  entry.last_failure_at_ms = atMs;
+  if (Number.isFinite(latencyMs)) updateLatency(entry, latencyMs);
+
+  if (failureClass === 'network') {
+    if (entry.state === 'recovering' || entry.consecutive_failures >= HEALTH_DISCONNECT_FAILURES) {
+      transitionBackendState(entry, 'disconnected', reason || 'network_failure');
+    } else if (entry.consecutive_failures >= HEALTH_DEGRADE_FAILURES) {
+      transitionBackendState(entry, 'degraded', reason || 'network_failure');
+    }
+    entry.next_probe_at_ms = atMs + HEALTH_RECOVERY_PROBE_MS;
+  }
+
+  persistHealthState();
+}
+
+function shouldPreferFallbackForHealth(backend, effectiveModel) {
+  const entry = ensureBackendHealthEntry(backend, effectiveModel);
+  if (!entry || !entry.managed) return false;
+  if (entry.state !== 'degraded' && entry.state !== 'disconnected') return false;
+  return nowMs() < (entry.next_probe_at_ms || 0);
+}
+
+function classifyError(statusCode, headers, bodyText = '') {
+  const body = String(bodyText || '').toLowerCase();
+  if (body.includes('credits exhausted') || body.includes('account quota') || body.includes('insufficient credits')) return 'account_quota';
+  if (body.includes('context length exceeded') || body.includes('context limit') || body.includes('too many tokens')) return 'context_limit';
   if (statusCode === 429) return 'rate_limit';
   if (statusCode === 402 || statusCode === 403) return 'account_quota';
   if (statusCode === 413) return 'context_limit';
@@ -255,6 +828,18 @@ function isCooledDown(model) {
   return true;
 }
 
+function clearCooldown(model) {
+  if (!model) return;
+  if (cooldowns.has(model)) {
+    debugLog('proxy.cooldown.clear', {
+      model,
+      previous_until_ms: cooldowns.get(model)?.untilMs || null,
+      previous_failure_class: cooldowns.get(model)?.failureClass || null,
+    });
+  }
+  cooldowns.delete(model);
+}
+
 function setCooldown(model, failureClass, statusCode, headers) {
   const strategies = CONFIG.fallback_strategies || {};
   const strategy = strategies[model];
@@ -272,7 +857,24 @@ function setCooldown(model, failureClass, statusCode, headers) {
     ms = (cooldown.seconds || 0) * 1000;
   }
   // mode === 'none' → no cooldown
-  if (ms > 0) cooldowns.set(model, { untilMs: Date.now() + ms, failureClass });
+  if (ms > 0) {
+    const untilMs = Date.now() + ms;
+    debugLog('proxy.cooldown.set', {
+      model,
+      failure_class: failureClass,
+      status_code: statusCode,
+      cooldown_ms: ms,
+      until_ms: untilMs,
+    });
+    cooldowns.set(model, { untilMs, failureClass });
+  }
+}
+
+function shouldBypassCooldownForRecoveryProbe(backend, effectiveModel) {
+  const entry = ensureBackendHealthEntry(backend, effectiveModel);
+  if (!entry || !entry.managed) return false;
+  if (entry.state !== 'degraded' && entry.state !== 'disconnected') return false;
+  return nowMs() >= (entry.next_probe_at_ms || 0);
 }
 
 function resolveFallbackModel(model, failureClass) {
@@ -282,7 +884,7 @@ function resolveFallbackModel(model, failureClass) {
   const candidates = strategy.on[failureClass];
   if (!Array.isArray(candidates) || candidates.length === 0) return null;
   for (const candidate of candidates) {
-    const resolved = resolveRouteModel(candidate);
+    const resolved = resolveLogicalAlias(resolveRouteModel(candidate));
     if (!isCooledDown(resolved)) return resolved;
   }
   return null;
@@ -299,32 +901,112 @@ function ollamaHostEnvFromUrl(urlStr) {
   }
 }
 
+function isLocalOllamaBackend(model, backendUrl) {
+  if (String(model || '').endsWith(':cloud')) return false;
+  try {
+    const url = new URL(backendUrl);
+    return ['localhost', '127.0.0.1', '0.0.0.0', '::1'].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function ensureOllamaModelLoaded(model, backendUrl) {
   if (SKIP_WARMUP) return;
+  if (!isLocalOllamaBackend(model, backendUrl)) return;
   const ollamaHost = ollamaHostEnvFromUrl(backendUrl);
+  debugLog('proxy.ollama.prepare.start', {
+    model,
+    ollama_host: ollamaHost,
+    backend_url: backendUrl,
+  });
   const run = args =>
     spawnSync('ollama', args, {
       env: { ...process.env, OLLAMA_HOST: ollamaHost },
       encoding: 'utf8',
-      timeout: 3000,
+      timeout: args[0] === 'pull' ? 15 * 60 * 1000 : 3000,
     });
 
-  const ps = run(['ps']);
-  if (ps.error && ps.error.code === 'ENOENT') return;
-  if (ps.status !== 0) {
+  const list = run(['list']);
+  if (list.error && list.error.code === 'ENOENT') {
+    debugLog('proxy.ollama.prepare.skip_cli_missing', {
+      model,
+      ollama_host: ollamaHost,
+    });
+    return;
+  }
+  if (list.status !== 0) {
+    debugLog('proxy.ollama.prepare.list.error', {
+      model,
+      ollama_host: ollamaHost,
+      status: list.status,
+      error: list.error?.message || null,
+    });
     console.error(`claude-proxy: cannot reach Ollama on ${ollamaHost} — is 'ollama serve' running? Skipping warm-up.`);
     return;
   }
-  const loaded = ps.stdout.split('\n').slice(1).map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
-  if (loaded.includes(model)) return;
-  const list = run(['list']);
-  if (list.status !== 0) return;
   const cached = list.stdout.split('\n').slice(1).map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
+  debugLog('proxy.ollama.prepare.list.result', {
+    model,
+    ollama_host: ollamaHost,
+    cached: cached.includes(model),
+    cached_count: cached.length,
+  });
   if (!cached.includes(model)) {
-    console.error(`claude-proxy: '${model}' not cached on ${ollamaHost} — run OLLAMA_HOST=${ollamaHost} ollama pull ${model} first`);
+    debugLog('proxy.ollama.prepare.pull.start', {
+      model,
+      ollama_host: ollamaHost,
+    });
+    console.error(`claude-proxy: '${model}' not cached on ${ollamaHost} — pulling now...`);
+    const pulled = run(['pull', model]);
+    if (pulled.status !== 0) {
+      const detail = (pulled.stderr || pulled.stdout || '').trim();
+      debugLog('proxy.ollama.prepare.pull.failure', {
+        model,
+        ollama_host: ollamaHost,
+        status: pulled.status,
+        detail,
+      });
+      return {
+        type: 'api_error',
+        message: `Failed to pull '${model}' from ${ollamaHost}${detail ? `: ${detail}` : ''}`,
+      };
+    }
+    debugLog('proxy.ollama.prepare.pull.success', {
+      model,
+      ollama_host: ollamaHost,
+    });
+  }
+  const ps = run(['ps']);
+  if (ps.status !== 0) {
+    debugLog('proxy.ollama.prepare.ps.error', {
+      model,
+      ollama_host: ollamaHost,
+      status: ps.status,
+      error: ps.error?.message || null,
+    });
+    return;
+  }
+  const loaded = ps.stdout.split('\n').slice(1).map(l => l.trim().split(/\s+/)[0]).filter(Boolean);
+  debugLog('proxy.ollama.prepare.ps.result', {
+    model,
+    ollama_host: ollamaHost,
+    loaded: loaded.includes(model),
+    loaded_count: loaded.length,
+  });
+  if (loaded.includes(model)) {
+    debugLog('proxy.ollama.prepare.loaded', {
+      model,
+      ollama_host: ollamaHost,
+    });
     return;
   }
   const numCtx = (CONFIG.ollama_defaults && CONFIG.ollama_defaults.num_ctx) || 65536;
+  debugLog('proxy.ollama.prepare.warm.start', {
+    model,
+    ollama_host: ollamaHost,
+    num_ctx: numCtx,
+  });
   console.error(`claude-proxy: warming '${model}' on ${ollamaHost} (background)...`);
   const child = spawn('ollama', ['run', model, '--options', `num_ctx=${numCtx}`], {
     env: { ...process.env, OLLAMA_HOST: ollamaHost },
@@ -332,6 +1014,66 @@ function ensureOllamaModelLoaded(model, backendUrl) {
     stdio: 'ignore',
   });
   child.unref();
+  debugLog('proxy.ollama.prepare.warm.started', {
+    model,
+    ollama_host: ollamaHost,
+    pid: child.pid,
+  });
+}
+
+function ensureOllamaReadyOrSend(res, model, backendUrl) {
+  const error = ensureOllamaModelLoaded(model, backendUrl);
+  if (!error) return true;
+  if (!res.headersSent) send(res, 502, { error });
+  return false;
+}
+
+function formatBackendError(kind, targetUrl, error) {
+  if (kind === 'ollama') {
+    return { type: 'api_error', message: `Cannot reach Ollama at ${targetUrl}: ${error.message}` };
+  }
+  return { type: 'api_error', message: error.message };
+}
+
+function isFatalCallTimeout(error) {
+  return error && error.code === 'CLAUDE_PROXY_FATAL_CALL_TIMEOUT';
+}
+
+function formatFatalCallTimeout(targetUrl, timeoutMs) {
+  return {
+    type: 'api_error',
+    message: `Fatal call timeout after ${timeoutMs}ms while waiting for upstream ${targetUrl}`,
+  };
+}
+
+function attachFatalCallTimeout(up, res, targetUrl, timeoutMs, state) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return () => {};
+  let cleared = false;
+  const clear = () => {
+    if (cleared) return;
+    cleared = true;
+    clearTimeout(timer);
+    res.off('finish', clear);
+    res.off('close', clear);
+    up.off('close', clear);
+    up.off('error', clear);
+  };
+  const timer = setTimeout(() => {
+    state.fatalTimeoutTriggered = true;
+    const error = new Error(`fatal call timeout after ${timeoutMs}ms`);
+    error.code = 'CLAUDE_PROXY_FATAL_CALL_TIMEOUT';
+    if (state.upstreamResponse && !state.upstreamResponse.destroyed) {
+      state.upstreamResponse.destroy(error);
+    }
+    if (!up.destroyed) up.destroy(error);
+    if (res.headersSent && !res.writableEnded) res.end();
+  }, timeoutMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  res.on('finish', clear);
+  res.on('close', clear);
+  up.on('close', clear);
+  up.on('error', clear);
+  return clear;
 }
 
 function resolveBackend(model) {
@@ -344,7 +1086,7 @@ function resolveBackend(model) {
   const backends = CONFIG.backends || {};
 
   // 1. Follow route graph first
-  const terminalModel = resolveRouteModel(model);
+  const terminalModel = resolveLogicalAlias(resolveRouteModel(model));
 
   // 2. Try exact match in model_routes
   if (modelRoutes[terminalModel] !== undefined) {
@@ -412,9 +1154,12 @@ function addAnnotationHeaders(res, effectiveModel, backend) {
 // ── Anthropic passthrough ──────────────────────────────────────────────
 // Forwards the request body verbatim; replaces x-api-key with the real
 // backend key from env. Streams SSE through untouched via pipe().
-function forwardAnthropic(req, res, body, backend, effectiveModel) {
+function forwardAnthropic(req, res, body, backend, effectiveModel, requestMeta = null) {
   const targetUrl = new URL(backend.url);
   const authKey = backend.auth_env ? process.env[backend.auth_env] : '';
+  const timeoutState = { upstreamResponse: null, fatalTimeoutTriggered: false };
+  const streamUsage = createStreamUsageTracker();
+  const responseChunks = [];
 
   const bodyStr = body ? JSON.stringify(body) : '';
   const headers = {
@@ -440,13 +1185,53 @@ function forwardAnthropic(req, res, body, backend, effectiveModel) {
   };
 
   const up = lib.request(options, upRes => {
+    timeoutState.upstreamResponse = upRes;
     const respHeaders = { ...upRes.headers };
     if (ANNOTATE_MODEL && effectiveModel) respHeaders['x-claude-proxy-served-by'] = effectiveModel;
     res.writeHead(upRes.statusCode, respHeaders);
+    upRes.on('data', chunk => {
+      const contentType = String(upRes.headers['content-type'] || '');
+      if (contentType.includes('text/event-stream')) {
+        noteStreamUsageChunk(streamUsage, chunk);
+      } else if (contentType.includes('application/json')) {
+        responseChunks.push(chunk);
+      }
+    });
+    upRes.on('end', () => {
+      const contentType = String(upRes.headers['content-type'] || '');
+      if (contentType.includes('text/event-stream')) {
+        finalizeTrackedUsage(requestMeta, {
+          status_code: upRes.statusCode,
+          input_tokens: streamUsage.input_tokens,
+          output_tokens: streamUsage.output_tokens,
+          stop_reason: streamUsage.stop_reason,
+        });
+      } else if (contentType.includes('application/json')) {
+        let parsed = null;
+        try { parsed = JSON.parse(Buffer.concat(responseChunks).toString('utf8')); } catch { parsed = null; }
+        const usage = usageFromJsonPayload(parsed);
+        finalizeTrackedUsage(requestMeta, {
+          status_code: upRes.statusCode,
+          input_tokens: usage.input_tokens,
+          output_tokens: usage.output_tokens,
+          stop_reason: usage.stop_reason,
+        });
+      } else {
+        finalizeTrackedUsage(requestMeta, { status_code: upRes.statusCode, input_tokens: 0, output_tokens: 0 });
+      }
+    });
     upRes.pipe(res);
   });
+  attachFatalCallTimeout(up, res, targetUrl.origin, FATAL_CALL_TIMEOUT_MS, timeoutState);
   up.on('error', e => {
-    if (!res.headersSent) send(res, 502, { error: e.message });
+    if (isFatalCallTimeout(e)) {
+      finalizeTrackedUsage(requestMeta, { status_code: 504, input_tokens: 0, output_tokens: 0, stop_reason: 'fatal_timeout' });
+      if (!res.headersSent) send(res, 504, { error: formatFatalCallTimeout(targetUrl.origin, FATAL_CALL_TIMEOUT_MS) });
+      else res.end();
+      return;
+    }
+    finalizeTrackedUsage(requestMeta, { status_code: 502, input_tokens: 0, output_tokens: 0, stop_reason: 'proxy_error' });
+    if (!res.headersSent) send(res, 502, { error: formatBackendError('anthropic', targetUrl.origin, e) });
     else res.end();
   });
   if (bodyStr) up.write(bodyStr);
@@ -457,9 +1242,12 @@ function forwardAnthropic(req, res, body, backend, effectiveModel) {
 // When Ollama exposes /v1/messages (Anthropic-compatible), forward the
 // request verbatim. This preserves all fields: temperature, top_p, tools,
 // tool_result, structured content, etc.
-function forwardOllamaPassthrough(req, res, body, backend, effectiveModel) {
+function forwardOllamaPassthrough(req, res, body, backend, effectiveModel, requestMeta = null) {
   const targetUrl = new URL(backend.url);
   const authKey = backend.auth_env ? process.env[backend.auth_env] : null;
+  const timeoutState = { upstreamResponse: null, fatalTimeoutTriggered: false };
+  const streamUsage = createStreamUsageTracker();
+  const responseChunks = [];
 
   // Replace model with the resolved terminal model
   const outBody = { ...body, model: effectiveModel || body.model };
@@ -490,12 +1278,14 @@ function forwardOllamaPassthrough(req, res, body, backend, effectiveModel) {
   };
 
   const up = lib.request(options, upRes => {
+    timeoutState.upstreamResponse = upRes;
     const respHeaders = { ...upRes.headers };
     if (ANNOTATE_MODEL && effectiveModel) respHeaders['x-claude-proxy-served-by'] = effectiveModel;
     if (upRes.statusCode !== 200) {
       const errChunks = [];
       upRes.on('data', c => errChunks.push(c));
       upRes.on('end', () => {
+        finalizeTrackedUsage(requestMeta, { status_code: upRes.statusCode, input_tokens: 0, output_tokens: 0, stop_reason: 'error_response' });
         if (!res.headersSent) {
           res.writeHead(upRes.statusCode, respHeaders);
           res.end(Buffer.concat(errChunks));
@@ -505,165 +1295,57 @@ function forwardOllamaPassthrough(req, res, body, backend, effectiveModel) {
     }
     // Stream SSE through
     res.writeHead(200, respHeaders);
+    upRes.on('data', chunk => {
+      const contentType = String(upRes.headers['content-type'] || '');
+      if (contentType.includes('text/event-stream')) {
+        noteStreamUsageChunk(streamUsage, chunk);
+      } else if (contentType.includes('application/json')) {
+        responseChunks.push(chunk);
+      }
+    });
+    upRes.on('end', () => {
+      const contentType = String(upRes.headers['content-type'] || '');
+      if (contentType.includes('text/event-stream')) {
+        finalizeTrackedUsage(requestMeta, {
+          status_code: upRes.statusCode,
+          input_tokens: streamUsage.input_tokens,
+          output_tokens: streamUsage.output_tokens,
+          stop_reason: streamUsage.stop_reason,
+        });
+      } else if (contentType.includes('application/json')) {
+        let parsed = null;
+        try { parsed = JSON.parse(Buffer.concat(responseChunks).toString('utf8')); } catch { parsed = null; }
+        const usage = usageFromJsonPayload(parsed);
+        finalizeTrackedUsage(requestMeta, {
+          status_code: upRes.statusCode,
+          input_tokens: usage.input_tokens,
+          output_tokens: usage.output_tokens,
+          stop_reason: usage.stop_reason,
+        });
+      } else {
+        finalizeTrackedUsage(requestMeta, { status_code: upRes.statusCode, input_tokens: 0, output_tokens: 0 });
+      }
+    });
     upRes.pipe(res);
   });
+  attachFatalCallTimeout(up, res, targetUrl.origin, FATAL_CALL_TIMEOUT_MS, timeoutState);
   up.on('error', e => {
-    if (!res.headersSent) send(res, 502, { error: e.message });
+    if (isFatalCallTimeout(e)) {
+      finalizeTrackedUsage(requestMeta, { status_code: 504, input_tokens: 0, output_tokens: 0, stop_reason: 'fatal_timeout' });
+      if (!res.headersSent) send(res, 504, { error: formatFatalCallTimeout(targetUrl.origin, FATAL_CALL_TIMEOUT_MS) });
+      else res.end();
+      return;
+    }
+    finalizeTrackedUsage(requestMeta, { status_code: 502, input_tokens: 0, output_tokens: 0, stop_reason: 'proxy_error' });
+    if (!res.headersSent) send(res, 502, { error: formatBackendError('ollama', targetUrl.origin, e) });
     else res.end();
   });
   up.write(bodyStr);
   up.end();
 }
 
-// ── Ollama legacy translator (Phase 1, text-only) ──────────────────────
-// Translates Anthropic /v1/messages → Ollama /api/chat request.
-// Translates Ollama NDJSON response → Anthropic SSE response.
-// Tool-use is not handled — tools blocks are silently dropped.
-function forwardOllamaLegacy(req, res, body, backend, effectiveModel) {
-  const targetUrl = new URL(backend.url);
-  const authKey = backend.auth_env ? process.env[backend.auth_env] : null;
-
-  const ollamaMessages = [];
-
-  // System prompt: flatten content array or plain string
-  if (body.system) {
-    const systemText = Array.isArray(body.system)
-      ? body.system.map(b => (typeof b === 'string' ? b : b.text || '')).join('\n')
-      : String(body.system);
-    if (systemText) ollamaMessages.push({ role: 'system', content: systemText });
-  }
-
-  // Messages: extract text blocks only (tool_use/tool_result blocks dropped for Phase 1)
-  for (const msg of body.messages || []) {
-    let content = '';
-    if (typeof msg.content === 'string') {
-      content = msg.content;
-    } else if (Array.isArray(msg.content)) {
-      content = msg.content
-        .filter(b => b.type === 'text')
-        .map(b => b.text || '')
-        .join('');
-    }
-    ollamaMessages.push({ role: msg.role, content });
-  }
-
-  const ollamaBody = {
-    model: body.model,
-    messages: ollamaMessages,
-    stream: true,
-    options: {},
-  };
-  if (body.max_tokens)                               ollamaBody.options.num_predict  = body.max_tokens;
-  if (body.temperature != null)                      ollamaBody.options.temperature  = body.temperature;
-  if (body.top_p != null)                            ollamaBody.options.top_p        = body.top_p;
-  if (body.top_k != null)                            ollamaBody.options.top_k        = body.top_k;
-  if (body.stop_sequences && body.stop_sequences.length)
-                                                     ollamaBody.options.stop         = body.stop_sequences;
-
-  const ollamaDefaults = CONFIG.ollama_defaults || {};
-  if (ollamaDefaults.num_ctx) ollamaBody.options.num_ctx = ollamaDefaults.num_ctx;
-
-  const ollamaBodyStr = JSON.stringify(ollamaBody);
-  const headers = {
-    'content-type': 'application/json',
-    'content-length': Buffer.byteLength(ollamaBodyStr),
-  };
-  if (authKey) headers['authorization'] = `Bearer ${authKey}`;
-
-  const isHttps = targetUrl.protocol === 'https:';
-  const lib = isHttps ? https : http;
-  const options = {
-    hostname: targetUrl.hostname,
-    port: targetUrl.port || (isHttps ? 443 : 80),
-    path: '/api/chat',
-    method: 'POST',
-    headers,
-  };
-
-  const msgId = `msg_${crypto.randomBytes(12).toString('hex')}`;
-
-  const up = lib.request(options, upRes => {
-    if (upRes.statusCode !== 200) {
-      const errChunks = [];
-      upRes.on('data', c => errChunks.push(c));
-      upRes.on('end', () => {
-        const errMsg = Buffer.concat(errChunks).toString();
-        if (!res.headersSent) {
-          const errHeaders = { 'content-type': 'application/json' };
-          if (ANNOTATE_MODEL && effectiveModel) errHeaders['x-claude-proxy-served-by'] = effectiveModel;
-          res.writeHead(upRes.statusCode, errHeaders);
-          res.end(errMsg);
-        }
-      });
-      return;
-    }
-
-    const respHeaders = {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache',
-      'transfer-encoding': 'chunked',
-    };
-    if (ANNOTATE_MODEL && effectiveModel) respHeaders['x-claude-proxy-served-by'] = effectiveModel;
-    res.writeHead(200, respHeaders);
-
-    sseEvent(res, 'message_start', {
-      type: 'message_start',
-      message: { id: msgId, type: 'message', role: 'assistant', content: [], model: body.model, usage: { input_tokens: 0, output_tokens: 0 } },
-    });
-    sseEvent(res, 'content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
-
-    let outputTokens = 0;
-    let buf = '';
-
-    upRes.on('data', chunk => {
-      buf += chunk.toString();
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        let parsed;
-        try { parsed = JSON.parse(trimmed); } catch { continue; }
-        const text = parsed.message && parsed.message.content;
-        if (text) {
-          sseEvent(res, 'content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } });
-        }
-        if (parsed.done) outputTokens = parsed.eval_count || 0;
-      }
-    });
-
-    upRes.on('end', () => {
-      if (buf.trim()) {
-        try {
-          const parsed = JSON.parse(buf.trim());
-          if (parsed.done && parsed.eval_count) outputTokens = parsed.eval_count;
-        } catch { /* ignore */ }
-      }
-      sseEvent(res, 'content_block_stop', { type: 'content_block_stop', index: 0 });
-      sseEvent(res, 'message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: outputTokens } });
-      sseEvent(res, 'message_stop', { type: 'message_stop' });
-      res.end();
-    });
-
-    upRes.on('error', e => {
-      console.error('claude-proxy: ollama upstream error:', e.message);
-      res.end();
-    });
-  });
-
-  up.on('error', e => {
-    if (!res.headersSent) send(res, 502, { error: e.message });
-    else res.end();
-  });
-  up.write(ollamaBodyStr);
-  up.end();
-}
-
-function forwardOllama(req, res, body, backend, effectiveModel) {
-  if (OLLAMA_LEGACY) {
-    return forwardOllamaLegacy(req, res, body, backend, effectiveModel);
-  }
-  return forwardOllamaPassthrough(req, res, body, backend, effectiveModel);
+function forwardOllama(req, res, body, backend, effectiveModel, requestMeta = null) {
+  return forwardOllamaPassthrough(req, res, body, backend, effectiveModel, requestMeta);
 }
 
 // ── Request handler ───────────────────────────────────────────────────
@@ -677,11 +1359,20 @@ async function readBody(req) {
 function handleRequestWithFallback(req, res, body, resolved) {
   const { backend, effectiveModel } = resolved;
   const clientModel = body.model;
+  const endpoint = req.url;
 
   const doForward = (b, em, fwdBody) => {
-    if (b._ollamaFallback) ensureOllamaModelLoaded(em || clientModel, b.url);
-    if (b.kind === 'anthropic') return forwardAnthropic(req, res, fwdBody, b, em);
-    if (b.kind === 'ollama') return forwardOllama(req, res, fwdBody, b, em);
+    const requestMeta = {
+      endpoint,
+      clientModel,
+      effectiveModel: em || fwdBody.model || clientModel,
+      backend: b,
+      stream: Boolean(fwdBody && fwdBody.stream),
+      startedAtMs: nowMs(),
+    };
+    if (b.kind === 'ollama' && !ensureOllamaReadyOrSend(res, em || clientModel, b.url)) return;
+    if (b.kind === 'anthropic') return forwardAnthropic(req, res, fwdBody, b, em, requestMeta);
+    if (b.kind === 'ollama') return forwardOllama(req, res, fwdBody, b, em, requestMeta);
     return send(res, 500, { error: `unknown backend kind: ${b.kind}` });
   };
 
@@ -696,24 +1387,90 @@ function handleRequestWithFallback(req, res, body, resolved) {
     return doForward(backend, effectiveModel, body);
   }
 
+  const healthEntry = ensureBackendHealthEntry(backend, terminalModel);
+  const recoveryProbeDue = shouldBypassCooldownForRecoveryProbe(backend, terminalModel);
+  const cooldownActive = isCooledDown(terminalModel);
+  debugLog('proxy.remap.evaluate', {
+    terminal_model: terminalModel,
+    backend_id: backend.id,
+    backend_kind: backend.kind,
+    health_state: healthEntry?.state || null,
+    last_failure_class: healthEntry?.last_failure_class || null,
+    next_probe_at_ms: healthEntry?.next_probe_at_ms || 0,
+    cooldown_active: cooldownActive,
+    cooldown_failure_class: cooldowns.get(terminalModel)?.failureClass || null,
+    recovery_probe_due: recoveryProbeDue,
+  });
+
+  if (shouldPreferFallbackForHealth(backend, terminalModel)) {
+    const fallbackModel = resolveFallbackModel(terminalModel, healthEntry?.last_failure_class || 'network');
+    if (fallbackModel) {
+      const fallbackResolved = resolveBackend(fallbackModel);
+      if (!fallbackResolved.error) {
+        debugLog('proxy.remap.selected', {
+          terminal_model: terminalModel,
+          reason: `health-${healthEntry.state}`,
+          fallback_model: fallbackModel,
+          fallback_backend_id: fallbackResolved.backend.id,
+          fallback_effective_model: fallbackResolved.effectiveModel,
+        });
+        res.setHeader('x-claude-proxy-fallback-reason', `health-${healthEntry.state}`);
+        return doForward(fallbackResolved.backend, fallbackResolved.effectiveModel, { ...body, model: fallbackModel });
+      }
+    }
+  }
+
+  if (cooldownActive && !recoveryProbeDue) {
+    const fallbackModel = resolveFallbackModel(terminalModel, cooldowns.get(terminalModel)?.failureClass || 'rate_limit');
+    if (fallbackModel) {
+      const fallbackResolved = resolveBackend(fallbackModel);
+      if (!fallbackResolved.error) {
+        debugLog('proxy.remap.selected', {
+          terminal_model: terminalModel,
+          reason: 'cooldown',
+          fallback_model: fallbackModel,
+          fallback_backend_id: fallbackResolved.backend.id,
+          fallback_effective_model: fallbackResolved.effectiveModel,
+        });
+        return doForward(fallbackResolved.backend, fallbackResolved.effectiveModel, { ...body, model: fallbackModel });
+      }
+    }
+  }
+
+  debugLog('proxy.remap.primary', {
+    terminal_model: terminalModel,
+    backend_id: backend.id,
+    effective_model: effectiveModel,
+    cooldown_active: cooldownActive,
+    recovery_probe_due: recoveryProbeDue,
+    health_state: healthEntry?.state || null,
+  });
+
   // Try primary — intercept the response to check for classified errors
   const targetUrl = new URL(backend.url);
-  const authKey = backend.auth_env ? process.env[backend.auth_env] : '';
   const bodyStr = JSON.stringify(body);
   const fwdHeaders = {
     'content-type': 'application/json',
     'content-length': Buffer.byteLength(bodyStr),
-    'anthropic-version': req.headers['anthropic-version'] || '2023-06-01',
     'accept': req.headers['accept'] || 'application/json',
   };
-  if (req.headers['anthropic-beta']) fwdHeaders['anthropic-beta'] = req.headers['anthropic-beta'];
-  if (authKey) fwdHeaders['x-api-key'] = authKey;
+  if (backend.kind === 'ollama') {
+    const authKey = backend.auth_env ? process.env[backend.auth_env] : (req.headers['x-api-key'] || '');
+    if (authKey) fwdHeaders.authorization = `Bearer ${authKey}`;
+  } else {
+    const authKey = backend.auth_env ? process.env[backend.auth_env] : '';
+    fwdHeaders['anthropic-version'] = req.headers['anthropic-version'] || '2023-06-01';
+    if (req.headers['anthropic-beta']) fwdHeaders['anthropic-beta'] = req.headers['anthropic-beta'];
+    if (authKey) fwdHeaders['x-api-key'] = authKey;
+  }
   for (const [k, v] of Object.entries(req.headers)) {
     if (k.startsWith('x-custom-') || k.startsWith('x-upstream-')) fwdHeaders[k] = v;
   }
 
   const isHttps = targetUrl.protocol === 'https:';
   const lib = isHttps ? https : http;
+  const startedAt = nowMs();
+  const timeoutState = { upstreamResponse: null, fatalTimeoutTriggered: false };
 
   const up = lib.request({
     hostname: targetUrl.hostname,
@@ -722,42 +1479,106 @@ function handleRequestWithFallback(req, res, body, resolved) {
     method: req.method,
     headers: fwdHeaders,
   }, (upRes) => {
-    const failureClass = classifyError(upRes.statusCode, upRes.headers);
-    if (failureClass) {
-      const fallbackModel = resolveFallbackModel(terminalModel, failureClass);
-      if (fallbackModel) {
-        setCooldown(terminalModel, failureClass, upRes.statusCode, upRes.headers);
-        // Drain the error response
-        upRes.resume();
-        const fallbackResolved = resolveBackend(fallbackModel);
-        if (!fallbackResolved.error) {
-          const fwdBody = { ...body, model: fallbackModel };
-          // For fallback, annotate with quota-fallback marker if account_quota
-          if (failureClass === 'account_quota') {
-            res.setHeader('x-claude-proxy-fallback-reason', 'quota-fallback');
+    timeoutState.upstreamResponse = upRes;
+    const errChunks = [];
+    upRes.on('data', c => errChunks.push(c));
+    upRes.on('end', () => {
+      const raw = Buffer.concat(errChunks).toString();
+      const failureClass = classifyError(upRes.statusCode, upRes.headers, raw);
+      if (failureClass) {
+        noteBackendFailure(backend, terminalModel, failureClass, nowMs() - startedAt, `status_${upRes.statusCode}`);
+        recordFailureClass(failureClass);
+        const fallbackModel = resolveFallbackModel(terminalModel, failureClass);
+        if (fallbackModel) {
+          setCooldown(terminalModel, failureClass, upRes.statusCode, upRes.headers);
+          const fallbackResolved = resolveBackend(fallbackModel);
+          if (!fallbackResolved.error) {
+            debugLog('proxy.remap.selected', {
+              terminal_model: terminalModel,
+              reason: `classified-${failureClass}`,
+              fallback_model: fallbackModel,
+              fallback_backend_id: fallbackResolved.backend.id,
+              fallback_effective_model: fallbackResolved.effectiveModel,
+              status_code: upRes.statusCode,
+            });
+            const fwdBody = { ...body, model: fallbackModel };
+            if (failureClass === 'account_quota') {
+              res.setHeader('x-claude-proxy-fallback-reason', 'quota-fallback');
+            }
+            return doForward(fallbackResolved.backend, fallbackResolved.effectiveModel, fwdBody);
           }
-          return doForward(fallbackResolved.backend, fallbackResolved.effectiveModel, fwdBody);
         }
+      } else if (upRes.statusCode < 400) {
+        noteBackendSuccess(backend, terminalModel, nowMs() - startedAt);
       }
-    }
-    // No fallback or not a classified error — forward the response as-is
-    const respHeaders = { ...upRes.headers };
-    if (ANNOTATE_MODEL && effectiveModel) respHeaders['x-claude-proxy-served-by'] = effectiveModel;
-    res.writeHead(upRes.statusCode, respHeaders);
-    upRes.pipe(res);
+      let usage = { input_tokens: 0, output_tokens: 0, stop_reason: null };
+      try { usage = usageFromJsonPayload(JSON.parse(raw)); } catch { /* ignore */ }
+      finalizeTrackedUsage({
+        endpoint,
+        clientModel,
+        effectiveModel,
+        backend,
+        stream: false,
+        startedAtMs: startedAt,
+      }, {
+        status_code: upRes.statusCode,
+        input_tokens: usage.input_tokens,
+        output_tokens: usage.output_tokens,
+        stop_reason: usage.stop_reason,
+      });
+      const respHeaders = { ...upRes.headers };
+      if (ANNOTATE_MODEL && effectiveModel) respHeaders['x-claude-proxy-served-by'] = effectiveModel;
+      res.writeHead(upRes.statusCode, respHeaders);
+      res.end(raw);
+    });
   });
+  attachFatalCallTimeout(up, res, targetUrl.origin, FATAL_CALL_TIMEOUT_MS, timeoutState);
 
   up.on('error', e => {
+    if (isFatalCallTimeout(e)) {
+      noteBackendFailure(backend, terminalModel, 'network', nowMs() - startedAt, 'fatal_call_timeout');
+      recordFailureClass('network');
+      finalizeTrackedUsage({
+        endpoint,
+        clientModel,
+        effectiveModel,
+        backend,
+        stream: false,
+        startedAtMs: startedAt,
+      }, { status_code: 504, input_tokens: 0, output_tokens: 0, stop_reason: 'fatal_timeout' });
+      if (!res.headersSent) send(res, 504, { error: formatFatalCallTimeout(targetUrl.origin, FATAL_CALL_TIMEOUT_MS) });
+      else res.end();
+      return;
+    }
     const failureClass = 'network';
+    noteBackendFailure(backend, terminalModel, failureClass, nowMs() - startedAt, e.message || 'network_error');
+    recordFailureClass(failureClass);
     const fallbackModel = resolveFallbackModel(terminalModel, failureClass);
     if (fallbackModel) {
+      setCooldown(terminalModel, failureClass, 502, {});
       const fwdBody = { ...body, model: fallbackModel };
       const fallbackResolved = resolveBackend(fallbackModel);
       if (!fallbackResolved.error) {
+        debugLog('proxy.remap.selected', {
+          terminal_model: terminalModel,
+          reason: 'network-error',
+          fallback_model: fallbackModel,
+          fallback_backend_id: fallbackResolved.backend.id,
+          fallback_effective_model: fallbackResolved.effectiveModel,
+          error: e.message,
+        });
         return doForward(fallbackResolved.backend, fallbackResolved.effectiveModel, fwdBody);
       }
     }
-    if (!res.headersSent) send(res, 502, { error: { type: 'api_error', message: e.message } });
+    finalizeTrackedUsage({
+      endpoint,
+      clientModel,
+      effectiveModel,
+      backend,
+      stream: false,
+      startedAtMs: startedAt,
+    }, { status_code: 502, input_tokens: 0, output_tokens: 0, stop_reason: 'network_error' });
+    if (!res.headersSent) send(res, 502, { error: formatBackendError(backend.kind, targetUrl.origin, e) });
     else res.end();
   });
 
@@ -766,6 +1587,7 @@ function handleRequestWithFallback(req, res, body, resolved) {
 }
 
 const server = http.createServer(async (req, res) => {
+  refreshConfigIfChanged();
   // ── /ping ──────────────────────────────────────────────────────────
   if (req.url === '/ping') {
     return send(res, 200, {
@@ -781,6 +1603,18 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ...stats,
       currentInFlight: stats.currentInFlight,
+      backendHealth: stats.byBackendId,
+      usagePersistence: {
+        stats_file: USAGE_STATS_FILE,
+        log_file: USAGE_LOG_FILE || null,
+        aggregate: persistentUsage,
+      },
+      healthMeta: {
+        version: healthMeta.version,
+        event_seq: healthMeta.eventSeq,
+        last_transition: healthMeta.lastTransition,
+        recent_events: healthMeta.recentEvents,
+      },
     });
   }
 
@@ -803,6 +1637,12 @@ const server = http.createServer(async (req, res) => {
       })),
       ...Object.keys(routes).map(id => ({
         id: id,
+        type: 'model',
+        display_name: id,
+        capabilities: { thinking: { supported: true, types: {} } },
+      })),
+      ...Array.from(LLM_PROFILE_ALIASES).map(id => ({
+        id,
         type: 'model',
         display_name: id,
         capabilities: { thinking: { supported: true, types: {} } },
@@ -897,11 +1737,20 @@ const server = http.createServer(async (req, res) => {
       }
       const { backend, effectiveModel } = resolved;
       const fwdBody = { ...body, model: effectiveModel || model };
+      const requestMeta = {
+        endpoint: req.url,
+        clientModel: model,
+        effectiveModel: effectiveModel || model,
+        backend,
+        stream: Boolean(fwdBody.stream),
+        startedAtMs: nowMs(),
+      };
       if (backend.kind === 'ollama') {
+        if (!ensureOllamaReadyOrSend(res, effectiveModel || model, backend.url)) return;
         // For Ollama: forward to Ollama's /v1/messages/count_tokens equivalent
-        return forwardOllamaPassthrough(req, res, fwdBody, backend, effectiveModel);
+        return forwardOllamaPassthrough(req, res, fwdBody, backend, effectiveModel, requestMeta);
       }
-      return forwardAnthropic(req, res, fwdBody, backend, effectiveModel);
+      return forwardAnthropic(req, res, fwdBody, backend, effectiveModel, requestMeta);
     }
   }
 
@@ -922,9 +1771,15 @@ const server = http.createServer(async (req, res) => {
   stats.currentInFlight++;
   const { backend, effectiveModel } = resolved;
   const clientModel = model;
-
-  // Patch model field with resolved model
   const fwdBody = { ...body, model: effectiveModel || model };
+  const requestMeta = {
+    endpoint: req.url,
+    clientModel,
+    effectiveModel: effectiveModel || model,
+    backend,
+    stream: Boolean(fwdBody.stream),
+    startedAtMs: nowMs(),
+  };
 
   // Track status via response wrapper
   const originalWriteHead = res.writeHead.bind(res);
@@ -940,17 +1795,28 @@ const server = http.createServer(async (req, res) => {
   if (strategies[terminalModel]) {
     handleRequestWithFallback(req, res, fwdBody, resolved);
   } else {
-    if (backend._ollamaFallback) ensureOllamaModelLoaded(effectiveModel || model, backend.url);
-    if (backend.kind === 'anthropic') return forwardAnthropic(req, res, fwdBody, backend, effectiveModel);
-    if (backend.kind === 'ollama') return forwardOllama(req, res, fwdBody, backend, effectiveModel);
+    if (backend.kind === 'ollama' && !ensureOllamaReadyOrSend(res, effectiveModel || model, backend.url)) return;
+    if (backend.kind === 'anthropic') return forwardAnthropic(req, res, fwdBody, backend, effectiveModel, requestMeta);
+    if (backend.kind === 'ollama') return forwardOllama(req, res, fwdBody, backend, effectiveModel, requestMeta);
     return send(res, 500, { error: `unknown backend kind: ${backend.kind}` });
   }
 
 });
 
 server.listen(INITIAL_PORT, '127.0.0.1', () => {
-  console.error(`claude-proxy listening on 127.0.0.1:${INITIAL_PORT} (pid=${process.pid})`);
+  const actualPort = server.address().port;
+  if (!EXPLICIT_PORT) process.stdout.write(`READY ${actualPort}\n`);
+  console.error(`claude-proxy listening on 127.0.0.1:${actualPort} (pid=${process.pid})`);
 });
 
-process.on('SIGTERM', () => server.close(() => process.exit(0)));
-process.on('SIGINT',  () => server.close(() => process.exit(0)));
+function shutdown() {
+  if (usagePersistTimer) {
+    clearTimeout(usagePersistTimer);
+    usagePersistTimer = null;
+  }
+  flushPersistentUsageNowSync();
+  server.close(() => process.exit(0));
+}
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

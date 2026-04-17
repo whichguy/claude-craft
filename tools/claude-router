@@ -22,12 +22,14 @@
 # Mixed-backend transparent configs still fall back to the legacy placeholder-key behavior.
 # Debug: CLAUDE_ROUTER_DEBUG=1 — print resolved env to stderr (transparent and routed).
 #          CLAUDE_ROUTER_DEBUG=2 — same plus proxy port, OLLAMA_*, placeholder flag, route keys sample.
-#          claude-proxy also reads CLAUDE_ROUTER_DEBUG (export before launch) for per-request logs.
+#          CLAUDE_PROXY_DEBUG=1/2 — enable proxy-side debug logs (router forwards inherited env when spawning the proxy).
 set -eo pipefail
 
 CONFIG=""
 CONFIG_SOURCE="absent"
 LAUNCH_CWD="$(pwd -P 2>/dev/null || pwd)"
+LAUNCH_PROJECT_DIR=""
+CLAUDE_PROFILE_DIR="${CLAUDE_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}}"
 OLLAMA_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
 ROUTER_STARTED_PROXY_PID=""
 CLAUDE_CHILD_PID=""
@@ -35,10 +37,28 @@ ROUTER_CLEANUP_ARMED=0
 ROUTER_PROXY_PORT=""
 ENSURED_PROXY_HTTP_BASE=""
 ROUTER_PROXY_LOG_PATH=""
+OLLAMA_PREP_SWEEP_STARTED=0
+OLLAMA_PREP_STATE_FILE="${CLAUDE_ROUTER_OLLAMA_PREP_STATE_FILE:-$CLAUDE_PROFILE_DIR/ollama-prep-state.json}"
+OLLAMA_PREP_REFRESH_DAYS="${CLAUDE_ROUTER_OLLAMA_REFRESH_DAYS:-7}"
+OLLAMA_PREP_MIN_RETRY_SECONDS="${CLAUDE_ROUTER_OLLAMA_PREP_MIN_RETRY_SECONDS:-86400}"
+OLLAMA_INSTALL_MIN_RETRY_SECONDS="${CLAUDE_ROUTER_OLLAMA_INSTALL_MIN_RETRY_SECONDS:-86400}"
+OLLAMA_CLOUD_AUTH_TIMEOUT_SECONDS="${CLAUDE_ROUTER_OLLAMA_AUTH_TIMEOUT_SECONDS:-10}"
+OLLAMA_CLOUD_AUTH_VALIDATED=0
+OLLAMA_CLOUD_SIGNIN_ATTEMPTED=0
+LLM_PROFILE_CACHE_INITIALIZED=0
+LLM_PROFILE_CACHE_NAME=""
+LLM_PROFILE_CACHE_SOURCE=""
+LLM_PROFILE_CACHE_MEMORY_GB=""
+ROUTER_PROFILE_SUMMARY_LOGGED=0
 
 # Canonical path of this script (for PATH walk — skip ourselves when installed as `claude`).
 ROUTER_SELF_REAL="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 ROUTER_SELF_DIR="$(dirname "$ROUTER_SELF_REAL")"
+ROUTER_REPO_ROOT="$(cd "$ROUTER_SELF_DIR/.." 2>/dev/null && pwd -P || true)"
+MODEL_MAP_DEFAULTS_FILE="${CLAUDE_MODEL_MAP_DEFAULTS_PATH:-$ROUTER_REPO_ROOT/config/model-map.json}"
+MODEL_MAP_OVERRIDES_FILE="${CLAUDE_MODEL_MAP_OVERRIDES_PATH:-$CLAUDE_PROFILE_DIR/model-map.overrides.json}"
+MODEL_MAP_SYNC_STATE_FILE="${CLAUDE_MODEL_MAP_SYNC_STATE_FILE:-$CLAUDE_PROFILE_DIR/model-map-defaults-sync.json}"
+MODEL_MAP_GIT_PULL_MIN_RETRY_SECONDS="${CLAUDE_MODEL_MAP_GIT_PULL_MIN_RETRY_SECONDS:-21600}"
 
 canonicalize_dir() {
   local dir="$1"
@@ -52,6 +72,50 @@ canonicalize_file() {
   local real_dir
   real_dir="$(canonicalize_dir "$(dirname "$file")")" || return 1
   printf '%s/%s' "$real_dir" "$(basename "$file")"
+}
+
+layered_profile_model_map_enabled() {
+  [[ -f "$MODEL_MAP_DEFAULTS_FILE" && -f "$MODEL_MAP_OVERRIDES_FILE" ]]
+}
+
+record_model_map_git_pull_attempt() {
+  local now_epoch
+  now_epoch="$(date +%s 2>/dev/null || echo 0)"
+  mkdir -p "$(dirname "$MODEL_MAP_SYNC_STATE_FILE")"
+  printf '{\n  "last_git_pull_attempt_at": %s\n}\n' "$now_epoch" > "$MODEL_MAP_SYNC_STATE_FILE" 2>/dev/null || true
+}
+
+should_attempt_model_map_git_pull() {
+  [[ "${CLAUDE_MODEL_MAP_SKIP_GIT_PULL:-0}" != "1" ]] || return 1
+  [[ -n "$ROUTER_REPO_ROOT" && -d "$ROUTER_REPO_ROOT/.git" ]] || return 1
+  command -v git >/dev/null 2>&1 || return 1
+  [[ -f "$MODEL_MAP_DEFAULTS_FILE" ]] || return 1
+  local now_epoch last_attempt
+  now_epoch="$(date +%s 2>/dev/null || echo 0)"
+  last_attempt="$(jq -r '.last_git_pull_attempt_at // 0' "$MODEL_MAP_SYNC_STATE_FILE" 2>/dev/null || echo 0)"
+  [[ "$last_attempt" =~ ^[0-9]+$ ]] || last_attempt=0
+  (( now_epoch - last_attempt >= MODEL_MAP_GIT_PULL_MIN_RETRY_SECONDS ))
+}
+
+maybe_refresh_model_map_defaults_from_git() {
+  layered_profile_model_map_enabled || return 0
+  should_attempt_model_map_git_pull || return 0
+  record_model_map_git_pull_attempt
+  if command -v nohup >/dev/null 2>&1; then
+    nohup git -C "$ROUTER_REPO_ROOT" pull --ff-only --quiet >/dev/null 2>&1 </dev/null &
+  else
+    (
+      git -C "$ROUTER_REPO_ROOT" pull --ff-only --quiet >/dev/null 2>&1 || true
+    ) </dev/null &
+  fi
+}
+
+sync_layered_profile_model_map() {
+  layered_profile_model_map_enabled || return 0
+  local sync_tool="$ROUTER_SELF_DIR/model-map-sync.js"
+  [[ -f "$sync_tool" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  node "$sync_tool" "$MODEL_MAP_DEFAULTS_FILE" "$MODEL_MAP_OVERRIDES_FILE" "$CLAUDE_PROFILE_DIR/model-map.json" "$CLAUDE_PROFILE_DIR/model-map.json" >/dev/null
 }
 
 find_parent_model_map() {
@@ -72,7 +136,7 @@ find_parent_model_map() {
 resolve_model_map_config() {
   local override="${CLAUDE_MODEL_MAP_PATH:-}"
   local profile_real=""
-  profile_real="$(canonicalize_file "$HOME/.claude/model-map.json" 2>/dev/null || true)"
+  profile_real="$(canonicalize_file "$CLAUDE_PROFILE_DIR/model-map.json" 2>/dev/null || true)"
   if [[ -n "$override" ]]; then
     local override_real
     override_real="$(canonicalize_file "$override" 2>/dev/null || true)"
@@ -116,9 +180,46 @@ resolve_model_map_config() {
   return 1
 }
 
+resolve_launch_project_dir() {
+  local override="${CLAUDE_PROJECT_DIR:-}"
+  if [[ -n "$override" ]]; then
+    local override_real
+    override_real="$(canonicalize_dir "$override" 2>/dev/null || true)"
+    if [[ -n "$override_real" ]]; then
+      LAUNCH_PROJECT_DIR="$override_real"
+      return 0
+    fi
+  fi
+
+  local git_root=""
+  git_root="$(git -C "$LAUNCH_CWD" rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -n "$git_root" ]]; then
+    local git_root_real
+    git_root_real="$(canonicalize_dir "$git_root" 2>/dev/null || true)"
+    if [[ -n "$git_root_real" ]]; then
+      LAUNCH_PROJECT_DIR="$git_root_real"
+      return 0
+    fi
+  fi
+
+  LAUNCH_PROJECT_DIR=""
+  return 1
+}
+
+maybe_refresh_model_map_defaults_from_git || true
+sync_layered_profile_model_map || {
+  echo "claude-router: failed to build effective layered model-map config" >&2
+  exit 1
+}
 resolve_model_map_config || true
+resolve_launch_project_dir || true
 export CLAUDE_MODEL_MAP_LAUNCH_CWD="$LAUNCH_CWD"
 export CLAUDE_MODEL_MAP_SOURCE="$CONFIG_SOURCE"
+if [[ -n "$LAUNCH_PROJECT_DIR" ]]; then
+  export CLAUDE_PROJECT_DIR="$LAUNCH_PROJECT_DIR"
+else
+  unset CLAUDE_PROJECT_DIR
+fi
 if [[ -n "$CONFIG" ]]; then
   export CLAUDE_MODEL_MAP_PATH="$CONFIG"
 else
@@ -139,6 +240,318 @@ validate_model_map_config() {
 }
 
 validate_model_map_config || exit 1
+
+is_llm_profile_alias() {
+  case "$1" in
+    classifier|explorer|reviewer|workhorse|coder|general-default)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+profile_alias_key() {
+  case "$1" in
+    general-default) printf '%s' "default" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+tab_field_encode() {
+  local value="${1-}"
+  if [[ -z "$value" ]]; then
+    printf '%s' "__EMPTY__"
+  else
+    printf '%s' "$value"
+  fi
+}
+
+tab_field_decode() {
+  local value="${1-}"
+  if [[ "$value" == "__EMPTY__" ]]; then
+    printf '%s' ""
+  else
+    printf '%s' "$value"
+  fi
+}
+
+detect_total_memory_gb() {
+  if [[ -n "${CLAUDE_LLM_MEMORY_GB:-}" ]]; then
+    if [[ "${CLAUDE_LLM_MEMORY_GB}" =~ ^[0-9]+$ ]] && (( CLAUDE_LLM_MEMORY_GB > 0 )); then
+      printf '%s' "$CLAUDE_LLM_MEMORY_GB"
+      return 0
+    fi
+    echo "claude-router: CLAUDE_LLM_MEMORY_GB must be a positive integer when set" >&2
+    return 1
+  fi
+
+  local bytes=""
+  if command -v sysctl >/dev/null 2>&1; then
+    bytes="$(sysctl -n hw.memsize 2>/dev/null || true)"
+  fi
+  if [[ -z "$bytes" && -r /proc/meminfo ]]; then
+    bytes="$(( $(awk '/MemTotal:/ {print $2; exit}' /proc/meminfo 2>/dev/null || echo 0) * 1024 ))"
+  fi
+  if [[ -z "$bytes" || ! "$bytes" =~ ^[0-9]+$ || "$bytes" -le 0 ]]; then
+    return 1
+  fi
+  printf '%s' "$(( (bytes + 1073741823) / 1073741824 ))"
+}
+
+memory_gb_to_profile() {
+  local memory_gb="$1"
+  [[ "$memory_gb" =~ ^[0-9]+$ ]] || return 1
+  if (( memory_gb < 24 )); then
+    printf '%s' "16gb"
+  elif (( memory_gb < 40 )); then
+    printf '%s' "32gb"
+  elif (( memory_gb < 56 )); then
+    printf '%s' "48gb"
+  elif (( memory_gb < 96 )); then
+    printf '%s' "64gb"
+  else
+    printf '%s' "128gb"
+  fi
+}
+
+llm_profile_exists() {
+  local profile="$1"
+  [[ -f "$CONFIG" && -n "$profile" ]] || return 1
+  jq -e --arg p "$profile" '((.llm_profiles // {})[$p] | type) == "object"' "$CONFIG" >/dev/null 2>&1
+}
+
+llm_profiles_defined() {
+  [[ -f "$CONFIG" ]] || return 1
+  jq -e '((.llm_profiles // {}) | type) == "object" and ((.llm_profiles // {}) | length > 0)' "$CONFIG" >/dev/null 2>&1
+}
+
+ensure_llm_profile_context() {
+  if [[ "$LLM_PROFILE_CACHE_INITIALIZED" == "1" ]]; then
+    return 0
+  fi
+
+  local selected=""
+  local source=""
+  local memory_gb=""
+  if [[ -n "${CLAUDE_LLM_PROFILE:-}" ]]; then
+    selected="$CLAUDE_LLM_PROFILE"
+    source="env"
+  elif [[ -f "$CONFIG" ]]; then
+    local configured
+    configured="$(jq -r '.llm_active_profile // "auto"' "$CONFIG" 2>/dev/null)"
+    if [[ -z "$configured" || "$configured" == "null" || "$configured" == "auto" ]]; then
+      memory_gb="$(detect_total_memory_gb)" || {
+        echo "claude-router: unable to determine machine memory for llm_active_profile=auto" >&2
+        echo "claude-router: install required system tools or set CLAUDE_LLM_PROFILE explicitly" >&2
+        return 1
+      }
+      selected="$(memory_gb_to_profile "$memory_gb")" || {
+        echo "claude-router: unable to map detected machine memory to an llm profile" >&2
+        return 1
+      }
+      source="auto"
+    else
+      selected="$configured"
+      source="config"
+    fi
+  else
+    return 1
+  fi
+
+  [[ -n "$selected" ]] || {
+    echo "claude-router: unable to resolve llm profile name" >&2
+    return 1
+  }
+
+  if [[ -f "$CONFIG" ]] && ! llm_profile_exists "$selected"; then
+    echo "claude-router: resolved llm profile '$selected' is not defined in $CONFIG" >&2
+    return 1
+  fi
+
+  LLM_PROFILE_CACHE_INITIALIZED=1
+  LLM_PROFILE_CACHE_NAME="$selected"
+  LLM_PROFILE_CACHE_SOURCE="$source"
+  LLM_PROFILE_CACHE_MEMORY_GB="$memory_gb"
+  return 0
+}
+
+resolve_llm_profile_name() {
+  ensure_llm_profile_context || {
+    echo "claude-router: unable to resolve llm profile name" >&2
+    return 1
+  }
+  [[ -n "$LLM_PROFILE_CACHE_NAME" ]] || {
+    echo "claude-router: unable to resolve llm profile name" >&2
+    return 1
+  }
+  printf '%s' "$LLM_PROFILE_CACHE_NAME"
+}
+
+profile_capability_slots() {
+  printf '%s\n' default classifier explorer reviewer workhorse coder
+}
+
+collect_active_profile_capability_assignments() {
+  [[ -f "$CONFIG" ]] || return 0
+  llm_profiles_defined || return 0
+
+  local profile mode field slot requested resolved
+  ensure_llm_profile_context || return 0
+  profile="$LLM_PROFILE_CACHE_NAME"
+  [[ -n "$profile" ]] || return 0
+  mode="$(resolve_connectivity_mode)"
+  [[ "$mode" == "disconnect" ]] && field="disconnect_model" || field="connected_model"
+
+  while IFS= read -r slot; do
+    [[ -n "$slot" ]] || continue
+    requested="$(jq -r --arg p "$profile" --arg key "$slot" --arg field "$field" '
+      (.llm_profiles // {})[$p][$key][$field] // empty
+    ' "$CONFIG" 2>/dev/null)"
+    [[ -n "$requested" && "$requested" != "null" ]] || continue
+    looks_like_model_pattern_key "$requested" && continue
+    resolved="$(resolve_routes_graph "$requested" 2>/dev/null || printf '%s' "$requested")"
+    if is_llm_profile_alias "$resolved"; then
+      resolved="$(resolve_profile_alias_model "$resolved")"
+    fi
+    [[ -n "$resolved" ]] || continue
+    printf '%s\t%s\n' "$slot" "$resolved"
+  done < <(profile_capability_slots)
+}
+
+log_llm_profile_selection() {
+  [[ "$ROUTER_PROFILE_SUMMARY_LOGGED" == "1" ]] && return 0
+  [[ -f "$CONFIG" ]] || return 0
+  llm_profiles_defined || return 0
+
+  local profile mode source summary_context launch_model="$1"
+  ensure_llm_profile_context || return 0
+  profile="$LLM_PROFILE_CACHE_NAME"
+  [[ -n "$profile" ]] || return 0
+  mode="$(resolve_connectivity_mode)"
+  source="${LLM_PROFILE_CACHE_SOURCE:-config}"
+
+  case "$source" in
+    auto)
+      summary_context="auto-detected from ${LLM_PROFILE_CACHE_MEMORY_GB:-unknown} GB RAM"
+      ;;
+    env)
+      summary_context="forced by CLAUDE_LLM_PROFILE"
+      ;;
+    config)
+      summary_context="configured in model-map"
+      ;;
+    *)
+      summary_context="$source"
+      ;;
+  esac
+
+  echo "claude-router: form factor profile '$profile' ($summary_context, connectivity=$mode)" >&2
+
+  local plan_parts=()
+  local slot model
+  while IFS=$'\t' read -r slot model; do
+    [[ -n "$slot" && -n "$model" ]] || continue
+    plan_parts+=("$slot=$model")
+  done < <(collect_active_profile_capability_assignments)
+
+  if (( ${#plan_parts[@]} > 0 )); then
+    local joined_plan=""
+    printf -v joined_plan '%s, ' "${plan_parts[@]}"
+    joined_plan="${joined_plan%, }"
+    echo "claude-router: capability plan $joined_plan" >&2
+  fi
+
+  if [[ -n "$launch_model" ]]; then
+    echo "claude-router: launch request '${REQUESTED_MODEL:-$MODEL}' resolved to '$launch_model'" >&2
+  fi
+
+  ROUTER_PROFILE_SUMMARY_LOGGED=1
+}
+
+resolve_connectivity_mode() {
+  local mode="${CLAUDE_CONNECTIVITY_MODE:-${CLAUDE_LLM_CONNECTIVITY_MODE:-}}"
+  if [[ -n "$mode" ]]; then
+    printf '%s' "$mode"
+    return 0
+  fi
+  if [[ -f "$CONFIG" ]]; then
+    mode="$(jq -r '.llm_connectivity_mode // "connected"' "$CONFIG" 2>/dev/null)"
+  fi
+  [[ -z "$mode" || "$mode" == "null" ]] && mode="connected"
+  printf '%s' "$mode"
+}
+
+resolve_profile_alias_model() {
+  local requested="$1"
+  is_llm_profile_alias "$requested" || {
+    printf '%s' "$requested"
+    return 0
+  }
+
+  [[ -f "$CONFIG" ]] || {
+    printf '%s' "$requested"
+    return 0
+  }
+
+  local profile mode profile_key field resolved
+  profile="$(resolve_llm_profile_name)" || return 1
+  mode="$(resolve_connectivity_mode)"
+  profile_key="$(profile_alias_key "$requested")"
+  [[ "$mode" == "disconnect" ]] && field="disconnect_model" || field="connected_model"
+  resolved="$(jq -r --arg p "$profile" --arg key "$profile_key" --arg field "$field" '
+    (.llm_profiles // {})[$p][$key][$field] // empty
+  ' "$CONFIG" 2>/dev/null)"
+  if [[ -n "$resolved" && "$resolved" != "null" ]]; then
+    printf '%s' "$resolved"
+  else
+    printf '%s' "$requested"
+  fi
+}
+
+model_is_cloud_designated() {
+  local model="$1"
+  [[ -n "$model" ]] || return 1
+  [[ "$model" == *":cloud" || "$model" == *"-cloud" ]]
+}
+
+backend_local_prep_skip_reason() {
+  local backend_id="$1"
+  [[ -f "$CONFIG" && -n "$backend_id" ]] || return 1
+  python3 - "$CONFIG" "$backend_id" <<'PY'
+import json, sys
+config_path, backend_id = sys.argv[1:3]
+try:
+    with open(config_path, 'r', encoding='utf-8') as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(1)
+backend = ((data.get('backends') or {}).get(backend_id) or {})
+if not isinstance(backend, dict):
+    sys.exit(1)
+prep_policy = backend.get('prep_policy')
+if isinstance(prep_policy, str) and prep_policy.strip().lower() == 'skip':
+    sys.stdout.write('prep_policy=skip')
+    sys.exit(0)
+if backend.get('cloud') is True:
+    sys.stdout.write('cloud=true')
+    sys.exit(0)
+deployment = backend.get('deployment')
+if isinstance(deployment, str) and deployment.strip().lower() == 'cloud':
+    sys.stdout.write('deployment=cloud')
+    sys.exit(0)
+if backend_id.endswith('_cloud') or backend_id.endswith('-cloud') or backend_id == 'cloud':
+    sys.stdout.write('backend_id=cloud')
+    sys.exit(0)
+sys.exit(1)
+PY
+}
+
+backend_allows_local_prep() {
+  local backend_id="$1"
+  ! backend_local_prep_skip_reason "$backend_id" >/dev/null 2>&1
+}
 
 # Proxy port selection:
 # - explicit CLAUDE_PROXY_PORT wins
@@ -471,7 +884,7 @@ ensure_proxy_running() {
   local port
   port="$(proxy_port_from_base_url "$base_url")"
   if ! proxy_port_is_explicit; then
-    local proxy_js="$HOME/.claude/tools/claude-proxy"
+    local proxy_js="$CLAUDE_PROFILE_DIR/tools/claude-proxy"
     if [[ ! -f "$proxy_js" ]]; then
       echo "claude-router: claude-proxy missing at $proxy_js — run install.sh or start the proxy" >&2
       return 1
@@ -492,7 +905,7 @@ ensure_proxy_running() {
       temp_log="$(proxy_ephemeral_stderr_path "$startup_tag")"
     fi
     ensure_proxy_log_parent_dir "$temp_log"
-    ready_pipe="$HOME/.claude/proxy.ready.$startup_tag.pipe"
+    ready_pipe="$CLAUDE_PROFILE_DIR/proxy.ready.$startup_tag.pipe"
     ready_timeout="${CLAUDE_PROXY_READY_TIMEOUT_SECONDS:-5}"
     rm -f "$ready_pipe"
     mkfifo "$ready_pipe"
@@ -586,7 +999,7 @@ ensure_proxy_running() {
     return 0
   fi
 
-  local proxy_js="$HOME/.claude/tools/claude-proxy"
+  local proxy_js="$CLAUDE_PROFILE_DIR/tools/claude-proxy"
   if [[ ! -f "$proxy_js" ]]; then
     # No local script — maybe you started claude-proxy manually from elsewhere.
     if wait_proxy_ping_ready "$port" 50; then
@@ -600,7 +1013,7 @@ ensure_proxy_running() {
   local lock_fd=""
   local lock_dir=""
   if command -v flock >/dev/null 2>&1; then
-    exec {lock_fd}>"$HOME/.claude/proxy.$port.lock"
+    exec {lock_fd}>"$CLAUDE_PROFILE_DIR/proxy.$port.lock"
     if ! flock -n "$lock_fd"; then
       wait_proxy_ping_ready "$port" 50 || \
         echo "claude-router: timed out waiting for claude-proxy on :$port (another launcher may have failed)" >&2
@@ -608,7 +1021,7 @@ ensure_proxy_running() {
       return 0
     fi
   else
-    lock_dir="$HOME/.claude/proxy.$port.lock.d"
+    lock_dir="$CLAUDE_PROFILE_DIR/proxy.$port.lock.d"
     if [[ -d "$lock_dir" ]]; then
       lock_age=$(( $(date +%s) - $(stat -f %m "$lock_dir" 2>/dev/null || stat -c %Y "$lock_dir" 2>/dev/null || echo 0) ))
       [[ "$lock_age" -gt 30 ]] && rmdir "$lock_dir" 2>/dev/null || true
@@ -717,6 +1130,607 @@ ollama_secret_from_backend_json() {
   return 0
 }
 
+claude_router_debug_event() {
+  local _dl="${CLAUDE_ROUTER_DEBUG:-0}"
+  [[ "$_dl" == "0" || "$_dl" == "false" ]] && return 0
+  echo "claude-router debug: $*" >&2
+}
+
+ollama_prep_state_parent_dir() {
+  mkdir -p "$(dirname "$OLLAMA_PREP_STATE_FILE")"
+}
+
+ollama_prep_state_get() {
+  local section="$1"
+  local key="$2"
+  local field="$3"
+  python3 - "$OLLAMA_PREP_STATE_FILE" "$section" "$key" "$field" <<'PY'
+import json, os, sys
+path, section, key, field = sys.argv[1:5]
+if not os.path.exists(path):
+    sys.exit(0)
+try:
+    with open(path, 'r', encoding='utf-8') as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(0)
+value = ((data.get(section) or {}).get(key) or {}).get(field)
+if value is None:
+    sys.exit(0)
+if isinstance(value, bool):
+    sys.stdout.write("true" if value else "false")
+else:
+    sys.stdout.write(str(value))
+PY
+}
+
+ollama_prep_state_update() {
+  local section="$1"
+  local key="$2"
+  local event="$3"
+  local status="$4"
+  local age_text="${5:-}"
+  local now=""
+  now="$(date +%s)"
+  ollama_prep_state_parent_dir
+  python3 - "$OLLAMA_PREP_STATE_FILE" "$section" "$key" "$event" "$status" "$age_text" "$now" <<'PY'
+import json, os, sys, tempfile
+path, section, key, event, status, age_text, now = sys.argv[1:8]
+try:
+    with open(path, 'r', encoding='utf-8') as fh:
+        data = json.load(fh)
+except Exception:
+    data = {}
+bucket = data.setdefault(section, {})
+entry = bucket.setdefault(key, {})
+entry["last_status"] = status
+if age_text:
+    entry["last_age_text"] = age_text
+if event == "cached":
+    entry["last_seen_cached_at"] = now
+elif event == "pull_attempt":
+    entry["last_pull_attempt_at"] = now
+elif event == "pull_success":
+    entry["last_pull_success_at"] = now
+elif event == "pull_failure":
+    entry["last_pull_failure_at"] = now
+elif event == "install_attempt":
+    entry["last_install_attempt_at"] = now
+elif event == "install_success":
+    entry["last_install_success_at"] = now
+elif event == "install_failure":
+    entry["last_install_failure_at"] = now
+parent = os.path.dirname(path)
+if parent:
+    os.makedirs(parent, exist_ok=True)
+fd, tmp = tempfile.mkstemp(prefix=".ollama-prep-state.", dir=parent)
+with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+    json.dump(data, fh, indent=2, sort_keys=True)
+os.replace(tmp, path)
+PY
+}
+
+ollama_prep_retry_allowed() {
+  local section="$1"
+  local key="$2"
+  local field="$3"
+  local min_seconds="$4"
+  local last_attempt=""
+  local now=""
+  last_attempt="$(ollama_prep_state_get "$section" "$key" "$field" || true)"
+  [[ "$min_seconds" =~ ^[0-9]+$ ]] || min_seconds=0
+  [[ "$last_attempt" =~ ^[0-9]+$ ]] || return 0
+  now="$(date +%s)"
+  (( now - last_attempt >= min_seconds ))
+}
+
+ollama_model_state_key() {
+  local model="$1"
+  local cli_host="$2"
+  printf '%s|%s' "$cli_host" "$model"
+}
+
+ollama_refresh_age_is_stale() {
+  local age_text="$1"
+  local threshold="${OLLAMA_PREP_REFRESH_DAYS:-7}"
+  [[ -n "$age_text" ]] || return 1
+  [[ "$threshold" =~ ^[0-9]+$ ]] || threshold=7
+  case "$age_text" in
+    *year*ago|*years*ago|*month*ago|*months*ago|*week*ago|*weeks*ago)
+      return 0
+      ;;
+  esac
+  if [[ "$age_text" =~ ([0-9]+)[[:space:]]+day ]]; then
+    (( BASH_REMATCH[1] >= threshold ))
+    return
+  fi
+  return 1
+}
+
+ollama_extract_age_text() {
+  local model="$1"
+  local list_output="$2"
+  awk -v target="$model" '
+    NR > 1 && $1 == target {
+      if (NF >= 4) {
+        out = $(NF-2) " " $(NF-1) " " $NF
+        print out
+      }
+      exit
+    }
+  ' <<< "$list_output"
+}
+
+ensure_ollama_cli_available() {
+  local mode="${1:-active}"
+  if command -v ollama >/dev/null 2>&1; then
+    claude_router_debug_event "ollama requirements result mode=$mode cli=present"
+    return 0
+  fi
+
+  claude_router_debug_event "ollama requirements result mode=$mode cli=missing"
+  if ! command -v brew >/dev/null 2>&1; then
+    echo "claude-router: 'ollama' CLI not found — install Ollama or Homebrew to enable local model prep" >&2
+    return 1
+  fi
+
+  if ! ollama_prep_retry_allowed "requirements" "ollama_cli" "last_install_attempt_at" "$OLLAMA_INSTALL_MIN_RETRY_SECONDS"; then
+    echo "claude-router: 'ollama' CLI not found — skipping repeated Homebrew install attempt for now" >&2
+    return 1
+  fi
+
+  ollama_prep_state_update "requirements" "ollama_cli" "install_attempt" "installing"
+  echo "claude-router: 'ollama' CLI not found — attempting 'brew install ollama' in background..." >&2
+  local install_log=""
+  install_log="$(mktemp "${TMPDIR:-/tmp}/claude-router-ollama-install.XXXXXX.log" 2>/dev/null || true)"
+  [[ -n "$install_log" ]] || install_log="/dev/null"
+  (
+    if brew install ollama >"$install_log" 2>&1; then
+      ollama_prep_state_update "requirements" "ollama_cli" "install_success" "installed"
+      claude_router_debug_event "ollama requirements result mode=$mode install=success"
+    else
+      ollama_prep_state_update "requirements" "ollama_cli" "install_failure" "install_failed"
+      claude_router_debug_event "ollama requirements result mode=$mode install=failure"
+      if [[ -s "$install_log" ]]; then
+        echo "claude-router: failed to install 'ollama' via Homebrew — continuing without local model prep (see $install_log)" >&2
+      else
+        echo "claude-router: failed to install 'ollama' via Homebrew — continuing without local model prep" >&2
+      fi
+    fi
+  ) &
+  local install_pid="$!"
+  local install_wait_steps="${CLAUDE_ROUTER_OLLAMA_INSTALL_WAIT_STEPS:-10}"
+  [[ "$install_wait_steps" =~ ^[0-9]+$ ]] || install_wait_steps=10
+  local install_step=0
+  while kill -0 "$install_pid" >/dev/null 2>&1 && (( install_step < install_wait_steps )); do
+    sleep 0.1
+    install_step=$((install_step + 1))
+  done
+  if kill -0 "$install_pid" >/dev/null 2>&1; then
+    disown "$install_pid" 2>/dev/null || disown 2>/dev/null || true
+  else
+    wait "$install_pid" >/dev/null 2>&1 || true
+    if command -v ollama >/dev/null 2>&1; then
+      echo "claude-router: installed 'ollama' via Homebrew — continuing local model prep" >&2
+      claude_router_debug_event "ollama requirements result mode=$mode install=success continue=true"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+resolve_ollama_backend_for_model() {
+  local model="$1"
+  [[ -f "$CONFIG" ]] || return 1
+  [[ -n "$model" ]] || return 1
+
+  local provider=""
+  provider="$(jq -c --arg m "$model" '.providers[$m] // empty' "$CONFIG" 2>/dev/null || true)"
+  if [[ -n "$provider" && "$provider" != "null" ]]; then
+    local provider_base provider_auth provider_key provider_host explicit_auth local_flag
+    provider_base="$(jq -r '.base_url // empty' <<< "$provider" 2>/dev/null)"
+    provider_auth="$(jq -r '.auth_token // empty' <<< "$provider" 2>/dev/null)"
+    if [[ "$provider_auth" == "ollama" ]]; then
+      provider_host="$(ollama_cli_host "$provider_base")"
+      provider_key="$(jq -r 'if has("api_key") then .api_key else "" end' <<< "$provider" 2>/dev/null)"
+      if [[ -z "$provider_key" && -n "${OLLAMA_API_KEY:-}" ]]; then
+        provider_key="${OLLAMA_API_KEY}"
+      fi
+      explicit_auth=0
+      [[ -n "$provider_key" ]] && explicit_auth=1
+      local_flag=0
+      is_local_ollama_host "$provider_host" && local_flag=1
+      printf '%s\t%s\t%s\t%s\t%s\n' "$provider_host" "$provider_key" "__provider__" "$explicit_auth" "$local_flag"
+      return 0
+    fi
+  fi
+
+  local backend_id=""
+  backend_id="$(jq -r --arg m "$model" '.model_routes[$m] // empty' "$CONFIG" 2>/dev/null || true)"
+  [[ -n "$backend_id" ]] || backend_id="$(lookup_model_pattern_value "model_routes" "$model")"
+  [[ -n "$backend_id" ]] || return 1
+
+  local backend=""
+  backend="$(jq -c --arg id "$backend_id" '.backends[$id] // empty' "$CONFIG" 2>/dev/null || true)"
+  [[ -n "$backend" && "$backend" != "null" ]] || return 1
+
+  local kind base_url cli_host api_key explicit_auth local_flag
+  kind="$(jq -r '.kind // "anthropic"' <<< "$backend" 2>/dev/null)"
+  [[ "$kind" == "ollama" ]] || return 1
+  base_url="$(jq -r '.url // empty' <<< "$backend" 2>/dev/null)"
+  cli_host="$(ollama_cli_host "$base_url")"
+  api_key="$(ollama_secret_from_backend_json "$backend")"
+  if [[ -z "$api_key" && -n "${OLLAMA_API_KEY:-}" ]]; then
+    api_key="${OLLAMA_API_KEY}"
+  fi
+  explicit_auth=0
+  [[ -n "$api_key" ]] && explicit_auth=1
+  local_flag=0
+  is_local_ollama_host "$cli_host" && local_flag=1
+  printf '%s\t%s\t%s\t%s\t%s\n' "$cli_host" "$api_key" "$backend_id" "$explicit_auth" "$local_flag"
+}
+
+resolve_local_ollama_backend_for_model() {
+  local model_or_backend="$1"
+  local backend_data="$model_or_backend"
+  if [[ "$backend_data" != *$'\t'* ]]; then
+    backend_data="$(resolve_ollama_backend_for_model "$model_or_backend" || true)"
+  fi
+  [[ -n "$backend_data" ]] || return 1
+
+  local cli_host rest backend_id explicit_auth local_flag cli_key
+  cli_host="${backend_data%%$'\t'*}"
+  rest="${backend_data#*$'\t'}"
+  cli_key="${rest%%$'\t'*}"
+  rest="${rest#*$'\t'}"
+  backend_id="${rest%%$'\t'*}"
+  rest="${rest#*$'\t'}"
+  explicit_auth="${rest%%$'\t'*}"
+  local_flag="${rest#*$'\t'}"
+  [[ "$local_flag" == "1" ]] || return 1
+  printf '%s\t%s\t%s\n' "$cli_host" "$cli_key" "$backend_id"
+}
+
+collect_active_profile_cloud_ollama_models() {
+  [[ -f "$CONFIG" ]] || return 0
+  llm_profiles_defined || return 0
+
+  local capability resolved backend_data cli_host cli_key backend_id explicit_auth local_flag rest
+  while IFS=$'\t' read -r capability resolved; do
+    [[ -n "$resolved" ]] || continue
+    model_is_cloud_designated "$resolved" || continue
+    backend_data="$(resolve_ollama_backend_for_model "$resolved" || true)"
+    [[ -n "$backend_data" ]] || continue
+    cli_host="${backend_data%%$'\t'*}"
+    rest="${backend_data#*$'\t'}"
+    cli_key="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    backend_id="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    explicit_auth="${rest%%$'\t'*}"
+    local_flag="${rest#*$'\t'}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$resolved" "$cli_host" "$(tab_field_encode "$cli_key")" "$backend_id" "$explicit_auth" "$local_flag" "$capability"
+  done < <(collect_active_profile_capability_assignments) | sort -u
+}
+
+collect_active_profile_local_ollama_models() {
+  [[ -f "$CONFIG" ]] || return 0
+  llm_profiles_defined || return 0
+
+  local profile field
+  ensure_llm_profile_context || return 0
+  profile="$LLM_PROFILE_CACHE_NAME"
+  [[ -n "$profile" ]] || return 0
+  if [[ "$(resolve_connectivity_mode)" == "disconnect" ]]; then
+    field="disconnect_model"
+  else
+    field="connected_model"
+  fi
+  claude_router_debug_event "ollama sweep profile profile=$profile field=$field"
+
+  local capability resolved backend_data cli_host cli_key backend_id
+  while IFS=$'\t' read -r capability resolved; do
+    [[ -n "$resolved" ]] || continue
+    backend_data="$(resolve_local_ollama_backend_for_model "$resolved" || true)"
+    [[ -n "$backend_data" ]] || continue
+    cli_host="${backend_data%%$'\t'*}"
+    cli_key="${backend_data#*$'\t'}"
+    backend_id="${cli_key#*$'\t'}"
+    cli_key="${cli_key%%$'\t'*}"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$resolved" "$cli_host" "$(tab_field_encode "$cli_key")" "$backend_id" "$capability"
+  done < <(collect_active_profile_capability_assignments) | sort -u
+}
+
+run_background_ollama_prep_sweep() {
+  local active_model="$1"
+  local active_host="$2"
+  local active_api_key="$3"
+  local active_backend_id="${4:-}"
+  local lines=""
+  lines="$(collect_active_profile_local_ollama_models)"
+  [[ -n "$lines" ]] || return 0
+
+  local sweep_lines=""
+  sweep_lines="$(awk -F '\t' -v model="$active_model" -v host="$active_host" -v backend="$active_backend_id" '
+    !(model != "" && host != "" && $1 == model && $2 == host && (backend == "" || $4 == backend))
+  ' <<< "$lines")"
+  [[ -n "$sweep_lines" ]] || return 0
+
+  local grouped_sweep=""
+  grouped_sweep="$(awk -F '\t' '
+    {
+      key=$1 "\t" $2 "\t" $3 "\t" $4
+      capability=$5
+      if (!(key in seen)) {
+        seen[key]=1
+        order[++count]=key
+        capabilities[key]=capability
+      } else if (capability != "" && index("," capabilities[key] ",", "," capability ",") == 0) {
+        capabilities[key]=capabilities[key] "," capability
+      }
+    }
+    END {
+      for (i = 1; i <= count; i++) {
+        print order[i] "\t" capabilities[order[i]]
+      }
+    }
+  ' <<< "$sweep_lines")"
+  [[ -n "$grouped_sweep" ]] || return 0
+
+  OLLAMA_PREP_SWEEP_STARTED=1
+  local count
+  count="$(printf '%s\n' "$grouped_sweep" | sed '/^$/d' | wc -l | tr -d ' ')"
+  [[ "$count" =~ ^[0-9]+$ ]] || count=0
+  (( count > 0 )) || return 0
+
+  local sweep_descriptions=()
+  local model cli_host cli_key backend_id capabilities
+  while IFS=$'\t' read -r model cli_host cli_key backend_id capabilities; do
+    [[ -n "$model" ]] || continue
+    if [[ -n "$capabilities" ]]; then
+      sweep_descriptions+=("$model [$capabilities]")
+    else
+      sweep_descriptions+=("$model")
+    fi
+  done <<< "$grouped_sweep"
+  local joined_sweep=""
+  printf -v joined_sweep '%s; ' "${sweep_descriptions[@]}"
+  joined_sweep="${joined_sweep%; }"
+
+  echo "claude-router: background Ollama prep for $count profile model(s): $joined_sweep" >&2
+  claude_router_debug_event "ollama sweep start count=$count models=$(printf '%s' "$grouped_sweep" | cut -f1 | paste -sd ',' -)"
+  (
+    local entry model cli_host cli_key backend_id capabilities
+    while IFS=$'\t' read -r model cli_host cli_key backend_id capabilities; do
+      [[ -n "$model" && -n "$cli_host" ]] || continue
+      cli_key="$(tab_field_decode "$cli_key")"
+      ensure_ollama_running "$model" "$cli_host" "$cli_key" "sweep" "$backend_id" "$capabilities"
+    done <<< "$grouped_sweep"
+    claude_router_debug_event "ollama sweep result count=$count"
+  ) >/dev/null &
+  disown 2>/dev/null || true
+}
+
+ollama_router_is_interactive() {
+  [[ "${CLAUDE_ROUTER_FORCE_INTERACTIVE:-0}" == "1" ]] && return 0
+  [[ -t 0 && -t 1 ]]
+}
+
+ollama_router_prompt_yes_no() {
+  local prompt="$1"
+  local reply=""
+  local normalized_reply=""
+  if [[ "${CLAUDE_ROUTER_AUTO_CONFIRM_OLLAMA_SIGNIN:-0}" == "1" ]]; then
+    printf '%s' "$prompt" >&2
+    return 0
+  fi
+  if [[ "${CLAUDE_ROUTER_FORCE_INTERACTIVE:-0}" == "1" ]]; then
+    printf '%s' "$prompt" >&2
+    IFS= read -r reply || return 1
+  elif [[ -r /dev/tty && -w /dev/tty ]]; then
+    printf '%s' "$prompt" > /dev/tty
+    IFS= read -r reply < /dev/tty || return 1
+  else
+    return 1
+  fi
+
+  normalized_reply="$(printf '%s' "$reply" | tr '[:upper:]' '[:lower:]')"
+  case "$normalized_reply" in
+    ""|y|yes)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+ollama_cloud_auth_probe() {
+  local model="$1"
+  local cli_host="$2"
+  local ollama_api_key="${3:-}"
+  local -a ollama_cli_env=(env OLLAMA_HOST="$cli_host")
+  [[ -n "$ollama_api_key" ]] && ollama_cli_env+=(OLLAMA_API_KEY="$ollama_api_key")
+
+  local -a timeout_cmd=()
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_cmd=(timeout "$OLLAMA_CLOUD_AUTH_TIMEOUT_SECONDS")
+  elif command -v gtimeout >/dev/null 2>&1; then
+    timeout_cmd=(gtimeout "$OLLAMA_CLOUD_AUTH_TIMEOUT_SECONDS")
+  fi
+
+  local output=""
+  local status=0
+  if output="$("${ollama_cli_env[@]}" "${timeout_cmd[@]}" ollama pull "$model" 2>&1)"; then
+    claude_router_debug_event "ollama cloud auth probe model=$model host=$cli_host status=ok"
+    printf 'ok\t\n'
+    return 0
+  fi
+  status=$?
+
+  local summary=""
+  summary="$(printf '%s\n' "$output" | awk 'NF {sub(/^[[:space:]]+/, "", $0); print; exit}')"
+  local lowered=""
+  lowered="$(printf '%s' "$output" | tr '[:upper:]' '[:lower:]')"
+
+  if [[ "$lowered" == *"sign in"* || "$lowered" == *"signin"* || "$lowered" == *"unauthorized"* || "$lowered" == *"forbidden"* || "$lowered" == *"authentication"* || "$lowered" == *"not logged in"* ]]; then
+    claude_router_debug_event "ollama cloud auth probe model=$model host=$cli_host status=auth_required"
+    printf 'auth_required\t%s\n' "$summary"
+    return 0
+  fi
+
+  if [[ "$status" -eq 124 || "$status" -eq 143 || "$lowered" == *"cannot connect"* || "$lowered" == *"connection refused"* || "$lowered" == *"timed out"* || "$lowered" == *"timeout"* || "$lowered" == *"no such host"* || "$lowered" == *"failed to connect"* || "$lowered" == *"cannot reach"* ]]; then
+    claude_router_debug_event "ollama cloud auth probe model=$model host=$cli_host status=transport_error"
+    printf 'transport_error\t%s\n' "$summary"
+    return 0
+  fi
+
+  claude_router_debug_event "ollama cloud auth probe model=$model host=$cli_host status=unknown_error"
+  printf 'unknown_error\t%s\n' "$summary"
+}
+
+ensure_ollama_cloud_login() {
+  local model="$1"
+  local cli_host="$2"
+  local ollama_api_key="${3:-}"
+  local post_probe=""
+  local post_status=""
+  local post_message=""
+
+  if [[ "$OLLAMA_CLOUD_AUTH_VALIDATED" == "1" ]]; then
+    return 0
+  fi
+
+  if ! command -v ollama >/dev/null 2>&1; then
+    echo "claude-router: Ollama cloud model '$model' requires authentication, but the 'ollama' CLI is not available." >&2
+    return 1
+  fi
+
+  if ! ollama_router_is_interactive; then
+    echo "claude-router: Ollama cloud models are configured but authentication is not validated." >&2
+    echo "claude-router: Run 'ollama signin' and retry." >&2
+    return 1
+  fi
+
+  if [[ "$OLLAMA_CLOUD_SIGNIN_ATTEMPTED" != "1" ]]; then
+    echo "claude-router: Ollama cloud model access requires ollama.com sign-in." >&2
+    if ! ollama_router_prompt_yes_no "Run 'ollama signin' now? [Y/n] "; then
+      echo "claude-router: Ollama cloud authentication declined — aborting launch." >&2
+      return 1
+    fi
+
+    OLLAMA_CLOUD_SIGNIN_ATTEMPTED=1
+    if [[ "${CLAUDE_ROUTER_FORCE_INTERACTIVE:-0}" == "1" ]]; then
+      ollama signin || {
+        echo "claude-router: 'ollama signin' failed — aborting launch." >&2
+        return 1
+      }
+    else
+      ollama signin </dev/tty >/dev/tty 2>&1 || {
+        echo "claude-router: 'ollama signin' failed — aborting launch." >&2
+        return 1
+      }
+    fi
+  fi
+
+  post_probe="$(ollama_cloud_auth_probe "$model" "$cli_host" "$ollama_api_key")"
+  post_status="${post_probe%%$'\t'*}"
+  post_message="${post_probe#*$'\t'}"
+  if [[ "$post_status" == "ok" ]]; then
+    OLLAMA_CLOUD_AUTH_VALIDATED=1
+    return 0
+  fi
+
+  if [[ -n "$post_message" ]]; then
+    echo "claude-router: Ollama cloud authentication is still not validated for '$model' (${post_message})." >&2
+  else
+    echo "claude-router: Ollama cloud authentication is still not validated for '$model'." >&2
+  fi
+  return 1
+}
+
+validate_ollama_cloud_auth_for_launch() {
+  local active_model="$1"
+  local candidate_lines=""
+  local backend_data=""
+
+  if model_is_cloud_designated "$active_model"; then
+    backend_data="$(resolve_ollama_backend_for_model "$active_model" || true)"
+    if [[ -n "$backend_data" ]]; then
+      candidate_lines="$(printf '%s\t%s\n' "$active_model" "$backend_data")"
+    fi
+  fi
+
+  local profile_lines=""
+  profile_lines="$(collect_active_profile_cloud_ollama_models)"
+  if [[ -n "$profile_lines" ]]; then
+    if [[ -n "$candidate_lines" ]]; then
+      candidate_lines+=$'\n'
+    fi
+    candidate_lines+="$profile_lines"
+  fi
+
+  [[ -n "$candidate_lines" ]] || return 0
+
+  local deduped_lines=""
+  deduped_lines="$(printf '%s\n' "$candidate_lines" | sed '/^$/d' | sort -u)"
+  [[ -n "$deduped_lines" ]] || return 0
+
+  local entry model cli_host cli_key backend_id explicit_auth local_flag probe probe_status probe_message rest capability
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    model="${entry%%$'\t'*}"
+    rest="${entry#*$'\t'}"
+    cli_host="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    cli_key="${rest%%$'\t'*}"
+    cli_key="$(tab_field_decode "$cli_key")"
+    rest="${rest#*$'\t'}"
+    backend_id="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    explicit_auth="${rest%%$'\t'*}"
+    rest="${rest#*$'\t'}"
+    local_flag="${rest%%$'\t'*}"
+    capability="${rest#*$'\t'}"
+    [[ -n "$model" && -n "$cli_host" ]] || continue
+    if [[ "$OLLAMA_CLOUD_AUTH_VALIDATED" == "1" ]]; then
+      continue
+    fi
+    if [[ "$explicit_auth" == "1" ]]; then
+      claude_router_debug_event "ollama cloud auth skip model=$model host=$cli_host reason=explicit_auth"
+      continue
+    fi
+
+    probe="$(ollama_cloud_auth_probe "$model" "$cli_host" "$cli_key")"
+    probe_status="${probe%%$'\t'*}"
+    probe_message="${probe#*$'\t'}"
+    case "$probe_status" in
+      ok)
+        OLLAMA_CLOUD_AUTH_VALIDATED=1
+        ;;
+      auth_required)
+        ensure_ollama_cloud_login "$model" "$cli_host" "$cli_key" || return 1
+        ;;
+      transport_error)
+        if [[ -n "$probe_message" ]]; then
+          echo "claude-router: unable to validate Ollama cloud authentication for '$model' (${probe_message})." >&2
+        else
+          echo "claude-router: unable to validate Ollama cloud authentication for '$model' due to an Ollama transport error." >&2
+        fi
+        return 1
+        ;;
+      *)
+        if [[ -n "$probe_message" ]]; then
+          echo "claude-router: unable to validate Ollama cloud authentication for '$model' (${probe_message})." >&2
+        else
+          echo "claude-router: unable to validate Ollama cloud authentication for '$model'." >&2
+        fi
+        return 1
+        ;;
+    esac
+  done <<< "$deduped_lines"
+}
+
 # Ensure target Ollama model is loaded on the given host; warm it in a subprocess if not.
 # Three-state probe: unreachable → skip with hint; loaded → skip; cached-not-loaded → warm.
 # Avoids silent model pulls: if the model isn't cached on the target host, prints a pull
@@ -727,18 +1741,32 @@ ensure_ollama_running() {
   local model="$1"
   local host="$2"
   local ollama_api_key="${3:-}"
-  command -v ollama >/dev/null 2>&1 || return 0   # no CLI → skip silently
-
-  # Cloud-backed models (convention: suffix ":cloud") should never be warmed via
-  # `ollama run` since that can trigger UI/auth flows or long pulls.
-  [[ "$model" == *":cloud" ]] && return 0
+  local mode="${4:-active}"
+  local backend_id="${5:-}"
+  local capabilities="${6:-}"
+  local warm_skip_reason=""
+  if model_is_cloud_designated "$model"; then
+    warm_skip_reason="model_designated_cloud"
+  fi
+  if [[ -n "$backend_id" ]]; then
+    local backend_skip_reason=""
+    backend_skip_reason="$(backend_local_prep_skip_reason "$backend_id" || true)"
+    if [[ -n "$backend_skip_reason" ]]; then
+      warm_skip_reason="${warm_skip_reason:-$backend_skip_reason}"
+    fi
+  fi
 
   local cli_host
   cli_host="$(ollama_cli_host "$host")"
   is_local_ollama_host "$cli_host" || return 0
 
+  claude_router_debug_event "ollama prep start mode=$mode model=$model host=$cli_host"
+  ensure_ollama_cli_available "$mode" || return 0
+
   local -a ollama_cli_env=(env OLLAMA_HOST="$cli_host")
   [[ -n "$ollama_api_key" ]] && ollama_cli_env+=(OLLAMA_API_KEY="$ollama_api_key")
+  local state_key=""
+  state_key="$(ollama_model_state_key "$model" "$cli_host")"
 
   # Optional: if local Ollama isn't reachable, start it once and retry.
   # Opt-in to avoid unexpectedly spawning daemons in CI/tests or when users
@@ -768,17 +1796,24 @@ ensure_ollama_running() {
       sleep 0.3
       ps_output=$("${ollama_cli_env[@]}" "${timeout_cmd[@]}" ollama ps 2>/dev/null) || {
         echo "claude-router: cannot reach Ollama on $cli_host — is 'ollama serve' running there? Skipping warm-up." >&2
+        claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host reachable=false"
         return 0
       }
     else
       echo "claude-router: cannot reach Ollama on $cli_host — is 'ollama serve' running there? Skipping warm-up." >&2
+      claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host reachable=false"
       return 0
     fi
   fi
 
   # grep -Fxq: Fixed-string, whole-line, quiet — handles model names with regex chars
+  local model_loaded=0
   if echo "$ps_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
-    return 0   # already loaded on that host
+    model_loaded=1
+    if [[ "$mode" != "sweep" ]]; then
+      claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host loaded=true"
+      return 0   # already loaded on that host
+    fi
   fi
 
   # --- Probe 2: is the model cached on that host? ---
@@ -788,20 +1823,71 @@ ensure_ollama_running() {
   local list_output
   list_output=$("${ollama_cli_env[@]}" "${timeout_cmd[@]}" ollama list 2>/dev/null) || {
     # ps worked but list didn't — unexpected; bail safely without warming
+    claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host list_failed=true"
     return 0
   }
+  local age_text=""
+  age_text="$(ollama_extract_age_text "$model" "$list_output" || true)"
 
   if ! echo "$list_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
-    echo "claude-router: '$model' not cached on $cli_host — run 'OLLAMA_HOST=$cli_host ollama pull $model' first to avoid a slow first request" >&2
+    echo "claude-router: '$model' not cached on $cli_host — pulling now..." >&2
+    ollama_prep_state_update "models" "$state_key" "pull_attempt" "pulling"
+    claude_router_debug_event "ollama prep pull start mode=$mode model=$model host=$cli_host reason=missing"
+    if ! "${ollama_cli_env[@]}" ollama pull "$model" >/dev/null 2>&1; then
+      echo "claude-router: failed to pull '$model' from $cli_host" >&2
+      ollama_prep_state_update "models" "$state_key" "pull_failure" "pull_failed"
+      claude_router_debug_event "ollama prep pull result mode=$mode model=$model host=$cli_host success=false"
+      return 0
+    fi
+    ollama_prep_state_update "models" "$state_key" "pull_success" "cached"
+    claude_router_debug_event "ollama prep pull result mode=$mode model=$model host=$cli_host success=true"
+    list_output=$("${ollama_cli_env[@]}" "${timeout_cmd[@]}" ollama list 2>/dev/null) || return 0
+    if ! echo "$list_output" | awk 'NR>1 {print $1}' | grep -Fxq "$model"; then
+      echo "claude-router: '$model' is still unavailable on $cli_host after pull" >&2
+      claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host cached=false after_pull=true"
+      return 0
+    fi
+    age_text="$(ollama_extract_age_text "$model" "$list_output" || true)"
+  else
+    ollama_prep_state_update "models" "$state_key" "cached" "cached" "$age_text"
+  fi
+
+  if [[ "$mode" == "sweep" ]] && ollama_refresh_age_is_stale "$age_text" && \
+     ollama_prep_retry_allowed "models" "$state_key" "last_pull_attempt_at" "$OLLAMA_PREP_MIN_RETRY_SECONDS"; then
+    ollama_prep_state_update "models" "$state_key" "pull_attempt" "refreshing" "$age_text"
+    claude_router_debug_event "ollama stale refresh start model=$model host=$cli_host age=\"$age_text\""
+    if "${ollama_cli_env[@]}" ollama pull "$model" >/dev/null 2>&1; then
+      ollama_prep_state_update "models" "$state_key" "pull_success" "refreshed" "$age_text"
+      claude_router_debug_event "ollama stale refresh result model=$model host=$cli_host success=true"
+      list_output=$("${ollama_cli_env[@]}" "${timeout_cmd[@]}" ollama list 2>/dev/null || true)
+    else
+      ollama_prep_state_update "models" "$state_key" "pull_failure" "refresh_failed" "$age_text"
+      claude_router_debug_event "ollama stale refresh result model=$model host=$cli_host success=false"
+    fi
+  fi
+
+  if [[ -n "$warm_skip_reason" ]]; then
+    claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host warm_skipped=true reason=$warm_skip_reason"
+    return 0
+  fi
+
+  if [[ "$model_loaded" == "1" ]]; then
+    claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host loaded=true"
     return 0
   fi
 
   # --- Cached + not loaded + reachable → fire background warm-up ---
-  echo "claude-router: warming '$model' on $cli_host (background)..." >&2
+  if [[ "$mode" == "sweep" && -n "$capabilities" ]]; then
+    echo "claude-router: warming '$model' on $cli_host (background; capabilities: $capabilities)..." >&2
+  else
+    echo "claude-router: warming '$model' on $cli_host (background)..." >&2
+  fi
+  claude_router_debug_event "ollama prep warm start mode=$mode model=$model host=$cli_host"
   # `ollama run <model> ""` loads the model and exits quickly on empty prompt.
   # Fully detached: stdin from /dev/null, outputs to /dev/null, backgrounded + disowned.
   "${ollama_cli_env[@]}" nohup ollama run "$model" "--options" "num_ctx=65536" </dev/null >/dev/null 2>&1 &
   disown 2>/dev/null || true
+  claude_router_debug_event "ollama prep result mode=$mode model=$model host=$cli_host warmed=true"
 }
 
 # Note: config file permissions should be set by installer, not runtime
@@ -832,10 +1918,10 @@ claude_router_debug_dump() {
     echo "  ANTHROPIC_API_KEY=<unset>" >&2
   fi
   echo "  CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR:-<unset>}" >&2
-  echo "  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-<unset>}" >&2
   echo "  CONFIG=$CONFIG" >&2
   echo "  CONFIG_SOURCE=${CLAUDE_MODEL_MAP_SOURCE:-<unset>}" >&2
   echo "  CLAUDE_MODEL_MAP_LAUNCH_CWD=${CLAUDE_MODEL_MAP_LAUNCH_CWD:-<unset>}" >&2
+  echo "  CLAUDE_PROJECT_DIR=${CLAUDE_PROJECT_DIR:-<unset>}" >&2
   [[ -n "${REAL_CLAUDE:-}" ]] && echo "  REAL_CLAUDE=$REAL_CLAUDE" >&2
   local _pport=""
   if [[ -n "${ROUTER_PROXY_PORT:-}" ]]; then
@@ -853,7 +1939,7 @@ claude_router_debug_dump() {
   if [[ "$_dl" == "2" ]]; then
     echo "  -- verbose --" >&2
     if [[ -n "$_pport" ]]; then
-      echo "  proxy script: $HOME/.claude/tools/claude-proxy" >&2
+      echo "  proxy script: $CLAUDE_PROFILE_DIR/tools/claude-proxy" >&2
     fi
     echo "  OLLAMA_URL=$OLLAMA_URL" >&2
     echo "  OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-<unset>}" >&2
@@ -1089,17 +2175,22 @@ if [[ -z "$MODEL" ]]; then
   exit $?
 fi
 
+REQUESTED_MODEL="${explicit_model:-${route_name:-$MODEL}}"
+
 # Resolve chained route aliases on model id (graph walk, same semantics as claude-proxy)
 EFFECTIVE_MODEL="$MODEL"
 if [[ -f "$CONFIG" ]]; then
   EFFECTIVE_MODEL="$(resolve_routes_graph "$MODEL")" || exit 1
 fi
+EFFECTIVE_MODEL="$(resolve_profile_alias_model "$EFFECTIVE_MODEL")" || exit 1
+log_llm_profile_selection "$EFFECTIVE_MODEL"
+validate_ollama_cloud_auth_for_launch "$EFFECTIVE_MODEL" || exit 1
 
 REAL_CLAUDE="$(find_real_claude)"
 
 # --- Helper: expand placeholders and export resolved provider env vars ---
 apply_provider_block() {
-  local base_url="$1" auth_token="$2" api_key="$3" config_dir="$4" disable="$5" env_json="$6"
+  local base_url="$1" auth_token="$2" api_key="$3" config_dir="$4" env_json="$5"
   # Expand placeholders
   base_url="${base_url/\$OLLAMA_URL/$OLLAMA_URL}"
   base_url="${base_url/\$OLLAMA_BASE_URL/$OLLAMA_URL}"
@@ -1107,7 +2198,6 @@ apply_provider_block() {
   [[ -n "$auth_token" ]] && export ANTHROPIC_AUTH_TOKEN="$auth_token"
   export ANTHROPIC_API_KEY="$api_key"
   [[ -n "$config_dir" ]] && export CLAUDE_CONFIG_DIR="${config_dir//\$HOME/$HOME}"
-  [[ "$disable" == "true" ]] && export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
   if [[ -n "$env_json" && "$env_json" != "{}" && "$env_json" != "null" ]]; then
     while IFS= read -r key; do
       val=$(printf '%s' "$env_json" | jq -r --arg k "$key" '.[$k]' 2>/dev/null)
@@ -1117,15 +2207,15 @@ apply_provider_block() {
 }
 
 apply_ollama_client_block() {
-  local client_base_url="$1" config_dir="$2" disable="$3" env_json="$4"
-  apply_provider_block "$client_base_url" "ollama" "" "$config_dir" "$disable" "$env_json"
+  local client_base_url="$1" config_dir="$2" env_json="$3"
+  apply_provider_block "$client_base_url" "ollama" "" "$config_dir" "$env_json"
 }
 
 apply_proxy_fallback_client_block() {
-  local config_dir="$1" disable="$2" env_json="$3"
+  local config_dir="$1" env_json="$2"
   ensure_proxy_http_base || exit 1
   unset ANTHROPIC_AUTH_TOKEN
-  apply_provider_block "$ENSURED_PROXY_HTTP_BASE" "" "" "$config_dir" "$disable" "$env_json"
+  apply_provider_block "$ENSURED_PROXY_HTTP_BASE" "" "" "$config_dir" "$env_json"
   ensure_proxy_client_api_key
 }
 
@@ -1148,18 +2238,18 @@ if [[ -n "$PROVIDER" && "$PROVIDER" != "null" ]]; then
   AUTH_TOKEN=$(jq -r '.auth_token // empty' <<< "$PROVIDER")
   API_KEY=$(jq -r 'if has("api_key") then .api_key else "" end' <<< "$PROVIDER")
   CONFIG_DIR=$(jq -r '.config_dir // empty' <<< "$PROVIDER")
-  DISABLE=$(jq -r '.disable_nonessential_traffic // "false"' <<< "$PROVIDER")
   ENV_JSON=$(jq -c '.env // {}' <<< "$PROVIDER")
   if [[ "$AUTH_TOKEN" == "ollama" ]]; then
     OLLAMA_BACKEND_URL="$BASE_URL"
     ensure_proxy_http_base || exit 1
-    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$CONFIG_DIR" "$DISABLE" "$ENV_JSON"
+    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$CONFIG_DIR" "$ENV_JSON"
     ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_BACKEND_URL" "$API_KEY"
+    [[ "$OLLAMA_PREP_SWEEP_STARTED" != "1" ]] && run_background_ollama_prep_sweep "$EFFECTIVE_MODEL" "$(ollama_cli_host "$OLLAMA_BACKEND_URL")" "$API_KEY"
   else
     if final_model_has_fallback_strategy "$EFFECTIVE_MODEL"; then
-      apply_proxy_fallback_client_block "$CONFIG_DIR" "$DISABLE" "$ENV_JSON"
+      apply_proxy_fallback_client_block "$CONFIG_DIR" "$ENV_JSON"
     else
-      apply_provider_block "$BASE_URL" "$AUTH_TOKEN" "$API_KEY" "$CONFIG_DIR" "$DISABLE" "$ENV_JSON"
+      apply_provider_block "$BASE_URL" "$AUTH_TOKEN" "$API_KEY" "$CONFIG_DIR" "$ENV_JSON"
     fi
   fi
 
@@ -1176,16 +2266,17 @@ elif [[ -n "$MODEL" && -f "$CONFIG" ]] && BACKEND_ID=$(jq -r --arg m "$EFFECTIVE
   if [[ "$KIND" == "ollama" ]]; then
     OLLAMA_BACKEND_URL="$BASE_URL"
     ensure_proxy_http_base || exit 1
-    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$HOME/.claude-ollama" "true" "{}"
+    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "" "{}"
     OLLAMA_CLI_KEY="$(ollama_secret_from_backend_json "$BACKEND")"
-    ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_BACKEND_URL" "$OLLAMA_CLI_KEY"
+    ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_BACKEND_URL" "$OLLAMA_CLI_KEY" "active" "$BACKEND_ID"
+    [[ "$OLLAMA_PREP_SWEEP_STARTED" != "1" ]] && run_background_ollama_prep_sweep "$EFFECTIVE_MODEL" "$(ollama_cli_host "$OLLAMA_BACKEND_URL")" "$OLLAMA_CLI_KEY" "$BACKEND_ID"
   else
     # anthropic / openrouter / custom: resolve API key from named env var
     API_KEY="${AUTH_ENV:+${!AUTH_ENV}}"
     if final_model_has_fallback_strategy "$EFFECTIVE_MODEL"; then
-      apply_proxy_fallback_client_block "" "false" "{}"
+      apply_proxy_fallback_client_block "" "{}"
     else
-      apply_provider_block "$BASE_URL" "" "$API_KEY" "" "false" "{}"
+      apply_provider_block "$BASE_URL" "" "$API_KEY" "" "{}"
     fi
   fi
 
@@ -1201,15 +2292,16 @@ elif [[ -n "$MODEL" && -f "$CONFIG" ]] && BACKEND_ID="$(lookup_model_pattern_val
   if [[ "$KIND" == "ollama" ]]; then
     OLLAMA_BACKEND_URL="$BASE_URL"
     ensure_proxy_http_base || exit 1
-    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$HOME/.claude-ollama" "true" "{}"
+    apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "" "{}"
     OLLAMA_CLI_KEY="$(ollama_secret_from_backend_json "$BACKEND")"
-    ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_BACKEND_URL" "$OLLAMA_CLI_KEY"
+    ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_BACKEND_URL" "$OLLAMA_CLI_KEY" "active" "$BACKEND_ID"
+    [[ "$OLLAMA_PREP_SWEEP_STARTED" != "1" ]] && run_background_ollama_prep_sweep "$EFFECTIVE_MODEL" "$(ollama_cli_host "$OLLAMA_BACKEND_URL")" "$OLLAMA_CLI_KEY" "$BACKEND_ID"
   else
     API_KEY="${AUTH_ENV:+${!AUTH_ENV}}"
     if final_model_has_fallback_strategy "$EFFECTIVE_MODEL"; then
-      apply_proxy_fallback_client_block "" "false" "{}"
+      apply_proxy_fallback_client_block "" "{}"
     else
-      apply_provider_block "$BASE_URL" "" "$API_KEY" "" "false" "{}"
+      apply_provider_block "$BASE_URL" "" "$API_KEY" "" "{}"
     fi
   fi
 
@@ -1223,22 +2315,24 @@ elif [[ "$EFFECTIVE_MODEL" == claude-* ]] && [[ -f "$CONFIG" ]] && BACKEND_ID="$
   AUTH_ENV=$(jq -r '.auth_env // empty' <<< "$BACKEND")
   API_KEY="${AUTH_ENV:+${!AUTH_ENV}}"
   if final_model_has_fallback_strategy "$EFFECTIVE_MODEL"; then
-    apply_proxy_fallback_client_block "" "false" "{}"
+    apply_proxy_fallback_client_block "" "{}"
   else
-    apply_provider_block "$BASE_URL" "" "$API_KEY" "" "false" "{}"
+    apply_provider_block "$BASE_URL" "" "$API_KEY" "" "{}"
   fi
 
 elif curl -sf "$OLLAMA_HTTP_BASE/api/tags" 2>/dev/null | jq -e --arg m "$EFFECTIVE_MODEL" '.models[] | select(.name == $m)' >/dev/null 2>&1; then
   # 2) Listed in local Ollama /api/tags — client speaks to claude-proxy; proxy forwards to Ollama
   ensure_proxy_http_base || exit 1
-  apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$HOME/.claude-ollama" "true" "{}"
+  apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "" "{}"
   ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_HTTP_BASE" "${OLLAMA_API_KEY:-}"
+  [[ "$OLLAMA_PREP_SWEEP_STARTED" != "1" ]] && run_background_ollama_prep_sweep "$EFFECTIVE_MODEL" "$(ollama_cli_host "$OLLAMA_HTTP_BASE")" "${OLLAMA_API_KEY:-}"
 else
   # 3) Unknown to model-map and not in tag list — still assume Ollama; pass model name through
   echo "claude-router: '$EFFECTIVE_MODEL' not in model-map or local Ollama tags — assuming Ollama at $OLLAMA_HTTP_BASE" >&2
   ensure_proxy_http_base || exit 1
-  apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "$HOME/.claude-ollama" "true" "{}"
+  apply_ollama_client_block "$ENSURED_PROXY_HTTP_BASE" "" "{}"
   ensure_ollama_running "$EFFECTIVE_MODEL" "$OLLAMA_HTTP_BASE" "${OLLAMA_API_KEY:-}"
+  [[ "$OLLAMA_PREP_SWEEP_STARTED" != "1" ]] && run_background_ollama_prep_sweep "$EFFECTIVE_MODEL" "$(ollama_cli_host "$OLLAMA_HTTP_BASE")" "${OLLAMA_API_KEY:-}"
 fi
 
 claude_router_debug_dump routed

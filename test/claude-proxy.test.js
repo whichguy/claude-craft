@@ -100,6 +100,51 @@ function listenOnRandomPort(server) {
   });
 }
 
+function listenOnPort(server, port) {
+  return new Promise((resolve, reject) => {
+    server.listen(port, '127.0.0.1', () => resolve(server.address().port));
+    server.on('error', reject);
+  });
+}
+
+async function reservePort() {
+  const server = http.createServer();
+  const port = await listenOnRandomPort(server);
+  await new Promise(resolve => server.close(resolve));
+  return port;
+}
+
+function waitForLine(stream, pattern, timeoutMs = 5000) {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`timed out waiting for line matching ${pattern}`));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      stream.off('data', onData);
+    };
+
+    const onData = chunk => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop();
+      for (const line of lines) {
+        const match = line.match(pattern);
+        if (match) {
+          cleanup();
+          resolve(match);
+          return;
+        }
+      }
+    };
+
+    stream.on('data', onData);
+  });
+}
+
 function ping(port) {
   return new Promise((resolve) => {
     const req = http.get(`http://127.0.0.1:${port}/ping`, res => {
@@ -122,6 +167,42 @@ async function waitForProxy(port, timeoutMs = 5000) {
     await new Promise(r => setTimeout(r, 100));
   }
   return false;
+}
+
+async function waitFor(predicate, timeoutMs = 5000, intervalMs = 50) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return true;
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
+
+function stopProcess(proc, signal = 'SIGTERM', timeoutMs = 3000) {
+  if (!proc || proc.exitCode != null) return Promise.resolve();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => {
+      if (proc.exitCode == null) proc.kill('SIGKILL');
+    }, timeoutMs);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    proc.once('exit', onExit);
+    proc.kill(signal);
+  });
+}
+
+function removeDirRetry(targetPath, attempts = 10, delayMs = 50) {
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (i === attempts - 1) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+    }
+  }
 }
 
 function getProxyModels(port, query = '') {
@@ -350,13 +431,13 @@ before(async function () {
 
 after(async function () {
   if (proxyProc) {
-    proxyProc.kill('SIGTERM');
+    await stopProcess(proxyProc);
     proxyProc = null;
   }
   if (anthropicMock) { anthropicMock.close(); anthropicMock = null; }
   if (ollamaMock)    { ollamaMock.close(); ollamaMock = null; }
   if (homeDir) {
-    fs.rmSync(homeDir, { recursive: true, force: true });
+    removeDirRetry(homeDir);
     homeDir = null;
   }
 });
@@ -371,6 +452,52 @@ describe('claude-proxy /ping', () => {
     expect(result.ok).to.equal(true);
     expect(result.pid).to.be.a('number').and.greaterThan(0);
     expect(result.config_path).to.equal(fs.realpathSync(path.join(homeDir, '.claude', 'model-map.json')));
+  });
+});
+
+describe('claude-proxy dynamic port startup', () => {
+  it('binds an ephemeral port and emits a READY handshake when no port is specified', async function () {
+    this.timeout(10000);
+
+    const tempHome = makeTempHome({
+      backends: {
+        anthropic_local: { kind: 'anthropic', url: `http://127.0.0.1:${anthropicPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'anthropic_local',
+      },
+      routes: {
+        default: 'glm-5.1:cloud',
+      },
+    });
+
+    const proc = spawn(process.execPath, [PROXY_SCRIPT], {
+      cwd: tempHome,
+      env: {
+        ...process.env,
+        HOME: tempHome,
+        TEST_ANTHROPIC_KEY: 'real-test-key-from-env',
+        CLAUDE_MODEL_MAP_PATH: '',
+        CLAUDE_MODEL_MAP_SOURCE: '',
+        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
+        CLAUDE_PROJECT_DIR: '',
+        OLLAMA_BASE_URL: `http://127.0.0.1:${ollamaPort}`,
+        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      const ready = await waitForLine(proc.stdout, /^READY (\d+)$/);
+      const port = Number(ready[1]);
+      expect(port).to.be.greaterThan(0);
+      expect(port).to.not.equal(11000);
+      expect(await waitForProxy(port)).to.equal(true);
+    } finally {
+      await stopProcess(proc);
+      removeDirRetry(tempHome);
+    }
   });
 });
 
@@ -407,8 +534,8 @@ describe('claude-proxy standalone config resolution', () => {
       expect(result.config_path).to.equal(fs.realpathSync(path.join(repoDir, '.claude', 'model-map.json')));
       expect(result.config_source).to.equal('project');
     } finally {
-      proc.kill('SIGTERM');
-      fs.rmSync(tempHome, { recursive: true, force: true });
+      await stopProcess(proc);
+      removeDirRetry(tempHome);
     }
   });
 
@@ -533,12 +660,12 @@ describe('claude-proxy standalone config resolution', () => {
       expect(ollamaCountTokensBody).to.not.be.null;
       expect(ollamaCountTokensBody.model).to.equal('switch-model');
     } finally {
-      proc.kill('SIGTERM');
+      await stopProcess(proc);
       anthropicMock.removeAllListeners('request');
       for (const h of savedAnthropic) anthropicMock.on('request', h);
       ollamaMock.removeAllListeners('request');
       for (const h of savedOllama) ollamaMock.on('request', h);
-      fs.rmSync(tempHome, { recursive: true, force: true });
+      removeDirRetry(tempHome);
     }
   });
 });
@@ -574,6 +701,146 @@ describe('claude-proxy /debug/stats', () => {
   });
 });
 
+describe('claude-proxy — persistent usage aggregation', () => {
+  it('persists aggregate usage and mapping stats to a local file and exposes them via /debug/stats', async function () {
+    this.timeout(10000);
+
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+      },
+      routes: {
+        default: 'qwen3-coder:30b',
+        'alias-to-ollama': 'qwen3-coder:30b',
+      },
+    });
+    const port = await reservePort();
+    const usageStatsPath = path.join(tempHome, '.claude', 'proxy-usage-stats.json');
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_USAGE_STATS_FILE: usageStatsPath,
+      CLAUDE_PROXY_USAGE_FLUSH_DEBOUNCE_MS: '10',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+
+      const jsonResult = await postProxy(port, {
+        model: 'alias-to-ollama',
+        stream: false,
+        messages: [{ role: 'user', content: 'aggregate me' }],
+      });
+      expect(jsonResult.status).to.equal(200);
+
+      const streamResult = await postProxy(port, {
+        model: 'qwen3-coder:30b',
+        stream: true,
+        messages: [{ role: 'user', content: 'stream me' }],
+      });
+      expect(streamResult.status).to.equal(200);
+
+      const persistedReady = await waitFor(() => {
+        try {
+          const latest = JSON.parse(fs.readFileSync(usageStatsPath, 'utf8'));
+          return latest.totals?.requests_completed === 2;
+        } catch {
+          return false;
+        }
+      }, 3000);
+      expect(persistedReady).to.equal(true);
+
+      const persisted = JSON.parse(fs.readFileSync(usageStatsPath, 'utf8'));
+      expect(persisted.totals.requests_completed).to.equal(2);
+      expect(persisted.totals.input_tokens_total).to.equal(10);
+      expect(persisted.totals.output_tokens_total).to.equal(4);
+      expect(persisted.byClientModel['alias-to-ollama'].requests).to.equal(1);
+      expect(persisted.byClientModel['alias-to-ollama'].input_tokens_total).to.equal(5);
+      expect(persisted.byEffectiveModel['qwen3-coder:30b'].requests).to.equal(2);
+      expect(persisted.byEffectiveModel['qwen3-coder:30b'].output_tokens_total).to.equal(4);
+      expect(persisted.byBackendId.ollama_local.requests).to.equal(2);
+      expect(persisted.byMapping['alias-to-ollama=>qwen3-coder:30b'].requests).to.equal(1);
+      expect(persisted.byMapping['qwen3-coder:30b=>qwen3-coder:30b'].requests).to.equal(1);
+
+      const statsResp = await getJsonPath(port, '/debug/stats');
+      expect(statsResp.status).to.equal(200);
+      const stats = JSON.parse(statsResp.body);
+      expect(stats.usagePersistence.stats_file).to.equal(usageStatsPath);
+      expect(stats.usagePersistence.aggregate.totals.requests_completed).to.equal(2);
+      expect(stats.usagePersistence.aggregate.byMapping['alias-to-ollama=>qwen3-coder:30b'].output_tokens_total).to.equal(2);
+    } finally {
+      await stopProcess(proc);
+      removeDirRetry(tempHome);
+    }
+  });
+
+  it('appends per-call usage entries to the optional log file', async function () {
+    this.timeout(10000);
+
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+      },
+    });
+    const port = await reservePort();
+    const usageStatsPath = path.join(tempHome, '.claude', 'proxy-usage-stats.json');
+    const usageLogPath = path.join(tempHome, '.claude', 'proxy-usage-log.jsonl');
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_USAGE_STATS_FILE: usageStatsPath,
+      CLAUDE_PROXY_USAGE_LOG_FILE: usageLogPath,
+      CLAUDE_PROXY_USAGE_FLUSH_DEBOUNCE_MS: '10',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+
+      const result = await postProxy(port, {
+        model: 'qwen3-coder:30b',
+        stream: false,
+        messages: [{ role: 'user', content: 'log me' }],
+      });
+      expect(result.status).to.equal(200);
+
+      const logReady = await waitFor(() => {
+        try {
+          return fs.readFileSync(usageLogPath, 'utf8').trim().length > 0;
+        } catch {
+          return false;
+        }
+      }, 3000);
+      expect(logReady).to.equal(true);
+
+      const lines = fs.readFileSync(usageLogPath, 'utf8').trim().split('\n');
+      expect(lines).to.have.length(1);
+      const entry = JSON.parse(lines[0]);
+      expect(entry.client_model).to.equal('qwen3-coder:30b');
+      expect(entry.effective_model).to.equal('qwen3-coder:30b');
+      expect(entry.backend_id).to.equal('ollama_local');
+      expect(entry.backend_kind).to.equal('ollama');
+      expect(entry.status_code).to.equal(200);
+      expect(entry.input_tokens).to.equal(5);
+      expect(entry.output_tokens).to.equal(2);
+      expect(entry.stream).to.equal(false);
+      expect(entry.duration_ms).to.be.a('number');
+    } finally {
+      await stopProcess(proc);
+      removeDirRetry(tempHome);
+    }
+  });
+});
+
 describe('claude-proxy — GET /v1/models enrich', () => {
   it('merges upstream list with all model_routes ids', async function () {
     this.timeout(3000);
@@ -585,10 +852,16 @@ describe('claude-proxy — GET /v1/models enrich', () => {
     expect(ids).to.deep.equal([
       'alias-to-ollama',
       'background',
+      'classifier',
       'claude-opus-4-6',
       'claude-sonnet-4-6',
+      'coder',
       'default',
+      'explorer',
+      'general-default',
       'qwen3-coder:30b',
+      'reviewer',
+      'workhorse',
     ]);
     const qwen = json.data.find(m => m.id === 'qwen3-coder:30b');
     expect(qwen).to.be.an('object');
@@ -1324,99 +1597,6 @@ describe('claude-proxy — Ollama translation — error propagation', () => {
   });
 });
 
-describe('claude-proxy — Ollama legacy translator guardrails', () => {
-  it('uses the effective model and header annotation instead of mutating content', async function () {
-    this.timeout(5000);
-    const legacyPort = 19990;
-    const legacyOllama = http.createServer((req, res) => {
-      const chunks = [];
-      req.on('data', c => chunks.push(c));
-      req.on('end', () => {
-        if (req.method === 'POST' && req.url === '/api/chat') {
-          res.writeHead(200, { 'content-type': 'application/x-ndjson' });
-          res.write(
-            JSON.stringify({
-              model: 'qwen3-coder:30b',
-              message: { role: 'assistant', content: 'legacy-ok' },
-              done: false,
-            }) + '\n',
-          );
-          res.write(
-            JSON.stringify({
-              model: 'qwen3-coder:30b',
-              message: { role: 'assistant', content: '' },
-              done: true,
-              eval_count: 1,
-            }) + '\n',
-          );
-          res.end();
-          return;
-        }
-        if (req.method === 'POST' && req.url === '/api/show') {
-          res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              details: { parent_model: '', family: 'mock', parameter_size: '0B' },
-              digest: 'sha256:mockdigest0000000000000000000000000000000000000000000000000000',
-            }),
-          );
-          return;
-        }
-        res.writeHead(404, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ error: 'not found' }));
-      });
-    });
-    const legacyOllamaPort = await listenOnRandomPort(legacyOllama);
-    const legacyHome = makeTempHome({
-      backends: {
-        ollama_local: {
-          kind: 'ollama',
-          url: `http://127.0.0.1:${legacyOllamaPort}`,
-        },
-      },
-      model_routes: {
-        'qwen3-coder:30b': 'ollama_local',
-      },
-    });
-    const legacyProc = spawn(process.execPath, [PROXY_SCRIPT], {
-      cwd: legacyHome,
-      env: {
-        ...process.env,
-        HOME: legacyHome,
-        CLAUDE_PROXY_PORT: String(legacyPort),
-        CLAUDE_MODEL_MAP_PATH: '',
-        CLAUDE_MODEL_MAP_SOURCE: '',
-        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
-        CLAUDE_PROJECT_DIR: '',
-        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
-        CLAUDE_PROXY_OLLAMA_LEGACY_TRANSLATE: '1',
-        CLAUDE_PROXY_ANNOTATE_MODEL: '1',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    legacyProc.stderr.on('data', () => {});
-
-    try {
-      const ready = await waitForProxy(legacyPort);
-      if (!ready) throw new Error('legacy proxy did not start');
-      const r = await postProxy(legacyPort, {
-        model: 'qwen3-coder:30b',
-        messages: [{ role: 'user', content: 'hello' }],
-        max_tokens: 10,
-      });
-      expect(r.status).to.equal(200);
-      expect(r.headers['x-claude-proxy-served-by']).to.equal('qwen3-coder:30b');
-      expect(r.body).to.include('"model":"qwen3-coder:30b"');
-      expect(r.body).to.not.include('served_by=qwen3-coder:30b');
-      expect(r.body).to.not.include('"model":"foobar"');
-    } finally {
-      legacyProc.kill('SIGTERM');
-      await new Promise(r => legacyOllama.close(r));
-      fs.rmSync(legacyHome, { recursive: true, force: true });
-    }
-  });
-});
-
 describe('claude-proxy — Ollama passthrough — response annotation', () => {
   it('adds x-claude-proxy-served-by when CLAUDE_PROXY_ANNOTATE_MODEL=1', async function () {
     this.timeout(5000);
@@ -1452,7 +1632,7 @@ describe('claude-proxy — Ollama passthrough — response annotation', () => {
       expect(r.status).to.equal(200);
       expect(r.headers['x-claude-proxy-served-by']).to.equal('qwen3-coder:30b');
     } finally {
-      annotatedProc.kill('SIGTERM');
+      await stopProcess(annotatedProc);
     }
   });
 });
@@ -1580,8 +1760,8 @@ describe('claude-proxy — route alias resolution', () => {
       const receivedBody = JSON.parse(r.headers['x-received-body']);
       expect(receivedBody.model).to.equal('claude-haiku-4-5-20251001');
     } finally {
-      patternProc.kill('SIGTERM');
-      fs.rmSync(patternHome, { recursive: true, force: true });
+      await stopProcess(patternProc);
+      removeDirRetry(patternHome);
     }
   });
 
@@ -1676,12 +1856,12 @@ describe('claude-proxy — fallback strategies', () => {
       },
       model_routes: {
         'claude-sonnet-4-6': 'anthropic',
-        'qwen3.5:35b-a3b-coding-nvfp4': 'ollama_local',
+        'qwen3.6:35b-a3b-q4_K_M': 'ollama_local',
       },
       routes: {
         high: 'claude-sonnet-4-6',
         think: 'claude-sonnet-4-6',
-        'medium-model': 'qwen3.5:35b-a3b-coding-nvfp4',
+        'medium-model': 'qwen3.6:35b-a3b-q4_K_M',
       },
       fallback_strategies: {
         'claude-sonnet-4-6': {
@@ -1721,7 +1901,7 @@ describe('claude-proxy — fallback strategies', () => {
       expect(second.body).to.include('fallback-ok');
       expect(anthropicHits).to.equal(1);
     } finally {
-      proc.kill('SIGTERM');
+      await stopProcess(proc);
       await new Promise(r => anthropicServer.close(r));
       await new Promise(r => localServer.close(r));
       fs.rmSync(tempHome, { recursive: true, force: true });
@@ -1756,11 +1936,11 @@ describe('claude-proxy — fallback strategies', () => {
       },
       model_routes: {
         'claude-sonnet-4-6': 'anthropic',
-        'qwen3.5:35b-a3b-coding-nvfp4': 'ollama_local',
+        'qwen3.6:35b-a3b-q4_K_M': 'ollama_local',
       },
       routes: {
         high: 'claude-sonnet-4-6',
-        'medium-model': 'qwen3.5:35b-a3b-coding-nvfp4',
+        'medium-model': 'qwen3.6:35b-a3b-q4_K_M',
       },
       fallback_strategies: {
         'claude-sonnet-4-6': {
@@ -1793,9 +1973,81 @@ describe('claude-proxy — fallback strategies', () => {
       expect(parsedStats.byFailureClass.account_quota).to.equal(1);
       expect(parsedStats.byFailureClass.rate_limit || 0).to.equal(0);
     } finally {
-      proc.kill('SIGTERM');
+      await stopProcess(proc);
       await new Promise(r => anthropicServer.close(r));
       await new Promise(r => localServer.close(r));
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('uses Ollama bearer auth when a fallback-managed primary backend is Ollama passthrough', async function () {
+    this.timeout(5000);
+    let primaryAuth = null;
+    const primaryOllama = http.createServer((req, res) => {
+      primaryAuth = req.headers.authorization || null;
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'upstream failed' } }));
+    });
+    const fallbackOllama = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', () => {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+        writeOllamaAnthropicResponse(res, body, ['fallback-after-ollama'], 1);
+      });
+    });
+    const primaryPort = await listenOnRandomPort(primaryOllama);
+    const fallbackPort = await listenOnRandomPort(fallbackOllama);
+    const reserver = http.createServer();
+    const port = await listenOnRandomPort(reserver);
+    await new Promise(resolve => reserver.close(resolve));
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_primary: { kind: 'ollama', url: `http://127.0.0.1:${primaryPort}`, auth_env: 'TEST_OLLAMA_KEY' },
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${fallbackPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'ollama_primary',
+        'qwen3.6:35b-a3b-q4_K_M': 'ollama_local',
+      },
+      fallback_strategies: {
+        'glm-5.1:cloud': {
+          on: {
+            network: ['qwen3.6:35b-a3b-q4_K_M'],
+          },
+        },
+      },
+    });
+    const proc = spawn(process.execPath, [PROXY_SCRIPT], {
+      cwd: tempHome,
+      env: {
+        ...process.env,
+        HOME: tempHome,
+        CLAUDE_PROXY_PORT: String(port),
+        TEST_OLLAMA_KEY: 'ollama-secret',
+        CLAUDE_MODEL_MAP_PATH: '',
+        CLAUDE_MODEL_MAP_SOURCE: '',
+        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
+        CLAUDE_PROJECT_DIR: '',
+        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    proc.stderr.on('data', () => {});
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      const result = await postProxy(port, {
+        model: 'glm-5.1:cloud',
+        messages: [{ role: 'user', content: 'test auth contract' }],
+        max_tokens: 10,
+      });
+      expect(result.status).to.equal(200);
+      expect(result.body).to.include('fallback-after-ollama');
+      expect(primaryAuth).to.equal('Bearer ollama-secret');
+    } finally {
+      await stopProcess(proc);
+      await new Promise(r => primaryOllama.close(r));
+      await new Promise(r => fallbackOllama.close(r));
       fs.rmSync(tempHome, { recursive: true, force: true });
     }
   });
@@ -1830,11 +2082,11 @@ describe('claude-proxy — fallback strategies', () => {
       },
       model_routes: {
         'claude-sonnet-4-6': 'anthropic',
-        'qwen3.5:35b-a3b-coding-nvfp4': 'ollama_local',
+        'qwen3.6:35b-a3b-q4_K_M': 'ollama_local',
       },
       routes: {
         high: 'claude-sonnet-4-6',
-        longContext: 'qwen3.5:35b-a3b-coding-nvfp4',
+        longContext: 'qwen3.6:35b-a3b-q4_K_M',
       },
       fallback_strategies: {
         'claude-sonnet-4-6': {
@@ -1871,7 +2123,7 @@ describe('claude-proxy — fallback strategies', () => {
       expect(second.body).to.include('long-context-ok');
       expect(anthropicHits).to.equal(2);
     } finally {
-      proc.kill('SIGTERM');
+      await stopProcess(proc);
       await new Promise(r => anthropicServer.close(r));
       await new Promise(r => localServer.close(r));
       fs.rmSync(tempHome, { recursive: true, force: true });
@@ -1936,9 +2188,9 @@ describe('claude-proxy — route graph (multi-hop)', () => {
       expect(ollamaBody).to.not.be.null;
       expect(ollamaBody.model).to.equal('qwen3-coder:30b');
     } finally {
-      proxyG.kill('SIGTERM');
+      await stopProcess(proxyG);
       await new Promise(r => ollamaServerG.close(r));
-      fs.rmSync(homeG, { recursive: true, force: true });
+      removeDirRetry(homeG);
     }
   });
 
@@ -1982,8 +2234,8 @@ describe('claude-proxy — route graph (multi-hop)', () => {
       expect(exitCode).to.not.equal(0);
       expect(stderr).to.match(/cycle/i);
     } finally {
-      cycProc.kill('SIGTERM');
-      fs.rmSync(cycHome, { recursive: true, force: true });
+      await stopProcess(cycProc);
+      removeDirRetry(cycHome);
     }
   });
 });
@@ -2035,7 +2287,7 @@ describe('claude-proxy — error cases and connectivity', () => {
 
   after(async function () {
     if (proxy2) { proxy2.kill('SIGTERM'); proxy2 = null; }
-    if (homeDir2) { fs.rmSync(homeDir2, { recursive: true, force: true }); homeDir2 = null; }
+    if (homeDir2) { removeDirRetry(homeDir2); homeDir2 = null; }
   });
 
   it('missing model → 400', async function () {
@@ -2077,5 +2329,749 @@ describe('claude-proxy — error cases and connectivity', () => {
     expect(body.error).to.be.an('object');
     expect(body.error.type).to.equal('api_error');
     expect(body.error.message).to.match(/Cannot reach Ollama/);
+  });
+});
+
+describe('claude-proxy — fatal call timeout', () => {
+  it('terminates a hung upstream call with a 504 after the fatal deadline', async function () {
+    this.timeout(5000);
+
+    const hangingServer = http.createServer((req, res) => {
+      req.on('data', () => {});
+      req.on('end', () => {});
+      // Intentionally never respond.
+    });
+    const hangingPort = await listenOnRandomPort(hangingServer);
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${hangingPort}` },
+      },
+      model_routes: {
+        'gemma4:26b': 'ollama_local',
+      },
+    });
+    const reserver = http.createServer();
+    const port = await listenOnRandomPort(reserver);
+    await new Promise(resolve => reserver.close(resolve));
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_FATAL_CALL_TIMEOUT_MS: '150',
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      const result = await postProxy(port, {
+        model: 'gemma4:26b',
+        stream: false,
+        messages: [{ role: 'user', content: 'hang forever' }],
+      });
+      expect(result.status).to.equal(504);
+      const parsed = JSON.parse(result.body);
+      expect(parsed.error).to.be.an('object');
+      expect(parsed.error.type).to.equal('api_error');
+      expect(parsed.error.message).to.match(/fatal call timeout/i);
+    } finally {
+      await stopProcess(proc);
+      await new Promise(resolve => hangingServer.close(resolve));
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('allows slow upstream responses to complete when they stay within the fatal deadline', async function () {
+    this.timeout(5000);
+
+    const slowServer = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', c => chunks.push(c));
+      req.on('end', async () => {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+        await new Promise(resolve => setTimeout(resolve, 150));
+        writeOllamaAnthropicResponse(res, body, ['slow-but-ok'], 1);
+      });
+    });
+    const slowPort = await listenOnRandomPort(slowServer);
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${slowPort}` },
+      },
+      model_routes: {
+        'gemma4:26b': 'ollama_local',
+      },
+    });
+    const reserver = http.createServer();
+    const port = await listenOnRandomPort(reserver);
+    await new Promise(resolve => reserver.close(resolve));
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_FATAL_CALL_TIMEOUT_MS: '500',
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      const result = await postProxy(port, {
+        model: 'gemma4:26b',
+        stream: false,
+        messages: [{ role: 'user', content: 'respond slowly' }],
+      });
+      expect(result.status).to.equal(200);
+      expect(result.body).to.include('slow-but-ok');
+    } finally {
+      await stopProcess(proc);
+      await new Promise(resolve => slowServer.close(resolve));
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('claude-proxy — llm profile alias resolution', () => {
+  let aliasHome = null;
+  let aliasProxy = null;
+  let pullHome = null;
+  let pullProxy = null;
+  const ALIAS_PORT = 19993;
+  const PULL_PORT = 19992;
+
+  afterEach(async function () {
+    if (aliasProxy) { await stopProcess(aliasProxy); aliasProxy = null; }
+    if (pullProxy) { await stopProcess(pullProxy); pullProxy = null; }
+    if (aliasHome) { removeDirRetry(aliasHome); aliasHome = null; }
+    if (pullHome) { removeDirRetry(pullHome); pullHome = null; }
+  });
+
+  it('resolves short-class aliases through the active profile and connectivity mode', async function () {
+    this.timeout(10000);
+
+    aliasHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+        'deepseek-r1:14b': 'ollama_local',
+      },
+      routes: {
+        default: 'general-default',
+      },
+      llm_profiles: {
+        '64gb': {
+          default: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          classifier: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          explorer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          reviewer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          workhorse: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          coder: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+        },
+        '128gb': {
+          default: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          classifier: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          explorer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          reviewer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          workhorse: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          coder: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+        },
+      },
+    });
+
+    aliasProxy = spawnProxyInstance(aliasHome, ALIAS_PORT, {
+      CLAUDE_LLM_PROFILE: '64gb',
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+    });
+    aliasProxy.stderr.on('data', () => {});
+    expect(await waitForProxy(ALIAS_PORT)).to.equal(true);
+
+    const connected = await postProxy(ALIAS_PORT, {
+      model: 'workhorse',
+      stream: false,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(connected.body).model).to.equal('qwen3-coder:30b');
+
+    await stopProcess(aliasProxy);
+    aliasProxy = spawnProxyInstance(aliasHome, ALIAS_PORT, {
+      CLAUDE_LLM_PROFILE: '64gb',
+      CLAUDE_CONNECTIVITY_MODE: 'disconnect',
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+    });
+    aliasProxy.stderr.on('data', () => {});
+    expect(await waitForProxy(ALIAS_PORT)).to.equal(true);
+
+    const disconnected = await postProxy(ALIAS_PORT, {
+      model: 'workhorse',
+      stream: false,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(disconnected.body).model).to.equal('deepseek-r1:14b');
+  });
+
+  it('uses config-defined disconnect mode even without env overrides', async function () {
+    this.timeout(10000);
+
+    aliasHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+        'deepseek-r1:14b': 'ollama_local',
+      },
+      routes: {
+        default: 'general-default',
+      },
+      llm_active_profile: '64gb',
+      llm_connectivity_mode: 'disconnect',
+      llm_profiles: {
+        '64gb': {
+          default: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          classifier: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          explorer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          reviewer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          workhorse: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          coder: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+        },
+        '128gb': {
+          default: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          classifier: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          explorer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          reviewer: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          workhorse: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+          coder: { connected_model: 'qwen3-coder:30b', disconnect_model: 'deepseek-r1:14b' },
+        },
+      },
+    });
+
+    aliasProxy = spawnProxyInstance(aliasHome, ALIAS_PORT, {
+      CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '1',
+    });
+    aliasProxy.stderr.on('data', () => {});
+    expect(await waitForProxy(ALIAS_PORT)).to.equal(true);
+
+    const disconnected = await postProxy(ALIAS_PORT, {
+      model: 'general-default',
+      stream: false,
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(disconnected.body).model).to.equal('deepseek-r1:14b');
+  });
+
+  it('auto-pulls uncached local ollama models before warming', async function () {
+    this.timeout(10000);
+
+    pullHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+      },
+      routes: {},
+    });
+
+    const binDir = path.join(pullHome, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const logPath = path.join(pullHome, 'ollama.log');
+    const stubPath = path.join(binDir, 'ollama');
+    fs.writeFileSync(stubPath, [
+      '#!/bin/bash',
+      'echo "$@" >> "$OLLAMA_STUB_LOG"',
+      'case "$1" in',
+      '  list) printf "NAME   ID\\n"; exit 0 ;;',
+      '  ps) printf "NAME   ID\\n"; exit 0 ;;',
+      '  pull) exit 0 ;;',
+      '  run) exit 0 ;;',
+      '  *) exit 1 ;;',
+      'esac',
+    ].join('\n') + '\n');
+    fs.chmodSync(stubPath, 0o755);
+
+    pullProxy = spawn(process.execPath, [PROXY_SCRIPT], {
+      cwd: pullHome,
+      env: {
+        ...process.env,
+        HOME: pullHome,
+        PATH: `${binDir}:${process.env.PATH}`,
+        OLLAMA_STUB_LOG: logPath,
+        CLAUDE_PROXY_PORT: String(PULL_PORT),
+        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '0',
+        CLAUDE_MODEL_MAP_PATH: '',
+        CLAUDE_MODEL_MAP_SOURCE: '',
+        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
+        CLAUDE_PROJECT_DIR: '',
+        OLLAMA_BASE_URL: `http://127.0.0.1:${ollamaPort}`,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    pullProxy.stderr.on('data', () => {});
+    expect(await waitForProxy(PULL_PORT)).to.equal(true);
+
+    const result = await postProxy(PULL_PORT, {
+      model: 'qwen3-coder:30b',
+      stream: false,
+      messages: [{ role: 'user', content: 'warm it' }],
+    });
+    expect(result.status).to.equal(200);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    const log = fs.readFileSync(logPath, 'utf8');
+    expect(log).to.include('list');
+    expect(log).to.include('pull qwen3-coder:30b');
+  });
+
+  it('surfaces a clear error when auto-pull fails for a local Ollama model', async function () {
+    this.timeout(10000);
+
+    pullHome = makeTempHome({
+      backends: {
+        ollama_local: {
+          kind: 'ollama',
+          url: `http://127.0.0.1:${ollamaPort}`,
+        },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+      },
+      routes: {},
+    });
+
+    const binDir = path.join(pullHome, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const logPath = path.join(pullHome, 'ollama.log');
+    const stubPath = path.join(binDir, 'ollama');
+    fs.writeFileSync(stubPath, [
+      '#!/bin/bash',
+      'echo "$@" >> "$OLLAMA_STUB_LOG"',
+      'case "$1" in',
+      '  list) printf "NAME   ID\\n"; exit 0 ;;',
+      '  ps) printf "NAME   ID\\n"; exit 0 ;;',
+      '  pull) echo "pull failed" >&2; exit 1 ;;',
+      '  run) exit 0 ;;',
+      '  *) exit 1 ;;',
+      'esac',
+    ].join('\n') + '\n');
+    fs.chmodSync(stubPath, 0o755);
+
+    pullProxy = spawn(process.execPath, [PROXY_SCRIPT], {
+      cwd: pullHome,
+      env: {
+        ...process.env,
+        HOME: pullHome,
+        PATH: `${binDir}:${process.env.PATH}`,
+        OLLAMA_STUB_LOG: logPath,
+        CLAUDE_PROXY_PORT: String(PULL_PORT),
+        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '0',
+        CLAUDE_MODEL_MAP_PATH: '',
+        CLAUDE_MODEL_MAP_SOURCE: '',
+        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
+        CLAUDE_PROJECT_DIR: '',
+        OLLAMA_BASE_URL: `http://127.0.0.1:${ollamaPort}`,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    pullProxy.stderr.on('data', () => {});
+    expect(await waitForProxy(PULL_PORT)).to.equal(true);
+
+    const result = await postProxy(PULL_PORT, {
+      model: 'qwen3-coder:30b',
+      stream: false,
+      messages: [{ role: 'user', content: 'warm it' }],
+    });
+    expect(result.status).to.equal(502);
+    const parsed = JSON.parse(result.body);
+    expect(parsed.error).to.be.an('object');
+    expect(parsed.error.message).to.match(/failed to pull 'qwen3-coder:30b'/i);
+
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const log = fs.readFileSync(logPath, 'utf8');
+    expect(log).to.include('list');
+    expect(log).to.include('pull qwen3-coder:30b');
+    expect(log).to.not.include('run qwen3-coder:30b');
+  });
+});
+
+describe('claude-proxy — runtime health overlay', () => {
+  it('drives repeated network failures from degraded to disconnected and persists health state', async function () {
+    this.timeout(10000);
+
+    const remote = http.createServer((req) => {
+      req.socket.destroy();
+    });
+    const remotePort = await listenOnRandomPort(remote);
+
+    const tempHome = makeTempHome({
+      backends: {
+        cloud_remote: { kind: 'anthropic', url: `http://127.0.0.1:${remotePort}` },
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${ollamaPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'cloud_remote',
+        'gemma4:26b': 'ollama_local',
+      },
+      fallback_strategies: {
+        'glm-5.1:cloud': {
+          on: { network: ['gemma4:26b'] },
+          cooldown: { network: { mode: 'fixed', seconds: 60 } },
+        },
+      },
+    });
+    const port = await reservePort();
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_HEALTH_DEGRADE_FAILURES: '1',
+      CLAUDE_PROXY_HEALTH_DISCONNECT_FAILURES: '2',
+      CLAUDE_PROXY_HEALTH_RECOVERY_PROBE_MS: '0',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      for (let i = 0; i < 2; i += 1) {
+        const result = await postProxy(port, {
+          model: 'glm-5.1:cloud',
+          stream: false,
+          messages: [{ role: 'user', content: `attempt ${i}` }],
+        });
+        expect(result.status).to.equal(200);
+        expect(JSON.parse(result.body).model).to.equal('gemma4:26b');
+      }
+
+      const disconnected = await waitFor(async () => {
+        const latest = JSON.parse((await getJsonPath(port, '/debug/stats')).body);
+        return latest.backendHealth.cloud_remote?.state === 'disconnected';
+      }, 1000);
+      expect(disconnected).to.equal(true);
+
+      const stats = JSON.parse((await getJsonPath(port, '/debug/stats')).body);
+      expect(stats.backendHealth.cloud_remote.state).to.equal('disconnected');
+      expect(stats.backendHealth.cloud_remote.failure_count).to.equal(2);
+
+      const healthFile = path.join(tempHome, '.claude', 'proxy-health.json');
+      const persistedReady = await waitFor(() => {
+        try {
+          const latest = JSON.parse(fs.readFileSync(healthFile, 'utf8'));
+          return latest.backends?.cloud_remote?.state === 'disconnected';
+        } catch {
+          return false;
+        }
+      }, 1000);
+      expect(persistedReady).to.equal(true);
+      const persisted = JSON.parse(fs.readFileSync(healthFile, 'utf8'));
+      expect(persisted.last_transition.to).to.equal('disconnected');
+      expect(persisted.backends.cloud_remote.state).to.equal('disconnected');
+    } finally {
+      await stopProcess(proc);
+      remote.close();
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('heals a disconnected cloud backend back to healthy after successful probe requests', async function () {
+    this.timeout(10000);
+
+    const reserver = http.createServer();
+    const remotePort = await listenOnRandomPort(reserver);
+    await new Promise(resolve => reserver.close(resolve));
+
+    const tempHome = makeTempHome({
+      backends: {
+        cloud_remote: { kind: 'anthropic', url: `http://127.0.0.1:${remotePort}` },
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${ollamaPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'cloud_remote',
+        'gemma4:26b': 'ollama_local',
+      },
+      fallback_strategies: {
+        'glm-5.1:cloud': {
+          on: { network: ['gemma4:26b'] },
+          cooldown: { network: { mode: 'fixed', seconds: 0 } },
+        },
+      },
+    });
+    const port = await reservePort();
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_HEALTH_RECOVERY_PROBE_MS: '100',
+    });
+    proc.stderr.on('data', () => {});
+
+    const remote = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', () => {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          id: 'msg_remote',
+          type: 'message',
+          role: 'assistant',
+          model: body.model,
+          content: [{ type: 'text', text: 'remote ok' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 5, output_tokens: 1 },
+        }));
+      });
+    });
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      for (let i = 0; i < 3; i += 1) {
+        const failed = await postProxy(port, {
+          model: 'glm-5.1:cloud',
+          stream: false,
+          messages: [{ role: 'user', content: `attempt ${i}` }],
+        });
+        expect(failed.status).to.equal(200);
+        expect(JSON.parse(failed.body).model).to.equal('gemma4:26b');
+      }
+
+      await listenOnPort(remote, remotePort);
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      const firstHeal = await postProxy(port, {
+        model: 'glm-5.1:cloud',
+        stream: false,
+        messages: [{ role: 'user', content: 'heal 1' }],
+      });
+      expect(firstHeal.status).to.equal(200);
+      expect(JSON.parse(firstHeal.body).model).to.equal('glm-5.1:cloud');
+
+      const secondHeal = await postProxy(port, {
+        model: 'glm-5.1:cloud',
+        stream: false,
+        messages: [{ role: 'user', content: 'heal 2' }],
+      });
+      expect(secondHeal.status).to.equal(200);
+      expect(JSON.parse(secondHeal.body).model).to.equal('glm-5.1:cloud');
+
+      const stats = JSON.parse((await getJsonPath(port, '/debug/stats')).body);
+      expect(stats.backendHealth.cloud_remote.state).to.equal('healthy');
+      expect(stats.backendHealth.cloud_remote.last_healed_at_ms).to.be.a('number');
+    } finally {
+      await stopProcess(proc);
+      remote.close();
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('marks repeated slow cloud responses as degraded without disconnecting and biases to local fallback', async function () {
+    this.timeout(10000);
+
+    const remote = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', chunk => chunks.push(chunk));
+      req.on('end', async () => {
+        const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
+        await new Promise(resolve => setTimeout(resolve, 60));
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({
+          id: 'msg_slow',
+          type: 'message',
+          role: 'assistant',
+          model: body.model,
+          content: [{ type: 'text', text: 'slow ok' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 5, output_tokens: 1 },
+        }));
+      });
+    });
+    const remotePort = await listenOnRandomPort(remote);
+
+    const tempHome = makeTempHome({
+      backends: {
+        cloud_remote: { kind: 'anthropic', url: `http://127.0.0.1:${remotePort}` },
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${ollamaPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'cloud_remote',
+        'gemma4:26b': 'ollama_local',
+      },
+      fallback_strategies: {
+        'glm-5.1:cloud': {
+          on: { network: ['gemma4:26b'] },
+          cooldown: { network: { mode: 'fixed', seconds: 0 } },
+        },
+      },
+    });
+    const port = await reservePort();
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_HEALTH_SLOW_THRESHOLD_MS: '20',
+      CLAUDE_PROXY_HEALTH_DEGRADE_SLOW_STREAK: '3',
+      CLAUDE_PROXY_HEALTH_RECOVERY_PROBE_MS: '5000',
+    });
+    proc.stderr.on('data', () => {});
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      for (let i = 0; i < 3; i += 1) {
+        const result = await postProxy(port, {
+          model: 'glm-5.1:cloud',
+          stream: false,
+          messages: [{ role: 'user', content: `slow ${i}` }],
+        });
+        expect(result.status).to.equal(200);
+        expect(JSON.parse(result.body).model).to.equal('glm-5.1:cloud');
+      }
+
+      const fallback = await postProxy(port, {
+        model: 'glm-5.1:cloud',
+        stream: false,
+        messages: [{ role: 'user', content: 'fallback me' }],
+      });
+      expect(fallback.status).to.equal(200);
+      expect(JSON.parse(fallback.body).model).to.equal('gemma4:26b');
+
+      const stats = JSON.parse((await getJsonPath(port, '/debug/stats')).body);
+      expect(stats.backendHealth.cloud_remote.state).to.equal('degraded');
+      expect(stats.backendHealth.cloud_remote.state).to.not.equal('disconnected');
+    } finally {
+      await stopProcess(proc);
+      remote.close();
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('claude-proxy — debug logging', () => {
+  it('emits debug breadcrumbs for health transitions and remap decisions', async function () {
+    this.timeout(10000);
+
+    const remote = http.createServer((req) => {
+      req.socket.destroy();
+    });
+    const remotePort = await listenOnRandomPort(remote);
+
+    const tempHome = makeTempHome({
+      backends: {
+        cloud_remote: { kind: 'anthropic', url: `http://127.0.0.1:${remotePort}` },
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${ollamaPort}` },
+      },
+      model_routes: {
+        'glm-5.1:cloud': 'cloud_remote',
+        'gemma4:26b': 'ollama_local',
+      },
+      fallback_strategies: {
+        'glm-5.1:cloud': {
+          on: { network: ['gemma4:26b'] },
+          cooldown: { network: { mode: 'fixed', seconds: 0 } },
+        },
+      },
+    });
+    const port = await reservePort();
+    const proc = spawnProxyInstance(tempHome, port, {
+      CLAUDE_PROXY_DEBUG: '1',
+      CLAUDE_PROXY_HEALTH_DEGRADE_FAILURES: '1',
+      CLAUDE_PROXY_HEALTH_DISCONNECT_FAILURES: '2',
+      CLAUDE_PROXY_HEALTH_RECOVERY_PROBE_MS: '5000',
+    });
+    let stderr = '';
+    proc.stderr.setEncoding('utf8');
+    proc.stderr.on('data', chunk => {
+      stderr += chunk;
+    });
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      for (let i = 0; i < 3; i += 1) {
+        const result = await postProxy(port, {
+          model: 'glm-5.1:cloud',
+          stream: false,
+          messages: [{ role: 'user', content: `attempt ${i}` }],
+        });
+        expect(result.status).to.equal(200);
+        expect(JSON.parse(result.body).model).to.equal('gemma4:26b');
+      }
+
+      const logged = await waitFor(() =>
+        stderr.includes('"event":"proxy.health.transition.before"') &&
+        stderr.includes('"event":"proxy.health.transition.after"') &&
+        stderr.includes('"event":"proxy.remap.evaluate"') &&
+        stderr.includes('"event":"proxy.remap.selected"') &&
+        (stderr.includes('"reason":"network-error"') || stderr.includes('"reason":"health-degraded"') || stderr.includes('"reason":"health-disconnected"')),
+      1000);
+      expect(logged).to.equal(true);
+    } finally {
+      await stopProcess(proc);
+      remote.close();
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
+  });
+
+  it('emits debug breadcrumbs for ollama prepare decisions', async function () {
+    this.timeout(10000);
+
+    const tempHome = makeTempHome({
+      backends: {
+        ollama_local: { kind: 'ollama', url: `http://127.0.0.1:${ollamaPort}` },
+      },
+      model_routes: {
+        'qwen3-coder:30b': 'ollama_local',
+      },
+    });
+    const binDir = path.join(tempHome, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    const stubPath = path.join(binDir, 'ollama');
+    fs.writeFileSync(stubPath, [
+      '#!/bin/bash',
+      'case "$1" in',
+      '  list) printf "NAME   ID\\nqwen3-coder:30b abc\\n"; exit 0 ;;',
+      '  ps) printf "NAME   ID\\n"; exit 0 ;;',
+      '  run) exit 0 ;;',
+      '  *) exit 1 ;;',
+      'esac',
+    ].join('\n') + '\n');
+    fs.chmodSync(stubPath, 0o755);
+
+    const port = await reservePort();
+    const proc = spawn(process.execPath, [PROXY_SCRIPT], {
+      cwd: tempHome,
+      env: {
+        ...process.env,
+        HOME: tempHome,
+        PATH: `${binDir}:${process.env.PATH}`,
+        CLAUDE_PROXY_PORT: String(port),
+        CLAUDE_PROXY_DEBUG: '1',
+        CLAUDE_PROXY_SKIP_OLLAMA_WARMUP: '0',
+        CLAUDE_MODEL_MAP_PATH: '',
+        CLAUDE_MODEL_MAP_SOURCE: '',
+        CLAUDE_MODEL_MAP_LAUNCH_CWD: '',
+        CLAUDE_PROJECT_DIR: '',
+        OLLAMA_BASE_URL: `http://127.0.0.1:${ollamaPort}`,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stderr = '';
+    proc.stderr.setEncoding('utf8');
+    proc.stderr.on('data', chunk => {
+      stderr += chunk;
+    });
+
+    try {
+      expect(await waitForProxy(port)).to.equal(true);
+      const result = await postProxy(port, {
+        model: 'qwen3-coder:30b',
+        stream: false,
+        messages: [{ role: 'user', content: 'warm it' }],
+      });
+      expect(result.status).to.equal(200);
+
+      const logged = await waitFor(() =>
+        stderr.includes('"event":"proxy.ollama.prepare.start"') &&
+        stderr.includes('"event":"proxy.ollama.prepare.list.result"') &&
+        stderr.includes('"event":"proxy.ollama.prepare.ps.result"') &&
+        stderr.includes('"event":"proxy.ollama.prepare.warm.started"'),
+      1000);
+      expect(logged).to.equal(true);
+    } finally {
+      await stopProcess(proc);
+      removeDirRetry(tempHome);
+    }
   });
 });

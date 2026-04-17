@@ -9,6 +9,8 @@ const execAsync = util.promisify(exec);
 
 const MERGE_HOOKS = path.join(__dirname, '..', 'tools', 'merge-hooks.sh');
 const MODEL_ROUTER_PLUGIN = path.join(__dirname, '..', 'plugins', 'model-router');
+const CRAFT_HOOKS_PLUGIN = path.join(__dirname, '..', 'plugins', 'craft-hooks');
+const WIKI_HOOKS_PLUGIN = path.join(__dirname, '..', 'plugins', 'wiki-hooks');
 
 describe('Merge Hooks', function () {
     this.timeout(15000);
@@ -240,6 +242,73 @@ describe('Merge Hooks', function () {
             );
             expect(permissionGroup).to.exist;
             expect(permissionGroup.matcher).to.equal('*');
+        });
+    });
+
+    describe('craft-hooks and wiki-hooks coexistence', function () {
+        it('keeps craft-hooks and wiki-hooks in separate matcher-groups on shared events', async function () {
+            fs.rmSync(path.join(pluginsDir, 'test-plugin'), { recursive: true, force: true });
+            fs.symlinkSync(CRAFT_HOOKS_PLUGIN, path.join(pluginsDir, 'craft-hooks'));
+            fs.symlinkSync(WIKI_HOOKS_PLUGIN, path.join(pluginsDir, 'wiki-hooks'));
+
+            await runMerge();
+            const settings = readSettings();
+
+            const sessionGroups = settings.hooks.SessionStart || [];
+            const craftSession = sessionGroups.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/craft-hooks/handlers/proxy-health-session.sh')
+            );
+            const wikiSession = sessionGroups.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/wiki-hooks/handlers/wiki-detect.sh')
+            );
+
+            expect(craftSession).to.exist;
+            expect(wikiSession).to.exist;
+            expect(craftSession).to.not.equal(wikiSession);
+            expect((craftSession.hooks || []).some(h => (h.command || '').includes('/wiki-hooks/'))).to.equal(false);
+            expect((wikiSession.hooks || []).some(h => (h.command || '').includes('/craft-hooks/'))).to.equal(false);
+
+            const promptGroups = settings.hooks.UserPromptSubmit || [];
+            const craftPrompt = promptGroups.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/craft-hooks/handlers/proxy-health-notify.sh')
+            );
+            const wikiPrompt = promptGroups.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/wiki-hooks/handlers/wiki-notify.sh')
+            );
+
+            expect(craftPrompt).to.exist;
+            expect(wikiPrompt).to.exist;
+            expect(craftPrompt).to.not.equal(wikiPrompt);
+            expect((craftPrompt.hooks || []).some(h => (h.command || '').includes('/wiki-hooks/'))).to.equal(false);
+            expect((wikiPrompt.hooks || []).some(h => (h.command || '').includes('/craft-hooks/'))).to.equal(false);
+        });
+
+        it('preserves wiki-specific matchers while still merging craft-hooks on the same events', async function () {
+            fs.rmSync(path.join(pluginsDir, 'test-plugin'), { recursive: true, force: true });
+            fs.symlinkSync(CRAFT_HOOKS_PLUGIN, path.join(pluginsDir, 'craft-hooks'));
+            fs.symlinkSync(WIKI_HOOKS_PLUGIN, path.join(pluginsDir, 'wiki-hooks'));
+
+            await runMerge();
+            const settings = readSettings();
+
+            const sessionGroups = settings.hooks.SessionStart || [];
+            const clearGroup = sessionGroups.find(g =>
+                g.matcher === 'clear' &&
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/wiki-hooks/handlers/wiki-clear.sh')
+            );
+            const wildcardCraft = sessionGroups.find(g =>
+                g.matcher === '*' &&
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/craft-hooks/handlers/proxy-health-session.sh')
+            );
+            const wildcardWiki = sessionGroups.find(g =>
+                g.matcher === '*' &&
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/wiki-hooks/handlers/wiki-detect.sh')
+            );
+
+            expect(clearGroup).to.exist;
+            expect(wildcardCraft).to.exist;
+            expect(wildcardWiki).to.exist;
+            expect(wildcardCraft).to.not.equal(wildcardWiki);
         });
     });
 });

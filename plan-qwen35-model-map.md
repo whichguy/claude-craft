@@ -1,7 +1,7 @@
-# Plan: Add qwen3.5:35b-a3b-coding-nvfp4 + 64k Ollama context default
+# Plan: Add qwen3.6:35b-a3b-q4_K_M + 64k Ollama context default
 
 ## Goal
-1. Register `qwen3.5:35b-a3b-coding-nvfp4` as a local Ollama model in model-map.json
+1. Register `qwen3.6:35b-a3b-q4_K_M` as a local Ollama model in model-map.json
 2. Set 64k (`num_ctx: 65536`) as the default context window for all Ollama models routed through claude-proxy
 
 ## Architecture context
@@ -28,7 +28,7 @@ Add the model to `model_routes` and add a new `ollama_defaults` block:
   "gemma4:26b": "ollama_local",
   "qwen3-coder:480b-cloud": "ollama_cloud",
   "deepseek/deepseek-v3": "openrouter",
-  "qwen3.5:35b-a3b-coding-nvfp4": "ollama_local"   // ADD
+  "qwen3.6:35b-a3b-q4_K_M": "ollama_local"   // ADD
 },
 "ollama_defaults": {                                 // ADD new block
   "num_ctx": 65536
@@ -48,7 +48,7 @@ if (ollamaDefaults.num_ctx) ollamaBody.options.num_ctx = ollamaDefaults.num_ctx;
 Add to `providers` block (for claude-router subprocess path):
 
 ```json
-"qwen3.5:35b-a3b-coding-nvfp4": {
+"qwen3.6:35b-a3b-q4_K_M": {
   "base_url": "$OLLAMA_URL",
   "auth_token": "ollama",
   "api_key": "",
@@ -60,7 +60,7 @@ Add to `providers` block (for claude-router subprocess path):
 No `session_rule` — available on explicit request only (consistent with `qwen3-coder:30b` precedent).
 
 ### [ ] 4. wiki/entities/claude-router-local-models.md
-- Add `qwen3.5:35b-a3b-coding-nvfp4` to the registered providers table
+- Add `qwen3.6:35b-a3b-q4_K_M` to the registered providers table
 - Document the `ollama_defaults.num_ctx` mechanism and its proxy-only scope
 
 ## Scope boundary
