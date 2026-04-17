@@ -9,6 +9,7 @@
     "test:knowledge": "mocha test/knowledge.test.js",
     "test:backup": "mocha test/backup.test.js",
     "test:sync": "mocha test/sync.test.js",
+    "test:local-classifier": "bash tools/test-local-classifier.sh",
     "test:coverage": "nyc mocha test/**/*.test.js",
     "test:bench": "mocha test/review-fix-bench.test.js --timeout 10000",
     "bench:run": "bash tools/review-fix-bench.sh --run",

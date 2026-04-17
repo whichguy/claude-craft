@@ -60,6 +60,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F24 | G3 | Part I Prior Year column sourced from filed prior return | always |
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
+| Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
 
 ---
 
@@ -101,6 +102,9 @@ ELSE:
 Q-F1: NEEDS_UPDATE — 990-EZ selected: GR prong only ($180K < $200K); TA = $650K ≥ $500K → full Form 990 required.
 [EDIT: Re-run P0 variant decision tree; record both GR ($180K < $200K) and TA ($650K ≥ $500K)
 comparisons in Decision Log; update form_variant to "990" in machine state → P0]
+[USER: The form type was chosen based on only one of the two required tests. Since your total
+assets exceed $500K, you need to file the full Form 990, not the short form. I'll re-run the
+variant check and update the form type.]
 ```
 
 ---
@@ -138,6 +142,9 @@ correct — only Checks 2 and 3 must hold in those cases.
 Q-F2: NEEDS_UPDATE — Part I net revenue ($12,000) vs Part X net-assets change ($14,500): unexplained $2,500 delta.
 [EDIT: Re-examine Part X EOY vs BOY delta; identify source of $2,500 discrepancy; add
 explanatory note to reconciliation-report.md and resolve in dataset_rollup.json → P7]
+[USER: The math doesn't close — your revenue minus expenses doesn't match the change in net
+assets. There's a $2,500 gap. I need to find where the discrepancy comes from before the
+return can be filed.]
 ```
 
 ---
@@ -157,6 +164,9 @@ General, Fundraising) must sum to the total (Column A).
 Q-F3: NEEDS_UPDATE — Part IX Line 7 Col A ($45,000) ≠ B+C+D ($43,200); gap $1,800.
 [EDIT: Adjust functional-expense.csv Line 7 allocation: add $1,800 to the Program column
 (Column B) to reconcile to Column A total → P3 / artifacts/functional-expense.csv]
+[USER: The salary row in your expense breakdown doesn't add up — the three columns
+(Program, Management, Fundraising) are $1,800 short of the total. I'll fix the allocation
+so they match.]
 ```
 
 ---
@@ -214,6 +224,9 @@ Q-F4: NEEDS_UPDATE — Schedule A public support = 28% (below 33⅓%); no facts-
 [EDIT: Draft facts-and-circumstances narrative for Schedule O: describe donor diversity,
 public programs, community use, geographic reach; reference IRS Reg §1.170A-9(f)(3) factors
 → P6 / artifacts/schedule-o-narratives.md]
+[USER: Your public support percentage is 28%, which is below the 33⅓% threshold. This doesn't
+mean automatic failure — the IRS allows a facts-and-circumstances explanation. I'll draft a
+Schedule O narrative describing why your organization still qualifies as publicly supported.]
 ```
 
 ---
@@ -225,6 +238,10 @@ for the tax year. Part V Line 2a (number of independent contractors paid >$100K)
 the count of 1099-NEC recipients in the 1099 register whose compensation exceeds $100K — not
 the total number of 1099s filed. These are distinct counts; conflating them overstates Line 2a
 for organizations with many small contractors.
+
+**Note on Form 1096:** Line 1a is W-2 count only — it does NOT include Form 1096. Form 1096
+is a separate transmittal form filed with the IRS alongside 1099-NECs/1099-MISCs. It is not
+reported on Part V at all, but must be filed by January 31 if any 1099s were issued.
 
 **Tier rationale (demoted G1→G2).** Tying these counts requires the payroll-provider export or
 1099 register — primary sources that may not be available until P1 discovery is complete. The
@@ -242,6 +259,17 @@ creates an open question.
   late filing penalties apply ($60–$630 per form); advise immediate corrected/late filing.
 - If either source is unavailable: open question status is `pending` with a Gmail draft; P8
   marks Q-F5 NEEDS_UPDATE until resolved
+
+**NEEDS_UPDATE example:**
+```
+Q-F5: NEEDS_UPDATE — Part V Line 1a = 0 but payroll register shows 4 W-2s filed; 1099-NEC filing
+status unconfirmed for 2 contractors.
+[EDIT: Update Part V Line 1a to match W-2 count (4); confirm 1099-NEC + 1096 filing with
+payroll processor → P5 / Part V]
+[USER: The W-2 count on Part V is showing 0, but your payroll provider filed 4 W-2s.
+I also need to confirm whether your 1099s were filed by the January deadline. I'll update
+the count and flag the filing confirmation.]
+```
 
 ---
 
@@ -281,6 +309,17 @@ Section B covers the five highest-compensated independent contractors (>$100K).
 - Using last year's compensation without updating for bonuses, raises, or mid-year changes
 - Listing fewer than 5 highest-compensated employees when more than 5 qualify
 
+**NEEDS_UPDATE example:**
+```
+Q-F6: NEEDS_UPDATE — Part VII Section A shows ED compensation $95,000; W-2 Box 1 = $112,000
+($17,000 gap). Two board members with $0 compensation are missing from Section A.
+[EDIT: Update ED reportable compensation to W-2 Box 1 amount ($112,000); add two unpaid
+board members with $0 reportable / $0 other compensation → P5 / Part VII]
+[USER: The Executive Director's compensation shown on the form ($95,000) doesn't match
+their W-2 ($112,000). Also, two board members who serve without pay need to be listed.
+I'll fix both.]
+```
+
 ---
 
 ### Q-F7 — Part I Totals Tie to Downstream Parts (Gate 1)
@@ -300,6 +339,15 @@ Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
   (not manually entered)
 - `reconciliation.delta_match == true`
 
+**NEEDS_UPDATE example:**
+```
+Q-F7: NEEDS_UPDATE — Part I Line 8 ($125,000) ≠ Part VIII Line 1h ($128,500); $3,500 mismatch.
+[EDIT: Re-compute Part I Line 8 from Part VIII Line 1h; update dataset_rollup.json
+parts.I.line_8 → P7]
+[USER: The total contributions on the summary page ($125,000) doesn't match the contributions
+detail ($128,500). I'll recompute and fix the summary to match.]
+```
+
 ---
 
 ### Q-F8 — Part IV Checklist Fully Answered (Gate 1)
@@ -317,6 +365,16 @@ the corresponding schedule attached to `required_schedules[]`.
 **Note on question count.** The count of Part IV questions varies by tax year as the IRS revises
 the form. Do NOT hard-code a count. Enumerate from the current-year f990.pdf at runtime.
 
+**NEEDS_UPDATE example:**
+```
+Q-F8: NEEDS_UPDATE — Part IV Line 3a = Yes but Schedule A not in required_schedules[];
+Line 7 = blank (unanswered).
+[EDIT: Add Schedule A to required_schedules[]; resolve Part IV Line 7 as Yes/No with
+source verification → P5 / Part IV]
+[USER: Part IV has a question marked "Yes" for Schedule A, but Schedule A isn't attached.
+Also, one question is still blank. I'll add the missing schedule and resolve the blank.]
+```
+
 ---
 
 ### Q-F9 — EIN + Legal Name + Address Match Prior Year (Gate 1)
@@ -332,6 +390,17 @@ and the IRS Business Master File (BMF). Mismatches cause IRS processing errors.
   "Incorporated")
 - Principal office address is current (changes require explanation in Schedule O)
 
+**NEEDS_UPDATE example:**
+```
+Q-F9: NEEDS_UPDATE — Legal name on return "Fortified Strength" ≠ IRS TEOS record
+"Fortified Strength, Inc."; EIN matches.
+[EDIT: Update legal name to match IRS records exactly ("Fortified Strength, Inc.");
+add Schedule O note if abbreviation was previously used → P5 / Part I header]
+[USER: The organization name on the return ("Fortified Strength") is missing the "Inc."
+that IRS records show. Even small name differences can cause processing issues. I'll fix
+it to match exactly.]
+```
+
 ---
 
 ### Q-F10 — ED/Shared-Cost Allocation Documented (Gate 2)
@@ -345,6 +414,18 @@ across functional buckets (Program / M&G / Fundraising) with a documented, defen
 - The allocation basis is narrated in Schedule O or the plan's Decision Log
 - The allocation is reasonable for the organization's program model (a pure fundraising org
   should not show 95% program allocation for the ED)
+
+**NEEDS_UPDATE example:**
+```
+Q-F10: NEEDS_UPDATE — ED salary allocated 100% to Program; no allocation basis documented
+in coa-mapping.csv or Schedule O.
+[EDIT: Document ED time allocation basis (e.g., time study or estimated percentages);
+split salary across Program/M&G/Fundraising per documented basis; add Schedule O narrative
+→ P3 / artifacts/functional-expense.csv + P6 / schedule-o-narratives.md]
+[USER: The Executive Director's salary is allocated entirely to Program with no explanation.
+The IRS expects a documented basis for how the ED's time is split. I'll add an allocation
+and explain the methodology in Schedule O.]
+```
 
 ---
 
@@ -364,6 +445,17 @@ prior year's EOY figures. Schedule A requires 4 prior years of public-support da
 - If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note;
   Schedule A Line 16 may be marked N/A with a transition-year note in Schedule O
 
+**NEEDS_UPDATE example:**
+```
+Q-F11: NEEDS_UPDATE — Schedule A Line 16 shows 74% (back-computed from current-year data)
+but prior year filed return shows 100%; Line 16 must cite the filed return, not our computation.
+[EDIT: Replace Schedule A Line 16 with the prior year filed return's Part III Line 15 value
+(100%); add Decision Log entry citing source document → P6 / Schedule A]
+[USER: The prior-year public support percentage on Schedule A should come from your filed
+prior-year return (100%), not recalculated from our data (74%). I'll update it to match what
+the IRS already has on file.]
+```
+
 ---
 
 ### Q-F12 — Fundraising Expense Non-Zero If Contributions > 0 (Gate 2)
@@ -376,6 +468,17 @@ having zero fundraising expense is a red flag — it implies free money with no 
 - OR: a Schedule O narrative explains why contributions required no fundraising expense
   (e.g., "All contributions were unsolicited gifts from board members; no fundraising activity
   was conducted in the tax year")
+
+**NEEDS_UPDATE example:**
+```
+Q-F12: NEEDS_UPDATE — Part VIII contributions total $85,000; Part IX Fundraising column = $0
+with no Schedule O explanation.
+[EDIT: Add Schedule O narrative explaining why no fundraising expenses were incurred,
+or verify Fundraising column for misclassified expenses → P6 / schedule-o-narratives.md]
+[USER: You received $85,000 in contributions but show $0 in fundraising expenses. The IRS
+may question this. I'll either add an explanation in Schedule O or check if fundraising
+costs were misclassified elsewhere.]
+```
 
 ---
 
@@ -392,6 +495,17 @@ require restatement of prior-year figures.
   for the organization's tax counsel, as this is beyond Form 990 scope
 - If first year: method is stated and no prior-year comparison is required
 
+**NEEDS_UPDATE example:**
+```
+Q-F13: NEEDS_UPDATE — Current year accrual; prior year 990 Part XII shows cash basis.
+No Schedule O disclosure or Form 3115 reference.
+[EDIT: Add Schedule O disclosure of accounting method change; flag potential Form 3115
+requirement for tax counsel review → P6 / schedule-o-narratives.md]
+[USER: Your bookkeeping changed from cash basis to accrual basis this year. The IRS
+requires a disclosure about this change. I'll add that explanation and flag whether
+a separate IRS form (Form 3115) is needed — your tax advisor should confirm.]
+```
+
 ---
 
 ### Q-F14 — Schedule O Covers All Part VI "Describe" Prompts (Gate 2)
@@ -406,6 +520,17 @@ Each such description must exist.
   for straightforward matters)
 - Line references are accurate (e.g., "Schedule O re: Part VI, Line 11b" not just "Governance")
 
+**NEEDS_UPDATE example:**
+```
+Q-F14: NEEDS_UPDATE — Part VI Line 11a = Yes but no Schedule O narrative exists; Line 2 = Yes
+but narrative references "Line 2" without specifying "Part VI Line 2."
+[EDIT: Add Schedule O narrative for Part VI Line 11a; correct Line 2 narrative line reference
+→ P6 / schedule-o-narratives.md]
+[USER: Part VI has two "Yes" answers that require Schedule O explanations, but the
+explanations are missing or don't cite the right line numbers. I'll add the missing narrative
+and fix the references.]
+```
+
 ---
 
 ### Q-F15 — Signature Block Populated (Gate 2)
@@ -419,6 +544,15 @@ the e-file provider.
   `signature.officer_title`, `signature.date`
 - The officer is listed in Part VII
 - The date is within the filing year (or an extension year)
+
+**NEEDS_UPDATE example:**
+```
+Q-F15: NEEDS_UPDATE — Signature block empty; no officer_name or officer_title populated.
+[EDIT: Populate signature.officer_name and signature.officer_title from Part VII officer
+list; set signature.date to filing date → P5 / dataset_core.json]
+[USER: The return is missing the officer signature. I'll add the signing officer's name and
+title from your board list and set the signing date.]
+```
 
 ---
 
@@ -446,6 +580,16 @@ or have an active open question documenting the gap.
   entry with status `pending` or `answered`
 - No item is silently absent
 
+**NEEDS_UPDATE example:**
+```
+Q-F16: NEEDS_UPDATE — Payroll report / W-2 register: no artifact and no open question;
+bylaws: artifact path null with no open question.
+[EDIT: Create open questions for missing payroll report and bylaws; send Gmail drafts
+to bookkeeper → P1 / open_questions[]]
+[USER: Two required documents are missing with no follow-up in progress: your payroll
+report and bylaws. I'll create reminders to request them.]
+```
+
 ---
 
 ### Q-F17 — Functional Allocation Methodology Narrated (Gate 3)
@@ -458,6 +602,18 @@ narrating the methodology is best practice and supports the return in correspond
   section describing the basis used (direct assignment / FTE-weighted / square-footage /
   time-study / combination)
 - The narrative names the buckets and the basis for shared costs
+
+**NEEDS_UPDATE example:**
+```
+Q-F17: NEEDS_UPDATE — No "Functional Expense Allocation Methodology" section in Schedule O;
+Part IX shows shared costs (rent, utilities) split across columns without documented basis.
+[EDIT: Add functional allocation methodology narrative to Schedule O describing how
+shared costs (rent, insurance, utilities) are allocated and the basis (e.g., FTE-weighted,
+square-footage) → P6 / schedule-o-narratives.md]
+[USER: Your expense form shows costs split across Program, Management, and Fundraising
+without explaining how the split was calculated. The IRS expects a description of your
+allocation method. I'll add that to Schedule O.]
+```
 
 ---
 
@@ -482,6 +638,19 @@ accomplishments. It is public-facing and should communicate program impact.
 - [ ] New program services (Part III Line 2 = Yes) flagged and described if applicable
 - [ ] Expense total stated for each of the three largest programs (from Part IX)
 - [ ] Grant amount stated for each program (or explicitly $0 if none)
+=======
+<<<<<<< HEAD
+
+**NEEDS_UPDATE example:**
+```
+Q-F18: NEEDS_UPDATE — Part III largest program description has no headcount, no hours,
+no competitions named; only states "provided athletic programs to youth."
+[EDIT: Add headcount (e.g., "81 youth athletes"), annual hours, and named competitions
+to Part III program description; add any new-program flag if applicable → P5 / Part III]
+[USER: The program description is too vague — it doesn't mention how many youth you
+served, how many hours of programming, or any specific events. The IRS wants concrete
+numbers. I'll add headcount, hours, and competition details.]
+```
 - [ ] Revenue from each program stated (or explicitly $0 if none)
 
 ---
@@ -711,6 +880,39 @@ support calculation.]
 
 ---
 
+### Q-F27 — PSR Reconciles to Payment Processor 1099-K (Gate 2)
+
+**Purpose.** For organizations that receive card-based program service revenue (via Stripe,
+PushPress, Square, or similar payment processors), the gross PSR reported on Part VIII Line 2
+should reconcile to the payment processor's Form 1099-K gross transaction amount. Material
+discrepancies may indicate unreported revenue, misclassified income, or year-cutoff timing
+errors. This is the only third-party cross-check available for PSR — the largest single
+revenue line for membership-based nonprofits.
+
+**Trigger:** Applies when PSR includes card-based membership fees (i.e., a payment processor
+issues a Form 1099-K for the org's merchant account). Not triggered if PSR is entirely
+non-card (checks, ACH, cash).
+
+**Pass criteria:**
+- PSR (Part VIII Line 2 col A) reconciles to 1099-K gross transaction amount within 5%
+  tolerance (differences explainable by non-card revenue, adjustments, or year-cutoff timing)
+- OR: a Decision Log entry explains the discrepancy (e.g., "1099-K includes Jan 1–Dec 31
+  settled transactions; org fiscal year uses accrual basis with Dec 25 cut-off — $X in
+  settled-but-unearned fees excluded")
+- If 1099-K > reported PSR by more than 5%: investigate whether unreported revenue exists
+- If 1099-K is not available: create open question; P8 marks Q-F27 NEEDS_UPDATE until resolved
+
+**NEEDS_UPDATE example:**
+```
+Q-F27: NEEDS_UPDATE — PSR ($148,000) vs 1099-K gross ($162,000): $14,000 (8.6%) gap unexplained.
+[EDIT: Investigate $14K gap between PSR and 1099-K; check for unrecorded card transactions,
+timing differences, or misclassified revenue → P6 / Decision Log]
+[USER: The program service revenue doesn't match what the payment processor reported — I need
+to check whether some card transactions were recorded in a different category or period.]
+```
+
+---
+
 ## Convergence Loop (P8 Evaluation Protocol)
 
 ```
@@ -746,7 +948,7 @@ if pass == 5 and gate1_open:
 ```
 
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 
 ---

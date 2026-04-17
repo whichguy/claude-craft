@@ -352,15 +352,17 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Fires on TRIVIAL success paths only (REVIEW_TIER not yet upgraded to FULL).
      # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
      IF REVIEW_TIER == TRIVIAL:
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
        IF any edits were applied during fast-path re-eval:
-         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
+         Print: "  ── WHAT CHANGED  ·  {sha} ────────────────────────────────────────"
+         Print: ""
          FOR each Q-ID that was NEEDS_UPDATE then fixed:
-           Print: "│  [Q-ID] [change title] — [one-line summary] │"
-         Print: "└─────────────────────────────────────────────┘"
+           Print: "  [Q-ID]  [change title] — [one-line summary]"
+         Print: ""
+         Print: "  ──────────────────────────────────────────────────────────────────"
        ELSE:
-         Print: "┌─ WHAT CHANGED ──────────────────────────────┐"
-         Print: "│  No edits — plan passed all 5 checks        │"
-         Print: "└─────────────────────────────────────────────┘"
+         Print: "  ── WHAT CHANGED  ·  plan passed all checks  ·  {sha} ────────────"
+         Print: "  ──────────────────────────────────────────────────────────────────"
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
@@ -369,8 +371,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
-       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
-       Print: "  Plan fingerprint: {sha}"
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
@@ -533,15 +533,17 @@ You iterate until all layers and sub-skills report zero changes in the same pass
      # Fires on SMALL success paths only (REVIEW_TIER not yet upgraded to FULL).
      # User directive: teaching output on all tiers (see Phase 5f and plan re-display step).
      IF REVIEW_TIER == SMALL:
+       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
        IF any edits were applied during fast-path re-eval:
-         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
+         Print: "  ── WHAT CHANGED  ·  {sha} ────────────────────────────────────────"
+         Print: ""
          FOR each Q-ID that was NEEDS_UPDATE then fixed:
-           Print: "│  [Q-ID] [change title] — [one-line summary]     │"
-         Print: "└─────────────────────────────────────────────────┘"
+           Print: "  [Q-ID]  [change title] — [one-line summary]"
+         Print: ""
+         Print: "  ──────────────────────────────────────────────────────────────────"
        ELSE:
-         Print: "┌─ WHAT CHANGED ──────────────────────────────────┐"
-         Print: "│  No edits — plan passed all checks              │"
-         Print: "└─────────────────────────────────────────────────┘"
+         Print: "  ── WHAT CHANGED  ·  plan passed all checks  ·  {sha} ────────────"
+         Print: "  ──────────────────────────────────────────────────────────────────"
 
        # ── Fast-Path Plan Re-display (inline 7.5 equivalent) ──
        plan_contents = Read(plan_path)
@@ -550,8 +552,6 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
-       sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
-       Print: "  Plan fingerprint: {sha}"
 
        # ── SMALL fast-path: lightweight senior-engineer pass ──
        # Single-pass, single critic (Sonnet), no loop, no consolidator.
@@ -3857,21 +3857,20 @@ ELIF NOT _phase_5b5_skip:
    all_changes.extend(findings_to_change_list(findings))          # per-Q evaluators + epilogue (Q-E1/Q-E2/Q-G9)
    all_changes.extend(sr_critic_to_change_list(sr_applied_edits)) # senior critic (FULL only)
 
+   sha = Bash("shasum -a 256 {plan_path} | cut -c1-12")
    IF len(all_changes) == 0:
-       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
-       Print: "│  No edits applied this review. Plan was clean on first read.   │"
-       Print: "│  Nothing to teach from this run's findings.                    │"
-       Print: "└────────────────────────────────────────────────────────────────┘"
+       Print: "  ── TEACHING SUMMARY  ·  plan clean — no edits applied  ·  {sha} ──────────"
+       Print: "  ──────────────────────────────────────────────────────────────────────────"
    ELSE:
-       Print: "┌─ TEACHING SUMMARY ─────────────────────────────────────────────┐"
-       Print: "│  [N] changes applied across [M] passes. Key takeaways below.  │"
-       Print: "├────────────────────────────────────────────────────────────────┤"
+       Print: "  ── TEACHING SUMMARY  ·  {len(all_changes)} changes applied (senior critic pass)  ·  {sha} ──"
+       Print: ""
        FOR change in all_changes:
-           Print: "│  [Q-ID] [change title]                                         │"
-           Print: "│    What:  [one-line summary of what the edit did]              │"
-           Print: "│    Why:   [rationale from evaluator/critic; 'not captured']   │"
-           Print: "│    See:   [resolve_citation(change.q_id)]                     │"
-       Print: "└────────────────────────────────────────────────────────────────┘"
+           Print: "  {change.q_id}  {change.change_title}"
+           Print: "      What:  {change.what}"
+           Print: "      Why:   {change.why}"
+           Print: "      See:   {resolve_citation(change.q_id)}"
+           Print: ""
+       Print: "  ──────────────────────────────────────────────────────────────────────────"
    ```
 
    **Consistency with Teaching Notes (Phase 5e).**

@@ -8,7 +8,7 @@ before implementation. Do NOT apply these edits to PHASES.md without approval.
 ## Proposal #7 — Schedule B Donor Address Collection
 
 **Source:** Task #7, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P6 Schedule B Donor Address Collection sub-procedure added with officer-donor extraction, AskUserQuestion for non-officer donors, PII containment, and Q-F8 re-evaluation flag.
 
 ### Problem
 
@@ -70,7 +70,7 @@ Decision Log entries, or any artifact other than artifacts/schedule-b-filing.md.
 ## Proposal #8 — P1 Donor Name Pre-loading for scrub_pii()
 
 **Source:** Task #8, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL — but library change is low-risk; see note below.
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P1 donor name pre-population section added; SKILL.md key_facts schema updated with `donor_names` guidance; TC22 regression test confirmed passing.
 
 ### Problem
 
@@ -112,7 +112,7 @@ Verify TC22 (pre-P6 empty donor_names) still passes after the PHASES.md change.
 ## Proposal #9 — 990-EZ → Full 990 Transition Year: Part I Prior Year Strategy
 
 **Source:** Task #9, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P0 transition year detection added; PHASES.md P7 Prior Year column expanded with 990-EZ mapping; SKILL.md key_facts schema updated with `transition_from_ez` field; Q-F24 already tightened in Task #4.
 
 ### Problem
 

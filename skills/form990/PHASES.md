@@ -115,6 +115,28 @@ On `ScriptError`: write breadcrumb via `scrub_pii()` (SKILL.md §scrub_pii), set
 
 ---
 
+## Cross-Cutting Rule: Section-Tracking for Tiller P&L Reads
+
+Applies to ALL P&L reads in P2, P3, P6, and P7 (any time a Tiller P&L export is parsed).
+
+Tiller P&L exports contain an INCOME section and an EXPENSE section. Both sections
+may have identically-labeled subtotals (e.g., "Total Fundraising" appears in INCOME as
+gross fundraising revenue and in EXPENSE as fundraising costs; "Total Program Service
+Revenue" appears in INCOME as earned PSR and in EXPENSE as PSR-related cost of goods).
+A label-match loop that does not track section context will overwrite income subtotals
+with expense subtotals (or vice versa), silently corrupting downstream computations.
+
+**Rule:** When reading a Tiller P&L tab:
+1. Track which section you are in (INCOME or EXPENSE) based on section headers
+   (e.g., "INCOME", "EXPENSES", or equivalent markers in the export).
+2. Only capture subtotals from the section you are currently in.
+3. Never assume a row label is unique across sections — always verify section context
+   before recording a value.
+4. On any multi-section P&L read, log a breadcrumb: `"P&L read: <tab> — INCOME section
+   <N> rows, EXPENSE section <M> rows, section-tracking active"`.
+
+---
+
 ## P0 — Intake & Variant Routing
 
 **Goal.** Identify the organization, determine gross receipts / total assets, select the
@@ -226,6 +248,8 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
    `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
    `public_charity_basis`.
+=======
+>>>>>>> origin/main
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -352,6 +376,7 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    - `"bylaws" OR "articles of incorporation"` — founding docs
    - `"conflict of interest" OR "COI policy"` — governance
    - `"audit" OR "review report" OR "compilation"` — financial review
+   - `"1099-K" OR "payment processor"` — payment processor tax forms
 2. For each budget sheet tab: read header row + 4 sample rows; record `{column_name: inferred_type}`
    into `key_facts.sheet_schema`
 3. Register findings into `artifacts[]` with Drive file ID as path reference
@@ -377,6 +402,12 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    └─ audit_report      (if required by state law, funder covenants, or bond agreements;
                          OR if federal award expenditures ≥ $750K per Uniform Guidance /
                          Single Audit Act — gross receipts alone do NOT trigger Single Audit)
+
+   Optional source checklist (request if applicable — do not block on these):
+   ├─ payment_processor_1099k  (Form 1099-K from Stripe/PushPress/Square if card-based
+   │                            membership fees are a significant PSR source. Used to
+   │                            verify Part VIII Line 2 against third-party transaction
+   │                            data. Evaluated by Q-F27 at P8.)
    ```
 
 **Prior year 990 TEOS check (P1):** Check apps.irs.gov/app/eos/ for the org's EIN.
@@ -433,6 +464,9 @@ officers (`ca_sos_officers`) against the operator-provided current roster.
 - Record all transitions in Decision Log with dates.
 - If `prior_990_analysis` is null: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
 
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 5. For each missing artifact: create an Open Question. If addressed to an external party,
    create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
@@ -500,6 +534,8 @@ For each budget row, apply the mapping methodology:
   "This appears to be a reversal of prior income. Which Part VIII line does this reduce?
   Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue."
   Record the answer and offset against the indicated line. Never auto-commit.
+<<<<<<< HEAD
+>>>>>>> origin/main
 
 **Step 2: Map Revenue → Part VIII line by source taxonomy.**
 | Revenue type | Part VIII line |
@@ -581,6 +617,12 @@ combined or separate?"
 - Compute `confidence` in [0, 1] based on label-keyword match quality
 - If `confidence < 0.8` OR ≥ 2 candidate lines: create Open Question with suggested answer
   and rationale; do NOT auto-commit the mapping
+- **Small unclassified Tiller entries:** Labels like "Owed by others recovery," "Bank credit,"
+  "Reimbursement," or similar non-standard income entries typically represent inter-account
+  transfers, returned checks, or prior-year A/R settlements. Prompt: "Was this a reimbursement
+  from someone, a returned check, or a bank credit?" Default classification if unresolved:
+  Part IX Line 24 (other expenses) or Part VIII Line 11 (other revenue) as appropriate.
+  Do not leave in UNCATEGORED — every line must have a mapping before P3.
 
 **Worked examples** (required in output):
 
@@ -804,6 +846,9 @@ If any grant, scholarship, or competition-assistance amount appears in the progr
 - Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
   "Prior year used [methodology]. Use the same treatment unless org changed its policy."
 - Do NOT auto-commit classification. Create Open Question if ambiguous.
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
@@ -845,6 +890,14 @@ The skill does not produce these filings; if present, surface as an Open Questio
 **Part VI — Governance, Management, and Disclosure:**
 - Lines 1–19: answer each governance question
 - Lines marked "if Yes, describe in Schedule O": create Schedule O placeholder entries
+- **Line 2 family/business relationship check:** Before answering Line 2, proactively ask:
+  "Are any current officers, directors, or trustees related by blood, marriage, or adoption?
+   Are any related through business relationships (employer/employee, business partners)?"
+  If any pair is related (e.g., two married couples on the board): Line 2 = Yes, and document
+  each pair in the Schedule O narrative. Common: spouses serving together on a small nonprofit
+  board triggers Line 2 = Yes even if no financial transactions exist between them.
+  No Schedule L is triggered unless there are actual financial transactions between the org
+  and those individuals (beyond charitable donations to the org).
 
 **Part VII — Compensation of Officers, Directors, Trustees, Key Employees, and
 Highest-Compensated Employees:**
@@ -1094,6 +1147,27 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 - Both registered in machine state with appropriate `confidentiality` tags
 - `.gitignore` entry verified for `schedule-b-filing.md`
 
+**Schedule B Donor Address Collection (if triggered — P6 sub-procedure):**
+If Schedule B is triggered (Part IV Line 2 = Yes):
+
+1. For each donor in `schedule_b_donors[]`:
+   a. If donor is an officer or director listed in Part VII:
+      - Extract address from prior-year 990, CA SOS filing, or Articles of Incorporation.
+      - Do NOT ask the user for their own address — extract from source documents first.
+      - Log source document in Decision Log entry: `{donor, source, address}`.
+   b. Otherwise:
+      - AskUserQuestion: "Schedule B requires a full mailing address for [Donor Name] who
+        contributed [amount]. Can you provide their current address?"
+      - If user provides: store in `artifacts/schedule-b-filing.md` under confidential section.
+      - If user defers: create `open_questions[]` entry:
+          `{ type: "donor_address", donor: <name>, threshold: <amount>,
+            status: "pending", message: "Address required for Schedule B" }`
+
+2. Mark Q-F8 re-evaluation pending if any donor address is still missing.
+
+IMPORTANT: Donor addresses are PII. Do NOT write them to plan file breadcrumbs,
+Decision Log entries, or any artifact other than `artifacts/schedule-b-filing.md`.
+
 **Other triggered schedules (D, G, L, M, R):** See SCHEDULES.md for per-schedule playbooks.
 
 **Outputs.**
@@ -1141,6 +1215,8 @@ Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 
 **Part I Prior Year column (populate immediately after current-year rollup):**
 If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
+<<<<<<< HEAD
+>>>>>>> origin/main
 ```
 Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
 Part I Line 9  Prior Year = prior_990_analysis.program_service_rev  (Part VIII Line 2)
@@ -1148,6 +1224,9 @@ Part I Line 12 Prior Year = prior_990_analysis.total_revenue        (Part VIII L
 Part I Line 18 Prior Year = prior_990_analysis.total_expenses       (Part IX Line 25)
 Part I Line 19 Prior Year = total_revenue − total_expenses          (computed)
 ```
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 Store in `dataset_rollup.parts.I.prior_year`. If `prior_990_analysis` is absent: leave
 Prior Year column null and flag Q-F24 NEEDS_UPDATE (non-blocking — Part I Prior Year is
 not required for e-file transmission but is required on the public-facing reference PDF).
@@ -1195,6 +1274,8 @@ assets), evaluate: if `abs(Part XI Line 9) < $500`, log "Prior period adjustment
 NOT auto-generate a Schedule O narrative for amounts < $500. Only generate Schedule O content
 if `abs(Part XI Line 9) >= $500`.
 
+<<<<<<< HEAD
+>>>>>>> origin/main
 **Mid-session P&L re-check:** If the user updates the Tiller P&L mid-session (or says "I
 updated the P&L"), immediately re-read BOTH the P&L PDF and the net worth/balance sheet PDF
 before making any changes. Compute and display a structured diff:
