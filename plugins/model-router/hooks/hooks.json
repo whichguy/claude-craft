@@ -1,19 +1,18 @@
 {
   "hooks": {
-    "SessionStart": [
+    "PreToolUse": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/handlers/session-model-capture.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/handlers/model-router.sh",
             "timeout": 5
           }
         ]
       }
     ],
-    "PreToolUse": [
+    "PermissionRequest": [
       {
-        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",

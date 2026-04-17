@@ -294,7 +294,7 @@ Check: For each such vendor, the skill must explicitly verify: "Does any current
 Pass criteria: the question was actively asked and answered for every vendor >$10K, not
 just defaulted to No.
 ```
-Gap exposed: FY2025 CrossFit San Ramon ($47K lease) was flagged in CPA delta analysis but
+Gap exposed: FY2025 Acme Facilities LLC ($47K lease) was flagged in CPA delta analysis but
 not proactively asked until P8 quality review. A gate would surface this at P4 (Part IV
 checklist phase) instead.
 
@@ -325,7 +325,7 @@ Trigger: A prior year Schedule A Part III is available
 Check: Our Schedule A methodology (Line 1 vs Line 2 classification, DQ person identification)
   is consistent with the prior year CPA's approach. Key tests:
   (a) Did prior year include PSR in Line 2? If yes, we must include it.
-  (b) Did prior year include or exclude Wiese/Do family in Line 7a? If excluded (zero Line 7a),
+  (b) Did prior year include or exclude substantial-contributor families in Line 7a? If excluded (zero Line 7a),
       document the methodology difference in Schedule O.
   (c) If prior year result was 100% and ours is materially different, explain the difference.
 Pass criteria: consistent with prior year OR methodology difference documented in Schedule O.
@@ -497,8 +497,8 @@ Check: For each such entity, verify whether any officer, director, trustee, or k
 Pass criteria: all donor entities with >$5K contributions are either confirmed non-DQ or
   confirmed DQ with exclusion already applied.
 ```
-Gap exposed: Garrison Engineering Inc. donated $22,825 (2021) + $13,300 (2022) = $36,125.
-If any board member has ≥35% ownership in Garrison, these are DQ and must be excluded.
+Gap exposed: Acme Services Inc. donated $22,825 (2021) + $13,300 (2022) = $36,125.
+If any board member has ≥35% ownership in Acme Services, these are DQ and must be excluded.
 Sensitivity analysis showed public support remains >33⅓% either way — but the classification
 is legally required regardless of materiality. This check was surfaced in wiki but never
 executed as a formal gate step.

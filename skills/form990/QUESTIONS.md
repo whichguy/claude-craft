@@ -638,6 +638,7 @@ accomplishments. It is public-facing and should communicate program impact.
 - [ ] New program services (Part III Line 2 = Yes) flagged and described if applicable
 - [ ] Expense total stated for each of the three largest programs (from Part IX)
 - [ ] Grant amount stated for each program (or explicitly $0 if none)
+<<<<<<< HEAD
 
 **NEEDS_UPDATE example:**
 ```
@@ -649,6 +650,8 @@ to Part III program description; add any new-program flag if applicable → P5 /
 served, how many hours of programming, or any specific events. The IRS wants concrete
 numbers. I'll add headcount, hours, and competition details.]
 ```
+=======
+>>>>>>> origin/main
 - [ ] Revenue from each program stated (or explicitly $0 if none)
 
 ---

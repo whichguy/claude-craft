@@ -8,7 +8,7 @@ before implementation. Do NOT apply these edits to PHASES.md without approval.
 ## Proposal #7 — Schedule B Donor Address Collection
 
 **Source:** Task #7, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P6 Schedule B Donor Address Collection sub-procedure added with officer-donor extraction, AskUserQuestion for non-officer donors, PII containment, and Q-F8 re-evaluation flag.
 
 ### Problem
 
@@ -32,7 +32,7 @@ are PII — they must not appear in plan file breadcrumbs, Decision Log entries,
 that flows into the public 990 narrative sections. The `schedule-b-filing.md` artifact is
 marked `confidential: true` in the artifact metadata.
 
-**4. Officer-donors:** Wiese Family address (and any other officer-donors) can come from
+**4. Officer-donors:** officer-donor address (and any other officer-donors) can come from
 the Articles of Incorporation, CA SOS filing, or the prior-year return signature block.
 Do NOT ask the user for their own address — extract it from source documents first.
 
@@ -70,7 +70,7 @@ Decision Log entries, or any artifact other than artifacts/schedule-b-filing.md.
 ## Proposal #8 — P1 Donor Name Pre-loading for scrub_pii()
 
 **Source:** Task #8, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL — but library change is low-risk; see note below.
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P1 donor name pre-population section added; SKILL.md key_facts schema updated with `donor_names` guidance; TC22 regression test confirmed passing.
 
 ### Problem
 
@@ -112,7 +112,7 @@ Verify TC22 (pre-P6 empty donor_names) still passes after the PHASES.md change.
 ## Proposal #9 — 990-EZ → Full 990 Transition Year: Part I Prior Year Strategy
 
 **Source:** Task #9, form990-skill-todo.md (2026-04-15)
-**Status:** PENDING USER APPROVAL
+**Status:** IMPLEMENTED (2026-04-16). PHASES.md P0 transition year detection added; PHASES.md P7 Prior Year column expanded with 990-EZ mapping; SKILL.md key_facts schema updated with `transition_from_ez` field; Q-F24 already tightened in Task #4.
 
 ### Problem
 
@@ -133,7 +133,7 @@ the org is NOT a first-year filer — they have a prior return. The instruction 
 
 | Option | Description | Risk |
 |--------|-------------|------|
-| A | Leave blank + Schedule O note: "Prior year filed on Form 990-EZ; column mapping not provided due to form structure differences" | Defensible; Paula Wallin may prefer this |
+| A | Leave blank + Schedule O note: "Prior year filed on Form 990-EZ; column mapping not provided due to form structure differences" | Defensible; prior-year CPA may prefer this |
 | B | Attempt line mapping: 990-EZ Part I Line 9 (total revenue) → 990 Part I Line 12; 990-EZ Part I Line 17 (total expenses) → 990 Part I Line 18; etc. | Moderate — some lines map cleanly, others don't |
 | C | Ask user to provide prior-year figures or confirm Option A | Safest; defers to user/CPA judgment |
 
