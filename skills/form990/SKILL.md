@@ -6,7 +6,7 @@ description: |
   Guides a nonprofit Executive Director through all 10 phases (P0–P9):
   intake, source discovery, chart-of-accounts mapping, financial statements,
   Part IV checklist, core parts, schedule generation, Part I rollup,
-  CPA quality review (26 gates, 3 tiers), and reference PDF fill + e-file
+  CPA quality review (30 gates, 3 tiers), and reference PDF fill + e-file
   handoff packet. Stateful plan-file journal enables cold-resume across sessions.
 
   Invoke as: /form990 init | resume | phase | review | status | ask | verify
@@ -507,7 +507,7 @@ Called after every phase commit and on `/form990 status`.
 
 **Gate health bar** (20-cell bar; fill = `(Gate1_pass + 0.5×Gate2_pass) / total_applicable`):
 ```
-  Health:  [██████████░░░░░░░░░░]  6/18 gates evaluated
+  Health:  [██████████░░░░░░░░░░]  12/30 gates evaluated
 ```
 
 **Open questions summary** (only if any pending):

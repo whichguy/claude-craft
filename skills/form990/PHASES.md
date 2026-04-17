@@ -961,19 +961,23 @@ A Form 990-T may be required. Recommend CPA review." Record in Decision Log with
   have any outstanding credit card balances, loans, or accrued payables at year-end — including
   on personal cards used for org expenses?" Record any confirmed liabilities in Part X before
   copying from balance-sheet.md.
-- **Net asset classification pre-check:** Ask: "Does the organization have any temporarily restricted
-  or permanently restricted net assets (e.g., endowment funds, donor-restricted gifts, board-designated
-  funds with restrictions)?" If yes: require three-class breakdown (unrestricted / temporarily
-  restricted / permanently restricted) for both BOY and EOY columns. Each line has both columns:
-  Line 27 = unrestricted (col A = BOY, col B = EOY); Line 28 = temporarily restricted (col A, col B);
-  Line 29 = permanently restricted (col A, col B); Line 30 = total net assets (col A = sum(27+28+29),
-  col B = sum of EOY columns). Line 32 = total liabilities and net assets.
-  **Note on form version:** For orgs following ASC 958 (most 501(c)(3) orgs for FY2025+), use
-  2-class: Line 26 = net assets without donor restrictions; Line 27 = net assets with donor restrictions;
-  Line 28 = total net assets; Line 29 = total liabilities and net assets. Verify which structure
-  applies before populating Part X.
-  If no restricted net assets: temporarily and permanently restricted lines = $0; all net assets
-  flow to the unrestricted/without-donor-restrictions line.
+- **Net asset classification pre-check:** Ask: "Does the organization have net assets with
+  donor restrictions (e.g., endowment funds, donor-restricted gifts, board-designated
+  funds with restrictions)?" If yes: require breakdown for both BOY and EOY columns.
+  Each line has both columns:
+  Line 27 = net assets without donor restrictions (col A = BOY, col B = EOY);
+  Line 28 = net assets with donor restrictions (col A, col B);
+  Line 32 = total net assets or fund balances (col A = sum of Lines 27–31 BOY,
+  col B = sum of Lines 27–31 EOY). Line 33 = total liabilities and net assets/fund balances.
+  **Note on form version:** Per the 2023+ Form 990 revision, Part X uses 2-class ASC 958:
+  Line 26 = total liabilities; Line 27 = net assets without donor restrictions; Line 28 = net assets
+  with donor restrictions; Lines 29–31 = capital stock / paid-in surplus / retained earnings
+  (typically $0 for most 501(c)(3) orgs); Line 32 = total net assets; Line 33 = total liabilities
+  and net assets. For pre-2023 forms using 3-class (unrestricted / temporarily restricted /
+  permanently restricted), line numbers differ — resolve via the field map per
+  SKILL.md §Form Year Dependency.
+  If no restricted net assets: Line 28 = $0 for both columns; all net assets
+  flow to Line 27 (net assets without donor restrictions).
   **Schedule D trigger:** If restricted net assets exist, verify Schedule D is in `required_schedules[]`
   (Part IV Line 8 or Line 9 should be "Yes"). If not, add an Open Question: "Restricted net assets
   identified — should Schedule D (Supplemental Financial Statements) be filed?"

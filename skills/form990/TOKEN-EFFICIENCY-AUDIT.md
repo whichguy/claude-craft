@@ -75,7 +75,7 @@ specifying source verification.
 
 ### Pattern C — Horizontal Rule Separators Add Visual Structure But Token Cost
 
-Every gate definition in QUESTIONS.md is separated by `---` (3 chars + 2 newlines × 26 gates
+Every gate definition in QUESTIONS.md is separated by `---` (3 chars + 2 newlines × 30 gates
 = ~130 chars). The `### Gate Name` heading already visually separates sections.
 
 **Savings if `---` separators removed from gate definitions:** ~40 tokens (trivial)
@@ -127,7 +127,7 @@ Applies When. All of this information also appears in each gate's individual def
 The table serves as a quick-reference index — valuable during P8 when the LLM needs to
 select applicable gates.
 
-**However:** With 26 gates, the table is now 30 lines. The Tier/gate assignment in the table
+**However:** With 30 gates, the table is now 34 lines. The Tier/gate assignment in the table
 is the most critical piece (for the convergence loop gate-ID lists). The "Triggered In" column
 duplicates the gate definition header.
 
@@ -214,7 +214,7 @@ false failures for endowment orgs and investment holders."
 
 ### Test scenario: P8 evaluation of a representative dataset
 
-**Control:** Current QUESTIONS.md (26 gates, full NEEDS_UPDATE examples)
+**Control:** Current QUESTIONS.md (30 gates, full NEEDS_UPDATE examples)
 **Variant:** QUESTIONS.md with Tier B changes applied
 
 **Evaluation criteria (run /compare-prompts):**

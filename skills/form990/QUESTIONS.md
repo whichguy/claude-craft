@@ -343,6 +343,9 @@ Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
 **Pass criteria:**
 - All four equalities hold to the dollar (no tolerance)
 - Part VIII Line 1h = sum(Lines 1a + 1b + 1c + 1d + 1e + 1f) within $1 rounding
+  (Note: Line 1g "noncash contributions" is a disclosure line showing the noncash portion
+  already included in 1a–1f; it is NOT added to 1h. Per 2023+ form revision, noncash
+  contributions are included in the 1a–1f sub-lines, not summed separately.)
 - Part VIII Line 12 = sum(Lines 1h + 2 + 3 + ... + 11e) within $1 rounding
 - `dataset_rollup.json` `parts.I` values are sourced from `dataset_core.json` line references
   (not manually entered)
@@ -521,6 +524,12 @@ a separate IRS form (Form 3115) is needed — your tax advisor should confirm.]
 
 **Purpose.** Part VI contains several questions that say "If Yes, describe in Schedule O."
 Each such description must exist.
+
+**Common Schedule O triggers in Part VI (per 2025 form instructions):**
+- Lines 2–7b (if Yes): Lines 2, 3, 4, 5, 6, 7a, 7b
+- Lines 8a, 8b, 10b (if No)
+- Line 1a (if material differences in voting rights or broad authority delegated to executive committee)
+- Lines 11a, 12a–12c, 13, 14, 15a, 15b, 18 (if applicable)
 
 **Pass criteria:**
 - Every Part VI question that received a "Yes" answer AND requires a Schedule O description
@@ -975,8 +984,11 @@ a negative sub-line, which the IRS doesn't allow on this line.]
 A balance sheet that doesn't balance indicates a data error that must be corrected before filing.
 
 **Pass criteria:**
-- Part X Line 16 (Total Assets) = Part X Line 26 (Total Liabilities) + Line 30 (Total Net Assets)
+- Part X Line 16 (Total Assets) = Part X Line 26 (Total Liabilities) + Line 32 (Total Net Assets)
   for both BOY and EOY columns, within $1 rounding tolerance
+  (Equivalently: Line 33 (Total Liabilities and Net Assets) must equal Line 16.
+  Line references target the 2023+ Form 990 revision; if prior-year form uses different line
+  numbers, resolve via the field map per SKILL.md §Form Year Dependency)
 - If the org reports restricted net asset classes: individual class amounts sum correctly
 
 **NEEDS_UPDATE example:**
