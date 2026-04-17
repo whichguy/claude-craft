@@ -57,23 +57,7 @@ The wiki-hooks plugin provides 11 lifecycle handlers that run automatically:
 
 ### Provider Routing (Bedrock, OpenRouter, Ollama)
 
-Wiki extraction uses `claude-router` when available, enabling alternative API endpoints:
-
-```bash
-# Configure a Bedrock provider in ~/.claude/model-map.json:
-{
-  "providers": {
-    "sonnet": {
-      "env": {
-        "ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock-runtime.us-east-1.amazonaws.com",
-        "CLAUDE_CODE_USE_BEDROCK": "1"
-      }
-    }
-  }
-}
-```
-
-If `claude-router` is not found, wiki-worker falls back to the bare `claude` CLI (Anthropic direct).
+Wiki extraction uses `claude-router` when available — install it from [whichguy/c-thru](https://github.com/whichguy/c-thru). If `claude-router` is not found, wiki-worker falls back to the bare `claude` CLI (Anthropic direct).
 
 ### Dependency Validation
 
@@ -283,7 +267,6 @@ claude-craft/
 ├── tools/                 # Management utilities
 │   ├── sync-status.sh     # Core sync engine (status/sync/add/publish)
 │   ├── auto-sync.sh       # Probabilistic background sync
-│   ├── claude-router      # Provider routing (Bedrock/OpenRouter/Ollama) → ~/.claude/tools/
 │   ├── install-git-hooks.sh
 │   ├── security-scan.sh
 │   └── backup.sh
