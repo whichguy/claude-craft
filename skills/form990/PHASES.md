@@ -248,8 +248,6 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
    `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
    `public_charity_basis`.
-=======
->>>>>>> origin/main
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -464,9 +462,6 @@ officers (`ca_sos_officers`) against the operator-provided current roster.
 - Record all transitions in Decision Log with dates.
 - If `prior_990_analysis` is null: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
 
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
 5. For each missing artifact: create an Open Question. If addressed to an external party,
    create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
    - **Never auto-send** — draft only
@@ -534,8 +529,6 @@ For each budget row, apply the mapping methodology:
   "This appears to be a reversal of prior income. Which Part VIII line does this reduce?
   Options: (a) Line 1 contributions, (b) Line 2 PSR, (c) Line 11 other revenue."
   Record the answer and offset against the indicated line. Never auto-commit.
-<<<<<<< HEAD
->>>>>>> origin/main
 
 **Step 2: Map Revenue → Part VIII line by source taxonomy.**
 | Revenue type | Part VIII line |
@@ -831,7 +824,7 @@ Iterate the line catalog for each Part. Compute / copy / query user as needed.
      → If yes: set Part III Line 2 = Yes; require a description of the new service.
   4. "Did any athletes achieve notable competitive accomplishments (national team selections,
      championship placements, state/regional rankings)?" → Include in description if yes.
-  Include headcount and computed hours in the description (IRS expects quantified outputs).
+  Include headcount and computed hours in the description (IRS expects quantified outputs). **[PROG_METRICS directive]**
 - Line 4d: other program services (aggregate)
 - Line 4e: total program service expenses
 
@@ -846,9 +839,6 @@ If any grant, scholarship, or competition-assistance amount appears in the progr
 - Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
   "Prior year used [methodology]. Use the same treatment unless org changed its policy."
 - Do NOT auto-commit classification. Create Open Question if ambiguous.
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
 
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
@@ -1168,6 +1158,13 @@ If Schedule B is triggered (Part IV Line 2 = Yes):
 IMPORTANT: Donor addresses are PII. Do NOT write them to plan file breadcrumbs,
 Decision Log entries, or any artifact other than `artifacts/schedule-b-filing.md`.
 
+**1099-K Reconciliation (P6 — if card-based revenue present):** **[PAYMENT_PROCESSOR_1099K directive]**
+If PSR (Part VIII Line 2) includes card-based membership fees or the `payment_processor_1099k` artifact exists:
+1. Read the 1099-K from `artifacts/payment_processor_1099k` (if available from P1 discovery).
+2. Reconcile 1099-K gross against PSR card-based revenue in Part VIII.
+3. If 1099-K gross ≠ PSR card-based total: create Open Question with the delta and flag for Q-F27.
+4. If 1099-K not available but card-based revenue is present: create Open Question requesting the form.
+
 **Other triggered schedules (D, G, L, M, R):** See SCHEDULES.md for per-schedule playbooks.
 
 **Outputs.**
@@ -1215,8 +1212,6 @@ Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 
 **Part I Prior Year column (populate immediately after current-year rollup):**
 If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
-<<<<<<< HEAD
->>>>>>> origin/main
 ```
 Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
 Part I Line 9  Prior Year = prior_990_analysis.program_service_rev  (Part VIII Line 2)
@@ -1224,9 +1219,6 @@ Part I Line 12 Prior Year = prior_990_analysis.total_revenue        (Part VIII L
 Part I Line 18 Prior Year = prior_990_analysis.total_expenses       (Part IX Line 25)
 Part I Line 19 Prior Year = total_revenue − total_expenses          (computed)
 ```
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
 Store in `dataset_rollup.parts.I.prior_year`. If `prior_990_analysis` is absent: leave
 Prior Year column null and flag Q-F24 NEEDS_UPDATE (non-blocking — Part I Prior Year is
 not required for e-file transmission but is required on the public-facing reference PDF).
@@ -1274,8 +1266,6 @@ assets), evaluate: if `abs(Part XI Line 9) < $500`, log "Prior period adjustment
 NOT auto-generate a Schedule O narrative for amounts < $500. Only generate Schedule O content
 if `abs(Part XI Line 9) >= $500`.
 
-<<<<<<< HEAD
->>>>>>> origin/main
 **Mid-session P&L re-check:** If the user updates the Tiller P&L mid-session (or says "I
 updated the P&L"), immediately re-read BOTH the P&L PDF and the net worth/balance sheet PDF
 before making any changes. Compute and display a structured diff:
@@ -1690,5 +1680,4 @@ After printing the Completion Banner, prompt the operator with:
 
 This is a **manual operator prompt** — not automated. The operator decides what to record.
 No AskUserQuestion required. Print and continue to session close.
-
 

@@ -275,8 +275,6 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 
 **Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
 
-=======
->>>>>>> origin/main
 ---
 
 ## Form Discovery Directive
@@ -1170,9 +1168,7 @@ Valid keys in `key_facts{}`:
 | `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
 | `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
 | `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
-=======
-<<<<<<< HEAD
->>>>>>> origin/main
+| `transition_from_ez` | boolean \| null | `true` if prior year was filed on Form 990-EZ (first year on full 990). null = not yet evaluated. Set at P0 variant routing. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 
@@ -1192,8 +1188,6 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 | `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
 | `ca_sos_officers` | `[{name: string, title: string}]` \| null | Current officers/directors from CA Secretary of State discovery at P1 (WebSearch or local SI-100 PDF parse). null = CA org but discovery failed or not CA org. Consumed by board-change detector (P1) and Part VII Section A (P5). |
 
-<<<<<<< HEAD
->>>>>>> origin/main
 ---
 
 ## form990_coordinates_{tax_year}
