@@ -1208,6 +1208,13 @@ At P1, add `payment_processor_1099k` as an optional source artifact in the disco
 card-based membership fees are a significant revenue source. Used to verify Part VIII Line 2
 (program service revenue) against third-party transaction data."
 
+### Directive: PROG_METRICS
+
+At P5 (Part III program accomplishments), for each of the three largest programs by expense,
+collect at minimum: (a) number of individuals served, (b) one quantified outcome (competitions,
+awards, training hours, etc.). Pre-populate from prior year accomplishments data if available.
+Enforced by Q-F18 at P8 (headcount, hours, and specific achievements checklist).
+
 ---
 
 ## form990_coordinates_{tax_year}
