@@ -14,6 +14,14 @@ description: |
 
 # Form 990 Skill — Orchestrator
 
+> **Form Year Dependency:** Line number references throughout this skill target the IRS Form 990
+> revision in effect for the filing year. The 2023 revision (used for tax years beginning after
+> 2022) restructured Part VIII (revenue lines shifted), Part IX (Line 11 sub-lines reordered:
+> 11a = Management, 11b = Legal, etc.), and Part X (net assets moved from 3-class to 2-class
+> ASC 958 format for most orgs). When `tax_year` changes, the Form Discovery Directive fetches
+> the correct year's form and field map; all P2–P9 line references must align to that revision's
+> field map. If field map line numbers conflict with PHASES.md, the field map takes precedence.
+
 Invoke via: `/form990 <subcommand> [args]`
 
 ---
@@ -649,10 +657,20 @@ ARTIFACT_DEPS = {
     "schedule_o":        {"phase": "P6", "upstream": ["dataset_core"]},
     "schedule_b_filing": {"phase": "P6", "upstream": ["dataset_core"]},
     "schedule_b_public": {"phase": "P6", "upstream": ["dataset_core"]},
-    # Per-letter schedule artifacts follow the convention:
-    # "schedule_<letter>": {"phase": "P6", "upstream": ["dataset_core"]}
-    # for each letter in required_schedules[] (A, D, G, I, L, M, R, etc.)
-    # These are produced by SCHEDULES.md playbooks but tracked by convention, not listed individually.
+    "schedule_a":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_d":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_g":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_i":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_l":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_m":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_r":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_c":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_e":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_f":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_h":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_j":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_k":        {"phase": "P6", "upstream": ["dataset_core"]},
+    "schedule_n":        {"phase": "P6", "upstream": ["dataset_core"]},
     # P7 outputs
     "dataset_rollup":      {"phase": "P7",       "upstream": ["dataset_core"]},
     "reconciliation_report": {"phase": "P7",     "upstream": ["dataset_core"]},

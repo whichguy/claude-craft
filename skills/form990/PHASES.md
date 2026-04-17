@@ -194,7 +194,7 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    input). Compute `gross_receipts_3yr_average = (yr_current + yr_prior1 + yr_prior2) / 3`
 2a. Prior year 990 check. Ask:
     "Do you have a filed prior year Form 990? If yes, what were the total net assets
-    (End of Year) on that return? (You can find this on the prior 990 Part X Line 33,
+    (End of Year) on that return? (You can find this on the prior 990 Part X Line 32,
     column B — End of Year.)"
     - If user provides: set `key_facts.prior_year_990_eoy_net_assets = <amount>`,
       set `key_facts.prior_year_990_eoy_net_assets_source = "operator_stated"`
@@ -255,9 +255,11 @@ structural change — it affects which schedules are required and which form tem
    Write **`key_facts`** (inside the key_facts object):
    `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
    `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
-   `public_charity_basis`, `transition_from_ez`.
+   `public_charity_basis`, `transition_from_ez`, `donor_names`.
    Set `transition_from_ez = true` if variant is `990` and prior year was filed as `990-EZ`
    or `990-N` (detected from `prior_990_analysis` or user input); otherwise `false`.
+   Set `donor_names = []` (empty list — populated at P1 from prior 990 or P&L, and at P6
+   from Schedule B donors). All subsequent breadcrumb writes call `scrub_pii(donor_names)`.
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -418,11 +420,11 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    │                            data. Evaluated by Q-F27 at P8.)
    ```
 
-**Prior year 990 TEOS check (P1 — PRIOR_990_EXTRACT directive):** Check apps.irs.gov/app/eos/ for the org's EIN.
+**Prior year 990 TEOS check [PRIOR_990_EXTRACT directive]:** Check apps.irs.gov/app/eos/ for the org's EIN.
 If a prior filing exists:
 1. Download the most recent year's 990 PDF
 2. Extract and store as `prior_990_analysis` in machine state:
-   - `eoy_net_assets` (Part X Line 33 col B)
+   - `eoy_net_assets` (Part X Line 32 col B)
    - `schedule_a_line15_pct` (Schedule A Part III Line 15)
    - `board_members` (Part VII Section A — name, title, hours)
    - `schedule_i_methodology` (did they use Part II or Part III for individual grants?)
@@ -671,6 +673,10 @@ raw_label: "Donated Legal Services (in-kind)"
 
 **Idempotency.** Overwrite mode — re-execution fully rewrites `coa-mapping.csv`.
 
+**Variant re-evaluation hook (P2).** After mapping is complete, if the total revenue or total
+assets figure derived from the COA mapping differs from P0's `gross_receipts_current` or
+`total_assets_eoy`, re-run the variant decision tree per the P0 variant re-evaluation procedure.
+
 **Applicable Gates.** Q-F3 (functional columns sum), Q-F10 (ED allocation documented),
 Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5).
 
@@ -781,7 +787,7 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
 3. `need-info` → create Open Question with the specific information needed
 4. `yes` → add corresponding schedule letter to `required_schedules[]`
 5. Schedule A is ALWAYS added for 501(c)(3) non-PF regardless of Part IV answers
-6. **Insider vendor check (INSIDER_VENDOR_CHECK directive):** For each vendor paid >$10,000
+6. **Insider vendor check [INSIDER_VENDOR_CHECK directive]:** For each vendor paid >$10,000
    in the year (from CoA mapping), explicitly ask: "Does any current or former officer,
    director, trustee, or key employee of [org] have a direct or indirect ownership interest
    ≥ 35% in [vendor name]?" Do not default to No. If YES → Part IV Line 28a = Yes;
@@ -923,9 +929,25 @@ Highest-Compensated Employees:**
 - **Section B:** five highest-compensated independent contractors who received >$100K
 - Reportable compensation values must tie to W-2 Box 1 or 1099-NEC Box 1 (Q-F6 proxy)
 
+**Split-interest trust advisory:** If Part VIII revenue includes annuity distributions,
+charitable remainder trust payments, or pooled income fund distributions (Line 6 or similar),
+surface a non-blocking advisory: "Split-interest trust income detected — verify Schedule D
+Part II (Charitable Remainder Trusts) and Schedule A Part II Line 5 (annuity trust distributions)
+are correctly reported. Recommend CPA review." Record in Decision Log with `severity: "advisory"`.
+
+**UBTI re-check (P5):** After Part VIII revenue mapping is complete, re-evaluate P0's UBTI
+advisory against actual mapped amounts. If any revenue line suggests unrelated business activity
+(e.g., advertising income, debt-finished rental income, commercial activity revenue), surface
+advisory: "UBTI re-check: [line] shows $[amount] that may be Unrelated Business Taxable Income.
+A Form 990-T may be required. Recommend CPA review." Record in Decision Log with
+`severity: "advisory"`.
+
 **Part VIII — Statement of Revenue:**
 - Lines 1a–12: copy from Statement of Activities aggregated by P3
 - Lines are prefilled from `coa-mapping.csv` revenue aggregations
+- **Schedule M trigger:** If Line 1g (noncash contributions) ≥ $25,000, verify Schedule M is
+  in `required_schedules[]`. If not, add an Open Question: "Noncash contributions ≥ $25K —
+  should Schedule M (Noncash Contributions) be filed?"
 
 **Part IX — Statement of Functional Expenses:**
 - Lines 1–25: copy from `functional-expense.csv` (all four columns)
@@ -942,12 +964,22 @@ Highest-Compensated Employees:**
 - **Net asset classification pre-check:** Ask: "Does the organization have any temporarily restricted
   or permanently restricted net assets (e.g., endowment funds, donor-restricted gifts, board-designated
   funds with restrictions)?" If yes: require three-class breakdown (unrestricted / temporarily
-  restricted / permanently restricted) for both BOY and EOY columns. Lines 26–31 must be populated
-  with Line 29 = sum(Lines 26+27+28) and Line 33 = sum(Lines 30+31+32_col_B_subtotal). If no
-  restricted net assets: Lines 27, 28, 31 = $0; all net assets flow to unrestricted.
+  restricted / permanently restricted) for both BOY and EOY columns. Each line has both columns:
+  Line 27 = unrestricted (col A = BOY, col B = EOY); Line 28 = temporarily restricted (col A, col B);
+  Line 29 = permanently restricted (col A, col B); Line 30 = total net assets (col A = sum(27+28+29),
+  col B = sum of EOY columns). Line 32 = total liabilities and net assets.
+  **Note on form version:** For orgs following ASC 958 (most 501(c)(3) orgs for FY2025+), use
+  2-class: Line 26 = net assets without donor restrictions; Line 27 = net assets with donor restrictions;
+  Line 28 = total net assets; Line 29 = total liabilities and net assets. Verify which structure
+  applies before populating Part X.
+  If no restricted net assets: temporarily and permanently restricted lines = $0; all net assets
+  flow to the unrestricted/without-donor-restrictions line.
+  **Schedule D trigger:** If restricted net assets exist, verify Schedule D is in `required_schedules[]`
+  (Part IV Line 8 or Line 9 should be "Yes"). If not, add an Open Question: "Restricted net assets
+  identified — should Schedule D (Supplemental Financial Statements) be filed?"
 - Lines 1–33: copy from `balance-sheet.md` (BOY + EOY columns)
 
-**BOY reconciliation check (BOY_RECONCILE_GATE directive — after Tiller BOY is read from balance-sheet.md):**
+**BOY reconciliation check [BOY_RECONCILE_GATE directive]:** After Tiller BOY is read from balance-sheet.md:
 
 If `key_facts.prior_year_990_eoy_net_assets` is not null AND differs from Tiller BOY:
 ```
@@ -957,7 +989,7 @@ tiller_boy = <Tiller opening balance from balance-sheet.md>
 1. Accept filed_eoy as the authoritative Part X BOY (override Tiller)
 2. Auto-compute Part XI Line 9 prior-period adjustment:
    Assumptions (verify against IRS Form 990 Part XI instructions before implementing):
-   - EOY_actual = current-year Part X Line 33 col B (EOY net assets — from
+   - EOY_actual = current-year Part X Line 32 col B (EOY net assets — from
      key_facts.total_assets_eoy minus liabilities, or from dataset_core.json Part X)
    - revenue = Part VIII Line 12 col A (total revenue)
    - expenses = Part IX Line 25 col A (total expenses)
@@ -1022,9 +1054,15 @@ If `prior_year_990_eoy_net_assets` is null: proceed with Tiller BOY, no adjustme
 
 **Idempotency.** Overwrite mode — `dataset_core.json` fully rewritten on re-run.
 
+**Variant re-evaluation hook (P5).** After dataset_core is finalized, if the total revenue or
+total assets in dataset_core differs from P0's `gross_receipts_current` or `total_assets_eoy`,
+re-run the variant decision tree per the P0 variant re-evaluation procedure.
+
 **Applicable Gates.** Q-F5 (W-2/1099 count ties — Gate 2; Open Question if payroll register
 missing), Q-F6 (Part VII compensation ties to source docs), Q-F18 (Part III program
-accomplishments substantive).
+accomplishments substantive), Q-F19 (source doc cross-ties), Q-F20 (BOY = prior EOY),
+Q-F21 (functional expense cross-tie), Q-F28 (no disallowed negative values),
+Q-F29 (Part X balance sheet balances).
 
 ---
 
@@ -1118,7 +1156,7 @@ re-computing risks a mismatch with the filed return that triggers IRS scrutiny.
 - If TEOS extraction succeeded: use `prior_990_analysis.schedule_a_line15_pct` verbatim.
 - If prior 990 not available from TEOS or operator: create Open Question; do not leave blank.
 
-**Entity donor DQ ownership check (P6 — ENTITY_DONOR_CHECK directive):**
+**Entity donor DQ ownership check [ENTITY_DONOR_CHECK directive]:**
 For each non-individual donor (business entity, LLC, foundation, DAF) that contributed
 more than $5,000 in ANY of the 5-year Schedule A window, ask:
 "Does any current or former officer, director, trustee, or key employee of [org] have a
@@ -1131,7 +1169,7 @@ direct or indirect ownership interest ≥ 35% in [entity name]?"
 This is distinct from the individual DQ check and the insider vendor check — it
 specifically addresses corporate and entity donors.
 
-**DQ persistence check (DQ_PERSISTENCE_CHECK directive):** Before computing Line 7a, cross-check
+**DQ persistence check [DQ_PERSISTENCE_CHECK directive]:** Before computing Line 7a, cross-check
 departed board members. Any person who left the board during the current year but was a substantial
 contributor (gave >$5,000 AND >2% of cumulative contributions in any of the 5-year window) must
 remain on the DQ exclusion list. Leaving the board does NOT remove DQ status under IRC §4946.
@@ -1153,7 +1191,7 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 - Collect every Part VI "describe in Schedule O" placeholder from P5
 - For each: draft a narrative with the user or from governance documents
 - Include: functional expense allocation methodology (Q-F17)
-- **Disclosure accuracy check (DISCLOSURE_ACCURACY directive — Part VI Line 18):** When populating the public availability
+- **Disclosure accuracy check [DISCLOSURE_ACCURACY directive]:** Part VI Line 18 — When populating the public availability
   statement, verify:
   (a) Any named third-party website is still active (GuideStar → Candid in 2022; use
       candid.org or apps.irs.gov as fallbacks)
@@ -1201,7 +1239,7 @@ If PSR (Part VIII Line 2) includes card-based membership fees or the `payment_pr
 3. If 1099-K gross ≠ PSR card-based total: create Open Question with the delta and flag for Q-F27.
 4. If 1099-K not available but card-based revenue is present: create Open Question requesting the form.
 
-**Other triggered schedules (D, G, L, M, R):** See SCHEDULES.md for per-schedule playbooks.
+**Other triggered schedules (D, G, I, L, M, R):** See SCHEDULES.md for per-schedule playbooks.
 
 **Outputs.**
 - `artifacts/schedule-<letter>.md` per required schedule
@@ -1218,7 +1256,9 @@ files rewritten. Schedules removed from `required_schedules[]` between runs have
 artifacts explicitly deleted (tracked via manifest inside `dataset_schedules.json`).
 
 **Applicable Gates.** Q-F4 (Schedule A computation), Q-F8 (all required schedules present),
-Q-F14 (Schedule O covers all Part VI "describe" prompts).
+Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (Schedule A public support
+test computation), Q-F23 (Schedule B donor addresses), Q-F27 (payment processor 1099-K),
+Q-F30 (Schedule B donor threshold completeness).
 
 ---
 
@@ -1246,7 +1286,7 @@ Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
 
-**Part I Prior Year column (PART_I_PRIOR_YEAR directive — populate immediately after current-year rollup):**
+**Part I Prior Year column [PART_I_PRIOR_YEAR directive]:** Populate immediately after current-year rollup:
 If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
 ```
 Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)
@@ -1349,7 +1389,8 @@ On success: register `artifacts.dataset_merged` with `output_sha256` returned by
 same inputs → byte-identical output (E3 verified).
 
 **Applicable Gates.** Q-F2 (big square closes — blocking; delta_match must be true), Q-F7
-(Part I ties to downstream parts).
+(Part I ties to downstream parts), Q-F24 (Part I Prior Year column sourced from filed prior
+return), Q-F25 (Part XI reconciliation), Q-F26 (Part X balance check).
 
 ---
 

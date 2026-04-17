@@ -1,6 +1,6 @@
 # Form 990 Skill — CPA Quality Gate Catalog
 
-**Q-F1..Q-F26** in three tiers. Import this file into every Q-F evaluation pass;
+**Q-F1..Q-F28** in three tiers. Import this file into every Q-F evaluation pass;
 do not duplicate definitions in other files.
 
 Gate output contract:
@@ -61,7 +61,9 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 | Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
-| Q-F28 | G2 | No disallowed negative values | always |
+| Q-F28 | G1 | No disallowed negative values | always |
+| Q-F29 | G1 | Part X balance sheet balances | always |
+| Q-F30 | G2 | Schedule B donor threshold completeness | if Schedule B triggered |
 
 ---
 
@@ -721,7 +723,7 @@ require disclosure.
 ```
 Q-F20: NEEDS_UPDATE — Part XI Line 4 ($42,180) vs prior-year 990-EZ EOY ($39,950): unexplained $2,230 gap, Part XI Line 9 = $0.
 [EDIT: Identify source of $2,230 BOY discrepancy; if restatement, set Part XI Line 9 = $2,230
-and add Schedule O prior-period adjustment narrative → P3 / dataset_core.json]
+and add Schedule O prior-period adjustment narrative → P5 / dataset_core.json]
 [USER: The starting net assets don't match last year's ending balance. We need to find out
 if there was a correction made after the prior year was filed, and disclose it on the return.]
 ```
@@ -827,7 +829,7 @@ For organizations transitioning from 990-EZ to full Form 990, a documented mappi
 ```
 Q-F24: NEEDS_UPDATE — Part I Prior Year column blank; prior year was 990-EZ (FY2024) — revenue-line mapping is possible.
 [EDIT: Populate mappable Part I Prior Year fields from FY2024 990-EZ; add Schedule O note for
-lines that cannot be mapped; cite source document → P3 / dataset_core.json]
+lines that cannot be mapped; cite source document → P7 / dataset_rollup.json]
 [USER: The prior-year comparison column is blank — I'll fill in what I can from last year's
 return and add a note explaining where the two forms don't line up.]
 ```
@@ -925,7 +927,7 @@ to check whether some card transactions were recorded in a different category or
 
 ---
 
-### Q-F28 — No Disallowed Negative Values (Gate 2)
+### Q-F28 — No Disallowed Negative Values (Gate 1)
 
 **Purpose.** Several Form 990 lines prohibit negative amounts. Entering a negative value on a
 revenue line, compensation column, or other disallowed line will cause e-file rejection or
@@ -935,7 +937,7 @@ impossible negative values.
 **Trigger:** Always (all filers).
 
 **Lines where negative values are disallowed:**
-- Part VIII revenue sub-lines (1a–1f, 2, 3, 4, 5, 8a–8c, 9a–9c, 10a, 11e): negative amounts
+- Part VIII revenue sub-lines (1a–1g, 2, 3, 4, 5, 6, 8a–8c, 9a–9c, 10a, 11e): negative amounts
   indicate a classification error (e.g., a refund that should reduce a different line)
 - Part VII Section A columns D, E, F (reportable compensation, other compensation, estimated
   other compensation): negative compensation is impossible
@@ -945,6 +947,7 @@ impossible negative values.
 
 **Lines where negative values ARE allowed:**
 - Part VIII Line 7 (net gain/loss on sale of assets): losses are negative
+- Part VIII Line 10b (cost of goods sold): can exceed 10a if net is negative
 - Part XI Lines 5–9 (adjustments): prior-period and other adjustments can be negative
 - Part I Line 19 (revenue less expenses): negative indicates a deficit
 
@@ -962,6 +965,46 @@ sub-line entry; update dataset_core.json → P5 / Part VIII]
 [USER: Individual contributions shows a negative number (-$1,580). This is likely a donation
 refund or reversal — I'll reclassify it as a reduction to total contributions rather than
 a negative sub-line, which the IRS doesn't allow on this line.]
+```
+
+---
+
+### Q-F29 — Part X Balance Sheet Balances (Gate 1)
+
+**Purpose.** The fundamental accounting identity must hold: Total Assets = Total Liabilities + Net Assets.
+A balance sheet that doesn't balance indicates a data error that must be corrected before filing.
+
+**Pass criteria:**
+- Part X Line 16 (Total Assets) = Part X Line 26 (Total Liabilities) + Line 30 (Total Net Assets)
+  for both BOY and EOY columns, within $1 rounding tolerance
+- If the org reports restricted net asset classes: individual class amounts sum correctly
+
+**NEEDS_UPDATE example:**
+```
+Q-F29: NEEDS_UPDATE — Part X EOY: Total Assets ($52,340) ≠ Total Liabilities ($8,200) + Net Assets ($43,140) = $51,340. Gap of $1,000.
+[EDIT: Verify all asset and liability line items are complete; check for omitted liabilities or misclassified amounts → P5 / dataset_core.json]
+[USER: The balance sheet doesn't balance — I'll check for missing liabilities or misclassified items.]
+```
+
+---
+
+### Q-F30 — Schedule B Donor Threshold Completeness (Gate 2)
+
+**Purpose.** Verify that Schedule B lists all donors exceeding the IRS reporting threshold ($5,000 or 2%
+of total contributions, whichever is greater) and that no donors below the threshold are included
+unless the org uses a lower threshold voluntarily.
+
+**Pass criteria:**
+- Every donor in Schedule B exceeds the applicable threshold ($5,000 or 2% of total contributions)
+- All known donors above the threshold are listed (cross-check against Part VIII Line 1a–1f donors)
+- Donor addresses are complete (not `[[ADDR REQUIRED FROM USER]]`)
+
+**NEEDS_UPDATE example:**
+```
+Q-F30: NEEDS_UPDATE — Donor "X Foundation" ($12,000) exceeds 2% threshold ($4,800) but is missing
+from Schedule B; donor addresses for 2 of 3 listed donors are placeholder-only.
+[EDIT: Add X Foundation to schedule_b_donors[]; collect missing addresses via AskUserQuestion → P6 / schedule_b_filing.md]
+[USER: I'll provide the missing donor address and confirm the foundation should be included.]
 ```
 
 ---
@@ -1000,8 +1043,8 @@ if pass == 5 and gate1_open:
     HALT → AskUserQuestion; do not auto-advance to P9
 ```
 
-Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F28
+Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20, Q-F28, Q-F29
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 
 ---

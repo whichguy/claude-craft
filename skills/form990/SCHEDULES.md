@@ -25,22 +25,62 @@ Collect support history for years T, T-1, T-2, T-3, T-4 (where T = current tax y
 If prior-year 990s are available in `artifacts`: read directly.
 If not: create Open Questions for years T-1 through T-4 (ask bookkeeper/prior CPA).
 
+### Schedule A Part I — Organization Type Checkbox
+
+Before computing public support, verify the organization's public charity basis:
+
+1. Review the IRS determination letter or prior-year Schedule A Part I.
+2. Check the appropriate box in Part I:
+   - 509(a)(1) — churches, educational orgs, hospitals, etc.
+   - 509(a)(2) — orgs receiving >33⅓% public support from gifts/grants/fees
+   - 509(a)(3) — supporting organizations (Type I, II, or III)
+   - Other §170(b)(1)(A) bases (hospital, school, etc.)
+3. The checkbox determines which worksheet (Part II or Part III) to complete.
+4. **Do not switch basis based on test results.** The IRS determination letter sets the basis.
+
+### Schedule A Part IV — Supporting Organizations (509(a)(3))
+
+If `public_charity_basis == "509(a)(3)"`:
+
+1. Determine the supporting organization type (Type I, II, or III).
+2. Type I: operated, supervised, or controlled by a supported organization.
+3. Type II: supervised or controlled in connection with a supported organization.
+4. Type III: operated in connection with a supported organization.
+   - Type III functional-integrated orgs have additional Schedule A requirements.
+5. Complete Part IV with: supported organization name, EIN, relationship type.
+6. If type is uncertain: create Open Question for user clarification.
+
 ### 509(a)(1) / §170(b)(1)(A)(vi) Public Support Worksheet
 
 ```
 For each year y in [T-4, T-3, T-2, T-1, T]:
-  total_contributions[y]  = Part VIII Line 1 for year y
+  total_contributions[y]  = Part VIII Line 1h for year y (total contributions)
   govt_grants[y]          = Part VIII Line 1e for year y
+  exempt_function_income[y] = Part VIII Line 2g for year y (program service revenue)
   total_support[y]        = all revenue for year y (contributions + program fees +
                              investment income + other)
-  # two_pct_threshold is computed ONCE from the 5-year total — same dollar for all years
+  # two_pct_threshold is computed ONCE from the 5-year total — same dollar for all donors
   two_pct_threshold       = 0.02 × sum(total_support[T-4..T])   ← 2% of 5-yr total support
-  
-  excess_contributions[y] = sum over all donors d:
-                              max(0, donor_contributions[d][y] − two_pct_threshold)
 
-5yr_public_support = sum([total_contributions[y] − excess_contributions[y] for y in window])
-5yr_total_support  = sum([total_support[y] for y in window])
+  # EXCESS CONTRIBUTIONS USE 5-YEAR AGGREGATE, NOT PER-YEAR
+  # Per IRS Schedule A Part II instructions: compare each donor's 5-year cumulative
+  # contributions against the 2% threshold. The excess is the amount by which a single
+  # donor's 5-year total exceeds the threshold.
+  for each donor d:
+    donor_5yr_total[d] = sum(donor_contributions[d][y] for y in [T-4..T])
+    donor_excess[d]    = max(0, donor_5yr_total[d] − two_pct_threshold)
+
+  total_excess = sum(donor_excess[d] for all donors d)
+
+  # Government grants are NOT subject to the 2% cap — they are public support by definition
+  # (IRS Schedule A Part II Line 5b excludes government grants from excess computation)
+
+5yr_public_support = sum(total_contributions[y] for y in window) + sum(exempt_function_income[y] for y in window) − total_excess
+  # NOTE: numerator includes both Line 1h (contributions) and Line 2g (PSR/exempt function
+  # income) per IRS Schedule A Part II Lines 1+2, minus excess contributions.
+  # Government grants (Line 1e) are included in total_contributions and are NOT
+  # subject to the 2% cap — they count as public support in full.
+5yr_total_support  = sum(total_support[y] for y in window)
 
 public_support_pct = 5yr_public_support / 5yr_total_support × 100
 ```
@@ -49,8 +89,11 @@ public_support_pct = 5yr_public_support / 5yr_total_support × 100
 - `≥ 33⅓%` → PASS bright-line test → check box Line 5 of Schedule A Part II
 - `≥ 10% AND < 33⅓%` → may still pass if facts-and-circumstances narrative is attached
   (community support, board diversity, etc.)  → check box Line 6 of Schedule A Part II
-- `< 10%` → FAILS 509(a)(1) test → check if 509(a)(2) applies instead; if not, flag Q-F4
-  NEEDS_UPDATE
+- `< 10%` → FAILS 509(a)(1) test → this does NOT automatically qualify the org for 509(a)(2).
+  An organization's public charity basis is determined by its IRS determination letter and
+  exempt-purpose activities, not by test results. Failing 509(a)(1) may trigger private
+  foundation reclassification. Surface advisory: "Public support below 10% — recommend
+  CPA review of private foundation reclassification risk." If Q-F4 flags, NEEDS_UPDATE.
 
 ### 509(a)(2) Worksheet (if public_charity_basis == "509(a)(2)")
 
@@ -165,6 +208,14 @@ Draft a Schedule O narrative covering (per Reg. §1.170A-9(f)(3)):
 4. Resources solicited from the general public, government, or broad public appeal
 5. Community use of facilities or services on a non-discriminatory basis
 
+**509(a)(2) facts-and-circumstances (10%–33⅓% range):** If a 509(a)(2) org falls in this range,
+a similar narrative is required. Emphasize:
+1. Breadth of public support from non-disqualified persons
+2. Public nature of program services (open to community beyond membership)
+3. Whether programs are available to the general public or restricted to members
+4. Evidence of community reliance on the org's services
+5. For membership-based orgs: explicitly state whether programs are open to non-members
+
 ---
 
 ## Schedule B — Schedule of Contributors
@@ -172,7 +223,9 @@ Draft a Schedule O narrative covering (per Reg. §1.170A-9(f)(3)):
 **Purpose.** List contributors who gave ≥ $5,000 (or ≥ 2% of total contributions, whichever
 is greater) during the tax year. Confidential — not for public inspection.
 
-**When triggered.** Part IV question about large contributions (typically Part IV Line 2).
+**When triggered.** Required for 501(c)(3) orgs filing Schedule A when contributions from any
+single contributor exceed the applicable threshold ($5,000 or 2% of total contributions,
+whichever is greater). Part IV Line 2 = "Yes" confirms Schedule B is required.
 
 ### Two-Output Contract (IRC §6104(d)(3)(A))
 
@@ -312,6 +365,22 @@ method of determining revenues (FMV / appraisal / other). Key categories:
 supplemental explanations the return references.
 
 **When generated.** Always (almost every return has at least one Part VI describe prompt).
+
+### Additional Schedule O Triggers (Beyond Part VI)
+
+Schedule O is also triggered by conditions in other Parts:
+
+| Source | Condition | Schedule O Content |
+|--------|-----------|-------------------|
+| Part III | Program description exceeds Part III space | Continue narrative in Schedule O |
+| Part V Line 3a | 501(h) lobbying election | Explain lobbying dollar amounts and activities |
+| Part V Line 7a | Foreign bank accounts | Explain countries and amounts |
+| Part IX Line 11g | Fees for services > 10% of Line 25 col A | List each fee type and amount |
+| Part IX Line 24e | Other expenses > 10% of Line 25 col A | List each other expense category and amount |
+| Part IX Line 26 | Joint costs reported | Describe SOP 98-2 allocation methodology |
+| Part X | Changes in net asset classification between BOY and EOY | Explain reclassifications |
+| Part XI | Reconciliation amounts differ from audited financials | Line-by-line explanation |
+| Part IV | Any "Yes" answer requiring Schedule O explanation | Varies per question |
 
 ### Required Narrative Sections
 
@@ -477,18 +546,19 @@ Functional Expense Allocation Methodology:
 3. Determine format: Part II (organizations/governments) or Part III (individuals)
 
 **Part III — Grants to US Individuals (aggregate format):**
-For competition-related youth assistance, scholarships, or similar individual grants,
+For individual grants, scholarships, or similar assistance,
 Schedule I Part III uses an aggregate table — individual recipient names are NOT required
-in the public filing (and should NOT be included to protect minor athletes/students).
+in the public filing (and should NOT be included to protect privacy).
 
 Aggregate template:
 ```
 | Type of grant or assistance | Number of recipients | Amount of cash grant | Amount of non-cash assistance | Method of valuation | Description |
 |---|---|---|---|---|---|
-| Competition fee assistance — individual athletes | [N] | $[total] | $0 | N/A | Fee subsidies paid on behalf of enrolled youth athletes |
-| Scholarship / tuition reduction | [N] | $[total] | $0 | N/A | Reduced participation fees for qualifying athletes per written criteria |
+| [Type of grant, e.g., "Tuition assistance"] | [N] | $[total] | $0 | N/A | [Description of purpose and eligibility criteria] |
+| [Type of grant, e.g., "Emergency financial aid"] | [N] | $[total] | $0 | N/A | [Description of program and selection criteria] |
 ```
-- Use generic descriptions (no individual names, no org-identifying dollar amounts)
+- Use generic descriptions (no individual names, no org-identifying details that would reveal
+  the specific organization's mission beyond what the IRS requires)
 - "Number of recipients" = headcount of individuals who received assistance during the year
 - Method of valuation: "N/A" for cash grants; "FMV" for non-cash goods
 - Grant selection criteria: document in Schedule O (written criteria required for Part I Line 1 = Yes)
