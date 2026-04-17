@@ -60,6 +60,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F24 | G3 | Part I Prior Year column sourced from filed prior return | always |
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
+| Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
 
 ---
 
@@ -225,6 +226,10 @@ for the tax year. Part V Line 2a (number of independent contractors paid >$100K)
 the count of 1099-NEC recipients in the 1099 register whose compensation exceeds $100K — not
 the total number of 1099s filed. These are distinct counts; conflating them overstates Line 2a
 for organizations with many small contractors.
+
+**Note on Form 1096:** Line 1a is W-2 count only — it does NOT include Form 1096. Form 1096
+is a separate transmittal form filed with the IRS alongside 1099-NECs/1099-MISCs. It is not
+reported on Part V at all, but must be filed by January 31 if any 1099s were issued.
 
 **Tier rationale (demoted G1→G2).** Tying these counts requires the payroll-provider export or
 1099 register — primary sources that may not be available until P1 discovery is complete. The
@@ -711,6 +716,39 @@ support calculation.]
 
 ---
 
+### Q-F27 — PSR Reconciles to Payment Processor 1099-K (Gate 2)
+
+**Purpose.** For organizations that receive card-based program service revenue (via Stripe,
+PushPress, Square, or similar payment processors), the gross PSR reported on Part VIII Line 2
+should reconcile to the payment processor's Form 1099-K gross transaction amount. Material
+discrepancies may indicate unreported revenue, misclassified income, or year-cutoff timing
+errors. This is the only third-party cross-check available for PSR — the largest single
+revenue line for membership-based nonprofits.
+
+**Trigger:** Applies when PSR includes card-based membership fees (i.e., a payment processor
+issues a Form 1099-K for the org's merchant account). Not triggered if PSR is entirely
+non-card (checks, ACH, cash).
+
+**Pass criteria:**
+- PSR (Part VIII Line 2 col A) reconciles to 1099-K gross transaction amount within 5%
+  tolerance (differences explainable by non-card revenue, adjustments, or year-cutoff timing)
+- OR: a Decision Log entry explains the discrepancy (e.g., "1099-K includes Jan 1–Dec 31
+  settled transactions; org fiscal year uses accrual basis with Dec 25 cut-off — $X in
+  settled-but-unearned fees excluded")
+- If 1099-K > reported PSR by more than 5%: investigate whether unreported revenue exists
+- If 1099-K is not available: create open question; P8 marks Q-F27 NEEDS_UPDATE until resolved
+
+**NEEDS_UPDATE example:**
+```
+Q-F27: NEEDS_UPDATE — PSR ($148,000) vs 1099-K gross ($162,000): $14,000 (8.6%) gap unexplained.
+[EDIT: Investigate $14K gap between PSR and 1099-K; check for unrecorded card transactions,
+timing differences, or misclassified revenue → P6 / Decision Log]
+[USER: The program service revenue doesn't match what the payment processor reported — I need
+to check whether some card transactions were recorded in a different category or period.]
+```
+
+---
+
 ## Convergence Loop (P8 Evaluation Protocol)
 
 ```
@@ -746,7 +784,7 @@ if pass == 5 and gate1_open:
 ```
 
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 
 ---

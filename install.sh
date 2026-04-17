@@ -133,6 +133,7 @@ main() {
         chmod +x "$REPO_DIR/tools/claude-router" 2>/dev/null || true
         chmod +x "$REPO_DIR/tools/claude-proxy" 2>/dev/null || true
         chmod +x "$REPO_DIR/tools/claude-shim" 2>/dev/null || true
+        chmod +x "$REPO_DIR/tools/llm-capabilities-mcp.js" 2>/dev/null || true
     fi
 
     # Symlink claude-router (used for Bedrock/Vertex — needs pre-launch env vars)
@@ -142,38 +143,51 @@ main() {
         echo -e "${GREEN}✅ Installed tool: claude-router${NC}"
     fi
 
-    # Symlink claude-proxy (long-running HTTP proxy; auto-spawned by the PATH shim)
+    # Symlink claude-proxy (long-running HTTP proxy; auto-spawned by claude-router for Ollama backends)
     if [ -x "$REPO_DIR/tools/claude-proxy" ]; then
         mkdir -p "$CLAUDE_DIR/tools"
         ln -sfn "$REPO_DIR/tools/claude-proxy" "$CLAUDE_DIR/tools/claude-proxy"
         echo -e "${GREEN}✅ Installed tool: claude-proxy${NC}"
     fi
 
-    # Install PATH shim: copy (not symlink) so it's runnable without repo traversal.
-    # Placed at ~/.claude/bin/claude — ahead of the real claude in PATH.
-    if [ -f "$REPO_DIR/tools/claude-shim" ]; then
-        mkdir -p "$CLAUDE_DIR/bin"
-        cp "$REPO_DIR/tools/claude-shim" "$CLAUDE_DIR/bin/claude"
-        chmod +x "$CLAUDE_DIR/bin/claude"
-        echo -e "${GREEN}✅ Installed PATH shim: ~/.claude/bin/claude${NC}"
+    if [ -x "$REPO_DIR/tools/llm-capabilities-mcp.js" ]; then
+        mkdir -p "$CLAUDE_DIR/tools"
+        ln -sfn "$REPO_DIR/tools/llm-capabilities-mcp.js" "$CLAUDE_DIR/tools/llm-capabilities-mcp"
+        echo -e "${GREEN}✅ Installed tool: llm-capabilities-mcp${NC}"
     fi
 
-    # Inject ~/.claude/bin into PATH (idempotent marker block).
+    # Remove legacy PATH shim: keep the vendor `claude` binary from PATH untouched.
+    if [ -f "$CLAUDE_DIR/bin/claude" ]; then
+        rm -f "$CLAUDE_DIR/bin/claude"
+        echo -e "${GREEN}✅ Removed legacy PATH shim: ~/.claude/bin/claude${NC}"
+    fi
+
+    # Remove old PATH injection marker block if present.
     # Uses ~/.zshenv (all zsh invocations incl. non-interactive) and ~/.bashrc (bash users).
-    inject_path_block() {
+    remove_path_block() {
         local rcfile="$1"
         local marker_start="# BEGIN claude-craft proxy shim (managed by install.sh)"
         local marker_end="# END claude-craft proxy shim"
-        if grep -qF "$marker_start" "$rcfile" 2>/dev/null; then
-            return 0   # already injected
-        fi
-        printf '\n%s\ncase ":$PATH:" in\n  *":$HOME/.claude/bin:"*) ;;\n  *) export PATH="$HOME/.claude/bin:$PATH" ;;\nesac\n%s\n' \
-            "$marker_start" "$marker_end" >> "$rcfile"
-        echo -e "${GREEN}✅ Added ~/.claude/bin to PATH in $rcfile${NC}"
+        [ -f "$rcfile" ] || return 0
+        python3 - "$rcfile" "$marker_start" "$marker_end" <<'PY'
+import pathlib
+import sys
+
+rcfile = pathlib.Path(sys.argv[1])
+start = sys.argv[2]
+end = sys.argv[3]
+text = rcfile.read_text()
+block = f"\n{start}\ncase \":$PATH:\" in\n  *\":$HOME/.claude/bin:\"*) ;;\n  *) export PATH=\"$HOME/.claude/bin:$PATH\" ;;\nesac\n{end}\n"
+updated = text.replace(block, "")
+if updated == text:
+    updated = text.replace(f"{start}\ncase \":$PATH:\" in\n  *\":$HOME/.claude/bin:\"*) ;;\n  *) export PATH=\"$HOME/.claude/bin:$PATH\" ;;\nesac\n{end}\n", "")
+if updated != text:
+    rcfile.write_text(updated)
+PY
+        echo -e "${GREEN}✅ Removed old ~/.claude/bin PATH shim block from $rcfile${NC}"
     }
-    inject_path_block "$HOME/.zshenv"
-    inject_path_block "$HOME/.bashrc"
-    echo -e "${YELLOW}⚠️  Run: exec \$SHELL   (or open a new terminal) to activate the claude shim${NC}"
+    remove_path_block "$HOME/.zshenv"
+    remove_path_block "$HOME/.bashrc"
 
     # Make uninstall script executable
     if [ -f "$REPO_DIR/uninstall.sh" ]; then
@@ -208,6 +222,10 @@ main() {
     echo -e "${YELLOW}🔧 Installing settings hooks...${NC}"
     install_settings_hooks
 
+    # Merge plugin hooks into settings.json so hook changes converge on rerun.
+    echo -e "${YELLOW}🔌 Merging plugin hooks (model-router uses PreToolUse only)...${NC}"
+    merge_plugin_hooks
+
     # Bootstrap / migrate model-map.json.
     # Source of truth: config/model-map.json in the repo (new backends+model_routes schema).
     # Migration: detect old schema (providers/session_rules/model_mappings keys) →
@@ -215,7 +233,7 @@ main() {
     local model_map="$CLAUDE_DIR/model-map.json"
     local default_map="$REPO_DIR/config/model-map.json"
     if [ -f "$model_map" ] && command -v jq >/dev/null 2>&1; then
-        if jq -e 'has("providers") or has("session_rules") or has("model_mappings")' "$model_map" >/dev/null 2>&1; then
+        if jq -e 'has("providers") or has("model_mappings") or ((has("backends") or has("model_routes") or has("routes")) | not)' "$model_map" >/dev/null 2>&1; then
             local bak="$model_map.bak.$(date +%Y%m%d%H%M%S)"
             cp "$model_map" "$bak"
             cp "$default_map" "$model_map"
@@ -282,12 +300,15 @@ main() {
     echo "  4. Check ~/.claude/backups/ if you need to restore anything"
     echo ""
     echo -e "${YELLOW}Model routing (transparent proxy):${NC}"
-    echo "  • claude                             — now routes automatically via ~/.claude/bin/claude shim"
-    echo "  • /model-map                         — manage model routing (add/remove routes)"
-    echo "  • tail ~/.claude/proxy.log           — troubleshoot proxy startup or routing issues"
+    echo "  • claude                             — uses the vendor Claude binary already on your PATH"
+    echo "  • ~/.claude/tools/claude-router      — optional wrapper for routed/proxied runs"
+    echo "  • ~/.claude/tools/llm-capabilities-mcp — local MCP server for review_plan/review_code"
+    echo "  • add ~/.claude/tools/llm-capabilities-mcp to .mcp.json to expose review_plan/review_code"
+    echo "  • /map-model                         — manage model routing and fallback strategies"
+    echo "  • tail ~/.claude/proxy.*.log         — troubleshoot proxy startup or routing issues"
     echo "  • pkill -f claude-proxy              — restart proxy after config edits"
     echo "  • CLAUDE_PROXY_BYPASS=1 claude ...   — bypass proxy for direct Anthropic access"
-    echo "  • claude-router --list               — Bedrock/Vertex routing (opt-in, use --route)"
+    echo "  • ~/.claude/tools/claude-router --list — list routes / local models (router)"
     echo ""
     echo -e "${YELLOW}💡 Uninstall anytime with:${NC} $REPO_DIR/uninstall.sh --dry-run"
     echo ""

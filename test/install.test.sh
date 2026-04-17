@@ -40,7 +40,9 @@ sed '/^# Run main installation/,$ d' "$REPO_DIR/install.sh" > "$TMP_SCRIPT"
 
 # ── Create a temp CLAUDE_DIR so path expansion in echoes is testable ──
 CLAUDE_DIR=$(mktemp -d /tmp/install-test-claude-XXXXXX)
-trap 'rm -rf "$CLAUDE_DIR"; rm -f "$TMP_SCRIPT"' EXIT
+TEST_HOME=$(mktemp -d /tmp/install-test-home-XXXXXX)
+trap 'rm -rf "$CLAUDE_DIR" "$TEST_HOME"; rm -f "$TMP_SCRIPT"' EXIT
+touch "$TEST_HOME/.zshenv" "$TEST_HOME/.bashrc"
 
 # ── Source the stripped script, stub all side effects, call main ──
 OUTPUT=$(bash -c "
@@ -52,7 +54,7 @@ OUTPUT=$(bash -c "
   verify_sync_script()       { :; }
   sync_extensions()          { :; }
   install_settings_hooks()   { :; }
-  merge_plugin_hooks()       { :; }
+  merge_plugin_hooks()       { echo '__MERGE_PLUGIN_HOOKS_CALLED__'; }
 
   # Stub git operations used in the update-path branch
   git() { return 0; }
@@ -60,6 +62,7 @@ OUTPUT=$(bash -c "
   # Wire in our temp dirs and strip ANSI color codes from output
   REPO_DIR='$REPO_DIR'
   CLAUDE_DIR='$CLAUDE_DIR'
+  HOME='$TEST_HOME'
   GREEN=''; YELLOW=''; RED=''; NC=''
 
   main
@@ -84,15 +87,23 @@ assert_contains \
 
 assert_contains \
   "proxy.log troubleshooting hint present" \
-  "$OUTPUT" "proxy.log"
+  "$OUTPUT" "proxy.*.log"
 
 assert_contains \
   "CLAUDE_PROXY_BYPASS escape hatch mentioned" \
   "$OUTPUT" "CLAUDE_PROXY_BYPASS=1"
 
 assert_contains \
-  "claude-router Bedrock/Vertex fallback still mentioned" \
-  "$OUTPUT" "claude-router --list"
+  "plugin hook merge step runs during install" \
+  "$OUTPUT" "__MERGE_PLUGIN_HOOKS_CALLED__"
+
+assert_contains \
+  "vendor claude remains on PATH" \
+  "$OUTPUT" "uses the vendor Claude binary already on your PATH"
+
+assert_contains \
+  "optional router path still mentioned" \
+  "$OUTPUT" "~/.claude/tools/claude-router --list"
 
 # Sanity: existing steps still present
 assert_contains \

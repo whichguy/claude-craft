@@ -449,12 +449,15 @@ Functional Expense Allocation Methodology:
 2. Identify domestic vs foreign split (foreign → Schedule F)
 3. Determine format: Part II (organizations/governments) or Part III (individuals)
 
-**Part III — Grants to US Individuals (aggregate format):**
+**Part III — Grants to US Individuals (aggregate format ONLY):**
 For competition-related youth assistance, scholarships, or similar individual grants,
-Schedule I Part III uses an aggregate table — individual recipient names are NOT required
-in the public filing (and should NOT be included to protect minor athletes/students).
+Schedule I Part III uses an aggregate table. **Individual recipient names and addresses
+are NOT required in Part III** — only the type of grant, number of recipients, and total
+cash grant amount. Do NOT include individual PII in Part III. Only Part II (grants to
+domestic organizations) lists specific grantees by name, EIN, and address.
 
-Aggregate template:
+This is confirmed by IRS instructions and FY2024 CPA precedent: "Scholarship to attend
+competitions, 23 recipients, $7,350" without any individual names.
 ```
 | Type of grant or assistance | Number of recipients | Amount of cash grant | Amount of non-cash assistance | Method of valuation | Description |
 |---|---|---|---|---|---|
