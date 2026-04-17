@@ -275,6 +275,11 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 
 **Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
 
+**PERSONA.md / PLAN-TEMPLATE.md §Persona sync:** `PERSONA.md` and `PLAN-TEMPLATE.md §Persona`
+are separate copies. When either changes, update the other. On `/form990 init`, compare the
+two sections; if they diverge, surface a warning: "PERSONA.md and PLAN-TEMPLATE.md §Persona
+have diverged — reconcile before proceeding."
+
 ---
 
 ## Form Discovery Directive
@@ -1168,6 +1173,7 @@ Valid keys in `key_facts{}`:
 | `donor_names` | string[] | Names of large donors (used by `scrub_pii()`); default `[]` |
 | `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
 | `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
+| `transition_from_ez` | boolean | `true` if the org filed Form 990-EZ (or 990-N) in the prior year and is now filing the full Form 990. Set at P0 after variant routing. Controls Prior Year column mapping strategy at P7. Default `false`. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 
@@ -1186,6 +1192,21 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 | `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
 | `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
 | `ca_sos_officers` | `[{name: string, title: string}]` \| null | Current officers/directors from CA Secretary of State discovery at P1 (WebSearch or local SI-100 PDF parse). null = CA org but discovery failed or not CA org. Consumed by board-change detector (P1) and Part VII Section A (P5). |
+
+### Directive: PAYMENT_PROCESSOR_1099K
+
+At P6 (Schedule A preparation) or P8 (CPA review), if PSR includes card-based membership
+fees (common for Stripe/PushPress/Square integrations):
+1. Search Drive for the prior year 1099-K from the payment processor
+2. Verify that PSR reconciles to the 1099-K gross transaction amount (differences should be
+   explainable by non-card revenue, adjustments, or year-cutoff timing; tolerance 5%)
+3. If 1099-K > reported PSR: investigate whether unreported revenue exists
+4. If 1099-K not available: create Open Question; mark Q-F27 NEEDS_UPDATE until resolved
+
+At P1, add `payment_processor_1099k` as an optional source artifact in the discovery checklist:
+"Export the Form 1099-K from your payment processor (Stripe, PushPress, Square, etc.) if
+card-based membership fees are a significant revenue source. Used to verify Part VIII Line 2
+(program service revenue) against third-party transaction data."
 
 ---
 
