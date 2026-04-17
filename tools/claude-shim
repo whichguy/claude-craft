@@ -1,12 +1,13 @@
 #!/bin/bash
-# claude-shim — transparent PATH shim for claude-proxy routing.
-# Installed as ~/.claude/bin/claude (ahead of real claude in PATH).
+# claude-shim — legacy transparent PATH shim for claude-proxy routing.
+# install.sh now copies tools/claude-router to ~/.claude/bin/claude instead (superset: routes,
+# model-map, proxy autostart). Kept for rollback or manual use.
 # Ensures the proxy is running, then exec's the real claude binary.
 #
 # Escape hatch: CLAUDE_PROXY_BYPASS=1 claude ... — skips proxy entirely.
 set -eo pipefail
 
-# Default: claude-proxy listens on 9999 (does NOT conflict with Ollama's 11434).
+# Default: claude-proxy listens on 11000 (does NOT conflict with Ollama's 11434).
 # If you want the Claude-compatible (Anthropic /v1/messages) interface on Ollama's
 # usual port, set CLAUDE_PROXY_USE_OLLAMA_PORT=1 and run Ollama on a different port.
 if [[ -n "${CLAUDE_PROXY_PORT:-}" ]]; then
@@ -14,7 +15,7 @@ if [[ -n "${CLAUDE_PROXY_PORT:-}" ]]; then
 elif [[ "${CLAUDE_PROXY_USE_OLLAMA_PORT:-0}" == "1" ]]; then
   PORT="11434"
 else
-  PORT="9999"
+  PORT="11000"
 fi
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 

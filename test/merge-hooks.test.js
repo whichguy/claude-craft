@@ -8,6 +8,7 @@ const util = require('util');
 const execAsync = util.promisify(exec);
 
 const MERGE_HOOKS = path.join(__dirname, '..', 'tools', 'merge-hooks.sh');
+const MODEL_ROUTER_PLUGIN = path.join(__dirname, '..', 'plugins', 'model-router');
 
 describe('Merge Hooks', function () {
     this.timeout(15000);
@@ -200,6 +201,45 @@ describe('Merge Hooks', function () {
                 g.hooks.some(h => h.command && h.command.includes('test-plugin'))
             );
             expect(pluginGroup).to.exist;
+        });
+    });
+
+    describe('model-router convergence', function () {
+        it('replaces old SessionStart model-router hooks with the current actionable hook set', async function () {
+            fs.rmSync(path.join(pluginsDir, 'test-plugin'), { recursive: true, force: true });
+            fs.symlinkSync(MODEL_ROUTER_PLUGIN, path.join(pluginsDir, 'model-router'));
+
+            fs.writeFileSync(settingsFile, JSON.stringify({
+                hooks: {
+                    SessionStart: [{
+                        matcher: '*',
+                        hooks: [{
+                            type: 'command',
+                            command: '~/.claude/plugins/model-router/handlers/session-model-capture.sh',
+                            timeout: 5,
+                        }],
+                    }],
+                },
+            }, null, 2));
+
+            await runMerge();
+            const settings = readSettings();
+
+            expect(settings.hooks.SessionStart || []).to.deep.equal([]);
+
+            const preToolHooks = settings.hooks.PreToolUse || [];
+            const pluginGroup = preToolHooks.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/model-router/handlers/model-router.sh')
+            );
+            expect(pluginGroup).to.exist;
+            expect(pluginGroup.matcher).to.equal('*');
+
+            const permissionHooks = settings.hooks.PermissionRequest || [];
+            const permissionGroup = permissionHooks.find(g =>
+                (g.hooks || []).some(h => h.command === '~/.claude/plugins/model-router/handlers/model-router.sh')
+            );
+            expect(permissionGroup).to.exist;
+            expect(permissionGroup.matcher).to.equal('*');
         });
     });
 });

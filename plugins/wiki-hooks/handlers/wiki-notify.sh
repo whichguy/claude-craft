@@ -121,14 +121,15 @@ if [ -f "$MARKER" ]; then
   fi
 fi
 
-# Exit when nothing concrete to surface — mandate alone adds no value without results
-[ -z "$CONTENT" ] && exit 0
-
-# Combine mandate + entity content; mandate prepended so it lands first in context.
+# Emit mandate when wiki is active (even without entity matches).
+# Entity content supplements the mandate but the mandate itself must always
+# be emitted to enforce WIKI_CHECK compliance.
 if [ -n "$WIKI_CHECK_REMINDER" ]; then
   ADDITIONAL_CONTEXT="$WIKI_CHECK_REMINDER${CONTENT:+$'\n\n'$CONTENT}"
-else
+elif [ -n "$CONTENT" ]; then
   ADDITIONAL_CONTEXT="$CONTENT"
+else
+  exit 0  # No mandate and no content — nothing to inject
 fi
 
 # Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
