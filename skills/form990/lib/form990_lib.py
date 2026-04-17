@@ -116,16 +116,17 @@ def scrub_pii(text: str, donor_names: list[str] | None = None) -> str:
         text,
     )
 
-    # 8. (C2) Street address: one or more digits + whitespace + title-cased words +
+    # 8. (C2) Street address: one or more digits + whitespace + words +
     #    street suffix. Preserve everything after the comma (city/state).
-    #    Pattern: start of string or whitespace, digits, space, words, suffix
+    #    Case-insensitive to handle "MAIN ST", "elm St", etc.
     _ADDR_SUFFIXES = (
         r'St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl|Pkwy|Hwy|Cir|Ter|Sq|Loop'
     )
     text = re.sub(
-        r'\b\d+\s+(?:[A-Z][a-z]*\s+)+(?:' + _ADDR_SUFFIXES + r')\b\.?',
+        r'\b\d+\s+(?:[A-Za-z]+\.?\s+)+(?:' + _ADDR_SUFFIXES + r')\b\.?',
         '[REDACTED-ADDR]',
         text,
+        flags=re.IGNORECASE,
     )
 
     return text
@@ -198,7 +199,9 @@ def _rotate_learnings(
         else archive_header
     )
     archive_path.write_text(
-        archive_text + "\n".join(overflow) + "\n", encoding="utf-8"
+        archive_text + f"\n--- Rotation batch {now_iso_date()} ---\n\n"
+        + "\n".join(overflow) + "\n",
+        encoding="utf-8",
     )
     new_inner = "\n".join(kept)
     new_text = (
@@ -233,8 +236,8 @@ def auto_append_learning(
     text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
     begin_idx = text.find(MACHINE_LEARNINGS_BEGIN)
     end_idx   = text.find(MACHINE_LEARNINGS_END)
-    if begin_idx == -1 or end_idx == -1:
-        return  # Delimiters missing — do not corrupt file
+    if begin_idx == -1 or end_idx == -1 or begin_idx >= end_idx:
+        return  # Delimiters missing or reversed — do not corrupt file
 
     inner = text[begin_idx + len(MACHINE_LEARNINGS_BEGIN) : end_idx]
     entries = [e for e in inner.strip().splitlines(keepends=True) if e.strip()]
@@ -374,10 +377,10 @@ def _render_plan_with_state(plan_path: pathlib.Path, state: dict) -> str:
     begin_idx = text.find(BEGIN)
     end_idx   = text.find(END)
 
-    if begin_idx == -1 or end_idx == -1:
+    if begin_idx == -1 or end_idx == -1 or begin_idx >= end_idx:
         raise ValueError(
-            f"MACHINE STATE markers not found in {plan_path} — "
-            "plan file may be corrupted"
+            f"MACHINE STATE markers invalid in {plan_path} — "
+            f"begin_idx={begin_idx}, end_idx={end_idx}"
         )
 
     # Everything after BEGIN marker up to the ``` opening fence, then JSON, then ``` closing fence
@@ -819,7 +822,19 @@ def merge_datasets(
 # ---------------------------------------------------------------------------
 
 # Allowlist of scripts run_script will invoke (absolute paths, populated at dispatch time).
-SCRIPT_ALLOWLIST: set[str] = set()
+_SCRIPT_ALLOWLIST: set[str] = set()
+
+def register_script(path: str) -> None:
+    """Add a script to the allowlist. Resolves to absolute path; rejects '..' traversal."""
+    abs_path = str(pathlib.Path(path).resolve())
+    if ".." in pathlib.PurePosixPath(abs_path).parts:
+        raise ValueError(f"rejected script path (traversal): {abs_path}")
+    _SCRIPT_ALLOWLIST.add(abs_path)
+
+def is_script_allowed(path: str) -> bool:
+    return str(pathlib.Path(path).resolve()) in _SCRIPT_ALLOWLIST
+
+SCRIPT_ALLOWLIST = _SCRIPT_ALLOWLIST  # backward compat
 
 # Per-phase wall-clock deadlines (Q-C34).
 PHASE_DEADLINES_S: dict[str, int] = {
@@ -891,7 +906,7 @@ def run_script(
     Scripts MUST accept --json-only flag (redirects debug prints to stderr).
     """
     abs_path = str(pathlib.Path(script_path).resolve())
-    if abs_path not in SCRIPT_ALLOWLIST:
+    if not is_script_allowed(abs_path):
         raise ScriptError(abs_path, -1, f"script not in SCRIPT_ALLOWLIST: {abs_path}")
 
     for a in args:
