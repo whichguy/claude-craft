@@ -1209,6 +1209,10 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 | `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
 | `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
 | `ca_sos_officers` | `[{name: string, title: string}]` \| null | Current officers/directors from CA Secretary of State discovery at P1 (WebSearch or local SI-100 PDF parse). null = CA org but discovery failed or not CA org. Consumed by board-change detector (P1) and Part VII Section A (P5). |
+| `required_schedules` | string[] | Schedule letters triggered by Part IV yes answers; populated at P4. Subset of `{A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,R}`. Schedule A always present for 501(c)(3) non-PF. |
+| `programmatic_scripts` | object[] | Tracks script invocations per phase. Schema: `{phase, purpose, script_path, sample_fixture, last_run, last_run_sha256_input, last_run_sha256_output, rows_processed, flags_count}`. |
+| `gate_results_latest_pass` | object | `{Q-Fid: "PASS"\|"NEEDS_UPDATE"\|"N/A"}` map from most recent P8 convergence pass. Populated by P8. Read by P9 Pre-check. |
+| `gate_pass_count` | number | Number of P8 convergence passes completed. Incremented per pass. |
 
 ---
 

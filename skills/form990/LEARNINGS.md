@@ -465,9 +465,9 @@ This leaves the prior year comparison columns blank on the printed reference PDF
 
 ---
 
-**Q-F25 (Gate-2) — Form 1096 Count Ties to Part V Line 1a**
+**Q-F25 (Gate-2) — ~~Form 1096 Count Ties to Part V Line 1a~~** *(Superseded — see QUESTIONS.md Q-F25 for current definition: Part V Line 2a entity-type filter)*
 
-Proposed definition:
+Original proposed definition (superseded by audit refinement):
 ```
 Trigger: Part V Line 2a (1099-NEC/MISC count) > 0
 Check: Part V Line 1a = the number on Box 3 of the corresponding Form 1096
@@ -581,7 +581,7 @@ can be posted (Part VI Line 18 "Own website" checkbox), (c) if no website, defau
 | ID | Tier | New/Extend | Description |
 |---|---|---|---|
 | Q-F24 | G3 | **NEW** | Part I Prior Year column populated from filed prior year return |
-| Q-F25 | G2 | **NEW** | Form 1096 count = Part V Line 1a; 1099s confirmed actually filed |
+| Q-F25 | G2 | **NEW** | Part V Line 2a entity-type filter (corps/LLCs excluded) |
 | Q-F26 | G2 | **NEW** | Entity donors >$5K checked for ≥35% board member ownership (DQ) |
 | Q-F18 | G3 | **EXTEND** | Part III must include quantified metrics (people served, outcomes) |
 | Q-F5 | G2 | **EXTEND** | 1099-NEC filing confirmation, not just count identification |

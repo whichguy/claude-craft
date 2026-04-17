@@ -546,11 +546,13 @@ For each budget row, apply the mapping methodology:
 | Revenue type | Part VIII line |
 |---|---|
 | Contributions / grants / gifts | Line 1 (a–h by source sub-type) |
-| Program service fees | Line 2 |
-| Membership dues | Line 3 |
-| Investment income | Line 4 |
-| Dividends / interest on investments | Line 4 |
-| Real estate / rental income | Line 5 |
+| Program service fees | Line 2 (a–g by program; Line 2g = total) |
+| Membership dues | Line 1b (membership dues assessed, NOT Line 3) |
+| Investment income (dividends, interest, other) | Line 3 (NOT Line 4) |
+| Income from tax-exempt bond proceeds | Line 4 |
+| Royalties | Line 5 |
+| Gross rental income | Line 6a (with 6a(i) real, 6a(ii) personal) |
+| Net rental income/loss | Line 6c (6a minus 6b) |
 | Gain/loss on asset sales | Line 7 |
 | Fundraising events (gross) | Line 8a |
 | Gaming | Line 9a |
@@ -571,19 +573,20 @@ For each budget row, apply the mapping methodology:
 | Grants to US orgs / governments | Line 1 |
 | Grants to US individuals | Line 2 |
 | Grants to foreign orgs / individuals | Line 3 |
+| Benefits paid to or for members | Line 4 |
 | Officer / key-employee compensation | Line 5 |
 | Compensation to disqualified persons (IRC §4958) | Line 6 |
 | Other salaries / wages | Line 7 |
 | Pension / retirement contributions | Line 8 |
 | Other employee benefits | Line 9 |
 | Payroll taxes | Line 10 |
-| Legal fees | Line 11a |
-| Accounting / auditing fees | Line 11b |
-| Lobbying / government affairs | Line 11c |
-| Professional fundraising services | Line 11d |
-| Investment management fees | Line 11e |
-| Management / IT consulting / other fees | Line 11f |
-| Other fees for services | Line 11g |
+| Management fees | Line 11a |
+| Legal fees | Line 11b |
+| Accounting / auditing fees | Line 11c |
+| Lobbying / government affairs | Line 11d |
+| Professional fundraising services | Line 11e |
+| Investment management fees | Line 11f |
+| Other fees for services (nonemployees) | Line 11g |
 | Advertising / promotion | Line 12 |
 | Office expenses / supplies | Line 13 |
 | Information technology | Line 14 |
@@ -678,7 +681,7 @@ assets figure derived from the COA mapping differs from P0's `gross_receipts_cur
 `total_assets_eoy`, re-run the variant decision tree per the P0 variant re-evaluation procedure.
 
 **Applicable Gates.** Q-F3 (functional columns sum), Q-F10 (ED allocation documented),
-Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5).
+Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5), Q-F19 (payroll tax source — commingling flag set at P2 determines Q-F19 applicability), Q-F28 (no disallowed negatives — revenue classification step at P2 Step 2 determines sign correctness).
 
 ---
 
@@ -753,7 +756,7 @@ If merchandise lines are present in the CoA mapping: verify COGS is flagged
 
 **Applicable Gates.** Q-F2 (big-square preview — not authoritative until P7 but flag early),
 Q-F3 (functional columns sum per row), Q-F11 (prior-year comparatives — BOY from prior 990),
-Q-F12 (fundraising expense non-zero if contributions > 0).
+Q-F12 (fundraising expense non-zero if contributions > 0), Q-F19 (payroll tax Line 10/7 ratio — first computed at P3 from functional expense matrix).
 
 ---
 
@@ -814,7 +817,8 @@ fully rebuilt from answers (no append).
 
 **Applicable Gates.** Q-F4 (proxy check only at P4: verify Schedule A is in `required_schedules[]`;
 full Q-F4 PASS requires P6 Schedule A generation — cannot fully pass at P4), Q-F8 (all Part IV
-questions answered or queued as open question; all `yes` answers added to `required_schedules[]`).
+questions answered or queued as open question; all `yes` answers added to `required_schedules[]`),
+Q-F21 (vendor >$10K insider-ownership check — [INSIDER_VENDOR_CHECK] directive runs at P4).
 
 ---
 
@@ -1261,7 +1265,7 @@ artifacts explicitly deleted (tracked via manifest inside `dataset_schedules.jso
 
 **Applicable Gates.** Q-F4 (Schedule A computation), Q-F8 (all required schedules present),
 Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (departed board members DQ
-status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F27 (payment processor 1099-K),
+status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F26 (corporate donor board-ownership check for 509(a)(2) — [ENTITY_DONOR_CHECK] directive runs at P6), Q-F27 (payment processor 1099-K),
 Q-F30 (Schedule B donor threshold completeness).
 
 ---

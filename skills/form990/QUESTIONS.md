@@ -61,7 +61,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 | Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
-| Q-F28 | G1 | No disallowed negative values | always |
+| Q-F28 | **G1** | No disallowed negative values | always |
 | Q-F29 | G1 | Part X balance sheet balances | always |
 | Q-F30 | G2 | Schedule B donor threshold completeness | if Schedule B triggered |
 
@@ -142,8 +142,8 @@ correct — only Checks 2 and 3 must hold in those cases.
 
 **NEEDS_UPDATE example:**
 ```
-Q-F2: NEEDS_UPDATE — Part I net revenue ($12,000) vs Part X net-assets change ($14,500): unexplained $2,500 delta.
-[EDIT: Re-examine Part X EOY vs BOY delta; identify source of $2,500 discrepancy; add
+Q-F2: NEEDS_UPDATE — Part XI Line 10 ($42,180) ≠ Part X Line 32 EOY ($39,950): unexplained $2,230 delta.
+[EDIT: Re-examine Part XI Lines 3, 4, and 10; identify source of discrepancy; add
 explanatory note to reconciliation-report.md and resolve in dataset_rollup.json → P7]
 [USER: The math doesn't close — your revenue minus expenses doesn't match the change in net
 assets. There's a $2,500 gap. I need to find where the discrepancy comes from before the
@@ -946,8 +946,8 @@ impossible negative values.
 **Trigger:** Always (all filers).
 
 **Lines where negative values are disallowed:**
-- Part VIII revenue sub-lines (1a–1g, 2, 3, 4, 5, 6, 8a–8c, 9a–9c, 10a, 11e): negative amounts
-  indicate a classification error (e.g., a refund that should reduce a different line)
+- Part VIII revenue sub-lines (1a–1f, 1g, 2a–2g, 3, 4, 5, 6a, 6b, 8a, 8b, 9a, 9b, 10a, 10b, 11a–11e):
+  negative amounts indicate a classification error (e.g., a refund that should reduce a different line)
 - Part VII Section A columns D, E, F (reportable compensation, other compensation, estimated
   other compensation): negative compensation is impossible
 - Part IX expense lines (1–25): negative expenses indicate a classification error
@@ -955,7 +955,10 @@ impossible negative values.
   depreciation on Line 23, which is a contra-asset and should be positive)
 
 **Lines where negative values ARE allowed:**
+- Part VIII Line 6c (net rental income/loss): rental losses are negative
 - Part VIII Line 7 (net gain/loss on sale of assets): losses are negative
+- Part VIII Line 8c (net fundraising income/loss): can be negative if expenses exceed gross
+- Part VIII Line 9c (net gaming income/loss): can be negative
 - Part VIII Line 10b (cost of goods sold): can exceed 10a if net is negative
 - Part XI Lines 5–9 (adjustments): prior-period and other adjustments can be negative
 - Part I Line 19 (revenue less expenses): negative indicates a deficit

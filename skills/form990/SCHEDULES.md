@@ -181,8 +181,10 @@ for members?" Record the answer in the Schedule O narrative.
 
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```
-5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / five_yr_total × 100
+5yr_investment_pct = sum(investment_income[T-4..T] + gross_unrelated_receipts[T-4..T]) / five_yr_total × 100
 ```
+Note: `gross_unrelated_receipts` = Schedule A Part III Line 3 (gross receipts from unrelated trade or
+business), NOT net UBTI. The IRS uses gross receipts for the 33⅓% test.
 
 **PASS if:** `public_support_pct ≥ 33⅓%` **AND** `5yr_investment_pct ≤ 33⅓%`
 
@@ -260,6 +262,14 @@ threshold = max(5000, 0.02 × total_contributions)
 
 reportable_contributors = [d for d in donor_list if d.amount >= threshold]
 ```
+
+**Special thresholds:**
+- Noncash contributions: If any single noncash contribution exceeds $5,000, Form 8283
+  (Noncash Charitable Contributions) may also be required. Note the amount on Schedule B
+  and flag in `open_questions` if Form 8283 has not been filed.
+- Foreign donors: Foreign organizations and foreign individuals contributing ≥ $5,000
+  must be listed with their foreign address. No additional threshold applies, but IRS
+  scrutiny is higher — verify EIN/foreign TIN or note "foreign" in the address field.
 
 For each reportable contributor: list Part I (name, address, total contribution, type).
 
