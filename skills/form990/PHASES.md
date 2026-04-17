@@ -247,7 +247,9 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
    Write **`key_facts`** (inside the key_facts object):
    `fiscal_year_start`, `fiscal_year_end`, `legal_name`, `ein`, `accounting_method`,
    `gross_receipts_current`, `gross_receipts_3yr_average`, `total_assets_eoy`,
-   `public_charity_basis`.
+   `public_charity_basis`, `transition_from_ez`.
+   Set `transition_from_ez = true` if variant is `990` and prior year was filed as `990-EZ`
+   or `990-N` (detected from `prior_990_analysis` or user input); otherwise `false`.
 6. If `variant == HALTED-PF`:
    - Write terminal breadcrumb: `"Halted: private foundation — file Form 990-PF (out of scope)"`
    - Render halt banner:
@@ -307,7 +309,7 @@ files are invisible to personal-OAuth MCP). Record found paths in machine state 
   Schedule A Line 16, and board-member comparison."
 - Note: IRS TEOS check at P1 may also retrieve this — if P1 TEOS succeeds, close OQ-prior-990-pdf.
 
-**c. Payroll / W-2 annual summary:**
+**c. Payroll / W-2 annual summary:** **[PAYROLL_GROSS directive]**
 - Check `artifacts/` for files matching: `*payroll*<tax_year>*.pdf`, `*w-2*<tax_year>*.pdf`,
   `*w2*<tax_year>*.pdf`, `*gusto*<tax_year>*.pdf`, `*wages*<tax_year>*.pdf`
 - If found: set `artifact_local_paths.payroll_w2_pdf = <absolute_path>`; breadcrumb path
@@ -408,7 +410,7 @@ payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, au
    │                            data. Evaluated by Q-F27 at P8.)
    ```
 
-**Prior year 990 TEOS check (P1):** Check apps.irs.gov/app/eos/ for the org's EIN.
+**Prior year 990 TEOS check (P1 — PRIOR_990_EXTRACT directive):** Check apps.irs.gov/app/eos/ for the org's EIN.
 If a prior filing exists:
 1. Download the most recent year's 990 PDF
 2. Extract and store as `prior_990_analysis` in machine state:
@@ -593,7 +595,9 @@ Prompt: "Does your bookkeeping show payroll taxes as a single combined deposit
   `payroll_tax_source = "combined_tiller"` in machine state; add open_questions
   entry requiring Gusto employer taxes summary before P5.
   If no Gusto column provided by P5 Pre-check → blocking halt per Q-F19.
-- If separate: proceed normally.
+- If separate (employer-only taxes confirmed available from Gusto/payroll provider): set
+  `payroll_tax_source = "separate_employer"` in machine state; use the employer-only
+  figure for Part IX Line 10. No halt needed.
 
 Note: If Tiller uses non-standard or user-renamed categories that don't match "Payroll Tax"
 literally, default to asking unconditionally: "Does your bookkeeping show payroll taxes as
@@ -844,6 +848,9 @@ If any grant, scholarship, or competition-assistance amount appears in the progr
 - Cross-check against prior year Schedule I (if `prior_990_analysis.schedule_i_methodology` is set):
   "Prior year used [methodology]. Use the same treatment unless org changed its policy."
 - Do NOT auto-commit classification. Create Open Question if ambiguous.
+- **For membership-based orgs:** Ask whether program services are open to non-members or
+  exclusively for members. This distinction affects Schedule A public benefit narrative and
+  the PSR vs. contributions classification. Record the answer for Schedule O.
 
 **Part V — Statements Regarding Other IRS Filings and Tax Compliance:**
 - Line 1a: number of W-2s filed (from payroll register if available; Open Question if not)
@@ -924,9 +931,15 @@ Highest-Compensated Employees:**
   have any outstanding credit card balances, loans, or accrued payables at year-end — including
   on personal cards used for org expenses?" Record any confirmed liabilities in Part X before
   copying from balance-sheet.md.
+- **Net asset classification pre-check:** Ask: "Does the organization have any temporarily restricted
+  or permanently restricted net assets (e.g., endowment funds, donor-restricted gifts, board-designated
+  funds with restrictions)?" If yes: require three-class breakdown (unrestricted / temporarily
+  restricted / permanently restricted) for both BOY and EOY columns. Lines 26–31 must be populated
+  with Line 29 = sum(Lines 26+27+28) and Line 33 = sum(Lines 30+31+32_col_B_subtotal). If no
+  restricted net assets: Lines 27, 28, 31 = $0; all net assets flow to unrestricted.
 - Lines 1–33: copy from `balance-sheet.md` (BOY + EOY columns)
 
-**BOY reconciliation check (after Tiller BOY is read from balance-sheet.md):**
+**BOY reconciliation check (BOY_RECONCILE_GATE directive — after Tiller BOY is read from balance-sheet.md):**
 
 If `key_facts.prior_year_990_eoy_net_assets` is not null AND differs from Tiller BOY:
 ```
@@ -1143,6 +1156,9 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 
 **Schedule B (if triggered):**
 - Collect donor names, amounts, addresses from `donor_list` artifact
+- **Populate `key_facts.donor_names`** from schedule B donor list: set
+  `key_facts.donor_names = schedule_b_donors.map(d => d.name)`. This enables
+  `scrub_pii()` to redact donor names in breadcrumbs written after P6.
 - Emit two files:
   - `artifacts/schedule-b-filing.md` — full names + addresses + amounts (IRS-only per IRC §6104(d)(3)(A))
   - `artifacts/schedule-b-public.md` — `"Anonymous"` for names, addresses stripped, amounts kept
@@ -1222,7 +1238,7 @@ Part I Line 18 = dataset_core.parts.IX["line_25_total_expenses"]
 Part I Line 22 = dataset_core.parts.X["line_32_eoy_net_assets"]
 ```
 
-**Part I Prior Year column (populate immediately after current-year rollup):**
+**Part I Prior Year column (PART_I_PRIOR_YEAR directive — populate immediately after current-year rollup):**
 If `prior_990_analysis` is populated in machine state, auto-fill the Prior Year column:
 ```
 Part I Line 8  Prior Year = prior_990_analysis.contributions        (Part VIII Line 1h)

@@ -61,6 +61,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F25 | G2 | Part V Line 2a entity-type filter (corps/LLCs excluded) | 1099-NEC filers present |
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 | Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
+| Q-F28 | G2 | No disallowed negative values | always |
 
 ---
 
@@ -301,6 +302,10 @@ Section B covers the five highest-compensated independent contractors (>$100K).
   include pre-tax deductions (health insurance, 401k, FSA) that reduce Box 1 only if they
   are IRC §125 or §401(k) exclusions; verify gross-to-net reconciliation. If Tiller or
   bookkeeping data shows net payroll deposits, do not use deposits as Part IX Line 7.
+- **Section B completeness:** Five highest-compensated independent contractors (>$100K) are listed
+  in Part VII Section B with name, address, EIN/SSN, and compensation amount. Each contractor's
+  compensation ties to the 1099-NEC source within $1. If fewer than 5 qualify, all who qualify
+  are listed. No contractor earning >$100K is omitted.
 
 **Common mistakes:**
 - Listing only compensated officers and omitting unpaid board members (all officers/directors
@@ -335,6 +340,8 @@ Part I Line 22 = Part X Line 32 EOY (net assets/fund balances)
 
 **Pass criteria:**
 - All four equalities hold to the dollar (no tolerance)
+- Part VIII Line 1h = sum(Lines 1a + 1b + 1c + 1d + 1e + 1f) within $1 rounding
+- Part VIII Line 12 = sum(Lines 1h + 2 + 3 + ... + 11e) within $1 rounding
 - `dataset_rollup.json` `parts.I` values are sourced from `dataset_core.json` line references
   (not manually entered)
 - `reconciliation.delta_match == true`
@@ -651,6 +658,10 @@ served, how many hours of programming, or any specific events. The IRS wants con
 numbers. I'll add headcount, hours, and competition details.]
 ```
 
+**Note on evaluation:** "Well-written" means ALL explicit checklist items are satisfied.
+PASS requires every checklist item (headcount, hours, named events, etc.) to be present.
+The gate title is shorthand for completeness, not a subjective quality judgment.
+
 ---
 
 ### Q-F19 — Payroll Tax Artifact: Part IX Line 10 / Line 7 Ratio (Gate 2)
@@ -702,6 +713,9 @@ require disclosure.
 - If mismatch: Part XI Line 9 (prior-period adjustment) is non-zero AND a Schedule O entry
   explains the adjustment (nature, amount, corrected period)
 - If this is the first year of filing: BOY = 0 is acceptable with a Schedule O note
+- **Liability completeness advisory:** If Part X Line 17 (total liabilities) = $0 and the org
+  has known credit card balances, loans, or accrued payables, verify all liabilities are captured.
+  A $0 liabilities line on a non-trivial balance sheet is a red flag for missing obligations.
 
 **NEEDS_UPDATE example:**
 ```
@@ -887,9 +901,9 @@ discrepancies may indicate unreported revenue, misclassified income, or year-cut
 errors. This is the only third-party cross-check available for PSR — the largest single
 revenue line for membership-based nonprofits.
 
-**Trigger:** Applies when PSR includes card-based membership fees (i.e., a payment processor
-issues a Form 1099-K for the org's merchant account). Not triggered if PSR is entirely
-non-card (checks, ACH, cash).
+**Trigger:** Applies when `payment_processor_1099k` artifact exists in machine state OR
+when PSR (Part VIII Line 2) is classified as card-based membership fees (Stripe, PushPress,
+Square, or similar). Not triggered if PSR is entirely non-card (checks, ACH, cash).
 
 **Pass criteria:**
 - PSR (Part VIII Line 2 col A) reconciles to 1099-K gross transaction amount within 5%
@@ -907,6 +921,47 @@ Q-F27: NEEDS_UPDATE — PSR ($148,000) vs 1099-K gross ($162,000): $14,000 (8.6%
 timing differences, or misclassified revenue → P6 / Decision Log]
 [USER: The program service revenue doesn't match what the payment processor reported — I need
 to check whether some card transactions were recorded in a different category or period.]
+```
+
+---
+
+### Q-F28 — No Disallowed Negative Values (Gate 2)
+
+**Purpose.** Several Form 990 lines prohibit negative amounts. Entering a negative value on a
+revenue line, compensation column, or other disallowed line will cause e-file rejection or
+trigger IRS correspondence. This gate catches data-entry and classification errors that produce
+impossible negative values.
+
+**Trigger:** Always (all filers).
+
+**Lines where negative values are disallowed:**
+- Part VIII revenue sub-lines (1a–1f, 2, 3, 4, 5, 8a–8c, 9a–9c, 10a, 11e): negative amounts
+  indicate a classification error (e.g., a refund that should reduce a different line)
+- Part VII Section A columns D, E, F (reportable compensation, other compensation, estimated
+  other compensation): negative compensation is impossible
+- Part IX expense lines (1–25): negative expenses indicate a classification error
+- Part X asset and liability lines: negative values indicate sign errors (except accumulated
+  depreciation on Line 23, which is a contra-asset and should be positive)
+
+**Lines where negative values ARE allowed:**
+- Part VIII Line 7 (net gain/loss on sale of assets): losses are negative
+- Part XI Lines 5–9 (adjustments): prior-period and other adjustments can be negative
+- Part I Line 19 (revenue less expenses): negative indicates a deficit
+
+**Pass criteria:**
+- No disallowed negative values exist in the dataset
+- Any negative value on a disallowed line has been flagged and corrected (reclassified or zeroed)
+- Negative values on allowed lines are documented in a Decision Log entry
+
+**NEEDS_UPDATE example:**
+```
+Q-F28: NEEDS_UPDATE — Part VIII Line 1a (individual contributions) shows -$1,580; negative
+contributions are not allowed on sub-lines.
+[EDIT: Reclassify -$1,580 as a donation reversal that reduces Line 1h total, not a negative
+sub-line entry; update dataset_core.json → P5 / Part VIII]
+[USER: Individual contributions shows a negative number (-$1,580). This is likely a donation
+refund or reversal — I'll reclassify it as a reduction to total contributions rather than
+a negative sub-line, which the IRS doesn't allow on this line.]
 ```
 
 ---
@@ -946,7 +1001,7 @@ if pass == 5 and gate1_open:
 ```
 
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F28
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 
 ---

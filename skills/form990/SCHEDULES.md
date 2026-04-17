@@ -126,6 +126,14 @@ public_support_pct = public_support_5yr / five_yr_total * 100
 > with annual total support below $500K, the $5,000 floor always applies (1% < $5,000),
 > making Line 7b = $0.
 
+**Public benefit narrative for membership-based orgs:** For organizations where membership
+fees constitute a significant portion of public support (PSR in Line 2), document whether
+program services are open to the broader community (not just members). This distinction
+affects both the 509(a)(2) public support calculation and any facts-and-circumstances narrative.
+Programs restricted to members only may weaken the public benefit argument; programs open
+to the community strengthen it. Ask: "Are your programs open to non-members, or exclusively
+for members?" Record the answer in the Schedule O narrative.
+
 **Prong 2 — Investment/unrelated income ≤ 33⅓%:**
 ```
 5yr_investment_pct = sum(investment_income[T-4..T] + UBTI[T-4..T]) / five_yr_total × 100
@@ -311,6 +319,25 @@ For each Part VI question that says "If Yes, describe in Schedule O":
 - Reference the specific Part + Line (e.g., "Schedule O re: Part VI, Line 6 — How are
   voting members of the governing body elected or selected?")
 - Provide a substantive narrative (not just a sentence)
+
+### Common Part VI "Describe in Schedule O" Triggers
+
+| Line | If "Yes" | If "No" |
+|------|----------|----------|
+| 2 | Describe any changes to governing documents (bylaws, articles) | — |
+| 6 | Describe how voting members are elected/selected | — |
+| 8 | List related organizations (name, EIN, relationship) | — |
+| 11b | Describe the process used to review the Form 990 before filing | — |
+| 12a | Describe conflict-of-interest policy | — |
+| 12b | Describe how COI policy is monitored | — |
+| 12c | Describe how COI policy is enforced | — |
+| 13 | Describe whistleblower policy (or explain absence) | Describe why no whistleblower policy |
+| 14 | Describe document retention/destruction policy (or explain absence) | Describe why no document retention policy |
+| 15a/b | Describe compensation review process for CEO and key employees | — |
+| 15c | List persons compensated >$100K who are not listed in Part VII Section A | — |
+| 17 | Describe financial statement basis and audit/review | — |
+| 18 | Describe how governing documents and Form 990 are made available to the public | — |
+| 19 | Describe how governing documents are made available | — |
 
 ### Standard Sections (always include for most organizations):
 

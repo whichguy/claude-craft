@@ -649,6 +649,10 @@ ARTIFACT_DEPS = {
     "schedule_o":        {"phase": "P6", "upstream": ["dataset_core"]},
     "schedule_b_filing": {"phase": "P6", "upstream": ["dataset_core"]},
     "schedule_b_public": {"phase": "P6", "upstream": ["dataset_core"]},
+    # Per-letter schedule artifacts follow the convention:
+    # "schedule_<letter>": {"phase": "P6", "upstream": ["dataset_core"]}
+    # for each letter in required_schedules[] (A, D, G, I, L, M, R, etc.)
+    # These are produced by SCHEDULES.md playbooks but tracked by convention, not listed individually.
     # P7 outputs
     "dataset_rollup":      {"phase": "P7",       "upstream": ["dataset_core"]},
     "reconciliation_report": {"phase": "P7",     "upstream": ["dataset_core"]},
@@ -1182,7 +1186,7 @@ Fields stored at the top level of machine state (siblings of `key_facts`, not in
 |---|---|---|
 | `tax_year` | string | 4-digit filing year |
 | `form_variant` | `"990"` \| `"990-EZ"` \| `"990-N"` \| `"HALTED-PF"` \| `"HALTED-CHURCH"` | Determined at P0 variant routing |
-| `payroll_tax_source` | `"combined_tiller"` \| `"gusto_register"` \| null | Set at P2 payroll commingling check. `"combined_tiller"` triggers blocking halt at P3 Pre-check until Gusto employer taxes are provided. null = not yet evaluated. |
+| `payroll_tax_source` | `"combined_tiller"` \| `"separate_employer"` \| null | Set at P2 payroll commingling check. `"combined_tiller"` = employer + employee taxes commingled in single Tiller line, triggers P3 Pre-check halt until Gusto employer taxes provided. `"separate_employer"` = Gusto employer-only taxes confirmed available separately. null = not yet evaluated (no payroll lines encountered, or P2 not yet run). |
 | `skill_root` | string | Absolute path to skill install directory. Set by Step 0.0; non-nullable after P0. |
 | `prior_990_analysis` | object \| null | Extracted from TEOS or operator-provided prior year 990 PDF at P1. Schema: `{eoy_net_assets: number\|null, schedule_a_line15_pct: number\|null, board_members: [{name, title, hours}], schedule_i_methodology: "part_ii"\|"part_iii"\|null, contributions: number\|null, program_service_rev: number\|null, total_revenue: number\|null, total_expenses: number\|null}`. null = no prior filing available or TEOS inaccessible. |
 | `artifact_local_paths` | object | Absolute paths to locally-copied source documents found in `artifacts/` at P0 pre-scan. Keys: `prior_990_pdf` (string\|null), `payroll_w2_pdf` (string\|null), `ca_sec_state_pdf` (string\|null). Populated at P0 step 8b; consumed by P1 (skip Drive searches for already-found docs), P3 (payroll source), P6 (CA governance). |
