@@ -52,7 +52,7 @@ try:
         # Merger
         merge_datasets,
         # Subprocess runner
-        run_script, ScriptError, SCRIPT_ALLOWLIST, PHASE_DEADLINES_S,
+        run_script, ScriptError, register_script, PHASE_DEADLINES_S,
         # Error enum
         ERROR_CLASSES,
         # Sweep helpers (public aliases)
@@ -408,7 +408,7 @@ def tc10(args):
 
 # ---------------------------------------------------------------------------
 # TC11 — run_script() error classes (Change 3)
-# Uses: run_script, ScriptError, SCRIPT_ALLOWLIST from form990_lib (A2)
+# Uses: run_script, ScriptError, register_script from form990_lib (A2)
 # ---------------------------------------------------------------------------
 
 def tc11(args):
@@ -423,7 +423,7 @@ def tc11(args):
     unparse = str(SCRIPTS / "unparseable.py")
 
     for p in [good, bad, err_j, timeout, unparse]:
-        SCRIPT_ALLOWLIST.add(str(pathlib.Path(p).resolve()))
+        register_script(str(pathlib.Path(p).resolve()))
 
     failures = []
 
@@ -881,7 +881,8 @@ def tc20(args):
         skip_(tc, "TC20: C2 not yet landed — phone rules absent")
         return
     # Import golden constants
-    sys.path.insert(0, str(FIXTURES))
+    if str(FIXTURES) not in sys.path:
+        sys.path.insert(0, str(FIXTURES))
     try:
         from golden import (
             PII_INPUT_SSN, PII_EXPECTED_SSN,
@@ -889,6 +890,8 @@ def tc20(args):
             PII_INPUT_PHONE, PII_EXPECTED_PHONE,
             PII_INPUT_EMAIL, PII_EXPECTED_EMAIL,
             PII_INPUT_ADDR, PII_EXPECTED_ADDR,
+            PII_INPUT_ADDR_UPPER, PII_EXPECTED_ADDR_UPPER,
+            PII_INPUT_ADDR_LOWER, PII_EXPECTED_ADDR_LOWER,
             PII_INPUT_DOB, PII_EXPECTED_DOB,
         )
     except ImportError:
@@ -899,6 +902,8 @@ def tc20(args):
     assert_equal(tc, scrub_pii(PII_INPUT_PHONE), PII_EXPECTED_PHONE, "TC20-PHONE")
     assert_equal(tc, scrub_pii(PII_INPUT_EMAIL), PII_EXPECTED_EMAIL, "TC20-EMAIL")
     assert_equal(tc, scrub_pii(PII_INPUT_ADDR), PII_EXPECTED_ADDR, "TC20-ADDR")
+    assert_equal(tc, scrub_pii(PII_INPUT_ADDR_UPPER), PII_EXPECTED_ADDR_UPPER, "TC20-ADDR-UPPER")
+    assert_equal(tc, scrub_pii(PII_INPUT_ADDR_LOWER), PII_EXPECTED_ADDR_LOWER, "TC20-ADDR-LOWER")
     assert_equal(tc, scrub_pii(PII_INPUT_DOB), PII_EXPECTED_DOB, "TC20-DOB")
     if tc not in RESULTS:
         pass_(tc)
@@ -914,7 +919,8 @@ def tc21(args):
     if not _require_lib(tc): return
 
     # Import golden constants from fixtures/golden.py
-    sys.path.insert(0, str(FIXTURES))
+    if str(FIXTURES) not in sys.path:
+        sys.path.insert(0, str(FIXTURES))
     try:
         from golden import DONOR_NAME_JANE, PII_INPUT_DONOR_WB, PII_EXPECTED_DONOR_WB
     except ImportError as e:
@@ -938,7 +944,8 @@ def tc22(args):
     tc = "TC22"
     if not _require_lib(tc): return
 
-    sys.path.insert(0, str(FIXTURES))
+    if str(FIXTURES) not in sys.path:
+        sys.path.insert(0, str(FIXTURES))
     try:
         from golden import PII_INPUT_DONOR_EMPTY, PII_EXPECTED_DONOR_EMPTY
     except ImportError as e:
@@ -999,7 +1006,8 @@ def tc24(args):
     tc = "TC24"
     if not _xfail_guard(tc, "B2"): return
     if not _require_lib(tc): return
-    sys.path.insert(0, str(FIXTURES))
+    if str(FIXTURES) not in sys.path:
+        sys.path.insert(0, str(FIXTURES))
     try:
         from golden import (
             SUPPORT_5YR_TOTAL, ONE_PCT_CAP_COMPUTED, ONE_PCT_FLOOR_APPLIED,
@@ -1048,7 +1056,8 @@ def tc25(args):
     tc = "TC25"
     if not _xfail_guard(tc, "B1"): return
     if not _require_lib(tc): return
-    sys.path.insert(0, str(FIXTURES))
+    if str(FIXTURES) not in sys.path:
+        sys.path.insert(0, str(FIXTURES))
     try:
         from golden import LINE_8_CONTRIBUTIONS, LINE_12_TOTAL_REVENUE
     except ImportError as e:

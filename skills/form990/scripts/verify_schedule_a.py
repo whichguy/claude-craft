@@ -175,15 +175,20 @@ def main(dataset_path: str) -> int:
             line_6_yr = float(line_6.get(yr, 0) or 0)
             cap_yr = max(LINE_7B_FLOOR, line_6_yr * 0.01)
             line_7b_yr = float(line_7b.get(yr, 0) or 0)
-            # Line 7b for a year should be: max(0, PSR_from_non_dq - cap)
-            # We only verify it doesn't EXCEED total non-DQ PSR for that year minus the cap;
-            # since we don't have raw per-year PSR by source, we check line_7b[yr] <= line_2_psr[yr]
             line_2_yr = float(section_a.get("line_2_related_activities_psr", {}).get(yr, 0) or 0)
+            # Upper-bound: Line 7b <= total non-DQ PSR (aggregate sanity)
             within_bounds = line_7b_yr <= line_2_yr + TOLERANCE_USD
+            # Tighter upper-bound: Line 7b <= max(0, line_2_psr - cap_yr)
+            # Reason: the max possible line_7b occurs when a single non-DQ person
+            # accounts for all of line_2_psr; their excess = max(0, psr - cap).
+            # With multiple persons each below cap, line_7b = 0 (still passes).
+            max_excess = max(0.0, line_2_yr - cap_yr)
+            within_cap_bound = line_7b_yr <= max_excess + TOLERANCE_USD
+            ok_yr = within_bounds and within_cap_bound
             log(tag, f"  {yr}: Line6={fmt(line_6_yr)} cap={fmt(cap_yr)} "
-                     f"Line7b={fmt(line_7b_yr)} Line2={fmt(line_2_yr)} | "
-                     f"{'✓' if within_bounds else '✗'}")
-            if not within_bounds:
+                     f"Line7b={fmt(line_7b_yr)} Line2={fmt(line_2_yr)} max_excess={fmt(max_excess)} | "
+                     f"{'✓' if ok_yr else '✗'}")
+            if not ok_yr:
                 line_7b_ok = False
 
         ok = check_bool(

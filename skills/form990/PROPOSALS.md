@@ -32,7 +32,7 @@ are PII — they must not appear in plan file breadcrumbs, Decision Log entries,
 that flows into the public 990 narrative sections. The `schedule-b-filing.md` artifact is
 marked `confidential: true` in the artifact metadata.
 
-**4. Officer-donors:** Wiese Family address (and any other officer-donors) can come from
+**4. Officer-donors:** officer-donor address (and any other officer-donors) can come from
 the Articles of Incorporation, CA SOS filing, or the prior-year return signature block.
 Do NOT ask the user for their own address — extract it from source documents first.
 
@@ -133,7 +133,7 @@ the org is NOT a first-year filer — they have a prior return. The instruction 
 
 | Option | Description | Risk |
 |--------|-------------|------|
-| A | Leave blank + Schedule O note: "Prior year filed on Form 990-EZ; column mapping not provided due to form structure differences" | Defensible; Paula Wallin may prefer this |
+| A | Leave blank + Schedule O note: "Prior year filed on Form 990-EZ; column mapping not provided due to form structure differences" | Defensible; prior-year CPA may prefer this |
 | B | Attempt line mapping: 990-EZ Part I Line 9 (total revenue) → 990 Part I Line 12; 990-EZ Part I Line 17 (total expenses) → 990 Part I Line 18; etc. | Moderate — some lines map cleanly, others don't |
 | C | Ask user to provide prior-year figures or confirm Option A | Safest; defers to user/CPA judgment |
 
