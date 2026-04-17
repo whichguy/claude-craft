@@ -242,6 +242,14 @@ Frame intake questions in plain language; define IRS terms inline; offer "not su
 4. Record the specific threshold comparison in the Decision Log (e.g.,
    `"GR $210k ≥ $200k → full 990"` or
    `"GR $180k < $200k AND TA $650k ≥ $500k → full 990 (total-assets prong failed)"`)
+
+**Variant re-evaluation:** If `gross_receipts_current` or `total_assets_eoy` changes after P0
+(e.g., user corrects a number at P2 or P5), re-run the variant decision tree. If the variant
+changes (e.g., 990 → 990-EZ or 990-EZ → 990), update `form_variant` and `transition_from_ez`
+in machine state, log the change in the Decision Log, and invalidate all downstream phases
+per the Regression Rollback Protocol (SKILL.md §Regression Rollback Protocol). This is a
+structural change — it affects which schedules are required and which form template to use at P9.
+
 5. Write **top-level machine state** (siblings of `key_facts`, NOT inside it):
    `tax_year`, `form_variant`, `skill_root`.
    Write **`key_facts`** (inside the key_facts object):
