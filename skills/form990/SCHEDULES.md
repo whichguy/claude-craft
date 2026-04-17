@@ -67,6 +67,9 @@ For each year y in [T-4, T-3, T-2, T-1, T]:
   # contributions against the 2% threshold. The excess is the amount by which a single
   # donor's 5-year total exceeds the threshold.
   for each donor d:
+    # Exclude government-entity donors from the 2% cap entirely
+    # (IRS Schedule A Part II Line 5b: government grants are not subject to excess computation)
+    if donor_type[d] == "government_entity": skip this donor entirely
     donor_5yr_total[d] = sum(donor_contributions[d][y] for y in [T-4..T])
     donor_excess[d]    = max(0, donor_5yr_total[d] − two_pct_threshold)
 

@@ -1060,8 +1060,8 @@ re-run the variant decision tree per the P0 variant re-evaluation procedure.
 
 **Applicable Gates.** Q-F5 (W-2/1099 count ties — Gate 2; Open Question if payroll register
 missing), Q-F6 (Part VII compensation ties to source docs), Q-F18 (Part III program
-accomplishments substantive), Q-F19 (source doc cross-ties), Q-F20 (BOY = prior EOY),
-Q-F21 (functional expense cross-tie), Q-F28 (no disallowed negative values),
+accomplishments substantive), Q-F19 (payroll tax Line 10/7 ratio), Q-F20 (BOY = prior EOY),
+Q-F21 (vendor insider-ownership check), Q-F28 (no disallowed negative values),
 Q-F29 (Part X balance sheet balances).
 
 ---
@@ -1256,8 +1256,8 @@ files rewritten. Schedules removed from `required_schedules[]` between runs have
 artifacts explicitly deleted (tracked via manifest inside `dataset_schedules.json`).
 
 **Applicable Gates.** Q-F4 (Schedule A computation), Q-F8 (all required schedules present),
-Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (Schedule A public support
-test computation), Q-F23 (Schedule B donor addresses), Q-F27 (payment processor 1099-K),
+Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (departed board members DQ
+status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F27 (payment processor 1099-K),
 Q-F30 (Schedule B donor threshold completeness).
 
 ---
@@ -1390,13 +1390,13 @@ same inputs → byte-identical output (E3 verified).
 
 **Applicable Gates.** Q-F2 (big square closes — blocking; delta_match must be true), Q-F7
 (Part I ties to downstream parts), Q-F24 (Part I Prior Year column sourced from filed prior
-return), Q-F25 (Part XI reconciliation), Q-F26 (Part X balance check).
+return), Q-F29 (Part X balance sheet balances).
 
 ---
 
 ## P8 — CPA Quality Review Pass
 
-**Goal.** Run the full Q-F1..Q-F26 catalog with the CPA Reviewer persona. Convergence loop
+**Goal.** Run the full Q-F1..Q-F30 catalog with the CPA Reviewer persona. Convergence loop
 with max 5 passes. Gate-1 unresolved after 5 passes → halt + AskUserQuestion.
 
 **Inputs.** Everything: all prior artifacts, key facts, all phase outputs.
@@ -1420,7 +1420,7 @@ pass = 0
 memoized = {}
 
 while pass < 5:
-    evaluate Q-F1..Q-F26 applicable to current state (CPA Reviewer persona)
+    evaluate Q-F1..Q-F30 applicable to current state (CPA Reviewer persona)
     update gate_results_latest_pass, increment gate_pass_count
 
     for each NEEDS_UPDATE:
@@ -1649,7 +1649,7 @@ All documents produced by the skill, organized by audience and purpose.
 | Document | File | Notes |
 |---|---|---|
 | Reference filled PDF | `artifacts/form990-reference-filled.pdf` | Visual copy of the completed return; review every part |
-| CPA quality review report | `artifacts/cpa-review-report.md` | All 26 Q-F gate results; all Gate-1 must show PASS |
+| CPA quality review report | `artifacts/cpa-review-report.md` | All 30 Q-F gate results; all Gate-1 must show PASS |
 | CPA preparation memo | `artifacts/cpa-memo-fy<tax_year>.md` | Explains methodology, non-obvious decisions, open items |
 | E-file handoff packet | `artifacts/efile-handoff-packet.md` | Filing instructions, provider options, CA companion filings |
 

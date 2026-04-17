@@ -1,6 +1,6 @@
 # Form 990 Skill — CPA Quality Gate Catalog
 
-**Q-F1..Q-F28** in three tiers. Import this file into every Q-F evaluation pass;
+**Q-F1..Q-F30** in three tiers. Import this file into every Q-F evaluation pass;
 do not duplicate definitions in other files.
 
 Gate output contract:
