@@ -769,6 +769,11 @@ Q-F12 (fundraising expense non-zero if contributions > 0).
 3. `need-info` → create Open Question with the specific information needed
 4. `yes` → add corresponding schedule letter to `required_schedules[]`
 5. Schedule A is ALWAYS added for 501(c)(3) non-PF regardless of Part IV answers
+6. **Insider vendor check (INSIDER_VENDOR_CHECK directive):** For each vendor paid >$10,000
+   in the year (from CoA mapping), explicitly ask: "Does any current or former officer,
+   director, trustee, or key employee of [org] have a direct or indirect ownership interest
+   ≥ 35% in [vendor name]?" Do not default to No. If YES → Part IV Line 28a = Yes;
+   Schedule L Part IV required. Create Open Question if unknown.
 
 **Schedule triggers (common, not exhaustive — runtime-enumerate from PDF):**
 - Sch A: always (501(c)(3) public charity)
@@ -1092,7 +1097,7 @@ re-computing risks a mismatch with the filed return that triggers IRS scrutiny.
 - If TEOS extraction succeeded: use `prior_990_analysis.schedule_a_line15_pct` verbatim.
 - If prior 990 not available from TEOS or operator: create Open Question; do not leave blank.
 
-**Entity donor DQ ownership check (P6 — run during Schedule A prep, before finalizing Line 7a):**
+**Entity donor DQ ownership check (P6 — ENTITY_DONOR_CHECK directive):**
 For each non-individual donor (business entity, LLC, foundation, DAF) that contributed
 more than $5,000 in ANY of the 5-year Schedule A window, ask:
 "Does any current or former officer, director, trustee, or key employee of [org] have a
@@ -1104,6 +1109,13 @@ direct or indirect ownership interest ≥ 35% in [entity name]?"
   mark Q-F26 NEEDS_UPDATE until resolved
 This is distinct from the individual DQ check and the insider vendor check — it
 specifically addresses corporate and entity donors.
+
+**DQ persistence check (DQ_PERSISTENCE_CHECK directive):** Before computing Line 7a, cross-check
+departed board members. Any person who left the board during the current year but was a substantial
+contributor (gave >$5,000 AND >2% of cumulative contributions in any of the 5-year window) must
+remain on the DQ exclusion list. Leaving the board does NOT remove DQ status under IRC §4946.
+Add Schedule O note for each such person: "[Name] left the board in [year] but remains a
+disqualified person as a substantial contributor under IRC §4946."
 
 **Schedule A DQ cross-check (run after computing Line 7a):**
 After computing the DQ exclusion (Line 7a), verify: for every person listed in Part VII
@@ -1120,7 +1132,7 @@ Flag any board member donation NOT in Line 7a as a potential DQ classification e
 - Collect every Part VI "describe in Schedule O" placeholder from P5
 - For each: draft a narrative with the user or from governance documents
 - Include: functional expense allocation methodology (Q-F17)
-- **Disclosure accuracy check (Part VI Line 18):** When populating the public availability
+- **Disclosure accuracy check (DISCLOSURE_ACCURACY directive — Part VI Line 18):** When populating the public availability
   statement, verify:
   (a) Any named third-party website is still active (GuideStar → Candid in 2022; use
       candid.org or apps.irs.gov as fallbacks)
