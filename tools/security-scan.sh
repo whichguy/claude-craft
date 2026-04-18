@@ -203,8 +203,8 @@ scan_memory_files() {
     echo
     
     if [ ! -d "$MEMORY_PATH" ]; then
-        echo -e "${RED}❌ Memory path not found: $MEMORY_PATH${NC}"
-        return 1
+        echo -e "${YELLOW}  ⚠ Skipping non-memory path: $MEMORY_PATH${NC}"
+        return 0
     fi
     
     # Find and scan all markdown files
