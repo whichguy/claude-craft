@@ -26,8 +26,19 @@ proxy_health_unhealthy_summary() {
   jq -r '
     [
       (.backends // {}) | to_entries[] | .value |
-      select(.managed == true and (.state == "degraded" or .state == "disconnected" or .state == "recovering")) |
+      select(.managed == true and (.state == "degraded" or .state == "disconnected")) |
       "\(.backend_id) (\(.state))"
+    ] | .[:3] | join(", ")
+  ' "$file" 2>/dev/null
+}
+
+proxy_health_recovering_summary() {
+  local file="$1"
+  jq -r '
+    [
+      (.backends // {}) | to_entries[] | .value |
+      select(.managed == true and .state == "recovering") |
+      "\(.backend_id)"
     ] | .[:3] | join(", ")
   ' "$file" 2>/dev/null
 }
