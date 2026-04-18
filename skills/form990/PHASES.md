@@ -687,6 +687,8 @@ Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5), 
 
 ## P3 — Financial Statement Production [PROG]
 
+**Scripts used:** `{SKILL_ROOT}/scripts/verify_part_ix_columns.py` (Q-F3 functional column arithmetic), `{SKILL_ROOT}/scripts/verify_all.py` (aggregate runner).
+
 **Goal.** Produce Statement of Activities, Balance Sheet (BOY + EOY), and Functional Expense
 matrix from the CoA mapping.
 
@@ -823,6 +825,8 @@ Q-F21 (vendor >$10K insider-ownership check — [INSIDER_VENDOR_CHECK] directive
 ---
 
 ## P5 — Core Parts (III, V, VI, VII, VIII, IX, X, XI, XII)
+
+**Scripts used:** `{SKILL_ROOT}/scripts/verify_part_iii.py` (Q-F18/Q-F3: Part III program service accomplishments completeness).
 
 **Goal.** Fill every core-form line into `dataset_core.json`. Part I is declared as a
 structural placeholder (null) — populated by P7.
@@ -1076,6 +1080,8 @@ Q-F29 (Part X balance sheet balances).
 
 ## P6 — Schedule Generation [PROG: Schedule A]
 
+**Scripts used:** `{SKILL_ROOT}/scripts/verify_schedule_a.py` (Q-F4/Q-F11/Q-F23: 509(a)(2) public-support test arithmetic).
+
 **Goal.** Produce every triggered schedule. Schedule A always; Schedule O nearly always.
 P6 writes only `dataset_schedules.json` plus per-schedule markdown — never touches `dataset_core.json`.
 
@@ -1271,6 +1277,8 @@ Q-F30 (Schedule B donor threshold completeness).
 ---
 
 ## P7 — Part I Rollup & Reconciliation + Deterministic Merge
+
+**Scripts used:** `{SKILL_ROOT}/scripts/verify_big_square.py` (Q-F2: Part I big-square reconciliation).
 
 **Goal.** Compute Part I from Parts VIII/IX/X; verify the big square closes; run the
 deterministic merger to produce the consumable `form990-dataset.json`.
@@ -1474,6 +1482,8 @@ Write `artifacts/cpa-review-report.md` with full Q-F results after each pass.
 ---
 
 ## P9 — Reference PDF Fill + E-file Handoff Packet
+
+**Scripts used:** `{SKILL_ROOT}/scripts/verify_all.py` (aggregate runner — verifies all phase outputs before PDF fill).
 
 **Goal.** Fetch the current-year Form 990 PDF, fill it as a reference artifact, assemble
 the e-file handoff packet.

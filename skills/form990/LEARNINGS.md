@@ -4,6 +4,11 @@ Append-only observations and recent-run notes. Each entry: date + phase + findin
 Populated after each substantive run. Analogous to the `learningsText` injection idiom
 from `ideate-system-prompt/SKILL.md §learningsText`.
 
+**Size budget:** Human journal target ≤ 500 lines. When the human section exceeds this,
+archive entries dated before the current calendar quarter to `LEARNINGS-ARCHIVE.md` and
+leave a single summary line referencing the archive file.
+Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not edit directly).
+
 ---
 
 ## 2026-04-11 — Initial skill build
