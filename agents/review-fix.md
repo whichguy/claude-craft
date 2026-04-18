@@ -500,11 +500,23 @@ If on default branch, create temp branch: `review-fix/YYYYMMDD-HHMMSS`
 
 ### Step 5b: Stage and Commit
 
+Pre-flight index check: before staging reviewed files, inspect the current index for entries NOT in the agent's reviewed file list:
+```bash
+git diff --cached --name-status
 ```
-commit_mode == "commit": stage all target_files with changes (implementation + fixes)
-commit_mode == "pr": stage only files_changed (fix corrections only)
+If any `R` (rename), `D` (delete), or `A` (add) entries exist that are not in `files_changed`:
+- Collect them as `pre_staged_entries`
+- Include them in the commit (do not unstage)
+- Add a breadcrumb to the commit message: `Pre-staged entries from caller included: <list of paths>`
+
+This preserves `git mv` / `git rm` operations staged by the caller before invoking review-fix, which would otherwise be silently dropped by per-file staging.
+
+```
+commit_mode == "commit": stage all target_files with changes (implementation + fixes) + include pre_staged_entries
+commit_mode == "pr": stage only files_changed (fix corrections only) + include pre_staged_entries
 
 git commit -m "review-fix: <task_name>: apply corrections ([N] critical, [M] advisory)
+[If pre_staged_entries non-empty]: Pre-staged entries from caller: <list>
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
