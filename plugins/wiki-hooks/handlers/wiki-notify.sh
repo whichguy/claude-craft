@@ -44,7 +44,7 @@ if [ "${WIKI_SKIP:-}" != "1" ]; then
   WIKI_CHECK_REMINDER="<wiki_grounding_required>
 REQUIRED: Before planning, tasking, researching, debugging, or answering project-domain questions, load wiki entries from ${WIKI_REL}/index.md via /wiki-load <topic>. The wiki records decisions and conventions that contradict what the code appears to do at face value — skipping it produces plausible-but-wrong plans.
 
-Compliance: in your first response, name the wiki entries you consulted and quote one relevant sentence from each. If none apply after scanning the index, state \"wiki/index.md scanned — no relevant entries\" and name 2-3 index entries you considered.
+Compliance: in your first response, name the wiki entries you consulted and quote one relevant sentence from each. If none are relevant, proceed silently — do not mention the wiki.
 
 Do not rationalize past this with \"execution-only session\", \"I already know the code\", or \"this is a trivial change\". Escape valve for read-only review sessions: set WIKI_SKIP=1 in the shell hosting Claude Code.
 </wiki_grounding_required>"
