@@ -390,6 +390,93 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
+
+       # ── TRIVIAL fast-path: lightweight senior-engineer pass ──
+       # Single-pass, single critic (Sonnet), no loop, no consolidator.
+       # Narrower lens than SMALL: scope honesty + verification quality
+       # are primary; POST_IMPLEMENT alignment secondary (only if plan
+       # touches code). TRIVIAL plans often have no git lifecycle section.
+       Print: "  Senior review  running…"
+       sr_path = "/tmp/.review-plan-sr-trivial-${plan_slug}.md"
+
+       # Stale-plan guard (mirrors PR #154 idiom at 3 other sites) — the plan
+       # may have drifted between Step 0 Read and this 2nd Task spawn.
+       _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+       IF _current_sha != plan_sha_at_read:
+           Print: "  ⚠ plan file changed since initial read — re-reading before senior-critic spawn"
+           Re-read plan_path fully
+           plan_sha_at_read = _current_sha
+
+       Task(subagent_type = "general-purpose",
+            model = "sonnet",
+            description = "TRIVIAL senior-engineer critic",
+            prompt = """
+         You are a senior-engineer critic performing a single-pass holistic
+         review of a TRIVIAL-tier implementation plan (typically a 1-file,
+         additive-only doc/config/data change).
+
+         Read the plan at <plan_path> in full.
+         Read ~/.claude/CLAUDE.md for directives.
+
+         Your job is NOT to re-run per-question evaluation. Catch what
+         per-question evaluators cannot:
+           1. Scope honesty (PRIMARY): is the scope statement accurate
+              about what actually changes? Does a "1-file doc update"
+              actually touch only one file and only docs?
+           2. Verification quality (PRIMARY): do the verification steps
+              actually verify the claimed property, or are they vacuous
+              (e.g. "file exists" when the claim is "content is correct")?
+           3. POST_IMPLEMENT alignment (SECONDARY — only if the plan
+              touches code): does the plan's commit/PR story match
+              CLAUDE.md POST_IMPLEMENT?
+
+         For each critique, cite the source: CLAUDE.md directive or file
+         path + line range. If you can't cite it, mark it as advisory. Do
+         not fabricate citations.
+
+         Write your full critique as markdown to <sr_path> using the Write
+         tool. Do not print it to your response — the team-lead reads the
+         file.
+
+         Format of <sr_path> contents:
+           # SR Critic — TRIVIAL fast-path
+           VERDICT: STABLE | REVISED
+           ## Critiques
+           1. [critique text] — see: [citation]
+              [EDIT: old_string → new_string]
+           2. ...
+         If VERDICT=STABLE, write just the verdict line + a one-paragraph
+         rationale, no critiques.
+
+         Do not use Edit/Bash tools — you may only Read and Write. Return
+         'done' in your chat response after writing the file.
+       """)
+
+       # Wait for Task to finish, then read its output and apply edits.
+       sr_result = Read(sr_path)
+       sr_verdict = parse "VERDICT: (STABLE|REVISED)" from sr_result
+
+       IF sr_verdict == "REVISED":
+           # Extract and apply [EDIT: old → new] blocks (same pattern as SMALL/Phase 5c).
+           edits = parse all "[EDIT: <old_string> → <new_string>]" blocks from sr_result
+           applied = 0
+           skipped = []
+           FOR edit in edits:
+               TRY:
+                   Edit(plan_path, old_string=edit.old, new_string=edit.new)
+                   applied += 1
+               EXCEPT:
+                   # Track mismatches so drift is visible instead of silent.
+                   skipped.append(edit.old[:60] + "…")
+           IF skipped:
+               Print: "  Senior review  REVISED — {applied}/{len(edits)} edit(s) applied, {len(skipped)} skipped (old_string drift)"
+               FOR s in skipped:
+                   Print: f"    · skipped: {s}"
+           ELSE:
+               Print: "  Senior review  REVISED — {applied} edit(s) applied"
+       ELSE:
+           Print: "  Senior review  STABLE — no changes"
+
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
@@ -579,6 +666,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Print: "  Senior review  running…"
        sr_path = "/tmp/.review-plan-sr-small-${plan_slug}.md"
 
+       # Stale-plan guard (mirrors PR #154 idiom at 3 other sites) — the plan
+       # may have drifted between Step 0 Read and this 2nd Task spawn.
+       _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+       IF _current_sha != plan_sha_at_read:
+           Print: "  ⚠ plan file changed since initial read — re-reading before senior-critic spawn"
+           Re-read plan_path fully
+           plan_sha_at_read = _current_sha
+
        Task(subagent_type = "general-purpose",
             model = "sonnet",
             description = "SMALL senior-engineer critic",
@@ -628,13 +723,21 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        IF sr_verdict == "REVISED":
            # Extract and apply [EDIT: old → new] blocks (same pattern as Phase 5c).
            edits = parse all "[EDIT: <old_string> → <new_string>]" blocks from sr_result
+           applied = 0
+           skipped = []
            FOR edit in edits:
                TRY:
                    Edit(plan_path, old_string=edit.old, new_string=edit.new)
+                   applied += 1
                EXCEPT:
-                   # Skip silently if old_string not found (plan may not match exactly)
-                   PASS
-           Print: "  Senior review  REVISED — {len(edits)} edit(s) applied"
+                   # Track mismatches so drift is visible instead of silent.
+                   skipped.append(edit.old[:60] + "…")
+           IF skipped:
+               Print: "  Senior review  REVISED — {applied}/{len(edits)} edit(s) applied, {len(skipped)} skipped (old_string drift)"
+               FOR s in skipped:
+                   Print: f"    · skipped: {s}"
+           ELSE:
+               Print: "  Senior review  REVISED — {applied} edit(s) applied"
        ELSE:
            Print: "  Senior review  STABLE — no changes"
 
