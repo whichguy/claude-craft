@@ -1507,7 +1507,7 @@ run_background_ollama_prep_sweep() {
       ensure_ollama_running "$model" "$cli_host" "$cli_key" "sweep" "$backend_id" "$capabilities"
     done <<< "$grouped_sweep"
     claude_router_debug_event "ollama sweep result count=$count"
-  ) >/dev/null &
+  ) >/dev/null 2>&1 &
   disown 2>/dev/null || true
 }
 
