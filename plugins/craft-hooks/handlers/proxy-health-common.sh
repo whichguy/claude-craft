@@ -26,7 +26,7 @@ proxy_health_unhealthy_summary() {
   jq -r '
     [
       (.backends // {}) | to_entries[] | .value |
-      select(.managed == true and (.state == "degraded" or .state == "disconnected")) |
+      select(.managed == true and (.state == "degraded" or .state == "disconnected") and .backend_id != null) |
       "\(.backend_id) (\(.state))"
     ] | .[:3] | join(", ")
   ' "$file" 2>/dev/null
@@ -37,7 +37,7 @@ proxy_health_recovering_summary() {
   jq -r '
     [
       (.backends // {}) | to_entries[] | .value |
-      select(.managed == true and .state == "recovering") |
+      select(.managed == true and .state == "recovering" and .backend_id != null) |
       "\(.backend_id)"
     ] | .[:3] | join(", ")
   ' "$file" 2>/dev/null
@@ -48,7 +48,12 @@ proxy_health_recent_heal() {
   local max_age_ms="${2:-900000}"
   jq -r --argjson now_ms "$(date +%s000)" --argjson max_age_ms "$max_age_ms" '
     .last_transition as $lt |
-    if ($lt.to // "") == "healthy" and (($lt.at_ms // 0) > 0) and (($now_ms - $lt.at_ms) <= $max_age_ms) then
+    if ($lt.to // "") == "healthy"
+       and (($lt.at_ms // 0) > 0)
+       and (($now_ms - $lt.at_ms) <= $max_age_ms)
+       and ($lt.backend_id != null)
+       and ($lt.at != null)
+    then
       "\($lt.backend_id)@\($lt.at)"
     else
       ""
