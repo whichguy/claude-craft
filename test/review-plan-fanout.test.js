@@ -991,4 +991,67 @@ describe('Review-Plan Task Fan-Out', function () {
             }
         });
     });
+
+    describe('SMALL-tier REMOVAL intent questions (Phase 3b)', function () {
+        const benchDir = path.join(__dirname, '..', 'skills', 'review-plan', 'inputs', 'bench');
+
+        it('SKILL.md defines SMALL fast-path REMOVAL intent questions block with sonnet model', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            expect(idx, 'SMALL fast-path: REMOVAL intent questions block not found').to.be.greaterThan(0);
+            const block = skillContent.substring(idx, idx + 3000);
+            expect(block).to.match(/model.*=.*["']sonnet["']/);
+        });
+
+        it('SMALL REMOVAL Guard 2 uses list-anchored removal-detection grep (not naive full-file grep)', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            // Grep must scope to list-item lines (anchored to ^/whitespace + list marker)
+            expect(block).to.include('delete|remove|replace');
+            // Must anchor to line-start + list marker (prevents false positives from prose)
+            expect(block).to.match(/\^.*\[-\*0-9\]|\^\[.*:space.*\].*\[-\*0-9\]/);
+        });
+
+        it('SMALL REMOVAL Guard 3 respects intent_questions: false opt-out', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            expect(block).to.match(/intent_questions.*false|false.*intent_questions/i);
+        });
+
+        it('SMALL REMOVAL Guard 4 skips bench/test/fixture paths', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            expect(block).to.include('fixtures/');
+        });
+
+        it('SMALL REMOVAL Guard 5 checks VCS tracking (ls-files --error-unmatch)', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            expect(block).to.include('ls-files --error-unmatch');
+        });
+
+        it('SMALL REMOVAL Guard 6 skips append when task returns NO_REMOVAL_QUESTIONS', function () {
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            expect(block).to.include('NO_REMOVAL_QUESTIONS');
+        });
+
+        it('SMALL REMOVAL block is NOT spawned for additive-only plans (no removal markers → skip)', function () {
+            // The block must have a skip path when _removal_hit is empty and no frontmatter removals
+            const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
+            const block = skillContent.substring(idx, idx + 3000);
+            // Skip path must exist before the Task spawn
+            const taskIdx = block.indexOf('description = "SMALL removal intent questions"');
+            const skipIdx = block.indexOf('additive-only plan');
+            expect(skipIdx, 'additive-only skip comment not found').to.be.greaterThan(0);
+            expect(skipIdx).to.be.lessThan(taskIdx);
+        });
+
+        it('bench-small-removal.md fixture exists and contains list-item removal step', function () {
+            const fixturePath = path.join(benchDir, 'bench-small-removal.md');
+            expect(fs.existsSync(fixturePath), 'bench-small-removal.md not found').to.be.true;
+            const content = fs.readFileSync(fixturePath, 'utf-8');
+            // Must contain a removal verb on a list-item line (Guard 2 target)
+            expect(content).to.match(/^\s*\d+\.\s+.*\b(remove|delete)\b/im);
+        });
+    });
 });

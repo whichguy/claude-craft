@@ -741,6 +741,81 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        ELSE:
            Print: "  Senior review  STABLE — no changes"
 
+       # ── SMALL fast-path: REMOVAL intent questions ──
+       # Extracts 1–5 concise removal-verification questions for plans that intentionally
+       # delete or replace code. All guards must fire BEFORE the Task spawn.
+
+       # Guard 1 — tier (explicit, even though we are already inside IF REVIEW_TIER == SMALL)
+       # Guard 2 — removal-detection gate: only list-item lines, not prose mentions
+       _removal_hit = Bash(
+         "grep -EinI '^[[:space:]]*[-*0-9].*\\b(delete|remove|replace[[:space:]].+[[:space:]]with)\\b|^[[:space:]]*[-*0-9].*~~.+~~' '${plan_path}' 2>/dev/null | head -1"
+       ).stdout.strip()
+       IF _removal_hit == "":
+         _frontmatter_removal = Bash("grep -c '^removals:' '${plan_path}' 2>/dev/null || echo 0").stdout.strip()
+         IF _frontmatter_removal == "0":
+           # No removal markers on list-item lines → additive-only plan; skip block
+           → Proceed to step 8 (interactive completion prompt).
+
+       # Guard 3 — opt-out: honour intent_questions: false (same frontmatter key as Phase 5c.5)
+       _intent_opt_out = Bash("grep -cE '^intent_questions:[[:space:]]*(false|no)' '${plan_path}' 2>/dev/null || echo 0").stdout.strip()
+       IF _intent_opt_out != "0":
+         → Proceed to step 8 (interactive completion prompt).
+
+       # Guard 4 — fixture guard: skip bench/test/fixture paths
+       IF plan_path matches any of "test/fixtures/", "wiki/fixtures/", "*-bench/inputs/", "skills/*/fixtures/":
+         → Proceed to step 8 (interactive completion prompt).
+
+       # Guard 5 — VCS: tracked files render to terminal; untracked files append to plan
+       _rq_is_tracked = Bash("git -C $(dirname '${plan_path}') ls-files --error-unmatch '${plan_path}' 2>/dev/null && echo tracked || echo untracked").stdout.strip()
+
+       Print: "  Removal Qs  running…"
+       _rq_path = "/tmp/.review-plan-rq-small-${plan_slug}.md"
+       Task(subagent_type = "general-purpose",
+            model = "sonnet",
+            description = "SMALL removal intent questions",
+            prompt = """
+         Read the plan at <plan_path>.
+         The plan contains at least one intentional code removal (a function deletion,
+         variable removal, or behavioral replacement that eliminates existing code).
+
+         Generate 1–5 concise REMOVAL intent questions for a post-implementation reviewer:
+           - Cite the specific function/variable names being removed from the plan.
+           - Focus on: was the removal intentional? Are all call sites updated?
+             Are dependent tests removed or updated? Are there hidden consumers?
+           - Do NOT generate additive questions — omit anything about what was added.
+           - If the plan is purely additive (no removals found), output NO_REMOVAL_QUESTIONS.
+
+         Write your output to <rq_path> using the Write tool. Format:
+           ## Removal Intent Questions
+           1. [question]
+           2. [question]
+           ...
+         Or if no removals apply:
+           NO_REMOVAL_QUESTIONS
+
+         Do not print to chat — write the file only.
+       """)
+
+       # Guard 6 — parse/empty fallback: skip append/render on no-op output
+       TRY:
+         _rq_result = Read(_rq_path)
+       EXCEPT:
+         _rq_result = "NO_REMOVAL_QUESTIONS"
+       IF "NO_REMOVAL_QUESTIONS" in _rq_result OR _rq_result.strip() == "":
+         → Proceed to step 8 (interactive completion prompt).
+
+       IF _rq_is_tracked == "tracked":
+         # Tracked plan file: render to terminal so file stays clean for diff/review
+         Print: "  ── REMOVAL INTENT QUESTIONS ──────────────────────────────────"
+         Print: _rq_result
+         Print: "  ──────────────────────────────────────────────────────────────"
+       ELSE:
+         # Untracked plan file: append questions for reviewer to act on
+         _plan_last_line = last non-empty line of Read(plan_path)
+         Edit(plan_path,
+              old_string = _plan_last_line,
+              new_string = _plan_last_line + "\n\n" + _rq_result)
+
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
