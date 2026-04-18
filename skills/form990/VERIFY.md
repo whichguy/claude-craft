@@ -218,7 +218,7 @@ in the test (deterministic timestamps, fake sha256 `"a" * 64`, relative artifact
 **Covers:** `SCRIPT_ALLOWLIST`, null-byte/path-traversal arg rejection, timeout kill+wait,
 non-zero exit with structured error-JSON, JSON parse failure.
 
-**Fixtures (in `tests/fixtures/scripts/`):**
+**Fixtures (in `tests/fixtures/harness-scripts/`):**
 - `good_script.py` — emits `{"ok": true}` on stdout, exit 0.
 - `bad_stderr.py` — prints traceback-like text to stderr, exits 1.
 - `error_json.py` — emits `{"status":"error","error_class":"TestError","error_message":"x"}`, exits 1.
