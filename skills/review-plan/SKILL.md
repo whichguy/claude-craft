@@ -20,7 +20,7 @@ allowed-tools: all
 2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
-5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review --commit` uses to catch intent-to-code drift.
+5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review-fix` uses to catch intent-to-code drift.
 6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 concrete improvements to the review-plan skill itself — distinct from plan-level retrospective actions. Output renders as a terminal `SKILL LEARNINGS` panel before cleanup.
 
 ---
@@ -3657,7 +3657,7 @@ ELIF NOT _phase_5b5_skip:
 5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
 
    Extract plan-specific questions that verify the code actually implements what the plan claims.
-   These become the POST_IMPLEMENT verification contract for `/review --commit`.
+   These become the POST_IMPLEMENT verification contract for `/review-fix`.
 
    **Parallel dispatch note:** 5c.5 (`intent_task`) and 5g Step 1 (`skill_task`) are dispatched in
    a single message — no dependency between them. See pre-dispatch block at end of code block below.
@@ -3699,7 +3699,7 @@ ELIF NOT _phase_5b5_skip:
        Read the plan at <plan_path> in full.
 
        Generate 5–15 SPECIFIC, VERIFIABLE questions that the plan's implementer
-       (or /review --commit at POST_IMPLEMENT time) must answer YES against the
+       (or /review-fix at POST_IMPLEMENT time) must answer YES against the
        code diff. NOT generic quality questions — intent-to-code traceability
        questions from THIS plan's specific claims.
 
@@ -3797,9 +3797,9 @@ ELIF NOT _phase_5b5_skip:
    [same format]
    ```
 
-   **Coupling with /review (POST_IMPLEMENT):**
-   No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
-   so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
+   **Coupling with `/review-fix` (POST_IMPLEMENT):**
+   No changes to `/review-fix` — it already accepts the `plan_summary` parameter and reads the plan file,
+   so the `## Implementation Intent Questions` section is automatically visible to it.
 
    **Parallel dispatch block (5c.5 + 5g Step 1 — single message):**
    After processing `intent_task` output above, also compute `spawn_skill_task` for 5g Step 1
@@ -4306,13 +4306,13 @@ confirm the learning is still valid against the current content, then apply the 
    ```
    IF Rating == READY:
      AskUserQuestion(
-       question = "Plan is READY — all checks pass. Proceed to implementation, or make further changes?",
-       options = ["Exit to implementation", "Continue editing"]
+       question = "Plan is READY — all checks pass. Exit plan mode, or keep editing?",
+       options = ["Exit plan mode", "Continue editing"]
      )
    IF Rating == SOLID or GAPS:
      AskUserQuestion(
-       question = "Plan has [N] non-blocking issue(s). Proceed to implementation anyway, or continue editing?",
-       options = ["Exit to implementation (proceed with warnings)", "Continue editing"]
+       question = "Plan has [N] non-blocking issue(s). Exit plan mode anyway, or keep editing?",
+       options = ["Exit plan mode (with warnings)", "Continue editing"]
      )
    IF Rating == REWORK:
      AskUserQuestion(
@@ -4320,7 +4320,7 @@ confirm the learning is still valid against the current content, then apply the 
        options = ["Describe changes", "Abandon review"]
      )
 
-   IF user selected "Exit to implementation" or "Exit to implementation (proceed with warnings)":
+   IF user selected "Exit plan mode" or "Exit plan mode (with warnings)":
      Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
      # Gate file written here — after user confirms — so no stale file exists during editing cycles.
      # Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after successful exit.
