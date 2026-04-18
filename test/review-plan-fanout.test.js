@@ -547,6 +547,38 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(parseInt(configMatch[1], 10)).to.equal(processQuestions.length,
                 `Evaluator config says ${configMatch[1]} questions but process_questions set has ${processQuestions.length}`);
         });
+
+        it('flag_question_decrements helper defines base_l1 matching QUESTIONS.md L1 row count', function () {
+            const helperIdx = skillContent.indexOf('helper: flag_question_decrements(');
+            expect(helperIdx, 'flag_question_decrements helper not found in SKILL.md').to.be.greaterThan(0);
+            const helperBlock = skillContent.substring(helperIdx, helperIdx + 1500);
+            const baseMatch = helperBlock.match(/base_l1 = (\d+)/);
+            expect(baseMatch, 'base_l1 literal not found in flag_question_decrements block').to.not.be.null;
+            expect(parseInt(baseMatch[1], 10)).to.equal(l1RowCount,
+                `base_l1 = ${baseMatch[1]} in SKILL.md but QUESTIONS.md Layer 1 has ${l1RowCount} rows — update base_l1`);
+        });
+
+        it('flag_question_decrements truth table covers all 16 (IS_GAS × HAS_UI × HAS_EXISTING_INFRA × HAS_UNBOUNDED_DATA) combinations', function () {
+            const helperIdx = skillContent.indexOf('helper: flag_question_decrements(');
+            expect(helperIdx, 'flag_question_decrements helper not found').to.be.greaterThan(0);
+            const helperBlock = skillContent.substring(helperIdx, helperIdx + 1500);
+            expect(helperBlock).to.include('Truth table');
+            // IS_NODE held fixed (cosmetic limitation); 4 binary flags × 2^4 = 16 combinations
+            const comboMatches = helperBlock.match(/\([TF],[TF],[TF],[TF]\)→\d/g) || [];
+            expect(comboMatches.length, 'Expected 16 flag combinations in truth table').to.equal(16);
+        });
+
+        it('flag_question_decrements helper has all 3 adjustment branches', function () {
+            const helperIdx = skillContent.indexOf('helper: flag_question_decrements(');
+            expect(helperIdx, 'flag_question_decrements helper not found').to.be.greaterThan(0);
+            const helperBlock = skillContent.substring(helperIdx, helperIdx + 1500);
+            // Branch 1: IS_GAS + HAS_UI → -2 (Q-C17/Q-C25)
+            expect(helperBlock).to.match(/is_gas.*has_ui.*adj.*\+= 2/);
+            // Branch 2: NOT is_gas + NOT has_existing_infra → -1 (Q-C14)
+            expect(helperBlock).to.match(/NOT.*is_gas.*NOT.*has_existing_infra.*adj.*\+= 1/);
+            // Branch 3: NOT is_gas + NOT has_unbounded_data → -1 (Q-C32)
+            expect(helperBlock).to.match(/NOT.*is_gas.*NOT.*has_unbounded_data.*adj.*\+= 1/);
+        });
     });
 
     describe('Phase 5c.5 Implementation Intent Questions', function () {

@@ -2438,22 +2438,36 @@ DO:
     IF len(newly_memoized) > 3:
       Print: "  memo: +[len(newly_memoized) - 3] more locked"
 
+  # helper: flag_question_decrements(is_gas, has_ui, has_existing_infra, has_unbounded_data) → int
+  #   Returns the adjustment to subtract from total_applicable_questions based on classifier flags.
+  #   Assumes "impact" cluster is active (the only cluster containing Q-C14/Q-C32).
+  #   IS_NODE also suppresses Q-C32 but is a cosmetic limitation — omitted here (IS_NODE correction
+  #   deferred per review-plan-coverage-accounting.md; IS_NODE decrement is variable per ACTIVE_RISKS).
+  #   base_l1 = 27  # L1 per-pass count (2 Gate 1 + 6 advisory-structural + 19 advisory-process)
+  #                 # Update this literal whenever Layer 1 of QUESTIONS.md gains or loses a row.
+  #   adj = 0
+  #   IF is_gas AND has_ui:                     adj += 2  # Q-C17, Q-C25 N/A-superseded by gas Q32/Q33
+  #   IF NOT is_gas AND NOT has_existing_infra: adj += 1  # Q-C14 N/A (impact cluster assumed active)
+  #   IF NOT is_gas AND NOT has_unbounded_data: adj += 1  # Q-C32 N/A (impact cluster assumed active)
+  #   RETURN adj
+  #
+  #   Truth table — adj for all 16 (IS_GAS, HAS_UI, HAS_EXISTING_INFRA, HAS_UNBOUNDED_DATA) combos:
+  #     (F,F,F,F)→2  (F,F,F,T)→1  (F,F,T,F)→1  (F,F,T,T)→0
+  #     (F,T,F,F)→2  (F,T,F,T)→1  (F,T,T,F)→1  (F,T,T,T)→0
+  #     (T,F,F,F)→0  (T,F,F,T)→0  (T,F,T,F)→0  (T,F,T,T)→0
+  #     (T,T,F,F)→2  (T,T,F,T)→2  (T,T,T,F)→2  (T,T,T,T)→2
+
   # Milestone announcements (25/50/75% of total_applicable_questions locked)
   IF total_applicable_questions == 0:
     # Compute on first pass from active evaluator question counts
     # L1 per-pass count: 2 (l1-blocking) + 6 (l1-advisory-structural) + 19 (l1-advisory-process) = 27
     total_applicable_questions = 27 + sum(questions per active cluster) + (53 if IS_GAS else 0) + (38 if IS_NODE else 0) + (11 if HAS_UI else 0)
     # 53 = gas evaluate mode scope (Q43 is post-loop only, not evaluated in review-plan integration)
-    # Conditional question decrements (per question-effectiveness-report.md 2026-04-10):
-    # Q-C14 and Q-C32 are counted in the impact cluster sum above but evaluate N/A when
-    # their gate flags are false. Subtract from denominator so memo coverage % reflects
-    # actually-applicable questions for this run.
+    # call flag_question_decrements(IS_GAS, HAS_UI, HAS_EXISTING_INFRA, HAS_UNBOUNDED_DATA):
     IF "impact" in active_clusters AND NOT IS_GAS AND NOT HAS_EXISTING_INFRA:
       total_applicable_questions -= 1  # Q-C14 inactive this run
     IF "impact" in active_clusters AND NOT IS_GAS AND NOT IS_NODE AND NOT HAS_UNBOUNDED_DATA:
       total_applicable_questions -= 1  # Q-C32 inactive this run
-    # IS_GAS + HAS_UI: Q-C17 and Q-C25 are N/A-superseded by gas-evaluator Q32/Q33 within ui-evaluator.
-    # Subtract so they don't inflate the denominator in this configuration.
     IF IS_GAS AND HAS_UI:
       total_applicable_questions -= 2  # Q-C17/Q-C25 never actually evaluated
     # Note: IS_NODE suppresses up to 7 cluster questions (Q-C16, Q-C18, Q-C30–Q-C34) as N/A,
