@@ -20,7 +20,7 @@ allowed-tools: all
 2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools. You may spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Only call ExitPlanMode when the user explicitly confirms they are done (see step 8).
 3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
-5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review --commit` uses to catch intent-to-code drift.
+5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review-fix` uses to catch intent-to-code drift.
 6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 concrete improvements to the review-plan skill itself — distinct from plan-level retrospective actions. Output renders as a terminal `SKILL LEARNINGS` panel before cleanup.
 
 ---
@@ -390,6 +390,93 @@ You iterate until all layers and sub-skills report zero changes in the same pass
          Print first 500 lines + f"  [... plan truncated — {plan_line_count} lines ...]" + last 500 lines
        ELSE:
          Print plan_contents
+
+       # ── TRIVIAL fast-path: lightweight senior-engineer pass ──
+       # Single-pass, single critic (Sonnet), no loop, no consolidator.
+       # Narrower lens than SMALL: scope honesty + verification quality
+       # are primary; POST_IMPLEMENT alignment secondary (only if plan
+       # touches code). TRIVIAL plans often have no git lifecycle section.
+       Print: "  Senior review  running…"
+       sr_path = "/tmp/.review-plan-sr-trivial-${plan_slug}.md"
+
+       # Stale-plan guard (mirrors PR #154 idiom at 3 other sites) — the plan
+       # may have drifted between Step 0 Read and this 2nd Task spawn.
+       _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+       IF _current_sha != plan_sha_at_read:
+           Print: "  ⚠ plan file changed since initial read — re-reading before senior-critic spawn"
+           Re-read plan_path fully
+           plan_sha_at_read = _current_sha
+
+       Task(subagent_type = "general-purpose",
+            model = "sonnet",
+            description = "TRIVIAL senior-engineer critic",
+            prompt = """
+         You are a senior-engineer critic performing a single-pass holistic
+         review of a TRIVIAL-tier implementation plan (typically a 1-file,
+         additive-only doc/config/data change).
+
+         Read the plan at <plan_path> in full.
+         Read ~/.claude/CLAUDE.md for directives.
+
+         Your job is NOT to re-run per-question evaluation. Catch what
+         per-question evaluators cannot:
+           1. Scope honesty (PRIMARY): is the scope statement accurate
+              about what actually changes? Does a "1-file doc update"
+              actually touch only one file and only docs?
+           2. Verification quality (PRIMARY): do the verification steps
+              actually verify the claimed property, or are they vacuous
+              (e.g. "file exists" when the claim is "content is correct")?
+           3. POST_IMPLEMENT alignment (SECONDARY — only if the plan
+              touches code): does the plan's commit/PR story match
+              CLAUDE.md POST_IMPLEMENT?
+
+         For each critique, cite the source: CLAUDE.md directive or file
+         path + line range. If you can't cite it, mark it as advisory. Do
+         not fabricate citations.
+
+         Write your full critique as markdown to <sr_path> using the Write
+         tool. Do not print it to your response — the team-lead reads the
+         file.
+
+         Format of <sr_path> contents:
+           # SR Critic — TRIVIAL fast-path
+           VERDICT: STABLE | REVISED
+           ## Critiques
+           1. [critique text] — see: [citation]
+              [EDIT: old_string → new_string]
+           2. ...
+         If VERDICT=STABLE, write just the verdict line + a one-paragraph
+         rationale, no critiques.
+
+         Do not use Edit/Bash tools — you may only Read and Write. Return
+         'done' in your chat response after writing the file.
+       """)
+
+       # Wait for Task to finish, then read its output and apply edits.
+       sr_result = Read(sr_path)
+       sr_verdict = parse "VERDICT: (STABLE|REVISED)" from sr_result
+
+       IF sr_verdict == "REVISED":
+           # Extract and apply [EDIT: old → new] blocks (same pattern as SMALL/Phase 5c).
+           edits = parse all "[EDIT: <old_string> → <new_string>]" blocks from sr_result
+           applied = 0
+           skipped = []
+           FOR edit in edits:
+               TRY:
+                   Edit(plan_path, old_string=edit.old, new_string=edit.new)
+                   applied += 1
+               EXCEPT:
+                   # Track mismatches so drift is visible instead of silent.
+                   skipped.append(edit.old[:60] + "…")
+           IF skipped:
+               Print: "  Senior review  REVISED — {applied}/{len(edits)} edit(s) applied, {len(skipped)} skipped (old_string drift)"
+               FOR s in skipped:
+                   Print: f"    · skipped: {s}"
+           ELSE:
+               Print: "  Senior review  REVISED — {applied} edit(s) applied"
+       ELSE:
+           Print: "  Senior review  STABLE — no changes"
+
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
@@ -579,6 +666,14 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        Print: "  Senior review  running…"
        sr_path = "/tmp/.review-plan-sr-small-${plan_slug}.md"
 
+       # Stale-plan guard (mirrors PR #154 idiom at 3 other sites) — the plan
+       # may have drifted between Step 0 Read and this 2nd Task spawn.
+       _current_sha = Bash('shasum -a 256 "${plan_path}" | cut -c1-12').stdout.strip()
+       IF _current_sha != plan_sha_at_read:
+           Print: "  ⚠ plan file changed since initial read — re-reading before senior-critic spawn"
+           Re-read plan_path fully
+           plan_sha_at_read = _current_sha
+
        Task(subagent_type = "general-purpose",
             model = "sonnet",
             description = "SMALL senior-engineer critic",
@@ -628,13 +723,21 @@ You iterate until all layers and sub-skills report zero changes in the same pass
        IF sr_verdict == "REVISED":
            # Extract and apply [EDIT: old → new] blocks (same pattern as Phase 5c).
            edits = parse all "[EDIT: <old_string> → <new_string>]" blocks from sr_result
+           applied = 0
+           skipped = []
            FOR edit in edits:
                TRY:
                    Edit(plan_path, old_string=edit.old, new_string=edit.new)
+                   applied += 1
                EXCEPT:
-                   # Skip silently if old_string not found (plan may not match exactly)
-                   PASS
-           Print: "  Senior review  REVISED — {len(edits)} edit(s) applied"
+                   # Track mismatches so drift is visible instead of silent.
+                   skipped.append(edit.old[:60] + "…")
+           IF skipped:
+               Print: "  Senior review  REVISED — {applied}/{len(edits)} edit(s) applied, {len(skipped)} skipped (old_string drift)"
+               FOR s in skipped:
+                   Print: f"    · skipped: {s}"
+           ELSE:
+               Print: "  Senior review  REVISED — {applied} edit(s) applied"
        ELSE:
            Print: "  Senior review  STABLE — no changes"
 
@@ -3554,7 +3657,7 @@ ELIF NOT _phase_5b5_skip:
 5c.5. **Implementation Intent Questions** (Directive 2026-04-11):
 
    Extract plan-specific questions that verify the code actually implements what the plan claims.
-   These become the POST_IMPLEMENT verification contract for `/review --commit`.
+   These become the POST_IMPLEMENT verification contract for `/review-fix`.
 
    **Parallel dispatch note:** 5c.5 (`intent_task`) and 5g Step 1 (`skill_task`) are dispatched in
    a single message — no dependency between them. See pre-dispatch block at end of code block below.
@@ -3596,7 +3699,7 @@ ELIF NOT _phase_5b5_skip:
        Read the plan at <plan_path> in full.
 
        Generate 5–15 SPECIFIC, VERIFIABLE questions that the plan's implementer
-       (or /review --commit at POST_IMPLEMENT time) must answer YES against the
+       (or /review-fix at POST_IMPLEMENT time) must answer YES against the
        code diff. NOT generic quality questions — intent-to-code traceability
        questions from THIS plan's specific claims.
 
@@ -3694,9 +3797,9 @@ ELIF NOT _phase_5b5_skip:
    [same format]
    ```
 
-   **Coupling with /review (POST_IMPLEMENT):**
-   No changes to `/review` — it already reads the plan file via `plan_summary=<plan_file_content>`,
-   so the `## Implementation Intent Questions` section is automatically visible to the reviewer.
+   **Coupling with `/review-fix` (POST_IMPLEMENT):**
+   No changes to `/review-fix` — it already accepts the `plan_summary` parameter and reads the plan file,
+   so the `## Implementation Intent Questions` section is automatically visible to it.
 
    **Parallel dispatch block (5c.5 + 5g Step 1 — single message):**
    After processing `intent_task` output above, also compute `spawn_skill_task` for 5g Step 1
@@ -4203,13 +4306,13 @@ confirm the learning is still valid against the current content, then apply the 
    ```
    IF Rating == READY:
      AskUserQuestion(
-       question = "Plan is READY — all checks pass. Proceed to implementation, or make further changes?",
-       options = ["Exit to implementation", "Continue editing"]
+       question = "Plan is READY — all checks pass. Exit plan mode, or keep editing?",
+       options = ["Exit plan mode", "Continue editing"]
      )
    IF Rating == SOLID or GAPS:
      AskUserQuestion(
-       question = "Plan has [N] non-blocking issue(s). Proceed to implementation anyway, or continue editing?",
-       options = ["Exit to implementation (proceed with warnings)", "Continue editing"]
+       question = "Plan has [N] non-blocking issue(s). Exit plan mode anyway, or keep editing?",
+       options = ["Exit plan mode (with warnings)", "Continue editing"]
      )
    IF Rating == REWORK:
      AskUserQuestion(
@@ -4217,7 +4320,7 @@ confirm the learning is still valid against the current content, then apply the 
        options = ["Describe changes", "Abandon review"]
      )
 
-   IF user selected "Exit to implementation" or "Exit to implementation (proceed with warnings)":
+   IF user selected "Exit plan mode" or "Exit plan mode (with warnings)":
      Write gate file: Bash "echo '<plan_path>' > /tmp/.review-ready-${plan_slug}"
      # Gate file written here — after user confirms — so no stale file exists during editing cycles.
      # Do NOT delete the gate file — the ExitPlanMode PostToolUse hook removes it after successful exit.

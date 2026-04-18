@@ -12,17 +12,10 @@ wiki_parse_input
 { [ -z "$CWD" ] || [[ "$CWD" != /* ]]; } && exit 0
 [ "${#CWD}" -gt 4096 ] && exit 0
 
-# Use wiki_find_root (pure directory walk, no git subprocess)
+# Use wiki_find_root (git-anchored; falls back to bounded walk if not in a git repo)
 if ! wiki_find_root; then
   # No wiki found — check if this is a git repo and suggest initialization
-  GIT_ROOT=""
-  dir="$CWD"
-  for i in 1 2 3 4; do
-    if [ -d "$dir/.git" ]; then GIT_ROOT="$dir"; break; fi
-    parent=$(dirname "$dir")
-    [ "$parent" = "$dir" ] && break
-    dir="$parent"
-  done
+  GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
   if [ -n "$GIT_ROOT" ]; then
     # Only suggest once per repo (track in state file to avoid nagging)
     STATE_FILE="$HOME/.claude/wiki-prompted-repos.json"

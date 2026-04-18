@@ -1,8 +1,0 @@
-{
-  "name": "model-router",
-  "description": "Model routing hooks: capture session model and route subagent model selection.",
-  "version": "1.0.0",
-  "author": {
-    "name": "Claude Craft"
-  }
-}

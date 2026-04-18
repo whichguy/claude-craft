@@ -420,7 +420,8 @@ describe('Wiki Hooks', function () {
             const context = parsed.hookSpecificOutput.additionalContext;
             expect(context).to.include('wiki_grounding_required');
             expect(context).to.include('/wiki-load');
-            expect(context).to.include('quote one relevant sentence');
+            expect(context).to.include('quote one sentence');
+            expect(context).to.include('Silence means silence');
             expect(context).to.include('WIKI_SKIP=1');
         });
 
