@@ -52,6 +52,25 @@ You iterate until all layers and sub-skills report zero changes in the same pass
 
 ---
 
+<!-- ── SKILL.md PHASE INDEX (navigation aid — line numbers approximate, update after edits) ──
+     1    Discovery              ~line  81   ## Step 0: Locate Plan and Load Context
+     2    Classification         ~line 134   Task(model="sonnet") — classifier
+     3a   TRIVIAL exec           ~line 302   IF REVIEW_TIER == TRIVIAL
+     3b   SMALL exec             ~line 408   IF REVIEW_TIER == SMALL
+     3c   FULL setup             ~line 650   tracking vars, RESULTS_DIR, memo_file
+     3c.5 Research dispatch      ~line 797   async research lane (dependency contract block)
+     4    Convergence loop       ~line 1071  ## Convergence Loop
+       4.1  Evaluator list       ~line 1164  PHASE 4.1: EVALUATOR LIST
+       4.2  Wave execution       ~line 1202  PHASE 4.2: WAVE EXECUTION
+       4.3  Route/dedup/apply    ~line 1919  PHASE 4.3: ROUTE, DEDUP & APPLY EDITS
+       4.4  Memo/convergence     ~line 2169  PHASE 4.4: MEMOIZATION & CONVERGENCE CHECK
+     5    Epilogue               ~line 2969  PHASE 5: EPILOGUE (Q-E1, Q-E2, Q-G9)
+     6    Scorecard+meta         ~line 3050  PHASE 6: SCORECARD + META-REFLECTION
+     7    Cleanup                ~line 4096  PHASE 7: CLEANUP
+     7.5  Re-display             ~line 4123  step 6.5 — re-display full plan for review
+     8    Interactive exit       ~line 4172  step 8 — interactive completion prompt
+     ── -->
+
 <!-- ═══════════════════════════════════════════════════════════════
      PHASE 1 — DISCOVERY
      Inputs:  invocation argument OR cwd
@@ -775,14 +794,13 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      ════════════════════════════════════════════════════ -->
 
 <!-- ═══════════════════════════════════════════════════════════════
-     PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH (NEW)
+     PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH
      Inputs:  REVIEW_TIER, ACTIVE_RISKS, plan_path, RESULTS_DIR, memo_file
      Outputs: research_pending[] (may be empty), memo_file updated with
               research_pending field
      Next:    Phase 4 (convergence loop — runs unaware of research lane)
      Cost:    max 3 background Tasks × one Sonnet call each
-     ═══════════════════════════════════════════════════════════════ -->
-<!-- ═══════════════════════════════════════════════════════════════
+
      PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT
 
      DISPATCH READS   (must be stable by end of Phase 3c):
@@ -816,11 +834,9 @@ Gate tiers classify findings by severity and convergence impact. These definitio
        and Teaching Notes via the normal bridge.
      ═══════════════════════════════════════════════════════════════ -->
 
-## Phase 3c.5 — Async Research Lane Dispatch
-
-Research lane dispatches background research Tasks in parallel with the
-convergence loop. The lane is best-effort: if tasks don't finish in time
-(Phase 5b.5 grace period), senior critics run with empty research block.
+<!-- ── Phase 3c.5 body: research lane dispatches background Tasks in parallel with the
+     convergence loop; lane is best-effort — if tasks don't finish by Phase 5b.5 grace
+     period, senior critics run with empty research block. ── -->
 
 ```python
 # ── Phase 3c.5: Async Research Lane Dispatch ──
@@ -1145,6 +1161,7 @@ DO:
   [Substitute plan_path, questions_path, questions_l3_path, gas_eval_path, node_eval_path, and RESULTS_DIR (all derived in Step 0/5) into evaluator prompts before spawning.
   For evaluators referencing [See: EVALUATOR_OUTPUT_CONTRACT above], expand the reference inline — copy the full contract block into the Task prompt, replacing EVALUATOR_NAME with the evaluator's name and RESULTS_DIR with the actual results directory path.]
 
+  <!-- ── PHASE 4.1: EVALUATOR LIST ── -->
   -- Build evaluator list (priority-ordered for wave assignment) --
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
@@ -1182,6 +1199,7 @@ DO:
   # Each evaluator writes to <RESULTS_DIR>/<name>.json (unique by construction). No shared paths.
   # Evaluators are read-only on the plan — all edits applied by orchestrator after fan-in.
 
+  <!-- ── PHASE 4.2: WAVE EXECUTION ── -->
   -- Wave spawning --
   dispatch_start_time = Date.now()
   total_evaluators = len(evaluators_to_spawn)
@@ -1898,6 +1916,7 @@ DO:
         "  └ " + evaluator_lines[n]
 
   Print: "  >> Routing evaluator findings to their respective layers"
+  <!-- ── PHASE 4.3: ROUTE, DEDUP & APPLY EDITS ── -->
   -- Route findings from all_results (already read during wave fan-in — no second file read) --
   FOR evaluator_name, data in all_results:
     # ORDERING CONTRACT: evaluator-specific error guards MUST appear before the general
@@ -2147,6 +2166,7 @@ DO:
         if n_id in prev_node_results: del prev_node_results[n_id]  # break stability chain
         if n_id in node_results: del node_results[n_id]            # prevent stale carry-forward
 
+  <!-- ── PHASE 4.4: MEMOIZATION & CONVERGENCE CHECK ── -->
   # Memoization update (post-pass, one-way — once memoized, never removed)
   # Memoization principle: memoize only criteria that check "additive-only" structural
   # properties — once met, subsequent plan edits cannot make the criterion fail again.
@@ -2946,6 +2966,8 @@ ELIF Rating == "🔴 REWORK": health_bar = "░░░░░░ ░░░░░�
 
 After the convergence loop exits (scorecard not yet printed):
 
+<!-- ── PHASE 5: EPILOGUE (Q-E1, Q-E2, Q-G9) ── -->
+
 1. **REWORK gate** (handled inside the convergence loop — not a post-loop step): By the time
    the loop exits, Gate 1 is either clean (→ READY/SOLID/GAPS rating) or still has unresolved
    issues after max passes (→ REWORK rating). Both paths proceed to the scorecard (step 4)
@@ -3024,6 +3046,8 @@ After the convergence loop exits (scorecard not yet printed):
    edits immediately. Q-G9 results will be included in the scorecard output in step 4.
    **Why after epilogue:** Q-G9 checks structural organization (sequential clarity, checkpoint
    visibility). Git commit steps and post-impl section are structural elements Q-G9 should see.
+
+<!-- ── PHASE 6: SCORECARD + META-REFLECTION ── -->
 
 4. Print: "╔══════════════════════════════════════════════╗"
    Print: "║  ◆ SCORECARD                                ║"
@@ -4068,6 +4092,8 @@ confirm the learning is still valid against the current content, then apply the 
    finding type the signal table has no signal for, a critic edit that reveals a question with weak
    criteria, a guard that fired incorrectly. They are complementary — Phase 5g reads Phase 5's output
    as part of its context implicitly (via findings{} and sr_applied_edits), not redundantly.
+
+<!-- ── PHASE 7: CLEANUP ── -->
 
 6. **Cleanup and teardown** (parallel — no dependencies between these): In a SINGLE message, run all three:
    a. **Marker cleanup:** Use the Edit tool with `replace_all=true` on the plan file to
