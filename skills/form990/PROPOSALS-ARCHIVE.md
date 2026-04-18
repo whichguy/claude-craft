@@ -1,7 +1,7 @@
-# form990 Skill — Design Proposals (Pending User Approval)
+# form990 Skill — Design Proposals Archive
 
-These are proposed changes to PHASES.md that require user review and explicit approval
-before implementation. Do NOT apply these edits to PHASES.md without approval.
+All proposals in this file have been implemented. This file is a historical record only.
+Do not apply these edits again — they are already in PHASES.md.
 
 ---
 

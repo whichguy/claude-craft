@@ -20,11 +20,12 @@ RECENT_HEAL="$(proxy_health_recent_heal "$HEALTH_FILE")"
 if [[ -n "$UNHEALTHY" ]]; then
   DISPLAY="☁️  Proxy health: cloud backend unhealthy"
   CONTEXT="Proxy health note: the preferred cloud backend is currently degraded or disconnected (${UNHEALTHY}). Favor local-capable models and avoid suggesting cloud-only escalation unless necessary."
+  [[ -n "$RECOVERING" ]] && CONTEXT+=" Also recovering: ${RECOVERING}."
 elif [[ -n "$RECOVERING" ]]; then
   DISPLAY="☁️  Proxy health: cloud backend recovering"
   CONTEXT="Proxy health note: cloud backend recovering from recent issues (${RECOVERING}). Cloud models should be available but may be intermittent — prefer local if latency matters."
 elif [[ -n "$RECENT_HEAL" ]]; then
-  DISPLAY="☁️ Proxy health: cloud backend recovered"
+  DISPLAY="☁️  Proxy health: cloud backend recovered"
   BACKEND_ID="${RECENT_HEAL%@*}"
   HEALED_AT="${RECENT_HEAL#*@}"
   CONTEXT="Proxy health note: cloud backend ${BACKEND_ID} recovered at ${HEALED_AT}. Cloud-capable models are available again."

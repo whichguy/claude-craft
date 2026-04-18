@@ -42,8 +42,8 @@ Resolution order:
 Set `SKILL_ROOT = <resolved absolute path>`. All subsequent file references use this variable.
 
 Convention:
-- `{SKILL_ROOT}/templates/...` — skill-owned templates (PLAN-TEMPLATE.md, email-question.md, etc.)
-- `{SKILL_ROOT}/scripts/...` — skill-owned scripts (p2-coa-mapping.py, etc.)
+- `{SKILL_ROOT}/templates/...` — skill-owned templates (plan-template.md, email-question.md, etc.)
+- `{SKILL_ROOT}/scripts/...` — skill-owned scripts (verify_all.py, etc.)
 - `{SKILL_ROOT}/lib/...` — skill-owned library modules (form990_lib.py, etc.)
 - `{plan_dir}/artifacts/...` — per-run output artifacts (relative to plan file, NOT SKILL_ROOT)
 
@@ -86,15 +86,11 @@ Parse the invocation string to determine subcommand and arguments.
 - `--ascii` defaults OFF (fancy box-drawing on)
 - `--no-sidecar` defaults OFF (sidecar writes on)
 
-**Proposals check (for `init` and `resume` at P0):** Read `{SKILL_ROOT}/PROPOSALS.md` and
-surface any item marked `PENDING USER APPROVAL` before beginning intake. If no pending items,
-skip silently. This ensures design decisions don't silently drift.
-
 ---
 
 ## Step 1 — Plan File Location
 
-**For `init`:** Write the new plan file using `{SKILL_ROOT}/templates/PLAN-TEMPLATE.md` as the scaffold.
+**For `init`:** Write the new plan file using `{SKILL_ROOT}/templates/plan-template.md` as the scaffold.
 Fill `{{LEGAL_NAME}}` and `{{YYYY}}` placeholders. Write to `--plan-path` (default:
 `./form990-plan-<tax-year>.md`). Record `plan_lock.pid` + `acquired_at` + `host`.
 
@@ -279,7 +275,7 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 | `LEARNINGS.md` | **Do not load at phase entry.** Load only: (a) when `auto_append_learning()` is triggered on phase failure, or (b) during the Post-Run Review prompt at P9 close when the operator is explicitly reviewing learnings. |
 | `TOOL-SIGNATURES.md` | **P4** (pinned Part IV question count fallback) and **P9** (coordinate table for PDF fill). Do not load at P0–P3 or P5–P7. |
 | `VERIFY.md` | **`/form990 verify` subcommand only.** Do not load during normal phase execution. |
-| `PROPOSALS.md` | Load at P0 start (or when `/form990 proposals` is invoked) to surface pending design decisions requiring approval. Do not load at other phases. |
+| `PROPOSALS-ARCHIVE.md` | Do not load during normal phase execution. Reference only when reviewing historical design decisions. |
 
 **Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
 
