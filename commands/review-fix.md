@@ -41,7 +41,7 @@ git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'review-fix'
 Use the result as the `task_name` parameter when spawning the review-fix agent.
 
 Parse `$ARGUMENTS` into **flags** and **file paths**:
-- Flags: `--all` (all files including untracked), `--tracked` (git-tracked only), any token starting with `--`
+- Flags: `--all` (all files including untracked), `--tracked` (git-tracked only), `--scope=branch` (branch-local commits only), any token starting with `--`
 - File paths: everything else (space- or comma-separated, relative to repo root)
 
 ### Path A: `--all` or `--tracked` flag present
@@ -79,6 +79,28 @@ Detect recently modified files:
    If >15 files detected, also print: `"  ⚠ Large file set ([N] files) — consider passing explicit targets for focused review."` Then proceed with all detected files.
 
 3. **If no reviewable files remain** (either nothing was detected, or all detected files were `.json`/`.lock` and filtered out) — print `"  → No reviewable files detected — exiting."` and **stop**. Do not spawn the agent.
+
+### Path C (--scope=branch): branch-local commits only
+
+When `--scope=branch` flag is present (with no explicit file paths), detect files changed relative to the branch's merge base with `origin/main` (or the remote default branch). This is the recommended mode for branch-scoped cleanup work — it avoids bundling unrelated working-tree dirt.
+
+1. **Resolve merge base** — run:
+   ```bash
+   base=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@' || echo "origin/main")
+   merge_base=$(git merge-base HEAD "$base" 2>/dev/null)
+   ```
+   If `git merge-base` exits non-zero, print `"  ⚠ --scope=branch: could not resolve merge base against $base — check that $base exists locally (try: git fetch origin)."` and stop.
+
+2. **Detect branch-local files** — run:
+   ```bash
+   { git diff --name-only "$merge_base"...HEAD 2>/dev/null; git diff --name-only --cached 2>/dev/null; } | sort -u
+   ```
+   Filter out `.json`, `.lock` files.
+   Print: `"  → --scope=branch: [N] file(s) changed since merge base $merge_base: [list]"`
+
+3. **If no files detected** — print `"  → --scope=branch: no branch-local changes detected — exiting."` and stop.
+
+4. Pass detected files to the agent as in Path C step 2. Apply reviewignore filter.
 
 ## Edge Cases
 

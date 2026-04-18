@@ -27,6 +27,7 @@ Reviewer selection is per-file (see Reviewer Routing). This agent only orchestra
 - `target_files` — optional; comma-separated file paths/dirs/globs. If omitted: WIP → last commit fallback.
   - `--all` flag: all files in worktree (including untracked; filtered by .gitignore + .claspignore + ~/.claude/reviewignore)
   - `--tracked` flag: git-tracked files only (filtered by ~/.claude/reviewignore)
+  - `--scope=branch` flag: files changed in branch-local commits only (relative to `origin/HEAD` merge base); recommended for branch-scoped cleanup to avoid bundling unrelated working-tree dirt
 - `reviewer_agent` — optional; override reviewer for ALL files (skips per-file routing)
 - `task_name` — required; review context identifier
 - `worktree` — required; absolute path to working directory (default: ".")
@@ -60,6 +61,16 @@ Else if --tracked:
 Else if target_files provided:
   file_list = expand globs, validate paths exist
   explicit_target_files = true
+Else if --scope=branch:
+  base = git symbolic-ref refs/remotes/origin/HEAD (strip "refs/remotes/") OR "origin/main" if unavailable
+  merge_base = git merge-base HEAD "$base"
+  If merge-base fails: error "could not resolve merge base against $base — git fetch origin and retry"
+  branch_files = git diff --name-only "$merge_base"...HEAD
+  staged = git diff --cached --name-only
+  file_list = union(branch_files, staged)
+  rationale = "branch-scope"
+  If empty: error "No branch-local changes detected"
+  explicit_target_files = false
 Else (auto-detect):
   uncommitted = git diff --name-only HEAD
   staged = git diff --cached --name-only
