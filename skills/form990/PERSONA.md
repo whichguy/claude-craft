@@ -1,4 +1,4 @@
-<!-- Sync: when this file changes, check templates/PLAN-TEMPLATE.md §Persona for consistency -->
+<!-- Sync: when this file changes, check templates/plan-template.md §Persona for consistency -->
 # Form 990 Skill — Personas
 
 Inject both persona blocks at the top of every phase invocation and every Q-F gate evaluation
