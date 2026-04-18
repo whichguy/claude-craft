@@ -350,19 +350,19 @@ If any fetch fails and the form is needed for a current phase:
 ## now_iso() / now_iso_date() — Timestamp Helpers
 
 Utility functions used by `commit_phase_entry()`, `Phase Entry Protocol`, `append_breadcrumb()`,
-and `auto_append_learning()`. Defined here before first use.
+and `auto_append_learning()`.
 
-```python
-def now_iso() -> str:
-    """Return current UTC timestamp as ISO 8601 string."""
-    import datetime
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+**`now_iso()`** and **`now_iso_date()`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import now_iso, now_iso_date`).
 
-def now_iso_date() -> str:
-    """Return current UTC date as YYYY-MM-DD."""
-    import datetime
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-```
+Contract: `now_iso()` returns the current UTC timestamp as an ISO 8601 string
+(`YYYY-MM-DDTHH:MM:SSZ`); `now_iso_date()` returns the current UTC date as `YYYY-MM-DD`.
+
+Invariants:
+- Both functions use `datetime.timezone.utc` — output is always UTC, never local time.
+- Format is stable and suitable for use as plan-file timestamp fields and LEARNINGS entries.
+
+Failure modes: No exceptions under normal conditions.
 
 ---
 
@@ -548,78 +548,25 @@ Called after every phase commit and on `/form990 status`.
 
 ## merge_datasets() — Deterministic Disjoint-Key Merger (P7-merge)
 
-```python
-import json, hashlib, sys
+**`merge_datasets(core_path, schedules_path, rollup_path, output_path)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import merge_datasets`).
 
-def merge_datasets(core_path, schedules_path, rollup_path, output_path):
-    """
-    Pure function. Produces form990-dataset.json from three sibling files
-    via disjoint-key composition. Halts on key conflict.
+Contract: Pure function that produces `form990-dataset.json` from three sibling files via
+disjoint-key composition (no key may appear in two inputs); writes the result to
+`output_path`; returns the SHA-256 hex digest of the serialized output.
 
-    Ownership contract:
-      dataset_core    → parts.II..parts.XII + schedule_dependencies
-      dataset_rollup  → parts.I + reconciliation
-      dataset_schedules → schedules
+Invariants:
+- Ownership contract: `dataset_core` → `parts.II–XII` + `schedule_dependencies`;
+  `dataset_rollup` → `parts.I` + `reconciliation`; `dataset_schedules` → `schedules`.
+- Part I special case: `dataset_core` declares `"I": null` as a structural placeholder;
+  the merger treats null as "unowned" and takes `dataset_rollup.parts.I` verbatim.
+- Positive-ownership assertions fire before composition: core must not own `reconciliation`
+  or `schedule_dependencies` in rollup/schedules, and rollup must not own `parts.II–XII`.
+- Serialization is deterministic: `sort_keys=True`, minimal separators, UTF-8 encoding —
+  byte-stable across Python minor versions.
 
-    Part I special case: dataset_core declares "I": null as a structural
-    placeholder. The merger treats null in core as "unowned" — takes
-    dataset_rollup's parts.I value verbatim (compose, not override).
-    """
-    with open(core_path) as f:      core      = json.load(f)
-    with open(schedules_path) as f: schedules = json.load(f)
-    with open(rollup_path) as f:    rollup    = json.load(f)
-
-    merged = {}
-
-    # --- Positive-ownership assertions before composition ---
-    core_I = core.get("parts", {}).get("I", "__ABSENT__")
-    assert core_I in (None, "__ABSENT__"), \
-        "merger: dataset_core.parts.I MUST be null or absent (P5 ownership contract)"
-    rollup_I = rollup.get("parts", {}).get("I")
-    assert rollup_I is not None, \
-        "merger: dataset_rollup.parts.I must be populated (not null) — P7 partial-write detected"
-    assert set(rollup.get("parts", {}).keys()) <= {"I"}, \
-        f"merger: dataset_rollup.parts MAY only contain 'I', got {sorted(rollup.get('parts', {}).keys())}"
-    assert "schedule_dependencies" not in rollup and "schedule_dependencies" not in schedules, \
-        "merger: schedule_dependencies is owned by dataset_core only"
-    assert "reconciliation" not in core and "reconciliation" not in schedules, \
-        "merger: reconciliation is owned by dataset_rollup only"
-
-    # --- parts from core (II..XII) ---
-    core_parts = core.get("parts", {})
-    for k, v in core_parts.items():
-        if k == "I" and v is None:
-            continue  # structural placeholder; ownership belongs to rollup
-        if k in merged.get("parts", {}):
-            raise ValueError(f"merger_conflict: parts.{k} appears in both core and another input")
-        merged.setdefault("parts", {})[k] = v
-
-    # --- schedule_dependencies from core ---
-    if "schedule_dependencies" in core:
-        merged["schedule_dependencies"] = core["schedule_dependencies"]
-
-    # --- parts.I + reconciliation from rollup ---
-    rollup_parts = rollup.get("parts", {})
-    if "I" in rollup_parts:
-        if "I" in merged.get("parts", {}):
-            raise ValueError("merger_conflict: parts.I appears in both rollup and core (expected null in core)")
-        merged.setdefault("parts", {})["I"] = rollup_parts["I"]
-    if "reconciliation" in rollup:
-        merged["reconciliation"] = rollup["reconciliation"]
-
-    # --- schedules from dataset_schedules ---
-    if "schedules" in schedules:
-        if "schedules" in merged:
-            raise ValueError("merger_conflict: schedules key appears in two inputs")
-        merged["schedules"] = schedules["schedules"]
-
-    # Deterministic serialization (sort_keys ensures byte-stability across Python minors)
-    serialized = json.dumps(merged, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(serialized)
-
-    return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
-```
+Failure modes: `AssertionError` on ownership contract violations (partial-write detection);
+`ValueError("merger_conflict: ...")` on disjoint-key violations; `OSError` on file I/O.
 
 ---
 
@@ -635,70 +582,26 @@ sole artifact downstream phases and external tools should read. The three siblin
 (`dataset-core.json`, `dataset-schedules.json`, `dataset-rollup.json`) are intermediate
 producer outputs — do not read them directly outside their producing phase.
 
-```python
-ARTIFACT_DEPS = {
-    # P2 outputs
-    "coa_mapping": {
-        "phase": "P2",
-        "upstream": [],  # external: Drive budget sheet (verified via input_fingerprint)
-    },
-    # P3 outputs
-    "statement_of_activities": {"phase": "P3", "upstream": ["coa_mapping"]},
-    "balance_sheet":           {"phase": "P3", "upstream": ["coa_mapping"]},
-    "functional_expense":      {"phase": "P3", "upstream": ["coa_mapping"]},
-    # P4 output
-    "part_iv_checklist": {
-        "phase": "P4",
-        "upstream": ["statement_of_activities", "balance_sheet", "functional_expense"],
-    },
-    # P5 output
-    "dataset_core": {
-        "phase": "P5",
-        "upstream": [
-            "coa_mapping", "statement_of_activities", "balance_sheet",
-            "functional_expense", "part_iv_checklist",
-        ],
-    },
-    # P6 outputs
-    "dataset_schedules": {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_o":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_b_filing": {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_b_public": {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_a":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_d":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_g":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_i":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_l":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_m":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_r":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_c":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_e":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_f":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_h":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_j":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_k":        {"phase": "P6", "upstream": ["dataset_core"]},
-    "schedule_n":        {"phase": "P6", "upstream": ["dataset_core"]},
-    # P7 outputs
-    "dataset_rollup":      {"phase": "P7",       "upstream": ["dataset_core"]},
-    "reconciliation_report": {"phase": "P7",     "upstream": ["dataset_core"]},
-    "dataset_merged":      {"phase": "P7-merge", "upstream": ["dataset_core", "dataset_schedules", "dataset_rollup"]},
-    # P8 output
-    "cpa_review_report": {
-        "phase": "P8",
-        "upstream": ["dataset_merged", "reconciliation_report"],
-    },
-    # P9 outputs
-    "reference_pdf":   {"phase": "P9", "upstream": ["dataset_merged"]},
-    "efile_handoff":   {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
-    "cpa_memo":        {"phase": "P9", "upstream": ["dataset_merged", "cpa_review_report"]},
-}
-```
+**`form990_lib.ARTIFACT_DEPS`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import ARTIFACT_DEPS`).
+
+Contract: Dict mapping each artifact name to `{"phase": str, "upstream": list[str]}`;
+`verify_ancestors()` uses this map to walk the transitive dependency graph.
+
+Invariants:
+- Leaf artifacts (no upstream dependencies): `coa_mapping` (P2, external Drive input).
+- P7 sub-phase `"P7-merge"` is recorded as the producing phase for `dataset_merged`; the
+  Phase Entry Protocol maps this to `"P7"` for `phase_status` tracking.
+- All schedule artifacts (schedule_a through schedule_r) share a single upstream:
+  `dataset_core`.
+- `dataset_merged` (P7-merge) is the sole input to downstream phases P8 and P9; do not
+  reference the three sibling datasets directly outside their producing phase.
 
 ---
 
 ## verify_ancestors() — Transitive Fingerprint Verification
 
-Called by the Phase Entry Protocol before any phase runs its Work block. Walks ARTIFACT_DEPS
+Called by the Phase Entry Protocol before any phase runs its Work block. Walks `ARTIFACT_DEPS`
 transitively, re-hashing each ancestor artifact on disk and comparing against the recorded
 `output_sha256` in machine state. Returns the complete set of regressions found.
 
@@ -706,59 +609,22 @@ transitively, re-hashing each ancestor artifact on disk and comparing against th
 phase entry — each artifact re-hashed at most once even if referenced by multiple downstream
 artifacts).
 
-```python
-import hashlib, os, pathlib
+**`verify_ancestors(artifact_name, state, _visited=None)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import verify_ancestors`).
 
-def verify_ancestors(artifact_name, state, _visited=None):
-    """
-    Walk ARTIFACT_DEPS transitively from artifact_name.
-    For each ancestor:
-      - No output_sha256 in state → regression ("not yet produced")
-      - File missing on disk → regression ("file deleted")
-      - sha256(disk bytes) != recorded output_sha256 → regression ("hash mismatch")
-    Returns: (ok: bool, regressions: list[str])
-    Memoizes by artifact_name to avoid redundant disk reads within one phase entry.
-    """
-    if _visited is None:
-        _visited = {}
-    if artifact_name in _visited:
-        return _visited[artifact_name]
+Contract: Recursively walks `ARTIFACT_DEPS[artifact_name].upstream`; for each ancestor checks
+that `output_sha256` exists in `state`, the file exists on disk, and the disk hash matches the
+recorded hash; returns `(ok: bool, regressions: list[str])`.
 
-    deps = ARTIFACT_DEPS.get(artifact_name, {})
-    upstream = deps.get("upstream", [])
-    regressions = []
+Invariants:
+- Memoizes via `_visited` dict to avoid re-hashing the same artifact twice in one call tree.
+- Three regression conditions: no recorded `output_sha256`, file missing on disk, sha256
+  mismatch — each produces a distinct human-readable message naming the producing phase.
+- `_visited` is managed internally; callers must not pass it.
 
-    for parent in upstream:
-        parent_entry = state.get("artifacts", {}).get(parent, {})
-        recorded_sha = parent_entry.get("output_sha256")
-        artifact_path = parent_entry.get("path")
-
-        if not recorded_sha:
-            regressions.append(
-                f"{parent}: no output_sha256 recorded "
-                f"(produced_in_phase={parent_entry.get('produced_in_phase','?')}; "
-                f"re-run that phase first)"
-            )
-        elif artifact_path:
-            abs_path = pathlib.Path(artifact_path)
-            if not abs_path.exists():
-                regressions.append(f"{parent}: file missing on disk at {artifact_path}")
-            else:
-                actual_sha = hashlib.sha256(abs_path.read_bytes()).hexdigest()
-                if actual_sha != recorded_sha:
-                    regressions.append(
-                        f"{parent}: sha256 mismatch "
-                        f"(recorded {recorded_sha[:12]}…, disk {actual_sha[:12]}…)"
-                    )
-
-        # Recurse into this parent's own ancestors
-        ok, child_regressions = verify_ancestors(parent, state, _visited)
-        regressions.extend(child_regressions)
-
-    result = (len(regressions) == 0, regressions)
-    _visited[artifact_name] = result
-    return result
-```
+Failure modes: `OSError` if a file exists in state but cannot be read (permissions,
+concurrent delete); no exception for missing/mismatched hashes — those are returned as
+regression strings.
 
 ---
 
@@ -840,86 +706,34 @@ When a fact regression is detected (Resume Protocol step 5 or phase Pre-check):
 
 All programmatic analysis scripts (P2 CoA mapping, P3 financials, P6 schedule computations)
 MUST be invoked via this helper. Direct `subprocess` calls are prohibited — they bypass
-SCRIPT_ALLOWLIST enforcement, arg sanitization, and structured error surfacing.
+`SCRIPT_ALLOWLIST` enforcement, arg sanitization, and structured error surfacing.
 
-```python
-import subprocess, sys, json, os, pathlib
+**`run_script(script_path, args, phase_id=None, cwd=None)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import run_script, ScriptError, PHASE_DEADLINES_S`).
 
-# Allowlist of scripts run_script will invoke (absolute paths, populated at dispatch time).
-SCRIPT_ALLOWLIST: set[str] = set()
+Contract: Invokes `script_path` as a subprocess (argv-only, no `shell=True`); enforces the
+allowlist, arg sanitization, and per-phase wall-clock deadlines; parses stdout as JSON and
+returns the parsed object; raises `ScriptError` on non-zero exit, timeout, or unparseable
+output.
 
-# Per-phase wall-clock deadlines (Q-C34).
-PHASE_DEADLINES_S = {"P2": 180, "P3": 120, "P6": 300, "default": 60}
+Invariants:
+- `script_path` must be registered via `register_script()` before first call; unregistered
+  paths raise `ScriptError` with exit code -1.
+- Args are rejected if they contain null bytes or `..` path-traversal tokens.
+- Per-phase deadlines: P2=180 s, P3=120 s, P6=300 s, default=60 s
+  (`PHASE_DEADLINES_S` in `lib/form990_lib.py`).
+- Scripts must accept `--json-only` and redirect debug output to stderr; stdout must be
+  pure JSON.
+- On timeout: kill + wait in finally block, then raise `ScriptError` (rc=-2).
+- On non-zero exit: inspects stdout for `{"status":"error",...}` and attaches as
+  `ScriptError.structured_error` if found.
 
-class ScriptError(Exception):
-    def __init__(self, script, rc, stderr, stdout=""):
-        super().__init__(f"{script} exit {rc}: {stderr[-500:]}")
-        self.returncode = rc
-        self.stderr_tail = _codepoint_safe_tail(stderr, 2000)
-        self.stdout_tail = _codepoint_safe_tail(stdout, 2000)
-        self.structured_error = None  # populated if stdout is error-JSON
-
-def _codepoint_safe_tail(s: str, max_chars: int) -> str:
-    """Truncate from the right without bisecting a UTF-8 codepoint (Q-C20)."""
-    if len(s) <= max_chars:
-        return s
-    return s[-max_chars:]
-
-def run_script(script_path, args, phase_id=None, cwd=None):
-    """
-    Canonical runner. Contract:
-    - argv-only (no shell=True); stdout MUST be pure JSON.
-    - script_path MUST be in SCRIPT_ALLOWLIST (absolute path).
-    - args reject null bytes and '..' path-traversal tokens.
-    - Deadline from PHASE_DEADLINES_S[phase_id] or 'default'.
-    - On non-zero exit, inspect stdout for error-JSON; attach as structured_error.
-    - On timeout: kill + wait in finally, raise ScriptError.
-    Scripts MUST accept --json-only flag and redirect all debug prints to stderr when set.
-    """
-    abs_path = str(pathlib.Path(script_path).resolve())
-    if abs_path not in SCRIPT_ALLOWLIST:
-        raise ScriptError(script_path, -1, f"script not in SCRIPT_ALLOWLIST: {abs_path}")
-    for a in args:
-        if "\x00" in str(a):
-            raise ScriptError(script_path, -1, f"rejected arg (null byte): {a!r}")
-        if ".." in pathlib.PurePosixPath(str(a)).parts:
-            raise ScriptError(script_path, -1, f"rejected arg (path traversal): {a!r}")
-    deadline_s = PHASE_DEADLINES_S.get(phase_id, PHASE_DEADLINES_S["default"])
-    proc = subprocess.Popen(
-        [sys.executable, abs_path, "--json-only", *[str(a) for a in args]],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=cwd,
-    )
-    try:
-        stdout, stderr = proc.communicate(timeout=deadline_s)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        try:
-            stdout, stderr = proc.communicate(timeout=5)
-        except Exception:
-            stdout, stderr = "", "<timeout: no output captured>"
-        raise ScriptError(script_path, -2, f"timeout after {deadline_s}s\nstderr: {stderr}", stdout)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-    if proc.returncode != 0:
-        err = ScriptError(script_path, proc.returncode, stderr, stdout)
-        try:
-            parsed = json.loads(stdout)
-            if isinstance(parsed, dict) and parsed.get("status") == "error":
-                err.structured_error = parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
-        raise err
-    try:
-        return json.loads(stdout)
-    except json.JSONDecodeError as e:
-        raise ScriptError(script_path, 0,
-                          f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}", stdout)
-```
+Failure modes: `ScriptError` (not-in-allowlist, null byte, path-traversal, timeout,
+non-zero exit, unparseable JSON). `ScriptError.__init__` truncates stderr/stdout tails
+safely via `_codepoint_safe_tail` — no additional `scrub_pii()` needed at the call site.
 
 On `ScriptError`: call `append_breadcrumb(state, phase_id, str(err), error_class="ScriptNonZero")`,
 set `phase_status=failed`, atomic commit, surface in status UI.
-(`ScriptError.__init__` already scrubs the message internally — no additional `scrub_pii()` wrapper needed.)
 
 ---
 
@@ -928,141 +742,62 @@ set `phase_status=failed`, atomic commit, surface in status UI.
 All breadcrumb writes, LEARNINGS auto-appends, and ScriptError messages MUST flow through
 `scrub_pii()` before being written to the plan file or LEARNINGS.md.
 
-```python
-import re
+**`scrub_pii(text, donor_names=None)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import scrub_pii`).
 
-def scrub_pii(text: str, donor_names: list[str] = None) -> str:
-    """
-    Redact PII before writing to plan file breadcrumbs or LEARNINGS.
-    Rules applied in order (A1 base rules + C2 extensions):
-    1. SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
-    2. Bare 9-digit run (not hyphen-adjacent): ddddddddd → [REDACTED-9DIGIT]
-       (EINs are XX-XXXXXXX — hyphenated form is public IRS BMF data, never matched)
-    3. Donor names from key_facts.donor_names (longest first; word-boundary + min 4 chars)
-    4. Long numeric run >= 10 digits → [REDACTED-LONGNUM]  (bank accounts, routing)
-    5. [C2] Phone numbers: 555-123-4567 / 555.123.4567 / 555 123 4567 → [REDACTED-PHONE]
-    6. [C2] Email addresses → [REDACTED-EMAIL]
-    7. [C2] Dates of birth (MM/DD/YYYY) → [REDACTED-DOB]
-    8. [C2] US street addresses (number + street name + type) → [REDACTED-ADDR]
-    Canonical implementation lives in {SKILL_ROOT}/lib/form990_lib.py. This prose is illustrative.
-    """
-    if donor_names is None:
-        donor_names = []
-    text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
-    text = re.sub(r'(?<![-\d])\b\d{9}\b(?![-\d])', '[REDACTED-9DIGIT]', text)
-    for name in sorted(donor_names, key=len, reverse=True):
-        if name and len(name) >= 4:
-            text = re.sub(r'\b' + re.escape(name) + r'\b', '[REDACTED-DONOR]',
-                          text, flags=re.IGNORECASE)
-    text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
-    text = re.sub(r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b', '[REDACTED-PHONE]', text)
-    text = re.sub(r'\b[\w.+\-]+@[\w\-]+\.[\w.\-]+\b', '[REDACTED-EMAIL]', text)
-    text = re.sub(r'\b\d{1,2}/\d{1,2}/(19|20)\d{2}\b', '[REDACTED-DOB]', text)
-    text = re.sub(r'\b\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+'
-                  r'(?:St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl)\b',
-                  '[REDACTED-ADDR]', text)
-    return text
-```
+Contract: Applies 8 ordered regex substitutions to redact PII tokens from `text`; returns
+the redacted string without modifying the input.
 
-Note: hyphenated EINs (`XX-XXXXXXX`) are NOT redacted — they are public (IRS BMF).
-The bare-9-digit rule uses a negative-lookbehind/lookahead for hyphens and adjacent digits
-so that the `XX-XXXXXXX` format is never accidentally caught.
+Invariants:
+- Rules applied in fixed order: SSN/ITIN → bare-9-digit → donor names → long numeric run
+  → phone → email → DOB → street address (A1 base + C2 extensions).
+- Hyphenated EINs (`XX-XXXXXXX`) are explicitly excluded — they are public IRS BMF data.
+- Donor name matching uses longest-first ordering and a minimum 4-char threshold to avoid
+  false-positive matches on common short words.
+
+Failure modes: No exceptions; pure string transformation.
 
 ---
 
 ## append_breadcrumb() — Scrubbed Breadcrumb Writer
 
-```python
-def append_breadcrumb(
-    state: dict,
-    phase: str,
-    msg: str,
-    error_class: str | None = None,
-    duration_ms: int | None = None,
-) -> None:
-    """
-    Write a scrubbed breadcrumb into state["breadcrumbs"].
+**`append_breadcrumb(state, phase, msg, error_class=None, duration_ms=None)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import append_breadcrumb`).
 
-    A6: structured error_class (must be in ERROR_CLASSES) and optional
-    duration_ms for phase timing. Call sites: append_breadcrumb(state, phase_id, "msg").
-    """
-    assert error_class is None or error_class in ERROR_CLASSES
-    donor_names = state.get("key_facts", {}).get("donor_names", [])
-    safe_msg = scrub_pii(msg, donor_names)
-    entry = {"at": now_iso(), "phase": phase, "msg": safe_msg}
-    if error_class is not None:
-        entry["error_class"] = error_class
-    if duration_ms is not None:
-        entry["duration_ms"] = duration_ms
-    state.setdefault("breadcrumbs", []).append(entry)
-```
+Contract: Writes a PII-scrubbed, ISO-timestamped breadcrumb entry into
+`state["breadcrumbs"]` with optional structured `error_class` and `duration_ms`.
+
+Invariants:
+- `error_class` must be `None` or a member of `ERROR_CLASSES`; asserts on invalid values.
+- Donor names from `state["key_facts"]["donor_names"]` are passed to `scrub_pii()`
+  automatically — callers do not need to pre-scrub `msg`.
+- Call site convention: `append_breadcrumb(state, phase_id, "descriptive message")`.
+
+Failure modes: `AssertionError` if `error_class` is not in `ERROR_CLASSES`.
 
 ---
 
 ## auto_append_learning() — LEARNINGS.md Auto-Append on Failure
 
-When `phase_status[P] = "failed"` is committed, auto-append to `LEARNINGS.md`:
+When `phase_status[P] = "failed"` is committed, auto-append to `LEARNINGS.md`.
 
-```python
-import pathlib
+**`auto_append_learning(learnings_path, phase_id, error_class, message, donor_names=None)`** — defined in `lib/form990_lib.py`
+(imported via `from form990_lib import auto_append_learning`).
 
-MACHINE_LEARNINGS_BEGIN = "<!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->"
-MACHINE_LEARNINGS_END   = "<!-- END MACHINE LEARNINGS -->"
-MAX_MACHINE_ENTRIES = 100
+Contract: Appends a scrubbed failure entry to the `MACHINE LEARNINGS` sentinel block in
+`LEARNINGS.md`; rotates overflow entries to `LEARNINGS.archive.md` when the count reaches
+`MAX_MACHINE_ENTRIES` (100).
 
-def _rotate_learnings(learnings_path: str, entries: list, text: str,
-                      begin_idx: int, end_idx: int) -> None:
-    """
-    Move oldest entries to LEARNINGS.archive.md when count >= MAX_MACHINE_ENTRIES.
-    Keeps the most recent (MAX_MACHINE_ENTRIES - 1) entries in LEARNINGS.md.
-    """
-    archive_path = pathlib.Path(learnings_path).with_name("LEARNINGS.archive.md")
-    overflow = entries[:len(entries) - MAX_MACHINE_ENTRIES + 1]
-    kept = entries[len(overflow):]
-    archive_header = "# Form 990 Skill — Learnings Archive\n\n"
-    archive_text = archive_path.read_text(encoding="utf-8") if archive_path.exists() else archive_header
-    archive_path.write_text(archive_text + "\n".join(overflow) + "\n", encoding="utf-8")
-    new_inner = "\n".join(kept)
-    new_text = (
-        text[:begin_idx + len(MACHINE_LEARNINGS_BEGIN)]
-        + "\n" + new_inner + "\n"
-        + text[end_idx:]
-    )
-    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
+Invariants:
+- Scrubs `message` through `scrub_pii()` THEN truncates to 200 chars — prevents SSN near
+  the boundary from escaping redaction.
+- Silently no-ops if either sentinel delimiter (`MACHINE_LEARNINGS_BEGIN` /
+  `MACHINE_LEARNINGS_END`) is missing from the file — never corrupts the file.
+- Overflow rotation moves the oldest `(count − MAX_MACHINE_ENTRIES + 1)` entries to
+  `LEARNINGS.archive.md`; the most recent entries stay in `LEARNINGS.md`.
 
-def auto_append_learning(learnings_path: str, phase_id: str,
-                         error_class: str, message: str,
-                         donor_names: list[str] = None) -> None:
-    """
-    Append a scrubbed failure entry to the MACHINE LEARNINGS section of LEARNINGS.md.
-    Rotates to LEARNINGS.archive.md if count exceeds MAX_MACHINE_ENTRIES.
-    """
-    # C2: scrub THEN truncate — prevents SSN near the 200-char boundary from escaping redaction
-    scrubbed = scrub_pii(message, donor_names or [])
-    safe_msg = scrubbed[:200]
-    entry = (
-        f"- **{now_iso_date()} - {phase_id} - {error_class}:** "
-        f"{safe_msg} _(resolution: pending)_\n"
-    )
-    text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
-    begin_idx = text.find(MACHINE_LEARNINGS_BEGIN)
-    end_idx   = text.find(MACHINE_LEARNINGS_END)
-    if begin_idx == -1 or end_idx == -1:
-        return  # Guard: delimiters missing — do not corrupt file
-    inner = text[begin_idx + len(MACHINE_LEARNINGS_BEGIN):end_idx]
-    entries = [e for e in inner.strip().splitlines(keepends=True) if e.strip()]
-    if len(entries) >= MAX_MACHINE_ENTRIES:
-        _rotate_learnings(learnings_path, entries, text, begin_idx, end_idx)
-        text = pathlib.Path(learnings_path).read_text(encoding="utf-8")
-        begin_idx = text.find(MACHINE_LEARNINGS_BEGIN)
-        end_idx   = text.find(MACHINE_LEARNINGS_END)
-    new_text = (
-        text[:begin_idx + len(MACHINE_LEARNINGS_BEGIN)]
-        + "\n" + entry
-        + text[end_idx:]
-    )
-    pathlib.Path(learnings_path).write_text(new_text, encoding="utf-8")
-```
+Failure modes: `OSError` if `learnings_path` is not writable; `UnicodeDecodeError` if the
+file is not UTF-8.
 
 ---
 
