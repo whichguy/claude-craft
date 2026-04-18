@@ -21,12 +21,28 @@ wiki_parse_input() {
 }
 
 # --- Wiki discovery ---
-# Walks up from CWD to find wiki/log.md. Sets: REPO_ROOT, WIKI_PATH, LOG_PATH
+# Anchors on git-root (prevents drift past repo into ~/). Sets: REPO_ROOT, WIKI_PATH, LOG_PATH
+# Strategy: resolve git top-level, check <git-root>/wiki/log.md. Falls back to a bounded
+# walk only when not in a git repo (preserves non-git directory use cases).
 # Returns 1 if no wiki found.
 wiki_find_root() {
   local dir="${1:-$CWD}"
   REPO_ROOT=""; WIKI_PATH=""; LOG_PATH=""
+  [ -z "$dir" ] && return 1
+
+  local git_root
+  git_root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
+  if [ -n "$git_root" ]; then
+    if [ -f "$git_root/wiki/log.md" ]; then
+      REPO_ROOT="$git_root"; WIKI_PATH="$git_root/wiki/"; LOG_PATH="$git_root/wiki/log.md"
+      return 0
+    fi
+    return 1
+  fi
+
+  # Non-git fallback: bounded walk, but never cross into $HOME.
   for i in 1 2 3 4; do
+    [ "$dir" = "$HOME" ] && break
     if [ -f "$dir/wiki/log.md" ]; then
       REPO_ROOT="$dir"; WIKI_PATH="$dir/wiki/"; LOG_PATH="$dir/wiki/log.md"
       return 0
