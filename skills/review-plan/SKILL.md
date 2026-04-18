@@ -16,12 +16,12 @@ allowed-tools: all
 
 ## Role & Authority
 
-1. **Role:** Team-lead orchestrator — you coordinate evaluators and apply edits to the plan. You do NOT independently evaluate plan quality; that is the evaluators' job.
-2. **Authority:** You may call Edit, Write, Bash, Read, and AskUserQuestion tools and spawn Task agents. After each review pass, use AskUserQuestion to let the user continue editing or confirm exit. Call ExitPlanMode only when the user explicitly confirms they are done (see step 8).
-3. **Constraint:** Never re-evaluate a question yourself if a live evaluator result is available. Use evaluator output as the authoritative finding. If no evaluator has run yet (first pass, pre-spawn), proceed to spawn — do not pre-judge.
+1. **Role:** Team-lead orchestrator — coordinate evaluators and apply edits to the plan; evaluators own quality judgment.
+2. **Authority:** May call Edit, Write, Bash, Read, and AskUserQuestion tools and spawn Task agents. After each pass, use AskUserQuestion to let the user continue editing or confirm exit. Call ExitPlanMode only on explicit user confirmation (see step 8).
+3. **Constraint:** Never re-evaluate a question when a live evaluator result is available — use it as authoritative. On first pass (pre-spawn), proceed to spawn without pre-judgment.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
-5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract that `/review-fix` uses to catch intent-to-code drift.
-6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 concrete improvements to the review-plan skill itself — distinct from plan-level retrospective actions. Output renders as a terminal `SKILL LEARNINGS` panel before cleanup.
+5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract for `/review-fix` (intent-to-code drift detection).
+6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 skill improvements (not plan retrospectives). Renders as `SKILL LEARNINGS` panel before cleanup.
 
 ---
 
@@ -44,7 +44,7 @@ allowed-tools: all
 
 # Universal Plan Review: Convergence Loop
 
-Apply a 3-layer review (general quality, code-change quality, GAS specialization via gas-plan when detected). Iterate until all layers report zero changes in the same pass.
+Apply a 3-layer review: general quality, code-change quality, and GAS specialization (gas-plan when detected). Iterate until all layers report zero changes in the same pass.
 
 **Loop until convergence. Do not output the final scorecard until exit criteria are met.**
 
@@ -106,7 +106,7 @@ Apply a 3-layer review (general quality, code-change quality, GAS specialization
 
 <!-- STATE AT END OF PHASE 1:
      plan_path, plan_slug, questions_path, questions_l3_path,
-     skill_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md loaded in context. -->
+     skill_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md in context. -->
 
 <!-- PHASE 2 — CLASSIFICATION
      In:  plan_path, plan_slug, questions_path (from Phase 1)
@@ -460,7 +460,7 @@ Apply a 3-layer review (general quality, code-change quality, GAS specialization
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3a:
-     Rating, findings (5 questions), REVIEW_TIER (may have been upgraded to FULL).
+     Rating, findings (5 questions), REVIEW_TIER (possibly upgraded to FULL).
      Next: Phase 3b (SMALL) | Phase 3c (FULL setup) | Step 8 (interactive exit). -->
 
 <!-- PHASE 3b — SMALL EXECUTION
@@ -796,7 +796,7 @@ Apply a 3-layer review (general quality, code-change quality, GAS specialization
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
 <!-- STATE AT END OF PHASE 3b:
-     Rating, findings (9+ questions), REVIEW_TIER (may have been upgraded to FULL).
+     Rating, findings (9+ questions), REVIEW_TIER (possibly upgraded to FULL).
      Next: Phase 3c (FULL setup) | Step 8 (interactive exit). -->
 
 <!-- PHASE 3c — FULL SETUP
@@ -942,13 +942,11 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      prev_pass_applied_edits, MAX_CONCURRENT, MAX_EDITS_PER_PASS, RESULTS_DIR, memo_file,
      advisory_findings_cache), CONFIG box printed. -->
 
-<!-- ═══════════════════════════════════════════════════════════════
-     PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH
-     Inputs:  REVIEW_TIER, ACTIVE_RISKS, plan_path, RESULTS_DIR, memo_file
-     Outputs: research_pending[] (may be empty), memo_file updated with
-              research_pending field
-     Next:    Phase 4 (convergence loop — runs unaware of research lane)
-     Cost:    max 3 background Tasks × one Sonnet call each
+<!-- PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH
+     In:   REVIEW_TIER, ACTIVE_RISKS, plan_path, RESULTS_DIR, memo_file
+     Out:  research_pending[] (may be empty); memo_file.research_pending added
+     →     Phase 4 (convergence loop — runs unaware of research lane)
+     Cost: max 3 background Tasks × one Sonnet call each
 
      PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT
 
@@ -980,12 +978,10 @@ Gate tiers classify findings by severity and convergence impact. These definitio
        research_findings_block injected into Critic A and Critic B
        prompts; consolidator dedup applies citation-strength rules;
        surviving research-grounded edits flow into sr_applied_edits[]
-       and Teaching Notes via the normal bridge.
-     ═══════════════════════════════════════════════════════════════ -->
+       and Teaching Notes via the normal bridge. -->
 
-<!-- ── Phase 3c.5 body: research lane dispatches background Tasks in parallel with the
-     convergence loop; lane is best-effort — if tasks don't finish by Phase 5b.5 grace
-     period, senior critics run with empty research block. ── -->
+<!-- Phase 3c.5: dispatches ≤3 background Tasks parallel to Phase 4; best-effort —
+     tasks not done by Phase 5b.5 grace → senior critics run with empty research block. -->
 
 ```python
 # ── Phase 3c.5: Async Research Lane Dispatch ──
@@ -1202,8 +1198,8 @@ ELSE:
 
 <!-- STATE AT END OF PHASE 3c.5:
      research_pending [{slug, path, query, rationale, dispatched_at}] (may be empty);
-     memo_file updated with research_pending/done/missing. Background Tasks (≤3) run in
-     parallel with Phase 4; Phase 4 does NOT poll or wait. -->
+     memo_file updated with research_pending/done/missing. Background Tasks (≤3) parallel
+     Phase 4; Phase 4 does not poll. -->
 
 <!-- PHASE 4 — CONVERGENCE LOOP
      In:  plan_path, all tracking vars, RESULTS_DIR, memo_file,
