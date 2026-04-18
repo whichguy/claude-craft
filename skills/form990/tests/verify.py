@@ -27,7 +27,7 @@ import argparse, hashlib, json, os, pathlib, re, subprocess, sys, time, tempfile
 # ---------------------------------------------------------------------------
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
-SCRIPTS  = FIXTURES / "scripts"
+SCRIPTS  = FIXTURES / "harness-scripts"
 SKILL_DIR = pathlib.Path(__file__).parent.parent
 
 # Add lib/ to path so form990_lib is importable from either cwd
@@ -225,9 +225,9 @@ def tc9(args):
     tc = "TC9"
     if not _require_lib(tc): return
 
-    core_path = FIXTURES / "core_with_parts_I.json"
-    rollup_path = FIXTURES / "rollup_populated.json"
-    schedules_path = FIXTURES / "schedules_empty.json"
+    core_path = FIXTURES / "data" / "core_with_parts_I.json"
+    rollup_path = FIXTURES / "data" / "rollup_populated.json"
+    schedules_path = FIXTURES / "data" / "schedules_empty.json"
 
     if not all(p.exists() for p in [core_path, rollup_path, schedules_path]):
         error_(tc, "Merger fixture files missing from tests/fixtures/")

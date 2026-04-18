@@ -9,18 +9,17 @@ description: |
   CPA quality review (30 gates, 3 tiers), and reference PDF fill + e-file
   handoff packet. Stateful plan-file journal enables cold-resume across sessions.
 
-  Invoke as: /form990 init | resume | phase | review | status | ask | verify
+  AUTOMATICALLY INVOKE when:
+  - User says "prepare form 990", "990 filing", "nonprofit tax return"
+  - User provides a Google Sheets budget or financial data for a nonprofit
+  - Resuming a prior 990 session ("continue", "pick up where we left off")
+  - User asks about Part IV, Schedule A/B/G/O in a 990 filing context
+
+  NOT for: General tax questions, for-profit returns, 990-N or 990-PF variants
+argument-hint: "init --sheet <id> --tax-year <YYYY> | resume <plan-path> | phase <N> <plan-path> | review <plan-path> | status <plan-path> | ask <plan-path> | verify [--case TC<N>]"
 ---
 
 # Form 990 Skill — Orchestrator
-
-> **Form Year Dependency:** Line number references throughout this skill target the IRS Form 990
-> revision in effect for the filing year. The 2023 revision (used for tax years beginning after
-> 2022) restructured Part VIII (revenue lines shifted), Part IX (Line 11 sub-lines reordered:
-> 11a = Management, 11b = Legal, etc.), and Part X (net assets moved from 3-class to 2-class
-> ASC 958 format for most orgs). When `tax_year` changes, the Form Discovery Directive fetches
-> the correct year's form and field map; all P2–P9 line references must align to that revision's
-> field map. If field map line numbers conflict with PHASES.md, the field map takes precedence.
 
 Invoke via: `/form990 <subcommand> [args]`
 
@@ -85,6 +84,18 @@ Parse the invocation string to determine subcommand and arguments.
 - `--plan-path` defaults to `./form990-plan-<tax-year>.md` in the invocation cwd (for `init`)
 - `--ascii` defaults OFF (fancy box-drawing on)
 - `--no-sidecar` defaults OFF (sidecar writes on)
+
+---
+
+## §Preflight — Form Year Dependency
+
+> **Form Year Dependency:** Line number references throughout this skill target the IRS Form 990
+> revision in effect for the filing year. The 2023 revision (used for tax years beginning after
+> 2022) restructured Part VIII (revenue lines shifted), Part IX (Line 11 sub-lines reordered:
+> 11a = Management, 11b = Legal, etc.), and Part X (net assets moved from 3-class to 2-class
+> ASC 958 format for most orgs). When `tax_year` changes, the Form Discovery Directive fetches
+> the correct year's form and field map; all P2–P9 line references must align to that revision's
+> field map. If field map line numbers conflict with PHASES.md, the field map takes precedence.
 
 ---
 
@@ -267,17 +278,17 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 
 | File | Load when |
 |------|-----------|
-| `PHASES.md` | Always — every phase invocation |
+| `PHASES.md` | Always — every phase invocation. Jump to the target phase via its `## P<N> — <name>` heading (e.g., `## P3 — Financial Statement Production [PROG]`); read only that section unless a cross-phase reference is required. |
 | `SKILL.md` | Always — dispatch, helpers, schemas |
-| `PERSONA.md` | Always — injected on every phase and gate evaluation |
+| `PERSONA.md` | **`init` only** — injected as the seed persona written into the plan file at P0. On resume, the persona is re-read from the plan file's `## Persona` section (Step 3); loading PERSONA.md again is redundant and inconsistent with the plan-copy-is-authoritative rule. |
 | `QUESTIONS.md` | **P8 only** (CPA review pass). Do not load at P0–P7. Gates are evaluated only during the CPA review pass; loading them earlier wastes ~10K tokens per phase with no benefit. Also load if `/form990 review` subcommand is used. |
 | `SCHEDULES.md` | **P6 only** (schedule generation). Do not load at P8 entry — P8 evaluates `dataset_schedules.json` output, not playbooks. Load at P8 only if a NEEDS_UPDATE triggers a P6 re-run. |
 | `LEARNINGS.md` | **Do not load at phase entry.** Load only: (a) when `auto_append_learning()` is triggered on phase failure, or (b) during the Post-Run Review prompt at P9 close when the operator is explicitly reviewing learnings. |
-| `TOOL-SIGNATURES.md` | **P4** (pinned Part IV question count fallback) and **P9** (coordinate table for PDF fill). Do not load at P0–P3 or P5–P7. |
+| `TOOL-SIGNATURES.md` | **P4** (S3 spike: pinned Part IV yes/no item count = 38 for tax year 2025) and **P9** (AcroForm field map metadata + coordinate-table staleness hash check via `<!-- BEGIN/END COORDINATES <tax_year> -->` sentinels). Do not load at P0–P3 or P5–P7. |
 | `VERIFY.md` | **`/form990 verify` subcommand only.** Do not load during normal phase execution. |
 | `PROPOSALS-ARCHIVE.md` | Do not load during normal phase execution. Reference only when reviewing historical design decisions. |
 
-**Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical P0–P7 phase invocation uses ~34K tokens (PHASES.md + SKILL.md + PERSONA.md only), saving ~21K tokens per phase entry.
+**Why this matters:** Loading all files globally costs ~72K tokens per invocation. With these directives, a typical resume invocation uses ~30K tokens (PHASES.md + SKILL.md; PERSONA.md is loaded only at `init`), saving ~21K tokens per phase entry.
 
 ---
 
