@@ -7,7 +7,7 @@ description: |
 
   Spawned by question-bench skill for each experiment comparison. Receives two
   plan versions as X/Y (labels randomized by skill). NOT for standalone use.
-model: claude-opus-4-6
+model: claude-opus-4-7
 tools: []
 ---
 
