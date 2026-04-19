@@ -31,6 +31,9 @@
     "PreToolUse": [{
       "matcher": "Write|Edit",
       "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-raw-guard.sh", "timeout": 2 }]
+    }, {
+      "matcher": "Read",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/wiki-read-gate.sh", "timeout": 2 }]
     }],
     "PreCompact": [{
       "matcher": "*",

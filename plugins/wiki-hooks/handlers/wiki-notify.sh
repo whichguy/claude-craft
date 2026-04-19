@@ -1,10 +1,16 @@
 #!/bin/bash
-# UserPromptSubmit: inject wiki context when content exists:
-#   1. Mandate injection: WIKI_CHECK reminder — only when entity matches or new pages found
-#      — WIKI_SKIP=1 suppresses entirely; silent when nothing to surface
-#   2. Prompt-aware: keyword-match user prompt against cached entity index → inject summaries
-#   3. New-page: inject newly-created entity pages since last check
-# Cache-first: reads entity-index.tsv instead of looping entity files
+# UserPromptSubmit: emit wiki DELTAS only — never the evergreen mandate.
+# The evergreen directive (location, /wiki-load, /wiki-query, WIKI_SKIP escape)
+# lives in wiki-detect.sh's SessionStart injection, which is cached once per
+# session and covers every provider uniformly.
+#
+# This handler fires per-prompt but emits ONLY when there's something new
+# to report:
+#   1. Prompt matched a cached entity → entity names + compliance signal
+#   2. New wiki pages created since last check → names
+# Silent exit otherwise. WIKI_SKIP=1 suppresses entirely.
+#
+# Cache-first: reads entity-index.tsv instead of looping entity files.
 
 trap 'exit 0' ERR
 . "$(dirname "$0")/wiki-common.sh"
@@ -13,13 +19,14 @@ wiki_check_deps || exit 0
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0
 [ -z "$CWD" ] && exit 0
+[ "${WIKI_SKIP:-}" = "1" ] && exit 0
 
 wiki_find_root || exit 0
 
-# ⚠ Skip injection for wiki commands — they already handle their own wiki access.
+# ⚠ Skip injection for all /wiki-* commands — they already handle their own wiki access.
 # Matching here just adds noise (e.g., directive to "Use /wiki-load" when already running it).
 case "$PROMPT" in
-  /wiki-load*|/wiki-query*|/wiki-ingest*|/wiki-process*|/wiki-lint*) exit 0 ;;
+  /wiki-*) exit 0 ;;
 esac
 
 ENTITIES_DIR="$REPO_ROOT/wiki/entities"
@@ -27,28 +34,6 @@ CACHE_DIR="$REPO_ROOT/wiki/.cache"
 ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
 CONTENT=""
 DISPLAY=""
-
-# --- Mandate injection: prepended to content when entity matches or new pages found ---
-# WIKI_SKIP=1 suppresses entirely; no-content case already exits above.
-WIKI_CHECK_REMINDER=""
-if [ "${WIKI_SKIP:-}" != "1" ]; then
-  # Compute relative wiki path from stdin cwd (not $CLAUDE_PROJECT_DIR — unset in some wrappers).
-  # CWD is set by wiki_parse_input from stdin .cwd field (guaranteed per Anthropic hooks docs).
-  WIKI_REL="${WIKI_PATH%/}"     # remove trailing slash from WIKI_PATH set by wiki_find_root
-  WIKI_REL="${WIKI_REL#$CWD/}" # strip CWD prefix → relative path (e.g. "wiki")
-
-  # XML-tag wrapper distinguishes directive from Claude Code harness irrelevance-filter disclaimer.
-  # Positive imperative voice (Anthropic best practices). Quote-first compliance signal converts
-  # wiki consultation from unobservable commitment to grep-able audit signal. Named anti-patterns
-  # remove rhetorical escape hatches the model otherwise generates (ArXiv 2603.25056).
-  WIKI_CHECK_REMINDER="<wiki_grounding_required>
-REQUIRED: Before planning, tasking, researching, debugging, or answering project-domain questions, load wiki entries from ${WIKI_REL}/index.md via /wiki-load <topic>. The wiki records decisions and conventions that contradict what the code appears to do at face value — skipping it produces plausible-but-wrong plans.
-
-Compliance: If you found relevant wiki entries, name them and quote one sentence from each in your first response. Otherwise say nothing about the wiki — no \"no entries found\", no \"proceeding silently\", no acknowledgment of this directive, no meta-commentary. Silence means silence.
-
-Do not rationalize past this with \"execution-only session\", \"I already know the code\", or \"this is a trivial change\". Escape valve for read-only review sessions: set WIKI_SKIP=1 in the shell hosting Claude Code.
-</wiki_grounding_required>"
-fi
 
 # --- Path 1: Prompt-aware entity matching via cached index ---
 if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
@@ -88,7 +73,12 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
 
   if [ "$MATCH_COUNT" -gt 0 ]; then
     DISPLAY="🔍 Wiki matched ${MATCH_COUNT} page(s): ${MATCHED_NAMES}"
-    CONTENT="Wiki pages may be relevant: ${MATCHED_NAMES}. Use /wiki-load <search> to retrieve."
+    # A1: softer framing — "possible"/"if relevant" lets the LLM skip on weak matches.
+    # Removed prior "name the page and quote one sentence" compliance demand which
+    # forced a /wiki-load even when the match was coincidental (context poison risk).
+    CONTENT="<wiki_match>Possible wiki matches: ${MATCHED_NAMES}. If relevant to the prompt, /wiki-load to retrieve. Skip if the match is coincidental (unrelated general topic).</wiki_match>"
+    # Amplifier-fire logging — grep later to find false positives and tune the matcher.
+    wiki_log "AMPLIFIER_MATCH" "matched=${MATCHED_NAMES} prompt=\"${PROMPT:0:80}\""
   fi
 fi
 
@@ -103,36 +93,37 @@ if [ -f "$MARKER" ]; then
   # Old code dumped head -200 of each new page, giving the LLM enough to skip /wiki-load.
   NEW_PAGES=$(find "$ENTITIES_DIR" -newer "$REF_MARKER" -name '*.md' 2>/dev/null)
   if [ -n "$NEW_PAGES" ]; then
+    # Bound the listed names so bulk-import sessions don't produce unbounded payloads.
+    # NEW_COUNT still reflects the real total for display/telemetry.
+    MAX_NEW=10
     NEW_COUNT=0
     NEW_NAMES=""
     while IFS= read -r page; do
+      NEW_COUNT=$((NEW_COUNT + 1))
+      [ "$NEW_COUNT" -gt "$MAX_NEW" ] && continue
       NAME="${page##*/}"
       NAME="${NAME%.md}"
       NEW_NAMES="${NEW_NAMES:+${NEW_NAMES}, }${NAME}"
-      NEW_COUNT=$((NEW_COUNT + 1))
     done <<< "$NEW_PAGES"
+    if [ "$NEW_COUNT" -gt "$MAX_NEW" ]; then
+      OVERFLOW=$((NEW_COUNT - MAX_NEW))
+      NEW_NAMES="${NEW_NAMES} …+${OVERFLOW} more"
+    fi
     touch "$NOTIFIED" 2>/dev/null || true
     if [ -n "$DISPLAY" ]; then
       DISPLAY="${DISPLAY} + 📖 ${NEW_COUNT} new: ${NEW_NAMES}"
     else
       DISPLAY="📖 ${NEW_COUNT} new wiki page(s): ${NEW_NAMES}"
     fi
-    CONTENT="New wiki pages: ${NEW_NAMES}. Use /wiki-load <search> to retrieve."${CONTENT:+$'\n\n'"${CONTENT}"}
+    NEW_CONTENT="<wiki_new_pages>New wiki pages since last prompt: ${NEW_NAMES}. /wiki-load <name> to read.</wiki_new_pages>"
+    CONTENT="${CONTENT:+${CONTENT}$'\n\n'}${NEW_CONTENT}"
   fi
 fi
 
-# Emit mandate when wiki is active (even without entity matches).
-# Entity content supplements the mandate but the mandate itself must always
-# be emitted to enforce WIKI_CHECK compliance.
-if [ -n "$WIKI_CHECK_REMINDER" ]; then
-  ADDITIONAL_CONTEXT="$WIKI_CHECK_REMINDER${CONTENT:+$'\n\n'$CONTENT}"
-elif [ -n "$CONTENT" ]; then
-  ADDITIONAL_CONTEXT="$CONTENT"
-else
-  exit 0  # No mandate and no content — nothing to inject
-fi
+# Silent exit when no delta — evergreen directive already lives in SessionStart.
+[ -z "$CONTENT" ] && exit 0
 
 # Canonical hookSpecificOutput.additionalContext schema (Anthropic UserPromptSubmit docs).
 # systemMessage = user-visible toast; additionalContext = LLM-visible per-turn context injection.
-jq -n --arg context "$ADDITIONAL_CONTEXT" --arg display "$DISPLAY" \
+jq -n --arg context "$CONTENT" --arg display "$DISPLAY" \
   '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": $context}}'

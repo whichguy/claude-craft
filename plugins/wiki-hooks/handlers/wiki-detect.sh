@@ -54,8 +54,12 @@ else
   DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 fi
 
-# Minimal directive: location + tool availability. LLM decides when to use it.
-CONTEXT="Project wiki: ${REPO_NAME}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
+# Wiki directive (moved out of CLAUDE.md — fires only when a wiki exists).
+# Kept compact: location, primary tools, escape hatch, schema pointer.
+# ⚠ Framing (A1): "consult when …" + explicit skip criteria instead of a blanket
+# "consult before answering" mandate. Prior framing amplified false-positive
+# /wiki-load calls on clearly off-domain prompts (general coding, math, tool meta).
+CONTEXT="Project wiki at ${REPO_NAME}/wiki/ — /wiki-load <topic> for entity lookup, /wiki-query <question> for cross-page synthesis, Read wiki/index.md to browse. Consult when the prompt references project-specific entities, sources, or prior decisions. Skip for general coding/math/tool-output/conversation-meta. Schema: wiki/SCHEMA.md. Escape: WIKI_SKIP=1."
 
 jq -n --arg display "$DISPLAY" --arg context "$CONTEXT" \
   '{"systemMessage": $display, "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": $context}}'

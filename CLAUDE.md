@@ -11,6 +11,9 @@ SHELL:       set -eo pipefail, shopt -s nullglob, trap cleanup
 TEST:        npm test (mocha/chai, fixture-based, no mocks)
 SECURITY:    pre-commit → simple-secrets-scan.sh (fast) | full → security-scan.sh
 SETUP:       install.sh + sync + merge-hooks = idempotent fixer — run repeatedly to converge
+RESPONSE:    direct answer first, no preamble, no restating the question, no postamble.
+             tables only when ≥3 items with ≥2 attributes; bullets only when order-independent.
+             code-block paths/commands; prose for everything else.
 ```
 
 ---
@@ -30,7 +33,3 @@ Create file in repo subdir → `ln -sfn` to `~/.claude/` → test → commit. Us
 ./uninstall.sh [--dry-run|--yes|--keep-repo]    # Uninstall
 ./tools/install-git-hooks.sh [repo-path]        # Git hooks
 ```
-
-## Wiki
-WIKI: /wiki-load <topic> or Read wiki/index.md before answering project-domain questions or starting plan/task/research/debug — enforced by wiki-notify.sh UserPromptSubmit context injection. /wiki-query for synthesis. Escape: WIKI_SKIP=1.
-SCHEMA: wiki/SCHEMA.md defines v2 frontmatter (name, type, description, tags, confidence, last_verified, created, last_updated, sources, related). All fields optional at write time; /wiki-lint flags missing fields advisory-only. See wiki/SCHEMA.md for confidence calibration and NOT-in-v2 list.

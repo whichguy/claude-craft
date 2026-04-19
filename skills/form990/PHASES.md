@@ -537,13 +537,19 @@ However, Candid's **search and public profile pages require NO auth** — reclas
 See Tier 0 Source #3 above. `FORM990_ENABLE_PORTAL_CANDID` stays `0` (Tier 3 never ships).
 No Tier 3 action needed for Candid — all useful data is already in Tier 0.
 
-**Benevity** (if `portal_credentials.benevity` in profile and portal flag `"1"`):
-Spike S2 not yet tested for Benevity. Keep `FORM990_ENABLE_PORTAL_BENEVITY=0` until tested.
-If/when testing passes: `chrome-devtools__navigate_page` → `fill_form` (creds via
-`get_portal_creds("form990-benevity")`) → `take_snapshot`; extract:
-`{corporate_donors: [{name, match_amount, date, campaign}]}`.
-Lifecycle: wrapped in try/finally; finally calls `chrome-devtools__close_page` unconditionally.
-Error classes: `PortalAuthFailed`, `PortalAntiBot`, `PortalSchemaDrift`, `PortalCleanup`.
+**Benevity — Spike S2 PASS (2026-04-19): No CAPTCHA on login. Conditionally shippable.**
+`FORM990_ENABLE_PORTAL_BENEVITY=1` may be set after adding credentials to Keychain:
+  `security add-generic-password -s form990-benevity -a <email> -w <password>`
+If `portal_credentials.benevity` in profile AND portal flag `"1"`:
+  1. `chrome-devtools__navigate_page` → `https://causes.benevity.org/user`
+  2. `chrome-devtools__fill_form` (email + password via `get_portal_creds("form990-benevity")`)
+  3. Click "Sign in" → `chrome-devtools__wait_for` page load
+  4. `chrome-devtools__take_snapshot` → extract corporate donor data:
+     `{corporate_donors: [{name, match_amount, date, campaign}]}`
+  5. `chrome-devtools__close_page` (unconditional in finally block)
+Error classes: `PortalAuthFailed` (wrong creds), `PortalNetwork` (connection fail),
+               `PortalSchemaDrift` (page layout changed), `PortalCleanup` (close failed).
+Data produced: corporate donors who matched through Benevity — relevant for Schedule B.
 
 Breadcrumb each portal attempt with `tier:3 portal:candid|benevity status:attempted|failed|skipped`.
 

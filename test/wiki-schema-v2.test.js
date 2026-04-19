@@ -160,23 +160,37 @@ describe('Wiki Schema v2', function () {
 
     // ── CLAUDE.md ──────────────────────────────────────────────────────────
 
-    describe('CLAUDE.md (project)', function () {
-        const claudePath = path.join(REPO_ROOT, 'CLAUDE.md');
+    // ⚠ The wiki directive (including SCHEMA.md pointer) lives in wiki-detect.sh's
+    // SessionStart CONTEXT — fires only when a wiki exists. Prior to the audit ship,
+    // this content was in CLAUDE.md; it moved out so CLAUDE.md stays small for
+    // non-wiki repos (see plans/wiki-context-audit.md § Shipped).
+    describe('wiki-detect.sh SessionStart CONTEXT (replaces former CLAUDE.md § Wiki)', function () {
+        const detectPath = path.join(REPO_ROOT, 'plugins', 'wiki-hooks', 'handlers', 'wiki-detect.sh');
         let content;
 
         before(function () {
-            content = fs.readFileSync(claudePath, 'utf8');
-        });
-
-        it('references v2 frontmatter fields', function () {
-            expect(content).to.include('confidence');
-            expect(content).to.include('last_verified');
-            expect(content).to.include('sources');
-            expect(content).to.include('related');
+            content = fs.readFileSync(detectPath, 'utf8');
         });
 
         it('references SCHEMA.md for conventions', function () {
             expect(content).to.include('wiki/SCHEMA.md');
+        });
+    });
+
+    // v2 frontmatter fields are defined in wiki/SCHEMA.md itself (the canonical spec).
+    describe('wiki/SCHEMA.md (canonical schema spec)', function () {
+        const schemaPath = path.join(REPO_ROOT, 'wiki', 'SCHEMA.md');
+        let content;
+
+        before(function () {
+            content = fs.readFileSync(schemaPath, 'utf8');
+        });
+
+        it('defines v2 frontmatter fields', function () {
+            expect(content).to.include('confidence');
+            expect(content).to.include('last_verified');
+            expect(content).to.include('sources');
+            expect(content).to.include('related');
         });
     });
 

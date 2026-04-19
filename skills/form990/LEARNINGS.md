@@ -217,7 +217,13 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   Profile ID found from search result href. Sub-tabs (/financials, /forms-990) require
   JS routing — summary page data is sufficient for Tier 0 purposes.
   Auth-gated Tier 3 for Candid = DROPPED (no benefit over public profile).
-  Benevity Spike S2: still pending.
+  Benevity Spike S2 PASS (confirmed 2026-04-19): Login at `causes.benevity.org/user`
+  has NO CAPTCHA — clean username/password form, "Sign in" button, no anti-bot challenge.
+  Headless `fill_form` + click works once credentials are available in Keychain
+  (`security add-generic-password -s form990-benevity -a <email> -w <password>`).
+  `FORM990_ENABLE_PORTAL_BENEVITY=1` may be set after adding credentials to Keychain.
+  Benevity data (corporate donors, match amounts, campaigns) only available after login —
+  no public equivalent exists. Tier 3 for Benevity is **conditionally shippable**.
 
 *[Append new entries below after each run — never delete existing entries]*
 

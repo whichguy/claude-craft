@@ -394,6 +394,35 @@ fetch_candid_public() implementation pattern:
   Breadcrumb: tier:0 source:candid_public
 ```
 
+### Benevity Causes Portal — Spike S2 PASS (2026-04-19)
+
+```
+URL: https://causes.benevity.org/user
+Spike S2 outcome: PASS — NO CAPTCHA on login page.
+  - Clean form: "Username or Email" + "Password" + "Sign in" button
+  - No anti-bot challenge (no Turnstile, no reCAPTCHA)
+  - Headless fill_form → click "Sign in" works mechanically
+
+Pre-requisite: add credentials to macOS Keychain:
+  security add-generic-password -s form990-benevity -a <email> -w <password>
+  (or set FORM990_BENEVITY_PW env var on non-Darwin)
+
+Enable: FORM990_ENABLE_PORTAL_BENEVITY=1
+
+Data available after login (Tier 3 — not available publicly):
+  - Corporate donors who matched through Benevity: name, match_amount, date, campaign
+  - Used for Schedule B corporate donor identification
+  - Breadcrumb: tier:3 portal:benevity status:attempted
+
+Tier 3 flow (after S2 PASS):
+  chrome-devtools__navigate_page (url=https://causes.benevity.org/user)
+  chrome-devtools__fill_form (email + password from get_portal_creds("form990-benevity"))
+  chrome-devtools__click on "Sign in"
+  chrome-devtools__wait_for (page load, post-login dashboard)
+  chrome-devtools__take_snapshot → extract donor data
+  chrome-devtools__close_page (unconditional, in finally block)
+```
+
 ### Keychain Helper Contract
 
 ```
