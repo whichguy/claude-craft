@@ -1,9 +1,10 @@
 ---
 experiment: E1
 title: Prompt Caching
-status: infrastructure-complete
+status: complete-no-go
 registered: 2026-04-12
 infrastructure_completed: 2026-04-18
+results: docs/experiments/review-fix-e1-2026-04-19.md
 branch: exp/review-fix-efficiency
 ---
 
