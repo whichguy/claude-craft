@@ -15,6 +15,7 @@ description: |
   good", "before committing", "before merging", "loop until clean".
 color: orange
 model: sonnet
+loop_agent: true
 ---
 
 # review-fix — Narrow Orchestrator
