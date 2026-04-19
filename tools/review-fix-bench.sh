@@ -927,21 +927,32 @@ else:
   local timestamp
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+  # Use env-var passing for all string fields to avoid shell injection (C3 fix).
+  # Numeric fields are safe inline (computed integers/floats, no injection surface).
   local results_json
-  results_json=$(python3 -c "
-import json
+  results_json=$(
+    BENCH_LABEL="$LABEL" \
+    BENCH_TIMESTAMP="$timestamp" \
+    BENCH_PROMPT_VERSION="$prompt_version" \
+    BENCH_MODEL_PIN="$MODEL_PIN" \
+    BENCH_MODEL_OBSERVED="$actual_model_seen" \
+    BENCH_PER_FIXTURE_JSON="$per_fixture_json" \
+    BENCH_RAW_RUNS_JSON="$raw_runs_json" \
+    python3 -c "
+import json, os
+e = os.environ
 results = {
-    'label': '$LABEL',
-    'timestamp': '$timestamp',
-    'prompt_version': '$prompt_version',
-    'model_pin': '$MODEL_PIN',
-    'model_observed': '$actual_model_seen',
+    'label': e['BENCH_LABEL'],
+    'timestamp': e['BENCH_TIMESTAMP'],
+    'prompt_version': e['BENCH_PROMPT_VERSION'],
+    'model_pin': e['BENCH_MODEL_PIN'],
+    'model_observed': e['BENCH_MODEL_OBSERVED'],
     'fixtures_run': $fixture_count,
     'runs_per_fixture': $RUNS_PER_FIXTURE,
     'retry_count': $retry_count,
     'holdout_fixtures': $HOLDOUT_FIXTURES,
-    'per_fixture': json.loads('''$per_fixture_json'''),
-    'raw_runs': json.loads('''$raw_runs_json'''),
+    'per_fixture': json.loads(e['BENCH_PER_FIXTURE_JSON']),
+    'raw_runs': json.loads(e['BENCH_RAW_RUNS_JSON']),
     'aggregate': {
         'mean_precision': $mean_precision,
         'mean_recall': $mean_recall,
