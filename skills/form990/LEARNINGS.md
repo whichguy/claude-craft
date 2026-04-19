@@ -194,8 +194,24 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   with index CSVs at `index_{YEAR}.csv`. `fetch_irs_xml()` implemented using HTTP Range
   requests on ZIP central directory to avoid downloading full ~100MB archives.
   FY2024 (Form 990 full) confirmed filed 2026-05-14 and accessible via ProPublica XML link
-  (object_id: 202531349349309248). Spike S1 (ProPublica field fidelity vs filed PDF) pending
-  user confirmation.
+  (object_id: 202531349349309248). **Spike S1 PASS (confirmed 2026-04-19 by user).**
+  ProPublica `totrevenue` / `totfuncexpns` / `totnetassetend` match filed 990s for
+  FY2021–FY2023 within $1. Field mapping confirmed: `totnetassetend` is the direct EOY
+  net assets field (no subtraction needed); `totrevenue` is the correct gross-receipts
+  proxy (`totrcptperbks` is absent from the API). `fetch_propublica()` implementation is
+  correct as shipped. FY2024 not yet indexed in ProPublica API (lag ~12–18 months).
+
+- **LEARNING #3 (Spike S2 — Candid/GuideStar headless auth viability, 2026-04-19): FAIL.**
+  Navigated to `https://app.candid.org/login` via chromedevtools. The login page presents
+  a Cloudflare Turnstile anti-bot challenge (CAPTCHA iframe: "Widget containing a Cloudflare
+  security challenge" / "Verify you are human" checkbox). The "Log in" button is disabled
+  until the Turnstile challenge is solved — headless `fill_form → click` cannot solve it.
+  `error_class=PortalAntiBot`. **Resolution:** Tier 3 for Candid/GuideStar is dropped from
+  Phase 4 scope. `FORM990_ENABLE_PORTAL_CANDID` remains `0` (disabled) indefinitely unless
+  Cloudflare Turnstile is bypassed via an authenticated session cookie or alternative API.
+  Fall back: use Candid's public nonprofit profile page (no auth required) for basic org
+  info — does not require login for public charity profiles. Benevity Spike S2 still pending
+  (separate manual test required).
 
 *[Append new entries below after each run — never delete existing entries]*
 

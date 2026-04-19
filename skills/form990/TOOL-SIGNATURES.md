@@ -326,10 +326,11 @@ Response schema (top-level):
     "filings_without_data": [...]  ← filings where parsed data not available
   }
 
-SPIKE S1 REQUIRED before shipping fetch_propublica():
-  Verify which of {totrevenue, totrcptperbks} matches Schedule A "gross receipts"
-  as reported on the filed 990 PDF for FY2021-FY2024.
-  net_assets_eoy = totassetsend - totliabend (not a direct field)
+SPIKE S1 COMPLETE (2026-04-19 PASS):
+  totrevenue = correct gross_receipts proxy (totrcptperbks absent from API)
+  totnetassetend = direct EOY net assets field (no subtraction needed)
+  totfuncexpns = total functional expenses — all confirmed matching filed returns
+  FY2024 not yet indexed (lag); FY2021-FY2023 confirmed within $1 of filed PDFs
   
 Field mapping (pending S1 confirmation):
   plan field                    → ProPublica field
@@ -354,6 +355,26 @@ Recommendation for fetch_ca_rct():
   Use WebFetch on CA DOJ RCT verification URL + HTML parse.
   Key fields: registration_status, last_rrf1_year.
   On parse failure: log error_class=StateAGUnavailable, fall through to user_prompt.
+```
+
+### Candid/GuideStar Portal — Spike S2 Result (2026-04-19 FAIL)
+
+```
+URL: https://app.candid.org/login
+Spike S2 outcome: FAIL — Cloudflare Turnstile anti-bot CAPTCHA present on login page.
+  - Login page contains: Iframe "Widget containing a Cloudflare security challenge"
+  - "Log in" button is DISABLED until Turnstile "Verify you are human" is solved
+  - Headless chrome-devtools fill_form → click CANNOT solve Turnstile
+  - error_class=PortalAntiBot
+
+Resolution:
+  FORM990_ENABLE_PORTAL_CANDID = 0 (disabled, do not ship Tier 3 for Candid)
+  Fallback: use Candid's public nonprofit profile page (no auth) for basic org info
+    URL: https://app.candid.org/profile/{profile_id}
+    — accessible without login for public charity profiles
+    — does not require chromedevtools; use WebFetch
+
+Benevity Spike S2: not yet tested (separate manual test required)
 ```
 
 ### Keychain Helper Contract

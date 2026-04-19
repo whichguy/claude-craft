@@ -521,15 +521,20 @@ and continue (do not halt).
 (`FORM990_ENABLE_PORTAL_CANDID` / `FORM990_ENABLE_PORTAL_BENEVITY`) must be `"1"`.
 Default: disabled. When disabled: log `tier:3 status:disabled_by_flag` and fall through to Tier 4.
 
-**GuideStar/Candid** (if `portal_credentials.candid` in profile and portal flag `"1"`):
-`chrome-devtools__navigate_page` → `fill_form` (creds via `get_portal_creds("form990-candid")`)
-→ `take_snapshot` → extract into schema:
-`{prior_990_pdf_urls: [str], gross_receipts_5y: [{year, amount}], net_assets_eoy_5y: [{year, amount}]}`.
-Lifecycle: wrapped in try/finally; finally calls `chrome-devtools__close_page` unconditionally.
-Error classes: `PortalAuthFailed`, `PortalAntiBot`, `PortalSchemaDrift`, `PortalCleanup`.
+**GuideStar/Candid — Spike S2 FAIL (2026-04-19): Cloudflare Turnstile CAPTCHA blocks login.**
+`FORM990_ENABLE_PORTAL_CANDID` must remain `0` (disabled, do not set to `1`).
+The login page at `https://app.candid.org/login` has a Cloudflare Turnstile challenge
+that headless `fill_form` cannot solve. `error_class=PortalAntiBot`.
+Fallback (no auth): WebFetch `https://app.candid.org/profile/{id}` for basic public org info.
+Log `tier:3 source:candid status:antibot_blocked` and fall through to Tier 4.
 
 **Benevity** (if `portal_credentials.benevity` in profile and portal flag `"1"`):
-Same pattern; extract: `{corporate_donors: [{name, match_amount, date, campaign}]}`.
+Spike S2 not yet tested for Benevity. Keep `FORM990_ENABLE_PORTAL_BENEVITY=0` until tested.
+If/when testing passes: `chrome-devtools__navigate_page` → `fill_form` (creds via
+`get_portal_creds("form990-benevity")`) → `take_snapshot`; extract:
+`{corporate_donors: [{name, match_amount, date, campaign}]}`.
+Lifecycle: wrapped in try/finally; finally calls `chrome-devtools__close_page` unconditionally.
+Error classes: `PortalAuthFailed`, `PortalAntiBot`, `PortalSchemaDrift`, `PortalCleanup`.
 
 Breadcrumb each portal attempt with `tier:3 portal:candid|benevity status:attempted|failed|skipped`.
 
