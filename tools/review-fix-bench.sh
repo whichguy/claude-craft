@@ -260,11 +260,12 @@ print(json.dumps(result))
 match_findings() {
   local findings_json="$1"
   local gt_json="$2"
-  python3 -c "
-import json, sys
+  # Use env var passing to avoid shell injection: findings_json can contain quotes/backslashes
+  BENCH_FINDINGS_JSON="$findings_json" BENCH_GT_JSON="$gt_json" python3 -c "
+import json, sys, os
 
-findings = json.loads('''$findings_json''')
-gt = json.loads(open('$gt_json').read())
+findings = json.loads(os.environ['BENCH_FINDINGS_JSON'])
+gt = json.loads(open(os.environ['BENCH_GT_JSON']).read())
 
 matched_ids = set()
 matched_findings = set()
@@ -767,11 +768,11 @@ if not present: print(1.0)
 else: print(round(len(found_cats & present) / len(present), 4))
 " "$tp_list" "$gt_categories")
       else
-        completeness=$(python3 -c "
-import json
-findings = json.loads('''$findings_json''')
+        completeness=$(BENCH_FINDINGS_JSON="$findings_json" BENCH_GT_CATS="$gt_categories" python3 -c "
+import json, os
+findings = json.loads(os.environ['BENCH_FINDINGS_JSON'])
 cats = set(f.get('category', '') for f in findings if f.get('category'))
-present = set(json.loads('''$gt_categories'''))
+present = set(json.loads(os.environ['BENCH_GT_CATS']))
 if not present: print(1.0)
 else: print(round(len(cats & present) / len(present), 4))
 ")
@@ -781,9 +782,9 @@ else: print(round(len(cats & present) / len(present), 4))
       if [[ -n "${JUDGE_FILE:-}" ]]; then
         actionable="$tp_count"
       else
-        actionable=$(python3 -c "
-import json
-findings = json.loads('''$findings_json''')
+        actionable=$(BENCH_FINDINGS_JSON="$findings_json" python3 -c "
+import json, os
+findings = json.loads(os.environ['BENCH_FINDINGS_JSON'])
 print(len([f for f in findings if f.get('description', '')]))
 ")
       fi
@@ -795,28 +796,52 @@ print(len([f for f in findings if f.get('description', '')]))
       if [[ "$was_retry" == "true" ]]; then echo "    [RETRY: excluded from primary analysis per rate-limit policy]"; fi
 
       # QI-3: accumulate raw run record (unaggregated — do NOT average before storing)
+      # Use env-var passing to avoid shell injection in Python source (C1 fix: quotes/backslashes
+      # in fixture names or reviewer output would break inline '$var' string interpolation).
       local run_record
-      run_record=$(python3 -c "
-import json
+      local _dispatch_ts
+      _dispatch_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      run_record=$(
+        BENCH_FIXTURE="$fixture_name" \
+        BENCH_RUN="$run_num" \
+        BENCH_WAS_RETRY="$was_retry" \
+        BENCH_DISPATCH_TS="$_dispatch_ts" \
+        BENCH_PRECISION="$precision" \
+        BENCH_RECALL="$recall" \
+        BENCH_F1="$f1" \
+        BENCH_COMPLETENESS="$completeness" \
+        BENCH_WALL="$wall_clock" \
+        BENCH_TP_LIST="$tp_list" \
+        BENCH_FP_COUNT="$fp_count" \
+        BENCH_FN_LIST="$fn_list" \
+        BENCH_TOKENS_EST="$tokens_est" \
+        BENCH_INPUT="$run_input_tokens" \
+        BENCH_CC="$run_cc_tokens" \
+        BENCH_CR="$run_cr_tokens" \
+        BENCH_OUT="$run_output_tokens" \
+        BENCH_COST="$run_cost_usd" \
+        python3 -c "
+import json, os
+e = os.environ
 print(json.dumps({
-    'fixture': '$fixture_name',
-    'run': $run_num,
-    'was_retry': $([ "$was_retry" == "true" ] && echo 'True' || echo 'False'),
-    'dispatch_ts': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
-    'precision': $precision,
-    'recall': $recall,
-    'f1': $f1,
-    'completeness': $completeness,
-    'wall_clock_s': $wall_clock,
-    'true_positives': json.loads('$tp_list'),
-    'fp_count': $fp_count,
-    'false_negatives': json.loads('$fn_list'),
-    'tokens_estimate': $tokens_est,
-    'input_tokens': $run_input_tokens,
-    'cache_creation_input_tokens': $run_cc_tokens,
-    'cache_read_input_tokens': $run_cr_tokens,
-    'output_tokens': $run_output_tokens,
-    'cost_usd': $run_cost_usd
+    'fixture': e['BENCH_FIXTURE'],
+    'run': int(e['BENCH_RUN']),
+    'was_retry': e['BENCH_WAS_RETRY'] == 'true',
+    'dispatch_ts': e['BENCH_DISPATCH_TS'],
+    'precision': float(e['BENCH_PRECISION']),
+    'recall': float(e['BENCH_RECALL']),
+    'f1': float(e['BENCH_F1']),
+    'completeness': float(e['BENCH_COMPLETENESS']),
+    'wall_clock_s': float(e['BENCH_WALL']),
+    'true_positives': json.loads(e['BENCH_TP_LIST']),
+    'fp_count': int(e['BENCH_FP_COUNT']),
+    'false_negatives': json.loads(e['BENCH_FN_LIST']),
+    'tokens_estimate': int(e['BENCH_TOKENS_EST']),
+    'input_tokens': int(e['BENCH_INPUT']),
+    'cache_creation_input_tokens': int(e['BENCH_CC']),
+    'cache_read_input_tokens': int(e['BENCH_CR']),
+    'output_tokens': int(e['BENCH_OUT']),
+    'cost_usd': float(e['BENCH_COST'])
 }))
 ")
       if [[ "$first_run" == "true" ]]; then first_run=false; else raw_runs_json+=","; fi
@@ -858,14 +883,15 @@ print(json.dumps({
 
     # Per-fixture summary (mean across runs for this fixture — computed from fixture_run_json below)
     local fixture_summary
-    fixture_summary=$(python3 -c "
-import json
-runs = json.loads('''$fixture_run_json''')
+    fixture_summary=$(BENCH_FIXTURE_RUN_JSON="$fixture_run_json" BENCH_FIXTURE="$fixture_name" python3 -c "
+import json, os
+fixture_name = os.environ['BENCH_FIXTURE']
+runs = json.loads(os.environ['BENCH_FIXTURE_RUN_JSON'])
 if not runs:
-    print(json.dumps({'fixture': '$fixture_name', 'runs': []}))
+    print(json.dumps({'fixture': fixture_name, 'runs': []}))
 else:
     print(json.dumps({
-        'fixture': '$fixture_name',
+        'fixture': fixture_name,
         'runs_executed': len(runs),
         'mean_precision': round(sum(r['precision'] for r in runs) / len(runs), 4),
         'mean_recall': round(sum(r['recall'] for r in runs) / len(runs), 4),
@@ -1029,7 +1055,7 @@ print('└──────────────────────┴�
 cr_a = aa.get('total_cache_read_tokens', 0)
 cr_b = ba.get('total_cache_read_tokens', 0)
 inp_a = aa.get('total_input_tokens', 1)
-inp_b = aa.get('total_input_tokens', 1)
+inp_b = ba.get('total_input_tokens', 1)
 if cr_b > 0:
     cache_rate = cr_b / max(1, cr_b + inp_b)
     effective_inp_b = inp_b + 0.1 * cr_b
