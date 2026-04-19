@@ -21,11 +21,11 @@ Grepped all existing bench run outputs under `results/`:
 
 **No `rounds` field exists.** These baselines measure reviewer accuracy (true positives / false positives / false negatives) against ground-truth fixtures. They do not run the iterative review-fix loop and do not record rounds-to-converge.
 
-All 38 runs show `rounds: 0` (field absent, defaulting to 0 in Python). There are no multi-round fixtures because this benchmark architecture does not exercise the round loop at all.
+All 38 runs omit the `rounds` field entirely. There are no multi-round fixtures because this benchmark architecture does not exercise the round loop at all.
 
 ### Rounds distribution
 
-| Baseline file | Total runs | rounds=0 | rounds=1 | rounds=2 | rounds>2 |
+| Baseline file | Total runs | rounds absent | rounds=1 | rounds=2 | rounds>2 |
 |---|---|---|---|---|---|
 | baseline-2026-04-19.json | 19 | 19 | 0 | 0 | 0 |
 | baseline-2026-04-19-2.json | 19 | 19 | 0 | 0 | 0 |
