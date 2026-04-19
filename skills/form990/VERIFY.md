@@ -608,6 +608,52 @@ to record call order.
 
 ---
 
+## TC29 — Profile ingestion + scrub_pii category coverage
+
+**Covers:** Phase 1 Change 1 (company profile plumbing + PII extension)
+
+**Automated:** Yes — `python3 tests/verify.py --case TC29`
+
+**Setup:** Fixture profile written to a temp directory (no `~/.claude/form990/` side effects).
+
+**Steps:**
+1. Write a fixture profile `test-org.md` with `schema: 1`, EIN, officers, CA RCT, CA SOS, portal credential hint.
+2. Call `load_profile(str(fixture_path))` — direct path, not slug resolution.
+3. Assert returned dict contains `key_facts.ein == "85-3576252"` and `people.officers` with ≥2 entries.
+4. For each of the 6 PII categories, call `scrub_pii()` with appropriate inputs and assert the redaction token appears.
+
+**Assertions (≥6, one per category):**
+- `TC29-ein-loaded`: `profile["ein"] == "85-3576252"`
+- `TC29-officers-loaded`: `len(profile["people"]["officers"]) >= 2`
+- `TC29-scrub-ein`: `scrub_pii("EIN is 85-3576252")` → contains `[REDACTED-EIN]`
+- `TC29-scrub-officer`: `scrub_pii("CEO James Wiese", officer_names=[...])` → contains `[REDACTED-OFFICER]`
+- `TC29-scrub-email`: `scrub_pii("jim@fortifiedstrength.org")` → contains `[REDACTED-EMAIL]` (portal account_hint via email rule)
+- `TC29-scrub-ca-rct`: `scrub_pii("CT0272348")` → contains `[REDACTED-CA-RCT]`
+- `TC29-scrub-ca-sos`: `scrub_pii("4567890", ca_sos_entity_ids=["4567890"])` → contains `[REDACTED-CA-SOS]`
+- `TC29-scrub-donor`: `scrub_pii("Jane Smith", donor_names=["Jane Smith"])` → contains `[REDACTED-DONOR]` (regression guard)
+- `TC29-allowlist`: `get_portal_creds("$(rm -rf /)")` raises `ValueError` before any shell exec
+
+**Expected:** TC29 grid cell: `✔`
+
+---
+
+## TC31 — Cold-run profile promotion (manual)
+
+**Covers:** Phase 1 Change 1 — P9 cold-run promotion path
+
+**Automated:** No — requires full P0–P9 mock run.
+
+**Steps:**
+1. Run `/form990 init` with no `--profile` and no `~/.claude/form990/` directory.
+2. Complete a mock P0–P9 run with a synthetic org.
+3. At P9 end-of-run, assert the skill offers to write `~/.claude/form990/<slug>.md`.
+4. Accept the offer; assert the written file passes `load_profile()` without errors.
+5. Assert the round-tripped `ein` and `people.officers` match the resolved `key_facts` from the run.
+
+**Expected:** TC31 manual verification: P9 writes a valid profile that round-trips through `load_profile()`.
+
+---
+
 ## Running the Harness
 
 ```bash

@@ -59,6 +59,10 @@ try:
         sweep_orphaned_tmps, pid_dead,
         # C1: host-staleness check
         is_plan_lock_stale,
+        # Phase 1: profile + Secret
+        load_profile, get_portal_creds,
+        Secret, KeychainMissingEntry, _PORTAL_CRED_ALLOWLIST,
+        _validate_slug,
     )
     _LIB_AVAILABLE = True
 except ImportError as _e:
@@ -557,7 +561,7 @@ def tc12(args):
 # ---------------------------------------------------------------------------
 
 def tc13(args):
-    """scrub_pii redaction rules: SSN, bare 9-digit, EIN passthrough, donor name, long num."""
+    """scrub_pii redaction rules: SSN, bare 9-digit, EIN redaction, donor name, long num."""
     tc = "TC13"
     if not _require_lib(tc): return
 
@@ -572,10 +576,10 @@ def tc13(args):
     if "[REDACTED-9DIGIT]" not in result:
         failures.append(f"bare 9-digit not redacted: {result}")
 
-    # Hyphenated EIN must pass through unchanged
+    # EIN (XX-XXXXXXX) must be redacted — Phase 1 profile-PII extension
     result = scrub_pii("EIN: 12-3456789 end")
-    if "12-3456789" not in result:
-        failures.append(f"Hyphenated EIN was incorrectly redacted: {result}")
+    if "[REDACTED-EIN]" not in result:
+        failures.append(f"EIN was not redacted: {result}")
 
     # Donor name with word boundary (A1: min 4 chars rule — "Jane Doe" = 8 chars, passes)
     result = scrub_pii("Jane Doe donated $500", donor_names=["Jane Doe"])
@@ -1212,6 +1216,106 @@ def tc28(args):
         _sh28.rmtree(tmp, ignore_errors=True)
 
 
+# ---------------------------------------------------------------------------
+# TC29 — Profile ingestion + scrub_pii category coverage (Phase 1)
+# Uses: load_profile, scrub_pii, get_portal_creds from form990_lib
+# ---------------------------------------------------------------------------
+
+def tc29(args):
+    """TC29 — Profile ingestion: load_profile returns key_facts; scrub_pii covers 6 categories."""
+    import shutil
+    tc = "TC29"
+    if not _require_lib(tc):
+        return
+
+    tmp = pathlib.Path(tempfile.mkdtemp())
+    try:
+        # Write a fixture profile in ~/.claude/form990/ format
+        fixture = tmp / "test-org.md"
+        fixture.write_text(
+            "---\n"
+            "schema: 1\n"
+            "org_slug: test-org\n"
+            'legal_name: Test Org\n'
+            'ein: "85-3576252"\n'
+            "formation_state: CA\n"
+            'fiscal_year_end: "12-31"\n'
+            "accounting_method: cash\n"
+            "people:\n"
+            "  officers:\n"
+            '    - { name: "James Wiese", role: "CEO", family: "wiese" }\n'
+            '    - { name: "Kelly Wiese", role: "CFO", family: "wiese" }\n'
+            "registrations:\n"
+            '  ca_rct_number: "CT0272348"\n'
+            '  ca_sos_entity_id: "4567890"\n'
+            "portal_credentials:\n"
+            '  candid: { account_hint: "jim@fortifiedstrength.org" }\n'
+            "---\n"
+            "## Notes\n",
+            encoding="utf-8",
+        )
+
+        # --- profile ingestion ---
+        profile = load_profile(str(fixture))
+
+        if not assert_equal(tc, profile.get("ein"), "85-3576252", "TC29-ein-loaded"):
+            return
+        officers = (profile.get("people") or {}).get("officers", [])
+        if not assert_true(tc, len(officers) >= 2, "TC29-officers-loaded: expected ≥2 officers"):
+            return
+        if not assert_equal(tc, profile.get("accounting_method"), "cash", "TC29-accounting_method"):
+            return
+
+        # --- scrub_pii sub-assertions: one per PII category (≥6 required by plan) ---
+
+        # 1. EIN redaction
+        got = scrub_pii("EIN is 85-3576252 on the return")
+        if not assert_true(tc, "[REDACTED-EIN]" in got, "TC29-scrub-ein: EIN not redacted"):
+            return
+
+        # 2. Officer name redaction
+        officer_names = [o["name"] for o in officers if isinstance(o, dict) and o.get("name")]
+        got = scrub_pii("CEO James Wiese signed the return", officer_names=officer_names)
+        if not assert_true(tc, "[REDACTED-OFFICER]" in got, "TC29-scrub-officer: officer name not redacted"):
+            return
+
+        # 3. Portal account_hint — already covered by email rule (C2)
+        got = scrub_pii("account: jim@fortifiedstrength.org")
+        if not assert_true(tc, "[REDACTED-EMAIL]" in got, "TC29-scrub-email: portal account_hint not redacted"):
+            return
+
+        # 4. CA RCT number redaction
+        got = scrub_pii("CA RCT number CT0272348 is active")
+        if not assert_true(tc, "[REDACTED-CA-RCT]" in got, "TC29-scrub-ca-rct: CA RCT not redacted"):
+            return
+
+        # 5. CA SOS entity ID redaction
+        got = scrub_pii("CA SOS entity 4567890 is registered", ca_sos_entity_ids=["4567890"])
+        if not assert_true(tc, "[REDACTED-CA-SOS]" in got, "TC29-scrub-ca-sos: CA SOS entity ID not redacted"):
+            return
+
+        # 6. Donor names (regression guard — existing behaviour must still fire)
+        got = scrub_pii("Donor Jane Smith donated $1000", donor_names=["Jane Smith"])
+        if not assert_true(tc, "[REDACTED-DONOR]" in got, "TC29-scrub-donor: donor name not redacted (regression)"):
+            return
+
+        # --- get_portal_creds allowlist rejection ---
+        try:
+            get_portal_creds("$(rm -rf /)")
+            fail_(tc, "TC29-allowlist: injection payload accepted — ValueError expected")
+            return
+        except ValueError:
+            pass  # expected
+
+        if tc not in RESULTS:
+            pass_(tc)
+
+    except Exception as e:
+        error_(tc, f"TC29: {type(e).__name__}: {e}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # Skipped manual tests (TC1–TC7 require MCP or human involvement)
 # ---------------------------------------------------------------------------
 
@@ -1247,6 +1351,8 @@ AUTOMATED_TCS = {
     "TC26": tc26,
     "TC27": tc27,
     "TC28": tc28,
+    # Phase 1
+    "TC29": tc29,
 }
 
 # ---------------------------------------------------------------------------

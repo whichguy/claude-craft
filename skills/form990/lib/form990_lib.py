@@ -31,19 +31,33 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 ERROR_CLASSES: frozenset[str] = frozenset({
-    "HalfWrite",          # Change 2 + crash recovery orphan path
-    "RunningDeadPid",     # crash recovery no-orphan branch
-    "AncestorRegression", # verify_ancestors mismatch
-    "CasConflict",        # atomic_commit CAS retry exhausted
-    "ScriptTimeout",      # run_script deadline exceeded
-    "ScriptNonZero",      # run_script non-zero exit
-    "PiiLeakSuspected",   # post-scrub defense-in-depth canary
-    "SchemaUnknown",      # unknown schema_version on resume
-    "ArtifactCycle",      # ARTIFACT_DEPS cycle detected
-    "PreImageStale",      # pre_image_sha256 mismatch (dev error)
-    "OrphanSweepFailed",  # unlink on staging/tmp raised non-ENOENT
-    "WebFetchFailed",     # P9 blank PDF fetch failed after retry
-    "PlaybookMissing",    # P6 dispatched to schedule with no playbook
+    "HalfWrite",              # Change 2 + crash recovery orphan path
+    "RunningDeadPid",         # crash recovery no-orphan branch
+    "AncestorRegression",     # verify_ancestors mismatch
+    "CasConflict",            # atomic_commit CAS retry exhausted
+    "ScriptTimeout",          # run_script deadline exceeded
+    "ScriptNonZero",          # run_script non-zero exit
+    "PiiLeakSuspected",       # post-scrub defense-in-depth canary
+    "SchemaUnknown",          # unknown schema_version on resume
+    "ArtifactCycle",          # ARTIFACT_DEPS cycle detected
+    "PreImageStale",          # pre_image_sha256 mismatch (dev error)
+    "OrphanSweepFailed",      # unlink on staging/tmp raised non-ENOENT
+    "WebFetchFailed",         # P9 blank PDF fetch failed after retry
+    "PlaybookMissing",        # P6 dispatched to schedule with no playbook
+    # Phase 1 — profile + ladder additions
+    "TEOSUnavailable",        # IRS TEOS fetch failed after retry
+    "ProPublicaUnavailable",  # ProPublica fetch failed after retry
+    "StateAGUnavailable",     # State AG charity registry fetch failed
+    "KeychainLocked",         # macOS Keychain locked
+    "KeychainPermissionDenied", # Keychain permission denied
+    "KeychainMissingEntry",   # Credential not found in Keychain or env
+    "PortalAuthFailed",       # Candid/Benevity login rejected
+    "PortalAntiBot",          # Anti-bot interception detected
+    "PortalNetwork",          # Portal network error
+    "PortalSchemaDrift",      # Portal page layout changed; extraction failed
+    "PortalCleanup",          # chrome-devtools close_page failed
+    "OrgAccountBoundary",     # Org-account Drive read via GAS bridge failed
+    "LegacyNoProfile",        # In-flight plan lacks profile_path (migration path)
 })
 
 # ---------------------------------------------------------------------------
@@ -64,64 +78,75 @@ def now_iso_date() -> str:
 # scrub_pii() — PII redaction helper (A1 basic rules; C2 extends this)
 # ---------------------------------------------------------------------------
 
-def scrub_pii(text: str, donor_names: list[str] | None = None) -> str:
+def scrub_pii(
+    text: str,
+    donor_names: list[str] | None = None,
+    officer_names: list[str] | None = None,
+    ca_sos_entity_ids: list[str] | None = None,
+) -> str:
     """
     Redact PII before writing to plan file breadcrumbs or LEARNINGS.
 
-    Rules applied in order (A1 basic set + C2 phone/email/DOB/addr extensions):
+    Rules applied in order (A1 basic + C2 extensions + Phase-1 profile-sourced PII):
       1.  SSN/ITIN: ddd-dd-dddd → [REDACTED-SSN]
-      2.  Bare 9-digit run → [REDACTED-9DIGIT]  (EINs are XX-XXXXXXX, skip)
-      3.  Donor names from donor_names list (longest first, word-boundary, ≥4 chars)
-      4.  Long numeric run >= 10 digits → [REDACTED-LONGNUM] (bank accts)
-      5.  (C2) Phone numbers: ddd[-.]ddd[-.]dddd → [REDACTED-PHONE]
-      6.  (C2) Email addresses → [REDACTED-EMAIL]
-      7.  (C2) Date of birth MM/DD/YYYY → [REDACTED-DOB]
-      8.  (C2) Street address: "<number> <words> <suffix>" → [REDACTED-ADDR], <city>
+      2.  EIN: dd-ddddddd → [REDACTED-EIN]              (Phase 1: profile-sourced)
+      3.  CA RCT number: CTddddddd → [REDACTED-CA-RCT]  (Phase 1: profile-sourced)
+      4.  Bare 9-digit run → [REDACTED-9DIGIT]
+      5.  Officer names list (longest first, word-boundary, ≥4 chars) → [REDACTED-OFFICER]
+      6.  CA SOS entity ID list → [REDACTED-CA-SOS]
+      7.  Donor names list (longest first, word-boundary, ≥4 chars) → [REDACTED-DONOR]
+      8.  Long numeric run >= 10 digits → [REDACTED-LONGNUM] (bank accts)
+      9.  (C2) Phone numbers: ddd[-.]ddd[-.]dddd → [REDACTED-PHONE]
+      10. (C2) Email addresses → [REDACTED-EMAIL]  (covers portal account_hints)
+      11. (C2) Date of birth MM/DD/YYYY → [REDACTED-DOB]
+      12. (C2) Street address: "<number> <words> <suffix>" → [REDACTED-ADDR]
     """
     if donor_names is None:
         donor_names = []
+    if officer_names is None:
+        officer_names = []
+    if ca_sos_entity_ids is None:
+        ca_sos_entity_ids = []
 
-    # 1. SSN/ITIN (hyphenated) — must come before bare-9 to avoid double-matching
+    # 1. SSN/ITIN (hyphenated) — must come before EIN and bare-9
     text = re.sub(r'\b\d{3}-\d{2}-\d{4}\b', '[REDACTED-SSN]', text)
-    # 2. Bare 9-digit run (not preceded/followed by hyphen — avoids EIN XX-XXXXXXX)
+    # 2. EIN (XX-XXXXXXX) — must come before bare-9 (bare-9 would miss hyphen)
+    text = re.sub(r'\b\d{2}-\d{7}\b', '[REDACTED-EIN]', text)
+    # 3. CA RCT registration number (CT + 7 digits, e.g. CT0272348)
+    text = re.sub(r'\bCT\d{7}\b', '[REDACTED-CA-RCT]', text)
+    # 4. Bare 9-digit run (EINs already caught above)
     text = re.sub(r'(?<![-\d])\b\d{9}\b(?![-\d])', '[REDACTED-9DIGIT]', text)
 
-    # 3. Donor names: longest first, word boundary, minimum 4 chars
+    # 5. Officer names: longest first, word boundary, minimum 4 chars
+    for name in sorted(officer_names, key=len, reverse=True):
+        if name and len(name) >= 4:
+            text = re.sub(r'\b' + re.escape(name) + r'\b', '[REDACTED-OFFICER]', text, flags=re.IGNORECASE)
+
+    # 6. CA SOS entity IDs
+    for entity_id in sorted(ca_sos_entity_ids, key=len, reverse=True):
+        if entity_id and len(str(entity_id)) >= 4:
+            text = re.sub(r'\b' + re.escape(str(entity_id)) + r'\b', '[REDACTED-CA-SOS]', text, flags=re.IGNORECASE)
+
+    # 7. Donor names: longest first, word boundary, minimum 4 chars
     for name in sorted(donor_names, key=len, reverse=True):
         if name and len(name) >= 4:
             pattern = r'\b' + re.escape(name) + r'\b'
             text = re.sub(pattern, '[REDACTED-DONOR]', text, flags=re.IGNORECASE)
 
-    # 4. Long numeric run >= 10 digits (bank acct, ITIN without dashes, etc.)
+    # 8. Long numeric run >= 10 digits (bank acct, ITIN without dashes, etc.)
     text = re.sub(r'\d{10,}', '[REDACTED-LONGNUM]', text)
 
-    # 5. (C2) Phone: ddd[-. ]?ddd[-. ]?dddd — covers US formats including dots/spaces
-    text = re.sub(
-        r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',
-        '[REDACTED-PHONE]',
-        text,
-    )
+    # 9. (C2) Phone: ddd[-. ]?ddd[-. ]?dddd — covers US formats including dots/spaces
+    text = re.sub(r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b', '[REDACTED-PHONE]', text)
 
-    # 6. (C2) Email addresses
-    text = re.sub(
-        r'\b[\w.+\-]+@[\w\-]+\.[\w.\-]+\b',
-        '[REDACTED-EMAIL]',
-        text,
-    )
+    # 10. (C2) Email addresses (also covers portal_credentials.*.account_hint)
+    text = re.sub(r'\b[\w.+\-]+@[\w\-]+\.[\w.\-]+\b', '[REDACTED-EMAIL]', text)
 
-    # 7. (C2) Date of birth: MM/DD/YYYY or MM/DD/YY
-    text = re.sub(
-        r'\b\d{1,2}/\d{1,2}/(19|20)\d{2}\b',
-        '[REDACTED-DOB]',
-        text,
-    )
+    # 11. (C2) Date of birth: MM/DD/YYYY or MM/DD/YY
+    text = re.sub(r'\b\d{1,2}/\d{1,2}/(19|20)\d{2}\b', '[REDACTED-DOB]', text)
 
-    # 8. (C2) Street address: one or more digits + whitespace + words +
-    #    street suffix. Preserve everything after the comma (city/state).
-    #    Case-insensitive to handle "MAIN ST", "elm St", etc.
-    _ADDR_SUFFIXES = (
-        r'St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl|Pkwy|Hwy|Cir|Ter|Sq|Loop'
-    )
+    # 12. (C2) Street address: digits + words + suffix
+    _ADDR_SUFFIXES = r'St|Ave|Rd|Blvd|Ln|Way|Dr|Ct|Pl|Pkwy|Hwy|Cir|Ter|Sq|Loop'
     text = re.sub(
         r'\b\d+\s+(?:[A-Za-z]+\.?\s+)+(?:' + _ADDR_SUFFIXES + r')\b\.?',
         '[REDACTED-ADDR]',
@@ -153,8 +178,13 @@ def append_breadcrumb(
         f"unknown error_class {error_class!r} — add to ERROR_CLASSES enum first"
     )
 
-    donor_names: list[str] = state.get("key_facts", {}).get("donor_names", [])
-    safe_msg = scrub_pii(msg, donor_names)
+    key_facts = state.get("key_facts", {})
+    donor_names: list[str] = key_facts.get("donor_names", [])
+    officers = key_facts.get("people", {}).get("officers", []) if isinstance(key_facts.get("people"), dict) else []
+    officer_names = [o.get("name") for o in officers if isinstance(o, dict) and o.get("name")]
+    reg = key_facts.get("registrations", {})
+    ca_sos_ids = [reg["ca_sos_entity_id"]] if isinstance(reg, dict) and reg.get("ca_sos_entity_id") else []
+    safe_msg = scrub_pii(msg, donor_names=donor_names, officer_names=officer_names, ca_sos_entity_ids=ca_sos_ids)
 
     entry: dict[str, Any] = {
         "at":    now_iso(),
@@ -843,6 +873,10 @@ PHASE_DEADLINES_S: dict[str, int] = {
     "P6": 300,
     "gmail_draft": 15,
     "default": 60,
+    # Phase 1/2/3 — profile + ladder additions
+    "p0_public_lookup_s": 15,   # each of 3 parallel fetches (TEOS, ProPublica, CA RCT), 1 retry
+    "p1_gas_bridge_s": 20,      # Tier-2 GAS bridge DriveApp call
+    "p1_portal_auth_s": 45,     # Tier-3 full flow: navigate(15) + fill(7) + snapshot(15) + parse(5) + buffer(3)
 }
 
 
@@ -960,3 +994,467 @@ def run_script(
             f"stdout unparseable: {e}\nstderr tail: {stderr[-500:]}",
             stdout,
         )
+
+
+# ---------------------------------------------------------------------------
+# Secret — PII-safe credential wrapper (Phase 1)
+# ---------------------------------------------------------------------------
+
+class PiiLeakSuspected(ValueError):
+    """Raised when a Secret value reaches a serialization boundary."""
+
+
+class Secret:
+    """
+    Wraps a sensitive value. __repr__/__str__ always return '***'.
+    JSON serializer raises PiiLeakSuspected if a Secret instance is encountered.
+    Use Secret.reveal() only at trust boundaries (e.g. passing to subprocess argv).
+    """
+
+    def __init__(self, value: str | bytes | None) -> None:
+        self._value = value
+
+    def __repr__(self) -> str:
+        return "***"
+
+    def __str__(self) -> str:
+        return "***"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, Secret):
+            return self._value == other._value
+        return NotImplemented
+
+    def reveal(self) -> str | bytes | None:
+        """Expose the raw value — call only at trust boundaries."""
+        return self._value
+
+    @staticmethod
+    def _json_default(obj: object) -> object:
+        if isinstance(obj, Secret):
+            raise PiiLeakSuspected(
+                "Secret value encountered in JSON serializer — "
+                "credentials must never reach breadcrumbs or LEARNINGS"
+            )
+        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+# ---------------------------------------------------------------------------
+# Keychain exception classes (Phase 1)
+# ---------------------------------------------------------------------------
+
+class KeychainLocked(RuntimeError):
+    """macOS Keychain is locked — unlock first (error_class=KeychainLocked)."""
+
+
+class KeychainPermissionDenied(RuntimeError):
+    """Keychain permission denied — check entitlements (error_class=KeychainPermissionDenied)."""
+
+
+class KeychainMissingEntry(RuntimeError):
+    """Credential not found in Keychain or env var (error_class=KeychainMissingEntry)."""
+
+
+# ---------------------------------------------------------------------------
+# Fetch exception classes (Phase 2 helpers — declared here for ERROR_CLASSES
+# consistency; implementations land in Phase 2)
+# ---------------------------------------------------------------------------
+
+class TEOSUnavailable(RuntimeError):
+    """IRS TEOS fetch failed after retry (error_class=TEOSUnavailable)."""
+
+
+class ProPublicaUnavailable(RuntimeError):
+    """ProPublica Nonprofit Explorer fetch failed (error_class=ProPublicaUnavailable)."""
+
+
+class StateAGUnavailable(RuntimeError):
+    """State AG charity registry fetch failed (error_class=StateAGUnavailable)."""
+
+
+# ---------------------------------------------------------------------------
+# Portal credential helpers (Phase 1)
+# ---------------------------------------------------------------------------
+
+_PORTAL_CRED_ALLOWLIST: frozenset[str] = frozenset({
+    "form990-candid",
+    "form990-benevity",
+})
+
+
+def get_portal_creds(service: str) -> "Secret":
+    """
+    Retrieve portal credentials from macOS Keychain or env var fallback.
+
+    service MUST be in _PORTAL_CRED_ALLOWLIST — validated before any shell call.
+    Returns Secret wrapping the password; Secret.__repr__ → '***' (never logged).
+
+    Darwin: calls `security find-generic-password -s <service> -w` with shell=False.
+    Non-Darwin: reads $FORM990_<SERVICE>_PW (e.g. $FORM990_CANDID_PW).
+
+    Error classes:
+      KeychainLocked           — Keychain locked (exit 36)
+      KeychainPermissionDenied — permission denied (exit 44)
+      KeychainMissingEntry     — not found (silent on non-Darwin env-var path)
+    """
+    if service not in _PORTAL_CRED_ALLOWLIST:
+        raise ValueError(
+            f"service {service!r} not in portal credential allowlist "
+            f"{sorted(_PORTAL_CRED_ALLOWLIST)} — TC34 guards this path"
+        )
+    if sys.platform == "darwin":
+        return _get_creds_keychain(service)
+    return _get_creds_env(service)
+
+
+def _get_creds_keychain(service: str) -> "Secret":
+    try:
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", service, "-w"],
+            capture_output=True,
+            text=True,
+            shell=False,  # TC34: must never be shell=True
+            timeout=10,
+        )
+    except FileNotFoundError:
+        raise KeychainMissingEntry(f"security binary not found for service {service!r}")
+
+    if result.returncode == 0:
+        return Secret(result.stdout.strip())
+    elif result.returncode == 36:
+        raise KeychainLocked(f"Keychain locked for service {service!r}")
+    elif result.returncode == 44:
+        raise KeychainPermissionDenied(f"Keychain permission denied for service {service!r}")
+    else:
+        raise KeychainMissingEntry(
+            f"Credential not found for service {service!r} (exit {result.returncode})"
+        )
+
+
+def _get_creds_env(service: str) -> "Secret":
+    env_suffix = service.replace("form990-", "").replace("-", "_").upper()
+    env_key = f"FORM990_{env_suffix}_PW"
+    val = os.environ.get(env_key)
+    if val is None:
+        raise KeychainMissingEntry(
+            f"Credential not found for service {service!r}: "
+            f"set ${env_key} or add to macOS Keychain (error_class=KeychainMissingEntry)"
+        )
+    return Secret(val)
+
+
+# ---------------------------------------------------------------------------
+# Profile YAML frontmatter parser (stdlib-only, Phase 1)
+# ---------------------------------------------------------------------------
+
+def _yaml_scalar(s: str) -> Any:
+    """Parse a YAML scalar string into a Python value."""
+    s = s.strip()
+    # Strip inline comment
+    if "#" in s and not (s.startswith('"') or s.startswith("'")):
+        s = s[: s.index("#")].strip()
+    # Strip surrounding quotes
+    if len(s) >= 2 and s[0] in ('"', "'") and s[-1] == s[0]:
+        return s[1:-1]
+    if s in ("null", "~", ""):
+        return None
+    if s == "true":
+        return True
+    if s == "false":
+        return False
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    return s
+
+
+def _yaml_split_csv(s: str) -> list[str]:
+    """Split s on commas respecting quoted strings."""
+    parts: list[str] = []
+    buf: list[str] = []
+    in_quote: str | None = None
+    for ch in s:
+        if in_quote:
+            buf.append(ch)
+            if ch == in_quote:
+                in_quote = None
+        elif ch in ('"', "'"):
+            in_quote = ch
+            buf.append(ch)
+        elif ch == ",":
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    if buf:
+        parts.append("".join(buf))
+    return parts
+
+
+def _yaml_inline_obj(s: str) -> dict:
+    """Parse YAML inline object: { key: val, key: "val", key: null }"""
+    s = s.strip()
+    if s.startswith("{") and s.endswith("}"):
+        s = s[1:-1]
+    result: dict = {}
+    for part in _yaml_split_csv(s):
+        part = part.strip()
+        if not part:
+            continue
+        colon_idx = part.find(":")
+        if colon_idx == -1:
+            continue
+        key = part[:colon_idx].strip()
+        val = _yaml_scalar(part[colon_idx + 1 :])
+        result[key] = val
+    return result
+
+
+def _yaml_inline_list(s: str) -> list:
+    """Parse YAML inline list: ["a", "b", "c"] or [a, b]"""
+    s = s.strip()
+    if s.startswith("[") and s.endswith("]"):
+        s = s[1:-1]
+    return [_yaml_scalar(p.strip()) for p in _yaml_split_csv(s) if p.strip()]
+
+
+def _yaml_parse_block(lines: list[str], indent: int = 0) -> dict | list | None:
+    """Parse indented YAML lines at given base indent into dict or list."""
+    # Determine if this is a list block
+    non_empty = [l for l in lines if l.strip() and not l.strip().startswith("#")]
+    if not non_empty:
+        return None
+    first_content = non_empty[0].lstrip()
+    if first_content.startswith("- "):
+        return _yaml_parse_list_block(lines, indent)
+
+    result: dict = {}
+    i = 0
+    while i < len(lines):
+        raw = lines[i].rstrip()
+        if not raw.strip() or raw.strip().startswith("#"):
+            i += 1
+            continue
+        line_indent = len(raw) - len(raw.lstrip())
+        if line_indent < indent:
+            break
+        if line_indent > indent:
+            i += 1
+            continue
+        content = raw[indent:]
+        m = re.match(r'^([\w][\w_-]*):\s*(.*?)(?:\s*#.*)?$', content)
+        if not m:
+            i += 1
+            continue
+        key = m.group(1)
+        val_raw = m.group(2).strip()
+        if val_raw == "" or val_raw == "{}":
+            # Nested block — collect child lines
+            child_lines: list[str] = []
+            j = i + 1
+            while j < len(lines):
+                child = lines[j].rstrip()
+                if not child.strip():
+                    child_lines.append("")
+                    j += 1
+                    continue
+                child_indent = len(child) - len(child.lstrip())
+                if child_indent <= indent:
+                    break
+                child_lines.append(child)
+                j += 1
+            result[key] = _yaml_parse_block(child_lines, indent + 2) if child_lines else None
+            i = j
+        elif val_raw.startswith("{"):
+            result[key] = _yaml_inline_obj(val_raw)
+            i += 1
+        elif val_raw.startswith("["):
+            result[key] = _yaml_inline_list(val_raw)
+            i += 1
+        else:
+            result[key] = _yaml_scalar(val_raw)
+            i += 1
+    return result
+
+
+def _yaml_parse_list_block(lines: list[str], indent: int = 0) -> list:
+    """Parse a YAML list block (lines starting with '- ') at given indent."""
+    items: list = []
+    for raw in lines:
+        stripped = raw.rstrip()
+        if not stripped.strip() or stripped.strip().startswith("#"):
+            continue
+        line_indent = len(stripped) - len(stripped.lstrip())
+        if line_indent < indent:
+            break
+        content = stripped[indent:].lstrip()
+        if content.startswith("- "):
+            item_content = content[2:].strip()
+            if item_content.startswith("{"):
+                items.append(_yaml_inline_obj(item_content))
+            elif item_content.startswith("["):
+                items.append(_yaml_inline_list(item_content))
+            else:
+                items.append(_yaml_scalar(item_content))
+    return items
+
+
+def _parse_profile_frontmatter(text: str) -> dict:
+    """Extract and parse the YAML frontmatter block from a profile markdown file."""
+    lines = text.splitlines()
+    delim_idx = [i for i, l in enumerate(lines) if l.strip() == "---"]
+    if len(delim_idx) < 2:
+        raise ValueError("Profile missing YAML frontmatter (need two '---' lines)")
+    yaml_lines = lines[delim_idx[0] + 1 : delim_idx[1]]
+    result = _yaml_parse_block(yaml_lines, 0)
+    return result if isinstance(result, dict) else {}
+
+
+# ---------------------------------------------------------------------------
+# Company profile loader + validator (Phase 1)
+# ---------------------------------------------------------------------------
+
+_PROFILE_KNOWN_KEYS: frozenset[str] = frozenset({
+    "schema", "org_slug", "legal_name", "ein", "formation_state", "formation_date",
+    "fiscal_year_end", "accounting_method", "public_charity_basis", "form_variant_hint",
+    "addresses", "auth_accounts", "known_resources", "registrations", "providers",
+    "people", "portal_credentials",
+})
+
+_PROFILE_DIR: pathlib.Path = pathlib.Path.home() / ".claude" / "form990"
+
+
+def _validate_slug(slug: str) -> None:
+    """Validate org_slug matches ^[a-z0-9][a-z0-9-]*$ (rejects path traversal)."""
+    if not re.match(r"^[a-z0-9][a-z0-9-]*$", str(slug)):
+        raise ValueError(
+            f"org_slug {slug!r} must match ^[a-z0-9][a-z0-9-]*$ "
+            "(only lowercase alphanumeric and hyphens allowed — rejects path traversal)"
+        )
+
+
+def load_profile(path: str) -> dict:
+    """
+    Load and validate a company profile from ~/.claude/form990/<slug>.md (or direct path).
+
+    Resolution order for `path` argument:
+      - Bare slug (no '/' or '~'): validate slug → open ~/.claude/form990/<slug>.md
+      - Otherwise: treat as direct path; validate no '..' traversal in resolved path
+
+    Returns dict with:
+      profile_path, profile_sha256, org_slug, and all frontmatter fields merged flat.
+      Key 'profile_raw' holds the full parsed frontmatter dict for downstream use.
+
+    Raises ValueError on: unknown frontmatter keys (with stderr warning), bad EIN/slug/
+    state/date format, missing schema:1 version field.
+    Raises FileNotFoundError if the resolved file does not exist.
+    """
+    path_str = str(path)
+
+    # Resolve to absolute path
+    if "/" not in path_str and not path_str.startswith("~"):
+        # Bare slug — validate BEFORE opening any file
+        _validate_slug(path_str)
+        path_obj = _PROFILE_DIR / f"{path_str}.md"
+    else:
+        path_obj = pathlib.Path(path_str).expanduser().resolve()
+        # Reject path traversal
+        if ".." in path_obj.parts:
+            raise ValueError(f"Path traversal rejected in profile path: {path!r}")
+        # Verify resolved path stays within ~/.claude/form990/ for slug-like names
+        # (direct absolute paths are allowed as long as they don't traverse)
+
+    if not path_obj.exists():
+        raise FileNotFoundError(f"Profile not found: {path_obj}")
+
+    text = path_obj.read_text(encoding="utf-8")
+    raw = _parse_profile_frontmatter(text)
+
+    # schema version required
+    if raw.get("schema") != 1:
+        raise ValueError(
+            f"Profile requires 'schema: 1' frontmatter field (got {raw.get('schema')!r})"
+        )
+
+    # Unknown key check — warn + drop (prevents typos like ein_number silently merging)
+    for key in list(raw.keys()):
+        if key not in _PROFILE_KNOWN_KEYS:
+            print(f"[load_profile] warning key={key!r} — unknown frontmatter key, ignoring", file=sys.stderr)
+            del raw[key]
+
+    # Validate specific fields
+    ein = raw.get("ein")
+    if ein is not None and not re.match(r"^\d{2}-\d{7}$", str(ein)):
+        raise ValueError(f"Profile ein must match XX-XXXXXXX format, got {ein!r}")
+
+    org_slug = raw.get("org_slug")
+    if org_slug is not None:
+        _validate_slug(str(org_slug))
+
+    formation_state = raw.get("formation_state")
+    if formation_state is not None and not re.match(r"^[A-Z]{2}$", str(formation_state)):
+        raise ValueError(f"Profile formation_state must be 2-letter ISO code, got {formation_state!r}")
+
+    fiscal_year_end = raw.get("fiscal_year_end")
+    if fiscal_year_end is not None and not re.match(r"^\d{2}-\d{2}$", str(fiscal_year_end)):
+        raise ValueError(f"Profile fiscal_year_end must match MM-DD format, got {fiscal_year_end!r}")
+
+    formation_date = raw.get("formation_date")
+    if formation_date is not None:
+        try:
+            datetime.date.fromisoformat(str(formation_date))
+        except (ValueError, TypeError):
+            raise ValueError(f"Profile formation_date must be ISO-8601 date, got {formation_date!r}")
+
+    # Validate address state fields
+    for addr_key in ("principal", "mailing"):
+        addr = (raw.get("addresses") or {}).get(addr_key) or {}
+        if isinstance(addr, dict) and addr.get("state"):
+            if not re.match(r"^[A-Z]{2}$", str(addr["state"])):
+                raise ValueError(
+                    f"Profile addresses.{addr_key}.state must be 2-letter ISO code"
+                )
+
+    # Build result
+    result: dict = {
+        "profile_path": str(path_obj),
+        "profile_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "org_slug": org_slug,
+        "profile_raw": raw,
+    }
+
+    # Merge frontmatter fields into result for key_facts integration
+    for key in (
+        "ein", "legal_name", "accounting_method", "public_charity_basis",
+        "fiscal_year_end", "formation_state", "formation_date", "form_variant_hint",
+        "auth_accounts", "known_resources", "registrations", "providers",
+        "people", "portal_credentials", "addresses",
+    ):
+        val = raw.get(key)
+        if val is not None:
+            result[key] = val
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Startup validation (module-level, runs at import time)
+# ---------------------------------------------------------------------------
+
+def _startup_validate() -> None:
+    """Validate PHASE_DEADLINES_S entries are positive ints; check $FORM990_PROFILE."""
+    for key, val in PHASE_DEADLINES_S.items():
+        if not isinstance(val, int) or val <= 0:
+            raise ValueError(
+                f"PHASE_DEADLINES_S[{key!r}] must be a positive int, got {val!r}"
+            )
+    profile_env = os.environ.get("FORM990_PROFILE")
+    if profile_env and not pathlib.Path(profile_env).expanduser().exists():
+        raise FileNotFoundError(
+            f"$FORM990_PROFILE={profile_env!r} points to a non-existent file — "
+            "fix the path or unset the variable (do not fall through to resolution step 3)"
+        )
+
+
+_startup_validate()

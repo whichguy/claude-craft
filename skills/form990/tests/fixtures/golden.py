@@ -47,9 +47,9 @@ LINE_12_TOTAL_REVENUE = 612_000
 PII_INPUT_SSN       = "SSN: 123-45-6789 from Alice"
 PII_EXPECTED_SSN    = "SSN: [REDACTED-SSN] from Alice"
 
-# Hyphenated EIN must pass through unchanged — it is not an SSN.
+# EIN (XX-XXXXXXX) is now redacted — Phase 1 profile-PII extension.
 PII_INPUT_EIN       = "EIN 12-3456789"
-PII_EXPECTED_EIN    = "EIN 12-3456789"
+PII_EXPECTED_EIN    = "EIN [REDACTED-EIN]"
 
 PII_INPUT_PHONE     = "call 555-123-4567"
 PII_EXPECTED_PHONE  = "call [REDACTED-PHONE]"
