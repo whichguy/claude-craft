@@ -44,6 +44,25 @@ Parse `$ARGUMENTS` into **flags** and **file paths**:
 - Flags: `--all` (all files including untracked), `--tracked` (git-tracked only), `--scope=branch` (branch-local commits only), any token starting with `--`
 - File paths: everything else (space- or comma-separated, relative to repo root)
 
+### Step 0a — Branch hygiene check (advisory, non-blocking)
+
+Compare the staged file set to target_files:
+```bash
+staged=$(git diff --cached --name-only 2>/dev/null | sort -u)
+targets=$(printf '%s\n' $target_files | sort -u)
+unrelated=$(comm -23 <(echo "$staged") <(echo "$targets"))
+```
+
+If `$unrelated` is non-empty, print:
+```
+  ⚠ Branch hygiene: [N] staged file(s) not in target_files:
+    [list up to 5]
+  These will be absorbed into the review-fix commit and may block squash-merge.
+  Continue? (proceeding automatically — warning is advisory only)
+```
+
+Do not abort. Do not prompt. Advisory output only.
+
 ### Path A: `--all` or `--tracked` flag present
 
 **`--all`**: All files including untracked (filtered by .gitignore + ~/.claude/reviewignore):
