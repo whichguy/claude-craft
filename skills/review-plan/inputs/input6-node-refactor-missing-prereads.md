@@ -66,4 +66,4 @@ Promises, update all consumers, and ensure no regressions.
 - `tsc --noEmit` zero errors
 - All consumers compile without type errors
 
-## Post-Implementation Workflow1. `/review-fix` — loop until clean2. Run build: `tsc --noEmit`3. Run tests: `npm test`4. If build or tests fail: fix → re-run `/review-fix` → re-run build/tests — repeat until passing
+## Post-Implementation Workflow1. `/review-fix --scope=branch` — loop until clean2. Run build: `tsc --noEmit`3. Run tests: `npm test`4. If build or tests fail: fix → re-run `/review-fix --scope=branch` → re-run build/tests — repeat until passing

@@ -90,7 +90,7 @@ Shell scripting must follow CLAUDE.md directives: `set -eo pipefail`, `shopt -s 
 
 ## Post-Implementation Workflow
 
-1. `/review-fix` — loop until clean
+1. `/review-fix --scope=branch` — loop until clean
 2. Run build if applicable
 3. Run tests: `npm test`
-4. If build or tests fail: fix → re-run `/review-fix` → re-run build/tests — repeat
+4. If build or tests fail: fix → re-run `/review-fix --scope=branch` → re-run build/tests — repeat

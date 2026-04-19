@@ -74,4 +74,4 @@ Users want to upload CSV files directly through the Sheet Chat sidebar to import
 - Error states display properly (invalid file, too large, server error)
 - Sheet name dropdown populates from active spreadsheet
 
-## Post-Implementation Review1. Run `/review-fix` — loop until clean2. Run tests (Phase 4 test suite)3. If tests fail: fix → re-run `/review-fix` → re-run tests — repeat4. Push to remote: `git push -u origin feat/csv-upload`5. Create PR and squash merge to main
+## Post-Implementation Review1. Run `/review-fix --scope=branch` — loop until clean2. Run tests (Phase 4 test suite)3. If tests fail: fix → re-run `/review-fix --scope=branch` → re-run tests — repeat4. Push to remote: `git push -u origin feat/csv-upload`5. Create PR and squash merge to main
