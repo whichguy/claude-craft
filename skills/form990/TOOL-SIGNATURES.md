@@ -232,7 +232,53 @@ result: PASS (pinned-count branch — 38 confirmed empirically, 3/3 runs)
 
 ## Phase 2 — Public Lookup URL Templates (Change 5)
 
-*Verified by runtime web research 2026-04-19. Spike S1 must confirm ProPublica field mapping before fetch_propublica() ships.*
+*Verified by runtime web research 2026-04-19.*
+*Spike S0 (IRS XML schema) completed 2026-04-19 — PASS on element names, URL pattern corrected (see below).*
+*Spike S1 must confirm ProPublica field mapping before fetch_propublica() ships.*
+
+### IRS e-file XML (Bulk Batch — Spike S0 VERIFIED)
+
+```
+Spike S0 result (2026-04-19):
+  - Element names CONFIRMED correct from official IRS MeF schema docs
+  - Old S3 URL (s3.amazonaws.com/irs-form-990/{object_id}_public.xml) → 404, DEAD
+  - New location: apps.irs.gov/pub/epostcard/990/xml/{YEAR}/
+
+Index CSV (10-50MB per year):
+  https://apps.irs.gov/pub/epostcard/990/xml/{YEAR}/index_{YEAR}.csv
+  Columns include: EIN, ObjectId, TaxPeriod, FormType, batch filename
+
+Batch ZIP files (monthly, ~50-200MB each):
+  https://apps.irs.gov/pub/epostcard/990/xml/{YEAR}/{YEAR}_TEOS_XML_{MM}A.zip
+  (some months have multiple parts: B, C, D)
+
+fetch_irs_xml() implementation — HTTP Range approach (fast, avoids full ZIP download):
+  1. Download index CSV via urllib.request.urlopen() — stream into memory, parse CSV
+  2. Filter for EIN match → get ObjectId + batch filename
+  3. HEAD request on batch ZIP URL → get Content-Length
+  4. Range request for last 65KB of ZIP → parse ZIP central directory (EOCD + CDR)
+  5. Find target file entry in central directory → get local file header offset + compressed size
+  6. Range request for just that byte range → decompress with zipfile.ZipFile(BytesIO(...))
+  7. Parse resulting XML with xml.etree.ElementTree
+
+Timeout budget: 60s for index CSV + 30s per batch ZIP (Range requests only)
+  → Update PHASE_DEADLINES_S["p0_irs_xml_s"] = 90  (replaces p0_public_lookup_s: 15)
+
+Confirmed XPath element names (IRS990, from MeF schema):
+  Revenue:       Return/ReturnData/IRS990/CYTotalRevenueAmt
+  Contributions: Return/ReturnData/IRS990/CYContributionsGrantsAmt
+  EOY assets:    Return/ReturnData/IRS990/NetAssetOrFundBalancesEOYAmt
+  BOY assets:    Return/ReturnData/IRS990/NetAssetOrFundBalancesBOYAmt
+  Expenses:      Return/ReturnData/IRS990/TotalFunctionalExpensesAmt
+
+For 990-EZ: parent element is IRS990EZ, field names differ (use concordance file)
+  https://nonprofit-open-data-collective.github.io/irs-efile-master-concordance-file/
+
+ProPublica XML download-xml endpoint (object_id format):
+  https://projects.propublica.org/nonprofits/download-xml?object_id={object_id}
+  (Fortified Strength FY2024 object_id: 202531349349309248 — confirmed accessible via org page)
+  Note: WebFetch returns 403; use urllib with User-Agent header for direct Python access.
+```
 
 ### IRS TEOS (Tax Exempt Organization Search)
 

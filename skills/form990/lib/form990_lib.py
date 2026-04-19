@@ -1458,3 +1458,473 @@ def _startup_validate() -> None:
 
 
 _startup_validate()
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Public fetch helpers (stdlib + urllib only)
+# ---------------------------------------------------------------------------
+
+import csv as _csv
+import io as _io
+import struct as _struct
+import urllib.request as _urllib_request
+import xml.etree.ElementTree as _ET
+import zipfile as _zipfile
+
+# IRS e-file XML base URL (Spike S0: apps.irs.gov replaces defunct S3 bucket)
+_IRS_XML_BASE = "https://apps.irs.gov/pub/epostcard/990/xml"
+
+# Per-source request timeouts (seconds)
+_IRS_XML_INDEX_TIMEOUT = 60   # index CSV download (10-50MB)
+_IRS_XML_RANGE_TIMEOUT = 30   # HTTP Range request for ZIP partial
+_PROPUBLICA_TIMEOUT    = 20
+_TEOS_TIMEOUT          = 15
+_STATE_AG_TIMEOUT      = 15
+
+
+def _urllib_get(url: str, timeout: int, headers: dict | None = None) -> bytes:
+    """Simple urllib GET; raises on non-200."""
+    req = _urllib_request.Request(url, headers=headers or {
+        "User-Agent": "form990-skill/2.0 (nonprofit tax prep)"
+    })
+    with _urllib_request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _urllib_range(url: str, start: int, end: int, timeout: int) -> bytes:
+    """HTTP Range request; returns the byte slice [start, end] inclusive."""
+    req = _urllib_request.Request(url, headers={
+        "User-Agent": "form990-skill/2.0",
+        "Range": f"bytes={start}-{end}",
+    })
+    with _urllib_request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _urllib_head_size(url: str, timeout: int) -> int:
+    """HTTP HEAD; returns Content-Length as int (0 if unavailable)."""
+    req = _urllib_request.Request(url, method="HEAD", headers={"User-Agent": "form990-skill/2.0"})
+    with _urllib_request.urlopen(req, timeout=timeout) as resp:
+        return int(resp.headers.get("Content-Length", 0))
+
+
+def _zip_range_extract(zip_url: str, target_name: str) -> bytes:
+    """
+    Extract a single file from a remote ZIP using HTTP Range requests.
+    Avoids downloading the full archive (100MB+) by reading only the
+    ZIP central directory and the target file's compressed bytes.
+    """
+    total_size = _urllib_head_size(zip_url, _IRS_XML_RANGE_TIMEOUT)
+    if total_size == 0:
+        raise IRSXMLUnavailable(f"Cannot determine ZIP size for {zip_url}")
+
+    # Read last 65KB — contains EOCD record + most central directory entries
+    tail_size = min(65536, total_size)
+    tail = _urllib_range(zip_url, total_size - tail_size, total_size - 1, _IRS_XML_RANGE_TIMEOUT)
+
+    # Find End-of-Central-Directory signature
+    eocd_pos = tail.rfind(b"PK\x05\x06")
+    if eocd_pos == -1:
+        raise IRSXMLUnavailable(f"ZIP EOCD not found in tail of {zip_url}")
+    eocd = tail[eocd_pos:]
+    if len(eocd) < 22:
+        raise IRSXMLUnavailable("ZIP EOCD record too short")
+
+    cd_size   = _struct.unpack_from("<I", eocd, 12)[0]
+    cd_offset = _struct.unpack_from("<I", eocd, 16)[0]
+
+    # Download central directory
+    cd_bytes = _urllib_range(zip_url, cd_offset, cd_offset + cd_size - 1, _IRS_XML_RANGE_TIMEOUT)
+
+    # Scan central directory for target file
+    local_file_offset: int | None = None
+    compressed_size:   int | None = None
+    compress_method:   int = 8  # assume deflate default
+    pos = 0
+    while pos < len(cd_bytes) - 4:
+        if cd_bytes[pos:pos+4] != b"PK\x01\x02":
+            pos += 1
+            continue
+        comp_meth    = _struct.unpack_from("<H", cd_bytes, pos + 10)[0]
+        comp_sz      = _struct.unpack_from("<I", cd_bytes, pos + 20)[0]
+        fname_len    = _struct.unpack_from("<H", cd_bytes, pos + 28)[0]
+        extra_len    = _struct.unpack_from("<H", cd_bytes, pos + 30)[0]
+        comment_len  = _struct.unpack_from("<H", cd_bytes, pos + 32)[0]
+        local_offset = _struct.unpack_from("<I", cd_bytes, pos + 42)[0]
+        fname = cd_bytes[pos+46 : pos+46+fname_len].decode("utf-8", errors="replace")
+        if fname == target_name or fname.endswith("/" + target_name):
+            local_file_offset = local_offset
+            compressed_size   = comp_sz
+            compress_method   = comp_meth
+            break
+        pos += 46 + fname_len + extra_len + comment_len
+
+    if local_file_offset is None:
+        raise IRSXMLUnavailable(f"File {target_name!r} not found in ZIP central directory")
+
+    # Read local file header to find actual data offset
+    lfh = _urllib_range(zip_url, local_file_offset, local_file_offset + 29, _IRS_XML_RANGE_TIMEOUT)
+    lfh_fname_len = _struct.unpack_from("<H", lfh, 26)[0]
+    lfh_extra_len = _struct.unpack_from("<H", lfh, 28)[0]
+    data_offset   = local_file_offset + 30 + lfh_fname_len + lfh_extra_len
+
+    # Fetch compressed file data
+    compressed = _urllib_range(zip_url, data_offset, data_offset + compressed_size - 1, _IRS_XML_RANGE_TIMEOUT)
+
+    if compress_method == 0:   # stored (no compression)
+        return compressed
+    elif compress_method == 8:  # deflate
+        import zlib as _zlib
+        return _zlib.decompress(compressed, -15)
+    else:
+        raise IRSXMLUnavailable(f"Unsupported ZIP compression method {compress_method}")
+
+
+def _parse_irs990_xml(xml_bytes: bytes) -> dict:
+    """Parse IRS 990/990-EZ XML bytes into structured dict."""
+    root = _ET.fromstring(xml_bytes)
+
+    form_el   = None
+    form_type = None
+    for ns in ("", "{http://www.irs.gov/efile}"):
+        for tag in ("IRS990", "IRS990EZ"):
+            el = root.find(f".//{ns}{tag}")
+            if el is not None:
+                form_el   = el
+                form_type = tag
+                break
+        if form_el is not None:
+            break
+
+    if form_el is None:
+        raise IRSXMLUnavailable("No IRS990/IRS990EZ element found in XML")
+
+    def _val(*tags) -> float | None:
+        for tag in tags:
+            for ns in ("", "{http://www.irs.gov/efile}"):
+                child = form_el.find(f"{ns}{tag}")
+                if child is not None and child.text:
+                    try:
+                        return float(child.text.strip())
+                    except (ValueError, AttributeError):
+                        pass
+        return None
+
+    # Tax period from ReturnHeader
+    tax_period_str = None
+    for ns in ("", "{http://www.irs.gov/efile}"):
+        hdr = root.find(f".//{ns}ReturnHeader")
+        if hdr is not None:
+            tp = hdr.find(f"{ns}TaxPeriodEndDt")
+            if tp is not None and tp.text:
+                tax_period_str = tp.text.strip()
+                break
+
+    tax_year = None
+    if tax_period_str and len(tax_period_str) >= 4:
+        try:
+            tax_year = int(tax_period_str[:4])
+        except ValueError:
+            pass
+
+    if form_type == "IRS990":
+        return {
+            "year":           tax_year,
+            "form_type":      "990",
+            "total_revenue":  _val("CYTotalRevenueAmt"),
+            "contributions":  _val("CYContributionsGrantsAmt"),
+            "total_expenses": _val("TotalFunctionalExpensesAmt"),
+            "eoy_net_assets": _val("NetAssetOrFundBalancesEOYAmt"),
+            "boy_net_assets": _val("NetAssetOrFundBalancesBOYAmt"),
+            "source":         "irs_xml",
+        }
+    else:
+        return {
+            "year":           tax_year,
+            "form_type":      "990-EZ",
+            "total_revenue":  _val("TotalRevenueAmt"),
+            "contributions":  _val("ContributionsGiftsGrantsEtcAmt"),
+            "total_expenses": _val("TotalExpensesAmt"),
+            "eoy_net_assets": _val("NetAssetsOrFundBalancesEOYAmt"),
+            "boy_net_assets": _val("NetAssetsOrFundBalancesBOYAmt"),
+            "source":         "irs_xml",
+        }
+
+
+class IRSXMLUnavailable(RuntimeError):
+    """IRS e-file XML fetch failed (error_class=IRSXMLUnavailable)."""
+
+
+class CitizenAuditUnavailable(RuntimeError):
+    """CitizenAudit fetch or parse failed (error_class=CitizenAuditUnavailable)."""
+
+
+class PDFExtractionFailed(RuntimeError):
+    """pypdf AcroForm field extraction failed (error_class=PDFExtractionFailed)."""
+
+
+def fetch_irs_xml(ein_nodash: str, filing_year: int) -> "list[dict]":
+    """
+    Fetch IRS e-file 990 XML for an EIN across calendar years
+    (filing_year-1)..(filing_year+1).
+
+    Uses HTTP Range approach: downloads only ZIP central directory + target
+    file bytes — avoids full ~100MB archive download.
+
+    Returns list[dict] with keys: year, form_type, total_revenue,
+    contributions, total_expenses, eoy_net_assets, boy_net_assets,
+    source="irs_xml", object_id.
+    Raises IRSXMLUnavailable if all years fail.
+    """
+    results: list[dict] = []
+    errors:  list[str]  = []
+
+    for cal_year in range(filing_year - 1, filing_year + 2):
+        index_url = f"{_IRS_XML_BASE}/{cal_year}/index_{cal_year}.csv"
+        try:
+            raw = _urllib_get(index_url, _IRS_XML_INDEX_TIMEOUT)
+            reader = _csv.DictReader(_io.StringIO(raw.decode("utf-8", errors="replace")))
+            for row in reader:
+                row_ein = row.get("EIN", "").replace("-", "").strip()
+                if row_ein != ein_nodash:
+                    continue
+                object_id  = row.get("OBJECT_ID", row.get("ObjectId", "")).strip()
+                batch_file = row.get("BATCH_FILE", "").strip()
+                if not object_id:
+                    continue
+
+                # Build ZIP URL from batch filename or derive from YYYYMM prefix
+                if batch_file:
+                    zip_url = f"{_IRS_XML_BASE}/{cal_year}/{batch_file}"
+                else:
+                    ym = object_id[:6] if len(object_id) >= 6 else ""
+                    yr, mo = ym[:4], ym[4:6].zfill(2)
+                    zip_url = f"{_IRS_XML_BASE}/{yr}/{yr}_TEOS_XML_{mo}A.zip"
+
+                try:
+                    xml_bytes = _zip_range_extract(zip_url, f"{object_id}_public.xml")
+                    parsed = _parse_irs990_xml(xml_bytes)
+                    parsed["object_id"] = object_id
+                    results.append(parsed)
+                except Exception as e:
+                    errors.append(f"{object_id}: {e}")
+
+        except Exception as e:
+            errors.append(f"index {cal_year}: {e}")
+
+    if not results and errors:
+        raise IRSXMLUnavailable(
+            f"IRS XML failed for EIN {ein_nodash}: " + "; ".join(errors[:3])
+        )
+    return results
+
+
+def fetch_propublica(ein_nodash: str) -> dict:
+    """
+    Fetch ProPublica Nonprofit Explorer API.
+
+    Returns {"filings": [{year, pdf_url, total_revenue, total_expenses,
+    eoy_net_assets, source:"propublica"}, ...]}.
+    Raises ProPublicaUnavailable on failure.
+    """
+    url = f"https://projects.propublica.org/nonprofits/api/v2/organizations/{ein_nodash}.json"
+    try:
+        raw = _urllib_get(url, _PROPUBLICA_TIMEOUT)
+        data = json.loads(raw)
+    except Exception as e:
+        raise ProPublicaUnavailable(f"ProPublica failed for {ein_nodash}: {e}") from e
+
+    filings = []
+    for f in data.get("filings_with_data", []):
+        filings.append({
+            "year":           f.get("tax_prd_yr"),
+            "pdf_url":        f.get("pdf_url"),
+            "total_revenue":  f.get("totrevenue"),
+            "total_expenses": f.get("totfuncexpns"),
+            "eoy_net_assets": f.get("totnetassetend"),
+            "source":         "propublica",
+        })
+    return {"filings": filings}
+
+
+def fetch_teos(ein: str) -> dict:
+    """
+    Scrape IRS TEOS web UI for exempt status and last-return metadata.
+
+    Raises TEOSUnavailable on HTTP error, CAPTCHA, or empty response.
+    """
+    ein_nd = ein.replace("-", "")
+    url = (
+        "https://apps.irs.gov/app/eos/detailsPage"
+        f"?ein={ein_nd}&country=US&deductibility=all"
+        "&dispatchMethod=displayGeneral"
+        f"&ID={ein_nd}"
+    )
+    try:
+        raw = _urllib_get(url, _TEOS_TIMEOUT)
+    except Exception as e:
+        raise TEOSUnavailable(f"TEOS fetch failed for {ein}: {e}") from e
+
+    html = raw.decode("utf-8", errors="replace")
+    if "captcha" in html.lower() or len(html) < 200:
+        raise TEOSUnavailable(f"TEOS returned captcha/short response for {ein}")
+
+    import re as _re_t
+    def _x(pat: str) -> str | None:
+        m = _re_t.search(pat, html, _re_t.IGNORECASE | _re_t.DOTALL)
+        return m.group(1).strip() if m else None
+
+    yr = _x(r'Tax\s+Period[^>]*>\s*([0-9]{4})')
+    return {
+        "exempt_status":               _x(r'Exemption\s+Type[^>]*>\s*([^<]+)'),
+        "last_return_year":            int(yr) if yr and yr.isdigit() else None,
+        "last_return_form":            _x(r'Form\s+(990\S*)'),
+        "determination_letter_status": _x(r'Determination\s+Letter[^>]*>\s*([^<]+)'),
+        "source":                      "teos",
+    }
+
+
+def fetch_ca_rct(rct_number: str) -> dict:
+    """
+    Scrape CA DOJ RCT charity registry for registration status.
+
+    Raises StateAGUnavailable on failure.
+    """
+    url = f"https://rct.doj.ca.gov/Verification/Web/Search.aspx?Id={rct_number}"
+    try:
+        raw = _urllib_get(url, _STATE_AG_TIMEOUT)
+    except Exception as e:
+        raise StateAGUnavailable(f"CA AG fetch failed for {rct_number}: {e}") from e
+
+    html = raw.decode("utf-8", errors="replace")
+    if len(html) < 200:
+        raise StateAGUnavailable(f"CA AG returned empty response for {rct_number}")
+
+    import re as _re_c
+    def _x(pat: str) -> str | None:
+        m = _re_c.search(pat, html, _re_c.IGNORECASE | _re_c.DOTALL)
+        return m.group(1).strip() if m else None
+
+    yr = _x(r'Renewal\s+Due\s+Date[^>]*>\s*([0-9]{4})')
+    return {
+        "registration_status": _x(r'Registration\s+Status[^>]*>\s*([^<]+)'),
+        "last_rrf1_year":      int(yr) if yr and yr.isdigit() else None,
+        "source":              "ca_ag",
+    }
+
+
+def fetch_citizenaudit_pdfs(ein: str) -> "list[dict]":
+    """
+    Fetch CitizenAudit.org 990 PDF listings for an EIN.
+    Rate: ≤0.5 QPS (sequential, 2s sleep between PDF fetches).
+    Raises CitizenAuditUnavailable on failure.
+    """
+    import re as _re_ca
+    import time as _time
+
+    ein_nodash = ein.replace("-", "")
+    url = f"https://www.citizenaudit.org/organization/{ein_nodash}/"
+    try:
+        raw = _urllib_get(url, _STATE_AG_TIMEOUT)
+    except Exception as e:
+        raise CitizenAuditUnavailable(f"CitizenAudit failed for {ein}: {e}") from e
+
+    html = raw.decode("utf-8", errors="replace")
+    pdf_links = _re_ca.findall(r'href="([^"]+\.pdf)"', html, _re_ca.IGNORECASE)
+
+    results: list[dict] = []
+    for pdf_url in pdf_links[:10]:
+        if not pdf_url.startswith("http"):
+            pdf_url = "https://www.citizenaudit.org" + pdf_url
+        year_m = _re_ca.search(r"(20[12]\d)", pdf_url)
+        results.append({
+            "year":    int(year_m.group(1)) if year_m else None,
+            "pdf_url": pdf_url,
+            "source":  "citizenaudit",
+        })
+        _time.sleep(2.0)   # ≤0.5 QPS
+    return results
+
+
+def fetch_pdf_line_items(pdf_path: str) -> dict:
+    """
+    Extract Part I Lines 8/12/22 from a 990 PDF using pypdf AcroForm.
+
+    Cached by PDF sha256 (function-level dict).
+    Raises PDFExtractionFailed if pypdf unavailable or extraction fails.
+
+    IMPORTANT: AcroForm field keys below are placeholders derived from
+    f990-field-map-2025.json structure. Implementer must Read that file
+    and replace these keys with the confirmed XFA full-path keys before shipping.
+    """
+    cache: dict = getattr(fetch_pdf_line_items, "_sha_cache", {})
+    fetch_pdf_line_items._sha_cache = cache  # type: ignore[attr-defined]
+
+    pdf_bytes = pathlib.Path(pdf_path).read_bytes()
+    key = hashlib.sha256(pdf_bytes).hexdigest()
+    if key in cache:
+        return cache[key]
+
+    try:
+        import pypdf as _pypdf  # type: ignore[import]
+    except ImportError:
+        raise PDFExtractionFailed("pypdf not installed; run: pip install pypdf")
+
+    try:
+        reader = _pypdf.PdfReader(_io.BytesIO(pdf_bytes))
+        fields = reader.get_form_text_fields() or {}
+    except Exception as e:
+        raise PDFExtractionFailed(f"pypdf read failed for {pdf_path}: {e}") from e
+
+    # Field keys: verify against templates/f990-field-map-2025.json before shipping
+    # These are XFA full-path field names (format: topmostSubform[0].PageN[0].fX_Y[0])
+    FIELD_CANDIDATES: dict[str, list[str]] = {
+        "total_revenue":  [],   # Part I Line 12 — fill from field map
+        "contributions":  [],   # Part I Line 8  — fill from field map
+        "total_expenses": [],   # Part I Line 18 — fill from field map
+        "eoy_net_assets": [],   # Part I Line 22 col B — fill from field map
+        "boy_net_assets": [],   # Part I Line 22 col A — fill from field map
+    }
+
+    result: dict = {}
+    for field_name, candidates in FIELD_CANDIDATES.items():
+        for k in candidates:
+            val = fields.get(k, "").strip()
+            if val:
+                try:
+                    result[field_name] = float(val.replace(",", "").replace("$", ""))
+                    break
+                except (ValueError, AttributeError):
+                    pass
+        result.setdefault(field_name, None)
+
+    cache[key] = result
+    return result
+
+
+def _merge_prior_years(
+    results: dict,
+    priority_order: "list[str] | None" = None,
+) -> "list[dict]":
+    """
+    Merge multi-source prior-year 990 data by priority, deduped by year.
+
+    results: {source_name: list[dict] | {"filings": list[dict]}}
+    priority_order: sources from highest to lowest authority.
+    Returns: list[dict] newest-first; highest-priority source wins per year.
+    """
+    if priority_order is None:
+        priority_order = ["irs_xml", "propublica", "citizenaudit", "teos"]
+
+    by_year: dict[int, dict] = {}
+    for source in priority_order:
+        raw = results.get(source)
+        if not raw:
+            continue
+        filings = raw.get("filings", raw) if isinstance(raw, dict) else raw
+        for f in (filings if isinstance(filings, list) else []):
+            yr = f.get("year")
+            if yr is not None and yr not in by_year:
+                by_year[yr] = dict(f)
+
+    return [v for _, v in sorted(by_year.items(), reverse=True)]
