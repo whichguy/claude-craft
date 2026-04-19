@@ -511,10 +511,10 @@ run_benchmarks() {
   else
     agent_label="generic-prompt@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
   fi
-  # Auto-detect dispatch mode from agent file loop markers (line-start anchored to avoid prose matches)
+  # Auto-detect dispatch mode: loop_agent: true in YAML frontmatter is the canonical opt-in marker
   local dispatch_mode="single"
   if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]] && \
-     grep -qE '^(LOOP_DIRECTIVE|max_rounds:|APPLY_AND_RECHECK)' "$AGENT_FILE"; then
+     grep -qE '^loop_agent:\s*true' "$AGENT_FILE"; then
     dispatch_mode="loop"
   fi
   if [[ "$dispatch_mode" = "loop" ]]; then
