@@ -604,16 +604,23 @@ List each finding with its line number, severity, and fix."
 
       local prompt="$base_prompt"
       if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]]; then
-        local agent_content
+        local agent_content raw_content
+        # Strip YAML frontmatter (---...--- block at file start) before injecting.
+        # Frontmatter starting with '---' is parsed as a CLI option by the claude binary.
+        raw_content=$(cat "$AGENT_FILE")
+        if [[ "$raw_content" == ---* ]]; then
+          # Skip first '---' line and everything until the closing '---' line
+          agent_content=$(echo "$raw_content" | awk '/^---/{if(++count==2){skip=0;next}else{skip=1;next}} !skip')
+        else
+          agent_content="$raw_content"
+        fi
         if [[ "$PERTURB_PREFIX" == "true" ]]; then
           # V_C cache-poisoning control (QI-7): inject unique timestamp comment before the
           # stable prefix on every invocation so the cache key never matches the treatment arm.
           local perturb_ts
           perturb_ts=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
           agent_content="<!-- vc-perturb: ${perturb_ts} -->
-$(cat "$AGENT_FILE")"
-        else
-          agent_content=$(cat "$AGENT_FILE")
+${agent_content}"
         fi
         if [[ -z "$agent_content" ]]; then
           echo "Error: agent-file read failed or empty: $AGENT_FILE" >&2; exit 1
