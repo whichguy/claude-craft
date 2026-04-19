@@ -130,7 +130,7 @@ Zero-file case gets the most informative single message; partial-file case only 
 - Tests: `npm test` (219 tests) — no test changes needed as tests don't cover agent spec semantics
 
 ## Post-Implementation Workflow
-1. `/review-fix` — loop until clean (commit_mode="commit")2. Run build if applicable (e.g., `npm run build`, `tsc --noEmit`)3. Run tests: `npm test`4. If build or tests fail: fix issues, re-run `/review-fix` (step 1), re-run build/tests — repeat until all passing
+1. `/review-fix --scope=branch` — loop until clean (commit_mode="commit")2. Run build if applicable (e.g., `npm run build`, `tsc --noEmit`)3. Run tests: `npm test`4. If build or tests fail: fix issues, re-run `/review-fix --scope=branch` (step 1), re-run build/tests — repeat until all passing
 ## Phase 3 Print Format + Example
 
 No changes needed. The example's Round 3 exit path (STEP C "nothing changed") shows advisory-only stuck, which correctly stays in `advisory_stuck`. A critical-without-fix scenario would now show up in `stuck_findings` before reaching the print section, but the existing print statements already handle stuck findings.

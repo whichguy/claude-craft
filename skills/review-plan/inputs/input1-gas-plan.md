@@ -97,7 +97,7 @@ Note: `SpreadsheetApp.Protection` requires the user to be an editor or owner. Th
 
 ## Post-Implementation Review
 
-1. Run `/gas-review` or `/review-fix` — loop until clean
+1. Run `/gas-review` or `/review-fix --scope=branch` — loop until clean
 2. Run `npm test`
 3. If tests fail: fix → re-run review-fix → re-run tests
 4. Push and PR: `git push origin feature/sheet-protection-toggle && gh pr create --base main`

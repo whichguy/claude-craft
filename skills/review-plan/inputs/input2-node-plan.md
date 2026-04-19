@@ -106,10 +106,10 @@ Unit tests must cover: (1) token bucket refills correctly after the configured i
 - Manual test: rapid API calls return 429 after threshold
 
 ## Post-Implementation Workflow
-1. `/review-fix` — loop until clean
+1. `/review-fix --scope=branch` — loop until clean
 2. Run build: `npm run build`
 3. Run tests: `npm test`
-4. If build or tests fail: fix issues → re-run `/review-fix` → re-run build/tests — repeat until passing
+4. If build or tests fail: fix issues → re-run `/review-fix --scope=branch` → re-run build/tests — repeat until passing
 
 ## Push & Merge
 - `git push -u origin feat/rate-limiting`
