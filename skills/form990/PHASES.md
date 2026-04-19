@@ -1767,16 +1767,27 @@ Register in machine state as `artifacts.cpa_memo`.
 
 **Cold-run profile promotion (P9 end-of-run, if no profile was loaded at init):**
 If `key_facts.profile_path` is null (no profile was loaded), offer to write one from the
-current run's resolved `key_facts` (minus tax-year-specific items):
+current run's resolved `key_facts` (minus tax-year-specific items).
+
+**Slug derivation (before presenting the offer):**
+Compute `proposed_slug` from `key_facts.legal_name`:
+```python
+import re
+slug = re.sub(r'[^a-z0-9]+', '-', key_facts["legal_name"].lower()).strip('-')
+slug = re.sub(r'-+', '-', slug)[:50]  # max 50 chars
+```
+Example: `"Fortified Strength"` → `"fortified-strength"`.
+Present the proposed slug for confirmation — the operator can edit it.
 
 ```
 ┌─ Save Company Profile? ────────────────────────────────────────────────┐
 │  This run resolved key company facts that can be reused next year:     │
 │    EIN, officers, CA RCT number, auth boundaries, GAS script IDs, etc. │
 │                                                                         │
-│  Write to: ~/.claude/form990/fortified-strength.md                     │
-│  This file is outside the git repo and persists across tax years.      │
+│  Write to: ~/.claude/form990/<derived-slug>.md                         │
+│  Org slug [<derived-slug>]: ____________ (edit or press Enter to accept)│
 │                                                                         │
+│  This file is outside the git repo and persists across tax years.      │
 │  Exclude from profile: tax_year, gross_receipts_current, sheet IDs     │
 │  (per-year — these will be re-discovered next year).                   │
 │                                                                         │
@@ -1784,8 +1795,9 @@ current run's resolved `key_facts` (minus tax-year-specific items):
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-If the operator accepts: write `~/.claude/form990/<slug>.md` using `atomic_commit()` with
-scrubbed content (run `scrub_pii()` before writing officer names and account hints).
+If the operator accepts: validate the final slug with `_validate_slug()`, then write
+`~/.claude/form990/<slug>.md` using `atomic_commit()` with scrubbed content
+(run `scrub_pii()` before writing officer names and account hints).
 The written file must pass `load_profile()` validation without errors. Log breadcrumb
 `"cold-run-promotion: profile written to <path>"`.
 

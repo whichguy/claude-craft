@@ -1160,7 +1160,7 @@ be stale.
 **Example output:**
 ```
 Q-F32: NEEDS_UPDATE — profile SHA256 mismatch: recorded abc123…, current def456….
-The profile at ~/.claude/form990/fortified-strength.md was edited after P0 ran.
+The profile at ~/.claude/form990/<org-slug>.md was edited after P0 ran.
 Key facts sourced from profile (ein, officers, registrations) may be stale.
-[EDIT: re-run /form990 init --profile=fortified-strength to reload the updated profile]
+[EDIT: re-run /form990 init --profile=<org-slug> to reload the updated profile]
 ```
