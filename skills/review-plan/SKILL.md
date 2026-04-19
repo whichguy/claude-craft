@@ -567,6 +567,13 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
          # (re-eval success path — teaching block below fires before step 8)
        If still NEEDS_UPDATE:
          Print: "⚡ Small fast-path could not resolve — falling through to full review"
+         # Capture PASSed questions for FULL-tier advisory seeding before upgrading tier.
+         # Collects Q-IDs whose final SMALL verdict was PASS or N/A (updated by re-eval where applicable).
+         small_pass_verdicts = {qid: {"verdict": result, "seeded_from": "small"}
+                                for qid, result in final_small_results.items()
+                                if result in ("PASS", "N/A")}
+         # final_small_results: merged dict of initial pass results updated by re-eval pass results.
+         # Guard: if small_pass_verdicts is empty (all NEEDS_UPDATE), seeding is a no-op in Phase 3c.
          REVIEW_TIER = FULL  # force full convergence loop
          # Do not jump here — fall through to Steps 4–5 below (tracking init + results dir setup) before entering convergence loop.
          # Step 8 (interactive prompt) is only reached after the convergence loop exits — no special guard needed here.
@@ -799,6 +806,13 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
    l1_process_memoized = false       # true when ALL 19 process questions PASS/N/A AND no edits since
    l1_process_memoized_since = 0
    prev_pass_results = {}          # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass (for stability-based memoization)
+   # SMALL→FULL state carry-forward: advisory verdicts from a failed SMALL pass.
+   # Only non-empty when REVIEW_TIER was upgraded from SMALL (small_pass_verdicts was set in Phase 3b).
+   # These are NOT memoized — FULL still evaluates all questions. Used only as evaluator prompt hint.
+   if isinstance(small_pass_verdicts, dict) and len(small_pass_verdicts) > 0:
+     pass  # small_pass_verdicts already set in Phase 3b SMALL→FULL transition; carry forward as-is
+   else:
+     small_pass_verdicts = {}   # FULL started directly (no SMALL attempt); seeding is a no-op
    memoized_gas_questions = set()    # gas Q-IDs confirmed stable (structural + stability-based)
    memoized_gas_since = {}           # Q-ID → pass_count when memoized
    memoized_node_questions = set()   # node N-IDs confirmed stable
@@ -1238,6 +1252,22 @@ DO:
 
   <!-- ── PHASE 4.1: EVALUATOR LIST ── -->
   -- Build evaluator list (priority-ordered for wave assignment) --
+
+  # SMALL→FULL advisory injection (pass 1 only).
+  # When REVIEW_TIER was upgraded from SMALL (small_pass_verdicts non-empty), prepend
+  # small_seed_context to every evaluator prompt spawned in pass 1.
+  # Evaluators re-evaluate all questions independently — this is advisory context, not a skip.
+  small_seed_context = ""
+  IF pass_count == 0 AND small_pass_verdicts:
+    seeded_qids = ", ".join(sorted(small_pass_verdicts.keys()))
+    small_seed_context = (
+      "\n\nSMALL-tier advisory context (pass 1 only — do not skip based on this):\n"
+      f"These Q-IDs previously PASSed in SMALL-tier review: {seeded_qids}\n"
+      "Re-evaluate each question independently. This note is hint context only.\n"
+    )
+  # small_seed_context is the empty string when FULL started directly or small_pass_verdicts is empty.
+  # Inject: prepend small_seed_context to task_prompt in each entry of evaluators_to_spawn (pass 1 only).
+
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
   # Priority 1a: L1 blocking (Gate 1, always runs, 2 questions)
@@ -1273,6 +1303,11 @@ DO:
   -- Concurrency invariants --
   # Each evaluator writes to <RESULTS_DIR>/<name>.json (unique by construction). No shared paths.
   # Evaluators are read-only on the plan — all edits applied by orchestrator after fan-in.
+
+  # SMALL→FULL advisory injection: prepend small_seed_context to each evaluator prompt (pass 1 only).
+  IF small_seed_context:
+    FOR e in evaluators_to_spawn:
+      e.task_prompt = small_seed_context + e.task_prompt
 
   <!-- ── PHASE 4.2: WAVE EXECUTION ── -->
   -- Wave spawning --
