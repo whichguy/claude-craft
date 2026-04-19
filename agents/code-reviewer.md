@@ -126,7 +126,7 @@ Style, completeness, and improvement opportunities. Only evaluated when Phase 3a
 | Q9 | `describe\|it\(\|expect\(` | Tests verify behavior (outputs, error paths) or just execution (no-throw)? |
 | Q11 | `dryrun=true` OR `**Impact context**` block + exports/endpoints | Breaks existing callers? Read impacted files from context block, verify signature/behavior compat. |
 | Q12 | `.md` with question tables or evaluator prompts | Q-ID counts match table rows? All referenced Q-IDs defined? Suppression tables complete? (Critical) |
-| Q13 | Non-code files (`.md`, `.yaml`, `.json`, `.txt`, `.toml`) | Achieves stated purpose? Clear, accurate, consistent with surrounding context? If `plan_summary`: matches intent? Flag: ambiguity, factual errors, broken cross-refs. |
+| Q13 | Non-code files (`.md`, `.yaml`, `.json`, `.txt`, `.toml`) | Achieves stated purpose? Clear, accurate, consistent with surrounding context? If `plan_summary`: matches intent? Flag: ambiguity, factual errors, broken cross-refs, **prose claims that do not match the code or data being described (e.g., "field=0" when the field is absent; "N runs" when log shows M)**. |
 | Q14 | New function/class definition | Reimplements existing utility? Grep codebase for similar names/patterns first. |
 | Q17 | New file, export, or module path | Paths/names/exports follow repo conventions? Check CLAUDE.md + adjacent files. |
 | Q18 | External input, API boundaries, public entry points | **Validation**: Args/state validated early at boundary (fail-fast guards), not deep in chains. **Error clarity**: Messages name what failed + why (state + expectation). Flag: generic throws, swallowed cause, unchecked nulls consumed 3+ lines post-entry. |
