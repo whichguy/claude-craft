@@ -402,7 +402,17 @@ halt P1. Rate limits enforced per-source (see TOOL-SIGNATURES.md §Phase 2).
    `totnetassetend`, `pdf_url`. Used for years not yet in IRS XML (lag ~12–18 months).
    Breadcrumb: `tier:0 source:propublica`.
 
-3. **CitizenAudit PDF repository** (`fetch_citizenaudit_pdfs(ein)`)
+3. **Candid/GuideStar public profile** (chromedevtools, no auth required)
+   — Search: `chrome-devtools__navigate_page` to
+   `https://app.candid.org/search?keyword={legal_name_url_encoded}`, then
+   `take_snapshot` → find result where EIN text matches → extract profile URL.
+   Profile: `navigate_page` to `https://app.candid.org/profile/{id}/{slug}`,
+   `take_snapshot` → extract total_revenue, total_assets, total_giving, seal_level,
+   mission, address, website. No CAPTCHA on search/profile pages (confirmed 2026-04-19).
+   Auth-gated login (Tier 3) = FAIL; public search = PASS → use this Tier-0 approach.
+   Breadcrumb: `tier:0 source:candid_public`.
+
+4. **CitizenAudit PDF repository** (`fetch_citizenaudit_pdfs(ein)`)
    — HTML page parse + PDF download; sequential at ≤0.5 QPS.
    Breadcrumb: `tier:0 source:citizenaudit`.
 
@@ -521,12 +531,11 @@ and continue (do not halt).
 (`FORM990_ENABLE_PORTAL_CANDID` / `FORM990_ENABLE_PORTAL_BENEVITY`) must be `"1"`.
 Default: disabled. When disabled: log `tier:3 status:disabled_by_flag` and fall through to Tier 4.
 
-**GuideStar/Candid — Spike S2 FAIL (2026-04-19): Cloudflare Turnstile CAPTCHA blocks login.**
-`FORM990_ENABLE_PORTAL_CANDID` must remain `0` (disabled, do not set to `1`).
-The login page at `https://app.candid.org/login` has a Cloudflare Turnstile challenge
-that headless `fill_form` cannot solve. `error_class=PortalAntiBot`.
-Fallback (no auth): WebFetch `https://app.candid.org/profile/{id}` for basic public org info.
-Log `tier:3 source:candid status:antibot_blocked` and fall through to Tier 4.
+**GuideStar/Candid — RECLASSIFIED TO TIER 0 (2026-04-19).**
+Login at `app.candid.org/login` blocked by Cloudflare Turnstile — Tier 3 auth path = FAIL.
+However, Candid's **search and public profile pages require NO auth** — reclassified to Tier 0.
+See Tier 0 Source #3 above. `FORM990_ENABLE_PORTAL_CANDID` stays `0` (Tier 3 never ships).
+No Tier 3 action needed for Candid — all useful data is already in Tier 0.
 
 **Benevity** (if `portal_credentials.benevity` in profile and portal flag `"1"`):
 Spike S2 not yet tested for Benevity. Keep `FORM990_ENABLE_PORTAL_BENEVITY=0` until tested.

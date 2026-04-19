@@ -357,24 +357,41 @@ Recommendation for fetch_ca_rct():
   On parse failure: log error_class=StateAGUnavailable, fall through to user_prompt.
 ```
 
-### Candid/GuideStar Portal — Spike S2 Result (2026-04-19 FAIL)
+### Candid/GuideStar — Public Access (No Auth Required, Spike S2 2026-04-19)
 
 ```
-URL: https://app.candid.org/login
-Spike S2 outcome: FAIL — Cloudflare Turnstile anti-bot CAPTCHA present on login page.
-  - Login page contains: Iframe "Widget containing a Cloudflare security challenge"
-  - "Log in" button is DISABLED until Turnstile "Verify you are human" is solved
-  - Headless chrome-devtools fill_form → click CANNOT solve Turnstile
-  - error_class=PortalAntiBot
+Login path: FAIL (Cloudflare Turnstile CAPTCHA on app.candid.org/login)
+Public path: PASS — reclassified to Tier 0 (no-auth public source)
 
-Resolution:
-  FORM990_ENABLE_PORTAL_CANDID = 0 (disabled, do not ship Tier 3 for Candid)
-  Fallback: use Candid's public nonprofit profile page (no auth) for basic org info
-    URL: https://app.candid.org/profile/{profile_id}
-    — accessible without login for public charity profiles
-    — does not require chromedevtools; use WebFetch
+Search URL (no auth):
+  https://app.candid.org/search?keyword={legal_name_url_encoded}
+  Returns: list of orgs with EIN, seal, revenue, assets — find by EIN match
+  Access: chrome-devtools__navigate_page + take_snapshot (JS-rendered, WebFetch gets shell only)
 
-Benevity Spike S2: not yet tested (separate manual test required)
+Direct profile URL (no auth):
+  https://app.candid.org/profile/{candid_profile_id}/{org-slug}
+  Example: https://app.candid.org/profile/9918853/fortified-strength-inc-85-3576252
+  Profile ID found in search result href (second path segment)
+
+Data available on summary page (confirmed for Fortified Strength, 2026-04-19):
+  - Organization name, EIN, tax status
+  - Seal level (Silver/Gold/Platinum)
+  - Total revenue, total assets, total giving (most recent year)
+  - Mission statement (full text)
+  - Full address
+  - Website URL
+
+Data NOT available without login:
+  - Sub-tabs (/financials, /forms-990, /people, /grants) require JS tab navigation
+    and may require login for detailed history
+
+fetch_candid_public() implementation pattern:
+  1. navigate_page to search URL with legal_name keyword
+  2. take_snapshot → parse a11y tree → find result where EIN text matches
+  3. Extract profile href from matching result
+  4. navigate_page to profile URL
+  5. take_snapshot → extract revenue/assets/giving/mission/address/website
+  Breadcrumb: tier:0 source:candid_public
 ```
 
 ### Keychain Helper Contract

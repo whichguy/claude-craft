@@ -201,17 +201,23 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   proxy (`totrcptperbks` is absent from the API). `fetch_propublica()` implementation is
   correct as shipped. FY2024 not yet indexed in ProPublica API (lag ~12–18 months).
 
-- **LEARNING #3 (Spike S2 — Candid/GuideStar headless auth viability, 2026-04-19): FAIL.**
-  Navigated to `https://app.candid.org/login` via chromedevtools. The login page presents
-  a Cloudflare Turnstile anti-bot challenge (CAPTCHA iframe: "Widget containing a Cloudflare
-  security challenge" / "Verify you are human" checkbox). The "Log in" button is disabled
-  until the Turnstile challenge is solved — headless `fill_form → click` cannot solve it.
-  `error_class=PortalAntiBot`. **Resolution:** Tier 3 for Candid/GuideStar is dropped from
-  Phase 4 scope. `FORM990_ENABLE_PORTAL_CANDID` remains `0` (disabled) indefinitely unless
-  Cloudflare Turnstile is bypassed via an authenticated session cookie or alternative API.
-  Fall back: use Candid's public nonprofit profile page (no auth required) for basic org
-  info — does not require login for public charity profiles. Benevity Spike S2 still pending
-  (separate manual test required).
+- **LEARNING #3 (Spike S2 — Candid/GuideStar headless auth viability, 2026-04-19): AMENDED.**
+  First attempt: login at `https://app.candid.org/login` via chromedevtools → Cloudflare
+  Turnstile CAPTCHA blocks login (`error_class=PortalAntiBot`). Login path = FAIL.
+  **Correction (user-directed, same session):** Candid's search + public profile pages are
+  fully accessible WITHOUT login via chromedevtools navigate_page + take_snapshot.
+  - Search URL: `https://app.candid.org/search?keyword={legal_name}` — returns org list
+    with EIN, revenue, assets, seal level; no auth required.
+  - Direct profile: `https://app.candid.org/profile/{profile_id}/{slug}` — shows full org
+    summary: EIN, tax status, total revenue ($199,667), total assets ($65,267), total giving
+    ($2,815), Silver seal, mission statement, full address (2411 Old Crow Canyon Rd Ste N,
+    San Ramon CA 94583), website (fortifiedstrength.org). No CAPTCHA, no login wall.
+  **Resolution:** Candid reclassified from Tier 3 (auth-gated) to Tier 0 (no-auth public).
+  Add chromedevtools-based `fetch_candid_public(legal_name, ein)` step to Tier 0.
+  Profile ID found from search result href. Sub-tabs (/financials, /forms-990) require
+  JS routing — summary page data is sufficient for Tier 0 purposes.
+  Auth-gated Tier 3 for Candid = DROPPED (no benefit over public profile).
+  Benevity Spike S2: still pending.
 
 *[Append new entries below after each run — never delete existing entries]*
 
