@@ -752,18 +752,21 @@ set `phase_status=failed`, atomic commit, surface in status UI.
 All breadcrumb writes, LEARNINGS auto-appends, and ScriptError messages MUST flow through
 `scrub_pii()` before being written to the plan file or LEARNINGS.md.
 
-**`scrub_pii(text, donor_names=None)`** — defined in `lib/form990_lib.py`
+**`scrub_pii(text, donor_names=None, officer_names=None, ca_sos_entity_ids=None)`** — defined in `lib/form990_lib.py`
 (imported via `from form990_lib import scrub_pii`).
 
-Contract: Applies 8 ordered regex substitutions to redact PII tokens from `text`; returns
+Contract: Applies 12 ordered regex substitutions to redact PII tokens from `text`; returns
 the redacted string without modifying the input.
 
 Invariants:
-- Rules applied in fixed order: SSN/ITIN → bare-9-digit → donor names → long numeric run
-  → phone → email → DOB → street address (A1 base + C2 extensions).
-- Hyphenated EINs (`XX-XXXXXXX`) are explicitly excluded — they are public IRS BMF data.
-- Donor name matching uses longest-first ordering and a minimum 4-char threshold to avoid
-  false-positive matches on common short words.
+- Rules applied in fixed order: SSN/ITIN → EIN → CA RCT → bare-9-digit → officer names →
+  CA SOS entity IDs → donor names → long numeric run → phone → email → DOB → street address
+  (A1 base + Phase-1 profile PII + C2 extensions).
+- EINs (`XX-XXXXXXX`) are redacted as of Phase 1 (profile-sourced PII extension).
+- Officer/CA-SOS/donor name matching uses longest-first ordering and a minimum 4-char threshold
+  to avoid false-positive matches on common short words.
+- `append_breadcrumb()` extracts `officer_names` and `ca_sos_entity_ids` from `state["key_facts"]`
+  automatically — callers do not need to pre-scrub `msg` for profile-sourced PII.
 
 Failure modes: No exceptions; pure string transformation.
 

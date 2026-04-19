@@ -1,8 +1,8 @@
 # Form 990 Skill — Verification Plan
 
-Human-readable spec for all 28 test cases:
-- **TC1–TC7**: manual tests (require live MCP/network/user interaction, marked `?` in harness)
-- **TC8–TC28**: automated tests (21 cases, all runnable with `python3 tests/verify.py`)
+Human-readable spec for all 39 test cases:
+- **TC1–TC7, TC31**: manual tests (require live MCP/network/user interaction, marked `?` in harness)
+- **TC8–TC30, TC32–TC39**: automated tests (31 cases, all runnable with `python3 tests/verify.py`)
 
 Each maps 1:1 to a test function in `tests/verify.py`.
 Run with `/form990 verify` or directly via `python3 tests/verify.py`.
@@ -844,8 +844,8 @@ python3 skills/form990/tests/verify.py --case TC8
 
 **Output:**
 ```
-TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔
-{"passed": 21, "failed": [], "errored": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 3.5}
+TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔ | TC29 ✔ | TC30 ✔ | TC31 - | TC32 ✔ | TC33 ✔ | TC34 ✔ | TC35 ✔ | TC36 ✔ | TC37 ✔ | TC38 ✔ | TC39 ✔
+{"passed": 31, "failed": [], "errored": [], "skipped": [], "duration_s": 22.0}
 ```
 
-(TC1–TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)
+(TC1–TC7 and TC31 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)

@@ -605,14 +605,14 @@ Compare `prior_990_analysis.board_members` (from [PRIOR_990_EXTRACT]) and `ca_so
 
 **Exit criterion.** P1 is `done` when every required `key_facts` field has `fact_source != null`
 AND has either (i) a persisted artifact in `artifacts/p1-sources/` or (ii) an explicit
-user_prompt answer. Q-F27 evaluator checks that Tier-0 was attempted for each fact before
+user_prompt answer. Q-F31 evaluator checks that Tier-0 was attempted for each fact before
 Tier-5 (user_prompt) was used.
 
 **Idempotency.** Overwrite mode for artifact registration. Gmail draft dedup via `draft_id`.
 Tier 0 artifacts cached by `(EIN, year)` under `artifacts/p0-public-lookups/`.
 
-**Applicable Gates.** Q-F16 (source-discovery completeness), Q-F27 (Tier-0 exhausted before
-user_prompt), Q-F28 (profile SHA256 unchanged since P0 init).
+**Applicable Gates.** Q-F16 (source-discovery completeness), Q-F31 (Tier-0 exhausted before
+user_prompt), Q-F32 (profile SHA256 unchanged since P0 init).
 
 **Transition.** Allow user to answer pending questions or explicitly skip; then → P2.
 

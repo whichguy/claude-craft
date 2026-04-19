@@ -44,6 +44,10 @@ ERROR_CLASSES: frozenset[str] = frozenset({
     "OrphanSweepFailed",      # unlink on staging/tmp raised non-ENOENT
     "WebFetchFailed",         # P9 blank PDF fetch failed after retry
     "PlaybookMissing",        # P6 dispatched to schedule with no playbook
+    # Phase 2 — fetch helper error classes (raise-on-failure contract)
+    "IRSXMLUnavailable",      # IRS e-file XML fetch failed after retry
+    "CitizenAuditUnavailable", # CitizenAudit fetch or parse failed
+    "PDFExtractionFailed",    # pypdf AcroForm field extraction failed
     # Phase 1 — profile + ladder additions
     "TEOSUnavailable",        # IRS TEOS fetch failed after retry
     "ProPublicaUnavailable",  # ProPublica fetch failed after retry
@@ -1469,7 +1473,6 @@ import io as _io
 import struct as _struct
 import urllib.request as _urllib_request
 import xml.etree.ElementTree as _ET
-import zipfile as _zipfile
 
 # IRS e-file XML base URL (Spike S0: apps.irs.gov replaces defunct S3 bucket)
 _IRS_XML_BASE = "https://apps.irs.gov/pub/epostcard/990/xml"

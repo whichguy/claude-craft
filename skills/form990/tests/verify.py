@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Form 990 Skill — Verification Harness
-Runs TC1–TC28 (7 original + 8 hardening + 13 new A5 cases). Stdlib-only.
+Runs TC1–TC39 (7 manual + 21 original/hardening/A5 + 11 Phase-1/2 cases). Stdlib-only.
 
 A2 change: test cases import from lib/form990_lib.py rather than re-implementing
 logic inline. A spec bug now breaks tests — the library is the single source of truth.
@@ -1808,6 +1808,7 @@ MANUAL_TCS = {
     "TC5": "Requires Gmail MCP + human review",
     "TC6": "Requires P9 + PDF fill tool + live IRS URL or local fixture",
     "TC7": "Live-fire test — requires human review of CPA output",
+    "TC31": "Cold-run P9 profile promotion — requires full P0-P9 mock run",
 }
 
 AUTOMATED_TCS = {
