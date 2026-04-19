@@ -27,9 +27,11 @@ MAX_CONCURRENCY=4     # --max-concurrency N (rate-limit budget)
 HOLDOUT_FIXTURES=0    # --holdout-fixtures N (train/test split for E3/E4; QI-4)
 PERTURB_PREFIX=false  # --perturb-prefix: inject unique timestamp comment before each invocation (V_C cache-poisoning control)
 MAX_COST_USD=20.0     # --max-cost USD: hard abort if cumulative cost exceeds this (default: $20)
+FORCE_CLAUDE_API=false  # --anthropic-api: bypass claude-router, use bare 'claude' CLI (required for cache_control token measurement)
 
 # ── Router-aware claude command resolution ────────────────────────────
 # Prefer claude-router (enables --route flag); fall back to bare claude.
+# Use --anthropic-api to bypass router for experiments requiring Anthropic cache telemetry.
 CLAUDE_CMD=""
 if [[ -x "$HOME/.claude/tools/claude-router" ]]; then
   CLAUDE_CMD="$HOME/.claude/tools/claude-router"
@@ -70,6 +72,7 @@ Options:
   --holdout-fixtures N Hold out N fixtures from training set for validation (QI-4)
   --perturb-prefix   Inject unique timestamp comment before each invocation (V_C cache-poisoning control; QI-7)
   --max-cost USD     Hard abort if cumulative spend exceeds USD (default: 20.0)
+  --anthropic-api    Bypass claude-router; use bare claude CLI for Anthropic API cache telemetry (E1 required)
   -h, --help         Show this help
 
 Token telemetry (requires --output-format json with usage block):
@@ -98,6 +101,7 @@ while [[ $# -gt 0 ]]; do
     --holdout-fixtures) HOLDOUT_FIXTURES="$2"; shift 2 ;;
     --perturb-prefix) PERTURB_PREFIX=true; shift ;;
     --max-cost) MAX_COST_USD="$2"; shift 2 ;;
+    --anthropic-api) FORCE_CLAUDE_API=true; shift ;;
     -h|--help) usage ;;
     *)
       if [[ "$MODE" == "compare" ]]; then
@@ -121,10 +125,27 @@ if [[ -z "$MODE" ]]; then
   usage
 fi
 
+# --anthropic-api override: bypass router, use bare claude for Anthropic cache telemetry
+if [[ "$FORCE_CLAUDE_API" == "true" ]]; then
+  CLAUDE_CMD="claude"
+  BENCH_ROUTE_ARGS=()
+  echo "  [--anthropic-api] Using bare claude CLI (Anthropic API, cache telemetry enabled)" >&2
+fi
+
 # Cap runs at 10 (E0 requires 10 runs; prior cap of 3 was too restrictive)
 if [[ "$RUNS_PER_FIXTURE" -gt 10 ]]; then
   echo "Warning: capping --runs to 10 (API quota protection)" >&2
   RUNS_PER_FIXTURE=10
+fi
+
+# ── macOS timeout shim ────────────────────────────────────────────────
+# macOS bash does not have 'timeout'; use perl-based shim if missing.
+if ! command -v timeout >/dev/null 2>&1; then
+  timeout() {
+    local secs="$1"; shift
+    perl -e "alarm $secs; exec @ARGV" -- "$@"
+  }
+  export -f timeout 2>/dev/null || true
 fi
 
 # ── Utility functions ─────────────────────────────────────────────────
@@ -773,7 +794,7 @@ import json
 print(json.dumps({
     'fixture': '$fixture_name',
     'run': $run_num,
-    'was_retry': $([ "$was_retry" == "true" ] && echo 'true' || echo 'false'),
+    'was_retry': $([ "$was_retry" == "true" ] && echo 'True' || echo 'False'),
     'dispatch_ts': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
     'precision': $precision,
     'recall': $recall,
