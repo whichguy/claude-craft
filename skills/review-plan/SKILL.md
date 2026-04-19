@@ -2591,6 +2591,10 @@ DO:
   gate1_label = IF gate1_open == 0: "clear" ELSE: "open"
   gate2_label = IF gate2_open == 0: "clear" ELSE: "open"
   Print: "  Gates     🔴 [gate1_sym] [gate1_label]   🟡 [gate2_sym] [gate2_label]   💡 [gate3_noted] noted"
+  IF gate2_open > 0:
+    gate2_open_qids = sorted(q for q in current_needs_update_set if q not in gate1_question_set)
+    gate2_qid_str = join(gate2_open_qids[:8], ', ') + (' …' if len(gate2_open_qids) > 8 else '')
+    Print: "  Open G2   [gate2_qid_str]"
 
   # Helper functions for evaluator status lines
   FUNCTION check_memoized(eval_name):
@@ -4111,10 +4115,10 @@ ELIF NOT _phase_5b5_skip:
        Print: "├──────────────────────────────────────────────────────────────────┤"
        FOR each rec in skill_learnings:
            Print: "│                                                                  │"
-           Print: "│  [{rec.category}] {rec.title}"
-           Print: "│    Evidence: {rec.evidence}"
-           Print: "│    Action:   {rec.action}"
-           Print: "│    Priority: {rec.priority}"
+           Print: "│  [{rec.category}] {rec.title}    │"
+           Print: "│    Evidence: {rec.evidence}      │"
+           Print: "│    Action:   {rec.action}        │"
+           Print: "│    Priority: {rec.priority}      │"
        Print: "│                                                                  │"
        Print: "└──────────────────────────────────────────────────────────────────┘"
    ELSE:
