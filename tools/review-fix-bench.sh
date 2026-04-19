@@ -511,8 +511,21 @@ run_benchmarks() {
   else
     agent_label="generic-prompt@$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
   fi
+  # Auto-detect dispatch mode from agent file loop markers (line-start anchored to avoid prose matches)
+  local dispatch_mode="single"
+  if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]] && \
+     grep -qE '^(LOOP_DIRECTIVE|max_rounds:|APPLY_AND_RECHECK)' "$AGENT_FILE"; then
+    dispatch_mode="loop"
+  fi
+  if [[ "$dispatch_mode" = "loop" ]]; then
+    agent_label="${agent_label}-loop"
+  fi
+
   local prompt_version="$agent_label"
   local actual_model_seen=""
+  local any_loop_run=false
+  local sum_rounds=0
+  local loop_converged_count=0
 
   # ── Per-fixture loop ───────────────────────────────────────────────
 
@@ -595,21 +608,67 @@ ${base_prompt}"
       local response=""
       local raw_response=""
       local was_retry=false
+      local run_loop_rounds=0
+      local run_loop_converged=false
+      local run_loop_findings_per_round="null"
       if command -v "$CLAUDE_CMD" >/dev/null 2>&1 || [[ -x "$CLAUDE_CMD" ]]; then
-        # Execute with per-run timeout (plan: kill hung reviewer, log + skip + continue)
-        raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
-                         -p "$prompt" --output-format json 2>/dev/null \
-                       || echo '{"result":"error: reviewer timed out or failed"}')
+        if [[ "$dispatch_mode" = "loop" ]]; then
+          # Loop-mode dispatch: inject max_rounds + read_only parameters, parse round telemetry
+          local loop_prompt="${prompt}
 
-        # Detect 429 rate limit — log retry event, re-attempt once after back-off
-        if echo "$raw_response" | grep -qi "rate.limit\|429\|too.many.requests"; then
-          echo "  429 rate-limit detected — backing off 30s (retry 1 of 1)" >&2
-          sleep 30
-          was_retry=true
-          retry_count=$((retry_count + 1))
+--- BENCH LOOP PARAMETERS ---
+max_rounds: 5
+read_only: false
+
+After completing all review-fix rounds, append a JSON summary block on its own line:
+{\"bench_loop\": {\"rounds\": <N>, \"converged\": <true|false>, \"findings_per_round\": [{\"critical\": <N>, \"advisory\": <N>}, ...]}}"
+          raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
+                           -p "$loop_prompt" --output-format json 2>/dev/null \
+                         || echo '{"result":"error: loop reviewer timed out or failed"}')
+
+          # Parse loop telemetry from response
+          local loop_meta
+          loop_meta=$(python3 -c "
+import json, re, sys
+raw = sys.stdin.read()
+try:
+    data = json.loads(raw)
+    text = data.get('result', '') if isinstance(data, dict) else str(data)
+except Exception:
+    text = raw
+m = re.search(r'\{\"bench_loop\":\s*(\{[^{}]+\})', text, re.DOTALL)
+if m:
+    try:
+        d = json.loads(m.group(1))
+        print(json.dumps({'rounds': int(d.get('rounds', 1)),
+                          'converged': bool(d.get('converged', False)),
+                          'findings_per_round': d.get('findings_per_round', [])}))
+    except Exception:
+        print(json.dumps({'rounds': 1, 'converged': False, 'findings_per_round': []}))
+else:
+    print(json.dumps({'rounds': 1, 'converged': False, 'findings_per_round': []}))
+" <<< "$raw_response" 2>/dev/null || echo '{"rounds":1,"converged":false,"findings_per_round":[]}')
+
+          run_loop_rounds=$(python3 -c "import json,sys; print(json.loads(sys.stdin.read())['rounds'])" <<< "$loop_meta" 2>/dev/null || echo 1)
+          run_loop_converged=$(python3 -c "import json,sys; print('true' if json.loads(sys.stdin.read())['converged'] else 'false')" <<< "$loop_meta" 2>/dev/null || echo false)
+          run_loop_findings_per_round=$(python3 -c "import json,sys; print(json.dumps(json.loads(sys.stdin.read())['findings_per_round']))" <<< "$loop_meta" 2>/dev/null || echo '[]')
+          any_loop_run=true
+        else
+          # Single-pass dispatch (default — preserves E0–E6 schema byte-for-byte)
           raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
                            -p "$prompt" --output-format json 2>/dev/null \
-                         || echo '{"result":"error: reviewer failed after retry"}')
+                         || echo '{"result":"error: reviewer timed out or failed"}')
+
+          # Detect 429 rate limit — log retry event, re-attempt once after back-off
+          if echo "$raw_response" | grep -qi "rate.limit\|429\|too.many.requests"; then
+            echo "  429 rate-limit detected — backing off 30s (retry 1 of 1)" >&2
+            sleep 30
+            was_retry=true
+            retry_count=$((retry_count + 1))
+            raw_response=$(timeout "$PER_RUN_TIMEOUT" "$CLAUDE_CMD" --print "${BENCH_ROUTE_ARGS[@]}" \
+                             -p "$prompt" --output-format json 2>/dev/null \
+                           || echo '{"result":"error: reviewer failed after retry"}')
+          fi
         fi
 
         # QI-2: model pin check
@@ -755,7 +814,7 @@ print(len([f for f in findings if f.get('description', '')]))
       local run_record
       run_record=$(python3 -c "
 import json
-print(json.dumps({
+rec = {
     'fixture': '$fixture_name',
     'run': $run_num,
     'was_retry': $([ "$was_retry" == "true" ] && echo 'true' || echo 'false'),
@@ -774,7 +833,12 @@ print(json.dumps({
     'cache_read_input_tokens': $run_cr_tokens,
     'output_tokens': $run_output_tokens,
     'cost_usd': $run_cost_usd
-}))
+}
+if '$dispatch_mode' == 'loop':
+    rec['rounds'] = $run_loop_rounds
+    rec['converged'] = $run_loop_converged
+    rec['findings_per_round'] = json.loads('''$run_loop_findings_per_round''') if '$run_loop_findings_per_round' != 'null' else []
+print(json.dumps(rec))
 ")
       if [[ "$first_run" == "true" ]]; then first_run=false; else raw_runs_json+=","; fi
       raw_runs_json+="$run_record"
@@ -795,6 +859,12 @@ print(json.dumps({
         sum_output_tokens=$((sum_output_tokens + run_output_tokens))
         sum_cost_usd=$(python3 -c "print(round($sum_cost_usd + $run_cost_usd, 6))")
         fixture_count=$((fixture_count + 1))
+        if [[ "$dispatch_mode" = "loop" ]]; then
+          sum_rounds=$((sum_rounds + run_loop_rounds))
+          if [[ "$run_loop_converged" = "true" ]]; then
+            loop_converged_count=$((loop_converged_count + 1))
+          fi
+        fi
       fi
 
       # Rate limit spacing for multi-run (respects max-concurrency intent)
@@ -847,12 +917,40 @@ else:
     mean_precision=0; mean_recall=0; mean_f1=0; mean_completeness=0
   fi
 
+  # Loop-mode aggregates (only emitted when any run used loop dispatch)
+  local loop_aggregate_json="null"
+  if [[ "$any_loop_run" = "true" ]] && [[ "$fixture_count" -gt 0 ]]; then
+    loop_aggregate_json=$(python3 -c "
+import json
+print(json.dumps({
+    'mean_rounds': round($sum_rounds / $fixture_count, 2),
+    'convergence_rate': round($loop_converged_count / $fixture_count, 4)
+}))
+")
+  fi
+
   local timestamp
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   local results_json
   results_json=$(python3 -c "
 import json
+agg = {
+    'mean_precision': $mean_precision,
+    'mean_recall': $mean_recall,
+    'mean_f1': $mean_f1,
+    'mean_completeness': $mean_completeness,
+    'total_wall_clock_s': $total_wall,
+    'total_input_tokens': $sum_input_tokens,
+    'total_cache_creation_tokens': $sum_cache_creation_tokens,
+    'total_cache_read_tokens': $sum_cache_read_tokens,
+    'total_output_tokens': $sum_output_tokens,
+    'total_cost_usd': $sum_cost_usd
+}
+loop_agg = json.loads('$loop_aggregate_json') if '$loop_aggregate_json' != 'null' else None
+if loop_agg:
+    agg['mean_rounds'] = loop_agg['mean_rounds']
+    agg['convergence_rate'] = loop_agg['convergence_rate']
 results = {
     'label': '$LABEL',
     'timestamp': '$timestamp',
@@ -865,18 +963,7 @@ results = {
     'holdout_fixtures': $HOLDOUT_FIXTURES,
     'per_fixture': json.loads('''$per_fixture_json'''),
     'raw_runs': json.loads('''$raw_runs_json'''),
-    'aggregate': {
-        'mean_precision': $mean_precision,
-        'mean_recall': $mean_recall,
-        'mean_f1': $mean_f1,
-        'mean_completeness': $mean_completeness,
-        'total_wall_clock_s': $total_wall,
-        'total_input_tokens': $sum_input_tokens,
-        'total_cache_creation_tokens': $sum_cache_creation_tokens,
-        'total_cache_read_tokens': $sum_cache_read_tokens,
-        'total_output_tokens': $sum_output_tokens,
-        'total_cost_usd': $sum_cost_usd
-    }
+    'aggregate': agg
 }
 print(json.dumps(results, indent=2))
 ")
