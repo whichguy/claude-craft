@@ -1097,3 +1097,70 @@ the plan directory or `artifacts/` after a successful resume sweep.
 **Fail signal:** A `status=writing` artifact whose `plan_lock.pid` is no longer alive, or
 a `.tmp.*` file whose PID suffix is a dead process — indicates a prior crash left
 unreleased resources.
+
+---
+
+### Q-F31 — P1 Exhausted Tier-0 Public Ladder Before User Prompt (Gate 2 Advisory)
+
+**Tier:** Gate 2 — Important.
+
+**Trigger:** Any `key_facts` field has `fact_source: "user_prompt"` recorded after P1.
+
+**Criteria:** For each fact that was ultimately supplied via user_prompt, verify that the
+breadcrumb trail for that `fact_id` contains at least one Tier-0 attempt entry
+(`tier:0 source:<any>`) that preceded the user_prompt answer. If a user_prompt answer
+exists for a fact_id with no preceding Tier-0 attempt for the same fact, the skill skipped
+public lookup and went straight to the user — which defeats the forensic ladder.
+
+**Evaluator method:**
+1. Scan `breadcrumbs[]` for entries matching `phase:P1 tier:5` (user_prompt).
+2. For each such entry, extract `fact_id` from the breadcrumb payload.
+3. Verify at least one breadcrumb with `phase:P1 tier:0 fact_id:<same>` appears earlier
+   in the trail.
+4. If any fact_id has a Tier-5 answer without a preceding Tier-0 attempt:
+   emit NEEDS_UPDATE with `[EDIT: re-run P1 Tier-0 for fact_id=<x> before accepting user_prompt]`.
+
+**Pass criteria:** Every fact answered via user_prompt has a matching Tier-0 attempt in the
+breadcrumb trail. If no user_prompt answers exist: PASS (trivially — no Tier-5 answers to check).
+
+**N/A criteria:** P1 has not yet run (phase_status.P1 != "done").
+
+**Example output:**
+```
+Q-F31: NEEDS_UPDATE — fact_id=prior_filed_eoy_net_assets answered via user_prompt (breadcrumb idx 47)
+but no tier:0 attempt found for that fact_id. Re-run P1 Tier-0 to fetch from IRS XML or ProPublica
+before accepting operator input.
+[EDIT: set phase_status.P1="pending"; re-run P1 with FORM990_DISABLE_DRIVE=1 to force Tier-0 retry]
+```
+
+---
+
+### Q-F32 — Profile SHA256 Unchanged Since P0 Init (Gate 2 Advisory)
+
+**Tier:** Gate 2 — Important.
+
+**Trigger:** `inputs[]` in machine state contains an entry with `type: "profile"`.
+
+**Criteria:** The SHA256 recorded in `inputs[]` for the profile file must match
+`sha256(current bytes of inputs[].path)` on disk. A mismatch means the profile file
+was edited after P0 loaded it — any `key_facts` fields that came from the profile may
+be stale.
+
+**Evaluator method:**
+1. Find `inputs[]` entry where `type == "profile"` (or `path` ends in `.md` under `~/.claude/form990/`).
+2. Read `inputs[].sha256` (the hash at load time).
+3. Read the file at `inputs[].path`; compute `sha256(bytes)`.
+4. If hashes differ: emit NEEDS_UPDATE with edit instruction to re-run init with updated profile.
+5. If the file no longer exists at `inputs[].path`: emit NEEDS_UPDATE.
+
+**Pass criteria:** SHA256 matches, or `inputs[]` has no profile entry (cold-run, no profile loaded).
+
+**N/A criteria:** `inputs[]` is empty or absent (plan predates profile feature).
+
+**Example output:**
+```
+Q-F32: NEEDS_UPDATE — profile SHA256 mismatch: recorded abc123…, current def456….
+The profile at ~/.claude/form990/fortified-strength.md was edited after P0 ran.
+Key facts sourced from profile (ein, officers, registrations) may be stale.
+[EDIT: re-run /form990 init --profile=fortified-strength to reload the updated profile]
+```

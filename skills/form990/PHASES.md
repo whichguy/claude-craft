@@ -1765,6 +1765,34 @@ Register in machine state as `artifacts.cpa_memo`.
 
 **Transition.** Done. Print completion banner. See Post-Run Review section below; print the prompt box to the operator before closing the session.
 
+**Cold-run profile promotion (P9 end-of-run, if no profile was loaded at init):**
+If `key_facts.profile_path` is null (no profile was loaded), offer to write one from the
+current run's resolved `key_facts` (minus tax-year-specific items):
+
+```
+┌─ Save Company Profile? ────────────────────────────────────────────────┐
+│  This run resolved key company facts that can be reused next year:     │
+│    EIN, officers, CA RCT number, auth boundaries, GAS script IDs, etc. │
+│                                                                         │
+│  Write to: ~/.claude/form990/fortified-strength.md                     │
+│  This file is outside the git repo and persists across tax years.      │
+│                                                                         │
+│  Exclude from profile: tax_year, gross_receipts_current, sheet IDs     │
+│  (per-year — these will be re-discovered next year).                   │
+│                                                                         │
+│  [Y] Save profile  [n] Skip                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+If the operator accepts: write `~/.claude/form990/<slug>.md` using `atomic_commit()` with
+scrubbed content (run `scrub_pii()` before writing officer names and account hints).
+The written file must pass `load_profile()` validation without errors. Log breadcrumb
+`"cold-run-promotion: profile written to <path>"`.
+
+**Artifact retention (P9 end-of-run):**
+Prune `artifacts/p0-public-lookups/` to keep the latest 3 tax-years of data per EIN.
+Delete older per-year cache entries. Log each pruned entry in a breadcrumb.
+
 ---
 
 ## Output Document Catalog

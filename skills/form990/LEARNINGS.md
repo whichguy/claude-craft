@@ -174,6 +174,29 @@ Machine section is capped by `MAX_MACHINE_ENTRIES` rotation in SKILL.md (do not 
   update the other. Drift was detected 2026-04-15 (PLAN-TEMPLATE.md was more condensed
   without tracking).
 
+- **LEARNING #1 — Org-account boundary causes cold P1 failure without profile (2026-04-19).**
+  When the skill is run without a company profile AND the org stores 990-relevant files in
+  a separate Google Workspace account (e.g., `fortifiedstrength.org`), Drive MCP personal-OAuth
+  cannot see those files at all. P1 then produces zero results for governance docs, payroll
+  exports, and prior 990 PDFs — all of which require either the org-account GAS bridge (Tier 2)
+  or the profile's `auth_accounts.org_google` field to route searches correctly. Resolution:
+  load a company profile at `init` (`~/.claude/form990/<slug>.md`) so Tier 2 activates
+  automatically. Without the profile, every P1 run on this org will stall at OQ-5, OQ-11,
+  and OQ-prior-990-pdf until the operator manually copies files into `artifacts/`.
+
+- **LEARNING #2 (Spike S0 — IRS e-file XML schema verification, 2026-04-19): PASS.**
+  XPath element names for Form 990 confirmed correct from official IRS MeF schema (TY2013+):
+  `CYTotalRevenueAmt` (Part I Line 12), `CYContributionsGrantsAmt` (Part I Line 8),
+  `NetAssetOrFundBalancesEOYAmt` / `NetAssetOrFundBalancesBOYAmt` (Part I Line 22 col B/A),
+  `TotalFunctionalExpensesAmt` (Part IX total). Parent element: `IRS990` (full 990) or
+  `IRS990EZ` (990-EZ). The old S3 URL `s3.amazonaws.com/irs-form-990/{object_id}_public.xml`
+  is dead (404). Current location: monthly ZIP batches at `apps.irs.gov/pub/epostcard/990/xml/`
+  with index CSVs at `index_{YEAR}.csv`. `fetch_irs_xml()` implemented using HTTP Range
+  requests on ZIP central directory to avoid downloading full ~100MB archives.
+  FY2024 (Form 990 full) confirmed filed 2026-05-14 and accessible via ProPublica XML link
+  (object_id: 202531349349309248). Spike S1 (ProPublica field fidelity vs filed PDF) pending
+  user confirmation.
+
 *[Append new entries below after each run — never delete existing entries]*
 
 <!-- BEGIN MACHINE LEARNINGS (auto-appended; do not hand-edit) -->

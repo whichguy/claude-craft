@@ -654,6 +654,175 @@ to record call order.
 
 ---
 
+## TC30 — verify_ancestors() detects post-start profile edit
+
+**Covers:** Phase 1 Change 1 — `verify_ancestors()` raises `AncestorRegression` when the profile file is mutated after `init`.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC30`
+
+**Setup:** Fixture profile in a tmpdir; `inputs[]` pre-seeded with the profile's path + original sha256.
+
+**Steps:**
+1. Write fixture profile; compute sha256.
+2. Pre-seed a minimal machine state `inputs[]` with `{type:"profile", path:..., sha256:<original>}`.
+3. Mutate the fixture profile (append a line).
+4. Call `verify_ancestors_with_profile(state, profile_path)` (or inline the check).
+5. Assert `ValueError` or custom error is raised with message containing "profile" and "sha256".
+
+**Assertions:**
+- `TC30`: mutated profile triggers sha256 mismatch error.
+- File is opened only from the path in `inputs[]`, not from an arbitrary path.
+
+**Expected:** TC30 grid cell: `✔`
+
+---
+
+## TC32 — Secret redaction: SENTINEL not in any log sink
+
+**Covers:** Phase 1 Change 1 — `Secret` wrapper prevents credential leakage.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC32`
+
+**Steps:**
+1. Mock `get_portal_creds` to return `Secret("pw-SENTINEL-4242")`.
+2. Confirm `str(secret)` == `"***"` and `repr(secret)` == `"***"`.
+3. Pass the Secret to `scrub_pii()` as a string — must not expose SENTINEL.
+4. Attempt to JSON-serialize a Secret value — assert `PiiLeakSuspected` raised.
+
+**Assertions:**
+- `Secret.__str__` returns `"***"`.
+- `Secret.__repr__` returns `"***"`.
+- `json.dumps({"pw": secret}, default=Secret._json_default)` raises `PiiLeakSuspected`.
+
+**Expected:** TC32 grid cell: `✔`
+
+---
+
+## TC33 — Timeout enforcement: fetch_teos() raises TEOSUnavailable ≤17s
+
+**Covers:** Phase 2 Change 2 — per-source fetch respects timeout.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC33`
+
+**Setup:** Monkeypatch `_urllib_get` to sleep 60s.
+
+**Steps:**
+1. Patch `form990_lib._urllib_get` to sleep 60s then return b"".
+2. Call `fetch_teos("85-3576252")` in a thread; join with 17s timeout.
+3. Assert thread completed within 17s AND `TEOSUnavailable` was raised.
+
+**Assertions:**
+- `TEOSUnavailable` raised within 17s (15s timeout + 2s tolerance).
+- No partial result returned.
+
+**Expected:** TC33 grid cell: `✔`
+
+---
+
+## TC34 — Service allowlist: get_portal_creds() rejects injections
+
+**Covers:** Phase 1 Change 1 — allowlist validated before any shell exec.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC34`
+
+**Steps:**
+1. Call `get_portal_creds("$(rm -rf /)")` — assert `ValueError` before any subprocess call.
+2. Call `get_portal_creds("../../etc/passwd")` — assert `ValueError`.
+3. Call `get_portal_creds("form990-candid")` on non-Darwin — assert `KeychainMissingEntry`
+   (allowlist passed; falls through to env var check, not found).
+
+**Assertions:**
+- Both injection payloads raise `ValueError` immediately.
+- Valid service name reaches Keychain/env-var path (does not raise ValueError).
+
+**Expected:** TC34 grid cell: `✔`
+
+---
+
+## TC35 — Slug path-traversal: load_profile() rejects `../` in slug
+
+**Covers:** Phase 1 Change 1 — slug validated before any file open.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC35`
+
+**Steps:**
+1. Call `load_profile("../../../etc/passwd")` — assert `ValueError` and no file opened outside `~/.claude/form990/`.
+2. Call `load_profile("../../root")` — assert `ValueError`.
+3. Call `load_profile("valid-slug")` — assert `FileNotFoundError` (slug valid, file absent).
+
+**Assertions:**
+- Traversal slugs raise `ValueError` immediately.
+- `valid-slug` raises `FileNotFoundError` (not `ValueError`) — slug passed, file missing.
+
+**Expected:** TC35 grid cell: `✔`
+
+---
+
+## TC36 — Migration path: legacy in-flight plan skips profile SHA check
+
+**Covers:** Phase 1 Change 1 — backward compatibility for plans without `profile_path`.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC36`
+
+**Steps:**
+1. Construct a minimal machine state where `inputs[]` is empty (no profile entry).
+2. Run `verify_ancestors("coa_mapping", state)` — assert no `AncestorRegression` raised.
+3. Assert breadcrumb `legacy_no_profile` is appended.
+
+**Assertions:**
+- `verify_ancestors` completes without error when `inputs[]` has no profile entry.
+- Breadcrumb contains `legacy_no_profile`.
+
+**Expected:** TC36 grid cell: `✔`
+
+---
+
+## TC37 — IRS XML > ProPublica merge priority
+
+**Covers:** Phase 2 Amendment A — `_merge_prior_years` priority ordering.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC37`
+
+**Steps:**
+1. Construct synthetic results with IRS XML for FY2023 + ProPublica for FY2022 + FY2023 (different values).
+2. Call `_merge_prior_years(results, priority_order=["irs_xml","propublica"])`.
+3. Assert IRS XML value wins for FY2023; ProPublica fills FY2022; result is newest-first.
+
+**Expected:** TC37 grid cell: `✔`
+
+---
+
+## TC38 — Parallel dispatch: 20s wall-clock cap
+
+**Covers:** Phase 2 Amendment A — ThreadPoolExecutor wall-clock cap with per-source error dicts.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC38`
+
+**Steps:**
+1. Stub 6 source fetches to sleep 30s each.
+2. Run parallel dispatch with 20s wall cap (remaining=max(0, cap - elapsed) per future).
+3. Assert all 6 return within 22s, all as error dicts, 6 breadcrumbs appended.
+
+**Expected:** TC38 grid cell: `✔`
+
+---
+
+## TC39 — fetch_pdf_line_items sha256 cache
+
+**Covers:** Phase 2 Amendment A — cache keyed by PDF sha256, not path.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC39`
+
+**Steps:**
+1. Pre-seed `fetch_pdf_line_items._sha_cache` with known sha256 → result.
+2. Write identical bytes to two different paths.
+3. Call fetch_pdf_line_items on each path — both should return cached result.
+4. Assert cache has exactly 1 entry (not 2).
+
+**Expected:** TC39 grid cell: `✔`
+
+---
+
 ## Running the Harness
 
 ```bash
