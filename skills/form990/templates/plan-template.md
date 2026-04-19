@@ -7,6 +7,8 @@
   "plan_version": 0,
   "skill_version": "form990@1.0.0",
   "tax_year": null,
+  "fiscal_year_start": null,
+  "fiscal_year_end": null,
   "form_variant": null,
   "current_phase": "P0",
   "phase_status": {
@@ -50,6 +52,7 @@
     "efile_handoff":       { "path": null, "status": "absent", "staging_path": null, "input_fingerprint": {}, "output_sha256": null, "produced_in_phase": "P9", "produced_at": null }
   },
   "plan_lock": { "pid": null, "acquired_at": null, "host": null, "note": "informational only — authoritative concurrency is content-SHA256 CAS; see Resume Protocol" },
+  "inputs": [],
   "key_facts": {
     "legal_name": null,
     "ein": null,
@@ -61,7 +64,18 @@
     "sheet_schema": null,
     "fiscal_year_start": null,
     "fiscal_year_end": null,
-    "donor_names": []
+    "donor_names": [],
+    "profile_path": null,
+    "profile_sha256": null,
+    "people": null,
+    "auth_accounts": null,
+    "known_resources": null,
+    "registrations": null,
+    "providers": null,
+    "portal_credentials": null,
+    "public_filing_history_ein": null,
+    "prior_filed_eoy_net_assets": null,
+    "prior_filed_gross_receipts_5y": []
   },
   "decision_log": [],
   "revalidation_events": [],

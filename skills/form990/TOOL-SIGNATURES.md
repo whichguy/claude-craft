@@ -230,6 +230,160 @@ result: PASS (pinned-count branch — 38 confirmed empirically, 3/3 runs)
 
 ---
 
+## Phase 2 — Public Lookup URL Templates (Change 5)
+
+*Verified by runtime web research 2026-04-19.*
+*Spike S0 (IRS XML schema) completed 2026-04-19 — PASS on element names, URL pattern corrected (see below).*
+*Spike S1 must confirm ProPublica field mapping before fetch_propublica() ships.*
+
+### IRS e-file XML (Bulk Batch — Spike S0 VERIFIED)
+
+```
+Spike S0 result (2026-04-19):
+  - Element names CONFIRMED correct from official IRS MeF schema docs
+  - Old S3 URL (s3.amazonaws.com/irs-form-990/{object_id}_public.xml) → 404, DEAD
+  - New location: apps.irs.gov/pub/epostcard/990/xml/{YEAR}/
+
+Index CSV (10-50MB per year):
+  https://apps.irs.gov/pub/epostcard/990/xml/{YEAR}/index_{YEAR}.csv
+  Columns include: EIN, ObjectId, TaxPeriod, FormType, batch filename
+
+Batch ZIP files (monthly, ~50-200MB each):
+  https://apps.irs.gov/pub/epostcard/990/xml/{YEAR}/{YEAR}_TEOS_XML_{MM}A.zip
+  (some months have multiple parts: B, C, D)
+
+fetch_irs_xml() implementation — HTTP Range approach (fast, avoids full ZIP download):
+  1. Download index CSV via urllib.request.urlopen() — stream into memory, parse CSV
+  2. Filter for EIN match → get ObjectId + batch filename
+  3. HEAD request on batch ZIP URL → get Content-Length
+  4. Range request for last 65KB of ZIP → parse ZIP central directory (EOCD + CDR)
+  5. Find target file entry in central directory → get local file header offset + compressed size
+  6. Range request for just that byte range → decompress with zipfile.ZipFile(BytesIO(...))
+  7. Parse resulting XML with xml.etree.ElementTree
+
+Timeout budget: 60s for index CSV + 30s per batch ZIP (Range requests only)
+  → Update PHASE_DEADLINES_S["p0_irs_xml_s"] = 90  (replaces p0_public_lookup_s: 15)
+
+Confirmed XPath element names (IRS990, from MeF schema):
+  Revenue:       Return/ReturnData/IRS990/CYTotalRevenueAmt
+  Contributions: Return/ReturnData/IRS990/CYContributionsGrantsAmt
+  EOY assets:    Return/ReturnData/IRS990/NetAssetOrFundBalancesEOYAmt
+  BOY assets:    Return/ReturnData/IRS990/NetAssetOrFundBalancesBOYAmt
+  Expenses:      Return/ReturnData/IRS990/TotalFunctionalExpensesAmt
+
+For 990-EZ: parent element is IRS990EZ, field names differ (use concordance file)
+  https://nonprofit-open-data-collective.github.io/irs-efile-master-concordance-file/
+
+ProPublica XML download-xml endpoint (object_id format):
+  https://projects.propublica.org/nonprofits/download-xml?object_id={object_id}
+  (Fortified Strength FY2024 object_id: 202531349349309248 — confirmed accessible via org page)
+  Note: WebFetch returns 403; use urllib with User-Agent header for direct Python access.
+```
+
+### IRS TEOS (Tax Exempt Organization Search)
+
+```
+Web UI:   https://apps.irs.gov/app/eos/
+Bulk CSV: https://www.irs.gov/charities-non-profits/tax-exempt-organization-search-bulk-data-downloads
+          (monthly ZIP downloads, pipe-delimited, state-partitioned)
+
+IMPORTANT: TEOS has NO JSON API endpoint. Programmatic access options:
+  Option A: WebFetch on the web UI URL + HTML parse (fragile, may break on IRS redesign)
+  Option B: Download EO BMF bulk CSV and parse locally (preferred for repeated queries)
+  Option C: Use ProPublica as proxy — ProPublica data is derived from IRS filings
+
+For fetch_teos(), recommend Option A as a lightweight smoke-check; fall back to
+user-prompt if HTML parsing fails (log error_class=TEOSUnavailable).
+
+Key fields extractable from TEOS UI HTML:
+  determination_letter_status, exempt_status, last_return_year, last_return_form
+```
+
+### ProPublica Nonprofit Explorer API
+
+```
+URL template: https://projects.propublica.org/nonprofits/api/v2/organizations/{ein_nodash}.json
+  Note: EIN must be WITHOUT hyphens (e.g., "853576252" not "85-3576252")
+
+Auth: None required.
+Rate limit: Not documented; reasonable rate < 1 req/sec recommended.
+
+Response schema (top-level):
+  {
+    "organization": { "name": str, "ein": int, "ntee_code": str, ... },
+    "filings_with_data": [
+      {
+        "tax_prd_yr": int,     ← fiscal year end year
+        "totrevenue": float,   ← TOTAL REVENUE (NOT gross_receipts — see Spike S1)
+        "totfuncexpns": float, ← total functional expenses
+        "totassetsend": float, ← end-of-year total assets
+        "totliabend": float,   ← end-of-year total liabilities (net assets = assets - liab)
+        "totrcptperbks": float,← gross receipts per books
+        "pdf_url": str,        ← URL to publicly available 990 PDF
+        ...40+ additional fields
+      }
+    ],
+    "filings_without_data": [...]  ← filings where parsed data not available
+  }
+
+SPIKE S1 REQUIRED before shipping fetch_propublica():
+  Verify which of {totrevenue, totrcptperbks} matches Schedule A "gross receipts"
+  as reported on the filed 990 PDF for FY2021-FY2024.
+  net_assets_eoy = totassetsend - totliabend (not a direct field)
+  
+Field mapping (pending S1 confirmation):
+  plan field                    → ProPublica field
+  gross_receipts                → totrcptperbks  (UNVERIFIED — may be totrevenue)
+  total_expenses                → totfuncexpns   (UNVERIFIED)
+  eoy_net_assets                → totassetsend - totliabend  (UNVERIFIED)
+  pdf_url                       → pdf_url        (verified pattern exists)
+```
+
+### California AG Charity Registry
+
+```
+Web UI: https://oag.ca.gov/charities
+  Search form: POST to https://rct.doj.ca.gov/Verification/Web/Search.aspx
+  or: https://oag.ca.gov/charities/search?name=&id=CT0272348&type=charity
+
+JSON API: No official CA AG JSON API.
+Candid API: https://api.candid.org/charitycheck/v1/CA?ag_state_charity_reg_num=CT{number}
+  Requires Candid subscription (not available without auth).
+
+Recommendation for fetch_ca_rct():
+  Use WebFetch on CA DOJ RCT verification URL + HTML parse.
+  Key fields: registration_status, last_rrf1_year.
+  On parse failure: log error_class=StateAGUnavailable, fall through to user_prompt.
+```
+
+### Keychain Helper Contract
+
+```
+Function: get_portal_creds(service: str) -> Secret
+  Service allowlist (hardcoded): {"form990-candid", "form990-benevity"}
+  Darwin: subprocess.run(["security", "find-generic-password", "-s", service, "-w"],
+          shell=False, timeout=10)
+  Non-Darwin fallback: os.environ.get(f"FORM990_{service_upper}_PW")
+  Error classes: KeychainLocked (exit 36), KeychainPermissionDenied (exit 44),
+                 KeychainMissingEntry (all other non-zero or binary-not-found)
+  Secret.__repr__ / __str__ → "***" (never logged)
+```
+
+### Outlook MCP Detection
+
+```
+At skill-load time, detect Outlook MCP availability:
+  if any MCP tool named *outlook* or *microsoft_mail* is in the tool list → present
+  else → absent (Tier 4 skipped, no hard failure)
+
+If present, mirror Gmail's 10-query pattern:
+  Subject:"990" → prior returns
+  Subject:"budget" OR Subject:"financials" → financial statements
+  ... (same 10 query categories as Gmail Tier 1)
+```
+
+---
+
 ## f990 Coordinate Table (tax_year: null)
 
 *(One-time manual step per tax year — populate by running pypdf visual inspection on blank PDF)*

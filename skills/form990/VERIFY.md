@@ -1,8 +1,8 @@
 # Form 990 Skill — Verification Plan
 
-Human-readable spec for all 28 test cases:
-- **TC1–TC7**: manual tests (require live MCP/network/user interaction, marked `?` in harness)
-- **TC8–TC28**: automated tests (21 cases, all runnable with `python3 tests/verify.py`)
+Human-readable spec for all 39 test cases:
+- **TC1–TC7, TC31**: manual tests (require live MCP/network/user interaction, marked `?` in harness)
+- **TC8–TC30, TC32–TC39**: automated tests (31 cases, all runnable with `python3 tests/verify.py`)
 
 Each maps 1:1 to a test function in `tests/verify.py`.
 Run with `/form990 verify` or directly via `python3 tests/verify.py`.
@@ -608,6 +608,221 @@ to record call order.
 
 ---
 
+## TC29 — Profile ingestion + scrub_pii category coverage
+
+**Covers:** Phase 1 Change 1 (company profile plumbing + PII extension)
+
+**Automated:** Yes — `python3 tests/verify.py --case TC29`
+
+**Setup:** Fixture profile written to a temp directory (no `~/.claude/form990/` side effects).
+
+**Steps:**
+1. Write a fixture profile `test-org.md` with `schema: 1`, EIN, officers, CA RCT, CA SOS, portal credential hint.
+2. Call `load_profile(str(fixture_path))` — direct path, not slug resolution.
+3. Assert returned dict contains `key_facts.ein == "85-3576252"` and `people.officers` with ≥2 entries.
+4. For each of the 6 PII categories, call `scrub_pii()` with appropriate inputs and assert the redaction token appears.
+
+**Assertions (≥6, one per category):**
+- `TC29-ein-loaded`: `profile["ein"] == "85-3576252"`
+- `TC29-officers-loaded`: `len(profile["people"]["officers"]) >= 2`
+- `TC29-scrub-ein`: `scrub_pii("EIN is 85-3576252")` → contains `[REDACTED-EIN]`
+- `TC29-scrub-officer`: `scrub_pii("CEO James Wiese", officer_names=[...])` → contains `[REDACTED-OFFICER]`
+- `TC29-scrub-email`: `scrub_pii("jim@fortifiedstrength.org")` → contains `[REDACTED-EMAIL]` (portal account_hint via email rule)
+- `TC29-scrub-ca-rct`: `scrub_pii("CT0272348")` → contains `[REDACTED-CA-RCT]`
+- `TC29-scrub-ca-sos`: `scrub_pii("4567890", ca_sos_entity_ids=["4567890"])` → contains `[REDACTED-CA-SOS]`
+- `TC29-scrub-donor`: `scrub_pii("Jane Smith", donor_names=["Jane Smith"])` → contains `[REDACTED-DONOR]` (regression guard)
+- `TC29-allowlist`: `get_portal_creds("$(rm -rf /)")` raises `ValueError` before any shell exec
+
+**Expected:** TC29 grid cell: `✔`
+
+---
+
+## TC31 — Cold-run profile promotion (manual)
+
+**Covers:** Phase 1 Change 1 — P9 cold-run promotion path
+
+**Automated:** No — requires full P0–P9 mock run.
+
+**Steps:**
+1. Run `/form990 init` with no `--profile` and no `~/.claude/form990/` directory.
+2. Complete a mock P0–P9 run with a synthetic org.
+3. At P9 end-of-run, assert the skill offers to write `~/.claude/form990/<slug>.md`.
+4. Accept the offer; assert the written file passes `load_profile()` without errors.
+5. Assert the round-tripped `ein` and `people.officers` match the resolved `key_facts` from the run.
+
+**Expected:** TC31 manual verification: P9 writes a valid profile that round-trips through `load_profile()`.
+
+---
+
+## TC30 — verify_ancestors() detects post-start profile edit
+
+**Covers:** Phase 1 Change 1 — `verify_ancestors()` raises `AncestorRegression` when the profile file is mutated after `init`.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC30`
+
+**Setup:** Fixture profile in a tmpdir; `inputs[]` pre-seeded with the profile's path + original sha256.
+
+**Steps:**
+1. Write fixture profile; compute sha256.
+2. Pre-seed a minimal machine state `inputs[]` with `{type:"profile", path:..., sha256:<original>}`.
+3. Mutate the fixture profile (append a line).
+4. Call `verify_ancestors_with_profile(state, profile_path)` (or inline the check).
+5. Assert `ValueError` or custom error is raised with message containing "profile" and "sha256".
+
+**Assertions:**
+- `TC30`: mutated profile triggers sha256 mismatch error.
+- File is opened only from the path in `inputs[]`, not from an arbitrary path.
+
+**Expected:** TC30 grid cell: `✔`
+
+---
+
+## TC32 — Secret redaction: SENTINEL not in any log sink
+
+**Covers:** Phase 1 Change 1 — `Secret` wrapper prevents credential leakage.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC32`
+
+**Steps:**
+1. Mock `get_portal_creds` to return `Secret("pw-SENTINEL-4242")`.
+2. Confirm `str(secret)` == `"***"` and `repr(secret)` == `"***"`.
+3. Pass the Secret to `scrub_pii()` as a string — must not expose SENTINEL.
+4. Attempt to JSON-serialize a Secret value — assert `PiiLeakSuspected` raised.
+
+**Assertions:**
+- `Secret.__str__` returns `"***"`.
+- `Secret.__repr__` returns `"***"`.
+- `json.dumps({"pw": secret}, default=Secret._json_default)` raises `PiiLeakSuspected`.
+
+**Expected:** TC32 grid cell: `✔`
+
+---
+
+## TC33 — Timeout enforcement: fetch_teos() raises TEOSUnavailable ≤17s
+
+**Covers:** Phase 2 Change 2 — per-source fetch respects timeout.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC33`
+
+**Setup:** Monkeypatch `_urllib_get` to sleep 60s.
+
+**Steps:**
+1. Patch `form990_lib._urllib_get` to sleep 60s then return b"".
+2. Call `fetch_teos("85-3576252")` in a thread; join with 17s timeout.
+3. Assert thread completed within 17s AND `TEOSUnavailable` was raised.
+
+**Assertions:**
+- `TEOSUnavailable` raised within 17s (15s timeout + 2s tolerance).
+- No partial result returned.
+
+**Expected:** TC33 grid cell: `✔`
+
+---
+
+## TC34 — Service allowlist: get_portal_creds() rejects injections
+
+**Covers:** Phase 1 Change 1 — allowlist validated before any shell exec.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC34`
+
+**Steps:**
+1. Call `get_portal_creds("$(rm -rf /)")` — assert `ValueError` before any subprocess call.
+2. Call `get_portal_creds("../../etc/passwd")` — assert `ValueError`.
+3. Call `get_portal_creds("form990-candid")` on non-Darwin — assert `KeychainMissingEntry`
+   (allowlist passed; falls through to env var check, not found).
+
+**Assertions:**
+- Both injection payloads raise `ValueError` immediately.
+- Valid service name reaches Keychain/env-var path (does not raise ValueError).
+
+**Expected:** TC34 grid cell: `✔`
+
+---
+
+## TC35 — Slug path-traversal: load_profile() rejects `../` in slug
+
+**Covers:** Phase 1 Change 1 — slug validated before any file open.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC35`
+
+**Steps:**
+1. Call `load_profile("../../../etc/passwd")` — assert `ValueError` and no file opened outside `~/.claude/form990/`.
+2. Call `load_profile("../../root")` — assert `ValueError`.
+3. Call `load_profile("valid-slug")` — assert `FileNotFoundError` (slug valid, file absent).
+
+**Assertions:**
+- Traversal slugs raise `ValueError` immediately.
+- `valid-slug` raises `FileNotFoundError` (not `ValueError`) — slug passed, file missing.
+
+**Expected:** TC35 grid cell: `✔`
+
+---
+
+## TC36 — Migration path: legacy in-flight plan skips profile SHA check
+
+**Covers:** Phase 1 Change 1 — backward compatibility for plans without `profile_path`.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC36`
+
+**Steps:**
+1. Construct a minimal machine state where `inputs[]` is empty (no profile entry).
+2. Run `verify_ancestors("coa_mapping", state)` — assert no `AncestorRegression` raised.
+3. Assert breadcrumb `legacy_no_profile` is appended.
+
+**Assertions:**
+- `verify_ancestors` completes without error when `inputs[]` has no profile entry.
+- Breadcrumb contains `legacy_no_profile`.
+
+**Expected:** TC36 grid cell: `✔`
+
+---
+
+## TC37 — IRS XML > ProPublica merge priority
+
+**Covers:** Phase 2 Amendment A — `_merge_prior_years` priority ordering.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC37`
+
+**Steps:**
+1. Construct synthetic results with IRS XML for FY2023 + ProPublica for FY2022 + FY2023 (different values).
+2. Call `_merge_prior_years(results, priority_order=["irs_xml","propublica"])`.
+3. Assert IRS XML value wins for FY2023; ProPublica fills FY2022; result is newest-first.
+
+**Expected:** TC37 grid cell: `✔`
+
+---
+
+## TC38 — Parallel dispatch: 20s wall-clock cap
+
+**Covers:** Phase 2 Amendment A — ThreadPoolExecutor wall-clock cap with per-source error dicts.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC38`
+
+**Steps:**
+1. Stub 6 source fetches to sleep 30s each.
+2. Run parallel dispatch with 20s wall cap (remaining=max(0, cap - elapsed) per future).
+3. Assert all 6 return within 22s, all as error dicts, 6 breadcrumbs appended.
+
+**Expected:** TC38 grid cell: `✔`
+
+---
+
+## TC39 — fetch_pdf_line_items sha256 cache
+
+**Covers:** Phase 2 Amendment A — cache keyed by PDF sha256, not path.
+
+**Automated:** Yes — `python3 tests/verify.py --case TC39`
+
+**Steps:**
+1. Pre-seed `fetch_pdf_line_items._sha_cache` with known sha256 → result.
+2. Write identical bytes to two different paths.
+3. Call fetch_pdf_line_items on each path — both should return cached result.
+4. Assert cache has exactly 1 entry (not 2).
+
+**Expected:** TC39 grid cell: `✔`
+
+---
+
 ## Running the Harness
 
 ```bash
@@ -629,8 +844,8 @@ python3 skills/form990/tests/verify.py --case TC8
 
 **Output:**
 ```
-TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔
-{"passed": 21, "failed": [], "errored": [], "skipped": ["TC1","TC2","TC3","TC4","TC5","TC6","TC7"], "duration_s": 3.5}
+TC1 - | TC2 - | TC3 - | TC4 - | TC5 - | TC6 - | TC7 - | TC8 ✔ | TC9 ✔ | TC10 ✔ | TC11 ✔ | TC12 ✔ | TC13 ✔ | TC14 ✔ | TC15 ✔ | TC16 ✔ | TC17 ✔ | TC18 ✔ | TC19 ✔ | TC20 ✔ | TC21 ✔ | TC22 ✔ | TC23 ✔ | TC24 ✔ | TC25 ✔ | TC26 ✔ | TC27 ✔ | TC28 ✔ | TC29 ✔ | TC30 ✔ | TC31 - | TC32 ✔ | TC33 ✔ | TC34 ✔ | TC35 ✔ | TC36 ✔ | TC37 ✔ | TC38 ✔ | TC39 ✔
+{"passed": 31, "failed": [], "errored": [], "skipped": [], "duration_s": 22.0}
 ```
 
-(TC1–TC7 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)
+(TC1–TC7 and TC31 require MCP or human involvement — skipped in automated runs unless `--include-manual` flag is passed.)

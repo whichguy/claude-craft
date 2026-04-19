@@ -56,7 +56,7 @@ Parse the invocation string to determine subcommand and arguments.
 
 | Invocation | Behavior |
 |---|---|
-| `/form990 init --sheet <id-or-url> --tax-year <YYYY> [--plan-path <path>]` | Create plan file, run P0 intake |
+| `/form990 init --sheet <id-or-url> --tax-year <YYYY> [--plan-path <path>] [--profile <path-or-slug>]` | Create plan file; optionally load company profile as authoritative key_facts seed |
 | `/form990 resume <plan-path>` | Read plan, restore state, dispatch to current_phase |
 | `/form990 phase <N> <plan-path> [--dry-run]` | Force-run phase N (override current_phase); `--dry-run` shows what would be invalidated without writing |
 | `/form990 review <plan-path>` | Run P8 CPA review pass only |
@@ -84,6 +84,16 @@ Parse the invocation string to determine subcommand and arguments.
 - `--plan-path` defaults to `./form990-plan-<tax-year>.md` in the invocation cwd (for `init`)
 - `--ascii` defaults OFF (fancy box-drawing on)
 - `--no-sidecar` defaults OFF (sidecar writes on)
+
+**`--profile` resolution ladder (init only; runs immediately after plan file creation):**
+1. Explicit `--profile=<path>` (absolute or `~`-relative) — use directly after slug/path validation.
+2. `$FORM990_PROFILE` env var — if set, must point to an existing file (missing → hard error; do NOT silently fall to step 3).
+3. Single `.md` in `~/.claude/form990/` if exactly one exists — use it silently, print `"Loaded profile: <slug>"`.
+4. Zero or multiple files in `~/.claude/form990/` → `AskUserQuestion` listing all profiles + "start cold (no profile)".
+
+Profile frontmatter is merged into `machine_state.key_facts` as authoritative seed. Fields absent from the profile fall through to cold-discovery (existing P0 logic). Profile file **path + SHA256** are recorded in `machine_state.inputs[]` so a mid-run profile edit invalidates downstream artifacts via `verify_ancestors()`.
+
+Implementation: call `lib/form990_lib.py::load_profile(path)`. On `FileNotFoundError` or `ValueError`, halt with the error message before any phase work.
 
 ---
 
@@ -742,18 +752,21 @@ set `phase_status=failed`, atomic commit, surface in status UI.
 All breadcrumb writes, LEARNINGS auto-appends, and ScriptError messages MUST flow through
 `scrub_pii()` before being written to the plan file or LEARNINGS.md.
 
-**`scrub_pii(text, donor_names=None)`** — defined in `lib/form990_lib.py`
+**`scrub_pii(text, donor_names=None, officer_names=None, ca_sos_entity_ids=None)`** — defined in `lib/form990_lib.py`
 (imported via `from form990_lib import scrub_pii`).
 
-Contract: Applies 8 ordered regex substitutions to redact PII tokens from `text`; returns
+Contract: Applies 12 ordered regex substitutions to redact PII tokens from `text`; returns
 the redacted string without modifying the input.
 
 Invariants:
-- Rules applied in fixed order: SSN/ITIN → bare-9-digit → donor names → long numeric run
-  → phone → email → DOB → street address (A1 base + C2 extensions).
-- Hyphenated EINs (`XX-XXXXXXX`) are explicitly excluded — they are public IRS BMF data.
-- Donor name matching uses longest-first ordering and a minimum 4-char threshold to avoid
-  false-positive matches on common short words.
+- Rules applied in fixed order: SSN/ITIN → EIN → CA RCT → bare-9-digit → officer names →
+  CA SOS entity IDs → donor names → long numeric run → phone → email → DOB → street address
+  (A1 base + Phase-1 profile PII + C2 extensions).
+- EINs (`XX-XXXXXXX`) are redacted as of Phase 1 (profile-sourced PII extension).
+- Officer/CA-SOS/donor name matching uses longest-first ordering and a minimum 4-char threshold
+  to avoid false-positive matches on common short words.
+- `append_breadcrumb()` extracts `officer_names` and `ca_sos_entity_ids` from `state["key_facts"]`
+  automatically — callers do not need to pre-scrub `msg` for profile-sourced PII.
 
 Failure modes: No exceptions; pure string transformation.
 
@@ -933,6 +946,17 @@ Valid keys in `key_facts{}`:
 | `prior_year_990_eoy_net_assets` | number \| null | EOY net assets from the most recently filed prior year 990. null = no prior filing or user-deferred. |
 | `prior_year_990_eoy_net_assets_source` | `"operator_stated"` \| `"teos_extracted"` \| null | Source of the EOY net assets value — tracks which upstream branch populated it for Decision Log attribution. |
 | `transition_from_ez` | boolean \| null | `true` if prior year was filed on Form 990-EZ (first year on full 990). null = not yet evaluated. Set at P0 variant routing. |
+| `profile_path` | string \| null | Absolute path to the loaded `~/.claude/form990/<slug>.md` profile file. null = cold-run (no profile). |
+| `profile_sha256` | string \| null | SHA256 of the profile file bytes at load time. Recorded in `inputs[]` for ancestor-regression detection. |
+| `public_filing_history_ein` | object \| null | EIN-keyed public filing history from TEOS + ProPublica (Phase 2). Schema: `{teos_status, last_return_year, propublica_filings: [{year, pdf_url, gross_receipts, total_expenses, eoy_net_assets}]}`. |
+| `prior_filed_eoy_net_assets` | number \| null | End-of-year net assets from the most recently filed 990 (ProPublica/TEOS source). Used to pre-fill Part I Line 22 BOY for current year. |
+| `prior_filed_gross_receipts_5y` | number[] | Gross receipts for the 5 most recent filed years (ProPublica source), newest-first. Used to pre-fill Schedule A Part II 5-year table. |
+| `people` | object \| null | Profile-sourced people data: `{officers: [{name, role, family}], disqualified_person_families: [str], flagged_vendor_insider_ties: [str]}`. |
+| `auth_accounts` | object \| null | Profile-sourced auth boundary info: `{personal_google, org_google, org_boundary_note}`. |
+| `known_resources` | object \| null | Profile-sourced resource IDs: `{sheets_chat_script_id, budget_script_id, original_sheet_id}`. |
+| `registrations` | object \| null | Profile-sourced registrations: `{ca_rct_number, ca_sos_entity_id, irs_determination_doc_id}`. |
+| `providers` | object \| null | Profile-sourced service providers: `{payroll, bank, facility}`. |
+| `portal_credentials` | object \| null | Profile-sourced portal cred hints (not secrets): `{candid: {account_hint}, benevity: {account_hint}}`. Actual passwords fetched via `get_portal_creds()`. |
 
 Unknown keys are breadcrumbed and dropped. Typo'd keys are never merged into working state.
 

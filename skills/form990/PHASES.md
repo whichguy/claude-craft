@@ -358,140 +358,261 @@ Q-F13 (accounting method noted; comparison to prior year occurs in P8).
 
 ---
 
-## P1 — Source Discovery (Sheets / Drive / Gmail)
+## P1 — Source Discovery (Tiered Forensic Ladder)
 
-**Goal.** Find every source artifact needed for the return: prior 990, bank statements,
-payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, audit report.
+**Goal.** Find every source artifact needed for the return — prior 990, bank statements,
+payroll reports, 1099 register, donor list, board roster, bylaws, COI policy, audit report —
+by exhausting public sources before asking the user for anything.
 
-**Inputs.** Drive access, Gmail access, budget sheet URL from P0.
+**Inputs.** `key_facts` from P0 (must have `legal_name`, `ein`, `fiscal_year_end`), profile
+`auth_accounts` and `known_resources` if profile loaded, budget sheet URL from P0.
 
 **Pre-check.**
 - Verify P0 machine state parses and `key_facts.legal_name` + `ein` + `fiscal_year_end`
   are present (non-null)
+- If `key_facts.public_filing_history_ein` is already populated (P0 ran public fetch):
+  cache hit — skip Tier 0 for sources already fetched; reuse artifacts from
+  `artifacts/p0-public-lookups/`. Still run Tier 1+.
 - Verify Drive MCP auth: call `mcp__claude_ai_Google_Drive__list_recent_files` (read-only
-  smoke test); on auth error → halt with "re-auth Drive MCP"
+  smoke test); on auth error → log breadcrumb "Drive MCP auth failed" and skip Tier 1
+  Drive queries (do NOT halt — fall through to Tier 2).
 - Verify Gmail MCP auth: call `mcp__claude_ai_Gmail__gmail_get_profile`; on auth error →
-  halt with "re-auth Gmail MCP"
+  log breadcrumb and skip Tier 1 Gmail queries.
 
-**Work.**
-1. Run Drive search queries (each capped at 200 results; log truncation flag in breadcrumb
-   if cap is hit). Curated query list:
-   - `"990" type:pdf` — prior year returns
-   - `"budget" OR "financials" type:spreadsheet` — budget sheets
-   - `"payroll" OR "W-2" OR "wages"` — payroll exports
-   - `"1099"` — contractor records
-   - `"bank statement" OR "bank reconciliation"` — banking records
-   - `"donor" OR "contributions" OR "donations"` — donor registers
-   - `"board roster" OR "board members" OR "directors"` — governance
-   - `"bylaws" OR "articles of incorporation"` — founding docs
-   - `"conflict of interest" OR "COI policy"` — governance
-   - `"audit" OR "review report" OR "compilation"` — financial review
-   - `"1099-K" OR "payment processor"` — payment processor tax forms
-2. For each budget sheet tab: read header row + 4 sample rows; record `{column_name: inferred_type}`
-   into `key_facts.sheet_schema`
-3. Register findings into `artifacts[]` with Drive file ID as path reference
-4. For each missing artifact in the required checklist (below), create an Open Question:
-   ```
-   Required source checklist (✔ = already found at P0 pre-scan; check artifact_local_paths):
-   ├─ prior_990         (prior year Form 990) ← ✔ source PDF located (artifact_local_paths.prior_990_pdf set), or "first-year filer"
-   │                    NOTE: PDF presence ≠ data extracted. TEOS check or local-PDF
-   │                    parsing below still required to populate prior_990_analysis.
-   │                    Do NOT skip the TEOS check because this shows ✔.
-   ├─ budget_sheet      (already have from P0 --sheet flag) ✔
-   ├─ bank_statements   (covering fiscal year)
-   ├─ payroll_report    (W-2 register or payroll provider export)
-   ├─ payroll_w2_annual (Gusto annual summary) ← ✔ if artifact_local_paths.payroll_w2_pdf set; else required
-   │                     alongside bank statements. Tiller net pay is always wrong for
-   │                     Part VII/IX. Request before P3. If not immediately available:
-   │                     add open_questions entry and continue; P3 Pre-check will block.)
-   ├─ 1099_register     (if contractors paid ≥ $600)
-   ├─ donor_list        (if Schedule B may be triggered)
-   ├─ board_roster      (for Part VI and Part VII)
-   ├─ bylaws            (for Part VI governance questions)
-   ├─ coi_policy        (conflict-of-interest, for Part VI Line 12a)
-   └─ audit_report      (if required by state law, funder covenants, or bond agreements;
-                         OR if federal award expenditures ≥ $750K per Uniform Guidance /
-                         Single Audit Act — gross receipts alone do NOT trigger Single Audit)
+**Work — 6-Tier Ladder (walk in order; each tier has exit criterion and fallback).**
 
-   Optional source checklist (request if applicable — do not block on these):
-   ├─ payment_processor_1099k  (Form 1099-K from Stripe/PushPress/Square if card-based
-   │                            membership fees are a significant PSR source. Used to
-   │                            verify Part VIII Line 2 against third-party transaction
-   │                            data. Evaluated by Q-F27 at P8.)
-   ```
+---
 
-**Prior year 990 TEOS check [PRIOR_990_EXTRACT directive]:** Check apps.irs.gov/app/eos/ for the org's EIN.
-If a prior filing exists:
-1. Download the most recent year's 990 PDF
-2. Extract and store as `prior_990_analysis` in machine state:
-   - `eoy_net_assets` (Part X Line 32 col B)
-   - `schedule_a_line15_pct` (Schedule A Part III Line 15)
-   - `board_members` (Part VII Section A — name, title, hours)
-   - `schedule_i_methodology` (did they use Part II or Part III for individual grants?)
-   - `contributions` (Part VIII Line 1h — total contributions; used by P7 Prior Year column)
-   - `program_service_rev` (Part VIII Line 2 — PSR; used by P7 Prior Year column)
-   - `total_revenue` (Part VIII Line 12; used by P7 Prior Year column)
-   - `total_expenses` (Part IX Line 25; used by P7 Prior Year column)
-If no TEOS record found: breadcrumb "no prior filing on TEOS — new filer or EIN lookup failed"
-If TEOS is inaccessible: add `open_questions[]` entry requesting prior 990 PDF directly from
-operator; continue without blocking.
-When TEOS extraction succeeds:
-- Set `prior_990_analysis.eoy_net_assets = <extracted value>`
-- If `key_facts.prior_year_990_eoy_net_assets` is still null (user deferred at P0):
-  populate it now from `prior_990_analysis.eoy_net_assets`
+### Tier 0 — No-auth public sources (parallel, idempotent)
+
+All Tier 0 fetches fire **simultaneously** (ThreadPoolExecutor, max_workers=6); joined
+with a 20s wall-clock cap before key_facts promotion. Per-source errors write
+`{"error": ..., "source": ...}` to results and append a warning breadcrumb — they never
+halt P1. Rate limits enforced per-source (see TOOL-SIGNATURES.md §Phase 2).
+
+**Sources (priority order — IRS XML wins when same year returned by multiple sources):**
+
+1. **IRS e-file XML** (`fetch_irs_xml(ein_nodash, filing_year)`)
+   — downloads annual index CSVs for `(filing_year-1)..(filing_year+1)`, finds EIN,
+   fetches ZIP batch via HTTP Range, parses XML. Most authoritative.
+   Breadcrumb: `tier:0 source:irs_xml`.
+
+2. **ProPublica Nonprofit Explorer API** (`fetch_propublica(ein_nodash)`)
+   — JSON API, fast, returns 5 most recent years with `totrevenue`, `totfuncexpns`,
+   `totnetassetend`, `pdf_url`. Used for years not yet in IRS XML (lag ~12–18 months).
+   Breadcrumb: `tier:0 source:propublica`.
+
+3. **CitizenAudit PDF repository** (`fetch_citizenaudit_pdfs(ein)`)
+   — HTML page parse + PDF download; sequential at ≤0.5 QPS.
+   Breadcrumb: `tier:0 source:citizenaudit`.
+
+4. **IRS TEOS web UI** (`fetch_teos(ein)`)
+   — exempt status + last return year + determination letter status only.
+   Not used for financial line items (no structured data). If TEOS returns a prior-year
+   990 PDF link: download and run **[PRIOR_990_EXTRACT directive]** (see below).
+   Breadcrumb: `tier:0 source:teos`.
+
+5. **CA AG charity registry** (`fetch_ca_rct(rct_number)`, CA orgs only)
+   — registration status, last RRF-1 year.
+   Only runs if `registrations.ca_rct_number` present in profile or `key_facts`.
+   Breadcrumb: `tier:0 source:ca_ag`.
+
+6. **Secretary of State / WebSearch** (CA orgs — officer roster)
+   — WebSearch: `"[legal_name]" "California Secretary of State" officers directors`
+   — If SI-100 PDF in `artifact_local_paths`: read directly.
+   — Store result as `ca_sos_officers: [{name, title}, ...]` in machine state.
+   Breadcrumb: `tier:0 source:ca_sos`.
+
+   Also run: `site:usaspending.gov [ein]`, `site:grants.ca.gov [ein]` — federal/state grants.
+
+**Merge results** (`_merge_prior_years(results, priority_order=["irs_xml","propublica","citizenaudit","teos"])`):
+- Deduplicate by `(EIN, year)`; IRS XML wins per year when available.
+- Populate `key_facts.prior_filed_eoy_net_assets` (most recent year's EOY net assets).
+- Populate `key_facts.prior_filed_gross_receipts_5y[]` (last 5 years, newest first).
+- Populate `key_facts.public_filing_history_ein` (full merged list).
+
+**[PRIOR_990_EXTRACT directive]** (runs after Tier 0 if a prior-year PDF was found):
+Extract from the most recent filed 990 PDF and store as `prior_990_analysis` in machine state:
+- `eoy_net_assets` (Part X Line 32 col B)
+- `schedule_a_line15_pct` (Schedule A Part III Line 15)
+- `board_members` (Part VII Section A — name, title, hours)
+- `schedule_i_methodology` (Part II or Part III for individual grants?)
+- `contributions` (Part VIII Line 1h — total contributions; used by P7 Prior Year column)
+- `program_service_rev` (Part VIII Line 2; used by P7 Prior Year column)
+- `total_revenue` (Part VIII Line 12; used by P7 Prior Year column)
+- `total_expenses` (Part IX Line 25; used by P7 Prior Year column)
+
+If no prior filing found anywhere: breadcrumb `"no prior filing found — new filer or EIN not matched"`.
+When extraction succeeds:
+- If `key_facts.prior_year_990_eoy_net_assets` is still null: populate from `prior_990_analysis.eoy_net_assets`
 - Set `key_facts.prior_year_990_eoy_net_assets_source = "teos_extracted"`
-This ensures Cluster C always reads a populated key_facts field when prior year data exists,
-regardless of whether it came from P0 (operator-stated) or P1 (TEOS-extracted).
 
-**CA Secretary of State board discovery (P1 — non-blocking, CA orgs only):**
-The CA SOS `bizfileonline.sos.ca.gov` portal is JavaScript-rendered and requires a paid
-API subscription for programmatic access. Instead, use WebSearch to find the org's current
-officers/directors from public search engine results:
+**Present-and-confirm table** (after Tier 0, before Tier 1):
+Render a table of auto-discovered prior-year data and ask the user to confirm:
+```
+┌─ Prior-Year 990 Data (auto-discovered) ──────────────────────────────────┐
+│ Year │ Form  │ Revenue     │ Expenses    │ EOY Net Assets │ Source        │
+│ 2023 │ 990   │ $199,667    │ $180,523    │ $64,809        │ IRS XML       │
+│ 2022 │ 990-EZ│ $163,718    │ $149,208    │ $48,399        │ IRS XML       │
+│ 2024 │ —     │ not yet indexed                                           │
+└──────────────────────────────────────────────────────────────────────────┘
+Does this look right? Edit any cells that are wrong, or press Enter to accept.
+```
+User edits recorded as `fact_source: "user_confirmed"` (overrides auto-discovered values).
 
-1. WebSearch: `"[key_facts.legal_name]" "California Secretary of State" "Statement of Information" officers directors`
-2. If results reference a CA SOS entity page or SI-100 filing with officer names: extract
-   names and titles into `ca_sos_officers[]` — a list of `{name, title}` dicts stored in
-   machine state alongside `artifact_local_paths`.
-3. If `artifact_local_paths.ca_sec_state_pdf` was found at P0: attempt to read the PDF
-   directly and extract officer/director names from the "Officers" section.
-4. If neither works: close `OQ-ca-sec-state` with "CA SOS auto-discovery not available —
-   officer list will be confirmed via board_roster artifact or operator input at P5/P6."
+---
 
-Store result as `ca_sos_officers: [{name, title}, ...]` in top-level machine state (null if
-not found). The board-change detector and Part VII (Section A) both read from this field
-when `prior_990_analysis.board_members` alone is insufficient.
+### Tier 1 — User-auth personal account (existing)
 
-**Board change detector (P1 — run after TEOS extraction and CA SOS discovery, non-blocking advisory):**
-Compare known prior-year board (`prior_990_analysis.board_members`) and current CA SOS
-officers (`ca_sos_officers`) against the operator-provided current roster.
-- For each person in `prior_990_analysis.board_members` NOT in the current roster:
-  Prompt: "[Name] was listed as a director/officer in the prior year 990. Have they
-  departed? If yes: (a) last date of service? (b) mid-year departure? (c) did the board
-  amend bylaws, change authorized positions, or alter governing structure?"
-- For each person in the current roster NOT in `prior_990_analysis.board_members`:
-  Prompt: "[Name] is new to the board. Since when have they served?"
-- If any governing-document change reported: set Part IV Line 4 = Yes → Schedule O required.
+**Drive MCP searches** (each capped at 200 results; log truncation flag in breadcrumb
+if cap hit). Curated query list — **kept verbatim**:
+- `"990" type:pdf` — prior year returns
+- `"budget" OR "financials" type:spreadsheet` — budget sheets
+- `"payroll" OR "W-2" OR "wages"` — payroll exports
+- `"1099"` — contractor records
+- `"bank statement" OR "bank reconciliation"` — banking records
+- `"donor" OR "contributions" OR "donations"` — donor registers
+- `"board roster" OR "board members" OR "directors"` — governance
+- `"bylaws" OR "articles of incorporation"` — founding docs
+- `"conflict of interest" OR "COI policy"` — governance
+- `"audit" OR "review report" OR "compilation"` — financial review
+- `"1099-K" OR "payment processor"` — payment processor tax forms
+
+**Budget sheet schema scan:**
+For each budget sheet tab: read header row + 4 sample rows; record `{column_name: inferred_type}`
+into `key_facts.sheet_schema`.
+
+**Artifact registration:** Register all Drive findings into `artifacts[]` with Drive file ID
+as path reference. Breadcrumb each hit with `tier:1 source:personal_drive`.
+
+---
+
+### Tier 2 — Org-account / Shared Drives (GAS bridge)
+
+Only runs if BOTH of:
+- `key_facts.auth_accounts.org_google` is present (org Google account configured)
+- `key_facts.known_resources.budget_script_id` is present (GAS bridge script deployed)
+
+If either is absent: skip Tier 2 silently (breadcrumb `tier:2 status:skipped org_boundary`).
+
+**GAS bridge DriveApp search** (mirrors Tier 1 queries against org-account Drive):
+```javascript
+// mcp__gas__exec call pattern (Tier 2 GAS bridge)
+// script_id = key_facts.known_resources.budget_script_id
+function searchOrgDrive(query) {
+  var files = DriveApp.searchFiles(query);
+  var results = [];
+  while (files.hasNext()) {
+    var f = files.next();
+    results.push({id: f.getId(), name: f.getName(), url: f.getUrl(), mimeType: f.getMimeType()});
+  }
+  return results;
+}
+```
+Run the same 10 Drive queries above via this bridge. Append results to `artifacts[]` with
+`tier:2, method:gas-bridge` in breadcrumb. On any error: log `error_class=OrgAccountBoundary`
+and continue (do not halt).
+
+---
+
+### Tier 3 — Auth-gated web portals (chromedevtools) — FEATURE-FLAGGED
+
+**Gate:** `FORM990_ENABLE_PORTAL_TIER` env var must be `"1"` AND individual portal flags
+(`FORM990_ENABLE_PORTAL_CANDID` / `FORM990_ENABLE_PORTAL_BENEVITY`) must be `"1"`.
+Default: disabled. When disabled: log `tier:3 status:disabled_by_flag` and fall through to Tier 4.
+
+**GuideStar/Candid** (if `portal_credentials.candid` in profile and portal flag `"1"`):
+`chrome-devtools__navigate_page` → `fill_form` (creds via `get_portal_creds("form990-candid")`)
+→ `take_snapshot` → extract into schema:
+`{prior_990_pdf_urls: [str], gross_receipts_5y: [{year, amount}], net_assets_eoy_5y: [{year, amount}]}`.
+Lifecycle: wrapped in try/finally; finally calls `chrome-devtools__close_page` unconditionally.
+Error classes: `PortalAuthFailed`, `PortalAntiBot`, `PortalSchemaDrift`, `PortalCleanup`.
+
+**Benevity** (if `portal_credentials.benevity` in profile and portal flag `"1"`):
+Same pattern; extract: `{corporate_donors: [{name, match_amount, date, campaign}]}`.
+
+Breadcrumb each portal attempt with `tier:3 portal:candid|benevity status:attempted|failed|skipped`.
+
+---
+
+### Tier 4 — Non-Google email (if Outlook MCP present)
+
+Detect Outlook MCP at skill-load time (check tool list for `*outlook*` or `*microsoft_mail*`).
+- If **present**: run the same 10 Drive query keywords against Outlook inbox/sent folders.
+  Breadcrumb: `tier:4 source:outlook`.
+- If **absent**: skip (breadcrumb `tier:4 status:mcp_absent`); no hard failure.
+
+---
+
+### Tier 5 — User prompt (last resort)
+
+After all prior tiers: if any **required** `key_facts` field is still null, prompt the user
+with a single focused `AskUserQuestion` that includes:
+a. Exactly what field(s) are missing and why they're needed.
+b. Which tiers were tried and why each failed (from breadcrumb trail).
+c. 2–3 suggested locations the user could check manually.
+
+Each user-provided answer recorded as `fact_source: "user_prompt"` with pointer to the tier
+chain that failed. Enables retroactive profile enrichment at P9 cold-run promotion.
+
+---
+
+**Required source checklist** (checked after all tiers complete):
+```
+Required (✔ = already found at P0 pre-scan or Tier 0; check artifact_local_paths):
+├─ prior_990         (prior year Form 990) ← may be found via IRS XML, ProPublica, CitizenAudit, TEOS
+│                    NOTE: PDF presence ≠ data extracted. [PRIOR_990_EXTRACT directive]
+│                    above still required to populate prior_990_analysis.
+├─ budget_sheet      (already have from P0 --sheet flag) ✔
+├─ bank_statements   (covering fiscal year)
+├─ payroll_report    (W-2 register or payroll provider export)
+├─ payroll_w2_annual (Gusto annual summary) ← ✔ if artifact_local_paths.payroll_w2_pdf set
+│                    Tiller net pay is always wrong for Part VII/IX. P3 Pre-check will block.
+├─ 1099_register     (if contractors paid ≥ $600)
+├─ donor_list        (if Schedule B may be triggered)
+├─ board_roster      (for Part VI and Part VII)
+├─ bylaws            (for Part VI governance questions)
+├─ coi_policy        (conflict-of-interest, for Part VI Line 12a)
+└─ audit_report      (if required by state law, funder covenants, or bond ≥ $750K federal awards)
+
+Optional (request if applicable — do not block on these):
+├─ payment_processor_1099k  (Form 1099-K from Stripe/PushPress/Square for PSR verification)
+```
+
+For each missing required artifact after all tiers: create an Open Question. If addressed to
+an external party, create a Gmail draft via `{SKILL_ROOT}/templates/email-question.md`:
+- **Never auto-send** — draft only
+- Record `draft_id` in `open_questions[].draft_id`
+- Apply dedup rule (see SKILL.md §Email Workflow): check existing draft_id before creating
+
+**Board change detector** (run after all tiers, non-blocking advisory):
+Compare `prior_990_analysis.board_members` (from [PRIOR_990_EXTRACT]) and `ca_sos_officers`
+(from Tier 0 CA SOS) against operator-provided current roster.
+- For each person in prior 990 NOT in current roster: prompt for departure date + governing change.
+- For each new person: prompt for start date.
+- If any governing-document change: set Part IV Line 4 = Yes → Schedule O required.
 - Record all transitions in Decision Log with dates.
 - If `prior_990_analysis` is null: skip silently (breadcrumb "board-change check skipped — no prior 990 data").
 
-5. For each missing artifact: create an Open Question. If addressed to an external party,
-   create a Gmail draft via `gmail_create_draft` using `{SKILL_ROOT}/templates/email-question.md`:
-   - **Never auto-send** — draft only
-   - Record `draft_id` in `open_questions[].draft_id`
-   - Apply dedup rule (see SKILL.md §Email Workflow): check existing draft_id before creating
-
 **Outputs.**
-- `artifacts[]` entries populated for discovered sources (path = Drive file ID URL)
-- `key_facts.sheet_schema` populated
+- `artifacts[]` entries populated (path = Drive file ID URL or local artifact path)
+- `key_facts.sheet_schema` populated from budget sheet tab scan
+- `key_facts.prior_filed_eoy_net_assets` + `prior_filed_gross_receipts_5y[]` populated (Tier 0)
 - `open_questions[]` populated for any missing artifact with `status = "pending"`
+- `ca_sos_officers[]` populated (null if CA SOS unavailable)
 - Gmail draft IDs recorded for externally-addressed questions
 - `phase_status.P1 = "done"` (or `"paused"` if open questions block progress)
 
-**Idempotency.** Overwrite mode for artifact registration (re-discovery finds same files).
-Gmail draft dedup: check `draft_id` before creating — see SKILL.md §Email Workflow.
+**Exit criterion.** P1 is `done` when every required `key_facts` field has `fact_source != null`
+AND has either (i) a persisted artifact in `artifacts/p1-sources/` or (ii) an explicit
+user_prompt answer. Q-F31 evaluator checks that Tier-0 was attempted for each fact before
+Tier-5 (user_prompt) was used.
 
-**Applicable Gates.** Q-F16 (source-discovery completeness — all checklist items either found
-or queued as open question).
+**Idempotency.** Overwrite mode for artifact registration. Gmail draft dedup via `draft_id`.
+Tier 0 artifacts cached by `(EIN, year)` under `artifacts/p0-public-lookups/`.
+
+**Applicable Gates.** Q-F16 (source-discovery completeness), Q-F31 (Tier-0 exhausted before
+user_prompt), Q-F32 (profile SHA256 unchanged since P0 init).
 
 **Transition.** Allow user to answer pending questions or explicitly skip; then → P2.
 
@@ -1643,6 +1764,46 @@ Register in machine state as `artifacts.cpa_memo`.
 **Applicable Gates.** Q-F15 (signature block populated in dataset before filling PDF).
 
 **Transition.** Done. Print completion banner. See Post-Run Review section below; print the prompt box to the operator before closing the session.
+
+**Cold-run profile promotion (P9 end-of-run, if no profile was loaded at init):**
+If `key_facts.profile_path` is null (no profile was loaded), offer to write one from the
+current run's resolved `key_facts` (minus tax-year-specific items).
+
+**Slug derivation (before presenting the offer):**
+Compute `proposed_slug` from `key_facts.legal_name`:
+```python
+import re
+slug = re.sub(r'[^a-z0-9]+', '-', key_facts["legal_name"].lower()).strip('-')
+slug = re.sub(r'-+', '-', slug)[:50]  # max 50 chars
+```
+Example: `"Fortified Strength"` → `"fortified-strength"`.
+Present the proposed slug for confirmation — the operator can edit it.
+
+```
+┌─ Save Company Profile? ────────────────────────────────────────────────┐
+│  This run resolved key company facts that can be reused next year:     │
+│    EIN, officers, CA RCT number, auth boundaries, GAS script IDs, etc. │
+│                                                                         │
+│  Write to: ~/.claude/form990/<derived-slug>.md                         │
+│  Org slug [<derived-slug>]: ____________ (edit or press Enter to accept)│
+│                                                                         │
+│  This file is outside the git repo and persists across tax years.      │
+│  Exclude from profile: tax_year, gross_receipts_current, sheet IDs     │
+│  (per-year — these will be re-discovered next year).                   │
+│                                                                         │
+│  [Y] Save profile  [n] Skip                                            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+If the operator accepts: validate the final slug with `_validate_slug()`, then write
+`~/.claude/form990/<slug>.md` using `atomic_commit()` with scrubbed content
+(run `scrub_pii()` before writing officer names and account hints).
+The written file must pass `load_profile()` validation without errors. Log breadcrumb
+`"cold-run-promotion: profile written to <path>"`.
+
+**Artifact retention (P9 end-of-run):**
+Prune `artifacts/p0-public-lookups/` to keep the latest 3 tax-years of data per EIN.
+Delete older per-year cache entries. Log each pruned entry in a breadcrumb.
 
 ---
 
