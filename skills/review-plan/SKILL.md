@@ -20,8 +20,8 @@ allowed-tools: all
 2. **Authority:** May call Edit, Write, Bash, Read, and AskUserQuestion tools and spawn Task agents. After each pass, use AskUserQuestion to let the user continue editing or confirm exit. Call ExitPlanMode only on explicit user confirmation (see step 8).
 3. **Constraint:** Never re-evaluate a question when a live evaluator result is available — use it as authoritative. On first pass (pre-spawn), proceed to spawn without pre-judgment.
 4. **Goal:** Drive the plan to 0 NEEDS_UPDATE on Gate 1 questions within 5 passes, then produce the scorecard and exit.
-5. **Directive (2026-04-11):** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract for `/review-fix` (intent-to-code drift detection).
-6. **Directive (2026-04-11):** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 skill improvements (not plan retrospectives). Renders as `SKILL LEARNINGS` panel before cleanup.
+5. **Directive:** After convergence, extract plan-specific Implementation Intent Questions (Phase 5c.5) and append to the plan file. These become the POST_IMPLEMENT verification contract for `/review-fix` (intent-to-code drift detection).
+6. **Directive:** After every FULL-tier review, spawn a senior-engineer Task() agent (Phase 5g) to surface 0–5 skill improvements (not plan retrospectives). Renders as `SKILL LEARNINGS` panel before cleanup.
 
 ---
 
@@ -42,9 +42,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
 
 <!-- PHASE INDEX: 1~55 | 2~107 | 3a~270 | 3b~456 | 3c~786 | 3c.5~924 | 4~1185 | 4.1~1286 | 4.2~1324 | 4.3~2041 | 4.4~2291 | 5~3090 | 6~3174 | 7~4152 | 7.5~4248 | 8~4292 -->
 
-<!-- PHASE 1 — DISCOVERY | In: arg OR cwd
-     Out: plan_path, plan_slug, questions_path, questions_l3_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md
-     → Phase 2 (classifier) — never skipped -->
+<!-- PHASE 1 — DISCOVERY | In: arg OR cwd | Out: plan_path, plan_slug, questions_path, questions_l3_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md | → Phase 2 -->
 ## Step 0: Locate Plan and Load Context
 
 1. **Find the plan file:**
@@ -84,13 +82,9 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
        (`~` makes all five portable across users — no hardcoded username.
        Update here if the install base changes; all evaluator spawns below use these variables.)
 
-<!-- STATE AT END OF PHASE 1:
-     plan_path, plan_slug, questions_path, questions_l3_path,
-     skill_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md in context. -->
+<!-- STATE AT END OF PHASE 1: plan_path, plan_slug, questions_path, questions_l3_path, skill_path, gas_eval_path, node_eval_path, CLAUDE.md+MEMORY.md in context. -->
 
-<!-- PHASE 2 — CLASSIFICATION | In: plan_path, plan_slug, questions_path
-     Out: REVIEW_TIER∈{TRIVIAL,SMALL,FULL}, ACTIVE_RISKS, IS_GAS/IS_NODE/HAS_UI, HAS_EXISTING_INFRA, HAS_UNBOUNDED_DATA, active_clusters
-     → Phase 3a (TRIVIAL) | 3b (SMALL) | 3c (FULL) -->
+<!-- PHASE 2 — CLASSIFICATION | In: plan_path, plan_slug, questions_path | Out: REVIEW_TIER∈{TRIVIAL,SMALL,FULL}, ACTIVE_RISKS, IS_GAS/IS_NODE/HAS_UI, HAS_EXISTING_INFRA, HAS_UNBOUNDED_DATA, active_clusters | → 3a/3b/3c -->
 3. **Set context flags** (Sonnet classification — Haiku was tested but failed on HAS_EXISTING_INFRA discrimination, 2 of 3 wrong in 2026-04-10 spike):
    Task(
      subagent_type = "general-purpose",
@@ -431,9 +425,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
-<!-- STATE AT END OF PHASE 3a:
-     Rating, findings (5 questions), REVIEW_TIER (possibly upgraded to FULL).
-     Next: Phase 3b (SMALL) | Phase 3c (FULL setup) | Step 8 (interactive exit). -->
+<!-- STATE AT END OF PHASE 3a: Rating, findings (5 questions), REVIEW_TIER (possibly upgraded to FULL) → 3b/3c/8 -->
 
 <!-- PHASE 3b — SMALL EXECUTION | In: plan_path, questions_path, ACTIVE_RISKS, IS_GAS/IS_NODE/HAS_UI | Out: scorecard → Step 8 OR 3c(FULL) -->
    IF REVIEW_TIER == SMALL:
@@ -763,12 +755,9 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
        → Proceed to step 8 (interactive completion prompt).
        # Gate file is written in step 8 only when the user confirms exit — not here.
 
-<!-- STATE AT END OF PHASE 3b:
-     Rating, findings (9+ questions), REVIEW_TIER (possibly upgraded to FULL).
-     Next: Phase 3c (FULL setup) | Step 8 (interactive exit). -->
+<!-- STATE AT END OF PHASE 3b: Rating, findings (9+ questions), REVIEW_TIER (possibly upgraded to FULL) → 3c/8 -->
 
-<!-- PHASE 3c — FULL SETUP | In: plan_path, plan_slug, ACTIVE_RISKS, flags, active_clusters
-     Out: pass_count=0, tracking vars, RESULTS_DIR, memo_file → Phase 4 -->
+<!-- PHASE 3c — FULL SETUP | In: plan_path, plan_slug, ACTIVE_RISKS, flags, active_clusters | Out: pass_count=0, tracking vars, RESULTS_DIR, memo_file | → Phase 4 -->
    Print: "╔══════════════════════════════════════════════╗"
    Print: "║  ◆ CONFIG                            FULL   ║"
    Print: "╚══════════════════════════════════════════════╝"
@@ -898,15 +887,10 @@ Gate tiers classify findings by severity and convergence impact. These definitio
      Updated 2026-04-15: Q-G32 added (source-path tracking). L1 = 27 (2 Gate 1 + 6 advisory-structural + 19 advisory-process).
      Per-pass wave breakdown: 2 + 6 + 19 = 27. -->
 
-<!-- STATE AT END OF PHASE 3c: pass_count=0, all tracking vars initialised
-     (needs_update sets, pass timings, memo vars, memoized clusters/l1, per_q_history,
-     applied_edits, limits, RESULTS_DIR, memo_file, advisory_findings_cache), CONFIG printed. -->
+<!-- STATE AT END OF PHASE 3c: pass_count=0, all tracking vars init (needs_update sets, pass timings, memo vars, memoized clusters/l1, per_q_history, applied_edits, limits, RESULTS_DIR, memo_file, advisory_findings_cache), CONFIG printed. -->
 
-<!-- PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH
-     In:   REVIEW_TIER, ACTIVE_RISKS, plan_path, RESULTS_DIR, memo_file
-     Out:  research_pending[] (may be empty); memo_file.research_pending added
-     →     Phase 4 (convergence loop — runs unaware of research lane)
-     Cost: max 3 background Tasks × one Sonnet call each
+<!-- PHASE 3c.5 — ASYNC RESEARCH LANE DISPATCH | In: REVIEW_TIER, ACTIVE_RISKS, plan_path, RESULTS_DIR, memo_file | Cost: ≤3 Tasks
+     Out: research_pending[] (may be empty); memo_file.research_pending added | → Phase 4 (runs unaware of research lane)
 
      PHASE 3c.5 / 5b.5 — ASYNC RESEARCH LANE DEPENDENCY CONTRACT
 
@@ -1156,13 +1140,9 @@ ELSE:
             Print: "  Research     ${len(research_pending)} background task(s) dispatched"
 ```
 
-<!-- STATE AT END OF PHASE 3c.5:
-     research_pending [{slug, path, query, rationale, dispatched_at}] (may be empty);
-     memo_file updated with research_pending/done/missing. Background Tasks (≤3) parallel
-     Phase 4; Phase 4 does not poll. -->
+<!-- STATE AT END OF PHASE 3c.5: research_pending [{slug,path,query,rationale,dispatched_at}] (may be empty); memo_file updated (research_pending/done/missing). Background Tasks (≤3) parallel Phase 4; Phase 4 does not poll. -->
 
-<!-- PHASE 4 — CONVERGENCE LOOP | In: plan_path, tracking vars, RESULTS_DIR, memo_file, flags, active_clusters
-     Out: Rating, findings{}, l1/cluster/gas/node/ui results, pass_count, memo vars → Phase 5 -->
+<!-- PHASE 4 — CONVERGENCE LOOP | In: plan_path, tracking vars, RESULTS_DIR, memo_file, flags, active_clusters | Out: Rating, findings{}, l1/cluster/gas/node/ui results, pass_count, memo vars | → Phase 5 -->
 ## Convergence Loop
 
 ```
@@ -3058,8 +3038,7 @@ ELIF Rating == "🔴 REWORK": health_bar = "░░░░░░ ░░░░░�
      l1/cluster/gas/node/ui results{}, pass_count, memo vars, per_q_history, timings,
      evaluators_spawned_total, advisory_findings_cache, memo_file, RESULTS_DIR. -->
 
-<!-- PHASE 5 — EPILOGUE → 6 SCORECARD → 7 CLEANUP | In: plan_path, findings{}, l1_results, Rating, IS_GAS, memo_file, RESULTS_DIR
-     Out: Q-E1/E2/G9 merged; scorecard printed; markers stripped; memo+RESULTS_DIR torn down → Phase 8 -->
+<!-- PHASE 5→6→7 EPILOGUE/SCORECARD/CLEANUP | In: plan_path, findings{}, l1_results, Rating, IS_GAS, memo_file, RESULTS_DIR | Out: Q-E1/E2/G9 merged; scorecard printed; cleanup → Phase 8 -->
 ## After Review Completes
 
 After the convergence loop exits (scorecard not yet printed):
@@ -4211,9 +4190,7 @@ confirm the learning is still valid against the current content, then apply the 
       First command removes the convergence checkpoint (no longer needed after loop exits).
       Second command removes the temp results directory.
 
-<!-- STATE AT END OF PHASE 7:
-     Markers stripped; memo_file deleted; RESULTS_DIR removed.
-     findings{}, Rating still in memory for step 7-8. -->
+<!-- STATE AT END OF PHASE 7: markers stripped, memo_file deleted, RESULTS_DIR removed; findings{}/Rating in memory for step 7-8. -->
 
 <!-- PHASE 7.5 — RE-DISPLAY FULL PLAN | In: plan_path, REVIEW_TIER | Out: terminal display → Phase 8 -->
 
@@ -4320,6 +4297,4 @@ confirm the learning is still valid against the current content, then apply the 
      STOP  # ExitPlanMode is NOT called — user stays in plan mode to fix or manually exit
    ```
 
-<!-- STATE AT END OF PHASE 8:
-     Gate file written (exit) OR absent (abandon/continue-editing).
-     ExitPlanMode called (exit) OR loop back to Phase 2 (continue-editing). -->
+<!-- STATE AT END OF PHASE 8: gate file written (exit) OR absent (abandon/continue); ExitPlanMode called (exit) OR loop to Phase 2. -->
