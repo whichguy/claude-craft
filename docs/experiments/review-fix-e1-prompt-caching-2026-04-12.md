@@ -1,10 +1,24 @@
 ---
 experiment: E1
 title: Prompt Caching
-status: pre-registered
+status: infrastructure-complete
 registered: 2026-04-12
+infrastructure_completed: 2026-04-18
 branch: exp/review-fix-efficiency
 ---
+
+<!-- Infrastructure status (2026-04-18, session fbf421ed):
+  - agents/variants/code-reviewer-cached.md: cache_control markers present (treatment arm V_B)
+  - agents/variants/code-reviewer-t70/75/80/85.md: cache_control markers applied for completeness
+  - tools/review-fix-bench.sh: --perturb-prefix (V_C per-invocation perturbation, QI-7) + --max-cost 20.0 (cost abort) added
+  - 19 fixtures in test/fixtures/review-fix/ (bench runs against all 19)
+  - Awaiting bench run authorization (~$12, ~45 min). Run with:
+      ./tools/review-fix-bench.sh --run --label baseline --runs 3
+      ./tools/review-fix-bench.sh --run --label e1-treatment --agent-file agents/variants/code-reviewer-cached.md --runs 3
+      ./tools/review-fix-bench.sh --run --label e1-vc-control --agent-file agents/variants/code-reviewer-cached.md --perturb-prefix --runs 3
+  - Results go to a new dated file: docs/experiments/review-fix-e1-YYYY-MM-DD.md
+-->
+
 
 # E1 — Prompt Caching
 

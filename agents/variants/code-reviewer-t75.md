@@ -85,11 +85,15 @@ If any marker is found, **do not flag the finding**. Set severity to None and no
 
 ## Phase 3: Quality Questions (Tiered)
 
+<!-- cache_control: {"type": "ephemeral"} -->
+
 _Apply to the code read in Phase 2. Evidence for each answer must come from that code — not from general knowledge._
 
 **Question selection**: Tier 1 (safety) always evaluates first. Tier 2 (quality) evaluates only if Tier 1 finds no Critical issues. Within each tier: universal questions apply to all files, triggered questions apply when their pattern matches. Pure prose files (`.md`, `.txt`): Q4 + Q5 + Q13 + any triggered. The trigger system handles language-specificity — questions fire based on content patterns, not file extensions.
 
 ### Phase 3a — Safety Tier
+
+<!-- cache_control: {"type": "ephemeral"} -->
 
 Questions that detect runtime failures, security vulnerabilities, and semantic correctness bugs. Evaluate these first.
 

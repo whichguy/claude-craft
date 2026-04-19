@@ -25,6 +25,8 @@ MODEL_PIN=""          # --model-pin VERSION: fail if claude reports different mo
 PER_RUN_TIMEOUT=120   # --per-run-timeout N (seconds)
 MAX_CONCURRENCY=4     # --max-concurrency N (rate-limit budget)
 HOLDOUT_FIXTURES=0    # --holdout-fixtures N (train/test split for E3/E4; QI-4)
+PERTURB_PREFIX=false  # --perturb-prefix: inject unique timestamp comment before each invocation (V_C cache-poisoning control)
+MAX_COST_USD=20.0     # --max-cost USD: hard abort if cumulative cost exceeds this (default: $20)
 
 # ── Router-aware claude command resolution ────────────────────────────
 # Prefer claude-router (enables --route flag); fall back to bare claude.
@@ -66,6 +68,8 @@ Options:
   --per-run-timeout N  Timeout per reviewer invocation in seconds (default: 120)
   --max-concurrency N  Max parallel Claude calls (default: 4, rate-limit budget)
   --holdout-fixtures N Hold out N fixtures from training set for validation (QI-4)
+  --perturb-prefix   Inject unique timestamp comment before each invocation (V_C cache-poisoning control; QI-7)
+  --max-cost USD     Hard abort if cumulative spend exceeds USD (default: 20.0)
   -h, --help         Show this help
 
 Token telemetry (requires --output-format json with usage block):
@@ -92,6 +96,8 @@ while [[ $# -gt 0 ]]; do
     --per-run-timeout) PER_RUN_TIMEOUT="$2"; shift 2 ;;
     --max-concurrency) MAX_CONCURRENCY="$2"; shift 2 ;;
     --holdout-fixtures) HOLDOUT_FIXTURES="$2"; shift 2 ;;
+    --perturb-prefix) PERTURB_PREFIX=true; shift ;;
+    --max-cost) MAX_COST_USD="$2"; shift 2 ;;
     -h|--help) usage ;;
     *)
       if [[ "$MODE" == "compare" ]]; then
@@ -578,7 +584,16 @@ List each finding with its line number, severity, and fix."
       local prompt="$base_prompt"
       if [[ -n "${AGENT_FILE:-}" ]] && [[ -f "$AGENT_FILE" ]]; then
         local agent_content
-        agent_content=$(cat "$AGENT_FILE")
+        if [[ "$PERTURB_PREFIX" == "true" ]]; then
+          # V_C cache-poisoning control (QI-7): inject unique timestamp comment before the
+          # stable prefix on every invocation so the cache key never matches the treatment arm.
+          local perturb_ts
+          perturb_ts=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+          agent_content="<!-- vc-perturb: ${perturb_ts} -->
+$(cat "$AGENT_FILE")"
+        else
+          agent_content=$(cat "$AGENT_FILE")
+        fi
         if [[ -z "$agent_content" ]]; then
           echo "Error: agent-file read failed or empty: $AGENT_FILE" >&2; exit 1
         fi
@@ -795,6 +810,14 @@ print(json.dumps({
         sum_output_tokens=$((sum_output_tokens + run_output_tokens))
         sum_cost_usd=$(python3 -c "print(round($sum_cost_usd + $run_cost_usd, 6))")
         fixture_count=$((fixture_count + 1))
+
+        # Hard cost abort: prevent runaway spend (--max-cost ceiling, default $20)
+        if python3 -c "import sys; sys.exit(0 if $sum_cost_usd > $MAX_COST_USD else 1)" 2>/dev/null; then
+          echo "" >&2
+          echo "ERROR: Cost abort — cumulative spend \$$sum_cost_usd exceeds --max-cost \$$MAX_COST_USD" >&2
+          echo "  Completed $fixture_count fixture(s). Partial results written to results JSON." >&2
+          exit 2
+        fi
       fi
 
       # Rate limit spacing for multi-run (respects max-concurrency intent)
