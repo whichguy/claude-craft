@@ -824,6 +824,18 @@ assets figure derived from the COA mapping differs from P0's `gross_receipts_cur
 **Applicable Gates.** Q-F3 (functional columns sum), Q-F10 (ED allocation documented),
 Q-F17 (methodology narrated in Schedule O), Q-F18 (not yet — deferred to P5), Q-F19 (payroll tax source — commingling flag set at P2 determines Q-F19 applicability), Q-F28 (no disallowed negatives — revenue classification step at P2 Step 2 determines sign correctness).
 
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gates owned by P2: Q-F3, Q-F10, Q-F17, Q-F19, Q-F28.
+(Q-F18 is deferred to P5; do not evaluate here.)
+
+Load only sections for these five gates from QUESTIONS.md — not the full file.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-Fxx] = {status: "PASS", evaluated_at: "P2", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides with explicit note in Decision Log.
+- N/A → record as `{status: "N/A", evaluated_at: "P2", evaluated_pass: <current gate_pass_count>}` with brief reason.
+
+If all phase-local gates PASS or N/A → advance to P3.
+
 ---
 
 ## P3 — Financial Statement Production [PROG]
@@ -901,6 +913,18 @@ If merchandise lines are present in the CoA mapping: verify COGS is flagged
 Q-F3 (functional columns sum per row), Q-F11 (prior-year comparatives — BOY from prior 990),
 Q-F12 (fundraising expense non-zero if contributions > 0), Q-F19 (payroll tax Line 10/7 ratio — first computed at P3 from functional expense matrix).
 
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gate owned by P3: Q-F11.
+(Q-F2 is phase-local to P7; Q-F3 pre-passed at P2; Q-F12 is cross-phase; Q-F19 pre-passed at P2 — skip all.)
+
+Load only the Q-F11 section from QUESTIONS.md.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-F11] = {status: "PASS", evaluated_at: "P3", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides.
+- N/A → record with brief reason (e.g., first-year filer with no prior 990).
+
+If Q-F11 PASS or N/A → advance to P4.
+
 ---
 
 ## P4 — Part IV Checklist → Schedule Trigger
@@ -962,6 +986,18 @@ fully rebuilt from answers (no append).
 full Q-F4 PASS requires P6 Schedule A generation — cannot fully pass at P4), Q-F8 (all Part IV
 questions answered or queued as open question; all `yes` answers added to `required_schedules[]`),
 Q-F21 (vendor >$10K insider-ownership check — [INSIDER_VENDOR_CHECK] directive runs at P4).
+
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gate owned by P4: Q-F8.
+(Q-F4 cannot fully PASS at P4 — proxy check only; Q-F21 is cross-phase — skip both.)
+
+Load only the Q-F8 section from QUESTIONS.md.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-F8] = {status: "PASS", evaluated_at: "P4", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides.
+- N/A → not applicable (Q-F8 is always required).
+
+If Q-F8 PASS → advance to P5.
 
 ---
 
@@ -1217,6 +1253,18 @@ accomplishments substantive), Q-F19 (payroll tax Line 10/7 ratio), Q-F20 (BOY = 
 Q-F21 (vendor insider-ownership check), Q-F28 (no disallowed negative values),
 Q-F29 (Part X balance sheet balances).
 
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gates owned by P5: Q-F5, Q-F6, Q-F15, Q-F18, Q-F20, Q-F25, Q-F29.
+(Q-F19 and Q-F28 pre-passed at P2; Q-F21 is cross-phase — skip all three.)
+
+Load only sections for these seven gates from QUESTIONS.md — not the full file.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-Fxx] = {status: "PASS", evaluated_at: "P5", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides.
+- N/A → record with brief reason (e.g., Q-F5 N/A if payroll register pending Open Question; Q-F25 N/A if no 1099-NEC filers > $100K).
+
+If all phase-local gates PASS or N/A → advance to P6.
+
 ---
 
 ## P6 — Schedule Generation [PROG: Schedule A]
@@ -1415,6 +1463,18 @@ Q-F14 (Schedule O covers all Part VI "describe" prompts), Q-F22 (departed board 
 status for Schedule A), Q-F23 (Schedule A Line 15 vs Line 16 divergence), Q-F26 (corporate donor board-ownership check for 509(a)(2) — [ENTITY_DONOR_CHECK] directive runs at P6), Q-F27 (payment processor 1099-K),
 Q-F30 (Schedule B donor threshold completeness).
 
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gates owned by P6: Q-F4, Q-F14, Q-F22, Q-F23, Q-F26, Q-F27, Q-F30.
+(Q-F8 pre-passed at P4 — skip.)
+
+Load only sections for these seven gates from QUESTIONS.md — not the full file.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-Fxx] = {status: "PASS", evaluated_at: "P6", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides.
+- N/A → record with brief reason (e.g., Q-F22/Q-F23/Q-F26 N/A if Schedule A not required; Q-F27 N/A if no card-based PSR; Q-F30 N/A if Schedule B not triggered).
+
+If all phase-local gates PASS or N/A → advance to P7.
+
 ---
 
 ## P7 — Part I Rollup & Reconciliation + Deterministic Merge
@@ -1549,6 +1609,18 @@ same inputs → byte-identical output (E3 verified).
 (Part I ties to downstream parts), Q-F24 (Part I Prior Year column sourced from filed prior
 return), Q-F29 (Part X balance sheet balances).
 
+**Phase Close Gate Check.**
+Before advancing, evaluate the phase-local gates owned by P7: Q-F2, Q-F7, Q-F24.
+(Q-F29 pre-passed at P5 — skip.)
+
+Load only sections for these three gates from QUESTIONS.md — not the full file.
+For each gate:
+- PASS → write `gate_results_latest_pass[Q-Fxx] = {status: "PASS", evaluated_at: "P7", evaluated_pass: <current gate_pass_count>}`
+- NEEDS_UPDATE → halt; prompt operator with remedy; after fix applied, re-run PCG. Do not advance until PASS or operator overrides.
+- N/A → record with brief reason (e.g., Q-F24 N/A if first-year filer with no prior return).
+
+If all phase-local gates PASS or N/A → advance to P8.
+
 ---
 
 ## P8 — CPA Quality Review Pass
@@ -1577,7 +1649,17 @@ pass = 0
 memoized = {}
 
 while pass < 5:
-    evaluate Q-F1..Q-F30 applicable to current state (CPA Reviewer persona)
+    for each gate Q-Fxx in Q-F1..Q-F30:
+        # Honor phase-close pre-pass: skip phase-local gates already PASS
+        pre = gate_results_latest_pass.get(Q-Fxx)
+        if (pre and pre["status"] == "PASS"
+                and pre["evaluated_pass"] >= gate_pass_count - 1):
+            log "skipping %s (PASS at %s)" % (Q-Fxx, pre["evaluated_at"])
+            continue  # still valid from phase close
+
+        evaluate Q-Fxx (CPA Reviewer persona)
+        # Cross-phase gates Q-F12, Q-F21 always reach this point (never pre-passed)
+
     update gate_results_latest_pass, increment gate_pass_count
 
     for each NEEDS_UPDATE:
@@ -1585,6 +1667,7 @@ while pass < 5:
         set phase_status[offending_phase] = "pending"
         re-run the offending phase (call PHASES.md §P<n>)
         re-verify its outputs
+        # After phase re-run, its PCG re-executes; if PCG PASS, pre-pass is refreshed
 
     gate1_unresolved = count of Gate-1 questions with NEEDS_UPDATE
     if gate1_unresolved == 0 and no changes this pass:
@@ -1596,6 +1679,10 @@ if pass == 5 and gate1_unresolved > 0:
     print remaining Gate-1 issues
     AskUserQuestion to resolve or accept risk
 ```
+
+**Backward compatibility.** An in-flight plan file with empty `gate_results_latest_pass`
+(created before this change) has no pre-passed entries — P8 evaluates the full battery
+exactly as before. No migration needed.
 
 Memoization: Gate-2/3 items stable across 2 consecutive passes → auto-memoize for pass 3+.
 Gate-1 items never memoized.
@@ -1761,6 +1848,117 @@ Content:
 Fill template placeholder `{{LEGAL_NAME}}`, `{{YYYY}}`, `{{DATE}}` before writing.
 Register in machine state as `artifacts.cpa_memo`.
 
+**Step 3c: Companion filing worksheets.**
+Produce pre-filled worksheet files for each required companion form based on `key_facts.formation_state`
+and gross receipts. These are NOT the actual forms — they are structured data sheets so the CPA or
+officer can complete the real forms quickly without re-entering already-known data.
+
+**Trigger logic:**
+- **Always produce:** Form 8868 worksheet (federal; applies to all orgs regardless of state)
+- **If `key_facts.formation_state == "CA"`:** also produce CA Form 199, RRF-1, SI-100 worksheets
+- **CT-TR-1:** if CA org AND gross receipts < $2,000,000 AND no independent audit was performed
+  (use `plan_state.financial_audit_performed`, defaulting to false if not set)
+- SI-100 checklist: compute `is_due` from incorporation date (biennial within 90 days of
+  anniversary); include regardless of due status so the CPA can confirm
+
+**CA Form 199 worksheet** → `artifacts/companion-ca199-fy<tax_year>.md`
+Pre-fill from state:
+```
+Organization name:   key_facts.legal_name
+EIN:                 key_facts.ein
+CA FTB entity:       key_facts.registrations.ca_sos_entity_id (if known)
+Tax year begin/end:  key_facts.fiscal_year_start / fiscal_year_end
+Gross receipts:      Part VIII Line 12 (total revenue)
+Total expenses:      Part IX Line 25
+Net assets BOY:      Part X Line 27 col A
+Net assets EOY:      Part X Line 27 col B
+Officers:            key_facts.people.officers (name, role, address from principal)
+```
+Note: CA Form 199 accepts a copy of the federal 990 in lieu of the 199 for orgs filing Form 990
+(not 990-EZ). Include this note prominently.
+
+**RRF-1 worksheet** → `artifacts/companion-rrf1-fy<tax_year>.md`
+Pre-fill from state:
+```
+Organization name:   key_facts.legal_name
+EIN:                 key_facts.ein
+RCT number:          key_facts.registrations.ca_rct_number
+Accounting period end: key_facts.fiscal_year_end
+Gross receipts:      Part VIII Line 12
+Total assets EOY:    Part X Line 16 col B
+Filing fee tier:     compute from gross receipts:
+  $0–$25,000       → $25      $25,001–$100,000  → $50
+  $100,001–$250,000 → $75     $250,001–$1,000,000 → $150
+  $1,000,001–$10M  → $225    > $10M              → $300
+Filed 990/990-EZ:    Yes
+```
+
+**CT-TR-1 worksheet** (if triggered) → `artifacts/companion-cttr1-fy<tax_year>.md`
+Pre-fill from state:
+```
+Organization name / EIN / RCT number
+Beginning net assets:  Part X Line 27 col A
+Ending net assets:     Part X Line 27 col B
+Total revenue:         Part VIII Line 12
+Total expenses:        Part IX Line 25
+Cash and cash equivalents: Part X Line 1 col B
+```
+
+**SI-100 checklist** → `artifacts/companion-si100-fy<tax_year>.md`
+```
+Organization name:   key_facts.legal_name
+CA SOS entity:       key_facts.registrations.ca_sos_entity_number_with_prefix
+Incorporation date:  key_facts.formation_date
+Anniversary date:    month/day of formation_date, current year
+Due window:          anniversary_date to anniversary_date + 90 days
+Is due in <tax_year+1>: compute and state Yes/No
+Officers to report:  president, secretary, treasurer from key_facts.people.officers
+Principal office:    key_facts.addresses.principal
+Agent:               key_facts.registrations.ca_sos_registered_agent (if known)
+Filing fee:          $20 (online) or $25 (paper)
+Portal:              bizfileonline.sos.ca.gov
+```
+
+**Form 8868 worksheet** → `artifacts/companion-f8868-fy<tax_year>.md`
+Pre-fill from state:
+```
+Organization name:   key_facts.legal_name
+EIN:                 key_facts.ein
+Address:             key_facts.addresses.principal
+Return type:         Form 990
+Tax year begin:      key_facts.fiscal_year_start for <tax_year>
+Tax year end:        key_facts.fiscal_year_end for <tax_year>
+Original due date:   ORIGINAL_DUE_DATE
+Extended due date:   EXTENDED_DUE_DATE (automatic 6-month extension)
+Signature:           signing officer name and title
+Note: 8868 must be filed BY the original due date to be valid
+```
+
+Register all companion artifacts in machine state under `artifacts.companion_filings`.
+
+**Step 3d: CPA briefing email prompt.**
+After Step 3c, prompt the operator:
+```
+┌─ Draft CPA Briefing Email? ────────────────────────────────────────────┐
+│  Ready to draft a briefing email to your CPA?                          │
+│                                                                         │
+│  This email will summarize:                                             │
+│    - Key financial figures and schedules                                │
+│    - What has been resolved vs. what needs CPA input                   │
+│    - Open items and their priority (blocking vs. advisory)             │
+│    - Companion filing reminders and deadlines                           │
+│    - Tone: cordial and grateful                                         │
+│                                                                         │
+│  CPA: <from efile_handoff cpa field; or "your CPA" if not set>         │
+│                                                                         │
+│  [Y] Draft email  [n] Skip                                              │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+If accepted: produce `artifacts/cpa-briefing-email-fy<tax_year>.md` using the CPA memo,
+handoff packet open items, and companion filing schedule as source data. Tone: warm, appreciative,
+assume a long-term professional relationship. Pre-populate subject line, greeting, body, and
+signature block from `key_facts`.
+
 **Step 4: Schedule B two-output contract (if Schedule B triggered).**
 - `artifacts/schedule-b-filing.md` — full donor info (IRS-only, never public)
 - `artifacts/schedule-b-public.md` — `"Anonymous"` names, addresses stripped
@@ -1774,6 +1972,12 @@ Register in machine state as `artifacts.cpa_memo`.
   - `coordinate_table` sha: sha256 of TOOL-SIGNATURES.md bytes between `<!-- BEGIN COORDINATES <year> -->` / `<!-- END COORDINATES <year> -->` sentinels
 - `artifacts/efile-handoff-packet.md`
 - `artifacts/cpa-memo-fy<tax_year>.md`
+- `artifacts/cpa-briefing-email-fy<tax_year>.md` (if operator accepts Step 3d prompt)
+- `artifacts/companion-ca199-fy<tax_year>.md` (if CA org)
+- `artifacts/companion-rrf1-fy<tax_year>.md` (if CA org)
+- `artifacts/companion-cttr1-fy<tax_year>.md` (if CA org and GR < $2M, no audit)
+- `artifacts/companion-si100-fy<tax_year>.md` (if CA org)
+- `artifacts/companion-f8868-fy<tax_year>.md` (always)
 - `artifacts/schedule-b-filing.md` + `artifacts/schedule-b-public.md` (if Schedule B triggered)
 
 **Idempotency.**
@@ -1864,18 +2068,20 @@ All documents produced by the skill, organized by audience and purpose.
 | Reconciliation report | `artifacts/reconciliation-report.md` | Big-square closure verification (Q-F2) |
 | Plan file | `form990-plan-<year>.md` | Full preparation journal — machine state, decisions, breadcrumbs |
 
-### Tier 4 — California Companion Filings (separate from Form 990)
-*These are NOT produced by this skill. File separately with the indicated agency.*
+### Tier 4 — California Companion Filing Worksheets
+*Pre-filled worksheets produced by Step 3c for CA-organized orgs. File the actual forms separately with the indicated agency.*
 
-| Form | Agency | Trigger | Due date |
-|---|---|---|---|
-| **Form 199** | CA Franchise Tax Board | Gross receipts > $50,000 | May 15 (same as federal 990) |
-| **RRF-1** | CA AG Registry of Charitable Trusts | Registered charity | May 15 |
-| **CT-TR-1** | CA AG Registry | GR < $2M AND no audit | With RRF-1 |
-| **SI-100** | CA Secretary of State | All CA nonprofit corps | Biennial; within 90 days of incorporation anniversary |
+| Worksheet | Agency | Trigger | Due date | Artifact |
+|---|---|---|---|---|
+| **CA Form 199** | CA Franchise Tax Board | GR > $50,000 | May 15 | `companion-ca199-fy<year>.md` |
+| **RRF-1** | CA AG Registry of Charitable Trusts | Registered charity | May 15 | `companion-rrf1-fy<year>.md` |
+| **CT-TR-1** | CA AG Registry | GR < $2M AND no audit | With RRF-1 | `companion-cttr1-fy<year>.md` |
+| **SI-100** | CA Secretary of State | All CA nonprofit corps (biennial) | Within 90 days of incorporation anniversary | `companion-si100-fy<year>.md` |
+| **Form 8868** | IRS | Always (extension option) | BY original due date | `companion-f8868-fy<year>.md` |
 
-> CA 199 and RRF-1/CT-TR-1 are NOT substitutes for the federal 990. FTB does not accept
-> the federal 990 in place of Form 199.
+> CA 199: FTB accepts a copy of the federal Form 990 in lieu of Form 199 for orgs filing the full 990 (not 990-EZ).
+> RRF-1 + CT-TR-1: file WITH a copy of the 990. CT-TR-1 only required if GR < $2M and no independent audit.
+> SI-100: $20 fee online; $25 paper. Portal: bizfileonline.sos.ca.gov
 
 ### Tier 5 — Public Inspection Requirements (IRC §6104)
 *The organization must make these available for public inspection.*
@@ -1898,7 +2104,7 @@ All documents produced by the skill, organized by audience and purpose.
 | Board presentation summary | High-level financial narrative for non-accountant board members | ✗ Not produced — draft manually from CPA memo |
 | Internal control memo | CPA identifies risks, management letter items | ✗ Not produced — CPA prepares separately |
 | 1099-NEC + Form 1096 confirmation | Evidence that contractor filings were made by Jan 31 | ✗ Not produced — confirm with payroll processor |
-| CA Form 199 worksheet | Pre-fill for CA FTB filing | ✗ Not produced — use CA FTB form directly |
+| CA Form 199 worksheet | Pre-fill for CA FTB filing | ✓ Produced in Step 3c → `companion-ca199-fy<year>.md` |
 
 ---
 
@@ -1910,12 +2116,19 @@ All documents produced by the skill, organized by audience and purpose.
 ╚══════════════════════════════════════════════════════════════════════╝
 
   Artifacts produced:
-  ├─ artifacts/form990-dataset.json          (line-keyed answers — e-file input)
-  ├─ artifacts/form990-reference-filled.pdf  (reference PDF for board/CPA review)
-  ├─ artifacts/schedule-o-narratives.md      (paste into e-file provider)
-  ├─ artifacts/cpa-review-report.md          (pre-signature review)
-  ├─ artifacts/cpa-memo-fy<tax_year>.md      (summary memo for signing CPA)
-  └─ artifacts/efile-handoff-packet.md       (hand to your e-file provider)
+  ├─ artifacts/form990-dataset.json              (line-keyed answers — e-file input)
+  ├─ artifacts/form990-reference-filled.pdf      (reference PDF for board/CPA review)
+  ├─ artifacts/schedule-o-narratives.md          (paste into e-file provider)
+  ├─ artifacts/cpa-review-report.md              (pre-signature review)
+  ├─ artifacts/cpa-memo-fy<tax_year>.md          (summary memo for signing CPA)
+  ├─ artifacts/efile-handoff-packet.md           (hand to your e-file provider)
+  ├─ artifacts/cpa-briefing-email-fy<tax_year>.md  (draft email to CPA, if requested)
+  ├─ artifacts/companion-f8868-fy<tax_year>.md    (extension worksheet — all orgs)
+  └─ CA companion worksheets (if CA org):
+     ├─ artifacts/companion-ca199-fy<tax_year>.md
+     ├─ artifacts/companion-rrf1-fy<tax_year>.md
+     ├─ artifacts/companion-cttr1-fy<tax_year>.md  (if GR < $2M, no audit)
+     └─ artifacts/companion-si100-fy<tax_year>.md
 
   ⚠ This return has NOT been filed. Next steps:
     1. Have the signing officer review the filled reference PDF
