@@ -291,7 +291,7 @@ Load only what the current phase needs. Files not listed for a phase must NOT be
 | `PHASES.md` | Always — every phase invocation. Jump to the target phase via its `## P<N> — <name>` heading (e.g., `## P3 — Financial Statement Production [PROG]`); read only that section unless a cross-phase reference is required. |
 | `SKILL.md` | Always — dispatch, helpers, schemas |
 | `PERSONA.md` | **`init` only** — injected as the seed persona written into the plan file at P0. On resume, the persona is re-read from the plan file's `## Persona` section (Step 3); loading PERSONA.md again is redundant and inconsistent with the plan-copy-is-authoritative rule. |
-| `QUESTIONS.md` | **P8 only** (CPA review pass). Do not load at P0–P7. Gates are evaluated only during the CPA review pass; loading them earlier wastes ~10K tokens per phase with no benefit. Also load if `/form990 review` subcommand is used. |
+| `QUESTIONS.md` | **Phase close + P8.** At phase close (P2–P7), load ONLY the gate subset declared in that phase's "Applicable Gates" line — not the full file. P8 loads the full file for cross-phase gates (Q-F12, Q-F21) and any phase-local gates that returned NEEDS_UPDATE at phase close. Also load if `/form990 review` subcommand is used. Loading the full file at P0–P7 phase entry (not close) is still wasteful — do not load at entry. |
 | `SCHEDULES.md` | **P6 only** (schedule generation). Do not load at P8 entry — P8 evaluates `dataset_schedules.json` output, not playbooks. Load at P8 only if a NEEDS_UPDATE triggers a P6 re-run. |
 | `LEARNINGS.md` | **Do not load at phase entry.** Load only: (a) when `auto_append_learning()` is triggered on phase failure, or (b) during the Post-Run Review prompt at P9 close when the operator is explicitly reviewing learnings. |
 | `TOOL-SIGNATURES.md` | **P4** (S3 spike: pinned Part IV yes/no item count = 38 for tax year 2025) and **P9** (AcroForm field map metadata + coordinate-table staleness hash check via `<!-- BEGIN/END COORDINATES <tax_year> -->` sentinels). Do not load at P0–P3 or P5–P7. |
@@ -460,7 +460,7 @@ b. Mutate machine state in memory:
      - artifacts[...].output_sha256 = sha256(artifact bytes)
      - artifacts[...].input_fingerprint = {upstream output_sha256 values}
      - artifacts[...].produced_at = ISO timestamp
-     - gate_results_latest_pass = {Q-Fid: "PASS"|"NEEDS_UPDATE"|"N/A"}
+     - gate_results_latest_pass = {Q-Fid: {status: "PASS"|"NEEDS_UPDATE"|"N/A", evaluated_at: "<phase>", evaluated_pass: <int>}}
      - plan_version += 1
      - plan_lock = {pid, acquired_at, host}
      - (C3) Recompute "## Next Action" block: second-person imperative describing the exact

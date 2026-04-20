@@ -71,6 +71,8 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 
 ### Q-F1 — Correct Form Variant (Gate 1)
 
+**Locality:** phase-local (P0)
+
 **Purpose.** Verify the form variant (990 / 990-EZ / 990-N / HALTED-PF / HALTED-CHURCH) was
 selected correctly using the conjunctive decision tree.
 
@@ -114,6 +116,8 @@ variant check and update the form type.]
 
 ### Q-F2 — Big-Square Reconciliation (Gate 1)
 
+**Locality:** phase-local (P7)
+
 **Purpose.** Verify that the three core accounting anchors all hold.
 
 ```
@@ -154,6 +158,8 @@ return can be filed.]
 
 ### Q-F3 — Functional Columns Sum (Gate 1)
 
+**Locality:** phase-local (P2)
+
 **Purpose.** On every Part IX row, the three functional columns (Program Services, Management &
 General, Fundraising) must sum to the total (Column A).
 
@@ -175,6 +181,8 @@ so they match.]
 ---
 
 ### Q-F4 — Schedule A Public-Support Computation (Gate 1)
+
+**Locality:** phase-local (P6)
 
 **Purpose.** Verify the 5-year public-support test is correctly computed and the organization
 passes the threshold for its stated public-charity basis.
@@ -236,6 +244,8 @@ Schedule O narrative describing why your organization still qualifies as publicl
 
 ### Q-F5 — Part V Count Ties to Filings (Gate 2)
 
+**Locality:** phase-local (P5)
+
 **Purpose.** Part V Line 1a (number of W-2s filed) must tie to the payroll provider's W-2 count
 for the tax year. Part V Line 2a (number of independent contractors paid >$100K) must tie to
 the count of 1099-NEC recipients in the 1099 register whose compensation exceeds $100K — not
@@ -277,6 +287,8 @@ the count and flag the filing confirmation.]
 ---
 
 ### Q-F6 — Part VII Section A Comp Ties to W-2/1099 (Gate 1)
+
+**Locality:** phase-local (P5)
 
 **Purpose.** Part VII Section A must list every person in the following categories, and each
 listed person's reportable compensation must tie to their W-2 Box 1 (wages) or 1099-NEC Box 1
@@ -331,6 +343,8 @@ I'll fix both.]
 
 ### Q-F7 — Part I Totals Tie to Downstream Parts (Gate 1)
 
+**Locality:** phase-local (P7)
+
 **Purpose.** Part I is a summary page. Its totals must roll up from the authoritative Parts:
 
 ```
@@ -364,6 +378,8 @@ detail ($128,500). I'll recompute and fix the summary to match.]
 
 ### Q-F8 — Part IV Checklist Fully Answered (Gate 1)
 
+**Locality:** phase-local (P4)
+
 **Purpose.** Every question in Part IV must be answered Yes or No. Every Yes answer must have
 the corresponding schedule attached to `required_schedules[]`.
 
@@ -391,6 +407,8 @@ Also, one question is still blank. I'll add the missing schedule and resolve the
 
 ### Q-F9 — EIN + Legal Name + Address Match Prior Year (Gate 1)
 
+**Locality:** phase-local (P0)
+
 **Purpose.** These three identifiers must be consistent with the organization's prior-year return
 and the IRS Business Master File (BMF). Mismatches cause IRS processing errors.
 
@@ -417,6 +435,8 @@ it to match exactly.]
 
 ### Q-F10 — ED/Shared-Cost Allocation Documented (Gate 2)
 
+**Locality:** phase-local (P2)
+
 **Purpose.** The Executive Director's time (and any other shared employee) must be allocated
 across functional buckets (Program / M&G / Fundraising) with a documented, defensible basis.
 
@@ -442,6 +462,8 @@ and explain the methodology in Schedule O.]
 ---
 
 ### Q-F11 — Prior-Year Comparatives Populated (Gate 2)
+
+**Locality:** phase-local (P3)
 
 **Purpose.** Part X (Balance Sheet) requires BOY (beginning-of-year) figures, which are the
 prior year's EOY figures. Schedule A requires 4 prior years of public-support data.
@@ -472,6 +494,8 @@ the IRS already has on file.]
 
 ### Q-F12 — Fundraising Expense Non-Zero If Contributions > 0 (Gate 2)
 
+**Locality:** cross-phase (P8 only) — requires fully merged Part VIII + Part IX data
+
 **Purpose.** If the organization received contributions revenue (Part VIII lines 1a–1h > 0),
 having zero fundraising expense is a red flag — it implies free money with no solicitation cost.
 
@@ -495,6 +519,8 @@ costs were misclassified elsewhere.]
 ---
 
 ### Q-F13 — Accounting Method Consistent Year-Over-Year (Gate 2)
+
+**Locality:** phase-local (P0)
 
 **Purpose.** Changing from cash-basis to accrual (or vice versa) requires disclosure and may
 require restatement of prior-year figures.
@@ -521,6 +547,8 @@ a separate IRS form (Form 3115) is needed — your tax advisor should confirm.]
 ---
 
 ### Q-F14 — Schedule O Covers All Part VI "Describe" Prompts (Gate 2)
+
+**Locality:** phase-local (P6)
 
 **Purpose.** Part VI contains several questions that say "If Yes, describe in Schedule O."
 Each such description must exist.
@@ -553,6 +581,8 @@ and fix the references.]
 
 ### Q-F15 — Signature Block Populated (Gate 2)
 
+**Locality:** phase-local (P5)
+
 **Purpose.** The return must be signed by an officer of the organization. The dataset must
 capture the officer name, title, and date to be printed on the reference PDF and passed to
 the e-file provider.
@@ -575,6 +605,8 @@ title from your board list and set the signing date.]
 ---
 
 ### Q-F16 — Source-Discovery Completeness (Gate 2)
+
+**Locality:** phase-local (P1)
 
 **Purpose.** All inputs needed for a complete return must either be present in `artifacts[]`
 or have an active open question documenting the gap.
@@ -612,6 +644,8 @@ report and bylaws. I'll create reminders to request them.]
 
 ### Q-F17 — Functional Allocation Methodology Narrated (Gate 3)
 
+**Locality:** phase-local (P2)
+
 **Purpose.** The IRS expects that functional allocations are not arbitrary. A Schedule O entry
 narrating the methodology is best practice and supports the return in correspondence exams.
 
@@ -636,6 +670,8 @@ allocation method. I'll add that to Schedule O.]
 ---
 
 ### Q-F18 — Part III Program Accomplishments Well-Written (Gate 3)
+
+**Locality:** phase-local (P5)
 
 **Purpose.** Part III is the organization's narrative statement of mission and program
 accomplishments. It is public-facing and should communicate program impact.
@@ -677,6 +713,8 @@ The gate title is shorthand for completeness, not a subjective quality judgment.
 
 ### Q-F19 — Payroll Tax Artifact: Part IX Line 10 / Line 7 Ratio (Gate 2)
 
+**Locality:** phase-local (P2) — commingling flag is set at P2; ratio is first computable from P3 functional expense matrix but ownership is P2
+
 **Purpose.** Tiller-sourced payroll data may commingle employer payroll tax deposits with
 employee wage deposits, inflating Part IX Line 10 (payroll taxes) relative to Line 7 (wages).
 If the ratio of payroll taxes to wages exceeds 15%, it is likely a data artifact — not a
@@ -713,6 +751,8 @@ owed vs. what was withheld from employees' paychecks.]
 
 ### Q-F20 — BOY Net Assets Equal Filed Prior-Year EOY (Gate 1)
 
+**Locality:** phase-local (P5)
+
 **Purpose.** The beginning-of-year net assets on the current return (Part X Line 32 BOY,
 Part XI Line 4) must equal the ending net assets on the filed prior-year return. A mismatch
 indicates either a restatement, a prior-period adjustment, or a data error — all of which
@@ -741,6 +781,8 @@ if there was a correction made after the prior year was filed, and disclose it o
 
 ### Q-F21 — Vendor >$10K Insider-Ownership Check Before P9 (Gate 2)
 
+**Locality:** cross-phase (P8 only) — vendor list spans P2 CoA mapping + P4 Part IV + P5 Part VII; full check requires completed dataset
+
 **Purpose.** Any vendor paid more than $10,000 in the tax year should be screened for insider
 (board member, officer, family member) ownership before the return is finalized. Payments to
 insider-owned vendors are related-party transactions that must be disclosed in Part IV and
@@ -766,6 +808,8 @@ LLC before we finalize — payments over $10,000 to insider-owned companies must
 ---
 
 ### Q-F22 — Departed Board Members DQ Status for Schedule A (Gate 3)
+
+**Locality:** phase-local (P6)
 
 **Purpose.** A board member who departed during or before the filing year may still be a
 "disqualified person" under IRC §4958 if they were a substantial contributor to the organization
@@ -794,6 +838,8 @@ calculation — we need to check whether they qualify as a "substantial contribu
 
 ### Q-F23 — Schedule A Line 15 vs Line 16 Divergence Narrative (Gate 3)
 
+**Locality:** phase-local (P6)
+
 **Purpose.** If the current-year public support percentage (Schedule A Line 15) differs from
 the prior-year percentage (Line 16) by more than 10 percentage points, Schedule O must explain
 the methodology difference or one-time factor driving the swing. A large unexplained change
@@ -821,6 +867,8 @@ explanation to the return so the IRS can see this was expected given the change 
 
 ### Q-F24 — Part I Prior Year Column Sourced from Filed Prior Return (Gate 3)
 
+**Locality:** phase-local (P7)
+
 **Purpose.** Part I of Form 990 includes a "Prior Year" column alongside the current year.
 These figures must come from the filed prior-year return — not re-computed or estimated.
 For organizations transitioning from 990-EZ to full Form 990, a documented mapping is required.
@@ -846,6 +894,8 @@ return and add a note explaining where the two forms don't line up.]
 ---
 
 ### Q-F25 — Part V Line 2a Entity-Type Filter for 1099-NEC Count (Gate 2)
+
+**Locality:** phase-local (P5)
 
 **Purpose.** Part V Line 2a asks for the number of independent contractors receiving more than
 $100,000 in compensation. The IRS instructions specify that corporations and LLCs taxed as
@@ -873,6 +923,8 @@ certain pass-through businesses in that line. Let me check what type of entity e
 ---
 
 ### Q-F26 — Corporate Donor ≥$35K Board-Ownership Check for 509(a)(2) (Gate 2)
+
+**Locality:** phase-local (P6)
 
 **Purpose.** Under 509(a)(2), a corporate contribution is excluded as a disqualified-person
 contribution (Line 7a) if any board member or officer owns ≥35% of the corporation (IRC §4946
@@ -904,6 +956,8 @@ support calculation.]
 ---
 
 ### Q-F27 — PSR Reconciles to Payment Processor 1099-K (Gate 2)
+
+**Locality:** phase-local (P6)
 
 **Purpose.** For organizations that receive card-based program service revenue (via Stripe,
 PushPress, Square, or similar payment processors), the gross PSR reported on Part VIII Line 2
@@ -937,6 +991,8 @@ to check whether some card transactions were recorded in a different category or
 ---
 
 ### Q-F28 — No Disallowed Negative Values (Gate 1)
+
+**Locality:** phase-local (P2) — revenue classification sign correctness is established during CoA mapping
 
 **Purpose.** Several Form 990 lines prohibit negative amounts. Entering a negative value on a
 revenue line, compensation column, or other disallowed line will cause e-file rejection or
@@ -983,6 +1039,8 @@ a negative sub-line, which the IRS doesn't allow on this line.]
 
 ### Q-F29 — Part X Balance Sheet Balances (Gate 1)
 
+**Locality:** phase-local (P5) — balance sheet accounts are populated in dataset_core at P5
+
 **Purpose.** The fundamental accounting identity must hold: Total Assets = Total Liabilities + Net Assets.
 A balance sheet that doesn't balance indicates a data error that must be corrected before filing.
 
@@ -1005,6 +1063,8 @@ Q-F29: NEEDS_UPDATE — Part X EOY: Total Assets ($52,340) ≠ Total Liabilities
 
 ### Q-F30 — Schedule B Donor Threshold Completeness (Gate 2)
 
+**Locality:** phase-local (P6)
+
 **Purpose.** Verify that Schedule B lists all donors exceeding the IRS reporting threshold ($5,000 or 2%
 of total contributions, whichever is greater) and that no donors below the threshold are included
 unless the org uses a lower threshold voluntarily.
@@ -1026,6 +1086,9 @@ from Schedule B; donor addresses for 2 of 3 listed donors are placeholder-only.
 
 ## Convergence Loop (P8 Evaluation Protocol)
 
+P8 skips gates that were already PASS at phase close (written to `gate_results_latest_pass` by
+the Phase Close Gate Check at P2–P7). Cross-phase gates (Q-F12, Q-F21) always evaluate at P8.
+
 ```
 pass = 0
 memoized = {}  # gate_id → ["PASS", "PASS"]  — tracks stability
@@ -1033,6 +1096,14 @@ memoized = {}  # gate_id → ["PASS", "PASS"]  — tracks stability
 while pass < 5:
     results = {}
     for q in applicable_gates:
+        # Honor phase-close pre-pass: skip if PASS was recorded at phase close
+        # and is not stale (evaluated_pass within the current gate_pass_count window)
+        pre = gate_results_latest_pass.get(q)
+        if (pre and pre.get("status") == "PASS"
+                and pre.get("evaluated_pass", -1) >= gate_pass_count - 1):
+            results[q] = "PASS (pre-passed at %s)" % pre["evaluated_at"]
+            continue  # already validated at phase close — skip re-evaluation
+
         if q in memoized and len(memoized[q]) >= 2 and q not in gate1_ids:
             results[q] = "PASS (memoized)"  # skip re-evaluation
             continue
@@ -1050,7 +1121,9 @@ while pass < 5:
         if r.startswith("NEEDS_UPDATE"):
             apply_edit_directive(r)  # routes back to offending phase
 
-    if not gate1_open and all(r in ("PASS", "PASS (memoized)", "N/A") for r in results.values()):
+    if not gate1_open and all(
+        r.startswith("PASS") or r == "N/A" for r in results.values()
+    ):
         break  # converged
     pass += 1
 
@@ -1061,6 +1134,7 @@ if pass == 5 and gate1_open:
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20, Q-F28, Q-F29
 Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
+Cross-phase (always evaluated at P8): Q-F12, Q-F21
 
 ---
 
