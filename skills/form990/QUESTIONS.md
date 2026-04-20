@@ -1134,7 +1134,7 @@ if pass == 5 and gate1_open:
 ```
 
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20, Q-F28, Q-F29
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30, Q-F31, Q-F32
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10, Q-F11, Q-F12, Q-F13, Q-F14, Q-F15, Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30, Q-F31, Q-F32
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 Cross-phase (always evaluated at P8): Q-F12, Q-F21
 
