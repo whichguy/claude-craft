@@ -1607,11 +1607,10 @@ same inputs → byte-identical output (E3 verified).
 
 **Applicable Gates.** Q-F2 (big square closes — blocking; delta_match must be true), Q-F7
 (Part I ties to downstream parts), Q-F24 (Part I Prior Year column sourced from filed prior
-return), Q-F29 (Part X balance sheet balances).
+return).
 
 **Phase Close Gate Check.**
 Before advancing, evaluate the phase-local gates owned by P7: Q-F2, Q-F7, Q-F24.
-(Q-F29 pre-passed at P5 — skip.)
 
 Load only sections for these three gates from QUESTIONS.md — not the full file.
 For each gate:
