@@ -1,7 +1,7 @@
 # Form 990 Skill — CPA Quality Gate Catalog
 
-**Q-F1..Q-F30** in three tiers. Import this file into every Q-F evaluation pass;
-do not duplicate definitions in other files.
+**Q-F1..Q-F32** in three tiers (Q-F31/Q-F32 are P1 advisory gates). Import this
+file into every Q-F evaluation pass; do not duplicate definitions in other files.
 
 Gate output contract:
 - `PASS` — criteria met, no edits required
@@ -64,6 +64,8 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F28 | **G1** | No disallowed negative values | always |
 | Q-F29 | G1 | Part X balance sheet balances | always |
 | Q-F30 | G2 | Schedule B donor threshold completeness | if Schedule B triggered |
+| Q-F31 | G2 | P1 Tier-0 ladder exhausted before user_prompt | P1 has run |
+| Q-F32 | G2 | Profile SHA256 unchanged since P0 init | profile input loaded |
 
 ---
 
@@ -1132,7 +1134,7 @@ if pass == 5 and gate1_open:
 ```
 
 Gate-1 IDs (never memoized): Q-F1, Q-F2, Q-F3, Q-F4, Q-F6, Q-F7, Q-F8, Q-F9, Q-F20, Q-F28, Q-F29
-Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30
+Gate-2 IDs (memoize after 2 stable PASS): Q-F5, Q-F10–Q-F16, Q-F19, Q-F21, Q-F25, Q-F26, Q-F27, Q-F30, Q-F31, Q-F32
 Gate-3 IDs (memoize after 2 stable PASS): Q-F17, Q-F18, Q-F22, Q-F23, Q-F24
 Cross-phase (always evaluated at P8): Q-F12, Q-F21
 
@@ -1176,6 +1178,8 @@ unreleased resources.
 
 ### Q-F31 — P1 Exhausted Tier-0 Public Ladder Before User Prompt (Gate 2 Advisory)
 
+**Locality:** phase-local (P1)
+
 **Tier:** Gate 2 — Important.
 
 **Trigger:** Any `key_facts` field has `fact_source: "user_prompt"` recorded after P1.
@@ -1210,6 +1214,8 @@ before accepting operator input.
 ---
 
 ### Q-F32 — Profile SHA256 Unchanged Since P0 Init (Gate 2 Advisory)
+
+**Locality:** phase-local (P1)
 
 **Tier:** Gate 2 — Important.
 
