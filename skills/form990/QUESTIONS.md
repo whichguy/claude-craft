@@ -62,7 +62,7 @@ convergence loop. Gate-1 questions are NEVER memoized — re-evaluate every pass
 | Q-F26 | G2 | Corporate donor ≥$35K board-ownership check for 509(a)(2) | 509(a)(2), corporate donors |
 | Q-F27 | G2 | PSR reconciles to payment processor 1099-K | card-based PSR present |
 | Q-F28 | **G1** | No disallowed negative values | always |
-| Q-F29 | G1 | Part X balance sheet balances | always |
+| Q-F29 | **G1** | Part X balance sheet balances | always |
 | Q-F30 | G2 | Schedule B donor threshold completeness | if Schedule B triggered |
 | Q-F31 | G2 | P1 Tier-0 ladder exhausted before user_prompt | P1 has run |
 | Q-F32 | G2 | Profile SHA256 unchanged since P0 init | profile input loaded |
@@ -583,7 +583,7 @@ and fix the references.]
 
 ### Q-F15 — Signature Block Populated (Gate 2)
 
-**Locality:** phase-local (P5)
+**Locality:** phase-local (P5); P9 consumes memoized result
 
 **Purpose.** The return must be signed by an officer of the organization. The dataset must
 capture the officer name, title, and date to be printed on the reference PDF and passed to
