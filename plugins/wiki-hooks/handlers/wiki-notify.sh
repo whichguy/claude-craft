@@ -29,6 +29,12 @@ case "$PROMPT" in
   /wiki-*) exit 0 ;;
 esac
 
+# Skip Stop-hook-feedback retries — Claude Code re-fires every UserPromptSubmit
+# hook on retry, which would otherwise spam the user with repeated toasts.
+case "$PROMPT" in
+  *"<summary>Stop hook feedback</summary>"*) exit 0 ;;
+esac
+
 ENTITIES_DIR="$REPO_ROOT/wiki/entities"
 CACHE_DIR="$REPO_ROOT/wiki/.cache"
 ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
