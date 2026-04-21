@@ -26,6 +26,9 @@ SNAPSHOTS_DIR="$HOME/.claude/tasks-snapshots"
 
 mkdir -p "$SNAPSHOTS_DIR"
 
+# Prune sentinels older than 30 days to prevent unbounded accumulation
+find "$SNAPSHOTS_DIR" -name '.restored-*' -mtime +30 -delete 2>/dev/null || true
+
 # Idempotency sentinel: hook may fire twice for the same session
 SENTINEL="$SNAPSHOTS_DIR/.restored-$SID"
 [ -f "$SENTINEL" ] && exit 0
