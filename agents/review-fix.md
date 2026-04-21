@@ -112,101 +112,87 @@ Capture per-file diffs for change context:
 
 Print setup banner:
 ```
-╔══════════════════════════════════════════════╗
-║  ◆ REVIEW-FIX                               ║
-╚══════════════════════════════════════════════╝
-  Files      [N] ([rationale])
-  Reviewers  per-file multi-routing (code-reviewer: N, gas-code-review: M, gas-ui-review: P, gas-gmail-cards: Q)
-  Tasks      [total queue entries] ([file_count] files × applicable reviewers)
-  Mode       [review + fix | read-only]
-  Model      sonnet (all rounds)                            # when recheck_model is null (default)
-  Model      sonnet (initial) → [recheck_model] (recheck)  # when recheck_model explicitly set
-  Rounds     max [max_rounds]
+review-fix: [N] files ([rationale]) · [reviewer breakdown e.g. "code-reviewer: N, gas-code-review: M"] · [review + fix | read-only] · max [max_rounds] rounds[if recheck_model explicitly set: " · sonnet → [recheck_model] (recheck)"]
 ```
 
 ## Step 1.5: Lint Pre-flight
 
-Detect lint config files, check if each tool's binary is installed, run installed tools automatically, and prompt only when a tool needs to be pulled down first.
+Detect lint config files, run deterministic auto-fixes before LLM review, and defer missing-binary recommendations to end of run.
+
+Read the LINTER_TABLE from `~/.claude/agents/review-fix-linter-table.md` when applicable candidates exist. The table is the contract — use it verbatim; do not paraphrase it at runtime.
 
 ```
-# Detect candidate linters from config signals at worktree root
-lint_candidates = []
+# Detect applicable tools from LINTER_TABLE by matching config signals + file extensions
+# Table path is absolute — agent files live in ~/.claude/agents/, not in the reviewed worktree
+applicable = [rows from Read("~/.claude/agents/review-fix-linter-table.md") where config
+              signal exists at worktree root AND extension overlaps file_list]
 
-# Node/JS/TS — npm scripts run via node_modules, no separate binary check needed
-If package.json exists:
-  scripts = parse package.json scripts object
-  If scripts["lint"] exists:
-    lint_candidates.append({ label: "npm run lint", cmd: "npm run lint",
-      fix_cmd: scripts["lint:fix"] ? "npm run lint:fix" : null,
-      install_cmd: "npm install", needs_install_check: "node_modules/.bin",
-      exts: [".js",".ts",".jsx",".tsx",".mjs",".cjs"] })
-  If scripts["typecheck"] or scripts["type-check"] exists:
-    key = whichever exists
-    lint_candidates.append({ label: "npm run " + key, cmd: "npm run " + key,
-      fix_cmd: null, install_cmd: "npm install", needs_install_check: "node_modules/.bin",
-      exts: [".ts",".tsx"] })
-
-# Python
-If pyproject.toml or .ruff.toml or ruff.toml exists:
-  lint_candidates.append({ label: "ruff", cmd: "ruff check " + joined(.py files),
-    fix_cmd: "ruff check --fix " + same, binary: "ruff",
-    install_cmd: "pip install ruff", exts: [".py"] })
-Else if .pylintrc or setup.cfg (with [pylint] section) exists:
-  lint_candidates.append({ label: "pylint", cmd: "pylint " + joined(.py files),
-    fix_cmd: null, binary: "pylint", install_cmd: "pip install pylint", exts: [".py"] })
-
-# Ruby
-If .rubocop.yml or .rubocop exists:
-  lint_candidates.append({ label: "rubocop", cmd: "rubocop " + joined(.rb files),
-    fix_cmd: "rubocop -A " + same, binary: "rubocop",
-    install_cmd: "gem install rubocop", exts: [".rb"] })
-
-# Shell
-If .shellcheckrc exists OR any .sh file in file_list:
-  lint_candidates.append({ label: "shellcheck", cmd: "shellcheck " + joined(.sh files),
-    fix_cmd: null, binary: "shellcheck",
-    install_cmd: "brew install shellcheck  # or apt install shellcheck", exts: [".sh"] })
-
-# Filter: only tools whose exts overlap file_list
-applicable = [c for c in lint_candidates if any file in file_list has extension in c.exts]
-
-# For each applicable tool: check if binary/node_modules is available
+# Check if binary/node_modules is available for each applicable tool
 For each tool in applicable:
   If tool.binary:
     tool.installed = (which tool.binary) exits 0
   Else (npm-based):
     tool.installed = node_modules/.bin directory exists at worktree root
-```
+  tool.autoformat_ok = (tool.fix_category == "lint") OR
+                       (.review-fix-autoformat file exists at worktree root)
 
-**Run installed tools automatically; prompt only for missing ones:**
+ready    = [t for t in applicable if t.installed]
+needs_dl = [t for t in applicable if NOT t.installed]
 
-```
-ready     = [t for t in applicable if t.installed]
-needs_dl  = [t for t in applicable if NOT t.installed]
-```
-
-For each tool in `ready` (run silently, no prompts):
-```
-  Print: "  ▸ [label] running..."
-  Run tool.cmd via Bash (cwd=worktree), capture stdout+stderr, note exit code
-  Print:
-    ── [label] ──────────────────────────────────────────
-    [raw output, max 60 lines; "… [N] more lines" if longer]
-    Exit [code] — [N issue(s) | clean]
-```
-
-For each tool in `needs_dl` (prompt before installing):
-```
-  Use AskUserQuestion:
-    question = "[label] config found but binary not installed. Install and run?"
-    options  = ["Yes — run: " + tool.install_cmd, "No — skip"]
-  If yes:
-    Run tool.install_cmd via Bash
-    Run tool.cmd, show output (same format as above)
-    If tool.fix_cmd AND exit_code != 0: prompt auto-fix (same as above)
+# invocation-scoped state (reset each run, no disk persistence)
+files_touched_by_lint = []   # files modified by lint auto-fix this run
+missing_linters = []         # { label, install_hint } collected for end-of-run Recommendations
 ```
 
 If `applicable` is empty: skip silently, continue to Step 2.
+
+**Run installed tools; apply auto-fix then report residual:**
+
+```
+worktree_pre_lint_files = git diff --name-only HEAD   # snapshot before any lint fix
+
+For each tool in ready:
+  Print: "  ▸ [label] running..."
+
+  If tool.fix_cmd AND tool.autoformat_ok:
+    Run tool.fix_cmd via Bash (cwd=worktree, capture+discard output)
+  # else: formatter without .review-fix-autoformat → skip fix_cmd, run check-only
+
+  Run tool.cmd via Bash (cwd=worktree), capture stdout+stderr, note exit_code, record elapsed
+
+  If exit_code == 0 AND output contains no residual issues:
+    If fix_cmd ran AND files were modified:
+      Print: "  ▸ [label]: auto-fixed [N] file(s) ([elapsed]s)"
+    Else:
+      Print: "  ▸ [label]: clean ([elapsed]s)"
+    [do NOT print the full output block]
+  Else (exit_code != 0 OR residual issues):
+    Print:
+      ── [label] ──────────────────────────────────────────
+      [raw output, max 60 lines; "… [N] more lines" if longer]
+      Exit [exit_code] — [N issue(s) | clean]
+      [if fix_cmd ran]:               "  ▸ [label] auto-fix applied (residual issues shown above)"
+      [if formatter check-only mode]: "  ▸ [label] check-only (add .review-fix-autoformat to enable auto-fix)"
+
+files_touched_by_lint = (git diff --name-only HEAD) MINUS worktree_pre_lint_files
+If files_touched_by_lint non-empty:
+  Print: "  ▸ lint auto-fixed [N] file(s): [list, max 5]"
+  Recompute per_file_diffs[f] = git diff HEAD -- f  for each f in files_touched_by_lint
+  Record: lint_round_entry = "Round 0 — lint auto-fix: [N] file(s)" (included in Step 6 Review History)
+```
+
+**Collect missing-linter recommendations (no inline prompt):**
+
+```
+For each tool in needs_dl:
+  missing_linters.append({ label: tool.label, install_hint: tool's "Binary check / install hint" column from the table })
+If missing_linters non-empty:
+  Print: "  ▸ [len(missing_linters)] lint tool(s) detected but not installed — will recommend at end of run."
+```
+
+# Invariant: Step 2 runs exactly once per review-fix invocation; impact_files is reused verbatim
+# in every recheck round. Callers of a file's exported symbols do not shift due to a same-file edit,
+# so the `impact_files[file]` entry remains valid even when the file content changes between rounds.
 
 ## Step 2: Impact Discovery
 
@@ -245,6 +231,68 @@ resolve_reviewers(file):
       reviewers.append("gas-ui-review")
 
   return reviewers
+```
+
+## Step 2.6: Freeform Senior-Engineer Pre-Pass
+
+Cheap haiku freeform pass to resolve trivial findings before the full Q1-Q37 structured review.
+Max 1 pre-pass per run. Does NOT loop. Structured reviewers (Step 3) always run after it regardless of result.
+Round counters (`round_hashes`, `resolved_findings`) do NOT start until Step 4.
+
+```
+MAX_CONCURRENT_PREPASS = 12
+
+prepass_prompt = (file) => `
+  As a senior engineer, review and update the code in ${file}.
+  Fix any issues you find — bugs, style violations, dead code, naming problems,
+  missing error handling, off-by-one errors, security issues.
+  Apply fixes directly with the Edit tool. Be selective: only fix issues that
+  are clear improvements. Do not refactor arbitrarily.
+  After editing, output a one-line summary per fix: [FIX: <Q-category> — <description>].
+  If no issues found, output: CLEAN.
+`
+
+# Dispatch concurrently — one freeform agent per file
+pre_pass_agents = {}
+For each file in file_list:
+  name = "prepass--" + sanitize(file)
+  Agent(
+    subagent_type = "general-purpose",
+    model = "haiku",
+    name = name,
+    run_in_background = true,
+    prompt = prepass_prompt(file)
+  )
+  pre_pass_agents[name] = file
+
+# Fan-in: collect results
+pre_pass_fixes = {}   # file → list of FIX lines (or ["CLEAN"])
+files_touched_by_pre_pass = []
+
+For each completion from pre_pass_agents:
+  file = pre_pass_agents[completed_name]
+  fix_lines = parse FIX: lines from output; if none → ["CLEAN"]
+  pre_pass_fixes[file] = fix_lines
+  If any fix_lines contain "[FIX:": files_touched_by_pre_pass.append(file)
+
+# Recompute diffs for files the pre-pass touched
+For each f in files_touched_by_pre_pass:
+  per_file_diffs[f] = git diff HEAD -- f
+
+# Detect structural changes: function removal or signature change in FIX lines
+structural_flags = [f for f in files_touched_by_pre_pass
+                    if any("removed" in fix or "signature" in fix or "delete" in fix
+                           for fix in pre_pass_fixes[f])]
+
+If len(files_touched_by_pre_pass) == 0 AND structural_flags is empty:
+  [skip banner entirely — silent no-op]
+Else:
+  Print pre-pass banner:
+    ── Pre-pass ─────────────────────────────────────────────────────
+      [len(files_touched_by_pre_pass)] files fixed   [len(file_list) - len(files_touched_by_pre_pass)] clean   (haiku freeform, [elapsed]s)
+      [per-file: file → "N fix(es)" or "clean"]
+      [for f in structural_flags: "  ⚠ structural change in [f] — review before proceeding"]
+    ──────────────────────────────────────────────────────────────────
 ```
 
 ## Step 3: Initial Review (parallel per-file)
@@ -299,7 +347,6 @@ While queue non-empty AND len(active) < MAX_CONCURRENT:
     prompt = reviewer_prompt(entry.file)
   )
   active[name] = entry
-  Print: "  ▸ dispatched: [entry.file] → [entry.reviewer]"
 
 # Process completions as they arrive
 # Background agents notify automatically when done — do NOT poll.
@@ -348,7 +395,6 @@ For each completion notification:
       prompt = reviewer_prompt(next_entry.file)
     )
     active[name] = next_entry
-    Print: "  ▸ dispatched: [next_entry.file] → [next_entry.reviewer]"
 
 # All complete when: queue empty AND active empty
 Print: "  fan-in ── ●[approved]  ◐[needs_work]   [{total_elapsed}s]"
@@ -372,6 +418,15 @@ Extract LOOP_DIRECTIVE: APPLY_AND_RECHECK or COMPLETE
 ## Step 4: Fix Loop
 
 ```
+# invocation-scoped state (reset per run, no disk persistence)
+round_hashes = {}          # round → { file → sha256 of file content }
+resolved_findings = {}     # file → set of (q_id, line) confirmed fixed by prior recheck
+exhausted_no_fix = []      # files where all Fix blocks failed/skipped with no content change
+per_q_status_history = {}  # q_id → list of statuses across rounds (oscillation detection)
+
+# Compute initial hashes for all files before any fix is applied
+round_hashes[0] = { file: sha256(Read(file)) for file in file_list }
+
 round = 0
 DO:
   round += 1
@@ -409,10 +464,20 @@ DO:
 
     Track: files_changed += file (if any fix applied)
 
+  # Content-hash guard: skip recheck for files whose content is unchanged after fix attempts
+  round_hashes[round] = { file: sha256(Read(file)) for file in recheck_files }
+  actually_changed = [f for f in recheck_files if round_hashes[round][f] != round_hashes[round-1][f]]
+  unchanged_recheck = [f for f in recheck_files if f not in actually_changed]
+  For f in unchanged_recheck:
+    results[f].loop_directive = "COMPLETE"
+    exhausted_no_fix.append(f)
+    Print: "  ◐ [f] — all fixes skipped/failed; marking exhausted (no recheck)"
+  recheck_files = actually_changed
+
   Print fix summary:
   ```
   ──────────────────────────────────────────────────────
-    [applied] applied   [skipped] skipped   [failed] failed
+    [applied] applied   [skipped] skipped   [failed] failed   [len(unchanged_recheck)] exhausted-no-fix
     Re-dispatching [N] files for recheck...
   ```
 
@@ -444,7 +509,32 @@ DO:
 
   Wait for ALL reviewer agents to complete before proceeding.
 
-  Update findings and LOOP_DIRECTIVE for each file from reviewer output.
+  # Cross-round finding dedup with explicit oscillation precedence
+  For each recheck result (file, findings, loop_directive):
+    # File-level invalidation: clear resolved_findings when content changed
+    # (a fix elsewhere in the file can cause a prior finding's root cause to re-emerge)
+    If round_hashes[round][file] != round_hashes[round-1][file]:
+      resolved_findings[file] = set()
+
+    new_findings = []
+    For each finding f in findings:
+      key = (f.q_id, f.line)
+      # Order of precedence — evaluate in this order:
+      If per_q_status_history[f.q_id] shows oscillation (pattern [X, Y, X]):
+        f.severity = "advisory"   # oscillation-forced-advisory wins; keep finding
+        new_findings.append(f)
+      Elif key in resolved_findings.get(file, set()):
+        pass   # confirmed resolved by prior recheck; drop duplicate
+      Else:
+        new_findings.append(f)
+
+    Update results[file].findings = new_findings
+    Update results[file].loop_directive = loop_directive
+
+    # Record confirmed fixes into resolved_findings for future cross-round dedup
+    If loop_directive == "COMPLETE":
+      For each (q_id, line) in results[file].findings where fix was applied this round:
+        resolved_findings.setdefault(file, set()).add((q_id, line))
 
   current_findings_count = sum of all findings across recheck_files
 
@@ -452,8 +542,9 @@ DO:
   ```
   ──────────────────────────────────────────────────────
     Round [round]/[max_rounds]  [━×N][╌×M]  [fixes] fixes   [[elapsed]s]
-    Delta     ◐[prev_findings_count] → ◐[current_findings_count] ([↓N] | [↑N] | [→0])
+    Findings  [prev_findings_count] → [current_findings_count] (Δ[±N])
     Gates     [❌N critical | ✅]   [⚠️N advisory | ✅]
+    [omit if 0:] Exhausted  [E] file(s) — no content change after fix attempts (see Recommendations)
   ──────────────────────────────────────────────────────
   ```
 WHILE recheck_files non-empty AND round <= max_rounds
@@ -576,6 +667,11 @@ Compute health_bar from overall status:
   Per-File Status
   ─────────────────────────────────────
     [✅|⚠️|❌]  [filename]              [status] [(fixed RN) if fixed]
+    [only when findings > 0:]
+      ├─ Q[n] [title] — [critical|advisory] [applied|skipped|failed]
+      └─ Q[m] [title] — [advisory] [applied]
+    [cap at 5 findings; if more: "  … +N more"]
+    [clean files: one-liner only, no finding list]
 
   Summary
   ─────────────────────────────────────
@@ -583,6 +679,20 @@ Compute health_bar from overall status:
     Rounds    [R]
     Fixes     [F] applied, [S] skipped
     Duration  [T]s
+
+  Recommendations                         ← omit block entirely if both lists empty
+  ─────────────────────────────────────
+
+  [only if missing_linters non-empty:]
+  ▸ Install (for future runs)
+      [label]: [install_hint]              # copy-paste ready
+      ...
+
+  [only if exhausted_no_fix non-empty:]
+  ▸ Manual fixes needed (automatic fix failed)
+      [file] — [N] finding(s)
+        Q[n] [title] — see Step 4 output
+      ...
 
   Review History                          ← omit if only 1 round
   ─────────────────────────────────────────────
@@ -604,6 +714,7 @@ After printing the report, reflect on the review process itself:
 - Were fixes rejected by Edit tool? (Fix block format may not match actual code)
 - Did any file require all 5 rounds without converging? (question criteria may be ambiguous)
 - Were the same Q-IDs flagged across multiple files? (may indicate systemic codebase issue, not per-file)
+- Were any files marked exhausted-no-fix? (Fix block format may not match actual code — question's Fix guidance may need improvement)
 
 Print 0-3 recommendations if signals fire. Otherwise: "No prompt improvements identified."
 ```
