@@ -246,7 +246,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
 <!-- PHASE 3a — TRIVIAL EXECUTION | In: plan_path, questions_path | Out: gate file → Step 8 OR 3c(FULL) -->
    IF REVIEW_TIER == TRIVIAL:
      Print: "╔══════════════════════════════════════════════╗"
-     Print: "║  ⚡ FAST PATH                     TRIVIAL  ║"
+     Print: "║  ⚡ FAST PATH                     TRIVIAL    ║"
      Print: "╚══════════════════════════════════════════════╝"
      Print: "  Scope       1 file ([ext]), additive only"
      Print: "  Questions   5"
@@ -464,7 +464,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
      risk_count = total_q - 10
 
      Print: "╔══════════════════════════════════════════════╗"
-     Print: "║  ⚡ FAST PATH                       SMALL  ║"
+     Print: "║  ⚡ FAST PATH                       SMALL    ║"
      Print: "╚══════════════════════════════════════════════╝"
      Print: "  Scope       single-pass review"
      Print: "  Questions   [total_q] (10 core + [risk_count] risk-activated)"
@@ -766,7 +766,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
 
 <!-- PHASE 3c — FULL SETUP | In: plan_path, plan_slug, ACTIVE_RISKS, flags, active_clusters | Out: pass_count=0, tracking vars, RESULTS_DIR, memo_file | → Phase 4 -->
    Print: "╔══════════════════════════════════════════════╗"
-   Print: "║  ◆ CONFIG                            FULL   ║"
+   Print: "║  ◆ CONFIG                            FULL    ║"
    Print: "╚══════════════════════════════════════════════╝"
    Print mode based on flags (key-value layout):
      IS_GAS + HAS_UI:     "  Review mode  GAS + UI (gas-eval + impact cluster + ui-evaluator)"
@@ -857,7 +857,7 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
    Print: "  Results      $RESULTS_DIR"
    ```
    Print: "╔══════════════════════════════════════════════╗"
-   Print: "║  ◆ REVIEW                     convergence   ║"
+   Print: "║  ◆ REVIEW                     convergence    ║"
    Print: "╚══════════════════════════════════════════════╝"
    Print: "  Beginning convergence loop — evaluating plan quality across all active layers"
 
@@ -2357,7 +2357,7 @@ DO:
   IF changes_to_apply > 0:
     dedup_removed = total_findings_before_dedup - changes_to_apply
     Print: "╔══════════════════════════════════════════════╗"
-    Print: "║  ◆ APPLYING                                 ║"
+    Print: "║  ◆ APPLYING                                  ║"
     Print: "╚══════════════════════════════════════════════╝"
     Print: "  Found [total_findings_before_dedup]  →  Deduped [dedup_removed]  →  Queued [changes_to_apply]"
 
@@ -2918,7 +2918,7 @@ DO:
     total_elapsed = Math.round((Date.now() - timestamp) / 1000)
     resolved_questions = pass1_needs_update_set - current_needs_update_set  # Q-IDs fixed since pass 1
     Print: "╔══════════════════════════════════════════════╗"
-    Print: "║  🏁 CONVERGED                              ║"
+    Print: "║  🏁 CONVERGED                                ║"
     Print: "╚══════════════════════════════════════════════╝"
     Print: "  Passes    [pass_count]"
     Print: "  Duration  [total_elapsed]s"
@@ -3276,7 +3276,7 @@ After the convergence loop exits (scorecard not yet printed):
 
 2. **Boilerplate epilogue (Q-E1, Q-E2)** — one-time injection, **parallel**:
    Print: "╔══════════════════════════════════════════════╗"
-   Print: "║  ◆ EPILOGUE                                 ║"
+   Print: "║  ◆ EPILOGUE                                  ║"
    Print: "╚══════════════════════════════════════════════╝"
 
    **Q-E1 + Q-E2: Parallel epilogue evaluation**
@@ -3338,7 +3338,7 @@ After the convergence loop exits (scorecard not yet printed):
 
 3. **Q-G9 organization pass** (post-convergence structural check, inline):
    Print: "╔══════════════════════════════════════════════╗"
-   Print: "║  ◆ ORGANIZE                           Q-G9  ║"
+   Print: "║  ◆ ORGANIZE                           Q-G9   ║"
    Print: "╚══════════════════════════════════════════════╝"
    Print: "  Structural organization check on finalized plan"
    N/A if plan has fewer than 3 implementation steps — skip this step entirely.
@@ -3351,7 +3351,7 @@ After the convergence loop exits (scorecard not yet printed):
 <!-- ── PHASE 6: SCORECARD + META-REFLECTION ── -->
 
 4. Print: "╔══════════════════════════════════════════════╗"
-   Print: "║  ◆ SCORECARD                                ║"
+   Print: "║  ◆ SCORECARD                                 ║"
    Print: "╚══════════════════════════════════════════════╝"
    Print: "  >> Compiling final scorecard from all evaluator findings"
    **Output the final scorecard** (incorporating epilogue Q-E1/Q-E2 and Q-G9 results). See
@@ -3485,7 +3485,7 @@ IF len(research_pending) == 0 AND NOT _phase_5b5_skip:
 ELIF NOT _phase_5b5_skip:
     # Poll loop — only runs when research_pending is non-empty and Sub-case B didn't fire
     Print: "╔══════════════════════════════════════════════╗"
-    Print: "║  ◆ RESEARCH LANE                  joining   ║"
+    Print: "║  ◆ RESEARCH LANE                  joining    ║"
     Print: "╚══════════════════════════════════════════════╝"
 
     # Adaptive grace period: the effective research budget is measured from dispatch
