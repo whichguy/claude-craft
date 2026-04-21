@@ -25,6 +25,8 @@ MODEL_PIN=""          # --model-pin VERSION: fail if claude reports different mo
 PER_RUN_TIMEOUT=120   # --per-run-timeout N (seconds)
 MAX_CONCURRENCY=4     # --max-concurrency N (rate-limit budget)
 HOLDOUT_FIXTURES=0    # --holdout-fixtures N (train/test split for E3/E4; QI-4)
+SAVE_BASELINE=""      # --save-baseline [NAME]: copy result to results/baseline[-NAME].json
+BASELINE_NAME="main"  # default baseline name
 
 # ── Router-aware claude command resolution ────────────────────────────
 # Prefer claude-router (enables --route flag); fall back to bare claude.
@@ -66,6 +68,10 @@ Options:
   --per-run-timeout N  Timeout per reviewer invocation in seconds (default: 120)
   --max-concurrency N  Max parallel Claude calls (default: 4, rate-limit budget)
   --holdout-fixtures N Hold out N fixtures from training set for validation (QI-4)
+  --save-baseline [N] After --run, save result as results/baseline[-N].json (default name: main)
+  --compare-baseline [N] Compare latest results/[LABEL]-*.json against results/baseline[-N].json;
+                     exits 1 if F1 regresses by >0.02 (REGRESSION gate).
+                     Pass --label NAME to match the label used during --run (default: "run").
   -h, --help         Show this help
 
 Token telemetry (requires --output-format json with usage block):
@@ -83,6 +89,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --run) MODE="run"; shift ;;
     --compare) MODE="compare"; shift ;;
+    --compare-baseline) MODE="compare-baseline"; [[ $# -gt 1 && "${2:0:2}" != "--" ]] && { BASELINE_NAME="$2"; shift; }; shift ;;
+    --save-baseline) SAVE_BASELINE=1; [[ $# -gt 1 && "${2:0:2}" != "--" ]] && { BASELINE_NAME="$2"; shift; }; shift ;;
     --label) LABEL="$2"; shift 2 ;;
     --fixtures) FIXTURES_DIR="$2"; shift 2 ;;
     --runs) RUNS_PER_FIXTURE="$2"; shift 2 ;;
@@ -995,6 +1003,12 @@ print(json.dumps(results, indent=2))
   [[ "$retry_count" -gt 0 ]] && echo "  Retries: $retry_count (excluded from primary analysis)"
   [[ -n "$MODEL_PIN" ]] && echo "  Model pin: $MODEL_PIN (observed: $actual_model_seen)"
   echo "═══════════════════════════════════════════════"
+
+  if [[ -n "${SAVE_BASELINE:-}" ]]; then
+    local baseline_file="${RESULTS_DIR}/baseline-${BASELINE_NAME}.json"
+    cp "$out_file" "$baseline_file"
+    echo "  Baseline saved: $baseline_file"
+  fi
 }
 
 # ── Compare mode ──────────────────────────────────────────────────────
@@ -1146,6 +1160,46 @@ print(f'Verdict: {verdict_str} ({changes})')
 "
 }
 
+# ── Baseline compare mode ─────────────────────────────────────────────
+
+compare_baseline() {
+  local name="$1"
+  local baseline_file="${RESULTS_DIR}/baseline-${name}.json"
+
+  if ! [[ -f "$baseline_file" ]]; then
+    echo "Error: baseline not found: $baseline_file" >&2
+    echo "  Run with --save-baseline ${name} first." >&2
+    exit 1
+  fi
+
+  # Find latest non-baseline result for the current label
+  local latest_file
+  latest_file=$(ls -t "${RESULTS_DIR}/${LABEL}"-*.json 2>/dev/null | grep -v 'baseline' | head -1)
+  if [[ -z "$latest_file" ]]; then
+    echo "Error: no result files found matching ${RESULTS_DIR}/${LABEL}-*.json" >&2
+    echo "  Run with --run --label ${LABEL} first." >&2
+    exit 1
+  fi
+
+  echo "Regression check: $latest_file vs baseline $baseline_file"
+  compare_results "$baseline_file" "$latest_file"
+
+  # Regression gate: exit 1 if F1 drops by more than 0.02
+  python3 -c "
+import json, sys
+baseline = json.load(open('$baseline_file'))
+current  = json.load(open('$latest_file'))
+f1_base  = baseline['aggregate']['mean_f1']
+f1_curr  = current['aggregate']['mean_f1']
+delta    = f1_curr - f1_base
+if delta <= -0.02:
+    print(f'REGRESSION: F1 dropped {delta:+.4f} (threshold: -0.02)')
+    sys.exit(1)
+else:
+    print(f'OK: F1 delta {delta:+.4f} (threshold: -0.02)')
+"
+}
+
 # ── Main ──────────────────────────────────────────────────────────────
 
 case "$MODE" in
@@ -1158,5 +1212,8 @@ case "$MODE" in
       exit 1
     fi
     compare_results "$COMPARE_A" "$COMPARE_B"
+    ;;
+  compare-baseline)
+    compare_baseline "$BASELINE_NAME"
     ;;
 esac
