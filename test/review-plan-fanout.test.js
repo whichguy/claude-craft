@@ -1166,6 +1166,16 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(uiBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch is live
         });
 
+        // D-delta-print: delta computation block emits per-evaluator Δ print line
+        it('D-delta-print: delta computation block emits per-evaluator Δ print line guarded by pass_count > 1', function () {
+            const deltaStart = skillContent.indexOf('pass_delta = {}');
+            const deltaEnd = skillContent.indexOf('evaluators_to_spawn = []', deltaStart);
+            const deltaBlock = skillContent.substring(deltaStart, deltaEnd);
+            expect(deltaBlock).to.include('Δ [evaluator_name]');
+            expect(deltaBlock).to.include('len(delta_set)');
+            expect(deltaBlock).to.include('pass_delta.items()');
+        });
+
         // D13: prev_cluster_results and prev_ui_results appear in memo checkpoint
         it('D13: prev_cluster_results and prev_ui_results are checkpointed in memo writer', function () {
             const checkpointIdx = skillContent.indexOf('-- Checkpoint: persist memoized state');

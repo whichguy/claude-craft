@@ -1312,6 +1312,9 @@ DO:
     IF HAS_UI:
       pass_delta["ui-evaluator"] = {q for q, v in prev_ui_results.items() if v == "NEEDS_UPDATE"}
 
+    FOR evaluator_name, delta_set in sorted(pass_delta.items()):
+      Print: "  Δ [evaluator_name]: [len(delta_set)] Q-IDs re-evaluating"
+
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
   # Priority 1a: L1 blocking (Gate 1, always runs, 2 questions)
