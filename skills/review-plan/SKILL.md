@@ -1622,10 +1622,14 @@ DO:
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
-      All other structural questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-structural"]) if non-empty, else: "(none — all 6 were PASS/N/A last pass; confirm they still hold)"]
+      [IF pass_count > 1 AND pass_delta["l1-advisory-structural"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta["l1-advisory-structural"])]
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta["l1-advisory-structural"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1748,10 +1752,14 @@ DO:
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
-      All other process questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-process"]) if non-empty, else: "(none — all 19 were PASS/N/A last pass; confirm they still hold)"]
+      [IF pass_count > 1 AND pass_delta["l1-advisory-process"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta["l1-advisory-process"])]
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta["l1-advisory-process"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1916,10 +1924,14 @@ DO:
         Q-C32 (Bulk data safety) → N/A when HAS_UNBOUNDED_DATA=false. Applies only in
           non-GAS/non-NODE mode (IS_GAS and IS_NODE already supersede Q-C32).
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1], plus Gate 1 safety set for this cluster).
-      All other cluster questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta[cluster_name + "-evaluator"]) if non-empty, else: "(none — all cluster questions were PASS/N/A last pass; confirm they still hold)"]
+      [IF pass_count > 1 AND pass_delta[cluster_name + "-evaluator"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta[cluster_name + "-evaluator"])]
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta[cluster_name + "-evaluator"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1996,10 +2008,15 @@ DO:
 
       [IF gas_memo_directive is non-empty, append it here]
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set Q1, Q2, Q13, Q15, Q18, Q42).
-      All other gas questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["gas-evaluator"]) if non-empty, else: "Gate 1 safety set only (Q1, Q2, Q13, Q15, Q18, Q42) — all others were PASS/N/A last pass; confirm Gate 1 still holds"]
+      [IF pass_count > 1 AND pass_delta["gas-evaluator"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta["gas-evaluator"])]
+      (Gate 1 safety set Q1, Q2, Q13, Q15, Q18, Q42 always included regardless of prior verdict.)
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta["gas-evaluator"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2032,10 +2049,15 @@ DO:
 
       [IF node_memo_directive is non-empty, append it here]
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set N1).
-      All other node questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["node-evaluator"]) if non-empty, else: "Gate 1 safety set only (N1) — all others were PASS/N/A last pass; confirm N1 still holds"]
+      [IF pass_count > 1 AND pass_delta["node-evaluator"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta["node-evaluator"])]
+      (Gate 1 safety set N1 always included regardless of prior verdict.)
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta["node-evaluator"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2076,10 +2098,14 @@ DO:
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
 
-      [IF pass_count > 1, append:]
-      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
-      All other UI questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["ui-evaluator"]) if non-empty, else: "(none — all UI questions were PASS/N/A last pass; confirm they still hold)"]
+      [IF pass_count > 1 AND pass_delta["ui-evaluator"] is non-empty, append:]
+      Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
+        [comma-join sorted(pass_delta["ui-evaluator"])]
+      Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
+
+      [IF pass_count > 1 AND pass_delta["ui-evaluator"] is empty, append:]
+      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
+      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):

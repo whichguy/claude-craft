@@ -1105,58 +1105,58 @@ describe('Review-Plan Task Fan-Out', function () {
         });
 
         // D7: l1-advisory-structural evaluator prompt has delta injection
-        it('D7: l1-advisory-structural evaluator prompt has delta-only injection block', function () {
+        it('D7: l1-advisory-structural evaluator prompt has delta injection block', function () {
             const structStart = skillContent.indexOf('L1 Advisory Structural Evaluator Config');
             const structEnd = skillContent.indexOf('L1 Advisory Process Evaluator Config', structStart);
             const structBlock = skillContent.substring(structStart, structEnd);
-            expect(structBlock).to.include('Delta-only evaluation');
+            expect(structBlock).to.include('delta filter');
             expect(structBlock).to.include('pass_delta["l1-advisory-structural"]');
         });
 
         // D8: l1-advisory-process evaluator prompt has delta injection
-        it('D8: l1-advisory-process evaluator prompt has delta-only injection block', function () {
+        it('D8: l1-advisory-process evaluator prompt has delta injection block', function () {
             const procStart = skillContent.indexOf('L1 Advisory Process Evaluator Config');
             const procEnd = skillContent.indexOf('--- Cluster Evaluator Config', procStart);
             const procBlock = skillContent.substring(procStart, procEnd);
-            expect(procBlock).to.include('Delta-only evaluation');
+            expect(procBlock).to.include('delta filter');
             expect(procBlock).to.include('pass_delta["l1-advisory-process"]');
         });
 
         // D9: cluster evaluator prompt has delta injection referencing pass_delta
-        it('D9: cluster evaluator prompt has delta-only injection block referencing pass_delta', function () {
+        it('D9: cluster evaluator prompt has delta injection block referencing pass_delta', function () {
             const clusterStart = skillContent.indexOf('--- Cluster Evaluator Config');
             const clusterEnd = skillContent.indexOf('--- GAS Evaluator Config', clusterStart);
             const clusterBlock = skillContent.substring(clusterStart, clusterEnd);
-            expect(clusterBlock).to.include('Delta-only evaluation');
+            expect(clusterBlock).to.include('delta filter');
             expect(clusterBlock).to.include('pass_delta[cluster_name');
         });
 
         // D10: gas evaluator prompt has delta injection mentioning Gate 1 safety set
-        it('D10: gas evaluator prompt has delta-only injection block mentioning Gate 1 safety set', function () {
+        it('D10: gas evaluator prompt has delta injection block mentioning Gate 1 safety set', function () {
             const gasStart = skillContent.indexOf('--- GAS Evaluator Config');
             const gasEnd = skillContent.indexOf('--- Node Evaluator Config', gasStart);
             const gasBlock = skillContent.substring(gasStart, gasEnd);
-            expect(gasBlock).to.include('Delta-only evaluation');
+            expect(gasBlock).to.include('delta filter');
             expect(gasBlock).to.include('pass_delta["gas-evaluator"]');
             expect(gasBlock).to.include('Q1, Q2, Q13, Q15, Q18, Q42');
         });
 
         // D11: node evaluator prompt has delta injection mentioning N1
-        it('D11: node evaluator prompt has delta-only injection block mentioning N1', function () {
+        it('D11: node evaluator prompt has delta injection block mentioning N1', function () {
             const nodeStart = skillContent.indexOf('--- Node Evaluator Config');
             const nodeEnd = skillContent.indexOf('--- UI Evaluator Config', nodeStart);
             const nodeBlock = skillContent.substring(nodeStart, nodeEnd);
-            expect(nodeBlock).to.include('Delta-only evaluation');
+            expect(nodeBlock).to.include('delta filter');
             expect(nodeBlock).to.include('pass_delta["node-evaluator"]');
             expect(nodeBlock).to.include('N1');
         });
 
         // D12: ui evaluator prompt has delta injection
-        it('D12: ui evaluator prompt has delta-only injection block', function () {
+        it('D12: ui evaluator prompt has delta injection block', function () {
             const uiStart = skillContent.indexOf('--- UI Evaluator Config');
             const uiEnd = skillContent.indexOf('-- Pass-level summary', uiStart);
             const uiBlock = skillContent.substring(uiStart, uiEnd);
-            expect(uiBlock).to.include('Delta-only evaluation');
+            expect(uiBlock).to.include('delta filter');
             expect(uiBlock).to.include('pass_delta["ui-evaluator"]');
         });
 
@@ -1201,7 +1201,7 @@ describe('Review-Plan Task Fan-Out', function () {
             const blockingEnd = skillContent.indexOf('--- L1 Advisory Structural Evaluator Config', blockingStart);
             const blockingBlock = skillContent.substring(blockingStart, blockingEnd);
             expect(blockingBlock).to.not.include('pass_delta');
-            expect(blockingBlock).to.not.include('Delta-only evaluation');
+            expect(blockingBlock).to.not.include('delta filter');
         });
 
         // D18: routing uses per-entry merge (not full dict replacement) for gas/node/cluster/UI
@@ -1220,6 +1220,15 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(routeSection).to.include('node_results[n_id] = entry.status');
             expect(routeSection).to.include('ui_results[q_id] = entry');
             expect(routeSection).to.include('cluster_results[cluster_name][q_id] = entry');
+        });
+
+        // D19: delta blocks use filter framing with explicit JSON output scope (not old "re-evaluate ONLY" framing)
+        it('D19: delta blocks use filter framing with explicit JSON output scope', function () {
+            // Positive: new filter framing present
+            expect(skillContent).to.include('include in JSON ONLY');
+            expect(skillContent).to.include('Omit all other questions from your JSON findings');
+            // Negative: old double-ONLY framing must be gone
+            expect(skillContent).to.not.include('re-evaluate ONLY the Q-IDs listed below');
         });
     });
 });
