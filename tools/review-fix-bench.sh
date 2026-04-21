@@ -844,7 +844,7 @@ rec = {
 }
 if '$dispatch_mode' == 'loop':
     rec['rounds'] = $run_loop_rounds
-    rec['converged'] = $run_loop_converged
+    rec['converged'] = True if '$run_loop_converged' == 'true' else False
     rec['findings_per_round'] = json.loads('''$run_loop_findings_per_round''') if '$run_loop_findings_per_round' != 'null' else []
 print(json.dumps(rec))
 ")
@@ -1079,7 +1079,7 @@ print('└──────────────────────┴�
 cr_a = aa.get('total_cache_read_tokens', 0)
 cr_b = ba.get('total_cache_read_tokens', 0)
 inp_a = aa.get('total_input_tokens', 1)
-inp_b = aa.get('total_input_tokens', 1)
+inp_b = ba.get('total_input_tokens', 1)
 if cr_b > 0:
     cache_rate = cr_b / max(1, cr_b + inp_b)
     effective_inp_b = inp_b + 0.1 * cr_b

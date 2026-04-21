@@ -454,7 +454,7 @@ DO:
     ```
       ┌ [filename]
       │  [i]/[N] ┌ [Q-ID] [title] — [first sentence of fix]
-      │          └ ✓ applied | ⚠ skipped (old_string not found) | ✗ failed
+      │          └ ✓ applied | ✗ failed (old_string not found)
       ...
     ```
 
@@ -465,7 +465,7 @@ DO:
         new_string = fix_task.fix_block.after (verbatim)
       If Edit succeeds: record as applied, print ✓
       If Edit fails (old_string not found):
-        record as failed, print ⚠
+        record as failed, print ✗
         failed_fix_q_ids_this_file.append(fix_task.q_number)
 
     per_file_failed_q_ids[file] = failed_fix_q_ids_this_file  # capture before next iteration
@@ -688,7 +688,7 @@ Compute health_bar from overall status:
   ─────────────────────────────────────
     [✅|⚠️|❌]  [filename]              [status] [(fixed RN) if fixed]
     [only when findings > 0:]
-      ├─ Q[n] [title] — [critical|advisory] [applied|skipped|failed]
+      ├─ Q[n] [title] — [critical|advisory] [applied|failed|no-fix-block]
       └─ Q[m] [title] — [advisory] [applied]
     [cap at 5 findings; if more: "  … +N more"]
     [clean files: one-liner only, no finding list]
