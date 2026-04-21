@@ -149,6 +149,28 @@ describe('task-persist-restore.sh', function () {
         expect(ctx).to.match(/TaskCreate/);
         expect(ctx).to.match(/TaskUpdate/);
         expect(ctx).to.match(/old.{1,10}id|map.{1,20}id|remap/i);
+        // Should mention terminal states, not just "completed"
+        expect(ctx).to.match(/abandoned|terminal|cancelled/i);
+    });
+
+    // (i) abandoned task excluded from restore; its id pruned from surviving blockedBy
+    it('(i) abandoned task excluded from restore and pruned from blockedBy edges', async function () {
+        const priorDir = makePriorDir();
+        writeTask(priorDir, { id: '1', subject: 'Abandoned', description: 'D', activeForm: 'A', status: 'abandoned', blocks: ['2'], blockedBy: [] });
+        writeTask(priorDir, { id: '2', subject: 'Pending', description: 'P', activeForm: 'B', status: 'pending', blocks: [], blockedBy: ['1'] });
+
+        const { stdout } = await runRestore(CURRENT_SID);
+        const parsed = JSON.parse(stdout.trim());
+        const context = parsed.hookSpecificOutput.additionalContext;
+
+        const jsonLine = context.split('\n').find(l => l.trim().startsWith('['));
+        const tasks = JSON.parse(jsonLine);
+
+        // Only the pending task should be restored
+        expect(tasks).to.have.lengthOf(1);
+        expect(tasks[0].id).to.equal('2');
+        // blockedBy ref to the abandoned task should be dropped
+        expect(tasks[0].blockedBy).to.deep.equal([]);
     });
 
     // (h) prior session *.json files deleted; .lock preserved
