@@ -1445,8 +1445,9 @@ DO:
 
   -- Pass 2+ carry-forward seeding (non-narrowed Q-IDs from prev_pass verdicts) --
   # Seed prior-pass PASS/N/A verdicts into result dicts for Q-IDs NOT in the delta set.
-  # Routing (below) overwrites evaluated Q-IDs with fresh verdicts — seeding fires first so
-  # routing always wins for delta Q-IDs. Memoized-group seeding above takes priority over this.
+  # Routing (below) uses per-entry merge — it writes only delta Q-IDs and leaves seeded
+  # values intact. Seeding fires first; routing then merges fresh verdicts for delta Q-IDs.
+  # Memoized-group seeding above takes priority over this.
   # Invariant: NEEDS_UPDATE Q-IDs only appear in result dicts when an evaluator returns them.
   IF pass_count > 1:
     # L1 advisory structural (Q-G20–Q-G25)
@@ -1624,7 +1625,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
       All other structural questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-structural"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-structural"]) if non-empty, else: "(none — all 6 were PASS/N/A last pass; confirm they still hold)"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1750,7 +1751,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
       All other process questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-process"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-process"]) if non-empty, else: "(none — all 19 were PASS/N/A last pass; confirm they still hold)"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1918,7 +1919,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1], plus Gate 1 safety set for this cluster).
       All other cluster questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta[cluster_name + "-evaluator"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+      Re-evaluate: [comma-join sorted(pass_delta[cluster_name + "-evaluator"]) if non-empty, else: "(none — all cluster questions were PASS/N/A last pass; confirm they still hold)"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1998,7 +1999,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set Q1, Q2, Q13, Q15, Q18, Q42).
       All other gas questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["gas-evaluator"]) or "Gate 1 safety set only (Q1, Q2, Q13, Q15, Q18, Q42) — all others PASS/N/A last pass"]
+      Re-evaluate: [comma-join sorted(pass_delta["gas-evaluator"]) if non-empty, else: "Gate 1 safety set only (Q1, Q2, Q13, Q15, Q18, Q42) — all others were PASS/N/A last pass; confirm Gate 1 still holds"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2034,7 +2035,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set N1).
       All other node questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["node-evaluator"]) or "Gate 1 safety set only (N1) — all others PASS/N/A last pass"]
+      Re-evaluate: [comma-join sorted(pass_delta["node-evaluator"]) if non-empty, else: "Gate 1 safety set only (N1) — all others were PASS/N/A last pass; confirm N1 still holds"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2078,7 +2079,7 @@ DO:
       [IF pass_count > 1, append:]
       Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
       All other UI questions carry forward their prior-pass PASS/N/A verdict automatically.
-      Re-evaluate: [comma-join sorted(pass_delta["ui-evaluator"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+      Re-evaluate: [comma-join sorted(pass_delta["ui-evaluator"]) if non-empty, else: "(none — all UI questions were PASS/N/A last pass; confirm they still hold)"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2296,6 +2297,10 @@ DO:
     re_raised_qids = current_needs_update_set ∩ prev_needs_update_set  # NEEDS_UPDATE in both passes
     newly_resolved = prev_needs_update_set - current_needs_update_set   # was NEEDS_UPDATE, now PASS/N/A
     newly_surfaced = current_needs_update_set - prev_needs_update_set   # was PASS/N/A, now NEEDS_UPDATE
+    # Under memoized-delta narrowing (pass 2+), newly_surfaced is near-empty by construction:
+    # evaluators only output findings for delta Q-IDs (prior NEEDS_UPDATE + Gate 1 safety set).
+    # The only path to newly_surfaced is a Gate 1 safety Q-ID (e.g. Q-C3) that was PASS in
+    # pass 1 and returns NEEDS_UPDATE after an edit — the intended cross-invalidation signal.
     IF re_raised_qids:
       # Build a flat q_id → finding map from all_results for lookup
       curr_finding_map = {
