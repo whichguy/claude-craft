@@ -1111,6 +1111,7 @@ describe('Review-Plan Task Fan-Out', function () {
             const structBlock = skillContent.substring(structStart, structEnd);
             expect(structBlock).to.include('delta filter');
             expect(structBlock).to.include('pass_delta["l1-advisory-structural"]');
+            expect(structBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch is live
         });
 
         // D8: l1-advisory-process evaluator prompt has delta injection
@@ -1120,6 +1121,7 @@ describe('Review-Plan Task Fan-Out', function () {
             const procBlock = skillContent.substring(procStart, procEnd);
             expect(procBlock).to.include('delta filter');
             expect(procBlock).to.include('pass_delta["l1-advisory-process"]');
+            expect(procBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch is live
         });
 
         // D9: cluster evaluator prompt has delta injection referencing pass_delta
@@ -1129,6 +1131,7 @@ describe('Review-Plan Task Fan-Out', function () {
             const clusterBlock = skillContent.substring(clusterStart, clusterEnd);
             expect(clusterBlock).to.include('delta filter');
             expect(clusterBlock).to.include('pass_delta[cluster_name');
+            expect(clusterBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch live (non-impact clusters)
         });
 
         // D10: gas evaluator prompt has delta injection mentioning Gate 1 safety set
@@ -1139,6 +1142,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(gasBlock).to.include('delta filter');
             expect(gasBlock).to.include('pass_delta["gas-evaluator"]');
             expect(gasBlock).to.include('Q1, Q2, Q13, Q15, Q18, Q42');
+            expect(gasBlock).to.not.include('delta: no NEEDS_UPDATE Q-IDs');  // dead — gate1 always non-empty
         });
 
         // D11: node evaluator prompt has delta injection mentioning N1
@@ -1149,6 +1153,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(nodeBlock).to.include('delta filter');
             expect(nodeBlock).to.include('pass_delta["node-evaluator"]');
             expect(nodeBlock).to.include('N1');
+            expect(nodeBlock).to.not.include('delta: no NEEDS_UPDATE Q-IDs');  // dead — N1 gate1 always non-empty
         });
 
         // D12: ui evaluator prompt has delta injection
@@ -1158,6 +1163,7 @@ describe('Review-Plan Task Fan-Out', function () {
             const uiBlock = skillContent.substring(uiStart, uiEnd);
             expect(uiBlock).to.include('delta filter');
             expect(uiBlock).to.include('pass_delta["ui-evaluator"]');
+            expect(uiBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch is live
         });
 
         // D13: prev_cluster_results and prev_ui_results appear in memo checkpoint
