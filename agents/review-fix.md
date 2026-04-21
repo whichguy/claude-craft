@@ -419,10 +419,12 @@ Extract LOOP_DIRECTIVE: APPLY_AND_RECHECK or COMPLETE
 
 ```
 # invocation-scoped state (reset per run, no disk persistence)
-round_hashes = {}          # round → { file → sha256 of file content }
-resolved_findings = {}     # file → set of (q_id, line) confirmed fixed by prior recheck
-exhausted_no_fix = []      # files where all Fix blocks failed/skipped with no content change
-per_q_status_history = {}  # q_id → list of statuses across rounds (oscillation detection)
+round_hashes = {}           # round → { file → sha256 of file content }
+resolved_findings = {}      # file → set of (q_id, line) confirmed fixed by prior recheck
+exhausted_no_fix = []       # files where all Fix blocks failed/skipped with no content change
+exhausted_no_fix_q_ids = {} # file → [q_ids] whose Fix blocks failed (for Step 7 feedback)
+per_q_status_history = {}   # q_id → ["present"|"absent", ...] per round (oscillation detection)
+per_file_failed_q_ids = {}  # file → [q_ids] that failed this round's fix pass (reset each round)
 
 # Compute initial hashes for all files before any fix is applied
 round_hashes[0] = { file: sha256(Read(file)) for file in file_list }
@@ -430,6 +432,7 @@ round_hashes[0] = { file: sha256(Read(file)) for file in file_list }
 round = 0
 DO:
   round += 1
+  per_file_failed_q_ids = {}   # reset each round; populated during fix application below
   recheck_files = files where LOOP_DIRECTIVE == APPLY_AND_RECHECK
 
   IF recheck_files empty: BREAK (all clean)
@@ -455,13 +458,17 @@ DO:
       ...
     ```
 
+    failed_fix_q_ids_this_file = []
     For each fix_task:
       Apply via Edit tool:
         old_string = fix_task.fix_block.before (verbatim)
         new_string = fix_task.fix_block.after (verbatim)
       If Edit succeeds: record as applied, print ✓
-      If Edit fails (old_string not found): record as failed, print ⚠
+      If Edit fails (old_string not found):
+        record as failed, print ⚠
+        failed_fix_q_ids_this_file.append(fix_task.q_number)
 
+    per_file_failed_q_ids[file] = failed_fix_q_ids_this_file  # capture before next iteration
     Track: files_changed += file (if any fix applied)
 
   # Content-hash guard: skip recheck for files whose content is unchanged after fix attempts
@@ -471,6 +478,7 @@ DO:
   For f in unchanged_recheck:
     results[f].loop_directive = "COMPLETE"
     exhausted_no_fix.append(f)
+    exhausted_no_fix_q_ids[f] = per_file_failed_q_ids.get(f, [])  # per-file, not last-iteration
     Print: "  ◐ [f] — all fixes skipped/failed; marking exhausted (no recheck)"
   recheck_files = actually_changed
 
@@ -535,6 +543,18 @@ DO:
     If loop_directive == "COMPLETE":
       For each (q_id, line) in results[file].findings where fix was applied this round:
         resolved_findings.setdefault(file, set()).add((q_id, line))
+
+  # Populate per_q_status_history AFTER all recheck results are merged for this round.
+  # Must run once per round (not per file) to avoid cross-file contamination: if Q12
+  # appears in file A but not file B, processing file B inside the per-file loop would
+  # append "absent" for Q12 in the same round that file A appended "present", producing
+  # a spurious [present, absent] pattern that trips the [X,Y,X] oscillation check prematurely.
+  round_present_q_ids = {f.q_id for file in recheck_files for f in results[file].findings}
+  for q_id in round_present_q_ids:
+    per_q_status_history.setdefault(q_id, []).append("present")
+  for q_id in list(per_q_status_history):
+    if q_id not in round_present_q_ids:
+      per_q_status_history[q_id].append("absent")
 
   current_findings_count = sum of all findings across recheck_files
 
@@ -714,7 +734,9 @@ After printing the report, reflect on the review process itself:
 - Were fixes rejected by Edit tool? (Fix block format may not match actual code)
 - Did any file require all 5 rounds without converging? (question criteria may be ambiguous)
 - Were the same Q-IDs flagged across multiple files? (may indicate systemic codebase issue, not per-file)
-- Were any files marked exhausted-no-fix? (Fix block format may not match actual code — question's Fix guidance may need improvement)
+- Were any files marked exhausted-no-fix? If yes: for each exhausted file, name the specific
+  Q-IDs from exhausted_no_fix_q_ids[file] (e.g. "Q12, Q24 in foo.ts — Fix block old_string
+  did not match current content; Fix block template for these questions may need hardening").
 
 Print 0-3 recommendations if signals fire. Otherwise: "No prompt improvements identified."
 ```
