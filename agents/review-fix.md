@@ -433,6 +433,7 @@ round = 0
 DO:
   round += 1
   per_file_failed_q_ids = {}   # reset each round; populated during fix application below
+  this_round_applied = {}      # file → set of (q_id, line) where Edit succeeded this round
   recheck_files = files where LOOP_DIRECTIVE == APPLY_AND_RECHECK
 
   IF recheck_files empty: BREAK (all clean)
@@ -463,7 +464,9 @@ DO:
       Apply via Edit tool:
         old_string = fix_task.fix_block.before (verbatim)
         new_string = fix_task.fix_block.after (verbatim)
-      If Edit succeeds: record as applied, print ✓
+      If Edit succeeds:
+        record as applied, print ✓
+        this_round_applied.setdefault(file, set()).add((fix_task.q_number, fix_task.line))
       If Edit fails (old_string not found):
         record as failed, print ✗
         failed_fix_q_ids_this_file.append(fix_task.q_number)
@@ -528,7 +531,7 @@ DO:
     For each finding f in findings:
       key = (f.q_id, f.line)
       # Order of precedence — evaluate in this order:
-      If per_q_status_history[f.q_id] shows oscillation (pattern [X, Y, X]):
+      If per_q_status_history[f.q_id] shows oscillation (pattern ["present","absent","present"]):
         f.severity = "advisory"   # oscillation-forced-advisory wins; keep finding
         new_findings.append(f)
       Elif key in resolved_findings.get(file, set()):
@@ -540,8 +543,9 @@ DO:
     Update results[file].loop_directive = loop_directive
 
     # Record confirmed fixes into resolved_findings for future cross-round dedup
+    # this_round_applied = set of (q_id, line) where Edit succeeded in the fix pass above
     If loop_directive == "COMPLETE":
-      For each (q_id, line) in results[file].findings where fix was applied this round:
+      For each (q_id, line) in this_round_applied.get(file, set()):
         resolved_findings.setdefault(file, set()).add((q_id, line))
 
   # Populate per_q_status_history AFTER all recheck results are merged for this round.
