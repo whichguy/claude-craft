@@ -819,6 +819,8 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
    memoized_node_since = {}          # N-ID → pass_count when memoized
    prev_gas_results = {}             # Q-ID → PASS/NEEDS_UPDATE/N/A from previous pass
    prev_node_results = {}            # N-ID → PASS/NEEDS_UPDATE/N/A from previous pass
+   prev_cluster_results = {}         # cluster_name → {q_id: PASS/NEEDS_UPDATE/N/A} from previous pass (carry-forward)
+   prev_ui_results = {}              # q_id → PASS/NEEDS_UPDATE/N/A from previous pass (carry-forward)
    per_q_status_history = {}        # Q-ID → [status_per_pass] e.g. {"Q-G20": ["NEEDS_UPDATE", "PASS", "NEEDS_UPDATE"]}
                                     # Tracks per-question status across passes for oscillation detection.
                                     # A Q-ID with pattern [X, Y, X] (status flips twice) is oscillating.
@@ -1180,6 +1182,8 @@ DO:
                        memoized_node_since (default {}),
                        prev_gas_results (default {}),
                        prev_node_results (default {}),
+                       prev_cluster_results (default {}),
+                       prev_ui_results (default {}),
                        pass_phase_timings (default []),
                        evaluators_spawned_total (default 0),
        advisory_findings_cache (default {}),
@@ -1267,6 +1271,46 @@ DO:
     )
   # small_seed_context is the empty string when FULL started directly or small_pass_verdicts is empty.
   # Inject: prepend small_seed_context to task_prompt in each entry of evaluators_to_spawn (pass 1 only).
+
+  # Pass 2+ memoized-delta narrowing: compute per-evaluator Q-ID delta sets.
+  # On pass 2+, each evaluator runs only Q-IDs that were NEEDS_UPDATE last pass (+ Gate 1 safety).
+  # PASS/N/A verdicts carry forward automatically (seeded after memoized-group seeding below).
+  # pass_delta is referenced by evaluator prompt templates and carry-forward seeding.
+  pass_delta = {}  # evaluator_name → set of Q-IDs to re-evaluate on pass 2+
+  IF pass_count > 1:
+    gate1_gas          = {"Q1", "Q2", "Q13", "Q15", "Q18", "Q42"}  # gas Gate 1 — always re-evaluated
+    gate1_node         = {"N1"}                                      # node Gate 1 — always re-evaluated
+    gate1_cluster_impact = {"Q-C3"}                                  # impact cluster Gate 1 — always re-evaluated
+
+    structural_all = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+    pass_delta["l1-advisory-structural"] = {q for q in structural_all
+                                             if prev_pass_results.get(q) == "NEEDS_UPDATE"}
+
+    process_all = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
+                   "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
+                   "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31", "Q-G32"}
+    pass_delta["l1-advisory-process"] = {q for q in process_all
+                                          if prev_pass_results.get(q) == "NEEDS_UPDATE"}
+
+    IF IS_GAS AND NOT fully_memoized_gas:
+      gas_nu = {q for q, v in prev_gas_results.items() if v == "NEEDS_UPDATE"}
+      pass_delta["gas-evaluator"] = gas_nu | gate1_gas
+
+    ELIF IS_NODE AND NOT fully_memoized_node:
+      node_nu = {n for n, v in prev_node_results.items() if v == "NEEDS_UPDATE"}
+      pass_delta["node-evaluator"] = node_nu | gate1_node
+
+    FOR cluster_name in active_clusters:
+      IF cluster_name in memoized_clusters:
+        CONTINUE
+      cluster_prev = prev_cluster_results.get(cluster_name, {})
+      cluster_nu = {q for q, v in cluster_prev.items() if v == "NEEDS_UPDATE"}
+      IF cluster_name == "impact":
+        cluster_nu = cluster_nu | gate1_cluster_impact
+      pass_delta[cluster_name + "-evaluator"] = cluster_nu
+
+    IF HAS_UI:
+      pass_delta["ui-evaluator"] = {q for q, v in prev_ui_results.items() if v == "NEEDS_UPDATE"}
 
   evaluators_to_spawn = []  # list of {name, task_prompt}
 
@@ -1399,6 +1443,62 @@ DO:
       l1_results[q] = "PASS"  # group-memoized — all were PASS/N/A
     Print: "  ⏭ l1-advisory-process               locked since p[l1_process_memoized_since]"
 
+  -- Pass 2+ carry-forward seeding (non-narrowed Q-IDs from prev_pass verdicts) --
+  # Seed prior-pass PASS/N/A verdicts into result dicts for Q-IDs NOT in the delta set.
+  # Routing (below) overwrites evaluated Q-IDs with fresh verdicts — seeding fires first so
+  # routing always wins for delta Q-IDs. Memoized-group seeding above takes priority over this.
+  # Invariant: NEEDS_UPDATE Q-IDs only appear in result dicts when an evaluator returns them.
+  IF pass_count > 1:
+    # L1 advisory structural (Q-G20–Q-G25)
+    IF NOT l1_structural_memoized:
+      structural_all = {"Q-G20", "Q-G21", "Q-G22", "Q-G23", "Q-G24", "Q-G25"}
+      structural_delta = pass_delta.get("l1-advisory-structural", set())
+      FOR q in structural_all:
+        IF q NOT in structural_delta:
+          l1_results[q] = prev_pass_results.get(q, "PASS")
+
+    # L1 advisory process (19 questions)
+    IF NOT l1_process_memoized:
+      process_all = {"Q-G4", "Q-G5", "Q-G6", "Q-G7", "Q-G10",
+                     "Q-G12", "Q-G13", "Q-G14", "Q-G16", "Q-G17", "Q-G18", "Q-G19",
+                     "Q-G26", "Q-G27", "Q-G28", "Q-G29", "Q-G30", "Q-G31", "Q-G32"}
+      process_delta = pass_delta.get("l1-advisory-process", set())
+      FOR q in process_all:
+        IF q NOT in process_delta:
+          l1_results[q] = prev_pass_results.get(q, "PASS")
+
+    # GAS evaluator
+    IF IS_GAS AND NOT fully_memoized_gas:
+      gas_delta = pass_delta.get("gas-evaluator", set())
+      FOR q, v in prev_gas_results.items():
+        IF q NOT in gas_delta:
+          gas_results[q] = v
+
+    # Node evaluator
+    IF IS_NODE AND NOT fully_memoized_node:
+      node_delta = pass_delta.get("node-evaluator", set())
+      FOR n, v in prev_node_results.items():
+        IF n NOT in node_delta:
+          node_results[n] = v
+
+    # Cluster evaluators
+    FOR cluster_name in active_clusters:
+      IF cluster_name in memoized_clusters:
+        CONTINUE
+      cluster_delta = pass_delta.get(cluster_name + "-evaluator", set())
+      FOR q, v in prev_cluster_results.get(cluster_name, {}).items():
+        IF q NOT in cluster_delta:
+          IF cluster_name NOT in cluster_results:
+            cluster_results[cluster_name] = {}
+          cluster_results[cluster_name][q] = {"status": v, "finding": "", "edit": null}
+
+    # UI evaluator
+    IF HAS_UI:
+      ui_delta = pass_delta.get("ui-evaluator", set())
+      FOR q, v in prev_ui_results.items():
+        IF q NOT in ui_delta:
+          ui_results[q] = {"status": v, "finding": "", "edit": null}
+
   --- EVALUATOR_OUTPUT_CONTRACT (shared by l1-blocking, l1-advisory-structural, l1-advisory-process, cluster, and ui evaluators) ---
   # Referenced as [See: EVALUATOR_OUTPUT_CONTRACT] in each evaluator config below.
   # Gas-evaluator and node-evaluator use their own output contracts (defined in external eval files).
@@ -1521,6 +1621,11 @@ DO:
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
 
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
+      All other structural questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-structural"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
         - [Q-ID] ([evaluator]): [summary]
@@ -1641,6 +1746,11 @@ DO:
       Memoized questions — SKIP, already stable (PASS or N/A): [comma-separated relevant memoized_l1_questions]
       These were confirmed PASS or N/A in a prior pass and are structurally stable.
       Do not re-evaluate them; treat as PASS in your output.
+
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
+      All other process questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta["l1-advisory-process"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1805,6 +1915,11 @@ DO:
         Q-C32 (Bulk data safety) → N/A when HAS_UNBOUNDED_DATA=false. Applies only in
           non-GAS/non-NODE mode (IS_GAS and IS_NODE already supersede Q-C32).
 
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1], plus Gate 1 safety set for this cluster).
+      All other cluster questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta[cluster_name + "-evaluator"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
+
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
         - [Q-ID] ([evaluator]): [summary]
@@ -1880,6 +1995,11 @@ DO:
 
       [IF gas_memo_directive is non-empty, append it here]
 
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set Q1, Q2, Q13, Q15, Q18, Q42).
+      All other gas questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta["gas-evaluator"]) or "Gate 1 safety set only (Q1, Q2, Q13, Q15, Q18, Q42) — all others PASS/N/A last pass"]
+
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
         - [Q-ID] ([evaluator]): [summary]
@@ -1910,6 +2030,11 @@ DO:
       evaluator_name = node-evaluator
 
       [IF node_memo_directive is non-empty, append it here]
+
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1] plus Gate 1 safety set N1).
+      All other node questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta["node-evaluator"]) or "Gate 1 safety set only (N1) — all others PASS/N/A last pass"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -1949,6 +2074,11 @@ DO:
 
       Self-referential protection: skip content marked <!-- review-plan --> or <!-- gas-plan -->
       or <!-- node-plan -->.
+
+      [IF pass_count > 1, append:]
+      Delta-only evaluation: re-evaluate ONLY the Q-IDs listed below (NEEDS_UPDATE in pass [pass_count-1]).
+      All other UI questions carry forward their prior-pass PASS/N/A verdict automatically.
+      Re-evaluate: [comma-join sorted(pass_delta["ui-evaluator"]) or "none — all were PASS/N/A last pass; verify they still PASS"]
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
@@ -2108,6 +2238,19 @@ DO:
         advisory_findings_cache[q_id] = {"finding": entry.finding, "source": evaluator_name}
       ELIF entry.status == "PASS" AND (entry.finding is null OR entry.finding == ""):
         advisory_findings_cache.pop(q_id, None)  # clear stale entry if condition resolved
+
+  -- Update cluster and UI carry-forward trackers (used by pass_delta next pass) --
+  # Flatten to status-only maps. Includes carry-forward seeded values so the full
+  # per-Q verdict map is accurate for the next pass's delta computation.
+  prev_cluster_results = {
+    cluster_name: {q_id: (entry.status if isinstance(entry, dict) else entry)
+                   for q_id, entry in findings.items()}
+    for cluster_name, findings in cluster_results.items()
+  }
+  prev_ui_results = {
+    q_id: (entry.status if isinstance(entry, dict) else entry)
+    for q_id, entry in ui_results.items()
+  }
 
   -- Merge & Apply --
   COLLECT all NEEDS_UPDATE findings from all_results (L1, cluster, ecosystem, and ui evaluators)
@@ -2517,6 +2660,8 @@ DO:
     memoized_node_since,
     prev_gas_results,
     prev_node_results,
+    prev_cluster_results,
+    prev_ui_results,
     pass_phase_timings,
     evaluators_spawned_total,
     advisory_findings_cache,
@@ -2629,11 +2774,14 @@ DO:
       evaluator_status_lines.append("[eval_name] ── error")
     ELSE IF pass_count == 1:
       evaluator_status_lines.append("[eval_name] ── re-run (first pass)")
-    ELSE IF len(prev_pass_applied_edits) > 0:
-      edited_qids = [e.q_id for e in prev_pass_applied_edits]
-      evaluator_status_lines.append("[eval_name] ── re-run (prev edits: [join(edited_qids, ', ')])")
     ELSE:
-      evaluator_status_lines.append("[eval_name] ── re-run (stability not met)")
+      delta_ids = pass_delta.get(eval_name, set())
+      IF delta_ids:
+        q_sample = sorted(delta_ids)[:3]
+        sample_str = join(q_sample, ', ') + (' …' if len(delta_ids) > 3 else '')
+        evaluator_status_lines.append("[eval_name] ── delta-eval ([len(delta_ids)] Q-IDs: [sample_str])")
+      ELSE:
+        evaluator_status_lines.append("[eval_name] ── delta-eval (0 Q-IDs — verifying stable)")
   Print: "──────────────────────────────────────────────────────"
   Print: "  Evaluators"
   FOR line in evaluator_status_lines:
