@@ -1927,6 +1927,7 @@ DO:
       [IF pass_count > 1 AND pass_delta[cluster_name + "-evaluator"] is non-empty, append:]
       Pass [pass_count] delta filter — from the questions above, evaluate and include in JSON ONLY:
         [comma-join sorted(pass_delta[cluster_name + "-evaluator"])]
+      [IF cluster_name == "impact", append: (Q-C3 Gate 1 always included regardless of prior verdict.)]
       Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
 
       [IF pass_count > 1 AND pass_delta[cluster_name + "-evaluator"] is empty, append:]
@@ -2014,10 +2015,6 @@ DO:
       (Gate 1 safety set Q1, Q2, Q13, Q15, Q18, Q42 always included regardless of prior verdict.)
       Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
 
-      [IF pass_count > 1 AND pass_delta["gas-evaluator"] is empty, append:]
-      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
-      normally and include all in your JSON findings.
-
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
         - [Q-ID] ([evaluator]): [summary]
@@ -2054,10 +2051,6 @@ DO:
         [comma-join sorted(pass_delta["node-evaluator"])]
       (Gate 1 safety set N1 always included regardless of prior verdict.)
       Omit all other questions from your JSON findings — their verdicts carry forward as PASS/N/A.
-
-      [IF pass_count > 1 AND pass_delta["node-evaluator"] is empty, append:]
-      Pass [pass_count] delta: no NEEDS_UPDATE Q-IDs from last pass. Evaluate all questions above
-      normally and include all in your JSON findings.
 
       [IF pass_count > 1 AND prev_pass_applied_edits is non-empty, append:]
       Previous pass applied [N] edit(s):
