@@ -529,9 +529,9 @@ DO:
 
     new_findings = []
     For each finding f in findings:
-      key = (f.q_id, f.line)
+      key = (f.q_number, f.line)
       # Order of precedence — evaluate in this order:
-      If per_q_status_history[f.q_id] shows oscillation (pattern ["present","absent","present"]):
+      If per_q_status_history[f.q_number] shows oscillation (pattern ["present","absent","present"]):
         f.severity = "advisory"   # oscillation-forced-advisory wins; keep finding
         new_findings.append(f)
       Elif key in resolved_findings.get(file, set()):
@@ -553,7 +553,7 @@ DO:
   # appears in file A but not file B, processing file B inside the per-file loop would
   # append "absent" for Q12 in the same round that file A appended "present", producing
   # a spurious [present, absent] pattern that trips the [X,Y,X] oscillation check prematurely.
-  round_present_q_ids = {f.q_id for file in recheck_files for f in results[file].findings}
+  round_present_q_ids = {f.q_number for file in recheck_files for f in results[file].findings}
   for q_id in round_present_q_ids:
     per_q_status_history.setdefault(q_id, []).append("present")
   for q_id in list(per_q_status_history):
