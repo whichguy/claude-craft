@@ -1054,4 +1054,154 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(content).to.match(/^\s*\d+\.\s+.*\b(remove|delete)\b/im);
         });
     });
+
+    describe('pass 2+ memoized-delta narrowing', function () {
+        // D1: pass_delta dict declared and guarded by pass_count > 1
+        it('D1: pass_delta dict is declared and its computation is guarded by pass_count > 1', function () {
+            expect(skillContent).to.include('pass_delta = {}');
+            expect(skillContent).to.include('IF pass_count > 1:');
+        });
+
+        // D2: prev_cluster_results and prev_ui_results declared in tracking vars
+        it('D2: prev_cluster_results and prev_ui_results are declared in tracking vars', function () {
+            expect(skillContent).to.include('prev_cluster_results = {}');
+            expect(skillContent).to.include('prev_ui_results = {}');
+        });
+
+        // D3: carry-forward seeding block exists and is guarded by pass_count > 1
+        it('D3: carry-forward seeding block exists and is guarded by pass_count > 1', function () {
+            expect(skillContent).to.include('carry-forward seeding');
+            const seedIdx = skillContent.indexOf('carry-forward seeding');
+            expect(seedIdx).to.be.greaterThan(-1);
+            // Seeding block is inside a pass_count > 1 guard
+            const seedBlock = skillContent.substring(seedIdx, seedIdx + 3000);
+            expect(seedBlock).to.include('prev_cluster_results');
+            expect(seedBlock).to.include('prev_ui_results');
+        });
+
+        // D4: Gate 1 safety set for impact cluster (Q-C3) always included in delta
+        it('D4: impact cluster delta always includes Gate 1 safety Q-C3', function () {
+            const deltaIdx = skillContent.indexOf('pass_delta = {}');
+            const deltaBlock = skillContent.substring(deltaIdx, deltaIdx + 3000);
+            expect(deltaBlock).to.include('gate1_cluster_impact');
+            expect(deltaBlock).to.include('"Q-C3"');
+            expect(deltaBlock).to.include('cluster_name == "impact"');
+        });
+
+        // D5: Gate 1 safety set for gas evaluator (Q1, Q2, Q13, Q15, Q18, Q42)
+        it('D5: gas evaluator delta always includes Gate 1 safety set Q1/Q2/Q13/Q15/Q18/Q42', function () {
+            const deltaIdx = skillContent.indexOf('pass_delta = {}');
+            const deltaBlock = skillContent.substring(deltaIdx, deltaIdx + 3000);
+            expect(deltaBlock).to.include('gate1_gas');
+            expect(deltaBlock).to.include('"Q1", "Q2", "Q13", "Q15", "Q18", "Q42"');
+        });
+
+        // D6: Gate 1 safety set for node evaluator (N1)
+        it('D6: node evaluator delta always includes Gate 1 safety set N1', function () {
+            const deltaIdx = skillContent.indexOf('pass_delta = {}');
+            const deltaBlock = skillContent.substring(deltaIdx, deltaIdx + 3000);
+            expect(deltaBlock).to.include('gate1_node');
+            expect(deltaBlock).to.include('"N1"');
+        });
+
+        // D7: l1-advisory-structural evaluator prompt has delta injection
+        it('D7: l1-advisory-structural evaluator prompt has delta-only injection block', function () {
+            const structStart = skillContent.indexOf('L1 Advisory Structural Evaluator Config');
+            const structEnd = skillContent.indexOf('L1 Advisory Process Evaluator Config', structStart);
+            const structBlock = skillContent.substring(structStart, structEnd);
+            expect(structBlock).to.include('Delta-only evaluation');
+            expect(structBlock).to.include('pass_delta["l1-advisory-structural"]');
+        });
+
+        // D8: l1-advisory-process evaluator prompt has delta injection
+        it('D8: l1-advisory-process evaluator prompt has delta-only injection block', function () {
+            const procStart = skillContent.indexOf('L1 Advisory Process Evaluator Config');
+            const procEnd = skillContent.indexOf('--- Cluster Evaluator Config', procStart);
+            const procBlock = skillContent.substring(procStart, procEnd);
+            expect(procBlock).to.include('Delta-only evaluation');
+            expect(procBlock).to.include('pass_delta["l1-advisory-process"]');
+        });
+
+        // D9: cluster evaluator prompt has delta injection referencing pass_delta
+        it('D9: cluster evaluator prompt has delta-only injection block referencing pass_delta', function () {
+            const clusterStart = skillContent.indexOf('--- Cluster Evaluator Config');
+            const clusterEnd = skillContent.indexOf('--- GAS Evaluator Config', clusterStart);
+            const clusterBlock = skillContent.substring(clusterStart, clusterEnd);
+            expect(clusterBlock).to.include('Delta-only evaluation');
+            expect(clusterBlock).to.include('pass_delta[cluster_name');
+        });
+
+        // D10: gas evaluator prompt has delta injection mentioning Gate 1 safety set
+        it('D10: gas evaluator prompt has delta-only injection block mentioning Gate 1 safety set', function () {
+            const gasStart = skillContent.indexOf('--- GAS Evaluator Config');
+            const gasEnd = skillContent.indexOf('--- Node Evaluator Config', gasStart);
+            const gasBlock = skillContent.substring(gasStart, gasEnd);
+            expect(gasBlock).to.include('Delta-only evaluation');
+            expect(gasBlock).to.include('pass_delta["gas-evaluator"]');
+            expect(gasBlock).to.include('Q1, Q2, Q13, Q15, Q18, Q42');
+        });
+
+        // D11: node evaluator prompt has delta injection mentioning N1
+        it('D11: node evaluator prompt has delta-only injection block mentioning N1', function () {
+            const nodeStart = skillContent.indexOf('--- Node Evaluator Config');
+            const nodeEnd = skillContent.indexOf('--- UI Evaluator Config', nodeStart);
+            const nodeBlock = skillContent.substring(nodeStart, nodeEnd);
+            expect(nodeBlock).to.include('Delta-only evaluation');
+            expect(nodeBlock).to.include('pass_delta["node-evaluator"]');
+            expect(nodeBlock).to.include('N1');
+        });
+
+        // D12: ui evaluator prompt has delta injection
+        it('D12: ui evaluator prompt has delta-only injection block', function () {
+            const uiStart = skillContent.indexOf('--- UI Evaluator Config');
+            const uiEnd = skillContent.indexOf('-- Pass-level summary', uiStart);
+            const uiBlock = skillContent.substring(uiStart, uiEnd);
+            expect(uiBlock).to.include('Delta-only evaluation');
+            expect(uiBlock).to.include('pass_delta["ui-evaluator"]');
+        });
+
+        // D13: prev_cluster_results and prev_ui_results appear in memo checkpoint
+        it('D13: prev_cluster_results and prev_ui_results are checkpointed in memo writer', function () {
+            const checkpointIdx = skillContent.indexOf('-- Checkpoint: persist memoized state');
+            expect(checkpointIdx, 'checkpoint section not found').to.be.greaterThan(0);
+            const checkpointBlock = skillContent.substring(checkpointIdx, checkpointIdx + 2000);
+            expect(checkpointBlock).to.include('prev_cluster_results');
+            expect(checkpointBlock).to.include('prev_ui_results');
+        });
+
+        // D14: prev_cluster_results and prev_ui_results appear in context recovery
+        it('D14: prev_cluster_results and prev_ui_results are restored in context-compression recovery', function () {
+            const recoveryIdx = skillContent.indexOf('Context-compression recovery');
+            expect(recoveryIdx, 'recovery section not found').to.be.greaterThan(0);
+            const recoveryBlock = skillContent.substring(recoveryIdx, recoveryIdx + 3000);
+            expect(recoveryBlock).to.include('prev_cluster_results');
+            expect(recoveryBlock).to.include('prev_ui_results');
+        });
+
+        // D15: evaluator status lines show delta-eval (not hard-coded "re-run") on pass 2+
+        it('D15: evaluator status lines show delta-eval count on pass 2+', function () {
+            expect(skillContent).to.include('delta-eval');
+            // Must NOT still show the old pass-2+ label "re-run (stability not met)"
+            expect(skillContent).to.not.include('re-run (stability not met)');
+        });
+
+        // D16: carry-forward tracker update block appears after routing, before finding-diff
+        it('D16: carry-forward tracker update block appears after routing and before finding-diff', function () {
+            const trackerIdx = skillContent.indexOf('Update cluster and UI carry-forward trackers');
+            const routeIdx = skillContent.indexOf('Route findings from all_results');
+            const diffIdx = skillContent.indexOf('Finding-diff: detect re-raised');
+            expect(trackerIdx, 'tracker update block not found').to.be.greaterThan(0);
+            expect(trackerIdx).to.be.greaterThan(routeIdx);
+            expect(trackerIdx).to.be.lessThan(diffIdx);
+        });
+
+        // D17: l1-blocking is NOT narrowed (no pass_delta reference in l1-blocking config)
+        it('D17: l1-blocking evaluator is never narrowed (pass_delta not referenced in l1-blocking config)', function () {
+            const blockingStart = skillContent.indexOf('--- L1 Blocking Evaluator Config');
+            const blockingEnd = skillContent.indexOf('--- L1 Advisory Structural Evaluator Config', blockingStart);
+            const blockingBlock = skillContent.substring(blockingStart, blockingEnd);
+            expect(blockingBlock).to.not.include('pass_delta');
+            expect(blockingBlock).to.not.include('Delta-only evaluation');
+        });
+    });
 });
