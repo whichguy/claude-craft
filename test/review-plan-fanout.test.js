@@ -1203,5 +1203,23 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(blockingBlock).to.not.include('pass_delta');
             expect(blockingBlock).to.not.include('Delta-only evaluation');
         });
+
+        // D18: routing uses per-entry merge (not full dict replacement) for gas/node/cluster/UI
+        // Full replacement wipes carry-forward seeded values on pass 2+.
+        it('D18: gas/node/cluster/UI routing uses per-entry merge, not full dict replacement', function () {
+            const routeSection = skillContent.substring(
+                skillContent.indexOf('Route findings — specific evaluators')
+            );
+            // Full-replacement patterns that would wipe carry-forward seeding — must NOT appear
+            expect(routeSection).to.not.include('gas_results = {q_id: entry.status for');
+            expect(routeSection).to.not.include('node_results = {n_id: entry.status for');
+            expect(routeSection).to.not.include('ui_results = data.findings');
+            expect(routeSection).to.not.match(/cluster_results\[cluster_name\] = data\.findings/);
+            // Per-entry merge patterns — must appear in routing section
+            expect(routeSection).to.include('gas_results[q_id] = entry.status');
+            expect(routeSection).to.include('node_results[n_id] = entry.status');
+            expect(routeSection).to.include('ui_results[q_id] = entry');
+            expect(routeSection).to.include('cluster_results[cluster_name][q_id] = entry');
+        });
     });
 });

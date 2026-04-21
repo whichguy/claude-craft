@@ -2215,17 +2215,27 @@ DO:
           l1_edits[q_id] = entry
 
     ELSE IF evaluator_name == "gas-evaluator":
-      gas_results = {q_id: entry.status for q_id, entry in data.findings}
+      # Merge (not replace) — preserves carry-forward seeded values for non-delta Q-IDs on pass 2+
+      FOR q_id, entry in data.findings:
+        gas_results[q_id] = entry.status
 
     ELSE IF evaluator_name == "node-evaluator":
-      node_results = {n_id: entry.status for n_id, entry in data.findings}
+      # Merge (not replace) — same carry-forward preservation
+      FOR n_id, entry in data.findings:
+        node_results[n_id] = entry.status
 
     ELSE IF evaluator_name == "ui-evaluator":
-      ui_results = data.findings
+      # Merge (not replace) — same carry-forward preservation
+      FOR q_id, entry in data.findings:
+        ui_results[q_id] = entry
 
     ELSE IF evaluator_name matches "*-evaluator" (cluster):
       cluster_name = evaluator_name minus "-evaluator" suffix
-      cluster_results[cluster_name] = data.findings
+      # Merge (not replace) — same carry-forward preservation
+      IF cluster_name NOT in cluster_results:
+        cluster_results[cluster_name] = {}
+      FOR q_id, entry in data.findings:
+        cluster_results[cluster_name][q_id] = entry
 
     # ADVISORY_CACHE_QIDS: Gate 3 questions only (Q-G25, Q-G28). Q-G20-Q-G24 are Gate 2 —
     # their PASS-with-finding text is descriptive, not advisory, and is never rendered in the
