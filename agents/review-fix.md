@@ -253,7 +253,15 @@ prepass_prompt = (file) => `
   Fix any issues you find — bugs, style violations, dead code, naming problems,
   missing error handling, off-by-one errors, security issues.
   Apply fixes directly with the Edit tool. Be selective: only fix issues that
-  are clear improvements. Do not refactor arbitrarily.
+  are clear improvements.
+
+  HARD LIMITS — never do any of these, even if they look like cleanup:
+  - Rename functions, classes, methods, or exported symbols
+  - Change function signatures (parameters, return types)
+  - Delete entire functions, classes, or exported symbols
+  - Move code between files
+  - Introduce new dependencies or imports of symbols not already imported
+
   After editing, output a one-line summary per fix: [FIX: <Q-category> — <description>].
   If no issues found, output: CLEAN.
 `
@@ -285,19 +293,38 @@ For each completion from pre_pass_agents:
 For each f in files_touched_by_pre_pass:
   per_file_diffs[f] = git diff HEAD -- f
 
-# Detect structural changes: function removal or signature change in FIX lines
-structural_flags = [f for f in files_touched_by_pre_pass
-                    if any("removed" in fix or "signature" in fix or "delete" in fix
-                           for fix in pre_pass_fixes[f])]
+# Detect structural changes: function removal, rename, signature change, or move
+# in FIX lines. Structural changes violate HARD LIMITS — reject the pre-pass edit
+# for that file (revert) and fall through to Q1-Q37 structured review.
+STRUCTURAL_PATTERNS = ["removed", "signature", "delete", "renamed", "moved"]
 
-If len(files_touched_by_pre_pass) == 0 AND structural_flags is empty:
+structural_flags = {}   # file → matched pattern
+for f in files_touched_by_pre_pass:
+  for fix in pre_pass_fixes[f]:
+    low = fix.lower()
+    for pat in STRUCTURAL_PATTERNS:
+      if pat in low:
+        structural_flags[f] = pat
+        break
+    if f in structural_flags:
+      break
+
+# Reject structural edits: revert the file and remove it from touched list
+for f, pat in structural_flags.items():
+  Print: "  ▸ Pre-pass: rejected structural change (category: " + pat + ") in " + f + " — falling through to Q1-Q37"
+  Bash("git checkout HEAD -- " + f)
+  files_touched_by_pre_pass.remove(f)
+  pre_pass_fixes[f] = ["CLEAN"]
+  per_file_diffs[f] = ""
+
+If len(files_touched_by_pre_pass) == 0 AND not structural_flags:
   [skip banner entirely — silent no-op]
 Else:
   Print pre-pass banner:
     ── Pre-pass ─────────────────────────────────────────────────────
       [len(files_touched_by_pre_pass)] files fixed   [len(file_list) - len(files_touched_by_pre_pass)] clean   (haiku freeform, [elapsed]s)
       [per-file: file → "N fix(es)" or "clean"]
-      [for f in structural_flags: "  ⚠ structural change in [f] — review before proceeding"]
+      [for f, pat in structural_flags.items(): "  ⚠ structural change rejected in [f] (category: [pat]) — reverted, re-review via Q1-Q37"]
     ──────────────────────────────────────────────────────────────────
 ```
 
