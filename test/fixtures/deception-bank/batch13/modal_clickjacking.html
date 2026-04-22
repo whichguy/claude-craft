@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Secure Document Viewer</title>
+    <style>
+        .overlay-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            /* TRAP: Stacking Context & Clickjacking */
+            /* Opacity is 0, so it's invisible, but pointer-events are NOT none. */
+            /* Z-index places it over the document, capturing all clicks. */
+            opacity: 0.0;
+            z-index: 9999;
+            background: white;
+        }
+
+        .document-content {
+            padding: 20px;
+            font-family: sans-serif;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .action-button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: blue;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hidden overlay that intercepts clicks and routes them to a malicious handler -->
+    <div class="overlay-mask" onclick="triggerMaliciousAction(event)"></div>
+
+    <div class="document-content">
+        <h1>Confidential File A-14</h1>
+        <p>Please review the details below. By clicking "Accept", you agree to the terms.</p>
+        <button class="action-button" onclick="acceptTerms()">Accept Terms</button>
+    </div>
+
+    <script>
+        function acceptTerms() {
+            alert("Terms accepted legitimately.");
+        }
+
+        function triggerMaliciousAction(e) {
+            // Because the overlay captures the click, the user thinks they are clicking 
+            // "Accept Terms", but they are actually triggering this.
+            console.error("Click hijacked at coordinates:", e.clientX, e.clientY);
+        }
+    </script>
+</body>
+</html>

