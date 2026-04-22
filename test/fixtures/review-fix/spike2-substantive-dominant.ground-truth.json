@@ -1,0 +1,77 @@
+{
+  "fixture": "spike2-substantive-dominant.ts",
+  "description": "Substantive-dominant mix (~20% trivial, ~80% substantive) for Spike 2 pre-pass regression check",
+  "spike": "spike2",
+  "mix": "substantive-dominant",
+  "trivial_ids": ["TRIV-1", "TRIV-2"],
+  "categories_present": ["security", "correctness", "async", "concurrency", "style"],
+  "issues": [
+    {
+      "id": "TRIV-1",
+      "line": 30,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "var used for never-reassigned HASH_ALGO; should be const",
+      "expected_fix": "replace var with const"
+    },
+    {
+      "id": "TRIV-2",
+      "line": 83,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q17",
+      "description": "console.log left in production-reachable path",
+      "expected_fix": "remove console.log or route through a structured logger"
+    },
+    {
+      "id": "SUBST-1",
+      "line": 34,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "rawToken flows from caller input to crypto.update without length/charset validation",
+      "expected_fix": "validate token length and charset before hashing; reject malformed input"
+    },
+    {
+      "id": "SUBST-2",
+      "line": 41,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "session may be undefined; session.scopes accessed without guard",
+      "expected_fix": "early return false when session undefined or scopes missing"
+    },
+    {
+      "id": "SUBST-3",
+      "line": 47,
+      "category": "async",
+      "severity": "Critical",
+      "question": "Q8",
+      "description": "refreshSession awaits fetch but does not handle rejection; unhandled promise rejection on 5xx",
+      "expected_fix": "wrap fetch/json in try/catch, log failure to audit, rethrow typed error"
+    },
+    {
+      "id": "SUBST-4",
+      "line": 60,
+      "category": "concurrency",
+      "severity": "Advisory",
+      "question": "Q9",
+      "description": "No per-token in-flight-promise dedup; concurrent refreshes can clobber cache",
+      "expected_fix": "maintain a Map<token, Promise<Session>> of in-flight refreshes"
+    },
+    {
+      "id": "SUBST-5",
+      "line": 77,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Inverted validity check — returns true for expired sessions",
+      "expected_fix": "return false when expiresAt < now; return true otherwise"
+    }
+  ],
+  "total_issues": 7,
+  "false_positive_traps": [
+    "Line 26: auditLog declared with let because a test hook reassigns it — leave as let"
+  ]
+}
