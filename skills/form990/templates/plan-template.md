@@ -145,9 +145,9 @@ The human preparer is the Executive Director of {{LEGAL_NAME}}. They are not an 
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  form990 CPA Review — not yet run                                    ║
 ╚══════════════════════════════════════════════════════════════════════╝
-  Gate 1 Blocking   · 0/8 evaluated
-  Gate 2 Important  · 0/8 evaluated
-  Gate 3 Advisory   · 0/2 evaluated
+  Gate 1 Blocking   · 0/11 evaluated
+  Gate 2 Important  · 0/16 evaluated
+  Gate 3 Advisory   · 0/5 evaluated
   Health:  [░░░░░░░░░░░░░░░░░░░░]   awaiting P8
 ```
 
