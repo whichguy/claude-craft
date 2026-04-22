@@ -39,6 +39,7 @@ Reviewer selection is per-file (see Reviewer Routing). This agent only orchestra
   - `"commit"` — stage + commit only (POST_IMPLEMENT)
   - `"none"` — no git operations
 - `plan_summary` — optional; plan context for Q34 intent alignment
+- `skip_prepass` — optional; if true, Step 2.6 Haiku pre-pass is skipped (for Spike 2 control arm). Default: false.
 - `recheck_model` — optional; model override for recheck rounds (default: null, inherits reviewer frontmatter = sonnet). Set to "haiku" to trade discovery depth for speed/cost. **INTENTIONAL DEFAULT: null.** Haiku tiering was removed (PR #145) because rechecks must run full Q1-Q37 to catch bugs introduced by fixes — not just verify prior findings. Restoring "haiku" as default breaks the convergence guarantee.
 
 Pre-flight: if `task_name` empty, stop with error.
@@ -240,6 +241,11 @@ Max 1 pre-pass per run. Does NOT loop. Structured reviewers (Step 3) always run 
 Round counters (`round_hashes`, `resolved_findings`) do NOT start until Step 4.
 
 ```
+If skip_prepass:
+  Print: "  ▸ Pre-pass: skipped (skip_prepass=true)"
+  files_touched_by_pre_pass = []
+  [continue to Step 3]
+
 MAX_CONCURRENT_PREPASS = 12
 
 prepass_prompt = (file) => `

@@ -1,0 +1,97 @@
+{
+  "fixture": "spike2-multi-round.ts",
+  "description": "Multi-round fixture: without pre-pass needs 2 Q1-Q37 rounds; with pre-pass designed to converge in 1. Round-count delta is the primary Spike 2 signal.",
+  "spike": "spike2",
+  "mix": "multi-round",
+  "trivial_ids": ["TRIV-1", "TRIV-2", "TRIV-3", "TRIV-4", "TRIV-5"],
+  "categories_present": ["style", "dead-code", "correctness", "validation", "error-handling"],
+  "rounds_without_prepass": 2,
+  "rounds_with_prepass_target": 1,
+  "issues": [
+    {
+      "id": "TRIV-1",
+      "line": 17,
+      "category": "dead-code",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Unused import pathResolve from path",
+      "expected_fix": "remove the import"
+    },
+    {
+      "id": "TRIV-2",
+      "line": 20,
+      "category": "dead-code",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Commented-out oldLoadConfig block >2 lines",
+      "expected_fix": "delete the commented-out block"
+    },
+    {
+      "id": "TRIV-3",
+      "line": 33,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "var used for never-reassigned DEFAULT_PORT",
+      "expected_fix": "replace var with const"
+    },
+    {
+      "id": "TRIV-4",
+      "line": 36,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Single-letter variable n outside loop context",
+      "expected_fix": "rename to DEFAULT_MAX_CONNECTIONS or similar"
+    },
+    {
+      "id": "TRIV-5",
+      "line": 42,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q17",
+      "description": "console.log on hot path called on every loadConfig",
+      "expected_fix": "remove or gate behind DEBUG flag"
+    },
+    {
+      "id": "SUBST-1",
+      "line": 47,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "parseInt result unchecked; NaN flows into port field on invalid PORT env var",
+      "expected_fix": "validate parseInt result with Number.isFinite and range check, fall back to DEFAULT_PORT on invalid"
+    },
+    {
+      "id": "SUBST-2",
+      "line": 52,
+      "category": "validation",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "LOG_LEVEL cast to typed union without allowlist check, bypassing type safety",
+      "expected_fix": "validate against ['debug','info','warn','error'] and fall back to 'info' on invalid"
+    },
+    {
+      "id": "SUBST-3",
+      "line": 57,
+      "category": "correctness",
+      "severity": "Advisory",
+      "question": "Q1",
+      "description": "Config cache has no invalidation path; stale after env reload",
+      "expected_fix": "add resetConfig() export or invalidate on SIGHUP"
+    },
+    {
+      "id": "SUBST-4",
+      "line": 73,
+      "category": "error-handling",
+      "severity": "Critical",
+      "question": "Q8",
+      "description": "JSON.parse without try/catch crashes startup on malformed FEATURE_FLAGS",
+      "expected_fix": "wrap in try/catch, log warning, fall back to empty {} on parse error"
+    }
+  ],
+  "total_issues": 9,
+  "false_positive_traps": [
+    "Line 38: cachedConfig uses let because it is reassigned; do not flag"
+  ]
+}

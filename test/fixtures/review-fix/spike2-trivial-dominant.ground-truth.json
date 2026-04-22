@@ -1,0 +1,75 @@
+{
+  "fixture": "spike2-trivial-dominant.ts",
+  "description": "Trivial-dominant mix (~70% trivial, ~30% substantive) for Spike 2 pre-pass benchmarking",
+  "spike": "spike2",
+  "mix": "trivial-dominant",
+  "trivial_ids": ["TRIV-1", "TRIV-2", "TRIV-3", "TRIV-4", "TRIV-5"],
+  "categories_present": ["style", "dead-code", "security", "correctness"],
+  "issues": [
+    {
+      "id": "TRIV-1",
+      "line": 35,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "var used for never-reassigned taxRate; should be const",
+      "expected_fix": "replace var with const"
+    },
+    {
+      "id": "TRIV-2",
+      "line": 49,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q17",
+      "description": "console.log left in production code path",
+      "expected_fix": "remove console.log or route through a logger"
+    },
+    {
+      "id": "TRIV-3",
+      "line": 17,
+      "category": "dead-code",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Commented-out legacyComputeTotal block >2 lines",
+      "expected_fix": "delete the commented-out block"
+    },
+    {
+      "id": "TRIV-4",
+      "line": 38,
+      "category": "style",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Single-letter variable x outside loop context; unclear intent",
+      "expected_fix": "rename to FREE_SHIPPING_THRESHOLD or similar"
+    },
+    {
+      "id": "TRIV-5",
+      "line": 15,
+      "category": "dead-code",
+      "severity": "Advisory",
+      "question": "Q5",
+      "description": "Unused import noop from lodash",
+      "expected_fix": "remove the import"
+    },
+    {
+      "id": "SUBST-1",
+      "line": 58,
+      "category": "security",
+      "severity": "Critical",
+      "question": "Q2",
+      "description": "User-controlled couponCode concatenated into shell command; command-injection vector",
+      "expected_fix": "pass couponCode as argv argument with proper escaping, or use a typed coupon service API"
+    },
+    {
+      "id": "SUBST-2",
+      "line": 75,
+      "category": "correctness",
+      "severity": "Critical",
+      "question": "Q1",
+      "description": "Off-by-one: free-shipping comparison uses > instead of >=, excluding the boundary (100) case",
+      "expected_fix": "change > to >= in the free-shipping check"
+    }
+  ],
+  "total_issues": 7,
+  "false_positive_traps": []
+}
