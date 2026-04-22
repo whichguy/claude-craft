@@ -459,6 +459,7 @@ round_hashes = {}           # round → { file → sha256 of file content }
 resolved_findings = {}      # file → set of (q_number, line) confirmed fixed by prior recheck
 exhausted_no_fix = []       # files where all Fix blocks failed/skipped with no content change
 exhausted_no_fix_q_ids = {} # file → [q_numbers] whose Fix blocks failed (for Step 7 feedback)
+exhausted_no_fix_details = {} # file → [{q_number, old_string_preview}] captured at failure time
 per_q_status_history = {}   # q_number → ["present"|"absent", ...] per round (oscillation detection)
 
 # Compute initial hashes for all files before any fix is applied
@@ -505,6 +506,12 @@ DO:
       If Edit fails (old_string not found):
         record as failed, print ✗
         failed_fix_q_ids_this_file.append(fix_task.q_number)
+        # Capture preview of old_string that didn't match — enables Step 7 to surface
+        # actionable Fix-block content, not just the Q-ID list.
+        exhausted_no_fix_details.setdefault(file, []).append({
+          "q_number": fix_task.q_number,
+          "old_string_preview": "\n".join(fix_task.fix_block.before.splitlines()[:3])
+        })
 
     per_file_failed_q_ids[file] = failed_fix_q_ids_this_file  # capture before next iteration
     Track: files_changed += file (if any fix applied)
@@ -773,9 +780,21 @@ After printing the report, reflect on the review process itself:
 - Were fixes rejected by Edit tool? (Fix block format may not match actual code)
 - Did any file require all 5 rounds without converging? (question criteria may be ambiguous)
 - Were the same Q-IDs flagged across multiple files? (may indicate systemic codebase issue, not per-file)
-- Were any files marked exhausted-no-fix? If yes: for each exhausted file, name the specific
-  Q-IDs from exhausted_no_fix_q_ids[file] (e.g. "Q12, Q24 in foo.ts — Fix block old_string
-  did not match current content; Fix block template for these questions may need hardening").
+- Were any files marked exhausted-no-fix? If yes: for each exhausted file, list each failed
+  Fix block with its Q-ID and the first 3 lines of the old_string that didn't match current
+  content. Example output:
+    exhausted_no_fix in foo.ts:
+      Q12 — old_string mismatch:
+        ```
+        const val = computeOld(
+          a, b
+        ```
+      Q24 — old_string mismatch:
+        ```
+        cache.push(item)
+        ```
+  This allows the Fix block template for these questions to be hardened against this file's
+  actual content pattern.
 
 Print 0-3 recommendations if signals fire. Otherwise: "No prompt improvements identified."
 ```
