@@ -415,6 +415,41 @@ For each "**Q[N]: [Title]** | Finding: [severity]" block:
 Extract LOOP_DIRECTIVE: APPLY_AND_RECHECK or COMPLETE
 ```
 
+## Data Structures
+
+Canonical field definitions for all structs referenced throughout Steps 3–7.
+Use these as the single source of truth — do not invent aliases.
+
+### Finding
+```
+{
+  q_number:        string   # e.g. "Q12" — matches Q[N] in reviewer output
+  title:           string   # short description from reviewer heading
+  severity:        string   # "Critical" | "Advisory" (may be mutated to "advisory"
+                            # by oscillation-forced-advisory logic in Step 4)
+  description:     string   # full finding text from reviewer
+  fix_block:       object | null  # { before: string, after: string } when Fix block present
+  file:            string   # file path this finding belongs to
+  line:            int | None  # line number; use 0 as sentinel when absent
+  source_reviewer: string   # e.g. "code-reviewer", "gas-code-review" (set post-parse)
+}
+```
+
+A **fix_task** is a Finding where `fix_block` is non-null. No separate type — fix_tasks
+are filtered from `findings` and share all fields above.
+
+### results[file]
+```
+{
+  findings:       Finding[]  # deduplicated across all reviewers for this file
+  loop_directive: string     # "COMPLETE" | "APPLY_AND_RECHECK"
+}
+```
+
+### LOOP_DIRECTIVE values
+- `APPLY_AND_RECHECK` — reviewer found actionable issues; fix and re-dispatch
+- `COMPLETE` — reviewer found no issues (or only advisory with no fix blocks)
+
 ## Step 4: Fix Loop
 
 ```
@@ -433,7 +468,7 @@ round = 0
 DO:
   round += 1
   per_file_failed_q_ids = {}   # reset each round; populated during fix application below
-  this_round_applied = {}      # file → set of (q_id, line) where Edit succeeded this round
+  this_round_applied = {}      # file → set of (q_number, line) where Edit succeeded this round
   recheck_files = files where LOOP_DIRECTIVE == APPLY_AND_RECHECK
 
   IF recheck_files empty: BREAK (all clean)
