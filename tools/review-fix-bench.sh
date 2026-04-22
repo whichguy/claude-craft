@@ -135,6 +135,42 @@ json_escape() {
   printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()), end="")'
 }
 
+# Append one NDJSON telemetry line per fixture run to the durable log.
+# Schema: {ts, git_sha, fixture, arm, rounds, pre_pass_resolved, step3_token_cost,
+#          total_token_cost, tp, fp, fn}. arm defaults to "default" unless
+#          BENCH_ARM env var is set (control|treatment|default for Spike 2).
+# pre_pass_resolved not yet tracked in the bench → emit null.
+# step3_token_cost approximated as total_token_cost (pre/post split unavailable).
+emit_telemetry() {
+  local fixture="$1" rounds="$2" inp="$3" cc="$4" cr="$5" out="$6"
+  local tp="$7" fp="$8" fn="$9"
+  local log_file="${REPO_DIR}/docs/experiments/review-fix-telemetry.ndjson"
+  local arm="${BENCH_ARM:-default}"
+  local git_sha
+  git_sha=$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
+  local ts
+  ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  mkdir -p "$(dirname "$log_file")"
+  python3 -c "
+import json, sys
+total = int('$inp') + int('$cc') + int('$cr') + int('$out')
+rec = {
+    'ts': '$ts',
+    'git_sha': '$git_sha',
+    'fixture': '$fixture',
+    'arm': '$arm',
+    'rounds': int('$rounds' or 0),
+    'pre_pass_resolved': None,
+    'step3_token_cost': total,
+    'total_token_cost': total,
+    'tp': int('$tp'),
+    'fp': int('$fp'),
+    'fn': int('$fn'),
+}
+print(json.dumps(rec))
+" >> "$log_file"
+}
+
 # Compute metric: precision = TP / (TP + FP)
 calc_precision() {
   local tp=$1 fp=$2
@@ -853,6 +889,9 @@ print(json.dumps(rec))
       if [[ "$first_fixture_run" == "true" ]]; then first_fixture_run=false; else fixture_run_json+=","; fi
       fixture_run_json+="$run_record"
       run_count=$((run_count + 1))
+
+      # ── Telemetry NDJSON (P3): append one line per run to durable log ──
+      emit_telemetry "$fixture_name" "$run_loop_rounds" "$run_input_tokens" "$run_cc_tokens" "$run_cr_tokens" "$run_output_tokens" "$tp_count" "$fp_count" "$fn_count"
 
       # Accumulate totals (only non-retry runs for primary analysis)
       if [[ "$was_retry" != "true" ]]; then
