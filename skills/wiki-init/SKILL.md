@@ -14,7 +14,7 @@ argument-hint: "[wiki-dir]"
 # /wiki-init — Initialize Project Wiki
 
 Set up an LLM wiki for this repository. After initialization, the SessionStart hook
-auto-detects `wiki/index.md` and injects context into every future session automatically.
+auto-detects `.wiki/index.md` and injects context into every future session automatically.
 
 ## Step 0 — Parse Arguments
 
@@ -27,23 +27,23 @@ If not in a git repo: use current working directory.
 
 ## Step 1 — Idempotency Check
 
-Check if `REPO_ROOT/WIKI_DIR/log.md` already exists (sentinel file, matches hook detection).
-If yes: print "Wiki already initialized at WIKI_DIR/. The SessionStart hook will auto-inject
+Check if `REPO_ROOT/.wiki/log.md` already exists (sentinel file, matches hook detection).
+If yes: print "Wiki already initialized at .wiki/. The SessionStart hook will auto-inject
 context on next session start." and stop. Do not overwrite.
 
 ## Step 2 — Create Directory Structure
 
 Use Bash `mkdir -p` to create:
-- `WIKI_DIR/`
-- `WIKI_DIR/entities/`
-- `WIKI_DIR/sources/`
-- `WIKI_DIR/queries/`
-- `WIKI_DIR/maintenance/`
+- `.wiki/`
+- `.wiki/entities/`
+- `.wiki/sources/`
+- `.wiki/queries/`
+- `.wiki/maintenance/`
 - `REPO_ROOT/raw/` (at repo root, alongside WIKI_DIR — LLM-write-protected via hook)
 
-## Step 3 — Write wiki/index.md
+## Step 3 — Write .wiki/index.md
 
-Write `REPO_ROOT/WIKI_DIR/index.md`:
+Write `REPO_ROOT/.wiki/index.md`:
 
 ```markdown
 # Wiki Index — [repo name]
@@ -60,9 +60,9 @@ Two-tier system: this project wiki + global knowledge at ~/.claude/wiki/topics/.
 Use /wiki-ingest to add sources, /wiki-query to synthesize answers, /wiki-load for JIT context.
 ```
 
-## Step 4 — Write wiki/log.md
+## Step 4 — Write .wiki/log.md
 
-Write `REPO_ROOT/WIKI_DIR/log.md`:
+Write `REPO_ROOT/.wiki/log.md`:
 
 ```markdown
 # Wiki Log
@@ -73,14 +73,14 @@ Valid types: INIT, INGEST, QUERY, LINT, SESSION_START, SESSION_END, EXTRACT
 
 ## Entries
 
-[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at WIKI_DIR/ with schema v2
+[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at .wiki/ with schema v2
 ```
 
 (Replace CURRENT_TIMESTAMP with actual timestamp: `date '+%Y-%m-%d %H:%M'`)
 
-## Step 5 — Write wiki/SCHEMA.md
+## Step 5 — Write .wiki/SCHEMA.md
 
-Write `REPO_ROOT/WIKI_DIR/SCHEMA.md` by copying from the canonical schema at `REPO_ROOT/wiki/SCHEMA.md` if it exists in the repository (i.e., this is a claude-craft-based project). Otherwise write the following token-compact content:
+Write `REPO_ROOT/.wiki/SCHEMA.md` by copying from the canonical schema at `REPO_ROOT/.wiki/SCHEMA.md` if it exists in the repository (i.e., this is a claude-craft-based project). Otherwise write the following token-compact content:
 
 ```
 ---
@@ -88,7 +88,7 @@ schema_version: 2
 ---
 # Wiki Schema v2
 
-Dirs: wiki/{entities,sources,queries,maintenance}, raw/ (LLM-write-protected, hook enforced)
+Dirs: .wiki/{entities,sources,queries,maintenance}, raw/ (LLM-write-protected, hook enforced)
 Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches both tiers
 
 ## Page Formats
@@ -167,7 +167,7 @@ If it doesn't exist: create the file with just the wiki section.
 ```markdown
 
 ## Wiki
-WIKI: /wiki-load <search> or browse wiki/index.md before answering project-domain questions. /wiki-query for synthesis.
+WIKI: /wiki-load <search> or browse .wiki/index.md before answering project-domain questions. /wiki-query for synthesis.
 ```
 
 This is the behavioral directive. The SessionStart hook provides location awareness;
@@ -182,7 +182,7 @@ Print a rich summary using the output-format.md character vocabulary:
 ║  📂 Wiki Initialized — [repo name]    ║
 ╚═══════════════════════════════════════╝
 
-  ├─ wiki/
+  ├─ .wiki/
   │  ├─ index.md       master catalog
   │  ├─ log.md         event log
   │  ├─ SCHEMA.md      conventions (~183 tokens)

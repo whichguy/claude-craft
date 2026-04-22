@@ -76,7 +76,7 @@ Agent(
     Existing index: [read wiki_path/index.md]
 
     For each significant entity, decision, or concept discussed:
-    - If entity page exists in wiki/entities/: check if "**From Session [date]:**"
+    - If entity page exists in .wiki/entities/: check if "**From Session [date]:**"
       bullet already present (idempotency). If absent → append bullet:
       - **From Session [date]:** [2-3 sentences]
     - If new: write entity page using compact format (see wiki-ingest for template).

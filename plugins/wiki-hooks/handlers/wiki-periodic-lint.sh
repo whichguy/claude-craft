@@ -15,7 +15,7 @@ wiki_parse_input
 
 wiki_find_root || exit 0
 
-CACHE_DIR="$REPO_ROOT/wiki/.cache"
+CACHE_DIR="$REPO_ROOT/.wiki/.cache"
 TODAY=$(date +%Y-%m-%d)
 
 # --- Gate 0: Global 45-minute cooldown — atomic claim via wiki_debounce ---
@@ -35,7 +35,7 @@ SESSION_MARKER="$CACHE_DIR/.lint-session-${SESSION_SHORT}"
 [ -f "$SESSION_MARKER" ] && exit 0
 
 # --- Gate 3: Today's bg report already exists ---
-REPORT_PATH="$REPO_ROOT/wiki/maintenance/lint-${TODAY}-bg.md"
+REPORT_PATH="$REPO_ROOT/.wiki/maintenance/lint-${TODAY}-bg.md"
 [ -f "$REPORT_PATH" ] && exit 0
 
 # --- All gates passed: claim session marker + resolve claude command ---
@@ -53,7 +53,7 @@ else
 fi
 
 # --- Ensure maintenance dir exists ---
-mkdir -p "$REPO_ROOT/wiki/maintenance" 2>/dev/null || true
+mkdir -p "$REPO_ROOT/.wiki/maintenance" 2>/dev/null || true
 
 # --- Build lint prompt (structural checks only; no semantic checks to keep runtime <3min) ---
 LINT_PROMPT="You are a wiki health checker for a software project.

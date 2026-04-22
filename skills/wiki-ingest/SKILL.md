@@ -25,7 +25,7 @@ From `$ARGUMENTS`, extract:
 
 ## Step 1 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/log.md` starting from the git root (matches hook sentinel).
+Locate `WIKI_DIR` by searching for `.wiki/log.md` starting from the git root (matches hook sentinel).
 Walk up the directory tree (max 4 levels).
 If not found: print "No wiki found in this repo. Run /wiki-init first." and stop.
 
@@ -93,7 +93,7 @@ Agent(
        For gist: set high if the author is the originator of the referenced pattern (e.g., Karpathy
        for LLM wiki); medium otherwise.
 
-    3. Write WIKI_DIR/sources/SLUG.md (compact format — ~46% fewer tokens):
+    3. Write .wiki/sources/SLUG.md (compact format — ~46% fewer tokens):
        # SOURCE_TITLE
        SOURCE_TYPE | SOURCE_DATE | SOURCE | Ingested: TODAY
 
@@ -113,12 +113,12 @@ Agent(
 
        For each entity:
        - ENTITY_SLUG = entity name lowercased, hyphens, max 50 chars
-       - If WIKI_DIR/entities/ENTITY_SLUG.md exists:
+       - If .wiki/entities/ENTITY_SLUG.md exists:
            Check if "**From SOURCE_TITLE:**" already present (idempotency).
            If absent: Edit to append a bullet under existing entries:
            - **From SOURCE_TITLE:** [2-3 sentences from this source's perspective]
        - If new entity (use compact format — ~46% fewer tokens than verbose):
-           Write WIKI_DIR/entities/ENTITY_SLUG.md:
+           Write .wiki/entities/ENTITY_SLUG.md:
            # Entity Name
            [2-3 sentence overview/definition]
 
@@ -126,7 +126,7 @@ Agent(
 
            → See also: related-entity-slugs
 
-    5. Update WIKI_DIR/index.md:
+    5. Update .wiki/index.md:
        Check for existing row by page path (idempotency).
        If row exists: update Last Updated date and summary.
        If new: add row to the Pages table.
@@ -135,7 +135,7 @@ Agent(
        Summary format: retrieval-friendly — what the page IS + 2-3 key search terms in parens.
        Example: "Runtime fix verifier — catches bad fixes and false-positive findings (review-fix, Phase 3.5, verification gate)"
 
-    6. Append to WIKI_DIR/log.md:
+    6. Append to .wiki/log.md:
        [TIMESTAMP] INGEST SOURCE_TITLE: created sources/SLUG.md; updated N entity pages
        If an INGEST entry for this source already exists from today: append (re-ingest) suffix.
 
@@ -153,5 +153,5 @@ If `INTERACTIVE` (foreground agent) and the agent returns an error or reports 0 
 Print: "⚠️ Ingest failed for [SOURCE]: [error]. Try /wiki-ingest again or check the source."
 
 For background (async) mode: monitor is not possible post-spawn. The agent logs its result
-to `WIKI_DIR/log.md` on completion. The session-start hook will surface any failed queue
+to `.wiki/log.md` on completion. The session-start hook will surface any failed queue
 entries at the next session start.

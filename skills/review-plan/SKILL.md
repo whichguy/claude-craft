@@ -920,7 +920,7 @@ Gate tiers classify findings by severity and convergence impact. These definitio
 
      BLIND ZONE       (phases 4, 5a, 5b run without research grounding —
                        accepted v1 tradeoff, documented in
-                       wiki/entities/async-research-lane-pattern.md):
+                       .wiki/entities/async-research-lane-pattern.md):
        Phase 4: Edit(plan_path, …) per pass (up to 5 passes, ~2–20 edits each)
        Phase 5 epilogue Q-E1/Q-E2: Edit(plan_path, …) injection
        Phase 5 Q-G9: Edit(plan_path, …) organization pass
@@ -3436,7 +3436,7 @@ After the convergence loop exits (scorecard not yet printed):
 
    Render grouped by phase (Discovery / Classification / Convergence / Epilogue), not Q-ID:
    - Per item: `phase → Q-ID → one-line change summary → citation`
-   - Citation priority: (1) best-effort grep of `wiki/entities/` for Q-ID → (2) CLAUDE.md directive if
+   - Citation priority: (1) best-effort grep of `.wiki/entities/` for Q-ID → (2) CLAUDE.md directive if
      traceable (e.g., Q-E2 → `POST_IMPLEMENT`) → (3) `QUESTIONS.md §Q-ID` fallback → else `(no external
      citation)`, never fabricate
 
@@ -3629,7 +3629,7 @@ ELIF NOT _phase_5b5_skip:
 
          Read the plan at <plan_path> in full.
          Read ~/.claude/CLAUDE.md for directives.
-         Read up to 3 most-relevant wiki/entities/review-plan-*.md.
+         Read up to 3 most-relevant .wiki/entities/review-plan-*.md.
 
          Your job is NOT to re-run per-question evaluation. Catch what
          per-question evaluators cannot:
@@ -3795,7 +3795,7 @@ ELIF NOT _phase_5b5_skip:
 
 5d. **Fancy Four-Panel Scorecard** (FULL tier; replaces the Unified Scorecard output from step 4 for FULL reviews):
 
-   Compute citation coverage: for each Q-ID in `applied_edits[]`, grep `wiki/entities/` — `citation_pct = matched / total`.
+   Compute citation coverage: for each Q-ID in `applied_edits[]`, grep `.wiki/entities/` — `citation_pct = matched / total`.
 
    **FULL tier — 4-panel format:**
    ```
@@ -3839,7 +3839,7 @@ ELIF NOT _phase_5b5_skip:
    │                   QUESTIONS.md §Q-ID]                            │
    │                                                                  │
    │  [If citation_pct < 0.5: omit panel entirely; add to WHAT CHANGED footer:]
-   │  (teaching suppressed — <50% citation coverage; run wiki-lint to populate wiki/entities/review-plan-*)
+   │  (teaching suppressed — <50% citation coverage; run wiki-lint to populate .wiki/entities/review-plan-*)
    │  [If 0.5 <= citation_pct < 0.8: render panel, mark ungrounded bullets [no citation]]
    │  [If citation_pct >= 0.8: render as shown above]
    │  [If all checks routine: All checks were routine — no teaching notes this run.]
@@ -4164,7 +4164,7 @@ ELIF NOT _phase_5b5_skip:
    # ── Phase 6b: Teaching Summary (terminal, always fires — all tiers) ──
    # Runs after scorecard output, before cleanup. All tiers — no FULL-only guard.
    # helper: resolve_citation(q_id) — priority:
-   #   1. grep wiki/entities/*.md for Q-ID → emit [[entity-name]] citation
+   #   1. grep .wiki/entities/*.md for Q-ID → emit [[entity-name]] citation
    #   2. CLAUDE.md directive name if traceable
    #   3. QUESTIONS.md §Q-ID fallback
    #   4. (no external citation) — never fabricate

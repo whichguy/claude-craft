@@ -22,7 +22,7 @@ wiki_parse_input() {
 
 # --- Wiki discovery ---
 # Anchors on git-root (prevents drift past repo into ~/). Sets: REPO_ROOT, WIKI_PATH, LOG_PATH
-# Strategy: resolve git top-level, check <git-root>/wiki/log.md. Falls back to a bounded
+# Strategy: resolve git top-level, check <git-root>/.wiki/log.md. Falls back to a bounded
 # walk only when not in a git repo (preserves non-git directory use cases).
 # Returns 1 if no wiki found.
 wiki_find_root() {
@@ -33,8 +33,8 @@ wiki_find_root() {
   local git_root
   git_root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || true)
   if [ -n "$git_root" ]; then
-    if [ -f "$git_root/wiki/log.md" ]; then
-      REPO_ROOT="$git_root"; WIKI_PATH="$git_root/wiki/"; LOG_PATH="$git_root/wiki/log.md"
+    if [ -f "$git_root/.wiki/log.md" ]; then
+      REPO_ROOT="$git_root"; WIKI_PATH="$git_root/.wiki/"; LOG_PATH="$git_root/.wiki/log.md"
       return 0
     fi
     return 1
@@ -43,8 +43,8 @@ wiki_find_root() {
   # Non-git fallback: bounded walk, but never cross into $HOME.
   for i in 1 2 3 4; do
     [ "$dir" = "$HOME" ] && break
-    if [ -f "$dir/wiki/log.md" ]; then
-      REPO_ROOT="$dir"; WIKI_PATH="$dir/wiki/"; LOG_PATH="$dir/wiki/log.md"
+    if [ -f "$dir/.wiki/log.md" ]; then
+      REPO_ROOT="$dir"; WIKI_PATH="$dir/.wiki/"; LOG_PATH="$dir/.wiki/log.md"
       return 0
     fi
     local parent; parent=$(dirname "$dir")
@@ -91,8 +91,8 @@ wiki_detect_changes() {
   local marker="$1"
   CHANGED_FILES=""
   [ -f "$marker" ] || return 0
-  local prefix="$REPO_ROOT/wiki/"
-  CHANGED_FILES=$(find "$REPO_ROOT/wiki" -newer "$marker" -name '*.md' \
+  local prefix="$REPO_ROOT/.wiki/"
+  CHANGED_FILES=$(find "$REPO_ROOT/.wiki" -newer "$marker" -name '*.md' \
     ! -name 'index.md' ! -name 'log.md' ! -name 'SCHEMA.md' \
     2>/dev/null | head -20 | while IFS= read -r f; do echo "${f#$prefix}"; done)
 }
@@ -125,7 +125,7 @@ wiki_queue_changes() {
 # Builds separator-lines display + additionalContext. Sets: DISPLAY, CONTEXT
 wiki_build_display() {
   local label="${1:-}"  # optional suffix like "(post-compaction)"
-  local cache_dir="$REPO_ROOT/wiki/.cache"
+  local cache_dir="$REPO_ROOT/.wiki/.cache"
 
   # Cache hit: read pre-computed files (fast path, ~2ms)
   if [ -f "$cache_dir/display.txt" ] && [ -f "$cache_dir/context.txt" ]; then
@@ -141,19 +141,19 @@ wiki_build_display() {
 
   # Cache miss: legacy computation inline (one-time cold start)
   local repo_name; repo_name=$(basename "$REPO_ROOT")
-  local index_path="$REPO_ROOT/wiki/index.md"
+  local index_path="$REPO_ROOT/.wiki/index.md"
 
   local page_count; page_count=$(grep -c '^|' "$index_path" 2>/dev/null || true)
   page_count=${page_count:-2}
   page_count=$((page_count > 2 ? page_count - 2 : 0))
 
-  local topic_count; topic_count=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
+  local topic_count; topic_count=$(ls "$REPO_ROOT/.wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
 
   # ⚠ No topic names in display — they give the LLM enough context to skip /wiki-load
   DISPLAY="📂 ${repo_name} wiki · ${page_count} pages · ${topic_count} topics${label:+ $label}"
   DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 
-  CONTEXT="Project wiki: ${repo_name}/wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
+  CONTEXT="Project wiki: ${repo_name}/.wiki/ — /wiki-load <search> or browse index.md before answering project-domain questions."
 }
 
 # --- Log entry ---

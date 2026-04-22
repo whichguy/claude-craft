@@ -15,8 +15,8 @@ wiki_parse_input
 wiki_find_root || exit 0
 
 CLEAR_TS=$(date '+%s')
-MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
-CLEARING="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-clearing-$$"
+MARKER="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-start"
+CLEARING="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-clearing-$$"
 
 # Atomic grab — mv is POSIX-atomic. PID in filename identifies owner for orphan cleanup.
 mv "$MARKER" "$CLEARING" 2>/dev/null || exit 0

@@ -11,7 +11,7 @@ describe('Wiki Schema v2', function () {
     // ── SCHEMA.md ──────────────────────────────────────────────────────────
 
     describe('wiki/SCHEMA.md', function () {
-        const schemaPath = path.join(REPO_ROOT, 'wiki', 'SCHEMA.md');
+        const schemaPath = path.join(REPO_ROOT, '.wiki', 'SCHEMA.md');
         let content;
 
         before(function () {
@@ -179,7 +179,7 @@ describe('Wiki Schema v2', function () {
 
     // v2 frontmatter fields are defined in wiki/SCHEMA.md itself (the canonical spec).
     describe('wiki/SCHEMA.md (canonical schema spec)', function () {
-        const schemaPath = path.join(REPO_ROOT, 'wiki', 'SCHEMA.md');
+        const schemaPath = path.join(REPO_ROOT, '.wiki', 'SCHEMA.md');
         let content;
 
         before(function () {
