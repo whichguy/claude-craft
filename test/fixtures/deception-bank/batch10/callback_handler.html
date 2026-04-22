@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h2>Event Registration</h2>
+  <p>Click the button below to register for the event: <strong><?= eventName ?></strong></p>
+  
+  <!-- 
+    CROSS-DOMAIN BUG: Improper encoding of server-side variable into HTML attribute.
+    The GAS scriptlet outputs the raw string. If eventName contains a single quote,
+    it breaks the JavaScript string literal in the onclick attribute.
+    Correct in GAS (as a string), but fails in the HTML/JS attribute domain.
+  -->
+  <button onclick="registerForEvent('<?= eventName ?>')">
+    Register Now
+  </button>
+
+  <script>
+    function registerForEvent(name) {
+      console.log("Registering for:", name);
+      // ... registration logic
+    }
+  </script>
+</body>
+</html>

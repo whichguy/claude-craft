@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Trade - Financial Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .terminal-grid {
+            display: grid;
+            grid-template-areas: 
+                "header header"
+                "stocks charts"
+                "orders charts";
+            grid-template-columns: 350px 1fr;
+            grid-template-rows: 60px 1fr 300px;
+            gap: 4px;
+            height: 100vh;
+            background: #0f172a;
+        }
+        .pane { background: #1e293b; color: #94a3b8; padding: 1rem; overflow: hidden; }
+        .header { grid-area: header; background: #020617; display: flex; align-items: center; px: 1.5rem; }
+        .stocks { grid-area: stocks; }
+        .charts { grid-area: charts; position: relative; }
+        .orders { grid-area: orders; }
+    </style>
+</head>
+<body>
+    <div class="terminal-grid" id="main-terminal">
+        <header class="header text-white justify-between px-6">
+            <div class="font-bold text-xl tracking-tighter">STELLAR<span class="text-blue-500">TRADE</span></div>
+            <div class="flex gap-4">
+                <button id="layout-default" class="text-xs bg-slate-700 px-3 py-1 rounded">Standard</button>
+                <button id="layout-compact" class="text-xs bg-slate-700 px-3 py-1 rounded">Compact</button>
+            </div>
+        </header>
+        
+        <div class="pane stocks">
+            <h3 class="text-xs font-bold uppercase mb-4 text-slate-500">Watchlist</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span>AAPL</span><span class="text-green-400">182.41 (+1.2%)</span>
+                </div>
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span>TSLA</span><span class="text-red-400">174.55 (-3.4%)</span>
+                </div>
+                <div class="flex justify-between border-b border-slate-700 pb-2">
+                    <span>BTC/USD</span><span class="text-green-400">67,421 (+0.8%)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pane charts flex flex-col items-center justify-center">
+            <div id="chart-placeholder" class="w-full h-full border-2 border-dashed border-slate-700 rounded-lg flex items-center justify-center text-slate-600">
+                Interactive Chart Renderer
+            </div>
+            <div id="layout-status" class="absolute bottom-4 right-4 text-[10px] font-mono opacity-50">MODE: STANDARD</div>
+        </div>
+
+        <div class="pane orders">
+            <h3 class="text-xs font-bold uppercase mb-4 text-slate-500">Open Orders</h3>
+            <p class="text-xs italic">No active orders in this session.</p>
+        </div>
+    </div>
+
+    <script>
+        let currentLayout = {
+            mode: 'STANDARD',
+            columns: '350px 1fr'
+        };
+
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // The Pitfall: This debounced function captures the scope of currentLayout.
+        // If the user clicks 'Compact' and then triggers a window resize immediately,
+        // the resize event might fire with the OLD layout data if the debounced function
+        // isn't carefully reading the latest global state at the moment of execution.
+        const handleResize = debounce(() => {
+            console.log("Applying layout for mode:", currentLayout.mode);
+            const grid = document.getElementById('main-terminal');
+            grid.style.gridTemplateColumns = currentLayout.columns;
+            document.getElementById('layout-status').innerText = `MODE: ${currentLayout.mode}`;
+        }, 500);
+
+        window.addEventListener('resize', handleResize);
+
+        document.getElementById('layout-default').onclick = () => {
+            currentLayout = { mode: 'STANDARD', columns: '350px 1fr' };
+            handleResize();
+        };
+
+        document.getElementById('layout-compact').onclick = () => {
+            currentLayout = { mode: 'COMPACT', columns: '200px 1fr' };
+            // Trigger immediately for visual feedback
+            handleResize();
+        };
+
+        // Initial apply
+        handleResize();
+    </script>
+</body>
+</html>

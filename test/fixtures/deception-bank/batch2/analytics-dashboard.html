@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Analytics Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --primary-bg: #f8fafc;
+        }
+        .dashboard-container {
+            display: flex;
+            height: 100vh;
+            background: var(--primary-bg);
+            /* Subtle transform creates a new stacking context */
+            transform: translateZ(0);
+        }
+        .sidebar {
+            width: var(--sidebar-width);
+            background: #1e293b;
+            color: white;
+            z-index: 50;
+        }
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            position: relative;
+        }
+        .chart-overlay-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        /* The pitfall: This hit area is invisible but potentially blocks the sidebar 
+           depending on how the browser calculates the transformed container's bounds. */
+        .chart-hit-area {
+            position: absolute;
+            top: 100px;
+            left: -20px; 
+            width: 300px;
+            height: 400px;
+            background: transparent;
+            pointer-events: auto;
+        }
+        .nav-item:hover {
+            background: #334155;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar flex flex-col p-4">
+            <h1 class="text-xl font-bold mb-8">DataViz Pro</h1>
+            <nav class="space-y-2">
+                <a href="#" class="nav-item block p-3 rounded transition" id="nav-overview">Overview</a>
+                <a href="#" class="nav-item block p-3 rounded transition" id="nav-reports">Reports</a>
+                <a href="#" class="nav-item block p-3 rounded transition" id="nav-settings">Settings</a>
+                <a href="#" class="nav-item block p-3 rounded transition" id="nav-help">Help Center</a>
+            </nav>
+        </aside>
+        
+        <main class="main-content p-8">
+            <header class="flex justify-between items-center mb-8">
+                <h2 class="text-2xl font-semibold">Performance Metrics</h2>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Export PDF</button>
+            </header>
+
+            <div class="grid grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-64">
+                    <h3 class="text-slate-500 text-sm font-medium uppercase mb-4">Revenue Growth</h3>
+                    <div class="relative h-40 bg-slate-50 rounded flex items-end p-2 gap-2">
+                        <div class="bg-blue-500 w-full" style="height: 60%"></div>
+                        <div class="bg-blue-500 w-full" style="height: 80%"></div>
+                        <div class="bg-blue-500 w-full" style="height: 70%"></div>
+                        <div class="bg-blue-500 w-full" style="height: 95%"></div>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-64">
+                    <h3 class="text-slate-500 text-sm font-medium uppercase mb-4">Active Users</h3>
+                    <div class="text-4xl font-bold">12,482</div>
+                    <div class="text-green-500 text-sm mt-2">↑ 14.2% from last month</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-64">
+                    <h3 class="text-slate-500 text-sm font-medium uppercase mb-4">Conversion Rate</h3>
+                    <div class="text-4xl font-bold">3.24%</div>
+                    <div class="text-red-500 text-sm mt-2">↓ 0.8% from last month</div>
+                </div>
+            </div>
+
+            <!-- Complex Interactive Overlay -->
+            <div class="chart-overlay-container" id="tooltips">
+                <div class="chart-hit-area" title="Internal System Region"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log(`Navigating to ${e.target.innerText}`);
+                // In a real app, this would trigger a view change
+            });
+        });
+
+        // Dynamic theme adjustment logic
+        window.addEventListener('resize', () => {
+            const width = window.innerWidth;
+            if (width < 1024) {
+                document.documentElement.style.setProperty('--sidebar-width', '80px');
+            } else {
+                document.documentElement.style.setProperty('--sidebar-width', '260px');
+            }
+        });
+    </script>
+</body>
+</html>

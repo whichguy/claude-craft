@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global System Monitor - Real-time</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .live-indicator { animation: pulse-slow 2s infinite; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans">
+    <div class="p-8">
+        <header class="mb-10 flex justify-between items-end border-b border-slate-700 pb-6">
+            <div>
+                <h1 class="text-3xl font-light tracking-tight">System <span class="font-bold text-blue-400">Control</span></h1>
+                <p class="text-slate-400 text-sm mt-1">Live telemetry from region US-EAST-1</p>
+            </div>
+            <div class="text-right">
+                <div class="live-indicator inline-flex items-center text-xs text-red-400 font-mono">
+                    <span class="status-dot bg-red-400 mr-2"></span> LIVE DATA STREAM
+                </div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="monitor-grid">
+            <!-- Dynamic Widgets -->
+        </div>
+    </div>
+
+    <script>
+        // Internal Event Bus - Persists for the lifetime of the page
+        const SystemBus = {
+            listeners: {},
+            on(event, callback) {
+                if (!this.listeners[event]) this.listeners[event] = [];
+                this.listeners[event].push(callback);
+            },
+            emit(event, data) {
+                if (this.listeners[event]) {
+                    this.listeners[event].forEach(cb => cb(data));
+                }
+            }
+        };
+
+        const sensors = [
+            { id: 'cpu-01', label: 'CPU Cluster Alpha', unit: '%' },
+            { id: 'mem-01', label: 'Memory Bank 1', unit: 'GB' },
+            { id: 'net-01', label: 'Inbound Traffic', unit: 'Gbps' },
+            { id: 'disk-01', label: 'Storage Array', unit: 'TB' }
+        ];
+
+        function createWidget(sensor) {
+            const container = document.getElementById('monitor-grid');
+            const widget = document.createElement('div');
+            widget.className = 'bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl';
+            widget.id = `widget-${sensor.id}`;
+            widget.innerHTML = `
+                <div class="text-slate-400 text-xs font-semibold uppercase mb-2">${sensor.label}</div>
+                <div class="text-3xl font-bold mb-4" id="val-${sensor.id}">--</div>
+                <div class="h-1 bg-slate-700 rounded overflow-hidden">
+                    <div id="bar-${sensor.id}" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+                </div>
+            `;
+            container.appendChild(widget);
+
+            // The Pitfall: Subscribing to global bus without cleanup logic.
+            // When updateMonitor() is called, old widgets are cleared but listeners persist in SystemBus.
+            SystemBus.on(`update:${sensor.id}`, (data) => {
+                const valEl = document.getElementById(`val-${sensor.id}`);
+                const barEl = document.getElementById(`bar-${sensor.id}`);
+                if (valEl && barEl) {
+                    valEl.innerText = `${data.value}${sensor.unit}`;
+                    barEl.style.width = `${data.percent}%`;
+                }
+            });
+        }
+
+        function updateMonitor() {
+            // Clear current UI to "re-render" with fresh structure
+            document.getElementById('monitor-grid').innerHTML = '';
+            sensors.forEach(sensor => createWidget(sensor));
+        }
+
+        // Simulate incoming data
+        setInterval(() => {
+            sensors.forEach(s => {
+                const value = Math.floor(Math.random() * 100);
+                SystemBus.emit(`update:${s.id}`, { value: value, percent: value });
+            });
+        }, 1000);
+
+        // Periodically "refresh" the UI structure to simulate state sync/re-render
+        setInterval(() => {
+            console.log("Refreshing Monitor UI...");
+            updateMonitor();
+        }, 5000);
+
+        // Initial setup
+        updateMonitor();
+    </script>
+</body>
+</html>

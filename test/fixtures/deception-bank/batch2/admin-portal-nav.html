@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Portal - Core Navigation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .nav-link.active {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: 600;
+        }
+        .content-area {
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-slate-50 flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col">
+        <div class="p-6 text-xl font-bold text-white border-b border-slate-800">ControlPanel</div>
+        <nav class="flex-1 p-4 space-y-1" id="sidebar-nav">
+            <a href="/dashboard" class="nav-link block px-4 py-2 rounded transition-colors" data-link>Dashboard</a>
+            <a href="/users" class="nav-link block px-4 py-2 rounded transition-colors" data-link>User Management</a>
+            <a href="/settings" class="nav-link block px-4 py-2 rounded transition-colors" data-link>Global Settings</a>
+            <div class="pl-4 mt-2 space-y-1">
+                <a href="/settings/security" class="nav-link block px-4 py-2 text-sm rounded transition-colors" data-link>Security Keys</a>
+                <a href="/settings/notifications" class="nav-link block px-4 py-2 text-sm rounded transition-colors" data-link>Notification Bus</a>
+            </div>
+        </nav>
+        <div class="p-4 border-t border-slate-800 text-xs text-slate-500">v4.0.12-PRO</div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 flex flex-col">
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center px-8">
+            <h2 id="page-title" class="text-lg font-medium">Dashboard</h2>
+        </header>
+        <div id="app-content" class="flex-1 p-8 overflow-y-auto content-area">
+            <p>Loading module...</p>
+        </div>
+    </main>
+
+    <script>
+        class SimpleRouter {
+            constructor() {
+                this.currentPath = '/dashboard';
+                this.init();
+            }
+
+            init() {
+                document.body.addEventListener('click', e => {
+                    if (e.target.matches('[data-link]')) {
+                        e.preventDefault();
+                        this.navigate(e.target.getAttribute('href'));
+                    }
+                });
+                this.render();
+            }
+
+            // The Pitfall: isActive uses startsWith() for prefix matching.
+            // When at /settings/security, it thinks /settings is also "active".
+            // The navigate function then blocks going to /settings because it thinks we are already there.
+            isActive(path) {
+                return this.currentPath.startsWith(path);
+            }
+
+            navigate(path) {
+                console.log(`Attempting navigation to: ${path} (Current: ${this.currentPath})`);
+                
+                // Buggy check: blocks navigation to parent if on child
+                if (this.isActive(path) && path !== this.currentPath) {
+                    console.warn("Navigation blocked: Path is considered already active via prefix.");
+                    // In a real app, this might be a 'return' to avoid redundant renders, 
+                    // but it prevents navigating 'up' the hierarchy.
+                }
+
+                this.currentPath = path;
+                this.render();
+            }
+
+            render() {
+                // Update Sidebar
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    const path = link.getAttribute('href');
+                    if (this.isActive(path)) {
+                        link.classList.add('active');
+                    } else {
+                        link.classList.remove('active');
+                    }
+                });
+
+                // Update Content
+                const content = document.getElementById('app-content');
+                const title = document.getElementById('page-title');
+                title.innerText = this.currentPath.split('/').pop().toUpperCase() || 'DASHBOARD';
+                content.innerHTML = `
+                    <div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                        <h3 class="text-xl font-bold mb-4">Viewing: ${this.currentPath}</h3>
+                        <p class="text-slate-600">Module content for ${this.currentPath} successfully loaded from registry.</p>
+                    </div>
+                `;
+            }
+        }
+
+        const router = new SimpleRouter();
+    </script>
+</body>
+</html>

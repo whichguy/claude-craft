@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .profile-card {
+      border: 1px solid #ccc;
+      /* 
+         CROSS-DOMAIN BUG: The font-family is injected from a GAS variable.
+         If userSettings.fontFamily is "'; } </style><script>alert(1)</script><style>",
+         it escapes the CSS context and executes JS in the HTML context.
+         Correct in GAS (it's just a string), but fails the boundary test.
+      */
+      font-family: '<?= userSettings.fontFamily ?>', sans-serif;
+      background-color: #f9f9f9;
+    }
+  </style>
+</head>
+<body>
+  <div class="profile-card">
+    <h3>User Profile</h3>
+    <p>Theme: <?= userSettings.themeName ?></p>
+  </div>
+</body>
+</html>
