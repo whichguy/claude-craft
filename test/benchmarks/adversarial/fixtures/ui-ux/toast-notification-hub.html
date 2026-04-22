@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Toast Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .toast {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(120%);
+            opacity: 0;
+            position: relative;
+        }
+        .toast.visible {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        /* CSS uses data-attributes for sophisticated state styling */
+        .toast[data-critical="true"] {
+            border-left: 4px solid #ef4444;
+            background-color: #fef2f2;
+        }
+        .toast[data-critical="true"] .icon { color: #ef4444; }
+        
+        .toast[data-critical="false"] {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center">
+    <div class="space-x-4">
+        <button id="btn-info" class="bg-blue-600 text-white px-6 py-2 rounded shadow">Send Info</button>
+        <button id="btn-error" class="bg-red-600 text-white px-6 py-2 rounded shadow">Send Critical</button>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="toast-container" class="fixed bottom-6 right-6 w-80 space-y-3 z-50">
+        <!-- Pool of reused DOM nodes for performance -->
+        <div class="toast p-4 rounded-lg shadow-xl bg-white hidden" id="t-1">
+            <div class="flex items-start gap-3">
+                <div class="icon font-bold">!</div>
+                <div class="content text-sm text-slate-700"></div>
+            </div>
+        </div>
+        <div class="toast p-4 rounded-lg shadow-xl bg-white hidden" id="t-2">
+            <div class="flex items-start gap-3">
+                <div class="icon font-bold">!</div>
+                <div class="content text-sm text-slate-700"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const pool = ['t-1', 't-2'];
+        let activeToasts = [];
+
+        function showToast(message, isCritical = false) {
+            // Find an available node in the pool
+            const toastId = pool.find(id => !activeToasts.includes(id));
+            if (!toastId) return; // Pool exhausted
+
+            const el = document.getElementById(toastId);
+            const content = el.querySelector('.content');
+            
+            content.innerText = message;
+            el.classList.remove('hidden');
+            
+            // The Pitfall: If isCritical is true, we set the attribute.
+            // If isCritical is false, we DO NOT remove it. 
+            // The CSS selector [data-critical="true"] will stay active for future "Info" toasts.
+            if (isCritical) {
+                el.setAttribute('data-critical', 'true');
+            }
+            
+            activeToasts.push(toastId);
+            
+            // Force reflow for transition
+            el.offsetHeight;
+            el.classList.add('visible');
+
+            setTimeout(() => {
+                el.classList.remove('visible');
+                setTimeout(() => {
+                    el.classList.add('hidden');
+                    activeToasts = activeToasts.filter(id => id !== toastId);
+                }, 300);
+            }, 3000);
+        }
+
+        document.getElementById('btn-info').onclick = () => showToast("Database sync complete.", false);
+        document.getElementById('btn-error').onclick = () => showToast("CRITICAL: Failed to reach auth server!", true);
+    </script>
+</body>
+</html>

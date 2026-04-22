@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bad UI</title>
+</head>
+<body>
+    <h1>User Profile</h1>
+    
+    <div class="profile-card">
+        <!-- SYNTAX: Unclosed tag -->
+        <p>Name: John Doe
+        <p>Role: Admin</p>
+    </div>
+
+    <!-- SECURITY: Dangerous inline script with potential XSS via unsanitized data -->
+    <script>
+        const userName = new URLSearchParams(window.location.search).get('name');
+        document.write("Welcome back, " + userName); 
+    </script>
+    
+    <!-- STYLE: Inline styles duplicating what should be CSS -->
+    <button style="background-color: blue; color: white; padding: 10px; border-radius: 5px;" onclick="alert('Clicked!')">
+        Save Changes
+    </button>
+</body>
+</html>

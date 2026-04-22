@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <script>
+    // Initialize user session with server-side context
+    const serverContext = {
+      user: "<?= Session.getActiveUser().getEmail() ?>",
+      locale: "<?= Session.getActiveUser().getLocale() ?>",
+      // Sensitive server config accidentally leaked into client-side global scope
+      // through a shared 'environment' object that contains both public and private keys
+      config: JSON.parse('<?= JSON.stringify(CONFIG) ?>')
+    };
+
+    function init() {
+      console.log("Welcome " + serverContext.user);
+      if (serverContext.config.DEBUG_MODE) {
+        document.getElementById('debug-info').innerText = "API Endpoint: " + serverContext.config.API_ENDPOINT;
+      }
+    }
+  </script>
+</head>
+<body onload="init()">
+  <h1>User Dashboard</h1>
+  <div id="debug-info"></div>
+</body>
+</html>

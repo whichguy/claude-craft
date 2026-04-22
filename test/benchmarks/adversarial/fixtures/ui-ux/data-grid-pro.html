@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataGrid Pro v2.4 - High Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .grid-row:nth-child(even) { background-color: #f9fafb; }
+        .grid-row:hover { background-color: #f3f4f6; }
+        .action-btn { color: #2563eb; cursor: pointer; }
+        .action-btn:hover { text-decoration: underline; }
+    </style>
+</head>
+<body class="bg-slate-100 p-10">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        <div class="p-6 border-b border-slate-200 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-slate-800">Operational Log Explorer</h1>
+            <div class="space-x-2">
+                <input type="text" id="filter" placeholder="Filter records..." class="border rounded px-3 py-1 text-sm">
+                <button id="refresh" class="bg-slate-800 text-white px-4 py-1 rounded text-sm hover:bg-slate-700">Sync Data</button>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-500 uppercase text-xs font-semibold">
+                    <tr>
+                        <th class="px-6 py-4">ID</th>
+                        <th class="px-6 py-4">Resource Name</th>
+                        <th class="px-6 py-4">Status</th>
+                        <th class="px-6 py-4">Last Updated</th>
+                        <th class="px-6 py-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="grid-body">
+                    <!-- Dynamic Content -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const mockData = [
+            { id: "LOG-001", name: "Central DB Cluster", status: "Active", time: "2m ago" },
+            { id: "LOG-002", name: "Primary Load Balancer", status: "Active", time: "5m ago" },
+            { id: "LOG-003", name: "User API Gateway", status: "Warning", time: "12m ago" },
+            { id: "LOG-004", name: "O'Reilly's Legacy Auth", status: "Error", time: "1m ago" },
+            { id: "LOG-005", name: "Backup `Secondary` Node", status: "Idle", time: "1h ago" }
+        ];
+
+        const gridBody = document.getElementById('grid-body');
+
+        // High-performance cell renderer using template literals
+        function renderGrid(data) {
+            gridBody.innerHTML = data.map(item => `
+                <tr class="grid-row border-b border-slate-100 transition-colors">
+                    <td class="px-6 py-4 font-mono text-slate-600">${item.id}</td>
+                    <td class="px-6 py-4 font-medium text-slate-900">${item.name}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded-full text-xs ${item.status === 'Error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}">
+                            ${item.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-slate-500">${item.time}</td>
+                    <td class="px-6 py-4">
+                        <span class="action-btn" onclick="handleAction('${item.id}', '${item.name}')">View Details</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        window.handleAction = (id, name) => {
+            alert(`Inspecting resource: ${name} (${id})`);
+        };
+
+        document.getElementById('refresh').addEventListener('click', () => {
+            renderGrid(mockData);
+        });
+
+        // Initial render
+        renderGrid(mockData);
+    </script>
+</body>
+</html>

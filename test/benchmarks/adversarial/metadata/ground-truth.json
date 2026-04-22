@@ -1,0 +1,49 @@
+{
+  "logic": {
+    "batch8": "Focuses on fundamental math and logic flaws including Falsy zero errors, bitwise permission issues, and circular buffer overflows.",
+    "batch15": "Covers algorithmic flaws in sorting, matrix processing, and range finding calculations.",
+    "batch7": "Architectural traps involving distributed locking, serialization edge cases, and state orchestration.",
+    "batch9": "Domain-specific logic errors in financial systems including price oracle manipulation and compliance retention flaws.",
+    "individual_traps": [
+      "trap-q1-validation.js: Boundary validation errors",
+      "trap-q4-intent.js: Logic intent mismatch",
+      "trap-pedantic-idioms.js: Misuse of language-specific idioms",
+      "trap-data-integrity.ts: Type-system bypasses affecting integrity",
+      "trap-type-safety.ts: Unsound type assertions",
+      "trap-architectural.js: High-level design flaws",
+      "trap-duplication.js: Hidden state duplication bugs",
+      "trap-resource-leak.js: Non-async resource leaks"
+    ]
+  },
+  "security": {
+    "batch10": "Web security vulnerabilities including XSS in dashboard components and insecure callback handling.",
+    "batch14": "Advanced security threats: ReDoS, Prototype Pollution, SSRF, and cryptographic flaws.",
+    "batch12_shell": "Shell-specific security issues including command injection and insecure temporary file usage."
+  },
+  "async": {
+    "batch4": "Go-specific concurrency traps: race conditions, deadlocks, and waitgroup misuse.",
+    "batch6": "Node.js async flaws: unawaited promises, swallowed rejections, and event emitter leaks.",
+    "individual_traps": [
+      "trap-q2-async.js: Classic unawaited promise trap",
+      "trap-concurrency.js: Generic race condition",
+      "trap-go-goroutine.go: Goroutine leak/race"
+    ]
+  },
+  "platform": {
+    "batch1": "Google Apps Script environment limitations and quota-related failures.",
+    "batch3": "Python-specific quirks including mutable default arguments and buffer management.",
+    "batch11": "Multi-language platform quirks spanning Rust, Swift, Ruby, and C++.",
+    "batch12_java": "Java-specific platform issues such as broken Double-Checked Locking (DCL).",
+    "individual_traps": [
+      "trap-q3-gas-quota.gs: GAS service quotas",
+      "trap-gas-quirks.gs: Apps Script execution environment quirks",
+      "trap-gas-advanced.gs: Advanced GAS service failures",
+      "trap-python-mutable.py: Python mutable default argument trap"
+    ]
+  },
+  "ui-ux": {
+    "batch2": "Visual and interactive UX flaws in complex dashboards and terminal emulators.",
+    "batch5": "React-specific UI patterns and hook-related lifecycle bugs.",
+    "batch13": "Advanced frontend attacks and UI bugs: mXSS, clickjacking, and stale closures."
+  }
+}

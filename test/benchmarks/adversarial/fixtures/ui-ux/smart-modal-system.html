@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Component Library - Modals</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 p-12">
+    <div class="max-w-xl mx-auto space-y-4">
+        <h1 class="text-2xl font-bold mb-6">Modal Orchestration Demo</h1>
+        <button id="open-settings" class="w-full bg-blue-600 text-white p-4 rounded shadow hover:bg-blue-700 transition">Account Settings</button>
+        <button id="open-warning" class="w-full bg-amber-500 text-white p-4 rounded shadow hover:bg-amber-600 transition">Force Sync Warning</button>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-settings" class="modal-overlay">
+        <div class="modal-content" tabindex="-1">
+            <h2 class="text-xl font-bold mb-4">Settings</h2>
+            <input type="text" placeholder="Username" class="w-full border p-2 mb-4 rounded">
+            <div class="flex justify-end gap-2">
+                <button class="close-btn bg-slate-200 px-4 py-2 rounded">Cancel</button>
+                <button class="bg-blue-600 text-white px-4 py-2 rounded" id="trigger-error">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-error" class="modal-overlay">
+        <div class="modal-content" tabindex="-1">
+            <h2 class="text-xl font-bold mb-4 text-red-600">Sync Failure</h2>
+            <p class="mb-4 text-slate-600">The server rejected the update. Please re-authenticate.</p>
+            <button class="close-btn w-full bg-red-600 text-white py-2 rounded">Understood</button>
+        </div>
+    </div>
+
+    <script>
+        let activeModal = null;
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.style.display = 'flex';
+            activeModal = modal;
+            
+            // The Pitfall: Global focus trap. If openModal is called twice (e.g. error on top of settings),
+            // the listener captures 'activeModal' in a way that might conflict or trap focus
+            // on the first modal's elements if the reference isn't handled surgically.
+            document.addEventListener('keydown', handleFocusTrap);
+            
+            const firstInput = modal.querySelector('input, button');
+            if (firstInput) firstInput.focus();
+        }
+
+        function closeModal() {
+            if (activeModal) {
+                activeModal.style.display = 'none';
+                // Note: We remove the listener, but if multiple modals were stacked,
+                // we might lose the trap for the underlying modal or leave a zombie listener.
+                document.removeEventListener('keydown', handleFocusTrap);
+                activeModal = null;
+            }
+        }
+
+        function handleFocusTrap(e) {
+            if (e.key === 'Tab' && activeModal) {
+                const focusables = activeModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                const first = focusables[0];
+                const last = focusables[focusables.length - 1];
+
+                if (e.shiftKey && document.activeElement === first) {
+                    last.focus();
+                    e.preventDefault();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    first.focus();
+                    e.preventDefault();
+                }
+            }
+        }
+
+        document.getElementById('open-settings').onclick = () => openModal('modal-settings');
+        document.getElementById('open-warning').onclick = () => {
+             // Simulate a quick succession opening
+             openModal('modal-settings');
+             setTimeout(() => openModal('modal-error'), 100);
+        };
+        
+        document.getElementById('trigger-error').onclick = () => openModal('modal-error');
+
+        document.querySelectorAll('.close-btn').forEach(btn => {
+            btn.onclick = closeModal;
+        });
+    </script>
+</body>
+</html>
