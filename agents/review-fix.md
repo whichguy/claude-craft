@@ -410,6 +410,7 @@ Extract from reviewer output (code-reviewer, gas-code-review, gas-ui-review, or 
 For each "**Q[N]: [Title]** | Finding: [severity]" block:
   Extract: q_number, title, severity, description
   If Fix block present (Before/After code blocks): extract fix_block
+  line = parsed line number if found in output, else 0   # enforce sentinel at origin
   Store: { q_number, severity, description, fix_block, file, line }
 
 Extract LOOP_DIRECTIVE: APPLY_AND_RECHECK or COMPLETE
@@ -430,7 +431,7 @@ Use these as the single source of truth — do not invent aliases.
   description:     string   # full finding text from reviewer
   fix_block:       object | null  # { before: string, after: string } when Fix block present
   file:            string   # file path this finding belongs to
-  line:            int | None  # line number; use 0 as sentinel when absent
+  line:            int   # line number; 0 when absent (enforced by Finding Parser)
   source_reviewer: string   # e.g. "code-reviewer", "gas-code-review" (set post-parse)
 }
 ```
@@ -455,11 +456,10 @@ are filtered from `findings` and share all fields above.
 ```
 # invocation-scoped state (reset per run, no disk persistence)
 round_hashes = {}           # round → { file → sha256 of file content }
-resolved_findings = {}      # file → set of (q_id, line) confirmed fixed by prior recheck
+resolved_findings = {}      # file → set of (q_number, line) confirmed fixed by prior recheck
 exhausted_no_fix = []       # files where all Fix blocks failed/skipped with no content change
-exhausted_no_fix_q_ids = {} # file → [q_ids] whose Fix blocks failed (for Step 7 feedback)
-per_q_status_history = {}   # q_id → ["present"|"absent", ...] per round (oscillation detection)
-per_file_failed_q_ids = {}  # file → [q_ids] that failed this round's fix pass (reset each round)
+exhausted_no_fix_q_ids = {} # file → [q_numbers] whose Fix blocks failed (for Step 7 feedback)
+per_q_status_history = {}   # q_number → ["present"|"absent", ...] per round (oscillation detection)
 
 # Compute initial hashes for all files before any fix is applied
 round_hashes[0] = { file: sha256(Read(file)) for file in file_list }
@@ -467,7 +467,7 @@ round_hashes[0] = { file: sha256(Read(file)) for file in file_list }
 round = 0
 DO:
   round += 1
-  per_file_failed_q_ids = {}   # reset each round; populated during fix application below
+  per_file_failed_q_ids = {}   # file → [q_numbers] that failed this round's fix pass
   this_round_applied = {}      # file → set of (q_number, line) where Edit succeeded this round
   recheck_files = files where LOOP_DIRECTIVE == APPLY_AND_RECHECK
 
