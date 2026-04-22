@@ -162,6 +162,13 @@ Nuance: [Context affecting severity — mitigating factors, conditions]
 Fix: [Required for Critical and Advisory (before/after code block); omit for None or Advisory/YAGNI]
 ```
 
+**Fix-block contract** — violating any rule invalidates the Fix block (omit it, explain in Nuance):
+- No rename/delete/move of functions, classes, methods, or exported symbols
+- No signature changes (params, return types)
+- No cross-file moves
+- No new imports/dependencies
+- Max 15 lines changed per Fix block (split across Q-answers if needed)
+
 **Confidence filtering**: Only report findings with Confidence >= 75. Below 75, the finding is likely noise — suppress it entirely (do not include in output). Confidence reflects how certain you are this is a real issue that will manifest in practice, not a theoretical concern.
 
 **Rules:**
@@ -193,6 +200,7 @@ improved but will not cause a production incident if left unchanged.
 - [ ] Every selected question in evaluated tiers was answered (Phase 3b skipped if Phase 3a found Critical)
 - [ ] Every "None found" answer includes explicit reasoning, not just the phrase
 - [ ] Every Critical finding has a before/after code block
+- [ ] Every Fix block obeys Fix-block contract (no rename/delete/move/new-import/>15-line diff)
 - [ ] At least one Positive Observation is present
 
 ## Output Contract
