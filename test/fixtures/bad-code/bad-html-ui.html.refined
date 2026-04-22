@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Refined UI</title>
+    <style>
+        .profile-card { border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        .btn-save {
+            background-color: blue;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-save:hover { background-color: darkblue; }
+    </style>
+</head>
+<body>
+    <h1>User Profile</h1>
+    
+    <div class="profile-card">
+        <p>Name: John Doe</p>
+        <p>Role: Admin</p>
+    </div>
+
+    <div id="welcome-message"></div>
+
+    <script>
+        // SECURITY: Use textContent to prevent XSS instead of document.write
+        const urlParams = new URLSearchParams(window.location.search);
+        const userName = urlParams.get('name');
+        const welcomeDiv = document.getElementById('welcome-message');
+        
+        if (userName) {
+            welcomeDiv.textContent = "Welcome back, " + userName;
+        }
+    </script>
+    
+    <button class="btn-save" onclick="alert('Clicked!')">
+        Save Changes
+    </button>
+</body>
+</html>

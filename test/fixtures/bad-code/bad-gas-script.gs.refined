@@ -1,0 +1,35 @@
+function syncInventory() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Inventory");
+  
+  if (!sheet) {
+    console.error("Sheet 'Inventory' not found.");
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return; // Only header or empty
+
+  const updates = [];
+  const statusColumnIndex = 5; // Column E
+  
+  for (let i = 1; i < data.length; i++) {
+    const sku = data[i][0];
+    
+    // NOTE: In a real GAS environment, batching InventoryService calls 
+    // would be ideal if the service supports it.
+    const details = InventoryService.getDetails(sku);
+    
+    if (details.stock < 5) {
+      MailApp.sendEmail("admin@example.com", "Low Stock", `SKU: ${sku}`);
+      updates.push([i + 1, statusColumnIndex, "NOTIFIED"]);
+    }
+  }
+
+  // Batch updates to minimize API calls
+  updates.forEach(update => {
+    sheet.getRange(update[0], update[1]).setValue(update[2]);
+  });
+  
+  // Alternative GAS batching if consecutive: use setValues() on a range
+}

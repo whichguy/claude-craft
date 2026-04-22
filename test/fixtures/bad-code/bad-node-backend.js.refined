@@ -1,0 +1,31 @@
+const fs = require('fs').promises;
+
+async function processData(path) {
+    try {
+        const data = await fs.readFile(path, 'utf8');
+        if (!data) {
+            console.error("File is empty");
+            return;
+        }
+
+        const parsed = JSON.parse(data);
+        
+        // Ensure db object exists and save is awaited
+        if (typeof db !== 'undefined' && db.save) {
+            await db.save(parsed);
+        }
+        
+        if (parsed && Array.isArray(parsed.items)) {
+            console.log(`Processed ${parsed.items.length} items`);
+        } else {
+            console.warn("No items found in parsed data");
+        }
+    } catch (err) {
+        console.error(`Error processing file: ${err.message}`);
+        throw err; // Re-throw to allow caller to handle failure
+    }
+}
+
+processData('./data.json').catch(err => {
+    console.error("Initial processing failed:", err);
+});
