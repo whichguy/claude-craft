@@ -17,7 +17,7 @@
     },
     {
       "id": "TRIV-2",
-      "line": 78,
+      "line": 83,
       "category": "style",
       "severity": "Advisory",
       "question": "Q17",
@@ -62,7 +62,7 @@
     },
     {
       "id": "SUBST-5",
-      "line": 72,
+      "line": 77,
       "category": "correctness",
       "severity": "Critical",
       "question": "Q1",
