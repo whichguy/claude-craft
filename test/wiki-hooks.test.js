@@ -25,12 +25,12 @@ describe('Wiki Hooks', function () {
         fakeQueueDir = path.join(fakeClaudeHome, '.claude', 'reflection-queue');
 
         // Create a git repo with wiki structure
-        fs.mkdirSync(path.join(fakeRepo, 'wiki', 'entities'), { recursive: true });
-        fs.mkdirSync(path.join(fakeRepo, 'wiki', 'sources'), { recursive: true });
-        fs.mkdirSync(path.join(fakeRepo, 'wiki', 'maintenance'), { recursive: true });
+        fs.mkdirSync(path.join(fakeRepo, '.wiki', 'entities'), { recursive: true });
+        fs.mkdirSync(path.join(fakeRepo, '.wiki', 'sources'), { recursive: true });
+        fs.mkdirSync(path.join(fakeRepo, '.wiki', 'maintenance'), { recursive: true });
         fs.mkdirSync(path.join(fakeRepo, 'raw'), { recursive: true });
 
-        fs.writeFileSync(path.join(fakeRepo, 'wiki', 'index.md'), [
+        fs.writeFileSync(path.join(fakeRepo, '.wiki', 'index.md'), [
             '# Wiki Index — test-repo',
             '',
             '## Pages',
@@ -43,7 +43,7 @@ describe('Wiki Hooks', function () {
             'Test wiki.',
         ].join('\n'));
 
-        fs.writeFileSync(path.join(fakeRepo, 'wiki', 'log.md'), [
+        fs.writeFileSync(path.join(fakeRepo, '.wiki', 'log.md'), [
             '# Wiki Log',
             '',
             '## Entries',
@@ -51,7 +51,7 @@ describe('Wiki Hooks', function () {
             '[2026-04-05 10:00] INIT wiki-init: initialized',
         ].join('\n'));
 
-        fs.writeFileSync(path.join(fakeRepo, 'wiki', 'SCHEMA.md'), '---\nschema_version: 1\n---\n# Schema\n');
+        fs.writeFileSync(path.join(fakeRepo, '.wiki', 'SCHEMA.md'), '---\nschema_version: 1\n---\n# Schema\n');
 
         // Init git repo (safe — uses array form via execSync with cwd)
         require('child_process').execSync('git init -q && git add -A && git commit -q -m init', {
@@ -96,14 +96,14 @@ describe('Wiki Hooks', function () {
             const shortSid = sid.substring(0, 8);
 
             // Create session marker (simulates wiki-detect.sh at SessionStart)
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${shortSid}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${shortSid}-start`), '');
 
             // Wait so file mtimes differ from marker (2s to clear 1s filesystem granularity on Linux)
             await new Promise(r => setTimeout(r, 2000));
 
             // Simulate wiki changes during the session
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'test-entity.md'), '# Test Entity\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'sources', 'test-source.md'), '# Test Source\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'test-entity.md'), '# Test Entity\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'sources', 'test-source.md'), '# Test Source\n');
 
             await runHook('wiki-stop.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: sid,
@@ -122,12 +122,12 @@ describe('Wiki Hooks', function () {
             expect(entry.changed_files).to.include('sources/test-source.md');
 
             // Session marker should be cleaned up
-            expect(fs.existsSync(path.join(fakeRepo, 'wiki', `.session-${shortSid}-start`))).to.be.false;
+            expect(fs.existsSync(path.join(fakeRepo, '.wiki', `.session-${shortSid}-start`))).to.be.false;
         });
 
         it('should not create wiki_change entry when no files changed', async function () {
             const sid = 'nochange-test-5678';
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${sid.substring(0, 8)}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sid.substring(0, 8)}-start`), '');
 
             await runHook('wiki-stop.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: sid,
@@ -140,21 +140,21 @@ describe('Wiki Hooks', function () {
 
         it('should append SESSION_END to log.md', async function () {
             const sid = 'logtest-abcd-1234';
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${sid.substring(0, 8)}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sid.substring(0, 8)}-start`), '');
 
             await runHook('wiki-stop.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: sid,
                 transcript_path: '/tmp/fake.jsonl',
             });
 
-            const log = fs.readFileSync(path.join(fakeRepo, 'wiki', 'log.md'), 'utf-8');
+            const log = fs.readFileSync(path.join(fakeRepo, '.wiki', 'log.md'), 'utf-8');
             expect(log).to.include('SESSION_END');
             expect(log).to.include(`session:${sid.substring(0, 8)}`);
         });
 
         it('should not create session_wiki entry when transcript_path is empty', async function () {
             const sid = 'notranscript-9999';
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${sid.substring(0, 8)}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sid.substring(0, 8)}-start`), '');
 
             await runHook('wiki-stop.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: sid,
@@ -174,8 +174,8 @@ describe('Wiki Hooks', function () {
             const sidA = 'concurrent-aaaa-1111';
             const sidB = 'concurrent-bbbb-2222';
 
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${sidA.substring(0, 8)}-start`), '');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${sidB.substring(0, 8)}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sidA.substring(0, 8)}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${sidB.substring(0, 8)}-start`), '');
 
             // Run both stop hooks in parallel
             await Promise.all([
@@ -190,7 +190,7 @@ describe('Wiki Hooks', function () {
             ]);
 
             // Both SESSION_END entries should be in log
-            const log = fs.readFileSync(path.join(fakeRepo, 'wiki', 'log.md'), 'utf-8');
+            const log = fs.readFileSync(path.join(fakeRepo, '.wiki', 'log.md'), 'utf-8');
             const endEntries = log.split('\n').filter(l => l.includes('SESSION_END'));
             expect(endEntries.length).to.equal(2);
 
@@ -280,7 +280,7 @@ describe('Wiki Hooks', function () {
             const sid = 'marker-test-abcdefgh';
             await runHook('wiki-detect.sh', { cwd: fakeRepo, agent_id: '', session_id: sid });
 
-            const marker = path.join(fakeRepo, 'wiki', `.session-${sid.substring(0, 8)}-start`);
+            const marker = path.join(fakeRepo, '.wiki', `.session-${sid.substring(0, 8)}-start`);
             expect(fs.existsSync(marker)).to.be.true;
         });
 
@@ -353,7 +353,7 @@ describe('Wiki Hooks', function () {
         });
 
         it('should allow writes to non-raw paths', async function () {
-            const { stdout } = await runHook('wiki-raw-guard.sh', { file_path: '/repo/wiki/entities/test.md' });
+            const { stdout } = await runHook('wiki-raw-guard.sh', { file_path: '/repo/.wiki/entities/test.md' });
             expect(stdout.trim()).to.equal('');
         });
 
@@ -383,10 +383,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should exit silently when WIKI_SKIP=1 regardless of match state', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'skip-test\treview changes entity\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'skip-test.md'), '# Skip Test\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'skip-test.md'), '# Skip Test\n');
 
             const { stdout } = await runHook('wiki-notify.sh', {
                 session_id: 'notify-skip-1234',
@@ -411,10 +411,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should emit compact <wiki_match> block with soft A1 framing when prompt keywords match a cached entity', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'test-entity\ttest entity review changes\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'test-entity.md'), '# Test Entity\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'test-entity.md'), '# Test Entity\n');
 
             const { stdout } = await runHook('wiki-notify.sh', {
                 session_id: 'notify-match-1234',
@@ -438,11 +438,11 @@ describe('Wiki Hooks', function () {
         });
 
         it('should log AMPLIFIER_MATCH to wiki/log.md on match fire (A1 false-positive tuning)', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'amp-log-ent\tamplifier log entity fixture\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'amp-log-ent.md'), '# Amp Log\n');
-            const logPath = path.join(fakeRepo, 'wiki', 'log.md');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'amp-log-ent.md'), '# Amp Log\n');
+            const logPath = path.join(fakeRepo, '.wiki', 'log.md');
             const beforeSize = fs.existsSync(logPath) ? fs.statSync(logPath).size : 0;
 
             await runHook('wiki-notify.sh', {
@@ -461,7 +461,7 @@ describe('Wiki Hooks', function () {
         // block, every silent-exit prompt would pollute wiki/log.md. Pin the
         // negative case so that regression is caught.
         it('should NOT log AMPLIFIER_MATCH on silent-exit (no match, no new pages)', async function () {
-            const logPath = path.join(fakeRepo, 'wiki', 'log.md');
+            const logPath = path.join(fakeRepo, '.wiki', 'log.md');
             const beforeSize = fs.existsSync(logPath) ? fs.statSync(logPath).size : 0;
 
             const { stdout } = await runHook('wiki-notify.sh', {
@@ -479,10 +479,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should keep match payload compact (under 400 bytes of additionalContext)', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'compact-test\tcompact test entity matcher\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'compact-test.md'), '# Compact\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'compact-test.md'), '# Compact\n');
 
             const { stdout } = await runHook('wiki-notify.sh', {
                 session_id: 'notify-compact-1234',
@@ -497,10 +497,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should use canonical hookSpecificOutput schema with hookEventName UserPromptSubmit when emitting', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'schema-test\tschema test entity matcher\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'schema-test.md'), '# Schema\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'schema-test.md'), '# Schema\n');
 
             const { stdout } = await runHook('wiki-notify.sh', {
                 session_id: 'notify-schema-1234',
@@ -515,10 +515,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should exit silently on /wiki-* commands (user already wiki-aware)', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'wiki-cmd-test\twiki cmd test entity\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'wiki-cmd-test.md'), '# Wiki Cmd\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'wiki-cmd-test.md'), '# Wiki Cmd\n');
 
             for (const prompt of ['/wiki-load foo', '/wiki-query bar', '/wiki-lint', '/wiki-init', '/wiki-ingest x', '/wiki-process']) {
                 const { stdout } = await runHook('wiki-notify.sh', {
@@ -531,10 +531,10 @@ describe('Wiki Hooks', function () {
         });
 
         it('should produce a payload under 10000 bytes (Anthropic injected-context cap)', async function () {
-            const cacheDir = path.join(fakeRepo, 'wiki', '.cache');
+            const cacheDir = path.join(fakeRepo, '.wiki', '.cache');
             fs.mkdirSync(cacheDir, { recursive: true });
             fs.writeFileSync(path.join(cacheDir, 'entity-index.tsv'), 'size-test\tsize test entity matcher\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'size-test.md'), '# Size\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'size-test.md'), '# Size\n');
 
             const { stdout } = await runHook('wiki-notify.sh', {
                 session_id: 'notify-size-1234',
@@ -553,13 +553,13 @@ describe('Wiki Hooks', function () {
             const sid = 'notify-boundary-1234';
             const shortSid = sid.substring(0, 8);
 
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${shortSid}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${shortSid}-start`), '');
             await new Promise(r => setTimeout(r, 2000));
 
             // Exactly 10 → no overflow, no "+0 more"
             for (let i = 1; i <= 10; i++) {
                 fs.writeFileSync(
-                    path.join(fakeRepo, 'wiki', 'entities', `boundary-ent-${String(i).padStart(2, '0')}.md`),
+                    path.join(fakeRepo, '.wiki', 'entities', `boundary-ent-${String(i).padStart(2, '0')}.md`),
                     `# Boundary ${i}\n`
                 );
             }
@@ -593,13 +593,13 @@ describe('Wiki Hooks', function () {
             const shortSid = sid.substring(0, 8);
 
             // Session marker (simulates SessionStart). Older than the soon-to-be-created pages.
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', `.session-${shortSid}-start`), '');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', `.session-${shortSid}-start`), '');
             await new Promise(r => setTimeout(r, 2000));
 
             // Create 13 new entity pages → 3 overflow beyond the 10-cap.
             for (let i = 1; i <= 13; i++) {
                 fs.writeFileSync(
-                    path.join(fakeRepo, 'wiki', 'entities', `overflow-ent-${String(i).padStart(2, '0')}.md`),
+                    path.join(fakeRepo, '.wiki', 'entities', `overflow-ent-${String(i).padStart(2, '0')}.md`),
                     `# Overflow ${i}\n`
                 );
             }
@@ -789,7 +789,7 @@ describe('Wiki Hooks', function () {
     // Group: wiki-cache-rebuild.sh file-refs.tsv build (PR1)
     // ================================================================
     describe('wiki-cache-rebuild.sh file-refs.tsv', function () {
-        const cacheFile = () => path.join(fakeRepo, 'wiki', '.cache', 'file-refs.tsv');
+        const cacheFile = () => path.join(fakeRepo, '.wiki', '.cache', 'file-refs.tsv');
 
         function readRefs() {
             if (!fs.existsSync(cacheFile())) return {};
@@ -805,7 +805,7 @@ describe('Wiki Hooks', function () {
         it('extracts backtick-wrapped paths that exist on disk', async function () {
             fs.mkdirSync(path.join(fakeRepo, 'src'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'src', 'real.sh'), '#!/bin/bash\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'foo.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'foo.md'),
                 '---\nname: Foo\n---\n# Foo\nReferences `src/real.sh` and `src/imaginary.sh`.\n');
 
             await runHook('wiki-cache-rebuild.sh', {
@@ -823,8 +823,8 @@ describe('Wiki Hooks', function () {
             fs.writeFileSync(path.join(fakeRepo, 'node_modules', 'x.js'), '');
             fs.writeFileSync(path.join(fakeRepo, 'debug.log'), '');
             fs.writeFileSync(path.join(fakeRepo, 'scratch.tmp'), '');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'bar.md'),
-                '# Bar\n`node_modules/x.js` `yarn.lock` `debug.log` `scratch.tmp` `wiki/SCHEMA.md`\n');
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'bar.md'),
+                '# Bar\n`node_modules/x.js` `yarn.lock` `debug.log` `scratch.tmp` `.wiki/SCHEMA.md`\n');
 
             await runHook('wiki-cache-rebuild.sh', {
                 cwd: fakeRepo, agent_id: '', session_id: 'refs-noise-1234',
@@ -835,17 +835,17 @@ describe('Wiki Hooks', function () {
             expect(refs['yarn.lock']).to.be.undefined;
             expect(refs['debug.log']).to.be.undefined;
             expect(refs['scratch.tmp']).to.be.undefined;
-            expect(refs['wiki/SCHEMA.md']).to.be.undefined;
+            expect(refs['.wiki/SCHEMA.md']).to.be.undefined;
         });
 
         it('aggregates multiple entities referencing same path, sorted and comma-joined', async function () {
             fs.mkdirSync(path.join(fakeRepo, 'lib'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'lib', 'shared.js'), '');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'alpha.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'alpha.md'),
                 '# Alpha\n`lib/shared.js`\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'bravo.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'bravo.md'),
                 '# Bravo\n`lib/shared.js`\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'charlie.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'charlie.md'),
                 '# Charlie\n`lib/shared.js`\n');
 
             await runHook('wiki-cache-rebuild.sh', {
@@ -860,7 +860,7 @@ describe('Wiki Hooks', function () {
             fs.mkdirSync(path.join(fakeRepo, 'lib'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'lib', 'hot.js'), '');
             for (const slug of ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7']) {
-                fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', `${slug}.md`),
+                fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', `${slug}.md`),
                     `# ${slug}\n\`lib/hot.js\`\n`);
             }
 
@@ -875,9 +875,9 @@ describe('Wiki Hooks', function () {
         it('rewrites fully — deleted wiki pages drop out', async function () {
             fs.mkdirSync(path.join(fakeRepo, 'src'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'src', 'k.sh'), '');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'keeper.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'keeper.md'),
                 '# Keeper\n`src/k.sh`\n');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'goner.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'goner.md'),
                 '# Goner\n`src/k.sh`\n');
 
             await runHook('wiki-cache-rebuild.sh', {
@@ -886,8 +886,8 @@ describe('Wiki Hooks', function () {
             expect(readRefs()['src/k.sh']).to.equal('goner,keeper');
 
             // Delete goner.md; remove debounce marker so rebuild runs; rerun
-            fs.unlinkSync(path.join(fakeRepo, 'wiki', 'entities', 'goner.md'));
-            const debounce = path.join(fakeRepo, 'wiki', '.cache', 'last-rebuild');
+            fs.unlinkSync(path.join(fakeRepo, '.wiki', 'entities', 'goner.md'));
+            const debounce = path.join(fakeRepo, '.wiki', '.cache', 'last-rebuild');
             if (fs.existsSync(debounce)) fs.unlinkSync(debounce);
 
             await runHook('wiki-cache-rebuild.sh', {
@@ -899,7 +899,7 @@ describe('Wiki Hooks', function () {
         it('extracts paths from frontmatter sources: inline list', async function () {
             fs.mkdirSync(path.join(fakeRepo, 'docs'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'docs', 'guide.md'), '');
-            fs.writeFileSync(path.join(fakeRepo, 'wiki', 'entities', 'quux.md'),
+            fs.writeFileSync(path.join(fakeRepo, '.wiki', 'entities', 'quux.md'),
                 '---\nname: Quux\nsources: [docs/guide.md, other-slug]\n---\n# Quux\n');
 
             await runHook('wiki-cache-rebuild.sh', {
@@ -917,7 +917,7 @@ describe('Wiki Hooks', function () {
     // Group: wiki-read-gate.sh PreToolUse:Read hint injector (PR2)
     // ================================================================
     describe('wiki-read-gate.sh PreToolUse:Read', function () {
-        const cacheDir = () => path.join(fakeRepo, 'wiki', '.cache');
+        const cacheDir = () => path.join(fakeRepo, '.wiki', '.cache');
         const refsFile = () => path.join(cacheDir(), 'file-refs.tsv');
 
         function seedCache(rows) {
@@ -987,9 +987,9 @@ describe('Wiki Hooks', function () {
         it('exits silently for noise paths (wiki/, .cache/, *.lock)', async function () {
             fs.writeFileSync(path.join(fakeRepo, 'yarn.lock'), '');
             // Even if the cache has a bogus row for a noise path, the fast-path filter should win.
-            seedCache([['yarn.lock', 'alpha'], ['wiki/SCHEMA.md', 'bravo']]);
+            seedCache([['yarn.lock', 'alpha'], ['.wiki/SCHEMA.md', 'bravo']]);
 
-            for (const p of ['yarn.lock', 'wiki/SCHEMA.md']) {
+            for (const p of ['yarn.lock', '.wiki/SCHEMA.md']) {
                 const { stdout } = await runHook('wiki-read-gate.sh', {
                     cwd: fakeRepo,
                     agent_id: '',
@@ -1060,7 +1060,7 @@ describe('Wiki Hooks', function () {
             fs.mkdirSync(path.join(fakeRepo, 'src'), { recursive: true });
             fs.writeFileSync(path.join(fakeRepo, 'src', 'hit.sh'), '');
             seedCache([['src/hit.sh', 'alpha']]);
-            const before = fs.readFileSync(path.join(fakeRepo, 'wiki', 'log.md'), 'utf-8').split('\n').length;
+            const before = fs.readFileSync(path.join(fakeRepo, '.wiki', 'log.md'), 'utf-8').split('\n').length;
 
             await runHook('wiki-read-gate.sh', {
                 cwd: fakeRepo,
@@ -1070,7 +1070,7 @@ describe('Wiki Hooks', function () {
                 tool_input: { file_path: path.join(fakeRepo, 'src', 'hit.sh') },
             });
 
-            const log = fs.readFileSync(path.join(fakeRepo, 'wiki', 'log.md'), 'utf-8');
+            const log = fs.readFileSync(path.join(fakeRepo, '.wiki', 'log.md'), 'utf-8');
             const after = log.split('\n').length;
             expect(after).to.be.greaterThan(before);
             expect(log).to.include('READ_GATE');

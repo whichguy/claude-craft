@@ -28,7 +28,7 @@ QUEUE_SUFFIX="wiki" wiki_queue_entry "session_wiki" "precompact" "normal"
 QUEUED=$((QUEUED + 1))
 
 # 3. Detect and queue wiki_change
-MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
+MARKER="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-start"
 wiki_detect_changes "$MARKER"
 # Do NOT delete marker — session continues, Stop hook still needs it
 QUEUE_SUFFIX_CHANGE="wikichange" wiki_queue_changes "precompact"

@@ -1,5 +1,0 @@
-# Session markers (per-session, not version controlled)
-.session-*
-
-# Pre-computed cache (rebuilt by wiki-cache-rebuild.sh)
-.cache/

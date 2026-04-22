@@ -11,15 +11,8 @@ plugins/cache/
 plugins/data/
 plugins/marketplaces/
 # Wiki runtime content (created by /wiki-init, not tracked)
-wiki/index.md
-wiki/log.md
-wiki/entities/
-wiki/sources/
-wiki/queries/
-wiki/maintenance/
-wiki/.session-*
+.wiki/
 raw/
-!wiki/SCHEMA.md
 
 # Benchmark results — generated, not source
 results/*.json

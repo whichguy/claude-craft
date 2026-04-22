@@ -16,18 +16,18 @@ Run a comprehensive health check on the project wiki. Write a maintenance report
 
 ## Step 0 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
+Locate `WIKI_DIR` by searching for `.wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
 If not found: print "No wiki found. Run /wiki-init first." and stop.
 
 TODAY = current date YYYY-MM-DD
-REPORT_PATH = `WIKI_DIR/maintenance/lint-TODAY.md`
+REPORT_PATH = `.wiki/maintenance/lint-TODAY.md`
 
 ## Step 1 — Inventory
 
-Glob all `.md` files under `WIKI_DIR/`.
+Glob all `.md` files under `.wiki/`.
 If file count > 200: print "Wiki has N files — processing first 200 only" and truncate.
 
-Read `WIKI_DIR/index.md` for `INDEXED_PAGES` (all rows in the Pages table).
+Read `.wiki/index.md` for `INDEXED_PAGES` (all rows in the Pages table).
 
 ## Step 2 — Find Orphan Pages
 
@@ -65,12 +65,12 @@ Collect MISSING_CONCEPTS.
 
 ## Step 7 — Check Log Size
 
-Count entries in `WIKI_DIR/log.md`.
-If count > 500: add suggestion to archive: "Log has N entries (>500) — consider archiving old entries to wiki/log-archive-YYYY.md"
+Count entries in `.wiki/log.md`.
+If count > 500: add suggestion to archive: "Log has N entries (>500) — consider archiving old entries to .wiki/log-archive-YYYY.md"
 
 ## Step 8 — Find Missing v2 Frontmatter (advisory)
 
-Read all entity pages under `WIKI_DIR/entities/` (cap at 200).
+Read all entity pages under `.wiki/entities/` (cap at 200).
 A page is missing v2 frontmatter if its YAML frontmatter block (between `---` delimiters) lacks ANY of:
 `confidence`, `sources`, `related`, `description`
 (a `description:` whose value is an empty string `""` counts as missing; pages with no `---` block at all are also flagged)
@@ -129,8 +129,8 @@ Use `✓` for clean checks, `✗` for critical issues (broken links), `⚠` for 
 
 ## Step 12 — Update Index and Log
 
-Add lint report to `WIKI_DIR/index.md`:
+Add lint report to `.wiki/index.md`:
 `| maintenance/lint-TODAY.md | Lint report TODAY | TODAY |`
 
-Append to `WIKI_DIR/log.md`:
+Append to `.wiki/log.md`:
 `[TIMESTAMP] LINT lint-TODAY: N orphans, N broken links, N contradictions`

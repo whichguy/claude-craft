@@ -35,8 +35,8 @@ case "$PROMPT" in
   *"<summary>Stop hook feedback</summary>"*) exit 0 ;;
 esac
 
-ENTITIES_DIR="$REPO_ROOT/wiki/entities"
-CACHE_DIR="$REPO_ROOT/wiki/.cache"
+ENTITIES_DIR="$REPO_ROOT/.wiki/entities"
+CACHE_DIR="$REPO_ROOT/.wiki/.cache"
 ENTITY_INDEX="$CACHE_DIR/entity-index.tsv"
 CONTENT=""
 DISPLAY=""
@@ -89,9 +89,9 @@ if [ -n "$PROMPT" ] && [ -f "$ENTITY_INDEX" ]; then
 fi
 
 # --- Path 2: New page detection (existing behavior) ---
-MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
+MARKER="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-start"
 if [ -f "$MARKER" ]; then
-  NOTIFIED="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-notified"
+  NOTIFIED="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-notified"
   REF_MARKER="$NOTIFIED"
   [ ! -f "$REF_MARKER" ] && REF_MARKER="$MARKER"
 

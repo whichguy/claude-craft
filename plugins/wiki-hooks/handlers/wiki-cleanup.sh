@@ -16,7 +16,7 @@ wiki_parse_input
 wiki_find_root || exit 0
 
 # WIKI_PATH from wiki_find_root has trailing slash; strip for glob patterns below
-WIKI_DIR="$REPO_ROOT/wiki"
+WIKI_DIR="$REPO_ROOT/.wiki"
 QUEUE_DIR="$HOME/.claude/reflection-queue"
 
 # --- 1. Expire stale session markers (>24h) ---

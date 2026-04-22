@@ -34,7 +34,7 @@ if ! wiki_find_root; then
 fi
 
 # Session marker for change detection (consumed by wiki-stop.sh via find -newer)
-MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
+MARKER="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-start"
 touch "$MARKER" 2>/dev/null || true
 
 wiki_log "SESSION_START" "opened in $(basename "$REPO_ROOT")"
@@ -43,13 +43,13 @@ wiki_log "SESSION_START" "opened in $(basename "$REPO_ROOT")"
 REPO_NAME=$(basename "$REPO_ROOT")
 
 # Count pages/topics for display (fast — reads from cache or falls back to ls)
-CACHE_DIR="$REPO_ROOT/wiki/.cache"
+CACHE_DIR="$REPO_ROOT/.wiki/.cache"
 if [ -f "$CACHE_DIR/display.txt" ]; then
   DISPLAY=$(cat "$CACHE_DIR/display.txt")
 else
-  PAGE_COUNT=$(grep -c '^|' "$REPO_ROOT/wiki/index.md" 2>/dev/null || echo 2)
+  PAGE_COUNT=$(grep -c '^|' "$REPO_ROOT/.wiki/index.md" 2>/dev/null || echo 2)
   PAGE_COUNT=$((PAGE_COUNT > 2 ? PAGE_COUNT - 2 : 0))
-  TOPIC_COUNT=$(ls "$REPO_ROOT/wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
+  TOPIC_COUNT=$(ls "$REPO_ROOT/.wiki/entities/" 2>/dev/null | wc -l | tr -d ' ')
   DISPLAY="📂 ${REPO_NAME} wiki · ${PAGE_COUNT} pages · ${TOPIC_COUNT} topics"
   DISPLAY="${DISPLAY}"$'\n'"   /wiki-load <topic> — entity lookup  ·  /wiki-query <question> — cross-page synthesis"
 fi

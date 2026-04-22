@@ -82,7 +82,7 @@ esac
 # Inline to avoid sourcing wiki-common.sh (keeps hot path lean).
 REPO_ROOT=""
 GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
-if [ -n "$GIT_ROOT" ] && [ -f "$GIT_ROOT/wiki/log.md" ]; then
+if [ -n "$GIT_ROOT" ] && [ -f "$GIT_ROOT/.wiki/log.md" ]; then
   REPO_ROOT="$GIT_ROOT"
 fi
 [ -z "$REPO_ROOT" ] && exit 0
@@ -95,11 +95,11 @@ esac
 
 # --- Noise filter (fast-path exit before touching cache) ---
 case "$REL_PATH" in
-  wiki/*|.git/*|node_modules/*|raw/*|.cache/*|*.lock|*.log|*.tmp) exit 0 ;;
+  .wiki/*|.git/*|node_modules/*|raw/*|.cache/*|*.lock|*.log|*.tmp) exit 0 ;;
 esac
 
 # --- Load cache; fail-open if missing or unreadable ---
-REFS_FILE="$REPO_ROOT/wiki/.cache/file-refs.tsv"
+REFS_FILE="$REPO_ROOT/.wiki/.cache/file-refs.tsv"
 [ -f "$REFS_FILE" ] || exit 0
 [ -r "$REFS_FILE" ] || exit 0
 
@@ -132,7 +132,7 @@ if [ "$START_T" != "0" ] && [ "$END_T" != "0" ]; then
 fi
 
 # --- Log line to wiki/log.md (best-effort) ---
-LOG_PATH="$REPO_ROOT/wiki/log.md"
+LOG_PATH="$REPO_ROOT/.wiki/log.md"
 if [ -f "$LOG_PATH" ] && [ -w "$LOG_PATH" ]; then
   TIMESTAMP=$(date '+%Y-%m-%d %H:%M')
   echo "[$TIMESTAMP] READ_GATE session:${SESSION_SHORT} path:$REL_PATH slugs:$SLUGS dur:${DUR_MS}ms" >> "$LOG_PATH" 2>/dev/null || true

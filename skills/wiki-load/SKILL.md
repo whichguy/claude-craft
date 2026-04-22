@@ -35,20 +35,20 @@ Find `REPO_ROOT` via `git rev-parse --show-toplevel` if in a repo (for project t
 
 ## Step 0.5 — Log Invocation
 
-If `REPO_ROOT` was found and `$REPO_ROOT/wiki/log.md` exists, append a log entry via Bash:
+If `REPO_ROOT` was found and `$REPO_ROOT/.wiki/log.md` exists, append a log entry via Bash:
 
 ```bash
-echo "[$(date '+%Y-%m-%d %H:%M')] WIKI_LOAD session:${CLAUDE_CODE_SESSION_ID:0:8}: /wiki-load $ARGUMENTS" >> "$REPO_ROOT/wiki/log.md"
+echo "[$(date '+%Y-%m-%d %H:%M')] WIKI_LOAD session:${CLAUDE_CODE_SESSION_ID:0:8}: /wiki-load $ARGUMENTS" >> "$REPO_ROOT/.wiki/log.md"
 ```
 
 ## Step 1 — Project Tier Search (default or --project)
 
 If not `GLOBAL_ONLY` and in a git repo with a wiki:
 
-Locate `WIKI_DIR` (search for `wiki/log.md` from git root — matches hook sentinel).
+Locate `WIKI_DIR` (search for `.wiki/log.md` from git root — matches hook sentinel).
 If found:
-- Grep `WIKI_DIR/entities/` for TOPIC (case-insensitive) — select up to 3 best matches
-- Grep `WIKI_DIR/sources/` for TOPIC — select up to 2 additional matches
+- Grep `.wiki/entities/` for TOPIC (case-insensitive) — select up to 3 best matches
+- Grep `.wiki/sources/` for TOPIC — select up to 2 additional matches
 - Prefer entity pages over source pages
 
 ## Step 2 — Global Tier Search (default or --global)

@@ -13,13 +13,13 @@ wiki_parse_input
 wiki_find_root || exit 0
 
 # Clean up orphans from wiki-clear.sh crashes
-wiki_cleanup_orphans "$REPO_ROOT/wiki" ".session-*-clearing-*"
+wiki_cleanup_orphans "$REPO_ROOT/.wiki" ".session-*-clearing-*"
 
 # Detect wiki changes since session start
-MARKER="$REPO_ROOT/wiki/.session-${SESSION_SHORT}-start"
+MARKER="$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-start"
 wiki_detect_changes "$MARKER"
 rm -f "$MARKER"
-rm -f "$REPO_ROOT/wiki/.session-${SESSION_SHORT}-notified"
+rm -f "$REPO_ROOT/.wiki/.session-${SESSION_SHORT}-notified"
 
 # Queue session_wiki
 if [ -n "$TRANSCRIPT" ]; then

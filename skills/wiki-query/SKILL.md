@@ -23,12 +23,12 @@ From `$ARGUMENTS`, extract:
 
 ## Step 1 — Find Wiki
 
-Locate `WIKI_DIR` by searching for `wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
+Locate `WIKI_DIR` by searching for `.wiki/log.md` from the git root upward (matches hook sentinel, max 4 levels).
 If not found: print "No wiki found. Run /wiki-init first." and stop.
 
 ## Step 2 — Read Index
 
-Read `WIKI_DIR/index.md` in full.
+Read `.wiki/index.md` in full.
 This is the navigation map — never skip this step even if index was injected at session start.
 Fresh read ensures synthesis reflects any pages added during this session.
 
@@ -70,9 +70,9 @@ Cite specific pages inline. Acknowledge when evidence is thin.
 
 If `SAVE` is true:
 - SLUG = first 8 words of QUESTION, lowercased, hyphens
-- Write answer to `WIKI_DIR/queries/SLUG.md` with full answer + metadata
-- Add row to `WIKI_DIR/index.md`
-- Append to `WIKI_DIR/log.md`: `[TIMESTAMP] QUERY SLUG: synthesized from N pages`
+- Write answer to `.wiki/queries/SLUG.md` with full answer + metadata
+- Add row to `.wiki/index.md`
+- Append to `.wiki/log.md`: `[TIMESTAMP] QUERY SLUG: synthesized from N pages`
 
 ## Step 7 — Print Answer
 

@@ -143,7 +143,7 @@ json_escape() {
 # step3_token_cost approximated as total_token_cost (pre/post split unavailable).
 emit_telemetry() {
   local fixture="$1" rounds="$2" inp="$3" cc="$4" cr="$5" out="$6"
-  local tp="$7" fp="$8" fn="$9"
+  local tp="$7" fp="$8" fn="$9" per_q="${10:-{}"
   local log_file="${REPO_DIR}/docs/experiments/review-fix-telemetry.ndjson"
   local arm="${BENCH_ARM:-default}"
   local git_sha
@@ -154,6 +154,7 @@ emit_telemetry() {
   python3 -c "
 import json, sys
 total = int('$inp') + int('$cc') + int('$cr') + int('$out')
+per_q = json.loads('$per_q') if '$per_q' and '$per_q' != '{}' else {}
 rec = {
     'ts': '$ts',
     'git_sha': '$git_sha',
@@ -166,6 +167,7 @@ rec = {
     'tp': int('$tp'),
     'fp': int('$fp'),
     'fn': int('$fn'),
+    'per_q': per_q,
 }
 print(json.dumps(rec))
 " >> "$log_file"
@@ -318,7 +320,27 @@ for score, fi, iid in scored:
 fp = [i for i in range(len(findings)) if i not in matched_findings]
 fn = [issue['id'] for issue in gt['issues'] if issue['id'] not in matched_ids]
 
-print(json.dumps({'tp': tp, 'fp_count': len(fp), 'fn': fn}))
+# Per-question breakdown
+per_q = {}
+for iid in tp:
+    issue = next((i for i in gt['issues'] if i['id'] == iid), None)
+    if issue:
+        q = issue.get('question', 'unknown')
+        per_q.setdefault(q, {'tp': 0, 'fp': 0, 'fn': 0})
+        per_q[q]['tp'] += 1
+for iid in fn:
+    issue = next((i for i in gt['issues'] if i['id'] == iid), None)
+    if issue:
+        q = issue.get('question', 'unknown')
+        per_q.setdefault(q, {'tp': 0, 'fp': 0, 'fn': 0})
+        per_q[q]['fn'] += 1
+for fi in fp:
+    f = findings[fi]
+    q = f.get('question', 'unknown')
+    per_q.setdefault(q, {'tp': 0, 'fp': 0, 'fn': 0})
+    per_q[q]['fp'] += 1
+
+print(json.dumps({'tp': tp, 'fp_count': len(fp), 'fn': fn, 'per_q': per_q}))
 "
 }
 
@@ -796,10 +818,11 @@ print(json.dumps({'tp': [], 'fp_count': 0, 'fn': [i['id'] for i in gt['issues']]
         match_result=$(match_findings "$findings_json" "$gt_file")
       fi
 
-      local tp_list fp_count fn_list
+      local tp_list fp_count fn_list per_q_json
       tp_list=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(json.dumps(r['tp']))")
       fp_count=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(r['fp_count'])")
       fn_list=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(json.dumps(r['fn']))")
+      per_q_json=$(printf '%s' "$match_result" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); print(json.dumps(r.get('per_q', {})))")
 
       local tp_count fn_count
       tp_count=$(python3 -c "import json; print(len(json.loads('$tp_list')))")
@@ -891,7 +914,7 @@ print(json.dumps(rec))
       run_count=$((run_count + 1))
 
       # ── Telemetry NDJSON (P3): append one line per run to durable log ──
-      emit_telemetry "$fixture_name" "$run_loop_rounds" "$run_input_tokens" "$run_cc_tokens" "$run_cr_tokens" "$run_output_tokens" "$tp_count" "$fp_count" "$fn_count"
+      emit_telemetry "$fixture_name" "$run_loop_rounds" "$run_input_tokens" "$run_cc_tokens" "$run_cr_tokens" "$run_output_tokens" "$tp_count" "$fp_count" "$fn_count" "$per_q_json"
 
       # Accumulate totals (only non-retry runs for primary analysis)
       if [[ "$was_retry" != "true" ]]; then
