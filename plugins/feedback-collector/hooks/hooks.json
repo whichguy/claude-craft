@@ -1,0 +1,9 @@
+{
+  "description": "SessionEnd hook to harvest feedback",
+  "hooks": {
+    "SessionEnd": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/handlers/harvest-feedback.sh", "timeout": 15 }]
+    }]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "fixture": "ts_tiered_pricing.ts",
+  "categories_present": ["logic", "boundary-condition"],
+  "issues": [
+    {
+      "id": "TRAP_PHANTOM_TIER",
+      "category": "logic",
+      "description": "Logic error in 'calculateTotal'. The loop (line 55) consumes 'remaining' quantity starting from the first tier regardless of whether the quantity has reached that tier's 'minQuantity'. If the first tier starts at e.g. 100, a quantity of 50 will still be charged at that tier's price because 'unitsInThisTier' (line 60) doesn't verify the current offset against 'tier.minQuantity'.",
+      "severity": "High",
+      "line": 60
+    },
+    {
+      "id": "TRAP_FLOATING_POINT_ROUNDING",
+      "category": "logic",
+      "description": "Potential precision loss/rounding error. Using 'total.toFixed(2)' (line 72) and then casting back to Number can lead to unexpected results due to how JavaScript handles IEEE 754 floating point numbers and the 'Banker's Rounding' behavior of toFixed in some environments.",
+      "severity": "Medium",
+      "line": 72
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "description": "The tier sorting on line 16 is a good practice and correctly ensures tiers are processed in order."
+    },
+    {
+      "description": "The 'validateTiers' method correctly identifies gaps between integer boundaries, which is a standard requirement for many pricing systems."
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "fixture": "safe_deploy_cleanup.sh",
+  "categories_present": ["platform", "security", "injection"],
+  "issues": [
+    {
+      "id": "TRAP_PATH_TRAVERSAL_REGEX",
+      "category": "security",
+      "description": "Weak path traversal validation. The regex check on line 22 only verifies that the path 'starts with' the base directory. It fails to account for '..' (parent directory) components in 'project_name'. An attacker providing 'project1/../../' would pass the check but allow the script to operate on sensitive parent directories.",
+      "severity": "High",
+      "line": 22
+    },
+    {
+      "id": "TRAP_GLOB_EXPANSION_RISK",
+      "category": "platform",
+      "description": "Potential issues if BASE_ARTIFACT_DIR is not absolute or if the environment allows symbol manipulation. While 'set -u' is used, the script relies on the external 'find' and 'rm' binaries which can be influenced by PATH manipulation if the environment is not fully locked down.",
+      "severity": "Low",
+      "line": 37
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "description": "The use of '-print0 | xargs -0' is the correct way to handle filenames with special characters in Bash."
+    },
+    {
+      "description": "The use of '--' in the 'rm' command correctly prevents argument injection via filenames starting with dashes."
+    }
+  ]
+}
