@@ -12,7 +12,7 @@ description: |
   - Plan references .gs files, .html files in GAS context, or mcp__gas__ tools
   - Plan modifies CommonJS modules, __events__, doGet/doPost, or addon code
 
-  **NOT for:** Code review (use /gas-review), test review (use /gas-test-review),
+  **NOT for:** Code review (use /gas-review),
   prompt analysis (use /improve-prompt --mode critique), non-GAS plans
 
   **mode parameter:**

@@ -9,7 +9,7 @@ description: |
   - "test plan", "what should I test"
   - After feature implementation is complete
 
-  NOT for: Running existing tests (use `npm test`), GAS test review (use /gas-test-review)
+  NOT for: Running existing tests (use `npm test`)
 argument-hint: "[file-path or function-name]"
 allowed-tools: all
 ---

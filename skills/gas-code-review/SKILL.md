@@ -13,7 +13,7 @@ description: |
 
   **ALWAYS PAIR WITH:** gas-ui-review when .html files are also present (or use /gas-review for both)
 
-  **NOT for:** General JS/TS (use code-reviewer), deep audit (use gas-quality-check), HTML patterns (use gas-ui-review)
+  **NOT for:** General JS/TS (use code-reviewer), HTML patterns (use gas-ui-review)
 model: claude-sonnet-4-6
 allowed-tools: all
 alwaysApply: false

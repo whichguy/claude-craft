@@ -142,7 +142,6 @@ const INTERNAL_ONLY_EXEMPTIONS = new Set([
     'gas-debug-hypothesis-tester',  // gas-debug-team-lead specialist
     'gas-ui-code-review',           // gas-review-team-lead specialist
     'gas-ui-plan-review',           // gas-plan / gas-review-team-lead specialist
-    'gas-quality-check',            // gas-code-review deep validator
 ]);
 
 // User-facing entry points whose lack of cross-references from other

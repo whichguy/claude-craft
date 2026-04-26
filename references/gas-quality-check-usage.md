@@ -1,5 +1,12 @@
 # GAS Code Quality Checker - Usage Guide
 
+> **Deprecated (2026-04-26):** the underlying agent was archived to
+> `references/gas-quality-check-archive.md`. The 12-tier deep-audit framework is no
+> longer dispatched by `gas-code-review`; this guide is preserved as historical
+> documentation of the validation tiers. Project-specific patterns (ConfigManager,
+> queue channels, event systems) referenced below were narrow enough that they
+> didn't generalize.
+
 ## Quick Start
 
 The GAS Code Quality Checker is a Claude Code skill for analyzing Google Apps Script files. It validates CommonJS modules, event handlers, configuration management, and GAS best practices.
