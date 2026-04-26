@@ -1,6 +1,6 @@
 # Prompt Critique Rubric
 
-This document defines the scoring logic, classification rules, and output template for prompt critiques. Every critique produced by the prompt-critique skill MUST follow this rubric exactly.
+This document defines the scoring logic, classification rules, and output template for prompt critiques. Every critique produced by `/improve-prompt --mode critique` MUST follow this rubric exactly.
 
 ---
 

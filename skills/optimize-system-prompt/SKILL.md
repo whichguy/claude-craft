@@ -106,7 +106,7 @@ fi
 ## Phase 3: Implement Change (Refinement)
 
 1. Create `buildSystemPromptVN()` with the behavioral modification
-2. Follow the prompt-critique technique library for the implementation:
+2. Follow the technique library at `skills/improve-prompt/references/technique-library.md` for the implementation:
    - Use appropriate instructional style (imperative for safety, directional for behavior)
    - Include context usage instructions if adding dynamic context
    - Add quality gates for any new autonomous behavior
@@ -214,15 +214,15 @@ For any scenario exceeding 3% deviation:
 
 **Rollback**: Change `_buildSystemPrompt()` back to previous version, or paste previous prompt in `_SheetsChat` tab.
 
-## Pre-Optimization Analysis with /prompt-critique
+## Pre-Optimization Analysis with /improve-prompt --mode critique
 
-Before starting, run `/prompt-critique` on the current system prompt to get a baseline scorecard. This identifies which technique categories are already well-applied and which have gaps. Use the critique's recommendations to inform compression targets:
+Before starting, run `/improve-prompt --mode critique` on the current system prompt to get a baseline scorecard. This identifies which technique categories are already well-applied and which have gaps. Use the critique's recommendations to inform compression targets:
 
 - **GREEN categories**: Safe to compress aggressively (the technique is already effective)
 - **YELLOW categories**: Fix the gap BEFORE compressing (compression amplifies missing techniques)
 - **RED categories**: Fix the anti-pattern first (these cause active regressions)
 
-After Phase 3 or Phase 5, run `/prompt-critique` on the new variant to verify no techniques were lost.
+After Phase 3 or Phase 5, run `/improve-prompt --mode critique` on the new variant to verify no techniques were lost.
 
 ## GAS Environment Awareness
 

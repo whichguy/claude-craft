@@ -6,7 +6,7 @@ description: |
   **AUTOMATICALLY INVOKE** this agent when user mentions "review prompt", "improve prompt", "analyze prompt", or when editing agent/skill markdown files. **STRONGLY RECOMMENDED** for new agent creation, prompt optimization, and LLM instruction refinement.
 
   **NOT for:**
-  - Quick technique check (use /prompt-critique — faster, produces scorecard)
+  - Quick technique check (use /improve-prompt --mode critique — faster, produces scorecard)
   - A/B prompt comparison with execution (use /compare-prompts)
   - GAS system prompt optimization (use /optimize-system-prompt)
 model: sonnet

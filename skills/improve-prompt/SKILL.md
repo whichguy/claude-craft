@@ -15,13 +15,17 @@ description: |
   AUTOMATICALLY INVOKE when user mentions:
   - "improve this prompt", "make this prompt better", "optimize this prompt"
   - "prompt improvement", "iterate on prompt", "evolve this prompt"
+  - (with --mode critique) "critique prompt", "score this prompt", "analyze this prompt",
+    "what techniques should I use", "prompt anti-patterns", "prompt quality"
+  - (with --mode critique) user pastes a system prompt, agent prompt, or skill definition for feedback
 
   STRONGLY RECOMMENDED for:
   - Before finalizing agent/skill prompts
   - When a prompt's outputs are inconsistent or low quality
   - After receiving feedback that a prompt is underperforming
+  - --mode critique: fast scorecard pass (was /prompt-critique) — analysis only, no iteration
 
-argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [free-form options]"
+argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [--mode critique] [free-form options]"
 allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 ---
 
@@ -55,6 +59,7 @@ to extract the following values:
 | `experiments` | no | A number associated with "experiments" or "variants" | 1 (max: 4) |
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
 | `duration` | no | A time duration or deadline: "2h", "30m", "1h30m", "90 minutes", "2 hours", "until 5pm", "until tomorrow morning". Look for time-related words/units after "for", "duration", "until", or `--duration` | — |
+| `mode` | no | `critique` triggers a fast scorecard pass (was the standalone `/prompt-critique` skill) — Steps 1-5 of [Critique Mode](#critique-mode) instead of the full improvement loop. Look for `--mode critique`, "critique", "score this prompt", "scorecard". | full loop |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
@@ -78,7 +83,111 @@ to extract the following values:
 /improve-prompt agents/code-reviewer.md for 30m with inputs/           (duration + explicit inputs)
 /improve-prompt agents/code-reviewer.md until tomorrow morning         (loops until ~8am tomorrow)
 /improve-prompt "You are a haiku generator. Write a haiku about clouds."  (self-contained — runs with empty input)
+/improve-prompt --mode critique agents/code-reviewer.md  (analysis only — scorecard, no iteration)
 ```
+
+---
+
+## Critique Mode
+
+When `mode = critique`, short-circuit the full improvement loop and run a fast technique-library scorecard instead. This was the standalone `/prompt-critique` skill before consolidation; the workflow and output template below are unchanged from that skill.
+
+**Inputs:** `prompt_path` (required) or `inline_text`. All other parameters (inputs_dir, iterations, experiments, etc.) are ignored — critique is read-only and does not run the prompt.
+
+**5-step workflow:**
+
+### Step 1: Classify
+Determine prompt type using the classification rules in `references/critique-rubric.md`:
+- **Agent Prompt**: Has YAML frontmatter with `name:` field
+- **Template**: Has `{{variables}}` or `<prompt-arguments>` placeholders
+- **System Prompt**: Starts with "You are" or defines persistent role/behavior
+- **Task Prompt**: Everything else
+
+### Step 2: Scan
+Read the prompt and identify which techniques from each of 7 categories are currently used. Note specific text that demonstrates each technique (or its absence). Load `references/technique-library.md` for comparison. Categories:
+
+| # | Category | Key Question |
+|---|----------|--------------|
+| 1 | Structural | Is the prompt well-organized? |
+| 2 | Instructional Style | Is the right style used for each concern? |
+| 3 | Quality Gates | Are there checkpoints for output quality? |
+| 4 | Context Management | Is dynamic context handled correctly? |
+| 5 | Compression | Is the prompt token-efficient? |
+| 6 | Cognitive | Does it leverage LLM reasoning well? |
+| 7 | Anti-patterns | Is anything actively hurting the prompt? |
+
+### Step 3: Score
+Apply the relevance matrix from `references/critique-rubric.md` to weight categories by prompt type. For each category with weight ≥ 2:
+- **GREEN**: Technique present and correctly applied
+- **YELLOW**: Missing but would improve the prompt (note expected impact)
+- **RED**: Anti-pattern detected (load `references/anti-patterns.md` to identify)
+
+Calculate composite score using the rubric's scoring algorithm.
+
+### Step 4: Recommend
+Select the top 3-5 improvements ordered by impact (weight × improvement potential). For each:
+- Quote the current text
+- Provide a concrete rewrite
+- State why it's better in one sentence
+
+### Step 5: Flag
+List any anti-patterns found with severity (CRITICAL/WARNING/INFO) and fixes.
+
+### Output Template
+
+```markdown
+## Prompt Critique: [filename or first 50 chars]
+
+**Type**: [System/Agent/Task/Template] | **Size**: [X chars / ~Y tokens] | **Rating**: [STRONG/ADEQUATE/WEAK/POOR] ([Z]%)
+
+### Technique Scorecard
+
+| Category | Weight | Status | Notes |
+|----------|--------|--------|-------|
+| Structural | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Instructional Style | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Quality Gates | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Context Management | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Compression | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Cognitive | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+| Anti-patterns | [0-3] | [GREEN/YELLOW/RED] | [one-line finding] |
+
+### Top Recommendations
+
+1. **[Technique]** | Impact: [HIGH/MED/LOW]
+   Current: `[quote relevant section]`
+   Recommended: `[concrete rewrite]`
+   Why: [one sentence]
+
+### Anti-patterns Found
+
+- **[SEVERITY]** [Name]: [specific text that triggered] → [fix]
+
+### Token Analysis
+
+Current: ~X tokens | After recommendations: ~Y tokens | Change: [±Z%]
+```
+
+### Rating Scale
+
+| Rating | Score | Meaning |
+|--------|-------|---------|
+| STRONG | ≥ 80% | Minor improvements possible, well-crafted |
+| ADEQUATE | 60-79% | Meaningful improvements available |
+| WEAK | 40-59% | Significant technique gaps |
+| POOR | < 40% | Major rework recommended |
+
+### Style Selection Quick Reference
+
+| Context | Best Style | Why |
+|---------|-----------|-----|
+| Safety-critical rules | Imperative | Non-negotiable, memorable |
+| Complex procedures | Instructive | Steps prevent skipping |
+| Creative/flexible tasks | Directional | Room for judgment |
+| Output specifications | Declarative | Contract-style clarity |
+| Mixed concerns | Layer: imperative for rules, directional for approach | Match style to concern |
+
+After producing the critique, **STOP**. Do not proceed to the full improvement loop unless the user explicitly invokes `/improve-prompt` again without `--mode critique`.
 
 ---
 
@@ -106,6 +215,7 @@ paths, natural language, or any combination:
 | `experiments` | A number associated with "experiments", "variants", "parallel", or `--experiments`. If found, set `experiments_explicit = true`. |
 | `max_stalls` | A number associated with "max stalls", "stall limit", or `--max-stalls`. |
 | `duration` | A time duration or deadline. Look for: (a) explicit durations — "2h", "30m", "1h30m", "90 minutes", "2 hours", or text after "for", "duration", `--duration`; (b) relative deadlines — "until 5pm", "until tomorrow morning", "until midnight". For relative deadlines, calculate the duration in minutes from now to the target time. |
+| `mode` | Optional execution mode. Look for `--mode critique`, "critique", "score this prompt", "run a critique", or "scorecard". When `mode = critique`, **immediately branch to the [Critique Mode](#critique-mode) section above** — skip Steps 0b/0c through Step 7. Critique mode is read-only (no test inputs, no iteration, no commit). |
 
 **Defaults** (apply when not found in arguments):
 - `label` = basename of prompt_path without extension (or "inline" for inline_text mode)

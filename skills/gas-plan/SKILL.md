@@ -13,7 +13,7 @@ description: |
   - Plan modifies CommonJS modules, __events__, doGet/doPost, or addon code
 
   **NOT for:** Code review (use /gas-review), test review (use /gas-test-review),
-  prompt analysis (use /prompt-critique), non-GAS plans
+  prompt analysis (use /improve-prompt --mode critique), non-GAS plans
 
   **mode parameter:**
   - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
