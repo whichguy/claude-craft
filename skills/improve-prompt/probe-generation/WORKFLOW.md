@@ -1,24 +1,8 @@
----
-name: prompt-probes
-description: |
-  Generate boundary-testing inputs for any prompt using two-pass diagnostic analysis.
-  Pass 1 (P1-P4) comprehends intent and contracts. Pass 2 (P5-P7) maps decision
-  boundaries in depth. Then generates probes that sit on those boundaries — designed
-  to discriminate between prompt versions when used with /improve-prompt.
-  Iterative: subsequent runs detect prompt changes, read existing probes, evaluate
-  coverage, and offer add/modify/delete operations.
+# Probe Generation Workflow (used by `/improve-prompt --with-probes`)
 
-  AUTOMATICALLY INVOKE when:
-  - "generate probes", "create probes", "prompt probes"
-  - "test inputs for improve-prompt", "boundary test inputs"
-  - "stress test this prompt", "probe this prompt"
+This file documents the full P1-P12 probe generation workflow that runs as the first phase of `/improve-prompt --with-probes`. It was previously the standalone `/prompt-probes` skill; it is now invoked as a sub-phase of improve-prompt before Step 0 of the main improvement loop.
 
-  NOT for: Running improve-prompt itself (use /improve-prompt)
-argument-hint: "<prompt-file> [output-dir] [--count N] [--feedback-dir PATH]"
-allowed-tools: Agent, Bash, Read, Glob, Write
----
-
-# prompt-probes Skill
+When the user runs `/improve-prompt <prompt> --with-probes [output-dir]`, this workflow generates boundary-testing inputs at `output-dir`, which then feed in as `inputs_dir` to the rest of improve-prompt's pipeline. With `--with-probes --analyze-only`, the workflow runs and stops — no improvement iteration.
 
 Two-pass diagnostic analysis of any prompt, then generation of boundary-testing inputs ("probes")
 that maximally discriminate between prompt versions when used with `/improve-prompt`.

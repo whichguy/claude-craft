@@ -18,14 +18,17 @@ description: |
   - (with --mode critique) "critique prompt", "score this prompt", "analyze this prompt",
     "what techniques should I use", "prompt anti-patterns", "prompt quality"
   - (with --mode critique) user pastes a system prompt, agent prompt, or skill definition for feedback
+  - (with --with-probes) "generate probes", "create probes", "boundary test inputs",
+    "stress test this prompt", "probe this prompt"
 
   STRONGLY RECOMMENDED for:
   - Before finalizing agent/skill prompts
   - When a prompt's outputs are inconsistent or low quality
   - After receiving feedback that a prompt is underperforming
   - --mode critique: fast scorecard pass (was /prompt-critique) — analysis only, no iteration
+  - --with-probes: generate boundary-testing inputs (was /prompt-probes), then run improvement loop on them
 
-argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [--mode critique] [free-form options]"
+argument-hint: "<prompt-file> [inputs-dir|input-text] [num-inputs N] [--mode critique] [--with-probes [output-dir]] [free-form options]"
 allowed-tools: Agent, Bash, Read, Glob, Write, WebSearch, WebFetch, Skill
 ---
 
@@ -60,6 +63,8 @@ to extract the following values:
 | `max_stalls` | no | Number associated with "max stalls", "stall limit", "--max-stalls" | 2 |
 | `duration` | no | A time duration or deadline: "2h", "30m", "1h30m", "90 minutes", "2 hours", "until 5pm", "until tomorrow morning". Look for time-related words/units after "for", "duration", "until", or `--duration` | — |
 | `mode` | no | `critique` triggers a fast scorecard pass (was the standalone `/prompt-critique` skill) — Steps 1-5 of [Critique Mode](#critique-mode) instead of the full improvement loop. Look for `--mode critique`, "critique", "score this prompt", "scorecard". | full loop |
+| `with_probes` | no | When set, run the probe-generation workflow (P1-P12 boundary mapping) before Step 0 to produce a fresh `inputs_dir` of boundary-testing probes. Look for `--with-probes`, "generate probes", "with probes", "stress test inputs". Optional positional value after the flag is the probe `output_dir` (default: `skills/<prompt-name>/probes/`). See [Probe Generation Mode](#probe-generation-mode). Was the standalone `/prompt-probes` skill. | off |
+| `analyze_only` | no | With `--with-probes`, suppresses the main improvement loop — produces probes and stops. | off |
 
 **Input sources** (priority order):
 - `inputs_dir` — directory of test files (each file = one test case)
@@ -188,6 +193,28 @@ Current: ~X tokens | After recommendations: ~Y tokens | Change: [±Z%]
 | Mixed concerns | Layer: imperative for rules, directional for approach | Match style to concern |
 
 After producing the critique, **STOP**. Do not proceed to the full improvement loop unless the user explicitly invokes `/improve-prompt` again without `--mode critique`.
+
+---
+
+## Probe Generation Mode
+
+When `--with-probes` is set, run a probe-generation phase **before Step 0** of the main loop. This generates boundary-testing inputs that maximize discrimination between prompt versions during the evaluation loop. This was the standalone `/prompt-probes` skill before consolidation.
+
+**Workflow location:** the full P1-P12 workflow lives in `probe-generation/WORKFLOW.md` (in this skill's directory). Read that file and follow it exactly to:
+1. Detect existing probes + analysis (staleness check via prompt hash)
+2. Run Pass 1 (P1-P4): prompt comprehension via a general-purpose agent
+3. Run Pass 2 (P5-P7): decision boundary mapping via a separate general-purpose agent
+4. Synthesize failure modes (P8-P12) and probe plan inline
+5. Generate probes (ADD/MODIFY/DELETE) via a third general-purpose agent
+6. Persist analysis at `<output_dir>/analysis.md` with prompt-hash frontmatter
+
+**After probe generation:**
+- If `analyze_only` is set → STOP. Print the probe inventory and exit.
+- Otherwise → set `inputs_dir = output_dir` and continue to **Step 0** of the improvement loop. The freshly generated probes become the test inputs for the rest of the pipeline.
+
+**`feedback_dir` parameter** — used only on iterative re-runs to classify existing probes by discrimination score. See `probe-generation/WORKFLOW.md` Step 3.
+
+After this section, control flows to **Step 0 — Parse & Preflight** with `inputs_dir` populated.
 
 ---
 
