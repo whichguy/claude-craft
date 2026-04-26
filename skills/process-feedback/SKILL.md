@@ -21,6 +21,17 @@ and propose prompt updates.
 **Authority: Read-Only / Propose-Only.**
 This skill is explicitly **FORBIDDEN** from calling `replace` or `write_file` on any foundational `SKILL.md` file. It must only generate proposals in the designated `optimization-proposals` directory.
 
+## Step 0 — Setup
+
+Ensure the proposals directory exists and verify the backlog is present:
+
+```bash
+mkdir -p tasks/in-progress/optimization-proposals
+test -f tasks/in-progress/prompt-improvements-backlog.md || { echo "No feedback backlog yet — feedback-collector plugin has not produced any entries. Stopping."; exit 0; }
+```
+
+If the backlog is absent, STOP and report "No feedback backlog yet."
+
 ## Step 1 — Ingestion
 
 Read the feedback backlog from `tasks/in-progress/prompt-improvements-backlog.md`.

@@ -16,7 +16,7 @@ describe('Review-Plan Integration (Intent-based)', function () {
     describe('Output Contract & Schema', function () {
         it('defines EVALUATOR_OUTPUT_CONTRACT with core JSON fields', function () {
             // Find the contract section by looking for the header and capturing until the next header or significant distance
-            const contractStart = skillContent.indexOf('### EVALUATOR_OUTPUT_CONTRACT');
+            const contractStart = skillContent.indexOf('--- EVALUATOR_OUTPUT_CONTRACT');
             expect(contractStart, 'EVALUATOR_OUTPUT_CONTRACT header not found').to.be.greaterThan(-1);
             
             const contractText = skillContent.substring(contractStart, contractStart + 2000);
@@ -28,24 +28,37 @@ describe('Review-Plan Integration (Intent-based)', function () {
 
         it('ensures all evaluators reference the shared output contract or include core fields', function () {
             const evaluatorConfigs = [
-                { name: 'L1 Blocking', pattern: /### L1 Blocking Evaluator Config/ },
-                { name: 'L1 Advisory Structural', pattern: /### L1 Advisory Structural Evaluator Config/ },
-                { name: 'L1 Advisory Process', pattern: /### L1 Advisory Process Evaluator Config/ },
-                { name: 'Cluster', pattern: /### Cluster Evaluator Config/ },
-                { name: 'GAS', pattern: /### GAS Evaluator Config/ },
-                { name: 'Node', pattern: /### Node Evaluator Config/ },
-                { name: 'UI', pattern: /### UI Evaluator Config/ }
+                { name: 'L1 Blocking', pattern: /--- L1 Blocking Evaluator Config/ },
+                { name: 'L1 Advisory Structural', pattern: /--- L1 Advisory Structural Evaluator Config/ },
+                { name: 'L1 Advisory Process', pattern: /--- L1 Advisory Process Evaluator Config/ },
+                { name: 'Cluster', pattern: /--- Cluster Evaluator Config/ },
+                { name: 'GAS', pattern: /--- GAS Evaluator Config/ },
+                { name: 'Node', pattern: /--- Node Evaluator Config/ },
+                { name: 'UI', pattern: /--- UI Evaluator Config/ }
             ];
+
+            // GAS and Node evaluators use their own output contracts defined in external
+            // eval files (see SKILL.md EVALUATOR_OUTPUT_CONTRACT comment); they delegate via
+            // <gas_eval_path>/<node_eval_path> rather than embedding the shared contract.
+            const externalContractEvaluators = new Set(['GAS', 'Node']);
 
             evaluatorConfigs.forEach(config => {
                 const startIdx = skillContent.search(config.pattern);
                 expect(startIdx, `${config.name} config not found`).to.be.greaterThan(-1);
-                
-                // Look ahead for contract reference or field list
-                const section = skillContent.substring(startIdx, startIdx + 1500);
+
+                const restAfterStart = skillContent.substring(startIdx + 10);
+                const nextHeaderRel = restAfterStart.search(/\n\s*--- (?:L1|Cluster|GAS|Node|UI)[^\n]*Evaluator/);
+                const sectionEnd = nextHeaderRel === -1 ? skillContent.length : startIdx + 10 + nextHeaderRel;
+                const section = skillContent.substring(startIdx, sectionEnd);
+
+                if (externalContractEvaluators.has(config.name)) {
+                    const delegates = /<(gas|node)_eval_path>/i.test(section);
+                    expect(delegates, `${config.name} should delegate to external eval file`).to.be.true;
+                    return;
+                }
+
                 const hasContractRef = section.includes('EVALUATOR_OUTPUT_CONTRACT');
                 const hasFields = ['evaluator', 'findings'].every(f => section.includes(`"${f}"`));
-                
                 expect(hasContractRef || hasFields, `${config.name} missing contract reference or schema fields`).to.be.true;
             });
         });
@@ -100,7 +113,7 @@ describe('Review-Plan Integration (Intent-based)', function () {
             ];
 
             evaluatorsWithDelta.forEach(name => {
-                const regex = new RegExp(`### ${name} Evaluator Config[\\s\\S]+?delta filter`, 'i');
+                const regex = new RegExp(`--- ${name} Evaluator Config[\\s\\S]+?delta filter`, 'i');
                 expect(skillContent, `${name} missing delta filter`).to.match(regex);
             });
         });
