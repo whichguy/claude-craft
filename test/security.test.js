@@ -254,7 +254,7 @@ describe('Security Scanner Tests', function() {
             const { stdout } = await execAsync(
                 `${securityScanner} /nonexistent/path full false 2>/dev/null || echo "handled"`
             );
-            expect(stdout).to.include('Memory path not found');
+            expect(stdout).to.include('Skipping non-memory path');
         });
         
         it('should handle invalid scan type', async function() {

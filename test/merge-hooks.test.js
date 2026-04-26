@@ -207,6 +207,11 @@ describe('Merge Hooks', function () {
     });
 
     describe('model-router convergence', function () {
+        // model-router was superseded by the c-thru repo; the plugin no longer ships with claude-craft.
+        before(function () {
+            if (!fs.existsSync(MODEL_ROUTER_PLUGIN)) this.skip();
+        });
+
         it('replaces old SessionStart model-router hooks with the current actionable hook set', async function () {
             fs.rmSync(path.join(pluginsDir, 'test-plugin'), { recursive: true, force: true });
             fs.symlinkSync(MODEL_ROUTER_PLUGIN, path.join(pluginsDir, 'model-router'));
