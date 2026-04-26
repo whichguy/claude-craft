@@ -80,6 +80,9 @@ esac
 
 # Canonicalize ABS_PATH to match git rev-parse's realpath behavior so the
 # REPO_ROOT prefix match below works on macOS where /var → /private/var.
+# Audit (2026-04-25): only this handler does input-path-vs-REPO_ROOT prefix matching;
+# wiki-common.sh and wiki-detect.sh use git rev-parse purely to locate .wiki/, so the
+# canonicalization is not needed there. New handlers doing path comparison should adopt this pattern.
 if [ -e "$ABS_PATH" ]; then
   ABS_DIR=$(cd "$(dirname "$ABS_PATH")" 2>/dev/null && pwd -P)
   [ -n "$ABS_DIR" ] && ABS_PATH="$ABS_DIR/$(basename "$ABS_PATH")"

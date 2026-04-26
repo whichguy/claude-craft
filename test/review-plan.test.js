@@ -47,7 +47,9 @@ describe('Review-Plan Integration (Intent-based)', function () {
                 expect(startIdx, `${config.name} config not found`).to.be.greaterThan(-1);
 
                 const restAfterStart = skillContent.substring(startIdx + 10);
-                const nextHeaderRel = restAfterStart.search(/\n\s*--- (?:L1|Cluster|GAS|Node|UI)[^\n]*Evaluator/);
+                // Match any Title-case "<Name> Evaluator Config" header so newly added
+                // evaluator types don't silently break the section boundary lookup.
+                const nextHeaderRel = restAfterStart.search(/\n\s*--- [A-Z][\w ]*Evaluator Config/);
                 const sectionEnd = nextHeaderRel === -1 ? skillContent.length : startIdx + 10 + nextHeaderRel;
                 const section = skillContent.substring(startIdx, sectionEnd);
 

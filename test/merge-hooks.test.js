@@ -207,7 +207,9 @@ describe('Merge Hooks', function () {
     });
 
     describe('model-router convergence', function () {
-        // model-router was superseded by the c-thru repo; the plugin no longer ships with claude-craft.
+        // TODO: re-enable if the model-router plugin returns to claude-craft.
+        // It was superseded by the c-thru repo (https://github.com/whichguy/c-thru)
+        // and intentionally removed; this guard prevents the test from failing on bare clones.
         before(function () {
             if (!fs.existsSync(MODEL_ROUTER_PLUGIN)) this.skip();
         });
