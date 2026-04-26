@@ -78,6 +78,13 @@ case "$FILE_PATH" in
   *)  ABS_PATH="$CWD/$FILE_PATH" ;;
 esac
 
+# Canonicalize ABS_PATH to match git rev-parse's realpath behavior so the
+# REPO_ROOT prefix match below works on macOS where /var → /private/var.
+if [ -e "$ABS_PATH" ]; then
+  ABS_DIR=$(cd "$(dirname "$ABS_PATH")" 2>/dev/null && pwd -P)
+  [ -n "$ABS_DIR" ] && ABS_PATH="$ABS_DIR/$(basename "$ABS_PATH")"
+fi
+
 # --- Find wiki root (git-anchored, mirrors wiki_find_root in wiki-common.sh) ---
 # Inline to avoid sourcing wiki-common.sh (keeps hot path lean).
 REPO_ROOT=""
