@@ -17,6 +17,8 @@ description: |
   **NOT for:** General prompt engineering, non-GAS prompts, one-off prompt writing.
   Default mode is user-directed refinement/compression. `--mode ideate` is autonomous
   hypothesis generation + benchmarking (was the standalone `/ideate-system-prompt` skill).
+
+argument-hint: "[--mode ideate [--ideas N] [--scenarios RANGE] [--targeted N] [--base VARIANT] [--save]] [free-form description of the change]"
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
@@ -47,7 +49,7 @@ Optimize or refine the ClaudeConversation system prompt (`sheets-chat/SystemProm
 
 ## Phase 0: Mode Dispatch
 
-If invocation contains `--mode ideate` (or natural-language equivalents like "ideate", "generate prompt ideas", "hypothesize prompt changes", "explore prompt improvements"), **branch immediately** to the autonomous ideation workflow at `ideate-mode/WORKFLOW.md` (within this skill's directory). That workflow handles the full P1-P6 lifecycle: generate hypotheses, build matrix, execute cells, LLM-as-judge, aggregate & rank, recommendation. Skip Phases 1–8 below.
+If invocation contains `--mode ideate` (or natural-language equivalents like "ideate", "generate prompt ideas", "hypothesize prompt changes", "explore prompt improvements"), **read `ideate-mode/WORKFLOW.md` (within this skill's directory) and follow it exactly**. That workflow owns its own argument resolution (its "Argument Resolution" section enumerates `--ideas`, `--scenarios`, `--targeted`, `--base`, `--save`, plus natural-language equivalents) and runs the full P1-P6 lifecycle: generate hypotheses, build matrix, execute cells, LLM-as-judge, aggregate & rank, recommendation. Skip Phases 1–8 below.
 
 Otherwise, continue with default user-directed mode (Phase 1 dispatch below).
 

@@ -1123,20 +1123,20 @@ Emit:
 
 ```bash
 # Minimal (formal flags): 1 idea, 1 scenario, 1 targeted — 3 cells
-/ideate-system-prompt --ideas 1 --scenarios 0 --targeted 1
+/optimize-system-prompt --mode ideate --ideas 1 --scenarios 0 --targeted 1
 
 # Minimal (natural language): same run
-/ideate-system-prompt quick test
+/optimize-system-prompt --mode ideate quick test
 
 # Small: 1 idea, 5 std + 2 targeted + 5 baseline = 12 cells
-/ideate-system-prompt --ideas 1 --scenarios 0-4 --targeted 2
+/optimize-system-prompt --mode ideate --ideas 1 --scenarios 0-4 --targeted 2
 
 # Full default run (56 cells)
-/ideate-system-prompt
+/optimize-system-prompt --mode ideate
 
 # Full run with save, natural language
-/ideate-system-prompt full run, save the winner
+/optimize-system-prompt --mode ideate full run, save the winner
 
 # Mixed: natural language + formal flag override
-/ideate-system-prompt try 5 ideas --base V2b --save
+/optimize-system-prompt --mode ideate try 5 ideas --base V2b --save
 ```
