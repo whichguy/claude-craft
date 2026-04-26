@@ -160,7 +160,6 @@ const USER_FACING_NO_REFS_OK = new Set([
     // Agents invoked directly by user / Task() but not from other skills' SKILL.md
     'environment-analyst',
     'prompt-reviewer',
-    'review-fix-linter-table',
     'synthesis-coordinator',
     'verify-transformation',
 ]);
