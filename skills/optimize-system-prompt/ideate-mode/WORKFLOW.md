@@ -1,29 +1,14 @@
----
-name: ideate-system-prompt
-description: |
-  Autonomously generate N system prompt hypotheses from the live base prompt,
-  benchmark each variant (inline exec — no GAS deploy needed), judge results,
-  and recommend the best idea.
+# Ideate Mode Workflow (used by `/optimize-system-prompt --mode ideate`)
 
-  **AUTOMATICALLY INVOKE** when:
-  - User says "ideate system prompt", "generate prompt ideas", "hypothesize prompt changes"
-  - User wants to go from a hypothesis to benchmark results without writing GAS code
-  - User says "explore prompt improvements", "test new prompt ideas"
-
-  **NOT for:** Benchmarking pre-coded variants (use /improve-system-prompt).
-  Use /optimize-system-prompt for editing/refining the active prompt.
-model: claude-sonnet-4-6
-allowed-tools: Agent, Task, TaskCreate, TaskGet, TaskList, TaskUpdate, TaskStop, TaskOutput, Bash, Read, Glob, Write, mcp__gas__exec, mcp__gas__ls, mcp__gas__status
----
-
-# ideate-system-prompt Skill
+This file is the full autonomous ideation + benchmarking workflow that runs when `/optimize-system-prompt --mode ideate` is invoked. It was previously the standalone `/ideate-system-prompt` skill; it is now a sub-mode of optimize-system-prompt.
 
 Autonomously generate N variant system prompts from the live base, benchmark each via
 inline GAS exec (raw prompt strings — no deploy step), judge with LLM-as-judge, and
 produce a ranked recommendation.
 
-Complements `/improve-system-prompt`: that skill benchmarks pre-coded variants;
-this skill generates *new* hypotheses on demand and benchmarks them immediately.
+Complements optimize-system-prompt's default refinement/compression mode: those modes are user-directed (you tell the skill what to change), while ideate mode is generative (the skill proposes ideas autonomously). Both converge on the same A/B benchmarking infrastructure.
+
+Note: still complementary to `/improve-system-prompt` — that skill benchmarks **pre-coded** variants (V2/V2a/V2b/V2c) defined in the GAS project; ideate mode generates *new* hypotheses on demand.
 
 ## Project Context
 

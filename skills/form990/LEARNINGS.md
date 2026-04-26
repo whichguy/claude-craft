@@ -2,7 +2,7 @@
 
 Append-only observations and recent-run notes. Each entry: date + phase + finding.
 Populated after each substantive run. Analogous to the `learningsText` injection idiom
-from `ideate-system-prompt/SKILL.md §learningsText`.
+from `optimize-system-prompt/ideate-mode/WORKFLOW.md §learningsText`.
 
 **Size budget:** Human journal target ≤ 500 lines. When the human section exceeds this,
 archive entries dated before the current calendar quarter to `LEARNINGS-ARCHIVE.md` and

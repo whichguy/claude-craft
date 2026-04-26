@@ -11,8 +11,12 @@ description: |
   - User says "prompt too long", "reduce prompt", "prompt efficiency"
   - User says "refine system prompt", "update system prompt", "add to system prompt"
   - User wants to adapt the system prompt for a new model version
+  - **(--mode ideate)** User says "ideate system prompt", "generate prompt ideas",
+    "hypothesize prompt changes", "explore prompt improvements", "test new prompt ideas"
 
-  **NOT for:** General prompt engineering, non-GAS prompts, one-off prompt writing
+  **NOT for:** General prompt engineering, non-GAS prompts, one-off prompt writing.
+  Default mode is user-directed refinement/compression. `--mode ideate` is autonomous
+  hypothesis generation + benchmarking (was the standalone `/ideate-system-prompt` skill).
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
@@ -41,6 +45,12 @@ Optimize or refine the ClaudeConversation system prompt (`sheets-chat/SystemProm
 
 **Tradeoff rule**: Accept up to 3% deviation in a higher-priority metric to achieve gains in a lower-priority metric.
 
+## Phase 0: Mode Dispatch
+
+If invocation contains `--mode ideate` (or natural-language equivalents like "ideate", "generate prompt ideas", "hypothesize prompt changes", "explore prompt improvements"), **branch immediately** to the autonomous ideation workflow at `ideate-mode/WORKFLOW.md` (within this skill's directory). That workflow handles the full P1-P6 lifecycle: generate hypotheses, build matrix, execute cells, LLM-as-judge, aggregate & rank, recommendation. Skip Phases 1–8 below.
+
+Otherwise, continue with default user-directed mode (Phase 1 dispatch below).
+
 ## Phase 1: Determine Change Type
 
 Before starting, classify the requested change:
@@ -50,6 +60,7 @@ Before starting, classify the requested change:
 | **Compression** | "too long", "reduce tokens", "optimize", token budget concerns | Phase 4 (Analyze Prompt) |
 | **Refinement** | "add behavior", "improve handling of", "change how it", "new environment" | Phase 2 (Analyze Gap) |
 | **Both** | "optimize and add features", major version upgrade | Phase 2 first, then Phase 4 |
+| **Ideate** | "ideate", "generate ideas", "hypothesize", "explore" | `ideate-mode/WORKFLOW.md` (Phase 0) |
 
 If unclear, default to Refinement — adding behavior is harder to undo than compression.
 
