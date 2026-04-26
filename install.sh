@@ -204,7 +204,9 @@ PY
     install_settings_hooks
 
     # Merge plugin hooks into settings.json so hook changes converge on rerun.
-    echo -e "${YELLOW}🔌 Merging plugin hooks (model-router uses PreToolUse only)...${NC}"
+    # Each plugin under plugins/*/hooks/hooks.json is read by merge-hooks.sh and
+    # its handlers are wired into the appropriate settings.json hook arrays.
+    echo -e "${YELLOW}🔌 Merging plugin hooks...${NC}"
     merge_plugin_hooks
 
     # MCP registration and model-map bootstrap moved to c-thru:

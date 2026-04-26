@@ -21,6 +21,7 @@ curl -fsSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.
 - **All 7 types** - Agents, commands, skills, prompts, references, plugins, hooks
 - **Local file preservation** - Never overwrites your existing non-repo files
 - **Security scanning** - Pre-commit and post-pull threat detection
+- **Self-improvement loop** - `feedback-collector` plugin harvests `SKILL_IMPROVEMENT` markers at SessionEnd → `/process-feedback` skill proposes surgical prompt updates (propose-only, human-approved)
 
 ## Wiki System
 
@@ -39,7 +40,7 @@ Claude Craft includes a self-building wiki system that captures knowledge from y
 
 ### Wiki Plugin (wiki-hooks)
 
-The wiki-hooks plugin provides 11 lifecycle handlers that run automatically:
+The wiki-hooks plugin provides 13 lifecycle handlers + a shared library that run automatically:
 
 | Handler | Hook Type | Purpose |
 |---------|-----------|---------|
@@ -49,10 +50,13 @@ The wiki-hooks plugin provides 11 lifecycle handlers that run automatically:
 | `wiki-cache-rebuild.sh` | SessionStart + PostToolUse (async) | Rebuild cached display/context files |
 | `wiki-worker.sh` | UserPromptSubmit (async) | Background queue processor — spawns Sonnet for extraction |
 | `wiki-notify.sh` | UserPromptSubmit | Inject entity context matching user prompt keywords |
+| `wiki-read-gate.sh` | PreToolUse (Read) | Inject wiki-entity hint when reading a file documented by wiki pages |
 | `wiki-raw-guard.sh` | PreToolUse (Write/Edit) | Block LLM writes to `raw/` directory |
 | `wiki-precompact.sh` | PreCompact | Queue extraction before context compaction |
 | `wiki-stop.sh` | Stop (async) | Detect wiki changes, queue extraction, log session end |
 | `wiki-session-end.sh` | SessionEnd | Safety net — queue extraction if Stop didn't fire |
+| `wiki-periodic-extract.sh` | (periodic, async) | Drain extraction queue on a schedule |
+| `wiki-periodic-lint.sh` | (periodic, async) | Run lint health checks on a schedule |
 | `wiki-common.sh` | (shared library) | Shared functions: input parsing, wiki discovery, logging |
 
 ### Provider Routing (Bedrock, OpenRouter, Ollama)
@@ -256,14 +260,25 @@ claude-craft/
 ├── prompts/               # Prompt templates (.md) → ~/.claude/prompts/
 ├── references/            # Reference docs (.md) → ~/.claude/references/
 ├── plugins/               # Plugin directories → ~/.claude/plugins/
-│   ├── wiki-hooks/        # Wiki lifecycle hooks (11 handlers)
-│   ├── craft-hooks/       # Security + auto-sync + utility hooks
-│   └── model-router/      # Model routing (Bedrock, OpenRouter, Ollama)
+│   ├── async-workflow/    # Background agents for use-case expansion, research, planning, review
+│   ├── craft-hooks/       # Probabilistic auto-sync on user prompts + utility hooks
+│   ├── feedback-collector/ # SessionEnd hook → harvests SKILL_IMPROVEMENT markers to backlog
+│   ├── local-classifier/  # Local model classification helpers
+│   ├── plan-red-team/     # Adversarial expert-persona critique of implementation plans
+│   ├── task-persist/      # Cross-session task state persistence
+│   └── wiki-hooks/        # Wiki lifecycle hooks (14 handlers + shared library)
+│   # Note: model-router moved to https://github.com/whichguy/c-thru
 ├── hooks/                 # Hook system
 │   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/
-├── test/                  # Testing framework (Mocha/Chai)
+├── test/                  # Testing framework (Mocha/Chai) — `npm test` runs all *.test.js
 │   ├── sync.test.js       # Sync infrastructure tests
-│   └── wiki-hooks.test.js # Wiki hooks tests (17 tests)
+│   ├── wiki-hooks.test.js # Wiki hooks behavior tests
+│   ├── review-plan.test.js # Plan-review skill structural contract tests
+│   ├── merge-hooks.test.js # Plugin hook merge/coexistence tests
+│   ├── security.test.js   # Security scanner tests
+│   └── ...                # 17 test files total — see test/ for full list
+│   # CLI runners (not picked up by `npm test`):
+│   #   test/bench-adversarial.js — review-plan adversarial fixture benchmark
 ├── tools/                 # Management utilities
 │   ├── sync-status.sh     # Core sync engine (status/sync/add/publish)
 │   ├── auto-sync.sh       # Probabilistic background sync
