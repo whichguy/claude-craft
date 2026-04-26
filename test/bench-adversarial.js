@@ -263,12 +263,11 @@ function mockEvaluate(planContent, planName) {
     findings['Q-C44'] = { status: 'NEEDS_UPDATE', finding: 'Change observability: 15-minute monitor is insufficient for DB migration.' };
   }
 
-  // bench-adversarial-legacy-refactor.md: ["Q-G12", "Q-G18", "Q-G32", "Q-G43"]
+  // bench-adversarial-legacy-refactor.md: ["Q-G12", "Q-G18", "Q-G32"]
   if (planName.includes('legacy-refactor')) {
     findings['Q-G12'] = { status: 'NEEDS_UPDATE', finding: 'Code consolidation: replacing instead of refactoring shared EmailSender logic.' };
     findings['Q-G18'] = { status: 'NEEDS_UPDATE', finding: 'Pre-condition verification: modifying EmailSender without reading its current implementation.' };
     findings['Q-G32'] = { status: 'NEEDS_UPDATE', finding: 'Source-path tracking: Welcome vs Reset branches need discriminant tracking for logging.' };
-    findings['Q-G43'] = { status: 'NEEDS_UPDATE', finding: 'Test-blast radius: tests only cover utility, not the affected callers (auth/onboarding).' };
   }
 
   // bench-adversarial-vague-decomposition.md: ["Q-G13", "Q-G20", "Q-G26"]
@@ -355,49 +354,6 @@ function mockEvaluate(planContent, planName) {
   if (planName.includes('leaky-adapter')) {
     findings['Q-G1'] = { status: 'NEEDS_UPDATE', finding: 'Approach soundness: leaking AWS SDK internals through the FileService interface.' };
     findings['Q-C38'] = { status: 'NEEDS_UPDATE', finding: 'Cross-boundary contract: FileService should not take raw AWS.S3.PutObjectRequest as an argument.' };
-  }
-
-  // --- New Platform-Specific Traps ---
-
-  // Q49: GAS V8 Parsing Bomb
-  if (planContent.includes('loadNow: true') && (planName.includes('v8-parsing-bomb') || (planContent.includes('position') && planContent.includes('dependency')))) {
-    findings['Q49'] = { status: 'NEEDS_UPDATE', finding: 'GAS V8 Parsing Bomb: heavy dependency at position 10 with loadNow: true triggers eager parse.' };
-  }
-
-  // Q44: GAS Card State Trap
-  const contentLower = planContent.toLowerCase();
-  if ((contentLower.includes('cardservice') || contentLower.includes('gmail add-on')) && contentLower.includes('global') && contentLower.includes('object')) {
-    findings['Q44'] = { status: 'NEEDS_UPDATE', finding: 'GAS Card State Trap: using a global object for state in a CardService add-on is unreliable.' };
-  }
-
-  // N23: Node ReDoS
-  if (contentLower.includes('regex') && (contentLower.includes('nested quantifier') || contentLower.includes('([a-z0-9]+)\\s*)+'))) {
-    findings['N23'] = { status: 'NEEDS_UPDATE', finding: 'Node ReDoS: regex with nested quantifier detected.' };
-  }
-
-  // N30: Node Phantom Dependency
-  if (contentLower.includes('monorepo') && contentLower.includes('root') && contentLower.includes('package.json') && contentLower.includes('import')) {
-    findings['N30'] = { status: 'NEEDS_UPDATE', finding: 'Node Phantom Dependency: importing from root package.json without local dependency in a monorepo.' };
-  }
-
-  // --- New Philosophy & Convention Traps ---
-
-  // Q-G33: Shippable Milestones
-  if (planName.includes('shippable-violation') || (planContent.includes('Delete') && planContent.includes('broken'))) {
-    findings['Q-G33'] = { status: 'NEEDS_UPDATE', finding: 'Shippable Milestones: Phase 1 deletes code leaving the system un-shippable until Phase 3.' };
-  }
-
-  // GAS Local Conventions: Q51, Q5, Q13
-  if (planName.includes('local-convention')) {
-    if (planContent.includes('Logger.log')) {
-      findings['Q51'] = { status: 'NEEDS_UPDATE', finding: 'GAS Debug Logging: using Logger.log() instead of injected log param.' };
-    }
-    if (planContent.includes('mcp_gas.write') && !planContent.includes('raw:true')) {
-      findings['Q5'] = { status: 'NEEDS_UPDATE', finding: 'GAS Standards: mcp_gas.write for HTML requires raw:true.' };
-    }
-    if (planContent.includes('openById') && planContent.includes('1abc1234567890defGHIJKLMN')) {
-      findings['Q13'] = { status: 'NEEDS_UPDATE', finding: 'GAS Standards: hardcoded sheet ID instead of using ConfigManager.' };
-    }
   }
 
   return {

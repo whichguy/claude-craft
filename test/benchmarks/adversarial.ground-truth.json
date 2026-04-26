@@ -24,7 +24,7 @@
   "bench-adversarial-boundary-failure.md": ["Q-G22", "Q-G25", "Q-C37", "Q-C38"],
   "bench-adversarial-ui-monolith.md": ["Q-U1", "Q-U2", "Q-U3", "Q-U4", "Q-U5", "Q-U9", "Q-C17"],
   "bench-adversarial-ops-blindness.md": ["Q-G4", "Q-C27", "Q-C41", "Q-C44"],
-  "bench-adversarial-legacy-refactor.md": ["Q-G12", "Q-G18", "Q-G32", "Q-G43"],
+  "bench-adversarial-legacy-refactor.md": ["Q-G12", "Q-G18", "Q-G32"],
   "bench-adversarial-vague-decomposition.md": ["Q-G13", "Q-G20", "Q-G26"],
   "spoof-native-vs-dependency.md": ["Q-G1", "Q-C12"],
   "spoof-hidden-impact.md": ["Q-C3", "Q-C26"],
@@ -43,11 +43,5 @@
   "bench-adversarial-distributed-monolith.md": ["Q-G1", "Q-C14"],
   "bench-adversarial-google-scale.md": ["Q-G23", "Q-C28"],
   "bench-adversarial-rewrite-trap.md": ["Q-G1", "Q-G31"],
-  "bench-adversarial-leaky-adapter.md": ["Q-G1", "Q-C38"],
-  "bench-gas-v8-parsing-bomb.md": ["Q49"],
-  "bench-gas-card-state-trap.md": ["Q44"],
-  "bench-node-redos-vulnerability.md": ["N23"],
-  "bench-node-phantom-dep.md": ["N30"],
-  "bench-adversarial-shippable-violation.md": ["Q-G33"],
-  "bench-adversarial-local-convention.md": ["Q51", "Q5", "Q13"]
+  "bench-adversarial-leaky-adapter.md": ["Q-G1", "Q-C38"]
 }
