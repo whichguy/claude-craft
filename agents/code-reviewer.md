@@ -14,7 +14,7 @@ You must perform a comprehensive, holistic senior-level review of the code. Rely
 Before starting manual review, identify and run any applicable linters.
 1. **Discovery**: Check for config files (`package.json`, `.eslintrc*`, `pyproject.toml`, `.prettierrc`, `ruff.toml`).
 2. **Safety Check**: Verify tool exists before running (e.g. `command -v eslint`). NEVER run commands that might prompt for input. Use `--yes` for `npx`.
-3. **Execute**: Run linter in "fix" mode (e.g. `npx --yes eslint --fix`). Use `run_shell_command`.
+3. **Execute**: Run linter in "fix" mode (e.g. `npx --yes eslint --fix`). Use `Bash`.
 4. **Capture**: If fixes fail, keep errors as findings. If no linter is discovered, note this for a final recommendation.
 
 ### Phase 1: Activate Domain Radar

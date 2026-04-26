@@ -66,39 +66,6 @@ Before starting, classify the requested change:
 
 If unclear, default to Refinement — adding behavior is harder to undo than compression.
 
-## STEP 0: Architecture Decision (Team vs Single-Agent)
-
-**Team Mode Trigger:**
-- Multiple prompt variations need A/B testing (2+ variations)
-- Feature flag enabled: `CLAUDE_CODE_EXPERIMENTAL_PROMPT_TEAMS=true`
-
-**Decision Logic:**
-```bash
-TEAMS_ENABLED="${CLAUDE_CODE_EXPERIMENTAL_PROMPT_TEAMS:-false}"
-VARIATION_COUNT="<number of prompt variations to test>"
-
-if [ "$TEAMS_ENABLED" = "true" ] && [ "$VARIATION_COUNT" -ge "2" ]; then
-  # Route to team-based parallel A/B testing
-  Task(subagent_type="optimize-prompt-team-lead", prompt="<optimization request>")
-  exit
-else
-  # Single-agent mode (current behavior - continue to Phase 1)
-fi
-```
-
-**Team Mode Benefits:**
-- 60%+ faster A/B testing for 4+ variations
-- Parallel variation testing (N testers for N variations)
-- Independent scoring and aggregation
-- Better test isolation
-
-**Single-Agent Mode Benefits:**
-- Lower overhead for simple optimizations
-- Faster for single variation changes
-- No team coordination required
-
-**Default:** Single-agent mode (backward compatible, no breaking changes)
-
 ## Phase 2: Analyze Gap (Refinement)
 
 1. **Identify the behavior gap**: What should the system prompt do that it currently doesn't?

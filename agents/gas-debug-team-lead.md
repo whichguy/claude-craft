@@ -250,7 +250,7 @@ Launch specialists to investigate:
 ```javascript
 // Spawn CommonJS specialist (if needed)
 Task({
-  subagent_type: "gas-commonjs-specialist",
+  subagent_type: "gas-debug-commonjs",
   team_name: memory.team_name,
   name: "commonjs-specialist",
   description: "Investigate CommonJS module errors",
@@ -271,7 +271,7 @@ When done:
 
 // Spawn Spreadsheet specialist (if needed)
 Task({
-  subagent_type: "gas-spreadsheet-specialist",
+  subagent_type: "gas-debug-spreadsheet",
   team_name: memory.team_name,
   name: "spreadsheet-specialist",
   description: "Investigate SpreadsheetApp service errors",
@@ -292,7 +292,7 @@ When done:
 
 // Spawn HTML specialist (if needed)
 Task({
-  subagent_type: "gas-html-specialist",
+  subagent_type: "gas-debug-html",
   team_name: memory.team_name,
   name: "html-specialist",
   description: "Investigate HTML template server-side errors",
@@ -447,7 +447,7 @@ Spawn N testers for N theories in parallel:
 ```javascript
 FOR EACH theory in theories:
   Task({
-    subagent_type: "gas-hypothesis-tester",
+    subagent_type: "gas-debug-hypothesis-tester",
     team_name: memory.team_name,
     name: `tester-${theory.id}`,
     description: `Test hypothesis ${theory.id}`,

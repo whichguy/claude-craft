@@ -54,7 +54,7 @@ Before anything else, determine if this is a **plan review** or a **code review*
 
 **If plan review**: Invoke the `review-plan` skill instead of proceeding below.
 ```
-Task(subagent_type="review-plan", prompt="Review the plan: [plan file path or content]")
+Skill(skill="review-plan", args="Review the plan: [plan file path or content]")
 ```
 review-plan handles GAS detection and gas-plan invocation internally.
 Then return the review-plan output to the user. Do not continue to Step 1.

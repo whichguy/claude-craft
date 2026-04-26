@@ -164,6 +164,23 @@ const USER_FACING_NO_REFS_OK = new Set([
     'verify-transformation',
 ]);
 
+// Special subagent_type values that aren't agent names — Claude Code's built-in
+// dispatch types and well-known generic markers.
+const BUILTIN_SUBAGENT_TYPES = new Set([
+    'general-purpose',
+    'Plan', 'Explore',           // CLI-provided agents (not in agents/)
+    'statusline-setup',
+]);
+
+// Placeholder identifiers used in skill examples that document Task() syntax,
+// and loop variables (e.g. `for each (file, reviewer): subagent_type = reviewer`).
+// These appear inside ```bash``` or pseudo-code blocks and are not real dispatch.
+const SUBAGENT_TYPE_EXAMPLES = new Set([
+    'foo',           // generic placeholder
+    'prompter',      // form990 task-runner placeholder
+    'reviewer',      // loop variable in review-fix.md / review-fix-thin.md
+]);
+
 // ─── TESTS ────────────────────────────────────────────────────────────────
 
 describe('cross-reference lint: every /skill-name in primary docs resolves', function () {
@@ -290,5 +307,43 @@ describe('dead-code detector: every skill and agent has at least one external re
             if (refs === 0) orphans.push(name);
         }
         expect(orphans, `Orphan agents (no external references — candidates for deletion or addition to INTERNAL_ONLY_EXEMPTIONS): ${orphans.join(', ')}`).to.deep.equal([]);
+    });
+});
+
+describe('subagent_type dispatch: every Task() / frontmatter subagent_type resolves', function () {
+    const agents = new Set(listAgents());
+
+    it('finds no broken subagent_type references', function () {
+        const docRoots = [
+            path.join(REPO_ROOT, 'skills'),
+            path.join(REPO_ROOT, 'agents'),
+            path.join(REPO_ROOT, 'plugins'),
+            path.join(REPO_ROOT, 'commands'),
+        ];
+
+        const unresolved = [];
+
+        for (const file of walkDocs(docRoots)) {
+            const content = fs.readFileSync(file, 'utf8');
+            const lines = content.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                // Match: subagent_type: "foo" / subagent_type: 'foo' / subagent_type="foo" / subagent_type=foo
+                const matches = lines[i].matchAll(/subagent_type\s*[:=]\s*["']?([a-z][a-z0-9-]+)["']?/g);
+                for (const m of matches) {
+                    const name = m[1];
+                    if (agents.has(name)) continue;
+                    if (BUILTIN_SUBAGENT_TYPES.has(name)) continue;
+                    if (SUBAGENT_TYPE_EXAMPLES.has(name)) continue;
+                    unresolved.push({
+                        name,
+                        file: path.relative(REPO_ROOT, file),
+                        line: i + 1,
+                    });
+                }
+            }
+        }
+
+        const formatted = unresolved.map(u => `  ${u.file}:${u.line}  subagent_type="${u.name}"`).join('\n');
+        expect(unresolved, `Broken subagent_type dispatches — agent does not exist; fix the name, add to BUILTIN_SUBAGENT_TYPES if it's a Claude Code built-in, or to SUBAGENT_TYPE_EXAMPLES if it's a placeholder in pseudo-code:\n${formatted}`).to.deep.equal([]);
     });
 });

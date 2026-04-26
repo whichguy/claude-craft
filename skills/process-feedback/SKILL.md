@@ -10,7 +10,7 @@ description: |
   - "optimize prompt for [skill]"
 
   NOT for: Directly editing SKILL.md files (this skill is Propose-Only).
-allowed-tools: [read_file, list_directory, write_file, run_shell_command]
+allowed-tools: Read, Glob, Write, Bash
 ---
 
 # /process-feedback — Optimization Architect

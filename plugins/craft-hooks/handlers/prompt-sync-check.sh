@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 
 # User Prompt Submit Hook for Auto-Sync
 # Triggered when user submits a prompt
