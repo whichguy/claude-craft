@@ -703,7 +703,7 @@ Search snapshot text for known patterns instead of hardcoding:
 |-----------|-------------|-----------------|
 | Server error in HANDLER_TEST | `/gas-debug` | Error message, logger_output, module name |
 | Pattern issue in ERROR_MATCHER | `/gas-ui-review` | File path, line number, error text |
-| Need to reproduce interactively | `/gas-sidebar-debug` | Steps to reproduce, expected behavior |
+| Need to reproduce interactively | `/gas-sidebar` | Steps to reproduce, expected behavior |
 | Deep code analysis needed | `/gas-code-review` | File path, specific concerns |
 
 ## Tool Ordering (Fastest First)
