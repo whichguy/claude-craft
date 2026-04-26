@@ -38,6 +38,21 @@ Claude Craft includes a self-building wiki system that captures knowledge from y
 | `/wiki-process` | Process pending queue entries — the self-building engine |
 | `/wiki-lint` | Health check: find orphans, broken links, contradictions, stale pages |
 
+### Prompt Improvement Skills
+
+A consolidated set of skills for iterating on prompts, system prompts, and evaluator questions.
+
+| Skill | Description |
+|-------|-------------|
+| `/improve-prompt` | Research-backed iterative prompt improvement loop with experiment variants, scope-preservation gate, and questions-based judging. Subsumes `/prompt-critique` (via `--mode critique`) and `/prompt-probes` (via `--with-probes`). |
+| `/compare-prompts` | A/B test two prompts with execution-based scoring. Standalone harness. |
+| `/process-feedback` | Ingest the `feedback-collector` plugin's backlog and propose surgical prompt updates (propose-only — never auto-edits SKILL.md). |
+| `/optimize-system-prompt` | Optimize/refine the GAS Sheets Chat system prompt (compression + refinement). Subsumes `/ideate-system-prompt` via `--mode ideate` (autonomous hypothesis generation + benchmarking). |
+| `/improve-system-prompt` | Benchmark pre-coded GAS system prompt variants (V2/V2a/V2b/V2c) against scenarios. Sibling of `/optimize-system-prompt` for projects with predefined variants. |
+| `/derive-questions` | Mine failures and extract evaluator questions from real runs. |
+| `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
+| `/compare-questions` | Pairwise A/B testing of two evaluator questions against plan fixtures. |
+
 ### Wiki Plugin (wiki-hooks)
 
 The wiki-hooks plugin provides 13 lifecycle handlers + a shared library that run automatically:
