@@ -1,0 +1,21 @@
+{
+  "fixture": "python_ssrf_validator.py",
+  "categories_present": ["security", "ssrf", "toctou"],
+  "issues": [
+    {
+      "id": "TRAP_DNS_REBINDING",
+      "category": "security",
+      "description": "TOCTOU (Time-of-Check to Time-of-Use) vulnerability allowing DNS Rebinding. The code resolves the hostname to check its IP against internal ranges on line 54, but the subsequent requests.get(url) on line 73 performs its own DNS resolution. An attacker can use a short TTL DNS record to switch the IP between validation and execution.",
+      "severity": "Critical",
+      "line": 73
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "description": "The use of 'allow_redirects=False' on line 73 is a correct security practice to prevent redirect-based SSRF and should not be flagged as a bug."
+    },
+    {
+      "description": "The 'INTERNAL_NETWORKS' list is comprehensive and correctly uses the 'ipaddress' module for robust range checking."
+    }
+  ]
+}
