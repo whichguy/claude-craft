@@ -3,7 +3,8 @@ set -eo pipefail
 
 echo "🚀 Installing Claude Craft..."
 
-REPO_DIR="$HOME/claude-craft"
+# Override with: REPO_DIR=/custom/path ./install.sh
+REPO_DIR="${REPO_DIR:-$HOME/claude-craft}"
 CLAUDE_DIR="$HOME/.claude"
 GITHUB_REPO="https://github.com/whichguy/claude-craft.git"
 

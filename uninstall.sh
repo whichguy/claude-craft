@@ -4,7 +4,8 @@ shopt -s nullglob
 
 echo "🗑️  Claude Craft Uninstaller"
 
-REPO_DIR="$HOME/claude-craft"
+# Override with: REPO_DIR=/custom/path ./uninstall.sh
+REPO_DIR="${REPO_DIR:-$HOME/claude-craft}"
 CLAUDE_DIR="$HOME/.claude"
 BACKUP_DIR="$CLAUDE_DIR/backups"
 
