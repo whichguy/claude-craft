@@ -1,0 +1,21 @@
+{
+  "fixture": "go_lazy_initializer.go",
+  "categories_present": ["concurrency", "race-condition"],
+  "issues": [
+    {
+      "id": "TRAP_GO_DOUBLE_INIT",
+      "category": "concurrency",
+      "description": "Race condition in lazy initialization. The code uses atomic.LoadPointer for a fast path, but multiple goroutines can simultaneously enter the slow path (lines 40-52) because there is no mutex or sync.Once guarding the initialization logic. This leads to redundant work in 'initializeResource' and potential state corruption if the resource is intended to be a unique singleton.",
+      "severity": "High",
+      "line": 45
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "description": "The use of 'unsafe.Pointer' is necessary for atomic operations on arbitrary types in Go and is not inherently a bug here."
+    },
+    {
+      "description": "The 'atomic.LoadPointer' on line 36 is a correct performance optimization for the 'hot path' read."
+    }
+  ]
+}

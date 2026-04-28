@@ -1,0 +1,28 @@
+{
+  "fixture": "JavaPermissionManager.java",
+  "categories_present": ["architecture", "security", "logic"],
+  "issues": [
+    {
+      "id": "TRAP_FAIL_OPEN_INHERITANCE",
+      "category": "security",
+      "description": "Fail-open architectural flaw in permission resolution. In 'resolvePolicy' (line 92), if a resource has no parent and its policy is set to 'INHERIT' (the default), the system defaults to 'Policy.ALLOW'. This means any registered resource without an explicit policy or a valid parent chain is accessible by any role, violating the principle of least privilege.",
+      "severity": "Critical",
+      "line": 92
+    },
+    {
+      "id": "TRAP_INFINITE_RECURSION_RISK",
+      "category": "logic",
+      "description": "Architecture lacks cycle detection. If two resources are registered as each other's parents, 'resolvePolicy' will enter an infinite recursion, leading to a StackOverflowError (Denial of Service).",
+      "severity": "Medium",
+      "line": 86
+    }
+  ],
+  "false_positive_traps": [
+    {
+      "description": "The use of 'ConcurrentHashMap' for 'resourceTree' is a correct choice for a multi-threaded security service."
+    },
+    {
+      "description": "The 'rootRole' override on line 66 is a standard 'Superuser' pattern and is not a bug."
+    }
+  ]
+}
