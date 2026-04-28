@@ -1,119 +1,105 @@
 ---
 name: execute-plan
-description: Use after a plan is approved in planning mode, OR after learnings have been gathered in session — converts either into self-contained tasks and executes them as a dependency-ordered task graph with native worktree isolation
+description: Use after a plan is approved in planning mode, OR after learnings have been gathered in session — converts either into self-contained tasks and executes them as a dependency-ordered task graph with native worktree isolation. Sub-agent prompts (full reviewer, run-agent description) are loaded just-in-time from references/.
 ---
 
 # Execute Plan
 
 ## Overview
 
-Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals. **Branch B** assesses session learnings and drafts proposals — this is in-session planning, producing identical output. After proposals exist, both branches follow the same path: triage, senior engineer review, then task-graph execution with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph, not explicit wave phases. Neither path skips the review agent — it is the correctness guarantee.
+Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals. **Branch B** assesses session learnings and drafts proposals — in-session planning, identical output. After proposals exist, both branches follow the same path: triage, senior engineer review, then task-graph execution with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. Neither path skips review — it is the correctness guarantee.
 
-## Workflow
-
-```
-Step 1 — Get the Plan
-  Branch A: Read approved plan file → extract steps as proposals
-  Branch B: Git prime → assess learnings → draft proposals
-          ↓ (both produce: proposals table + context)
-TRIAGE → Express (≤3 small, no schema/migration) or Standard (4+ or any medium/large)
-          ↓ Express                                ↓ Standard
-Lightweight reviewer                               Step 0: Phase tracking (3 tasks)
-→ APPROVED or ESCALATE ───────────────────────→   Step 2: Full review agent
-  ↓ APPROVED    ↓ ESCALATE (→ Standard)           Step 3: Create task graph
-Checkpoint +                                         Git prep tasks (serial)
-Create + Run                                         Per-task: Create worktree →
-serially                                               Run agent (isolated) →
-Done                                                   Merge (serial chain)
-                                                    Step 4: Execute task graph
-                                                      (dispatch all with no
-                                                       unsatisfied blockers)
-```
+**References model:** Two of the longest sub-agent prompts live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
 ---
 
 ### Step 1 — Get the Plan
 
-**Git context prime** (if `.git` exists — skip all git commands if no repo, note "no git repo"):
+**Git context prime** (skip all git commands if no `.git`, note "no git repo"):
 - `git log -1 --oneline` — last commit SHA + message
-- `git diff HEAD --name-only` — files currently modified (in-flight scope)
-- If commit message is ambiguous, optionally: `git show --stat HEAD`
+- `git diff HEAD --name-only` — files currently modified
+- If commit message is ambiguous: `git show --stat HEAD`
 
-**Call `TaskList`** — note all tasks in the backlog (completed, in_progress, and pending). These are off-limits for new proposals.
+**Call `TaskList`** — note all tasks in the backlog (completed, in_progress, pending). These are off-limits for new proposals.
 
 **Identify external resources** (non-git files agents may need):
+1. `cat .gitignore | grep -iE '(data|fixtures|test-data|dataset|large|samples)'`
+2. Check test config (`pytest.ini`, `jest.config.*`, `.env.test`, `conftest.py`) for DATA_DIR, FIXTURES_PATH, etc.
+3. `find . -maxdepth 3 -name "*.env*" -not -path "*node_modules*"`
 
-Run these discovery steps actively:
-1. `cat .gitignore | grep -iE '(data|fixtures|test-data|dataset|large|samples)'` — find explicitly excluded data directories
-2. Check test configuration files (`pytest.ini`, `jest.config.*`, `.env.test`, `conftest.py`) for DATA_DIR, FIXTURES_PATH, TEST_DATA, or similar path variables
-3. `find . -maxdepth 3 -name "*.env*" -not -path "*node_modules*"` — surface path-bearing environment files
-
-**Local filesystem resources** (directories, network mounts): note the absolute path. These will be symlinked into each worktree so agents access them at the same relative path.
-
-**Remote resources** (S3 URIs, HTTP endpoints, database connection strings): do NOT attempt `ln -s`. Include the full URI/endpoint in the task description's External resources field — the agent must fetch or connect directly using those credentials/endpoints.
+Local resources → note absolute path (will be symlinked into each worktree). Remote resources (S3, HTTP, DB strings) → include the full URI in the task's External resources field; do NOT `ln -s`.
 
 ---
 
-**Branch A — Plan file** (invoked after planning mode approval):
+**Branch A — Plan file:**
 
-1. Read the approved plan file (path is in the planning mode context or current session)
-2. For each step in the plan, extract a proposal:
-   - `What` → step title
-   - `Why` → step rationale / the Context section of the plan
-   - `Scope` → estimate from step description (small / medium / large)
-3. Note any files listed under each step → include in proposal context
-4. Note any sequencing stated in the plan (step N requires step M) → pass as ordering hints to the reviewer; the reviewer confirms DEPENDS ON vs. independent — do not wire them yet
-5. Note the plan's Verification section → seed for validation task suggestions
-6. Set `{context}` = full plan file content
+1. Read the approved plan file (path is in planning mode context or current session)
+2. For each step, extract proposal: `What`=step title; `Why`=rationale/Context; `Scope`=small|medium|large
+3. Note files listed under each step → include in proposal context
+4. Note sequencing (step N requires step M) → pass as ordering hints to reviewer; do not wire yet
+5. Note plan's Verification section → seed for validation tasks
+6. `{context}` = full plan file content
+
+**Branch B — Learnings (no plan file):**
+
+Cycle detection — both signals must hold for B1, else B2:
+```bash
+# Signal 1: Phase 3 completed task exists in TaskList ("Phase 3: Git prep → task graph execution")
+# Signal 2:
+CKPT=$(git log --grep="checkpoint: pre-execution state" --format="%H" -1)
+git log $CKPT..HEAD --oneline | grep -qE "task-[0-9]+:"
+```
+
+**Both true → Sub-mode B1 (post-execution reflection).** Extract in priority order:
+1. Failed run-agent tasks: from TaskList, find `Run agent: *` with `STATUS: failure` in notes — include FAILURE_TYPE + NOTES verbatim
+2. Regression outcome: did `Regression: *` complete? If failed, include NOTES; if missing/never-ran, flag as untested coverage gap (deferred validations rely on regression)
+3. Stuck tasks: pending/in_progress whose blockers are all completed
+4. Ground truth: `git log $CKPT..HEAD --oneline`
+5. New uncommitted work: `git diff HEAD --name-only`
+
+`{context}` = concise narrative of these five points. If all empty (all-success): context = point 4; proposals are forward-looking improvements.
+
+**Either signal absent → Sub-mode B2 (fresh session).** Run the full assessment below — clean working tree is NOT a terminal state; it is the normal starting point for forward-looking proposals.
+
+Mandatory inputs (collect ALL — do not stop early):
+1. In-flight: `git diff HEAD --name-only` (uncommitted) and `git log <base>..HEAD --oneline` (unmerged)
+2. Recent landed work: `git log -10 --oneline` — what just shipped, what it implies for follow-ups
+3. Conversation context: what was the user just working on? What did they build, fix, migrate, or defer? What was explicitly listed as out-of-scope, deferred, or "left to user"?
+4. Surfaced follow-ups: untested new code, undocumented new features, unpushed commits, TODOs introduced, rollback artifacts (e.g. `_backups/`), feature flags awaiting cleanup
+
+Then document: what's broken, missing, suboptimal, untested, or deferred; root causes; constraints. `{context}` = full findings text.
+
+**Empty-result discipline:** if your assessment returns zero proposals, you must explicitly justify each input above as "checked, nothing actionable" before concluding. A clean `git diff` alone is NOT sufficient justification — items 2–4 must also be checked. Bias toward drafting proposals; let the senior reviewer prune the weak ones.
 
 ---
 
-**Branch B — Learnings in session** (no plan file / invoked after exploration):
-
-Summarize the learnings already gathered. The scope of "what's in flight" is:
-- Uncommitted working tree changes (from `git diff HEAD --name-only` above)
-- Commits on this branch not yet merged to the base branch (`git log <base>..HEAD --oneline`)
-
-Do not re-explore beyond this scope. If a specific named gap requires it, limit re-exploration to that gap only.
-
-**Findings to document:**
-- What is broken, missing, or suboptimal?
-- What patterns or root causes did you find?
-- What constraints exist?
-
-Set `{context}` = full findings text
-
----
-
-**Both branches produce a proposals table** (excluding anything already in the backlog):
+**Both branches produce a proposals table** (excluding anything already in backlog):
 
 | # | What | Why | Scope |
 |---|------|-----|-------|
 | 1 | Example improvement | Finding or plan step that motivates it | small |
 
-Do NOT call TaskCreate here. This is a draft only.
+Draft only — no TaskCreate yet.
 
 **Triage — choose execution path:**
 
-Express requires ALL of the following:
-- ≤3 proposals
-- All scope = small
-- No proposal touches a database, schema, migration, or shared config
-- No proposal touches more than 3 files
-- No API contract changes
+Express requires ALL of: ≤3 proposals; all scope=small; no DB/schema/migration/shared-config; no proposal touches >3 files; no API contract changes.
 
-If Express → print `Express path — N proposals` and continue to **Express Lightweight Review**.
-If Standard → continue to **Step 0** (phase tracking).
+**Safety scan (overrides scope labels):**
+- File pattern: `*.sql`, `*migration*`, `*schema*`, `*alembic*`, `*flyway*`, `*knex*`, `*prisma*`, `*.env.*`, `*config/*`, `*settings.*`
+- Keyword in `What`: `migrate`, `migration`, `schema`, `column`, `table`, `database`, `config`, `flag`, `env`, `feature flag`
+- Any match → Standard. Print: `Triage override → Standard: migration/schema keyword detected in proposal #N ("[keyword]")`
+
+If Express (no safety match) → print `Express path — N proposals` → continue to Express Lightweight Review.
+If Standard → continue to **Step 0**.
 
 ---
 
 ### Express Lightweight Review
 
-Dispatch a **foreground** review agent. Substitute before dispatching:
-- `{existing_backlog_filtered}` → ALL in_progress tasks + 20 most recent pending tasks only
-- `{proposals}` → markdown table from Step 1
+Foreground review agent. Substitute `{existing_backlog_filtered}` (ALL in_progress + 20 most recent pending) and `{proposals}`.
 
-**Lightweight reviewer prompt:**
+**Lightweight reviewer prompt** (paste verbatim):
 ```
 You are validating N small proposals before direct execution.
 
@@ -132,57 +118,56 @@ If ANY answer is yes → respond with: ESCALATE: [reason]
 If all answers are no for every proposal → respond with: APPROVED FOR EXPRESS
 ```
 
-**If ESCALATE:** print the reason. Switch to Standard path — continue at Step 0 using the proposals already drafted in Step 1. Do not re-run Step 1.
-**If APPROVED FOR EXPRESS:** continue to Express Execution.
+**ESCALATE:** print reason → switch to Standard at Step 0 with the existing proposals; do NOT re-run Step 1.
+**APPROVED FOR EXPRESS:** continue.
 
 ### Express Execution
 
-1. **Pre-flight staging check** (if git repo):
-   - Run `git status` to see all uncommitted changes (staged, unstaged, untracked)
-   - If any unstaged or untracked files are relevant to the tasks about to run, stage them now: `git add <relevant files>`
-   - This ensures the checkpoint and agents work from a complete picture of current state
+1. **Pre-flight staging check** (if git): `git status` → stage relevant unstaged/untracked files (`git add <files>`, never `-A`).
+2. **Checkpoint commit:** if no `.git` or clean tree → skip; else `git commit -m "checkpoint: pre-execution state"`, note SHA. On mid-way failure: `git reset --hard <checkpoint-SHA>`.
+3. **Per proposal in order** (no waves, no phase tracking, no worktrees — main workspace):
+   - Create the task (description format: `references/run-agent-description.md`, but drop the worktree-specific Execution-context fields since Express runs in main workspace)
+   - Mark `in_progress`
+   - Run as foreground Agent
+   - On success: `git commit -m "task-N: [title]"`, mark completed, next
+   - On failure: `git reset --hard <checkpoint-SHA>`, print Express Halted report, stop
 
-2. **Checkpoint commit**:
-   - If no `.git` or working tree is already clean: skip — no commit needed
-   - Otherwise: `git commit -m "checkpoint: pre-execution state"` — note the SHA
-   - If execution fails mid-way: `git reset --hard <checkpoint-SHA>` to restore
+   One-at-a-time create+run limits orphan exposure to ≤1 task on mid-way failure.
 
-3. **For each proposal in order** (no wave structure, no phase tracking tasks, no worktrees — main workspace only):
-   - Create the task with a fully self-contained description (same format as Run agent task descriptions in Step 3, without worktree fields — Express runs in the main workspace)
-   - Mark it `in_progress`
-   - Run as a foreground Agent in the main workspace
-   - After agent completes: `git commit -m "task-N: [title]"` — keeps each task's changes isolated for rollback
-   - If agent succeeds: mark `completed`, proceed to next proposal
-   - If agent fails: immediately run `git reset --hard <checkpoint-SHA>` to restore
-     pre-execution state, then print the Express Execution Halted report and stop
+   No `addBlockedBy` — APPROVED guarantees no prep tasks and no logical deps.
 
-   This one-at-a-time create+run loop limits orphan exposure to at most one task if execution fails mid-way.
-
-   No `addBlockedBy` wiring is needed — APPROVED guarantees no prep tasks and no logical dependencies between proposals.
-
-**Express completion report** — print one of the following when the loop ends:
+**Express completion report:**
 
 On success:
-  ## Express Execution Complete
-  Branch: <current branch>
-  Proposals executed: N
-    ✓ task-1: [title] — <commit sha>
-    ✓ task-2: [title] — <commit sha>
-  Checkpoint SHA: <sha> (safe to discard if no issues found)
+```
+## Express Execution Complete
+Branch: <current branch>
+Proposals executed: N
+  ✓ task-1: [title] — <commit sha>
+  ✓ task-2: [title] — <commit sha>
+Checkpoint: <sha>
+```
 
-On failure mid-loop:
-  ## Express Execution Halted
-  Failed at: task-N — [title]
-    [error details from agent]
-  Completed before failure:
-    ✓ task-1: [title]
-  Rolled back to checkpoint SHA: <sha>
+On halt:
+```
+## Express Execution Halted
+Failed at: task-N — [title]
+  [error details from agent]
+Completed before failure:
+  ✓ task-1: [title]
+Rolled back to checkpoint SHA: <sha>
+```
 
 ---
 
-### Step 0 — Phase Tracking (Standard path only)
+### Step 0 — Phase Tracking (Standard only)
 
-Create 3 tasks before doing anything else on Standard path:
+**Task API preflight:** `TaskList`. If errors:
+- Print: `Task API unavailable: [error]`
+- Print: `Standard path requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
+- STOP. No review dispatch. No tasks created.
+
+If TaskList succeeds, create 3 phase tasks:
 
 | Subject | activeForm |
 |---------|------------|
@@ -190,14 +175,13 @@ Create 3 tasks before doing anything else on Standard path:
 | Phase 2: Senior engineer review | Senior engineer reviewing proposals... |
 | Phase 3: Git prep → task graph execution | Wiring task graph and executing via dependency order... |
 
-Mark Phase 1 `completed` immediately — it corresponds to Step 1 (already done before this step runs). Mark each subsequent phase `in_progress` when its step begins, `completed` when it ends.
+Mark Phase 1 `completed` immediately (Step 1 already happened). Mark each later phase `in_progress` at start, `completed` at end.
 
 ---
 
-### Step 2 — Review Agent (Standard path)
+### Step 2 — Review Agent (Standard)
 
-Mark Phase 2 `in_progress`. Print a separator, then dispatch:
-
+Mark Phase 2 `in_progress`. Print:
 ```
 ---
 **Dispatching senior engineer review** (N proposals)
@@ -206,112 +190,18 @@ Mark Phase 2 `in_progress`. Print a separator, then dispatch:
 
 **Runs FOREGROUND — wait for output before proceeding.**
 
-Set Agent `description` to: `"Senior engineer review — evaluating N improvement proposals"`
+Agent `description`: `"Senior engineer review — evaluating N improvement proposals"`.
 
-Substitute before dispatching:
-- `{context}` → Branch A: full plan file content | Branch B: full findings text from Step 1
+Substitutions:
+- `{context}` → Branch A: full plan file content | Branch B: full findings text
 - `{proposals}` → markdown table from Step 1
-- `{existing_backlog_filtered}` → ALL in_progress tasks + 20 most recent pending tasks (same filter as Express; not the full backlog)
+- `{existing_backlog_filtered}` → ALL in_progress + 20 most recent pending (NOT full backlog)
 
-**Review agent prompt:**
-```
-You are a senior engineer reviewing improvement proposals.
+**Dispatch protocol (binding):**
+1. **FIRST: `Read references/reviewer-full.md`** — load the verbatim prompt into context.
+2. **THEN:** Dispatch the Agent with that prompt verbatim, substituting placeholders. Do not paraphrase, summarize, or rewrite.
 
-## Context (plan file or session findings)
-{context}
-
-## Existing Backlog (do not propose duplicates of anything already in the backlog)
-{existing_backlog_filtered}
-
-## Proposed Improvements
-{proposals}
-
-## Your task
-
-Step A — Review each proposal:
-- Remove proposals that duplicate anything already in the backlog (completed, in_progress, or pending)
-- Remove proposals that are vague, redundant, or low-value
-- Add missing proposals the findings clearly call for
-- Reprioritize by impact/effort ratio (high impact, low effort first)
-- Split proposals that are too large to be a single task
-- Rewrite unclear proposals to be specific and actionable
-
-Step B — For each approved proposal:
-
-First: mark Trivial: yes ONLY for proposals that are text/comment changes, renames with no
-functional impact, or single-value config updates requiring no migration. Trivial proposals
-skip the remaining Step B questions — output "Prep tasks: none" and "Validation tasks: none".
-
-For non-trivial proposals, answer in this order:
-
-1. "Does this task require preparatory work before it can safely execute?"
-   If yes, list prep tasks. These must complete before the main task starts.
-   Examples: data migrations, flag creation, baseline capture, schema changes.
-   Name each prep task: "Pre-[main task title]: [specific action]"
-
-2. "What is the validation strategy for this proposal?"
-   Mark ONE per proposal — this decision determines whether per-task validation tasks are generated:
-   - `validation: per-task` — complex or risky change; isolated tests run inside the task's own agent
-   - `validation: deferred` — confident, simple change; no per-task tests; covered by final regression
-
-3. "If validation: per-task — what specific tests are needed?"
-   (Skip this question entirely for `validation: deferred` proposals)
-   Consider: unit tests, integration tests, regression checks, smoke tests.
-   For each test area:
-   - Cover both success paths AND failure/error paths — do not test only the happy path.
-   - Mock external dependencies where relevant; verify the mock in both success and failure cases.
-   - Note which test runner the validation task uses (e.g., jest, pytest, go test, rspec).
-   Each validation task runs entirely inside the agent (write, run, fix, rerun until passing).
-   Name each: "Post-[main task title]: [specific validation]"
-
-4. "Is a final regression task needed?"
-   - Yes if ANY proposal is `validation: deferred`, or if proposals interact
-   - No if all proposals are `validation: per-task` and independent
-   If yes: name it "Regression: [scope — e.g., full auth suite]"
-   It runs in the main workspace after all merges (no worktree).
-
-Step C — Identify logical dependencies only.
-
-File collisions are not a concern — every task runs in its own git worktree. Worktrees provide full isolation; changes merge back to the branch when the task completes. Do NOT list file collision as an ordering constraint.
-
-Identify only LOGICAL DEPENDENCIES:
-- **DEPENDS ON**: Task B logically requires Task A's output to function — B calls A's new function, uses A's output file as input, or requires A's migration to have completed. These must serialize.
-
-Apply within each set: prep, main, validation.
-
-## Output format:
-
-=== PROPOSAL N: [title] ===
-Trivial: yes/no
-Why: [reason]
-Scope: [small/medium/large]
-Validation strategy: per-task | deferred | none (trivial)
-
-Prep tasks:
-- [title] — [why needed] — [scope]
-(or: none)
-
-Validation tasks (only if validation strategy = per-task):
-- [title] — [what it validates, including mocks] — [test runner] — [scope]
-(or: none — deferred to final regression)
-
-=== ORDERING CONSTRAINTS ===
-Logical dependencies only — file collision is not listed (worktrees handle it):
-
-Prep: [task B] DEPENDS ON [task A] — [reason: B needs A's migration output]
-Main: [task F] DEPENDS ON [task E] — [reason: F calls function E creates]
-Validation: [task J] DEPENDS ON [task I] — [reason: J needs I's seed data]
-(or: none for any set with no logical dependencies)
-
-=== FINAL REGRESSION ===
-(or: none)
-Scope: [full suite description]
-Runner: [test command — e.g., npm test, pytest, go test ./...]
-What to confirm: [regression areas — e.g., auth flow, payment processing]
-
-```
-
-**Immediately after the agent returns**, print the changelog:
+**On agent return**, print changelog:
 ```
 **Review complete:**
   ✓ Kept N    — unchanged
@@ -321,166 +211,62 @@ What to confirm: [regression areas — e.g., auth flow, payment processing]
   ~ Trivial N — #2 #5 (no prep/validation generated)
 ```
 
-Use the reviewer's output as the sole source of truth. Mark Phase 2 `completed`.
+Reviewer's output is the sole source of truth. Mark Phase 2 `completed`.
+
+**Review Confirmation Gate** (after changelog, before Step 3):
+
+If `Removed N > 0` OR `Added N > 0` OR `Promoted N > 0`:
+- Print full changelog with per-item details (titles of added/removed/promoted)
+- PAUSE. Print exactly: `Review agent changed the proposals. Type "proceed" to continue to task graph construction, or "cancel" to halt.`
+- Wait for user input.
+- `cancel` (or any non-"proceed"): print final proposals-as-reviewed list and stop. Do NOT begin task graph.
+- `proceed`: continue.
+
+If only `Kept N`: auto-proceed.
 
 ---
 
-### Step 3 — Build the Task Graph (Standard path)
+### Step 3 — Build the Task Graph (Standard)
 
 Mark Phase 3 `in_progress`.
 
-**Git repo initialization guard** (runs before task creation):
-
+**Git repo init guard** (before Pass 1):
 ```
-If no .git directory exists:
+No git repo:
   git init
   Create README.md: "# [project-name]\nInitialized [date]"
   git add README.md
   git commit -m "Initial commit"
-  Capture: current branch name + HEAD SHA — use these in all task descriptions below
+  Capture: branch name + HEAD SHA — used in task descriptions
   Print: "Git repo initialized"
 ```
 
-This must run before Pass 1 so task descriptions contain valid branch names and SHAs.
+Required: task descriptions need valid branch + SHA.
 
-**Pass 1 — Create ALL tasks** in this order: git prep tasks, then per-original-task chains. Print a ticker as each is created.
-
-**Git prep tasks (serial chain — created first):**
-```
-  [git-prep 1/3] Task #80: Git prep: Pre-flight staging check
-  [git-prep 2/3] Task #81: Git prep: Checkpoint commit
-  [git-prep 3/3] Task #82: Git prep: Setup .worktrees directory
-```
-
-**Per-original-task chains** (3 tasks each — create worktree, run agent, merge):
-```
-  [create-wt 1/3] Task #83: Create worktree: Pre-Refactor auth session: Audit storage
-  [run-agent 1/3] Task #84: Run agent: Pre-Refactor auth session: Audit storage
-  [merge     1/3] Task #85: Merge: Pre-Refactor auth session: Audit storage
-  [create-wt 2/3] Task #86: Create worktree: Refactor auth session storage
-  [run-agent 2/3] Task #87: Run agent: Refactor auth session storage
-  [merge     2/3] Task #88: Merge: Refactor auth session storage
-  ... (repeat for every prep, main, and per-task validation task)
-  (deferred validation proposals: no validation chain — final regression covers them)
-```
-
-Trivial main tasks: create only the run-agent task — no prep or validation chains.
-
-**Run agent task description must be fully self-contained.** Assume context may be cleared before execution:
+**Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
 ```
-## Purpose
-[Why this task exists — the specific finding or proposal it addresses]
+[git-prep 1/4] Task #80: Git prep: Pre-flight staging check
+[git-prep 2/4] Task #81: Git prep: Checkpoint commit
+[git-prep 3/4] Task #82: Git prep: Propagate checkpoint SHA
+[git-prep 4/4] Task #83: Git prep: Setup .worktrees directory
 
-## Type & relationships
-Type: prep | main | validation
-Parent proposal: [title]
-Blocked by: [task IDs — must be completed first; "none" if no deps]
-Unblocks: [task IDs — will be cleared when this completes; "none" if leaf]
-
-## Execution context
-Working branch: [current branch name]
-Checkpoint SHA: [SHA from git prep checkpoint commit — use for rollback]
-Isolation: native worktree (isolation: "worktree" on Agent dispatch)
-External resources: [absolute paths to test data, fixtures, or large files outside the git repo — see below]
-
-## Directive
-Execute completely. Do not pause to ask for confirmation. Do not stop at the first
-obstacle — diagnose it, fix it, continue. Only report failure if the problem is
-genuinely unresolvable (missing credentials, broken environment, unrecoverable error).
-
-## What to do
-[Specific, actionable steps from the reviewer's output]
-
-For validation tasks — ALL of the following happen inside this agent:
-  - Write the test (success path AND failure/error path)
-  - Set up mocks: [which dependencies, what mock behavior]
-  - Run: [test command]
-  - If tests fail: read the error, fix the implementation or test, rerun
-  - Keep fixing and retesting until the suite passes
-  - Only stop and report failure if the error is unresolvable (missing dependency,
-    broken tool, environment issue outside your control)
-
-## Files
-[Exact file paths to read and/or modify]
-
-## Before returning — commit your changes
-You are running inside an isolated worktree. All changes must be committed to the worktree
-branch so the merge step can pick them up. Without a commit, the merge will be a no-op
-and your changes will be lost.
-
-From your current working directory (the worktree root):
-
-  git status                              ← verify which files you changed
-  git add <files you modified>            ← stage only files this task intentionally changed
-  git commit -m "task-N: [what was done]" ← commit to the worktree branch
-
-Do NOT use `git add -A` — only stage files this task modified.
-If this task made no file changes (e.g. read-only analysis), skip the commit and note it.
-
-## Return when done
-
-On SUCCESS, end your response with exactly this block (substitute real values):
-
-```
-STATUS: success
-ACTION: Create a Task — Merge from <worktree-branch> to <current-branch>
-  Source branch: <the branch you committed to, e.g. task-84-branch>
-  Target branch: <the branch you were working on, e.g. feature/auth>
-  Worktree path: <your worktree directory, e.g. .worktrees/task-84>
-  IMPORTANT: Do not conduct this merge concurrently with other merge operations.
-NOTES: [brief summary — files changed, what was accomplished]
+[create-wt 1/3] Task #84: Create worktree: Pre-Refactor auth session: Audit storage
+[run-agent 1/3] Task #85: Run agent: Pre-Refactor auth session: Audit storage
+[merge     1/3] Task #86: Merge: Pre-Refactor auth session: Audit storage
+... (repeat for every prep, main, and per-task validation task)
+(deferred-validation proposals: no validation chain — final regression covers them)
 ```
 
-On FAILURE, end your response with exactly this block (choose the FAILURE_TYPE that applies):
+**Trivial main tasks:** create only the run-agent task (no prep/validation chains). In its Execution context, replace the entire `Isolation` line with `Isolation: none (trivial)`.
 
-```
-STATUS: failure
-FAILURE_TYPE: no_change | partial_change | test_failures
-ACTION:
-  1. Do NOT proceed with any task that depends on this one — halt their execution
-  2. [no_change]      Discard worktree: git worktree remove <path> --force && git branch -D <branch>
-     [partial_change] Preserve worktree at <path> for inspection — do not discard
-     [test_failures]  Preserve worktree at <path> — test output is inside for review
-  3. Surface this failure to the user before continuing any further execution
-  4. If a full rollback is needed: git reset --hard <checkpoint-SHA recorded at start>
-WORKTREE: <your worktree path>
-BRANCH: <your worktree branch>
-BLOCKED_DEPENDENTS: [task IDs that were waiting on this task and must now be halted]
-NOTES: [what was attempted, what failed, relevant error messages or test output]
-```
+**Run-agent description (binding dispatch protocol):**
+1. **FIRST: `Read references/run-agent-description.md`** — load the verbatim template.
+2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`. Do not paraphrase.
 
-The orchestrator reads only this final block. The ACTION steps tell it exactly what to clean up, what to halt, and what to show the user — no orchestrator judgment required.
-```
-```
+**Create worktree task:** the description is the bash block in "Create worktree task prompt format" below — that bash block IS the description. No prose form.
 
-**Create worktree task description:**
-```
-## What to do
-Important: each worktree gets its own fresh index (staging area). Only committed
-changes in HEAD are automatically visible. Staged-but-uncommitted changes must be
-applied separately. The pre-flight checkpoint commit handles this for the normal
-path — verify HEAD contains everything needed before proceeding.
-
-1. Create worktree from current branch HEAD (NOT from main — HEAD = current branch tip):
-   git worktree add .worktrees/task-N -b task-N-branch HEAD
-
-2. Symlink any external resources identified in Step 1 so the agent can access them
-   at the same relative path it would use in the main workspace:
-   ln -s /absolute/path/to/test-fixtures .worktrees/task-N/test-fixtures
-   ln -s /absolute/path/to/large-dataset .worktrees/task-N/large-dataset
-   (Symlinks are read-only references — agents can read but not accidentally commit these)
-
-3. If any relevant working tree state remains uncommitted (edge case — should be rare
-   after the checkpoint commit), pipe it into the worktree:
-   git diff HEAD > /tmp/task-N-state.patch
-   git -C .worktrees/task-N apply /tmp/task-N-state.patch
-   rm /tmp/task-N-state.patch
-
-4. Verify: git worktree list confirms task-N is present
-```
-
-**Merge task description** (filled in after run-agent completes with its result):
+**Merge task description** (filled in after run-agent completes):
 ```
 ## What to do
 Source branch: <branch from run-agent result>
@@ -488,16 +274,14 @@ Worktree path: <path from run-agent result>
 Target: <current branch>
 
 1. git merge <branch>
-2. If conflicts: additive merge for non-overlapping regions;
-   surface to user if semantic judgment needed
+2. If conflicts: additive merge for non-overlapping regions; surface to user if semantic judgment needed
 3. git worktree remove <path>
 4. git branch -d <branch>
 
-SERIALIZE: this task is blocked until the previous Merge task completes.
-Do not run merge operations in parallel.
+SERIALIZE: this task is blocked until the previous Merge task completes. Do not run merge operations in parallel.
 
 ## Return when done
-End your response with exactly:
+End with:
   STATUS: success | conflict_resolved | conflict_needs_user
   BRANCH_MERGED: <branch name>
   NOTES: [conflict details if any, otherwise "clean merge"]
@@ -505,157 +289,29 @@ End your response with exactly:
 
 ---
 
-**Pass 2 — Wire ALL dependencies** in one scan:
-
-Wire in this order (use `TaskUpdate addBlockedBy`):
+**Pass 2 — Wire ALL dependencies** in one scan (use `TaskUpdate addBlockedBy`):
 
 **Git prep chain:**
-1. `Git prep: Checkpoint commit` blocked by `Git prep: Pre-flight staging check`
-2. `Git prep: Setup .worktrees` blocked by `Git prep: Checkpoint commit`
+1. `Checkpoint commit` blocked by `Pre-flight staging check`
+2. `Propagate checkpoint SHA` blocked by `Checkpoint commit`
+3. `Setup .worktrees` blocked by `Propagate checkpoint SHA`
 
-**Create worktree tasks:**
-3. All `Create worktree` tasks blocked by `Git prep: Setup .worktrees`
-4. `Create worktree` for each main task also blocked by the last Merge task of its prep tasks (so worktrees branch from HEAD after prep merges). If the main task has no prep tasks, rule 4 does not apply — rule 3 is sufficient.
-5. `Create worktree` for each validation task also blocked by the last Merge task of its main tasks.
+**Create worktree:**
+4. All `Create worktree` tasks blocked by `Setup .worktrees`
+5. `Create worktree` for each main task also blocked by the last Merge task of its prep tasks (so it branches from updated HEAD). If main task has no prep, rule 5 N/A — rule 4 sufficient.
+6. `Create worktree` for each validation task also blocked by the last Merge task of its main tasks.
 
-**Run agent tasks:**
-6. Each `Run agent: task-N` blocked by its `Create worktree: task-N`
-7. Logical DEPENDS ON constraints from reviewer → applied to `Run agent` tasks
+**Run agent:**
+7. Each `Run agent: task-N` blocked by its `Create worktree: task-N` (trivial run-agents skip — per contract)
+8. Logical DEPENDS ON constraints from reviewer → applied to `Run agent` tasks
 
-**Merge tasks — one global linear chain:**
-8. Each `Merge: task-N` blocked by its `Run agent: task-N`
-9. Form one global linear chain across all merges in this order: [prep merges in creation order] → [main merges in creation order] → [validation merges in creation order]. Each merge is blocked by exactly the one before it in this chain. This makes merges strictly serial across all categories.
+**Merge — one global linear chain:**
+9. Each `Merge: task-N` blocked by its `Run agent: task-N`
+10. Form one global linear chain: [prep merges in creation order] → [main merges in creation order] → [validation merges in creation order]. Each merge blocked by exactly the prior one. Strictly serial.
 
-**Final regression task (if present):**
-10. The `Regression: [scope]` task is blocked by the very last Merge task in the global chain. It runs in the main workspace after all changes are merged — no worktree, no create-wt task needed. Wire it as: `Regression task` blocked by `last Merge task ID`.
-
-Skip `addBlockedBy` for any task whose blockers list is empty.
-Match reviewer-output task titles to IDs assigned in Pass 1.
-
-**Print the final task graph:**
-
-```markdown
-## Task Graph — N Tasks
-
-| ID  | Type      | Subject                          | Blocked by      |
-|-----|-----------|----------------------------------|-----------------|
-| #80 | git-prep  | Pre-flight staging check         | —               |
-| #81 | git-prep  | Checkpoint commit                | #80             |
-| #82 | git-prep  | Setup .worktrees directory       | #81             |
-| #83 | create-wt | Create worktree: Audit storage   | #82             |
-| #84 | run-agent | Run agent: Audit storage         | #83             |
-| #85 | merge     | Merge: Audit storage             | #84             |
-| #86 | create-wt | Create worktree: Refactor auth   | #82 #85         | ← #82=worktrees setup, #85=prep merge (branch from updated HEAD)
-| #87 | run-agent | Run agent: Refactor auth         | #86             |
-| #88 | merge     | Merge: Refactor auth             | #87 #85         | ← #87=agent done, #85=serial merge chain (prev merge)
-| ... | ...       | ...                              | ...             |
-```
-
----
-
-### Step 4 — Execute Task Graph (Standard path)
-
-**Execution loop** — repeat until all tasks are complete:
-
-```
-1. Query: all tasks with no unsatisfied blockers (blocker satisfied = status completed)
-2. If none found but incomplete tasks remain → halt
-   Report which tasks are stuck and the IDs of their unsatisfied blockers.
-3a. Partition dispatchable tasks:
-      inline tasks      = git-prep, create-wt   (orchestrator executes directly)
-      isolated agents   = run-agent              (dispatched with isolation: "worktree")
-      standard agents   = merge, regression      (dispatched as foreground Agent, main workspace)
-3b. Execute each inline task immediately and sequentially:
-      - Run the git command
-      - If successful: mark task completed
-      - If failed: halt, report error, do not mark completed
-3c. Dispatch all isolated and standard agent tasks in one message (foreground, parallel)
-4.  Wait for all agent tasks to complete
-5.  For each returned agent result:
-      Run agent result: read the final STATUS block
-        - On success: extract the ACTION line — it contains the source branch, target
-          branch, and worktree path. Call TaskUpdate on the corresponding Merge task to
-          write these values into its description. Only THEN mark Run agent completed.
-          Do NOT dispatch the Merge task until TaskUpdate has been called — the Merge
-          task description is incomplete until this step runs.
-          The ACTION line is the sole handoff — create no other merge tasks from this.
-        - On failure: read the FAILURE_TYPE and ACTION block.
-          Execute ACTION steps 1–4 in order: halt dependent tasks, clean up or
-          preserve worktree per the instructions, then surface NOTES to the user.
-          Mark this task failed. Do not continue the execution loop.
-      Merge agent result: extract {status}
-        - On success: mark Merge completed (unblocks next Merge in chain)
-        - On failure: report conflict details, pause for user resolution
-      Regression agent result: extract {status}
-        - On success: mark Regression completed — execution is fully done
-        - On failure: report which tests failed, pause for user resolution
-6.  Repeat
-```
-
-**"Just in time" principle:** the main context holds only the task graph. Each agent receives exactly the context it needs in its task description. Agents return structured results that tell the orchestrator what to do next — the orchestrator does not need to plan ahead.
-
----
-
-**Git prep task execution** (inline, step 3b):
-
-`Git prep: Pre-flight staging check`:
-- Run `git status` — show all uncommitted changes (staged, unstaged, untracked)
-- Stage any relevant files: `git add <relevant files>` (not `git add -A`)
-- Critical: worktrees get their own fresh index (staging area) — only files in HEAD
-  are visible to agents. Staging here ensures the checkpoint commit puts them in HEAD.
-
-`Git prep: Checkpoint commit`:
-- If working tree has staged changes: `git commit -m "checkpoint: pre-execution state"` — capture the SHA
-- If clean: use current HEAD as the SHA
-- Rollback if needed: `git reset --hard <checkpoint-SHA>`
-- **After marking complete:** call `TaskUpdate` on ALL run-agent task descriptions to replace
-  the `Checkpoint SHA: [placeholder]` field with the actual SHA captured above.
-  This must happen before any run-agent task is dispatched.
-
-`Git prep: Setup .worktrees directory`:
-- Check: `.worktrees/` or `worktrees/` exists → use it
-- Neither → create `.worktrees/`, add to `.gitignore`, commit: `git commit -m "chore: add .worktrees to .gitignore"`
-- Verify gitignored: `git check-ignore -q .worktrees`
-
-**Create worktree task execution** (inline, step 3b):
-- Run: `git worktree add .worktrees/task-N -b task-N-branch HEAD`
-- For each local filesystem external resource identified in Step 1:
-  `ln -s /absolute/path .worktrees/task-N/<relative-name>`
-  (Skip remote resources — they go in the task description as URIs, not symlinks)
-- Verify: `git worktree list` confirms task-N is present
-- If successful: mark task completed (unblocks its Run agent task)
-
----
-
-**Run agent task execution** (agent task, step 3c):
-
-Each run-agent task is dispatched with `isolation: "worktree"`. The task description is fully self-contained — the agent needs nothing from the main context.
-
-The agent's output format is defined in the task description's "Return when done" block: a STATUS/ACTION block on success, or a STATUS/FAILURE_TYPE/ACTION block on failure. The orchestrator reads this block and acts on the ACTION line.
-
-**Do not use `run_in_background`** — no mechanism to trigger dependent tasks.
-
----
-
-**Merge task execution** (agent task, step 3c — serial by dependency chain):
-
-Each merge agent receives a self-contained description with the source branch, target branch, and conflict guidance. The agent is isolated and focused — its only job is merging one branch.
-
-**Agent result format (merge):**
-```
-STATUS: success | conflict_resolved | conflict_needs_user
-BRANCH_MERGED: <branch name>
-NOTES: [conflict details if any]
-```
-
-On success or conflict_resolved: mark Merge task completed (unblocks next Merge in chain).
-On conflict_needs_user: pause — surface NOTES to user, wait for resolution before continuing.
-
----
-
-**Regression task execution** (standard agent, step 3c — runs in main workspace, no worktree):
-
-The regression agent receives a self-contained task description built from the reviewer's `=== FINAL REGRESSION ===` output. It runs in the main workspace where all changes have already been merged.
+**Final regression (if present):**
+11. `Regression: [scope]` blocked by the last Merge in the global chain. Runs in main workspace after all merges (no worktree, no create-wt).
+    → Fallback: if no Merge tasks exist (all-trivial plan), block by the last run-agent in creation order.
 
 **Regression task description:**
 ```
@@ -669,124 +325,292 @@ All tests must pass. If any fail: investigate, attempt fix, rerun.
 Do NOT return until suite passes or failure is confirmed unresolvable.
 
 ## Return when done
-End your response with exactly:
+End with:
   STATUS: success | failure
   NOTES: [list any failing tests and attempted fixes, or "all tests passed"]
 ```
 
-**Agent result format (regression):**
-```
-STATUS: success | failure
-NOTES: [failing tests, root cause if known]
-```
+Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-output titles to Pass 1 IDs.
 
-On success: mark Regression completed — Phase 3 done.
-On failure: report NOTES to user, pause for resolution.
+**Print final task graph:**
+```markdown
+## Task Graph — N Tasks
+
+| ID  | Type      | Subject                          | Blocked by      |
+|-----|-----------|----------------------------------|-----------------|
+| #80 | git-prep  | Pre-flight staging check         | —               |
+| #81 | git-prep  | Checkpoint commit                | #80             |
+| ... | ...       | ...                              | ...             |
+| #87 | create-wt | Create worktree: Refactor auth   | #83 #86         | ← #83=worktrees setup, #86=prep merge
+| #89 | merge     | Merge: Refactor auth             | #88 #86         | ← #88=agent done, #86=serial merge chain
+```
 
 ---
 
-**Completion reporting — print one of the following when execution ends:**
+### Step 4 — Execute Task Graph (Standard)
+
+**Task-type contract** (authoritative — sections below cite this; do not duplicate inline):
+
+| Task type           | Identity                    | Has create-wt? | Has Merge? | Asserts | Resume method                   | Dispatch lane         | Halt: show worktree? |
+|---------------------|-----------------------------|----------------|------------|---------|---------------------------------|-----------------------|----------------------|
+| run-agent worktree  | `Isolation: native worktree`| yes            | yes        | 1, 4    | branch commits since checkpoint | parallel worktree     | yes                  |
+| run-agent trivial   | `Isolation: none (trivial)` | no             | no         | 4       | git log title vs checkpoint     | serial main-workspace | no                   |
+| merge               | type=merge                  | n/a            | self       | 2       | check branch in HEAD merges     | serial main-workspace | no                   |
+| regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace | no                   |
+| create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   | n/a                  |
+| git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) | n/a                  |
+| Phase / Express     | type=phase / express        | n/a            | n/a        | —       | (excluded from resume scan)     | n/a                   | n/a                  |
+
+**Initialize session state** (once):
+```
+pending_conflicts = []   ← session-scoped; persists across loop iterations
+```
+
+**Wiring integrity check** (inline, runs once before resume check):
+
+Scan task list and assert. On any failure: print violation and halt — do not proceed.
+
+```
+For every Run agent task:
+  Assert 1: Exactly one Merge task exists whose blockers list includes this run-agent task ID. (trivial run-agents excluded — per contract)
+  → Violation: "Run agent #N has no corresponding Merge task blocked by it. Pass 2 is incomplete."
+
+For every Merge task:
+  Assert 2: That Merge task is blocked by exactly one run-agent task (its own pairing).
+  → Violation: "Merge #N is not blocked by any run-agent task. Pass 2 is incomplete."
+
+For every Create worktree task for a main or validation proposal (not a prep-task worktree):
+  Assert 3: Its blockers include at least one Merge task (last prep merge, or last main merge for validation).
+  → Exception: If the proposal has no prep tasks, this worktree is blocked only by Setup .worktrees — valid; skip Assert 3.
+  → Violation: "Create worktree #N for [main/validation] has no Merge blocker. It may branch from stale HEAD."
+
+For every run-agent task description:
+  Assert 4: The description does not contain the literal string "[placeholder]" in the Checkpoint SHA field.
+  → Violation: "Checkpoint SHA propagation incomplete — run-agent #N still has [placeholder]. Re-run the Propagate checkpoint SHA task."
+
+For every Regression task (zero or one in graph):
+  Assert 5: It is blocked by exactly one task — the last Merge in the global chain, or (all-trivial fallback) the last run-agent in creation order.
+  → Violation: "Regression task #N is not wired to the final task in the chain. Pass 2 Rule 11 is incomplete."
+```
+
+If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
+
+**Resume check** (runs once before execution loop):
+
+Query TaskList for `in_progress` tasks. None → skip to loop. Else execution was interrupted; recover per task type:
+
+| Task type | Recovery |
+|---|---|
+| git-prep | Re-run the git command (all idempotent). Success → mark completed. |
+| create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` then mark completed. |
+| run-agent (trivial — `Isolation: none (trivial)`) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → completed. None → failed, FAILURE_TYPE: no_change. |
+| run-agent (worktree) | `git log <checkpoint-sha>..<task-N-branch> --oneline`. Commits → completed (orchestrator crashed after agent finished); populate Merge task with branch/path. None → failed, FAILURE_TYPE: no_change. |
+| merge w/ "CONFLICT STATE" in description | Extract branch + conflict from description; add to `pending_conflicts`; do NOT mark completed; print "Recovered stalled conflict from task description: [branch]". |
+| merge w/o "CONFLICT STATE" | `git log --merges --oneline \| grep <branch-name>`. Merged → completed. Else re-run merge agent with existing description. |
+| regression | Re-run agent with existing description. Success → completed. Failure → report NOTES, pause. |
+
+After recovery, enter execution loop normally.
 
 ---
+
+**Execution loop** — repeat until all tasks complete:
+
+```
+1. Query: all tasks with no unsatisfied blockers (blocker satisfied = completed)
+2. If no dispatchable tasks:
+   2a. pending_conflicts non-empty → step 7 (surface conflicts). Do not halt.
+   2b. pending_conflicts empty AND incomplete tasks remain → halt (dependency cycle). Report stuck tasks + unsatisfied blocker IDs.
+   2c. No incomplete tasks remain → done. Print completion report.
+3a. Partition dispatchable tasks:
+      inline tasks      = git-prep                    (orchestrator runs directly, sequential)
+      async Tasks       = create-wt                   (background Tasks with embedded bash, parallel batch)
+      isolated agents   = run-agent (Isolation: native worktree)   (Agent dispatch with isolation: "worktree")
+      trivial agents    = run-agent (Isolation: none (trivial))    (foreground Agent, main workspace, no isolation flag)
+      standard agents   = merge, regression           (foreground Agent, main workspace)
+3b. Inline (git-prep) immediately and sequentially:
+      - Run the git command
+      - Success → mark completed
+      - Fail → halt, report error, do not mark completed
+3c. Dispatch all ready create-wt as background Tasks in one parallel batch:
+      - Each description is direct bash (see format below)
+      - run_in_background=True — all ready worktrees spin up concurrently
+      - Poll TaskList until each create-wt reaches completed/failed
+      - Any failure → halt, report; do not dispatch its run-agent
+3d. Dispatch agents:
+      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree
+      - Trivial + standard agents (merge, regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
+4.  Wait for all agent tasks to complete
+5.  Parse validation — before acting on ANY agent result:
+      Scan from the LAST occurrence of "STATUS:" in the response — everything from there to end-of-response is the STATUS block. No "STATUS:" anywhere → treat as FAILURE_TYPE: partial_change.
+      Validate structure:
+        run-agent success (worktree):  STATUS: success + ACTION: Create a Task line + Source branch + Target branch + Worktree path
+        run-agent success (trivial):   STATUS: success + ACTION: none + NOTES
+        run-agent failure:             STATUS: failure + FAILURE_TYPE + ACTION
+        merge:                         STATUS: success|conflict_resolved|conflict_needs_user + BRANCH_MERGED
+        regression:                    STATUS: success|failure + NOTES
+      Malformed/absent → FAILURE_TYPE: partial_change. Do not extract branch/path. Do not populate Merge task. Route as failure.
+
+6.  For each result (after parse validation passes):
+      Run agent result:
+        - On success: branch on ACTION value.
+          ACTION: Create a Task — extract source branch, target branch, worktree path. Call TaskUpdate on the corresponding Merge task to write these into its description. Mark completed only after TaskUpdate. Do NOT dispatch the Merge task until TaskUpdate has been called.
+          ACTION: none — trivial task; no Merge task. Mark completed directly.
+        - On failure: read FAILURE_TYPE and ACTION block.
+          DRAIN FIRST: finish processing all other results in this batch before halting.
+          For each successful co-dispatched agent: populate its Merge task (TaskUpdate), mark completed. Preserve their work — do not dispatch Merge tasks yet.
+          For each failed co-dispatched agent: collect FAILURE_TYPE + NOTES.
+          After full batch processed: if any failure, print halt report and stop the loop. Act on the failed task's ACTION:
+            preserve_worktree → leave the worktree at WORKTREE for user inspection
+            discard_worktree  → git worktree remove <path> && git branch -d <branch>
+            none              → trivial task, no worktree exists — skip cleanup
+
+          Then surface post-failure state:
+
+          ## Execution Halted — Unmerged Successful Agents
+          The following agents completed successfully but their Merge tasks were NOT dispatched:
+            ✓ run-agent #ID  [title] — worktree preserved at <path>, branch <branch>
+            (one line per successful co-dispatched agent, if any)
+
+          Two paths forward:
+            A. Full rollback: git reset --hard <checkpoint-SHA>
+               → Discards ALL work, including successful agents.
+            B. Partial recovery: resolve the failed task(s) and re-run them.
+               → Once re-run succeeds, re-enter the execution loop. Successful agents' Merge tasks are already populated and will dispatch normally.
+
+          Do NOT auto-dispatch successful Merges. Do NOT roll back automatically. Wait for user.
+      Merge agent result:
+        - STATUS: success or conflict_resolved → mark Merge completed (unblocks next in chain)
+        - STATUS: failure or malformed (no recognized STATUS) → halt the merge chain, do NOT mark completed. Print the standard halt report with Worktree: N/A and Reason: merge failure (NOTES from agent, or "malformed result"). The branch from the prior run-agent remains for inspection. Successful in-flight run-agents drain per the run-agent failure rule above before halting.
+        - STATUS: conflict_needs_user →
+            Call TaskUpdate on the stalled Merge task to append:
+              ## CONFLICT STATE (pending resolution)
+              Branch: <branch_name from BRANCH_MERGED>
+              Conflict details: <NOTES from merge agent>
+              Status: awaiting user resolution — re-run merge after resolving
+            Add to pending_conflicts: {merge_task_id, branch, NOTES}
+            Do NOT mark completed. Do NOT dispatch the next merge. Continue the loop — dispatch other ready run-agent tasks in parallel.
+            Print: "Merge stalled — conflict queued and persisted to task. Continuing parallel work."
+      Regression agent result:
+        - On success: mark Regression completed — execution fully done
+        - On failure: print the standard halt report (Worktree row omitted per contract), pause for user resolution
+
+7.  If pending_conflicts non-empty AND no new tasks dispatched this iteration:
+      Surface all stalled merges together:
+
+      ## Merge Conflicts Requiring Resolution
+      For each pending conflict:
+        Branch: <branch_name>
+        Conflict: <NOTES from merge agent>
+        Resolve: git checkout <current-branch> && git merge <branch_name>
+      Resolve all conflicts above, then re-run the affected merge agents to continue.
+
+8.  Repeat
+```
+
+---
+
+**Git prep task execution** (inline, step 3b):
+- `Pre-flight staging check`: `git status`, stage relevant files (`git add <files>`, never `-A`)
+- `Checkpoint commit`: if staged changes → `git commit -m "checkpoint: pre-execution state"` and capture SHA; if clean → use HEAD as SHA
+- `Propagate checkpoint SHA`: `git log -1 --oneline` → `TaskUpdate` every run-agent task replacing `[placeholder]` with actual SHA. Confirm no `[placeholder]` remains. Halt if any update fails. Idempotent — re-run all updates if interrupted.
+- `Setup .worktrees`: use existing `.worktrees/` or create it, add to `.gitignore`, commit
+
+**Create worktree task execution** (async background Task, step 3c):
+
+Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash, no prose. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
+
+**Create worktree task prompt format (embedded bash):**
+```
+Run these commands exactly. Report STATUS at the end.
+
+# 1. Base-SHA assertion (skip for prep-task worktrees with no prior merge blocker)
+EXPECTED=$(git log --merges --oneline -10 | grep -F "<last-merge-task-title>" | awk '{print $1}')
+ACTUAL=$(git rev-parse HEAD)
+if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "STATUS: failure — HEAD $ACTUAL does not include required merge $EXPECTED"
+  exit 1
+fi
+
+# 2. Create worktree
+git worktree add .worktrees/task-N -b task-N-branch HEAD
+
+# 3. Symlink external resources (repeat for each)
+ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
+
+# 4. Verify
+git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-N" || echo "STATUS: failure — worktree not found after add"
+```
+
+Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
+
+---
+
+**Completion reporting:**
 
 **On full success** (all tasks completed):
-
 ```
 ## Execution Complete ✓
-
 Merged to branch: <current branch>
 Tasks completed: N
-
-  ✓ [type] #ID  Subject
   ✓ [type] #ID  Subject
   ... (all completed tasks in execution order)
-
-Changes are fully merged. Checkpoint SHA: <sha> (safe to discard if no issues found)
+Checkpoint: <sha>
 ```
-
----
 
 **On failure** (loop halted):
-
 ```
 ## Execution Halted ✗
-
 FAILED: [type] #ID  <subject>
   Reason: <FAILURE_TYPE> — <NOTES from the agent>
-  Worktree: <path> (preserved for inspection | discarded)
-
+  Worktree: <path> (preserved for inspection | discarded)   ← per contract: omit when not shown
 Blocked by this failure:
   ✗ [type] #ID  <subject>  — halted (blocked by #<failed ID>)
   ✗ [type] #ID  <subject>  — halted (blocked by #<above ID>)
   ... (full dependency chain downstream of the failure)
-
 Completed before failure:
   ✓ [type] #ID  <subject>
-  ... (all tasks that did complete)
-
 Not yet started:
   ○ [type] #ID  <subject>  — never reached
-
 Options:
-  • Inspect worktree: cd <preserved path>
+  • Inspect worktree: cd <preserved path>     ← per contract: omit when not shown
   • Rollback all changes: git reset --hard <checkpoint-SHA>
   • Fix and retry: resolve the failure, then re-run the failed task
 ```
 
-The "Blocked by this failure" section must trace the full dependency chain. Algorithm: starting from the failed task ID, recursively collect all tasks whose "Blocked by" field includes it or any already-collected ID. Report these in topological order (closest dependents first).
+"Blocked by this failure": from the failed task ID, recursively collect tasks whose `Blocked by` includes it or any already-collected ID. Topological order, closest dependents first.
 
-Mark Phase 3 `completed` when all tasks reach `completed` status.
+Mark Phase 3 `completed` when all tasks reach `completed`.
 
 ---
 
 ## Iron Law
 
-**Do NOT call TaskCreate before the review step completes (Express lightweight or Standard full).**
-**Do NOT begin execution before Pass 2 wiring in Step 3 is complete.**
-**Do NOT skip Step 4 (Standard path) — every approved task executes immediately after wiring is complete.**
-**Do NOT dispatch a Run agent task before its Create worktree task has status `completed`.**
-**Do NOT run Merge tasks in parallel — each must wait for the previous Merge to complete.**
-**Do NOT halt execution on a stuck task without first checking: is its blocker actually completed?**
-**Do NOT use Express path if any proposal involves DB, schema, migration, or shared config changes.**
-**Do NOT skip the checkpoint commit on Express path.**
-**Express path is NOT a shortcut past correctness — the lightweight reviewer can and will escalate.**
+**Reference loading (binding):**
+- **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
 
-**Agents MUST bias toward action:** diagnose obstacles, fix them, continue. Stop only on genuine
-fatality (missing credentials, broken environment, unrecoverable state). Do not pause, do not ask
-permission, do not stop at the first difficulty.
+**Pass / wiring discipline:**
+- **No TaskCreate before review completes (Express or Standard).**
+- **Do NOT begin execution before Pass 2 wiring is complete.**
+- **Do NOT skip Step 4 (Standard path) — every approved task executes immediately after wiring.**
+- **Do NOT skip `addBlockedBy` because tasks "seem independent" — Pass 2 wires all deps before execution.**
 
-No exceptions:
-- Not for "obvious" tasks
-- Not for "placeholder" tasks
-- Not because the review agent feels like overhead
-- Not because "I'll run the tasks later"
-- Not because "these tasks clearly have no logical dependencies"
-- Not because "I hit an error" — diagnose and fix it first
+**Dispatch discipline:**
+- **Do NOT dispatch a Run agent task before its Create worktree is `completed`.** Exception: trivial run-agents (`Isolation: none (trivial)`) have no Create worktree and dispatch directly once their other blockers are satisfied.
+- **Do NOT dispatch any Create worktree before `Propagate checkpoint SHA` is `completed`.**
+- **Do NOT run Merge tasks in parallel — each waits for the previous Merge.**
+- **Do NOT use `run_in_background` for run-agent tasks. Create-wt is the only exception — it uses background dispatch deliberately so all ready worktrees spin up in parallel.**
+- **Do NOT halt the entire execution loop on conflict_needs_user — only the merge chain stalls. Continue dispatching independent run-agent tasks.**
+- **Do NOT halt on a stuck task without first checking: is its blocker actually completed?**
 
-## Common Rationalizations — All Wrong
+**Express discipline:**
+- **Do NOT use Express path if any proposal involves DB, schema, migration, or shared config changes.**
+- **Do NOT skip the checkpoint commit on Express path.**
+- **Express path is NOT a shortcut past correctness — the lightweight reviewer can and will escalate.**
+- **ESCALATE from Express means switch to Standard, not retry Express.**
 
-| Excuse | Reality |
-|--------|---------|
-| "These proposals are obviously correct" | Obvious to you ≠ reviewed. Run the agent. |
-| "I'll add a placeholder task and fill it in later" | Wrong direction. Review first, then task. |
-| "The user already approved this work" | Approving work ≠ approving these specific tasks. |
-| "Spawning a review agent is overkill here" | If you have proposals, you have time for review. |
-| "I'll just add one task quickly" | One unreviewed task is one too many. |
-| "The review agent errored, I'll skip it" | Retry. A failed review is not an approved review. |
-| "I'll use run_in_background for the first batch" | Background has no trigger for dependent tasks. All dispatch is foreground. |
-| "These tasks clearly have no logical dependencies" | The reviewer checks this. Trust the output, not your intuition. |
-| "I'll wire deps after the first round of tasks" | All wiring (Pass 2) must complete before the execution loop starts. |
-| "Express means I skip the reviewer" | Express runs a lightweight reviewer that can escalate. |
-| "ESCALATE just means retry Express" | ESCALATE means switch to Standard. Not negotiable. |
-
-## Red Flags — STOP
-
-- About to call TaskCreate before the review step returns
-- About to start the execution loop before Pass 2 wiring is complete
-- Using `run_in_background` for any agent task dispatch
-- Treating your own draft as the approved list
-- Skipping `addBlockedBy` because tasks "seem independent"
-- Ignoring an Express reviewer ESCALATE and proceeding as Express anyway
-- Using `git add -A` for the checkpoint commit without reviewing what's staged
-
-**All of these mean: stop, follow the full workflow.**
+**Behavior:**
+- **Agents MUST bias toward action:** diagnose obstacles, fix them, continue. Maximum 3 distinct attempts per obstacle. Stop only on genuine fatality or after 3 failed attempts.
+- **Do NOT exit Branch B with an empty proposals table on the basis of a clean working tree alone.** B2 requires checking recent landed work, conversation context, and surfaced follow-ups before concluding "nothing to propose." Bias toward drafting; the senior reviewer prunes.
+- **Do NOT skip the review agent on error — retry. A failed review is not an approved review.**
+- **Do NOT use `git add -A` for the checkpoint — stage by name to avoid pulling unrelated state.**
+- **When in doubt whether a task needs worktree isolation, create one. An unnecessary worktree costs one git branch; missing isolation risks workspace corruption.**
