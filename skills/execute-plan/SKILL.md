@@ -20,39 +20,32 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 | Mode               | Trigger flag           | Behavior                                                                                          |
 |--------------------|------------------------|---------------------------------------------------------------------------------------------------|
 | `live`             | (no flag)              | Default. Real TaskCreate, real git operations, real Agent dispatches. Current production path.    |
-| `dry-run`          | `--dry-run`            | Read-only simulation. Every side-effecting verb is replaced with a print + ledger update. No real TaskCreate, no git mutations, no run-agent / merge / regression dispatch. |
-| `dry-run-analyze`  | `--dry-run-analyze`    | Same as `dry-run`, then dispatches an analyzer Agent on the printed Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation, and anti-patterns. |
+| `dry-run`          | `--dry-run`            | No side effects. Branch A: reads the real plan and builds the task graph in memory. Branch B: uses conversation context to generate learnings and craft proposals (skips git history). Both branches output an ordered task list + dependency graph — no real TaskCreate, no git mutations, no agent dispatch. |
+| `dry-run-analyze`  | `--dry-run-analyze`    | Same as `dry-run`, then dispatches an analyzer Agent on the Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation, and anti-patterns. |
 
 **`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream. Live mode is the default and is unaffected by the guards — the dry-run substitutions are no-ops when `Mode == live`.
 
 **What dry-run does NOT skip** (read-only, kept real for fidelity):
-- Reading the plan file (Branch A) or scanning recent work (Branch B)
-- TaskList preflight, git context prime (`git log`, `git diff`, `git status`)
-- External resource scan
+- Branch A: reading the plan file and extracting proposals
+- Branch B: generating learnings and drafting proposals from conversation context (real reasoning, no git scan)
+- TaskList preflight (read-only)
 - **Branch B senior reviewer Agent dispatch** — runs for real (no side effects beyond token cost; realism is the point)
-- Wiring integrity check — runs in-memory against the simulated ledger
-- Execution-loop walk — fully simulated, iteration by iteration, against the in-memory ledger
+- Wiring integrity check — runs in-memory against the task ledger
 
-**What dry-run DOES skip** (substituted with a print):
+**What dry-run DOES skip:**
 
-| Live verb                                          | Dry-run substitution                                                                                          |
-|----------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| `ExitPlanMode`                                     | print `[DRY] would ExitPlanMode` (stay in plan mode if active)                                                |
-| `TaskCreate`                                       | print `[DRY] would TaskCreate #DRY-N: <subject>`, append to **simulated backlog ledger** with full description |
-| `TaskUpdate addBlockedBy`                          | print `[DRY] would addBlockedBy #DRY-N ← #DRY-M`, update ledger                                               |
-| `TaskUpdate` (Merge description fill-in)           | print `[DRY] would TaskUpdate #DRY-N description: <text>`, update ledger                                      |
-| Git-prep commands (`git status`, `git add`, `git commit`, etc.) | print `[DRY] would run: <cmd>`                                                                   |
-| `git worktree add`                                 | print `[DRY] would create worktree: <path> from <SHA>`                                                        |
-| `git worktree remove` + `git branch -d`            | print `[DRY] would remove worktree + delete branch`                                                           |
-| `git merge`                                        | print `[DRY] would merge <branch> into <target>`                                                              |
-| Agent dispatch — run-agent (worktree)              | print `[DRY] would dispatch worktree run-agent for #DRY-N` + simulated `STATUS: success ACTION: Create a Task BRANCH: task-N WORKTREE: .worktrees/task-N TARGET: <current>` |
-| Agent dispatch — run-agent (trivial)               | print `[DRY] would dispatch trivial run-agent for #DRY-N` + simulated `STATUS: success ACTION: none`           |
-| Agent dispatch — Merge                             | print `[DRY] would dispatch merge agent for #DRY-N` + simulated `STATUS: success BRANCH_MERGED: task-N NOTES: clean merge` |
-| Agent dispatch — Regression                        | print `[DRY] would dispatch regression agent` + simulated `STATUS: success NOTES: all tests passed`            |
+| Live verb                                                       | Dry-run behavior                                                                              |
+|-----------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `ExitPlanMode`                                                  | skipped — print `[DRY] would ExitPlanMode`; stay in plan mode                                |
+| `TaskCreate`                                                    | skipped — append to in-memory task ledger; print `[DRY] would TaskCreate #DRY-N: <subject>`  |
+| `TaskUpdate addBlockedBy`                                       | skipped — mutate ledger entry's `blocked_by`; print `[DRY] would addBlockedBy #DRY-N ← #DRY-M` |
+| `TaskUpdate` (Merge description fill-in)                        | skipped — mutate ledger entry; print `[DRY] would TaskUpdate #DRY-N description`             |
+| Git-prep execution (all inline git commands in Step 4)         | skipped entirely — not simulated, not printed; git context prime in Step 1 still runs        |
+| `git worktree add/remove`, `git merge`, `git branch -d`        | skipped entirely                                                                              |
+| Agent dispatch — run-agent, merge, regression                  | skipped entirely — no simulated happy-path results                                            |
+| Execution loop (Step 4 live loop)                               | skipped — replaced by Dry-Run Report                                                          |
 
-Simulated agent results are **happy-path only**. Dry-run validates the graph and ordering; it does NOT exercise drain-first / halt-report / pending_conflicts / resume — those paths can only be tested in live mode.
-
-**Simulated backlog ledger** — an in-memory list of faux-Task entries `{id: DRY-N, type, subject, description, blocked_by[]}` accumulated by Pass 1 and mutated by Pass 2 + the simulated execution loop. The ledger is the source of truth for the wiring integrity check, the simulated execution trace, and the Dry-Run Report at end of Step 4.
+**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[]}` built during Pass 1 and wired during Pass 2. Source of truth for the wiring integrity check and the Dry-Run Report.
 
 ---
 
@@ -69,10 +62,11 @@ Print the active mode banner once:
 ```
 For dry-run / dry-run-analyze, also print:
 ```
-[DRY] Side-effecting verbs (TaskCreate, TaskUpdate, git mutations, run-agent / merge / regression dispatch) will be replaced with prints. Read-only operations (plan read, git context prime, Branch B reviewer) run normally.
+[DRY] No Tasks or git operations will be created. Output: task list + dependency graph.
+      Branch A: reads plan file directly. Branch B: generates learnings from conversation context.
 ```
 
-Initialize an empty in-memory simulated backlog ledger when `Mode != live`. Assign IDs `DRY-1`, `DRY-2`, … in TaskCreate order.
+Initialize an empty in-memory task ledger when `Mode != live`. Assign IDs `DRY-1`, `DRY-2`, … in TaskCreate order.
 
 `TaskList`. If errors:
 - Print: `Task API unavailable: [error]`
@@ -87,7 +81,7 @@ If TaskList succeeds, continue. Narrate progress in plain prose — do not creat
 
 **Plan-mode preflight (binding):** if invoked while plan mode is active, call `ExitPlanMode` immediately after confirming the plan file is readable (Branch A) or as the first action of this step (Branch B). The plan is already approved — do not stall waiting for the user to exit. If `ExitPlanMode` is unavailable (host is not in plan mode), this is a no-op.
 
-**Mode-aware ExitPlanMode guard:** when `Mode != live`, do NOT call `ExitPlanMode` — print `[DRY] would ExitPlanMode` and stay in plan mode (truly side-effect-free). The rest of Step 1 (plan read, git context prime, TaskList, external resource scan) runs identically regardless of mode.
+**Mode-aware ExitPlanMode guard:** when `Mode != live`, do NOT call `ExitPlanMode` — print `[DRY] would ExitPlanMode` and stay in plan mode (truly side-effect-free).
 
 **Git context prime** (skip all git commands if no `.git`, note "no git repo"):
 - `git log -1 --oneline` — last commit SHA + message
@@ -116,7 +110,9 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 
 **Branch B — Learnings (no plan file):**
 
-Scan recent work and draft proposals:
+**Mode-aware Branch B guard:** when `Mode != live`, skip git commands entirely. Use conversation context alone — what the user was working on, what was just built or fixed, what was deferred or left to the user. Reason directly from that to produce proposals. `{context}` = concise narrative of what was learned from the conversation.
+
+In live mode, scan recent work and draft proposals:
 1. `git log -10 --oneline` — what just shipped
 2. `git diff HEAD --name-only` — uncommitted work
 3. Conversation context — what the user was just working on, what was deferred or "left to user"
@@ -188,11 +184,10 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 **Mode-aware verb guards (binding for both passes):**
 - `Mode == live` → call `TaskCreate` / `TaskUpdate` for real, exactly as today.
 - `Mode != live` → DO NOT call `TaskCreate` or `TaskUpdate`. Instead:
-  - For each TaskCreate: print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: []}` to the simulated backlog ledger using the next sequential `DRY-N` id. Use the same `description` text the live path would have written (run-agent description from `references/run-agent-description.md`, create-wt bash block, Merge/Regression description templates).
-  - For each TaskUpdate `addBlockedBy`: print `[DRY] would addBlockedBy #DRY-N ← #DRY-M`, mutate the ledger entry's `blocked_by` array.
-  - For each TaskUpdate description fill-in: print `[DRY] would TaskUpdate #DRY-N description: <text>`, mutate the ledger entry's `description`.
-- The Pass 1 ticker output is identical in both modes — it just shows `#DRY-N` instead of real `#80` IDs in dry-run.
-- Substitute `#DRY-N` everywhere a real task ID would have appeared in subsequent print output (graph table, execution trace).
+  - For each TaskCreate: print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: []}` to the task ledger. Use the same `description` text the live path would have written (run-agent description from `references/run-agent-description.md`, create-wt bash block, Merge/Regression templates).
+  - For each `addBlockedBy`: print `[DRY] would addBlockedBy #DRY-N ← #DRY-M`, mutate the ledger entry's `blocked_by` array.
+  - For each Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`, mutate the ledger entry.
+- The Pass 1 ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
 
 **Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
@@ -302,7 +297,7 @@ Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, matc
 
 **Mode-aware execution guards (binding):**
 - `Mode == live` → run the loop exactly as specified below: real git-prep commands, real create-wt background Tasks, real run-agent / merge / regression Agent dispatches.
-- `Mode != live` → run the **simulated execution loop** against the in-memory ledger from Step 3. Same partition logic, same parallelism rules; every dispatch is replaced with a print + a happy-path simulated result, and the loop marks ledger entries as virtually `completed`. The wiring integrity check below runs against the ledger. The resume check is **skipped** in dry-run (no real `in_progress` ever exists).
+- `Mode != live` → **skip the execution loop entirely**. Run the wiring integrity check against the in-memory task ledger, then print the Dry-Run Report (see end of Step 4). The resume check is also skipped (no real `in_progress` ever exists in dry-run).
 
 **Task-type contract** (authoritative — sections below cite this; do not duplicate inline):
 
@@ -535,46 +530,9 @@ Options:
 
 ---
 
-**Simulated execution loop (dry-run / dry-run-analyze only)** — runs in place of the live execution loop above:
-
-```
-state = ledger from Step 3                  (every entry status = pending)
-iteration = 0
-while ledger has incomplete entries:
-  iteration += 1
-  ready = [entry for entry in ledger if all blocker IDs are completed]
-  if not ready:
-    print "[DRY] STUCK at iteration K — N entries with unsatisfied blockers:"
-    for each stuck entry: print "  #DRY-N <subject> blocked by #DRY-X(<status>) ..."
-    halt — this is a wiring violation. Do not continue past Step 4.
-  partition ready into:
-    inline           = git-prep
-    async batch      = create-wt
-    isolated agents  = run-agent (Isolation: native worktree)
-    trivial agents   = run-agent (Isolation: none (trivial))
-    serial agents    = merge, regression  (dispatch at most ONE per iteration, FIFO)
-  print "Iteration K — would dispatch in parallel:"
-    inline:           [DRY-A, DRY-B, ...] git-prep
-    async batch:      [DRY-C, ...] create-wt
-    isolated agents:  [DRY-D, ...] run-agent (worktree)
-    trivial agents:   [DRY-E, ...] run-agent (trivial)
-    serial agent:     [DRY-F]      merge|regression  (only one)
-  for each dispatched entry, emit the per-verb [DRY] print line from the Modes
-    substitution table, with the simulated happy-path result. For run-agent
-    (worktree) results, populate the corresponding Merge entry's description
-    via the Pass 2 ledger-mutation rule (print `[DRY] would TaskUpdate ...`).
-  mark every dispatched entry status = completed in the ledger
-  (serial agents: only the one dispatched is marked; the rest re-queue next iteration)
-```
-
-Track and emit at end:
-- `Total iterations: K`
-- `Peak parallel dispatches: M (in iteration X)` — total dispatched in the largest iteration
-- `Peak parallel run-agents: P` — largest count of worktree+trivial run-agents in any iteration
-
----
-
 **Dry-Run Report (printed at end of Step 4, dry-run / dry-run-analyze only):**
+
+Print the following. Use the in-memory task ledger built in Step 3.
 
 ```
 ## Dry-Run Report
@@ -584,38 +542,50 @@ Plan file: <path|none>
 Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 
 ### Proposals (N)
-<the proposals table from Step 1>
+<proposals table from Step 1 / reviewer output>
 
-### Simulated Task Backlog (N entries)
-| ID     | Type      | Subject                          | Blocked by | Isolation         |
-|--------|-----------|----------------------------------|------------|-------------------|
-| DRY-1  | git-prep  | Pre-flight staging check         | —          | n/a               |
-| DRY-7  | run-agent | Refactor auth                    | DRY-6      | native worktree   |
-| ...
+### Task List — N tasks
 
-#### Full faux-Task descriptions
-For each ledger entry, print:
-  --- #DRY-N (<type>): <subject> ---
+| # | ID    | Type      | Subject                               | Blocked by          | Isolation         |
+|---|-------|-----------|---------------------------------------|---------------------|-------------------|
+| 1 | DRY-1 | git-prep  | Pre-flight staging check              | —                   | n/a               |
+| 2 | DRY-2 | git-prep  | Checkpoint commit                     | DRY-1               | n/a               |
+| 3 | DRY-3 | git-prep  | Propagate checkpoint SHA              | DRY-2               | n/a               |
+| 4 | DRY-4 | git-prep  | Setup .worktrees directory            | DRY-3               | n/a               |
+| 5 | DRY-5 | create-wt | Create worktree: <proposal title>     | DRY-4               | n/a               |
+| 6 | DRY-6 | run-agent | <proposal title>                      | DRY-5               | native worktree   |
+| 7 | DRY-7 | merge     | Merge: <proposal title>               | DRY-6, DRY-4        | n/a               |
+...
+
+### Dependency Graph
+
+Render as a depth-first ASCII tree rooted at the first task with no blockers.
+For tasks with multiple blockers (common for merges), show the task where the
+last blocker branches from — include a note listing all blocker IDs.
+
+DRY-1 (git-prep: Pre-flight staging check)
+  └─ DRY-2 (git-prep: Checkpoint commit)
+       └─ DRY-3 (git-prep: Propagate checkpoint SHA)
+            └─ DRY-4 (git-prep: Setup .worktrees)
+                 ├─ DRY-5 (create-wt: <proposal A>) ──────────────────────┐
+                 │    └─ DRY-6 (run-agent: <proposal A>)                   │
+                 │         └─ DRY-7 (merge: <proposal A>) [also ← DRY-4] ─┘
+                 └─ DRY-8 (create-wt: <proposal B>) ──────────────────────┐
+                      └─ DRY-9 (run-agent: <proposal B>)                   │
+                           └─ DRY-10 (merge: <proposal B>) [also ← DRY-7] ┘
+                                └─ DRY-11 (regression)
+
+### Task Details
+
+For each ledger entry:
+  --- DRY-N (<type>): <subject> ---
   Blocked by: <comma-separated DRY IDs, or "—">
+  Unblocks:   <comma-separated DRY IDs of tasks whose blocked_by includes this ID, or "—">
   Description:
-  <full description text exactly as it would have been written to TaskCreate.description>
+  <full description text exactly as it would appear in TaskCreate.description>
 
 ### Wiring Integrity
-<PASS — N tasks verified | violation list from the Step 4 wiring integrity check>
-
-### Simulated Execution Trace
-Iteration 1 — inline: [DRY-1] git-prep (Pre-flight staging check)
-Iteration 2 — inline: [DRY-2] git-prep (Checkpoint commit)
-Iteration 3 — inline: [DRY-3] git-prep (Propagate checkpoint SHA)
-Iteration 4 — inline: [DRY-4] git-prep (Setup .worktrees)
-Iteration 5 — async batch: [DRY-5, DRY-6, DRY-7] create-wt (parallel)
-Iteration 6 — isolated agents: [DRY-8, DRY-9, DRY-10] run-agent (parallel)
-Iteration 7 — serial: [DRY-11] merge
-Iteration 8 — serial: [DRY-12] merge
-...
-Total iterations: K
-Peak parallel dispatches: M (in iteration X)
-Peak parallel run-agents: P
+<PASS — N tasks verified | violation list>
 ```
 
 In `dry-run` mode, stop after printing the Dry-Run Report. In `dry-run-analyze` mode, continue to the analyzer dispatch (next subsection).
@@ -656,8 +626,9 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 ## Iron Law
 
 **Mode discipline (binding):**
-- **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** Once set, every TaskCreate / TaskUpdate / git mutation / Agent dispatch checks `Mode` and substitutes the dry-run print + ledger update when `Mode != live`.
-- **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free — the user stays in plan mode after the simulation.
+- **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** In dry-run, every TaskCreate / TaskUpdate call is skipped (ledger-only); git mutations and all agent dispatches (except the Branch B senior reviewer) are skipped entirely. No simulation — just the plan materialized as a task list + dependency graph.
+- **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free.
+- **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
 
 **Reference loading (binding):**

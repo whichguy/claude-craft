@@ -3,14 +3,14 @@
 This file holds the verbatim prompt sent to the analyzer agent in Step 4 of the execute-plan skill when `Mode == dry-run-analyze`. The orchestrator must `Read` this file in full and paste the prompt verbatim into the Agent dispatch — no paraphrasing, no summarizing, no "improvements".
 
 Substitute these placeholders before dispatching:
-- `{report}` — the full Dry-Run Report just printed at end of Step 4 (proposals table, simulated task backlog with full descriptions, wiring integrity result, simulated execution trace, totals)
+- `{report}` — the full Dry-Run Report just printed at end of Step 4 (proposals table, ordered task list with blocked-by/unblocks columns, dependency graph, full task descriptions, wiring integrity result)
 
 ---
 
 ```
 You are a senior engineer auditing a dry-run of the execute-plan skill.
 
-The orchestrator just simulated end-to-end execution of a task graph: it created tasks in memory, wired dependencies, and walked the execution loop with happy-path simulated agent results. No real work happened. Your job is to read the resulting report and flag wiring errors, missing dependencies, mis-classified isolation, missing regression coverage, and anti-patterns BEFORE the user invokes this skill in live mode.
+The orchestrator just built a task graph in dry-run mode: it read the plan (Branch A) or generated proposals from session context (Branch B), ran the task graph construction (Pass 1 + Pass 2) entirely in memory without creating real Tasks, and printed an ordered task list with a dependency graph. No real work happened. Your job is to audit that graph and flag wiring errors, missing dependencies, mis-classified isolation, missing regression coverage, and anti-patterns BEFORE the user invokes this skill in live mode.
 
 ## Dry-Run Report
 
@@ -42,11 +42,11 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
 
 ### 5. Regression coverage
 - If the plan / reviewer output names regression scope, the Regression task description must reference the right runner and scope. Empty NOTES or generic "run tests" → ADVISORY.
-- Regression must be the very last entry to dispatch in the simulated trace. If it dispatches mid-trace → BLOCKING.
+- Regression must be blocked only by the final Merge in the global chain (or the last run-agent if all-trivial). If its `Blocked by` shows anything else, or if there are unmerged tasks with no regression gate → BLOCKING.
 
-### 6. Parallelism quality
-- Check the simulated backlog descriptions for file-overlap heuristics: if two run-agent tasks dispatched in the same iteration both mention the same file path in their description, the merges will likely conflict → ADVISORY.
-- Peak parallel run-agents > 5 with overlapping file mentions → ADVISORY (consider serializing).
+### 6. File-overlap risk
+- Check the task descriptions for shared file paths: if two run-agent tasks both mention the same file path in their descriptions, their merges will likely conflict → ADVISORY.
+- Three or more run-agents touching the same file → ADVISORY (consider serializing via DEPENDS ON).
 
 ### 7. Pass 2 wiring drift
 - Every Create worktree for a main/validation task must be blocked by at least one Merge (the last prep merge, or last main merge for validation). Assert 3 covers this; restate any violation.
