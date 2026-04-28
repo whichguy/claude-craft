@@ -7,7 +7,7 @@ description: Use after a plan is approved in planning mode, OR after learnings h
 
 ## Overview
 
-Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals. **Branch B** assesses session learnings and drafts proposals — in-session planning, identical output. After proposals exist, both branches follow the same path: triage, senior engineer review, then task-graph execution with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. Neither path skips review — it is the correctness guarantee.
+Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer (the correctness guarantee for freshly-drafted proposals). Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. The merge-back step explicitly removes the worktree and deletes its branch.
 
 **References model:** Two of the longest sub-agent prompts live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
@@ -38,7 +38,7 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 1. Read the approved plan file (path is in planning mode context or current session)
 2. For each step, extract proposal: `What`=step title; `Why`=rationale/Context; `Scope`=small|medium|large
 3. Note files listed under each step → include in proposal context
-4. Note sequencing (step N requires step M) → pass as ordering hints to reviewer; do not wire yet
+4. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; Pass 2 rule 8 wires these onto run-agent tasks
 5. Note plan's Verification section → seed for validation tasks
 6. `{context}` = full plan file content
 
