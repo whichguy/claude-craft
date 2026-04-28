@@ -215,7 +215,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
 - `Merge lock` = `<output of git rev-parse --show-toplevel>/.git/claude-merge.lock`
 
-Substitute these into every worktree run-agent task description when creating it. These values are NEVER `[placeholder]` — they are always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
+Substitute these into every worktree run-agent task description **and every create-wt task description** when creating them. These values are NEVER `[placeholder]` — they are always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
 
 **Create worktree task:** the description is the bash block in "Create worktree task prompt format" below — that bash block IS the description. No prose form.
 
@@ -235,7 +235,7 @@ Substitute these into every worktree run-agent task description when creating it
 
 **Run agent:**
 7. Each `Run agent: task-N` blocked by its `Create worktree: task-N` (trivial run-agents skip — per contract)
-8. Logical DEPENDS ON constraints → for proposal B that depends on A, block BOTH B's `Create worktree` AND B's `Run agent` by A's `Run agent` (A's self-merge is complete when run-agent-A finishes, so the main branch already contains A's changes). Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
+8. Logical DEPENDS ON constraints → for proposal B that depends on A, block **only** B's `Run agent` by A's `Run agent`. Do NOT add A's `Run agent` to B's `Create worktree` blockers — all create-wt tasks set up their worktrees in parallel after Setup .worktrees (rule 4 only). B's create-wt applies the latest target-branch commits via its rebase step, and B's run-agent is blocked by both its own create-wt (rule 7) and A's run-agent (this rule), so B starts working only after A self-merges and the worktree is ready. Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
 
 **Final regression (if present):**
 11. `Regression: [scope]` blocked by the last run-agent in the dependency chain (the sink node of the DEPENDS ON graph; if no ordering constraints, the last run-agent in creation order). Runs in main workspace after all run-agents complete (no worktree, no create-wt).
@@ -299,9 +299,9 @@ Scan task list and assert. On any failure: print violation and halt — do not p
 
 ```
 For every Create worktree task for a main or validation proposal (not a prep-task worktree):
-  Assert 3: Its blockers include at least one run-agent task (last prep run-agent, or last main run-agent for validation). This ensures the worktree branches from HEAD after prior self-merges complete.
-  → Exception: If the proposal has no prep tasks and no DEPENDS ON, blocked only by Setup .worktrees — valid; skip Assert 3.
-  → Violation: "Create worktree #N for [main/validation] has no run-agent blocker. It may branch from stale HEAD."
+  Assert 3: Its blockers include at least one run-agent task (last prep run-agent, or last main run-agent for validation). This ensures the worktree branches from HEAD after prior self-merges of its own prep/main tasks complete.
+  → Exception: If the proposal has no prep tasks, blocked only by Setup .worktrees — valid; skip Assert 3. DEPENDS ON ordering between proposals is enforced on run-agents only (rule 8), not on create-wt tasks.
+  → Violation: "Create worktree #N for [main/validation] has no run-agent blocker from its own prep/main chain."
 
 For every run-agent task description:
   Assert 4: The description does not contain the literal string "[placeholder]" in the Checkpoint SHA field.
@@ -419,16 +419,17 @@ Each create-wt is dispatched as a background Task (`run_in_background=True`). De
 ```
 Run these commands exactly. Report STATUS at the end.
 
-# 1. Base-SHA assertion (skip for prep-task worktrees with no prior merge blocker)
-EXPECTED=$(git log --merges --oneline -10 | grep -F "<last-merge-task-title>" | awk '{print $1}')
-ACTUAL=$(git rev-parse HEAD)
-if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
-  echo "STATUS: failure — HEAD $ACTUAL does not include required merge $EXPECTED"
+# 1. Create worktree
+git worktree add .worktrees/task-N -b task-N-branch HEAD
+
+# 2. Apply latest commits from target branch into the worktree
+#    (brings in any changes already merged since the worktree was forked)
+git -C .worktrees/task-N rebase [TARGET_BRANCH]
+if [ $? -ne 0 ]; then
+  git -C .worktrees/task-N rebase --abort
+  echo "STATUS: failure — rebase from [TARGET_BRANCH] into .worktrees/task-N failed"
   exit 1
 fi
-
-# 2. Create worktree
-git worktree add .worktrees/task-N -b task-N-branch HEAD
 
 # 3. Symlink external resources (repeat for each)
 ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
@@ -436,6 +437,8 @@ ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
 # 4. Verify
 git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-N" || echo "STATUS: failure — worktree not found after add"
 ```
+
+Substitute `[TARGET_BRANCH]` with the `Target branch` value captured at Pass 1 start.
 
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
 
@@ -501,27 +504,26 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 | 4 | DRY-4 | git-prep  | Setup .worktrees directory            | DRY-3               | n/a               |
 | 5 | DRY-5 | create-wt | Create worktree: <proposal A>         | DRY-4               | n/a               |
 | 6 | DRY-6 | run-agent | <proposal A>                          | DRY-5               | native worktree   |
-| 7 | DRY-7 | create-wt | Create worktree: <proposal B>         | DRY-4, DRY-6        | n/a               |
-| 8 | DRY-8 | run-agent | <proposal B>                          | DRY-7               | native worktree   |
+| 7 | DRY-7 | create-wt | Create worktree: <proposal B>         | DRY-4               | n/a               |
+| 8 | DRY-8 | run-agent | <proposal B>                          | DRY-7, DRY-6        | native worktree   |
 | 9 | DRY-9 | regression| Regression: <scope>                   | DRY-8               | n/a               |
 ...
 
 ### Dependency Graph
 
 Render as a depth-first ASCII tree rooted at the first task with no blockers.
-For tasks with multiple blockers (common for DEPENDS ON create-wt), show the task where the
+For tasks with multiple blockers (common for DEPENDS ON run-agents), show the task where the
 last blocker branches from — include a note listing all blocker IDs.
 
 DRY-1 (git-prep: Pre-flight staging check)
   └─ DRY-2 (git-prep: Checkpoint commit)
        └─ DRY-3 (git-prep: Propagate checkpoint SHA)
             └─ DRY-4 (git-prep: Setup .worktrees)
-                 ├─ DRY-5 (create-wt: <proposal A>)
+                 ├─ DRY-5 (create-wt: <proposal A>)          ← all create-wts spin up in parallel
                  │    └─ DRY-6 (run-agent: <proposal A>)  ← self-merges on completion
-                 │         └─ DRY-7 (create-wt: <proposal B>) [also ← DRY-4]
-                 │               └─ DRY-8 (run-agent: <proposal B>)  ← self-merges on completion
-                 │                     └─ DRY-9 (regression)
-                 └─ (DRY-7 also blocked by DRY-4 — branches from updated HEAD after A self-merges)
+                 │         └─ DRY-8 (run-agent: <proposal B>) [also ← DRY-7]  ← DEPENDS ON A; self-merges on completion
+                 │               └─ DRY-9 (regression)
+                 └─ DRY-7 (create-wt: <proposal B>)           ← parallel with DRY-5; rebase step picks up A's changes when run-agent B starts
 
 ### Task Details
 
