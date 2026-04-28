@@ -83,6 +83,10 @@ Then document: what's broken, missing, suboptimal, untested, or deferred; root c
 
 Draft only — no TaskCreate yet.
 
+**Senior reviewer routing (binding):**
+- **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
+- **Branch B (no plan file):** proposals were freshly drafted from session state — they need vetting. Proceed through Step 2.
+
 **Triage — choose execution path:**
 
 Express requires ALL of: ≤3 proposals; all scope=small; no DB/schema/migration/shared-config; no proposal touches >3 files; no API contract changes.
@@ -173,7 +177,9 @@ If TaskList succeeds, continue to Step 2. Narrate progress in plain prose — do
 
 ---
 
-### Step 2 — Review Agent (Standard)
+### Step 2 — Review Agent (Standard, Branch B only)
+
+**Skip this step entirely on Branch A** (plan was already reviewed before `ExitPlanMode`). Branch A proceeds directly to Step 3 with proposals, plan-derived sequencing hints, and the plan's Verification section as the regression seed.
 
 Print:
 ```
@@ -187,7 +193,7 @@ Print:
 Agent `description`: `"Senior engineer review — evaluating N improvement proposals"`.
 
 Substitutions:
-- `{context}` → Branch A: full plan file content | Branch B: full findings text
+- `{context}` → full findings text
 - `{proposals}` → markdown table from Step 1
 - `{existing_backlog_filtered}` → ALL in_progress + 20 most recent pending (NOT full backlog)
 
@@ -284,7 +290,7 @@ End with:
 
 **Run agent:**
 7. Each `Run agent: task-N` blocked by its `Create worktree: task-N` (trivial run-agents skip — per contract)
-8. Logical DEPENDS ON constraints from reviewer → applied to `Run agent` tasks
+8. Logical DEPENDS ON constraints → applied to `Run agent` tasks. Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
 
 **Merge — one global linear chain:**
 9. Each `Merge: task-N` blocked by its `Run agent: task-N`
@@ -294,14 +300,14 @@ End with:
 11. `Regression: [scope]` blocked by the last Merge in the global chain. Runs in main workspace after all merges (no worktree, no create-wt).
     → Fallback: if no Merge tasks exist (all-trivial plan), block by the last run-agent in creation order.
 
-**Regression task description:**
+**Regression task description** (source: Branch A → plan's Verification section; Branch B → reviewer output):
 ```
 ## Purpose
 Final regression suite — confirms no regressions across all merged changes.
 
 ## What to do
-Run: [runner from reviewer output]
-Confirm: [regression areas from reviewer output]
+Run: [runner from plan Verification or reviewer output]
+Confirm: [regression areas from plan Verification or reviewer output]
 All tests must pass. If any fail: investigate, attempt fix, rerun.
 Do NOT return until suite passes or failure is confirmed unresolvable.
 
@@ -311,7 +317,7 @@ End with:
   NOTES: [list any failing tests and attempted fixes, or "all tests passed"]
 ```
 
-Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-output titles to Pass 1 IDs.
+Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, match reviewer-output titles to Pass 1 IDs.
 
 **Print final task graph:**
 ```markdown
