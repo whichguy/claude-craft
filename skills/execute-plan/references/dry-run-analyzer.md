@@ -27,8 +27,8 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
   Note: In the self-merge model, the valid asserts are 3, 4, 5, 6. Assert 1 and Assert 2 no longer exist — do not flag their absence.
 
 ### 2. Dependency completeness
-- Every worktree run-agent task description must contain `Target branch:` and `Merge lock:` fields with non-placeholder values (Assert 6 covers this; restate any violation as BLOCKING).
-- Logical DEPENDS ON hints from the plan should be honored: if proposal #N said "requires #M", verify the ledger has BOTH the create-wt AND run-agent for #N blocked by the run-agent for #M.
+- Every worktree run-agent task description must contain a `Target branch:` field with a non-placeholder value (Assert 6 covers this; restate any violation as BLOCKING).
+- Logical DEPENDS ON hints from the plan should be honored: if proposal #N said "requires #M", verify the ledger has the run-agent for #N blocked by the run-agent for #M. Create-wt tasks are NOT expected to carry DEPENDS ON blockers (rule 8 applies to run-agents only).
 - There is no global Merge chain in the self-merge model — run-agents self-merge sequentially via the DEPENDS ON dependency graph. If two run-agents appear to run in parallel without a DEPENDS ON relationship and they touch the same file, flag ADVISORY (see dimension 6).
 
 ### 3. Missing tasks

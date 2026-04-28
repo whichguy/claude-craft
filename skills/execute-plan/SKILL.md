@@ -9,7 +9,7 @@ description: Use after a plan is approved in planning mode, OR after learnings h
 
 Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer (the correctness guarantee for freshly-drafted proposals). Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. Each run-agent merges its own changes back to the target branch after completing, using optimistic concurrency with rebase + retry under a file lock.
 
-**References model:** Two of the longest sub-agent prompts live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
+**References model:** Verbatim sub-agent prompts and bash templates live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
 ---
 
@@ -211,13 +211,12 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 1. **FIRST: `Read references/run-agent-description.md`** — load the verbatim template.
 2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`. Do not paraphrase.
 
-**Passing `Target branch` and `Merge lock` into worktree run-agent descriptions (binding):** At Pass 1 start, capture once:
+**Passing `Target branch` into worktree run-agent and create-wt descriptions (binding):** At Pass 1 start, capture once:
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
-- `Merge lock` = `<output of git rev-parse --show-toplevel>/.git/claude-merge.lock`
 
-Substitute these into every worktree run-agent task description when creating it. These values are NEVER `[placeholder]` — they are always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
+Substitute this into every worktree run-agent task description and every create-wt task description when creating them. This value is NEVER `[placeholder]` — it is always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
 
-**Create worktree task:** the description is the bash block in "Create worktree task prompt format" below — that bash block IS the description. No prose form.
+**Create worktree task:** **FIRST: Read references/create-wt-prompt.md** — load the verbatim bash template. Substitute `[TARGET_BRANCH]` and `task-N` per task, then paste verbatim as the TaskCreate description. Do not paraphrase.
 
 ---
 
@@ -235,7 +234,7 @@ Substitute these into every worktree run-agent task description when creating it
 
 **Run agent:**
 7. Each `Run agent: task-N` blocked by its `Create worktree: task-N` (trivial run-agents skip — per contract)
-8. Logical DEPENDS ON constraints → for proposal B that depends on A, block BOTH B's `Create worktree` AND B's `Run agent` by A's `Run agent` (A's self-merge is complete when run-agent-A finishes, so the main branch already contains A's changes). Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
+8. Logical DEPENDS ON constraints → for proposal B that depends on A, block **only** B's `Run agent` by A's `Run agent`. Do NOT add A's `Run agent` to B's `Create worktree` blockers — all create-wt tasks set up their worktrees in parallel after Setup .worktrees (rule 4 only). B's create-wt applies the latest target-branch commits via its rebase step, and B's run-agent is blocked by both its own create-wt (rule 7) and A's run-agent (this rule), so B starts working only after A self-merges and the worktree is ready. Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
 
 **Final regression (if present):**
 11. `Regression: [scope]` blocked by the last run-agent in the dependency chain (the sink node of the DEPENDS ON graph; if no ordering constraints, the last run-agent in creation order). Runs in main workspace after all run-agents complete (no worktree, no create-wt).
@@ -299,9 +298,9 @@ Scan task list and assert. On any failure: print violation and halt — do not p
 
 ```
 For every Create worktree task for a main or validation proposal (not a prep-task worktree):
-  Assert 3: Its blockers include at least one run-agent task (last prep run-agent, or last main run-agent for validation). This ensures the worktree branches from HEAD after prior self-merges complete.
-  → Exception: If the proposal has no prep tasks and no DEPENDS ON, blocked only by Setup .worktrees — valid; skip Assert 3.
-  → Violation: "Create worktree #N for [main/validation] has no run-agent blocker. It may branch from stale HEAD."
+  Assert 3: Its blockers include at least one run-agent task (last prep run-agent, or last main run-agent for validation). This ensures the worktree branches from HEAD after prior self-merges of its own prep/main tasks complete.
+  → Exception: If the proposal has no prep tasks, blocked only by Setup .worktrees — valid; skip Assert 3. DEPENDS ON ordering between proposals is enforced on run-agents only (rule 8), not on create-wt tasks.
+  → Violation: "Create worktree #N for [main/validation] has no run-agent blocker from its own prep/main chain."
 
 For every run-agent task description:
   Assert 4: The description does not contain the literal string "[placeholder]" in the Checkpoint SHA field.
@@ -312,8 +311,8 @@ For every Regression task (zero or one in graph):
   → Violation: "Regression task #N is not wired to the final run-agent in the chain. Pass 2 Rule 11 is incomplete."
 
 For every run-agent task with Isolation: native worktree:
-  Assert 6: The description contains literal `Target branch:` and `Merge lock:` fields, and neither value is `[placeholder]` or empty.
-  → Violation: "Run-agent #N is missing Target branch or Merge lock field, or has [placeholder] value. Pass 1 substitution is incomplete."
+  Assert 6: The description contains a literal `Target branch:` field with a non-empty, non-placeholder value.
+  → Violation: "Run-agent #N is missing Target branch field or has [placeholder] value. Pass 1 substitution is incomplete."
 ```
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
@@ -357,7 +356,10 @@ After recovery, enter execution loop normally.
       - Poll TaskList until each create-wt reaches completed/failed
       - Any failure → halt, report; do not dispatch its run-agent
 3d. Dispatch agents:
-      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree
+      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree.
+        **FIRST: Read references/self-merge-wrapper.md** — load the verbatim wrapper. Substitute
+        `[TARGET_BRANCH]` with the task description's `Target branch:` value, then append the
+        wrapper verbatim to the Agent prompt. Do not paraphrase.
       - Trivial + serial agents (regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
 4.  Wait for all agent tasks to complete
 5.  Parse validation — before acting on ANY agent result:
@@ -373,6 +375,8 @@ After recovery, enter execution loop normally.
       Run agent result:
         - On success (ACTION: none): self-merge was performed inside the agent. Mark completed directly.
         - On failure: read FAILURE_TYPE and ACTION block.
+          NOTE: for conflict_needs_user (self-merge failure), the agent already created an
+          investigation Task via TaskCreate — it appears in the backlog for the user to action.
           DRAIN FIRST: finish processing all other results in this batch before halting.
           For each successful co-dispatched agent: mark completed (their changes are already self-merged to the target branch).
           For each failed co-dispatched agent: collect FAILURE_TYPE + NOTES.
@@ -414,28 +418,6 @@ After recovery, enter execution loop normally.
 **Create worktree task execution** (async background Task, step 3c):
 
 Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash, no prose. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
-
-**Create worktree task prompt format (embedded bash):**
-```
-Run these commands exactly. Report STATUS at the end.
-
-# 1. Base-SHA assertion (skip for prep-task worktrees with no prior merge blocker)
-EXPECTED=$(git log --merges --oneline -10 | grep -F "<last-merge-task-title>" | awk '{print $1}')
-ACTUAL=$(git rev-parse HEAD)
-if [ -n "$EXPECTED" ] && [ "$EXPECTED" != "$ACTUAL" ]; then
-  echo "STATUS: failure — HEAD $ACTUAL does not include required merge $EXPECTED"
-  exit 1
-fi
-
-# 2. Create worktree
-git worktree add .worktrees/task-N -b task-N-branch HEAD
-
-# 3. Symlink external resources (repeat for each)
-ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
-
-# 4. Verify
-git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-N" || echo "STATUS: failure — worktree not found after add"
-```
 
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
 
@@ -501,27 +483,26 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 | 4 | DRY-4 | git-prep  | Setup .worktrees directory            | DRY-3               | n/a               |
 | 5 | DRY-5 | create-wt | Create worktree: <proposal A>         | DRY-4               | n/a               |
 | 6 | DRY-6 | run-agent | <proposal A>                          | DRY-5               | native worktree   |
-| 7 | DRY-7 | create-wt | Create worktree: <proposal B>         | DRY-4, DRY-6        | n/a               |
-| 8 | DRY-8 | run-agent | <proposal B>                          | DRY-7               | native worktree   |
+| 7 | DRY-7 | create-wt | Create worktree: <proposal B>         | DRY-4               | n/a               |
+| 8 | DRY-8 | run-agent | <proposal B>                          | DRY-7, DRY-6        | native worktree   |
 | 9 | DRY-9 | regression| Regression: <scope>                   | DRY-8               | n/a               |
 ...
 
 ### Dependency Graph
 
 Render as a depth-first ASCII tree rooted at the first task with no blockers.
-For tasks with multiple blockers (common for DEPENDS ON create-wt), show the task where the
+For tasks with multiple blockers (common for DEPENDS ON run-agents), show the task where the
 last blocker branches from — include a note listing all blocker IDs.
 
 DRY-1 (git-prep: Pre-flight staging check)
   └─ DRY-2 (git-prep: Checkpoint commit)
        └─ DRY-3 (git-prep: Propagate checkpoint SHA)
             └─ DRY-4 (git-prep: Setup .worktrees)
-                 ├─ DRY-5 (create-wt: <proposal A>)
+                 ├─ DRY-5 (create-wt: <proposal A>)          ← all create-wts spin up in parallel
                  │    └─ DRY-6 (run-agent: <proposal A>)  ← self-merges on completion
-                 │         └─ DRY-7 (create-wt: <proposal B>) [also ← DRY-4]
-                 │               └─ DRY-8 (run-agent: <proposal B>)  ← self-merges on completion
-                 │                     └─ DRY-9 (regression)
-                 └─ (DRY-7 also blocked by DRY-4 — branches from updated HEAD after A self-merges)
+                 │         └─ DRY-8 (run-agent: <proposal B>) [also ← DRY-7]  ← DEPENDS ON A; self-merges on completion
+                 │               └─ DRY-9 (regression)
+                 └─ DRY-7 (create-wt: <proposal B>)           ← parallel with DRY-5; rebase step picks up A's changes when run-agent B starts
 
 ### Task Details
 
@@ -574,12 +555,9 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 ## Iron Law
 
 **Mode discipline (binding):**
-- **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** In dry-run, every TaskCreate / TaskUpdate call is skipped (ledger-only); git mutations and all agent dispatches (except the Branch B senior reviewer) are skipped entirely. No simulation — just the plan materialized as a task list + dependency graph.
-- **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free.
-- **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
-- **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent` (with self-merge) so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
-- **Every worktree run-agent description must carry a `Target branch` and `Merge lock` field.** These are substituted at Pass 1 time (never placeholders) and verified by Assert 6 before execution begins.
+
+**For mode-discipline rules, see Modes section and Steps 0–3.** The bullets above cover only dispatch and behavior rules not restated elsewhere.
 
 **Reference loading (binding):**
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
