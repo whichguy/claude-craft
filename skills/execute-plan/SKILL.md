@@ -9,7 +9,7 @@ description: Use after a plan is approved in planning mode, OR after learnings h
 
 Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer (the correctness guarantee for freshly-drafted proposals). Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. Each run-agent merges its own changes back to the target branch after completing, using optimistic concurrency with rebase + retry under a file lock.
 
-**References model:** Two of the longest sub-agent prompts live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
+**References model:** Verbatim sub-agent prompts and bash templates live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
 ---
 
@@ -216,7 +216,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 Substitute this into every worktree run-agent task description and every create-wt task description when creating them. This value is NEVER `[placeholder]` — it is always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
 
-**Create worktree task:** the description is the bash block in "Create worktree task prompt format" below — that bash block IS the description. No prose form.
+**Create worktree task:** **FIRST: Read references/create-wt-prompt.md** — load the verbatim bash template. Substitute `[TARGET_BRANCH]` and `task-N` per task, then paste verbatim as the TaskCreate description. Do not paraphrase.
 
 ---
 
@@ -357,10 +357,9 @@ After recovery, enter execution loop normally.
       - Any failure → halt, report; do not dispatch its run-agent
 3d. Dispatch agents:
       - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree.
-        Before dispatching each isolated run-agent: extract the `Target branch:` value from
-        its task description, substitute it for `[TARGET_BRANCH]` in the self-merge wrapper
-        (see **Worktree run-agent dispatch wrapper** below), and append the substituted wrapper
-        verbatim to the task description when calling Agent(). Do not paraphrase the wrapper.
+        **FIRST: Read references/self-merge-wrapper.md** — load the verbatim wrapper. Substitute
+        `[TARGET_BRANCH]` with the task description's `Target branch:` value, then append the
+        wrapper verbatim to the Agent prompt. Do not paraphrase.
       - Trivial + serial agents (regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
 4.  Wait for all agent tasks to complete
 5.  Parse validation — before acting on ANY agent result:
@@ -420,123 +419,7 @@ After recovery, enter execution loop normally.
 
 Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash, no prose. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
 
-**Create worktree task prompt format (embedded bash):**
-```
-Run these commands exactly. Report STATUS at the end.
-
-# 1. Create worktree
-git worktree add .worktrees/task-N -b task-N-branch HEAD
-
-# 2. Apply latest commits from target branch into the worktree
-#    (brings in any changes already merged since the worktree was forked)
-git -C .worktrees/task-N rebase [TARGET_BRANCH]
-if [ $? -ne 0 ]; then
-  git -C .worktrees/task-N rebase --abort
-  echo "STATUS: failure — rebase from [TARGET_BRANCH] into .worktrees/task-N failed"
-  exit 1
-fi
-
-# 3. Symlink external resources (repeat for each)
-ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
-
-# 4. Verify
-git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-N" || echo "STATUS: failure — worktree not found after add"
-```
-
-Substitute `[TARGET_BRANCH]` with the `Target branch` value captured at Pass 1 start.
-
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
-
----
-
-**Worktree run-agent dispatch wrapper (appended to every isolated run-agent prompt at step 3d):**
-
-Substitute `[TARGET_BRANCH]` with the `Target branch:` value from the task description before appending. `WORKTREE_PATH` and `WORKTREE_BRANCH` are resolved at runtime — the agent is already running inside the worktree.
-
-```
----
-## Self-merge and completion (orchestrator-injected)
-
-After committing your changes (## Before return: commit), run the self-merge below.
-Do not skip — STATUS: success means the branch is already merged and the worktree removed.
-
-```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-TARGET_BRANCH="[TARGET_BRANCH]"
-WORKTREE_PATH=$(pwd)
-WORKTREE_BRANCH=$(git branch --show-current)
-MAX_RETRIES=5
-
-attempt=0
-while [ $attempt -lt $MAX_RETRIES ]; do
-  attempt=$((attempt + 1))
-
-  git rebase "$TARGET_BRANCH"
-  if [ $? -ne 0 ]; then
-    git rebase --abort
-    exit 2  # true conflict — not retryable
-  fi
-
-  cd "$REPO_ROOT"
-  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $TARGET_BRANCH"
-  if [ $? -eq 0 ]; then
-    git worktree remove "$WORKTREE_PATH" --force
-    git branch -d "$WORKTREE_BRANCH"
-    exit 0
-  fi
-
-  git merge --abort
-  cd "$WORKTREE_PATH"
-  sleep $((attempt * 3))
-done
-exit 1  # retries exhausted
-```
-
-**On exit 0 (success):** report:
-```
-STATUS: success
-ACTION: none
-NOTES: [files changed, what was accomplished; merge complete, worktree removed]
-```
-
-**On exit 1 or 2 (failure):** before reporting, create an investigation task:
-```
-TaskCreate(
-  subject: "Investigate merge failure: <this task's subject>",
-  description: |
-    ## Intention
-    <copy the ## Purpose section from your task description>
-
-    ## What finished
-    <list every file changed and committed before the self-merge was attempted>
-
-    ## What is incomplete
-    <list any work steps from ## What to do that did not complete, or "all work committed">
-
-    ## What failed
-    Exit code: <1 = retries exhausted | 2 = rebase conflict>
-    Attempt count: <N of MAX_RETRIES>
-    Error output: <paste the relevant git rebase / git merge error lines>
-
-    ## Context
-    Worktree: <full absolute path — output of: echo $WORKTREE_PATH>
-    Branch: <WORKTREE_BRANCH>
-    Target branch: [TARGET_BRANCH]
-    Checkpoint SHA: <from your task description's Checkpoint SHA field>
-)
-```
-
-Then report:
-```
-STATUS: failure
-FAILURE_TYPE: conflict_needs_user
-ACTION: preserve_worktree
-WORKTREE: <full absolute path>
-BRANCH: <worktree branch>
-NOTES: [exit <code>; rebase conflict or retries exhausted; Target branch: [TARGET_BRANCH]]
-```
----
-```
 
 ---
 
@@ -672,12 +555,9 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 ## Iron Law
 
 **Mode discipline (binding):**
-- **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** In dry-run, every TaskCreate / TaskUpdate call is skipped (ledger-only); git mutations and all agent dispatches (except the Branch B senior reviewer) are skipped entirely. No simulation — just the plan materialized as a task list + dependency graph.
-- **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free.
-- **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
-- **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent` (with self-merge) so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
-- **Every worktree run-agent description must carry a `Target branch` field.** This is substituted at Pass 1 time (never a placeholder) and verified by Assert 6 before execution begins.
+
+**For mode-discipline rules, see Modes section and Steps 0–3.** The bullets above cover only dispatch and behavior rules not restated elsewhere.
 
 **Reference loading (binding):**
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**

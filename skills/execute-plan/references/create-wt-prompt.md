@@ -1,0 +1,29 @@
+# Create-Wt Task Description (verbatim)
+
+This file holds the verbatim bash template that the orchestrator inserts as the `TaskCreate.description` for every create-wt task in Step 3 of execute-plan. Orchestrator must `Read` this file, substitute `[TARGET_BRANCH]` with the target branch value captured at Pass 1 start and `task-N` / `task-N-branch` with the actual task identifiers, then paste verbatim into `TaskCreate.description`. Do not paraphrase.
+
+Orchestrator reads only the `STATUS:` line from the agent's output. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
+
+---
+
+```
+Run these commands exactly. Report STATUS at the end.
+
+# 1. Create worktree
+git worktree add .worktrees/task-N -b task-N-branch HEAD
+
+# 2. Apply latest commits from target branch into the worktree
+#    (brings in any changes already merged since the worktree was forked)
+git -C .worktrees/task-N rebase [TARGET_BRANCH]
+if [ $? -ne 0 ]; then
+  git -C .worktrees/task-N rebase --abort
+  echo "STATUS: failure — rebase from [TARGET_BRANCH] into .worktrees/task-N failed"
+  exit 1
+fi
+
+# 3. Symlink external resources (repeat for each)
+ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
+
+# 4. Verify
+git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-N" || echo "STATUS: failure — worktree not found after add"
+```
