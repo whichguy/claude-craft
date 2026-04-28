@@ -20,7 +20,7 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 | Mode               | Trigger flag           | Behavior                                                                                          |
 |--------------------|------------------------|---------------------------------------------------------------------------------------------------|
 | `live`             | (no flag)              | Default. Real TaskCreate, real git operations, real Agent dispatches. Current production path.    |
-| `dry-run`          | `--dry-run`            | No side effects. Branch A: reads the real plan and builds the task graph in memory. Branch B: uses conversation context to generate learnings and craft proposals (skips git history). Both branches output an ordered task list + dependency graph — no real TaskCreate, no git mutations, no agent dispatch. |
+| `dry-run`          | `--dry-run`            | No side effects. Branch A: reads the real plan and builds the task graph in memory. Branch B: uses conversation context to generate learnings and craft proposals (skips git history). Both branches output an ordered task list + dependency graph — no real TaskCreate, no git mutations, no agent dispatch. **Trivial classification is overridden: every proposal generates a full `create-wt → run-agent → merge` chain so the complete worktree isolation structure is visible.** |
 | `dry-run-analyze`  | `--dry-run-analyze`    | Same as `dry-run`, then dispatches an analyzer Agent on the Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation, and anti-patterns. |
 
 **`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream. Live mode is the default and is unaffected by the guards — the dry-run substitutions are no-ops when `Mode == live`.
@@ -188,6 +188,8 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
   - For each `addBlockedBy`: print `[DRY] would addBlockedBy #DRY-N ← #DRY-M`, mutate the ledger entry's `blocked_by` array.
   - For each Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`, mutate the ledger entry.
 - The Pass 1 ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
+
+**Trivial override (dry-run only, binding):** when `Mode != live`, ignore any `Trivial: yes` classification from the reviewer. Treat every proposal as a full non-trivial task — generate the complete `create-wt → run-agent → merge` chain per proposal. Set `Isolation: native worktree` on every run-agent entry in the ledger. This is not what live mode will necessarily do; it is the complete picture of what execution *could* involve, which is the purpose of dry-run. Validation tasks and regression decisions from the reviewer are still honored — only the trivial/worktree split is overridden.
 
 **Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
@@ -629,6 +631,7 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 - **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** In dry-run, every TaskCreate / TaskUpdate call is skipped (ledger-only); git mutations and all agent dispatches (except the Branch B senior reviewer) are skipped entirely. No simulation — just the plan materialized as a task list + dependency graph.
 - **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free.
 - **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
+- **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent → merge` so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
 
 **Reference loading (binding):**
