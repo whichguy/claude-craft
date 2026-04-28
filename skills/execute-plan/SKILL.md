@@ -499,28 +499,29 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 | 2 | DRY-2 | git-prep  | Checkpoint commit                     | DRY-1               | n/a               |
 | 3 | DRY-3 | git-prep  | Propagate checkpoint SHA              | DRY-2               | n/a               |
 | 4 | DRY-4 | git-prep  | Setup .worktrees directory            | DRY-3               | n/a               |
-| 5 | DRY-5 | create-wt | Create worktree: <proposal title>     | DRY-4               | n/a               |
-| 6 | DRY-6 | run-agent | <proposal title>                      | DRY-5               | native worktree   |
-| 7 | DRY-7 | merge     | Merge: <proposal title>               | DRY-6, DRY-4        | n/a               |
+| 5 | DRY-5 | create-wt | Create worktree: <proposal A>         | DRY-4               | n/a               |
+| 6 | DRY-6 | run-agent | <proposal A>                          | DRY-5               | native worktree   |
+| 7 | DRY-7 | create-wt | Create worktree: <proposal B>         | DRY-4, DRY-6        | n/a               |
+| 8 | DRY-8 | run-agent | <proposal B>                          | DRY-7               | native worktree   |
+| 9 | DRY-9 | regression| Regression: <scope>                   | DRY-8               | n/a               |
 ...
 
 ### Dependency Graph
 
 Render as a depth-first ASCII tree rooted at the first task with no blockers.
-For tasks with multiple blockers (common for merges), show the task where the
+For tasks with multiple blockers (common for DEPENDS ON create-wt), show the task where the
 last blocker branches from — include a note listing all blocker IDs.
 
 DRY-1 (git-prep: Pre-flight staging check)
   └─ DRY-2 (git-prep: Checkpoint commit)
        └─ DRY-3 (git-prep: Propagate checkpoint SHA)
             └─ DRY-4 (git-prep: Setup .worktrees)
-                 ├─ DRY-5 (create-wt: <proposal A>) ──────────────────────┐
-                 │    └─ DRY-6 (run-agent: <proposal A>)                   │
-                 │         └─ DRY-7 (merge: <proposal A>) [also ← DRY-4] ─┘
-                 └─ DRY-8 (create-wt: <proposal B>) ──────────────────────┐
-                      └─ DRY-9 (run-agent: <proposal B>)                   │
-                           └─ DRY-10 (merge: <proposal B>) [also ← DRY-7] ┘
-                                └─ DRY-11 (regression)
+                 ├─ DRY-5 (create-wt: <proposal A>)
+                 │    └─ DRY-6 (run-agent: <proposal A>)  ← self-merges on completion
+                 │         └─ DRY-7 (create-wt: <proposal B>) [also ← DRY-4]
+                 │               └─ DRY-8 (run-agent: <proposal B>)  ← self-merges on completion
+                 │                     └─ DRY-9 (regression)
+                 └─ (DRY-7 also blocked by DRY-4 — branches from updated HEAD after A self-merges)
 
 ### Task Details
 
@@ -576,7 +577,7 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 - **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** In dry-run, every TaskCreate / TaskUpdate call is skipped (ledger-only); git mutations and all agent dispatches (except the Branch B senior reviewer) are skipped entirely. No simulation — just the plan materialized as a task list + dependency graph.
 - **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free.
 - **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
-- **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent → merge` so the dependency graph is complete and reflects the actual isolated execution structure.
+- **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent` (with self-merge) so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
 - **Every worktree run-agent description must carry a `Target branch` and `Merge lock` field.** These are substituted at Pass 1 time (never placeholders) and verified by Assert 6 before execution begins.
 
