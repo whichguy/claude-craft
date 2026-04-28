@@ -162,28 +162,20 @@ Rolled back to checkpoint SHA: <sha>
 
 ---
 
-### Step 0 — Phase Tracking (Standard only)
+### Step 0 — Task API Preflight (Standard only)
 
-**Task API preflight:** `TaskList`. If errors:
+`TaskList`. If errors:
 - Print: `Task API unavailable: [error]`
 - Print: `Standard path requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
 - STOP. No review dispatch. No tasks created.
 
-If TaskList succeeds, create 3 phase tasks:
-
-| Subject | activeForm |
-|---------|------------|
-| Phase 1: Get the plan | Reading plan or assessing learnings → drafting proposals... |
-| Phase 2: Senior engineer review | Senior engineer reviewing proposals... |
-| Phase 3: Git prep → task graph execution | Wiring task graph and executing via dependency order... |
-
-Mark Phase 1 `completed` immediately (Step 1 already happened). Mark each later phase `in_progress` at start, `completed` at end.
+If TaskList succeeds, continue to Step 2. Narrate progress in plain prose — do not create phase-tracking tasks.
 
 ---
 
 ### Step 2 — Review Agent (Standard)
 
-Mark Phase 2 `in_progress`. Print:
+Print:
 ```
 ---
 **Dispatching senior engineer review** (N proposals)
@@ -213,7 +205,7 @@ Substitutions:
   ~ Trivial N — #2 #5 (no prep/validation generated)
 ```
 
-Reviewer's output is the sole source of truth. Mark Phase 2 `completed`.
+Reviewer's output is the sole source of truth.
 
 **Review Confirmation Gate** (after changelog, before Step 3):
 
@@ -229,8 +221,6 @@ If only `Kept N`: auto-proceed.
 ---
 
 ### Step 3 — Build the Task Graph (Standard)
-
-Mark Phase 3 `in_progress`.
 
 **Git repo init guard** (before Pass 1):
 ```
@@ -361,7 +351,7 @@ Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-ou
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace | no                   |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   | n/a                  |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) | n/a                  |
-| Phase / Express     | type=phase / express        | n/a            | n/a        | —       | (excluded from resume scan)     | n/a                   | n/a                  |
+| Express             | type=express                | n/a            | n/a        | —       | (excluded from resume scan)     | n/a                   | n/a                  |
 
 **Initialize session state** (once):
 ```
@@ -580,8 +570,6 @@ Options:
 ```
 
 "Blocked by this failure": from the failed task ID, recursively collect tasks whose `Blocked by` includes it or any already-collected ID. Topological order, closest dependents first.
-
-Mark Phase 3 `completed` when all tasks reach `completed`.
 
 ---
 
