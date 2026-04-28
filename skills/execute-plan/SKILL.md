@@ -620,6 +620,37 @@ In `dry-run` mode, stop after printing the Dry-Run Report. In `dry-run-analyze` 
 
 ---
 
+**Analyzer dispatch (`dry-run-analyze` only):**
+
+Print:
+```
+---
+**Dispatching dry-run analyzer** on the report above
+---
+```
+
+**Runs FOREGROUND — wait for output before printing findings.**
+
+Agent `description`: `"Dry-run analyzer — auditing simulated task graph"`.
+
+Substitution:
+- `{report}` → the full Dry-Run Report text just printed (proposals table, simulated backlog with full descriptions, wiring integrity, simulated execution trace, totals)
+
+**Dispatch protocol (binding):**
+1. **FIRST: `Read references/dry-run-analyzer.md`** — load the verbatim prompt into context.
+2. **THEN:** Dispatch the Agent with that prompt verbatim, substituting `{report}`. Do not paraphrase, summarize, or rewrite.
+
+**On agent return**, print the analyzer's findings table and verdict line under a header:
+```
+## Dry-Run Analyzer Findings
+<table from analyzer output>
+VERDICT: <READY-TO-EXECUTE | NEEDS-FIXES> — <summary>
+```
+
+Stop after printing findings. Do not auto-promote dry-run results to live mode — the user re-invokes `/execute-plan` (no flag) when ready.
+
+---
+
 ## Iron Law
 
 **Reference loading (binding):**
