@@ -37,7 +37,7 @@ while [ $attempt -lt $MAX_RETRIES ]; do
 
   git merge --abort
   cd "$WORKTREE_PATH"
-  sleep $((attempt * 3))
+  sleep $(( (attempt * 3) + (RANDOM % 3) ))
 done
 exit 1  # retries exhausted
 ```
@@ -49,32 +49,15 @@ ACTION: none
 NOTES: [files changed, what was accomplished; merge complete, worktree removed]
 ```
 
-**On exit 1 or 2 (failure):** before reporting, create an investigation task:
-```
-TaskCreate(
-  subject: "Investigate merge failure: <this task's subject>",
-  description: |
-    ## Intention
-    <copy the ## Purpose section from your task description>
+**On exit 1 or 2 (failure):** before reporting, the **orchestrator** (not this agent) must call TaskCreate with the following fields — this is a task-tool call for the orchestrator, not a bash command:
 
-    ## What finished
-    <list every file changed and committed before the self-merge was attempted>
-
-    ## What is incomplete
-    <list any work steps from ## What to do that did not complete, or "all work committed">
-
-    ## What failed
-    Exit code: <1 = retries exhausted | 2 = rebase conflict>
-    Attempt count: <N of MAX_RETRIES>
-    Error output: <paste the relevant git rebase / git merge error lines>
-
-    ## Context
-    Worktree: <full absolute path — output of: echo $WORKTREE_PATH>
-    Branch: <WORKTREE_BRANCH>
-    Target branch: [TARGET_BRANCH]
-    Checkpoint SHA: <from your task description's Checkpoint SHA field>
-)
-```
+- subject: `"Investigate merge failure: <this task's subject>"`
+- description (multiline):
+  - `## Intention` — copy the ## Purpose section from your task description
+  - `## What finished` — list every file changed and committed before the self-merge was attempted
+  - `## What is incomplete` — list any work steps from ## What to do that did not complete, or "all work committed"
+  - `## What failed` — Exit code: `1 = retries exhausted | 2 = rebase conflict`; Attempt count: N of MAX_RETRIES; Error output: paste the relevant git rebase / git merge error lines
+  - `## Context` — Worktree: full absolute path (echo $WORKTREE_PATH); Branch: WORKTREE_BRANCH; Target branch: [TARGET_BRANCH]; Checkpoint SHA: from your task description's Checkpoint SHA field
 
 Then report:
 ```

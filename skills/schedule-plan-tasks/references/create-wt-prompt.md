@@ -17,11 +17,13 @@ git worktree add .worktrees/task-N -b task-N-branch HEAD
 git -C .worktrees/task-N rebase [TARGET_BRANCH]
 if [ $? -ne 0 ]; then
   git -C .worktrees/task-N rebase --abort
+  git worktree remove .worktrees/task-N --force 2>/dev/null || true
   echo "STATUS: failure — rebase from [TARGET_BRANCH] into .worktrees/task-N failed"
   exit 1
 fi
 
 # 3. Symlink external resources (repeat for each)
+[ -e /absolute/path/to/resource ] || { echo "STATUS: failure — resource not found: /absolute/path/to/resource"; exit 1; }
 ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
 
 # 4. Verify

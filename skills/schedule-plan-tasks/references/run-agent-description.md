@@ -59,6 +59,9 @@ For validation tasks — ALL of the following happen inside this agent:
   - Only stop and report failure if the error is unresolvable (missing dependency,
     broken tool, environment issue outside your control)
 
+## External resources
+[absolute paths to symlinked local resources, or full URIs for remote resources — "none" if empty]
+
 ## Files
 [Exact file paths to read and/or modify]
 

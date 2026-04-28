@@ -24,7 +24,6 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
 - Every task in the simulated backlog must reach `completed` in the simulated trace. Orphans (never dispatched) → BLOCKING.
 - No cycles — the trace must terminate. If the simulated loop reported STUCK, that is BLOCKING.
 - The Wiring Integrity section says PASS. If it lists violations, mirror them as BLOCKING findings.
-  Note: In the self-merge model, the valid asserts are 3, 4, 5, 6. Assert 1 and Assert 2 no longer exist — do not flag their absence.
 
 ### 2. Dependency completeness
 - Every worktree run-agent task description must contain a `Target branch:` field with a non-placeholder value (Assert 6 covers this; restate any violation as BLOCKING).

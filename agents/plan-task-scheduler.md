@@ -244,7 +244,9 @@ Substitute this into every worktree run-agent task description and every create-
 8. Logical DEPENDS ON constraints → for proposal B that depends on A, block **only** B's `Run agent` by A's `Run agent`. Do NOT add A's `Run agent` to B's `Create worktree` blockers — all create-wt tasks set up their worktrees in parallel after Setup .worktrees (rule 4 only). B's create-wt applies the latest target-branch commits via its rebase step, and B's run-agent is blocked by both its own create-wt (rule 7) and A's run-agent (this rule), so B starts working only after A self-merges and the worktree is ready.
 
 **Final regression (if present):**
-11. `Regression: [scope]` blocked by the last run-agent in the dependency chain (the sink node of the DEPENDS ON graph; if no ordering constraints, the last run-agent in creation order). Runs in main workspace after all run-agents complete (no worktree, no create-wt).
+11. `Regression: [scope]` blocked by the last run-agent in the dependency chain. Runs in main workspace after all run-agents complete (no worktree, no create-wt).
+
+**Regression sink selection (binding):** find all run-agent tasks with no other run-agent task blocked by them (leaf nodes in the DEPENDS ON graph). If exactly one leaf node → that is the sink; add one `addBlockedBy` entry. If multiple leaf nodes → block regression by ALL of them (one `addBlockedBy` entry per leaf). This is safe: regression only starts after every independent work stream completes.
 
 **Regression task description** (source: Branch A → plan's Verification section; Branch B → reviewer output):
 ```
@@ -263,7 +265,12 @@ End with:
   NOTES: [list any failing tests and attempted fixes, or "all tests passed"]
 ```
 
-Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, match reviewer-output titles to Pass 1 IDs.
+Skip `addBlockedBy` for any task whose blockers list is empty.
+
+**Title matching algorithm (binding) — Branch B only:** after the reviewer returns, map reviewer-output titles back to Pass 1 proposal IDs using normalized lowercase substring match (strip punctuation, compare lowercased tokens). Rules:
+- If a reviewer title matches a Pass 1 proposal → use that Pass 1 ID for wiring.
+- If a reviewer title is new (added or split by reviewer, not present in the proposals table) → create a new ledger entry for it; assign the next available ID.
+- If a reviewer title matches multiple Pass 1 proposals (reviewer merged them) → use the first matching Pass 1 ID; mark the other matched proposals as superseded (do not create their chains).
 
 **Print final task graph:**
 ```markdown
@@ -310,8 +317,8 @@ For every run-agent task description:
   → Violation: "Checkpoint SHA propagation incomplete — run-agent #N still has [placeholder]."
 
 For every Regression task (zero or one in graph):
-  Assert 5: It is blocked by exactly one task — the last run-agent in the dependency chain.
-  → Violation: "Regression task #N is not wired to the final run-agent in the chain."
+  Assert 5: It is blocked by all leaf-node run-agents (run-agents with no downstream DEPENDS ON). At least one blocker required.
+  → Violation: "Regression task #N is not blocked by all leaf run-agents in the chain."
 
 For every run-agent task with Isolation: native worktree:
   Assert 6: The description contains a literal `Target branch:` field with a non-empty, non-placeholder value.
