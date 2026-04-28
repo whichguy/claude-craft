@@ -15,6 +15,8 @@ Two entry points, one execution engine. **Branch A** reads an approved plan file
 
 ### Step 1 — Get the Plan
 
+**Plan-mode preflight (binding):** if invoked while plan mode is active, call `ExitPlanMode` immediately after confirming the plan file is readable (Branch A) or as the first action of this step (Branch B). The plan is already approved — do not stall waiting for the user to exit. If `ExitPlanMode` is unavailable (host is not in plan mode), this is a no-op.
+
 **Git context prime** (skip all git commands if no `.git`, note "no git repo"):
 - `git log -1 --oneline` — last commit SHA + message
 - `git diff HEAD --name-only` — files currently modified
