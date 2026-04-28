@@ -7,13 +7,26 @@ description: Use after a plan is approved in planning mode, OR after learnings h
 
 ## Overview
 
-Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals. **Branch B** assesses session learnings and drafts proposals — in-session planning, identical output. After proposals exist, both branches follow the same path: triage, senior engineer review, then task-graph execution with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. Neither path skips review — it is the correctness guarantee.
+Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer (the correctness guarantee for freshly-drafted proposals). Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Ordering emerges from the dependency graph. The merge-back step explicitly removes the worktree and deletes its branch.
 
 **References model:** Two of the longest sub-agent prompts live in `references/*.md` and are loaded just-in-time. Citation rule (binding): when a step says "Read references/X then dispatch", you MUST `Read` that file and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
 ---
 
+### Step 0 — Task API Preflight
+
+`TaskList`. If errors:
+- Print: `Task API unavailable: [error]`
+- Print: `execute-plan requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
+- STOP. No review dispatch. No tasks created.
+
+If TaskList succeeds, continue. Narrate progress in plain prose — do not create phase-tracking tasks.
+
+---
+
 ### Step 1 — Get the Plan
+
+**Plan-mode preflight (binding):** if invoked while plan mode is active, call `ExitPlanMode` immediately after confirming the plan file is readable (Branch A) or as the first action of this step (Branch B). The plan is already approved — do not stall waiting for the user to exit. If `ExitPlanMode` is unavailable (host is not in plan mode), this is a no-op.
 
 **Git context prime** (skip all git commands if no `.git`, note "no git repo"):
 - `git log -1 --oneline` — last commit SHA + message
@@ -36,40 +49,20 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 1. Read the approved plan file (path is in planning mode context or current session)
 2. For each step, extract proposal: `What`=step title; `Why`=rationale/Context; `Scope`=small|medium|large
 3. Note files listed under each step → include in proposal context
-4. Note sequencing (step N requires step M) → pass as ordering hints to reviewer; do not wire yet
+4. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; Pass 2 rule 8 wires these onto run-agent tasks
 5. Note plan's Verification section → seed for validation tasks
 6. `{context}` = full plan file content
 
 **Branch B — Learnings (no plan file):**
 
-Cycle detection — both signals must hold for B1, else B2:
-```bash
-# Signal 1: Phase 3 completed task exists in TaskList ("Phase 3: Git prep → task graph execution")
-# Signal 2:
-CKPT=$(git log --grep="checkpoint: pre-execution state" --format="%H" -1)
-git log $CKPT..HEAD --oneline | grep -qE "task-[0-9]+:"
-```
+Scan recent work and draft proposals:
+1. `git log -10 --oneline` — what just shipped
+2. `git diff HEAD --name-only` — uncommitted work
+3. Conversation context — what the user was just working on, what was deferred or "left to user"
 
-**Both true → Sub-mode B1 (post-execution reflection).** Extract in priority order:
-1. Failed run-agent tasks: from TaskList, find `Run agent: *` with `STATUS: failure` in notes — include FAILURE_TYPE + NOTES verbatim
-2. Regression outcome: did `Regression: *` complete? If failed, include NOTES; if missing/never-ran, flag as untested coverage gap (deferred validations rely on regression)
-3. Stuck tasks: pending/in_progress whose blockers are all completed
-4. Ground truth: `git log $CKPT..HEAD --oneline`
-5. New uncommitted work: `git diff HEAD --name-only`
+From those signals, draft 1–5 proposals. Bias toward drafting; the senior reviewer (Step 2) prunes the weak ones. If the scan finds nothing actionable (no recent commits, clean tree, no conversation signal), say so plainly and stop — no proposals, no Step 2 dispatch.
 
-`{context}` = concise narrative of these five points. If all empty (all-success): context = point 4; proposals are forward-looking improvements.
-
-**Either signal absent → Sub-mode B2 (fresh session).** Run the full assessment below — clean working tree is NOT a terminal state; it is the normal starting point for forward-looking proposals.
-
-Mandatory inputs (collect ALL — do not stop early):
-1. In-flight: `git diff HEAD --name-only` (uncommitted) and `git log <base>..HEAD --oneline` (unmerged)
-2. Recent landed work: `git log -10 --oneline` — what just shipped, what it implies for follow-ups
-3. Conversation context: what was the user just working on? What did they build, fix, migrate, or defer? What was explicitly listed as out-of-scope, deferred, or "left to user"?
-4. Surfaced follow-ups: untested new code, undocumented new features, unpushed commits, TODOs introduced, rollback artifacts (e.g. `_backups/`), feature flags awaiting cleanup
-
-Then document: what's broken, missing, suboptimal, untested, or deferred; root causes; constraints. `{context}` = full findings text.
-
-**Empty-result discipline:** if your assessment returns zero proposals, you must explicitly justify each input above as "checked, nothing actionable" before concluding. A clean `git diff` alone is NOT sufficient justification — items 2–4 must also be checked. Bias toward drafting proposals; let the senior reviewer prune the weak ones.
+`{context}` = concise findings narrative covering points 1–3.
 
 ---
 
@@ -81,107 +74,19 @@ Then document: what's broken, missing, suboptimal, untested, or deferred; root c
 
 Draft only — no TaskCreate yet.
 
-**Triage — choose execution path:**
+**Routing (binding, decided silently — never ask the user):**
+- **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
+- **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
-Express requires ALL of: ≤3 proposals; all scope=small; no DB/schema/migration/shared-config; no proposal touches >3 files; no API contract changes.
-
-**Safety scan (overrides scope labels):**
-- File pattern: `*.sql`, `*migration*`, `*schema*`, `*alembic*`, `*flyway*`, `*knex*`, `*prisma*`, `*.env.*`, `*config/*`, `*settings.*`
-- Keyword in `What`: `migrate`, `migration`, `schema`, `column`, `table`, `database`, `config`, `flag`, `env`, `feature flag`
-- Any match → Standard. Print: `Triage override → Standard: migration/schema keyword detected in proposal #N ("[keyword]")`
-
-If Express (no safety match) → print `Express path — N proposals` → continue to Express Lightweight Review.
-If Standard → continue to **Step 0**.
+The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees with a Merge task. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
 
 ---
 
-### Express Lightweight Review
+### Step 2 — Review Agent (Branch B only)
 
-Foreground review agent. Substitute `{existing_backlog_filtered}` (ALL in_progress + 20 most recent pending) and `{proposals}`.
+**Skip this step entirely on Branch A** (plan was already reviewed before `ExitPlanMode`). Branch A proceeds directly to Step 3 with proposals, plan-derived sequencing hints, and the plan's Verification section as the regression seed.
 
-**Lightweight reviewer prompt** (paste verbatim):
-```
-You are validating N small proposals before direct execution.
-
-## Existing Backlog
-{existing_backlog_filtered}
-
-## Proposals
-{proposals}
-
-For EACH proposal answer three questions:
-- Duplicate of existing task? yes/no
-- Prep work required before this can safely execute? yes/no
-- Logical dependency on another proposal in this list? (proposal B requires proposal A's output to function) yes/no
-
-If ANY answer is yes → respond with: ESCALATE: [reason]
-If all answers are no for every proposal → respond with: APPROVED FOR EXPRESS
-```
-
-**ESCALATE:** print reason → switch to Standard at Step 0 with the existing proposals; do NOT re-run Step 1.
-**APPROVED FOR EXPRESS:** continue.
-
-### Express Execution
-
-1. **Pre-flight staging check** (if git): `git status` → stage relevant unstaged/untracked files (`git add <files>`, never `-A`).
-2. **Checkpoint commit:** if no `.git` or clean tree → skip; else `git commit -m "checkpoint: pre-execution state"`, note SHA. On mid-way failure: `git reset --hard <checkpoint-SHA>`.
-3. **Per proposal in order** (no waves, no phase tracking, no worktrees — main workspace):
-   - Create the task (description format: `references/run-agent-description.md`, but drop the worktree-specific Execution-context fields since Express runs in main workspace)
-   - Mark `in_progress`
-   - Run as foreground Agent
-   - On success: `git commit -m "task-N: [title]"`, mark completed, next
-   - On failure: `git reset --hard <checkpoint-SHA>`, print Express Halted report, stop
-
-   One-at-a-time create+run limits orphan exposure to ≤1 task on mid-way failure.
-
-   No `addBlockedBy` — APPROVED guarantees no prep tasks and no logical deps.
-
-**Express completion report:**
-
-On success:
-```
-## Express Execution Complete
-Branch: <current branch>
-Proposals executed: N
-  ✓ task-1: [title] — <commit sha>
-  ✓ task-2: [title] — <commit sha>
-Checkpoint: <sha>
-```
-
-On halt:
-```
-## Express Execution Halted
-Failed at: task-N — [title]
-  [error details from agent]
-Completed before failure:
-  ✓ task-1: [title]
-Rolled back to checkpoint SHA: <sha>
-```
-
----
-
-### Step 0 — Phase Tracking (Standard only)
-
-**Task API preflight:** `TaskList`. If errors:
-- Print: `Task API unavailable: [error]`
-- Print: `Standard path requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
-- STOP. No review dispatch. No tasks created.
-
-If TaskList succeeds, create 3 phase tasks:
-
-| Subject | activeForm |
-|---------|------------|
-| Phase 1: Get the plan | Reading plan or assessing learnings → drafting proposals... |
-| Phase 2: Senior engineer review | Senior engineer reviewing proposals... |
-| Phase 3: Git prep → task graph execution | Wiring task graph and executing via dependency order... |
-
-Mark Phase 1 `completed` immediately (Step 1 already happened). Mark each later phase `in_progress` at start, `completed` at end.
-
----
-
-### Step 2 — Review Agent (Standard)
-
-Mark Phase 2 `in_progress`. Print:
+Print:
 ```
 ---
 **Dispatching senior engineer review** (N proposals)
@@ -193,7 +98,7 @@ Mark Phase 2 `in_progress`. Print:
 Agent `description`: `"Senior engineer review — evaluating N improvement proposals"`.
 
 Substitutions:
-- `{context}` → Branch A: full plan file content | Branch B: full findings text
+- `{context}` → full findings text
 - `{proposals}` → markdown table from Step 1
 - `{existing_backlog_filtered}` → ALL in_progress + 20 most recent pending (NOT full backlog)
 
@@ -211,37 +116,13 @@ Substitutions:
   ~ Trivial N — #2 #5 (no prep/validation generated)
 ```
 
-Reviewer's output is the sole source of truth. Mark Phase 2 `completed`.
-
-**Review Confirmation Gate** (after changelog, before Step 3):
-
-If `Removed N > 0` OR `Added N > 0` OR `Promoted N > 0`:
-- Print full changelog with per-item details (titles of added/removed/promoted)
-- PAUSE. Print exactly: `Review agent changed the proposals. Type "proceed" to continue to task graph construction, or "cancel" to halt.`
-- Wait for user input.
-- `cancel` (or any non-"proceed"): print final proposals-as-reviewed list and stop. Do NOT begin task graph.
-- `proceed`: continue.
-
-If only `Kept N`: auto-proceed.
+Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no confirmation gate.
 
 ---
 
-### Step 3 — Build the Task Graph (Standard)
+### Step 3 — Build the Task Graph
 
-Mark Phase 3 `in_progress`.
-
-**Git repo init guard** (before Pass 1):
-```
-No git repo:
-  git init
-  Create README.md: "# [project-name]\nInitialized [date]"
-  git add README.md
-  git commit -m "Initial commit"
-  Capture: branch name + HEAD SHA — used in task descriptions
-  Print: "Git repo initialized"
-```
-
-Required: task descriptions need valid branch + SHA.
+**Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /execute-plan.` Plan execution does not bootstrap repos.
 
 **Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
@@ -303,7 +184,7 @@ End with:
 
 **Run agent:**
 7. Each `Run agent: task-N` blocked by its `Create worktree: task-N` (trivial run-agents skip — per contract)
-8. Logical DEPENDS ON constraints from reviewer → applied to `Run agent` tasks
+8. Logical DEPENDS ON constraints → applied to `Run agent` tasks. Source: Branch A — plan's "step N requires step M" sequencing hints from Step 1; Branch B — reviewer output.
 
 **Merge — one global linear chain:**
 9. Each `Merge: task-N` blocked by its `Run agent: task-N`
@@ -313,14 +194,14 @@ End with:
 11. `Regression: [scope]` blocked by the last Merge in the global chain. Runs in main workspace after all merges (no worktree, no create-wt).
     → Fallback: if no Merge tasks exist (all-trivial plan), block by the last run-agent in creation order.
 
-**Regression task description:**
+**Regression task description** (source: Branch A → plan's Verification section; Branch B → reviewer output):
 ```
 ## Purpose
 Final regression suite — confirms no regressions across all merged changes.
 
 ## What to do
-Run: [runner from reviewer output]
-Confirm: [regression areas from reviewer output]
+Run: [runner from plan Verification or reviewer output]
+Confirm: [regression areas from plan Verification or reviewer output]
 All tests must pass. If any fail: investigate, attempt fix, rerun.
 Do NOT return until suite passes or failure is confirmed unresolvable.
 
@@ -330,7 +211,7 @@ End with:
   NOTES: [list any failing tests and attempted fixes, or "all tests passed"]
 ```
 
-Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-output titles to Pass 1 IDs.
+Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, match reviewer-output titles to Pass 1 IDs.
 
 **Print final task graph:**
 ```markdown
@@ -347,7 +228,7 @@ Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-ou
 
 ---
 
-### Step 4 — Execute Task Graph (Standard)
+### Step 4 — Execute Task Graph
 
 **Task-type contract** (authoritative — sections below cite this; do not duplicate inline):
 
@@ -359,7 +240,6 @@ Skip `addBlockedBy` for any task whose blockers list is empty. Match reviewer-ou
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace | no                   |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   | n/a                  |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) | n/a                  |
-| Phase / Express     | type=phase / express        | n/a            | n/a        | —       | (excluded from resume scan)     | n/a                   | n/a                  |
 
 **Initialize session state** (once):
 ```
@@ -426,7 +306,7 @@ After recovery, enter execution loop normally.
       async Tasks       = create-wt                   (background Tasks with embedded bash, parallel batch)
       isolated agents   = run-agent (Isolation: native worktree)   (Agent dispatch with isolation: "worktree")
       trivial agents    = run-agent (Isolation: none (trivial))    (foreground Agent, main workspace, no isolation flag)
-      standard agents   = merge, regression           (foreground Agent, main workspace)
+      serial agents     = merge, regression           (foreground Agent, main workspace)
 3b. Inline (git-prep) immediately and sequentially:
       - Run the git command
       - Success → mark completed
@@ -438,7 +318,7 @@ After recovery, enter execution loop normally.
       - Any failure → halt, report; do not dispatch its run-agent
 3d. Dispatch agents:
       - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree
-      - Trivial + standard agents (merge, regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
+      - Trivial + serial agents (merge, regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
 4.  Wait for all agent tasks to complete
 5.  Parse validation — before acting on ANY agent result:
       Scan from the LAST occurrence of "STATUS:" in the response — everything from there to end-of-response is the STATUS block. No "STATUS:" anywhere → treat as FAILURE_TYPE: partial_change.
@@ -480,7 +360,7 @@ After recovery, enter execution loop normally.
           Do NOT auto-dispatch successful Merges. Do NOT roll back automatically. Wait for user.
       Merge agent result:
         - STATUS: success or conflict_resolved → mark Merge completed (unblocks next in chain)
-        - STATUS: failure or malformed (no recognized STATUS) → halt the merge chain, do NOT mark completed. Print the standard halt report with Worktree: N/A and Reason: merge failure (NOTES from agent, or "malformed result"). The branch from the prior run-agent remains for inspection. Successful in-flight run-agents drain per the run-agent failure rule above before halting.
+        - STATUS: failure or malformed (no recognized STATUS) → halt the merge chain, do NOT mark completed. Print the halt report (see "On failure" in Completion reporting) with Worktree: N/A and Reason: merge failure (NOTES from agent, or "malformed result"). The branch from the prior run-agent remains for inspection. Successful in-flight run-agents drain per the run-agent failure rule above before halting.
         - STATUS: conflict_needs_user →
             Call TaskUpdate on the stalled Merge task to append:
               ## CONFLICT STATE (pending resolution)
@@ -492,7 +372,7 @@ After recovery, enter execution loop normally.
             Print: "Merge stalled — conflict queued and persisted to task. Continuing parallel work."
       Regression agent result:
         - On success: mark Regression completed — execution fully done
-        - On failure: print the standard halt report (Worktree row omitted per contract), pause for user resolution
+        - On failure: print the halt report (see "On failure" in Completion reporting; Worktree row omitted per contract), pause for user resolution
 
 7.  If pending_conflicts non-empty AND no new tasks dispatched this iteration:
       Surface all stalled merges together:
@@ -579,8 +459,6 @@ Options:
 
 "Blocked by this failure": from the failed task ID, recursively collect tasks whose `Blocked by` includes it or any already-collected ID. Topological order, closest dependents first.
 
-Mark Phase 3 `completed` when all tasks reach `completed`.
-
 ---
 
 ## Iron Law
@@ -589,9 +467,9 @@ Mark Phase 3 `completed` when all tasks reach `completed`.
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
 
 **Pass / wiring discipline:**
-- **No TaskCreate before review completes (Express or Standard).**
+- **No TaskCreate on Branch B before the senior review completes.** Branch A's plan was already reviewed before `ExitPlanMode`; TaskCreate may begin after Step 1.
 - **Do NOT begin execution before Pass 2 wiring is complete.**
-- **Do NOT skip Step 4 (Standard path) — every approved task executes immediately after wiring.**
+- **Do NOT skip Step 4 — every approved task executes immediately after wiring.**
 - **Do NOT skip `addBlockedBy` because tasks "seem independent" — Pass 2 wires all deps before execution.**
 
 **Dispatch discipline:**
@@ -602,15 +480,9 @@ Mark Phase 3 `completed` when all tasks reach `completed`.
 - **Do NOT halt the entire execution loop on conflict_needs_user — only the merge chain stalls. Continue dispatching independent run-agent tasks.**
 - **Do NOT halt on a stuck task without first checking: is its blocker actually completed?**
 
-**Express discipline:**
-- **Do NOT use Express path if any proposal involves DB, schema, migration, or shared config changes.**
-- **Do NOT skip the checkpoint commit on Express path.**
-- **Express path is NOT a shortcut past correctness — the lightweight reviewer can and will escalate.**
-- **ESCALATE from Express means switch to Standard, not retry Express.**
-
 **Behavior:**
 - **Agents MUST bias toward action:** diagnose obstacles, fix them, continue. Maximum 3 distinct attempts per obstacle. Stop only on genuine fatality or after 3 failed attempts.
-- **Do NOT exit Branch B with an empty proposals table on the basis of a clean working tree alone.** B2 requires checking recent landed work, conversation context, and surfaced follow-ups before concluding "nothing to propose." Bias toward drafting; the senior reviewer prunes.
+- **Branch B: bias toward drafting proposals.** Recent commits, uncommitted changes, and conversation context together feed the scan — clean `git diff` alone is not a terminal state. Let the senior reviewer prune; do not pre-prune by being conservative.
 - **Do NOT skip the review agent on error — retry. A failed review is not an approved review.**
 - **Do NOT use `git add -A` for the checkpoint — stage by name to avoid pulling unrelated state.**
 - **When in doubt whether a task needs worktree isolation, create one. An unnecessary worktree costs one git branch; missing isolation risks workspace corruption.**

@@ -11,6 +11,7 @@ description: |
   - Any plan file needs review (GAS or non-GAS)
 
   NOT for: Code review of existing files (use /gas-review or /review-fix)
+model: sonnet
 allowed-tools: all
 ---
 
@@ -90,9 +91,10 @@ Apply a 3-layer review: general quality, code-change quality, and GAS specializa
      subagent_type = "general-purpose",
      model = "sonnet",
      # Three-tier model system (2026-04-12):
-     #   Opus   — L1-Advisory-Structural, Senior Critics A/B (multi-hop reasoning, holistic judgment)
-     #   Sonnet — classifiers, fast-path evaluators, L1-Blocking, L1-Advisory-Process,
-     #            L2 clusters, gas/node/ui evaluators, consolidator, intent questions
+     #   Orchestrator thread — Sonnet (model: frontmatter; was Opus-by-inheritance before 2026-04-12)
+     #   Opus   — Senior Critics A/B only (holistic strategic/procedural judgment; explicit model="opus" override)
+     #   Sonnet — orchestrator + classifiers, fast-path evaluators, L1-Blocking, L1-Advisory-Structural,
+     #            L1-Advisory-Process, L2 clusters, gas/node/ui evaluators, consolidator, intent questions
      #   Haiku  — epilogue presence checks (Q-E1/Q-E2), skill-learnings foreground,
      #            research query derivation, research background agents
      # Phase 2 spike: Haiku inverted HAS_EXISTING_INFRA concept (2/3 wrong); Sonnet got 3/3 right.
@@ -1597,7 +1599,7 @@ DO:
   --- Sonnet per spike 2026-04-12 (73% agreement, 0 adversarial regressions, Q-G21 binary gate PASS): Q-G20, Q-G21, Q-G22, Q-G23, Q-G24, Q-G25 ---
   l1_advisory_structural_config = Task(
     subagent_type = "general-purpose",
-    model = "sonnet",
+    model = "opus",
     name = "l1-advisory-structural-p" + pass_count,
     prompt = """
       You are evaluating a plan for abstract/structural quality (Layer 1 Gate 2/3: 6 questions).

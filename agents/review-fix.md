@@ -114,8 +114,9 @@ Wait for ALL background agents to complete.
 3. **Git Operations**:
    Skip if `read_only=true`, `commit_mode="none"`, or `final_status="NEEDS_REVISION"`.
    
-   - **Stage**: If `"commit"`, stage all `target_files`. If `"pr"`, stage only files actually modified by reviewers.
-   - **Commit**: `git commit -m "review-fix: <task_name>: apply corrections ([total_critical] critical, [total_advisory] advisory)"`
+   - **Pre-flight index check**: run `git diff --cached --name-status`. Collect any `R`/`D`/`A` entries not in `target_files` as `pre_staged_entries` — include them in the commit unchanged (preserves caller's `git mv`/`git rm` operations).
+   - **Stage**: If `"commit"`, stage all `target_files`. If `"pr"`, stage only files actually modified by reviewers. Always include `pre_staged_entries`.
+   - **Commit**: `git commit -m "review-fix: <task_name>: apply corrections ([total_critical] critical, [total_advisory] advisory)\n[If pre_staged_entries non-empty]: Pre-staged entries from caller: <list>"`
    - **PR (if "pr")**: `git push`, `gh pr create`, `gh pr merge --squash`.
 
 ## Step 5: Report
