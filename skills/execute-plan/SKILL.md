@@ -298,6 +298,10 @@ Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, matc
 
 ### Step 4 — Execute Task Graph
 
+**Mode-aware execution guards (binding):**
+- `Mode == live` → run the loop exactly as specified below: real git-prep commands, real create-wt background Tasks, real run-agent / merge / regression Agent dispatches.
+- `Mode != live` → run the **simulated execution loop** against the in-memory ledger from Step 3. Same partition logic, same parallelism rules; every dispatch is replaced with a print + a happy-path simulated result, and the loop marks ledger entries as virtually `completed`. The wiring integrity check below runs against the ledger. The resume check is **skipped** in dry-run (no real `in_progress` ever exists).
+
 **Task-type contract** (authoritative — sections below cite this; do not duplicate inline):
 
 | Task type           | Identity                    | Has create-wt? | Has Merge? | Asserts | Resume method                   | Dispatch lane         | Halt: show worktree? |
@@ -526,6 +530,93 @@ Options:
 ```
 
 "Blocked by this failure": from the failed task ID, recursively collect tasks whose `Blocked by` includes it or any already-collected ID. Topological order, closest dependents first.
+
+---
+
+**Simulated execution loop (dry-run / dry-run-analyze only)** — runs in place of the live execution loop above:
+
+```
+state = ledger from Step 3                  (every entry status = pending)
+iteration = 0
+while ledger has incomplete entries:
+  iteration += 1
+  ready = [entry for entry in ledger if all blocker IDs are completed]
+  if not ready:
+    print "[DRY] STUCK at iteration K — N entries with unsatisfied blockers:"
+    for each stuck entry: print "  #DRY-N <subject> blocked by #DRY-X(<status>) ..."
+    halt — this is a wiring violation. Do not continue past Step 4.
+  partition ready into:
+    inline           = git-prep
+    async batch      = create-wt
+    isolated agents  = run-agent (Isolation: native worktree)
+    trivial agents   = run-agent (Isolation: none (trivial))
+    serial agents    = merge, regression  (dispatch at most ONE per iteration, FIFO)
+  print "Iteration K — would dispatch in parallel:"
+    inline:           [DRY-A, DRY-B, ...] git-prep
+    async batch:      [DRY-C, ...] create-wt
+    isolated agents:  [DRY-D, ...] run-agent (worktree)
+    trivial agents:   [DRY-E, ...] run-agent (trivial)
+    serial agent:     [DRY-F]      merge|regression  (only one)
+  for each dispatched entry, emit the per-verb [DRY] print line from the Modes
+    substitution table, with the simulated happy-path result. For run-agent
+    (worktree) results, populate the corresponding Merge entry's description
+    via the Pass 2 ledger-mutation rule (print `[DRY] would TaskUpdate ...`).
+  mark every dispatched entry status = completed in the ledger
+  (serial agents: only the one dispatched is marked; the rest re-queue next iteration)
+```
+
+Track and emit at end:
+- `Total iterations: K`
+- `Peak parallel dispatches: M (in iteration X)` — total dispatched in the largest iteration
+- `Peak parallel run-agents: P` — largest count of worktree+trivial run-agents in any iteration
+
+---
+
+**Dry-Run Report (printed at end of Step 4, dry-run / dry-run-analyze only):**
+
+```
+## Dry-Run Report
+Mode: <dry-run|dry-run-analyze>
+Branch: <A|B>
+Plan file: <path|none>
+Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
+
+### Proposals (N)
+<the proposals table from Step 1>
+
+### Simulated Task Backlog (N entries)
+| ID     | Type      | Subject                          | Blocked by | Isolation         |
+|--------|-----------|----------------------------------|------------|-------------------|
+| DRY-1  | git-prep  | Pre-flight staging check         | —          | n/a               |
+| DRY-7  | run-agent | Refactor auth                    | DRY-6      | native worktree   |
+| ...
+
+#### Full faux-Task descriptions
+For each ledger entry, print:
+  --- #DRY-N (<type>): <subject> ---
+  Blocked by: <comma-separated DRY IDs, or "—">
+  Description:
+  <full description text exactly as it would have been written to TaskCreate.description>
+
+### Wiring Integrity
+<PASS — N tasks verified | violation list from the Step 4 wiring integrity check>
+
+### Simulated Execution Trace
+Iteration 1 — inline: [DRY-1] git-prep (Pre-flight staging check)
+Iteration 2 — inline: [DRY-2] git-prep (Checkpoint commit)
+Iteration 3 — inline: [DRY-3] git-prep (Propagate checkpoint SHA)
+Iteration 4 — inline: [DRY-4] git-prep (Setup .worktrees)
+Iteration 5 — async batch: [DRY-5, DRY-6, DRY-7] create-wt (parallel)
+Iteration 6 — isolated agents: [DRY-8, DRY-9, DRY-10] run-agent (parallel)
+Iteration 7 — serial: [DRY-11] merge
+Iteration 8 — serial: [DRY-12] merge
+...
+Total iterations: K
+Peak parallel dispatches: M (in iteration X)
+Peak parallel run-agents: P
+```
+
+In `dry-run` mode, stop after printing the Dry-Run Report. In `dry-run-analyze` mode, continue to the analyzer dispatch (next subsection).
 
 ---
 
