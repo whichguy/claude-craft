@@ -24,11 +24,12 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
 - Every task in the simulated backlog must reach `completed` in the simulated trace. Orphans (never dispatched) → BLOCKING.
 - No cycles — the trace must terminate. If the simulated loop reported STUCK, that is BLOCKING.
 - The Wiring Integrity section says PASS. If it lists violations, mirror them as BLOCKING findings.
+  Note: In the self-merge model, the valid asserts are 3, 4, 5, 6. Assert 1 and Assert 2 no longer exist — do not flag their absence.
 
 ### 2. Dependency completeness
-- Every run-agent (worktree) task should be wired to a Merge task that is blocked by it (Assert 1 already covers presence; check the chain ordering).
-- Logical DEPENDS ON hints from the plan should be honored: if proposal #N said "requires #M", verify the ledger has the run-agent for #N blocked by the merge for #M.
-- The global Merge chain must be strictly serial — each merge blocked by the previous merge. ADVISORY if you see two merges that could legitimately run in parallel (rare).
+- Every worktree run-agent task description must contain `Target branch:` and `Merge lock:` fields with non-placeholder values (Assert 6 covers this; restate any violation as BLOCKING).
+- Logical DEPENDS ON hints from the plan should be honored: if proposal #N said "requires #M", verify the ledger has BOTH the create-wt AND run-agent for #N blocked by the run-agent for #M.
+- There is no global Merge chain in the self-merge model — run-agents self-merge sequentially via the DEPENDS ON dependency graph. If two run-agents appear to run in parallel without a DEPENDS ON relationship and they touch the same file, flag ADVISORY (see dimension 6).
 
 ### 3. Missing tasks
 - If a proposal in the proposals table did NOT generate a run-agent ledger entry, flag BLOCKING (unless reviewer marked it Removed).
