@@ -151,6 +151,7 @@ const INTERNAL_ONLY_EXEMPTIONS = new Set([
 const USER_FACING_NO_REFS_OK = new Set([
     // Skills invoked by topic, not dispatched
     'enable-abilities',
+    'execute-plan',
     'form990',
     'make-slides',
     'slack-tag',
