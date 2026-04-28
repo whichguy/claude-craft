@@ -1,5 +1,5 @@
 ---
-name: execute-plan
+name: schedule-plan-tasks
 description: Use after a plan is approved in planning mode, OR after learnings have been gathered in session — converts either into self-contained tasks and executes them as a dependency-ordered task graph with native worktree isolation. Sub-agent prompts (full reviewer, run-agent description) are loaded just-in-time from references/.
 ---
 
@@ -58,7 +58,7 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 
 Print the active mode banner once:
 ```
-## execute-plan — Mode: <live|dry-run|dry-run-analyze>
+## schedule-plan-tasks — Mode: <live|dry-run|dry-run-analyze>
 ```
 For dry-run / dry-run-analyze, also print:
 ```
@@ -70,7 +70,7 @@ Initialize an empty in-memory task ledger when `Mode != live`. Assign IDs `DRY-1
 
 `TaskList`. If errors:
 - Print: `Task API unavailable: [error]`
-- Print: `execute-plan requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
+- Print: `schedule-plan-tasks requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
 - STOP. No review dispatch. No tasks created.
 
 If TaskList succeeds, continue. Narrate progress in plain prose — do not create phase-tracking tasks.
@@ -179,7 +179,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 ### Step 3 — Build the Task Graph
 
-**Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /execute-plan.` Plan execution does not bootstrap repos.
+**Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /schedule-plan-tasks.` Plan execution does not bootstrap repos.
 
 **Mode-aware verb guards (binding for both passes):**
 - `Mode == live` → call `TaskCreate` / `TaskUpdate` for real, exactly as today.
@@ -548,7 +548,7 @@ Substitution:
 VERDICT: <READY-TO-EXECUTE | NEEDS-FIXES> — <summary>
 ```
 
-Stop after printing findings. Do not auto-promote dry-run results to live mode — the user re-invokes `/execute-plan` (no flag) when ready.
+Stop after printing findings. Do not auto-promote dry-run results to live mode — the user re-invokes `/schedule-plan-tasks` (no flag) when ready.
 
 ---
 
