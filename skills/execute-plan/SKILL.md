@@ -356,7 +356,11 @@ After recovery, enter execution loop normally.
       - Poll TaskList until each create-wt reaches completed/failed
       - Any failure → halt, report; do not dispatch its run-agent
 3d. Dispatch agents:
-      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree
+      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree.
+        Before dispatching each isolated run-agent: extract the `Target branch:` value from
+        its task description, substitute it for `[TARGET_BRANCH]` in the self-merge wrapper
+        (see **Worktree run-agent dispatch wrapper** below), and append the substituted wrapper
+        verbatim to the task description when calling Agent(). Do not paraphrase the wrapper.
       - Trivial + serial agents (regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
 4.  Wait for all agent tasks to complete
 5.  Parse validation — before acting on ANY agent result:
@@ -372,6 +376,8 @@ After recovery, enter execution loop normally.
       Run agent result:
         - On success (ACTION: none): self-merge was performed inside the agent. Mark completed directly.
         - On failure: read FAILURE_TYPE and ACTION block.
+          NOTE: for conflict_needs_user (self-merge failure), the agent already created an
+          investigation Task via TaskCreate — it appears in the backlog for the user to action.
           DRAIN FIRST: finish processing all other results in this batch before halting.
           For each successful co-dispatched agent: mark completed (their changes are already self-merged to the target branch).
           For each failed co-dispatched agent: collect FAILURE_TYPE + NOTES.
@@ -440,6 +446,97 @@ git worktree list | grep -q task-N && echo "STATUS: success — .worktrees/task-
 Substitute `[TARGET_BRANCH]` with the `Target branch` value captured at Pass 1 start.
 
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
+
+---
+
+**Worktree run-agent dispatch wrapper (appended to every isolated run-agent prompt at step 3d):**
+
+Substitute `[TARGET_BRANCH]` with the `Target branch:` value from the task description before appending. `WORKTREE_PATH` and `WORKTREE_BRANCH` are resolved at runtime — the agent is already running inside the worktree.
+
+```
+---
+## Self-merge and completion (orchestrator-injected)
+
+After committing your changes (## Before return: commit), run the self-merge below.
+Do not skip — STATUS: success means the branch is already merged and the worktree removed.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+TARGET_BRANCH="[TARGET_BRANCH]"
+WORKTREE_PATH=$(pwd)
+WORKTREE_BRANCH=$(git branch --show-current)
+MAX_RETRIES=5
+
+attempt=0
+while [ $attempt -lt $MAX_RETRIES ]; do
+  attempt=$((attempt + 1))
+
+  git rebase "$TARGET_BRANCH"
+  if [ $? -ne 0 ]; then
+    git rebase --abort
+    exit 2  # true conflict — not retryable
+  fi
+
+  cd "$REPO_ROOT"
+  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $TARGET_BRANCH"
+  if [ $? -eq 0 ]; then
+    git worktree remove "$WORKTREE_PATH" --force
+    git branch -d "$WORKTREE_BRANCH"
+    exit 0
+  fi
+
+  git merge --abort
+  cd "$WORKTREE_PATH"
+  sleep $((attempt * 3))
+done
+exit 1  # retries exhausted
+```
+
+**On exit 0 (success):** report:
+```
+STATUS: success
+ACTION: none
+NOTES: [files changed, what was accomplished; merge complete, worktree removed]
+```
+
+**On exit 1 or 2 (failure):** before reporting, create an investigation task:
+```
+TaskCreate(
+  subject: "Investigate merge failure: <this task's subject>",
+  description: |
+    ## Intention
+    <copy the ## Purpose section from your task description>
+
+    ## What finished
+    <list every file changed and committed before the self-merge was attempted>
+
+    ## What is incomplete
+    <list any work steps from ## What to do that did not complete, or "all work committed">
+
+    ## What failed
+    Exit code: <1 = retries exhausted | 2 = rebase conflict>
+    Attempt count: <N of MAX_RETRIES>
+    Error output: <paste the relevant git rebase / git merge error lines>
+
+    ## Context
+    Worktree: <full absolute path — output of: echo $WORKTREE_PATH>
+    Branch: <WORKTREE_BRANCH>
+    Target branch: [TARGET_BRANCH]
+    Checkpoint SHA: <from your task description's Checkpoint SHA field>
+)
+```
+
+Then report:
+```
+STATUS: failure
+FAILURE_TYPE: conflict_needs_user
+ACTION: preserve_worktree
+WORKTREE: <full absolute path>
+BRANCH: <worktree branch>
+NOTES: [exit <code>; rebase conflict or retries exhausted; Target branch: [TARGET_BRANCH]]
+```
+---
+```
 
 ---
 

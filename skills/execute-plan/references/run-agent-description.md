@@ -76,62 +76,6 @@ From your current working directory (the worktree root):
 Do NOT use `git add -A` — only stage files this task modified.
 If this task made no file changes (e.g. read-only analysis), skip the commit and note it.
 
-## Self-merge
-
-After the commit succeeds, execute the self-merge. Do not skip this — the orchestrator expects STATUS: success to mean the branch is already merged and the worktree removed.
-
-Substitute before running:
-- `[Target branch]` → the value from `Target branch:` in Execution context
-- `[Worktree path]` → absolute path to this worktree directory
-- `[Worktree branch]` → the branch you committed to (e.g. task-6-branch)
-
-```bash
-REPO_ROOT=$(git -C "[Worktree path]" rev-parse --show-toplevel)
-TARGET_BRANCH="[Target branch]"
-WORKTREE_PATH="[Worktree path]"
-WORKTREE_BRANCH="[Worktree branch]"
-MAX_RETRIES=5
-
-attempt=0
-while [ $attempt -lt $MAX_RETRIES ]; do
-  attempt=$((attempt + 1))
-
-  # Step 1 — Rebase onto latest target
-  cd "$WORKTREE_PATH"
-  git rebase "$TARGET_BRANCH"
-  if [ $? -ne 0 ]; then
-    git rebase --abort
-    echo "STATUS: failure"
-    echo "FAILURE_TYPE: conflict_needs_user"
-    echo "ACTION: preserve_worktree"
-    echo "WORKTREE: $WORKTREE_PATH"
-    echo "BRANCH: $WORKTREE_BRANCH"
-    echo "NOTES: Rebase onto $TARGET_BRANCH failed at attempt $attempt — true code conflict. Target branch: $TARGET_BRANCH"
-    exit 1
-  fi
-
-  # Step 2 — Merge; retry if another agent merged concurrently between our rebase and this merge
-  cd "$REPO_ROOT"
-  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $TARGET_BRANCH"
-  if [ $? -eq 0 ]; then
-    git worktree remove "$WORKTREE_PATH" --force
-    git branch -d "$WORKTREE_BRANCH"
-    exit 0
-  fi
-
-  git merge --abort
-  sleep $((attempt * 3))
-done
-
-echo "STATUS: failure"
-echo "FAILURE_TYPE: conflict_needs_user"
-echo "ACTION: preserve_worktree"
-echo "WORKTREE: $WORKTREE_PATH"
-echo "BRANCH: $WORKTREE_BRANCH"
-echo "NOTES: Exceeded $MAX_RETRIES rebase+merge attempts. Target branch: $TARGET_BRANCH"
-exit 1
-```
-
 ## Return when done
 
 On SUCCESS (worktree tasks), end with:
