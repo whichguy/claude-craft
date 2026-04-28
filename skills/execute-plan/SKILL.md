@@ -59,11 +59,17 @@ git log $CKPT..HEAD --oneline | grep -qE "task-[0-9]+:"
 
 `{context}` = concise narrative of these five points. If all empty (all-success): context = point 4; proposals are forward-looking improvements.
 
-**Either signal absent → Sub-mode B2 (fresh session).** Scope of "what's in flight":
-- Uncommitted (`git diff HEAD --name-only`)
-- Unmerged (`git log <base>..HEAD --oneline`)
+**Either signal absent → Sub-mode B2 (fresh session).** Run the full assessment below — clean working tree is NOT a terminal state; it is the normal starting point for forward-looking proposals.
 
-Don't re-explore beyond this. Document: what's broken/missing/suboptimal; root causes; constraints. `{context}` = full findings text.
+Mandatory inputs (collect ALL — do not stop early):
+1. In-flight: `git diff HEAD --name-only` (uncommitted) and `git log <base>..HEAD --oneline` (unmerged)
+2. Recent landed work: `git log -10 --oneline` — what just shipped, what it implies for follow-ups
+3. Conversation context: what was the user just working on? What did they build, fix, migrate, or defer? What was explicitly listed as out-of-scope, deferred, or "left to user"?
+4. Surfaced follow-ups: untested new code, undocumented new features, unpushed commits, TODOs introduced, rollback artifacts (e.g. `_backups/`), feature flags awaiting cleanup
+
+Then document: what's broken, missing, suboptimal, untested, or deferred; root causes; constraints. `{context}` = full findings text.
+
+**Empty-result discipline:** if your assessment returns zero proposals, you must explicitly justify each input above as "checked, nothing actionable" before concluding. A clean `git diff` alone is NOT sufficient justification — items 2–4 must also be checked. Bias toward drafting proposals; let the senior reviewer prune the weak ones.
 
 ---
 
@@ -604,6 +610,7 @@ Mark Phase 3 `completed` when all tasks reach `completed`.
 
 **Behavior:**
 - **Agents MUST bias toward action:** diagnose obstacles, fix them, continue. Maximum 3 distinct attempts per obstacle. Stop only on genuine fatality or after 3 failed attempts.
+- **Do NOT exit Branch B with an empty proposals table on the basis of a clean working tree alone.** B2 requires checking recent landed work, conversation context, and surfaced follow-ups before concluding "nothing to propose." Bias toward drafting; the senior reviewer prunes.
 - **Do NOT skip the review agent on error — retry. A failed review is not an approved review.**
 - **Do NOT use `git add -A` for the checkpoint — stage by name to avoid pulling unrelated state.**
 - **When in doubt whether a task needs worktree isolation, create one. An unnecessary worktree costs one git branch; missing isolation risks workspace corruption.**
