@@ -211,11 +211,10 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 1. **FIRST: `Read references/run-agent-description.md`** — load the verbatim template.
 2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`. Do not paraphrase.
 
-**Passing `Target branch` and `Merge lock` into worktree run-agent descriptions (binding):** At Pass 1 start, capture once:
+**Passing `Target branch` into worktree run-agent and create-wt descriptions (binding):** At Pass 1 start, capture once:
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
-- `Merge lock` = `<output of git rev-parse --show-toplevel>/.git/claude-merge.lock`
 
-Substitute these into every worktree run-agent task description **and every create-wt task description** when creating them. These values are NEVER `[placeholder]` — they are always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
+Substitute this into every worktree run-agent task description and every create-wt task description when creating them. This value is NEVER `[placeholder]` — it is always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
 
 **Create worktree task:** the description is the bash block in "Create worktree task prompt format" below — that bash block IS the description. No prose form.
 
@@ -312,8 +311,8 @@ For every Regression task (zero or one in graph):
   → Violation: "Regression task #N is not wired to the final run-agent in the chain. Pass 2 Rule 11 is incomplete."
 
 For every run-agent task with Isolation: native worktree:
-  Assert 6: The description contains literal `Target branch:` and `Merge lock:` fields, and neither value is `[placeholder]` or empty.
-  → Violation: "Run-agent #N is missing Target branch or Merge lock field, or has [placeholder] value. Pass 1 substitution is incomplete."
+  Assert 6: The description contains a literal `Target branch:` field with a non-empty, non-placeholder value.
+  → Violation: "Run-agent #N is missing Target branch field or has [placeholder] value. Pass 1 substitution is incomplete."
 ```
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
@@ -581,7 +580,7 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 - **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
 - **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent` (with self-merge) so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
-- **Every worktree run-agent description must carry a `Target branch` and `Merge lock` field.** These are substituted at Pass 1 time (never placeholders) and verified by Assert 6 before execution begins.
+- **Every worktree run-agent description must carry a `Target branch` field.** This is substituted at Pass 1 time (never a placeholder) and verified by Assert 6 before execution begins.
 
 **Reference loading (binding):**
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
