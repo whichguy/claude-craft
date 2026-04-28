@@ -63,101 +63,26 @@ From those signals, draft 1–5 proposals. Bias toward drafting; the senior revi
 
 Draft only — no TaskCreate yet.
 
-**Senior reviewer routing (binding):**
+**Routing (binding, decided silently — never ask the user):**
 - **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
-- **Branch B (no plan file):** proposals were freshly drafted from session state — they need vetting. Proceed through Step 2.
+- **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
-**Triage — choose execution path:**
-
-Express requires ALL of: ≤3 proposals; all scope=small; no DB/schema/migration/shared-config; no proposal touches >3 files; no API contract changes.
-
-**Safety scan (overrides scope labels):**
-- File pattern: `*.sql`, `*migration*`, `*schema*`, `*alembic*`, `*flyway*`, `*knex*`, `*prisma*`, `*.env.*`, `*config/*`, `*settings.*`
-- Keyword in `What`: `migrate`, `migration`, `schema`, `column`, `table`, `database`, `config`, `flag`, `env`, `feature flag`
-- Any match → Standard. Print: `Triage override → Standard: migration/schema keyword detected in proposal #N ("[keyword]")`
-
-If Express (no safety match) → print `Express path — N proposals` → continue to Express Lightweight Review.
-If Standard → continue to **Step 0**.
+The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees with a Merge task. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
 
 ---
 
-### Express Lightweight Review
-
-Foreground review agent. Substitute `{existing_backlog_filtered}` (ALL in_progress + 20 most recent pending) and `{proposals}`.
-
-**Lightweight reviewer prompt** (paste verbatim):
-```
-You are validating N small proposals before direct execution.
-
-## Existing Backlog
-{existing_backlog_filtered}
-
-## Proposals
-{proposals}
-
-For EACH proposal answer three questions:
-- Duplicate of existing task? yes/no
-- Prep work required before this can safely execute? yes/no
-- Logical dependency on another proposal in this list? (proposal B requires proposal A's output to function) yes/no
-
-If ANY answer is yes → respond with: ESCALATE: [reason]
-If all answers are no for every proposal → respond with: APPROVED FOR EXPRESS
-```
-
-**ESCALATE:** print reason → switch to Standard at Step 0 with the existing proposals; do NOT re-run Step 1.
-**APPROVED FOR EXPRESS:** continue.
-
-### Express Execution
-
-1. **Pre-flight staging check** (if git): `git status` → stage relevant unstaged/untracked files (`git add <files>`, never `-A`).
-2. **Checkpoint commit:** if no `.git` or clean tree → skip; else `git commit -m "checkpoint: pre-execution state"`, note SHA. On mid-way failure: `git reset --hard <checkpoint-SHA>`.
-3. **Per proposal in order** (no waves, no phase tracking, no worktrees — main workspace):
-   - Create the task (description format: `references/run-agent-description.md`, but drop the worktree-specific Execution-context fields since Express runs in main workspace)
-   - Mark `in_progress`
-   - Run as foreground Agent
-   - On success: `git commit -m "task-N: [title]"`, mark completed, next
-   - On failure: `git reset --hard <checkpoint-SHA>`, print Express Halted report, stop
-
-   One-at-a-time create+run limits orphan exposure to ≤1 task on mid-way failure.
-
-   No `addBlockedBy` — APPROVED guarantees no prep tasks and no logical deps.
-
-**Express completion report:**
-
-On success:
-```
-## Express Execution Complete
-Branch: <current branch>
-Proposals executed: N
-  ✓ task-1: [title] — <commit sha>
-  ✓ task-2: [title] — <commit sha>
-Checkpoint: <sha>
-```
-
-On halt:
-```
-## Express Execution Halted
-Failed at: task-N — [title]
-  [error details from agent]
-Completed before failure:
-  ✓ task-1: [title]
-Rolled back to checkpoint SHA: <sha>
-```
-
----
-
-### Step 0 — Task API Preflight (Standard only)
+### Step 0 — Task API Preflight
 
 `TaskList`. If errors:
 - Print: `Task API unavailable: [error]`
-- Print: `Standard path requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
+- Print: `execute-plan requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
 - STOP. No review dispatch. No tasks created.
 
-If TaskList succeeds, continue to Step 2. Narrate progress in plain prose — do not create phase-tracking tasks.
+If TaskList succeeds, continue. Narrate progress in plain prose — do not create phase-tracking tasks.
 
 ---
 
-### Step 2 — Review Agent (Standard, Branch B only)
+### Step 2 — Review Agent (Branch B only)
 
 **Skip this step entirely on Branch A** (plan was already reviewed before `ExitPlanMode`). Branch A proceeds directly to Step 3 with proposals, plan-derived sequencing hints, and the plan's Verification section as the regression seed.
 
@@ -195,7 +120,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 ---
 
-### Step 3 — Build the Task Graph (Standard)
+### Step 3 — Build the Task Graph
 
 **Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /execute-plan.` Plan execution does not bootstrap repos.
 
@@ -303,7 +228,7 @@ Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, matc
 
 ---
 
-### Step 4 — Execute Task Graph (Standard)
+### Step 4 — Execute Task Graph
 
 **Task-type contract** (authoritative — sections below cite this; do not duplicate inline):
 
@@ -315,7 +240,6 @@ Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, matc
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace | no                   |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   | n/a                  |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) | n/a                  |
-| Express             | type=express                | n/a            | n/a        | —       | (excluded from resume scan)     | n/a                   | n/a                  |
 
 **Initialize session state** (once):
 ```
@@ -543,9 +467,9 @@ Options:
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
 
 **Pass / wiring discipline:**
-- **No TaskCreate before review completes (Express or Standard).**
+- **No TaskCreate on Branch B before the senior review completes.** Branch A's plan was already reviewed before `ExitPlanMode`; TaskCreate may begin after Step 1.
 - **Do NOT begin execution before Pass 2 wiring is complete.**
-- **Do NOT skip Step 4 (Standard path) — every approved task executes immediately after wiring.**
+- **Do NOT skip Step 4 — every approved task executes immediately after wiring.**
 - **Do NOT skip `addBlockedBy` because tasks "seem independent" — Pass 2 wires all deps before execution.**
 
 **Dispatch discipline:**
@@ -555,12 +479,6 @@ Options:
 - **Do NOT use `run_in_background` for run-agent tasks. Create-wt is the only exception — it uses background dispatch deliberately so all ready worktrees spin up in parallel.**
 - **Do NOT halt the entire execution loop on conflict_needs_user — only the merge chain stalls. Continue dispatching independent run-agent tasks.**
 - **Do NOT halt on a stuck task without first checking: is its blocker actually completed?**
-
-**Express discipline:**
-- **Do NOT use Express path if any proposal involves DB, schema, migration, or shared config changes.**
-- **Do NOT skip the checkpoint commit on Express path.**
-- **Express path is NOT a shortcut past correctness — the lightweight reviewer can and will escalate.**
-- **ESCALATE from Express means switch to Standard, not retry Express.**
 
 **Behavior:**
 - **Agents MUST bias toward action:** diagnose obstacles, fix them, continue. Maximum 3 distinct attempts per obstacle. Stop only on genuine fatality or after 3 failed attempts.
