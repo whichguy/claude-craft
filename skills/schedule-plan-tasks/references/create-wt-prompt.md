@@ -1,6 +1,11 @@
 # Create-Wt Task Description (verbatim)
 
-This file holds the verbatim bash template that the orchestrator inserts as the `TaskCreate.description` for every create-wt task in Step 3 of execute-plan. Orchestrator must `Read` this file, substitute `[TARGET_BRANCH]` with the target branch value captured at Pass 1 start and `task-N` / `task-N-branch` with the actual task identifiers, then paste verbatim into `TaskCreate.description`. Do not paraphrase.
+This file holds the verbatim bash template that the orchestrator inserts as the `TaskCreate.description` for every create-wt task in Step 3 of execute-plan. Orchestrator must `Read` this file, make the substitutions below, then paste verbatim into `TaskCreate.description`. Do not paraphrase.
+
+**Substitutions (all required before pasting):**
+- `[TARGET_BRANCH]` → target branch value captured at Pass 1 start
+- `task-N` / `task-N-branch` → actual task identifiers
+- Section 3 (Symlink external resources): substitute each `/absolute/path/to/resource` and `resource-name` with the actual paths identified in Step 1's external-resource scan. **If the task has no external resources (`External resources: none` in its run-agent description), omit section 3 entirely** — do not emit a check or symlink for a placeholder path.
 
 Orchestrator reads only the `STATUS:` line from the agent's output. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
 

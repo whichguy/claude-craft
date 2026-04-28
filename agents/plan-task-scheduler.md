@@ -223,7 +223,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 Substitute this into every worktree run-agent task description and every create-wt task description when creating them. This value is NEVER `[placeholder]` — it is always known at Pass 1 time. Assert 6 catches any remaining placeholders before execution.
 
-**Create worktree task:** **FIRST: Read `~/.claude/skills/schedule-plan-tasks/references/create-wt-prompt.md`** — load the verbatim bash template. Substitute `[TARGET_BRANCH]` and `task-N` per task, then paste verbatim as the TaskCreate description. Do not paraphrase.
+**Create worktree task:** **FIRST: Read `~/.claude/skills/schedule-plan-tasks/references/create-wt-prompt.md`** — load the verbatim bash template. Apply all substitutions per the file's header instructions: `[TARGET_BRANCH]`, `task-N`/`task-N-branch`, and section 3 resource paths (from Step 1's external-resource scan). If the task's run-agent description says `External resources: none`, omit section 3 entirely before pasting. Do not paraphrase.
 
 ---
 
