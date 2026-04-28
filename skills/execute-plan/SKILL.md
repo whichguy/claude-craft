@@ -222,18 +222,7 @@ If only `Kept N`: auto-proceed.
 
 ### Step 3 — Build the Task Graph (Standard)
 
-**Git repo init guard** (before Pass 1):
-```
-No git repo:
-  git init
-  Create README.md: "# [project-name]\nInitialized [date]"
-  git add README.md
-  git commit -m "Initial commit"
-  Capture: branch name + HEAD SHA — used in task descriptions
-  Print: "Git repo initialized"
-```
-
-Required: task descriptions need valid branch + SHA.
+**Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /execute-plan.` Plan execution does not bootstrap repos.
 
 **Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
