@@ -298,26 +298,22 @@ Skip `addBlockedBy` for any task whose blockers list is empty. On Branch B, matc
 Scan task list and assert. On any failure: print violation and halt — do not proceed.
 
 ```
-For every Run agent task:
-  Assert 1: Exactly one Merge task exists whose blockers list includes this run-agent task ID. (trivial run-agents excluded — per contract)
-  → Violation: "Run agent #N has no corresponding Merge task blocked by it. Pass 2 is incomplete."
-
-For every Merge task:
-  Assert 2: That Merge task is blocked by exactly one run-agent task (its own pairing).
-  → Violation: "Merge #N is not blocked by any run-agent task. Pass 2 is incomplete."
-
 For every Create worktree task for a main or validation proposal (not a prep-task worktree):
-  Assert 3: Its blockers include at least one Merge task (last prep merge, or last main merge for validation).
-  → Exception: If the proposal has no prep tasks, this worktree is blocked only by Setup .worktrees — valid; skip Assert 3.
-  → Violation: "Create worktree #N for [main/validation] has no Merge blocker. It may branch from stale HEAD."
+  Assert 3: Its blockers include at least one run-agent task (last prep run-agent, or last main run-agent for validation). This ensures the worktree branches from HEAD after prior self-merges complete.
+  → Exception: If the proposal has no prep tasks and no DEPENDS ON, blocked only by Setup .worktrees — valid; skip Assert 3.
+  → Violation: "Create worktree #N for [main/validation] has no run-agent blocker. It may branch from stale HEAD."
 
 For every run-agent task description:
   Assert 4: The description does not contain the literal string "[placeholder]" in the Checkpoint SHA field.
   → Violation: "Checkpoint SHA propagation incomplete — run-agent #N still has [placeholder]. Re-run the Propagate checkpoint SHA task."
 
 For every Regression task (zero or one in graph):
-  Assert 5: It is blocked by exactly one task — the last Merge in the global chain, or (all-trivial fallback) the last run-agent in creation order.
-  → Violation: "Regression task #N is not wired to the final task in the chain. Pass 2 Rule 11 is incomplete."
+  Assert 5: It is blocked by exactly one task — the last run-agent in the dependency chain (sink node of the DEPENDS ON graph; or last run-agent in creation order if no ordering constraints).
+  → Violation: "Regression task #N is not wired to the final run-agent in the chain. Pass 2 Rule 11 is incomplete."
+
+For every run-agent task with Isolation: native worktree:
+  Assert 6: The description contains literal `Target branch:` and `Merge lock:` fields, and neither value is `[placeholder]` or empty.
+  → Violation: "Run-agent #N is missing Target branch or Merge lock field, or has [placeholder] value. Pass 1 substitution is incomplete."
 ```
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
@@ -582,6 +578,7 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 - **Branch B dry-run skips all git commands and uses conversation context only.** The senior reviewer still dispatches for real — its output is the proposals going into the task graph.
 - **Dry-run always generates the full worktree chain per proposal.** Trivial classification from the reviewer is overridden — every proposal gets `create-wt → run-agent → merge` so the dependency graph is complete and reflects the actual isolated execution structure.
 - **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
+- **Every worktree run-agent description must carry a `Target branch` and `Merge lock` field.** These are substituted at Pass 1 time (never placeholders) and verified by Assert 6 before execution begins.
 
 **Reference loading (binding):**
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
