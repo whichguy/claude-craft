@@ -183,6 +183,15 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 **Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /execute-plan.` Plan execution does not bootstrap repos.
 
+**Mode-aware verb guards (binding for both passes):**
+- `Mode == live` → call `TaskCreate` / `TaskUpdate` for real, exactly as today.
+- `Mode != live` → DO NOT call `TaskCreate` or `TaskUpdate`. Instead:
+  - For each TaskCreate: print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: []}` to the simulated backlog ledger using the next sequential `DRY-N` id. Use the same `description` text the live path would have written (run-agent description from `references/run-agent-description.md`, create-wt bash block, Merge/Regression description templates).
+  - For each TaskUpdate `addBlockedBy`: print `[DRY] would addBlockedBy #DRY-N ← #DRY-M`, mutate the ledger entry's `blocked_by` array.
+  - For each TaskUpdate description fill-in: print `[DRY] would TaskUpdate #DRY-N description: <text>`, mutate the ledger entry's `description`.
+- The Pass 1 ticker output is identical in both modes — it just shows `#DRY-N` instead of real `#80` IDs in dry-run.
+- Substitute `#DRY-N` everywhere a real task ID would have appeared in subsequent print output (graph table, execution trace).
+
 **Pass 1 — Create ALL tasks** (git-prep first, then per-original-task chains). Print ticker.
 
 ```
