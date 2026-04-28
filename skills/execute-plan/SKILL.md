@@ -13,6 +13,17 @@ Two entry points, one execution engine. **Branch A** reads an approved plan file
 
 ---
 
+### Step 0 — Task API Preflight
+
+`TaskList`. If errors:
+- Print: `Task API unavailable: [error]`
+- Print: `execute-plan requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
+- STOP. No review dispatch. No tasks created.
+
+If TaskList succeeds, continue. Narrate progress in plain prose — do not create phase-tracking tasks.
+
+---
+
 ### Step 1 — Get the Plan
 
 **Plan-mode preflight (binding):** if invoked while plan mode is active, call `ExitPlanMode` immediately after confirming the plan file is readable (Branch A) or as the first action of this step (Branch B). The plan is already approved — do not stall waiting for the user to exit. If `ExitPlanMode` is unavailable (host is not in plan mode), this is a no-op.
@@ -68,17 +79,6 @@ Draft only — no TaskCreate yet.
 - **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
 The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees with a Merge task. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
-
----
-
-### Step 0 — Task API Preflight
-
-`TaskList`. If errors:
-- Print: `Task API unavailable: [error]`
-- Print: `execute-plan requires TaskCreate, TaskUpdate, TaskList. Halting before review agent dispatch.`
-- STOP. No review dispatch. No tasks created.
-
-If TaskList succeeds, continue. Narrate progress in plain prose — do not create phase-tracking tasks.
 
 ---
 
@@ -306,7 +306,7 @@ After recovery, enter execution loop normally.
       async Tasks       = create-wt                   (background Tasks with embedded bash, parallel batch)
       isolated agents   = run-agent (Isolation: native worktree)   (Agent dispatch with isolation: "worktree")
       trivial agents    = run-agent (Isolation: none (trivial))    (foreground Agent, main workspace, no isolation flag)
-      standard agents   = merge, regression           (foreground Agent, main workspace)
+      serial agents     = merge, regression           (foreground Agent, main workspace)
 3b. Inline (git-prep) immediately and sequentially:
       - Run the git command
       - Success → mark completed
@@ -318,7 +318,7 @@ After recovery, enter execution loop normally.
       - Any failure → halt, report; do not dispatch its run-agent
 3d. Dispatch agents:
       - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree
-      - Trivial + standard agents (merge, regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
+      - Trivial + serial agents (merge, regression) share the main workspace and must serialize. Dispatch at most ONE main-workspace agent per loop iteration (FIFO from ready queue). Worktree dispatches above run in parallel alongside the single main-workspace agent.
 4.  Wait for all agent tasks to complete
 5.  Parse validation — before acting on ANY agent result:
       Scan from the LAST occurrence of "STATUS:" in the response — everything from there to end-of-response is the STATUS block. No "STATUS:" anywhere → treat as FAILURE_TYPE: partial_change.
@@ -360,7 +360,7 @@ After recovery, enter execution loop normally.
           Do NOT auto-dispatch successful Merges. Do NOT roll back automatically. Wait for user.
       Merge agent result:
         - STATUS: success or conflict_resolved → mark Merge completed (unblocks next in chain)
-        - STATUS: failure or malformed (no recognized STATUS) → halt the merge chain, do NOT mark completed. Print the standard halt report with Worktree: N/A and Reason: merge failure (NOTES from agent, or "malformed result"). The branch from the prior run-agent remains for inspection. Successful in-flight run-agents drain per the run-agent failure rule above before halting.
+        - STATUS: failure or malformed (no recognized STATUS) → halt the merge chain, do NOT mark completed. Print the halt report (see "On failure" in Completion reporting) with Worktree: N/A and Reason: merge failure (NOTES from agent, or "malformed result"). The branch from the prior run-agent remains for inspection. Successful in-flight run-agents drain per the run-agent failure rule above before halting.
         - STATUS: conflict_needs_user →
             Call TaskUpdate on the stalled Merge task to append:
               ## CONFLICT STATE (pending resolution)
@@ -372,7 +372,7 @@ After recovery, enter execution loop normally.
             Print: "Merge stalled — conflict queued and persisted to task. Continuing parallel work."
       Regression agent result:
         - On success: mark Regression completed — execution fully done
-        - On failure: print the standard halt report (Worktree row omitted per contract), pause for user resolution
+        - On failure: print the halt report (see "On failure" in Completion reporting; Worktree row omitted per contract), pause for user resolution
 
 7.  If pending_conflicts non-empty AND no new tasks dispatched this iteration:
       Surface all stalled merges together:
