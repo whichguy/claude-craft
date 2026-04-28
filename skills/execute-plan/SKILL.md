@@ -87,6 +87,8 @@ If TaskList succeeds, continue. Narrate progress in plain prose — do not creat
 
 **Plan-mode preflight (binding):** if invoked while plan mode is active, call `ExitPlanMode` immediately after confirming the plan file is readable (Branch A) or as the first action of this step (Branch B). The plan is already approved — do not stall waiting for the user to exit. If `ExitPlanMode` is unavailable (host is not in plan mode), this is a no-op.
 
+**Mode-aware ExitPlanMode guard:** when `Mode != live`, do NOT call `ExitPlanMode` — print `[DRY] would ExitPlanMode` and stay in plan mode (truly side-effect-free). The rest of Step 1 (plan read, git context prime, TaskList, external resource scan) runs identically regardless of mode.
+
 **Git context prime** (skip all git commands if no `.git`, note "no git repo"):
 - `git log -1 --oneline` — last commit SHA + message
 - `git diff HEAD --name-only` — files currently modified
@@ -652,6 +654,11 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 ---
 
 ## Iron Law
+
+**Mode discipline (binding):**
+- **`Mode` is set in Step 0 BEFORE any side-effecting verb runs.** Once set, every TaskCreate / TaskUpdate / git mutation / Agent dispatch checks `Mode` and substitutes the dry-run print + ledger update when `Mode != live`.
+- **Dry-run never calls `ExitPlanMode`.** It is truly side-effect-free — the user stays in plan mode after the simulation.
+- **`dry-run-analyze` always loads `references/dry-run-analyzer.md` verbatim** before dispatching the analyzer Agent. Same reference-loading discipline as `reviewer-full.md` and `run-agent-description.md`.
 
 **Reference loading (binding):**
 - **Do NOT dispatch a sub-agent without first calling `Read` on its referenced prompt file. Paste verbatim into the Agent dispatch — paraphrasing is a correctness failure.**
