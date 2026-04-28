@@ -135,7 +135,7 @@ Draft only — no TaskCreate yet.
 - **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
 - **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
-The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees with a Merge task. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
+The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees and self-merge on completion. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
 
 ---
 
@@ -592,7 +592,7 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 **Dispatch discipline:**
 - **Do NOT dispatch a Run agent task before its Create worktree is `completed`.** Exception: trivial run-agents (`Isolation: none (trivial)`) have no Create worktree and dispatch directly once their other blockers are satisfied.
 - **Do NOT dispatch any Create worktree before `Propagate checkpoint SHA` is `completed`.**
-- **Do NOT run Merge tasks in parallel — each waits for the previous Merge.**
+- **Do NOT dispatch multiple worktree run-agents that touch the same file without a DEPENDS ON relationship** — their self-merges will race and likely conflict.
 - **Do NOT use `run_in_background` for run-agent tasks. Create-wt is the only exception — it uses background dispatch deliberately so all ready worktrees spin up in parallel.**
 - **Do NOT halt the entire execution loop on conflict_needs_user — only the merge chain stalls. Continue dispatching independent run-agent tasks.**
 - **Do NOT halt on a stuck task without first checking: is its blocker actually completed?**
