@@ -1,6 +1,6 @@
 # Run-Agent Task Description Template (verbatim)
 
-This file holds the verbatim description that the orchestrator inserts into every Run-agent task in Step 3 of the execute-plan skill. The orchestrator must `Read` this file in full and paste the description verbatim into `TaskCreate` — no paraphrasing.
+This file holds the verbatim description that the orchestrator inserts into every Run-agent task in Step 3 of the schedule-plan-tasks skill. The orchestrator must `Read` this file in full and paste the description verbatim into `TaskCreate` — no paraphrasing.
 
 Substitute placeholders per task:
 - `[Why this task exists — …]` — the specific finding or proposal it addresses
@@ -32,7 +32,7 @@ Working branch: [current branch name]
 Checkpoint SHA: [SHA from git prep checkpoint commit — use for rollback]
 Target branch: [branch this worktree was forked from — the merge destination]
 Isolation: native worktree (isolation: "worktree" on Agent dispatch)
-External resources: [absolute paths to test data, fixtures, or large files outside the git repo — see below]
+External resources: [absolute paths to test data, fixtures, or large files outside the git repo — listed in ## External resources]
 
 ## Directive
 Execute completely. Do not pause to ask for confirmation. Do not stop at the first

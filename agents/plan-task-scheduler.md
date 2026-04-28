@@ -267,10 +267,10 @@ End with:
 
 Skip `addBlockedBy` for any task whose blockers list is empty.
 
-**Title matching algorithm (binding) — Branch B only:** after the reviewer returns, map reviewer-output titles back to Pass 1 proposal IDs using normalized lowercase substring match (strip punctuation, compare lowercased tokens). Rules:
+**Title matching algorithm (binding) — Branch B only:** after the reviewer returns, map reviewer-output titles back to Pass 1 proposal IDs. Normalize both sides: lowercase, strip punctuation, split into tokens. A reviewer title **matches** a Pass 1 proposal if they share ≥2 tokens OR either title's token set is a subset of the other's. On ambiguity, prefer no-match (create a new entry) over a false match. Rules:
 - If a reviewer title matches a Pass 1 proposal → use that Pass 1 ID for wiring.
 - If a reviewer title is new (added or split by reviewer, not present in the proposals table) → create a new ledger entry for it; assign the next available ID.
-- If a reviewer title matches multiple Pass 1 proposals (reviewer merged them) → use the first matching Pass 1 ID; mark the other matched proposals as superseded (do not create their chains).
+- If a reviewer title matches multiple Pass 1 proposals (reviewer merged them) → use the first matching Pass 1 ID; mark the other matched proposals as superseded: add a ledger entry `{id: DRY-N, type: superseded, subject: "<original title>", blocked_by: []}` so they appear in the Dry-Run Report as superseded (not orphaned). Do not create their chains.
 
 **Print final task graph:**
 ```markdown
@@ -378,7 +378,13 @@ Query TaskList for `in_progress` tasks. None → skip to loop. Else execution wa
         - On success (ACTION: none): self-merge was performed inside the agent. Mark completed directly.
         - On failure: read FAILURE_TYPE and ACTION block.
           DRAIN FIRST: finish processing all other results in this batch before halting.
-          After full batch processed: if any failure, print halt report and stop the loop. Act on the failed task's ACTION:
+          After full batch processed: if any failure, call TaskCreate to create an investigation task:
+            subject: "Investigate merge failure: <the failed task's subject>"
+            description: read the failed agent's full response (above the STATUS: line) for: what was
+              accomplished, what was incomplete, the exit code and error output, and the worktree/branch/
+              checkpoint context. Structure the description with sections: ## Intention, ## What finished,
+              ## What is incomplete, ## What failed, ## Context (Worktree, Branch, Target branch, Checkpoint SHA).
+          Then print halt report and stop the loop. Act on the failed task's ACTION:
             preserve_worktree → leave the worktree at WORKTREE for user inspection
             discard_worktree  → git worktree remove <path> && git branch -d <branch>
             none              → trivial task, no worktree exists — skip cleanup

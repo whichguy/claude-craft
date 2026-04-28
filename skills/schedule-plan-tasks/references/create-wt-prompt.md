@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# 3. Symlink external resources (repeat for each)
+# 3. Symlink external resources (repeat both lines below for each resource)
 [ -e /absolute/path/to/resource ] || { echo "STATUS: failure — resource not found: /absolute/path/to/resource"; exit 1; }
 ln -s /absolute/path/to/resource .worktrees/task-N/resource-name
 

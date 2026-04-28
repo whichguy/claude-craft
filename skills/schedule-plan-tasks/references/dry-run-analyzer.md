@@ -1,6 +1,6 @@
 # Dry-Run Analyzer Prompt (verbatim)
 
-This file holds the verbatim prompt sent to the analyzer agent in Step 4 of the execute-plan skill when `Mode == dry-run-analyze`. The orchestrator must `Read` this file in full and paste the prompt verbatim into the Agent dispatch — no paraphrasing, no summarizing, no "improvements".
+This file holds the verbatim prompt sent to the analyzer agent in Step 4 of the schedule-plan-tasks skill when `Mode == dry-run-analyze`. The orchestrator must `Read` this file in full and paste the prompt verbatim into the Agent dispatch — no paraphrasing, no summarizing, no "improvements".
 
 Substitute these placeholders before dispatching:
 - `{report}` — the full Dry-Run Report just printed at end of Step 4 (proposals table, ordered task list with blocked-by/unblocks columns, dependency graph, full task descriptions, wiring integrity result)
@@ -33,7 +33,7 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
 ### 3. Missing tasks
 - If a proposal in the proposals table did NOT generate a run-agent ledger entry, flag BLOCKING (unless reviewer marked it Removed).
 - If the plan has a Verification section / Branch B reviewer suggested regression scope, but no Regression task is wired at the end of the chain → BLOCKING.
-- If a non-trivial proposal has no Create worktree + Merge chain → BLOCKING.
+- If a non-trivial proposal has no Create worktree + run-agent chain → BLOCKING.
 
 ### 4. Isolation classification
 - Trivial run-agents (`Isolation: none (trivial)`) should only be used for genuinely trivial proposals (rename, comment, single-line config). Inspect each trivial entry's subject + description.
@@ -42,14 +42,14 @@ Evaluate the report on these dimensions. For each finding, emit one row in the f
 
 ### 5. Regression coverage
 - If the plan / reviewer output names regression scope, the Regression task description must reference the right runner and scope. Empty NOTES or generic "run tests" → ADVISORY.
-- Regression must be blocked only by the final Merge in the global chain (or the last run-agent if all-trivial). If its `Blocked by` shows anything else, or if there are unmerged tasks with no regression gate → BLOCKING.
+- Regression must be blocked by all leaf-node run-agents (run-agents with no downstream DEPENDS ON). If its `Blocked by` is missing any leaf-node run-agent, or if there are run-agents with no regression gate → BLOCKING.
 
 ### 6. File-overlap risk
 - Check the task descriptions for shared file paths: if two run-agent tasks both mention the same file path in their descriptions, their merges will likely conflict → ADVISORY.
 - Three or more run-agents touching the same file → ADVISORY (consider serializing via DEPENDS ON).
 
 ### 7. Pass 2 wiring drift
-- Every Create worktree for a main/validation task must be blocked by at least one Merge (the last prep merge, or last main merge for validation). Assert 3 covers this; restate any violation.
+- Every Create worktree for a main/validation task must be blocked by at least one run-agent task (last prep run-agent for main; last main run-agent for validation). Assert 3 covers this; restate any violation.
 - A Create worktree blocked only by `Setup .worktrees` is valid only if the proposal has no prep tasks.
 
 ### 8. Plan-specific anti-patterns
