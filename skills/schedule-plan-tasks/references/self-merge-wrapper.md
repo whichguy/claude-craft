@@ -1,8 +1,8 @@
 # Worktree Run-Agent Self-Merge Wrapper (verbatim)
 
-This file holds the verbatim wrapper that the orchestrator appends to every isolated run-agent prompt in Step 4 of execute-plan. Orchestrator must `Read` this file, substitute `[TARGET_BRANCH]` with the `Target branch:` value from the task description, then append the wrapper (everything from the `---` below onward) verbatim to the Agent prompt. Do not paraphrase.
+**Appended only to Chain: none and Chain: tail tasks.** Do NOT append to Chain: head or Chain: link tasks — those commit to the chain branch and pass off to the next link.
 
----
+This file holds the verbatim wrapper that the orchestrator appends to isolated run-agent prompts where `Chain: none` or `Chain: tail` in Step 4. Orchestrator must `Read` this file, substitute `[TARGET_BRANCH]` with the `Target branch:` value from the task description, then append everything below the `---` separator verbatim to the Agent prompt. Do not paraphrase.
 
 ---
 ## Self-merge and completion (orchestrator-injected)
@@ -85,4 +85,3 @@ WORKTREE: <full absolute path>
 BRANCH: <worktree branch>
 NOTES: [exit <code>; rebase conflict or retries exhausted; Target branch: [TARGET_BRANCH]]
 ```
----
