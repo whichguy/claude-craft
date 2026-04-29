@@ -9,9 +9,10 @@ description: |
   - /schedule-plan-tasks is invoked
 
   **References:** JIT-loaded from `${CLAUDE_SKILL_DIR}/references/`
+allowed-tools: Bash, TaskCreate, TaskUpdate, TaskList, Agent, Read, Write, Edit, Glob, Grep
 ---
 
-# Plan Task Scheduler
+# schedule-plan-tasks
 
 Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer. Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Each run-agent merges its own changes back to the target branch after completing, using optimistic concurrency with rebase + retry.
 

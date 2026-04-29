@@ -131,3 +131,20 @@ describe('references/dry-run-analyzer.md', function () {
         expect(content.includes('standalone'), 'standalone').to.be.true;
     });
 });
+
+describe('cross-reference integrity', function () {
+    const skillPath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'SKILL.md');
+    const skill = fs.readFileSync(skillPath, 'utf8');
+
+    it('every reference file mentioned in SKILL.md exists on disk', function () {
+        const missing = [];
+        const refs = [...skill.matchAll(/\$\{CLAUDE_SKILL_DIR\}\/references\/([^\s\)`]+)/g)];
+        for (const m of refs) {
+            const name = m[1];
+            if (name.includes('*') || name.includes('?')) continue;
+            const fp = path.join(REFS, name);
+            if (!fs.existsSync(fp)) missing.push(name);
+        }
+        expect(missing, 'missing reference files').to.deep.equal([]);
+    });
+});
