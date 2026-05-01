@@ -246,7 +246,7 @@ Phase 2 — Wiring: Wire dependencies in parallel via a single response with M T
 
 Sequential TaskCreate is only required when the dependent task's description must literally reference the prerequisite's task_id — which should be avoided. Carry the relationship in TaskUpdate instead.
 
-**Git-prep (3 tasks):**
+**Git-prep (always exactly 3 tasks — never merge or collapse):**
 ```
 [git-prep 1/3] Task: Pre-flight staging check               → capture ID_preflight
 [git-prep 2/3] Task: Checkpoint commit                      → capture ID_checkpoint
@@ -286,6 +286,7 @@ Sequential TaskCreate is only required when the dependent task's description mus
 **`Target branch` capture (binding):**
  At the start of the creation pass, capture once:
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
+- **NEVER read Target branch from the plan file's Git Strategy section.** That section states the author's intended branch name; it has nothing to do with the current repo state. Even if the plan says `feat/xyz` or `chore/abc`, run `git branch --show-current` and use whatever branch is actually checked out.
 
 This command runs in both live and dry-run modes — it is read-only and not subject to the dry-run verb guard. Substitute into every worktree run-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
 
