@@ -17,16 +17,13 @@ Run these commands exactly. Report STATUS at the end.
 # All chain members (head, links, tail) share this single worktree.
 # Do NOT remove it after this step — the chain tail run-agent merges and cleans up.
 
-# 1. Create worktree
-git worktree add .worktrees/task-N -b task-N-branch HEAD
-
-# 2. Apply latest commits from target branch into the worktree
-#    (brings in any changes already merged since the worktree was forked)
-git -C .worktrees/task-N rebase [TARGET_BRANCH]
+# 1. Create worktree forked from [TARGET_BRANCH] by name (not HEAD).
+#    Forking by branch name guarantees this worktree starts from the exact tip of
+#    [TARGET_BRANCH], including all changes merged by upstream run-agents before
+#    this task was unblocked. Do not substitute HEAD here.
+git worktree add .worktrees/task-N -b task-N-branch [TARGET_BRANCH]
 if [ $? -ne 0 ]; then
-  git -C .worktrees/task-N rebase --abort
-  git worktree remove .worktrees/task-N --force 2>/dev/null || true
-  echo "STATUS: failure — rebase from [TARGET_BRANCH] into .worktrees/task-N failed"
+  echo "STATUS: failure — could not create worktree .worktrees/task-N from [TARGET_BRANCH]"
   exit 1
 fi
 

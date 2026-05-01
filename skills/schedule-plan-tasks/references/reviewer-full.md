@@ -23,13 +23,16 @@ You are a senior engineer reviewing improvement proposals.
 
 ## Your task
 
-Step A — Review each proposal:
+Step A — Review each proposal to ensure it is isolated, logical, and substantial:
 - Remove proposals that duplicate anything already in the backlog (completed, in_progress, or pending)
 - Remove proposals that are vague, redundant, or low-value
 - Add missing proposals the findings clearly call for
 - Reprioritize by impact/effort ratio (high impact, low effort first)
-- Split proposals that are too large to be a single task
 - Rewrite unclear proposals to be specific and actionable
+- **Size each proposal (The "Goldilocks" Rule):** a proposal must represent one logically substantial, isolated change (e.g., a feature slice, a bugfix, or a refactor) that can stand alone as a single coherent git commit.
+  - **Logical & Substantial:** It must be a complete unit of work, not a partial edit. It should ideally have its own `per-task` validation. If it can't be tested without another parallel task's output, they are likely too coupled and should be merged or serialized.
+  - **Too small:** if a proposal produces less than one coherent commit's worth of work (a single-line rename, adding one constant) and has no independent scope, merge it with a related proposal or mark it Trivial.
+  - **Too large / "Monster Tasks":** if a proposal contains 2+ independent workstreams that could run concurrently, split it. Isolation is paramount; smaller, focused tasks reduce merge conflict risk and improve reviewability. Use DEPENDS ON in the ordering constraints if one builds on the other's output.
 
 Step B — For each approved proposal:
 
@@ -60,17 +63,25 @@ For non-trivial proposals, answer in this order:
    Name each: "Post-[main task title]: [specific validation]"
 
 4. "Is a final regression task needed?"
-   - Yes if ANY proposal is `validation: deferred`, or if proposals interact
+   - Yes if ANY proposal is `validation: deferred`, if proposals interact, or if any DEPENDS ON was added in Step C to resolve a file collision (serialized tasks that share a file always require integrated regression)
    - No if all proposals are `validation: per-task` and independent
    If yes: name it "Regression: [scope — e.g., full auth suite]"
    It runs in the main workspace after all merges (no worktree).
 
-Step C — Identify logical dependencies only.
+Step C — Identify logical dependencies and shared-file structure.
 
-File collisions are not a concern — every task runs in its own git worktree. Worktrees provide full isolation; changes merge back to the branch when the task completes. Do NOT list file collision as an ordering constraint.
+Every task runs in its own git worktree. Touching the same file is NOT automatically a conflict — git rebase handles concurrent independent edits to different regions cleanly. Reason about the nature of each shared-file overlap:
 
-Identify only LOGICAL DEPENDENCIES:
-- **DEPENDS ON**: Task B logically requires Task A's output to function — B calls A's new function, uses A's output file as input, or requires A's migration to have completed. These must serialize.
+1. **Shared-file analysis:** For each file modified by two or more parallel proposals, classify:
+   - **Independent contributions** (each task adds distinct, non-overlapping content: a unique route mount, a separate config key, a different function): No action needed. Git handles it.
+   - **Shared structural prerequisite** (all parallel tasks need the same structural element — a router object, a base schema, an import block — to already exist before they can contribute): Add a parent prepare task that DEPENDS ON nothing (or existing prerequisites) and creates the shared element. All parallel tasks then DEPEND ON it.
+   - **Overlapping functionality** (two tasks modify the same region with semantically conflicting logic — same function body, same config key, same variable): Serialize with DEPENDS ON, or extract the conflicting region into its own proposal.
+
+2. **Logical Dependencies:** Identify where Task B logically requires Task A's output to function — B calls A's new function, uses A's output file as input, or requires A's migration to have completed. These must serialize using **DEPENDS ON**.
+
+For every DEPENDS ON, the reason must name the concrete artifact: a file path, directory, function name, schema object, or environment state — not a vague process description (e.g. write `"needs: Express in node_modules/"` not `"needs: install to complete"`). This reason is propagated directly into task descriptions and used by agents to verify preconditions before starting work.
+
+Do not list parallelizable sub-concerns within a single proposal as DEPENDS ON constraints — those are candidates for splitting the proposal (Step A sizing), not for sequencing tasks.
 
 Apply within each set: prep, main, validation.
 
@@ -91,11 +102,12 @@ Validation tasks (only if validation strategy = per-task):
 (or: none — deferred to final regression)
 
 === ORDERING CONSTRAINTS ===
-Logical dependencies only — file collision is not listed (worktrees handle it):
+Logical dependencies and collision fixes:
 
 Prep: [task B] DEPENDS ON [task A] — [reason: B needs A's migration output]
 Main: [task F] DEPENDS ON [task E] — [reason: F calls function E creates]
 Validation: [task J] DEPENDS ON [task I] — [reason: J needs I's seed data]
+Collision: [task Y] DEPENDS ON [task X] — [reason: avoid concurrent edit to [file]]
 (or: none for any set with no logical dependencies)
 
 === FINAL REGRESSION ===

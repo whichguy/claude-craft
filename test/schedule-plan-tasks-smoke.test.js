@@ -19,16 +19,19 @@ describe('skills/schedule-plan-tasks/SKILL.md', function () {
         expect(missing, 'chain detection markers').to.deep.equal([]);
     });
 
-    it('contains single topological pass with inline blockedBy', function () {
-        expect(content.includes('Single topological pass'), 'Single topological pass').to.be.true;
-        expect(content.includes('inline blockedBy'), 'inline blockedBy').to.be.true;
+    it('contains Two-phase task creation (Binding)', function () {
+        expect(content.includes('Two-phase task creation'), 'Two-phase task creation').to.be.true;
     });
 
-    it('contains Assert 3 through Assert 8', function () {
-        for (let i = 3; i <= 8; i++) {
+    it('contains Assert 3, 5, 6, 7, 8', function () {
+        for (let i of [3, 5, 6, 7, 8]) {
             const label = 'Assert ' + i;
             expect(content.includes(label), label + ' not found').to.be.true;
         }
+    });
+
+    it('does NOT contain Assert 4 (legacy propagate SHA rule removed)', function () {
+        expect(content.includes('Assert 4')).to.be.false;
     });
 
     it('contains FAILURE_TYPE: needs_split', function () {
@@ -39,11 +42,10 @@ describe('skills/schedule-plan-tasks/SKILL.md', function () {
         expect(content.includes('### Chains'), '### Chains').to.be.true;
     });
 
-    it('does NOT contain addBlockedBy (only legitimate TaskUpdate for Propagate)', function () {
-        // A count of 1 is acceptable — the single Propagate checkpoint SHA update
+    it('contains addBlockedBy (Phase 2 wiring pass)', function () {
         const matches = content.match(/addBlockedBy/g);
         const count = matches ? matches.length : 0;
-        expect(count, 'addBlockedBy occurrences: ' + count).to.be.at.most(1);
+        expect(count, 'addBlockedBy occurrences: ' + count).to.be.at.least(2);
     });
 });
 
@@ -106,10 +108,6 @@ describe('references/create-wt-prompt.md', function () {
     it('contains [ -e guard before symlink with resource-not-found error message', function () {
         expect(content.includes('-e'), '-e flag').to.be.true;
         expect(content.includes('resource not found'), 'resource not found message').to.be.true;
-    });
-
-    it('contains git worktree remove cleanup on rebase failure', function () {
-        expect(content.includes('git worktree remove'), 'git worktree remove').to.be.true;
     });
 });
 

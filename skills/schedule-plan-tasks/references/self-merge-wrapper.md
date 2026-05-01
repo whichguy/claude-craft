@@ -2,7 +2,7 @@
 
 **Appended only to Chain: none and Chain: tail tasks.** Do NOT append to Chain: head or Chain: link tasks — those commit to the chain branch and pass off to the next link.
 
-This file holds the verbatim wrapper that the orchestrator appends to isolated run-agent prompts where `Chain: none` or `Chain: tail` in Step 4. Orchestrator must `Read` this file, substitute `[TARGET_BRANCH]` with the `Target branch:` value from the task description, then append everything below the `---` separator verbatim to the Agent prompt. Do not paraphrase.
+This file holds the verbatim wrapper that the orchestrator appends to isolated run-agent prompts where `Chain: none` or `Chain: tail` in Step 4. Orchestrator must `Read` this file, substitute `[MERGE_TARGET]` with the task description's `MERGE_TARGET:` field value (equals `Target branch` for orchestrator-dispatched tasks; equals the parent agent's working branch for sub-tasks spawned within a run-agent), then append everything below the `---` separator verbatim to the Agent prompt. Do not paraphrase.
 
 ---
 ## Self-merge and completion (orchestrator-injected)
@@ -12,7 +12,7 @@ Do not skip — STATUS: success means the branch is already merged and the workt
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-TARGET_BRANCH="[TARGET_BRANCH]"
+MERGE_TARGET="[MERGE_TARGET]"
 WORKTREE_PATH=$(pwd)
 WORKTREE_BRANCH=$(git branch --show-current)
 MAX_RETRIES=5
@@ -21,14 +21,14 @@ attempt=0
 while [ $attempt -lt $MAX_RETRIES ]; do
   attempt=$((attempt + 1))
 
-  git rebase "$TARGET_BRANCH"
+  git rebase "$MERGE_TARGET"
   if [ $? -ne 0 ]; then
     git rebase --abort
     exit 2  # true conflict — not retryable
   fi
 
   cd "$REPO_ROOT"
-  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $TARGET_BRANCH"
+  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET"
   if [ $? -eq 0 ]; then
     git worktree remove "$WORKTREE_PATH" --force
     git branch -d "$WORKTREE_BRANCH"
@@ -71,8 +71,7 @@ TaskCreate(
     ## Context
     Worktree: <full absolute path — output of: echo $WORKTREE_PATH>
     Branch: <WORKTREE_BRANCH>
-    Target branch: [TARGET_BRANCH]
-    Checkpoint SHA: <from your task description's Checkpoint SHA field>
+    MERGE_TARGET: [MERGE_TARGET]
 )
 ```
 
@@ -83,5 +82,5 @@ FAILURE_TYPE: conflict_needs_user
 ACTION: preserve_worktree
 WORKTREE: <full absolute path>
 BRANCH: <worktree branch>
-NOTES: [exit <code>; rebase conflict or retries exhausted; Target branch: [TARGET_BRANCH]]
+NOTES: [exit <code>; rebase conflict or retries exhausted; MERGE_TARGET: [MERGE_TARGET]]
 ```

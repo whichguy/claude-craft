@@ -1,0 +1,19 @@
+{
+  "name": "my-node-server",
+  "version": "0.1.0",
+  "description": "Minimal Express server used as a fixture for schedule-plan-tasks e2e testing",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "mocha 'test/**/*.test.js' --timeout 5000",
+    "test:smoke": "mocha test/smoke.test.js --timeout 10000"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "chai": "^4.3.10",
+    "mocha": "^10.2.0",
+    "supertest": "^6.3.3"
+  }
+}

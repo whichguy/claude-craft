@@ -1,7 +1,7 @@
 ---
 name: schedule-plan-tasks
 description: |
-  Analyzes an approved plan and decomposes it into a dependency-ordered task graph using TaskCreate with inline blockedBy. Detects linear DEPENDS ON chains (shared worktree), identifies independent work streams (parallelized), and executes the full worktree-isolated run. Also handles Branch B (learnings from session context).
+  Analyzes an approved plan and decomposes it into a dependency-ordered task graph via a two-phase TaskCreate and TaskUpdate pass. Detects linear DEPENDS ON chains (shared worktree), identifies independent work streams (parallelized), and executes the full worktree-isolated run. Also handles Branch B (learnings from session context).
 
   **AUTOMATICALLY INVOKE** when:
   - ExitPlanMode hook triggers (PostToolUse)
@@ -44,14 +44,14 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 | Live verb                                                       | Dry-run behavior                                                                              |
 |-----------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
 | `ExitPlanMode`                                                  | skipped — print `[DRY] would ExitPlanMode`; stay in plan mode                                |
-| `TaskCreate`                                                    | skipped — append to in-memory task ledger with `blockedBy` inline; print `[DRY] would TaskCreate #DRY-N: <subject> (blockedBy: [DRY-M, …])` |
-| `TaskUpdate` (Merge description fill-in)                        | skipped — mutate ledger entry; print `[DRY] would TaskUpdate #DRY-N description`             |
+| `TaskCreate`                                                    | skipped — append to in-memory task ledger; print `[DRY] would TaskCreate #DRY-N: <subject>` |
+| `TaskUpdate` (Dependencies & Merge fill-in)                     | skipped — mutate ledger entry; print `[DRY] would TaskUpdate #DRY-N addBlockedBy=[...]` or `description` |
 | Git-prep execution (all inline git commands in Step 4)         | skipped entirely — not simulated, not printed; git context prime in Step 1 still runs        |
 | `git worktree add/remove`, `git merge`, `git branch -d`        | skipped entirely                                                                              |
 | Agent dispatch — run-agent, merge, regression                  | skipped entirely — no simulated happy-path results                                            |
 | Execution loop (Step 4 live loop)                               | skipped — replaced by Dry-Run Report                                                          |
 
-**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role}` built during the single topological pass with `blockedBy` set inline at creation. Source of truth for the wiring integrity check and the Dry-Run Report.
+**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role}` built during the creation and wiring phases. Source of truth for the wiring integrity check and the Dry-Run Report.
 
 ---
 
@@ -61,6 +61,8 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 - Args contain `--dry-run-analyze` → `Mode = dry-run-analyze`
 - Args contain `--dry-run` → `Mode = dry-run`
 - Otherwise → `Mode = live`
+
+**Plan path detection:** if args contain `--plan <path>`, capture `PlanPath = <path>` (absolute or relative to cwd). Otherwise `PlanPath = nil` (auto-discovery runs in Step 1).
 
 Print the active mode banner once:
 ```
@@ -107,10 +109,20 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 
 **Branch A — Plan file:**
 
-1. Read the approved plan file (path is in planning mode context, current session, or most recent `ls -t ~/.claude/plans/*.md | head -1`)
+1. Resolve the plan file path:
+   - If `PlanPath` is set (from `--plan <path>`): use it directly. Verify the file is readable; halt with `Plan file not found: <path>` if not.
+   - Otherwise: auto-discover — planning mode context, current session, or `ls -t ~/.claude/plans/*.md | head -1`.
 2. For each step, extract proposal: `What`=step title; `Why`=rationale/Context; `Scope`=small|medium|large
-3. Note files listed under each step → include in proposal context
-4. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; these drive chain detection and inline `blockedBy` wiring in the creation pass
+3. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; these drive chain detection and the two-phase creation/wiring pass
+4. **Output Mapping Pass (structural analysis):** For each proposal, note the files it expects to modify. Using the DEPENDS ON graph from step 3, identify parallel proposals (no dependency path between them) that touch the same file. For each overlap, reason through three cases — touching the same file is NOT automatically a conflict:
+
+   **Case A — Independent contributions:** Each parallel task adds distinct, non-overlapping content to a shared file (e.g., each adds its own unique route mount line, a distinct config key, a separate function). **No structural problem.** Git rebase handles concurrent appends to different regions. Continue as-is.
+
+   **Case B — Shared structural prerequisite:** Multiple parallel tasks all require a structural element in a shared file to already exist — e.g., a router object, a base schema, a config section, an import block. The element doesn't exist yet and each task would try to create it. **Extract it.** Add a parent prepare task (DEPENDS ON in step 3) that creates the prerequisite; the parallel tasks extend it. Key signal: "Does this shared-file overlap reveal a missing setup task that all children depend on?"
+
+   **Case C — Overlapping functionality:** Two or more parallel tasks modify the same region with semantically overlapping logic (same function body, same config key, same variable). These cannot be merged cleanly and represent a logical conflict. **Restructure.** Add DEPENDS ON to serialize them, or extract the shared region into a dedicated task.
+
+   Emit an advisory note for Case A, a structural suggestion for Case B, and a required restructuring notice for Case C. Do not abort for Cases A or B.
 5. Note plan's Verification section → seed for validation tasks
 6. `{context}` = full plan file content
 
@@ -215,59 +227,67 @@ Print chain assignments after detection:
 ```
 
 **Mode-aware verb guards (binding):**
-- `Mode == live` → call `TaskCreate` for real with inline `blockedBy`.
+- `Mode == live` → call `TaskCreate` and `TaskUpdate` for real.
 - `Mode != live` → DO NOT call `TaskCreate` or `TaskUpdate`. Instead:
-  - For each TaskCreate: print `[DRY] would TaskCreate #DRY-N: <subject> (blockedBy: [DRY-M, …])`, append `{id: DRY-N, type, subject, description, blocked_by: [...], chain_id, chain_role}` to the task ledger. Use the same `description` text the live path would have written (run-agent description from `${CLAUDE_SKILL_DIR}/references/run-agent-description.md`, create-wt bash block from `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md`, Regression template).
+  - **Reference files are still loaded in dry-run** — `run-agent-description.md` and `create-wt-prompt.md` must be Read before the creation pass using the same JIT protocol as live mode. All placeholder substitutions are performed: Target branch from `git branch --show-current`, Chain/Chain ID from detection output, working directory from worktree path, definition of done from proposal. The description stored in each ledger entry is the fully-substituted text, identical to what live mode would write into `TaskCreate`.
+  - For each TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: [], chain_id, chain_role}` to the task ledger.
+  - For each TaskUpdate (Phase 2 wiring): print `[DRY] would TaskUpdate #DRY-N addBlockedBy=[DRY-M, ...]`, mutate the ledger entry.
   - For each Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`, mutate the ledger entry.
-- The creation ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
+  - The creation ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
+
 
 **Trivial override (dry-run only, binding):** when `Mode != live`, ignore any `Trivial: yes` classification from the reviewer. Treat every proposal as a full non-trivial task — generate the complete `create-wt → run-agent` chain per proposal (or per chain: one create-wt for the whole chain).
 
-**Single topological pass — Create ALL tasks with inline `blockedBy`** (topological order: git-prep first, then chains and standalones ordered so all predecessors are created before dependents). Print ticker.
+**Two-phase task creation (Binding):**
 
-**Git-prep (4 tasks):**
+Phase 1 — Creation: Create ALL tasks in parallel via a single response with N TaskCreate calls. Do not embed upstream task_ids in the subject, description, or activeForm of any task. Capture the returned task_ids. Print creation ticker.
+
+Phase 2 — Wiring: Wire dependencies in parallel via a single response with M TaskUpdate calls, one per task that has prerequisites, each using addBlockedBy with the captured task_ids. Print wiring ticker.
+
+Sequential TaskCreate is only required when the dependent task's description must literally reference the prerequisite's task_id — which should be avoided. Carry the relationship in TaskUpdate instead.
+
+**Git-prep (3 tasks):**
 ```
-[git-prep 1/4] Task: Pre-flight staging check               blockedBy: []               → capture ID_preflight
-[git-prep 2/4] Task: Checkpoint commit                      blockedBy: [ID_preflight]   → capture ID_checkpoint
-[git-prep 3/4] Task: Propagate checkpoint SHA               blockedBy: [ID_checkpoint]  → capture ID_propagate
-[git-prep 4/4] Task: Setup .worktrees directory             blockedBy: [ID_propagate]   → capture ID_setup
+[git-prep 1/3] Task: Pre-flight staging check               → capture ID_preflight
+[git-prep 2/3] Task: Checkpoint commit                      → capture ID_checkpoint
+[git-prep 3/3] Task: Setup .worktrees directory             → capture ID_setup
 ```
+*Wire:* `ID_checkpoint` is blocked by `ID_preflight`; `ID_setup` is blocked by `ID_checkpoint`.
 
 **For each chain or standalone (topological order — predecessors before dependents):**
 
 *Chain (chain-K, N members):*
 ```
-[create-wt chain-K] Task: Create worktree chain-K           blockedBy: [ID_setup, <upstream tail IDs>]  → capture ID_cwt_K
-[run-agent head]    Task: Run agent: <head proposal>        blockedBy: [ID_cwt_K]                        → capture ID_head_K
-[run-agent link]    Task: Run agent: <link proposal>        blockedBy: [<previous run-agent ID>]         → capture ID_link_K
-[run-agent tail]    Task: Run agent: <tail proposal>        blockedBy: [<previous run-agent ID>]         → capture ID_tail_K
+[create-wt chain-K] Task: Create worktree chain-K           → capture ID_cwt_K
+[run-agent head]    Task: Run agent: <head proposal>        → capture ID_head_K
+[run-agent link]    Task: Run agent: <link proposal>        → capture ID_link_K
+[run-agent tail]    Task: Run agent: <tail proposal>        → capture ID_tail_K
 ```
-One `create-wt` per chain; chain-link and chain-tail proposals share the chain's worktree and have no create-wt of their own.
-`<upstream tail IDs>` = the tail or standalone run-agent IDs of any chains/standalones whose proposals this chain's head DEPENDS ON.
+*Wire (via TaskUpdate addBlockedBy):* `ID_cwt_K` is blocked by `ID_setup` AND all upstream run-agent IDs this chain depends on; `ID_head_K` is blocked by `ID_cwt_K`; `ID_link_K` is blocked by its preceding run-agent; `ID_tail_K` is blocked by its preceding run-agent.
 
 *Standalone (task-N):*
 ```
-[create-wt task-N]  Task: Create worktree task-N            blockedBy: [ID_setup, <upstream tail IDs>]  → capture ID_cwt_N
-[run-agent task-N]  Task: Run agent: <proposal>             blockedBy: [ID_cwt_N]                       → capture ID_sa_N
+[create-wt task-N]  Task: Create worktree task-N            → capture ID_cwt_N
+[run-agent task-N]  Task: Run agent: <proposal>             → capture ID_sa_N
 ```
-`<upstream tail IDs>` = tail/standalone run-agent IDs of any proposals this one DEPENDS ON.
+*Wire:* `ID_cwt_N` is blocked by `ID_setup` + upstream tails; `ID_sa_N` is blocked by `ID_cwt_N`.
 
 **Regression (if present):**
 ```
-[regression]        Task: Regression: <scope>               blockedBy: [all ID_tail_K…, all ID_sa_N…]
+[regression]        Task: Regression: <scope>               → capture ID_regression
 ```
-Regression is blocked by ALL chain-tail run-agents and ALL standalone run-agents. Chain-head and chain-link run-agents are NOT direct regression blockers.
+*Wire:* `ID_regression` is blocked by ALL chain-tail and standalone run-agents.
+**Regression Blocker Reduction (Binding):** Before generating the Regression task, identify any standalone or chain-tail node `R` that is reachable from another standalone or chain-tail node `S` via `DEPENDS ON` constraints (e.g., in a diamond topology). Remove the redundant direct `R -> regression` edge only if `S` runs a test scope that subsumes `R`'s output — i.e., `S` exercises the integrated result of `R`, not just its own isolated concern. If `S` does not validate `R`'s output, keep the direct edge so regression covers both.
 
 **Trivial run-agents:** create only the run-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Chain: none`. Chain tasks are never trivial.
 
-**No post-creation dependency updates.** All `blockedBy` deps are wired inline at `TaskCreate` time. The wiring integrity check (Step 4) is the only post-creation validation and makes no `TaskUpdate` calls.
-
 ---
 
-**`Target branch` capture (binding):** At the start of the creation pass, capture once:
+**`Target branch` capture (binding):**
+ At the start of the creation pass, capture once:
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
 
-Substitute into every worktree run-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
+This command runs in both live and dry-run modes — it is read-only and not subject to the dry-run verb guard. Substitute into every worktree run-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
 
 **Run-agent description (binding dispatch protocol):**
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/run-agent-description.md`** — load the verbatim template.
@@ -275,11 +295,13 @@ Substitute into every worktree run-agent task description and every create-wt de
    - Set `Chain:` to `none | head | link | tail` per the detection output.
    - Set `Chain ID:` to `chain-K` or `none`.
    - Set `## Working directory` to the absolute worktree path (e.g. `/repo/.worktrees/chain-1`) or `"main workspace"` for trivial tasks.
+   - Set `MERGE_TARGET:` to the Target branch value for all orchestrator-dispatched tasks.
+   - Set `Sub-tasks allowed:` to `yes` for `Isolation: native worktree` tasks; `no` for trivial tasks.
    - Set `## Definition of done` to the concrete acceptance criteria for this proposal.
-   - Set `## Dependents unblocked on success` to the list of task subjects that will be unblocked.
+   - Set `## Dependents unblocked on success` to the annotated list: for each downstream task, one line `- <task subject>  (needs: <concrete artifact — file path, directory, function, schema, or env state>)`. Draw the reason from the plan's DEPENDS ON hints (Branch A) or reviewer's ORDERING CONSTRAINTS output (Branch B). The reason must be artifact-level and specific — not a vague process description.
 
 **Create worktree task:** **FIRST: Read `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md`** — load the verbatim bash template. Before pasting, perform these substitutions in the bash code lines only (skip `#`-prefixed comment lines — those are instructional and use `task-N` as a label, not a substitution target):
-- `[TARGET_BRANCH]` → the captured target branch value
+- `[TARGET_BRANCH]` → the captured target branch value (appears twice: once as the fork point for `git worktree add`, once in the failure message)
 - `task-N` → `chain-K` (e.g. `chain-1`) for chain create-wt tasks, or `task-N` (e.g. `task-3`) for standalone tasks
 - `task-N-branch` → `chain-K-branch` (e.g. `chain-1-branch`) for chain tasks, or `task-N-branch` for standalones
 Then paste verbatim as the TaskCreate description. Do not paraphrase any other content.
@@ -291,6 +313,10 @@ Final regression suite — confirms no regressions across all merged changes.
 
 ## Working directory
 main workspace
+
+## Execution context
+Isolation: none (serial)
+Sub-tasks allowed: no
 
 ## What to do
 Run: [runner from plan Verification or reviewer output]
@@ -332,8 +358,8 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 | Task type           | Identity                    | Has create-wt? | Has Merge? | Asserts | Resume method                   | Dispatch lane         |
 |---------------------|-----------------------------|----------------|------------|---------|---------------------------------|-----------------------|
-| run-agent worktree  | `Isolation: native worktree`| yes            | self (built-in) | 4, 6 | branch in git log --merges → completed | parallel worktree     |
-| run-agent trivial   | `Isolation: none (trivial)` | no             | no         | 4       | git log title vs checkpoint     | serial main-workspace |
+| run-agent worktree  | `Isolation: native worktree`| yes            | self (built-in) | 6    | branch in git log --merges → completed | parallel worktree; may spawn sub-task agents internally |
+| run-agent trivial   | `Isolation: none (trivial)` | no             | no         | —       | git log title vs checkpoint     | serial main-workspace |
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) |
@@ -345,10 +371,6 @@ For every Create worktree task (chain or standalone):
   Assert 3: Its blockers include `Setup .worktrees` and, if this chain/standalone DEPENDS ON another, at least one upstream tail or standalone run-agent ID.
   → Exception: If the proposal has no upstream DEPENDS ON constraints, blocked only by Setup .worktrees — valid; skip the upstream-blocker part of Assert 3.
   → Violation: "Create worktree #N is missing expected upstream run-agent blocker from its DEPENDS ON chain."
-
-For every run-agent task description:
-  Assert 4: The description does not contain the literal string "[placeholder]" in the Checkpoint SHA field.
-  → Violation: "Checkpoint SHA propagation incomplete — run-agent #N still has [placeholder]."
 
 For every Regression task (zero or one in graph):
   Assert 5: It is blocked by ALL chain-tail run-agents and ALL standalone run-agents.
@@ -368,6 +390,7 @@ For each chain-K (any chain with ≥ 2 members):
 For each run-agent task description:
   Assert 8: The description contains the phrase "exactly one `git commit`" in its ## Before return: commit section.
   → Violation: "Run-agent #N missing single-commit rule in ## Before return: commit."
+
 ```
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
@@ -380,7 +403,7 @@ Query TaskList for `in_progress` tasks. None → skip to loop. Else execution wa
 |---|---|
 | git-prep | Re-run the git command (all idempotent). Success → mark completed. |
 | create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` then mark completed. |
-| run-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → completed. None → failed, FAILURE_TYPE: no_change. |
+| run-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline` where `<checkpoint-sha>` is the SHA captured by the orchestrator during the Checkpoint commit git-prep step (held in orchestrator context, not read from task description). Commit matching task title present → completed. None → failed, FAILURE_TYPE: no_change. |
 | run-agent (worktree, Chain: none or tail) | Check if self-merge completed: `git log --merges --oneline | grep <chain-K-branch or task-N-branch>`. Found → completed. Not found: commits present but not merged → re-run agent from the self-merge step. None → failed, FAILURE_TYPE: no_change. |
 | run-agent (worktree, Chain: head or link) | No self-merge to check. `git -C .worktrees/<chain-K> log HEAD --oneline | grep <task subject>`. Commit present → completed. None → failed, FAILURE_TYPE: no_change. Re-run agent from scratch (not from self-merge step). |
 | regression | Re-run agent with existing description. Success → completed. Failure → report NOTES, pause. |
@@ -388,6 +411,8 @@ Query TaskList for `in_progress` tasks. None → skip to loop. Else execution wa
 ---
 
 **Execution loop** — repeat until all tasks complete:
+
+**Execution Guard (Binding):** Do not begin the execution loop (Phase 3 dispatch) until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. In the Claude Task API, tasks are inert metadata until claimed; by waiting for wiring to finish before dispatching the first agent, you guarantee that isolation and dependency constraints are fully established before work begins.
 
 ```
 1. Query: all tasks with no unsatisfied blockers (blocker satisfied = completed)
@@ -411,8 +436,15 @@ Query TaskList for `in_progress` tasks. None → skip to loop. Else execution wa
         especially after a resume). Then:
         For tasks where `Chain: none` or `Chain: tail`:
         **FIRST: Read `${CLAUDE_SKILL_DIR}/references/self-merge-wrapper.md`** — load the verbatim wrapper. Substitute
-        `[TARGET_BRANCH]` with the task description's `Target branch:` value, then append the
+        `[MERGE_TARGET]` with the task description's `MERGE_TARGET:` field value, then append the
         wrapper verbatim to the Agent prompt. Do not paraphrase.
+        The self-merge wrapper runs `git merge --no-ff` from the main workspace root, advancing
+        TARGET_BRANCH HEAD to the merge commit before STATUS: success is reported. This is the
+        guarantee that downstream create-wt tasks — which fork from TARGET_BRANCH by name — start
+        from the post-merge state and inherit all changes produced by this task. For setup tasks
+        with multiple dependents (e.g. a shared npm install that unblocks four parallel worktrees),
+        the same invariant holds: all four create-wt tasks are blocked on this run-agent, so all
+        four fork from TARGET_BRANCH only after the merge commit lands.
         For tasks where `Chain: head` or `Chain: link`: do NOT append the self-merge wrapper — these tasks commit to the chain branch and pass off to the next link.
       - Trivial + serial agents share the main workspace and must serialize. Dispatch at most ONE per loop iteration (FIFO from ready queue).
 4.  Wait for all agent tasks to complete
@@ -447,8 +479,7 @@ Query TaskList for `in_progress` tasks. None → skip to loop. Else execution wa
 
 **Git prep task execution** (inline, step 3b):
 - `Pre-flight staging check`: `git status`, stage relevant files (`git add <files>`, never `-A`)
-- `Checkpoint commit`: if staged changes → `git commit -m "checkpoint: pre-execution state"` and capture SHA; if clean → use HEAD as SHA
-- `Propagate checkpoint SHA`: `git log -1 --oneline` → `TaskUpdate` every run-agent task replacing `[placeholder]` with actual SHA. Confirm no `[placeholder]` remains.
+- `Checkpoint commit`: if staged changes → `git commit -m "checkpoint: pre-execution state"` and capture SHA into orchestrator context; if clean → capture HEAD SHA. This SHA is held by the orchestrator for trivial task resume checks — it is never written into task descriptions.
 - `Setup .worktrees`: use existing `.worktrees/` or create it, add to `.gitignore`, commit
 
 **Create worktree task execution** (async background Task, step 3c):
@@ -472,12 +503,12 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 <proposals table from Step 1 / reviewer output>
 
 ### Chains
-Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated IDs from `chain_role: head` → links → tail); worktree = `.worktrees/<chain_id>` for chains, `.worktrees/task-<N>` for standalones (use the DRY-N number); merge point = the `chain_role: tail` member's ID (or the standalone's own ID).
+Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated run-agent DRY IDs from `chain_role: head` → links → tail); worktree = `.worktrees/<chain_id>` for chains, `.worktrees/task-<C>` for standalones where `<C>` is the **create-wt task's DRY-N** (always one before its run-agent in the creation pass); merge point = the `chain_role: tail` member's run-agent DRY-N (or the standalone's run-agent DRY-N).
 
 | Chain ID | Members (in order)            | Worktree              | Merge point |
 |----------|-------------------------------|-----------------------|-------------|
-| chain-1  | DRY-5 → DRY-8 → DRY-11      | .worktrees/chain-1    | DRY-11      |
-| none     | DRY-14 (standalone)           | .worktrees/task-14    | DRY-14      |
+| chain-1  | DRY-6 → DRY-9 → DRY-12      | .worktrees/chain-1    | DRY-12      |
+| none     | DRY-15 (standalone)           | .worktrees/task-14    | DRY-15      |
 
 ### Task List — N tasks
 
@@ -490,6 +521,8 @@ Build from ledger: for each unique `chain_id`, emit one row — list members in 
 <ASCII tree rooted at first task with no blockers>
 
 ### Task Details
+**Required — do not omit.** This section is the audit trail for the wiring integrity check and the dry-run-analyze agent. Every ledger entry must appear with its fully-substituted description.
+
 For each ledger entry:
   --- DRY-N (<type>): <subject> ---
   Blocked by: <comma-separated DRY IDs, or "—">
@@ -530,14 +563,16 @@ Stop after printing findings. Do not auto-promote dry-run results to live mode �
 
 **Pass / wiring discipline:**
 - **No TaskCreate on Branch B before the senior review completes.** Branch A's plan was already reviewed before `ExitPlanMode`; TaskCreate may begin after Step 1.
-- **All `blockedBy` deps are set inline at `TaskCreate` time — do not add `TaskUpdate addBlockedBy` calls after creation.**
+- **Two-phase task creation:** Create tasks in parallel (Phase 1), then wire dependencies via `TaskUpdate addBlockedBy` (Phase 2). Do not force sequential `TaskCreate` calls just to build the graph.
 - **Do NOT skip Step 4 — every approved task executes immediately after the single creation pass.**
 
 **Dispatch discipline:**
 - **Do NOT dispatch a Run agent task before its Create worktree is `completed`.** Exception: trivial run-agents (`Isolation: none (trivial)`) have no Create worktree and dispatch directly once their other blockers are satisfied.
-- **Do NOT dispatch any Create worktree before `Propagate checkpoint SHA` is `completed`.**
-- **Do NOT dispatch multiple worktree run-agents that touch the same file without a DEPENDS ON relationship** — their self-merges will race and likely conflict.
+- **Sub-task agents are spawned and managed entirely within the parent run-agent's execution — do NOT create TaskCreate entries for them. They are invisible to the orchestrator's task graph.**
+- **Sub-task `MERGE_TARGET` = the parent run-agent's working branch. Sub-tasks never merge directly to TARGET_BRANCH.**
+- **Parallel same-file edits:** Parallel run-agents touching the same file are NOT automatically a problem — the self-merge wrapper's rebase handles concurrent independent edits. Only require restructuring when edits overlap semantically (same region, same function, same config key). See Step 1 Output Mapping Pass for the three-case analysis.
 - **Do NOT use `run_in_background` for run-agent tasks. Create-wt is the only exception.**
+
 - **Do NOT halt the entire execution loop on conflict_needs_user — only the merge chain stalls. Continue dispatching independent run-agent tasks.**
 
 **Behavior:**
