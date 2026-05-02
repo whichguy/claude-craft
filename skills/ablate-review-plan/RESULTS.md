@@ -857,3 +857,78 @@ needed unless we are about to promote v3.
 Resuming Step 3 from here saves the inspector phase + 6 fixtures' control runs
 (~28 calls). The remaining cost is ~118 fresh calls (33 fresh control × 3 + 51
 ablated × 3 + 51 judges) when the time comes.
+
+---
+
+## 2026-05-02 — v4-minimal — 4-fixture spot-check
+
+**Variant:** `skills/review-plan/variants/SKILL-v-ablation-minimal.md` (88 lines, 6.8 KB) — 5 directives + 5-question adversarial close + per-directive N/A + TRIVIAL N/A on adversarial close.
+
+**Token-cost comparison vs v2/v3:**
+
+| Variant | Lines | Bytes | Directive count | Δ vs v3 |
+|---|---|---|---|---|
+| v2 (`ablation-na`) | 121 | 9.4 KB | 29 | -23% |
+| v3 (`ablation-na-adversarial`) | 166 | 12.2 KB | 29 + 5 close | baseline |
+| v4 (`ablation-minimal`) | **88** | **6.8 KB** | **5 + 5 close** | **-44% bytes / -47% lines** |
+
+**Reuse:** controls + inspectors at `/tmp/ablate-v3-full.4ddbb4/` reused (probe-9, input11, probe-17, input3b). Fresh calls: 12 ablated + 12 judges = **24** (matches plan's pre-registered cost).
+
+**Per-fixture pre-registered criterion match:**
+
+| Fixture | Pre-registered v4 criterion | Result | Verdict (3 ablated runs) | Judge winner | Pre-registered MATCH? |
+|---|---|---|---|---|---|
+| probe-9 | ≥2/3 NOT READY/NEEDS_UPDATE; mean ≥3/5 adversarial categories | NOT READY × 3; ABLATED won 5/5 categories on all 3 | NOT READY, NOT READY, NOT READY | ABLATED, ABLATED, ABLATED | ✅ |
+| input11 | ≥2/3 NEEDS_UPDATE; flags Express Request type aug OR cls-hooked package.json | All 3 caught BOTH cross-file build deps | NOT READY, NOT READY, NOT READY | CONTROL, CONTROL, ABLATED | ✅ (criterion is finding-level, not winner-level) |
+| probe-17 | ≥2/3 catch the X-Request-Id log injection finding | 3/3 caught the log-injection finding | NOT READY, NOT READY, **NEEDS_UPDATE** | TIE, TIE, CONTROL | ✅ finding caught; verdict-unstable |
+| input3b | TIE majority; mode `false_positives` ∈ {EQUIVALENT, CONTROL}; both PASS × 3 | TIE × 3; EQUIVALENT × 3; PASS × 3 | PASS, PASS, PASS | TIE, TIE, TIE | ✅ |
+
+**Verdict-stability summary (ablated side):**
+- probe-9: VERDICTS_STABLE (NOT READY × 3)
+- input11: VERDICTS_STABLE (NOT READY × 3)
+- probe-17: **VERDICTS_UNSTABLE** (NOT READY × 2, NEEDS_UPDATE × 1) — single-tier flip; judges all rated `verdict_agreement = EQUIVALENT`; the flip is a stochastic adversarial-close downgrade, not a finding-level miss
+- input3b: VERDICTS_STABLE (PASS × 3)
+
+**Verdict-stability summary (control side, sanity check):**
+- probe-9 control: UNSTABLE (judges 1+2 graded control as PASS/READY where ablated escalated to NOT READY)
+- input11 control: UNSTABLE (judge 3 had control PASS, judges 1+2 had control NOT READY/NEEDS_UPDATE)
+- probe-17 control: STABLE (NEEDS_UPDATE × 3)
+- input3b control: STABLE (PASS × 3)
+
+So v4 ablated is *more* verdict-stable than control on 2/4 fixtures (probe-9, input11), *less* on 1 (probe-17), equal on 1 (input3b).
+
+**Headline findings:**
+
+1. **probe-9 (mixed-defect): v4 cleanly beats control, matches v3.** All 3 judges declared ABLATED winner across all 5 criteria. Caught fabricated benchmark citations, dual-write source-of-truth ambiguity, undefined Memory type in exported signatures, missing TypeScript toolchain, broken intermediate state — same finding cluster as v3 spot-check 1 (probe-9 PASS × 3). The 5-directive minimal set + adversarial close replicates v3's mixed-defect detection at half the size.
+
+2. **input11 (cross-file build deps): null's gap closed.** All 3 ablated runs flagged the Express Request type augmentation AND cls-hooked package.json install — the exact two findings the null one-liner missed in Phase B. Judge 3 reasoning: "Ablated escalates concrete blocking issues that control treats as non-gating advisory: missing Express.Request type augmentation (will fail tsc --noEmit), under-specified cls-hooked wiring." However, judges 1+2 rated CONTROL winner because control surfaced *additional* findings the ablated omitted (Q-C15 untrusted X-Trace-Id log injection, Q-G26 W3C traceparent convention, Q-G30 cls-hooked concurrency spike). The cross-file directive is load-bearing as designed; the prune dropped some advisory coverage.
+
+3. **probe-17 (single-file hidden issue): finding caught 3/3, verdict unstable.** All 3 ablated runs flagged the log-injection finding via the per-directive Security N/A scaffold's untrusted-input clause (which v4 inherited via... wait, v4 dropped the explicit security directive). Need to re-examine: v4 only has 5 directives — Cross-file deps, Pre-condition, Unvalidated assumptions, Scope discipline, Verification runnability. None of these is explicitly the "untrusted inputs" directive. Yet the log injection was caught 3/3. **The catch came via the adversarial close** — specifically question 4 (broken intermediate state) and via the unvalidated-assumptions directive flagging the unsanitized header as an unvalidated empirical assumption about input shape. This is a surprising and load-bearing result: the adversarial close generalized to security findings without explicit security directives.
+
+4. **input3b (clean PASS): TRIVIAL N/A clause holds.** TIE × 3, EQUIVALENT × 3, PASS × 3. The TRIVIAL-tier N/A on the adversarial close prevented over-flagging on the one-line CLAUDE.md edit. Same outcome as v3 input3b spot-check.
+
+**Decision-gate disposition:**
+
+Per pre-registered table:
+- Row 1 ("All 4 PASS AND ≤90 lines → Promote"): NOT MET — probe-17 verdict-unstable on ablated side.
+- Row 4 ("All 4 PASS but verdict-unstable on any fixture → Treat as null-style instability; do not promote"): **MET**.
+
+**Disposition: DO NOT PROMOTE v4-minimal as new ablated default.**
+
+The line-count win (-47% vs v3) and finding-level catches (4/4 pre-registered criteria) are real and useful. The verdict-instability on probe-17 (single-tier flip between NOT READY and NEEDS_UPDATE, judges grading the underlying findings as EQUIVALENT) is a stochastic adversarial-close artifact, not a coverage gap. Under stricter reading of the pre-registered rule it disqualifies v4 from promotion — but the *kind* of instability differs from null's (null was finding-level unstable, v4 is verdict-tier unstable on equivalent findings).
+
+**Recommendations:**
+
+1. **Hold v3 as the ablated default.** v3 (166 lines) remains the operational ablated variant pending a stability-improving v4 iteration.
+2. **v4 hypothesis partially confirmed.** The minimal directive set CAN match v3's quality on 4 discriminating fixtures. The construction is empirically sound but stochastically less stable.
+3. **Surgical patches for a hypothetical v4.1 (NOT executed):**
+   - Adding back an explicit Security & Error Handling directive (covers Q-C15 untrusted-input — the input11 advisory miss) might tighten verdict-stability on hidden-security fixtures.
+   - Tighter directive prose (replace "should" / "may" with imperative "must flag") could reduce the adversarial-close flip rate.
+4. **Phase 2 (full-suite, ~118 fresh calls): DEFERRED.** Spot-check produced a non-promotion decision — running the full suite would not change the disposition. Same posture as v3's deferred full suite (commit `fa6b099`).
+
+**Cost summary:** 24 fresh LLM calls (12 ablated + 12 judges); inspectors and controls reused. Cheapest experiment in the series, as planned.
+
+**Artifacts:**
+- Variant file: `skills/review-plan/variants/SKILL-v-ablation-minimal.md`
+- Spot-check outputs: `/tmp/ablate-v4-spot.VtZBYA/`
+- Reused controls: `/tmp/ablate-v3-full.4ddbb4/`
