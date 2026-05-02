@@ -234,9 +234,9 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
     const REFS = path.join(TEST_SKILL_DIR, 'references');
     const skill = fs.readFileSync(path.join(TEST_SKILL_DIR, 'SKILL.md'), 'utf8');
 
-    it('SKILL.md exists and names all 6 fixtures', function () {
+    it('SKILL.md exists and names all 7 fixtures', function () {
         const missing = [];
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 7; i++) {
             const label = `plan${i}`;
             if (!skill.includes(label)) missing.push(label);
         }
@@ -247,9 +247,9 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
         expect(skill.includes('agent-template.md'), 'agent-template.md reference').to.be.true;
     });
 
-    it('references all 6 expect-planN.md files', function () {
+    it('references all 7 expect-planN.md files', function () {
         const missing = [];
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 7; i++) {
             if (!skill.includes(`expect-plan${i}.md`)) missing.push(`expect-plan${i}.md`);
         }
         expect(missing, 'missing expectation file references').to.deep.equal([]);
@@ -273,7 +273,7 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
 
     it('every expect-planN.md exists on disk', function () {
         const missing = [];
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 7; i++) {
             const fp = path.join(REFS, `expect-plan${i}.md`);
             if (!fs.existsSync(fp)) missing.push(`expect-plan${i}.md`);
         }
@@ -282,7 +282,7 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
 
     it('every expect-planN.md declares expected_chains and expected_standalones', function () {
         const missing = [];
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 7; i++) {
             const content = fs.readFileSync(path.join(REFS, `expect-plan${i}.md`), 'utf8');
             if (!content.includes('expected_chains')) missing.push(`expect-plan${i}.md missing expected_chains`);
             if (!content.includes('expected_standalones')) missing.push(`expect-plan${i}.md missing expected_standalones`);
@@ -292,7 +292,7 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
 
     it('every expect-planN.md has a special_assertions section', function () {
         const missing = [];
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 7; i++) {
             const content = fs.readFileSync(path.join(REFS, `expect-plan${i}.md`), 'utf8');
             if (!content.includes('special_assertions')) missing.push(`expect-plan${i}.md`);
         }
@@ -319,6 +319,20 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
     it('expect-plan6.md asserts chain-2 create-wt fan-in wiring (blocked by B, C, D)', function () {
         const content = fs.readFileSync(path.join(REFS, 'expect-plan6.md'), 'utf8');
         expect(content.includes('fan-in wiring'), 'fan-in wiring assertion').to.be.true;
+    });
+
+    it('expect-plan7.md asserts Assert 6 metadata.target_branch PASS (positive-control)', function () {
+        const content = fs.readFileSync(path.join(REFS, 'expect-plan7.md'), 'utf8');
+        expect(content.includes('Assert 6'), 'Assert 6 check').to.be.true;
+        expect(content.includes('metadata.target_branch'), 'metadata.target_branch field').to.be.true;
+        expect(content.includes('PASS'), 'Assert 6 must PASS').to.be.true;
+    });
+
+    it('plan7 fixture exists and is a positive-control test (no Assert 6 violation expected)', function () {
+        const fixturePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md');
+        const content = fs.readFileSync(fixturePath, 'utf8');
+        expect(content.includes('positive-control'), 'positive-control label').to.be.true;
+        expect(content.includes('Assert 6 should PASS'), 'Assert 6 PASS statement').to.be.true;
     });
 });
 
