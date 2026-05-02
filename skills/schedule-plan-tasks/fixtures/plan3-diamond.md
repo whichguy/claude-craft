@@ -4,12 +4,8 @@
 
 `my-node-server` needs a `/dashboard` route that requires both authentication (token check)
 and static file serving (reads `public/dashboard.html`). The two middleware modules are
-independent — auth knows nothing about static files and vice versa. Only the dashboard route
-depends on both.
-
-This plan exercises the **diamond dependency topology** (A, B → C): two independent proposals
-that both merge before a third proposal can start. The regression task is blocked only by C's
-run-agent (the tail), not by A or B directly.
+independent of one another — auth knows nothing about static files and vice versa. The
+dashboard route imports both.
 
 **Idempotency:** each step is safe to re-run.
 - File writes are unconditional overwrites.
@@ -30,7 +26,6 @@ independently unit-tested. `npm test` passes.
 ### Phase 1a: Auth Middleware
 
 > Intent: `requireAuth` middleware that checks for `Authorization: Bearer <token>` header.
-> No dependency on Phase 1b.
 
 **Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `src/middleware/requireAuth.js`, `test/middleware/requireAuth.test.js`
@@ -55,8 +50,7 @@ independently unit-tested. `npm test` passes.
 
 ### Phase 1b: Static File Middleware
 
-> Intent: `serveStatic` middleware that resolves files from `public/` relative to the project
-> root. No dependency on Phase 1a.
+> Intent: `serveStatic` middleware that resolves files from `public/` relative to the project root.
 
 **Idempotency:** overwrite + diff-guarded commit. `public/` directory creation is idempotent
 (`mkdir -p`).
@@ -93,10 +87,8 @@ independently unit-tested. `npm test` passes.
 ### Phase 2: Protected Dashboard Route
 
 > Intent: `GET /dashboard` — applies `requireAuth` then `serveStatic` to serve
-> `public/dashboard.html`. DEPENDS ON Phase 1a AND Phase 1b — both middleware modules
-> must be committed before this route can import them.
+> `public/dashboard.html`. Imports both middleware modules.
 
-**Pre-check:** `src/middleware/requireAuth.js` and `src/middleware/serveStatic.js` both present.
 **Idempotency:** overwrite + grep-guard for mount + diff-guarded commit.
 **Outputs:** `src/routes/dashboard.js`, route mounted in `src/index.js`
 
@@ -123,13 +115,6 @@ independently unit-tested. `npm test` passes.
     - `GET /dashboard` `Authorization: Bearer test-token` → 200, HTML body contains `<h1>Dashboard</h1>`
 16. `npm test -- --grep dashboard`
 17. `git diff --exit-code src/routes/dashboard.js src/index.js test/dashboard.test.js || git add src/routes/dashboard.js src/index.js test/dashboard.test.js && git commit -m "feat: add protected /dashboard route"`
-
-## Git Strategy
-
-- Branch: `feat/dashboard`
-- Phase 1a and 1b run in parallel worktrees, each self-merging to `feat/dashboard`
-- Phase 2 create-wt is blocked by both Phase 1a and 1b tail run-agents
-- Regression (`npm test`) is optimally blocked only by the Phase 2 run-agent (the fan-in node). Upstream parallel nodes (1a, 1b) are redundant for regression blocking as Phase 2 already depends on them.
 
 ## Verification
 

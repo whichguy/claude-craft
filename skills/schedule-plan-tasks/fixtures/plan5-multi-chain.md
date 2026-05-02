@@ -1,24 +1,10 @@
-# Plan: Full Server Assembly — API Router Chain, Middleware Chain, Admin Page, Smoke Test
+# Plan: Full Server Assembly — API Router, Middleware Stack, Admin Page, Smoke Test
 
 ## Context
 
-`my-node-server` gets its complete feature set in one plan: two parallel chains (API router
-stack, middleware stack), one independent standalone (admin HTML page), and a final smoke test
-that depends on all three. This is the most complex graph this plan set exercises.
-
-**Topology:**
-- **Chain A** (API router stack): items router → paginated items extension. Items router must
-  land first; pagination extends it in the same worktree.
-- **Chain B** (middleware stack): CORS middleware → rate-limit middleware. CORS lands first;
-  rate-limit adds a dependency on CORS config in the same worktree.
-- **Standalone**: Admin HTML page at `GET /admin` — a fully self-contained static page.
-  No dependency on A or B.
-- **Final smoke test**: boots the full server and exercises all three outputs. DEPENDS ON
-  Chain A tail, Chain B tail, and the standalone.
-
-This exercises: multi-chain worktree isolation, Assert 5 (regression blocked only by chain
-tails + standalone), Assert 7 (one create-wt per chain), and the parallel merge-back timing
-when all three complete before the smoke test can start.
+`my-node-server` gets its complete feature set in one plan: an API router with pagination,
+a middleware stack (CORS + rate limiting), an independent admin HTML page, and a final smoke
+test that exercises all three together.
 
 **Idempotency:**
 - File writes are unconditional overwrites — re-runs are safe.
@@ -38,10 +24,10 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
 
 ---
 
-### Chain A — Phase 1: API Router + Items Handler
+### Phase 1: API Router + Items Handler
 
 > Intent: Centralized Express Router mounted at `/api`, with the items handler as its first
-> route. Foundation for paginated extension in Chain A Phase 2.
+> route. Foundation for the pagination extension in Phase 2.
 
 **Idempotency:** overwrite + grep-guard + diff-guarded commit.
 **Outputs:** `src/routes/api/index.js`, `src/routes/api/items.js`, mounted in `src/index.js`
@@ -76,12 +62,11 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
 5. `npm test -- --grep "api/items"`
 6. `git diff --exit-code src/routes/api src/index.js test/api/items.test.js || git add src/routes/api src/index.js test/api/items.test.js && git commit -m "feat(api): add centralized API router and items handler"`
 
-### Chain A — Phase 2: Paginated Items Extension
+### Phase 2: Paginated Items Extension
 
-> Intent: Extend `GET /api/items` with `?page` and `?limit` query params.
-> DEPENDS ON Chain A Phase 1 — edits `src/routes/api/items.js` from the same chain worktree.
+> Intent: Extend `GET /api/items` with `?page` and `?limit` query params. Edits
+> `src/routes/api/items.js` created in Phase 1.
 
-**Pre-check:** `src/routes/api/items.js` present from Chain A Phase 1.
 **Idempotency:** in-place edit is idempotent if guard comment is already present; diff-guarded commit.
 **Outputs:** `src/routes/api/items.js` updated with pagination logic
 
@@ -105,10 +90,9 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
 
 ---
 
-### Chain B — Phase 1: CORS Middleware
+### Phase 3: CORS Middleware
 
 > Intent: CORS headers on all responses, configurable via `CORS_ORIGIN` env var.
-> Independent of Chain A.
 
 **Idempotency:** overwrite + grep-guard + diff-guarded commit.
 **Outputs:** `src/middleware/cors.js`, mounted in `src/index.js`
@@ -132,17 +116,17 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
     as the first `app.use` (before any route mounts).
 16. `git diff --exit-code src/middleware/cors.js src/index.js test/middleware/cors.test.js || git add src/middleware/cors.js src/index.js test/middleware/cors.test.js && git commit -m "feat: add CORS middleware"`
 
-### Chain B — Phase 2: Rate Limit Middleware
+### Phase 4: Rate Limit Middleware
 
-> Intent: Simple token-bucket rate limiter keyed by IP. Shares the Chain B worktree.
-> DEPENDS ON Chain B Phase 1 — rate limiter exempts preflight requests using the same
-> OPTIONS check already established by the CORS config pattern.
+> Intent: Simple token-bucket rate limiter keyed by IP. Exempts preflight requests using
+> the same OPTIONS check established by the CORS middleware pattern. Reads `src/middleware/cors.js`
+> to confirm the OPTIONS exemption convention before implementing.
 
-**Pre-check:** `src/middleware/cors.js` present from Chain B Phase 1.
 **Idempotency:** overwrite + grep-guard + diff-guarded commit.
 **Outputs:** `src/middleware/rateLimit.js`, mounted in `src/index.js`
 
-17. Create `src/middleware/rateLimit.js`:
+17. Read `src/middleware/cors.js` — note the OPTIONS exemption pattern.
+18. Create `src/middleware/rateLimit.js`:
     ```js
     const WINDOW_MS = parseInt(process.env.RATE_WINDOW_MS, 10) || 60000;
     const MAX_REQUESTS = parseInt(process.env.RATE_MAX, 10) || 100;
@@ -161,27 +145,26 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
       next();
     };
     ```
-18. Write `test/middleware/rateLimit.test.js`:
+19. Write `test/middleware/rateLimit.test.js`:
     - First request → 200, `X-RateLimit-Remaining` header present
     - After `MAX_REQUESTS + 1` requests from same IP → 429
     - `OPTIONS` request → exempt (never 429)
     - (Set `RATE_MAX=2` via env for test speed)
-19. `npm test -- --grep rateLimit`
-20. Edit `src/index.js`: grep for `rateLimit` — if absent, add
+20. `npm test -- --grep rateLimit`
+21. Edit `src/index.js`: grep for `rateLimit` — if absent, add
     `app.use(require('./middleware/rateLimit'));` after `cors` but before routes.
-21. `git diff --exit-code src/middleware/rateLimit.js src/index.js test/middleware/rateLimit.test.js || git add src/middleware/rateLimit.js src/index.js test/middleware/rateLimit.test.js && git commit -m "feat: add IP-based rate limit middleware"`
+22. `git diff --exit-code src/middleware/rateLimit.js src/index.js test/middleware/rateLimit.test.js || git add src/middleware/rateLimit.js src/index.js test/middleware/rateLimit.test.js && git commit -m "feat: add IP-based rate limit middleware"`
 
 ---
 
-### Standalone: Admin Page
+### Phase 5: Admin Page
 
 > Intent: `GET /admin` returns a minimal HTML admin page listing available routes.
-> No dependency on Chain A or Chain B.
 
 **Idempotency:** overwrite + grep-guard + diff-guarded commit.
 **Outputs:** `src/routes/admin.js`, mounted in `src/index.js`
 
-22. Create `public/admin.html`:
+23. Create `public/admin.html`:
     ```html
     <!DOCTYPE html>
     <html><head><title>Admin</title></head>
@@ -194,7 +177,7 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
       </ul>
     </body></html>
     ```
-23. Create `src/routes/admin.js`:
+24. Create `src/routes/admin.js`:
     ```js
     const { Router } = require('express');
     const path = require('path');
@@ -204,27 +187,24 @@ Full smoke test passes confirming all routes respond correctly end-to-end.
     });
     module.exports = router;
     ```
-24. Edit `src/index.js`: grep for `admin` — if absent, add `app.use(require('./routes/admin'));`.
-25. Write `test/admin.test.js`:
+25. Edit `src/index.js`: grep for `admin` — if absent, add `app.use(require('./routes/admin'));`.
+26. Write `test/admin.test.js`:
     - `GET /admin` → 200, `Content-Type: text/html`, body contains `<h1>my-node-server admin</h1>`
-26. `npm test -- --grep admin`
-27. `git diff --exit-code src/routes/admin.js public/admin.html src/index.js test/admin.test.js || git add src/routes/admin.js public/admin.html src/index.js test/admin.test.js && git commit -m "feat: add /admin HTML page"`
+27. `npm test -- --grep admin`
+28. `git diff --exit-code src/routes/admin.js public/admin.html src/index.js test/admin.test.js || git add src/routes/admin.js public/admin.html src/index.js test/admin.test.js && git commit -m "feat: add /admin HTML page"`
 
 ---
 
-### Phase Final: Full Smoke Test
+### Phase 6: Full Smoke Test
 
 > Intent: Boot the full server and assert all route families respond correctly in a single
-> integration pass. DEPENDS ON Chain A tail (paginated items), Chain B tail (rate limit),
-> AND the standalone admin page — all three must be merged before this starts.
+> integration pass. Reads `src/index.js` to verify all routes are mounted before writing.
 
-**Pre-check:** `src/routes/api/items.js` has pagination logic; `src/middleware/rateLimit.js`
-present; `public/admin.html` present.
 **Idempotency:** overwrite + diff-guarded commit. `npm test` is always safe.
 **Outputs:** `test/smoke.test.js` (replaces the scaffold version)
 
-28. Read `src/index.js` — verify all routes are mounted before writing smoke test.
-29. Write `test/smoke.test.js`:
+29. Read `src/index.js` — verify all routes are mounted before writing smoke test.
+30. Write `test/smoke.test.js`:
     ```js
     // Full smoke test — replaces fixture stub
     const request = require('supertest');
@@ -259,15 +239,8 @@ present; `public/admin.html` present.
       });
     });
     ```
-30. `npm test`
-31. `git diff --exit-code test/smoke.test.js || git add test/smoke.test.js && git commit -m "test: full smoke test covering all route families"`
-
-## Git Strategy
-
-- Branch: `feat/full-server`
-- Chain A (steps 1–11) and Chain B (steps 12–21) run in parallel worktrees
-- Standalone admin (steps 22–27) runs in its own worktree, independent of A and B
-- Smoke test create-wt is blocked by Chain A tail, Chain B tail, and standalone run-agent
+31. `npm test`
+32. `git diff --exit-code test/smoke.test.js || git add test/smoke.test.js && git commit -m "test: full smoke test covering all route families"`
 
 ## Verification
 

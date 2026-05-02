@@ -34,3 +34,7 @@ C. Metadata presence check: in the ### Task Details section, find the run-agent 
    Fail if any of these fields are missing or have placeholder values.
 
 D. Regression: verify a regression task exists blocked by the standalone run-agent.
+
+E. Self-merge flag: the Health Route run-agent (standalone, Chain: none) must have
+   Self-merge: yes in its Execution context.
+   Fail if Self-merge: no or Self-merge is absent.

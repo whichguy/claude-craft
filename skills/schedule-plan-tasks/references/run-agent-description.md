@@ -3,24 +3,20 @@
 This file holds the verbatim description that the orchestrator inserts into every Run-agent task in Step 3 of the execute-plan skill. The orchestrator must `Read` this file in full and paste the description verbatim into `TaskCreate` — no paraphrasing.
 
 Substitute placeholders per task:
-- `[TASK_ID]` — the TaskCreate-returned task ID for this task; used for TaskUpdate lifecycle calls and child cascade dispatch
 - `[Why this task exists — …]` — the specific finding or proposal it addresses
+- `[TASK_ID]` — the TaskCreate-returned task ID, embedded by the orchestrator in Phase 1.5
 - `[absolute worktree path]` — e.g. `/repo/.worktrees/chain-1`; use `"main workspace"` for trivial tasks
 - `[current branch name]` — captured during git prep
 - `[branch this worktree was forked from — the merge destination]` — current branch name captured at Pass 1 time; never a placeholder
 - `[MERGE_TARGET value]` — equals Target branch for orchestrator-dispatched tasks; equals the parent agent's working branch for sub-tasks spawned within a run-agent
 - `Isolation: native worktree` — for worktree tasks; for trivial tasks, replace with: `Isolation: none (trivial)`
 - `Sub-tasks allowed: yes` — for non-trivial worktree tasks; replace with `no` for trivial tasks
-- `Chain: none | head | link | tail` — from chain detection output; `none` for standalones and trivials
-- `Chain ID: chain-N | none` — from chain detection output
-- `[absolute paths to test data, fixtures, …]` — local paths symlinked in worktree creation step; for remote URIs, paste full URI/endpoint; `"none"` if not applicable
+- `Self-merge: yes` — for Chain: none and Chain: tail tasks (this worktree owns its branch end-to-end); replace with `no` for Chain: head and Chain: link tasks (next chain member continues in same worktree)
+- `[symlinked paths outside worktree, or "none"]` — only paths to files outside the git repo that were explicitly symlinked in; omit paths already present in the worktree
 - `[Specific, actionable steps from the plan or reviewer's output]`
-- `[Exact file paths to read and/or modify]`
 - `[Concrete acceptance criteria]` — tests pass, file exists, output matches X, etc.
-- `[Dependents list]` — for each dependent, one line: `- <task subject>  (needs: <concrete artifact this task must produce — file path, directory, function, schema, or env state>)`. Reason comes from the DEPENDS ON annotation in the reviewer output or plan's sequencing hints. Write `"none — leaf node (regression runs next if present)"` only if no downstream dependents exist.
 
-For trivial tasks: set `Isolation: none (trivial)`, `Sub-tasks allowed: no`, `Chain: none`, `Chain ID: none`, `Working directory: main workspace`.
-The self-merge wrapper is appended by the orchestrator ONLY for `Chain: none` and `Chain: tail` tasks.
+For trivial tasks: set `Isolation: none (trivial)`, `Sub-tasks allowed: no`, `Self-merge: no`, `Working directory: main workspace`.
 
 ---
 
@@ -38,14 +34,8 @@ Target branch: [branch this worktree was forked from — the merge destination]
 MERGE_TARGET: [MERGE_TARGET value]
 Isolation: native worktree | none (trivial)
 Sub-tasks allowed: yes | no
-Chain: none | head | link | tail
-Chain ID: chain-N | none
-External resources: [absolute paths to test data, fixtures, or large files outside the git repo — see ## External resources]
-
-## Lifecycle: mark in-progress
-**Your very first action — before reading any file or running any command:**
-
-  TaskUpdate({ taskId: "[TASK_ID]", status: "in-progress" })
+Self-merge: yes | no
+External resources: [symlinked paths outside worktree, or "none"]
 
 ## Directive
 Execute completely. Do not pause to ask for confirmation. Do not stop at the first
@@ -62,12 +52,6 @@ credentials, broken tool, environment issue entirely outside your control.
 
 ## What to do
 [Specific, actionable steps from the plan or reviewer's output]
-
-## Files
-[Exact file paths to read and/or modify]
-
-## External resources
-[Absolute paths to symlinked resources, or "none"]
 
 ## Definition of done
 [Concrete acceptance criteria — tests pass, file exists, output matches X, etc.
@@ -95,7 +79,7 @@ For each parallel chunk:
 Your working branch now has their merge commits. Do any remaining work, then make
 your single final commit covering only what you produced directly. Sub-task merge
 commits are already part of your branch history — do not re-commit them.
-Then proceed to self-merge as normal.
+Then proceed to self-merge as normal (if Self-merge: yes).
 
 **If any sub-task fails:**
 Halt immediately. Do not continue with remaining sub-tasks or your own work.
@@ -116,61 +100,157 @@ A successful task results in a single, clean, and logical contribution to the co
 Sub-task merge commits already on your branch are not yours to re-commit — they are
 already part of your branch history.
 
-For `Isolation: none (trivial)` tasks — commit directly to the working branch; no self-merge wrapper follows. Proceed directly to ## On success.
-For `Chain: head` or `Chain: link` tasks — stop here. The orchestrator's next task will continue on this chain branch.
-For `Chain: tail` or `Chain: none` (non-trivial) tasks — the self-merge wrapper (injected below by the orchestrator) runs next.
+**After committing — choose path based on Isolation and Self-merge:**
+
+For `Isolation: none (trivial)`:
+  Commit directly to the working branch. Proceed to ## On success.
+
+For `Self-merge: no` (chain head or link, native worktree):
+  Commit to the worktree branch. Stop here. Proceed to ## On success.
+  Do NOT remove the worktree — the next chain member continues in it.
+
+For `Self-merge: yes` (standalone or chain tail, native worktree):
+  Commit, then run the self-merge block below.
+
+## Self-merge (Self-merge: yes only)
+
+After committing, merge your worktree branch back to MERGE_TARGET with retry logic.
+Do not skip — STATUS: success from this task means the branch is already merged and
+the worktree removed.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+MERGE_TARGET="[MERGE_TARGET]"
+WORKTREE_PATH=$(pwd)
+WORKTREE_BRANCH=$(git branch --show-current)
+MAX_RETRIES=5
+
+attempt=0
+while [ $attempt -lt $MAX_RETRIES ]; do
+  attempt=$((attempt + 1))
+
+  git rebase "$MERGE_TARGET"
+  if [ $? -ne 0 ]; then
+    git rebase --abort
+    # true conflict — not retryable; fall through to ## On failure
+    MERGE_FAILED=true
+    break
+  fi
+
+  cd "$REPO_ROOT"
+  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET"
+  if [ $? -eq 0 ]; then
+    git worktree remove "$WORKTREE_PATH" --force
+    git branch -d "$WORKTREE_BRANCH"
+    break  # success — fall through to ## On success
+  fi
+
+  git merge --abort
+  cd "$WORKTREE_PATH"
+  sleep $((attempt * 3))
+done
+
+if [ $attempt -eq $MAX_RETRIES ] && [ "$MERGE_FAILED" != "true" ]; then
+  # retries exhausted without conflict — fall through to ## On failure
+  MERGE_FAILED=true
+fi
+```
+
+If `MERGE_FAILED` is set, skip ## On success and go directly to ## On failure with
+`FAILURE_TYPE: conflict_needs_user`.
 
 ## On success
 
-**Step 1 — mark completed:**
+1. Mark this task completed:
+   TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })
 
-  TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })
+2. Find and dispatch newly unblocked tasks:
 
-**Step 2 — cascade: find and dispatch unblocked children:**
+   Scan the backlog for pending tasks that reference this task as a blocker,
+   then check whether ALL their blockers are now complete:
 
-  all_tasks = TaskList({})
-  candidates = [t for t in all_tasks
-                if "[TASK_ID]" in t.blockedBy and t.status == "pending"]
+   ```
+   all_tasks = TaskList({})
 
-  For each candidate:
-    details   = TaskGet({ taskId: candidate.id })
-    blockers  = [TaskGet({ taskId: b }) for b in details.blockedBy]
-    if all(b.status == "completed" for b in blockers):
-      → ready to dispatch
+   // Step A — candidates: pending tasks that list [TASK_ID] as one of their blockers
+   candidates = [t for t in all_tasks
+                 if t.status == "pending" and "[TASK_ID]" in t.blockedBy]
 
-  Dispatch ALL ready candidates in a SINGLE response as parallel Agent() calls,
-  using details.description as the prompt for each.
-  If no candidates are ready: this is a leaf — do nothing further.
+   // Step B — filter to those where every blocker is now completed
+   newly_unblocked = []
+   for each task t in candidates:
+     all_blockers = [TaskGet(b) for b in t.blockedBy]
+     if all(b.status == "completed" for b in all_blockers):
+       newly_unblocked.append(t)
+   ```
+
+   Claim each newly unblocked task before dispatching (prevents double-dispatch
+   when two tasks complete concurrently and both scan the same candidate):
+   ```
+   for each task t in newly_unblocked:
+     TaskUpdate({ taskId: t.id, status: "in-progress" })
+   ```
+
+   Dispatch all claimed tasks in a SINGLE response as parallel Agent() calls.
+   Each agent's prompt = TaskGet(t.id).description (the full task description).
+
+   If no tasks become newly unblocked, do nothing further.
 
 STATUS: success
 ACTION: none
-NOTES: [files changed; merge complete if Chain: none or tail; what was accomplished;
-        dispatched child task IDs, or "leaf — no children dispatched"]
+NOTES: [files changed; self-merge complete and worktree removed if Self-merge: yes;
+        list of unblocked task subjects dispatched, or "none unblocked"]
 
 ## On failure
 
-**Step 1 — mark failed:**
+1. Mark this task failed:
+   TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })
 
-  TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })
+2. Create an investigation task so the failure is visible in the backlog:
+   TaskCreate({
+     subject: "Investigate failure: [subject of this task]",
+     metadata: {
+       task_type: "investigation",
+       parent_task: "[TASK_ID]",
+       failure_type: "<FAILURE_TYPE>",
+       worktree: "<WORKTREE_PATH or N/A>",
+       branch: "<WORKTREE_BRANCH or N/A>"
+     },
+     description: |
+       ## What failed
+       Parent task: [TASK_ID] — [subject of this task]
+       FAILURE_TYPE: <type>
+       Attempt count: <N> of 3
+       Error output: <paste the relevant error lines>
 
-Do NOT cascade — failed tasks do not dispatch children. Blocked dependents
-remain pending and will not run.
+       Worktree: <path>
+       Branch: <branch>
+       MERGE_TARGET: [MERGE_TARGET]
+
+       ## What finished before failure
+       <list files changed and committed before the failure point, or "none">
+
+       ## What is incomplete
+       <list steps from ## What to do that did not complete>
+
+       ## Your job
+       Analyze the failure. Determine whether new sub-tasks can resolve it.
+       - If yes: TaskCreate each recovery sub-task with a clear description,
+         dispatch Agent() for each in parallel, wait for STATUS: success from all,
+         then mark this investigation task "completed".
+       - If no: mark this investigation task "completed" with a clear explanation
+         of why resolution requires human intervention.
+   })
+
+Do NOT dispatch children of the failed task — failed tasks do not cascade.
 
 STATUS: failure
 FAILURE_TYPE: no_change | partial_change | test_failures | conflict_needs_user | needs_split
 ACTION: preserve_worktree | discard_worktree | none
   (no_change → discard; partial_change | test_failures → preserve; trivial task → none)
-  (conflict_needs_user → preserve_worktree always; include "MERGE_TARGET: <branch>" in NOTES)
-  (needs_split → none; use when task scope cannot be completed atomically — it requires decomposition into sub-tasks before retrying; include suggested sub-task breakdown in NOTES)
+  (conflict_needs_user → preserve_worktree always)
+  (needs_split → none; include suggested sub-task breakdown in NOTES)
 WORKTREE: <your worktree path, or N/A if trivial task>
 BRANCH: <your worktree branch, or N/A if trivial task>
-NOTES: [what was attempted, what failed, relevant error messages or test output]
-
-## Dependents unblocked on success
-[For each downstream task unblocked when this task reaches STATUS: success, one line:
- - <task subject>  (needs: <concrete artifact — file path, directory, function, schema, or env state>)
- Write "none — leaf node (regression runs next if present)" only if no downstream dependents exist.
- This section informs your definition-of-done verification: confirm each listed artifact exists
- before reporting success. YOU are responsible for dispatching these via the cascade in ## On success
- — do not assume anything else dispatches them.]
+NOTES: [what was attempted, what failed; the investigation task has been created in the backlog]
 ```

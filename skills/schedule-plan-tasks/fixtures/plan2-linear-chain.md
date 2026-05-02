@@ -1,13 +1,10 @@
-# Plan: Add Items API — Types → Validator → Route → Integration Test
+# Plan: Add Items API — Types, Validator, Route, Integration Test
 
 ## Context
 
-`my-node-server` needs a `/api/items` CRUD endpoint. The work is strictly sequential:
-shared types must exist before the validator can reference them; the validator must exist
-before the route can apply it; the route must be wired before an integration test can call it.
-
-This plan exercises a **single linear chain** (A → B → C → D) with a shared worktree
-for all four proposals and a global wrap-up regression.
+`my-node-server` needs a `/api/items` CRUD endpoint. The work builds up in layers: shared
+types first, then a validator that references those types, then a route that applies the
+validator, then an integration test that exercises the full flow end-to-end.
 
 **Idempotency note:** each step guards against double-application.
 - File writes are unconditional overwrites (re-run produces identical output).
@@ -45,7 +42,7 @@ tests pass. `npm test` clean.
 ### Phase 2: Request Validator
 
 > Intent: Middleware that validates `POST /api/items` body against `ITEM_SCHEMA`.
-> DEPENDS ON Phase 1 — imports `ITEM_SCHEMA` from `src/types/item.js`.
+> Imports `ITEM_SCHEMA` from `src/types/item.js`.
 
 **Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `src/middleware/validateItem.js`
@@ -72,8 +69,8 @@ tests pass. `npm test` clean.
 
 ### Phase 3: Items Route
 
-> Intent: `GET /api/items` and `POST /api/items` handlers using the validator.
-> DEPENDS ON Phase 2 — requires `validateItem` middleware.
+> Intent: `GET /api/items` and `POST /api/items` handlers using the `validateItem` middleware.
+> Imports `validateItem` from `src/middleware/validateItem.js`.
 
 **Idempotency:** overwrite + grep-guard for mount + diff-guarded commit.
 **Outputs:** `src/routes/items.js`, route mounted in `src/index.js`
@@ -98,8 +95,8 @@ tests pass. `npm test` clean.
 
 ### Phase 4: Integration Test
 
-> Intent: End-to-end test of the full items flow via supertest.
-> DEPENDS ON Phase 3 — route must be mounted in `src/index.js`.
+> Intent: End-to-end test of the full items flow via supertest. The route must be mounted in
+> `src/index.js` before these tests can run.
 
 **Idempotency:** overwrite + diff-guarded commit. `npm test` is always safe.
 **Outputs:** `test/items.test.js`
@@ -112,12 +109,6 @@ tests pass. `npm test` clean.
     - `POST /api/items` with `{ name: 42 }` → 400 (name must be string)
 14. `npm test -- --grep items`
 15. `git diff --exit-code test/items.test.js || git add test/items.test.js && git commit -m "test(items): integration tests for /api/items"`
-
-## Git Strategy
-
-- Branch: `feat/items-api`
-- Single chain: all four proposals share one worktree (chain-1)
-- Chain merges to `feat/items-api` after Phase 4 completes
 
 ## Verification
 

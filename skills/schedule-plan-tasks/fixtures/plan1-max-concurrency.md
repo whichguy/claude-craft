@@ -1,4 +1,4 @@
-# Plan: Add Four Route Handlers (Maximum Concurrency)
+# Plan: Add Four Route Handlers
 
 ## Context
 
@@ -6,10 +6,6 @@
 Each handler lives in its own file and is mounted independently in `src/index.js`. They share
 no code and have no dependency on one another — the only prerequisite for all four is that
 `npm install` has run so Express is available.
-
-The plan is structured to exercise **maximum parallel worktree dispatch**: one shared global
-prepare proposal (npm install), four fully independent implementation proposals that all unblock
-simultaneously after prepare completes, and a global wrap-up regression that gates on all four.
 
 **Idempotency note:** every step in this plan is safe to re-run.
 - `npm install` is idempotent.
@@ -31,8 +27,7 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 
 ### Global Prepare: Install Dependencies
 
-> Intent: Ensure `node_modules/` is present before any route agent runs. All four route
-> proposals DEPEND ON this step.
+> Intent: Ensure `node_modules/` is present before any route agent runs.
 
 **Idempotency:** `npm install` is a no-op if `node_modules/` is already up to date.
 **Outputs:** `node_modules/` present, `package-lock.json` committed
@@ -42,7 +37,7 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 
 ### Phase 1a: Health Route
 
-> Intent: `GET /health` returns `{ status: 'ok' }`. DEPENDS ON Global Prepare.
+> Intent: `GET /health` returns `{ status: 'ok' }`.
 
 **Idempotency:** file write is an unconditional overwrite.
 **Outputs:** `src/routes/health.js` only — does NOT touch `src/index.js` (wiring handled by Phase 2).
@@ -60,7 +55,7 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 
 ### Phase 1b: Users Route
 
-> Intent: `GET /users` returns an empty array (stub). DEPENDS ON Global Prepare.
+> Intent: `GET /users` returns an empty array (stub).
 
 **Idempotency:** unconditional overwrite.
 **Outputs:** `src/routes/users.js` only — does NOT touch `src/index.js`.
@@ -78,7 +73,7 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 
 ### Phase 1c: Posts Route
 
-> Intent: `GET /posts` returns an empty array (stub). DEPENDS ON Global Prepare.
+> Intent: `GET /posts` returns an empty array (stub).
 
 **Outputs:** `src/routes/posts.js` only — does NOT touch `src/index.js`.
 
@@ -96,7 +91,6 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 ### Phase 1d: Status Route
 
 > Intent: `GET /status` returns `{ uptime: <seconds>, version: <package.json version> }`.
-> DEPENDS ON Global Prepare.
 
 **Outputs:** `src/routes/status.js` only — does NOT touch `src/index.js`.
 
@@ -113,12 +107,12 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
 17. `npm test -- --grep status`
 18. `git diff --exit-code || git add src/routes/status.js test/status.test.js && git commit -m "feat: add /status route"`
 
-### Phase 2: Wire Routes (Parent Assembly Task)
+### Phase 2: Wire Routes
 
-> Intent: Mount all four routes in `src/index.js`. DEPENDS ON Phase 1a, Phase 1b, Phase 1c, Phase 1d.
-> Route files exist by this point; this parent task performs the integration step that requires
-> knowledge of all four routes simultaneously. Separating wiring from implementation keeps
-> each route proposal focused on its own concern.
+> Intent: Mount all four routes in `src/index.js`. Route files exist by this point; this
+> parent task performs the integration step that requires knowledge of all four routes
+> simultaneously. Separating wiring from implementation keeps each route proposal focused
+> on its own concern.
 
 **Idempotency:** each mount line is grep-guarded before insertion.
 **Outputs:** `src/index.js` (four `app.use(...)` lines added)
@@ -127,11 +121,6 @@ Four route modules exist and respond correctly. `src/index.js` mounts all four.
     - grep for the route name in `src/index.js`; if absent, add `app.use(require('./routes/<name>'));` before the `listen` call.
 20. `npm test` (full suite — all four routes now mounted)
 21. `git diff --exit-code || git add src/index.js && git commit -m "feat: wire all route handlers into index.js"`
-
-## Git Strategy
-
-- Branch: `feat/route-handlers`
-- Global Prepare runs first; 1a–1d run in parallel worktrees (disjoint files — no `src/index.js`); Phase 2 Wire consolidates all mounts; regression gates on Phase 2
 
 ## Verification
 
