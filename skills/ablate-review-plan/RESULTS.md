@@ -739,3 +739,65 @@ validity remains to be tested in spot-check 2 (input3b TRIVIAL N/A) and the full
 
 Proceed to spot-check 2: input3b under v3-adversarial, testing the TRIVIAL-tier N/A
 clause prevents the adversarial close from firing on a doc-only PASS plan.
+
+---
+
+## 2026-05-02 — v3 spot-check 2: input3b (`--variant ablation-na-adversarial`)
+
+**Verdict: PASS — Spot-Check 1 Pass Criterion fully met. Proceed to full v2 suite.**
+
+Tests whether the v3-adversarial TRIVIAL-tier N/A clause prevents the Adversarial
+Close from firing on a doc-only PASS plan (input3b — true clean-plan baseline).
+External-validity test: this is the *designed-against* pattern (the N/A clause was
+written specifically to prevent over-flagging on input3b's class). Reused input3b
+control runs and inspector from `/tmp/ablate-null.sgkn3P/`.
+
+### Verdict + judge tally
+
+| Run | Ablated v3 verdict | Control verdict | Adversarial close fired? | Judge winner |
+|---|---|---|---|---|
+| 1 | PASS | PASS (READY) | No (N/A applied) | TIE |
+| 2 | PASS | PASS | No (N/A applied) | TIE |
+| 3 | PASS | PASS | No (N/A applied) | TIE |
+
+### Per-criterion modes (all 3 judges)
+
+| Criterion | Run 1 | Run 2 | Run 3 | Mode |
+|---|---|---|---|---|
+| issue_overlap | EQUIVALENT | EQUIVALENT | EQUIVALENT | EQUIVALENT |
+| false_negatives | EQUIVALENT | EQUIVALENT | EQUIVALENT | EQUIVALENT |
+| false_positives | EQUIVALENT | EQUIVALENT | EQUIVALENT | EQUIVALENT |
+| severity_alignment | EQUIVALENT | EQUIVALENT | EQUIVALENT | EQUIVALENT |
+| verdict_agreement | EQUIVALENT | EQUIVALENT | EQUIVALENT | EQUIVALENT |
+
+### Spot-Check 1 Pass Criterion verdict (per ablate-review-plan SKILL.md)
+
+- Majority winner: **TIE** ✓
+- Mode `verdict_agreement`: **EQUIVALENT** ✓
+- Verdict stability: **VERDICTS_STABLE** (PASS × 3 each side) ✓
+- Winner stability: **WINNER_STABLE** (TIE × 3) ✓
+- Mode `false_positives`: **EQUIVALENT** ∈ {EQUIVALENT, CONTROL} ✓
+- ≥2/3 PASS each side: 3/3 each side ✓
+
+All 6 conditions met → **PASS**. The TRIVIAL-tier N/A clause works: the Adversarial
+Close did not fire on a one-line doc edit, and v3 matches the structured control on
+clean PASS calibration.
+
+### Judge reasoning highlights
+
+- Judge 1: *"Both reviews independently reach PASS with no flagged issues for this trivial doc-only change, citing the same supporting evidence."*
+- Judge 2: *"Both reviews correctly reach PASS on this trivial single-line additive doc edit … with no flagged issues."*
+- Judge 3: *"Both reviews reach PASS on this clean documentation-only plan with no substantive issues raised by either; control adds advisory notes (line drift, future drift) that are explicitly non-blocking and do not constitute findings the ablated review missed."*
+
+### Comparison to v2 / null on input3b
+
+- v2 (per RESULTS.md 2026-05-02 input3b finding): WINNER_UNSTABLE; mode `false_positives = CONTROL` (control's Q-E2 over-flagging on Post-Implementation Workflow self-edit). v3 matches v2 on Q-E2 not firing AND now produces WINNER_STABLE TIE × 3 — Q-E2 over-flagging suppressed cleanly.
+- null (per RESULTS.md 2026-05-02 Phase B): TIE × 3, all EQUIVALENT × 3. v3 matches null's clean-plan behavior.
+
+### Raw output
+
+`/tmp/ablate-v3-spot2.f31195/` — 3 ablated, 3 reused control, 3 judge JSONs, reused inspector.
+
+### Next step
+
+Proceed to Step 3 (full v2 fixture suite under v3-adversarial) per the gated execution plan.
