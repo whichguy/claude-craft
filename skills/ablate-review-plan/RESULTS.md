@@ -144,3 +144,54 @@ directive set doesn't cover).
 ## Empirical conclusion
 
 TBD — populate after k=3 run completes.
+
+---
+
+### v2 spot-check 1 (probe-9) — fixture mis-classification (2026-05-02)
+
+First spot check of the v2 per-directive N/A variant ran `--single probe-9` (intended as a
+PASS-calibration baseline). The pre-registered pass criterion (both verdicts = PASS across
+all 3 runs) was **not met**. Diagnosis: this is a *negative result driven by a mis-classified
+fixture*, not a variant regression.
+
+**3-run results:**
+
+| Run | Control verdict | Ablated verdict | Judge winner |
+|---|---|---|---|
+| 1 | READY | NEEDS_UPDATE | CONTROL |
+| 2 | GAPS | NEEDS_UPDATE | TIE |
+| 3 | NOT READY | NEEDS_UPDATE | TIE |
+
+Aggregates: majority winner = **TIE**, stability = **UNSTABLE**, mode `verdict_agreement`
+= EQUIVALENT.
+
+**Diagnosis.** probe-9 is named `g1-pass-calibration.md` but its plan body (an SQLite
+migration for the knowledge-aggregator) contains several legitimate ambiguities any
+competent reviewer should flag:
+
+- 2.3µs/45µs latency claim cites `bench/results/2026-03-14-memory-read.txt` but no plan step produces that file
+- Edits `agents/knowledge-aggregator.md` without citing current function/section names
+- Dual-write between `.md` and SQLite with no source-of-truth or staleness rule
+- Introduces `.ts` source in a shell/markdown repo with no build/run path
+- `Memory` type referenced in exported signatures but never defined
+- `id TEXT PRIMARY KEY` schema column with no derivation rule
+- Tests land in Phase 3 after Phase 1/2 commits (broken intermediate states)
+
+Both control and ablated correctly catch these. Judges 2 and 3 explicitly note the
+"failure" is **symmetric** ("both fail equivalently"). Control itself oscillated
+READY → GAPS → NOT READY across 3 runs — the fixture is unstable for the *structured*
+skill too. probe-9 cannot serve as a clean-plan calibration baseline.
+
+By contrast `input3-trivial-plan.md` (the other PASS-calibration fixture in the bench)
+is a true single-line `CLAUDE.md` edit with no structural ambiguity — that is what a
+calibration baseline should look like.
+
+**Decision:**
+1. Switch spot-check 1 to `input3` (true PASS calibration).
+2. Reclassify probe-9's harness label from "PASS calibration — neither version should
+   flag anything" to "ambiguous-plan calibration — both versions should flag substantive
+   issues; judge for symmetry, not PASS." probe-9's plan body has signal value as an
+   "ambiguous but non-defective" fixture — both variants flagging it consistently is a
+   useful signal of equivalent calibration.
+
+Raw outputs: `/tmp/ablate-review-plan.3FHFi6/` (3 control + 3 ablated + 3 judge JSONs).
