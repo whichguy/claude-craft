@@ -2,9 +2,10 @@
 name: ablate-review-plan
 description: |
   Ablation test harness for the review-plan skill. Runs the structured question-based
-  control (SKILL.md) and the directive-based ablated variant (SKILL-v-ablation.md)
-  against the same fixture set, then uses the review-plan-ablation-judge to compare
-  outputs for logical equivalence.
+  control (SKILL.md) and the directive-based ablated variant
+  (SKILL-v-ablation-na.md, per-directive N/A semantics) against the same fixture set
+  with k=3 repetition, then uses the review-plan-ablation-judge to compare outputs
+  for logical equivalence and reports per-fixture stability.
 
   Answers: do the structured question IDs add meaningful signal, or does a directive
   prompt achieve equivalent issue detection?
@@ -21,20 +22,22 @@ allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 
 Measures whether the structured question-based control (`skills/review-plan/SKILL.md`)
 produces materially better issue detection than the directive-based ablated variant
-(`skills/review-plan/variants/SKILL-v-ablation.md`).
+(`skills/review-plan/variants/SKILL-v-ablation-na.md` — per-directive N/A semantics, v2).
 
-**Architecture:** For each fixture, run control → capture output, run ablated → capture
-output, spawn judge to compare. Aggregate into a per-fixture winner table and per-criterion
-win rates. The judge evaluates for logical equivalence (same issues found, same verdict) —
-not output quality.
+**Architecture (v2 — k=3):** For each fixture, run control × 3 and ablated × 3 in parallel,
+then run the judge × 3 (paired by index) once outputs land. Aggregate into a per-fixture
+**majority winner** + **stability flag** + per-criterion mode. The judge evaluates for
+logical equivalence (same issues found, same verdict) — not output quality. k=3 distinguishes
+stochastic noise from real regressions.
 
-**Decision gate (pre-registered):**
+**Decision gate (pre-registered, v2 — requires stability):**
 
 | Result | Interpretation |
 |--------|---------------|
-| ≥80% TIE + 0 false negatives on probes | Questions add no signal — directive approach is sufficient |
-| ≥2 false negatives on Gate 1 probes | Questions are load-bearing — keep structured evaluation |
-| Mixed (false negatives on advisory but not Gate 1) | Partial — Gate 1 questions load-bearing; advisory Qs are candidates for removal |
+| ≥80% majority TIE/ABLATED + ≥80% STABLE + 0 Gate 1 false negatives | Recommend replacement — ablated v2 is sufficient |
+| ≥2 Gate 1 false negatives (incl. hidden-issue probes 17–21) | Questions are load-bearing — keep structured evaluation |
+| <80% STABLE | Variant is stochastically unreliable — not deployable regardless of mean performance |
+| Mixed (false negatives on advisory but not Gate 1) | Partial — Gate 1 directives load-bearing; trim advisory directives |
 
 ---
 
@@ -43,9 +46,9 @@ not output quality.
 Read the invocation arguments. Supported forms:
 
 ```
-/ablate-review-plan                          # full 11-fixture suite
-/ablate-review-plan --single probe-9         # single fixture by short name
-/ablate-review-plan --fixtures probe-1,probe-9,input3  # comma-separated subset
+/ablate-review-plan                                        # full 16-fixture suite × k=3
+/ablate-review-plan --single probe-9                       # single fixture × k=3
+/ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
 ```
 
 **Fixture short-name → path map:**
@@ -58,13 +61,20 @@ Read the invocation arguments. Supported forms:
 | `probe-7` | `skills/review-plan/probes/probe-7-untestable-verification.md` | Q-G20: verification section has no runnable commands |
 | `probe-9` | `skills/review-plan/probes/probe-9-g1-pass-calibration.md` | PASS calibration — neither version should flag anything |
 | `probe-16` | `skills/review-plan/probes/probe-16-gas-chatservice-wrapper.md` | Q-G21: internal contradiction in step scoping |
+| `probe-17` | `skills/review-plan/probes/probe-17-untrusted-log-injection.md` | Hidden issue: untrusted X-Request-Id header → log injection (read first-line `<!-- expected-finding: ... -->`) |
+| `probe-18` | `skills/review-plan/probes/probe-18-silent-type-mismatch.md` | Hidden issue: cited fn returns `User \| undefined`, plan destructures unconditionally |
+| `probe-19` | `skills/review-plan/probes/probe-19-live-entry-point-removal.md` | Hidden issue: removed function is a registered scheduled trigger (live external entry point) |
+| `probe-20` | `skills/review-plan/probes/probe-20-silent-async-rejection.md` | Hidden issue: fire-and-forget `void notifySignup(...)` silently swallows rejection |
+| `probe-21` | `skills/review-plan/probes/probe-21-procedurally-clean-false-claim.md` | Hidden issue: 10× speedup citation references a benchmark file no plan step produces |
 | `input3` | `skills/review-plan/inputs/input3-trivial-plan.md` | PASS calibration |
 | `input4` | `skills/review-plan/inputs/input4-plan-with-issues.md` | Structural problems (diverse) |
 | `input6` | `skills/review-plan/inputs/input6-node-refactor-missing-prereads.md` | Phantom code references (Node.js) |
 | `input8` | `skills/review-plan/inputs/input8-gas-oauth-tbd-markers.md` | Unresolved TBD markers |
 | `input11` | `skills/review-plan/inputs/input11-node-parallel-phases.md` | Complex parallel phases |
 
-Default fixture set (no args): all 11 above.
+For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML comment (probes 17–21), read the comment text and use it verbatim as the EXPECTED_FINDING for the judge. The comment is the ground-truth target finding.
+
+Default fixture set (no args): all 16 above.
 
 Recommended verification order:
 1. Start with `--single probe-9` (PASS calibration — confirms harness wiring before full run)
@@ -79,23 +89,29 @@ RESULTS_DIR=$(mktemp -d /tmp/ablate-review-plan.XXXXXX)
 echo "Results dir: $RESULTS_DIR"
 ```
 
-For each fixture in the active set, create two temp file paths:
-- `$RESULTS_DIR/<fixture>-control.md` — control review output
-- `$RESULTS_DIR/<fixture>-ablated.md` — ablated review output
-- `$RESULTS_DIR/<fixture>-judge.json` — judge verdict
+**k=3 repetition:** for each fixture, run control × 3 + ablated × 3 (six agents per fixture, all parallel-eligible). The judge compares pair-by-index — `(control-1, ablated-1)`, `(control-2, ablated-2)`, `(control-3, ablated-3)` — producing 3 judge JSONs per fixture. Stability across the 3 runs is reported alongside the majority winner in Step 3.
+
+For each fixture in the active set, create temp file paths for k=3 runs:
+- `$RESULTS_DIR/<fixture>-control-{1,2,3}.md` — control review outputs (3 runs)
+- `$RESULTS_DIR/<fixture>-ablated-{1,2,3}.md` — ablated review outputs (3 runs)
+- `$RESULTS_DIR/<fixture>-judge-{1,2,3}.json` — judge verdicts (one per paired run)
+
+**Variant under test:** the ablated variant in v2 is `skills/review-plan/variants/SKILL-v-ablation-na.md` (per-directive N/A semantics). Earlier variants (`SKILL-v-ablation.md`, `SKILL-v-ablation-calibrated.md`) are kept for reference but are not the default ablation target.
 
 ---
 
-## Step 2: Run Each Fixture
+## Step 2: Run Each Fixture (k=3)
 
-For each fixture, run Steps 2a and 2b sequentially (control before ablated to avoid
-context contamination), then Step 2c (judge).
+For each fixture, run Steps 2a and 2b for each repetition `i ∈ {1,2,3}`. The 6 runs per
+fixture (3 control, 3 ablated) are mutually independent — spawn them as parallel Agents.
+Once outputs are written, run Step 2c (judge) per index pair (also parallelizable across
+indices once both that pair's outputs exist).
 
-### Step 2a: Control run
+### Step 2a: Control runs (i=1,2,3)
 
-Spawn an Agent with the full text of `skills/review-plan/SKILL.md` as the system prompt
-and the fixture file content as the input. Write the agent's complete review output to
-`$RESULTS_DIR/<fixture>-control.md`.
+For each `i ∈ {1,2,3}`, spawn an Agent with the full text of `skills/review-plan/SKILL.md`
+as the system prompt and the fixture file content as the input. Write the agent's complete
+review output to `$RESULTS_DIR/<fixture>-control-<i>.md`.
 
 Agent prompt template:
 ```
@@ -114,17 +130,18 @@ Review this plan:
 Output your complete review. Do not truncate.
 ```
 
-### Step 2b: Ablated run
+### Step 2b: Ablated runs (i=1,2,3)
 
-Spawn a second Agent with `skills/review-plan/variants/SKILL-v-ablation.md` as the
-system prompt and the same fixture content. Write output to `$RESULTS_DIR/<fixture>-ablated.md`.
+For each `i ∈ {1,2,3}`, spawn an Agent with `skills/review-plan/variants/SKILL-v-ablation-na.md`
+as the system prompt and the same fixture content. Write output to
+`$RESULTS_DIR/<fixture>-ablated-<i>.md`.
 
 Agent prompt template:
 ```
-You are running the review-plan skill in ablated directive mode.
+You are running the review-plan skill in ablated directive mode (per-directive N/A variant).
 
 <SKILL>
-[full contents of skills/review-plan/variants/SKILL-v-ablation.md]
+[full contents of skills/review-plan/variants/SKILL-v-ablation-na.md]
 </SKILL>
 
 Review this plan:
@@ -136,77 +153,115 @@ Review this plan:
 Output your complete review. Do not truncate.
 ```
 
-### Step 2c: Judge
+### Step 2c: Judge (k=3, paired by index)
 
-Read both output files. Spawn `review-plan-ablation-judge` agent with:
+For each `i ∈ {1,2,3}`, read `<fixture>-control-<i>.md` and `<fixture>-ablated-<i>.md`.
+Spawn `review-plan-ablation-judge` agent with:
 
 ```
 <CONTROL_REVIEW>
-[contents of $RESULTS_DIR/<fixture>-control.md]
+[contents of $RESULTS_DIR/<fixture>-control-<i>.md]
 </CONTROL_REVIEW>
 
 <ABLATED_REVIEW>
-[contents of $RESULTS_DIR/<fixture>-ablated.md]
+[contents of $RESULTS_DIR/<fixture>-ablated-<i>.md]
 </ABLATED_REVIEW>
 
 <EXPECTED_FINDING>
-[expected finding string from fixture map, or empty string if none]
+[expected finding string from fixture map. For probes 17–21, read the top-of-file
+`<!-- expected-finding: ... -->` HTML comment from the probe file and use the comment
+text verbatim. Otherwise pass empty string.]
 </EXPECTED_FINDING>
 ```
 
-Parse the single-line JSON response. Write it to `$RESULTS_DIR/<fixture>-judge.json`.
+Parse the single-line JSON response. Write it to `$RESULTS_DIR/<fixture>-judge-<i>.json`.
 
-**Parallelism:** Steps 2a and 2b for a single fixture must run sequentially. However,
-once you have both outputs for fixture N, you can run the judge for fixture N in parallel
-with 2a+2b for fixture N+1 if you have capacity.
+The 3 judge calls per fixture are mutually independent — run them in parallel as soon as
+both outputs for the corresponding index exist.
+
+**Parallelism:** all 6 control/ablated agent runs for a given fixture, and all 3 judges,
+are independent and parallel-eligible. Across fixtures, the runs are also independent. The
+upper bound on parallelism is your Agent capacity, not data dependencies. Within capacity,
+prefer to dispatch all runs in a single message of parallel `Agent` tool uses, then dispatch
+all judges in a second parallel batch once outputs land.
 
 ---
 
-## Step 3: Aggregate Results
+## Step 3: Aggregate Results (k=3 majority + stability)
 
-After all fixtures complete, read all judge JSON files and compute:
+After all fixtures complete, read all judge JSON files and compute per-fixture aggregates
+across the 3 paired runs.
 
-### Per-fixture winner table
+### Per-fixture aggregation
 
-| Fixture | Winner | issue_overlap | false_negatives | false_positives | severity_alignment | verdict_agreement |
-|---------|--------|---------------|-----------------|-----------------|-------------------|-------------------|
-| probe-1 | ? | ? | ? | ? | ? | ? |
-| ... | | | | | | |
+For each fixture, collapse the 3 judge JSONs into:
+- **Majority winner**: the most common value of `winner` across the 3 judges. Examples:
+  `[CONTROL, TIE, CONTROL] → CONTROL`; `[TIE, TIE, ABLATED] → TIE`; `[CONTROL, TIE, ABLATED] → no
+  majority — record as `SPLIT` and treat as TIE for decision-gate aggregation`.
+- **Stability flag**: `STABLE` if all 3 judges agree on the winner; `UNSTABLE` otherwise.
+- **Per-criterion mode**: for each of the 5 criteria (`issue_overlap`, `false_negatives`,
+  `false_positives`, `severity_alignment`, `verdict_agreement`), the mode value across the 3
+  judges. If all three differ on a criterion, record `SPLIT`.
+
+### Per-fixture winner + stability table
+
+| Fixture | Majority Winner | Stability | issue_overlap | false_negatives | false_positives | severity_alignment | verdict_agreement |
+|---------|-----------------|-----------|---------------|-----------------|-----------------|-------------------|-------------------|
+| probe-1 | ? | STABLE/UNSTABLE | ? | ? | ? | ? | ? |
+| ... | | | | | | | |
 
 ### Per-criterion win rates
 
-For each of the 5 criteria, count across all fixtures:
+For each criterion, count across all fixtures using the per-criterion **mode**:
 - Control wins: N
 - Ablated wins: N
 - Equivalent: N
 
+### Stability summary
+
+- Total fixtures: N
+- STABLE: N (%)
+- UNSTABLE: N (%)
+
+A high UNSTABLE rate (>20%) is a signal that the ablated prompt is not robust enough to
+deploy regardless of mean performance.
+
 ### False negative summary
 
-List each fixture where `false_negatives == "CONTROL"`, with the expected finding and
-a one-line note on what the ablated review missed.
+List each fixture where the **mode** of `false_negatives` is `CONTROL`, with the expected
+finding and a one-line note on what the ablated review missed. For probes 17–21, the expected
+finding comes from the probe's top-of-file `<!-- expected-finding: ... -->` comment.
 
-### Overall verdict
+### Overall verdict (decision gate v2 — requires stability)
 
-Apply the pre-registered decision gate:
+Apply the pre-registered decision gate. The recommendation that the ablated variant should
+replace the structured skill in production requires **all three** conditions:
 
 ```
-total_fixtures = len(active_fixtures)
-tie_count = count(winner == "TIE")
-fn_count = count(false_negatives == "CONTROL")
+total_fixtures        = len(active_fixtures)
+tie_or_ablated_count  = count(majority_winner ∈ {TIE, ABLATED})
+stable_count          = count(stability == STABLE)
+fn_count              = count(mode(false_negatives) == "CONTROL")
 
-gate1_probes = {probe-1, probe-2, probe-3, probe-7, probe-9, probe-16}
-gate1_fn_count = count(false_negatives == "CONTROL" AND fixture IN gate1_probes)
+# Gate 1 probes — original L1 probes plus the 5 hidden-issue probes from v2
+gate1_probes = {probe-1, probe-2, probe-3, probe-7, probe-9, probe-16,
+                probe-17, probe-18, probe-19, probe-20, probe-21}
+gate1_fn_count = count(mode(false_negatives) == "CONTROL" AND fixture IN gate1_probes)
 
-if tie_count / total_fixtures >= 0.80 AND fn_count == 0:
-    verdict = "EQUIVALENT — directive approach is sufficient"
+if (tie_or_ablated_count / total_fixtures >= 0.80
+    AND stable_count / total_fixtures >= 0.80
+    AND gate1_fn_count == 0):
+    verdict = "RECOMMEND_REPLACEMENT — ablated v2 matches/beats control with stable verdicts and zero Gate 1 false negatives"
 elif gate1_fn_count >= 2:
-    verdict = "CONTROL_BETTER — questions are load-bearing (≥2 Gate 1 false negatives)"
+    verdict = "CONTROL_BETTER — Gate 1 hidden-issue probes regress under ablated v2 (≥2 false negatives)"
+elif stable_count / total_fixtures < 0.80:
+    verdict = "UNSTABLE — variant prompt is stochastically unreliable; not deployable regardless of mean performance"
 elif fn_count >= 2 AND gate1_fn_count == 0:
-    verdict = "MIXED — Gate 1 questions load-bearing; advisory Qs are candidates for removal"
+    verdict = "MIXED — Gate 1 questions load-bearing; advisory directives candidates for trimming"
 elif fn_count == 1:
     verdict = "MIXED — single false negative; review manually before deciding"
 else:
-    verdict = "EQUIVALENT — no false negatives; TIE rate below 80% but no control advantage"
+    verdict = "INCONCLUSIVE — no Gate 1 false negatives but TIE/ABLATED rate below 80% threshold"
 ```
 
 ---
@@ -228,8 +283,12 @@ Cleanup is NOT automatic — leave the results dir so the user can inspect raw o
 
 After running the full suite, verify:
 
-1. `probe-9` and `input3` (PASS calibrations): both control and ablated should output PASS — judge should score `verdict_agreement == "EQUIVALENT"`. If either scores CONTROL or ABLATED, the harness wiring is off.
+1. `probe-9` and `input3` (PASS calibrations): both control and ablated should output PASS across all 3 runs. The per-fixture mode of `verdict_agreement` should be `EQUIVALENT`. If either side scores CONTROL or ABLATED on the mode, the variant is over-flagging clean plans.
 
-2. `probe-1` (unvalidated constraint): the ablated review should flag the unsubstantiated PropertiesService claim. If `false_negatives == "CONTROL"` on this fixture, the directive version is missing the evidence-checking directive — inspect `SKILL-v-ablation.md` for coverage.
+2. `probe-1` (unvalidated constraint): the ablated review should flag the unsubstantiated PropertiesService claim in at least 2 of 3 runs. Mode `false_negatives == "CONTROL"` here means the per-directive N/A variant is missing the evidence-checking directive.
 
-3. Read at least 2 fixtures where the judge scored `false_negatives == "CONTROL"` side by side against the expected finding to confirm the judge is discriminating correctly.
+3. Hidden-issue probes (17–21): each must surface its targeted finding in at least 2 of 3 ablated runs. Inspect any probe where the mode is `false_negatives == "CONTROL"` — that's a coverage gap in the directive set the v2 variant is meant to close.
+
+4. Read at least 2 fixtures where the mode of `false_negatives` is `CONTROL` side by side against the expected finding to confirm the judge is discriminating correctly.
+
+5. Read at least 1 UNSTABLE fixture's three judge JSONs — confirm the disagreement reflects model stochasticity (not a deterministic harness bug like wrong fixture text being passed).

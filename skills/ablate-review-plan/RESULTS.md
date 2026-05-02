@@ -66,3 +66,81 @@ Option 2 is the most promising — it preserves the directive prompt's compactne
 All control, ablated, calibrated, and judge runs used isolated `Agent` subagent calls — fresh context per run, no conversation contamination. Each agent read the skill and fixture from disk and wrote output to `/tmp/`. This isolation is necessary for valid measurement.
 
 The judge (`agents/review-plan-ablation-judge.md`) compared logical equivalence across 5 criteria (issue_overlap, false_negatives, false_positives, severity_alignment, verdict_agreement), not output style — the right framing for ablation testing.
+
+---
+
+# v2 Run — Per-Directive N/A + Hidden-Issue Probes + k=3 Stability
+
+Date: TBD (run pending). Variant: `skills/review-plan/variants/SKILL-v-ablation-na.md`.
+
+## What changed vs v1
+
+1. **Per-directive N/A semantics.** Each directive in the ablated variant gained an explicit
+   `N/A: [condition]` clause sourced from `QUESTIONS.md` where a mapping existed. The model
+   is instructed to skip directives whose N/A holds — restoring per-criterion gating that
+   the v1 calibration preamble could not provide.
+2. **5 hidden-issue probes (probe-17..21).** Procedurally clean plans (full citations,
+   Pre-check/Outputs, git lifecycle) each containing one subtle real issue:
+   - probe-17: untrusted `X-Request-Id` → log injection
+   - probe-18: `findUserById` returns `User | undefined`, plan destructures unconditionally
+   - probe-19: removed function is a registered scheduled-trigger handler (live entry point)
+   - probe-20: fire-and-forget `void notifySignup(...)` silently swallows rejection
+   - probe-21: 10× speedup citation references a benchmark file no plan step produces
+3. **k=3 repetition + stability reporting.** Each fixture runs control × 3 + ablated × 3
+   with paired judges. Per-fixture aggregate is `majority_winner` + `stability_flag`
+   (STABLE iff all 3 judges agree).
+4. **Decision gate v2.** Recommend replacement only if (a) ≥80% majority TIE/ABLATED,
+   (b) ≥80% STABLE, AND (c) zero Gate 1 false negatives including hidden-issue probes.
+
+## Variant size
+
+| Variant | Lines | Token cost vs control |
+|---|---|---|
+| Control (full structured skill) | ~6500 | 100% |
+| v1 ablated (uncalibrated) | 85 | ~3% |
+| v1 ablated-calibrated | ~100 | ~4% |
+| **v2 ablated-na (per-directive N/A)** | 121 | ~5% |
+
+## Aggregate (TBD — run pending)
+
+| Variant pair | TIE | CONTROL | ABLATED | STABLE % | Gate 1 FN |
+|---|---|---|---|---|---|
+| Control vs Ablated-na (v2) | ? | ? | ? | ?% | ? |
+
+## Per-fixture aggregate (TBD)
+
+| Fixture | Majority Winner | Stability | Notes |
+|---|---|---|---|
+| probe-1 | ? | ? | |
+| probe-2 | ? | ? | |
+| probe-3 | ? | ? | |
+| probe-7 | ? | ? | |
+| probe-9 | ? | ? | clean-plan calibration |
+| probe-16 | ? | ? | |
+| probe-17 | ? | ? | hidden: log injection |
+| probe-18 | ? | ? | hidden: User \| undefined destructure |
+| probe-19 | ? | ? | hidden: live trigger handler removal |
+| probe-20 | ? | ? | hidden: silent async rejection |
+| probe-21 | ? | ? | hidden: fabricated bench citation |
+| input3 | ? | ? | clean-plan calibration |
+| input4 | ? | ? | |
+| input6 | ? | ? | |
+| input8 | ? | ? | |
+| input11 | ? | ? | security regression site for v1 calibrated |
+
+## Hypothesis
+
+The structured question system's load-bearing contribution from v1 was per-directive N/A
+gating. If that hypothesis is right, v2 should:
+- Match or beat v1 uncalibrated on the original 11 fixtures (no regression).
+- PASS the new hidden-issue probes (catch the planted finding without over-flagging the
+  surrounding clean structure).
+- Not regress on input11 (the security false negative that bit the v1 calibrated variant).
+
+If v2 misses any hidden-issue probe with ≥2/3 mode, the directive set has a coverage gap and
+the per-directive N/A claim is partially refuted (or the probe targets a category the
+directive set doesn't cover).
+
+## Empirical conclusion
+
+TBD — populate after k=3 run completes.
