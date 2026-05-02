@@ -44,6 +44,28 @@ then run the judge × 3 (paired by index) once outputs land. Aggregate into a pe
 logical equivalence (same issues found, same verdict) — not output quality. k=3 distinguishes
 stochastic noise from real regressions.
 
+**Spot-Check 1 failure-mode branch table (pre-registered):**
+
+The original v2 plan anticipated only `false_positives = ABLATED`. input3b hit
+`false_positives = CONTROL` + `WINNER_UNSTABLE` on identical verdicts — a mode the plan
+didn't enumerate, which forced a mid-flight retroactive criterion reshape. To prevent
+recurrence, the full branch space is enumerated *before* spot-checks 2/3 run:
+
+| Outcome | Interpretation | Action |
+|---|---|---|
+| All criteria EQUIVALENT, both PASS, WINNER_STABLE TIE | Clean PASS | Proceed |
+| `false_positives = ABLATED` (mode) | Ablated over-flags clean plans | Patch ablated variant; do not proceed |
+| `false_positives = CONTROL` (mode) + both PASS | Control over-flags clean plans (filed as separate finding) | Note in RESULTS.md + commit body; proceed (control defect, not bench failure) |
+| Either side fails PASS-quorum (<2/3) | Verdict instability | Inspect raw outputs; if fixture-defect, reclassify; if model-stochasticity, retry with k=5 |
+| `false_negatives = CONTROL` on Gate-1 fixture | Coverage gap in directive set | Patch ablated; do not proceed |
+| `verdict_agreement = CONTROL` or `ABLATED` (mode) | Substantive verdict divergence | Inspect; the *direction* of divergence determines branch |
+
+Pre-registration matters: deciding the branch *after* seeing the result is how plans get
+retroactively reshaped to fit the data. Step 5 of the prior calibration-repair plan did
+exactly that when it hit `false_positives = CONTROL`; this table closes that loophole.
+
+---
+
 **Decision gate (pre-registered, v2 — requires stability):**
 
 | Result | Interpretation |

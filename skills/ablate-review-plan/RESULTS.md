@@ -391,3 +391,27 @@ input3b under the new flags:
 - Verdict stability: **VERDICTS_STABLE** (3/3 PASS each side) ✓
 - Winner stability: WINNER_UNSTABLE (judges classify Q-E2 self-edit differently)
 - Result: Spot-Check 1 PASSES.
+
+---
+
+### Spot-Check 1 — Decision branches (pre-registered, 2026-05-02)
+
+To prevent the retroactive-reshape failure mode that the prior calibration-repair plan
+fell into (Step 5 anticipated only `false_positives = ABLATED`; input3b hit
+`false_positives = CONTROL` + `WINNER_UNSTABLE` on identical verdicts and the criterion
+had to be repaired mid-flight), the full Spot-Check 1 branch space is enumerated
+*before* spot-checks 2/3 run.
+
+Mirrored in `skills/ablate-review-plan/SKILL.md` (top of body, before the v2 decision gate):
+
+| Outcome | Interpretation | Action |
+|---|---|---|
+| All criteria EQUIVALENT, both PASS, WINNER_STABLE TIE | Clean PASS | Proceed |
+| `false_positives = ABLATED` (mode) | Ablated over-flags clean plans | Patch ablated variant; do not proceed |
+| `false_positives = CONTROL` (mode) + both PASS | Control over-flags clean plans (filed as separate finding) | Note in RESULTS.md + commit body; proceed (control defect, not bench failure) |
+| Either side fails PASS-quorum (<2/3) | Verdict instability | Inspect raw outputs; if fixture-defect, reclassify; if model-stochasticity, retry with k=5 |
+| `false_negatives = CONTROL` on Gate-1 fixture | Coverage gap in directive set | Patch ablated; do not proceed |
+| `verdict_agreement = CONTROL` or `ABLATED` (mode) | Substantive verdict divergence | Inspect; the *direction* of divergence determines branch |
+
+input3b (2026-05-02) lands in row 3: `false_positives = CONTROL` + both PASS →
+control-defect finding, proceed.
