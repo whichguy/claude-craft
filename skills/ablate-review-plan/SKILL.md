@@ -59,7 +59,7 @@ Read the invocation arguments. Supported forms:
 | `probe-2` | `skills/review-plan/probes/probe-2-phantom-code-references.md` | Q-G11: no file paths or function names cited |
 | `probe-3` | `skills/review-plan/probes/probe-3-cross-phase-contradiction.md` | Q-G21/G22: cross-phase contradiction + undefined field |
 | `probe-7` | `skills/review-plan/probes/probe-7-untestable-verification.md` | Q-G20: verification section has no runnable commands |
-| `probe-9` | `skills/review-plan/probes/probe-9-g1-pass-calibration.md` | PASS calibration — neither version should flag anything |
+| `probe-9` | `skills/review-plan/probes/probe-9-g1-pass-calibration.md` | ambiguous-plan calibration — both versions should flag substantive issues; judge for symmetry, not PASS (see RESULTS.md 2026-05-02 spot-check 1) |
 | `probe-16` | `skills/review-plan/probes/probe-16-gas-chatservice-wrapper.md` | Q-G21: internal contradiction in step scoping |
 | `probe-17` | `skills/review-plan/probes/probe-17-untrusted-log-injection.md` | Hidden issue: untrusted X-Request-Id header → log injection (read first-line `<!-- expected-finding: ... -->`) |
 | `probe-18` | `skills/review-plan/probes/probe-18-silent-type-mismatch.md` | Hidden issue: cited fn returns `User \| undefined`, plan destructures unconditionally |
@@ -77,7 +77,7 @@ For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML co
 Default fixture set (no args): all 16 above.
 
 Recommended verification order:
-1. Start with `--single probe-9` (PASS calibration — confirms harness wiring before full run)
+1. Start with `--single input3` (true PASS calibration — confirms harness wiring before full run)
 2. Then full suite
 
 ---
@@ -283,7 +283,9 @@ Cleanup is NOT automatic — leave the results dir so the user can inspect raw o
 
 After running the full suite, verify:
 
-1. `probe-9` and `input3` (PASS calibrations): both control and ablated should output PASS across all 3 runs. The per-fixture mode of `verdict_agreement` should be `EQUIVALENT`. If either side scores CONTROL or ABLATED on the mode, the variant is over-flagging clean plans.
+1. `input3` (PASS calibration): both control and ablated should output PASS across all 3 runs. The per-fixture mode of `verdict_agreement` should be `EQUIVALENT`. If either side scores CONTROL or ABLATED on the mode, the variant is over-flagging clean plans.
+
+   `probe-9` (ambiguous-plan calibration): both control and ablated should land at NEEDS_UPDATE-or-worse with overlapping issue clusters; the per-fixture mode of `verdict_agreement` should be `EQUIVALENT` and majority winner TIE. This fixture is *not* a PASS baseline — it tests that both variants flag substantive ambiguities symmetrically (see RESULTS.md 2026-05-02 spot-check 1 for diagnosis).
 
 2. `probe-1` (unvalidated constraint): the ablated review should flag the unsubstantiated PropertiesService claim in at least 2 of 3 runs. Mode `false_negatives == "CONTROL"` here means the per-directive N/A variant is missing the evidence-checking directive.
 
