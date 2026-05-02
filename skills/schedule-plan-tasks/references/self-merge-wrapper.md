@@ -42,17 +42,37 @@ done
 exit 1  # retries exhausted
 ```
 
-**On exit 0 (success):** report:
+**On exit 0 (success):** mark completed, cascade, then report:
 ```
+TaskUpdate({ taskId: "[TASK_ID]", status: "completed",
+  metadata: { outcome: "success", worktree_status: "merged", branch: "merged" } })
+
+// Cascade: find and dispatch unblocked children (see ## On success in run-agent-description)
+all_tasks = TaskList({})
+candidates = [t for t in all_tasks if "[TASK_ID]" in t.blockedBy and t.status == "pending"]
+For each candidate where all its blockedBy are completed → dispatch Agent(details.description) in parallel.
+
 STATUS: success
 ACTION: none
-NOTES: [files changed, what was accomplished; merge complete, worktree removed]
+NOTES: [files changed, what was accomplished; merge complete, worktree removed;
+        dispatched child task IDs, or "leaf — no children dispatched"]
 ```
 
-**On exit 1 or 2 (failure):** before reporting, create an investigation task:
+**On exit 1 or 2 (failure):** before reporting, mark yourself failed and create an investigation task:
 ```
+TaskUpdate({ taskId: "[TASK_ID]", status: "failed",
+  metadata: { outcome: "failure", failure_type: "conflict_needs_user",
+              worktree: "<WORKTREE_PATH>", branch: "<WORKTREE_BRANCH>" } })
+
 TaskCreate(
   subject: "Investigate merge failure: <this task's subject>",
+  metadata: {
+    task_type: "investigation",
+    parent_task: "[TASK_ID]",
+    failure_type: "conflict_needs_user",
+    worktree: "<WORKTREE_PATH>",
+    branch: "<WORKTREE_BRANCH>"
+  },
   description: |
     ## Intention
     <copy the ## Purpose section from your task description>

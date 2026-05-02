@@ -3,6 +3,7 @@
 This file holds the verbatim description that the orchestrator inserts into every Run-agent task in Step 3 of the execute-plan skill. The orchestrator must `Read` this file in full and paste the description verbatim into `TaskCreate` — no paraphrasing.
 
 Substitute placeholders per task:
+- `[TASK_ID]` — the TaskCreate-returned task ID for this task; used for TaskUpdate lifecycle calls and child cascade dispatch
 - `[Why this task exists — …]` — the specific finding or proposal it addresses
 - `[absolute worktree path]` — e.g. `/repo/.worktrees/chain-1`; use `"main workspace"` for trivial tasks
 - `[current branch name]` — captured during git prep
@@ -31,6 +32,7 @@ The self-merge wrapper is appended by the orchestrator ONLY for `Chain: none` an
 [Absolute path of worktree — e.g. /repo/.worktrees/chain-1 — or "main workspace" for trivial tasks]
 
 ## Execution context
+Task ID: [TASK_ID]
 Working branch: [current branch name]
 Target branch: [branch this worktree was forked from — the merge destination]
 MERGE_TARGET: [MERGE_TARGET value]
@@ -39,6 +41,11 @@ Sub-tasks allowed: yes | no
 Chain: none | head | link | tail
 Chain ID: chain-N | none
 External resources: [absolute paths to test data, fixtures, or large files outside the git repo — see ## External resources]
+
+## Lifecycle: mark in-progress
+**Your very first action — before reading any file or running any command:**
+
+  TaskUpdate({ taskId: "[TASK_ID]", status: "in-progress" })
 
 ## Directive
 Execute completely. Do not pause to ask for confirmation. Do not stop at the first
@@ -115,11 +122,39 @@ For `Chain: tail` or `Chain: none` (non-trivial) tasks — the self-merge wrappe
 
 ## On success
 
+**Step 1 — mark completed:**
+
+  TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })
+
+**Step 2 — cascade: find and dispatch unblocked children:**
+
+  all_tasks = TaskList({})
+  candidates = [t for t in all_tasks
+                if "[TASK_ID]" in t.blockedBy and t.status == "pending"]
+
+  For each candidate:
+    details   = TaskGet({ taskId: candidate.id })
+    blockers  = [TaskGet({ taskId: b }) for b in details.blockedBy]
+    if all(b.status == "completed" for b in blockers):
+      → ready to dispatch
+
+  Dispatch ALL ready candidates in a SINGLE response as parallel Agent() calls,
+  using details.description as the prompt for each.
+  If no candidates are ready: this is a leaf — do nothing further.
+
 STATUS: success
 ACTION: none
-NOTES: [files changed; merge complete if Chain: none or tail; what was accomplished]
+NOTES: [files changed; merge complete if Chain: none or tail; what was accomplished;
+        dispatched child task IDs, or "leaf — no children dispatched"]
 
 ## On failure
+
+**Step 1 — mark failed:**
+
+  TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })
+
+Do NOT cascade — failed tasks do not dispatch children. Blocked dependents
+remain pending and will not run.
 
 STATUS: failure
 FAILURE_TYPE: no_change | partial_change | test_failures | conflict_needs_user | needs_split
@@ -131,13 +166,11 @@ WORKTREE: <your worktree path, or N/A if trivial task>
 BRANCH: <your worktree branch, or N/A if trivial task>
 NOTES: [what was attempted, what failed, relevant error messages or test output]
 
-Orchestrator handles cleanup, halting, and dependent-task tracing on its own — only FAILURE_TYPE and ACTION are read.
-
 ## Dependents unblocked on success
 [For each downstream task unblocked when this task reaches STATUS: success, one line:
  - <task subject>  (needs: <concrete artifact — file path, directory, function, schema, or env state>)
  Write "none — leaf node (regression runs next if present)" only if no downstream dependents exist.
  This section informs your definition-of-done verification: confirm each listed artifact exists
- before reporting success. The task system unblocks dependents automatically — do not call any
- task tool to do so.]
+ before reporting success. YOU are responsible for dispatching these via the cascade in ## On success
+ — do not assume anything else dispatches them.]
 ```

@@ -51,7 +51,7 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 | Agent dispatch — run-agent, merge, regression                  | skipped entirely — no simulated happy-path results                                            |
 | Execution loop (Step 4 live loop)                               | skipped — replaced by Dry-Run Report                                                          |
 
-**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role}` built during the creation and wiring phases. Source of truth for the wiring integrity check and the Dry-Run Report.
+**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role, metadata: {}}` built during the creation and wiring phases. Source of truth for the wiring integrity check and the Dry-Run Report. The `metadata` field is populated from the `metadata` argument of each dry-run TaskCreate verb, using the same schemas defined in the Phase 1 creation pass below.
 
 ---
 
@@ -219,6 +219,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 - `A→B` (2-node): seed=A (succ==1); B has pred==1,succ==0 → stop. Path=[A,B] → chain. A=head, B=tail. No links.
 - `A→B, A→C` (fan-out): A has succ==2 → not a seed, never starts a forward path. B and C are never reached by extension → fall through to standalone.
 - `A→C, B→C` (fan-in): seeds=A (succ==1), B (succ==1); path from A stops at C (pred==2) → path=[A] <2 → standalone. Same for B. C is standalone.
+- `A→B, B→C, B→D, C→E, D→E, E→F` (cascade — chain tail fans out, standalones converge to new chain): seed=A (succ==1); B has pred==1, succ==2 → stop. Path=[A,B] → chain-1. A=head, B=tail. Seeds C, D: each has succ==1(→E), but E has pred==2 → stop. Path=[C] → standalone; Path=[D] → standalone. Seed E (succ==1): F has pred==1, succ==0 → stop. Path=[E,F] → chain-2. E=head, F=tail. Wiring: chain-2's create-wt is blocked by B (chain-1 tail run-agent) AND C AND D (upstream standalone run-agents).
 
 Print chain assignments after detection:
 ```
@@ -230,7 +231,7 @@ Print chain assignments after detection:
 - `Mode == live` → call `TaskCreate` and `TaskUpdate` for real.
 - `Mode != live` → DO NOT call `TaskCreate` or `TaskUpdate`. Instead:
   - **Reference files are still loaded in dry-run** — `run-agent-description.md` and `create-wt-prompt.md` must be Read before the creation pass using the same JIT protocol as live mode. All placeholder substitutions are performed: Target branch from `git branch --show-current`, Chain/Chain ID from detection output, working directory from worktree path, definition of done from proposal. The description stored in each ledger entry is the fully-substituted text, identical to what live mode would write into `TaskCreate`.
-  - For each TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: [], chain_id, chain_role}` to the task ledger.
+  - For each TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: [], chain_id, chain_role, metadata: <metadata arg>}` to the task ledger.
   - For each TaskUpdate (Phase 2 wiring): print `[DRY] would TaskUpdate #DRY-N addBlockedBy=[DRY-M, ...]`, mutate the ledger entry.
   - For each Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`, mutate the ledger entry.
   - The creation ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
@@ -242,7 +243,28 @@ Print chain assignments after detection:
 
 Phase 1 — Creation: Create ALL tasks in parallel via a single response with N TaskCreate calls. Do not embed upstream task_ids in the subject, description, or activeForm of any task. Capture the returned task_ids. Print creation ticker.
 
-Phase 2 — Wiring: Wire dependencies in parallel via a single response with M TaskUpdate calls, one per task that has prerequisites, each using addBlockedBy with the captured task_ids. Print wiring ticker.
+Phase 1 — Metadata: Every TaskCreate includes a `metadata` argument. Schemas by task type:
+
+```
+git-prep:    { task_type: "git-prep",   chain_id: null, chain_role: null, isolation: "none",
+               step: "preflight | checkpoint | setup-worktrees" }
+create-wt:   { task_type: "create-wt",  chain_id: "chain-K"|null, chain_role: null,
+               isolation: "native worktree", worktree_path: ".worktrees/chain-K",
+               target_branch: "<captured branch>" }
+run-agent:   { task_type: "run-agent",  chain_id: "chain-K"|null,
+               chain_role: "head|link|tail|none", isolation: "native worktree|none (trivial)",
+               worktree_path: ".worktrees/chain-K", proposal_index: N,
+               scope: "trivial|small|medium|large", target_branch: "<captured branch>" }
+regression:  { task_type: "regression", chain_id: null, chain_role: null, isolation: "none" }
+```
+
+Phase 2 — Wiring: Wire dependencies via a single response using both `addBlockedBy` (on the downstream task) AND `addBlocks` (on the upstream task) for every dependency edge, so the graph is traversable in both directions without extra lookups. Print wiring ticker.
+
+Pattern for each dependency pair (upstream → downstream):
+```
+TaskUpdate({ taskId: downstream_id, addBlockedBy: [upstream_id] })
+TaskUpdate({ taskId: upstream_id,   addBlocks:    [downstream_id] })
+```
 
 Sequential TaskCreate is only required when the dependent task's description must literally reference the prerequisite's task_id — which should be avoided. Carry the relationship in TaskUpdate instead.
 
@@ -293,6 +315,7 @@ This command runs in both live and dry-run modes — it is read-only and not sub
 **Run-agent description (binding dispatch protocol):**
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/run-agent-description.md`** — load the verbatim template.
 2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`. Do not paraphrase.
+   - Set `Task ID:` to the TaskCreate-returned task ID for this task (captured from Phase 1 output).
    - Set `Chain:` to `none | head | link | tail` per the detection output.
    - Set `Chain ID:` to `chain-K` or `none`.
    - Set `## Working directory` to the absolute worktree path (e.g. `/repo/.worktrees/chain-1`) or `"main workspace"` for trivial tasks.
@@ -396,85 +419,68 @@ For each run-agent task description:
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
 
-**Resume check** (runs once before execution loop):
+**Resume check** (runs once before Phase A dispatch):
 
-Query TaskList for `in_progress` tasks. None → skip to loop. Else execution was interrupted; recover per task type:
+Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execution was interrupted; recover per task type before re-entering the wave-1 dispatch:
 
 | Task type | Recovery |
 |---|---|
-| git-prep | Re-run the git command (all idempotent). Success → mark completed. |
-| create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` then mark completed. |
-| run-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline` where `<checkpoint-sha>` is the SHA captured by the orchestrator during the Checkpoint commit git-prep step (held in orchestrator context, not read from task description). Commit matching task title present → completed. None → failed, FAILURE_TYPE: no_change. |
-| run-agent (worktree, Chain: none or tail) | Check if self-merge completed: `git log --merges --oneline | grep <chain-K-branch or task-N-branch>`. Found → completed. Not found: commits present but not merged → re-run agent from the self-merge step. None → failed, FAILURE_TYPE: no_change. |
-| run-agent (worktree, Chain: head or link) | No self-merge to check. `git -C .worktrees/<chain-K> log HEAD --oneline | grep <task subject>`. Commit present → completed. None → failed, FAILURE_TYPE: no_change. Re-run agent from scratch (not from self-merge step). |
-| regression | Re-run agent with existing description. Success → completed. Failure → report NOTES, pause. |
+| git-prep | Re-run the git command (all idempotent). Mark completed. |
+| create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` → mark completed. |
+| run-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade from this task (TaskList + TaskGet → dispatch unblocked children). None → mark failed; do not cascade. |
+| run-agent (worktree, Chain: none or tail) | `git log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
+| run-agent (worktree, Chain: head or link) | `git -C .worktrees/<chain-K> log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
+| regression | Re-dispatch agent with existing description. |
 
 ---
 
-**Execution loop** — repeat until all tasks complete:
+**Execution — wave-1 dispatch + self-orchestrating cascade:**
 
-**Execution Guard (Binding):** Do not begin the execution loop (Phase 3 dispatch) until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. In the Claude Task API, tasks are inert metadata until claimed; by waiting for wiring to finish before dispatching the first agent, you guarantee that isolation and dependency constraints are fully established before work begins.
+**Execution Guard (Binding):** Do not begin dispatch until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. Tasks are inert metadata until claimed; wiring must be complete before any agent starts so dependency constraints are fully established.
 
 ```
-1. Query: all tasks with no unsatisfied blockers (blocker satisfied = completed)
-2. If no dispatchable tasks:
-   2a. Incomplete tasks remain → halt (dependency cycle). Report stuck tasks + unsatisfied blocker IDs.
-   2b. No incomplete tasks remain → done. Print completion report.
-3a. Partition dispatchable tasks:
-      inline tasks      = git-prep                    (orchestrator runs directly, sequential)
-      async Tasks       = create-wt                   (background Tasks with embedded bash, parallel batch)
-      isolated agents   = run-agent (Isolation: native worktree)
-      trivial agents    = run-agent (Isolation: none (trivial))
-      serial agents     = regression
-3b. Inline (git-prep) immediately and sequentially.
-3c. Dispatch all ready create-wt as background Tasks in one parallel batch (run_in_background=True).
-      Poll TaskList until each create-wt reaches completed/failed.
-      Any failure → halt, report; do not dispatch its run-agent.
-3d. Dispatch agents:
-      - Isolated agents (worktree run-agents) dispatch in parallel — each in its own worktree.
-        Before dispatching each run-agent, read the `Chain:` value from its task description
-        (TaskGet the task if not already in context — do not rely on session memory alone,
-        especially after a resume). Then:
-        For tasks where `Chain: none` or `Chain: tail`:
-        **FIRST: Read `${CLAUDE_SKILL_DIR}/references/self-merge-wrapper.md`** — load the verbatim wrapper. Substitute
-        `[MERGE_TARGET]` with the task description's `MERGE_TARGET:` field value, then append the
-        wrapper verbatim to the Agent prompt. Do not paraphrase.
-        The self-merge wrapper runs `git merge --no-ff` from the main workspace root, advancing
-        TARGET_BRANCH HEAD to the merge commit before STATUS: success is reported. This is the
-        guarantee that downstream create-wt tasks — which fork from TARGET_BRANCH by name — start
-        from the post-merge state and inherit all changes produced by this task. For setup tasks
-        with multiple dependents (e.g. a shared npm install that unblocks four parallel worktrees),
-        the same invariant holds: all four create-wt tasks are blocked on this run-agent, so all
-        four fork from TARGET_BRANCH only after the merge commit lands.
-        For tasks where `Chain: head` or `Chain: link`: do NOT append the self-merge wrapper — these tasks commit to the chain branch and pass off to the next link.
-      - Trivial + serial agents share the main workspace and must serialize. Dispatch at most ONE per loop iteration (FIFO from ready queue).
-4.  Wait for all agent tasks to complete
-5.  Parse validation — before acting on ANY agent result:
-      Scan from the LAST occurrence of "STATUS:" in the response.
-      Validate structure:
-        run-agent success (worktree):  STATUS: success + ACTION: none + NOTES
-        run-agent success (trivial):   STATUS: success + ACTION: none + NOTES
-        run-agent failure:             STATUS: failure + FAILURE_TYPE (no_change|partial_change|test_failures|conflict_needs_user|needs_split) + ACTION
-        regression:                    STATUS: success|failure + NOTES
-      Malformed/absent → FAILURE_TYPE: partial_change. Route as failure.
-6.  For each result (after parse validation passes):
-      Run agent result:
-        - On success (ACTION: none): self-merge was performed inside the agent. Mark completed directly.
-        - On failure: read FAILURE_TYPE and ACTION block.
-          DRAIN FIRST: finish processing all other results in this batch before halting.
-          After full batch processed: if any failure, print halt report and stop the loop. Act on the failed task's ACTION:
-            preserve_worktree → leave the worktree at WORKTREE for user inspection
-            discard_worktree  → git worktree remove <path> && git branch -d <branch>
-            none              → trivial task, no worktree exists — skip cleanup
-          For FAILURE_TYPE: needs_split → halt immediately; surface the agent's suggested sub-task
-            breakdown from NOTES to the user and ask them to update the plan. Do NOT continue.
-          Then surface post-failure state (successful co-dispatched agents, rollback options).
-          Do NOT roll back automatically. Wait for user.
-      Regression agent result:
-        - On success: mark Regression completed — execution fully done
-        - On failure: print the halt report, pause for user resolution
-7.  Repeat
+Phase A — git-prep (orchestrator-inline, sequential):
+  Run each git-prep task directly:
+    Pre-flight staging check → Checkpoint commit → Setup .worktrees
+  Mark each completed after running. Capture checkpoint SHA into orchestrator context.
+
+Phase B — create-wt (background Tasks, parallel batch):
+  Dispatch all create-wt tasks in ONE parallel batch (run_in_background=True).
+  Poll TaskList until every create-wt reaches completed or failed.
+  Any create-wt failure → halt; report; do not dispatch its run-agent.
+
+Phase C — wave-1 run-agents (parallel dispatch, fire-and-forget cascade):
+  wave1 = [t for t in TaskList({}) where t.status == "pending" and t.blockedBy all completed]
+  This is every chain-head and standalone run-agent (their only blocker was a create-wt, now done).
+
+  Before dispatching each wave-1 run-agent:
+    - TaskGet the task to load its description.
+    - For Chain: none or Chain: tail:
+        FIRST: Read ${CLAUDE_SKILL_DIR}/references/self-merge-wrapper.md
+        Append verbatim to the Agent prompt, substituting [MERGE_TARGET] from the task description.
+    - For Chain: head or Chain: link:
+        Do NOT append the self-merge wrapper.
+
+  Dispatch ALL wave-1 run-agents in a SINGLE response as parallel Agent() calls.
+
+  Cascade self-manages from here:
+    Each agent → marks itself in-progress → does work → marks completed/failed →
+    if completed: TaskList + TaskGet to find newly unblocked children → dispatches them in parallel.
+    The graph drains itself. The orchestrator does not loop.
+
+  Trivial run-agents (Isolation: none) and regression tasks are included in wave-1 if
+  their blockers are all completed at this point; otherwise they will be dispatched by
+  whichever upstream agent completes last and unblocks them via the cascade.
 ```
+
+**Failure handling in the cascade:** Failed agents mark themselves `failed` via TaskUpdate and do not dispatch children — their downstream dependents remain `pending` indefinitely. To inspect stuck tasks after a cascade:
+
+```
+  TaskList({}) → filter for status == "pending" tasks whose blockedBy contains a "failed" task
+  → surface to user: "Task #N stalled: blocked by failed task #M (FAILURE_TYPE: X)"
+```
+
+The orchestrator does not need to poll for failures during a live cascade run — failures are visible in TaskList at any time.
 
 ---
 
