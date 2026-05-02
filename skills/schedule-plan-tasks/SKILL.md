@@ -203,7 +203,11 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 **Examples (all correctly handled):**
 - `A→B→C`: seed=A (succ==1); B has pred==1,succ==1 → extend; C has pred==1,succ==0 → stop. Path=[A,B,C] → chain-1. A=head, B=link, C=tail.
 - `A→B, A→C` (fan-out): A has succ==2 → not a seed. B and C → standalone.
-- `A→B, B→C, B→D, C→E, D→E, E→F` (cascade — chain tail fans out, standalones converge to new chain): seed=A (succ==1); B has pred==1, succ==2 → stop. Path=[A,B] → chain-1. A=head, B=tail. Seeds C, D: each has succ==1(→E), but E has pred==2 → stop. Path=[C] → standalone; Path=[D] → standalone. Seed E (succ==1): F has pred==1, succ==0 → stop. Path=[E,F] → chain-2. E=head, F=tail. Wiring: chain-2's create-wt is blocked by B (chain-1 tail run-agent) AND C AND D (upstream standalone run-agents).
+- `A→B, B→C, B→D, C→E, D→E, E→F` (cascade — chain tail fans out, standalones converge to new chain):
+  - Seed A: succ==1 → extend; B has pred==1, succ==2 → stop. Path=[A,B] → chain-1. A=head, B=tail.
+  - Seeds C, D: each has succ==1(→E), but E has pred==2 → stop. Paths [C], [D] → standalones.
+  - Seed E: succ==1 → extend; F has pred==1, succ==0 → stop. Path=[E,F] → chain-2. E=head, F=tail.
+  - Wiring: chain-2's create-wt is blocked by B (chain-1 tail run-agent) AND C AND D (upstream standalone run-agents).
 
 Print chain assignments after detection:
 ```
