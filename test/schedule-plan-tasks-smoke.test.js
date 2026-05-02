@@ -87,8 +87,8 @@ describe('references/run-agent-description.md', function () {
         expect(content.includes('blockedBy'), 'blockedBy scan').to.be.true;
     });
 
-    it('contains TaskCreate investigation in ## On failure', function () {
-        expect(content.includes('Investigate failure'), 'investigation task').to.be.true;
+    it('## On failure references investigation-task-template.md (extracted)', function () {
+        expect(content.includes('investigation-task-template.md'), 'investigation template reference').to.be.true;
     });
 
     it('does NOT contain ## Children to dispatch on success', function () {
@@ -127,6 +127,22 @@ describe('references/create-wt-prompt.md', function () {
     it('contains [ -e guard before symlink with resource-not-found error message', function () {
         expect(content.includes('-e'), '-e flag').to.be.true;
         expect(content.includes('resource not found'), 'resource not found message').to.be.true;
+    });
+});
+
+describe('references/investigation-task-template.md', function () {
+    const filePath = path.join(REFS, 'investigation-task-template.md');
+    const content = fs.readFileSync(filePath, 'utf8');
+
+    it('contains TaskCreate payload with "Investigate failure" subject', function () {
+        expect(content.includes('Investigate failure'), 'investigation task subject').to.be.true;
+        expect(content.includes('TaskCreate'), 'TaskCreate verb').to.be.true;
+    });
+
+    it('contains FAILURE → ARTIFACT mapping with all 5 failure types', function () {
+        for (const f of ['no_change', 'partial_change', 'test_failures', 'conflict_needs_user', 'needs_split']) {
+            expect(content.includes(f), `failure type ${f}`).to.be.true;
+        }
     });
 });
 

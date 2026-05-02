@@ -43,12 +43,12 @@ obstacle — diagnose it, fix it, continue.
 
 Retry bound: make at most 3 distinct fix attempts on any single obstacle. A distinct
 attempt means a meaningfully different approach — not re-running the same command.
-After 3 attempts on the same problem, stop immediately and report STATUS: failure,
-FAILURE_TYPE: partial_change. Include in NOTES a numbered list of each attempt and
-its outcome.
+After 3 attempts on the same problem, stop immediately and emit the status block with
+`RESULT: failed`, `FAILURE: partial_change`, and a numbered list of each attempt and
+its outcome in the WORK or INCOMPLETE field.
 
-Only report failure before 3 attempts if the obstacle is a genuine fatality: missing
-credentials, broken tool, environment issue entirely outside your control.
+Only emit `RESULT: failed` before 3 attempts if the obstacle is a genuine fatality:
+missing credentials, broken tool, environment issue entirely outside your control.
 
 ## What to do
 [Specific, actionable steps from the plan or reviewer's output]
@@ -66,45 +66,43 @@ output. Prefer plan-time decomposition; this is the runtime escape hatch.
 then dispatch an Agent using this same template with: Working directory = sub-worktree path,
 MERGE_TARGET = your working branch (not Target branch), Sub-tasks allowed: no (no nesting).
 Dispatch all sub-tasks in parallel (one message, multiple Agent calls). Wait for all
-STATUS: success before continuing.
+to return `RESULT: complete` before continuing.
 
 **After all succeed:** your branch now has their merge commits. Do remaining direct work,
 make your single final commit (sub-task merge commits are already on your branch — do not
 re-commit). Then self-merge as normal if Self-merge: yes.
 
-**Any sub-task fails:** halt immediately. Report STATUS: failure, FAILURE_TYPE: partial_change,
-ACTION: preserve_worktree. Include sub-task details (branch, worktree, error) in NOTES.
+**Any sub-task returns RESULT: failed or partial:** halt immediately. Emit your own status
+block with `RESULT: failed`, `FAILURE: partial_change`, `ARTIFACT: <your worktree path>`.
+Include the failing sub-task's branch, worktree, and FAILURE in your INCOMPLETE field.
 
 ## Before return: commit
-Stage and make exactly one `git commit` for all changes this task produces directly. This commit must encapsulate the complete, logical, and substantial unit of work defined in this task (the "Goldilocks" unit).
 
-  git status                                ← verify which files you changed
-  git add <files you modified>              ← stage only files this task intentionally changed
-  git commit -m "task-N: [subject] - [why]" ← encapsulate the logical substantial change
+Make exactly one `git commit` covering only the files this task produced directly:
 
-Do NOT use `git add -A` — only stage files this task modified.
-If `## What to do` steps include inline `git add` or `git commit` instructions, skip those and consolidate all staging and committing here instead. The single commit here is the only commit this task produces.
-If this task made no file changes (e.g. read-only analysis), skip the commit and note it.
-A successful task results in a single, clean, and logical contribution to the codebase.
-Sub-task merge commits already on your branch are not yours to re-commit — they are
-already part of your branch history.
+```
+git status                                # verify what changed
+git add <files you modified>              # stage by name; never `-A`
+git commit -m "task-N: [subject] - [why]"
+```
 
-**After committing — choose path based on Isolation and Self-merge:**
+Rules:
+- One commit per task — consolidate any inline `git commit` calls from `## What to do` here.
+- Skip the commit if this task made no file changes (e.g. read-only analysis); note in WORK.
+- Sub-task merge commits already on your branch are NOT yours to re-commit.
 
-For `Isolation: none (trivial)`:
-  Commit directly to the working branch. Proceed to ## On success.
+**After committing — branch by Isolation and Self-merge:**
 
-For `Self-merge: no` (chain head or link, native worktree):
-  Commit to the worktree branch. Stop here. Proceed to ## On success.
-  Do NOT remove the worktree — the next chain member continues in it.
-
-For `Self-merge: yes` (standalone or chain tail, native worktree):
-  Commit, then run the self-merge block below.
+| Case                                       | Action                                                                |
+|--------------------------------------------|-----------------------------------------------------------------------|
+| `Isolation: none (trivial)`                | Commit lands on working branch. Proceed to status protocol.           |
+| `Self-merge: no` (chain head or link)      | Commit lands on worktree branch. Do NOT remove the worktree — the next chain member continues in it. Proceed to status protocol. |
+| `Self-merge: yes` (standalone / chain tail)| Commit, then run the self-merge block below before the status protocol. |
 
 ## Self-merge (Self-merge: yes only)
 
 After committing, merge your worktree branch back to MERGE_TARGET with retry logic.
-Do not skip — STATUS: success from this task means the branch is already merged and
+Do not skip — `RESULT: complete` from this task means the branch is already merged and
 the worktree removed.
 
 ```bash
@@ -121,7 +119,7 @@ while [ $attempt -lt $MAX_RETRIES ]; do
   git rebase "$MERGE_TARGET"
   if [ $? -ne 0 ]; then
     git rebase --abort
-    # true conflict — not retryable; fall through to ## On failure
+    # true conflict — not retryable; fall through to "On RESULT: failed"
     MERGE_FAILED=true
     break
   fi
@@ -131,7 +129,7 @@ while [ $attempt -lt $MAX_RETRIES ]; do
   if [ $? -eq 0 ]; then
     git worktree remove "$WORKTREE_PATH" --force
     git branch -d "$WORKTREE_BRANCH"
-    break  # success — fall through to ## On success
+    break  # success — fall through to "On RESULT: complete"
   fi
 
   git merge --abort
@@ -140,106 +138,77 @@ while [ $attempt -lt $MAX_RETRIES ]; do
 done
 
 if [ $attempt -eq $MAX_RETRIES ] && [ "$MERGE_FAILED" != "true" ]; then
-  # retries exhausted without conflict — fall through to ## On failure
+  # retries exhausted without conflict — fall through to "On RESULT: failed"
   MERGE_FAILED=true
 fi
 ```
 
-If `MERGE_FAILED` is set, skip ## On success and go directly to ## On failure with
-`FAILURE_TYPE: conflict_needs_user`.
+If `MERGE_FAILED` is set, skip "On RESULT: complete" and go directly to "On RESULT: failed" with
+`FAILURE: conflict_needs_user`.
 
-## On success
+## Status protocol (every run emits this block as the final output)
 
-1. Mark this task completed:
-   TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })
+```
+RESULT:      complete | partial | failed
+WORK:        <one-line summary of what this task produced or changed>
+INCOMPLETE:  <what was NOT achieved; "none" when RESULT: complete>
+FAILURE:     <FAILURE enum value when RESULT: failed; else "none">
+ARTIFACT:    <preserved worktree path when relevant; else "none">
+DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or "none">
+```
 
-2. Find and dispatch newly unblocked tasks:
+- `RESULT` is mutually exclusive: `complete` = met Definition of done; `partial` = did some
+  work but stopped (retry-bound hit, sub-task halted); `failed` = no useful state-change
+  made or merge could not complete.
+- `WORK` always answers "what was achieved." For `failed` it may be "none."
+- `INCOMPLETE` always answers "what was not achieved" for `partial` or `failed`.
+- `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split`.
+- `ARTIFACT`: see `references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
+- `DISPATCHED` is non-empty only when `RESULT: complete` and dependent tasks were unblocked.
 
-   Scan the backlog for pending tasks that reference this task as a blocker,
-   then check whether ALL their blockers are now complete:
+## On RESULT: complete
 
-   ```
-   all_tasks = TaskList({})
+1. Mark this task completed: `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })`
 
-   // Step A — candidates: pending tasks that list [TASK_ID] as one of their blockers
-   candidates = [t for t in all_tasks
-                 if t.status == "pending" and "[TASK_ID]" in t.blockedBy]
+2. **Cascade-dispatch directive.** This task does not know its dependents in advance. At
+   runtime, discover them and start any that are now unblocked:
 
-   // Step B — filter to those where every blocker is now completed
-   newly_unblocked = []
-   for each task t in candidates:
-     all_blockers = [TaskGet(b) for b in t.blockedBy]
-     if all(b.status == "completed" for b in all_blockers):
-       newly_unblocked.append(t)
-   ```
+   - Call `TaskList({})` to read the current backlog.
+   - For each task `t` in the result, walk through these gates in order — skip on the first
+     gate that fails:
+       a. `t.status` must be `"pending"` (skip otherwise — already done or in flight).
+       b. `[TASK_ID]` must appear in `t.blockedBy` (skip otherwise — `t` does not depend on this task).
+       c. For every OTHER blocker ID `b` in `t.blockedBy`, call `TaskGet(b)`; every one must
+          have `status == "completed"` (skip if any blocker is still pending/in-progress —
+          more upstream work remains).
+   - Any task `t` that passes all three gates is newly unblocked by this task's completion.
+     Before dispatching, claim it to prevent concurrent double-dispatch when sibling tasks
+     finish at the same time:
+     `TaskUpdate({ taskId: t.id, status: "in-progress" })`
+   - Dispatch ALL claimed tasks in a SINGLE response — multiple parallel `Agent` calls,
+     each with `prompt = TaskGet(t.id).description` (the dependent task carries its own
+     full instructions; this task does not need to know what they do).
 
-   Claim each newly unblocked task before dispatching (prevents double-dispatch
-   when two tasks complete concurrently and both scan the same candidate):
-   ```
-   for each task t in newly_unblocked:
-     TaskUpdate({ taskId: t.id, status: "in-progress" })
-   ```
+3. Record the dispatched IDs in the `DISPATCHED:` field, or `none` if no task passed all gates.
 
-   Dispatch all claimed tasks in a SINGLE response as parallel Agent() calls.
-   Each agent's prompt = TaskGet(t.id).description (the full task description).
+4. Emit the status block.
 
-   If no tasks become newly unblocked, do nothing further.
+## On RESULT: partial
 
-STATUS: success
-ACTION: none
-NOTES: [files changed; self-merge complete and worktree removed if Self-merge: yes;
-        list of unblocked task subjects dispatched, or "none unblocked"]
+1. `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })` is NOT called — the work is incomplete.
+   Either re-claim with `status: "in-progress"` (default behavior; orchestrator may re-dispatch),
+   or `TaskUpdate({ status: "failed" })` if the partial state is unrecoverable in this attempt.
+2. NO cascade dispatch — `DISPATCHED: none`.
+3. Emit the status block. Set `INCOMPLETE` to the unfinished checklist from `## What to do`.
 
-## On failure
+## On RESULT: failed
 
-1. Mark this task failed:
-   TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })
+1. `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })`
+2. JIT-load `references/investigation-task-template.md`. Substitute `[PARENT_TASK_ID]`,
+   `[PARENT_SUBJECT]`, `[FAILURE]`, `[WORK]`, `[INCOMPLETE]`, `[ARTIFACT]`. Run the TaskCreate
+   verbatim to register a sibling investigation task.
+3. NO cascade dispatch — failed tasks do not cascade. Downstream dependents stay pending and
+   are visible via `TaskList({})`. `DISPATCHED: none`.
+4. Emit the status block.
 
-2. Create an investigation task so the failure is visible in the backlog:
-   TaskCreate({
-     subject: "Investigate failure: [subject of this task]",
-     metadata: {
-       task_type: "investigation",
-       parent_task: "[TASK_ID]",
-       failure_type: "<FAILURE_TYPE>",
-       worktree: "<WORKTREE_PATH or N/A>",
-       branch: "<WORKTREE_BRANCH or N/A>"
-     },
-     description: |
-       ## What failed
-       Parent task: [TASK_ID] — [subject of this task]
-       FAILURE_TYPE: <type>
-       Attempt count: <N> of 3
-       Error output: <paste the relevant error lines>
-
-       Worktree: <path>
-       Branch: <branch>
-       MERGE_TARGET: [MERGE_TARGET]
-
-       ## What finished before failure
-       <list files changed and committed before the failure point, or "none">
-
-       ## What is incomplete
-       <list steps from ## What to do that did not complete>
-
-       ## Your job
-       Analyze the failure. Determine whether new sub-tasks can resolve it.
-       - If yes: TaskCreate each recovery sub-task with a clear description,
-         dispatch Agent() for each in parallel, wait for STATUS: success from all,
-         then mark this investigation task "completed".
-       - If no: mark this investigation task "completed" with a clear explanation
-         of why resolution requires human intervention.
-   })
-
-Do NOT dispatch children of the failed task — failed tasks do not cascade.
-
-STATUS: failure
-FAILURE_TYPE: no_change | partial_change | test_failures | conflict_needs_user | needs_split
-ACTION: preserve_worktree | discard_worktree | none
-  (no_change → discard; partial_change | test_failures → preserve; trivial task → none)
-  (conflict_needs_user → preserve_worktree always)
-  (needs_split → none; include suggested sub-task breakdown in NOTES)
-WORKTREE: <your worktree path, or N/A if trivial task>
-BRANCH: <your worktree branch, or N/A if trivial task>
-NOTES: [what was attempted, what failed; the investigation task has been created in the backlog]
 ```

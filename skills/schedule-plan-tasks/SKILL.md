@@ -450,10 +450,11 @@ Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
     claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel.
     The graph drains itself. The orchestrator does not loop.
 
-  Failure: agents follow `## On failure` in run-agent-description.md (TaskUpdate(failed) +
-  investigation TaskCreate; FAILURE_TYPE ∈ {no_change, partial_change, test_failures,
-  conflict_needs_user, needs_split}). Failed tasks do not cascade — downstream dependents
-  remain pending and visible via `TaskList({})`. Orchestrator does not poll.
+  Failure: agents follow `## On failure` in run-agent-description.md, which JIT-loads
+  `references/investigation-task-template.md` to TaskCreate a sibling investigation task.
+  Status protocol uses RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED fields; FAILURE ∈
+  {no_change, partial_change, test_failures, conflict_needs_user, needs_split}. Failed tasks
+  do not cascade — downstream dependents stay pending, visible via `TaskList({})`.
 
   Trivial run-agents and regression tasks are claimed and dispatched by whichever upstream
   agent's TaskList scan finds them newly unblocked.
