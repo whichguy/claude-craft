@@ -12,6 +12,7 @@
     "test:local-classifier": "bash tools/test-local-classifier.sh",
     "test:coverage": "nyc mocha test/**/*.test.js",
     "test:bench": "mocha test/review-fix-bench.test.js --timeout 10000",
+    "dry-run-plan": "node tools/dry-run-plan.js",
     "bench:run": "bash tools/review-fix-bench.sh --run",
     "bench:compare": "bash tools/review-fix-bench.sh --compare",
     "security:scan": "./tools/security-scan.sh . secrets false"
