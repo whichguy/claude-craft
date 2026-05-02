@@ -9,6 +9,8 @@
 // which the string-presence smoke tests cannot catch.
 
 const { expect } = require('chai');
+const fs = require('fs');
+const path = require('path');
 const { detectChains, selfMergeForRole } = require('../lib/chain-detect');
 const {
   buildBlockers,
@@ -345,5 +347,126 @@ describe('schedule-plan-tasks: chain detection edge cases', function () {
     ]);
     expect(r.chains).to.deep.equal([['A', 'B'], ['E', 'F']]);
     expect([...r.standalones].sort()).to.deep.equal(['C', 'D']);
+  });
+});
+
+// ── Artifact dump ────────────────────────────────────────────────────────────
+// Writes a structured markdown report of every fixture's input graph, computed
+// algorithm output, expected values, and pass/fail status to test/artifacts/.
+// Runs after all tests complete so the artifact is always written, even when
+// some tests fail.
+//
+// File: test/artifacts/schedule-plan-tasks-behavior.md (gitignored)
+// Review with: cat test/artifacts/schedule-plan-tasks-behavior.md
+
+describe('artifact: schedule-plan-tasks behavior dump', function () {
+  after(function () {
+    const ARTIFACTS_DIR = path.join(__dirname, 'artifacts');
+    fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+    const outPath = path.join(ARTIFACTS_DIR, 'schedule-plan-tasks-behavior.md');
+
+    const lines = [
+      '# schedule-plan-tasks — behavior test artifact',
+      '',
+      `Generated: ${new Date().toISOString()}`,
+      '',
+      'For each fixture: input DEPENDS ON graph, computed chain detection result,',
+      'computed wiring blocker structure, and expected values per FIXTURES test data.',
+      'Use this to review what each test was checking and verify the algorithm output',
+      'matches your mental model.',
+      '',
+      '---',
+      '',
+    ];
+
+    function fmt(v) {
+      return JSON.stringify(v).replace(/"/g, '');
+    }
+
+    function canon(v) {
+      if (Array.isArray(v)) return JSON.stringify([...v].sort().map(canon));
+      if (v && typeof v === 'object') {
+        const sortedKeys = Object.keys(v).sort();
+        return JSON.stringify(Object.fromEntries(sortedKeys.map((k) => [k, v[k]])));
+      }
+      return JSON.stringify(v);
+    }
+    function match(actual, expected) {
+      return canon(actual) === canon(expected) ? '✓' : '✗';
+    }
+
+    for (const [key, fx] of Object.entries(FIXTURES)) {
+      const result = fx.edges.length === 0 && fx.independentNodes
+        ? { chains: [], standalones: [...fx.independentNodes], roles: Object.fromEntries(fx.independentNodes.map((n) => [n, 'none'])) }
+        : detectChains(fx.edges);
+
+      const blockers = buildBlockers({
+        chains: result.chains,
+        standalones: result.standalones,
+        edges: fx.edges,
+        regressionBlockers: fx.regression.blockers,
+      });
+
+      lines.push(`## ${key}: ${fx.name}`);
+      lines.push('');
+      lines.push('### Input DEPENDS ON graph');
+      if (fx.edges.length === 0) {
+        lines.push(`(no edges; independent nodes: ${fmt(fx.independentNodes || [])})`);
+      } else {
+        lines.push('```');
+        for (const [from, to] of fx.edges) lines.push(`${from} → ${to}`);
+        lines.push('```');
+      }
+      lines.push('');
+
+      lines.push('### Chain detection result');
+      lines.push('| Field | Computed | Expected | Match |');
+      lines.push('|-------|----------|----------|-------|');
+      lines.push(`| chains | ${fmt(result.chains)} | ${fmt(fx.expected.chains)} | ${match(result.chains, fx.expected.chains)} |`);
+      lines.push(`| standalones (sorted) | ${fmt([...result.standalones].sort())} | ${fmt([...fx.expected.standalones].sort())} | ${match([...result.standalones].sort(), [...fx.expected.standalones].sort())} |`);
+      if (fx.expected.roles) {
+        lines.push(`| roles | ${fmt(result.roles)} | ${fmt(fx.expected.roles)} | ${match(result.roles, fx.expected.roles)} |`);
+      }
+      lines.push('');
+
+      lines.push('### Wiring blocker structure');
+      lines.push('**Create-wt blockers:**');
+      lines.push('```');
+      for (const [k, v] of Object.entries(blockers.createWtBlockers)) lines.push(`${k}: ${fmt(v)}`);
+      lines.push('```');
+      lines.push('**Run-agent blockers:**');
+      lines.push('```');
+      for (const [k, v] of Object.entries(blockers.runAgentBlockers)) lines.push(`${k}: ${fmt(v)}`);
+      lines.push('```');
+      lines.push('**Regression blockers (per fixture data — reflects Reduction choice):**');
+      lines.push(`\`${fmt([...fx.regression.blockers].sort())}\``);
+      lines.push('');
+
+      lines.push('### Self-merge field per role');
+      const selfMerge = {};
+      for (const [node, role] of Object.entries(result.roles)) {
+        selfMerge[node] = `role=${role} → self-merge: ${selfMergeForRole(role)}`;
+      }
+      lines.push('```');
+      for (const [k, v] of Object.entries(selfMerge)) lines.push(`${k}: ${v}`);
+      lines.push('```');
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+    }
+
+    lines.push('## Summary');
+    lines.push('');
+    lines.push(`Total fixtures: ${Object.keys(FIXTURES).length}`);
+    lines.push('Run `npm test` to regenerate this artifact.');
+    lines.push('Run `cat test/artifacts/schedule-plan-tasks-behavior.md` to review.');
+    lines.push('');
+
+    fs.writeFileSync(outPath, lines.join('\n'));
+  });
+
+  it('writes artifact file (informational)', function () {
+    // Marker test — actual write happens in after(); this gives the dump a visible test slot.
+    expect(true).to.be.true;
   });
 });

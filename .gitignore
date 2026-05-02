@@ -17,3 +17,6 @@ raw/
 # Benchmark results — generated, not source
 results/*.json
 !results/.gitkeep
+
+# Test artifacts — regenerated on every `npm test` run
+test/artifacts/
