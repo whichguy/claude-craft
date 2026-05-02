@@ -711,6 +711,10 @@ Stop after printing the trace. The user re-invokes `/schedule-plan-tasks` (no fl
 
 Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Modes, Steps 0–3, and the dispatch protocols.
 
+- **Division of labor — orchestrator vs. task agent:**
+  - The **orchestrator** (this skill) reads plans, extracts proposals, builds the task graph, dispatches Agents, and reports. **It NEVER writes implementation code.** Even when the input plan contains code blocks, the orchestrator extracts the contract (file paths, exports, behaviors) and passes that as the task description — see "Task definition rules" in Step 3.
+  - The **task agent** (the dispatched run-agent) reads its task description, writes the actual implementation, runs the tests, commits, and self-merges. The agent owns 100% of the typing in source files. The orchestrator owns 100% of the topology and dispatch.
+  - If you find yourself (the orchestrator) writing code into a task description, stop. Convert it to a contract first.
 - **Sub-task agents are internal to a parent run-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
 - **Sub-task `MERGE_TARGET` = the parent run-agent's working branch.** Never TARGET_BRANCH.
 - **`run_in_background=True` only on create-wt.** Never on run-agent.
