@@ -512,3 +512,84 @@ with matching fixes and both verdicts are NEEDS_UPDATE; however, the control fla
 additional substantive issues the ablated review omitted."*
 
 **Raw outputs:** `/tmp/ablate-review-plan.v9FVld/` (3 control + 3 ablated reviews + 3 judge JSONs + inspector JSON).
+
+---
+
+### v2 spot-check 3 — probe-1 verdict-stability sanity (2026-05-02)
+
+`/ablate-review-plan --single probe-1` under the repaired harness. Verdict-stability
+sanity check on a Gate-1 fixture with one substantive defect (unsubstantiated
+PropertiesService capacity claim — Q-G1 stress test).
+
+**Step 0b inspector:** `suitable_as = "general"` — agreed with fixture map. Single
+defect identified: the unsubstantiated quantitative/capacity claim.
+
+**3-run results (k=3):**
+
+| Run | Control verdict | Ablated verdict | Judge winner |
+|---|---|---|---|
+| 1 | NEEDS_UPDATE | NEEDS_UPDATE | TIE |
+| 2 | NEEDS_UPDATE | NEEDS_UPDATE | TIE |
+| 3 | NEEDS_UPDATE | NEEDS_UPDATE | TIE |
+
+Aggregates:
+- Majority winner = **TIE** (unanimous)
+- **Verdict stability: VERDICTS_STABLE** (3/3 NEEDS_UPDATE on each side)
+- **Winner stability: WINNER_STABLE** (TIE × 3)
+
+**Per-criterion modes:** all 5 = **EQUIVALENT** × 3 (unanimous on every criterion).
+
+| Criterion | Mode |
+|---|---|
+| issue_overlap | EQUIVALENT |
+| false_negatives | EQUIVALENT |
+| false_positives | EQUIVALENT |
+| severity_alignment | EQUIVALENT |
+| verdict_agreement | EQUIVALENT |
+
+**Spot-Check 3 verdict (against pre-registered branch table): PASS.**
+
+Lands in branch-table row 1 (modulo verdict label): "All criteria EQUIVALENT,
+WINNER_STABLE TIE" — the cleanest possible symmetric outcome. Verdict is NEEDS_UPDATE
+not PASS because the fixture has a real defect both sides correctly flag; the
+*symmetry* of flagging is what the spot check measures, and that is unanimous.
+
+This is exactly the pattern the v2 architecture predicts when both variants share
+the same load-bearing question (Q-G1 evidence-checking on quantitative claims) and
+the ablated v2 has the matching N/A-gated directive: identical issue detection,
+identical severity, identical verdict.
+
+**Substantive findings:** none against the variant. Control is "more exhaustive
+structurally" (judge 1) on advisory items but "the substantive findings overlap"
+across all 3 judges — consistent with the probe-17 finding that advisory directive
+trimming, not core directive coverage, is the remaining signal.
+
+**Key judge quote (judge 3):** *"Both reviews caught the planted unvalidated
+PropertiesService-latency constraint as the load-bearing issue and reached
+NEEDS_UPDATE; they overlap on existing-code/Read-before-edit, input/config validation,
+error handling, and rollback concerns with consistent severity."*
+
+**Raw outputs:** `/tmp/ablate-review-plan.v9FVld/` (3 control + 3 ablated reviews + 3 judge JSONs + inspector JSON).
+
+---
+
+### Phase A‴ summary (2026-05-02) — both spot checks PASS
+
+| Spot check | Fixture | Decisive criterion | Result | Branch row |
+|---|---|---|---|---|
+| 1 | input3b | mode false_positives ∈ {EQUIVALENT, CONTROL} + 3/3 PASS | PASS | row 3 (control over-flags trivial; control defect filed, proceed) |
+| 2 | probe-17 | mode false_negatives ≠ CONTROL on hidden-issue probe | PASS | not in failing rows; ablated caught planted finding |
+| 3 | probe-1 | VERDICTS_STABLE + symmetric flagging | PASS | row 1 (clean equivalent outcome, verdict NEEDS_UPDATE — symmetric) |
+
+**Decision: Phase B (null-baseline) is unblocked.**
+
+The repaired harness produced VERDICTS_STABLE results on all three spot checks with
+no Gate-1 false negatives. The pre-registered branch table covered every observed
+outcome — no mid-flight criterion repair needed (compare to probe-9 → input3 →
+input3b arc which required 3 iterations).
+
+The substantive Phase A‴ finding mirrors the v1 conclusion: the ablated v2 directive
+set is **coverage-equivalent on Gate-1 issues** (probe-1 + probe-17 both confirm)
+but **leaner on advisory issues** (probe-17's `issue_overlap = CONTROL × 3` is the
+tell). Phase B's sharpened question stands: does null match ablated on Gate-1
+hidden-issue probes? If yes, even the directive set is over-engineered.
