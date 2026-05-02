@@ -120,6 +120,32 @@ Recommended verification order:
 
 ---
 
+## Step 0b: Fixture validity precondition
+
+Before spawning any review agent, for each fixture in the active set, spawn ONE inspector
+agent (general-purpose, ~30s) with prompt:
+
+```
+Read this plan: <fixture path>. List every objectively defective element you can
+identify (placeholder identifiers, malformed Markdown, vacuous verification steps,
+contradictions, fabricated citations, missing pre-reads). Return JSON:
+{defects: [...], suitable_as: 'PASS_calibration' | 'mixed_defect' | 'hidden_issue' | 'general'}
+```
+
+Compare the inspector's `suitable_as` to the fixture map's expected role (see Step 0
+fixture map). If they disagree (e.g., inspector says `mixed_defect`, map says
+`PASS_calibration`), HALT and report — do not waste 6 agents + 3 judges on a
+known-broken fixture.
+
+**Why this exists:** the recurring failure mode across probe-9 and input3 (each cost a
+full discovery cycle of 6 agents + 3 judges before the mis-classification surfaced) was
+that the harness ran the full pipeline and *then* discovered the fixture was mis-classified.
+Cost ratio: ~30s × N (one inspector per fixture) vs ~5min × N + 9 agents per discovery
+cycle on a bad fixture. The pre-flight is dominantly cheaper unless every fixture in the
+active set is correctly classified, in which case it costs ~30s × N up front.
+
+---
+
 ## Step 1: Setup
 
 ```bash
@@ -319,9 +345,38 @@ else:
 
 Print the aggregate table, per-criterion win rates, false negative summary, and overall verdict.
 
+After printing the aggregate table, also print a **Judge Reasoning Digest**: for each
+fixture, the 3 judge `reasoning` strings concatenated with their `winner` labels and
+key criteria modes. Save to: `$RESULTS_DIR/judge-reasoning-digest.md`.
+
+Format per fixture:
+
+```
+## <fixture> — majority winner: <X>; verdict_stability: <Y>; winner_stability: <Z>
+
+### Judge 1 (winner=<W1>; false_positives=<FP1>; false_negatives=<FN1>)
+<reasoning string>
+
+### Judge 2 (winner=<W2>; false_positives=<FP2>; false_negatives=<FN2>)
+<reasoning string>
+
+### Judge 3 (winner=<W3>; false_positives=<FP3>; false_negatives=<FN3>)
+<reasoning string>
+```
+
+This is the human-readable signal that complements the criteria modes. Across probe-9,
+input3, and input3b, the judges' reasoning text — not their JSON criteria alone — has
+been the most informative discriminator. Concrete example: input3b judges 1+3 surfaced
+the Q-E2 control-over-flagging finding (criterion `false_positives = CONTROL` alone
+flagged the *direction* of over-flagging but not *what* the control was over-flagging on
+— "Post-Implementation Workflow self-edit on a one-line doc plan" lives only in the
+reasoning text). Promoting it to a first-class output (not buried in 3 JSONs per fixture)
+shortens the spot-check feedback loop.
+
 Then print:
 ```
 Results saved to: $RESULTS_DIR
+Reasoning digest:  $RESULTS_DIR/judge-reasoning-digest.md
 ```
 
 Cleanup is NOT automatic — leave the results dir so the user can inspect raw outputs.

@@ -415,3 +415,38 @@ Mirrored in `skills/ablate-review-plan/SKILL.md` (top of body, before the v2 dec
 
 input3b (2026-05-02) lands in row 3: `false_positives = CONTROL` + both PASS →
 control-defect finding, proceed.
+
+---
+
+### Methodology hardening (2026-05-02) — Step 0b precondition + Judge Reasoning Digest
+
+Two harness improvements pre-load lessons from the probe-9 / input3 / input3b spot-check
+arc so Phase A‴ (spot-checks 2 and 3) and Phase B (null-baseline) don't repeat them.
+
+**1. Step 0b: fixture validity precondition.**
+
+Before spawning any review agent, run ONE inspector agent per fixture (general-purpose,
+~30s) and compare its `suitable_as` classification to the fixture map's expected role.
+If they disagree, HALT — do not waste 6 agents + 3 judges on a known-broken fixture.
+
+The 5-iteration calibration arc (probe-9 → input3 → input3b → criterion-fix) cost
+**2 full discovery cycles** on mis-classified fixtures (probe-9 and input3 each ran
+6 agents + 3 judges = 9 LLM calls before the mis-classification surfaced from the judge
+outputs). Cost ratio of the new pre-flight: ~30s × N (cheap inspector per fixture)
+vs ~5min × N + 9 LLM calls per bad fixture.
+
+**2. Judge Reasoning Digest as first-class output.**
+
+The judges' `reasoning` text has been the most informative signal across every spot
+check, but it was buried in 3 JSON files per fixture. The harness now emits
+`$RESULTS_DIR/judge-reasoning-digest.md` — for each fixture, the 3 judge `reasoning`
+strings concatenated with `winner` labels and key criteria modes.
+
+Concrete example: input3b judges 1+3 reasoning surfaced "control raised an internal
+Q-E2 concern (missing Post-Implementation Workflow section) and self-applied an edit"
+— the *what* of the over-flagging. The criteria mode `false_positives = CONTROL` alone
+captured only the *direction*. The reasoning digest is what made the finding legible
+and actionable enough to file as a deferred control-patch task.
+
+Both improvements are in `skills/ablate-review-plan/SKILL.md` (Step 0b before Step 1;
+Step 4 output extended with the digest).
