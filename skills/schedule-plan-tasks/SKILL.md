@@ -284,7 +284,11 @@ Sequential TaskCreate is only required when the dependent task's description mus
 [regression]        Task: Regression: <scope>               → capture ID_regression
 ```
 *Wire:* `ID_regression` is blocked by ALL chain-tail and standalone run-agents.
-**Regression Blocker Reduction:** Before generating the Regression task, identify any standalone or chain-tail node `R` that is reachable from another standalone or chain-tail node `S` via `DEPENDS ON` constraints (e.g., in a diamond topology). Remove the redundant direct `R -> regression` edge only if `S` runs a test scope that subsumes `R`'s output — i.e., `S` exercises the integrated result of `R`, not just its own isolated concern. If `S` does not validate `R`'s output, keep the direct edge so regression covers both.
+**Regression Blocker Reduction:** When a tail/standalone node `R` has a downstream tail/standalone `S` (via DEPENDS ON), the direct `R → regression` edge may be redundant.
+
+- **REMOVE** the direct edge if `S`'s tests exercise `R`'s output — e.g., `S` runs an integration test that calls `R`'s API, reads `R`'s store, or asserts on `R`'s behavior.
+- **KEEP** the direct edge if `R` has tests that `S` does NOT cover — e.g., `R` has unit-level tests for isolated logic that `S`'s integration test bypasses.
+- When in doubt: **KEEP**. Redundant blockers are cheap; missed coverage is not.
 
 **Trivial run-agents:** create only the run-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Self-merge: yes`. Chain tasks are never trivial.
 
