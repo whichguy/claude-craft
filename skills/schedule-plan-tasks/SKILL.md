@@ -403,8 +403,10 @@ For every Regression task (zero or one in graph):
                or "Regression task #N directly blocked by chain-head/link run-agent #M — must not be."
 
 For every run-agent task with Isolation: native worktree:
-  Assert 6: The description contains a literal `Target branch:` field with a non-empty, non-placeholder value.
-  → Violation: "Run-agent #N is missing Target branch field or has [placeholder] value."
+  Assert 6: The task's metadata.target_branch field is set to a non-empty, non-placeholder string.
+            In dry-run mode: check the ledger entry's metadata.target_branch.
+            In live mode: TaskGet the task and check metadata.target_branch.
+  → Violation: "Run-agent #N metadata.target_branch is missing or placeholder."
 
 For each chain-K (any chain with ≥ 2 members):
   Assert 7: Exactly one create-wt task exists and it belongs to the chain-head. Chain-link and chain-tail
