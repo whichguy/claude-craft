@@ -47,6 +47,24 @@ describe('skills/schedule-plan-tasks/SKILL.md', function () {
         const count = matches ? matches.length : 0;
         expect(count, 'addBlockedBy occurrences: ' + count).to.be.at.least(2);
     });
+
+    it('documents 4 modes: live, dry-run, plan-only, dry-run-analyze', function () {
+        for (const mode of ['live', 'dry-run', 'plan-only', 'dry-run-analyze']) {
+            expect(content.includes(mode), `mode "${mode}" not documented`).to.be.true;
+        }
+    });
+
+    it('documents --plan-only flag in Mode detection', function () {
+        expect(content.includes('--plan-only'), '--plan-only flag').to.be.true;
+    });
+
+    it('references simulate-prefix.md for dry-run agent dispatch', function () {
+        expect(content.includes('simulate-prefix.md'), 'simulate-prefix reference').to.be.true;
+    });
+
+    it('contains Simulated Execution Trace section for dry-run mode', function () {
+        expect(content.includes('Simulated Execution Trace'), 'simulated trace section').to.be.true;
+    });
 });
 
 describe('references/run-agent-description.md', function () {
@@ -127,6 +145,33 @@ describe('references/create-wt-prompt.md', function () {
     it('contains [ -e guard before symlink with resource-not-found error message', function () {
         expect(content.includes('-e'), '-e flag').to.be.true;
         expect(content.includes('resource not found'), 'resource not found message').to.be.true;
+    });
+});
+
+describe('references/simulate-prefix.md', function () {
+    const filePath = path.join(REFS, 'simulate-prefix.md');
+    const content = fs.readFileSync(filePath, 'utf8');
+
+    it('contains SIMULATE MODE banner', function () {
+        expect(content.includes('SIMULATE MODE'), 'SIMULATE MODE banner').to.be.true;
+    });
+
+    it('forbids real actions (git, file modifications, real Agent dispatch)', function () {
+        expect(content.includes('No git commands'), 'no git').to.be.true;
+        expect(content.includes('No file modifications'), 'no file mods').to.be.true;
+        expect(content.includes('No real Agent dispatch'), 'no real Agent').to.be.true;
+    });
+
+    it('describes the read-only cascade-dispatch directive', function () {
+        expect(content.includes('TaskList'), 'TaskList allowed').to.be.true;
+        expect(content.includes('TaskGet'), 'TaskGet allowed').to.be.true;
+        expect(content.includes('DO NOT call Agent'), 'no Agent dispatch').to.be.true;
+    });
+
+    it('mandates the standard status block fields', function () {
+        for (const f of ['RESULT', 'WORK', 'INCOMPLETE', 'FAILURE', 'ARTIFACT', 'DISPATCHED']) {
+            expect(content.includes(f), `status field ${f}`).to.be.true;
+        }
     });
 });
 

@@ -2,7 +2,7 @@
 name: test-schedule-plan-tasks
 description: |
   Test harness for the schedule-plan-tasks skill. Dispatches one Agent per plan fixture in
-  an isolated context, runs the skill in --dry-run mode, and validates the Dry-Run Report
+  an isolated context, runs the skill in --plan-only mode, and validates the Dry-Run Report
   against expected chain/standalone topology and wiring rules (Asserts 3, 5, 6, 7, 8).
 
   **AUTOMATICALLY INVOKE** when:
@@ -14,7 +14,7 @@ allowed-tools: Agent, Read, Bash
 
 # test-schedule-plan-tasks
 
-Each plan fixture is run through the schedule-plan-tasks skill in `--dry-run` mode inside its
+Each plan fixture is run through the schedule-plan-tasks skill in `--plan-only` mode inside its
 own Agent, in its own execution context, in parallel. The orchestrator collects RESULT lines
 and prints a pass/fail summary.
 
@@ -63,7 +63,7 @@ Fixtures and expectation files:
 | 6 | `plan6-deep-cascading.md`          | `expect-plan6.md`  |
 | 7 | `plan7-assert6-violation.md`       | `expect-plan7.md`  |
 
-Each agent invokes `Skill({ skill: "schedule-plan-tasks", args: "--dry-run --plan <fixture>" })`,
+Each agent invokes `Skill({ skill: "schedule-plan-tasks", args: "--plan-only --plan <fixture>" })`,
 captures the Dry-Run Report, validates it against the expectations file, and reports
 `RESULT: PASS | FAIL`.
 

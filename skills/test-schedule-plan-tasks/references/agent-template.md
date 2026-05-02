@@ -17,7 +17,7 @@ Expectations: [EXPECTATIONS_PATH]
 1. Read [EXPECTATIONS_PATH] — hold expected topology in context.
 
 2. Invoke the skill:
-   Skill({ skill: "schedule-plan-tasks", args: "--dry-run --plan [FIXTURE_PATH]" })
+   Skill({ skill: "schedule-plan-tasks", args: "--plan-only --plan [FIXTURE_PATH]" })
    Capture the Dry-Run Report (banner through ### Wiring Integrity) IN CONTEXT ONLY.
    Do NOT print, echo, quote, or otherwise reproduce it in your response yet.
    Do NOT simulate or re-implement the skill — invoke it and validate what it produces.

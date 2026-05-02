@@ -22,22 +22,46 @@ Two entry points, one execution engine. **Branch A** reads an approved plan file
 
 ## Modes
 
-The skill runs in one of three modes, decided at the top of Step 0 by inspecting arguments:
+The skill runs in one of four modes, decided at the top of Step 0 by inspecting arguments:
 
-| Mode               | Trigger flag           | Behavior                                                                                          |
-|--------------------|------------------------|---------------------------------------------------------------------------------------------------|
-| `live`             | (no flag)              | Default. Real TaskCreate, real git operations, real Agent dispatches. Current production path.    |
-| `dry-run`          | `--dry-run`            | No side effects. Branch A: reads the real plan and builds the task graph in memory. Branch B: uses conversation context to generate learnings and craft proposals (skips git history). Both branches output an ordered task list + dependency graph — no real TaskCreate, no git mutations, no agent dispatch. **Trivial classification is overridden: every proposal generates a full `create-wt → run-agent → merge` chain so the complete worktree isolation structure is visible.** |
-| `dry-run-analyze`  | `--dry-run-analyze`    | Same as `dry-run`, then dispatches an analyzer Agent on the Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation, and anti-patterns. |
+| Mode               | Trigger flag           | TaskCreate/Update | Agent dispatch              | Use case                              |
+|--------------------|------------------------|-------------------|-----------------------------|---------------------------------------|
+| `live`             | (no flag)              | real              | real (real work)            | production execution                  |
+| `dry-run`          | `--dry-run`            | real              | real (simulate-prefix mode) | end-to-end protocol validation        |
+| `plan-only`        | `--plan-only`          | skipped (ledger)  | skipped                     | static topology report (no side effects) |
+| `dry-run-analyze`  | `--dry-run-analyze`    | skipped (ledger)  | skipped + analyzer Agent    | static report + LLM critique          |
 
-**`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream. Live mode is the default and is unaffected by the guards — the dry-run substitutions are no-ops when `Mode == live`.
+**`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream.
 
-**dry-run / dry-run-analyze skip rules:**
-- **Real (kept for fidelity):** plan-file read, proposal extraction, TaskList preflight, Branch B senior reviewer dispatch, in-memory wiring integrity check.
-- **Skipped:** `ExitPlanMode`, `TaskCreate`, `TaskUpdate`, git-prep execution, `git worktree add/remove`, `git merge`, `git branch -d`, all agent dispatches (run-agent / merge / regression), Step 4 execution loop.
-- **Substitution:** each skipped TaskCreate/TaskUpdate prints `[DRY] would <verb> #DRY-N: <subject>` and mutates the in-memory ledger; the Step 4 loop is replaced by the Dry-Run Report.
+**Mode behaviors:**
 
-**In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role, metadata: {}}` built during the creation and wiring phases. Source of truth for the wiring integrity check and the Dry-Run Report. The `metadata` field is populated from the `metadata` argument of each dry-run TaskCreate verb, using the same schemas defined in the Phase 1 creation pass below.
+- **`live`** — Real Task API ceremony, real git, real Agent dispatch with real work. Production path.
+
+- **`dry-run`** — Real TaskCreate/TaskUpdate/TaskList ceremony AND real Agent dispatch, but each
+  agent receives the contents of `references/simulate-prefix.md` PREPENDED to its task description.
+  The prefix instructs the agent to: simulate work (no git, no file changes), run the cascade-dispatch
+  directive read-only (TaskList/TaskGet only, no Agent or claim TaskUpdate), emit the standard
+  RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED status block listing would-be-dispatched IDs.
+  The orchestrator collects status blocks, dispatches the next wave (also with simulate prefix),
+  iterates until the graph drains. Validates the agent ↔ orchestrator exchange end-to-end.
+
+- **`plan-only`** — No real Task API ceremony, no Agent dispatch. Skipped TaskCreate/TaskUpdate
+  print `[DRY] would <verb> #DRY-N: <subject>` and mutate an in-memory ledger. Step 4 execution
+  loop is replaced by the Dry-Run Report. Static topology analysis only.
+
+- **`dry-run-analyze`** — Same skip rules as `plan-only`, then dispatches one analyzer Agent on
+  the Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation,
+  and anti-patterns.
+
+**Trivial-task override:** in `plan-only` and `dry-run-analyze` modes, trivial proposals get the
+full `create-wt → run-agent → merge` chain so the complete worktree isolation structure is
+visible in the static report. (Live + dry-run skip the create-wt for trivial tasks.)
+
+**In-memory task ledger** (used by `plan-only` and `dry-run-analyze`) — list of entries
+`{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role, metadata: {}}`
+built during the creation and wiring phases. Source of truth for the wiring integrity check
+and the Dry-Run Report. The `metadata` field is populated from the `metadata` argument of each
+ledger TaskCreate verb, using the same schemas defined in the Phase 1 creation pass below.
 
 ---
 
@@ -45,6 +69,7 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 
 **Mode detection (runs FIRST — before any side-effecting action):** inspect the arguments.
 - Args contain `--dry-run-analyze` → `Mode = dry-run-analyze`
+- Args contain `--plan-only` → `Mode = plan-only`
 - Args contain `--dry-run` → `Mode = dry-run`
 - Otherwise → `Mode = live`
 
@@ -52,15 +77,15 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 
 Print the active mode banner once:
 ```
-## schedule-plan-tasks — Mode: <live|dry-run|dry-run-analyze>
-```
-For dry-run / dry-run-analyze, also print:
-```
-[DRY] No Tasks or git operations will be created. Output: task list + dependency graph.
-      Branch A: reads plan file directly. Branch B: generates learnings from conversation context.
+## schedule-plan-tasks — Mode: <live|dry-run|plan-only|dry-run-analyze>
 ```
 
-Initialize an empty in-memory task ledger when `Mode != live`. Assign IDs `DRY-1`, `DRY-2`, … in TaskCreate order.
+Per-mode banner notes:
+- `dry-run`: print `[DRY-RUN] Real Task API + real Agent dispatch with simulate-prefix. No git or file side effects. End-to-end protocol validation.`
+- `plan-only`: print `[PLAN-ONLY] No Tasks or git operations will be created. Output: static task list + dependency graph.`
+- `dry-run-analyze`: print `[ANALYZE] Same as plan-only, plus analyzer Agent on the report.`
+
+Initialize an empty in-memory task ledger when `Mode == plan-only or dry-run-analyze`. Assign IDs `DRY-1`, `DRY-2`, … in (would-be) TaskCreate order. (`live` and `dry-run` use real task IDs from real TaskCreate.)
 
 `TaskList`. If errors:
 - Print: `Task API unavailable: [error]`
@@ -215,17 +240,41 @@ Print chain assignments after detection:
 [chain] standalone: Proposal-D
 ```
 
-**Mode-aware verb guards:**
-- `Mode == live` → call `TaskCreate` and `TaskUpdate` for real.
-- `Mode != live` → DO NOT call `TaskCreate` or `TaskUpdate`. Instead:
-  - **Reference files are still loaded in dry-run** — `run-agent-description.md` and `create-wt-prompt.md` must be Read before the creation pass using the same JIT protocol as live mode. All placeholder substitutions are performed: Target branch from `git branch --show-current`, Self-merge from chain role (yes for tail/none, no for head/link), working directory from worktree path, definition of done from proposal. `[TASK_ID]` is substituted with `DRY-N` in Phase 1.5. The description stored in each ledger entry is the fully-substituted text, identical to what live mode would write into `TaskCreate`. Note: Chain/Chain ID remain in task `metadata` for wiring integrity checks but are no longer substituted into task description text.
-  - For each TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`, append `{id: DRY-N, type, subject, description, blocked_by: [], chain_id, chain_role, metadata: <metadata arg>}` to the task ledger.
-  - For each TaskUpdate (Phase 2 wiring): print `[DRY] would TaskUpdate #DRY-N addBlockedBy=[DRY-M, ...]`, mutate the ledger entry.
-  - For each Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`, mutate the ledger entry.
-  - The creation ticker shows `#DRY-N` IDs in dry-run instead of real task IDs.
+**Mode-aware verb guards (4-tier):**
 
+| Verb / op                      | live | dry-run                      | plan-only          | dry-run-analyze    |
+|--------------------------------|------|------------------------------|--------------------|--------------------|
+| `TaskCreate`                   | real | real                         | ledger only        | ledger only        |
+| `TaskUpdate`                   | real | real                         | ledger only        | ledger only        |
+| `TaskList` / `TaskGet`         | real | real                         | n/a (ledger)       | n/a (ledger)       |
+| Git operations (worktree etc.) | real | skipped                      | skipped            | skipped            |
+| Agent (run-agent, regression)  | real | real, simulate-prefix prepended | skipped         | skipped            |
+| Agent (analyzer)               | n/a  | n/a                          | n/a                | real (audits report) |
 
-**Trivial override (dry-run only):** when `Mode != live`, ignore any `Trivial: yes` classification from the reviewer. Treat every proposal as a full non-trivial task — generate the complete `create-wt → run-agent` chain per proposal (or per chain: one create-wt for the whole chain).
+**Reference files are loaded in all modes** — `run-agent-description.md` and `create-wt-prompt.md`
+must be Read before the creation pass using the same JIT protocol regardless of mode. All
+placeholder substitutions are performed: Target branch from `git branch --show-current`, Self-merge
+from chain role (yes for tail/none, no for head/link), working directory from worktree path,
+definition of done from proposal. In `live` and `dry-run` modes `[TASK_ID]` is substituted with the
+real task ID returned by TaskCreate (Phase 1.5); in `plan-only` and `dry-run-analyze` it's
+substituted with `DRY-N`. Chain/Chain ID remain in task `metadata` for wiring integrity checks but
+are no longer substituted into task description text.
+
+**Ledger-only behavior (plan-only, dry-run-analyze):**
+- For each would-be TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`,
+  append `{id: DRY-N, type, subject, description, blocked_by: [], chain_id, chain_role,
+  metadata: <metadata arg>}` to the task ledger.
+- For each would-be TaskUpdate (Phase 2 wiring): print `[DRY] would TaskUpdate #DRY-N
+  addBlockedBy=[DRY-M, ...]`, mutate the ledger entry.
+- For each would-be Merge description fill-in: print `[DRY] would TaskUpdate #DRY-N description`,
+  mutate the ledger entry.
+
+**Trivial override (plan-only and dry-run-analyze):** when `Mode in {plan-only, dry-run-analyze}`,
+ignore any `Trivial: yes` classification from the reviewer. Treat every proposal as a full
+non-trivial task — generate the complete `create-wt → run-agent` chain per proposal (or per
+chain: one create-wt for the whole chain). This makes the static report show the full worktree
+isolation structure. In `live` and `dry-run` modes, trivial proposals keep `Isolation: none
+(trivial)` and run inline without their own create-wt.
 
 **Two-phase task creation:**
 
@@ -378,9 +427,16 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 ### Step 4 — Execute Task Graph
 
-**Mode-aware execution guards:**
+**Mode-aware execution guards (4-tier):**
 - `Mode == live` → run the loop exactly as specified below.
-- `Mode != live` → **skip the execution loop entirely**. Run the wiring integrity check against the in-memory task ledger, then print the Dry-Run Report.
+- `Mode == dry-run` → run the loop, but every dispatched Agent gets `references/simulate-prefix.md`
+  PREPENDED to its task description. Git operations are skipped (git-prep tasks are TaskCreate'd
+  and immediately marked completed so create-wt tasks unblock; create-wt itself is dispatched as
+  an Agent that simulates the worktree creation per the simulate prefix). The orchestrator
+  collects each agent's status block, parses DISPATCHED, dispatches the next wave (also with
+  simulate prefix) until the graph drains. Produces a Simulated Execution Trace at the end.
+- `Mode in {plan-only, dry-run-analyze}` → **skip the execution loop entirely**. Run the wiring
+  integrity check against the in-memory task ledger, then print the Dry-Run Report.
 
 **Task-type contract:**
 
@@ -444,11 +500,20 @@ Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
   Each agent receives its full task description (TaskGet(id).description) — self-merge and
   cascade logic are embedded in the template; no additional wrapping needed.
 
+  **Mode == dry-run:** before each Agent() call, JIT-load `references/simulate-prefix.md`
+  and PREPEND its content to the task description. The agent simulates the work, runs the
+  cascade-dispatch directive read-only (TaskList/TaskGet only), and emits the standard status
+  block listing would-be-dispatched IDs. The orchestrator iterates: parse each returned status
+  block, dispatch the next wave (also with simulate prefix), repeat until DISPATCHED is "none"
+  for all agents.
+
   Cascade self-manages from here:
     Each agent → does work → commits → self-merges if Self-merge: yes →
     calls TaskUpdate(completed) → scans TaskList for newly unblocked pending tasks →
     claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel.
-    The graph drains itself. The orchestrator does not loop.
+    The graph drains itself. The orchestrator does not loop. (In dry-run, the agent's
+    cascade-dispatch is read-only per the simulate prefix; the orchestrator iterates the
+    waves explicitly using the DISPATCHED field of each agent's status block.)
 
   Failure: agents follow `## On failure` in run-agent-description.md, which JIT-loads
   `references/investigation-task-template.md` to TaskCreate a sibling investigation task.
@@ -475,11 +540,13 @@ Orchestrator reads only the `STATUS:` line. `success` → mark create-wt complet
 
 ---
 
-**Dry-Run Report (printed at end of Step 4, dry-run / dry-run-analyze only):**
+**Dry-Run Report (printed at end of Step 4, plan-only / dry-run-analyze only):**
+
+(In `dry-run` mode, the orchestrator prints a Simulated Execution Trace instead — see below.)
 
 ```
 ## Dry-Run Report
-Mode: <dry-run|dry-run-analyze>
+Mode: <plan-only|dry-run-analyze>
 Branch: <A|B>
 Plan file: <path|none>
 Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
@@ -518,7 +585,7 @@ For each ledger entry:
 <PASS — N tasks verified | violation list>
 ```
 
-In `dry-run` mode, stop after printing the Dry-Run Report. In `dry-run-analyze` mode, continue:
+In `plan-only` mode, stop after printing the Dry-Run Report. In `dry-run-analyze` mode, continue:
 
 **Analyzer dispatch (`dry-run-analyze` only):**
 
@@ -533,6 +600,47 @@ VERDICT: <READY-TO-EXECUTE | NEEDS-FIXES> — <summary>
 ```
 
 Stop after printing findings. Do not auto-promote dry-run results to live mode — the user re-invokes `/schedule-plan-tasks` (no flag) when ready.
+
+---
+
+**Simulated Execution Trace (printed at end of Step 4, `dry-run` mode only):**
+
+After all dispatched simulate-prefix Agents return their status blocks and the cascade
+has drained (no DISPATCHED IDs remain), emit:
+
+```
+## Simulated Execution Trace
+Mode: dry-run  (real Task API ceremony, real Agent dispatch, simulate-prefix on each agent)
+Branch: <A|B>
+Plan file: <path|none>
+Total tasks: <N>     Waves: <M>     Total agents dispatched: <N>
+
+### Wave 1
+| Agent (task ID) | RESULT | WORK summary | DISPATCHED → |
+|-----------------|--------|--------------|---------------|
+| #87 head A      | complete | "would create src/config/auth.js" | #88 |
+| ...             | ...    | ...          | ...           |
+
+### Wave 2
+| ... |
+
+(repeat per wave until DISPATCHED is "none" for all)
+
+### Aggregate cascade
+- Total dispatch edges traced: <K>
+- Cascade depth: <D> waves
+- Failures (RESULT: failed): <list, or "none">
+- Partial (RESULT: partial): <list, or "none">
+
+### Validation
+- Every chain head dispatched in wave 1 ✓ / ✗
+- Every chain tail dispatched downstream of its head ✓ / ✗
+- Regression dispatched after all chain-tail and standalone run-agents ✓ / ✗
+- Failed tasks did not cascade ✓ / ✗
+- DISPATCHED graph matches the static topology from --plan-only ✓ / ✗
+```
+
+Stop after printing the trace. The user re-invokes `/schedule-plan-tasks` (no flag) for live execution.
 
 ---
 
