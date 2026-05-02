@@ -675,3 +675,67 @@ invalidates prior calibration.
 hidden-issue probes AND beats null on cross-file build correctness AND beats the
 current control on mixed-defect plans is the right stopping point. Ablated-v2 already
 hits the first two; the third is what the v3 control-patch must solve.
+
+---
+
+## 2026-05-02 — v3 spot-check 1: probe-9 (`--variant ablation-na-adversarial`)
+
+**Verdict: PASS — proceed to spot-check 2.**
+
+Tests whether v3-adversarial (v2 + 5-question Adversarial Close + TRIVIAL N/A clause +
+NOT READY tier) catches the mixed-defect under-flagging that the structured control
+missed × 3 on probe-9 (Phase B finding). Reused probe-9 control runs and inspector
+from `/tmp/ablate-null.sgkn3P/` per QR-adjustment 4.
+
+**Construction-validity caveat (QR-adjustment 1):** the 5 adversarial questions in
+`SKILL-v-ablation-na-adversarial.md` were derived from probe-9's actual defect list
+(see `PLAN-v3-adversarial.md` Hypothesis section). Running v3 on probe-9 first is
+**construction validation**, not generalization evidence. This spot-check confirms the
+variant *can* fire on the patterns it was designed for; external validity is what the
+input3b spot-check (designed-against pattern) and the full-suite run (probe-21 fabricated
+citation, input11 cross-file build deps not designed for) test.
+
+### Verdict + categories-flagged tally (3 runs)
+
+| Run | Ablated verdict | Control verdict | Adversarial categories flagged | Judge winner |
+|---|---|---|---|---|
+| 1 | NOT READY | READY (SOLID) | 5 / 5 (fabricated, phantom, dual-source, toolchain, broken-intermediate) | ABLATED |
+| 2 | NOT READY | PASS | 4 / 5 (fabricated, phantom, dual-source, toolchain — broken-intermediate covered in directives but not under adversarial-close prefix) | ABLATED |
+| 3 | NOT READY | PASS | 5 / 5 (toolchain, phantom, dual-source, fabricated, broken-intermediate) | ABLATED |
+
+**Mean categories-flagged: 4.67 / 5. Verdict-stable (NOT READY × 3 ablated; PASS × 3 control). Judge winner stable: ABLATED × 3.**
+
+### Pre-registered branch matched
+
+> ≥2/3 v3 runs reach NEEDS_UPDATE/NOT READY AND mean categories-flagged ≥3 of 5 → PASS
+
+3/3 NOT READY × mean 4.67 → PASS, comfortably above threshold.
+
+### Per-criterion modes (across 3 judges)
+
+| Criterion | Run 1 | Run 2 | Run 3 | Mode |
+|---|---|---|---|---|
+| issue_overlap | ABLATED | ABLATED | ABLATED | ABLATED |
+| false_negatives | ABLATED | ABLATED | ABLATED | ABLATED |
+| false_positives | EQUIVALENT | EQUIVALENT | ABLATED | EQUIVALENT |
+| severity_alignment | ABLATED | ABLATED | ABLATED | ABLATED |
+| verdict_agreement | ABLATED | ABLATED | ABLATED | ABLATED |
+
+### Judge reasoning highlights
+
+- Judge 1: *"Ablated caught substantive concrete issues the control treated as PASS or missed entirely … toolchain and phantom-benchmark findings are blocking concerns the control endorsed as gold-standard substantiation."*
+- Judge 2: *"Control PASSed the plan and flagged no concrete issues; ablated identified multiple substantive defects (fabricated benchmark file, undefined Memory type, TS toolchain absent in JS-only repo, incomplete Phase 2 commit, unreconciled dual-write) that the control entirely missed, and correctly concluded NEEDS_UPDATE."*
+- Judge 3: *"Control rubber-stamps PASS with no findings, while ablated surfaces multiple substantive concrete issues … control's verdict conflicts with these real defects."*
+
+The unanimous reasoning convergence — control under-flags, v3 catches the exact 5 defect
+patterns the variant was designed for — is the construction-validity result. External
+validity remains to be tested in spot-check 2 (input3b TRIVIAL N/A) and the full suite.
+
+### Raw output
+
+`/tmp/ablate-v3-spot1.3c0be7/` — 3 ablated, 3 reused control, 3 judge JSONs, reused inspector.
+
+### Next step
+
+Proceed to spot-check 2: input3b under v3-adversarial, testing the TRIVIAL-tier N/A
+clause prevents the adversarial close from firing on a doc-only PASS plan.
