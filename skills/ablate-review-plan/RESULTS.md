@@ -351,3 +351,43 @@ winner-stability conflation the unified `STABLE` flag obscured.)
 **Prior calibration-repair commits:** `d13e9eb` (input3 reclassification), `0401924`
 (input3b authored as PASS anchor), `673f147` (Spot-Check 1 Pass Criterion v1, with
 the typo this commit chain repairs).
+
+---
+
+### Stability flag decomposed (2026-05-02) — companion to input3b spot-check
+
+The single `STABLE/UNSTABLE` flag from the v2 harness conflated two orthogonal signals.
+input3b made the conflation observable: 3/3 PASS on both control and ablated (verdict
+signal rock-solid) BUT judges split [ABLATED, TIE, CONTROL] on whose Q-E2 behavior was
+correct (winner signal noisy on a stylistic distinction). Under the unified `STABLE`
+flag this scored as "fails the 80% stability gate" — but the substantive verdict signal
+is exactly what the gate was *trying* to measure.
+
+Replaced the unified flag with two orthogonal flags (mirrored in `SKILL.md` Step 3):
+
+```
+Verdict stability:
+  VERDICTS_STABLE iff (a) all 3 control runs reach the same final verdict
+  (PASS / NEEDS_UPDATE / NOT READY) AND (b) all 3 ablated runs reach the same
+  final verdict. SUBSTANTIVE SIGNAL — answers "does the variant produce
+  reliable verdicts." Used by the v2 decision-gate 80% stable_count threshold.
+
+Winner stability:
+  WINNER_STABLE iff all 3 judges agree on `winner`. SECONDARY TIEBREAK —
+  can be UNSTABLE on a fixture even when both sides issue identical verdicts
+  (judges disagree on classifying stylistic / extra-rigor differences).
+```
+
+The v2 decision-gate `stable_count` formula in Step 3 now uses `VERDICTS_STABLE` (not
+the old combined flag). The 80% threshold now measures verdict reproducibility — what
+it was always trying to measure.
+
+Spot-Check 1 Pass Criterion tolerance:
+- `WINNER_UNSTABLE` is acceptable iff verdict-stability is `VERDICTS_STABLE` *and*
+  mode `false_positives` ∈ {EQUIVALENT, CONTROL}. Surfaced in the false-positive
+  summary as a signal, not a fail.
+
+input3b under the new flags:
+- Verdict stability: **VERDICTS_STABLE** (3/3 PASS each side) ✓
+- Winner stability: WINNER_UNSTABLE (judges classify Q-E2 self-edit differently)
+- Result: Spot-Check 1 PASSES.

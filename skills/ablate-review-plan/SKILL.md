@@ -11,9 +11,12 @@ description: |
   prompt achieve equivalent issue detection?
 
   Spot-Check 1 Pass Criterion (input3b — clean-plan calibration anchor):
-    - Majority winner = TIE
+    - Majority winner = TIE (or SPLIT, treated as TIE)
     - Mode verdict_agreement = EQUIVALENT
-    - Stability = STABLE
+    - Verdict stability = VERDICTS_STABLE  (all 3 control runs same verdict AND all 3 ablated runs same verdict)
+    - Winner stability = WINNER_STABLE OR WINNER_UNSTABLE (the latter is acceptable iff
+      verdict-stability is VERDICTS_STABLE AND mode false_positives ∈ {EQUIVALENT, CONTROL};
+      surface in the false-positive summary as a signal, not a fail)
     - Mode false_positives in {EQUIVALENT, CONTROL}  (ablated must not over-flag more than control;
       false_positives = X means side X had more FPs, so the allowed set excludes the over-flagging side)
     - >= 2 of 3 control AND >= 2 of 3 ablated runs reach PASS
@@ -45,9 +48,9 @@ stochastic noise from real regressions.
 
 | Result | Interpretation |
 |--------|---------------|
-| ≥80% majority TIE/ABLATED + ≥80% STABLE + 0 Gate 1 false negatives | Recommend replacement — ablated v2 is sufficient |
+| ≥80% majority TIE/ABLATED + ≥80% VERDICTS_STABLE + 0 Gate 1 false negatives | Recommend replacement — ablated v2 is sufficient |
 | ≥2 Gate 1 false negatives (incl. hidden-issue probes 17–21) | Questions are load-bearing — keep structured evaluation |
-| <80% STABLE | Variant is stochastically unreliable — not deployable regardless of mean performance |
+| <80% VERDICTS_STABLE | Variant is stochastically unreliable — not deployable regardless of mean performance |
 | Mixed (false negatives on advisory but not Gate 1) | Partial — Gate 1 directives load-bearing; trim advisory directives |
 
 ---
@@ -211,17 +214,24 @@ For each fixture, collapse the 3 judge JSONs into:
 - **Majority winner**: the most common value of `winner` across the 3 judges. Examples:
   `[CONTROL, TIE, CONTROL] → CONTROL`; `[TIE, TIE, ABLATED] → TIE`; `[CONTROL, TIE, ABLATED] → no
   majority — record as `SPLIT` and treat as TIE for decision-gate aggregation`.
-- **Stability flag**: `STABLE` if all 3 judges agree on the winner; `UNSTABLE` otherwise.
+- **Verdict stability**: `VERDICTS_STABLE` if (a) all 3 control runs reach the same final
+  verdict (PASS / NEEDS_UPDATE / NOT READY) AND (b) all 3 ablated runs reach the same final
+  verdict. This is the substantive signal — it answers "does the variant produce reliable
+  verdicts." `VERDICTS_UNSTABLE` otherwise.
+- **Winner stability**: `WINNER_STABLE` if all 3 judges agree on `winner`; `WINNER_UNSTABLE`
+  otherwise. This is a secondary tiebreak; can be UNSTABLE even when both sides issue
+  identical verdicts (judges disagree on whose extra-flagging counts as the better
+  calibration — see input3b 2026-05-02 for the canonical case).
 - **Per-criterion mode**: for each of the 5 criteria (`issue_overlap`, `false_negatives`,
   `false_positives`, `severity_alignment`, `verdict_agreement`), the mode value across the 3
   judges. If all three differ on a criterion, record `SPLIT`.
 
 ### Per-fixture winner + stability table
 
-| Fixture | Majority Winner | Stability | issue_overlap | false_negatives | false_positives | severity_alignment | verdict_agreement |
-|---------|-----------------|-----------|---------------|-----------------|-----------------|-------------------|-------------------|
-| probe-1 | ? | STABLE/UNSTABLE | ? | ? | ? | ? | ? |
-| ... | | | | | | | |
+| Fixture | Majority Winner | Verdict Stability | Winner Stability | issue_overlap | false_negatives | false_positives | severity_alignment | verdict_agreement |
+|---------|-----------------|-------------------|------------------|---------------|-----------------|-----------------|-------------------|-------------------|
+| probe-1 | ? | VERDICTS_STABLE/UNSTABLE | WINNER_STABLE/UNSTABLE | ? | ? | ? | ? | ? |
+| ... | | | | | | | | |
 
 ### Per-criterion win rates
 
@@ -233,11 +243,15 @@ For each criterion, count across all fixtures using the per-criterion **mode**:
 ### Stability summary
 
 - Total fixtures: N
-- STABLE: N (%)
-- UNSTABLE: N (%)
+- VERDICTS_STABLE: N (%)   ← substantive signal: verdict reproducibility
+- VERDICTS_UNSTABLE: N (%)
+- WINNER_STABLE: N (%)     ← secondary tiebreak signal
+- WINNER_UNSTABLE: N (%)
 
-A high UNSTABLE rate (>20%) is a signal that the ablated prompt is not robust enough to
-deploy regardless of mean performance.
+A high VERDICTS_UNSTABLE rate (>20%) is a signal that the ablated prompt is not robust
+enough to deploy regardless of mean performance. WINNER_UNSTABLE alone is acceptable iff
+verdict-stability is VERDICTS_STABLE *and* mode `false_positives` ∈ {EQUIVALENT, CONTROL};
+surface it in the false-positive summary as a signal, not a fail.
 
 ### False negative summary
 
@@ -253,7 +267,7 @@ replace the structured skill in production requires **all three** conditions:
 ```
 total_fixtures        = len(active_fixtures)
 tie_or_ablated_count  = count(majority_winner ∈ {TIE, ABLATED})
-stable_count          = count(stability == STABLE)
+stable_count          = count(verdict_stability == VERDICTS_STABLE)   # measures verdict reproducibility — what the 80% gate was always trying to measure
 fn_count              = count(mode(false_negatives) == "CONTROL")
 
 # Gate 1 probes — original L1 probes plus the 5 hidden-issue probes from v2
@@ -296,7 +310,7 @@ Cleanup is NOT automatic — leave the results dir so the user can inspect raw o
 
 After running the full suite, verify:
 
-1. `input3b` (PASS calibration — true clean-plan anchor): the Spot-Check 1 Pass Criterion (top-of-file) applies — majority winner TIE, mode `verdict_agreement` EQUIVALENT, STABLE, mode `false_positives` ∈ {EQUIVALENT, CONTROL}, and ≥ 2 of 3 control AND ≥ 2 of 3 ablated runs reach PASS. Mode `false_positives == ABLATED` here means the ablated variant is over-flagging clean plans (likely tighten Q-G6/Q-G7 N/A clauses for one-line doc edits); mode `false_positives == CONTROL` means the structured control over-flags trivial plans (filed as a control defect — see RESULTS.md 2026-05-02 input3b finding for the Q-E2 case).
+1. `input3b` (PASS calibration — true clean-plan anchor): the Spot-Check 1 Pass Criterion (top-of-file) applies — majority winner TIE, mode `verdict_agreement` EQUIVALENT, VERDICTS_STABLE (WINNER_UNSTABLE tolerated under the conditions in the criterion), mode `false_positives` ∈ {EQUIVALENT, CONTROL}, and ≥ 2 of 3 control AND ≥ 2 of 3 ablated runs reach PASS. Mode `false_positives == ABLATED` here means the ablated variant is over-flagging clean plans (likely tighten Q-G6/Q-G7 N/A clauses for one-line doc edits); mode `false_positives == CONTROL` means the structured control over-flags trivial plans (filed as a control defect — see RESULTS.md 2026-05-02 input3b finding for the Q-E2 case).
 
    `input3` and `probe-9` (mixed-defect / ambiguous-plan calibration — symmetry-of-flagging tests, NOT PASS baselines): both control and ablated should land at NEEDS_UPDATE-or-worse with overlapping issue clusters; the per-fixture mode of `verdict_agreement` should be `EQUIVALENT` and majority winner TIE. These fixtures test that both variants flag substantive defects (input3: malformed Git Lifecycle header + placeholder script ID + vacuous verification; probe-9: fabricated benchmark citation + dual-write ambiguity + undefined `Memory` type) symmetrically, not that either side issues PASS (see RESULTS.md 2026-05-02 entries for diagnoses).
 
@@ -306,4 +320,4 @@ After running the full suite, verify:
 
 4. Read at least 2 fixtures where the mode of `false_negatives` is `CONTROL` side by side against the expected finding to confirm the judge is discriminating correctly.
 
-5. Read at least 1 UNSTABLE fixture's three judge JSONs — confirm the disagreement reflects model stochasticity (not a deterministic harness bug like wrong fixture text being passed).
+5. Read at least 1 VERDICTS_UNSTABLE or WINNER_UNSTABLE fixture's three judge JSONs — confirm the disagreement reflects model stochasticity (not a deterministic harness bug like wrong fixture text being passed). For WINNER_UNSTABLE-only cases (verdicts identical on each side, judges differ on classifying stylistic differences), this is informational not blocking — see Spot-Check 1 Pass Criterion.
