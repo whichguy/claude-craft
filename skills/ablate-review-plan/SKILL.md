@@ -28,7 +28,7 @@ description: |
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
 
-argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture>]"
+argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture>] [--variant <name>]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
@@ -85,7 +85,22 @@ Read the invocation arguments. Supported forms:
 /ablate-review-plan                                        # full 16-fixture suite × k=3
 /ablate-review-plan --single probe-9                       # single fixture × k=3
 /ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
+/ablate-review-plan --variant null                         # use SKILL-v-null.md as ablated variant
+/ablate-review-plan --variant ablation-na                  # default — SKILL-v-ablation-na.md (per-directive N/A)
 ```
+
+**`--variant <name>` flag.** Selects which file in `skills/review-plan/variants/` is used
+as the ablated variant in Step 2b. The file resolved is `skills/review-plan/variants/SKILL-v-<name>.md`.
+Default: `ablation-na`. Available variants:
+
+| `--variant` value | File | Description |
+|---|---|---|
+| `ablation-na` (default) | `SKILL-v-ablation-na.md` | Per-directive N/A semantics (v2) |
+| `null` | `SKILL-v-null.md` | Senior-engineer one-liner baseline (Phase B) |
+| `ablation` | `SKILL-v-ablation.md` | v1 directive variant (legacy reference) |
+| `ablation-calibrated` | `SKILL-v-ablation-calibrated.md` | v1 + calibration preamble (legacy reference) |
+
+The control side always uses `skills/review-plan/SKILL.md`. Only the ablated side varies.
 
 **Fixture short-name → path map:**
 
@@ -160,7 +175,11 @@ For each fixture in the active set, create temp file paths for k=3 runs:
 - `$RESULTS_DIR/<fixture>-ablated-{1,2,3}.md` — ablated review outputs (3 runs)
 - `$RESULTS_DIR/<fixture>-judge-{1,2,3}.json` — judge verdicts (one per paired run)
 
-**Variant under test:** the ablated variant in v2 is `skills/review-plan/variants/SKILL-v-ablation-na.md` (per-directive N/A semantics). Earlier variants (`SKILL-v-ablation.md`, `SKILL-v-ablation-calibrated.md`) are kept for reference but are not the default ablation target.
+**Variant under test:** the ablated variant defaults to `skills/review-plan/variants/SKILL-v-ablation-na.md`
+(per-directive N/A semantics, v2). Use `--variant <name>` to point at any other file in
+`skills/review-plan/variants/` (resolved as `SKILL-v-<name>.md`). The file selected here
+is what gets passed as the system prompt to all 3 ablated-side agents in Step 2b. The
+control side always uses `skills/review-plan/SKILL.md`.
 
 ---
 
@@ -196,9 +215,10 @@ Output your complete review. Do not truncate.
 
 ### Step 2b: Ablated runs (i=1,2,3)
 
-For each `i ∈ {1,2,3}`, spawn an Agent with `skills/review-plan/variants/SKILL-v-ablation-na.md`
-as the system prompt and the same fixture content. Write output to
-`$RESULTS_DIR/<fixture>-ablated-<i>.md`.
+For each `i ∈ {1,2,3}`, spawn an Agent with the resolved variant file
+(`skills/review-plan/variants/SKILL-v-<variant>.md`, where `<variant>` is the value of the
+`--variant` flag, defaulting to `ablation-na`) as the system prompt and the same fixture
+content. Write output to `$RESULTS_DIR/<fixture>-ablated-<i>.md`.
 
 Agent prompt template:
 ```
