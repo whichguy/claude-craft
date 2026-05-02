@@ -450,3 +450,65 @@ and actionable enough to file as a deferred control-patch task.
 
 Both improvements are in `skills/ablate-review-plan/SKILL.md` (Step 0b before Step 1;
 Step 4 output extended with the digest).
+
+---
+
+### v2 spot-check 2 — probe-17 hidden-issue detection (2026-05-02)
+
+`/ablate-review-plan --single probe-17` under the repaired harness (Step 0b precondition
++ corrected criterion + decomposed stability flags + pre-registered branch table).
+
+**Step 0b inspector:** `suitable_as = "hidden_issue"` — agreed with fixture map.
+Inspector identified the X-Request-Id → log-line flow as the lone planted defect.
+
+**3-run results (k=3):**
+
+| Run | Control verdict | Ablated verdict | Judge winner |
+|---|---|---|---|
+| 1 | NEEDS_UPDATE | NEEDS_UPDATE | CONTROL |
+| 2 | NEEDS_UPDATE | NEEDS_UPDATE | CONTROL |
+| 3 | NEEDS_UPDATE | NEEDS_UPDATE | CONTROL |
+
+Aggregates:
+- Majority winner = **CONTROL** (unanimous)
+- **Verdict stability: VERDICTS_STABLE** (3/3 NEEDS_UPDATE on each side)
+- **Winner stability: WINNER_STABLE**
+
+**Per-criterion modes:**
+
+| Criterion | Mode | Per-run values |
+|---|---|---|
+| issue_overlap | CONTROL | CONTROL × 3 |
+| **false_negatives** | **EQUIVALENT** | EQUIVALENT, EQUIVALENT, CONTROL |
+| false_positives | EQUIVALENT | EQUIVALENT × 3 |
+| severity_alignment | EQUIVALENT | EQUIVALENT, EQUIVALENT, CONTROL |
+| verdict_agreement | EQUIVALENT | EQUIVALENT × 3 |
+
+**Spot-Check 2 verdict (against pre-registered branch table): PASS.**
+
+The decisive criterion for a hidden-issue Gate-1 probe is `false_negatives`. Mode =
+**EQUIVALENT**, NOT CONTROL — meaning the ablated v2 variant **caught the planted
+log-injection finding in all 3 runs**, with the same severity and the same fix as the
+control. The branch row "false_negatives = CONTROL on Gate-1 fixture" (which would be a
+FAIL — coverage gap) is NOT triggered.
+
+Control wins on `issue_overlap` × 3 because it surfaces broader advisory findings the
+ablated variant omits (caller enumeration for `reserve`/`charge` signature change,
+Express `Request` type augmentation, rollback/kill switch, Grafana LogQL backward-compat,
+expanded test cases). This is consistent with the v1 conclusion that advisory directives
+in the structured skill carry real value on substantive plans, but does NOT represent
+a hidden-issue coverage gap.
+
+**Substantive findings:**
+- Ablated v2 successfully closes the hypothesized v1 hidden-issue gap on log injection.
+- Control retains an issue-coverage advantage on advisory directives (Q-C7 rollback,
+  Q-G14 TS module augmentation, Q-C40 Grafana claims, Q-C8/Q-C27 service signature
+  break, Q-G10/Q-G30 nginx trust-boundary). These are MIXED-band signals: under the
+  v2 decision gate they would push the verdict to "MIXED — Gate 1 questions
+  load-bearing; advisory directives candidates for trimming" rather than "RECOMMEND_REPLACEMENT".
+
+**Key judge quote (judge 1):** *"Both reviews caught the expected log-injection finding
+with matching fixes and both verdicts are NEEDS_UPDATE; however, the control flagged
+additional substantive issues the ablated review omitted."*
+
+**Raw outputs:** `/tmp/ablate-review-plan.v9FVld/` (3 control + 3 ablated reviews + 3 judge JSONs + inspector JSON).
