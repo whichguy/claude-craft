@@ -195,3 +195,52 @@ calibration baseline should look like.
    useful signal of equivalent calibration.
 
 Raw outputs: `/tmp/ablate-review-plan.3FHFi6/` (3 control + 3 ablated + 3 judge JSONs).
+
+---
+
+### v2 spot-check 1 retry (input3) — second mis-classified PASS calibration (2026-05-02)
+
+Following the probe-9 spot-check failure, the protocol switched to `input3-trivial-plan.md`
+on the assumption it was a true PASS-calibration anchor (single-line `CLAUDE.md` doc edit).
+The retry produced the same failure mode: both control and ablated correctly flag real
+defects in the fixture, and the pre-registered "both PASS across 3 runs" criterion fails
+for the wrong reason.
+
+**3-run results:**
+
+| Run | Control verdict | Ablated verdict | Judge winner | All criteria |
+|---|---|---|---|---|
+| 1 | NEEDS_UPDATE | NEEDS_UPDATE | TIE | EQUIVALENT × 5 |
+| 2 | NEEDS_UPDATE | NEEDS_UPDATE | TIE | EQUIVALENT × 5 |
+| 3 | NEEDS_UPDATE | NEEDS_UPDATE | TIE | EQUIVALENT × 5 |
+
+Aggregates: majority winner = **TIE**, stability = **STABLE**, mode `verdict_agreement`
+= EQUIVALENT, all 5 criteria modes = EQUIVALENT. Symmetric flagging — exactly what
+`probe-9` showed.
+
+**Fixture defects (both variants flagged these):**
+
+- Malformed `## Git Lifecycle1.` header on line 15 — heading and 3 ordered-list items
+  concatenated into a single line with no newlines, unparseable as Markdown
+- Replacement value `1ABC123newScriptIdHere456` is a 25-char obvious placeholder, not a
+  real ~57-char Apps Script ID (the OLD value `1Y72rigcMUAwRd7bwl3CR57O6ENo5sKTn0xAl2C4HoZys75N5utGfkCUG`
+  is 56 chars)
+- Verification step ("Read the file to confirm the change was applied correctly") is
+  vacuous — confirms only that an edit happened, not that the new ID is correct or resolves
+
+**Judge 1 reasoning (verbatim):** *"EXPECTED_FINDING posited a clean PASS, but the plan
+actually contains a placeholder ID and formatting defects, so both reviews correctly
+diverged from the calibration expectation in the same way."*
+
+Judges 2 and 3 reach the same conclusion (TIE / EQUIVALENT × 5) and explicitly cite the
+placeholder script ID, malformed Git Lifecycle, and weak verification step as the
+reasons both reviews flagged.
+
+**Conclusion:** the bench has **no clean-plan baseline**. Both nominal PASS-calibration
+fixtures (`probe-9`, `input3`) are mixed-defect plans where symmetric NEEDS_UPDATE is
+the *correct* outcome, not a calibration failure. The spot-check 1 protocol must be
+repaired — author a true `input3b-trivial-pass.md`, reclassify both existing fixtures as
+ambiguous/mixed-defect symmetry tests, and tighten the PASS criterion to tolerate one
+stochastic flip — before any decision-gate run is meaningful.
+
+Raw outputs: `/tmp/ablate-review-plan.uQILVP/` (3 control + 3 ablated + 3 judge JSONs).
