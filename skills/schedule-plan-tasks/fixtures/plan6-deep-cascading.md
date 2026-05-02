@@ -6,8 +6,11 @@
 JWT middleware, registration/login routes, a secured profile router, a rate limiter on auth
 endpoints, integration tests, and a metrics endpoint.
 
-**Idempotency:** every phase is safe to re-run. File writes are unconditional overwrites;
-commits are diff-guarded; route/middleware mounts in `src/index.js` are grep-guarded.
+**Idempotency:** each step is safe to re-run.
+- File writes are unconditional overwrites.
+- `git add && git commit` is diff-guarded throughout (`git diff --exit-code <files> || git commit`).
+- All route/middleware mounts in `src/index.js` are grep-guarded.
+- `npm test` is always safe to re-run.
 
 **Project:** `fixtures/my-node-server`
 
@@ -19,9 +22,6 @@ endpoints. Integration test suite covers the full register → login → profile
 
 ## Implementation Steps
 
-This plan describes WHAT each phase must produce. Implementation (the actual code bodies) is
-left to the agent executing the task — only the contract is specified here.
-
 ---
 
 ### Phase A: Shared Auth Config
@@ -30,196 +30,377 @@ left to the agent executing the task — only the contract is specified here.
 > importable config. Every downstream auth module imports from here — a single source of
 > truth prevents constant drift across files.
 
+**Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `src/config/auth.js`
-**Depends on:** nothing (root of the dependency graph)
 
-Create `src/config/auth.js` exporting four constants, each env-overridable with sensible defaults:
-- `JWT_SECRET` — secret for HMAC signing/verification (env `JWT_SECRET`, default `'dev-secret-change-in-prod'`)
-- `JWT_EXPIRES_IN` — token lifetime (env `JWT_EXPIRES_IN`, default `'1h'`)
-- `RATE_LIMIT_WINDOW_MS` — rate-limit window in ms (env `RATE_LIMIT_WINDOW_MS`, default `60000`)
-- `RATE_LIMIT_MAX` — max requests per window (env `RATE_LIMIT_MAX`, default `20`)
+1. Create `src/config/auth.js`:
+   ```js
+   module.exports = {
+     JWT_SECRET: process.env.JWT_SECRET || 'dev-secret-change-in-prod',
+     JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '1h',
+     RATE_LIMIT_WINDOW_MS: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 60000,
+     RATE_LIMIT_MAX: parseInt(process.env.RATE_LIMIT_MAX, 10) || 20,
+   };
+   ```
+2. `git diff --exit-code src/config/auth.js || git add src/config/auth.js && git commit -m "feat(auth): add shared auth config"`
 
 ---
 
 ### Phase B: User Store
 
-> Intent: In-memory user store with CRUD primitives for the auth flow. All downstream auth
-> modules (JWT middleware and registration route) depend on this store.
+> Intent: In-memory user store with `createUser`, `getUserById`, `getUserByEmail`, and
+> `verifyPassword`. All downstream modules (JWT middleware and registration route) depend on
+> this store. Imports `JWT_SECRET` from `src/config/auth.js` as the HMAC key for password hashing.
 
+**Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `src/db/userStore.js`
-**Depends on:** Phase A — imports `JWT_SECRET` for password hashing
 
-Read `src/config/auth.js` first to confirm `JWT_SECRET` is exported.
+3. Read `src/config/auth.js` — confirm `JWT_SECRET` export before implementing.
+4. Create `src/db/userStore.js`:
+   ```js
+   const crypto = require('crypto');
+   const { JWT_SECRET } = require('../config/auth');
 
-Create `src/db/userStore.js` — in-memory `Map`-backed store. Exports:
+   const users = new Map();
+   let nextId = 1;
 
-| Export | Signature | Behavior |
-|--------|-----------|----------|
-| `createUser` | `({email, password, name})` → `{id, email, name, createdAt}` | Throws on duplicate email; assigns monotonic string `id`; stores HMAC-hashed password (not plaintext) |
-| `getUserById` | `(id)` → user record or `null` | |
-| `getUserByEmail` | `(email)` → user record or `null` | |
-| `verifyPassword` | `(user, password)` → `boolean` | Recomputes HMAC and compares |
+   function hashPassword(pw) {
+     return crypto.createHmac('sha256', JWT_SECRET).update(pw).digest('hex');
+   }
 
-Internals: passwords HMAC-hashed via `crypto.createHmac('sha256', JWT_SECRET)` — never stored plaintext.
+   function createUser({ email, password, name }) {
+     if (getUserByEmail(email)) throw new Error('Email already registered');
+     const user = { id: String(nextId++), email, name, passwordHash: hashPassword(password), createdAt: new Date().toISOString() };
+     users.set(user.id, user);
+     return { id: user.id, email: user.email, name: user.name, createdAt: user.createdAt };
+   }
+
+   function getUserById(id) { return users.get(id) || null; }
+
+   function getUserByEmail(email) {
+     for (const u of users.values()) if (u.email === email) return u;
+     return null;
+   }
+
+   function verifyPassword(user, password) {
+     return user.passwordHash === hashPassword(password);
+   }
+
+   module.exports = { createUser, getUserById, getUserByEmail, verifyPassword };
+   ```
+5. `git diff --exit-code src/db/userStore.js || git add src/db/userStore.js && git commit -m "feat(auth): add in-memory user store"`
 
 ---
 
 ### Phase C: JWT Auth Middleware
 
-> Intent: Express middleware that validates `Authorization: Bearer <token>`, decodes the
-> payload, looks up the user, attaches `req.user`. Rejects with 401 on any failure.
+> Intent: `requireJwt` middleware — validates `Authorization: Bearer <token>`, decodes the
+> payload, looks up the user in the store, attaches `req.user`. Imports `getUserById` from
+> `src/db/userStore.js` and `JWT_SECRET` from `src/config/auth.js`.
 
+**Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `src/middleware/requireJwt.js`, `test/middleware/requireJwt.test.js`
-**Depends on:** Phase B — imports `getUserById` from `src/db/userStore.js` and `JWT_SECRET` from `src/config/auth.js`
 
-Read `src/db/userStore.js` and `src/config/auth.js` first to verify their exports.
+6. Read `src/db/userStore.js` and `src/config/auth.js` — verify exports.
+7. Create `src/middleware/requireJwt.js`:
+   ```js
+   const crypto = require('crypto');
+   const { JWT_SECRET } = require('../config/auth');
+   const { getUserById } = require('../db/userStore');
 
-Create `src/middleware/requireJwt.js` — exports a default function `(req, res, next)`:
-- Reads `Authorization` header. Missing or not `Bearer ` prefix → 401 `{error: 'Missing token'}`
-- Token is a 3-segment HMAC-SHA256 JWT (header.payload.signature, base64url). Invalid signature → 401 `{error: 'Invalid token'}`
-- Decoded payload's `sub` claim is the user ID. `getUserById(sub)` returns null → 401 `{error: 'User not found'}`
-- Otherwise: assign `req.user`, call `next()`.
+   function verifyToken(token) {
+     const parts = token.split('.');
+     if (parts.length !== 3) throw new Error('malformed');
+     const [h, p, sig] = parts;
+     const expected = crypto.createHmac('sha256', JWT_SECRET)
+       .update(`${h}.${p}`).digest('base64')
+       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+     if (expected !== sig) throw new Error('invalid signature');
+     return JSON.parse(Buffer.from(p, 'base64').toString());
+   }
 
-Write `test/middleware/requireJwt.test.js` — labeled `requireJwt` for `npm test --grep`. Cover:
-- No `Authorization` header → 401 `{error: 'Missing token'}`
-- Malformed token (not 3 parts) → 401 `{error: 'Invalid token'}`
-- Valid-format token for non-existent user → 401 `{error: 'User not found'}`
-- Valid token for existing user → calls `next()` with `req.user` populated
-
-Verify with `npm test -- --grep requireJwt`.
+   module.exports = function requireJwt(req, res, next) {
+     const auth = req.headers['authorization'] || '';
+     if (!auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+     try {
+       const payload = verifyToken(auth.slice(7));
+       const user = getUserById(payload.sub);
+       if (!user) return res.status(401).json({ error: 'User not found' });
+       req.user = user;
+       next();
+     } catch {
+       res.status(401).json({ error: 'Invalid token' });
+     }
+   };
+   ```
+8. Write `test/middleware/requireJwt.test.js`:
+   - No Authorization header → 401 `{ error: 'Missing token' }`
+   - Malformed token (not 3 parts) → 401 `{ error: 'Invalid token' }`
+   - Valid-format token for non-existent user → 401 `{ error: 'User not found' }`
+   - Valid token for an existing user → calls `next()` with `req.user` set
+9. `npm test -- --grep requireJwt`
+10. `git diff --exit-code src/middleware/requireJwt.js test/middleware/requireJwt.test.js || git add src/middleware/requireJwt.js test/middleware/requireJwt.test.js && git commit -m "feat(auth): add JWT verification middleware"`
 
 ---
 
 ### Phase D: User Registration/Login Routes
 
-> Intent: `POST /auth/register` creates a new user; `POST /auth/login` authenticates and
-> returns a signed JWT.
+> Intent: `POST /auth/register` creates a new user; `POST /auth/login` returns a signed JWT.
+> Imports `createUser`, `getUserByEmail`, `verifyPassword` from `src/db/userStore.js` and
+> `JWT_SECRET` from `src/config/auth.js`.
 
-**Outputs:** `src/routes/auth.js`, mount in `src/index.js` at `/auth`, `test/routes/auth.test.js`
-**Depends on:** Phase B — imports `createUser`, `getUserByEmail`, `verifyPassword` from `src/db/userStore.js` and `JWT_SECRET` from `src/config/auth.js`
+**Idempotency:** overwrite + grep-guard for mount + diff-guarded commit.
+**Outputs:** `src/routes/auth.js`, mounted at `/auth` in `src/index.js`
 
-Read `src/db/userStore.js` and `src/config/auth.js` first to verify exports.
+11. Read `src/db/userStore.js` and `src/config/auth.js` — verify exports.
+12. Create `src/routes/auth.js`:
+    ```js
+    const crypto = require('crypto');
+    const { Router } = require('express');
+    const { JWT_SECRET } = require('../config/auth');
+    const { createUser, getUserByEmail, verifyPassword } = require('../db/userStore');
 
-Create `src/routes/auth.js` — exports an Express `Router` with:
-- `POST /register` — body `{email, password, name}`. Missing fields → 400. Duplicate email → 409. Success → 201 with the new user record.
-- `POST /login` — body `{email, password}`. Missing fields → 400. Wrong credentials → 401. Success → 200 with `{token}` where `token` is an HMAC-SHA256 JWT signed with `JWT_SECRET`, payload includes `sub` (user id), `email`, and `exp` (1 hour from now).
+    function signToken(payload) {
+      const h = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
+      const p = Buffer.from(JSON.stringify(payload)).toString('base64');
+      const sig = crypto.createHmac('sha256', JWT_SECRET).update(`${h}.${p}`).digest('base64')
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+      return `${h}.${p}.${sig}`;
+    }
 
-Edit `src/index.js`: grep for the `/auth` mount; if absent, mount the router at `/auth`.
+    const router = Router();
 
-Write `test/routes/auth.test.js` — labeled `auth routes`. Cover:
-- Register with valid body → 201, response has `id`, `email`, `name`
-- Register missing fields → 400
-- Register duplicate email → 409
-- Login with valid credentials → 200, response has `token`
-- Login with wrong password → 401
+    router.post('/register', (req, res) => {
+      const { email, password, name } = req.body || {};
+      if (!email || !password || !name) return res.status(400).json({ error: 'email, password, name required' });
+      try {
+        res.status(201).json(createUser({ email, password, name }));
+      } catch (e) {
+        res.status(409).json({ error: e.message });
+      }
+    });
 
-Verify with `npm test -- --grep "auth routes"`.
+    router.post('/login', (req, res) => {
+      const { email, password } = req.body || {};
+      if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+      const user = getUserByEmail(email);
+      if (!user || !verifyPassword(user, password)) return res.status(401).json({ error: 'Invalid credentials' });
+      const token = signToken({ sub: user.id, email: user.email, exp: Math.floor(Date.now() / 1000) + 3600 });
+      res.json({ token });
+    });
+
+    module.exports = router;
+    ```
+13. Edit `src/index.js`: grep for `/auth` mount — if absent, add `app.use('/auth', require('./routes/auth'));`.
+14. Write `test/routes/auth.test.js`:
+    - `POST /auth/register` valid body → 201, body has `id`, `email`, `name`
+    - `POST /auth/register` missing fields → 400
+    - `POST /auth/register` duplicate email → 409
+    - `POST /auth/login` valid credentials → 200, body has `token`
+    - `POST /auth/login` wrong password → 401
+15. `npm test -- --grep "auth routes"`
+16. `git diff --exit-code src/routes/auth.js src/index.js test/routes/auth.test.js || git add src/routes/auth.js src/index.js test/routes/auth.test.js && git commit -m "feat(auth): add register and login routes"`
 
 ---
 
 ### Phase E: Secured Profile Router
 
-> Intent: `GET /profile` and `PATCH /profile` endpoints, both gated by `requireJwt`. End-to-end
-> testability requires both the JWT middleware AND the auth routes to be in place — Phase E
-> integration tests must `POST /auth/login` first to obtain a real token.
+> Intent: `GET /profile` and `PATCH /profile` endpoints protected by `requireJwt`. Imports
+> the middleware from `src/middleware/requireJwt.js`. An integration test for this route
+> needs to call `/auth/login` first to obtain a token, so both the auth routes and the JWT
+> middleware must be committed before this phase can be tested end-to-end.
 
-**Outputs:** `src/routes/profile.js`, mount in `src/index.js` at `/profile`, `test/routes/profile.test.js`
-**Depends on:** Phase C (uses `requireJwt`) AND Phase D (tests need `/auth/login` to be live)
+**Idempotency:** overwrite + grep-guard + diff-guarded commit.
+**Outputs:** `src/routes/profile.js`, mounted at `/profile` in `src/index.js`
 
-Read `src/middleware/requireJwt.js` and `src/db/userStore.js` first.
+17. Read `src/middleware/requireJwt.js` and `src/db/userStore.js` — verify exports.
+18. Create `src/routes/profile.js`:
+    ```js
+    const { Router } = require('express');
+    const requireJwt = require('../middleware/requireJwt');
+    const { getUserById } = require('../db/userStore');
 
-Create `src/routes/profile.js` — Express `Router` with:
-- `GET /` (gated by `requireJwt`) — returns `req.user`
-- `PATCH /` (gated by `requireJwt`) — body `{name}`. Missing `name` → 400. User not found → 404. Success → 200 with the updated user record.
+    const router = Router();
 
-Edit `src/index.js`: grep for the `/profile` mount; if absent, mount the router at `/profile`.
+    router.get('/', requireJwt, (req, res) => {
+      res.json(req.user);
+    });
 
-Write `test/routes/profile.test.js` — labeled `profile routes`. Cover:
-- `GET /profile` no token → 401
-- `GET /profile` valid token → 200, response is the user object
-- `PATCH /profile` valid token + `{name: 'New Name'}` → 200 with updated name
-- `PATCH /profile` missing `name` → 400
+    router.patch('/', requireJwt, (req, res) => {
+      const { name } = req.body || {};
+      if (!name) return res.status(400).json({ error: 'name required' });
+      const user = getUserById(req.user.id);
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      user.name = name;
+      res.json({ id: user.id, email: user.email, name: user.name });
+    });
 
-Verify with `npm test -- --grep "profile routes"`.
+    module.exports = router;
+    ```
+19. Edit `src/index.js`: grep for `/profile` mount — if absent, add `app.use('/profile', require('./routes/profile'));`.
+20. Write `test/routes/profile.test.js`:
+    - `GET /profile` no token → 401
+    - `GET /profile` valid token → 200, body is user object
+    - `PATCH /profile` valid token, `{ name: 'New Name' }` → 200, updated name returned
+    - `PATCH /profile` missing `name` → 400
+21. `npm test -- --grep "profile routes"`
+22. `git diff --exit-code src/routes/profile.js src/index.js test/routes/profile.test.js || git add src/routes/profile.js src/index.js test/routes/profile.test.js && git commit -m "feat(auth): add JWT-protected profile routes"`
 
 ---
 
 ### Phase F: Auth Rate Limiter
 
-> Intent: Per-IP rate limiting on `/auth/*` endpoints. Inserted before the `/auth` mount so it
-> only intercepts auth traffic — `/profile/*` is JWT-gated already and exempt. Exposes a
-> `getStore` accessor for the metrics endpoint.
+> Intent: Per-IP rate limiting on `/auth/*` endpoints (register and login). Exempts
+> `/profile/*` — those are already JWT-gated. Reads `src/index.js` to confirm the current
+> mount order before inserting the limiter ahead of the `/auth` handler.
 
-**Outputs:** `src/middleware/authRateLimit.js`, mount in `src/index.js` before `/auth`, `test/middleware/authRateLimit.test.js`
-**Depends on:** Phase E — needs `/profile` mount in `src/index.js` already in place so the limiter can be inserted ahead of `/auth` without disturbing `/profile`
+**Idempotency:** overwrite + grep-guard + diff-guarded commit.
+**Outputs:** `src/middleware/authRateLimit.js`, applied in `src/index.js` before `/auth` mount
 
-Read `src/index.js` first to verify current `/auth` and `/profile` mount order.
+23. Read `src/index.js` — note current order of `/auth` and `/profile` mounts.
+24. Create `src/middleware/authRateLimit.js`:
+    ```js
+    const { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX } = require('../config/auth');
 
-Create `src/middleware/authRateLimit.js` — exports a middleware function plus a `getStore()` accessor:
-- Tracks `{count, resetAt}` per `req.ip` in an in-memory `Map`.
-- Resets `count` when `Date.now() > resetAt`.
-- Sets response headers `X-Auth-RateLimit-Limit` (= `RATE_LIMIT_MAX`) and `X-Auth-RateLimit-Remaining` (max(0, `RATE_LIMIT_MAX - count`)) on every call.
-- Returns 429 `{error: 'Too many auth requests — slow down'}` when `count > RATE_LIMIT_MAX`; otherwise calls `next()`.
-- Module also exports `getStore()` returning the underlying `Map` (used by Phase H).
+    const store = new Map();
 
-Edit `src/index.js`: grep for `authRateLimit`; if absent, insert `app.use('/auth', require('./middleware/authRateLimit'))` immediately before the existing `/auth` route mount line. Limiter must precede the handler.
+    function authRateLimit(req, res, next) {
+      const key = req.ip;
+      const now = Date.now();
+      const entry = store.get(key) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW_MS };
+      if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + RATE_LIMIT_WINDOW_MS; }
+      entry.count++;
+      store.set(key, entry);
+      res.setHeader('X-Auth-RateLimit-Limit', RATE_LIMIT_MAX);
+      res.setHeader('X-Auth-RateLimit-Remaining', Math.max(0, RATE_LIMIT_MAX - entry.count));
+      if (entry.count > RATE_LIMIT_MAX) return res.status(429).json({ error: 'Too many auth requests — slow down' });
+      next();
+    }
 
-Write `test/middleware/authRateLimit.test.js` — labeled `authRateLimit`. Cover:
-- First request to `/auth/login` → response includes `X-Auth-RateLimit-Limit` header
-- After `RATE_LIMIT_MAX + 1` requests from the same IP → 429
-- Requests to `/profile/*` are NOT rate-limit-headered (limiter doesn't intercept)
-- Use `RATE_LIMIT_MAX=2` via env for fast test
+    authRateLimit.getStore = () => store;
 
-Verify with `npm test -- --grep authRateLimit`.
+    module.exports = authRateLimit;
+    ```
+25. Edit `src/index.js`: grep for `authRateLimit` — if absent, insert
+    `app.use('/auth', require('./middleware/authRateLimit'));` immediately before the existing
+    `/auth` route mount line (limiter must precede the handler).
+26. Write `test/middleware/authRateLimit.test.js`:
+    - First request to `/auth/login` → `X-Auth-RateLimit-Limit` header present
+    - After `RATE_LIMIT_MAX + 1` requests from same IP → 429
+    - Requests to `/profile` are NOT intercepted by this middleware (no rate-limit headers)
+    - (Set `RATE_LIMIT_MAX=2` via env for test speed)
+27. `npm test -- --grep authRateLimit`
+28. `git diff --exit-code src/middleware/authRateLimit.js src/index.js test/middleware/authRateLimit.test.js || git add src/middleware/authRateLimit.js src/index.js test/middleware/authRateLimit.test.js && git commit -m "feat(auth): add per-IP rate limiting on auth endpoints"`
 
 ---
 
 ### Phase G: Auth Integration Tests
 
-> Intent: End-to-end test of the complete auth flow. All earlier phases must be merged before
-> this can make authoritative assertions about rate-limit behavior and 429 emission.
+> Intent: End-to-end test of the complete auth flow: register → login → get profile →
+> update profile → trigger rate limit. All six endpoints must be finalized (rate limiter
+> in place) before these tests can make authoritative assertions about rate-limit headers
+> and 429 behavior. Reads `src/index.js` to verify all mounts before writing.
 
+**Idempotency:** overwrite + diff-guarded commit.
 **Outputs:** `test/integration/authFlow.test.js`
-**Depends on:** Phase F — full mount chain (auth routes + JWT middleware + rate limiter) must be live in `src/index.js`
 
-Read `src/index.js` first to verify `/auth` (with rate limiter ahead of it) and `/profile` are both mounted.
+29. Read `src/index.js` — verify `/auth` (with rate limiter before it) and `/profile` both mounted.
+30. Create `test/integration/` directory if absent: `mkdir -p test/integration`.
+31. Write `test/integration/authFlow.test.js`:
+    ```js
+    const request = require('supertest');
+    const { expect } = require('chai');
+    process.env.RATE_LIMIT_MAX = '50'; // avoid hitting limit mid-suite
+    const app = require('../../src/index');
 
-Create `test/integration/` directory if absent.
+    describe('auth flow (integration)', () => {
+      let token;
 
-Write `test/integration/authFlow.test.js` — labeled `auth flow`. Use supertest. Set
-`process.env.RATE_LIMIT_MAX = '50'` at file scope so the cross-test traffic doesn't hit the
-limit until the dedicated 429 case. Cases (in order, sharing a `token` variable):
-1. `POST /auth/register` for a fresh user → 201 with `id` populated
-2. `POST /auth/login` for that user → 200 with `token` populated; capture token
-3. `GET /profile` with `Authorization: Bearer <token>` → 200, `email` matches the registered user
-4. `PATCH /profile` with the token and `{name: 'Updated'}` → 200 with `name === 'Updated'`
-5. Auth endpoints expose rate-limit headers on every response (`x-auth-ratelimit-limit`, `x-auth-ratelimit-remaining`)
-6. Setting `RATE_LIMIT_MAX = '1'` then making 2 login requests → second returns 429. Restore `RATE_LIMIT_MAX = '50'` after.
+      it('POST /auth/register creates user', async () => {
+        const res = await request(app).post('/auth/register')
+          .send({ email: 'flow@example.com', password: 'secret', name: 'Flow Tester' });
+        expect(res.status).to.equal(201);
+        expect(res.body).to.have.property('id');
+      });
 
-Verify with `npm test -- --grep "auth flow"`.
+      it('POST /auth/login returns token', async () => {
+        const res = await request(app).post('/auth/login')
+          .send({ email: 'flow@example.com', password: 'secret' });
+        expect(res.status).to.equal(200);
+        expect(res.body).to.have.property('token');
+        token = res.body.token;
+      });
+
+      it('GET /profile returns user when authenticated', async () => {
+        const res = await request(app).get('/profile')
+          .set('Authorization', `Bearer ${token}`);
+        expect(res.status).to.equal(200);
+        expect(res.body.email).to.equal('flow@example.com');
+      });
+
+      it('PATCH /profile updates name', async () => {
+        const res = await request(app).patch('/profile')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ name: 'Updated' });
+        expect(res.status).to.equal(200);
+        expect(res.body.name).to.equal('Updated');
+      });
+
+      it('auth endpoints expose rate-limit headers', async () => {
+        const res = await request(app).post('/auth/login')
+          .send({ email: 'flow@example.com', password: 'secret' });
+        expect(res.headers).to.have.property('x-auth-ratelimit-limit');
+        expect(res.headers).to.have.property('x-auth-ratelimit-remaining');
+      });
+
+      it('auth endpoint returns 429 after RATE_LIMIT_MAX exceeded', async () => {
+        process.env.RATE_LIMIT_MAX = '1';
+        // two requests — second exceeds limit of 1
+        await request(app).post('/auth/login').send({ email: 'x@x.com', password: 'y' });
+        const res = await request(app).post('/auth/login').send({ email: 'x@x.com', password: 'y' });
+        expect(res.status).to.equal(429);
+        process.env.RATE_LIMIT_MAX = '50';
+      });
+    });
+    ```
+32. `npm test -- --grep "auth flow"`
+33. `git diff --exit-code test/integration/authFlow.test.js || git add test/integration/authFlow.test.js && git commit -m "test(auth): add end-to-end auth flow integration tests"`
 
 ---
 
 ### Phase H: Auth Metrics Endpoint
 
-> Intent: `GET /metrics/auth` exposes per-IP rate-limit observability — operators can see
-> which IPs are hitting the limiter.
+> Intent: `GET /metrics/auth` exposes per-IP request counts and current window state from
+> the rate-limit store, giving operators visibility into auth traffic. Reads
+> `src/middleware/authRateLimit.js` to confirm `getStore` is exported before building the route.
 
-**Outputs:** `src/routes/metrics.js`, mount in `src/index.js` at `/metrics`, `test/routes/metrics.test.js`
-**Depends on:** Phase F — uses `authRateLimit.getStore()` to read the rate-limit map
+**Idempotency:** overwrite + grep-guard + diff-guarded commit.
+**Outputs:** `src/routes/metrics.js`, mounted at `/metrics` in `src/index.js`
 
-Read `src/middleware/authRateLimit.js` first to confirm `getStore` is exported.
+34. Read `src/middleware/authRateLimit.js` — confirm `getStore` is exported.
+35. Create `src/routes/metrics.js`:
+    ```js
+    const { Router } = require('express');
+    const authRateLimit = require('../middleware/authRateLimit');
 
-Create `src/routes/metrics.js` — Express `Router` with:
-- `GET /auth` — iterates `getStore()`, returns 200 with body `{window: 'auth', entries: [{ip, count, resetAt}, ...]}`
+    const router = Router();
 
-Edit `src/index.js`: grep for the `/metrics` mount; if absent, mount the router at `/metrics`.
+    router.get('/auth', (req, res) => {
+      const entries = [];
+      for (const [ip, entry] of authRateLimit.getStore().entries()) {
+        entries.push({ ip, count: entry.count, resetAt: entry.resetAt });
+      }
+      res.json({ window: 'auth', entries });
+    });
 
-Write `test/routes/metrics.test.js` — labeled `metrics`. Cover:
-- `GET /metrics/auth` → 200 with body shape `{window: 'auth', entries: array}`
-- After a `/auth/login` request, the requesting IP appears in `entries` with `count >= 1`
-
-Verify with `npm test -- --grep metrics`.
+    module.exports = router;
+    ```
+36. Edit `src/index.js`: grep for `/metrics` mount — if absent, add `app.use('/metrics', require('./routes/metrics'));`.
+37. Write `test/routes/metrics.test.js`:
+    - `GET /metrics/auth` → 200, body has `window: 'auth'` and `entries` array
+    - After a `/auth/login` request, the requesting IP appears in `entries` with `count >= 1`
+38. `npm test -- --grep metrics`
+39. `git diff --exit-code src/routes/metrics.js src/index.js test/routes/metrics.test.js || git add src/routes/metrics.js src/index.js test/routes/metrics.test.js && git commit -m "feat(auth): add /metrics/auth endpoint for rate-limit observability"`
 
 ---
 

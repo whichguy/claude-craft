@@ -259,7 +259,8 @@ PASS criterion (input3b — clean-plan calibration):
   - Majority winner = TIE
   - Mode verdict_agreement = EQUIVALENT
   - Stability = STABLE
-  - Mode false_positives ∈ {EQUIVALENT, ABLATED}    ← ablated must not over-flag more than control
+  - Mode false_positives ∈ {EQUIVALENT, CONTROL}    ← ablated must not over-flag more than control
+    (judge's `false_positives = X` means side X had more FPs; allowed set excludes the over-flagging side)
   - At least 2 of 3 control AND 2 of 3 ablated runs reach PASS
 ```
 
@@ -273,3 +274,80 @@ PASS-quorum requirement (≥ 2 of 3) preserves the original goal — ablated mus
 expected from both sides, mode `verdict_agreement = EQUIVALENT`, majority winner TIE)
 and are no longer eligible to anchor the over-flagging dimension of the v2 decision
 gate. `input3b` is the sole PASS-calibration fixture.
+
+---
+
+### v2 spot-check 1 — input3b PASS-with-finding (2026-05-02)
+
+First spot check against `input3b-trivial-pass.md` (the true clean-plan anchor authored
+after probe-9 and input3 were both reclassified to mixed-defect symmetry tests).
+
+**3-run results (k=3):**
+
+| Run | Control verdict | Ablated verdict | Judge winner |
+|---|---|---|---|
+| 1 | PASS | PASS | ABLATED |
+| 2 | PASS | PASS | TIE |
+| 3 | PASS | PASS | CONTROL |
+
+Aggregates: majority winner = no majority (SPLIT — treated as TIE); verdict-side: 3/3 PASS
+on both control and ablated.
+
+**Per-criterion modes:**
+
+| Criterion | Mode | Notes |
+|---|---|---|
+| issue_overlap | EQUIVALENT | (3 judges: EQUIVALENT, EQUIVALENT, CONTROL) |
+| false_negatives | EQUIVALENT | (3 judges: EQUIVALENT, EQUIVALENT, CONTROL) |
+| **false_positives** | **CONTROL** | (3 judges: CONTROL, EQUIVALENT, CONTROL) — control over-flagged |
+| severity_alignment | EQUIVALENT | unanimous |
+| verdict_agreement | EQUIVALENT | unanimous (5×) |
+
+**Stability flags (decomposed — see Step 2 of repair plan):**
+
+- **Verdict stability: VERDICTS_STABLE** — all 3 control runs reached PASS; all 3 ablated runs reached PASS. The substantive signal (does the variant produce reliable verdicts) is rock-solid.
+- **Winner stability: WINNER_UNSTABLE** — judges split [ABLATED, TIE, CONTROL] on classifying the control's Q-E2 self-edit. Acceptable here because verdict-stability is VERDICTS_STABLE *and* mode `false_positives` ∈ {EQUIVALENT, CONTROL}.
+
+**Spot-Check 1 verdict under the corrected criterion: PASS.**
+
+(Under the prior buggy criterion `{EQUIVALENT, ABLATED}` this would have been recorded
+as a fail — the criterion accepted the failure mode it was meant to forbid and rejected
+the case that actually occurred.)
+
+---
+
+#### Substantive finding — control over-flags TRIVIAL-tier doc plans (Q-E2)
+
+The control's Q-E2 directive ("Post-Implementation Workflow") fires on TRIVIAL-tier
+single-line documentation plans and self-injects a `## Post-Implementation Workflow`
+section the plan does not need. The ablated variant correctly N/A-skips it on a doc-only
+plan with no executable artifacts.
+
+This is the **first empirical evidence that the structured control has its own
+over-flagging defect**, not just the ablated variant. It sharpens Phase B's question
+from "does any structure beat null?" to **"what is the smallest structural footprint
+that beats null on hidden-issue probes without over-flagging trivial ones?"**
+
+**Filed as:** known control defect against `review-plan` Q-E2 N/A clause (does not
+list "documentation-only single-step plan with no code changes (TRIVIAL tier with no
+executable artifacts)" as an N/A condition).
+
+**Deferred to:** v3 control-patch iteration after Phase B. Mutating the control mid-bench
+invalidates prior calibration; the v3 iteration will re-run input3b + the v2 fixture
+suite against the patched control to measure whether the over-flagging finding from
+input3b reproduces or resolves.
+
+**Judge reasoning quotes (verbatim):**
+
+- **Judge 1 (winner = ABLATED):** *"Both reach PASS on a clean trivial doc edit; control raised an internal Q-E2 concern (missing Post-Implementation Workflow section) and self-applied an edit, while the ablated version correctly treated the trivial doc edit as needing nothing extra — a minor false positive on the control side."*
+- **Judge 3 (winner = CONTROL):** *"Both reach PASS as expected for this clean-plan baseline, but the control flagged a missing Post-Implementation Workflow section (Q-E2) and applied an inline edit, while the ablated version raised nothing — for a true PASS calibration the control's extra flag is itself a minor false positive against the expected 'neither flags anything substantive' baseline, but it is more rigorous than the ablated which silently skipped the post-implementation check."*
+
+(The judges agree on the *fact* — control fired Q-E2, ablated did not — but disagree
+on the *classification* — false positive, or extra rigor? This is exactly the
+winner-stability conflation the unified `STABLE` flag obscured.)
+
+**Raw outputs:** `/tmp/ablate-review-plan.CPhaBZ/` (3 control + 3 ablated reviews + 3 judge JSONs).
+
+**Prior calibration-repair commits:** `d13e9eb` (input3 reclassification), `0401924`
+(input3b authored as PASS anchor), `673f147` (Spot-Check 1 Pass Criterion v1, with
+the typo this commit chain repairs).

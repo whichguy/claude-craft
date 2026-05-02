@@ -14,7 +14,8 @@ description: |
     - Majority winner = TIE
     - Mode verdict_agreement = EQUIVALENT
     - Stability = STABLE
-    - Mode false_positives in {EQUIVALENT, ABLATED}  (ablated must not over-flag more than control)
+    - Mode false_positives in {EQUIVALENT, CONTROL}  (ablated must not over-flag more than control;
+      false_positives = X means side X had more FPs, so the allowed set excludes the over-flagging side)
     - >= 2 of 3 control AND >= 2 of 3 ablated runs reach PASS
   Tolerates one stochastic flip per side; detects systematic over-flagging via the
   false_positives mode. Brittle "all 3 PASS" rule replaced after probe-9/input3
@@ -295,7 +296,7 @@ Cleanup is NOT automatic — leave the results dir so the user can inspect raw o
 
 After running the full suite, verify:
 
-1. `input3b` (PASS calibration — true clean-plan anchor): the Spot-Check 1 Pass Criterion (top-of-file) applies — majority winner TIE, mode `verdict_agreement` EQUIVALENT, STABLE, mode `false_positives` ∈ {EQUIVALENT, ABLATED}, and ≥ 2 of 3 control AND ≥ 2 of 3 ablated runs reach PASS. Mode `false_positives == ABLATED` here means the ablated variant is over-flagging clean plans (likely tighten Q-G6/Q-G7 N/A clauses for one-line doc edits).
+1. `input3b` (PASS calibration — true clean-plan anchor): the Spot-Check 1 Pass Criterion (top-of-file) applies — majority winner TIE, mode `verdict_agreement` EQUIVALENT, STABLE, mode `false_positives` ∈ {EQUIVALENT, CONTROL}, and ≥ 2 of 3 control AND ≥ 2 of 3 ablated runs reach PASS. Mode `false_positives == ABLATED` here means the ablated variant is over-flagging clean plans (likely tighten Q-G6/Q-G7 N/A clauses for one-line doc edits); mode `false_positives == CONTROL` means the structured control over-flags trivial plans (filed as a control defect — see RESULTS.md 2026-05-02 input3b finding for the Q-E2 case).
 
    `input3` and `probe-9` (mixed-defect / ambiguous-plan calibration — symmetry-of-flagging tests, NOT PASS baselines): both control and ablated should land at NEEDS_UPDATE-or-worse with overlapping issue clusters; the per-fixture mode of `verdict_agreement` should be `EQUIVALENT` and majority winner TIE. These fixtures test that both variants flag substantive defects (input3: malformed Git Lifecycle header + placeholder script ID + vacuous verification; probe-9: fabricated benchmark citation + dual-write ambiguity + undefined `Memory` type) symmetrically, not that either side issues PASS (see RESULTS.md 2026-05-02 entries for diagnoses).
 
