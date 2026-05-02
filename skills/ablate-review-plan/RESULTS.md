@@ -244,3 +244,32 @@ ambiguous/mixed-defect symmetry tests, and tighten the PASS criterion to tolerat
 stochastic flip — before any decision-gate run is meaningful.
 
 Raw outputs: `/tmp/ablate-review-plan.uQILVP/` (3 control + 3 ablated + 3 judge JSONs).
+
+---
+
+### Spot-Check 1 Pass Criterion — revised (2026-05-02)
+
+After two consecutive PASS-calibration mis-classifications (probe-9, input3) and the
+authoring of `input3b-trivial-pass.md` as a true clean-plan anchor, the brittle "both
+verdicts = PASS across all 3 runs" rule is replaced with the following defense-in-depth
+criterion (mirrored in `skills/ablate-review-plan/SKILL.md` top-of-file):
+
+```
+PASS criterion (input3b — clean-plan calibration):
+  - Majority winner = TIE
+  - Mode verdict_agreement = EQUIVALENT
+  - Stability = STABLE
+  - Mode false_positives ∈ {EQUIVALENT, ABLATED}    ← ablated must not over-flag more than control
+  - At least 2 of 3 control AND 2 of 3 ablated runs reach PASS
+```
+
+Rationale: the new criterion tolerates a single stochastic flip per side (preventing
+the trivial 1-of-6-runs failure that bit probe-9 and input3 retries) while still
+detecting systematic over-flagging via the `false_positives` mode anchor. The
+PASS-quorum requirement (≥ 2 of 3) preserves the original goal — ablated must not
+*systematically* flag clean plans — without making single-run noise dispositive.
+
+`input3` and `probe-9` are reclassified to symmetry-of-flagging tests (NEEDS_UPDATE
+expected from both sides, mode `verdict_agreement = EQUIVALENT`, majority winner TIE)
+and are no longer eligible to anchor the over-flagging dimension of the v2 decision
+gate. `input3b` is the sole PASS-calibration fixture.

@@ -10,6 +10,16 @@ description: |
   Answers: do the structured question IDs add meaningful signal, or does a directive
   prompt achieve equivalent issue detection?
 
+  Spot-Check 1 Pass Criterion (input3b — clean-plan calibration anchor):
+    - Majority winner = TIE
+    - Mode verdict_agreement = EQUIVALENT
+    - Stability = STABLE
+    - Mode false_positives in {EQUIVALENT, ABLATED}  (ablated must not over-flag more than control)
+    - >= 2 of 3 control AND >= 2 of 3 ablated runs reach PASS
+  Tolerates one stochastic flip per side; detects systematic over-flagging via the
+  false_positives mode. Brittle "all 3 PASS" rule replaced after probe-9/input3
+  calibration repair (see RESULTS.md 2026-05-02 entries).
+
   AUTOMATICALLY INVOKE when user mentions:
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
@@ -66,7 +76,8 @@ Read the invocation arguments. Supported forms:
 | `probe-19` | `skills/review-plan/probes/probe-19-live-entry-point-removal.md` | Hidden issue: removed function is a registered scheduled trigger (live external entry point) |
 | `probe-20` | `skills/review-plan/probes/probe-20-silent-async-rejection.md` | Hidden issue: fire-and-forget `void notifySignup(...)` silently swallows rejection |
 | `probe-21` | `skills/review-plan/probes/probe-21-procedurally-clean-false-claim.md` | Hidden issue: 10× speedup citation references a benchmark file no plan step produces |
-| `input3` | `skills/review-plan/inputs/input3-trivial-plan.md` | PASS calibration |
+| `input3` | `skills/review-plan/inputs/input3-trivial-plan.md` | mixed-defect calibration — both versions should flag malformed `## Git Lifecycle1.` header + placeholder script ID + vacuous verification symmetrically (EQUIVALENT mode); not a clean-plan baseline (see RESULTS.md 2026-05-02 spot-check 1 retry) |
+| `input3b` | `skills/review-plan/inputs/input3b-trivial-pass.md` | PASS calibration — neither version should flag anything substantive (true clean-plan baseline; one-line CLAUDE.md doc edit cited verbatim with runnable verification) |
 | `input4` | `skills/review-plan/inputs/input4-plan-with-issues.md` | Structural problems (diverse) |
 | `input6` | `skills/review-plan/inputs/input6-node-refactor-missing-prereads.md` | Phantom code references (Node.js) |
 | `input8` | `skills/review-plan/inputs/input8-gas-oauth-tbd-markers.md` | Unresolved TBD markers |
@@ -74,11 +85,12 @@ Read the invocation arguments. Supported forms:
 
 For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML comment (probes 17–21), read the comment text and use it verbatim as the EXPECTED_FINDING for the judge. The comment is the ground-truth target finding.
 
-Default fixture set (no args): all 16 above.
+Default fixture set (no args): all 17 above.
 
 Recommended verification order:
-1. Start with `--single input3` (true PASS calibration — confirms harness wiring before full run)
-2. Then full suite
+1. Start with `--single input3b` (true PASS calibration — confirms harness wiring + over-flagging dimension before full run)
+2. Then `--single probe-17` (hidden-issue detection sanity) and `--single probe-1` (k=3 stability sanity)
+3. Then full suite
 
 ---
 
@@ -283,9 +295,9 @@ Cleanup is NOT automatic — leave the results dir so the user can inspect raw o
 
 After running the full suite, verify:
 
-1. `input3` (PASS calibration): both control and ablated should output PASS across all 3 runs. The per-fixture mode of `verdict_agreement` should be `EQUIVALENT`. If either side scores CONTROL or ABLATED on the mode, the variant is over-flagging clean plans.
+1. `input3b` (PASS calibration — true clean-plan anchor): the Spot-Check 1 Pass Criterion (top-of-file) applies — majority winner TIE, mode `verdict_agreement` EQUIVALENT, STABLE, mode `false_positives` ∈ {EQUIVALENT, ABLATED}, and ≥ 2 of 3 control AND ≥ 2 of 3 ablated runs reach PASS. Mode `false_positives == ABLATED` here means the ablated variant is over-flagging clean plans (likely tighten Q-G6/Q-G7 N/A clauses for one-line doc edits).
 
-   `probe-9` (ambiguous-plan calibration): both control and ablated should land at NEEDS_UPDATE-or-worse with overlapping issue clusters; the per-fixture mode of `verdict_agreement` should be `EQUIVALENT` and majority winner TIE. This fixture is *not* a PASS baseline — it tests that both variants flag substantive ambiguities symmetrically (see RESULTS.md 2026-05-02 spot-check 1 for diagnosis).
+   `input3` and `probe-9` (mixed-defect / ambiguous-plan calibration — symmetry-of-flagging tests, NOT PASS baselines): both control and ablated should land at NEEDS_UPDATE-or-worse with overlapping issue clusters; the per-fixture mode of `verdict_agreement` should be `EQUIVALENT` and majority winner TIE. These fixtures test that both variants flag substantive defects (input3: malformed Git Lifecycle header + placeholder script ID + vacuous verification; probe-9: fabricated benchmark citation + dual-write ambiguity + undefined `Memory` type) symmetrically, not that either side issues PASS (see RESULTS.md 2026-05-02 entries for diagnoses).
 
 2. `probe-1` (unvalidated constraint): the ablated review should flag the unsubstantiated PropertiesService claim in at least 2 of 3 runs. Mode `false_negatives == "CONTROL"` here means the per-directive N/A variant is missing the evidence-checking directive.
 
