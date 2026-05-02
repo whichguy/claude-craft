@@ -801,3 +801,59 @@ clean PASS calibration.
 ### Next step
 
 Proceed to Step 3 (full v2 fixture suite under v3-adversarial) per the gated execution plan.
+
+---
+
+## 2026-05-02 — v3 full-suite deferred
+
+**Decision: option 2 — accept spot-check evidence; defer full-suite generalization
+test until v3 is candidate-for-default.** Per priority order (quality > tokens > time):
+spot-check evidence already establishes the v3 quality signal on the targeted defect;
+the full-suite cost (~146 fresh LLM calls) buys generalization confidence that is not
+needed unless we are about to promote v3.
+
+### What is established
+
+- **v3 strictly beats the structured control on the designed-for pattern.** probe-9:
+  v3 NOT READY × 3 (mean 4.67/5 adversarial categories caught); structured control
+  PASS × 3 (no findings). All 3 judges scored ABLATED.
+- **v3 matches v2 / structured control on the designed-against pattern.** input3b:
+  TIE × 3, all 5 judge criteria EQUIVALENT, both sides PASS × 3, TRIVIAL-tier N/A
+  clause held cleanly. v3 winner-stable where v2 was winner-unstable on the same
+  fixture (a quiet improvement, not a regression).
+- **Construction-validity caveat acknowledged.** The 5 adversarial questions were
+  derived from probe-9's defect list; probe-9 PASS is therefore construction
+  validation, not generalization evidence.
+
+### What remains untested
+
+- v3 vs v2 head-to-head on the 15 fixtures the variant was *not* designed for
+  (probes 2/3/7/16/17/18/19/20/21, inputs 3/4/6/8/11). The full-suite would test
+  whether the adversarial close introduces false positives on these or holds steady.
+- The pre-registered "≥2 fixtures shift TIE→ABLATED with mode false_positives=ABLATED"
+  threshold (QR-adjustment 3) remains unevaluated.
+
+### Disposition
+
+- v3 (`SKILL-v-ablation-na-adversarial.md`) **stays in the `--variant` table** as a
+  candidate variant, marked as "validated on construction pattern + clean-plan
+  baseline; full-suite generalization deferred."
+- v2 (`SKILL-v-ablation-na.md`) **remains the recommended ablated variant**. Per
+  the evaluation priority (quality > tokens > time), v3's ~30-line cost over v2 is
+  only worth paying if v3 demonstrably beats v2 across the suite — which is exactly
+  the question the deferred Step 3 would answer.
+- The structured control (`SKILL.md`) remains production default; v3's probe-9
+  evidence is filed as a known control under-flagging on mixed-defect plans, to
+  inform a future v3 control-patch iteration.
+
+### Reusables for future Step 3 resume
+
+`/tmp/ablate-v3-full.4ddbb4/` contains:
+- 17 inspector JSONs (6 reused from prior runs, 11 fresh — all classifications
+  validated against the fixture map; no HALTs).
+- 18 reused control reviews (probe-1, probe-9, probe-17, probe-21, input3b, input11
+  from `/tmp/ablate-review-plan.v9FVld/` and `/tmp/ablate-null.sgkn3P/`).
+
+Resuming Step 3 from here saves the inspector phase + 6 fixtures' control runs
+(~28 calls). The remaining cost is ~118 fresh calls (33 fresh control × 3 + 51
+ablated × 3 + 51 judges) when the time comes.
