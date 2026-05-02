@@ -593,3 +593,85 @@ set is **coverage-equivalent on Gate-1 issues** (probe-1 + probe-17 both confirm
 but **leaner on advisory issues** (probe-17's `issue_overlap = CONTROL × 3` is the
 tell). Phase B's sharpened question stands: does null match ablated on Gate-1
 hidden-issue probes? If yes, even the directive set is over-engineered.
+
+---
+
+# Phase B — Null-Baseline Run (2026-05-02)
+
+`/ablate-review-plan --variant null` against the 6-fixture subset under the repaired
+harness. Variant: `skills/review-plan/variants/SKILL-v-null.md` — a single instruction
+to a senior engineer with no question structure, no directives, no N/A semantics.
+
+Results dir: `/tmp/ablate-null.sgkn3P/` (18 control + 18 null reviews + 18 judge JSONs +
+6 inspector JSONs, with probe-1 and probe-17 control reviews reused from the Phase A‴
+spot-check dir).
+
+## Per-fixture aggregate
+
+| Fixture | Majority winner | Verdict stability | Winner stability | Mode false_negatives | Mode issue_overlap | Notes |
+|---|---|---|---|---|---|---|
+| input3b | TIE | VERDICTS_STABLE | WINNER_STABLE | EQUIVALENT | EQUIVALENT | Both PASS; null matches control |
+| probe-9 | ABLATED | UNSTABLE (null) | UNSTABLE | SPLIT | ABLATED | **Control under-flags this mixed-defect plan; null catches substantive defects in 2/3 runs** |
+| probe-1 | TIE | UNSTABLE (null) | UNSTABLE | EQUIVALENT | EQUIVALENT | Mostly symmetric; null missed flagging entirely in 1/3 runs (judge 2) |
+| probe-17 | CONTROL | VERDICTS_STABLE | UNSTABLE | EQUIVALENT | CONTROL | Null catches hidden log-injection × 3; control wins on advisory breadth |
+| probe-21 | TIE | VERDICTS_STABLE | WINNER_STABLE | EQUIVALENT | EQUIVALENT | Null catches fabricated bench citation × 3; symmetric across all 5 criteria |
+| input11 | CONTROL | UNSTABLE (null) | UNSTABLE | CONTROL | SPLIT | **Null misses Phase 1 build-breakers (Express Request type aug, cls-hooked package.json) in 2/3 runs** |
+
+## Control vs Ablated-v2 vs Null verdict matrix
+
+| Fixture | Control verdicts (3 runs) | Ablated-v2 verdicts (Phase A‴) | Null verdicts (Phase B) |
+|---|---|---|---|
+| input3b | PASS × 3 | PASS × 3 (Spot-Check 1) | PASS × 3 |
+| probe-9 | PASS/READY × 3 | not run in Phase A‴ | PASS, NEEDS_UPDATE, NEEDS_UPDATE |
+| probe-1 | NEEDS_UPDATE × 3 | NEEDS_UPDATE × 3 | NEEDS_UPDATE × 2 + 1 silent |
+| probe-17 | NEEDS_UPDATE × 3 | NEEDS_UPDATE × 3 | NEEDS_UPDATE × 3 |
+| probe-21 | NEEDS_UPDATE × 3 | not run in Phase A‴ | NEEDS_UPDATE × 3 |
+| input11 | mixed (1×PASS reported by judge 3) | not run in Phase A‴ | NEEDS_UPDATE × 3 |
+
+## Decision-gate verdict (revised gate from plan)
+
+The plan's revised Phase B decision matrix:
+
+| Outcome | Status |
+|---|---|
+| Null matches both control AND ablated on `input3b` AND hidden-issue probes | **PARTIAL** — null matches on input3b ✓, probe-17 (hidden) ✓ on detection but loses on advisory breadth, probe-21 (hidden) ✓ |
+| Null fails Gate-1 hidden probes but matches control on `input3b` | NO — null catches all hidden findings |
+| Null matches on `input3b`; ablated v2 also matches | **YES on input3b** — both null and ablated-v2 match the structured control's PASS verdict; this row is the closest fit |
+| Null fails everywhere | NO |
+
+**Net verdict:** the data lands closest to **row 3** ("Null matches on input3b; ablated v2 also matches → ablated v2 is the right replacement; control's Q-E2 over-engineered for trivial plans"), with **two important caveats** the original decision matrix didn't enumerate:
+
+1. **Control under-flagging on mixed-defect plans** (probe-9). The structured control reached PASS/READY across all 3 runs on a plan with multiple substantive defects (fabricated benchmark citation, dual-write source-of-truth, undefined `Memory` type, untyped TS in shell repo). Null caught these in 2/3 runs and judge 2 explicitly inverted: *"Control passes the plan with no findings; ablated raises 14 substantive concerns and reaches NEEDS_UPDATE."* This is a **second control defect** alongside the input3b Q-E2 over-flagging, but in the opposite direction (under-flagging on mixed-defect plans). Filed for the same v3 control-patch iteration.
+
+2. **Null misses Phase 1 cross-file build dependencies** (input11). Judges 1+2 cite Express `Request` type augmentation and `cls-hooked` package.json add as Phase 1 build-breakers the structured control catches via question-driven enumeration (Q-G14, Q-C3) but null misses in 2/3 runs. This is the empirical evidence that **directive structure is load-bearing for cross-file build correctness on multi-phase plans**, even when both null and ablated-v2 catch single-file hidden-issue findings.
+
+## Substantive findings synthesis
+
+| Finding | Evidence |
+|---|---|
+| Null catches single-file hidden-issue findings as well as the structured control | probe-17 (log injection): null false_negatives = EQUIVALENT × 3; probe-21 (fabricated citation): all 5 criteria EQUIVALENT × 3 |
+| Null matches structured control on trivial PASS plans | input3b: TIE × 3, all criteria EQUIVALENT × 3, both PASS × 3 |
+| Null misses cross-file build dependencies on multi-phase plans | input11: control catches `Express Request` type augmentation + cls-hooked package.json (Phase 1 build-breakers); null catches them in only 1/3 runs (judge 3) |
+| Structured control under-flags mixed-defect plans | **NEW FINDING**: probe-9 — control reaches PASS/READY × 3 despite the plan containing fabricated benchmark citation, dual-write source-of-truth, undefined Memory type, untyped TS source. Null catches these in 2/3 runs. |
+| Null is verdict-unstable on substantive plans | UNSTABLE on probe-9, probe-1, input11 (3 of 6 fixtures) — null produces inconsistent verdicts when the plan has subtle defects, where ablated-v2 was VERDICTS_STABLE × 3 |
+
+## Empirical conclusion (Phase B)
+
+Replacing the structured control with `SKILL-v-null.md` is **not viable** for production use, but for a different reason than v1's calibration regression:
+
+- Null **matches** the structured control on hidden-issue probes (probe-17, probe-21), refuting the hypothesis that the question structure is load-bearing for single-file issue detection.
+- Null **regresses** on cross-file build correctness (input11), confirming that the question-driven enumeration in Q-G14/Q-C3 is load-bearing for multi-phase plans.
+- Null **exposes a control regression** on mixed-defect plans (probe-9), where the structured control reaches PASS despite substantive defects that null catches.
+- Null is **verdict-unstable** on substantive plans (3/6 fixtures UNSTABLE), where ablated-v2 was stable.
+
+The production recommendation remains: **ablated-v2 (per-directive N/A) is the right replacement for the structured control on substantive plans**, but the null-baseline run revealed that the structured control itself has *two* defects requiring v3 patches:
+- Q-E2 over-flagging on TRIVIAL doc plans (input3b finding)
+- **NEW: under-flagging on mixed-defect plans where the surface structure passes Gate 1 but substantive plan-quality issues remain** (probe-9 finding)
+
+Both are deferred to v3 control-patch iteration; mutating the control mid-bench
+invalidates prior calibration.
+
+**Sharpened question for v3:** the smallest structural footprint that beats null on
+hidden-issue probes AND beats null on cross-file build correctness AND beats the
+current control on mixed-defect plans is the right stopping point. Ablated-v2 already
+hits the first two; the third is what the v3 control-patch must solve.
