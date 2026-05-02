@@ -13,8 +13,8 @@ Substitute placeholders per task:
 - `Sub-tasks allowed: yes` — for non-trivial worktree tasks; replace with `no` for trivial tasks
 - `Self-merge: yes` — for Chain: none and Chain: tail tasks (this worktree owns its branch end-to-end); replace with `no` for Chain: head and Chain: link tasks (next chain member continues in same worktree)
 - `[symlinked paths outside worktree, or "none"]` — only paths to files outside the git repo that were explicitly symlinked in; omit paths already present in the worktree
-- `[Specific, actionable steps from the plan or reviewer's output]`
-- `[Concrete acceptance criteria]` — tests pass, file exists, output matches X, etc.
+- `[Plan-level directions]` for `## What to do` — action verbs + file paths + behavioral contracts + integration points + verification commands. NOT verbatim code blocks from the plan. See SKILL.md "Task definition rules" for the full guidance and a worked example.
+- `[Concrete acceptance criteria]` for `## Definition of done` — observable: file exists with named exports, named tests pass, behavioral assertion demonstrable, commit landed.
 
 For trivial tasks: set `Isolation: none (trivial)`, `Sub-tasks allowed: no`, `Self-merge: no`, `Working directory: main workspace`.
 
@@ -51,11 +51,15 @@ Only emit `RESULT: failed` before 3 attempts if the obstacle is a genuine fatali
 missing credentials, broken tool, environment issue entirely outside your control.
 
 ## What to do
-[Specific, actionable steps from the plan or reviewer's output]
+[Plan-level directions: action verbs + file paths + behavioral contracts + integration
+points + verification commands. NOT verbatim code blocks from the plan — the agent writes
+the implementation; this section specifies the contract. See SKILL.md "Task definition rules"
+for the full guidance.]
 
 ## Definition of done
-[Concrete acceptance criteria — tests pass, file exists, output matches X, etc.
-Continue working until these criteria are met, or report failure.]
+[Concrete, observable acceptance criteria — file paths exist, named exports present,
+named tests pass, behavioral assertions demonstrable, commit landed. Verifiable, not
+aspirational. Continue working until these criteria are met, or report failure.]
 
 ## Sub-task spawning (Sub-tasks allowed: yes only)
 

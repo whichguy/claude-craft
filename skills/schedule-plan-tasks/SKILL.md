@@ -362,8 +362,71 @@ This command runs in both live and dry-run modes — it is read-only and not sub
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
    - Set `Sub-tasks allowed:` to `yes` for `Isolation: native worktree` tasks; `no` for trivial tasks.
    - Set `Self-merge:` to `yes` for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks.
-   - Set `## Definition of done` to the concrete acceptance criteria for this proposal.
+   - Set `## What to do` to **plan-level directions** distilled from the proposal (see "Task definition rules" below). Action verbs + file paths + behavioral contracts + integration points + verification commands. **Do NOT paste verbatim code blocks** from the plan — even if the plan author included them. The agent doing the work writes the implementation; the task description specifies the contract.
+   - Set `## Definition of done` to the concrete acceptance criteria for this proposal — observable post-conditions: file paths that must exist, exports that must be present, test labels that must pass, behavior that must be demonstrable. Verifiable, not aspirational.
    - Leave `Task ID:` as the literal placeholder `[TASK_ID]` — the orchestrator fills it in Phase 1.5 after TaskCreate returns real IDs.
+
+**Task definition rules — `## What to do` and `## Definition of done`:**
+
+The two sections together form the contract between orchestrator and agent. They MUST be plan-level, not implementation-level. The agent writes the code; the task tells it what to build, where, and how to verify.
+
+**`## What to do` should contain:**
+- **Action verbs:** create, edit, read, write, mount, run, verify
+- **File paths:** explicit (e.g. `src/db/userStore.js`, `test/middleware/requireJwt.test.js`)
+- **Exports / functions / endpoints to produce:** by name and signature shape (e.g. `createUser({email, password, name}) → {id, email, name, createdAt}`)
+- **Key behaviors:** in prose (e.g. "passwords HMAC-hashed using JWT_SECRET"; "returns 429 when count exceeds RATE_LIMIT_MAX")
+- **Integration points:** which existing files to read for context, where to mount routes, what env vars to honor
+- **Verification commands:** `npm test -- --grep <label>`, `curl /endpoint`, etc.
+
+**`## What to do` MUST NOT contain:**
+- Verbatim code blocks (`` ```js ... ``` ``) — even if the plan has them. Distill the contract; the agent writes the body.
+- Step-by-step typing instructions (e.g. "type `const crypto = require('crypto')`")
+- Implementation details the agent should derive: variable names, helper function structure, exact JSON literals (unless the literal IS the contract)
+
+**`## Definition of done` should contain:**
+- File-existence checks (`src/X.js exists with Y exported`)
+- Test-suite outcomes (`npm test -- --grep X passes`)
+- Behavioral assertions (`GET /health returns {status:"ok"}`, `429 emitted after RATE_LIMIT_MAX login attempts`)
+- Commit landing requirements (`single commit on chain-K-branch`; `merged to main and worktree removed if Self-merge: yes`)
+
+**Rule of thumb:** if you removed `## What to do` and gave the agent only `## Definition of done` + the file paths + intent, could it still figure out what to build? If yes, the contract is plan-level. If no, the contract is leaking implementation.
+
+Example transformation (from a plan that embeds code):
+
+PLAN INPUT (verbatim):
+```
+3. Read `src/config/auth.js` — confirm `JWT_SECRET` export before implementing.
+4. Create `src/db/userStore.js`:
+   ```js
+   const crypto = require('crypto');
+   const { JWT_SECRET } = require('../config/auth');
+   const users = new Map();
+   let nextId = 1;
+   function hashPassword(pw) { ... }
+   function createUser({ email, password, name }) { ... }
+   ...
+   module.exports = { createUser, getUserById, getUserByEmail, verifyPassword };
+   ```
+```
+
+CORRECT `## What to do` (plan-level):
+```
+1. Read src/config/auth.js — verify JWT_SECRET is exported.
+2. Create src/db/userStore.js — in-memory store. Exports:
+     createUser({email, password, name}) → {id, email, name, createdAt}; rejects duplicate emails (409).
+     getUserById(id) → user | null
+     getUserByEmail(email) → user | null
+     verifyPassword(user, password) → boolean
+   Internals: passwords HMAC-hashed (sha256) using JWT_SECRET as the key. IDs assigned monotonically as strings.
+```
+
+CORRECT `## Definition of done`:
+```
+- src/db/userStore.js exists, exports the four named functions.
+- Duplicate email registration returns an Error.
+- Password hash uses crypto.createHmac('sha256', JWT_SECRET) — verifiable by reading the file.
+- Single commit on chain-1-branch.
+```
 
 **Phase 1.5 — Task ID embedding** (runs after Phase 1 returns all IDs, before Phase 2 wiring):
 
