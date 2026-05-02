@@ -32,24 +32,10 @@ The skill runs in one of three modes, decided at the top of Step 0 by inspecting
 
 **`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream. Live mode is the default and is unaffected by the guards — the dry-run substitutions are no-ops when `Mode == live`.
 
-**What dry-run does NOT skip** (read-only, kept real for fidelity):
-- Branch A: reading the plan file and extracting proposals
-- Branch B: generating learnings and drafting proposals from conversation context (real reasoning, no git scan)
-- TaskList preflight (read-only)
-- **Branch B senior reviewer Agent dispatch** — runs for real (no side effects beyond token cost; realism is the point)
-- Wiring integrity check — runs in-memory against the task ledger
-
-**What dry-run DOES skip:**
-
-| Live verb                                                       | Dry-run behavior                                                                              |
-|-----------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
-| `ExitPlanMode`                                                  | skipped — print `[DRY] would ExitPlanMode`; stay in plan mode                                |
-| `TaskCreate`                                                    | skipped — append to in-memory task ledger; print `[DRY] would TaskCreate #DRY-N: <subject>` |
-| `TaskUpdate` (Dependencies & Merge fill-in)                     | skipped — mutate ledger entry; print `[DRY] would TaskUpdate #DRY-N addBlockedBy=[...]` or `description` |
-| Git-prep execution (all inline git commands in Step 4)         | skipped entirely — not simulated, not printed; git context prime in Step 1 still runs        |
-| `git worktree add/remove`, `git merge`, `git branch -d`        | skipped entirely                                                                              |
-| Agent dispatch — run-agent, merge, regression                  | skipped entirely — no simulated happy-path results                                            |
-| Execution loop (Step 4 live loop)                               | skipped — replaced by Dry-Run Report                                                          |
+**dry-run / dry-run-analyze skip rules:**
+- **Real (kept for fidelity):** plan-file read, proposal extraction, TaskList preflight, Branch B senior reviewer dispatch, in-memory wiring integrity check.
+- **Skipped:** `ExitPlanMode`, `TaskCreate`, `TaskUpdate`, git-prep execution, `git worktree add/remove`, `git merge`, `git branch -d`, all agent dispatches (run-agent / merge / regression), Step 4 execution loop.
+- **Substitution:** each skipped TaskCreate/TaskUpdate prints `[DRY] would <verb> #DRY-N: <subject>` and mutates the in-memory ledger; the Step 4 loop is replaced by the Dry-Run Report.
 
 **In-memory task ledger** — list of entries `{id: DRY-N, type, subject, description, blocked_by[], chain_id, chain_role, metadata: {}}` built during the creation and wiring phases. Source of truth for the wiring integrity check and the Dry-Run Report. The `metadata` field is populated from the `metadata` argument of each dry-run TaskCreate verb, using the same schemas defined in the Phase 1 creation pass below.
 
@@ -250,7 +236,8 @@ create-wt:   { task_type: "create-wt",  chain_id: "chain-K"|null, chain_role: nu
                isolation: "native worktree", worktree_path: ".worktrees/chain-K",
                target_branch: "<captured branch>" }
 run-agent:   { task_type: "run-agent",  chain_id: "chain-K"|null,
-               chain_role: "head|link|tail|none", isolation: "native worktree|none (trivial)",
+               chain_role: "head|link|tail|none",   // "none" = standalone (chain_id=null)
+               isolation: "native worktree|none (trivial)",
                worktree_path: ".worktrees/chain-K", proposal_index: N,
                scope: "trivial|small|medium|large", target_branch: "<captured branch>" }
 regression:  { task_type: "regression", chain_id: null, chain_role: null, isolation: "none" }
@@ -399,34 +386,15 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 **Wiring integrity check** (inline, runs once before resume check):
 
-```
-For every Create worktree task (chain or standalone):
-  Assert 3: Its blockers include `Setup .worktrees` and, if this chain/standalone DEPENDS ON another, at least one upstream tail or standalone run-agent ID.
-  → Exception: If the proposal has no upstream DEPENDS ON constraints, blocked only by Setup .worktrees — valid; skip the upstream-blocker part of Assert 3.
-  → Violation: "Create worktree #N is missing expected upstream run-agent blocker from its DEPENDS ON chain."
+| Check    | Applies to                          | Condition                                                                                  | Violation message                                                                |
+|----------|-------------------------------------|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| Assert 3 | every create-wt                     | blockers include `Setup .worktrees` AND (if DEPENDS ON exists) ≥1 upstream tail/standalone | "Create worktree #N missing expected upstream run-agent blocker"                |
+| Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone run-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
+| Assert 6 | every native-worktree run-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Run-agent #N metadata.target_branch is missing or placeholder"                 |
+| Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
+| Assert 8 | every run-agent description         | contains the phrase "exactly one `git commit`" in `## Before return: commit`               | "Run-agent #N missing single-commit rule in ## Before return: commit"           |
 
-For every Regression task (zero or one in graph):
-  Assert 5: It is blocked by ALL chain-tail run-agents and ALL standalone run-agents.
-             Chain-head and chain-link run-agents are NOT direct regression blockers.
-  → Violation: "Regression task #N is missing blockers: [list of missing tail/standalone IDs]"
-               or "Regression task #N directly blocked by chain-head/link run-agent #M — must not be."
-
-For every run-agent task with Isolation: native worktree:
-  Assert 6: The task's metadata.target_branch field is set to a non-empty, non-placeholder string.
-            In dry-run mode: check the ledger entry's metadata.target_branch.
-            In live mode: TaskGet the task and check metadata.target_branch.
-  → Violation: "Run-agent #N metadata.target_branch is missing or placeholder."
-
-For each chain-K (any chain with ≥ 2 members):
-  Assert 7: Exactly one create-wt task exists and it belongs to the chain-head. Chain-link and chain-tail
-             tasks have no create-wt of their own.
-  → Violation: "chain-link/tail task #N has its own create-wt — should share chain-K's create-wt."
-
-For each run-agent task description:
-  Assert 8: The description contains the phrase "exactly one `git commit`" in its ## Before return: commit section.
-  → Violation: "Run-agent #N missing single-commit rule in ## Before return: commit."
-
-```
+Assert 3 exception: if the proposal has no DEPENDS ON, only `Setup .worktrees` is required — skip the upstream-blocker check.
 
 If all pass: print `Wiring integrity: OK — N tasks verified` and continue.
 
@@ -474,11 +442,10 @@ Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
     claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel.
     The graph drains itself. The orchestrator does not loop.
 
-  Failure: failed agents call TaskUpdate(failed), create an investigation TaskCreate,
-  and do not dispatch children. Downstream dependents remain pending.
-  FAILURE_TYPE values: no_change, partial_change, test_failures, conflict_needs_user, needs_split.
-  To inspect: TaskList({}) → filter pending tasks whose blockedBy contains a failed task.
-  Failures are visible in TaskList at any time — the orchestrator does not need to poll.
+  Failure: agents follow `## On failure` in run-agent-description.md (TaskUpdate(failed) +
+  investigation TaskCreate; FAILURE_TYPE ∈ {no_change, partial_change, test_failures,
+  conflict_needs_user, needs_split}). Failed tasks do not cascade — downstream dependents
+  remain pending and visible via `TaskList({})`. Orchestrator does not poll.
 
   Trivial run-agents and regression tasks are claimed and dispatched by whichever upstream
   agent's TaskList scan finds them newly unblocked.

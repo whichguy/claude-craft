@@ -57,34 +57,23 @@ credentials, broken tool, environment issue entirely outside your control.
 [Concrete acceptance criteria — tests pass, file exists, output matches X, etc.
 Continue working until these criteria are met, or report failure.]
 
-## Sub-task spawning (when Sub-tasks allowed: yes)
+## Sub-task spawning (Sub-tasks allowed: yes only)
 
-Use this only when you discover 2+ chunks of work that are genuinely independent —
-neither needs the other's output to proceed. Prefer plan-time decomposition; this is
-the runtime escape hatch for parallelism not anticipated in the plan.
+Use only for 2+ chunks of work that are genuinely independent — neither needs the other's
+output. Prefer plan-time decomposition; this is the runtime escape hatch.
 
-**How to spawn:**
-For each parallel chunk:
-1. Create a sub-task worktree from your current working branch (not Target branch):
-   `git worktree add .worktrees/<sub-id> -b <sub-branch> <your-working-branch>`
-2. Construct a full agent prompt using this same template with:
-   - Working directory: the sub-task worktree path
-   - MERGE_TARGET: your working branch (not Target branch)
-   - Target branch: same as yours (informational only)
-   - Sub-tasks allowed: no (no recursive nesting)
-3. Dispatch all sub-task agents in parallel (multiple Agent calls in one message).
-4. Wait for all to report STATUS: success before continuing.
+**Spawn:** for each chunk run `git worktree add .worktrees/<sub-id> -b <sub-branch> <your-working-branch>`,
+then dispatch an Agent using this same template with: Working directory = sub-worktree path,
+MERGE_TARGET = your working branch (not Target branch), Sub-tasks allowed: no (no nesting).
+Dispatch all sub-tasks in parallel (one message, multiple Agent calls). Wait for all
+STATUS: success before continuing.
 
-**After all sub-tasks complete:**
-Your working branch now has their merge commits. Do any remaining work, then make
-your single final commit covering only what you produced directly. Sub-task merge
-commits are already part of your branch history — do not re-commit them.
-Then proceed to self-merge as normal (if Self-merge: yes).
+**After all succeed:** your branch now has their merge commits. Do remaining direct work,
+make your single final commit (sub-task merge commits are already on your branch — do not
+re-commit). Then self-merge as normal if Self-merge: yes.
 
-**If any sub-task fails:**
-Halt immediately. Do not continue with remaining sub-tasks or your own work.
-Report STATUS: failure, FAILURE_TYPE: partial_change, ACTION: preserve_worktree.
-Include sub-task failure details (branch, worktree path, error) in NOTES.
+**Any sub-task fails:** halt immediately. Report STATUS: failure, FAILURE_TYPE: partial_change,
+ACTION: preserve_worktree. Include sub-task details (branch, worktree, error) in NOTES.
 
 ## Before return: commit
 Stage and make exactly one `git commit` for all changes this task produces directly. This commit must encapsulate the complete, logical, and substantial unit of work defined in this task (the "Goldilocks" unit).
