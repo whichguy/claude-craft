@@ -378,6 +378,10 @@ semantic ones — code combinations Phase 5 never tested can compile cleanly yet
 behavior, and bisecting that across multiple stacked merges later is far more
 expensive than catching it here.
 
+During Phase 5, assign `VERIFY_CMD="..."` to the exact command(s) you ran to
+verify DoD (e.g. `VERIFY_CMD="npm test"` or `VERIFY_CMD="npm run lint && npm test"`).
+The self-merge block below re-evals it after rebase if HEAD moved.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 MERGE_TARGET="[MERGE_TARGET]"
@@ -389,7 +393,7 @@ attempt=0
 while [ $attempt -lt $MAX_RETRIES ]; do
   attempt=$((attempt + 1))
 
-  PRE_REBASE_TARGET=$(git rev-parse "$MERGE_TARGET")
+  PRE_REBASE_HEAD=$(git rev-parse HEAD)
   git rebase "$MERGE_TARGET"
   if [ $? -ne 0 ]; then
     git rebase --abort
@@ -397,14 +401,19 @@ while [ $attempt -lt $MAX_RETRIES ]; do
     MERGE_FAILED=true
     break
   fi
-  POST_REBASE_TARGET=$(git rev-parse "$MERGE_TARGET")
+  POST_REBASE_HEAD=$(git rev-parse HEAD)
 
-  if [ "$PRE_REBASE_TARGET" != "$POST_REBASE_TARGET" ]; then
-    # Rebase brought in new MERGE_TARGET commits. Re-run the verification
-    # command(s) you inferred from DoD and executed in Phase 5 — substitute
-    # them for [PHASE_5_VERIFY_CMD] below. This is mandatory, not optional:
-    # the rebased branch contains code combinations Phase 5 never tested.
-    [PHASE_5_VERIFY_CMD]
+  if [ "$PRE_REBASE_HEAD" != "$POST_REBASE_HEAD" ]; then
+    # Rebase replayed feature commits on top of an advanced MERGE_TARGET.
+    # Re-run the verification command you set in Phase 5 — semantic conflicts
+    # can compile cleanly but break behavior, and the rebased branch contains
+    # code combinations Phase 5 never tested.
+    if [ -z "$VERIFY_CMD" ]; then
+      echo "ERROR: VERIFY_CMD not set — assign it in Phase 5 to the same command you used to verify DoD."
+      MERGE_FAILED=true
+      break
+    fi
+    eval "$VERIFY_CMD"
     if [ $? -ne 0 ]; then
       git reset --hard ORIG_HEAD
       MERGE_FAILED=true
