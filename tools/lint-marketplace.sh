@@ -203,6 +203,110 @@ else
   fail=1
 fi
 
+# 9) Transitive / circular dependency check
+python3 - <<'PY' || fail=1
+import json, sys
+
+marketplace = json.load(open('.claude-plugin/marketplace.json'))
+plugin_names = {p['name'] for p in marketplace['plugins']}
+plugin_sources = {p['name']: p['source'] for p in marketplace['plugins']}
+
+# Build adjacency map
+adj = {}
+for name, src in plugin_sources.items():
+    manifest_path = f"{src}/.claude-plugin/plugin.json"
+    try:
+        d = json.load(open(manifest_path))
+    except Exception:
+        continue
+    deps = d.get('dependencies') or []
+    adj[name] = []
+    for dep in deps:
+        dep_name = dep.get('name') if isinstance(dep, dict) else dep
+        adj[name].append(dep_name)
+
+# DFS cycle detection
+def has_cycle(node, visited, stack, path):
+    visited.add(node)
+    stack.add(node)
+    for neighbor in adj.get(node, []):
+        if neighbor not in visited:
+            result = has_cycle(neighbor, visited, stack, path + [neighbor])
+            if result:
+                return result
+        elif neighbor in stack:
+            return path + [neighbor]
+    stack.discard(node)
+    return None
+
+errors = []
+visited = set()
+for name in adj:
+    if name not in visited:
+        cycle = has_cycle(name, visited, set(), [name])
+        if cycle:
+            errors.append('circular dependency: ' + ' -> '.join(cycle))
+
+if errors:
+    for e in errors:
+        print(f'FAIL: {e}')
+    sys.exit(1)
+PY
+[ "$fail" = 0 ] && ok "no circular dependencies"
+
+# 10) Cross-plugin Skill_call resolution — /<plugin>:<skill> refs must exist
+python3 - <<'PY' || fail=1
+import os, re, sys
+
+REPO = os.getcwd()
+errors = []
+REF_PAT = re.compile(r'/([a-z][a-z0-9_-]+):([a-z][a-z0-9_-]+)')
+
+def candidates(plugin, skill):
+    base = os.path.join(REPO, 'plugins', plugin)
+    return [
+        os.path.join(base, 'skills', skill, 'SKILL.md'),
+        os.path.join(base, 'commands', f'{skill}.md'),
+        os.path.join(base, 'agents', f'{skill}.md'),
+    ]
+
+scanned = []
+for root, dirs, files in os.walk(os.path.join(REPO, 'plugins')):
+    # only skill files and agent files
+    for fname in files:
+        if fname in ('SKILL.md',) or (fname.endswith('.md') and
+               any(seg in root for seg in ['/agents', '/skills', '/commands'])):
+            scanned.append(os.path.join(root, fname))
+
+known_plugins = {
+    d for d in os.listdir(os.path.join(REPO, 'plugins'))
+    if os.path.isdir(os.path.join(REPO, 'plugins', d))
+}
+
+for fpath in scanned:
+    try:
+        text = open(fpath).read()
+    except Exception:
+        continue
+    for m in REF_PAT.finditer(text):
+        plugin, skill = m.group(1), m.group(2)
+        if plugin not in known_plugins:
+            continue  # not a cross-plugin ref pattern we can validate
+        # skip self-refs (same plugin)
+        rel = os.path.relpath(fpath, REPO)
+        own_plugin = rel.split('/')[1] if rel.startswith('plugins/') else None
+        if plugin == own_plugin:
+            continue
+        if not any(os.path.exists(c) for c in candidates(plugin, skill)):
+            errors.append(f'{fpath}: broken cross-plugin ref /{plugin}:{skill}')
+
+if errors:
+    for e in sorted(set(errors)):
+        print(f'FAIL: {e}')
+    sys.exit(1)
+PY
+[ "$fail" = 0 ] && ok "cross-plugin skill refs resolve"
+
 [ "$fail" -eq 0 ] && { echo; ok "lint-marketplace PASSED"; exit 0; }
 echo
 red() { printf '\033[0;31m%s\033[0m\n' "$1"; }

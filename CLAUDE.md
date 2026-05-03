@@ -58,7 +58,15 @@ Source-of-truth lives in `tools/<x>.sh`. Add to `bundled_map` in `tools/sync-bun
 Ship in `plugins/<bundle>/hooks/hooks.json`. Handlers live under `plugins/<bundle>/hooks/handlers/<x>.sh` (or `plugins/<bundle>/handlers/` for absorbed-from-old-plugin handlers). All commands use `${CLAUDE_PLUGIN_ROOT}/...`. State files go in `${CLAUDE_PLUGIN_DATA}` if local, `~/.claude/...` if cross-plugin.
 
 ### Tests
-`npm test` runs mocha against `test/**/*.test.js`. Tests are NOT shipped in plugins. Path style: `path.join(REPO_ROOT, 'plugins', '<bundle>', 'skills', '<name>', 'SKILL.md')`.
+`npm test` runs mocha against `test/**/*.test.js`. Tests live in a structured tree:
+- `test/plugins/<bundle>/` — per-bundle tests (use `npm run test:<bundle>` for focused runs)
+- `test/marketplace/` — cross-plugin invariants (schema, hooks, frontmatter, cross-refs, security)
+- `test/plugins/_repo/` — repo-only tools (claude-router, slated for replacement)
+
+Tests are NOT shipped in plugins. Path style: `path.join(REPO_ROOT, 'plugins', '<bundle>', 'skills', '<name>', 'SKILL.md')`.
+
+### Dev-only top-level dirs
+`lib/` is referenced by `tools/dry-run-plan.js` and is dev-only (not shipped in plugins).
 
 ---
 
