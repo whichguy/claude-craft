@@ -1,11 +1,14 @@
 {
   "name": "c-thru",
-  "description": "Router/proxy that lets Claude Code talk to alternative model providers (Ollama, OpenRouter, Bedrock, Vertex, Gemini, LiteLLM) without changing the vendor CLI. Adds slash commands, agentic plan/wave skill, and proxy-health hooks.",
   "version": "0.1.0",
+  "description": "Router/proxy that lets Claude Code talk to alternative model providers (Ollama, OpenRouter, Bedrock, Vertex, Gemini, LiteLLM) without changing the vendor CLI. Adds /c-thru-status, /cplan, agentic plan/wave skill, and proxy-health hooks.",
   "author": {
-    "name": "Jim Wiese",
-    "url": "https://github.com/whichguy/c-thru"
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
   },
   "homepage": "https://github.com/whichguy/c-thru",
-  "keywords": ["proxy", "router", "ollama", "gemini", "openrouter", "model-routing", "anthropic"]
+  "repository": "https://github.com/whichguy/c-thru",
+  "license": "MIT",
+  "keywords": ["claude-code", "c-thru", "proxy", "router", "ollama", "gemini", "openrouter", "model-routing"],
+  "dependencies": []
 }
