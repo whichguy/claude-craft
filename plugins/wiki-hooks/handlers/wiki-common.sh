@@ -246,6 +246,79 @@ wiki_unclaim_batch() {
   done
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# Proactive-research helpers
+# ─────────────────────────────────────────────────────────────────────
+
+# wiki_sanitize_for_external INPUT
+# Echoes a sanitized version of INPUT to stdout. Strips absolute paths,
+# redacts tokens matching the existing simple-secrets-scan.sh patterns,
+# and (best-effort) strips repo-local identifiers from git ls-files that
+# don't appear in public registries.
+#
+# Inputs:
+#   $1 — string to sanitize
+# Env (optional):
+#   REPO_ROOT — git root to source ls-files from (skipped if empty)
+wiki_sanitize_for_external() {
+  local input="$1"
+  # Use printf (no trailing newline) — callers may want exact-match output.
+  [ -z "$input" ] && { printf ''; return 0; }
+
+  # 1) Absolute path strip — replace any /Users/... or /home/... with <path>
+  #    Keep tail filename (often informative), drop directory prefix.
+  #    NOTE: BSD sed treats "|" as both delimiter and alternation when both are
+  #    used in the same expression — switch to "," delimiter.
+  input=$(printf '%s' "$input" | sed -E 's,/(Users|home)/[^[:space:]]+/([^/[:space:]]+),<path>/\2,g')
+  input=$(printf '%s' "$input" | sed -E 's,/(opt|var|tmp|etc)/[^[:space:]]+,<path>,g')
+
+  # 2) Secret-pattern redaction — reuse the simple-secrets-scan regex set if available.
+  local secrets_scan
+  for secrets_scan in \
+    "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)/tools/simple-secrets-scan.sh" \
+    "$HOME/claude-craft/tools/simple-secrets-scan.sh"; do
+    if [ -f "$secrets_scan" ]; then
+      # Pull regex patterns out of the scan script (lines after "PATTERNS=(" until ")")
+      local patterns
+      # The scan script declares `declare -a SECURITY_PATTERNS=( "pat" "pat" )`.
+      # Match the awk range tolerantly (PATTERNS= or SECURITY_PATTERNS=) and
+      # extract double-quoted strings — the scan script uses double quotes.
+      patterns=$(awk '/^(declare -a )?(SECURITY_)?PATTERNS=\(/,/^\)/' "$secrets_scan" 2>/dev/null \
+                 | grep -oE '"[^"]+"' | sed 's/^"//;s/"$//' || true)
+      while IFS= read -r pat; do
+        [ -z "$pat" ] && continue
+        # Best-effort POSIX ERE; on regex syntax error, skip the pattern.
+        input=$(printf '%s' "$input" | sed -E "s|$pat|<redacted>|g" 2>/dev/null || printf '%s' "$input")
+      done <<< "$patterns"
+      break
+    fi
+  done
+
+  # 3) Repo-local identifier strip (best-effort, only if REPO_ROOT set and is git repo)
+  if [ -n "${REPO_ROOT:-}" ] && [ -d "$REPO_ROOT/.git" ]; then
+    # Pull a small sample of repo-unique base names. Skip common public names
+    # (we don't have a registry oracle here, so use a coarse "looks unique" filter:
+    # length ≥ 6 and not all lowercase dictionary-ish).
+    local unique_names
+    unique_names=$(git -C "$REPO_ROOT" ls-files 2>/dev/null \
+                   | xargs -n1 basename 2>/dev/null \
+                   | sed -E 's/\.[^.]+$//' \
+                   | awk 'length >= 6' \
+                   | sort -u | head -200 || true)
+    while IFS= read -r name; do
+      [ -z "$name" ] && continue
+      # Word-boundary replace; only if not a common English word lookalike.
+      # Cheap heuristic: skip names that consist solely of [a-z]+ ≤8 chars.
+      if [[ "$name" =~ ^[a-z]{1,8}$ ]]; then continue; fi
+      # Escape regex metachars
+      local esc; esc=$(printf '%s' "$name" | sed 's|[][\\/.^$*?+(){}|]|\\&|g')
+      input=$(printf '%s' "$input" | sed -E "s|\\b${esc}\\b|<repo-local>|g" 2>/dev/null || printf '%s' "$input")
+    done <<< "$unique_names"
+  fi
+
+  printf '%s' "$input"
+}
+
 # --- Wait for foreign batch files to clear ---
 # Returns 0 if clear (proceed), 1 if timed out.
 # Usage: wiki_wait_foreign_batches QUEUE_DIR MY_PID MAX_SECONDS POLL_INTERVAL
