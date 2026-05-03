@@ -1008,7 +1008,7 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('SMALL-tier REMOVAL intent questions (Phase 3b)', function () {
-        const benchDir = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'inputs', 'bench');
+        const benchDir = path.join(__dirname, '..', 'plugins', 'review-bench', 'fixtures', 'inputs', 'bench');
 
         it('SKILL.md defines SMALL fast-path REMOVAL intent questions block with sonnet model', function () {
             const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
