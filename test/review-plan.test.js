@@ -27,20 +27,16 @@ describe('Review-Plan Integration (Intent-based)', function () {
         });
 
         it('ensures all evaluators reference the shared output contract or include core fields', function () {
+            // L3 ablation (SKILL-v-no-l3 promotion): GAS + Node evaluators removed.
             const evaluatorConfigs = [
                 { name: 'L1 Blocking', pattern: /--- L1 Blocking Evaluator Config/ },
                 { name: 'L1 Advisory Structural', pattern: /--- L1 Advisory Structural Evaluator Config/ },
                 { name: 'L1 Advisory Process', pattern: /--- L1 Advisory Process Evaluator Config/ },
                 { name: 'Cluster', pattern: /--- Cluster Evaluator Config/ },
-                { name: 'GAS', pattern: /--- GAS Evaluator Config/ },
-                { name: 'Node', pattern: /--- Node Evaluator Config/ },
                 { name: 'UI', pattern: /--- UI Evaluator Config/ }
             ];
 
-            // GAS and Node evaluators use their own output contracts defined in external
-            // eval files (see SKILL.md EVALUATOR_OUTPUT_CONTRACT comment); they delegate via
-            // <gas_eval_path>/<node_eval_path> rather than embedding the shared contract.
-            const externalContractEvaluators = new Set(['GAS', 'Node']);
+            const externalContractEvaluators = new Set();
 
             evaluatorConfigs.forEach(config => {
                 const startIdx = skillContent.search(config.pattern);
@@ -105,12 +101,11 @@ describe('Review-Plan Integration (Intent-based)', function () {
 
     describe('Delta-aware Narrowing', function () {
         it('ensures delta filter is applied to non-blocking evaluators', function () {
+            // L3 ablation: GAS + Node evaluators removed.
             const evaluatorsWithDelta = [
                 'L1 Advisory Structural',
                 'L1 Advisory Process',
                 'Cluster',
-                'GAS',
-                'Node',
                 'UI'
             ];
 
