@@ -28,7 +28,7 @@ description: |
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
 
-argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture>] [--variant <name>]"
+argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
@@ -84,6 +84,7 @@ Read the invocation arguments. Supported forms:
 ```
 /ablate-review-plan                                        # full 16-fixture suite × k=3
 /ablate-review-plan --single probe-9                       # single fixture × k=3
+/ablate-review-plan --single ~/.claude/plans/foo.md        # arbitrary plan-path × k=3 (canary mode)
 /ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
 /ablate-review-plan --variant null                         # use SKILL-v-null.md as ablated variant
 /ablate-review-plan --variant ablation-na                  # default — SKILL-v-ablation-na.md (per-directive N/A)
@@ -137,6 +138,16 @@ The control side always uses `skills/review-plan/SKILL.md`. Only the ablated sid
 For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML comment (probes 17–21), read the comment text and use it verbatim as the EXPECTED_FINDING for the judge. The comment is the ground-truth target finding.
 
 Default fixture set (no args): all 17 above.
+
+**Path-mode resolution for `--single` (canary support).** If the `--single` argument
+contains `/` or ends in `.md`, treat it as a literal path to a real plan rather than
+a short name. Resolve `~` to `$HOME`. The resolved file becomes the fixture for k=3.
+Generate a synthetic short name by slugifying the basename (strip `.md`, replace
+non-alphanumerics with `-`) for use in `<fixture>-control-<i>.md` / `<fixture>-ablated-<i>.md`
+output paths. EXPECTED_FINDING is empty (no ground-truth target). The Step 0b inspector
+runs as normal, but its `suitable_as` is informational only — there is no fixture-map
+expectation to compare against in path mode. Reject the path if it lives under
+`skills/review-plan/{probes,inputs}/` (those are calibration fixtures, not real plans).
 
 Recommended verification order:
 1. Start with `--single input3b` (true PASS calibration — confirms harness wiring + over-flagging dimension before full run)
