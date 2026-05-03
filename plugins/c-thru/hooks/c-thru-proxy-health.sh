@@ -1,1 +1,1 @@
-/Users/dadleet/src/c-thru/tools/c-thru-proxy-health.sh
+../../../../c-thru/tools/c-thru-proxy-health.sh

@@ -1,1 +1,1 @@
-/Users/dadleet/src/c-thru/tools/c-thru-session-start.sh
+../../../../c-thru/tools/c-thru-session-start.sh

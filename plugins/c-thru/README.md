@@ -29,16 +29,26 @@ Or clone manually and run `./install.sh` from inside the repo.
 
 ## How the symlinks work
 
-This plugin's `skills/` and `hooks/` directories contain symlinks pointing
-back at `~/src/c-thru/skills/*` and `~/src/c-thru/tools/c-thru-*.sh`. Edits
-made in the c-thru repo are picked up immediately — no copy step. If
-c-thru lives somewhere other than `~/src/c-thru`, recreate the symlinks
-to your actual path:
+This plugin's `skills/` and `hooks/` directories contain **relative
+symlinks** that resolve to `../../../../c-thru/...`, i.e. they assume
+claude-craft and c-thru are sibling repos under the same parent
+(e.g. `~/src/claude-craft` and `~/src/c-thru`). That's the default
+layout from c-thru's `install.sh`. Edits made in the c-thru repo are
+picked up immediately — no copy step.
+
+If c-thru lives elsewhere, recreate the symlinks:
 
 ```sh
 cd ~/src/claude-craft/plugins/c-thru/skills
-ln -sfn /your/path/to/c-thru/skills/c-thru-plan c-thru-plan
-# repeat for c-thru-config, c-thru-control, and the hook scripts
+for d in c-thru-plan c-thru-config c-thru-control; do
+  ln -sfn /your/path/to/c-thru/skills/$d $d
+done
+cd ../hooks
+for h in c-thru-session-start.sh c-thru-proxy-health.sh \
+         c-thru-map-changed.sh c-thru-classify.sh \
+         c-thru-postcompact-context.sh; do
+  ln -sfn /your/path/to/c-thru/tools/$h $h
+done
 ```
 
 ## When to use which surface
