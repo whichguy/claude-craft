@@ -371,6 +371,13 @@ After committing, merge your worktree branch back to MERGE_TARGET with retry log
 Do not skip — `RESULT: complete` from this task means the branch is already merged and
 the worktree removed.
 
+If `git rebase` brings new MERGE_TARGET commits onto your branch (parallel landings
+from other delivery-agents), you must re-run your Phase 5 verification command(s)
+against the rebased state before merging. Rebase resolves textual conflicts but not
+semantic ones — code combinations Phase 5 never tested can compile cleanly yet break
+behavior, and bisecting that across multiple stacked merges later is far more
+expensive than catching it here.
+
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 MERGE_TARGET="[MERGE_TARGET]"
@@ -382,12 +389,27 @@ attempt=0
 while [ $attempt -lt $MAX_RETRIES ]; do
   attempt=$((attempt + 1))
 
+  PRE_REBASE_TARGET=$(git rev-parse "$MERGE_TARGET")
   git rebase "$MERGE_TARGET"
   if [ $? -ne 0 ]; then
     git rebase --abort
     # true conflict — not retryable; fall through to "On RESULT: failed"
     MERGE_FAILED=true
     break
+  fi
+  POST_REBASE_TARGET=$(git rev-parse "$MERGE_TARGET")
+
+  if [ "$PRE_REBASE_TARGET" != "$POST_REBASE_TARGET" ]; then
+    # Rebase brought in new MERGE_TARGET commits. Re-run the verification
+    # command(s) you inferred from DoD and executed in Phase 5 — substitute
+    # them for [PHASE_5_VERIFY_CMD] below. This is mandatory, not optional:
+    # the rebased branch contains code combinations Phase 5 never tested.
+    [PHASE_5_VERIFY_CMD]
+    if [ $? -ne 0 ]; then
+      git reset --hard ORIG_HEAD
+      MERGE_FAILED=true
+      break
+    fi
   fi
 
   cd "$REPO_ROOT"
