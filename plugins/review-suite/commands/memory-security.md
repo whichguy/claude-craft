@@ -1,4 +1,5 @@
 ---
+name: memory-security
 description: Security analysis for memory files and personal information detection
 allowed-tools: Read, Grep, Bash(find:*), WebSearch
 argument-hint: [memory-path] [scan-type]

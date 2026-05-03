@@ -16,7 +16,6 @@ description: |
   **NOT for:** General JS/TS (use code-reviewer), HTML patterns (use gas-ui-review)
 model: claude-sonnet-4-6
 allowed-tools: all
-alwaysApply: false
 ---
 
 # GAS Code Review (Slash Command Entry Point)

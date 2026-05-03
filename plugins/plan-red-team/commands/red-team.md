@@ -1,4 +1,5 @@
 ---
+name: red-team
 description: Expert-driven iterative red team review with Opus orchestration (--fast for Haiku, --deep for Opus throughout)
 argument-hint: "[plan-file-path | auto] [--fast] [--deep] [--context file1 file2 ...] [--context-glob pattern]"
 ---

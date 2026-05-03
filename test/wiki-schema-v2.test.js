@@ -64,8 +64,8 @@ describe('Wiki Schema v2', function () {
 
     // ── wiki-lint SKILL.md ─────────────────────────────────────────────────
 
-    describe('skills/wiki-lint/SKILL.md', function () {
-        const lintPath = path.join(REPO_ROOT, 'skills', 'wiki-lint', 'SKILL.md');
+    describe('plugins/wiki-suite/skills/wiki-lint/SKILL.md', function () {
+        const lintPath = path.join(REPO_ROOT, 'plugins', 'wiki-suite', 'skills', 'wiki-lint', 'SKILL.md');
         let content;
 
         before(function () {
@@ -109,8 +109,8 @@ describe('Wiki Schema v2', function () {
 
     // ── wiki-ingest SKILL.md ───────────────────────────────────────────────
 
-    describe('skills/wiki-ingest/SKILL.md', function () {
-        const ingestPath = path.join(REPO_ROOT, 'skills', 'wiki-ingest', 'SKILL.md');
+    describe('plugins/wiki-suite/skills/wiki-ingest/SKILL.md', function () {
+        const ingestPath = path.join(REPO_ROOT, 'plugins', 'wiki-suite', 'skills', 'wiki-ingest', 'SKILL.md');
         let content;
 
         before(function () {
@@ -143,8 +143,8 @@ describe('Wiki Schema v2', function () {
 
     // ── wiki-init SKILL.md ─────────────────────────────────────────────────
 
-    describe('skills/wiki-init/SKILL.md', function () {
-        const initPath = path.join(REPO_ROOT, 'skills', 'wiki-init', 'SKILL.md');
+    describe('plugins/wiki-suite/skills/wiki-init/SKILL.md', function () {
+        const initPath = path.join(REPO_ROOT, 'plugins', 'wiki-suite', 'skills', 'wiki-init', 'SKILL.md');
         let content;
 
         before(function () {

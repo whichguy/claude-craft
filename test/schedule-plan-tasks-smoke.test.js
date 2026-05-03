@@ -3,10 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const REFS = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'references');
+const REFS = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'references');
 
-describe('skills/schedule-plan-tasks/SKILL.md', function () {
-    const filePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'SKILL.md');
+describe('plugins/planning-suite/skills/schedule-plan-tasks/SKILL.md', function () {
+    const filePath = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'SKILL.md');
     const content = fs.readFileSync(filePath, 'utf8');
 
     it('contains chain detection algorithm', function () {
@@ -203,8 +203,8 @@ describe('references/reviewer-full.md', function () {
     });
 });
 
-describe('skills/schedule-plan-tasks/SKILL.md — cascade example', function () {
-    const filePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'SKILL.md');
+describe('plugins/planning-suite/skills/schedule-plan-tasks/SKILL.md — cascade example', function () {
+    const filePath = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'SKILL.md');
     const content = fs.readFileSync(filePath, 'utf8');
 
     it('contains cascade example in chain detection section', function () {
@@ -229,8 +229,8 @@ describe('skills/schedule-plan-tasks/SKILL.md — cascade example', function () 
     });
 });
 
-describe('skills/schedule-plan-tasks/fixtures/plan6-deep-cascading.md', function () {
-    const filePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'fixtures', 'plan6-deep-cascading.md');
+describe('plugins/planning-suite/skills/schedule-plan-tasks/fixtures/plan6-deep-cascading.md', function () {
+    const filePath = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'fixtures', 'plan6-deep-cascading.md');
     const content = fs.readFileSync(filePath, 'utf8');
 
     it('documents all topology labels in Context section', function () {
@@ -283,9 +283,9 @@ describe('skills/schedule-plan-tasks/fixtures/plan6-deep-cascading.md', function
     });
 });
 
-describe('skills/schedule-plan-tasks/fixtures/plan7-assert6-violation.md', function () {
+describe('plugins/planning-suite/skills/schedule-plan-tasks/fixtures/plan7-assert6-violation.md', function () {
     const content = fs.readFileSync(
-        path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md'), 'utf8');
+        path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md'), 'utf8');
 
     it('is a positive-control fixture: Assert 6 expected to PASS', function () {
         expect(content.includes('Assert 6'), 'Assert 6 reference').to.be.true;
@@ -299,7 +299,7 @@ describe('skills/schedule-plan-tasks/fixtures/plan7-assert6-violation.md', funct
 });
 
 describe('skills/test-schedule-plan-tasks — structure', function () {
-    const TEST_SKILL_DIR = path.join(REPO_ROOT, 'skills', 'test-schedule-plan-tasks');
+    const TEST_SKILL_DIR = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'test-schedule-plan-tasks');
     const REFS = path.join(TEST_SKILL_DIR, 'references');
     const skill = fs.readFileSync(path.join(TEST_SKILL_DIR, 'SKILL.md'), 'utf8');
 
@@ -399,7 +399,7 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
     });
 
     it('plan7 fixture exists and is a positive-control test (no Assert 6 violation expected)', function () {
-        const fixturePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md');
+        const fixturePath = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md');
         const content = fs.readFileSync(fixturePath, 'utf8');
         expect(content.includes('positive-control'), 'positive-control label').to.be.true;
         expect(content.includes('Assert 6 should PASS'), 'Assert 6 PASS statement').to.be.true;
@@ -407,7 +407,7 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
 });
 
 describe('skills/test-schedule-plan-tasks — dry-run track', function () {
-    const TEST_SKILL_DIR = path.join(REPO_ROOT, 'skills', 'test-schedule-plan-tasks');
+    const TEST_SKILL_DIR = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'test-schedule-plan-tasks');
     const DR_REFS = path.join(TEST_SKILL_DIR, 'references');
     const skill = fs.readFileSync(path.join(TEST_SKILL_DIR, 'SKILL.md'), 'utf8');
 
@@ -507,7 +507,7 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
 });
 
 describe('cross-reference integrity', function () {
-    const skillPath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'SKILL.md');
+    const skillPath = path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'SKILL.md');
     const skill = fs.readFileSync(skillPath, 'utf8');
 
     it('every reference file mentioned in SKILL.md exists on disk', function () {

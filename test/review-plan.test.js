@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Review-Plan Integration (Intent-based)', function () {
-    const skillPath = path.join(__dirname, '..', 'skills', 'review-plan', 'SKILL.md');
+    const skillPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'SKILL.md');
     let skillContent;
 
     before(function () {
@@ -124,7 +124,7 @@ describe('Review-Plan Integration (Intent-based)', function () {
 
     describe('Cross-file Invariants', function () {
         it('verifies base_l1 in helper matches QUESTIONS.md Layer 1 row count', function () {
-            const questionsPath = path.join(__dirname, '..', 'skills', 'review-plan', 'QUESTIONS.md');
+            const questionsPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'QUESTIONS.md');
             if (!fs.existsSync(questionsPath)) this.skip();
 
             const questionsContent = fs.readFileSync(questionsPath, 'utf-8');

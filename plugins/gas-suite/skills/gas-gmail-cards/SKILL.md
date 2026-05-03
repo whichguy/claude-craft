@@ -32,7 +32,6 @@ description: |
 
 model: claude-sonnet-4-6
 allowed-tools: all
-alwaysApply: false
 ---
 
 # GAS Gmail Cards (Slash Command Entry Point)

@@ -102,7 +102,46 @@ if [ -n "$viol" ]; then
 fi
 [ -z "$viol" ] && ok "no forbidden agent frontmatter"
 
-# 6) bundled-tool drift check
+# 6) extension frontmatter schema (skills + agents + commands)
+viol=0
+check_frontmatter() {
+  local f="$1" kind="$2"   # kind: skill | agent | command
+  python3 - "$f" "$kind" <<'PY'
+import sys, re
+path, kind = sys.argv[1], sys.argv[2]
+text = open(path, encoding='utf-8').read()
+m = re.match(r'^---\n(.*?)\n---\n', text, re.DOTALL)
+if not m:
+    print(f'FAIL: {path}: missing or malformed frontmatter')
+    sys.exit(1)
+fm = m.group(1)
+def has(k): return re.search(rf'^{k}\s*:', fm, re.MULTILINE) is not None
+errors = []
+if not has('name'): errors.append('missing required field: name')
+if not has('description'): errors.append('missing required field: description')
+# Constraint 5: agents may not declare these
+if kind == 'agent':
+    for forbidden in ('hooks', 'mcpServers', 'permissionMode'):
+        if has(forbidden):
+            errors.append(f'forbidden field for plugin agent: {forbidden}')
+# legacy/non-standard
+if has('alwaysApply'):
+    errors.append('non-standard field: alwaysApply (drop it)')
+if errors:
+    for e in errors: print(f'FAIL: {path}: {e}')
+    sys.exit(1)
+PY
+}
+for f in plugins/*/skills/*/SKILL.md;     do [ -f "$f" ] && { check_frontmatter "$f" skill   || viol=1; }; done
+for f in plugins/*/agents/*.md;            do [ -f "$f" ] && { check_frontmatter "$f" agent   || viol=1; }; done
+for f in plugins/*/commands/*.md;          do [ -f "$f" ] && { check_frontmatter "$f" command || viol=1; }; done
+if [ "$viol" = 0 ]; then
+  ok "extension frontmatter schema"
+else
+  fail=1
+fi
+
+# 7) bundled-tool drift check
 if [ -x tools/sync-bundled-tools.sh ]; then
   if tools/sync-bundled-tools.sh --check >/dev/null 2>&1; then
     ok "bundled tools in sync"

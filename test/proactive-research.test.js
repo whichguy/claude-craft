@@ -15,9 +15,9 @@ const os = require('os');
 const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
-const PRODUCER = path.join(REPO_ROOT, 'plugins/wiki-hooks/handlers/proactive-research-extract.sh');
-const DRIVER = path.join(REPO_ROOT, 'plugins/wiki-hooks/handlers/proactive-research-driver.sh');
-const COMMON = path.join(REPO_ROOT, 'plugins/wiki-hooks/handlers/wiki-common.sh');
+const PRODUCER = path.join(REPO_ROOT, 'plugins/wiki-suite/handlers/proactive-research-extract.sh');
+const DRIVER = path.join(REPO_ROOT, 'plugins/wiki-suite/handlers/proactive-research-driver.sh');
+const COMMON = path.join(REPO_ROOT, 'plugins/wiki-suite/handlers/wiki-common.sh');
 
 // ───────────────────────────────────────────────────────────────────
 // Per-test fixture: a fresh CWD with .wiki/log.md, fresh HOME for queue

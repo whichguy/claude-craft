@@ -1,4 +1,5 @@
 ---
+name: unalias
 argument-hint: "[command-name] [--global] [--force]"
 description: "Remove slash command aliases"
 allowed-tools: "Bash, Read, Glob"

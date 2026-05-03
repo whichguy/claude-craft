@@ -1,4 +1,5 @@
 ---
+name: todo-cleanup
 description: "Clean up abandoned and old async tasks"
 ---
 

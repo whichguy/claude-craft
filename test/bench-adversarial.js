@@ -12,7 +12,7 @@ const path = require('path');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
 const GROUND_TRUTH_PATH = path.join(REPO_ROOT, 'test/benchmarks/adversarial.ground-truth.json');
-const BENCH_DIR = path.join(REPO_ROOT, 'skills/review-plan/inputs/bench');
+const BENCH_DIR = path.join(REPO_ROOT, 'plugins/review-bench/fixtures/inputs/bench');
 
 // Configuration
 const CORE_TESTS = [

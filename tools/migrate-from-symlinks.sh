@@ -49,6 +49,51 @@ strip_settings_hook() {
 }
 
 # ----------------------------------------------------------------------------
+# 1b) Strip merged-in plugin hook entries that point at absorbed/old plugin
+#     dirs (~/.claude/plugins/{wiki-hooks,craft-hooks,task-persist,
+#     feedback-collector,async-workflow}/...). These were injected by the old
+#     tools/merge-hooks.sh machinery; in the marketplace world the plugin
+#     hooks ship via plugins/<bundle>/hooks/hooks.json and load automatically.
+# ----------------------------------------------------------------------------
+strip_absorbed_plugin_hooks() {
+  [ -f "$SETTINGS" ] || return
+  command -v jq >/dev/null 2>&1 || return
+
+  local pattern='wiki-hooks|craft-hooks|task-persist|feedback-collector|async-workflow'
+  local hits
+  hits=$(jq -r --arg pat "$pattern" '
+    [.. | objects | select(.command? // "" | test("\\.claude/plugins/(\($pat))/"))]
+    | length' "$SETTINGS" 2>/dev/null)
+
+  if [ "${hits:-0}" -eq 0 ]; then
+    green "✅ no stale absorbed-plugin hook entries in settings.json"
+    return
+  fi
+
+  [ -f "$SETTINGS.bak" ] || cp "$SETTINGS" "$SETTINGS.bak"
+
+  jq --arg pat "$pattern" '
+    def prune:
+      walk(
+        if type == "array" then
+          map(select(
+            (.. | objects | select(.command? // "" | test("\\.claude/plugins/(\($pat))/")) ) | not
+          ))
+        else . end
+      );
+    .hooks |= prune
+    # also strip empty hooks-array entries left behind
+    | .hooks |= with_entries(.value |= map(
+        if .hooks then .hooks |= map(select(.command? != null)) else . end
+      ))
+    | .hooks |= with_entries(.value |= map(select(.hooks == null or (.hooks | length) > 0)))
+    | .hooks |= with_entries(select(.value | length > 0))
+  ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+
+  green "✅ stripped $hits absorbed-plugin hook entries from settings.json"
+}
+
+# ----------------------------------------------------------------------------
 # 2) Walk extension dirs and remove symlinks pointing into claude-craft
 # ----------------------------------------------------------------------------
 unlink_claude_craft_symlinks() {
@@ -118,6 +163,7 @@ main() {
   echo "  REPO_DIR:   $REPO_DIR"
   echo
   strip_settings_hook
+  strip_absorbed_plugin_hooks
   unlink_claude_craft_symlinks
   print_next_steps
 }

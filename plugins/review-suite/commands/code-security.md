@@ -1,4 +1,5 @@
 ---
+name: code-security
 description: Code security analysis and vulnerability assessment
 allowed-tools: Read, Grep, Bash(git:*), WebSearch
 argument-hint: [file-pattern] or [specific-file-path]

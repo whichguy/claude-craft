@@ -1,4 +1,5 @@
 ---
+name: performance
 argument-hint: "[component-name] or [file-pattern]"
 description: Performance analysis and optimization recommendations
 allowed-tools: Read, Grep, Bash(npm:*), Bash(node:*), WebSearch

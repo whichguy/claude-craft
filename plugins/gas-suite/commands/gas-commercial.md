@@ -1,3 +1,8 @@
+---
+name: gas-commercial
+description: Commercial GAS distribution, monetization, and update patterns reference.
+---
+
 # /gas-commercial - Commercial GAS Distribution, Monetization & Update Patterns
 
 Reference for commercially packaging, distributing, monetizing, and updating Google Apps Script projects. Covers Marketplace add-ons, web apps, template sales, licensing, feature gating, and update propagation.

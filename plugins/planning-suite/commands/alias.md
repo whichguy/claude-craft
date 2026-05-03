@@ -1,4 +1,5 @@
 ---
+name: alias
 argument-hint: "[--list] | [new-command-name] [--global] [command-to-run...]"
 description: "Create slash command aliases or list existing aliases"
 allowed-tools: "Write, Bash, Read, Glob"

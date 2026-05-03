@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Review-Plan Task Fan-Out', function () {
-    const skillPath = path.join(__dirname, '..', 'skills', 'review-plan', 'SKILL.md');
-    const gasEvalPath = path.join(__dirname, '..', 'skills', 'gas-plan', 'EVALUATE.md');
-    const nodeEvalPath = path.join(__dirname, '..', 'skills', 'node-plan', 'EVALUATE.md');
+    const skillPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'SKILL.md');
+    const gasEvalPath = path.join(__dirname, '..', 'plugins', 'gas-suite', 'skills', 'gas-plan', 'EVALUATE.md');
+    const nodeEvalPath = path.join(__dirname, '..', 'plugins', 'planning-suite', 'skills', 'node-plan', 'EVALUATE.md');
 
     let skillContent;
     let gasEvalContent;
@@ -503,7 +503,7 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('cross-file question count invariants', function () {
-        const questionsPath = path.join(__dirname, '..', 'skills', 'review-plan', 'QUESTIONS.md');
+        const questionsPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'QUESTIONS.md');
         let questionsContent;
         let l1RowCount;
 
@@ -1008,7 +1008,7 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('SMALL-tier REMOVAL intent questions (Phase 3b)', function () {
-        const benchDir = path.join(__dirname, '..', 'skills', 'review-plan', 'inputs', 'bench');
+        const benchDir = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'inputs', 'bench');
 
         it('SKILL.md defines SMALL fast-path REMOVAL intent questions block with sonnet model', function () {
             const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');

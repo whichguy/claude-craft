@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('delivery-agent-description.md (envelope template — runtime header + one-paragraph guidance)', function () {
-    const templatePath = path.join(__dirname, '../skills/schedule-plan-tasks/references/delivery-agent-description.md');
+    const templatePath = path.join(__dirname, '../plugins/planning-suite/skills/schedule-plan-tasks/references/delivery-agent-description.md');
     const content = fs.readFileSync(templatePath, 'utf8');
 
     // --- Runtime header fields ---
@@ -137,7 +137,7 @@ describe('delivery-agent fixtures — envelope-only shape (header + paragraph)',
 });
 
 describe('plugins/planning-suite/agents/delivery-agent.md — frontmatter pins model', function () {
-    const agentPath = path.join(__dirname, '..', 'agents', 'delivery-agent.md');
+    const agentPath = path.join(__dirname, '..', 'plugins', 'planning-suite', 'agents', 'delivery-agent.md');
 
     it('frontmatter pins model: claude-sonnet-4-6', function () {
         const c = fs.readFileSync(agentPath, 'utf8');

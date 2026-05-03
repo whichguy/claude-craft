@@ -1,3 +1,8 @@
+---
+name: gas-undocumented
+description: Undocumented Google Apps Script features, real limits, quirks, workarounds, and performance patterns reference.
+---
+
 # /gas-undocumented - GAS Hidden Features Reference
 
 Comprehensive reference for undocumented Google Apps Script features, real limits, quirks, workarounds, and performance patterns across all major GAS services.
