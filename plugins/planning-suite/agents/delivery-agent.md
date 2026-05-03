@@ -293,6 +293,36 @@ Apply rule:
   Orchestrator applies the replacement text via Edit, then verifies the doc
   builds (if applicable).
 
+**Tests + fix (Phase 5) — common picks: general-purpose, qa-analyst**
+
+When to dispatch this phase:
+  Always — every task that produced or modified code runs Phase 5 to verify
+  Definition of done is met. Skip only for read-only analysis tasks.
+
+Inputs the dispatched agent receives:
+  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
+  - Upstream returns: P2 implementation diff, P1 test brief (if dispatched),
+    P3 review findings already applied
+  - The exact verification command(s) to run (orchestrator infers from DoD:
+    `npm test`, `pytest`, `go test ./...`, `npm run lint && npm test`, etc.)
+
+Deliverable contract:
+  - Output shape: pass/fail summary plus the literal verification command
+    string used, in a `VERIFY_CMD=` assignment ready for orchestrator capture
+  - Required sections: "Verify command", "Result", "Patches applied" (if any
+    failures were fixed during this phase)
+  - Format constraint: do not invent new test cases — execute the command(s)
+    inferred from DoD and the P1 brief. If a failure is fixed, re-run the
+    same command until green.
+
+Apply rule:
+  **Orchestrator MUST capture the agent's `VERIFY_CMD=` value into its own
+  shell environment before reaching the self-merge block.** Self-merge's
+  post-rebase re-verify step (`## Self-merge`) reads `$VERIFY_CMD` and will
+  emit a distinct error if unset — so this capture is load-bearing, not
+  ceremonial. If Phase 5 was skipped (read-only task), set
+  `VERIFY_CMD=":"` (no-op) so the guard doesn't trip.
+
 **Migration (Phase 6) — common picks: general-purpose**
 
 When to dispatch this phase:

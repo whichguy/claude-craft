@@ -133,10 +133,10 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         expect(content.includes('### Cascade rule')).to.be.false;
     });
 
-    it('Specialist agents catalog has 5 entries (Research, Test spec, Code review, Docs, Migration)', function () {
+    it('Specialist agents catalog has 6 entries (Research, Test spec, Code review, Docs, Tests+fix, Migration)', function () {
         const specStart = content.indexOf('## Specialist agents');
         const spec = content.slice(specStart);
         const entryHeaderCount = (spec.match(/^\*\*[A-Z][^*]+ \(Phase /gm) || []).length;
-        expect(entryHeaderCount).to.equal(5);
+        expect(entryHeaderCount).to.equal(6);
     });
 });
