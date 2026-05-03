@@ -4,6 +4,9 @@ description: |
   Test harness for the schedule-plan-tasks skill. Dispatches one Agent per plan fixture in
   an isolated context, runs the skill in --plan-only mode, and validates the Dry-Run Report
   against expected chain/standalone topology and wiring rules (Asserts 3, 5, 6, 7, 8).
+  Also runs a sequential --dry-run track (one fixture at a time to avoid TaskList pollution)
+  that validates the Simulated Execution Trace against expected wave structure, cascade
+  ordering, and validation predicates.
 
   **AUTOMATICALLY INVOKE** when:
   - User says "test schedule-plan-tasks", "validate the skill", "run fixture tests"
@@ -14,9 +17,13 @@ allowed-tools: Agent, Read, Bash
 
 # test-schedule-plan-tasks
 
-Each plan fixture is run through the schedule-plan-tasks skill in `--plan-only` mode inside its
-own Agent, in its own execution context, in parallel. The orchestrator collects RESULT lines
-and prints a pass/fail summary.
+Each plan fixture is run through the schedule-plan-tasks skill in two tracks:
+- **plan-only track**: `--plan-only` mode, validates the Dry-Run Report topology.
+- **dry-run track**: `--dry-run` mode, validates the Simulated Execution Trace wave structure.
+
+The plan-only track runs all 7 fixtures in parallel. The dry-run track runs them one at a
+time (TaskList isolation). The orchestrator collects RESULT lines and prints a combined
+pass/fail summary.
 
 ---
 
@@ -32,12 +39,14 @@ FIXTURE_DIR="${SKILL_DIR}/fixtures"
 Print:
 ```
 ## test-schedule-plan-tasks
-Running 7 fixture tests via Agent — each in its own context.
+Running 7 fixture tests × 2 tracks via Agent.
+  plan-only track: 7 agents in parallel.
+  dry-run track:   7 agents in sequence (TaskList isolation — one fixture at a time).
 ```
 
 ---
 
-## Step 1 — Dispatch 7 Agents (parallel)
+## Step 1a — Dispatch 7 plan-only Agents (parallel)
 
 **FIRST: `Read ${TEST_DIR}/references/agent-template.md`** — load the verbatim agent prompt.
 
@@ -71,14 +80,55 @@ captures the Dry-Run Report, validates it against the expectations file, and rep
 
 ---
 
+## Step 1b — Dispatch 7 dry-run Agents (sequential — one at a time)
+
+**Runs AFTER Step 1a completes.** The dry-run track is serialized because each run issues
+real TaskCreate/TaskUpdate calls that land in the shared TaskList. Running fixtures in
+parallel would intermingle task IDs from different runs, causing cascade scans to find and
+simulate tasks that belong to other fixtures. One fixture at a time keeps the TaskList clean.
+
+**FIRST: `Read ${TEST_DIR}/references/agent-template-dryrun.md`** — load the verbatim dry-run
+agent prompt (read once; re-use for all 7 dry-run agents).
+
+Dispatch fixture 1, wait for RESULT, then dispatch fixture 2, and so on. Each agent receives
+the agent-template-dryrun content with these substitutions:
+
+| Placeholder          | Substitution                                            |
+|----------------------|---------------------------------------------------------|
+| `[FIXTURE_PATH]`     | `${FIXTURE_DIR}/<fixture-file>`                         |
+| `[EXPECTATIONS_PATH]`| `${TEST_DIR}/references/expect-<N>-dryrun.md`           |
+| `[FIXTURE_NAME]`     | Short fixture label (e.g. `plan1-max-concurrency`)      |
+
+Fixtures and dry-run expectation files (run in this order):
+
+| # | Fixture file                       | Dry-run expectation file        |
+|---|------------------------------------|---------------------------------|
+| 1 | `plan1-max-concurrency.md`         | `expect-plan1-dryrun.md`        |
+| 2 | `plan2-linear-chain.md`            | `expect-plan2-dryrun.md`        |
+| 3 | `plan3-diamond.md`                 | `expect-plan3-dryrun.md`        |
+| 4 | `plan4-trivial-mixed.md`           | `expect-plan4-dryrun.md`        |
+| 5 | `plan5-multi-chain.md`             | `expect-plan5-dryrun.md`        |
+| 6 | `plan6-deep-cascading.md`          | `expect-plan6-dryrun.md`        |
+| 7 | `plan7-assert6-violation.md`       | `expect-plan7-dryrun.md`        |
+
+Each agent invokes `Skill({ skill: "schedule-plan-tasks", args: "--dry-run --plan <fixture>" })`,
+captures the Simulated Execution Trace, validates it against the dry-run expectations file,
+and reports `RESULT: PASS | FAIL`.
+
+**Do NOT use `run_in_background`**. Dispatch fixture N+1 only after fixture N's agent returns.
+
+---
+
 ## Step 2 — Aggregate and Report
 
 Scan each agent response for the last occurrence of `RESULT:`. Extract: `PASS` or `FAIL`.
 
-Print the summary table:
+Print the combined summary table:
 
 ```markdown
 ## test-schedule-plan-tasks — Results
+
+### plan-only track
 
 | # | Fixture                   | Chains | Standalones | Wiring | Result |
 |---|---------------------------|--------|-------------|--------|--------|
@@ -90,7 +140,19 @@ Print the summary table:
 | 6 | plan6-deep-cascading      | 2      | 4           | PASS   | ✓ PASS |
 | 7 | plan7-assert6-violation   | 0      | 1           | PASS   | ✓ PASS |
 
-VERDICT: PASS (7/7) | FAIL (N/7)
+### dry-run track
+
+| # | Fixture                   | Waves | Agents | Validation | Result |
+|---|---------------------------|-------|--------|------------|--------|
+| 1 | plan1-max-concurrency     | N     | M      | all ✓      | ✓ PASS |
+| 2 | plan2-linear-chain        | N     | M      | all ✓      | ✓ PASS |
+| 3 | plan3-diamond             | N     | M      | all ✓      | ✓ PASS |
+| 4 | plan4-trivial-mixed       | N     | M      | all ✓      | ✓ PASS |
+| 5 | plan5-multi-chain         | N     | M      | all ✓      | ✓ PASS |
+| 6 | plan6-deep-cascading      | N     | M      | all ✓      | ✓ PASS |
+| 7 | plan7-assert6-violation   | N     | M      | all ✓      | ✓ PASS |
+
+VERDICT: PASS (14/14) | FAIL (N/14)
 ```
 
 For any FAIL, print the full agent response beneath the table so the user can see what failed.

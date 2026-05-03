@@ -65,6 +65,10 @@ describe('skills/schedule-plan-tasks/SKILL.md', function () {
     it('contains Simulated Execution Trace section for dry-run mode', function () {
         expect(content.includes('Simulated Execution Trace'), 'simulated trace section').to.be.true;
     });
+
+    it('documents --dry-run-analyze flag in mode detection', function () {
+        expect(content.includes('--dry-run-analyze'), '--dry-run-analyze flag').to.be.true;
+    });
 });
 
 describe('references/run-agent-description.md', function () {
@@ -210,6 +214,28 @@ describe('references/dry-run-analyzer.md', function () {
     });
 });
 
+describe('references/reviewer-full.md', function () {
+    const content = fs.readFileSync(
+        path.join(REFS, 'reviewer-full.md'), 'utf8');
+
+    it('contains Goldilocks Rule (proposal sizing guidance)', function () {
+        expect(content.includes('Goldilocks'), 'Goldilocks').to.be.true;
+    });
+
+    it('DEPENDS ON must name the concrete artifact constraint', function () {
+        expect(content.includes('the reason must name the concrete artifact'),
+            'concrete artifact constraint').to.be.true;
+    });
+
+    it('output marks trivial tasks with "Trivial: yes"', function () {
+        expect(content.includes('Trivial: yes'), 'Trivial: yes marker').to.be.true;
+    });
+
+    it('output uses === PROPOSAL section header format', function () {
+        expect(content.includes('=== PROPOSAL'), 'PROPOSAL section header').to.be.true;
+    });
+});
+
 describe('skills/schedule-plan-tasks/SKILL.md — cascade example', function () {
     const filePath = path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'SKILL.md');
     const content = fs.readFileSync(filePath, 'utf8');
@@ -290,6 +316,21 @@ describe('skills/schedule-plan-tasks/fixtures/plan6-deep-cascading.md', function
     });
 });
 
+describe('skills/schedule-plan-tasks/fixtures/plan7-assert6-violation.md', function () {
+    const content = fs.readFileSync(
+        path.join(REPO_ROOT, 'skills', 'schedule-plan-tasks', 'fixtures', 'plan7-assert6-violation.md'), 'utf8');
+
+    it('is a positive-control fixture: Assert 6 expected to PASS', function () {
+        expect(content.includes('Assert 6'), 'Assert 6 reference').to.be.true;
+        expect(content.includes('PASS'), 'expected PASS outcome').to.be.true;
+    });
+
+    it('fixture exercises metadata.target_branch field', function () {
+        expect(content.includes('metadata.target_branch'),
+            'metadata.target_branch').to.be.true;
+    });
+});
+
 describe('skills/test-schedule-plan-tasks — structure', function () {
     const TEST_SKILL_DIR = path.join(REPO_ROOT, 'skills', 'test-schedule-plan-tasks');
     const REFS = path.join(TEST_SKILL_DIR, 'references');
@@ -316,14 +357,15 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
         expect(missing, 'missing expectation file references').to.deep.equal([]);
     });
 
-    it('agent-template.md exists and contains the 6 validation check labels', function () {
-        const content = fs.readFileSync(path.join(REFS, 'agent-template.md'), 'utf8');
+    it('agent-template.md names all 6 validation check labels (A–F)', function () {
+        const template = fs.readFileSync(
+            path.join(TEST_SKILL_DIR, 'references', 'agent-template.md'), 'utf8');
         const missing = [];
-        for (const label of ['Chain count', 'Standalone count', 'Chain membership',
-                             'Standalone membership', 'Wiring Integrity', 'Special assertions']) {
-            if (!content.includes(label)) missing.push(label);
+        for (const label of ['expected_chains', 'expected_standalones', 'chain_specs',
+                             'standalone_specs', 'Wiring Integrity', 'special_assertions']) {
+            if (!template.includes(label)) missing.push(label);
         }
-        expect(missing, 'missing validation check labels').to.deep.equal([]);
+        expect(missing, 'missing agent-template.md check labels').to.deep.equal([]);
     });
 
     it('agent-template.md contains RESULT: PASS and RESULT: FAIL return format', function () {
@@ -394,6 +436,106 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
         const content = fs.readFileSync(fixturePath, 'utf8');
         expect(content.includes('positive-control'), 'positive-control label').to.be.true;
         expect(content.includes('Assert 6 should PASS'), 'Assert 6 PASS statement').to.be.true;
+    });
+});
+
+describe('skills/test-schedule-plan-tasks — dry-run track', function () {
+    const TEST_SKILL_DIR = path.join(REPO_ROOT, 'skills', 'test-schedule-plan-tasks');
+    const DR_REFS = path.join(TEST_SKILL_DIR, 'references');
+    const skill = fs.readFileSync(path.join(TEST_SKILL_DIR, 'SKILL.md'), 'utf8');
+
+    it('SKILL.md references agent-template-dryrun.md', function () {
+        expect(skill.includes('agent-template-dryrun.md'), 'agent-template-dryrun.md reference').to.be.true;
+    });
+
+    it('SKILL.md references all 7 expect-planN-dryrun.md files', function () {
+        const missing = [];
+        for (let i = 1; i <= 7; i++) {
+            if (!skill.includes(`expect-plan${i}-dryrun.md`)) missing.push(`expect-plan${i}-dryrun.md`);
+        }
+        expect(missing, 'missing dry-run expectation file references').to.deep.equal([]);
+    });
+
+    it('agent-template-dryrun.md exists and contains RESULT: PASS and RESULT: FAIL', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
+        expect(content.includes('RESULT: PASS'), 'RESULT: PASS').to.be.true;
+        expect(content.includes('RESULT: FAIL'), 'RESULT: FAIL').to.be.true;
+    });
+
+    it('agent-template-dryrun.md invokes --dry-run mode', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
+        expect(content.includes('--dry-run'), '--dry-run flag in template').to.be.true;
+    });
+
+    it('agent-template-dryrun.md contains the 6 validation check labels (A–F)', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
+        const missing = [];
+        for (const label of ['Trace header', 'Validation section', 'Wave 1 run-agents',
+                             'Regression ordering', 'No unexpected failures', 'Special assertions']) {
+            if (!content.includes(label)) missing.push(label);
+        }
+        expect(missing, 'missing validation check labels').to.deep.equal([]);
+    });
+
+    it('every expect-planN-dryrun.md exists on disk', function () {
+        const missing = [];
+        for (let i = 1; i <= 7; i++) {
+            const fp = path.join(DR_REFS, `expect-plan${i}-dryrun.md`);
+            if (!fs.existsSync(fp)) missing.push(`expect-plan${i}-dryrun.md`);
+        }
+        expect(missing, 'missing dry-run expectation files').to.deep.equal([]);
+    });
+
+    it('every expect-planN-dryrun.md declares expected_first_run_agents and validation_all_pass', function () {
+        const missing = [];
+        for (let i = 1; i <= 7; i++) {
+            const content = fs.readFileSync(path.join(DR_REFS, `expect-plan${i}-dryrun.md`), 'utf8');
+            if (!content.includes('expected_first_run_agents')) missing.push(`expect-plan${i}-dryrun.md missing expected_first_run_agents`);
+            if (!content.includes('validation_all_pass')) missing.push(`expect-plan${i}-dryrun.md missing validation_all_pass`);
+        }
+        expect(missing, 'missing dry-run topology fields').to.deep.equal([]);
+    });
+
+    it('every expect-planN-dryrun.md declares expected_failures', function () {
+        const missing = [];
+        for (let i = 1; i <= 7; i++) {
+            const content = fs.readFileSync(path.join(DR_REFS, `expect-plan${i}-dryrun.md`), 'utf8');
+            if (!content.includes('expected_failures')) missing.push(`expect-plan${i}-dryrun.md`);
+        }
+        expect(missing, 'missing expected_failures field').to.deep.equal([]);
+    });
+
+    it('every expect-planN-dryrun.md has a special_assertions section', function () {
+        const missing = [];
+        for (let i = 1; i <= 7; i++) {
+            const content = fs.readFileSync(path.join(DR_REFS, `expect-plan${i}-dryrun.md`), 'utf8');
+            if (!content.includes('special_assertions')) missing.push(`expect-plan${i}-dryrun.md`);
+        }
+        expect(missing, 'missing special_assertions').to.deep.equal([]);
+    });
+
+    it('expect-plan4-dryrun.md asserts trivial override NOT active (task count 8, not 10)', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'expect-plan4-dryrun.md'), 'utf8');
+        expect(content.includes('8'), 'task count 8').to.be.true;
+        expect(content.includes('trivial'), 'trivial isolation mention').to.be.true;
+    });
+
+    it('expect-plan6-dryrun.md asserts cascade depth ≥ 6 waves (fan-in wiring validation)', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'expect-plan6-dryrun.md'), 'utf8');
+        expect(content.includes('6'), 'cascade depth 6').to.be.true;
+        expect(content.includes('fan-in'), 'fan-in assertion').to.be.true;
+    });
+
+    it('expect-plan7-dryrun.md asserts Assert 6 validated against real task metadata (not ledger)', function () {
+        const content = fs.readFileSync(path.join(DR_REFS, 'expect-plan7-dryrun.md'), 'utf8');
+        expect(content.includes('Assert 6'), 'Assert 6 check').to.be.true;
+        expect(content.includes('real task'), 'real task metadata check').to.be.true;
+        expect(content.includes('PASS'), 'Assert 6 must PASS').to.be.true;
+    });
+
+    it('SKILL.md Step 1b declares sequential execution to prevent TaskList pollution', function () {
+        expect(skill.includes('sequential'), 'sequential keyword in Step 1b').to.be.true;
+        expect(skill.includes('one at a time'), 'one at a time phrase').to.be.true;
     });
 });
 

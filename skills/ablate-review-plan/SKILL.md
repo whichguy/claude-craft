@@ -28,7 +28,7 @@ description: |
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
 
-argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture>] [--variant <name>]"
+argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
@@ -84,18 +84,29 @@ Read the invocation arguments. Supported forms:
 ```
 /ablate-review-plan                                        # full 16-fixture suite × k=3
 /ablate-review-plan --single probe-9                       # single fixture × k=3
+/ablate-review-plan --single ~/.claude/plans/foo.md        # arbitrary plan-path × k=3 (canary mode)
 /ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
 /ablate-review-plan --variant null                         # use SKILL-v-null.md as ablated variant
-/ablate-review-plan --variant ablation-na                  # default — SKILL-v-ablation-na.md (per-directive N/A)
+/ablate-review-plan --variant micro-2close                 # default — SKILL-v-micro-2close.md (v5.2 Arm C)
 ```
 
 **`--variant <name>` flag.** Selects which file in `skills/review-plan/variants/` is used
 as the ablated variant in Step 2b. The file resolved is `skills/review-plan/variants/SKILL-v-<name>.md`.
-Default: `ablation-na`. Available variants:
+Default: `micro-2close`. Available variants:
 
 | `--variant` value | File | Description |
 |---|---|---|
-| `ablation-na` (default) | `SKILL-v-ablation-na.md` | Per-directive N/A semantics (v2) |
+| `ablation-na` | `SKILL-v-ablation-na.md` | Per-directive N/A semantics (v2) |
+| `ablation-na-adversarial` | `SKILL-v-ablation-na-adversarial.md` | v2 + 5-question adversarial close (v3 candidate — targets mixed-defect under-flagging) |
+| `ablation-minimal` | `SKILL-v-ablation-minimal.md` | v4 — drastic prune to 5 load-bearing directives + v3 adversarial close (~88 lines vs v3's 166) |
+| `micro` | `SKILL-v-micro.md` | v5-micro (Arm A) — adversarial close + 1 universal senior-engineer directive (~36 lines, ≤40 hard gate) |
+| `micro-prose` | `SKILL-v-micro-prose.md` | v5.1 Arm A — v5-micro + directive prose expanded to include advisory categories (≤40 hard gate) |
+| `micro-conv` | `SKILL-v-micro-conv.md` | v5.1 Arm B — v5-micro + 6th adversarial-close question on conventions/fragility (≤45 hard gate) |
+| `micro-floor` | `SKILL-v-micro-floor.md` | v5.1 Arm C — v5-micro + verbosity floor (≥3 findings if non-trivial) (≤40 hard gate) |
+| `micro-noclose` | `SKILL-v-micro-noclose.md` | v5.2 Arm A — v5-micro-prose with all 5 close categories folded into directive prose; no Adversarial Close (≤28 hard gate) |
+| `micro-1close` | `SKILL-v-micro-1close.md` | v5.2 Arm B — v5-micro-prose with 4 close categories folded into prose; keeps only fabricated-quant close question (≤32 hard gate) |
+| `micro-2close` (default) | `SKILL-v-micro-2close.md` | v5.2 Arm C (default) — v5-micro-prose with 3 close categories folded into prose; keeps fabricated-quant + phantom-types close questions (≤34 hard gate) |
+| `security-stable` | `SKILL-v-security-stable.md` | v4.1 (Arm B) — v4 minimal + 1 explicit Security & untrusted-input directive (~91 lines, ≤105 hard gate) |
 | `null` | `SKILL-v-null.md` | Senior-engineer one-liner baseline (Phase B) |
 | `ablation` | `SKILL-v-ablation.md` | v1 directive variant (legacy reference) |
 | `ablation-calibrated` | `SKILL-v-ablation-calibrated.md` | v1 + calibration preamble (legacy reference) |
@@ -127,6 +138,16 @@ The control side always uses `skills/review-plan/SKILL.md`. Only the ablated sid
 For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML comment (probes 17–21), read the comment text and use it verbatim as the EXPECTED_FINDING for the judge. The comment is the ground-truth target finding.
 
 Default fixture set (no args): all 17 above.
+
+**Path-mode resolution for `--single` (canary support).** If the `--single` argument
+contains `/` or ends in `.md`, treat it as a literal path to a real plan rather than
+a short name. Resolve `~` to `$HOME`. The resolved file becomes the fixture for k=3.
+Generate a synthetic short name by slugifying the basename (strip `.md`, replace
+non-alphanumerics with `-`) for use in `<fixture>-control-<i>.md` / `<fixture>-ablated-<i>.md`
+output paths. EXPECTED_FINDING is empty (no ground-truth target). The Step 0b inspector
+runs as normal, but its `suitable_as` is informational only — there is no fixture-map
+expectation to compare against in path mode. Reject the path if it lives under
+`skills/review-plan/{probes,inputs}/` (those are calibration fixtures, not real plans).
 
 Recommended verification order:
 1. Start with `--single input3b` (true PASS calibration — confirms harness wiring + over-flagging dimension before full run)
@@ -175,8 +196,8 @@ For each fixture in the active set, create temp file paths for k=3 runs:
 - `$RESULTS_DIR/<fixture>-ablated-{1,2,3}.md` — ablated review outputs (3 runs)
 - `$RESULTS_DIR/<fixture>-judge-{1,2,3}.json` — judge verdicts (one per paired run)
 
-**Variant under test:** the ablated variant defaults to `skills/review-plan/variants/SKILL-v-ablation-na.md`
-(per-directive N/A semantics, v2). Use `--variant <name>` to point at any other file in
+**Variant under test:** the ablated variant defaults to `skills/review-plan/variants/SKILL-v-micro-2close.md`
+(v5.2 Arm C — production canary 2026-05-02). Use `--variant <name>` to point at any other file in
 `skills/review-plan/variants/` (resolved as `SKILL-v-<name>.md`). The file selected here
 is what gets passed as the system prompt to all 3 ablated-side agents in Step 2b. The
 control side always uses `skills/review-plan/SKILL.md`.
@@ -217,7 +238,7 @@ Output your complete review. Do not truncate.
 
 For each `i ∈ {1,2,3}`, spawn an Agent with the resolved variant file
 (`skills/review-plan/variants/SKILL-v-<variant>.md`, where `<variant>` is the value of the
-`--variant` flag, defaulting to `ablation-na`) as the system prompt and the same fixture
+`--variant` flag, defaulting to `micro-2close`) as the system prompt and the same fixture
 content. Write output to `$RESULTS_DIR/<fixture>-ablated-<i>.md`.
 
 Agent prompt template:
