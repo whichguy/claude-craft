@@ -99,9 +99,9 @@ Three layers, most surgical first:
 
 ## Files
 
-- `plugins/wiki-hooks/handlers/proactive-research-extract.sh` — producer hook.
-- `plugins/wiki-hooks/handlers/proactive-research-driver.sh` — driver subprocess.
-- `plugins/wiki-hooks/templates/classifier.md` — Haiku classifier system prompt.
+- `${CLAUDE_PLUGIN_ROOT}/handlers/proactive-research-extract.sh` — producer hook.
+- `${CLAUDE_PLUGIN_ROOT}/handlers/proactive-research-driver.sh` — driver subprocess.
+- `${CLAUDE_PLUGIN_ROOT}/templates/classifier.md` — Haiku classifier system prompt.
 
 ## Related
 
