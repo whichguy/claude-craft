@@ -20,8 +20,7 @@ const HEAD_LINE_BUDGET = 30; // search the first N lines for the guard
 // Add to this list with a one-line rationale when intentionally exempt.
 const LINT_EXEMPT = new Set([
     'plugins/wiki-suite/handlers/wiki-common.sh',          // sourced library — `wiki_parse_input`, etc.
-    'plugins/task-persist/handlers/task-persist-common.sh', // sourced library — `tp_parse_input`, etc.
-    'plugins/craft-hooks/handlers/memo-cleanup.sh',         // single `find -delete` with 2>/dev/null
+    'plugins/async-suite/handlers/task-persist-common.sh',  // sourced library — `tp_parse_input`, etc.
     'plugins/wiki-suite/handlers/wiki-raw-guard.sh',        // 5-line defensively-coded guard with explicit exit codes
 ]);
 
