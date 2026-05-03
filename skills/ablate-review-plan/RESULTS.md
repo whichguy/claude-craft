@@ -1230,3 +1230,53 @@ Same posture as prior promotions. Spot-check + concept-grep + judge winner evide
 3. v5-micro-noclose and v5-micro-1close retained as banked failures with documented disposition. Do not re-test without new orthogonal signal.
 4. **No v5.3 follow-up triggered.** The drastic-pruning hypothesis is refuted (Arm A); the floor is identified at 2 close questions (Arm C); per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
 5. Recommend production canary: run `/review-plan` with `--variant micro-2close` against the next 5–10 real plans before flipping the operational default.
+
+---
+
+## v5.2 canary — production validation (2026-05-02)
+
+**Status:** PROMOTED — operational default flipped from `ablation-na` to `micro-2close` in same commit series.
+
+**N:** 5 real plans (target met; no organic plan-arrival window extension needed in-session).
+**Date range:** 2026-05-02.
+**Plan sources:** `~/.claude/plans/` (plan-mode artifacts authored 2026-04-25 to 2026-05-02). All five are real artifacts; none drawn from `skills/review-plan/{probes,inputs}/`.
+
+### Method
+
+- For each plan: 1 inspector + k=3 control + k=3 ablated reviews + k=3 paired judges (10 agents per plan).
+- Control = `skills/review-plan/SKILL.md`. Ablated = `skills/review-plan/variants/SKILL-v-micro-2close.md`.
+- Judge = embedded `review-plan-ablation-judge` rubric (5 criteria → winner derivation). EXPECTED_FINDING empty (path-mode, no ground truth).
+- Phase 0.5 enabling change: `--single` extended to accept arbitrary plan paths (commit `f8d64c6`).
+
+### Per-plan results
+
+| Plan | Judge winners | Winner mode | Verdict tier | Concept-grep | Notes |
+|---|---|---|---|---|---|
+| `fuzzy-riding-glacier` | TIE, TIE, CONTROL | TIE | both NEEDS_UPDATE/REWORK | N/A | task-scheduler plan; no quantitative claims |
+| `elegant-jumping-stallman` | TIE, TIE, TIE | TIE | both NEEDS_UPDATE/GAPS | N/A | proxy-architecture plan; no quantitative claims |
+| `plan-out-an-ablation-wiggly-summit` | CONTROL, CONTROL, TIE | CONTROL | both NOT_READY/REWORK (equivalent) | N/A | ablated missed harness-side gaps (skill-family duplication, git lifecycle, memo staleness, concurrent contamination); verdict tier matched control — not strictly weaker |
+| `plan-out-how-we-humble-crescent` | ABLATED, ABLATED, ABLATED | ABLATED | ablated NEEDS_UPDATE > control READY/PASS | N/A | ablated correctly flagged ~15 concrete issues control missed (phantom resolve subcommand, AC/Step contradictions, undefined fields, racy pkill, TOCTOU); ablated stronger, not weaker |
+| `i-want-to-do-steady-rainbow` | CONTROL, ABLATED, TIE | SPLIT → TIE | mixed (control READY w/ advisories, ablated NOT_READY) | **3/3 reps with hits (counts: 7, 4, 2)** | plan contains fabricated 2026 model IDs + unverifiable SWE-Bench numbers; ablated caught fabricated benchmarks via close-question — exactly the probe-21-class behavior the canary tested for |
+
+### Pre-registered criteria check
+
+| Criterion | Threshold | Result |
+|---|---|---|
+| Plans with judge winner mode = CONTROL | ≤ 1 | **1** (`wiggly-summit`) — PASS |
+| Plans where ablated verdict tier strictly weaker AND `false_negatives` = CONTROL | 0 | **0** — PASS (all 5 verdicts tier-equivalent or stronger) |
+| Concept-grep ≥1 hit on ≥ 2/3 reps for plans with quantitative claims | ≥ 2/3 | **3/3** for `steady-rainbow` (only quantitative-claim plan) — PASS |
+
+**All three pre-registered criteria met.** No fail trigger raised. No reviewer-by-inspection regression detected (per edge-case #5).
+
+### Disposition: PROMOTED
+
+Operational default flipped `ablation-na → micro-2close` in `skills/ablate-review-plan/SKILL.md` (lines 90, 95, 99, 108, 199, 241). `ablation-na`, `micro-prose`, and all v5.x experimental variants retained in the variant table as legacy reference; no deletions.
+
+### Notable finding (informational, not blocking)
+
+`plan-out-how-we-humble-crescent` showed control-side false-negative pattern: control issued blanket READY/PASS while ablated correctly surfaced ~15 concrete issues. All 3 judges scored ABLATED winner. This is the *opposite* direction of regression and confirms the variant's adversarial-close + senior-engineer directives produce stronger calibration on under-flagged plans. Not a defect — but evidence the structured control's checklist mode can rubber-stamp. Worth tracking as a separate finding for the structured control's calibration.
+
+### Cost
+
+- **Agents dispatched:** 50 (5 plans × 10 agents = 1 inspector + 6 reviewers + 3 judges per plan).
+- **Plan-spec estimate:** 90 worst case for N=10. Actual N=5 below upper bound.
