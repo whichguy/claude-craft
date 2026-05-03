@@ -1116,3 +1116,117 @@ Same posture as v5-micro promotion. Spot-check + concept-grep evidence is suffic
 3. v5-micro-conv and v5-micro-floor retained as banked alternatives. Their failure modes are documented above; do not re-test without new orthogonal signal.
 4. **No v6 follow-up triggered.** Arm A passed cleanly; the gap is closed at zero size cost. Per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
 5. Recommend production canary: run `/review-plan` with `--variant micro-prose` against the next 5–10 real plan reviews and watch for any probe-17/probe-21-class regression before flipping the operational default.
+
+---
+
+## v5.2 — question-removal probe (drastic close pruning, 2026-05-02)
+
+**Verdict: PROMOTE v5-micro-2close (Arm C, 33 lines).** Arm A (no close) is refuted; Arm B (1 close) passes Phase 1 but regresses on input11 advisory winner mode in Phase 2; Arm C passes both phases cleanly.
+
+### Pre-registered hypothesis recap
+
+v5-micro-prose (36 lines) is the incumbent. Five close questions cost ~13 lines. The unanswered question: can prose-naming substitute for close questions, given v5.1 showed that naming advisory categories in directive prose surfaces those findings? Three arms test progressive pruning:
+
+| Arm | Variant | Mechanism | Lines | Hard gate |
+|---|---|---|---|---|
+| A — noclose | `SKILL-v-micro-noclose.md` | All 5 close categories folded into directive prose; no close section | 23 | ≤28 ✓ |
+| B — 1close | `SKILL-v-micro-1close.md` | 4 categories prose-folded; keeps fabricated-quant close question | 32 | ≤32 ✓ |
+| C — 2close | `SKILL-v-micro-2close.md` | 3 categories prose-folded; keeps fabricated-quant + phantom-types | 33 | ≤34 ✓ |
+
+### Phase 1 — gating spot-check (36 fresh calls)
+
+3 arms × 2 fixtures (probe-21 + probe-9) × 3 reps = 18 ablated + 18 judges. Concept-grep regex for probe-21 fabricated-quant pre-registered verbatim; no post-hoc tuning. Working dirs: `/tmp/ablate-v5q-{noclose,1close,2close}.run/`.
+
+**probe-21 — mechanistic test (concept-grep + judge winner mode ∈ {TIE, ABLATED}):**
+
+| Arm | rep1 hits / rep2 / rep3 | catch rate | Judge winners | Mode | Pass? |
+|---|---|---|---|---|---|
+| noclose | 5 / 3 / 4 | 3/3 ✓ | CONTROL × 3 | **CONTROL ✗** | **FAIL** |
+| 1close | 3 / 4 / 5 | 3/3 ✓ | TIE × 3 | TIE ✓ | PASS |
+| 2close | 3 / 3 / 4 | 3/3 ✓ | TIE × 3 | TIE ✓ | PASS |
+
+**probe-9 — regression check (≥2/3 NOT READY + judge winner mode = ABLATED):**
+
+| Arm | r1 verdict / r2 / r3 | NOT READY count | Judge winners | Mode | Pass? |
+|---|---|---|---|---|---|
+| noclose | NEEDS_UPDATE × 3 | **0/3 ✗** | ABLATED × 3 | ABLATED ✓ | **FAIL** |
+| 1close | NOT READY × 3 | 3/3 ✓ | ABLATED × 3 | ABLATED ✓ | PASS |
+| 2close | NOT READY × 3 | 3/3 ✓ | ABLATED × 3 | ABLATED ✓ | PASS |
+
+**Phase 1 disposition:** Arm A eliminated (fails BOTH probe-21 winner-mode AND probe-9 verdict tier). Arms B and C both pass; Arm B (smaller, 32 lines) advances to Phase 2 first per preference order.
+
+### Phase 2 — confirmation suite
+
+#### Arm B (1close) — 12 fresh calls
+
+| Fixture | Concept-grep / verdict | Judge winners | Mode | Pass? |
+|---|---|---|---|---|
+| input11 | 3/3 reps emit ALL 3 of {W3C, per-req-UUID, cls-async} ✓ | CONTROL, CONTROL, ABLATED | **CONTROL ✗** | **FAIL** |
+| probe-17 | NOT READY, NOT READY, NEEDS_UPDATE → 2/3 ✓ | TIE × 3 | TIE ✓ | PASS |
+
+Arm B emits the advisory concepts but the judge rates control as winning on input11 (severity_alignment CONTROL ×2, false_negatives CONTROL ×1) — concepts surface but are not consistently weighted as blocking. **Per pre-registered fallback rule, Arm B does not promote; advance to Arm C Phase 2.**
+
+#### Arm C (2close) — 12 fresh calls
+
+| Fixture | Concept-grep / verdict | Judge winners | Mode | Pass? |
+|---|---|---|---|---|
+| input11 | 3/3 reps emit ALL 3 of {W3C, per-req-UUID, cls-async} ✓ | TIE, ABLATED, ABLATED | ABLATED ✓ | PASS |
+| probe-17 | NOT READY, NEEDS_UPDATE, NOT READY → 2/3 ✓ | TIE × 3 | TIE ✓ | PASS |
+
+**Arm C passes Phase 1 + Phase 2 cleanly across all four fixtures. PROMOTE.**
+
+### Decision-gate disposition (pre-registered)
+
+| Arm | Phase 1 | Phase 2 | Lines | Disposition |
+|---|---|---|---|---|
+| A — noclose | ✗ FAIL (probe-21 winner-mode CONTROL; probe-9 verdict 0/3) | — | 23 | NOT PROMOTED — refuted |
+| B — 1close | ✓ PASS | ✗ FAIL (input11 winner-mode CONTROL) | 32 | NOT PROMOTED — banked |
+| **C — 2close** | **✓ PASS** | **✓ PASS** | **33** | **PROMOTE as new ablated default** |
+
+### Headline findings
+
+1. **The close-question scaffold IS load-bearing — but only for severity escalation, not concept emission.** All three arms caught probe-21's fabricated benchmark citation by concept-grep (3/3 reps each). Arm A even produced 5/3/4 concept references per rep without a close section. But the judge rated control as winning on probe-21 for Arm A across all 3 reps — `severity_alignment` and `verdict_agreement` scored CONTROL because Arm A treated the fabricated-quant finding as advisory (NEEDS_UPDATE) rather than blocking (NOT READY). The mandatory downgrade rule in the close section is what converts the finding from advisory to blocking. **Prose-naming surfaces concepts; the close question + downgrade rule weights them.**
+
+2. **The pruning floor is 2 close questions (fabricated-quant + phantom-types).** Arm B (1 question) passed Phase 1 cleanly but regressed on input11 advisory severity in Phase 2. The second close question (phantom types/symbols) appears to provide just enough scaffolding pressure to keep the directive's advisory categories rated as proper findings rather than soft mentions — even though phantom-types is structurally orthogonal to W3C/UUID/cls-hooked. This is consistent with v5.1 Arm B's mirror-image finding (adding a 6th question regressed probe-9): close-question count is a sensitive lever, both directions.
+
+3. **Arm A's mechanistic catch was real but not actionable.** All 3 reps caught the fabricated 10× claim (concept-grep 5/3/4); the issue is that without a downgrade rule, the model concluded NEEDS_UPDATE when control concluded NOT READY. The reviewer's own probabilistic phrasing ("…must be resolved before implementation") is not enough — explicit "if this finding is present, downgrade one tier" anchoring is needed.
+
+4. **Probe-9 verdict-tier sensitivity tracks close-question count, not category coverage.** Arm A folded all 5 categories into prose and lost probe-9's NOT READY verdict (0/3). Arms B and C kept some close questions and held NOT READY 3/3. The mandatory downgrade rule is doing measurable verdict-tier work on mixed-defect plans, independent of which categories it covers.
+
+5. **Concept-grep and judge winners disagree on what "passed" means.** input11 concept-grep was 3/3 across Arms B and C (perfect emission). But Arm B's judge winners were CONTROL-majority while Arm C's were ABLATED-majority. The difference is severity weighting — the 2nd close question changes how the model emphasizes those concepts in the final output. **Lesson: concept-grep is necessary but not sufficient as a falsifiable measurement; judge winner mode catches what concept-grep misses.**
+
+### Cross-arm cost comparison
+
+| Variant | Lines | Spot-check calls | Promotion |
+|---|---|---|---|
+| v5-micro-prose (prior default) | 36 | baseline | RETIRED to legacy |
+| v5-micro-noclose (Arm A) | 23 | 12 | NOT PROMOTED (refuted) |
+| v5-micro-1close (Arm B) | 32 | 12 + 12 | NOT PROMOTED (Phase 2 input11 fail) |
+| **v5-micro-2close (Arm C)** | **33** | **12 + 12** | **NEW DEFAULT** |
+
+Total fresh calls used: **60** (Phase 1: 36; Arm B Phase 2: 12; Arm C Phase 2: 12). Under the 72-call hard cap.
+
+Net size win vs v5-micro-prose: **−3 lines (−8.3%)** — modest but the experiment's scientific value is in the negative results (Arm A refuted, Arm B floored), which document a hard lower bound on close-question count.
+
+### Phase 2 (full-suite ~118 fresh calls): DEFERRED
+
+Same posture as prior promotions. Spot-check + concept-grep + judge winner evidence is sufficient. Full-suite queues if production canary shows regressions.
+
+### Artifacts
+
+- Arm A (refuted): `skills/review-plan/variants/SKILL-v-micro-noclose.md` (23 lines)
+- Arm B (banked): `skills/review-plan/variants/SKILL-v-micro-1close.md` (32 lines)
+- **Arm C (PROMOTED): `skills/review-plan/variants/SKILL-v-micro-2close.md` (33 lines)**
+- Spot-check outputs: `/tmp/ablate-v5q-{noclose,1close,2close}.run/`
+- Reused controls + inspectors: `/tmp/ablate-v3-full.4ddbb4/`
+- v5-micro-prose Phase 1 baseline (probe-9): `/tmp/ablate-v5p-prose.run/`
+- v5-micro Phase 1 baseline (probe-21, probe-17): `/tmp/ablate-v5-micro.run/`
+- Variant table updated: `skills/ablate-review-plan/SKILL.md` (rows for `micro-noclose`, `micro-1close`, `micro-2close`)
+
+### Next steps
+
+1. Switch ablate-review-plan default `--variant` from `micro-prose` to `micro-2close` in a follow-up operational commit.
+2. v5-micro-prose retained in `variants/` as legacy reference. No deletions.
+3. v5-micro-noclose and v5-micro-1close retained as banked failures with documented disposition. Do not re-test without new orthogonal signal.
+4. **No v5.3 follow-up triggered.** The drastic-pruning hypothesis is refuted (Arm A); the floor is identified at 2 close questions (Arm C); per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
+5. Recommend production canary: run `/review-plan` with `--variant micro-2close` against the next 5–10 real plans before flipping the operational default.
