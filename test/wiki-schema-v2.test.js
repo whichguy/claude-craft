@@ -171,7 +171,7 @@ describe('Wiki Schema v2', function () {
     // this content was in CLAUDE.md; it moved out so CLAUDE.md stays small for
     // non-wiki repos (see plans/wiki-context-audit.md § Shipped).
     describe('wiki-detect.sh SessionStart CONTEXT (replaces former CLAUDE.md § Wiki)', function () {
-        const detectPath = path.join(REPO_ROOT, 'plugins', 'wiki-hooks', 'handlers', 'wiki-detect.sh');
+        const detectPath = path.join(REPO_ROOT, 'plugins', 'wiki-suite', 'handlers', 'wiki-detect.sh');
         let content;
 
         before(function () {

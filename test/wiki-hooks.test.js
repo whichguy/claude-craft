@@ -7,7 +7,7 @@ const util = require('util');
 
 const execAsync = util.promisify(exec);
 
-const HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'wiki-hooks', 'handlers');
+const HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'wiki-suite', 'handlers');
 // reflection-system deleted — session-start-processor logic merged into wiki-detect.sh
 
 describe('Wiki Hooks', function () {
