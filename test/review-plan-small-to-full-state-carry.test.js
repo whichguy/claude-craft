@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 describe('SMALL→FULL state carry', function () {
-    const skillPath = path.join(__dirname, '..', 'skills', 'review-plan', 'SKILL.md');
+    const skillPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'SKILL.md');
     let skillContent;
 
     before(function () {

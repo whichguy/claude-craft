@@ -1,8 +1,0 @@
-{
-  "name": "craft-hooks",
-  "description": "Claude Craft core hooks: probabilistic auto-sync on user prompts.",
-  "version": "1.0.0",
-  "author": {
-    "name": "Claude Craft"
-  }
-}

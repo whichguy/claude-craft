@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 
 describe('Review-Plan Task Fan-Out', function () {
-    const skillPath = path.join(__dirname, '..', 'skills', 'review-plan', 'SKILL.md');
-    const gasEvalPath = path.join(__dirname, '..', 'skills', 'gas-plan', 'EVALUATE.md');
-    const nodeEvalPath = path.join(__dirname, '..', 'skills', 'node-plan', 'EVALUATE.md');
+    const skillPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'SKILL.md');
+    const gasEvalPath = path.join(__dirname, '..', 'plugins', 'gas-suite', 'skills', 'gas-plan', 'EVALUATE.md');
+    const nodeEvalPath = path.join(__dirname, '..', 'plugins', 'planning-suite', 'skills', 'node-plan', 'EVALUATE.md');
 
     let skillContent;
     let gasEvalContent;
@@ -118,7 +118,9 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('routing order (specific before wildcard)', function () {
-        it.skip('checks gas-evaluator BEFORE wildcard *-evaluator (L3 ablated — see SKILL-v-no-l3 promotion)', function () {
+        // GAS/Node L3 evaluators removed via L3-ablation in SKILL.md — tests commented out
+        /*
+        it('checks gas-evaluator BEFORE wildcard *-evaluator', function () {
             const routeSection = skillContent.substring(
                 skillContent.indexOf('Route findings from all_results')
             );
@@ -137,6 +139,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(nodeIdx).to.be.greaterThan(-1);
             expect(wildcardIdx).to.be.greaterThan(nodeIdx);
         });
+        */
 
         it('checks ui-evaluator BEFORE wildcard *-evaluator', function () {
             const routeSection = skillContent.substring(
@@ -148,7 +151,9 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(wildcardIdx).to.be.greaterThan(uiIdx);
         });
 
-        it.skip('checks l1-blocking BEFORE all others in routing (not fail-closed guards) (L3 ablated — used gas-evaluator anchor)', function () {
+        // References gas-evaluator (removed via L3-ablation) — commented out
+        /*
+        it('checks l1-blocking BEFORE all others in routing (not fail-closed guards)', function () {
             // Use the "Route findings — specific evaluators" comment to skip fail-closed guards
             const routeSection = skillContent.substring(
                 skillContent.indexOf('Route findings — specific evaluators')
@@ -162,6 +167,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(gasIdx).to.be.greaterThan(l1AdvisoryIdx);
             expect(l1BlockingIdx).to.be.lessThan(wildcardIdx);
         });
+        */
     });
 
     describe('per-pass variable initialization', function () {
@@ -215,7 +221,9 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('waves = chunk(evaluators_to_spawn, MAX_CONCURRENT)');
         });
 
-        it.skip('spawns evaluators in priority order (L1 blocking/advisory first, UI last) (L3 ablated — Priority 2 Ecosystem removed)', function () {
+        // Priority 2 (Ecosystem = GAS/Node) removed via L3-ablation — commented out
+        /*
+        it('spawns evaluators in priority order (L1 blocking/advisory first, UI last)', function () {
             const buildSection = skillContent.substring(
                 skillContent.indexOf('-- Build evaluator list'),
                 skillContent.indexOf('-- Wave spawning --')
@@ -234,6 +242,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(p4).to.be.greaterThan(p3);
             expect(p5).to.be.greaterThan(p4);
         });
+        */
 
         it('prints wave count and evaluator names per wave', function () {
             expect(skillContent).to.include('wave(s) (max [MAX_CONCURRENT] concurrent)');
@@ -399,13 +408,16 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(skillContent).to.include('evaluator_name matches "*-evaluator" (cluster)');
         });
 
-        it.skip('routes gas-evaluator findings into gas_results (L3 ablated)', function () {
+        // GAS/Node L3 evaluators removed via L3-ablation — commented out
+        /*
+        it('routes gas-evaluator findings into gas_results', function () {
             expect(skillContent).to.include('evaluator_name == "gas-evaluator"');
         });
 
         it.skip('routes node-evaluator findings into node_results (L3 ablated)', function () {
             expect(skillContent).to.include('evaluator_name == "node-evaluator"');
         });
+        */
 
         it('routes ui-evaluator findings into ui_results', function () {
             expect(skillContent).to.include('evaluator_name == "ui-evaluator"');
@@ -491,7 +503,7 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('cross-file question count invariants', function () {
-        const questionsPath = path.join(__dirname, '..', 'skills', 'review-plan', 'QUESTIONS.md');
+        const questionsPath = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'QUESTIONS.md');
         let questionsContent;
         let l1RowCount;
 
@@ -558,7 +570,9 @@ describe('Review-Plan Task Fan-Out', function () {
                 `base_l1 = ${baseMatch[1]} in SKILL.md but QUESTIONS.md Layer 1 has ${l1RowCount} rows — update base_l1`);
         });
 
-        it.skip('flag_question_decrements truth table covers all 16 (IS_GAS × HAS_UI × HAS_EXISTING_INFRA × HAS_UNBOUNDED_DATA) combinations (L3 ablated — IS_GAS dropped)', function () {
+        // IS_GAS axis removed from helper via L3-ablation — commented out
+        /*
+        it('flag_question_decrements truth table covers all 16 (IS_GAS × HAS_UI × HAS_EXISTING_INFRA × HAS_UNBOUNDED_DATA) combinations', function () {
             const helperIdx = skillContent.indexOf('helper: flag_question_decrements(');
             expect(helperIdx, 'flag_question_decrements helper not found').to.be.greaterThan(0);
             const helperBlock = skillContent.substring(helperIdx, helperIdx + 1500);
@@ -579,6 +593,7 @@ describe('Review-Plan Task Fan-Out', function () {
             // Branch 3: NOT is_gas + NOT has_unbounded_data → -1 (Q-C32)
             expect(helperBlock).to.match(/NOT.*is_gas.*NOT.*has_unbounded_data.*adj.*\+= 1/);
         });
+        */
     });
 
     describe('Phase 5c.5 Implementation Intent Questions', function () {
@@ -993,7 +1008,7 @@ describe('Review-Plan Task Fan-Out', function () {
     });
 
     describe('SMALL-tier REMOVAL intent questions (Phase 3b)', function () {
-        const benchDir = path.join(__dirname, '..', 'skills', 'review-plan', 'inputs', 'bench');
+        const benchDir = path.join(__dirname, '..', 'plugins', 'review-suite', 'skills', 'review-plan', 'inputs', 'bench');
 
         it('SKILL.md defines SMALL fast-path REMOVAL intent questions block with sonnet model', function () {
             const idx = skillContent.indexOf('SMALL fast-path: REMOVAL intent questions');
@@ -1088,6 +1103,8 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(deltaBlock).to.include('cluster_name == "impact"');
         });
 
+        // GAS/Node L3 evaluator deltas removed via L3-ablation — commented out
+        /*
         // D5: Gate 1 safety set for gas evaluator (Q1, Q2, Q13, Q15, Q18, Q42)
         it.skip('D5: gas evaluator delta always includes Gate 1 safety set Q1/Q2/Q13/Q15/Q18/Q42 (L3 ablated)', function () {
             const deltaIdx = skillContent.indexOf('pass_delta = {}');
@@ -1103,6 +1120,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(deltaBlock).to.include('gate1_node');
             expect(deltaBlock).to.include('"N1"');
         });
+        */
 
         // D7: l1-advisory-structural evaluator prompt has delta injection
         it('D7: l1-advisory-structural evaluator prompt has delta injection block', function () {
@@ -1134,6 +1152,8 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(clusterBlock).to.include('delta: no NEEDS_UPDATE Q-IDs');  // empty branch live (non-impact clusters)
         });
 
+        // GAS/Node L3 evaluator prompts removed via L3-ablation — commented out
+        /*
         // D10: gas evaluator prompt has delta injection mentioning Gate 1 safety set
         it.skip('D10: gas evaluator prompt has delta injection block mentioning Gate 1 safety set (L3 ablated)', function () {
             const gasStart = skillContent.indexOf('--- GAS Evaluator Config');
@@ -1155,6 +1175,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(nodeBlock).to.include('N1');
             expect(nodeBlock).to.not.include('delta: no NEEDS_UPDATE Q-IDs');  // dead — N1 gate1 always non-empty
         });
+        */
 
         // D12: ui evaluator prompt has delta injection
         it('D12: ui evaluator prompt has delta injection block', function () {
@@ -1220,6 +1241,8 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(blockingBlock).to.not.include('delta filter');
         });
 
+        // GAS/Node-specific routing (gas_results/node_results) removed via L3-ablation — commented out
+        /*
         // D18: routing uses per-entry merge (not full dict replacement) for gas/node/cluster/UI
         // Full replacement wipes carry-forward seeded values on pass 2+.
         it.skip('D18: gas/node/cluster/UI routing uses per-entry merge, not full dict replacement (L3 ablated — gas/node removed; cluster/UI part still valid but assertion mixes them)', function () {
@@ -1237,6 +1260,7 @@ describe('Review-Plan Task Fan-Out', function () {
             expect(routeSection).to.include('ui_results[q_id] = entry');
             expect(routeSection).to.include('cluster_results[cluster_name][q_id] = entry');
         });
+        */
 
         // D19: delta blocks use filter framing with explicit JSON output scope (not old "re-evaluate ONLY" framing)
         it('D19: delta blocks use filter framing with explicit JSON output scope', function () {

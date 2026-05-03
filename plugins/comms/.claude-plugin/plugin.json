@@ -1,0 +1,14 @@
+{
+  "name": "comms",
+  "version": "0.1.0",
+  "description": "Communication helpers (Slack tagging).",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "comms"],
+  "dependencies": []
+}

@@ -1,0 +1,14 @@
+{
+  "name": "slides-suite",
+  "version": "0.1.0",
+  "description": "Generate reveal.js or Google Slides decks from material.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "slides-suite"],
+  "dependencies": []
+}

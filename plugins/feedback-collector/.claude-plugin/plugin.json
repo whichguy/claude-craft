@@ -1,6 +1,0 @@
-{
-  "name": "feedback-collector",
-  "description": "Harvests prompt and skill improvement feedback from session outputs at SessionEnd.",
-  "version": "1.0.0",
-  "author": { "name": "Claude Craft" }
-}

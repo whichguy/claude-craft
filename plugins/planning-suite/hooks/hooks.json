@@ -1,0 +1,30 @@
+{
+  "description": "Plan-mode review gate: PreToolUse blocks ExitPlanMode unless review-plan has produced a slug-scoped gate file at ~/.claude/plans/.review-ready-<slug>; PostToolUse cleans up the gate after a successful exit.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handlers/exit-plan-mode-gate.sh",
+            "statusMessage": "Checking review-plan was run...",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "ExitPlanMode",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handlers/exit-plan-mode-cleanup.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

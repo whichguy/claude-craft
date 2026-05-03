@@ -1,0 +1,14 @@
+{
+  "name": "local-classifier",
+  "version": "0.1.0",
+  "description": "Local Ollama-powered prompt classifier UserPromptSubmit hook.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "local-classifier", "ollama"],
+  "dependencies": []
+}

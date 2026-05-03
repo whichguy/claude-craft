@@ -1,0 +1,14 @@
+{
+  "name": "wiki-suite",
+  "version": "0.1.0",
+  "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "wiki-suite"],
+  "dependencies": []
+}

@@ -1,0 +1,14 @@
+{
+  "name": "review-bench",
+  "version": "0.1.0",
+  "description": "Prompt/question A/B benchmarking and ablation tooling for review-suite.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "review-bench"],
+  "dependencies": [{"name":"review-suite","version":"^0.1.0"}]
+}

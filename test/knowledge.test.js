@@ -6,7 +6,7 @@ describe('Knowledge Discovery Tests', function() {
     this.timeout(10000);
 
     describe('Knowledge Command', function() {
-        const knowledgeCommand = path.join(__dirname, '..', 'commands', 'knowledge.md');
+        const knowledgeCommand = path.join(__dirname, '..', 'plugins', 'planning-suite', 'commands', 'knowledge.md');
 
         it('should have knowledge command file', function() {
             expect(fs.existsSync(knowledgeCommand)).to.be.true;

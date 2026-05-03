@@ -1,4 +1,5 @@
 ---
+name: red-team-v2
 description: Multi-phase question-driven red team review (A/B test - Approach B)
 argument-hint: "[plan-file-path | auto] [--context file1 file2 ...] [--context-glob pattern]"
 allowed-tools: ["Read", "Write", "Glob", "Grep", "Task", "Bash", "TodoWrite"]

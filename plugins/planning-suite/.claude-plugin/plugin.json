@@ -1,0 +1,14 @@
+{
+  "name": "planning-suite",
+  "version": "0.1.0",
+  "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "planning-suite"],
+  "dependencies": []
+}

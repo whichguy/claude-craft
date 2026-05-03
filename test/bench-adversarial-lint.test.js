@@ -16,8 +16,8 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 const BENCH_RUNNER = path.join(REPO_ROOT, 'test', 'bench-adversarial.js');
 const GROUND_TRUTH = path.join(REPO_ROOT, 'test', 'benchmarks', 'adversarial.ground-truth.json');
 const QUESTIONS_PATHS = [
-    path.join(REPO_ROOT, 'skills', 'review-plan', 'QUESTIONS.md'),
-    path.join(REPO_ROOT, 'skills', 'review-plan', 'QUESTIONS-L3.md'),
+    path.join(REPO_ROOT, 'plugins', 'review-suite', 'skills', 'review-plan', 'QUESTIONS.md'),
+    path.join(REPO_ROOT, 'plugins', 'review-suite', 'skills', 'review-plan', 'QUESTIONS-L3.md'),
 ];
 
 // Q-ID pattern: prefix Q- followed by one capital letter (G/C/U/E/N) and digits.

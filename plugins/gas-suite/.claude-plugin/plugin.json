@@ -1,0 +1,14 @@
+{
+  "name": "gas-suite",
+  "version": "0.1.0",
+  "description": "Google Apps Script review, debugging, planning, sidebar testing, Gmail Cards.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "gas-suite"],
+  "dependencies": [{"name":"review-suite","version":"^0.1.0"}]
+}

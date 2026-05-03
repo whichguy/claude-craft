@@ -1,0 +1,14 @@
+{
+  "name": "async-suite",
+  "version": "0.1.0",
+  "description": "Background task workflow: bg / todo / todo-cleanup + task-persist + feedback ingestion.",
+  "author": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "async-suite"],
+  "dependencies": []
+}
