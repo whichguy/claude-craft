@@ -1,0 +1,21 @@
+{
+  "name": "claude-craft",
+  "owner": {
+    "name": "whichguy",
+    "url": "https://github.com/whichguy"
+  },
+  "description": "Family-bundled Claude Code extensions: GAS tooling, project wiki, review/research bench, planning, async workflow, slides, and domain-specific bundles.",
+  "plugins": [
+    { "name": "gas-suite",        "source": "./plugins/gas-suite",        "version": "0.1.0", "description": "Google Apps Script review, debugging, planning, sidebar testing, Gmail Cards." },
+    { "name": "wiki-suite",       "source": "./plugins/wiki-suite",       "version": "0.1.0", "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook." },
+    { "name": "review-suite",     "source": "./plugins/review-suite",     "version": "0.1.0", "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits." },
+    { "name": "review-bench",     "source": "./plugins/review-bench",     "version": "0.1.0", "description": "Prompt/question A/B benchmarking and ablation tooling. Depends on review-suite." },
+    { "name": "planning-suite",   "source": "./plugins/planning-suite",   "version": "0.1.0", "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge." },
+    { "name": "async-suite",      "source": "./plugins/async-suite",      "version": "0.1.0", "description": "Background task workflow: bg / todo / todo-cleanup + task-persist + feedback ingestion." },
+    { "name": "slides-suite",     "source": "./plugins/slides-suite",     "version": "0.1.0", "description": "Generate reveal.js or Google Slides decks from material." },
+    { "name": "comms",            "source": "./plugins/comms",            "version": "0.1.0", "description": "Communication helpers (Slack tagging)." },
+    { "name": "form990",          "source": "./plugins/form990",          "version": "0.1.0", "description": "End-to-end IRS Form 990 preparation orchestrator." },
+    { "name": "plan-red-team",    "source": "./plugins/plan-red-team",    "version": "0.1.0", "description": "Iterative red-team plan review with Opus orchestration." },
+    { "name": "local-classifier", "source": "./plugins/local-classifier", "version": "0.1.0", "description": "Local Ollama-powered prompt classifier UserPromptSubmit hook." }
+  ]
+}

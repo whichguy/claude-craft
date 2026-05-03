@@ -66,10 +66,7 @@ IF PROMPT_SOURCE = "direct":
 
 **Announce intention**: "Initiating comprehensive prompt review using phased-prompt framework for exhaustive analysis and improvement recommendations."
 
-**Execute the phased-prompt framework**:
-```
-/prompt phased-prompt <FILE_PATH_OR_FULL_ARGUMENTS>
-```
+**Execute the phased-prompt framework inline** — perform every phase below directly in this agent rather than delegating; do not summarize or skip phases.
 
 Where:
 - IF PROMPT_SOURCE = "file": Use the extracted FILE_PATH

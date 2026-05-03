@@ -1,7 +1,7 @@
 {
-  "name": "plan-red-team",
+  "name": "gas-suite",
   "version": "0.1.0",
-  "description": "Red team review for implementation plans — assembles expert personas to critique plans before execution.",
+  "description": "Google Apps Script review, debugging, planning, sidebar testing, Gmail Cards.",
   "author": {
     "name": "whichguy",
     "url": "https://github.com/whichguy"
@@ -9,6 +9,6 @@
   "homepage": "https://github.com/whichguy/claude-craft",
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
-  "keywords": ["claude-code", "plan-red-team", "review"],
-  "dependencies": []
+  "keywords": ["claude-code", "gas-suite"],
+  "dependencies": [{"name":"review-suite","version":"^0.1.0"}]
 }
