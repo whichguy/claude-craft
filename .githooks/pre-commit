@@ -84,4 +84,17 @@ else
     echo -e "${GREEN}✅ Pre-commit secret scan passed - no secrets detected${NC}"
 fi
 
+# Phase index freshness check for skills/review-plan/SKILL.md
+if echo "$STAGED_FILES" | grep -qx "skills/review-plan/SKILL.md"; then
+    REGEN="$REPO_ROOT/tools/regen-phase-index.sh"
+    if [ -x "$REGEN" ]; then
+        if ! ( cd "$REPO_ROOT" && "$REGEN" --check ) >/dev/null 2>&1; then
+            echo -e "${RED}🚨 COMMIT BLOCKED: Phase index stale.${NC}"
+            echo -e "${YELLOW}   Run tools/regen-phase-index.sh and stage the result.${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Phase index up to date${NC}"
+    fi
+fi
+
 exit 0
