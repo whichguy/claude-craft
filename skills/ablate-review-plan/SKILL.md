@@ -98,6 +98,8 @@ Default: `ablation-na`. Available variants:
 | `ablation-na` (default) | `SKILL-v-ablation-na.md` | Per-directive N/A semantics (v2) |
 | `ablation-na-adversarial` | `SKILL-v-ablation-na-adversarial.md` | v2 + 5-question adversarial close (v3 candidate — targets mixed-defect under-flagging) |
 | `ablation-minimal` | `SKILL-v-ablation-minimal.md` | v4 — drastic prune to 5 load-bearing directives + v3 adversarial close (~88 lines vs v3's 166) |
+| `micro` | `SKILL-v-micro.md` | v5-micro (Arm A) — adversarial close + 1 universal senior-engineer directive (~36 lines, ≤40 hard gate) |
+| `security-stable` | `SKILL-v-security-stable.md` | v4.1 (Arm B) — v4 minimal + 1 explicit Security & untrusted-input directive (~91 lines, ≤105 hard gate) |
 | `null` | `SKILL-v-null.md` | Senior-engineer one-liner baseline (Phase B) |
 | `ablation` | `SKILL-v-ablation.md` | v1 directive variant (legacy reference) |
 | `ablation-calibrated` | `SKILL-v-ablation-calibrated.md` | v1 + calibration preamble (legacy reference) |
