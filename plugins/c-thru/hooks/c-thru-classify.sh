@@ -1,1 +1,1 @@
-/Users/dadleet/src/c-thru/tools/c-thru-classify.sh
+../../../../c-thru/tools/c-thru-classify.sh

@@ -1,1 +1,1 @@
-/Users/dadleet/src/c-thru/tools/c-thru-postcompact-context.sh
+../../../../c-thru/tools/c-thru-postcompact-context.sh
