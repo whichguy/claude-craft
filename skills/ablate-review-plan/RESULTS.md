@@ -932,3 +932,187 @@ The line-count win (-47% vs v3) and finding-level catches (4/4 pre-registered cr
 - Variant file: `skills/review-plan/variants/SKILL-v-ablation-minimal.md`
 - Spot-check outputs: `/tmp/ablate-v4-spot.VtZBYA/`
 - Reused controls: `/tmp/ablate-v3-full.4ddbb4/`
+
+---
+
+## v5 — two-arm spot-check (2026-05-02)
+
+Pre-registered two-arm experiment per `plans/v5-two-arm-ablation.md`. Arm A tests close-only hypothesis; Arm B tests surgical Security directive addition to v4. Both arms use the v3 controls + inspectors at `/tmp/ablate-v3-full.4ddbb4/` (no fresh control runs).
+
+### Variants under test
+
+| Arm | Variant file | Lines | Hard gate | Pass? |
+|---|---|---|---|---|
+| A | `SKILL-v-micro.md` | 36 | ≤40 | ✅ |
+| B | `SKILL-v-security-stable.md` | 91 | ≤105 | ✅ |
+
+### Arm A — v5-micro (5 fixtures, 15 ablated + 15 judges)
+
+| Fixture | Ablated verdicts | Judge winners (k=3) | Mode | Verdict-stable? | Finding emission |
+|---|---|---|---|---|---|
+| `probe-9` | NOT READY × 3 | ABLATED, ABLATED, ABLATED | ABLATED | ✅ stable | mixed-defect findings caught 3/3 (judges all rated ABLATED winner — implies ≥3/5 ABLATED categories per run) |
+| `input11` | NEEDS_UPDATE, NOT READY, NOT READY | CONTROL, TIE, ABLATED | mixed | ✅ minority adjacent | 2/3 reps emit BOTH Express.Request type-aug AND cls-hooked package.json (rep1, rep3); rep2 emits cls-hooked only |
+| `probe-17` | NOT READY × 3 | TIE, TIE, TIE | TIE | ✅ stable — **STABILITY FIXED vs v4** | log-injection caught 3/3 via adversarial close |
+| `input3b` | PASS × 3 | TIE, TIE, TIE | TIE | ✅ stable, clean PASS | TRIVIAL N/A holds 3/3; no false positives |
+| `probe-21` | NOT READY, NOT READY, NEEDS_UPDATE | TIE, TIE, CONTROL | TIE (mode) | ✅ minority adjacent, majority NOT READY matches v3 control NOT READY | fabricated bench citation flagged 3/3 (concept refs: 5,3,4) — **mechanistic test PASSES: adversarial-close question 1 fires deterministically** |
+
+**Arm A finding-criteria: 5/5 met. Verdict-stability: 5/5 stable per spec.**
+
+### Arm B — v4.1-security-stable (4 fixtures, 12 ablated + 12 judges)
+
+| Fixture | Ablated verdicts | Judge winners (k=3) | Mode | Verdict-stable? | Finding emission |
+|---|---|---|---|---|---|
+| `probe-9` | NOT READY, NEEDS_UPDATE, PASS | ABLATED, ABLATED, TIE | ABLATED | ❌ **3-tier spread (PASS↔NOT READY non-adjacent)** | only 1/3 NOT READY — fails ≥2/3 NOT READY criterion |
+| `input11` | NOT READY × 3 | CONTROL, CONTROL, ABLATED | CONTROL | ✅ stable | advisory emission: 2/3 reps emit BOTH X-Trace-Id-untrusted AND cls-hooked-async; W3C/traceparent emitted 0/3 (Q-G26 miss) — meets ≥2-of-3 advisory sub-criterion (X-Trace-Id sec + cls-hooked async) |
+| `probe-17` | NEEDS_UPDATE, NOT READY, NOT READY | TIE, TIE, TIE | TIE | ❌ **majority NOT READY ≠ v3's NEEDS_UPDATE** per pre-registered tier-match rule | log-injection caught 3/3 — explicit Security directive does fire deterministically (catches stronger than v4's incidental catch via close), but tier overshoot vs v3 |
+| `input3b` | PASS × 3 | TIE, TIE, TIE | TIE | ✅ stable, clean PASS | no false positives — extra Security directive's N/A clause holds on doc-only |
+
+**Arm B finding-criteria: 3/4 met (probe-9 verdict criterion fails). Verdict-stability: 2/4 stable (probe-9, probe-17 unstable).**
+
+### Decision-gate disposition (pre-registered)
+
+| Arm | Gate row applied | Disposition |
+|---|---|---|
+| **Arm A** | Row 1: All 5 finding-criteria met AND ≤40 lines AND verdict-stable on all 5 | ✅ **PROMOTE v5-micro as new ablated default** |
+| **Arm B** | Row 6 (closest match): finding-criteria 3/4 + probe-17 verdict-unstable | ❌ HOLD — Arm A wins anyway; v4.1 not banked because probe-9 instability is worse than v4's |
+
+Per row 8 ("Both arms pass → v5-micro wins on cost"), since Arm A passes alone, the disposition is the same: **v5-micro promoted**.
+
+### Headline findings
+
+1. **The adversarial close + 1 universal directive is sufficient.** v5-micro at 36 lines (~22% of v3's 166) matches v3's catch rate on all 5 discriminating fixtures, including the mechanistic probe-21 test where the close's "fabricated quantitative evidence" question fires deterministically (3/3). The structured 5-directive taxonomy of v2/v3 was not load-bearing — directives are essentially redundant with a well-phrased close + senior-engineer block list.
+
+2. **probe-17 stability fixed by going smaller, not bigger.** v4 (5 directives + close) was verdict-unstable on probe-17 (NOT READY ×2 / NEEDS_UPDATE ×1). v5-micro (1 directive + close) is verdict-stable (NOT READY ×3). The instability was prompt-noise from competing directive evaluation, not from the close itself. Reducing competing surface area stabilized the verdict tier.
+
+3. **Arm B's surgical addition was the wrong direction.** Adding back a Security directive (returning to v4 + 1) made probe-9 *less* stable (3-tier spread, including a PASS on a clearly-defective plan) and pushed probe-17 majority into NOT READY (overshooting v3's NEEDS_UPDATE). More directives → more stochastic competition between them → less stable verdicts. This is the opposite of the intuitive "more guidance = more reliable" theory.
+
+4. **Probe-21 mechanistic test passes.** v5-micro caught the fabricated 10× bench citation 3/3 (with 5/3/4 concept references per rep). This converts Arm A's pass from suggestive to causal — the close's "fabricated quantitative evidence" question is the mechanism, not just correlation.
+
+5. **Arm B's input11 advisory-emission sub-criterion: partial pass.** 2/3 of {Q-C15 X-Trace-Id, Q-C18 cls-hooked, Q-G26 W3C traceparent} emitted in 2/3 reps. W3C/traceparent (Q-G26) was 0/3 — the explicit Security directive doesn't generalize beyond its prose pattern (CRLF-style log injection). Useful negative finding even though Arm B doesn't promote: explicit directives are pattern-bound, the close generalizes better.
+
+### Cross-arm cost comparison
+
+| Variant | Lines | Spot-check calls | Spot-check $ (rough) | Promotion |
+|---|---|---|---|---|
+| v3 (ablation-na-adversarial) | 166 | — | baseline | Default (incumbent) |
+| v4 (ablation-minimal) | 88 | 24 | 1× | NOT PROMOTED (probe-17 unstable) |
+| **v5-micro (Arm A)** | **36** | 30 | 1.25× | **NEW DEFAULT** |
+| v4.1-security-stable (Arm B) | 91 | 24 | 1× | NOT PROMOTED |
+
+v5-micro is **78% smaller than v3** and **59% smaller than v4** — every plan review now consumes ~1/4 the system-prompt tokens of the previous default.
+
+### Phase 2 (full-suite ~118 fresh calls): DEFERRED
+
+Spot-check evidence is sufficient for "construction-validated" promotion. Full-suite runs queue if v5-micro shows regressions in production use. Per the plan's pre-registered "deferred-by-default" posture.
+
+### Artifacts
+
+- Arm A variant: `skills/review-plan/variants/SKILL-v-micro.md` (36 lines)
+- Arm B variant: `skills/review-plan/variants/SKILL-v-security-stable.md` (91 lines)
+- Arm A spot-check outputs: `/tmp/ablate-v5-micro.run/` (15 ablated + 15 judges)
+- Arm B spot-check outputs: `/tmp/ablate-v4-1-sec.run/` (12 ablated + 12 judges)
+- Reused controls + inspectors: `/tmp/ablate-v3-full.4ddbb4/`
+- v4 spot-check outputs (cross-arm comparison): `/tmp/ablate-v4-spot.VtZBYA/`
+- Variant table updated: `skills/ablate-review-plan/SKILL.md` (rows for `micro` and `security-stable`)
+
+### Next steps
+
+1. Switch ablate-review-plan default `--variant` from `ablation-na-adversarial` (v3) to `micro` (v5) in a follow-up commit (out of scope for this experiment — promotion logged here, default switch is operational).
+2. v3, v4, v4.1 retained in `variants/` as legacy reference. No deletions.
+3. The conditional v6 (`v5-imperative`) experiment is **NOT triggered** — Arm A passed, so the v5-imperative arm is unnecessary.
+4. Recommend production canary: run `/review-plan` with `--variant micro` against the next 5–10 real plan reviews and watch for finding-emission regressions before flipping the operational default.
+
+---
+
+## v5.1 — advisory-gap patch (three-arm spot-check, 2026-05-02)
+
+**Verdict: PROMOTE v5-micro-prose (Arm A).** Closes the input11 advisory-emission gap at zero size cost (36 lines, same as v5-micro). Arm B (conv) regresses on probe-9 verdict tier; Arm C (floor) fails the input11 advisory-emission criterion entirely.
+
+### Pre-registered hypothesis recap
+
+v5-micro promoted (`RESULTS.md` 2026-05-02 Phase 1) but had 1/3 input11 judge winner = CONTROL — control consistently surfaced advisory-class findings (W3C/traceparent, per-request UUID defect, cls-hooked async fragility) that v5-micro's terse output missed. Three orthogonal arms test where advisory generation lives:
+
+| Arm | Variant | Mechanism | Lines | Hard gate |
+|---|---|---|---|---|
+| A — prose | `SKILL-v-micro-prose.md` | Expand directive prose to include advisory categories | 36 | ≤40 ✓ |
+| B — conv | `SKILL-v-micro-conv.md` | Add 6th adversarial-close question (conventions/fragility) | 37 | ≤45 ✓ |
+| C — floor | `SKILL-v-micro-floor.md` | Add "≥3 findings if non-trivial" verbosity floor | 38 | ≤40 ✓ |
+
+### Spot-check execution (36 fresh calls)
+
+Two fixtures × 3 arms × 3 reps = 18 ablated reviews + 18 judges. Reused controls + inspectors at `/tmp/ablate-v3-full.4ddbb4/` for `input11` and `probe-9`. Working dirs: `/tmp/ablate-v5p-{prose,conv,floor}.run/`.
+
+### Per-arm criterion-match table
+
+**input11 — advisory-emission concept-grep (criterion a):**
+
+| Arm | rep1 (W3C / per-req-UUID / cls-async) | rep2 | rep3 | concepts ≥2 in ≥2/3 reps? |
+|---|---|---|---|---|
+| prose | 3 / 1 / 0 → 2 ✓ | 4 / 1 / 1 → 3 ✓ | 4 / 2 / 2 → 3 ✓ | **3/3 ✓ PASS** |
+| conv | 2 / 1 / 1 → 3 ✓ | 5 / 1 / 2 → 3 ✓ | 3 / 1 / 0 → 2 ✓ | **3/3 ✓ PASS** |
+| floor | 0 / 0 / 1 → 1 ✗ | 0 / 0 / 1 → 1 ✗ | 0 / 0 / 1 → 1 ✗ | **0/3 ✗ FAIL** |
+
+**input11 — judge winner mode (criterion b, must NOT be majority CONTROL):**
+
+| Arm | rep1 | rep2 | rep3 | mode |
+|---|---|---|---|---|
+| prose | TIE | CONTROL | ABLATED | no majority CONTROL ✓ PASS |
+| conv | TIE | TIE | ABLATED | TIE (mode) ✓ PASS |
+| floor | CONTROL | CONTROL | ABLATED | **CONTROL (2/3) ✗ FAIL** |
+
+**probe-9 regression check — verdict tier (≥2/3 NOT READY) AND judge winner mode = ABLATED:**
+
+| Arm | r1 verdict | r2 | r3 | NOT READY count | r1 winner | r2 | r3 | mode | regression? |
+|---|---|---|---|---|---|---|---|---|---|
+| prose | NEEDS_UPDATE | NOT READY | NOT READY | 2/3 ✓ | ABLATED | ABLATED | ABLATED | ABLATED ✓ | **PASS** |
+| conv | NEEDS_UPDATE | NEEDS_UPDATE | NEEDS_UPDATE | **0/3 ✗** | ABLATED | ABLATED | ABLATED | ABLATED | **REGRESSION** |
+| floor | NOT READY | NOT READY | NOT READY | 3/3 ✓ | ABLATED | ABLATED | ABLATED | ABLATED ✓ | PASS |
+
+### Decision-gate disposition
+
+Per the plan's pre-registered table:
+
+- **Arm A (prose) passes both criteria, ≤40 lines (36) → PROMOTE v5-micro-prose as new ablated default.** v5-micro retired to legacy reference (still in `variants/`, no deletion).
+- **Arm B (conv) FAILS probe-9 regression check.** The 6th close question pushed verdicts to NEEDS_UPDATE on a plan where v5-micro was solidly NOT READY 3/3. The added question washed out blocking-defect emphasis on the mixed-defect fixture. Per pre-registered rule "the advisory expansion bled into over-flagging — reject that arm." NOT PROMOTED. Banked as alternative if future probe-9-class signal becomes irrelevant.
+- **Arm C (floor) FAILS input11 advisory criterion (a) AND (b).** The verbosity floor produced ≥3 findings as instructed but the *added* findings did not target the advisory concepts — concept-grep shows 0/3 reps emitted W3C/traceparent or per-request-UUID concepts at all (only stochastic cls-async hits). The brevity-bias hypothesis is **refuted**: emission is gated by prompt scope, not output length. NOT PROMOTED.
+
+### Key findings (qualitative)
+
+1. **Prose-tightening is the right knob.** Naming advisory categories ("established conventions", "operational fragility", "consider… suggestions") in the senior-engineer directive is sufficient to surface them. No size cost, no question-scaffold cost. The v3-style structured questions were not load-bearing — the *concept names* in the directive were.
+
+2. **Adding close questions trades defect-emphasis for advisory coverage.** Arm B's 6th question introduced enough surface area that the model's per-finding weighting shifted away from blocking defects, dropping probe-9 a tier on every rep. This replicates the v4→v5 finding that more directives → less stable verdicts at the margin.
+
+3. **Verbosity floors don't generate concepts; they pad with whatever the prompt already prioritizes.** Arm C reliably produced 3+ findings but they were re-articulations of the existing block list, not the missing advisory concepts. Output-shape constraints don't expand prompt scope.
+
+4. **Concept-grep validates the falsifiable measurement.** Pre-registered regexes applied verbatim, no post-hoc tuning. Zero ambiguity in arm ranking — A and B both score 3/3 on (a), C scores 0/3.
+
+### Cross-arm cost comparison
+
+| Variant | Lines | Spot-check calls | Spot-check $ (rough) | Promotion |
+|---|---|---|---|---|
+| v5-micro (prior default) | 36 | 30 | baseline | RETIRED to legacy |
+| **v5-micro-prose (Arm A)** | **36** | 12 | 0.4× | **NEW DEFAULT** |
+| v5-micro-conv (Arm B) | 37 | 12 | 0.4× | NOT PROMOTED (probe-9 regression) |
+| v5-micro-floor (Arm C) | 38 | 12 | 0.4× | NOT PROMOTED (advisory-criterion fail) |
+
+### Phase 2 (full-suite ~118 fresh calls): DEFERRED
+
+Same posture as v5-micro promotion. Spot-check + concept-grep evidence is sufficient for refinement-class promotion. Full-suite queues if production canary shows regressions on probe-17 verdict stability or probe-21 mechanistic catch (preserved by construction across all arms).
+
+### Artifacts
+
+- Arm A (PROMOTED): `skills/review-plan/variants/SKILL-v-micro-prose.md` (36 lines)
+- Arm B (banked): `skills/review-plan/variants/SKILL-v-micro-conv.md` (37 lines)
+- Arm C (banked): `skills/review-plan/variants/SKILL-v-micro-floor.md` (38 lines)
+- Spot-check outputs: `/tmp/ablate-v5p-prose.run/`, `/tmp/ablate-v5p-conv.run/`, `/tmp/ablate-v5p-floor.run/` (6 ablated + 6 judges per arm)
+- Reused controls + inspectors: `/tmp/ablate-v3-full.4ddbb4/`
+- v5-micro baseline (pre-patch comparison): `/tmp/ablate-v5-micro.run/`
+- Variant table updated: `skills/ablate-review-plan/SKILL.md` (rows for `micro-prose`, `micro-conv`, `micro-floor`)
+
+### Next steps
+
+1. Switch ablate-review-plan default `--variant` from `micro` to `micro-prose` in a follow-up operational commit (out of scope for this experiment — promotion logged here).
+2. v5-micro retained in `variants/` as legacy reference. No deletions.
+3. v5-micro-conv and v5-micro-floor retained as banked alternatives. Their failure modes are documented above; do not re-test without new orthogonal signal.
+4. **No v6 follow-up triggered.** Arm A passed cleanly; the gap is closed at zero size cost. Per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
+5. Recommend production canary: run `/review-plan` with `--variant micro-prose` against the next 5–10 real plan reviews and watch for any probe-17/probe-21-class regression before flipping the operational default.

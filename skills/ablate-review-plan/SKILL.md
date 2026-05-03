@@ -99,6 +99,9 @@ Default: `ablation-na`. Available variants:
 | `ablation-na-adversarial` | `SKILL-v-ablation-na-adversarial.md` | v2 + 5-question adversarial close (v3 candidate — targets mixed-defect under-flagging) |
 | `ablation-minimal` | `SKILL-v-ablation-minimal.md` | v4 — drastic prune to 5 load-bearing directives + v3 adversarial close (~88 lines vs v3's 166) |
 | `micro` | `SKILL-v-micro.md` | v5-micro (Arm A) — adversarial close + 1 universal senior-engineer directive (~36 lines, ≤40 hard gate) |
+| `micro-prose` | `SKILL-v-micro-prose.md` | v5.1 Arm A — v5-micro + directive prose expanded to include advisory categories (≤40 hard gate) |
+| `micro-conv` | `SKILL-v-micro-conv.md` | v5.1 Arm B — v5-micro + 6th adversarial-close question on conventions/fragility (≤45 hard gate) |
+| `micro-floor` | `SKILL-v-micro-floor.md` | v5.1 Arm C — v5-micro + verbosity floor (≥3 findings if non-trivial) (≤40 hard gate) |
 | `security-stable` | `SKILL-v-security-stable.md` | v4.1 (Arm B) — v4 minimal + 1 explicit Security & untrusted-input directive (~91 lines, ≤105 hard gate) |
 | `null` | `SKILL-v-null.md` | Senior-engineer one-liner baseline (Phase B) |
 | `ablation` | `SKILL-v-ablation.md` | v1 directive variant (legacy reference) |
