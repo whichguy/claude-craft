@@ -102,7 +102,7 @@ describe('schedule-plan-tasks: wiring blocker construction (lib/wiring-build.js)
         }
       });
 
-      it('Assert 3: create-wt with upstream DEPENDS ON includes upstream tail/standalone run-agent', function () {
+      it('Assert 3: create-wt with upstream DEPENDS ON includes upstream tail/standalone delivery-agent', function () {
         // Build pred map
         const pred = new Map();
         for (const [from, to] of fx.edges) {
@@ -307,7 +307,7 @@ describe('artifact: schedule-plan-tasks behavior dump', function () {
       lines.push('```');
       for (const [k, v] of Object.entries(blockers.createWtBlockers)) lines.push(`${k}: ${fmt(v)}`);
       lines.push('```');
-      lines.push('**Run-agent blockers:**');
+      lines.push('**Delivery-agent blockers:**');
       lines.push('```');
       for (const [k, v] of Object.entries(blockers.runAgentBlockers)) lines.push(`${k}: ${fmt(v)}`);
       lines.push('```');

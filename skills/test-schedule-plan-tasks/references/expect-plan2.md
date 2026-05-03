@@ -18,7 +18,7 @@ chain-1:
     - subject_keyword: "Route"   role: link
     - subject_keyword: "Integration"  role: tail
   worktree: ".worktrees/chain-1"
-  merge_point: "Integration Test" run-agent (chain-1 tail)
+  merge_point: "Integration Test" delivery-agent (chain-1 tail)
 
 ## standalone_specs
 (none — 0 standalones expected)
@@ -29,17 +29,17 @@ A. Assert 7 (one create-wt per chain): exactly ONE create-wt task for chain-1 ex
    Validator, Route, and Integration do NOT have their own create-wt tasks.
    Fail if the ### Task List shows more than 1 create-wt for chain-1.
 
-B. Assert 5 (Regression): regression must be blocked by the chain-1 tail run-agent (Integration Test) only.
-   Fail if regression is directly blocked by Types, Validator, or Route run-agents.
+B. Assert 5 (Regression): regression must be blocked by the chain-1 tail delivery-agent (Integration Test) only.
+   Fail if regression is directly blocked by Types, Validator, or Route delivery-agents.
 
-C. Shared worktree: all 4 run-agent task descriptions must reference the same worktree path
+C. Shared worktree: all 4 delivery-agent task descriptions must reference the same worktree path
    (`.worktrees/chain-1`). Verify in ### Task Details.
 
 D. Chain role fields: verify in ### Task Details that:
-   - Types run-agent: Chain: head, Chain ID: chain-1
-   - Validator run-agent: Chain: link, Chain ID: chain-1
-   - Route run-agent: Chain: link, Chain ID: chain-1
-   - Integration run-agent: Chain: tail, Chain ID: chain-1
+   - Types delivery-agent: Chain: head, Chain ID: chain-1
+   - Validator delivery-agent: Chain: link, Chain ID: chain-1
+   - Route delivery-agent: Chain: link, Chain ID: chain-1
+   - Integration delivery-agent: Chain: tail, Chain ID: chain-1
 
-E. Self-merge: only the tail (Integration) run-agent description includes the self-merge block
+E. Self-merge: only the tail (Integration) delivery-agent description includes the self-merge block
    (Self-merge: yes). Head and links must have Self-merge: no. Verify in ### Task Details.

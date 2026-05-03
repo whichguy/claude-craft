@@ -25,14 +25,14 @@ chain-1:
     - subject_keyword: "Auth Config"    role: head
     - subject_keyword: "User Store"     role: tail
   worktree: ".worktrees/chain-1"
-  merge_point: "Phase B" run-agent (chain-1 tail)
+  merge_point: "Phase B" delivery-agent (chain-1 tail)
 
 chain-2:
   members_in_order:
     - subject_keyword: "Secured Profile"  role: head   (or "Profile Router")
     - subject_keyword: "Rate Limit"       role: tail   (or "Auth Rate Limit")
   worktree: ".worktrees/chain-2"
-  merge_point: "Phase F" run-agent (chain-2 tail)
+  merge_point: "Phase F" delivery-agent (chain-2 tail)
 
 ## standalone_specs
 - "Phase C: JWT Auth Middleware"        (keyword: "JWT" or "requireJwt")
@@ -44,31 +44,31 @@ chain-2:
 
 A. Assert 3 — chain-2 create-wt fan-in wiring (CRITICAL):
    chain-2's create-wt must be blocked by:
-     (a) chain-1 tail run-agent (Phase B — User Store)
-     (b) Phase C standalone run-agent (JWT Middleware)
-     (c) Phase D standalone run-agent (Auth Routes)
+     (a) chain-1 tail delivery-agent (Phase B — User Store)
+     (b) Phase C standalone delivery-agent (JWT Middleware)
+     (c) Phase D standalone delivery-agent (Auth Routes)
      (d) Setup .worktrees
    Fail if (a), (b), or (c) are missing from chain-2 create-wt's blocked-by list.
    This is the defining assertion for the cascade topology.
 
 B. Assert 3 — Phase C create-wt wiring:
-   Phase C's create-wt must be blocked by chain-1 tail run-agent (Phase B) AND Setup .worktrees.
-   Fail if Phase B run-agent is missing as a blocker.
+   Phase C's create-wt must be blocked by chain-1 tail delivery-agent (Phase B) AND Setup .worktrees.
+   Fail if Phase B delivery-agent is missing as a blocker.
 
 C. Assert 3 — Phase D create-wt wiring:
-   Same as B — Phase D create-wt blocked by Phase B run-agent AND Setup .worktrees.
+   Same as B — Phase D create-wt blocked by Phase B delivery-agent AND Setup .worktrees.
 
 D. Assert 3 — Phase G create-wt wiring:
-   Phase G's create-wt must be blocked by chain-2 tail run-agent (Phase F) AND Setup .worktrees.
+   Phase G's create-wt must be blocked by chain-2 tail delivery-agent (Phase F) AND Setup .worktrees.
 
 E. Assert 3 — Phase H create-wt wiring:
-   Phase H's create-wt must be blocked by chain-2 tail run-agent (Phase F) AND Setup .worktrees.
+   Phase H's create-wt must be blocked by chain-2 tail delivery-agent (Phase F) AND Setup .worktrees.
 
 F. Regression Blocker Reduction (CRITICAL):
    The regression task's blocked-by list must contain:
-     - Phase G run-agent  ✓ required
-     - Phase H run-agent  ✓ required
-     - Phase F run-agent  ✗ MUST NOT appear (Reduction removes this edge)
+     - Phase G delivery-agent  ✓ required
+     - Phase H delivery-agent  ✓ required
+     - Phase F delivery-agent  ✗ MUST NOT appear (Reduction removes this edge)
    Fail if Phase F (chain-2 tail) appears as a direct regression blocker.
    Fail if Phase G or Phase H are absent from the regression's blocked-by list.
 

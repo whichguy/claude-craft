@@ -5,7 +5,7 @@
 Minimal single-proposal fixture that verifies Assert 6's new metadata-based check works
 correctly on normal input. After Change 4 (Assert 6 checks `metadata.target_branch` instead
 of description text), this fixture confirms: (a) the skill populates `metadata.target_branch`
-in the ledger entry for the run-agent task, and (b) Assert 6 PASSES when the field is present
+in the ledger entry for the delivery-agent task, and (b) Assert 6 PASSES when the field is present
 and non-placeholder.
 
 **This is a positive-control test — Assert 6 should PASS, not fire.**
@@ -15,7 +15,7 @@ and non-placeholder.
 ## Expected Outcome
 
 The dry-run Wiring Integrity section reports `PASS — N tasks verified` with no Assert 6
-violations. The task ledger entry for the run-agent shows `metadata.target_branch` set to
+violations. The task ledger entry for the delivery-agent shows `metadata.target_branch` set to
 the current branch name (non-empty, non-placeholder).
 
 ## Implementation Steps

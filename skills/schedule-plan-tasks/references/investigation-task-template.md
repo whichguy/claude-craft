@@ -1,12 +1,12 @@
 # Investigation Task Template (verbatim)
 
-JIT-loaded by a failed run-agent (RESULT: failed) to create an investigation task in the
+JIT-loaded by a failed delivery-agent (RESULT: failed) to create an investigation task in the
 backlog. The orchestrator never reads this file directly; only the failing agent loads it
 when emitting its failure record.
 
 Substitute placeholders:
-- `[PARENT_TASK_ID]`  — the failing run-agent's task ID
-- `[PARENT_SUBJECT]`  — the failing run-agent's subject line
+- `[PARENT_TASK_ID]`  — the failing delivery-agent's task ID
+- `[PARENT_SUBJECT]`  — the failing delivery-agent's subject line
 - `[FAILURE]`         — failure-type enum value (see table below)
 - `[WORK]`            — what the failing agent achieved before stopping (matches WORK field of its status block)
 - `[INCOMPLETE]`      — what the failing agent did NOT achieve (matches INCOMPLETE field of its status block)

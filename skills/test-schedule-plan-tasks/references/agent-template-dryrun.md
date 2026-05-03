@@ -25,10 +25,10 @@ Expectations: [EXPECTATIONS_PATH]
 3. Validate (do all checks silently in context; do not narrate intermediate findings):
    A. Trace header: "## Simulated Execution Trace" present with "Mode: dry-run"
    B. Validation section: all 5 predicates show ✓ (none show ✗)
-   C. Wave 1 run-agents: the first run-agent wave in the trace (Phase C dispatch) contains
-      each entry from expected_first_run_agents (match by subject keyword, not exact string)
+   C. Wave 1 delivery-agents: the first delivery-agent wave in the trace (Phase C dispatch) contains
+      each entry from expected_first_delivery_agents (match by subject keyword, not exact string)
    D. Regression ordering: the regression task appears in the final wave — dispatched only
-      after all chain-tail and standalone run-agents have appeared in the trace
+      after all chain-tail and standalone delivery-agents have appeared in the trace
    E. No unexpected failures: no agent row shows RESULT: failed unless expected_failures
       explicitly lists that agent's keyword
    F. Special assertions: each check from the special_assertions section

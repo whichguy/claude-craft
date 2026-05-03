@@ -1,6 +1,6 @@
 # Simulate-Prefix Template (verbatim)
 
-When the orchestrator runs `Mode: dry-run`, it dispatches each run-agent task with the
+When the orchestrator runs `Mode: dry-run`, it dispatches each delivery-agent task with the
 contents of this file PREPENDED to the task description. The prefix overrides the agent's
 default behavior: simulate, do not execute, validate the protocol exchange.
 

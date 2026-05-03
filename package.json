@@ -12,6 +12,7 @@
     "test:local-classifier": "bash tools/test-local-classifier.sh",
     "test:coverage": "nyc mocha test/**/*.test.js",
     "test:bench": "mocha test/review-fix-bench.test.js --timeout 10000",
+    "test:focus": "mocha test/schedule-plan-tasks-behavior.test.js test/schedule-plan-tasks-smoke.test.js test/delivery-agent-description.test.js",
     "dry-run-plan": "node tools/dry-run-plan.js",
     "bench:run": "bash tools/review-fix-bench.sh --run",
     "bench:compare": "bash tools/review-fix-bench.sh --compare",

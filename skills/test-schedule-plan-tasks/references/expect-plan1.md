@@ -27,12 +27,12 @@ Match by subject keywords, not exact string — e.g. "Health" is sufficient to m
 
 ## special_assertions
 
-A. Assert 5 (Regression): regression task must be blocked by ALL 6 standalone run-agents
+A. Assert 5 (Regression): regression task must be blocked by ALL 6 standalone delivery-agents
    (Prepare, 1a, 1b, 1c, 1d, Wire). No chain tails exist to block it.
    Fail if regression is missing any of the 6 as direct blockers.
 
 B. Assert 7 (one create-wt per chain): no chains exist, so Assert 7 is vacuously satisfied.
    Verify the Wiring Integrity section does not report an Assert 7 violation.
 
-C. Parallel dispatch check: the ### Dependency Graph should show all 6 standalone run-agents
+C. Parallel dispatch check: the ### Dependency Graph should show all 6 standalone delivery-agents
    unblocked simultaneously after git-prep + Setup .worktrees completes.

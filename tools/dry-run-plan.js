@@ -131,7 +131,7 @@ function renderReport(label, edges, regressionBlockers, independentNodes) {
   Object.entries(blockers.createWtBlockers).forEach(([k, v]) => {
     out.push(`    ${k.padEnd(20)} ← ${fmtSet(v)}`);
   });
-  out.push('  run-agent:');
+  out.push('  delivery-agent:');
   Object.entries(blockers.runAgentBlockers).forEach(([k, v]) => {
     out.push(`    ${k.padEnd(20)} ← ${fmtSet(v)}`);
   });

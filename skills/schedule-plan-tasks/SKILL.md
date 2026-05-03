@@ -14,7 +14,7 @@ allowed-tools: Bash, TaskCreate, TaskUpdate, TaskList, Agent, Read, Write, Edit,
 
 # schedule-plan-tasks
 
-Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer. Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Each run-agent merges its own changes back to the target branch after completing, using optimistic concurrency with rebase + retry.
+Two entry points, one execution engine. **Branch A** reads an approved plan file and extracts its steps as proposals — the plan was reviewed before `ExitPlanMode`, so it goes straight to task-graph execution. **Branch B** assesses session learnings, drafts proposals from session state, and runs them through the senior engineer reviewer. Both branches converge into the same task-graph executor with native worktree isolation. Every unit of work — git prep, worktree creation, agent execution, merge-back — is a Task with explicit dependencies. Each delivery-agent merges its own changes back to the target branch after completing, using optimistic concurrency with rebase + retry.
 
 **References model:** Verbatim sub-agent prompts and bash templates live in `${CLAUDE_SKILL_DIR}/references/*.md` and are loaded just-in-time. Citation rule: when a step says "Read references/X then dispatch", you MUST `Read` that file at its absolute path and paste its content verbatim into the Agent dispatch. Do not paraphrase, summarize, or "improve". Once Read in a session, the file content stays in context — re-Read only if it scrolls out.
 
@@ -54,7 +54,7 @@ The skill runs in one of four modes, decided at the top of Step 0 by inspecting 
   and anti-patterns.
 
 **Trivial-task override:** in `plan-only` and `dry-run-analyze` modes, trivial proposals get the
-full `create-wt → run-agent → merge` chain so the complete worktree isolation structure is
+full `create-wt → delivery-agent → merge` chain so the complete worktree isolation structure is
 visible in the static report. (Live + dry-run skip the create-wt for trivial tasks.)
 
 **In-memory task ledger** (used by `plan-only` and `dry-run-analyze`) — list of entries
@@ -164,7 +164,7 @@ Draft only — no TaskCreate yet.
 - **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
 - **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
-The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees and self-merge on completion. The mechanism is the `Isolation:` line on each run-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
+The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees and self-merge on completion. The mechanism is the `Isolation:` line on each delivery-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
 
 ---
 
@@ -213,7 +213,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 **Chain detection (runs after proposals are finalized, before the creation pass):**
 
 1. Build directed graph from DEPENDS ON hints:
-   - `succ[N]` = set of proposals whose run-agents must be blocked by N's run-agent (N's direct successors)
+   - `succ[N]` = set of proposals whose delivery-agents must be blocked by N's delivery-agent (N's direct successors)
    - `pred[N]` = set of proposals N directly depends on (N's direct predecessors)
 2. Identify **chain seeds** — any unassigned node where `|succ[N]| == 1`. These are potential chain heads or interior entry points.
 3. From each unassigned chain seed, greedily extend a path forward:
@@ -232,7 +232,7 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
   - Seed A: succ==1 → extend; B has pred==1, succ==2 → stop. Path=[A,B] → chain-1. A=head, B=tail.
   - Seeds C, D: each has succ==1(→E), but E has pred==2 → stop. Paths [C], [D] → standalones.
   - Seed E: succ==1 → extend; F has pred==1, succ==0 → stop. Path=[E,F] → chain-2. E=head, F=tail.
-  - Wiring: chain-2's create-wt is blocked by B (chain-1 tail run-agent) AND C AND D (upstream standalone run-agents).
+  - Wiring: chain-2's create-wt is blocked by B (chain-1 tail delivery-agent) AND C AND D (upstream standalone delivery-agents).
 
 Print chain assignments after detection:
 ```
@@ -248,10 +248,10 @@ Print chain assignments after detection:
 | `TaskUpdate`                   | real | real                         | ledger only        | ledger only        |
 | `TaskList` / `TaskGet`         | real | real                         | n/a (ledger)       | n/a (ledger)       |
 | Git operations (worktree etc.) | real | skipped                      | skipped            | skipped            |
-| Agent (run-agent, regression)  | real | real, simulate-prefix prepended | skipped         | skipped            |
+| Agent (delivery-agent, regression)  | real | real, simulate-prefix prepended | skipped         | skipped            |
 | Agent (analyzer)               | n/a  | n/a                          | n/a                | real (audits report) |
 
-**Reference files are loaded in all modes** — `run-agent-description.md` and `create-wt-prompt.md`
+**Reference files are loaded in all modes** — `delivery-agent-description.md` and `create-wt-prompt.md`
 must be Read before the creation pass using the same JIT protocol regardless of mode. All
 placeholder substitutions are performed: Target branch from `git branch --show-current`, Self-merge
 from chain role (yes for tail/none, no for head/link), working directory from worktree path,
@@ -271,7 +271,7 @@ are no longer substituted into task description text.
 
 **Trivial override (plan-only and dry-run-analyze):** when `Mode in {plan-only, dry-run-analyze}`,
 ignore any `Trivial: yes` classification from the reviewer. Treat every proposal as a full
-non-trivial task — generate the complete `create-wt → run-agent` chain per proposal (or per
+non-trivial task — generate the complete `create-wt → delivery-agent` chain per proposal (or per
 chain: one create-wt for the whole chain). This makes the static report show the full worktree
 isolation structure. In `live` and `dry-run` modes, trivial proposals keep `Isolation: none
 (trivial)` and run inline without their own create-wt.
@@ -288,7 +288,7 @@ git-prep:    { task_type: "git-prep",   chain_id: null, chain_role: null, isolat
 create-wt:   { task_type: "create-wt",  chain_id: "chain-K"|null, chain_role: null,
                isolation: "native worktree", worktree_path: ".worktrees/chain-K",
                target_branch: "<captured branch>" }
-run-agent:   { task_type: "run-agent",  chain_id: "chain-K"|null,
+delivery-agent:   { task_type: "delivery-agent",  chain_id: "chain-K"|null,
                chain_role: "head|link|tail|none",   // "none" = standalone (chain_id=null)
                isolation: "native worktree|none (trivial)",
                worktree_path: ".worktrees/chain-K", proposal_index: N,
@@ -319,16 +319,16 @@ Sequential TaskCreate is only required when the dependent task's description mus
 *Chain (chain-K, N members):*
 ```
 [create-wt chain-K] Task: Create worktree chain-K           → capture ID_cwt_K
-[run-agent head]    Task: Run agent: <head proposal>        → capture ID_head_K
-[run-agent link]    Task: Run agent: <link proposal>        → capture ID_link_K
-[run-agent tail]    Task: Run agent: <tail proposal>        → capture ID_tail_K
+[delivery-agent head]    Task: Delivery agent: <head proposal>        → capture ID_head_K
+[delivery-agent link]    Task: Delivery agent: <link proposal>        → capture ID_link_K
+[delivery-agent tail]    Task: Delivery agent: <tail proposal>        → capture ID_tail_K
 ```
-*Wire (via TaskUpdate addBlockedBy):* `ID_cwt_K` is blocked by `ID_setup` AND all upstream run-agent IDs this chain depends on; `ID_head_K` is blocked by `ID_cwt_K`; `ID_link_K` is blocked by its preceding run-agent; `ID_tail_K` is blocked by its preceding run-agent.
+*Wire (via TaskUpdate addBlockedBy):* `ID_cwt_K` is blocked by `ID_setup` AND all upstream delivery-agent IDs this chain depends on; `ID_head_K` is blocked by `ID_cwt_K`; `ID_link_K` is blocked by its preceding delivery-agent; `ID_tail_K` is blocked by its preceding delivery-agent.
 
 *Standalone (task-N):*
 ```
 [create-wt task-N]  Task: Create worktree task-N            → capture ID_cwt_N
-[run-agent task-N]  Task: Run agent: <proposal>             → capture ID_sa_N
+[delivery-agent task-N]  Task: Delivery agent: <proposal>             → capture ID_sa_N
 ```
 *Wire:* `ID_cwt_N` is blocked by `ID_setup` + upstream tails; `ID_sa_N` is blocked by `ID_cwt_N`.
 
@@ -336,14 +336,14 @@ Sequential TaskCreate is only required when the dependent task's description mus
 ```
 [regression]        Task: Regression: <scope>               → capture ID_regression
 ```
-*Wire:* `ID_regression` is blocked by ALL chain-tail and standalone run-agents.
+*Wire:* `ID_regression` is blocked by ALL chain-tail and standalone delivery-agents.
 **Regression Blocker Reduction:** When a tail/standalone node `R` has a downstream tail/standalone `S` (via DEPENDS ON), the direct `R → regression` edge may be redundant.
 
 - **REMOVE** the direct edge if `S`'s tests exercise `R`'s output — e.g., `S` runs an integration test that calls `R`'s API, reads `R`'s store, or asserts on `R`'s behavior.
 - **KEEP** the direct edge if `R` has tests that `S` does NOT cover — e.g., `R` has unit-level tests for isolated logic that `S`'s integration test bypasses.
 - When in doubt: **KEEP**. Redundant blockers are cheap; missed coverage is not.
 
-**Trivial run-agents:** create only the run-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Self-merge: yes`. Chain tasks are never trivial.
+**Trivial delivery-agents:** create only the delivery-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Self-merge: yes`. Chain tasks are never trivial. (Sub-task spawning is always available — no field controls it; the agent decides at runtime.)
 
 ---
 
@@ -352,44 +352,37 @@ Sequential TaskCreate is only required when the dependent task's description mus
 - `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
 - **NEVER read Target branch from the plan file's Git Strategy section.** That section states the author's intended branch name; it has nothing to do with the current repo state. Even if the plan says `feat/xyz` or `chore/abc`, run `git branch --show-current` and use whatever branch is actually checked out.
 
-This command runs in both live and dry-run modes — it is read-only and not subject to the dry-run verb guard. Substitute into every worktree run-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
+This command runs in both live and dry-run modes — it is read-only and not subject to the dry-run verb guard. Substitute into every worktree delivery-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
 
-**Run-agent description (dispatch protocol):**
-1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/run-agent-description.md`** — load the verbatim template.
-2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`. Do not paraphrase.
-   - Set `## Working directory` to the absolute worktree path (e.g. `/repo/.worktrees/chain-1`) or `"main workspace"` for trivial tasks.
+**Delivery-agent description (dispatch protocol):**
+1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/delivery-agent-description.md`** — load the verbatim envelope template. The agent's behavior contract (lifecycle, merge protocol, status protocol, specialist catalog, sub-task spawning) lives in `agents/delivery-agent.md` and is loaded by the harness — do NOT paste any of that into the description.
+2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`, and dispatch with `subagent_type: "delivery-agent"`. Do not paraphrase.
+   - Set `Working directory:` to the absolute worktree path (e.g. `/repo/.worktrees/chain-1`) or `main workspace` for trivial tasks.
    - Set `MERGE_TARGET:` to the Target branch value for all orchestrator-dispatched tasks.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
-   - Set `Sub-tasks allowed:` to `yes` for `Isolation: native worktree` tasks; `no` for trivial tasks.
    - Set `Self-merge:` to `yes` for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks.
-   - Set `## What to do` to **plan-level directions** distilled from the proposal (see "Task definition rules" below). Action verbs + file paths + behavioral contracts + integration points + verification commands. **Do NOT paste verbatim code blocks** from the plan — even if the plan author included them. The agent doing the work writes the implementation; the task description specifies the contract.
-   - Set `## Definition of done` to the concrete acceptance criteria for this proposal — observable post-conditions: file paths that must exist, exports that must be present, test labels that must pass, behavior that must be demonstrable. Verifiable, not aspirational.
+   - Replace `[one-paragraph guidance]` with **a single paragraph (≤ ~120 words) of plan-level guidance** distilled from the proposal — see "Task definition rules" below.
    - Leave `Task ID:` as the literal placeholder `[TASK_ID]` — the orchestrator fills it in Phase 1.5 after TaskCreate returns real IDs.
 
-**Task definition rules — `## What to do` and `## Definition of done`:**
+**Task definition rules — the one-paragraph guidance:**
 
-The two sections together form the contract between orchestrator and agent. They MUST be plan-level, not implementation-level. The agent writes the code; the task tells it what to build, where, and how to verify.
+The envelope guidance is a single paragraph that the delivery-agent reads to infer purpose, what-to-do, and Definition-of-done. It MUST be plan-level, not implementation-level. The agent writes the code; the paragraph tells it what to build, where, and how success will be observable.
 
-**`## What to do` should contain:**
-- **Action verbs:** create, edit, read, write, mount, run, verify
-- **File paths:** explicit (e.g. `src/db/userStore.js`, `test/middleware/requireJwt.test.js`)
-- **Exports / functions / endpoints to produce:** by name and signature shape (e.g. `createUser({email, password, name}) → {id, email, name, createdAt}`)
-- **Key behaviors:** in prose (e.g. "passwords HMAC-hashed using JWT_SECRET"; "returns 429 when count exceeds RATE_LIMIT_MAX")
-- **Integration points:** which existing files to read for context, where to mount routes, what env vars to honor
-- **Verification commands:** `npm test -- --grep <label>`, `curl /endpoint`, etc.
+**The paragraph should weave in:**
+- The goal in one sentence (why this task exists, what observable outcome it produces)
+- File paths involved (e.g. `src/db/userStore.js`, `test/middleware/requireJwt.test.js`)
+- Exports / functions / endpoints by name and signature shape (e.g. `createUser({email, password, name}) → {id, email, name, createdAt}`)
+- Key behaviors in prose (e.g. "passwords HMAC-hashed using JWT_SECRET"; "returns 429 when count exceeds RATE_LIMIT_MAX")
+- Integration points (which existing files to read for context, where to mount routes, what env vars to honor)
+- Observable success — file-existence, named test labels, behavioral assertions, commit landing — woven into the same paragraph, not split into a separate Definition-of-done section
 
-**`## What to do` MUST NOT contain:**
+**The paragraph MUST NOT contain:**
 - Verbatim code blocks (`` ```js ... ``` ``) — even if the plan has them. Distill the contract; the agent writes the body.
-- Step-by-step typing instructions (e.g. "type `const crypto = require('crypto')`")
+- Step-by-step typing instructions or numbered procedure (e.g. "type `const crypto = require('crypto')`")
 - Implementation details the agent should derive: variable names, helper function structure, exact JSON literals (unless the literal IS the contract)
+- Multi-section structure (Purpose / What to do / Definition of done as separate headings) — collapse all of it to prose
 
-**`## Definition of done` should contain:**
-- File-existence checks (`src/X.js exists with Y exported`)
-- Test-suite outcomes (`npm test -- --grep X passes`)
-- Behavioral assertions (`GET /health returns {status:"ok"}`, `429 emitted after RATE_LIMIT_MAX login attempts`)
-- Commit landing requirements (`single commit on chain-K-branch`; `merged to main and worktree removed if Self-merge: yes`)
-
-**Rule of thumb:** if you removed `## What to do` and gave the agent only `## Definition of done` + the file paths + intent, could it still figure out what to build? If yes, the contract is plan-level. If no, the contract is leaking implementation.
+**Rule of thumb:** if a competent agent could not figure out what to build and how to verify it from the paragraph alone, the paragraph is missing detail. If the paragraph reads like an implementation script (numbered typing steps, code blocks, line-by-line instructions), it has too much detail.
 
 Example transformation (from a plan that embeds code):
 
@@ -409,28 +402,22 @@ PLAN INPUT (verbatim):
    ```
 ```
 
-CORRECT `## What to do` (plan-level):
+CORRECT one-paragraph guidance:
 ```
-1. Read src/config/auth.js — verify JWT_SECRET is exported.
-2. Create src/db/userStore.js — in-memory store. Exports:
-     createUser({email, password, name}) → {id, email, name, createdAt}; rejects duplicate emails (409).
-     getUserById(id) → user | null
-     getUserByEmail(email) → user | null
-     verifyPassword(user, password) → boolean
-   Internals: passwords HMAC-hashed (sha256) using JWT_SECRET as the key. IDs assigned monotonically as strings.
-```
-
-CORRECT `## Definition of done`:
-```
-- src/db/userStore.js exists, exports the four named functions.
-- Duplicate email registration returns an Error.
-- Password hash uses crypto.createHmac('sha256', JWT_SECRET) — verifiable by reading the file.
-- Single commit on chain-1-branch.
+Build the in-memory user store at src/db/userStore.js consumed by the auth router.
+After confirming JWT_SECRET is exported from src/config/auth.js, create src/db/userStore.js
+exporting createUser({email, password, name}) → {id, email, name, createdAt} (rejects
+duplicate emails with a 409 error), getUserById(id) → user|null, getUserByEmail(email) →
+user|null, and verifyPassword(user, password) → boolean. Passwords must be HMAC-hashed
+(sha256) using JWT_SECRET as the key; IDs are assigned monotonically as strings. Done
+when the four named exports exist, duplicate-email registration throws, the hash uses
+crypto.createHmac('sha256', JWT_SECRET) (verifiable by reading the file), and a single
+commit lands on chain-1-branch.
 ```
 
 **Phase 1.5 — Task ID embedding** (runs after Phase 1 returns all IDs, before Phase 2 wiring):
 
-For each run-agent task created in Phase 1, replace `[TASK_ID]` in its description with the real task ID:
+For each delivery-agent task created in Phase 1, replace `[TASK_ID]` in its description with the real task ID:
 
 ```
 For each (task_id, description) from Phase 1 output:
@@ -456,7 +443,6 @@ main workspace
 
 ## Execution context
 Isolation: none (serial)
-Sub-tasks allowed: no
 
 ## What to do
 Run: [runner from plan Verification or reviewer output]
@@ -482,7 +468,7 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | #81 | git-prep  | Checkpoint commit                | #80             |
 | ... | ...       | ...                              | ...             |
 | #87 | create-wt | Create worktree: Refactor auth   | #83 #85         |
-| #88 | run-agent | Refactor auth                    | #87             |
+| #88 | delivery-agent | Refactor auth                    | #87             |
 | #89 | regression| Regression: suite                | #88             |
 ```
 
@@ -505,8 +491,8 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 | Task type           | Identity                    | Has create-wt? | Has Merge? | Asserts | Resume method                   | Dispatch lane         |
 |---------------------|-----------------------------|----------------|------------|---------|---------------------------------|-----------------------|
-| run-agent worktree  | `Isolation: native worktree`| yes            | self (built-in) | 6    | branch in git log --merges → completed | parallel worktree; may spawn sub-task agents internally |
-| run-agent trivial   | `Isolation: none (trivial)` | no             | no         | —       | git log title vs checkpoint     | serial main-workspace |
+| delivery-agent worktree  | `Isolation: native worktree`| yes            | self (built-in) | 6    | branch in git log --merges → completed | parallel worktree; may spawn sub-task agents internally |
+| delivery-agent trivial   | `Isolation: none (trivial)` | no             | no         | —       | git log title vs checkpoint     | serial main-workspace |
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) |
@@ -515,11 +501,11 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 | Check    | Applies to                          | Condition                                                                                  | Violation message                                                                |
 |----------|-------------------------------------|--------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| Assert 3 | every create-wt                     | blockers include `Setup .worktrees` AND (if DEPENDS ON exists) ≥1 upstream tail/standalone | "Create worktree #N missing expected upstream run-agent blocker"                |
-| Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone run-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
-| Assert 6 | every native-worktree run-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Run-agent #N metadata.target_branch is missing or placeholder"                 |
+| Assert 3 | every create-wt                     | blockers include `Setup .worktrees` AND (if DEPENDS ON exists) ≥1 upstream tail/standalone | "Create worktree #N missing expected upstream delivery-agent blocker"                |
+| Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone delivery-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
+| Assert 6 | every native-worktree delivery-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Delivery-agent #N metadata.target_branch is missing or placeholder"                 |
 | Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
-| Assert 8 | every run-agent description         | contains the phrase "exactly one `git commit`" in `## Before return: commit`               | "Run-agent #N missing single-commit rule in ## Before return: commit"           |
+| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`) | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
 
 Assert 3 exception: if the proposal has no DEPENDS ON, only `Setup .worktrees` is required — skip the upstream-blocker check.
 
@@ -533,9 +519,9 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 |---|---|
 | git-prep | Re-run the git command (all idempotent). Mark completed. |
 | create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` → mark completed. |
-| run-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade (TaskList scan → dispatch unblocked tasks). None → mark failed; do not cascade. |
-| run-agent (worktree, Self-merge: yes) | `git log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
-| run-agent (worktree, Self-merge: no) | `git -C .worktrees/<chain-K> log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
+| delivery-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade (TaskList scan → dispatch unblocked tasks). None → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: yes) | `git log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: no) | `git -C .worktrees/<chain-K> log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
 | regression | Re-dispatch agent with existing description. |
 
 ---
@@ -553,18 +539,20 @@ Phase A — git-prep (orchestrator-inline, sequential):
 Phase B — create-wt (background Tasks, parallel batch):
   Dispatch all create-wt tasks in ONE parallel batch (run_in_background=True).
   Poll TaskList until every create-wt reaches completed or failed.
-  Any create-wt failure → halt; report; do not dispatch its run-agent.
+  Any create-wt failure → halt; report; do not dispatch its delivery-agent.
 
-Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
+Phase C — wave-1 delivery-agents (parallel dispatch, self-orchestrating cascade):
   wave1 = [t for t in TaskList({}) where t.status == "pending" and t.blockedBy all completed]
-  This is every chain-head and standalone run-agent (their only blocker was a create-wt, now done).
+  This is every chain-head and standalone delivery-agent (their only blocker was a create-wt, now done).
 
-  Dispatch ALL wave-1 run-agents in a SINGLE response as parallel Agent() calls.
-  Each agent receives its full task description (TaskGet(id).description) — self-merge and
-  cascade logic are embedded in the template; no additional wrapping needed.
+  Dispatch ALL wave-1 delivery-agents in a SINGLE response as parallel Agent() calls,
+  each with `subagent_type: "delivery-agent"`. Each agent receives its task envelope
+  (TaskGet(id).description = runtime header + one-paragraph guidance). The behavior contract
+  (lifecycle, self-merge, cascade) lives in `agents/delivery-agent.md` and is loaded by the
+  harness — no additional wrapping needed in the prompt.
 
   **Mode == dry-run:** before each Agent() call, JIT-load `references/simulate-prefix.md`
-  and PREPEND its content to the task description. The agent simulates the work, runs the
+  and PREPEND its content to the task envelope. The agent simulates the work, runs the
   cascade-dispatch directive read-only (TaskList/TaskGet only), and emits the standard status
   block listing would-be-dispatched IDs. The orchestrator iterates: parse each returned status
   block, dispatch the next wave (also with simulate prefix), repeat until DISPATCHED is "none"
@@ -573,18 +561,19 @@ Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
   Cascade self-manages from here:
     Each agent → does work → commits → self-merges if Self-merge: yes →
     calls TaskUpdate(completed) → scans TaskList for newly unblocked pending tasks →
-    claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel.
+    claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel
+    (downstream tasks are also dispatched with `subagent_type: "delivery-agent"`).
     The graph drains itself. The orchestrator does not loop. (In dry-run, the agent's
     cascade-dispatch is read-only per the simulate prefix; the orchestrator iterates the
     waves explicitly using the DISPATCHED field of each agent's status block.)
 
-  Failure: agents follow `## On failure` in run-agent-description.md, which JIT-loads
+  Failure: agents follow `## On RESULT: failed` in `agents/delivery-agent.md`, which JIT-loads
   `references/investigation-task-template.md` to TaskCreate a sibling investigation task.
   Status protocol uses RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED fields; FAILURE ∈
   {no_change, partial_change, test_failures, conflict_needs_user, needs_split}. Failed tasks
   do not cascade — downstream dependents stay pending, visible via `TaskList({})`.
 
-  Trivial run-agents and regression tasks are claimed and dispatched by whichever upstream
+  Trivial delivery-agents and regression tasks are claimed and dispatched by whichever upstream
   agent's TaskList scan finds them newly unblocked.
 ```
 
@@ -599,7 +588,7 @@ Phase C — wave-1 run-agents (parallel dispatch, self-orchestrating cascade):
 
 Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash from `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md` (loaded JIT). No prose form. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
 
-Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its run-agent). `failure` → mark failed, halt dependent run-agent, report.
+Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its delivery-agent). `failure` → mark failed, halt dependent delivery-agent, report.
 
 ---
 
@@ -618,7 +607,7 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 <proposals table from Step 1 / reviewer output>
 
 ### Chains
-Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated run-agent DRY IDs from `chain_role: head` → links → tail); worktree = `.worktrees/<chain_id>` for chains, `.worktrees/task-<C>` for standalones where `<C>` is the **create-wt task's DRY-N** (always one before its run-agent in the creation pass); merge point = the `chain_role: tail` member's run-agent DRY-N (or the standalone's run-agent DRY-N).
+Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated delivery-agent DRY IDs from `chain_role: head` → links → tail); worktree = `.worktrees/<chain_id>` for chains, `.worktrees/task-<C>` for standalones where `<C>` is the **create-wt task's DRY-N** (always one before its delivery-agent in the creation pass); merge point = the `chain_role: tail` member's delivery-agent DRY-N (or the standalone's delivery-agent DRY-N).
 
 | Chain ID | Members (in order)            | Worktree              | Merge point |
 |----------|-------------------------------|-----------------------|-------------|
@@ -698,7 +687,7 @@ Total tasks: <N>     Waves: <M>     Total agents dispatched: <N>
 ### Validation
 - Every chain head dispatched in wave 1 ✓ / ✗
 - Every chain tail dispatched downstream of its head ✓ / ✗
-- Regression dispatched after all chain-tail and standalone run-agents ✓ / ✗
+- Regression dispatched after all chain-tail and standalone delivery-agents ✓ / ✗
 - Failed tasks did not cascade ✓ / ✗
 - DISPATCHED graph matches the static topology from --plan-only ✓ / ✗
 ```
@@ -713,12 +702,12 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
 
 - **Division of labor — orchestrator vs. task agent:**
   - The **orchestrator** (this skill) reads plans, extracts proposals, builds the task graph, dispatches Agents, and reports. **It NEVER writes implementation code.** Even when the input plan contains code blocks, the orchestrator extracts the contract (file paths, exports, behaviors) and passes that as the task description — see "Task definition rules" in Step 3.
-  - The **task agent** (the dispatched run-agent) reads its task description, writes the actual implementation, runs the tests, commits, and self-merges. The agent owns 100% of the typing in source files. The orchestrator owns 100% of the topology and dispatch.
+  - The **task agent** (the dispatched delivery-agent) reads its task description, writes the actual implementation, runs the tests, commits, and self-merges. The agent owns 100% of the typing in source files. The orchestrator owns 100% of the topology and dispatch.
   - If you find yourself (the orchestrator) writing code into a task description, stop. Convert it to a contract first.
-- **Sub-task agents are internal to a parent run-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
-- **Sub-task `MERGE_TARGET` = the parent run-agent's working branch.** Never TARGET_BRANCH.
-- **`run_in_background=True` only on create-wt.** Never on run-agent.
-- **`conflict_needs_user` does not halt the loop** — only the affected merge chain stalls. Independent run-agents continue.
+- **Sub-task agents are internal to a parent delivery-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
+- **Sub-task `MERGE_TARGET` = the parent delivery-agent's working branch.** Never TARGET_BRANCH.
+- **`run_in_background=True` only on create-wt.** Never on delivery-agent.
+- **`conflict_needs_user` does not halt the loop** — only the affected merge chain stalls. Independent delivery-agents continue.
 - **`git add -A` is forbidden in checkpoints.** Stage by name to avoid pulling unrelated state.
 - **Parallel same-file edits are not automatic conflicts.** Restructure only when edits overlap semantically (same region, function, or config key). See Step 1 Output Mapping Pass.
 - **Agents bias toward action.** Diagnose, fix, continue. Max 3 distinct attempts per obstacle.

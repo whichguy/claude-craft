@@ -22,7 +22,7 @@ Evaluate the report on these logical dimensions to judge if the results are prop
 
 ### 1. Breadth: Full Coverage of the Plan
 - Every logical area of the plan must be addressed by at least one task. If a feature mentioned in the plan has no corresponding task, flag BLOCKING.
-- If a proposal in the proposals table did NOT generate a run-agent ledger entry, flag BLOCKING (unless reviewer marked it Removed).
+- If a proposal in the proposals table did NOT generate a delivery-agent ledger entry, flag BLOCKING (unless reviewer marked it Removed).
 - Check for "Global Wrap-up": if the plan implies a final integration or cleanup phase, is there a task for it?
 
 ### 2. Depth: Substantial and Complete Work
@@ -31,23 +31,23 @@ Evaluate the report on these logical dimensions to judge if the results are prop
 - **External Resources:** If a task requires external datasets or environment state mentioned in the plan, are they symlinked or listed in the `External resources` field?
 
 ### 3. Conflicts: Parallel Isolation & Shared Files
-- **Shared-File Collision Detection:** Check the task descriptions for shared file paths. If two run-agent tasks without a DEPENDS ON relationship both modify the same file, flag it as a **Critical Merge Conflict Risk** → BLOCKING.
-- Three or more parallel run-agents touching the same directory → ADVISORY (risk of secondary conflicts).
+- **Shared-File Collision Detection:** Check the task descriptions for shared file paths. If two delivery-agent tasks without a DEPENDS ON relationship both modify the same file, flag it as a **Critical Merge Conflict Risk** → BLOCKING.
+- Three or more parallel delivery-agents touching the same directory → ADVISORY (risk of secondary conflicts).
 
 ### 4. Sequencing: Dependency Graph Integrity
 - **Parent/Child Serialization:** Validate that downstream tasks do not fork their worktrees until their upstream dependencies have successfully merged. Specifically:
-  - Check that a child's `create-wt` task is blocked by its parent's `run-agent` task.
-  - Verify that `ID_cwt_N` (create worktree) is correctly wired to wait for all upstream tail/standalone run-agent IDs.
+  - Check that a child's `create-wt` task is blocked by its parent's `delivery-agent` task.
+  - Verify that `ID_cwt_N` (create worktree) is correctly wired to wait for all upstream tail/standalone delivery-agent IDs.
 - **Topological Pass:** Ensure there are no cycles. Every task must reach `completed` in the simulated trace. Orphans (never dispatched) → BLOCKING.
 
 ### 5. Graph Correctness & Wiring Integrity
 - The Wiring Integrity section must say PASS. If it lists violations (Assert 3, Assert 5, Assert 6, Assert 7, Assert 8), mirror them as BLOCKING findings.
   Note: Assert 1 and Assert 2 were removed in a prior version and no longer exist in the wiring checks.
-- **Assert 5 (Regression):** Regression must be blocked by ALL chain-tail run-agents and ALL standalone run-agents. Chain-head and chain-link run-agents are NOT valid direct regression blockers.
+- **Assert 5 (Regression):** Regression must be blocked by ALL chain-tail delivery-agents and ALL standalone delivery-agents. Chain-head and chain-link delivery-agents are NOT valid direct regression blockers.
 - **Assert 7 (Chain integrity):** Exactly one create-wt exists per chain. Chain tail members must not have their own separate create-wt task.
 
 ### 6. Isolation Classification
-- Trivial run-agents (`Isolation: none (trivial)`) should only be used for genuinely trivial proposals.
+- Trivial delivery-agents (`Isolation: none (trivial)`) should only be used for genuinely trivial proposals.
 - A trivial-classified task that touches multiple files or > ~20 lines of logic → ADVISORY.
 - A worktree-isolated task that touches one file with a one-line change is overkill → INFO.
 
@@ -62,8 +62,8 @@ End your response with EXACTLY this table — one row per finding, severity in {
 
 | Severity | Dimension | Task IDs    | Finding                                                                |
 |----------|-----------|-------------|------------------------------------------------------------------------|
-| BLOCKING | 3         | DRY-7       | Proposal #4 (Add OpenTelemetry) has no run-agent in the ledger.        |
-| ADVISORY | 6         | DRY-8,DRY-9 | Both run-agents touch src/auth/session.ts in iteration 6 — likely conflict. |
+| BLOCKING | 3         | DRY-7       | Proposal #4 (Add OpenTelemetry) has no delivery-agent in the ledger.        |
+| ADVISORY | 6         | DRY-8,DRY-9 | Both delivery-agents touch src/auth/session.ts in iteration 6 — likely conflict. |
 | ...      | ...       | ...         | ...                                                                    |
 
 Then a one-line verdict:

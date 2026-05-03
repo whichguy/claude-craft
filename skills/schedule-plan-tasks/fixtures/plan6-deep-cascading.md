@@ -416,7 +416,7 @@ This plan has a cascade topology. The schedule-plan-tasks skill will detect:
 - **standalone H**: Phase H (Auth Metrics Endpoint) — DEPENDS ON Phase F
 
 **Fan-in wiring (chain-2 create-wt):** chain-2's create-wt task is blocked by both C and D (the two
-upstream standalones) as well as the chain-1 tail run-agent (Phase B). Phase E (chain-2 head) cannot
+upstream standalones) as well as the chain-1 tail delivery-agent (Phase B). Phase E (chain-2 head) cannot
 start until all three upstream paths complete.
 
 **Fan-in (Phase E):** Phase E declares DEPENDS ON Phase C and DEPENDS ON Phase D, because both the JWT
@@ -425,7 +425,7 @@ middleware and the auth routes must be committed before the profile router can b
 **Regression Blocker Reduction:** Phase G and Phase H are direct successors of Phase F (chain-2 tail).
 Because regression already waits on G and H, the edge from F to regression is redundant — Reduction
 removes it, leaving F as a transitive (not direct) blocker. Phase F is NOT a direct regression blocker
-after Reduction. Direct regression blockers: G and H (standalone run-agents that produce the final
+after Reduction. Direct regression blockers: G and H (standalone delivery-agents that produce the final
 test artifacts).
 
 ## Verification

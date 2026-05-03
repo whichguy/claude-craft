@@ -71,24 +71,12 @@ describe('skills/schedule-plan-tasks/SKILL.md', function () {
     });
 });
 
-describe('references/run-agent-description.md', function () {
-    const filePath = path.join(REFS, 'run-agent-description.md');
+describe('references/delivery-agent-description.md (envelope only)', function () {
+    const filePath = path.join(REFS, 'delivery-agent-description.md');
     const content = fs.readFileSync(filePath, 'utf8');
 
-    it('contains ## Working directory', function () {
-        expect(content.includes('## Working directory'), 'Working directory').to.be.true;
-    });
-
-    it('contains ## Definition of done', function () {
-        expect(content.includes('## Definition of done'), 'Definition of done').to.be.true;
-    });
-
-    it('contains "exactly one `git commit`" in commit section', function () {
-        expect(content.includes('exactly one `git commit`'), 'exactly one git commit').to.be.true;
-    });
-
-    it('contains needs_split in FAILURE_TYPE', function () {
-        expect(content.includes('needs_split'), 'needs_split').to.be.true;
+    it('contains Working directory: header field', function () {
+        expect(content.includes('Working directory:'), 'Working directory').to.be.true;
     });
 
     it('contains Self-merge: yes | no field', function () {
@@ -99,37 +87,16 @@ describe('references/run-agent-description.md', function () {
         expect(content.includes('Task ID:'), 'Task ID field').to.be.true;
     });
 
-    it('contains inline self-merge bash block with MAX_RETRIES', function () {
-        expect(content.includes('MAX_RETRIES'), 'MAX_RETRIES').to.be.true;
-        expect(content.includes('git rebase'), 'git rebase').to.be.true;
-    });
-
-    it('contains TaskList cascade in ## On success', function () {
-        expect(content.includes('TaskList'), 'TaskList in cascade').to.be.true;
-        expect(content.includes('blockedBy'), 'blockedBy scan').to.be.true;
-    });
-
-    it('## On failure references investigation-task-template.md (extracted)', function () {
-        expect(content.includes('investigation-task-template.md'), 'investigation template reference').to.be.true;
-    });
-
-    it('does NOT contain ## Children to dispatch on success', function () {
-        expect(content.includes('## Children to dispatch on success')).to.be.false;
-    });
-
-    it('does NOT contain ## Dependents unblocked on success', function () {
-        expect(content.includes('## Dependents unblocked on success')).to.be.false;
-    });
-
-    it('does NOT contain ## Files section', function () {
-        expect(content.includes('\n## Files\n')).to.be.false;
-    });
+    // INVARIANT content (MAX_RETRIES, TaskList cascade, investigation-task-template
+    // reference, single-commit rule, multi-section ## What to do / ## Definition of done)
+    // was promoted to agents/delivery-agent.md. Those assertions live in
+    // test/delivery-agent-frontmatter.test.js now.
 });
 
 describe('references/self-merge-wrapper.md (deleted)', function () {
     const filePath = path.join(REFS, 'self-merge-wrapper.md');
 
-    it('no longer exists — content absorbed into run-agent-description.md', function () {
+    it('no longer exists — content absorbed into delivery-agent-description.md', function () {
         expect(fs.existsSync(filePath), 'self-merge-wrapper.md should not exist').to.be.false;
     });
 });
@@ -246,7 +213,7 @@ describe('skills/schedule-plan-tasks/SKILL.md — cascade example', function () 
 
     it('cascade example shows chain-2 create-wt blocked by chain-1 tail AND upstream standalones', function () {
         expect(
-            content.includes("chain-2's create-wt is blocked by B (chain-1 tail run-agent) AND C AND D"),
+            content.includes("chain-2's create-wt is blocked by B (chain-1 tail delivery-agent) AND C AND D"),
             'chain-2 wiring in cascade example'
         ).to.be.true;
     });
@@ -470,7 +437,7 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
     it('agent-template-dryrun.md contains the 6 validation check labels (A–F)', function () {
         const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
         const missing = [];
-        for (const label of ['Trace header', 'Validation section', 'Wave 1 run-agents',
+        for (const label of ['Trace header', 'Validation section', 'Wave 1 delivery-agents',
                              'Regression ordering', 'No unexpected failures', 'Special assertions']) {
             if (!content.includes(label)) missing.push(label);
         }
@@ -486,11 +453,11 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
         expect(missing, 'missing dry-run expectation files').to.deep.equal([]);
     });
 
-    it('every expect-planN-dryrun.md declares expected_first_run_agents and validation_all_pass', function () {
+    it('every expect-planN-dryrun.md declares expected_first_delivery_agents and validation_all_pass', function () {
         const missing = [];
         for (let i = 1; i <= 7; i++) {
             const content = fs.readFileSync(path.join(DR_REFS, `expect-plan${i}-dryrun.md`), 'utf8');
-            if (!content.includes('expected_first_run_agents')) missing.push(`expect-plan${i}-dryrun.md missing expected_first_run_agents`);
+            if (!content.includes('expected_first_delivery_agents')) missing.push(`expect-plan${i}-dryrun.md missing expected_first_delivery_agents`);
             if (!content.includes('validation_all_pass')) missing.push(`expect-plan${i}-dryrun.md missing validation_all_pass`);
         }
         expect(missing, 'missing dry-run topology fields').to.deep.equal([]);
