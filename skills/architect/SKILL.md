@@ -9,7 +9,7 @@ description: |
   - "how should I structure", "architecture for", "design system"
   - "technology recommendation", "compare frameworks"
 
-  NOT for: Implementation (use /develop), task breakdown (use /tasks)
+  NOT for: Implementation (use superpowers:executing-plans), task breakdown (use superpowers:writing-plans)
 allowed-tools: all
 ---
 
@@ -104,4 +104,4 @@ The system-architect agent may internally spawn recommend-tech for technology ev
 After design completes:
 - Summarize key decisions and rationale
 - List files that would be created/modified
-- Suggest next step: "/develop to implement" or "/tasks to break down"
+- Suggest next step: superpowers:writing-plans to break down, then superpowers:executing-plans to implement

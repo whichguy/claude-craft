@@ -9,7 +9,7 @@ description: |
   - "simplify", "modernize", "restructure"
   - When detecting code duplication or technical debt
 
-  NOT for: Bug fixes (fix the bug directly), feature additions (use /develop)
+  NOT for: Bug fixes (fix the bug directly), feature additions (use superpowers:executing-plans)
 allowed-tools: all
 ---
 
