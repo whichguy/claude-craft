@@ -150,6 +150,48 @@ if [ -x tools/sync-bundled-tools.sh ]; then
   fi
 fi
 
+# 8) placeholder-token guard for fenced bash blocks
+# Prevents fail-unsafe template tokens like `[PHASE_5_VERIFY_CMD]` from
+# silently executing as `command not found` if the agent forgets to
+# substitute (root cause of delivery-agent.md PR #221, fixed in PR #224).
+viol=0
+while IFS= read -r f; do
+  python3 - "$f" <<'PY' || viol=1
+import re, sys
+path = sys.argv[1]
+with open(path) as fh:
+    text = fh.read()
+fences = re.findall(r'^```(?:bash|sh|shell)\s*\n(.*?)^```', text, re.M | re.S)
+hits = []
+# Only flag when the bracketed token is the *command* being executed
+# (first non-whitespace word on a line, optionally preceded by a pipe or
+# `&&`/`||` chain). Tokens inside echo strings, $() subs, or comments don't
+# match — that's where false positives lived (e.g. `echo "[PLANNED]"`).
+PLACEHOLDER_AS_CMD = re.compile(
+    r'(?:^|[\s|;]|&&|\|\|)\s*(\[[A-Z][A-Z0-9_]{2,}\])\s*(?:$|[\s|;<>])'
+)
+for body in fences:
+    for line in body.splitlines():
+        # Skip whole-line comments
+        if re.match(r'^\s*#', line):
+            continue
+        # Allow `[ ... ]` test syntax (`[ -z "$X" ]`, `[ "$A" = "$B" ]`)
+        if re.search(r'^\s*\[\s', line):
+            continue
+        for m in PLACEHOLDER_AS_CMD.finditer(line):
+            hits.append((m.group(1), line.strip()))
+if hits:
+    for tok, line in hits:
+        print(f'FAIL: {path}: placeholder token {tok} as command in fenced bash block: {line!r}')
+    sys.exit(1)
+PY
+done < <(find plugins -name '*.md' -type f 2>/dev/null)
+if [ "$viol" = 0 ]; then
+  ok "no fail-unsafe placeholder tokens in bash blocks"
+else
+  fail=1
+fi
+
 [ "$fail" -eq 0 ] && { echo; ok "lint-marketplace PASSED"; exit 0; }
 echo
 red() { printf '\033[0;31m%s\033[0m\n' "$1"; }
