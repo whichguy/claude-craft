@@ -69,12 +69,25 @@ function listCommands() {
 }
 
 function listAgents() {
-    const agentsDir = path.join(REPO_ROOT, 'agents');
-    if (!fs.existsSync(agentsDir)) return [];
-    return fs.readdirSync(agentsDir)
-        // .ideas.md files are notes, not agents — filter them out.
-        .filter(f => f.endsWith('.md') && !f.endsWith('.ideas.md'))
-        .map(f => f.replace(/\.md$/, ''));
+    const seen = new Set();
+    const collect = (dir) => {
+        if (!fs.existsSync(dir)) return;
+        for (const f of fs.readdirSync(dir)) {
+            // .ideas.md files are notes, not agents — filter them out.
+            if (f.endsWith('.md') && !f.endsWith('.ideas.md')) {
+                seen.add(f.replace(/\.md$/, ''));
+            }
+        }
+    };
+    collect(path.join(REPO_ROOT, 'agents'));
+    // Also include agents nested inside plugins (e.g., plugins/gas-suite/agents/gas-debug.md).
+    const pluginsDir = path.join(REPO_ROOT, 'plugins');
+    if (fs.existsSync(pluginsDir)) {
+        for (const plugin of fs.readdirSync(pluginsDir)) {
+            collect(path.join(pluginsDir, plugin, 'agents'));
+        }
+    }
+    return [...seen];
 }
 
 function* walkDocs(roots) {
@@ -129,6 +142,9 @@ const HISTORICAL_BREADCRUMBS = new Set([
     'prompt-critique',        // merged → /improve-prompt --mode critique (c7203dd)
     'prompt-probes',          // merged → /improve-prompt --with-probes (de7f44b)
     'optimize-review-questions', // deleted (543611c) — Q1-Q37 target gone
+    'consolidate',             // wiki-process subsumes the old `/consolidate` flow (marketplace migration)
+    'agent-sync',              // symlink-install era; replaced by `/plugin install @claude-craft` (marketplace migration)
+    'prompt',                  // symlink-install era; superseded by /prompter and per-plugin commands (marketplace migration)
 ]);
 
 // Internal-only agents/skills that are exempt from the dead-code detector

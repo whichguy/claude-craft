@@ -5,7 +5,7 @@ const util = require('util');
 
 const execAsync = util.promisify(exec);
 
-const WIKI_NOTIFY = path.join(__dirname, '..', 'plugins', 'wiki-hooks', 'handlers', 'wiki-notify.sh');
+const WIKI_NOTIFY = path.join(__dirname, '..', 'plugins', 'wiki-suite', 'handlers', 'wiki-notify.sh');
 const LOCAL_CLASSIFIER = path.join(__dirname, '..', 'plugins', 'local-classifier', 'handlers', 'local-classifier.sh');
 
 const RETRY_PROMPT = JSON.stringify({

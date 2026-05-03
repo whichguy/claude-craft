@@ -7,7 +7,7 @@ const util = require('util');
 
 const execAsync = util.promisify(exec);
 
-const HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'task-persist', 'handlers');
+const HANDLERS_DIR = path.join(__dirname, '..', 'plugins', 'async-suite', 'handlers');
 
 describe('task-persist-restore.sh', function () {
     this.timeout(15000);
