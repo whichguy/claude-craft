@@ -36,9 +36,9 @@ REPO_DIR=$(git -C "$(pwd)" rev-parse --show-toplevel)
 
 **Pre-flight checks — verify these exist before proceeding:**
 
-1. Judge agent: `$REPO_DIR/agents/review-fix-judge.md` (or `--judge` override)
+1. Judge agent: `$REPO_DIR/plugins/review-suite/agents/review-fix-judge.md` (or `--judge` override)
    - Must exist and contain `"tp"`, `"fn"`, `"fp_count"` — grep to verify
-   - If missing: error with "Judge agent not found — run: ln -sfn \$(pwd)/agents ~/.claude/agents or check CLAUDE.md"
+   - If missing: error with "Judge agent not found in plugins/review-suite/agents/ — verify review-suite plugin is installed (claude /plugin list)"
 
 2. Bench harness: `${CLAUDE_PLUGIN_ROOT}/tools/review-fix-bench.sh`
    - Must exist and contain `JUDGE_FILE` — grep to verify
@@ -49,7 +49,7 @@ REPO_DIR=$(git -C "$(pwd)" rev-parse --show-toplevel)
 
 **Resolve Version A** (always the current agent file):
 ```
-version_a_path = "$REPO_DIR/agents/${agent}.md"
+version_a_path = "$REPO_DIR/plugins/review-suite/agents/${agent}.md"
 ```
 - Validate it exists; error if not
 
@@ -64,7 +64,7 @@ If `--candidate <path>` was provided:
 Otherwise, extract from git:
 ```bash
 tmp_b=$(mktemp /tmp/bench-agent-b.XXXXXX)
-git -C "$REPO_DIR" show HEAD~1:agents/${agent}.md > "$tmp_b" 2>/dev/null
+git -C "$REPO_DIR" show HEAD~1:plugins/review-suite/agents/${agent}.md > "$tmp_b" 2>/dev/null
 ```
 - If this fails (exit non-zero or empty file): error with clear message:
   "Cannot extract HEAD~1 version of agents/${agent}.md — file may be new or only one commit exists.
@@ -155,11 +155,8 @@ Parse the `Verdict: ...` line from the compare output to determine IMPROVED / RE
 
 Clean up temp file if created: `rm -f "$tmp_b"`
 
-Verify the skill symlink exists:
+Verify the plugin is installed via the marketplace:
 ```bash
-ls -la ~/.claude/skills/review-fix-bench
+claude /plugin list | grep review-bench
 ```
-If it doesn't exist, create it:
-```bash
-ln -sfn "${REPO_DIR}/skills/review-fix-bench" ~/.claude/skills/review-fix-bench
-```
+If missing, install it: `claude /plugin install review-bench@claude-craft`.

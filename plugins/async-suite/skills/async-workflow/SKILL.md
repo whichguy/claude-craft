@@ -1,6 +1,6 @@
 ---
-description: "Async workflow pipeline for use case preparation and implementation. Auto-invokes for feature planning and complex task preparation."
-alwaysApply: false
+name: async-workflow
+description: Async workflow pipeline for use case preparation and implementation. Auto-invokes for feature planning and complex task preparation.
 ---
 
 # Async Workflow Skill (v2 - Task-Native)
