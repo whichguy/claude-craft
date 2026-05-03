@@ -1020,7 +1020,7 @@ Spot-check evidence is sufficient for "construction-validated" promotion. Full-s
 1. Switch ablate-review-plan default `--variant` from `ablation-na-adversarial` (v3) to `micro` (v5) in a follow-up commit (out of scope for this experiment — promotion logged here, default switch is operational).
 2. v3, v4, v4.1 retained in `variants/` as legacy reference. No deletions.
 3. The conditional v6 (`v5-imperative`) experiment is **NOT triggered** — Arm A passed, so the v5-imperative arm is unnecessary.
-4. Recommend production canary: run `/review-plan` with `--variant micro` against the next 5–10 real plan reviews and watch for finding-emission regressions before flipping the operational default.
+4. Recommend production canary: run `/review-suite:review-plan` with `--variant micro` against the next 5–10 real plan reviews and watch for finding-emission regressions before flipping the operational default.
 
 ---
 
@@ -1115,7 +1115,7 @@ Same posture as v5-micro promotion. Spot-check + concept-grep evidence is suffic
 2. v5-micro retained in `variants/` as legacy reference. No deletions.
 3. v5-micro-conv and v5-micro-floor retained as banked alternatives. Their failure modes are documented above; do not re-test without new orthogonal signal.
 4. **No v6 follow-up triggered.** Arm A passed cleanly; the gap is closed at zero size cost. Per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
-5. Recommend production canary: run `/review-plan` with `--variant micro-prose` against the next 5–10 real plan reviews and watch for any probe-17/probe-21-class regression before flipping the operational default.
+5. Recommend production canary: run `/review-suite:review-plan` with `--variant micro-prose` against the next 5–10 real plan reviews and watch for any probe-17/probe-21-class regression before flipping the operational default.
 
 ---
 
@@ -1229,7 +1229,7 @@ Same posture as prior promotions. Spot-check + concept-grep + judge winner evide
 2. v5-micro-prose retained in `variants/` as legacy reference. No deletions.
 3. v5-micro-noclose and v5-micro-1close retained as banked failures with documented disposition. Do not re-test without new orthogonal signal.
 4. **No v5.3 follow-up triggered.** The drastic-pruning hypothesis is refuted (Arm A); the floor is identified at 2 close questions (Arm C); per pre-registered rule #4 ("no retroactive criterion shaping"), the experiment tree stops here.
-5. Recommend production canary: run `/review-plan` with `--variant micro-2close` against the next 5–10 real plans before flipping the operational default.
+5. Recommend production canary: run `/review-suite:review-plan` with `--variant micro-2close` against the next 5–10 real plans before flipping the operational default.
 
 ---
 

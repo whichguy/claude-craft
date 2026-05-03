@@ -84,8 +84,8 @@ else
     echo -e "${GREEN}✅ Pre-commit secret scan passed - no secrets detected${NC}"
 fi
 
-# Phase index freshness check for skills/review-plan/SKILL.md
-if echo "$STAGED_FILES" | grep -qx "skills/review-plan/SKILL.md"; then
+# Phase index freshness check for review-plan SKILL
+if echo "$STAGED_FILES" | grep -qx "plugins/review-suite/skills/review-plan/SKILL.md"; then
     REGEN="$REPO_ROOT/tools/regen-phase-index.sh"
     if [ -x "$REGEN" ]; then
         if ! ( cd "$REPO_ROOT" && "$REGEN" --check ) >/dev/null 2>&1; then
@@ -94,6 +94,26 @@ if echo "$STAGED_FILES" | grep -qx "skills/review-plan/SKILL.md"; then
             exit 1
         fi
         echo -e "${GREEN}✅ Phase index up to date${NC}"
+    fi
+fi
+
+# Marketplace + namespacing lints (only when relevant files changed)
+if echo "$STAGED_FILES" | grep -qE '^(plugins/|\.claude-plugin/|tools/sync-bundled-tools\.sh)'; then
+    if [ -x "$REPO_ROOT/tools/lint-marketplace.sh" ]; then
+        if ! ( cd "$REPO_ROOT" && ./tools/lint-marketplace.sh ) >/dev/null 2>&1; then
+            echo -e "${RED}🚨 COMMIT BLOCKED: tools/lint-marketplace.sh failed.${NC}"
+            echo -e "${YELLOW}   Re-run it for details:  ./tools/lint-marketplace.sh${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Marketplace lint passed${NC}"
+    fi
+    if [ -x "$REPO_ROOT/tools/lint-namespacing.sh" ]; then
+        if ! ( cd "$REPO_ROOT" && ./tools/lint-namespacing.sh ) >/dev/null 2>&1; then
+            echo -e "${RED}🚨 COMMIT BLOCKED: tools/lint-namespacing.sh found bare cross-bundle refs.${NC}"
+            echo -e "${YELLOW}   Re-run it for details:  ./tools/lint-namespacing.sh${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Namespacing lint passed${NC}"
     fi
 fi
 

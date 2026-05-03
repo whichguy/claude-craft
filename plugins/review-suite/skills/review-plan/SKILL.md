@@ -2953,7 +2953,7 @@ After the convergence loop exits (scorecard not yet printed):
      Analyze the fired signals and determine the single highest-impact skill change.
      Categorize it:
        - QUESTION_EDIT: an existing question's criteria needs refinement
-         → "Run `/optimize-questions [Q-ID]` to refine criteria"
+         → "Run `/review-bench:optimize-questions [Q-ID]` to refine criteria"
        - QUESTION_NEW: a gap in coverage was detected
          → "Add a new question covering [topic] to QUESTIONS.md"
        - EDIT_TEMPLATE: an injection or edit instruction is too weak

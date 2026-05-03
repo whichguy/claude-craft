@@ -492,4 +492,4 @@ If Phase 2 succeeds, consider:
 2. **Performance Metrics** - Track investigation time, hypothesis hit rate
 3. **Learning System** - Specialists remember common issues per project
 4. **Auto-Classification** - ML-based complexity detection
-5. **Phase 3**: Refactor `/optimize-system-prompt` with parallel A/B testing
+5. **Phase 3**: Refactor `/review-bench:optimize-system-prompt` with parallel A/B testing

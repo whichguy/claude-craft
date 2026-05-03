@@ -1,27 +1,56 @@
 # Claude Craft 🚀
 
-**Complete Claude Code development toolkit with symlink-based extension management**
+**Family-bundled Claude Code extensions, distributed as a plugin marketplace.**
 
-A comprehensive repository for managing all 7 Claude Code extension types (agents, commands, skills, prompts, references, plugins, hooks) with automatic syncing and zero-risk symlinks.
+Eleven plugins covering Apps Script tooling, project wiki, plan/code review,
+prompt research bench, planning, async workflow, slides, and several
+domain-specific bundles. Install only what you need.
 
-## Quick Install
+## Install
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/whichguy/claude-craft/main/install.sh | bash
+```
+/plugin marketplace add whichguy/claude-craft
+/plugin install gas-suite@claude-craft         # pick the bundles you want
+/plugin install review-suite@claude-craft
+/plugin install wiki-suite@claude-craft
+# … etc.
 ```
 
-**Then restart Claude Code to load the new extensions!**
+Verify with `/plugin list`.
 
-## What You Get
+### Plugins
 
-- **`/agent-sync`** - Sync all 7 extension types between repo and ~/.claude/
-- **`/alias` & `/unalias`** - Create and manage slash command shortcuts
-- **`/prompt`** - Execute prompt templates with prompt-as-code
-- **Symlink-based sync** - Instant updates, no copy conflicts
-- **All 7 types** - Agents, commands, skills, prompts, references, plugins, hooks
-- **Local file preservation** - Never overwrites your existing non-repo files
-- **Security scanning** - Pre-commit and post-pull threat detection
-- **Self-improvement loop** - `feedback-collector` plugin harvests `SKILL_IMPROVEMENT` markers at SessionEnd → `/process-feedback` skill proposes surgical prompt updates (propose-only, human-approved)
+| Bundle | What it provides |
+|---|---|
+| `gas-suite`        | Apps Script review, debugging, planning, sidebar testing, Gmail Cards |
+| `wiki-suite`       | Project LLM wiki: ingest, query, process queue, lint, proactive research |
+| `review-suite`     | Plan review, code review (Adversarial Auditor), iterative review-fix loop |
+| `review-bench`     | Prompt/question A/B benchmarking and ablation tooling (depends on review-suite) |
+| `planning-suite`   | Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge |
+| `async-suite`      | Background task workflow: `/bg`, `/todo`, task-persist, feedback-collector |
+| `slides-suite`     | reveal.js or Google Slides decks |
+| `comms`            | Slack tagging |
+| `form990`          | IRS Form 990 preparation orchestrator |
+| `plan-red-team`    | Iterative red-team plan review with Opus orchestration |
+| `local-classifier` | Local Ollama-powered prompt classifier UserPromptSubmit hook |
+
+Cross-bundle dependency edges (declared in each `plugin.json`):
+`gas-suite → review-suite`, `review-suite → wiki-suite`,
+`review-bench → review-suite`, `form990 → review-bench`.
+
+## Upgrading from < 1.0 (symlink-based install)
+
+If you previously ran `./install.sh`, run the one-shot cleanup once before
+adding the marketplace — it removes hook entries injected into
+`~/.claude/settings.json` and unlinks dangling symlinks pointing into the
+repo:
+
+```
+git -C path/to/claude-craft pull
+path/to/claude-craft/tools/migrate-from-symlinks.sh
+```
+
+Then proceed with the `/plugin marketplace add` step above.
 
 ## Wiki System
 

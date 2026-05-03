@@ -8,7 +8,7 @@
 #   tools/regen-phase-index.sh --check   # exit 1 if rewrite would change file (dry run)
 set -eo pipefail
 
-SKILL="${SKILL_PATH:-skills/review-plan/SKILL.md}"
+SKILL="${SKILL_PATH:-plugins/review-suite/skills/review-plan/SKILL.md}"
 [[ -f "$SKILL" ]] || { echo "regen-phase-index: missing $SKILL" >&2; exit 1; }
 
 # Build "id~LINE | id~LINE | ..." from canonical markers.

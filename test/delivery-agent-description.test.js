@@ -136,7 +136,7 @@ describe('delivery-agent fixtures — envelope-only shape (header + paragraph)',
     }
 });
 
-describe('agents/delivery-agent.md — frontmatter pins model', function () {
+describe('plugins/planning-suite/agents/delivery-agent.md — frontmatter pins model', function () {
     const agentPath = path.join(__dirname, '..', 'agents', 'delivery-agent.md');
 
     it('frontmatter pins model: claude-sonnet-4-6', function () {

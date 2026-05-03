@@ -56,7 +56,7 @@ review-plan **suppresses** these L2 questions in IS_GAS mode (gas-evaluator has 
 
 | L1 Question | gas-plan Equivalent | Coverage Topic | Resolution |
 |-------------|--------------------|-----------------------|------------|
-| Q-G3 | Q42 | Post-implementation review step | Both run — Q-G3 covers both `/review-fix` (general/Node) and `/gas-review` (GAS); Q42 is GAS-specific with the same /gas-review requirement plus build + test steps. Do NOT suppress Q-G3: it is a Gate 1 blocking question in L1 and evaluated before gas-plan runs. In IS_GAS mode, if Q-G3 passes and Q42 also flags a GAS-specific gap, apply Q42's finding. If both PASS, no duplication harm. |
+| Q-G3 | Q42 | Post-implementation review step | Both run — Q-G3 covers both `/review-fix` (general/Node) and `/gas-suite:gas-review` (GAS); Q42 is GAS-specific with the same /gas-suite:gas-review requirement plus build + test steps. Do NOT suppress Q-G3: it is a Gate 1 blocking question in L1 and evaluated before gas-plan runs. In IS_GAS mode, if Q-G3 passes and Q42 also flags a GAS-specific gap, apply Q42's finding. If both PASS, no duplication harm. |
 
 ---
 

@@ -2,11 +2,11 @@ const { expect } = require('chai');
 const fs = require('fs');
 const path = require('path');
 
-describe('agents/delivery-agent.md (promoted from reference template)', function () {
-    const agentPath = path.join(__dirname, '../agents/delivery-agent.md');
+describe('plugins/planning-suite/agents/delivery-agent.md (promoted from reference template)', function () {
+    const agentPath = path.join(__dirname, '../plugins/planning-suite/agents/delivery-agent.md');
 
     it('file exists', function () {
-        expect(fs.existsSync(agentPath), 'agents/delivery-agent.md').to.be.true;
+        expect(fs.existsSync(agentPath), 'plugins/planning-suite/agents/delivery-agent.md').to.be.true;
     });
 
     const content = fs.readFileSync(agentPath, 'utf8');

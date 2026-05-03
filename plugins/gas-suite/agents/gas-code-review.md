@@ -179,7 +179,7 @@ Scan for patterns that prevent code from running. **Do not count brackets** - lo
 | String ends without closing quote | `const x = "hello` ← missing `"` |
 | Template literal unclosed | `const x = \`template` ← missing backtick |
 | Block comment never closed | `/* todo` then code continues |
-| Regex unclosed | `const r = /test` ← missing `/` |
+| Regex unclosed | `const r = /pat` ← missing `/` |
 
 **Example - Unclosed String:**
 ```javascript

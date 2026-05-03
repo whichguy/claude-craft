@@ -507,6 +507,6 @@ Before deploying to production:
 If Phase 1 succeeds, consider:
 
 1. **Phase 2:** Refactor /gas-debug with team architecture
-2. **Phase 3:** Refactor /optimize-system-prompt with parallel A/B testing
+2. **Phase 3:** Refactor /review-bench:optimize-system-prompt with parallel A/B testing
 3. **Phase 4:** Add metrics tracking and observability
 4. **Phase 5:** Tune threshold based on production data

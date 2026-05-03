@@ -217,7 +217,7 @@ false failures for endowment orgs and investment holders."
 **Control:** Current QUESTIONS.md (30 gates, full NEEDS_UPDATE examples)
 **Variant:** QUESTIONS.md with Tier B changes applied
 
-**Evaluation criteria (run /compare-prompts):**
+**Evaluation criteria (run /review-bench:compare-prompts):**
 1. Gate output quality: does the optimized version produce the same PASS/NEEDS_UPDATE/N/A
    determination for each gate?
 2. [EDIT:] directive accuracy: does the optimized version still emit correct directives
@@ -232,7 +232,7 @@ G1 new/old, covering both pass and needs_update cases).
 **Success criterion:** All 5 gates produce identical determinations (PASS/NEEDS_UPDATE/N/A)
 between control and variant. Any divergence → reject the optimization for that gate.
 
-**Tool to use:** `/compare-prompts` skill with:
+**Tool to use:** `/review-bench:compare-prompts` skill with:
 - PROMPT_A = current QUESTIONS.md gate section for Q-F2, Q-F3, Q-F4, Q-F19, Q-F20
 - PROMPT_B = optimized version of same gates
 - INPUT = P8 evaluation instruction with dataset summary
