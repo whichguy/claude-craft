@@ -40,7 +40,7 @@ REPO_DIR=$(git -C "$(pwd)" rev-parse --show-toplevel)
    - Must exist and contain `"tp"`, `"fn"`, `"fp_count"` — grep to verify
    - If missing: error with "Judge agent not found — run: ln -sfn \$(pwd)/agents ~/.claude/agents or check CLAUDE.md"
 
-2. Bench harness: `$REPO_DIR/tools/review-fix-bench.sh`
+2. Bench harness: `${CLAUDE_PLUGIN_ROOT}/tools/review-fix-bench.sh`
    - Must exist and contain `JUDGE_FILE` — grep to verify
    - If missing `JUDGE_FILE`: error with "Harness missing --judge-file support — ensure Phase 2 was applied"
 
@@ -84,7 +84,7 @@ Spawn two Task agents **in a single parallel message** (`run_in_background: true
 
 **Task A** — benchmark current agent:
 ```bash
-cd "$REPO_DIR" && tools/review-fix-bench.sh \
+"${CLAUDE_PLUGIN_ROOT}/tools/review-fix-bench.sh" \
   --run \
   --label "${label_a}" \
   --fixtures "${fixtures_dir}" \
@@ -95,7 +95,7 @@ cd "$REPO_DIR" && tools/review-fix-bench.sh \
 
 **Task B** — benchmark candidate agent:
 ```bash
-cd "$REPO_DIR" && tools/review-fix-bench.sh \
+"${CLAUDE_PLUGIN_ROOT}/tools/review-fix-bench.sh" \
   --run \
   --label "${label_b}" \
   --fixtures "${fixtures_dir}" \
@@ -120,7 +120,7 @@ If either path is missing or the file doesn't exist, error: "Bench run failed to
 
 Spawn a third Task agent to run:
 ```bash
-cd "$REPO_DIR" && tools/review-fix-bench.sh --compare "${result_a}" "${result_b}"
+"${CLAUDE_PLUGIN_ROOT}/tools/review-fix-bench.sh" --compare "${result_a}" "${result_b}"
 ```
 
 Capture the full output (delta table + per-fixture breakdown + verdict line).
