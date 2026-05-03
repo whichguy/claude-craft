@@ -29,14 +29,24 @@ Set defaults:
 
 ## Step 1 — Resolve File Paths and Pre-flight Checks
 
-**Resolve repo root:**
+> **Cross-plugin spec note:** This skill reads files under
+> `plugins/review-suite/agents/` (the agents under test). Per marketplace
+> spec, plugins should not reach into siblings via filesystem — but this
+> is an A/B benchmark harness whose entire purpose is introspecting the
+> live agent files of its target plugin and their git history. Bundling
+> defeats the bench. The cross-plugin dependency is declared in
+> `plugin.json#dependencies` (`review-suite`) and the path is overridable
+> via `REVIEW_SUITE_AGENTS_DIR` env for non-default layouts.
+
+**Resolve repo root and target agents dir:**
 ```bash
 REPO_DIR=$(git -C "$(pwd)" rev-parse --show-toplevel)
+REVIEW_SUITE_AGENTS_DIR="${REVIEW_SUITE_AGENTS_DIR:-$REPO_DIR/plugins/review-suite/agents}"
 ```
 
 **Pre-flight checks — verify these exist before proceeding:**
 
-1. Judge agent: `$REPO_DIR/plugins/review-suite/agents/review-fix-judge.md` (or `--judge` override)
+1. Judge agent: `$REVIEW_SUITE_AGENTS_DIR/review-fix-judge.md` (or `--judge` override)
    - Must exist and contain `"tp"`, `"fn"`, `"fp_count"` — grep to verify
    - If missing: error with "Judge agent not found in plugins/review-suite/agents/ — verify review-suite plugin is installed (claude /plugin list)"
 
@@ -49,7 +59,7 @@ REPO_DIR=$(git -C "$(pwd)" rev-parse --show-toplevel)
 
 **Resolve Version A** (always the current agent file):
 ```
-version_a_path = "$REPO_DIR/plugins/review-suite/agents/${agent}.md"
+version_a_path = "$REVIEW_SUITE_AGENTS_DIR/${agent}.md"
 ```
 - Validate it exists; error if not
 
@@ -64,7 +74,9 @@ If `--candidate <path>` was provided:
 Otherwise, extract from git:
 ```bash
 tmp_b=$(mktemp /tmp/bench-agent-b.XXXXXX)
-git -C "$REPO_DIR" show HEAD~1:plugins/review-suite/agents/${agent}.md > "$tmp_b" 2>/dev/null
+# Compute repo-relative path from REVIEW_SUITE_AGENTS_DIR for `git show`
+agents_relpath="${REVIEW_SUITE_AGENTS_DIR#$REPO_DIR/}"
+git -C "$REPO_DIR" show HEAD~1:"$agents_relpath/${agent}.md" > "$tmp_b" 2>/dev/null
 ```
 - If this fails (exit non-zero or empty file): error with clear message:
   "Cannot extract HEAD~1 version of agents/${agent}.md — file may be new or only one commit exists.

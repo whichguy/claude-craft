@@ -163,15 +163,26 @@ with open(path) as fh:
     text = fh.read()
 fences = re.findall(r'^```(?:bash|sh|shell)\s*\n(.*?)^```', text, re.M | re.S)
 hits = []
-# Only flag when the bracketed token is the *command* being executed
-# (first non-whitespace word on a line, optionally preceded by a pipe or
-# `&&`/`||` chain). Tokens inside echo strings, $() subs, or comments don't
-# match — that's where false positives lived (e.g. `echo "[PLANNED]"`).
+# Flag bracketed all-caps tokens that would *execute* as a command:
+#   - first word on a line (most common case)
+#   - after `&&`/`||`/`|`/`;` (chained commands)
+#   - inside `$(...)` substitution (the gap reviewer flagged: `VAR=$([TOKEN])`)
 PLACEHOLDER_AS_CMD = re.compile(
-    r'(?:^|[\s|;]|&&|\|\|)\s*(\[[A-Z][A-Z0-9_]{2,}\])\s*(?:$|[\s|;<>])'
+    r'(?:^|[\s|;]|&&|\|\||\$\()\s*(\[[A-Z][A-Z0-9_]{2,}\])\s*(?:$|[\s|;<>)])'
 )
+HEREDOC_OPEN = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?")
 for body in fences:
+    in_heredoc = None  # closing word, or None
     for line in body.splitlines():
+        # Track heredoc state — body lines are string content, not commands
+        if in_heredoc is not None:
+            if line.strip() == in_heredoc:
+                in_heredoc = None
+            continue
+        m_hd = HEREDOC_OPEN.search(line)
+        if m_hd:
+            in_heredoc = m_hd.group(1)
+            # the opening line itself may still be a command — fall through
         # Skip whole-line comments
         if re.match(r'^\s*#', line):
             continue
@@ -185,7 +196,7 @@ if hits:
         print(f'FAIL: {path}: placeholder token {tok} as command in fenced bash block: {line!r}')
     sys.exit(1)
 PY
-done < <(find plugins -name '*.md' -type f 2>/dev/null)
+done < <(find plugins docs -name '*.md' -type f 2>/dev/null; ls *.md 2>/dev/null | sed 's|^|./|')
 if [ "$viol" = 0 ]; then
   ok "no fail-unsafe placeholder tokens in bash blocks"
 else
