@@ -27,26 +27,7 @@ MAX_CONCURRENCY=4     # --max-concurrency N (rate-limit budget)
 HOLDOUT_FIXTURES=0    # --holdout-fixtures N (train/test split for E3/E4; QI-4)
 SAVE_BASELINE=""      # --save-baseline [NAME]: copy result to results/baseline[-NAME].json
 BASELINE_NAME="main"  # default baseline name
-
-# ── Router-aware claude command resolution ────────────────────────────
-# Prefer claude-router (enables --route flag); fall back to bare claude.
-CLAUDE_CMD=""
-if [[ -x "$HOME/.claude/tools/claude-router" ]]; then
-  CLAUDE_CMD="$HOME/.claude/tools/claude-router"
-elif [[ -x "$REPO_DIR/tools/claude-router" ]]; then
-  CLAUDE_CMD="$REPO_DIR/tools/claude-router"
-elif command -v claude-router >/dev/null 2>&1; then
-  CLAUDE_CMD="claude-router"
-else
-  CLAUDE_CMD="claude"
-fi
-
-# --route default is only valid when claude-router is the runner; bare claude rejects it.
-if [[ "$CLAUDE_CMD" != "claude" ]]; then
-  BENCH_ROUTE_ARGS=(--route default)
-else
-  BENCH_ROUTE_ARGS=()
-fi
+RUNNER_OVERRIDE=""    # --runner <cmd>: bypass autodiscovery and use this CLI
 
 # ── Argument parsing ──────────────────────────────────────────────────
 
@@ -62,6 +43,7 @@ Options:
   --label NAME       Label for this run (default: "run")
   --fixtures DIR     Fixtures directory (default: test/fixtures/review-fix/)
   --runs N           Runs per fixture for variance (default: 1, max: 10)
+  --runner CMD       Override runner (default: autodetect claude-router/claude)
   --agent-file PATH  Inject reviewer agent instructions (prepended to prompt)
   --judge-file PATH  Use LLM judge for semantic matching (default: regex pipeline)
   --model-pin VER    Require exact model version string; fail if mismatch (QI-2)
@@ -94,6 +76,7 @@ while [[ $# -gt 0 ]]; do
     --label) LABEL="$2"; shift 2 ;;
     --fixtures) FIXTURES_DIR="$2"; shift 2 ;;
     --runs) RUNS_PER_FIXTURE="$2"; shift 2 ;;
+    --runner) RUNNER_OVERRIDE="$2"; shift 2 ;;
     --agent-file) AGENT_FILE="$2"; shift 2 ;;
     --judge-file) JUDGE_FILE="$2"; shift 2 ;;
     --model-pin) MODEL_PIN="$2"; shift 2 ;;
@@ -117,6 +100,28 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# ── Router-aware claude command resolution ────────────────────────────
+# Prefer claude-router (enables --route flag); fall back to bare claude.
+CLAUDE_CMD=""
+if [[ -n "$RUNNER_OVERRIDE" ]]; then
+  CLAUDE_CMD="$RUNNER_OVERRIDE"
+elif [[ -x "$HOME/.claude/tools/claude-router" ]]; then
+  CLAUDE_CMD="$HOME/.claude/tools/claude-router"
+elif [[ -x "$REPO_DIR/tools/claude-router" ]]; then
+  CLAUDE_CMD="$REPO_DIR/tools/claude-router"
+elif command -v claude-router >/dev/null 2>&1; then
+  CLAUDE_CMD="claude-router"
+else
+  CLAUDE_CMD="claude"
+fi
+
+# --route default is only valid when claude-router is the runner; bare claude rejects it.
+if [[ "$CLAUDE_CMD" == *"claude-router"* ]]; then
+  BENCH_ROUTE_ARGS=(--route default)
+else
+  BENCH_ROUTE_ARGS=()
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "Error: specify --run or --compare" >&2

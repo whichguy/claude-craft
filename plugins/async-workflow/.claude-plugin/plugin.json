@@ -1,8 +1,0 @@
-{
-  "name": "async-workflow",
-  "description": "Async workflow pipeline for use case preparation - background agents for expansion, research, planning, and review",
-  "version": "2.0.0",
-  "author": {
-    "name": "James Wiese"
-  }
-}

@@ -459,6 +459,57 @@ The security system detects:
 
 All security events are logged to `~/.git-security.log` for audit.
 
+## UserRegistry
+
+The `UserRegistry` class provides a centralized registry for managing user identities and their associated metadata across Claude Craft sessions.
+
+### Overview
+
+`UserRegistry` maps user identifiers to profile records, supporting lookup, registration, and removal. It is designed to be used by skills and agents that need to persist or share user context.
+
+### Usage
+
+```js
+const { UserRegistry } = require('./lib/user-registry');
+
+// Create a registry
+const registry = new UserRegistry();
+
+// Register a user
+registry.register('alice', { email: 'alice@example.com', role: 'admin' });
+
+// Look up a user
+const user = registry.get('alice');
+// → { email: 'alice@example.com', role: 'admin' }
+
+// Check existence
+registry.has('alice');  // true
+registry.has('bob');    // false
+
+// Remove a user
+registry.remove('alice');
+
+// List all registered user IDs
+const ids = registry.list();
+// → []
+```
+
+### API
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `register` | `(id: string, profile: object) => void` | Add or overwrite a user record |
+| `get` | `(id: string) => object \| undefined` | Retrieve a user record by ID |
+| `has` | `(id: string) => boolean` | Check whether a user ID is registered |
+| `remove` | `(id: string) => boolean` | Remove a user record; returns `true` if removed |
+| `list` | `() => string[]` | Return all registered user IDs |
+
+### Notes
+
+- `register` is idempotent: calling it twice with the same `id` overwrites the previous record.
+- `UserRegistry` is in-memory only; it does not persist between process restarts.
+- Thread safety is not guaranteed in concurrent async contexts — clone or serialize access if needed.
+
 ## Contributing
 
 1. Fork this repository

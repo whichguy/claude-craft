@@ -33,6 +33,9 @@ describe('Review-Plan Integration (Intent-based)', function () {
                 { name: 'L1 Advisory Structural', pattern: /--- L1 Advisory Structural Evaluator Config/ },
                 { name: 'L1 Advisory Process', pattern: /--- L1 Advisory Process Evaluator Config/ },
                 { name: 'Cluster', pattern: /--- Cluster Evaluator Config/ },
+                // GAS / Node L3 evaluators removed via L3-ablation — re-enable if/when restored
+                // { name: 'GAS', pattern: /--- GAS Evaluator Config/ },
+                // { name: 'Node', pattern: /--- Node Evaluator Config/ },
                 { name: 'UI', pattern: /--- UI Evaluator Config/ }
             ];
 
@@ -106,6 +109,9 @@ describe('Review-Plan Integration (Intent-based)', function () {
                 'L1 Advisory Structural',
                 'L1 Advisory Process',
                 'Cluster',
+                // GAS / Node L3 evaluators removed via L3-ablation
+                // 'GAS',
+                // 'Node',
                 'UI'
             ];
 
