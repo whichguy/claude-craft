@@ -17,16 +17,25 @@ python3 -c "import json,sys; json.load(open('.claude-plugin/marketplace.json'))"
   2>/dev/null && ok "marketplace.json parses" \
               || { err "marketplace.json does not parse"; exit 1; }
 
-# 2) every plugin in marketplace.json has a manifest at .source/.claude-plugin/plugin.json
+# 2) every local plugin in marketplace.json has a manifest at .source/.claude-plugin/plugin.json
+#    (git-subdir / external sources are skipped — can't validate remote repos locally)
 declared_names=$(python3 -c "
 import json
 m = json.load(open('.claude-plugin/marketplace.json'))
 for p in m['plugins']:
-    print(p['name'], p['source'])
+    src = p['source']
+    if isinstance(src, dict):
+        print(p['name'], '__REMOTE__')
+    else:
+        print(p['name'], src)
 ")
 
 while IFS=$' ' read -r name src; do
   [ -z "$name" ] && continue
+  if [ "$src" = "__REMOTE__" ]; then
+    ok "$name manifest valid (remote git-subdir — skipping local check)"
+    continue
+  fi
   manifest="$src/.claude-plugin/plugin.json"
   if [ ! -f "$manifest" ]; then
     err "plugin '$name' source '$src' has no .claude-plugin/plugin.json"
