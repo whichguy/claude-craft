@@ -1,6 +1,6 @@
 {
   "name": "review-suite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Plan review, code review (Adversarial Auditor), review-fix, security/red-team, memory audits.",
   "author": {
     "name": "whichguy",
@@ -10,5 +10,5 @@
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
   "keywords": ["claude-code", "review-suite"],
-  "dependencies": [{"name":"wiki-suite","version":"^0.1.0"}]
+  "dependencies": [{"name":"wiki-suite","version":"^0.2.0"}]
 }

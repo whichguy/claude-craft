@@ -1,6 +1,6 @@
 {
   "name": "form990",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "End-to-end IRS Form 990 preparation orchestrator.",
   "author": {
     "name": "whichguy",
@@ -10,5 +10,5 @@
   "repository": "https://github.com/whichguy/claude-craft",
   "license": "MIT",
   "keywords": ["claude-code", "form990"],
-  "dependencies": [{"name":"review-bench","version":"^0.1.0"}]
+  "dependencies": [{"name":"review-bench","version":"^0.2.0"}]
 }

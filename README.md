@@ -18,6 +18,11 @@ domain-specific bundles. Install only what you need.
 
 Verify with `/plugin list`.
 
+> **Cache refresh note:** if you added the marketplace before a plugin existed in
+> `marketplace.json` and `/plugin install <name>@claude-craft` reports
+> "Plugin not found in marketplace", run `/plugin marketplace update claude-craft`
+> to refresh the local index, then retry the install.
+
 ### Plugins
 
 | Bundle | What it provides |

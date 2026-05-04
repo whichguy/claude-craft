@@ -1,6 +1,6 @@
 {
   "name": "wiki-suite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook.",
   "author": {
     "name": "whichguy",
