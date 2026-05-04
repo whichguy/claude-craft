@@ -26,6 +26,12 @@ jobs:
       - run: npm install --no-audit --no-fund --prefer-offline
         name: Install dependencies
 
+      - name: Configure git identity (some tests git init temp dirs)
+        run: |
+          git config --global user.email ci@example.com
+          git config --global user.name ci
+          git config --global init.defaultBranch main
+
       - run: ./tools/lint-marketplace.sh
         name: Marketplace lint (manifest + frontmatter + dep + drift)
 
