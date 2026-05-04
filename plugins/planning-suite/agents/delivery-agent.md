@@ -490,7 +490,7 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 - `WORK` always answers "what was achieved." For `failed` it may be "none."
 - `INCOMPLETE` always answers "what was not achieved" for `partial` or `failed`.
 - `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split`.
-- `ARTIFACT`: see `~/.claude/skills/schedule-plan-tasks/references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
+- `ARTIFACT`: see `${CLAUDE_PLUGIN_ROOT}/skills/schedule-plan-tasks/references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
 - `DISPATCHED` is non-empty only when `RESULT: complete` and dependent tasks were unblocked.
 
 ## On RESULT: complete
@@ -532,7 +532,7 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 ## On RESULT: failed
 
 1. `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })`
-2. JIT-load `~/.claude/skills/schedule-plan-tasks/references/investigation-task-template.md`. Substitute `[PARENT_TASK_ID]`,
+2. JIT-load `${CLAUDE_PLUGIN_ROOT}/skills/schedule-plan-tasks/references/investigation-task-template.md`. Substitute `[PARENT_TASK_ID]`,
    `[PARENT_SUBJECT]`, `[FAILURE]`, `[WORK]`, `[INCOMPLETE]`, `[ARTIFACT]`. Run the TaskCreate
    verbatim to register a sibling investigation task.
 3. NO cascade dispatch — failed tasks do not cascade. Downstream dependents stay pending and

@@ -40,7 +40,7 @@ Do not stop after one pass.
      `Glob("~/.claude/projects/*/memory/MEMORY.md")` → read most recently modified
      (skip gracefully if none found)
    - Path variables (substitute into evaluator prompts at spawn time, same as `<plan_path>`):
-     - `<questions_path>`: `~/.claude/skills/node-plan/QUESTIONS.md`
+     - `<questions_path>`: `${CLAUDE_SKILL_DIR}/QUESTIONS.md`
        (`~` makes this portable across users; update here if install base changes)
 3. **Read the plan** and identify domains present (new packages? async code? env vars?
    framework integration? deployment?) for triage.
@@ -446,7 +446,7 @@ Pass 3/5: evaluating...
 
 ## Self-Referential Protection
 
-See `shared/self-referential-protection.md` — read at `~/.claude/skills/shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy.
+See `shared/self-referential-protection.md` — read at `${CLAUDE_SKILL_DIR}/../shared/self-referential-protection.md` (skip gracefully if not found) for the canonical protection policy.
 
 If shared file is not found, use inline policy: mark all `<!-- node-plan -->` content as review metadata, not production code; do not re-evaluate it. Do not flag review-added sections as needing tests (N19), impact analysis, dead code removal, or duplication checks.
 
