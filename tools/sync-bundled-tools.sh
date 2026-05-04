@@ -14,23 +14,29 @@ shopt -s nullglob
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# bundled_map: <source path under tools/> -> space-separated list of plugin names
-# Add rows here as more tools are bundled. Keep this lean — duplication is the cost.
+# bundled_map: <source path> -> "<dest-relative-to-plugin> <plugin1> <plugin2> ..."
+# Source-of-truth lives in tools/ (single-file) or tools/shared-templates/<dir>/ (set of files).
+# Each row: source path, then dest path relative to plugin root, then list of plugin names.
+# Lean — duplication is the cost; only bundle what's actually consumed.
 bundled_map() {
   cat <<'EOF'
-tools/review-fix-bench.sh   review-bench
+tools/review-fix-bench.sh                                  tools/review-fix-bench.sh                  review-bench
+tools/shared-templates/skills-shared/judge-pattern.md      skills/shared/judge-pattern.md             review-suite review-bench gas-suite planning-suite
+tools/shared-templates/skills-shared/question-cross-reference.md  skills/shared/question-cross-reference.md  review-suite review-bench gas-suite planning-suite
+tools/shared-templates/skills-shared/self-referential-protection.md  skills/shared/self-referential-protection.md  review-suite review-bench gas-suite planning-suite
+tools/shared-templates/skills-shared/skill-authoring-conventions.md  skills/shared/skill-authoring-conventions.md  review-suite review-bench gas-suite planning-suite
 EOF
 }
 
 mode="${1:-sync}"
 
 drift=0
-while IFS=$'\t ' read -r src plugins; do
+while read -r src dest plugins; do
   [ -z "$src" ] && continue
   case "$src" in '#'*) continue ;; esac
   [ -f "$src" ] || { echo "WARN: source missing: $src"; continue; }
   for plugin in $plugins; do
-    dst="plugins/$plugin/tools/$(basename "$src")"
+    dst="plugins/$plugin/$dest"
     if [ "$mode" = "--check" ]; then
       if ! cmp -s "$src" "$dst" 2>/dev/null; then
         echo "DRIFT: $dst differs from $src"
@@ -42,7 +48,7 @@ while IFS=$'\t ' read -r src plugins; do
       echo "synced: $src -> $dst"
     fi
   done
-done < <(bundled_map | tr -s ' \t' ' ' | sed 's/^ *//')
+done < <(bundled_map | awk '{$1=$1; print}')
 
 [ "$mode" = "--check" ] && exit "$drift"
 exit 0
