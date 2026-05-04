@@ -16,11 +16,11 @@ Run these tests manually by executing the described scenarios. Each test validat
 **Test Steps**:
 1. Try to read a meta.json with empty task ID:
    ```
-   Read({ file_path: '~/.claude/async-prep//meta.json' })
+   Read({ file_path: '~/.claude/plugins/data/async-suite//meta.json' })
    ```
 2. Try to read with traversal path:
    ```
-   Read({ file_path: '~/.claude/async-prep/../evil/meta.json' })
+   Read({ file_path: '~/.claude/plugins/data/async-suite/../evil/meta.json' })
    ```
 
 **Expected**: Both should fail with path validation errors.
@@ -36,7 +36,7 @@ Run these tests manually by executing the described scenarios. Each test validat
 **Test Steps**:
 1. Manually create a symlink:
    ```bash
-   ln -s /etc/passwd ~/.claude/async-prep/malicious-link
+   ln -s /etc/passwd ~/.claude/plugins/data/async-suite/malicious-link
    ```
 2. Run /todo-cleanup
 3. Verify symlink is skipped, not followed
@@ -64,7 +64,7 @@ Run these tests manually by executing the described scenarios. Each test validat
 
 2. Check all created task IDs:
    ```bash
-   ls ~/.claude/async-prep/
+   ls ~/.claude/plugins/data/async-suite/
    ```
 
 **Expected**: All 5 task directories should have unique IDs.
@@ -80,7 +80,7 @@ Run these tests manually by executing the described scenarios. Each test validat
 **Test Steps**:
 1. Create a task directory manually:
    ```bash
-   mkdir -p ~/.claude/async-prep/1234567890123-abcd1234
+   mkdir -p ~/.claude/plugins/data/async-suite/1234567890123-abcd1234
    ```
 
 2. Create corrupted meta.json with invalid date:
@@ -107,12 +107,12 @@ Run these tests manually by executing the described scenarios. Each test validat
 **Test Steps**:
 1. Create a task directory:
    ```bash
-   mkdir -p ~/.claude/async-prep/1234567890124-abcd1235
+   mkdir -p ~/.claude/plugins/data/async-suite/1234567890124-abcd1235
    ```
 
 2. Create corrupted meta.json:
    ```bash
-   echo "not valid json {{{" > ~/.claude/async-prep/1234567890124-abcd1235/meta.json
+   echo "not valid json {{{" > ~/.claude/plugins/data/async-suite/1234567890124-abcd1235/meta.json
    ```
 
 3. Run /todo-cleanup
@@ -136,7 +136,7 @@ Run these tests manually by executing the described scenarios. Each test validat
    Or manually test Write tool with 100KB+ content:
    ```javascript
    Write({
-     file_path: '~/.claude/async-prep/test/large-expansion.md',
+     file_path: '~/.claude/plugins/data/async-suite/test/large-expansion.md',
      content: 'x'.repeat(150000)
    })
    ```
@@ -204,12 +204,12 @@ Run these tests manually by executing the described scenarios. Each test validat
 **Test Steps**:
 1. Create a symlink in async-prep:
    ```bash
-   ln -s /etc/shadow ~/.claude/async-prep/shadow-link
+   ln -s /etc/shadow ~/.claude/plugins/data/async-suite/shadow-link
    ```
 
 2. Try to read via the link:
    ```javascript
-   Read({ file_path: '~/.claude/async-prep/shadow-link' })
+   Read({ file_path: '~/.claude/plugins/data/async-suite/shadow-link' })
    ```
 
 **Expected**: Read should fail with permission error.
@@ -230,7 +230,7 @@ Run these tests manually by executing the described scenarios. Each test validat
 
 2. Check meta.json dates are ISO format:
    ```bash
-   cat ~/.claude/async-prep/*/meta.json | grep timeout_at
+   cat ~/.claude/plugins/data/async-suite/*/meta.json | grep timeout_at
    ```
 
 **Expected**: Dates should be in ISO 8601 format: `2026-02-05T12:00:00.000Z`
@@ -289,18 +289,18 @@ To run a quick automated check:
 
 ```bash
 # Check async-prep directory structure
-ls -la ~/.claude/async-prep/
+ls -la ~/.claude/plugins/data/async-suite/
 
 # Verify no orphaned temp files
-find ~/.claude/async-prep -name "*.tmp*" -o -name "*.lock"
+find ~/.claude/plugins/data/async-suite -name "*.tmp*" -o -name "*.lock"
 
 # Check all meta.json files are valid JSON (python3, no jq dependency)
-for f in ~/.claude/async-prep/*/meta.json; do
+for f in ~/.claude/plugins/data/async-suite/*/meta.json; do
   python3 -c "import json; json.load(open('$f'))" 2>/dev/null || echo "Invalid: $f"
 done
 
 # Check task ID format validity
-for d in ~/.claude/async-prep/*/; do
+for d in ~/.claude/plugins/data/async-suite/*/; do
   id=$(basename "$d")
   if [[ ! "$id" =~ ^[0-9]{13}-[a-f0-9]{8}$ ]]; then
     echo "Invalid task ID: $id"
@@ -308,5 +308,5 @@ for d in ~/.claude/async-prep/*/; do
 done
 
 # Check for stale .review-pending files (should be cleaned by /todo-cleanup)
-find ~/.claude/async-prep -name ".review-pending" -mtime +7
+find ~/.claude/plugins/data/async-suite -name ".review-pending" -mtime +7
 ```

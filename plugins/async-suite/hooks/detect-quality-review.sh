@@ -7,7 +7,8 @@ set -euo pipefail
 # Dependency check: jq required for JSON operations
 command -v jq &>/dev/null || exit 0
 
-ASYNC_PREP_DIR="${HOME}/.claude/async-prep"
+ASYNC_PREP_DIR="${CLAUDE_PLUGIN_DATA:-${HOME}/.claude/plugins/data/async-suite}"
+mkdir -p "$ASYNC_PREP_DIR" 2>/dev/null || true
 TASK_ID_REGEX='^[0-9]{13}-[a-f0-9]{8}$'
 
 # Validate task ID format (inline, no external dependency)

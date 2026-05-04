@@ -214,7 +214,7 @@ ABANDONED  → [deleted]  (via /todo-cleanup after 30-day cleanup_at)
 
 ## Output Files
 
-Tasks stored in `~/.claude/async-prep/{task-id}/`:
+Tasks stored in `~/.claude/plugins/data/async-suite/{task-id}/`:
 
 | File | Description |
 |------|-------------|
@@ -251,7 +251,7 @@ Instead of slash commands, use natural language:
 | Request | Action |
 |---------|--------|
 | "show me the full plan for [task-id]" | Read .md files from task directory |
-| "what's the status of my async tasks?" | List tasks from ~/.claude/async-prep/ |
+| "what's the status of my async tasks?" | List tasks from ~/.claude/plugins/data/async-suite/ |
 | "retry task [task-id]" | Check failed phase, relaunch |
 | "clean up old async tasks" | Run /todo-cleanup |
 | "review my implementation" | Launch review manually |

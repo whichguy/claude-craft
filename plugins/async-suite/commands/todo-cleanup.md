@@ -5,7 +5,7 @@ description: "Clean up abandoned and old async tasks"
 
 # /todo-cleanup - Task Maintenance (Task-Native v2)
 
-Clean up abandoned and old async tasks from `~/.claude/async-prep/`.
+Clean up abandoned and old async tasks from `~/.claude/plugins/data/async-suite/`.
 
 ## Usage
 
@@ -37,7 +37,7 @@ Clean up abandoned and old async tasks from `~/.claude/async-prep/`.
 
 ```javascript
 // Get all task directories
-const asyncPrepDir = '~/.claude/async-prep';
+const asyncPrepDir = '~/.claude/plugins/data/async-suite';
 const taskDirs = Glob({ pattern: `${asyncPrepDir}/*` });
 ```
 
@@ -47,7 +47,7 @@ For each task directory:
 
 ```javascript
 const TASK_ID_REGEX = /^[0-9]{13}-[a-f0-9]{8}$/;
-const asyncPrepDir = `${home}/.claude/async-prep`;
+const asyncPrepDir = `${home}/.claude/plugins/data/async-suite`;
 const now = Date.now();
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -208,7 +208,7 @@ The `/todo` and `/bg` commands should call cleanup when:
 
 Track last cleanup time in:
 ```
-~/.claude/async-prep/.last-cleanup
+~/.claude/plugins/data/async-suite/.last-cleanup
 ```
 
 If file doesn't exist or timestamp > 24 hours ago, run cleanup automatically.
@@ -232,7 +232,7 @@ All checks are integrated directly into the processing loop (Step 2) rather than
 ```
 /todo-cleanup --dry-run
 
-Scanning ~/.claude/async-prep/...
+Scanning ~/.claude/plugins/data/async-suite/...
 
 Would mark ABANDONED: 1737123456789-a1b2c3d4 (8 days old, was READY)
 Would mark ABANDONED: 1737200000000-e5f6a7b8 (8 days old, was RUNNING - crashed)
@@ -256,7 +256,7 @@ No changes made. Run without --dry-run to apply.
 ```
 /todo-cleanup
 
-Scanning ~/.claude/async-prep/...
+Scanning ~/.claude/plugins/data/async-suite/...
 
 Marked as ABANDONED (was READY): 1737123456789-a1b2c3d4 (8 days old)
 Marked as ABANDONED (was RUNNING): 1737200000000-e5f6a7b8 (8 days old, crashed)
@@ -281,7 +281,7 @@ At the start of `/todo` and `/bg` commands:
 
 ```javascript
 // Check if cleanup needed
-const lastCleanupFile = '~/.claude/async-prep/.last-cleanup';
+const lastCleanupFile = '~/.claude/plugins/data/async-suite/.last-cleanup';
 let needsCleanup = true;
 
 try {

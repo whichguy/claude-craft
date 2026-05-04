@@ -64,12 +64,12 @@ Validation rules:
 Create task directory:
 
 ```bash
-mkdir -p ~/.claude/async-prep/{task-id}
+mkdir -p ~/.claude/plugins/data/async-suite/{task-id}
 ```
 
 Expected directory structure after agent completes:
 ```
-~/.claude/async-prep/{task-id}/
+~/.claude/plugins/data/async-suite/{task-id}/
 ├── meta.json
 ├── expansion.md
 ├── plan.md
@@ -129,7 +129,7 @@ You are a fire-and-forget task executor. You will:
 
 ## Context
 - Task ID: ${taskId}
-- Task Dir: ~/.claude/async-prep/${taskId}/
+- Task Dir: ~/.claude/plugins/data/async-suite/${taskId}/
 - Original Request: ${originalRequest}
 - Working Directory: ${cwd}
 
@@ -139,9 +139,9 @@ Read, Write, Edit, Grep, Glob, Bash
 ## Phase 0: Set Status to RUNNING
 
 **FIRST ACTION** - Before anything else:
-1. Read ~/.claude/async-prep/${taskId}/meta.json
+1. Read ~/.claude/plugins/data/async-suite/${taskId}/meta.json
 2. Update status from "PENDING" to "RUNNING"
-3. Write back to ~/.claude/async-prep/${taskId}/meta.json
+3. Write back to ~/.claude/plugins/data/async-suite/${taskId}/meta.json
 
 This enables crash detection and cleanup.
 
@@ -154,7 +154,7 @@ Generate comprehensive use case analysis:
 - Acceptance criteria
 - Non-functional requirements
 
-Write to: ~/.claude/async-prep/${taskId}/expansion.md
+Write to: ~/.claude/plugins/data/async-suite/${taskId}/expansion.md
 
 ## Phase 1.5: Validation Gate
 
@@ -186,7 +186,7 @@ Create step-by-step implementation plan:
 - Risk assessment
 - Rollback plan
 
-Write to: ~/.claude/async-prep/${taskId}/plan.md
+Write to: ~/.claude/plugins/data/async-suite/${taskId}/plan.md
 
 ## Phase 4: IMPLEMENTATION
 
@@ -195,7 +195,7 @@ Write to: ~/.claude/async-prep/${taskId}/plan.md
 For each step in your plan:
 1. Read the relevant files
 2. Make the changes using Edit tool
-3. Log progress to ~/.claude/async-prep/${taskId}/implementation.log
+3. Log progress to ~/.claude/plugins/data/async-suite/${taskId}/implementation.log
 4. Verify the change works
 
 **TOOLS AVAILABLE**: Read, Write, Edit, Grep, Glob, Bash
@@ -218,18 +218,18 @@ If issues found:
 - Fix them immediately
 - Re-review (max 3 iterations)
 
-Write review results to: ~/.claude/async-prep/${taskId}/review.md
+Write review results to: ~/.claude/plugins/data/async-suite/${taskId}/review.md
 
 ## Phase 6: Write Completion Summary
 
-Write completion checklist to ~/.claude/async-prep/${taskId}/checklist.md
+Write completion checklist to ~/.claude/plugins/data/async-suite/${taskId}/checklist.md
 
 Format:
 \\\`\\\`\\\`markdown
 # [COMPLETED] ${title}
 
 Task: ${taskId}
-Full details: ~/.claude/async-prep/${taskId}/
+Full details: ~/.claude/plugins/data/async-suite/${taskId}/
 
 ## Summary
 [2-3 sentence summary of what was implemented]
@@ -263,7 +263,7 @@ Update meta.json:
 
 If any phase fails:
 1. Update meta.json status to "FAILED" (prioritize this write)
-2. Write error to ~/.claude/async-prep/${taskId}/error.log
+2. Write error to ~/.claude/plugins/data/async-suite/${taskId}/error.log
 3. Write partial checklist to checklist.md with failure status
 4. Continue attempting remaining phases if possible
 
@@ -293,7 +293,7 @@ Agent will:
 5. Run quality review
 6. Fix any issues
 
-When complete, summary at ~/.claude/async-prep/${taskId}/checklist.md
+When complete, summary at ~/.claude/plugins/data/async-suite/${taskId}/checklist.md
 Continue working on other tasks.
 ```
 
