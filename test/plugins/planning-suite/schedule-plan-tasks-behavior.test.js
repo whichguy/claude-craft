@@ -11,14 +11,14 @@
 const { expect } = require('chai');
 const fs = require('fs');
 const path = require('path');
-const { detectChains, selfMergeForRole } = require('../lib/chain-detect');
+const { detectChains, selfMergeForRole } = require('../../../lib/chain-detect');
 const {
   buildBlockers,
   defaultRegressionBlockers,
   applyReduction,
   SETUP,
-} = require('../lib/wiring-build');
-const { FIXTURES } = require('../lib/fixtures');
+} = require('../../../lib/wiring-build');
+const { FIXTURES } = require('../../../lib/fixtures');
 
 
 describe('schedule-plan-tasks: chain detection algorithm (lib/chain-detect.js)', function () {

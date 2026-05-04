@@ -223,6 +223,8 @@ plugin_sources = {p['name']: p['source'] for p in marketplace['plugins']}
 # Build adjacency map
 adj = {}
 for name, src in plugin_sources.items():
+    if isinstance(src, dict):   # git-subdir or other remote — skip local manifest read
+        continue
     manifest_path = f"{src}/.claude-plugin/plugin.json"
     try:
         d = json.load(open(manifest_path))

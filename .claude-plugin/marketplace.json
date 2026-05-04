@@ -17,6 +17,6 @@
     { "name": "form990",          "source": "./plugins/form990",          "version": "0.1.0", "description": "End-to-end IRS Form 990 preparation orchestrator." },
     { "name": "plan-red-team",    "source": "./plugins/plan-red-team",    "version": "0.1.0", "description": "Iterative red-team plan review with Opus orchestration." },
     { "name": "local-classifier", "source": "./plugins/local-classifier", "version": "0.1.0", "description": "Local Ollama-powered prompt classifier UserPromptSubmit hook." },
-    { "name": "c-thru", "description": "Router/proxy for Ollama / OpenRouter / Bedrock / Vertex / Gemini / LiteLLM behind the Claude Code CLI. Adds /c-thru-status, /cplan, agentic plan/wave skill, and proxy-health hooks.", "source": { "source": "git-subdir", "url": "https://github.com/whichguy/c-thru.git", "path": "plugins/c-thru", "ref": "main" } }
+    { "name": "c-thru", "version": "0.1.0", "description": "Router/proxy for Ollama / OpenRouter / Bedrock / Vertex / Gemini / LiteLLM behind the Claude Code CLI. Adds /c-thru-status, /cplan, agentic plan/wave skill, and proxy-health hooks.", "source": { "source": "git-subdir", "url": "https://github.com/whichguy/c-thru.git", "path": "plugins/c-thru", "ref": "main" } }
   ]
 }
