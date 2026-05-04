@@ -122,6 +122,49 @@ unlink_claude_craft_symlinks() {
 }
 
 # ----------------------------------------------------------------------------
+# 2b) Relocate async-suite state from legacy ~/.claude/async-prep/ to the new
+#     per-plugin data dir ~/.claude/plugins/data/async-suite/. Symlink-era
+#     async-suite hooks wrote to the old path; commit 8250b67 switched to
+#     CLAUDE_PLUGIN_DATA. Real users with task state would otherwise orphan it.
+# ----------------------------------------------------------------------------
+migrate_async_prep_data() {
+  local src="$CLAUDE_DIR/async-prep"
+  local dest="$CLAUDE_DIR/plugins/data/async-suite"
+
+  if [ ! -d "$src" ]; then
+    green "✅ no legacy async-prep/ to migrate"
+    return
+  fi
+
+  shopt -s nullglob dotglob
+  local src_entries=( "$src"/* )
+  shopt -u nullglob dotglob
+
+  if [ "${#src_entries[@]}" -eq 0 ]; then
+    rmdir "$src" 2>/dev/null || true
+    green "✅ async-prep/ was empty — removed"
+    return
+  fi
+
+  if [ -d "$dest" ]; then
+    shopt -s nullglob dotglob
+    local dest_entries=( "$dest"/* )
+    shopt -u nullglob dotglob
+    if [ "${#dest_entries[@]}" -gt 0 ]; then
+      yellow "⚠ async-prep/ has data but $dest is already populated — skipping (manual merge required)"
+      yellow "  legacy: $src"
+      yellow "  new:    $dest"
+      return
+    fi
+  fi
+
+  mkdir -p "$dest"
+  mv "$src"/* "$dest"/
+  rmdir "$src" 2>/dev/null || true
+  green "✅ migrated ${#src_entries[@]} async-prep entries → $dest"
+}
+
+# ----------------------------------------------------------------------------
 # 3) Print marketplace install instructions
 # ----------------------------------------------------------------------------
 print_next_steps() {
@@ -165,6 +208,7 @@ main() {
   strip_settings_hook
   strip_absorbed_plugin_hooks
   unlink_claude_craft_symlinks
+  migrate_async_prep_data
   print_next_steps
 }
 
