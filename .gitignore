@@ -20,3 +20,4 @@ results/*.json
 
 # Test artifacts — regenerated on every `npm test` run
 test/artifacts/
+.worktrees/
