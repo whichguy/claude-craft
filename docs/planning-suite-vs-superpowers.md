@@ -6,20 +6,27 @@
 
 | Category | CUT | SLIM | KEEP | DEFER |
 |----------|-----|------|------|-------|
-| **Count** | 3 | 7 | 16 | 2 |
-| **%** | 11% | 25% | 57% | 7% |
+| **Count** | 4 | 7 | 14 | 2 |
+| **%** | 14% | 25% | 50% | 7% |
 
-**Verdict**: planning-suite is **mostly distinct and genuinely valuable**. Only 3 items (refactor skill, code-refactor agent, merge-worktree agent) are directly subsumed by superpowers. Another 7 items have significant overlaps but retain unique value-adds (e.g., schedule-plan-tasks orchestrates plan execution across worktrees; node-plan does language-specific review not in superpowers).
+**Verdict**: planning-suite is **mostly distinct and genuinely valuable**. The CUT set initially looked like 3 items but on execution grew to 4: `create-worktree` was reclassified from KEEP → CUT once we confirmed it had only one live caller (`requirements-generator`) which now uses raw `git worktree add` directly.
+
+**Status as of Task #18 (executed in commits 9da2a47 + post-#18 commit):**
+- ✅ `refactor` skill — deleted
+- ✅ `code-refactor` agent — deleted
+- ✅ `merge-worktree` agent — deleted (`requirements-generator` now uses raw `git merge --squash`)
+- ✅ `create-worktree` agent — deleted (`requirements-generator` now uses raw `git worktree add`)
 
 ---
 
-## CUT (3)
+## CUT (4) — all executed
 
 | Item | Type | Maps to | Rationale |
 |------|------|---------|-----------|
 | refactor | skill | superpowers:systematic-debugging (code-quality variants) | Dispatches to code-refactor agent; the skill itself is a thin dispatcher with no unique logic. Superpowers verifies outcomes before declaring done. |
 | code-refactor | agent | superpowers:systematic-debugging (refactor-focused) | Identifies code smells and applies safe refactorings. Superpowers' verification workflow already covers this workflow (analyze → plan → fix → confirm). |
-| merge-worktree | agent | superpowers:finishing-a-development-branch (worktree cleanup portion) | Merges worktree changes and cleans up. Superpowers' finishing-branch covers the logical flow; this is a specialized implementation detail for worktree lifecycle. |
+| merge-worktree | agent | superpowers:finishing-a-development-branch + raw git | Sole caller (requirements-generator) inlined `git merge --squash` directly. schedule-plan-tasks and delivery-agent already used raw git. |
+| create-worktree | agent | superpowers:using-git-worktrees + raw git | Sole live caller (requirements-generator) inlined `git worktree add` directly with collision-resistant naming. The "nested worktree parent tracking" feature was unused by any caller — schedule-plan-tasks orchestrates its own chain semantics. |
 
 ---
 
@@ -39,13 +46,12 @@ These have meaningful overlap with superpowers but retain distinct slice worth k
 
 ---
 
-## KEEP (16)
+## KEEP (14)
 
 No meaningful superpowers overlap or genuinely distinct strategic value.
 
 | Item | Type | Rationale |
 |------|------|-----------|
-| create-worktree | agent | Superpowers:using-git-worktrees covers single-worktree creation; this agent handles nested worktrees (stacking), parent tracking, automatic parent-aware merge targeting. Distinct from superpowers' single-worktree use case. |
 | delivery-agent | agent | Executes a single task from an orchestrated plan with worktree isolation, self-merge cascade, sub-task spawning, and 3-attempt retry logic. No superpowers equivalent—this is plan-execution + task lifecycle + cascade autonomy. |
 | deployment-orchestrator | agent | Manages deployments through an infrastructure-specific pipeline (references docs/architecture-specification.md). Superpowers has no deployment agent; this is infrastructure-aware with validation gates and feature classification. |
 | file-output-executor | agent | Writes large output (50k+) directly to file to avoid conversation truncation. Utility agent not addressed by superpowers. |

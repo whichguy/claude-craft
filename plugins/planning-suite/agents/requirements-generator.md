@@ -32,10 +32,10 @@ model: sonnet
 
 **Execution Pattern**:
 1. Accept parent worktree as "branch" to fork from
-2. Create nested isolated worktree via `create-worktree` agent
+2. Create nested isolated worktree via raw `git worktree add`
 3. Execute comprehensive requirements generation in isolation
 4. Write complete requirements to `<worktree>/planning/requirements-delta.md`
-5. Merge back to parent worktree via `merge-worktree` agent
+5. Squash-merge back to parent worktree via raw `git merge --squash` + cleanup
 6. Return concise summary to caller
 
 When invoked, intelligently parse the `<prompt-arguments>` context to extract use cases and execute comprehensive requirements generation through all activities.
@@ -101,32 +101,30 @@ When starting execution:
      git -C "<parent_worktree>" commit -m "Initial commit for requirements generation"
    fi
 
-   # Use create-worktree agent for robust worktree creation with auto-initialization
-   # Agent handles: collision-resistant naming, branch creation, uncommitted changes
-   # Pass user_worktree_name if provided, otherwise use default "requirements-generator"
+   # Create isolated worktree inline (raw git, no agent call).
+   # Collision-resistant suffix from epoch + PID; branch name = worktree name.
    worktree_prefix="${user_worktree_name:-requirements-generator}"
-   echo "🔧 Calling create-worktree agent with prefix: ${worktree_prefix}"
-   ask create-worktree "<parent_worktree>" "${worktree_prefix}" "requirements-generator"
+   worktree_name="${worktree_prefix}-$(date +%s)-$$"
+   worktree_path="<parent_worktree>/.worktrees/${worktree_name}"
+   worktree_branch="${worktree_name}"
 
-   # Extract agent return values from XML tags
-   extracted_worktree=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<worktree>\K[^<]+')
-   extracted_branch=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<branch>\K[^<]+')
-   extracted_source=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '<source>\K[^<]+')
-
-   # Validate agent returned valid worktree path
-   if [ -z "$extracted_worktree" ] || [ ! -d "$extracted_worktree" ]; then
-     echo "❌ FAILED: create-worktree agent did not return valid worktree path"
-     echo "Agent output:"
-     echo "$LAST_AGENT_OUTPUT"
+   echo "🔧 Creating worktree: ${worktree_path}"
+   if ! git -C "<parent_worktree>" worktree add "${worktree_path}" -b "${worktree_branch}"; then
+     echo "❌ FAILED: could not create worktree at ${worktree_path}"
      exit 1
    fi
 
-   # ⚠️ CRITICAL: Reassign framework <worktree> variable to agent's returned path
+   if [ ! -d "${worktree_path}" ]; then
+     echo "❌ FAILED: worktree path missing after git worktree add"
+     exit 1
+   fi
+
+   # ⚠️ CRITICAL: Reassign framework <worktree> variable to the new path
    # ALL subsequent requirements generation operations will use this path
-   <worktree> = ${extracted_worktree}
+   <worktree> = ${worktree_path}
    <worktree_created> = true
-   <worktree_branch> = ${extracted_branch}
-   <worktree_name> = $(basename "${extracted_worktree}")
+   <worktree_branch> = ${worktree_branch}
+   <worktree_name> = ${worktree_name}
 
    echo "✅ Nested worktree ready for isolated execution"
    echo "⚠️  ALL file operations must use <worktree> as the base path"
@@ -1701,21 +1699,26 @@ Framework: Evidence-based requirements discovery (16-phase)
 
 This merge includes comprehensive requirements analysis ready for architecture definition."
 
-  # Use merge-worktree agent for consolidation with auto-discovery
-  # Agent handles: commit, squash merge, cleanup with git atomicity
-  # Merges FROM nested worktree TO parent worktree (universal isolation pattern)
-  echo "🔧 Calling merge-worktree agent to consolidate to parent"
-  ask merge-worktree "<worktree>" "" "${commit_msg}" "requirements-generator"
+  # Squash-merge worktree branch back to parent worktree (raw git, no agent).
+  echo "🔧 Squash-merging ${worktree_branch} into <parent_worktree>"
+  merge_output=$(git -C "<parent_worktree>" merge --squash "${worktree_branch}" 2>&1)
+  merge_rc=$?
 
-  # Check merge status from agent JSON output
-  merge_status=$(echo "$LAST_AGENT_OUTPUT" | grep -oP '"status"\s*:\s*"\K[^"]+')
-
-  if [ "$merge_status" = "success" ]; then
-    # merge-worktree agent already printed compact summary
-    # Add analysis-specific context
-    echo "ANALYSIS: ${requirements_generated} requirements ready for architecture"
-    echo ""
-  elif [ "$merge_status" = "conflict" ]; then
+  if [ $merge_rc -eq 0 ]; then
+    # Squash staged the changes but didn't commit; commit now.
+    if git -C "<parent_worktree>" commit -m "${commit_msg}"; then
+      # Cleanup: remove worktree + delete the now-merged branch
+      git -C "<parent_worktree>" worktree remove "<worktree>" --force 2>/dev/null
+      git -C "<parent_worktree>" branch -D "${worktree_branch}" 2>/dev/null
+      echo "✅ Merged: ${requirements_generated} requirements consolidated to <parent_worktree>"
+      echo "ANALYSIS: ${requirements_generated} requirements ready for architecture"
+      echo ""
+    else
+      echo "❌ COMMIT FAILED after successful squash-merge"
+      echo "Worktree preserved at <worktree> for inspection"
+      exit 1
+    fi
+  elif echo "$merge_output" | grep -qi 'conflict\|automatic merge failed'; then
     echo "⚠️ MERGE CONFLICTS DETECTED"
     echo "⚠️ Worktree preserved for manual conflict resolution"
     echo ""
@@ -1725,21 +1728,21 @@ This merge includes comprehensive requirements analysis ready for architecture d
     echo "- Requirements generated: ${requirements_generated}"
     echo ""
     echo "To resolve conflicts and consolidate:"
-    echo "1. Review conflicts in worktree"
-    echo "2. Resolve conflicts in affected files"
-    echo "3. After resolution, run: ask merge-worktree '<worktree>' '' '\${commit_msg}' 'requirements-generator'"
+    echo "1. Review and resolve conflicts in <parent_worktree>"
+    echo "2. git -C '<parent_worktree>' commit -m \"\${commit_msg}\""
+    echo "3. git -C '<parent_worktree>' worktree remove '<worktree>' --force"
+    echo "4. git -C '<parent_worktree>' branch -D '${worktree_branch}'"
     exit 1
   else
-    echo "❌ MERGE FAILED - unexpected status: ${merge_status}"
-    echo "Agent output:"
-    echo "$LAST_AGENT_OUTPUT"
+    echo "❌ MERGE FAILED — unexpected error"
+    echo "Output:"
+    echo "$merge_output"
     echo ""
     echo "To consolidate manually:"
-    echo "1. cd '<parent_worktree>'"
-    echo "2. git merge '${worktree_branch}' --squash"
-    echo "3. git commit -m 'merge: Consolidate requirements generation'"
-    echo "4. git worktree remove '<worktree>' --force"
-    echo "5. git branch -D '${worktree_branch}'"
+    echo "1. git -C '<parent_worktree>' merge '${worktree_branch}' --squash"
+    echo "2. git -C '<parent_worktree>' commit -m 'merge: Consolidate requirements generation'"
+    echo "3. git -C '<parent_worktree>' worktree remove '<worktree>' --force"
+    echo "4. git -C '<parent_worktree>' branch -D '${worktree_branch}'"
     exit 1
   fi
 ELSE:
