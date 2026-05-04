@@ -1,1 +1,1 @@
-../../../../c-thru/tools/c-thru-proxy-health.sh
+../../../../src/c-thru/tools/c-thru-proxy-health.sh

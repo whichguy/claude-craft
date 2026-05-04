@@ -1,1 +1,1 @@
-../../../../c-thru/tools/c-thru-classify.sh
+../../../../src/c-thru/tools/c-thru-classify.sh

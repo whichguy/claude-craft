@@ -1,1 +1,1 @@
-../../../../c-thru/tools/c-thru-postcompact-context.sh
+../../../../src/c-thru/tools/c-thru-postcompact-context.sh

@@ -1,1 +1,1 @@
-../../../../c-thru/tools/c-thru-map-changed.sh
+../../../../src/c-thru/tools/c-thru-map-changed.sh

@@ -1,4 +1,5 @@
 ---
+name: c-thru-status
 description: "Show c-thru routes, proxy URL, per-model usage stats (calls, tokens, last call time), and backend health. Use 'fix' to pull missing models and reload."
 allowed-tools: "Bash"
 ---

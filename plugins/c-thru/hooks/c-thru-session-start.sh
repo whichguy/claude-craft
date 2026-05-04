@@ -1,1 +1,1 @@
-../../../../c-thru/tools/c-thru-session-start.sh
+../../../../src/c-thru/tools/c-thru-session-start.sh
