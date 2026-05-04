@@ -4,7 +4,7 @@
 
 ```
 LAYOUT:      everything ships under plugins/<bundle>/ — top-level skills/agents/commands/references are GONE
-MARKETPLACE: .claude-plugin/marketplace.json lists 12 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
+MARKETPLACE: .claude-plugin/marketplace.json lists 11 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
              (c-thru is sourced via git-subdir from whichguy/c-thru — no plugins/c-thru/ in this repo)
 HOOKS:       plugins/<bundle>/hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT}/hooks/handlers/<x>.sh paths
 PATHS:       use ${CLAUDE_PLUGIN_ROOT} (plugin root), ${CLAUDE_SKILL_DIR} (per-skill), ${CLAUDE_PLUGIN_DATA} (persistent state)
@@ -23,7 +23,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 
 ---
 
-## Plugins (12)
+## Plugins (11)
 
 | Bundle | Scope |
 |---|---|
@@ -37,7 +37,6 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
 | plan-red-team    | Iterative red-team plan review |
-| local-classifier | Local Ollama prompt classifier hook |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.

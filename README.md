@@ -2,7 +2,7 @@
 
 **Family-bundled Claude Code extensions, distributed as a plugin marketplace.**
 
-Eleven plugins covering Apps Script tooling, project wiki, plan/code review,
+Plugins covering Apps Script tooling, project wiki, plan/code review,
 prompt research bench, planning, async workflow, slides, and several
 domain-specific bundles. Install only what you need.
 
@@ -37,7 +37,6 @@ Verify with `/plugin list`.
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
 | `plan-red-team`    | Iterative red-team plan review with Opus orchestration |
-| `local-classifier` | Local Ollama-powered prompt classifier UserPromptSubmit hook |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
 `gas-suite → review-suite`, `review-suite → wiki-suite`,
