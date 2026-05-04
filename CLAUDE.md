@@ -31,7 +31,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | wiki-suite       | Project LLM wiki + proactive research (absorbs old wiki-hooks/craft-hooks) |
 | review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* (deps: wiki-suite) |
 | review-bench     | Prompt/question A/B benchmarking, ablation (deps: review-suite) |
-| planning-suite   | Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge |
+| planning-suite   | Architect, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge |
 | async-suite      | bg/todo/todo-cleanup + task-persist + feedback-collector (merged hooks) |
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
