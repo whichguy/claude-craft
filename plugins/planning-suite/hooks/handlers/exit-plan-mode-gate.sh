@@ -4,8 +4,8 @@
 # Reads {tool_input, ...} JSON from stdin per Claude Code hook protocol.
 set -eo pipefail
 
-plan_file=$(ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1)
-slug=$(basename "$plan_file" .md 2>/dev/null)
+plan_file=$(ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1 || true)
+slug=$(basename "$plan_file" .md 2>/dev/null || true)
 
 if [ -n "$slug" ] && [ -f "$HOME/.claude/plans/.review-ready-$slug" ]; then
   printf '{}'
