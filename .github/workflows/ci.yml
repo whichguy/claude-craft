@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+        name: Install dependencies
+
+      - run: ./tools/lint-marketplace.sh
+        name: Marketplace lint (manifest + frontmatter + dep + drift)
+
+      - run: ./tools/lint-namespacing.sh
+        name: Namespacing lint (cross-bundle refs)
+
+      - run: ./tools/e2e-marketplace-smoke.sh
+        name: Marketplace smoke (7-check static validation)
+
+      - run: npm test
+        name: Mocha test suite
