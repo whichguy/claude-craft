@@ -103,13 +103,11 @@ done
 
 # ── Router-aware claude command resolution ────────────────────────────
 # Prefer claude-router (enables --route flag); fall back to bare claude.
+# claude-router ships with the c-thru plugin (separate marketplace entry);
+# look it up on PATH.
 CLAUDE_CMD=""
 if [[ -n "$RUNNER_OVERRIDE" ]]; then
   CLAUDE_CMD="$RUNNER_OVERRIDE"
-elif [[ -x "$HOME/.claude/tools/claude-router" ]]; then
-  CLAUDE_CMD="$HOME/.claude/tools/claude-router"
-elif [[ -x "$REPO_DIR/tools/claude-router" ]]; then
-  CLAUDE_CMD="$REPO_DIR/tools/claude-router"
 elif command -v claude-router >/dev/null 2>&1; then
   CLAUDE_CMD="claude-router"
 else

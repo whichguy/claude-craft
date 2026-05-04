@@ -38,7 +38,12 @@ import json, os, sys
 m = json.load(open('.claude-plugin/marketplace.json'))
 bad = []
 for p in m['plugins']:
-    src = p['source'].lstrip('./')
+    src = p['source']
+    # Remote sources (dict with type: git-subdir / git / etc.) can't be validated locally; skip.
+    if isinstance(src, dict):
+        print(f'  remote source — skipping: {p["name"]} ({src.get("type", "?")})')
+        continue
+    src = src.lstrip('./')
     if not os.path.isdir(src):
         bad.append((p['name'], src))
     elif not os.path.isfile(os.path.join(src, '.claude-plugin', 'plugin.json')):
