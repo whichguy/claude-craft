@@ -13,11 +13,13 @@ wiki_resolve_claude_cmd
 # Named route for extraction (rollback: export WIKI_WORKER_ROUTE=default to use Sonnet)
 WIKI_WORKER_ROUTE="${WIKI_WORKER_ROUTE:-background}"
 
-# Feature-detect: does CLAUDE_CMD support --route? Guards against stale router installs.
+# Feature-detect: does CLAUDE_CMD support --route? c-thru (the active router)
+# does; bare claude doesn't. When falling back to bare claude we must use
+# --model instead. Also catches stale router installs that pre-date --route.
 if "$CLAUDE_CMD" --help 2>&1 | grep -q -- '--route'; then
   WIKI_WORKER_USE_ROUTE=1
 else
-  wiki_log "WARN" "claude-router at $CLAUDE_CMD lacks --route support; falling back to --model claude-sonnet-4-6"
+  wiki_log "WARN" "router at $CLAUDE_CMD lacks --route support; falling back to --model claude-sonnet-4-6"
   WIKI_WORKER_USE_ROUTE=0
 fi
 

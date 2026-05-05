@@ -188,8 +188,11 @@ wiki_check_deps() {
   return 0
 }
 
-# wiki_resolve_claude_cmd: find claude-router (Bedrock/OpenRouter/Ollama) or fall back to bare claude.
-# Sets CLAUDE_CMD variable for caller to use.
+# wiki_resolve_claude_cmd: find the model router (c-thru, formerly claude-router —
+# wraps the bare claude CLI to route via Bedrock/OpenRouter/Ollama/Vertex/etc per
+# ~/.config/c-thru/model-map.json). Falls back to bare claude if no router is
+# installed. Sets CLAUDE_CMD for the caller. Callers feature-detect --route
+# support after the resolve to decide whether to pass --route or --model.
 wiki_resolve_claude_cmd() {
   local router
   for router in \

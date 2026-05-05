@@ -41,7 +41,7 @@ REPORT_PATH="$REPO_ROOT/.wiki/maintenance/lint-${TODAY}-bg.md"
 # --- All gates passed: claim session marker + resolve claude command ---
 touch "$SESSION_MARKER" 2>/dev/null || true
 
-# --- Resolve claude command (handles claude-router fallback) ---
+# --- Resolve claude command (resolves c-thru / claude-router symlink, or bare claude) ---
 wiki_resolve_claude_cmd
 
 # --- Feature-detect --route support (same pattern as wiki-worker.sh) ---

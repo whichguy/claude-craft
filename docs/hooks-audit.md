@@ -18,11 +18,11 @@ Propose-only review of every hook in claude-craft and the user-facing skill/comm
 | wiki-suite | SessionStart | * | handlers/wiki-detect.sh | KEEP-AS-IS | Cache-first + first-time prompt logic is good |
 | wiki-suite | SessionStart(*async) | * | handlers/wiki-cleanup.sh | KEEP-AS-IS | Janitor; expires markers >24h |
 | wiki-suite | SessionStart(*async) | * | handlers/wiki-cache-rebuild.sh | KEEP-AS-IS | Debounced + atomic write |
-| wiki-suite | SessionStart(*async) | * | handlers/wiki-worker.sh | **SIMPLIFY** | The `--route`-vs-`--model` feature-detect is dead (claude-router moved to c-thru); decide on a single path |
+| wiki-suite | SessionStart(*async) | * | handlers/wiki-worker.sh | KEEP-AS-IS (was SIMPLIFY) | Original audit was wrong — c-thru DOES support `--route`; branch is active routing infra. Comment cleanup only. |
 | wiki-suite | UserPromptSubmit | * | handlers/wiki-notify.sh | KEEP-AS-IS | Cache-first entity index, retry-guard present, /wiki-* skip present |
 | wiki-suite | UserPromptSubmit(async) | * | handlers/wiki-worker.sh | KEEP-AS-IS | Drains queue; same handler shared with SessionStart |
 | wiki-suite | UserPromptSubmit(async) | * | handlers/wiki-periodic-extract.sh | KEEP-AS-IS | Probabilistic queue producer; minimal work |
-| wiki-suite | UserPromptSubmit(async) | * | handlers/wiki-periodic-lint.sh | **SIMPLIFY** | Same `--route` dead-code as wiki-worker; clean up together |
+| wiki-suite | UserPromptSubmit(async) | * | handlers/wiki-periodic-lint.sh | KEEP-AS-IS (was SIMPLIFY) | Same correction as wiki-worker — `--route` is active. Comment cleanup only. |
 | wiki-suite | UserPromptSubmit(async) | * | handlers/proactive-research-extract.sh | KEEP-AS-IS | Recursion guard, rate limit, fork-detach all good |
 | wiki-suite | PostToolUse | Write\|Edit | handlers/wiki-cache-rebuild.sh | KEEP-AS-IS | Same handler; path-prefix gate keeps it cheap |
 | wiki-suite | PreToolUse | Write\|Edit | handlers/wiki-raw-guard.sh | KEEP-AS-IS | 11-line pure-grep handler; correct exit 2 + stderr message |
@@ -86,24 +86,19 @@ fi
 
 ---
 
-### wiki-suite / wiki-worker.sh + wiki-periodic-lint.sh — SIMPLIFY
+### wiki-suite / wiki-worker.sh + wiki-periodic-lint.sh — KEEP-AS-IS (verdict reversed)
 
-**Issue — dead `--route` feature detect.** Both handlers do:
-```bash
-if "$CLAUDE_CMD" --help 2>&1 | grep -q -- '--route'; then
-  WIKI_WORKER_USE_ROUTE=1
-else
-  wiki_log "WARN" "claude-router at $CLAUDE_CMD lacks --route support; falling back to --model claude-sonnet-4-6"
-fi
-```
+**Original audit finding (incorrect):** I claimed `--route` was dead code from the claude-router → c-thru migration. **It is not.** c-thru DOES support `--route <name>` (visible in `c-thru --help`); the wiki-suite resolver finds `~/.claude/tools/claude-router` (a symlink → `~/src/c-thru/tools/c-thru`), the feature-detect correctly returns positive, and `--route "$WIKI_WORKER_ROUTE"` actively routes extractions through the user's `model-map.json` (default route name: `background`).
 
-Per CLAUDE.md memory and your project notes, the `claude-router` (formerly under `tools/claude-router`) was replaced by the `c-thru` plugin (`whichguy/c-thru`). c-thru routes via its proxy URL, not via a `--route` flag on the CLI. So this feature-detect is testing for something that no longer exists in your stack.
+The branch is doing real work. Material value identified per the user's directive.
 
-**Concrete change**: pick one path and delete the branch.
-- If the workers are still expected to use a router CLI: replace `--route "$WIKI_WORKER_ROUTE"` with however c-thru wants the model selected (likely env var or `--model <c-thru-alias>`).
-- If they should just use the bare `claude` CLI: delete the feature detect, the `WIKI_WORKER_ROUTE` env var, and `wiki_resolve_claude_cmd`'s router fallback. ~20 lines per handler.
+**Cleanup actually applied (commit landing alongside Task #20):**
 
-This is the highest-leverage simplification in the audit — both handlers' main bodies become significantly shorter.
+- `wiki-common.sh:191-192` — comment updated to acknowledge c-thru as the active router; claude-router noted as the legacy name.
+- `wiki-worker.sh:20` — stderr WARN message changed from "claude-router at $CLAUDE_CMD lacks --route" to "router at $CLAUDE_CMD lacks --route" (the binary in question may be c-thru, claude-router, or a stale install).
+- `wiki-periodic-lint.sh:44` — comment updated to mention c-thru.
+
+**Follow-up proposal queued separately:** extend `wiki_resolve_claude_cmd` to search for `c-thru` directly (not just the `claude-router` legacy symlink). Currently a fresh c-thru install without the legacy symlink would silently degrade to bare `claude`. Defensive improvement; tracked.
 
 ---
 
