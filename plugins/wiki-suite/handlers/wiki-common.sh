@@ -166,7 +166,7 @@ wiki_log() {
 # --- Dependency validation ---
 # wiki_warn: stderr warning for hook diagnostics (surfaced by Claude Code hook system)
 wiki_warn() {
-  echo "wiki-hooks: $1" >&2
+  echo "wiki-suite: $1" >&2
 }
 
 # wiki_check_deps: pre-flight validation. Pass "true" to also require claude CLI.

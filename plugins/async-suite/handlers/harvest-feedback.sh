@@ -5,6 +5,14 @@
 
 set -eo pipefail
 
+# Dependency probe — match the pattern used by detect-quality-review.sh and
+# wiki-common.sh:wiki_check_deps. Without this, missing jq fails silently at
+# the first jq call and the hook stops harvesting forever with no signal.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "harvest-feedback: jq not found — feedback harvest disabled (install: brew install jq)" >&2
+  exit 0
+fi
+
 # Read hook input from stdin
 HOOK_INPUT=$(cat)
 
@@ -15,8 +23,11 @@ CWD=$(echo "$HOOK_INPUT" | jq -r '.cwd // ""' 2>/dev/null)
 [ -z "$TRANSCRIPT" ] && exit 0
 [ ! -f "$TRANSCRIPT" ] && exit 0
 
-# Resolve Git Root for central backlog location
-GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || echo "$CWD")
+# Resolve Git Root for the project-scoped backlog location. If we're not
+# inside any git repo, skip — writing under $CWD (often $HOME) would
+# scatter feedback across unrelated sessions and create surprise dirs.
+GIT_ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || true)
+[ -z "$GIT_ROOT" ] && exit 0
 BACKLOG_FILE="$GIT_ROOT/tasks/in-progress/prompt-improvements-backlog.md"
 
 # Pattern to look for

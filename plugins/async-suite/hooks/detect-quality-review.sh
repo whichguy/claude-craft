@@ -94,6 +94,14 @@ main() {
     local tool_result
     tool_result=$(cat)
 
+    # Cheap prefilter: 99% of TodoWrites don't contain a Run quality review
+    # checkbox, and the jq+regex pipeline below costs ~50ms. Pure substring
+    # match short-circuits those without any subprocess.
+    case "$tool_result" in
+      *"Run quality review"*) ;;
+      *) exit 0 ;;
+    esac
+
     # Extract current TodoWrite content from the tool call
     local curr_content
     curr_content=$(echo "$tool_result" | jq -r '.todos | map("- [\(if .status == "completed" then "x" else " " end)] \(.content)") | join("\n")' 2>/dev/null || echo "")
