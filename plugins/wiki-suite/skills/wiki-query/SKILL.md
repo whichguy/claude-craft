@@ -46,6 +46,17 @@ Read each page in the relevant set using the Read tool.
 If a page is listed in index.md but the file doesn't exist:
 Skip it and note: "Page [name] referenced in index but not found — run /wiki-lint"
 
+## Step 4.5 — Reinforce Access
+
+For each page that was Read in Step 4 AND will be cited in the synthesized
+answer, bump its `access_count` and `last_accessed`:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/tools/wiki-bump-access.sh <abs_path_1> <abs_path_2> ...
+```
+
+One invocation, all cited paths. Best-effort.
+
 ## Step 5 — Synthesize Answer
 
 Compose an answer using the evidence gathered:

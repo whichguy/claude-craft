@@ -121,6 +121,29 @@ HIT=$(grep -F -- "$REL_PATH"$'\t' "$REFS_FILE" 2>/dev/null | head -1 || true)
 SLUGS="${HIT#*$'\t'}"
 [ -z "$SLUGS" ] && exit 0
 
+# --- Reinforcement: bump access_count + last_accessed on each matched entity.
+# Inline awk (no source of wiki-common.sh) to keep the hot-path lean.
+# Best-effort; any failure is silently ignored.
+TODAY=$(date '+%Y-%m-%d')
+ENT_DIR="$REPO_ROOT/.wiki/entities"
+IFS=',' read -r -a SLUG_ARR <<<"${SLUGS//$'\n'/}"
+for s in "${SLUG_ARR[@]}"; do
+  s="${s%...*}"; s="${s// /}"
+  [ -z "$s" ] && continue
+  ENT="$ENT_DIR/$s.md"
+  [ -f "$ENT" ] && [ -w "$ENT" ] || continue
+  [ "$(head -1 "$ENT" 2>/dev/null)" = "---" ] || continue
+  TMP="$ENT.bump.$$"
+  awk -v today="$TODAY" '
+    BEGIN { in_fm=0; bc=0; ba=0 }
+    NR==1 && /^---$/ { in_fm=1; print; next }
+    in_fm && /^---$/ { if (!bc) print "access_count: 1"; if (!ba) print "last_accessed: " today; in_fm=0; print; next }
+    in_fm && /^access_count:[[:space:]]/ { n=$2+0; n+=1; print "access_count: " n; bc=1; next }
+    in_fm && /^last_accessed:[[:space:]]/ { print "last_accessed: " today; ba=1; next }
+    { print }
+  ' "$ENT" > "$TMP" 2>/dev/null && mv "$TMP" "$ENT" 2>/dev/null || rm -f "$TMP" 2>/dev/null
+done
+
 # --- Compose hint (≤200 chars) ---
 # First slug pulled out so the /wiki-load suggestion is concrete. If the first
 # slug carries an overflow marker (a5...+3), strip it for the /wiki-load arg —

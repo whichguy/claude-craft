@@ -63,6 +63,18 @@ Grep for TOPIC across both directories. Select up to 2 best matches.
 
 Read each matched page in full (max 7 pages total: up to 5 project + 2 global).
 
+## Step 3.5 — Reinforce Access (project tier only)
+
+For each project-tier page that was loaded, bump its `access_count` and
+`last_accessed` frontmatter fields via:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/tools/wiki-bump-access.sh <abs_path_1> <abs_path_2> ...
+```
+
+Pass all loaded project page paths in a single invocation. Best-effort —
+ignore errors. Do not bump global-tier pages (no schema for it there).
+
 ## Step 4 — Present Loaded Context
 
 Print using the output-format character vocabulary:

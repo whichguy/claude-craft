@@ -151,16 +151,21 @@ describe('Wiki Schema v2', function () {
             content = fs.readFileSync(initPath, 'utf8');
         });
 
-        it('initializes schema v2', function () {
-            expect(content).to.include('schema_version: 2');
-            expect(content).to.include('schema v2');
+        it('initializes schema v3 (post Task #22 memory mechanics)', function () {
+            expect(content).to.include('schema_version: 3');
+            expect(content).to.include('schema v3');
         });
 
-        it('template includes v2 entity frontmatter fields', function () {
+        it('template includes v2 entity frontmatter fields (still required in v3)', function () {
             expect(content).to.include('confidence:');
             expect(content).to.include('last_verified:');
             expect(content).to.include('sources:');
             expect(content).to.include('related:');
+        });
+
+        it('template includes v3 access reinforcement fields', function () {
+            expect(content).to.include('access_count:');
+            expect(content).to.include('last_accessed:');
         });
     });
 

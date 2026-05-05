@@ -73,7 +73,7 @@ Valid types: INIT, INGEST, QUERY, LINT, SESSION_START, SESSION_END, EXTRACT
 
 ## Entries
 
-[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at .wiki/ with schema v2
+[CURRENT_TIMESTAMP] INIT wiki-init: initialized wiki at .wiki/ with schema v3
 ```
 
 (Replace CURRENT_TIMESTAMP with actual timestamp: `date '+%Y-%m-%d %H:%M'`)
@@ -84,12 +84,23 @@ Write `REPO_ROOT/.wiki/SCHEMA.md` by copying from the canonical schema at `REPO_
 
 ```
 ---
-schema_version: 2
+schema_version: 3
 ---
-# Wiki Schema v2
+# Wiki Schema v3
 
 Dirs: .wiki/{entities,sources,queries,maintenance}, raw/ (LLM-write-protected, hook enforced)
 Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches both tiers
+
+## Schema v3 changes (additive over v2 — pre-v3 pages remain valid)
+- Entity frontmatter: optional `access_count: <int>` and `last_accessed: YYYY-MM-DD`
+  Bumped automatically on /wiki-load, /wiki-query, and PreToolUse(Read) hits via
+  ${CLAUDE_PLUGIN_ROOT}/tools/wiki-bump-access.sh. Surfaced in /wiki-lint as
+  Hot pages (top 10 by count) and Underused pages (count=0, age>90d).
+- Read-time confidence decay: retrieval surfaces compute effective_confidence
+  = stored × 2^(-(today - last_verified) / half_life_days) where half_life
+  defaults to 180; tags including `architecture` or `decision` use 365;
+  tags including `transient` or `bug` use 30. NOT a physical mutation —
+  the stored confidence field is never rewritten.
 
 ## Page Formats
 
@@ -103,6 +114,8 @@ Global tier: ~/.claude/wiki/topics/ (Sonnet auto-writes) — /wiki-load searches
   last_verified: YYYY-MM-DD
   created: YYYY-MM-DD
   last_updated: YYYY-MM-DD
+  access_count: 0          # v3 — bumped on /wiki-load, /wiki-query, read-gate hit
+  last_accessed: YYYY-MM-DD # v3 — refreshed on each bump
   sources: [source-slug-1]
   related: [entity-slug-1]
   ---

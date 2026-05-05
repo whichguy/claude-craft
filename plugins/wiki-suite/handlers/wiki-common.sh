@@ -345,3 +345,100 @@ wiki_wait_foreign_batches() {
   done
   return 1
 }
+
+# --- Memory mechanics (schema v3) -----------------------------------
+# wiki_bump_access <abs_page_path>
+# Increment access_count and refresh last_accessed in the page's YAML
+# frontmatter. Race-tolerant: atomic mv on success, no-op on any failure.
+# Lost updates under racing hooks are acceptable for this signal.
+# Pages without frontmatter (no leading "---") are skipped silently.
+wiki_bump_access() {
+  local page="$1"
+  [ -n "$page" ] && [ -f "$page" ] && [ -w "$page" ] || return 0
+  command -v awk >/dev/null 2>&1 || return 0
+  [ "$(head -1 "$page" 2>/dev/null)" = "---" ] || return 0
+
+  local today tmp
+  today=$(date '+%Y-%m-%d')
+  tmp="${page}.bump.$$"
+
+  awk -v today="$today" '
+    BEGIN { in_fm=0; saw_open=0; bumped_count=0; bumped_acc=0 }
+    NR==1 && /^---$/ { in_fm=1; saw_open=1; print; next }
+    in_fm && /^---$/ {
+      if (!bumped_count) print "access_count: 1"
+      if (!bumped_acc)   print "last_accessed: " today
+      in_fm=0; print; next
+    }
+    in_fm && /^access_count:[[:space:]]/ {
+      n = $2 + 0; n += 1
+      print "access_count: " n
+      bumped_count=1; next
+    }
+    in_fm && /^last_accessed:[[:space:]]/ {
+      print "last_accessed: " today
+      bumped_acc=1; next
+    }
+    { print }
+  ' "$page" > "$tmp" 2>/dev/null && mv "$tmp" "$page" 2>/dev/null || rm -f "$tmp" 2>/dev/null
+  return 0
+}
+
+# wiki_effective_confidence <abs_page_path>
+# Read-time decay computation. Output formats:
+#   ""                                            (no confidence in fm)
+#   "high"                                        (no last_verified)
+#   "high (verified 12d ago)"                     (stored == effective)
+#   "high (effective: medium — last verified 247d ago)" (stored > effective)
+# Half-life by tags: architecture/decision = 365d, transient/bug = 30d, else 180d.
+# Decay: effective_score = stored_score * 2^(-days_elapsed / half_life).
+wiki_effective_confidence() {
+  local page="$1"
+  [ -n "$page" ] && [ -f "$page" ] || { echo ""; return; }
+
+  local fm stored verified tags
+  fm=$(awk 'NR==1 && /^---$/ {fm=1; next} fm && /^---$/ {exit} fm {print}' "$page" 2>/dev/null)
+  [ -z "$fm" ] && { echo ""; return; }
+
+  stored=$(echo "$fm" | awk -F': *' '/^confidence:/ {print $2; exit}' | tr -d '"'"'")
+  verified=$(echo "$fm" | awk -F': *' '/^last_verified:/ {print $2; exit}' | tr -d '"'"'")
+  tags=$(echo "$fm" | awk -F': *' '/^tags:/ {print $2; exit}')
+
+  [ -z "$stored" ] && { echo ""; return; }
+  if [ -z "$verified" ]; then echo "$stored"; return; fi
+
+  local today_ts verify_ts days
+  today_ts=$(date '+%s')
+  verify_ts=$(date -j -f '%Y-%m-%d' "$verified" '+%s' 2>/dev/null) \
+    || verify_ts=$(date -d "$verified" '+%s' 2>/dev/null) \
+    || { echo "$stored"; return; }
+  days=$(( (today_ts - verify_ts) / 86400 ))
+  [ "$days" -lt 0 ] && days=0
+
+  local hl=180
+  case "$tags" in
+    *architecture*|*decision*) hl=365 ;;
+    *transient*|*bug*) hl=30 ;;
+  esac
+
+  local stored_score=2
+  case "$stored" in
+    high) stored_score=3 ;;
+    medium) stored_score=2 ;;
+    low) stored_score=1 ;;
+  esac
+
+  local eff_label
+  eff_label=$(awk -v s="$stored_score" -v d="$days" -v h="$hl" 'BEGIN {
+    es = s * (2 ^ (-d/h))
+    if (es >= 2.5)      print "high"
+    else if (es >= 1.5) print "medium"
+    else                print "low"
+  }')
+
+  if [ "$eff_label" = "$stored" ]; then
+    echo "$stored (verified ${days}d ago)"
+  else
+    echo "$stored (effective: $eff_label — last verified ${days}d ago)"
+  fi
+}

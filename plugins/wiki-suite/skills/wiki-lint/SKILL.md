@@ -93,6 +93,23 @@ This is an **advisory** flag only — never modify the confidence field.
 
 Collect STALE_HIGH_CONFIDENCE with page path, last_verified date, and days elapsed.
 
+## Step 10.5 — Hot + Underused Pages (schema v3 access reinforcement)
+
+Read entity pages with `access_count:` in frontmatter (grep first; cap at 200).
+
+**Hot pages**: top 10 by `access_count` value (descending). Skip pages with
+`access_count: 0`. These are the high-value entities — surface to the user
+so they know what's earning its keep.
+
+**Underused pages**: pages where `access_count == 0` (or field absent) AND
+`created` (or `last_updated` if `created` absent) is more than 90 days
+before TODAY. These are stale-on-arrival — never accessed since creation.
+
+Pages with neither field are fine — they're either pre-v3 (treated as
+access_count=0) or freshly written and haven't been hit yet.
+
+Collect HOT_PAGES (slug + count) and UNDERUSED_PAGES (slug + age_in_days).
+
 ## Step 11 — Write Report + Print Dashboard
 
 Write `REPORT_PATH` with the full detailed report (markdown format for Obsidian readability).
@@ -114,7 +131,9 @@ Then print a **terminal dashboard** to the user:
   ├─ Log rotation           [✓ OK | ⚠ N entries > 500]
   ├─ Missing v2 frontmatter [✓ 0 | ⚠ N of M pending]
   ├─ Unresolved contradictions [✓ 0 | ⚠ N pages]
-  └─ Stale high-confidence  [✓ 0 | ⚠ N >180d]
+  ├─ Stale high-confidence  [✓ 0 | ⚠ N >180d]
+  ├─ Hot pages (top 10)     [▸ N have access_count > 0]
+  └─ Underused pages        [✓ 0 | ▸ N untouched in 90+ days]
 
   [If any issues found, list top 3 most actionable:]
   ━━━ Top Actions ━━━━━━━━━━━━━━━━━━━━━
