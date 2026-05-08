@@ -336,6 +336,7 @@ do_sync() {
             local _pre_existing_plugins=()
             if [ "$name" = "plugins" ]; then
                 for _pp in "$claude_path"/*/; do
+                    [ -d "$_pp" ] || continue
                     local _ppn
                     _ppn=$(basename "${_pp%/}")
                     [ -L "$claude_path/$_ppn" ] && [ -e "$claude_path/$_ppn" ] && _pre_existing_plugins+=("$_ppn")
