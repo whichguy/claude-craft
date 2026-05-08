@@ -10,7 +10,7 @@
 #
 # Exit codes: 0 = success, 1 = repo not found, 2 = usage error
 
-set -eo pipefail
+set -euo pipefail
 shopt -s nullglob
 
 # Colors
@@ -388,9 +388,7 @@ do_sync() {
         local _pjson="$_plink/.claude-plugin/plugin.json"
         [ -f "$_pjson" ] || continue
         local _install_rel
-        _install_rel=$(python3 -c \
-            "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('install',''))" \
-            "$_pjson" 2>/dev/null || true)
+        _install_rel=$(jq -r '.install // empty' "$_pjson" 2>/dev/null || true)
         [ -z "$_install_rel" ] && continue
         local _install_script="$_plink/$_install_rel"
         if [ ! -f "$_install_script" ]; then
