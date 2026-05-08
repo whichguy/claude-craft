@@ -295,6 +295,7 @@ do_sync() {
     echo ""
 
     local synced=0
+    local _new_plugin_links=()
 
     for type_def in "${TYPES[@]}"; do
         IFS='|' read -r name emoji claude_sub repo_sub kind pattern skip <<< "$type_def"
@@ -331,6 +332,16 @@ do_sync() {
                 synced=$((synced + 1))
             done
         else
+            # For plugins: snapshot pre-existing valid symlinks before stale cleanup removes them
+            local _pre_existing_plugins=()
+            if [ "$name" = "plugins" ]; then
+                for _pp in "$claude_path"/*/; do
+                    local _ppn
+                    _ppn=$(basename "${_pp%/}")
+                    [ -L "$claude_path/$_ppn" ] && [ -e "$claude_path/$_ppn" ] && _pre_existing_plugins+=("$_ppn")
+                done
+            fi
+
             # Directory-based: remove stale and broken symlinks, create new
             for item in "$claude_path"/*; do
                 [ -L "$item" ] || continue
@@ -350,6 +361,13 @@ do_sync() {
                     continue
                 fi
                 ln -sfn "${item%/}" "$claude_path/$dn"
+                if [ "$name" = "plugins" ]; then
+                    local _was_existing=false
+                    for _ppn in "${_pre_existing_plugins[@]+"${_pre_existing_plugins[@]}"}"; do
+                        [ "$_ppn" = "$dn" ] && _was_existing=true && break
+                    done
+                    $_was_existing || _new_plugin_links+=("$claude_path/$dn")
+                fi
                 synced=$((synced + 1))
             done
         fi
@@ -361,6 +379,25 @@ do_sync() {
         echo -e "🔌 Merging plugin hooks..."
         "$REPO_PATH/tools/merge-hooks.sh"
     fi
+
+    # Run install scripts for newly registered plugins
+    for _plink in "${_new_plugin_links[@]+"${_new_plugin_links[@]}"}"; do
+        [ -d "$_plink" ] || continue
+        local _pjson="$_plink/.claude-plugin/plugin.json"
+        [ -f "$_pjson" ] || continue
+        local _install_rel
+        _install_rel=$(python3 -c \
+            "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('install',''))" \
+            "$_pjson" 2>/dev/null || true)
+        [ -z "$_install_rel" ] && continue
+        local _install_script="$_plink/$_install_rel"
+        if [ ! -f "$_install_script" ] || [ ! -x "$_install_script" ]; then
+            echo -e "  ${YELLOW}⚠️  $(basename "$_plink"): install script missing/not executable: $_install_rel${NC}"
+            continue
+        fi
+        echo -e "  🔧 Running install script for $(basename "$_plink")..."
+        "$_install_script" || echo -e "  ${YELLOW}⚠️  $(basename "$_plink"): install script exited non-zero (non-fatal)${NC}"
+    done
 
     echo ""
     echo -e "${GREEN}Synced $synced items across all extension types.${NC}"

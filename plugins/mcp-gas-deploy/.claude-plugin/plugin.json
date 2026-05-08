@@ -4,5 +4,6 @@
   "version": "0.2.0",
   "author": { "name": "Jim Wiese", "url": "https://github.com/whichguy/mcp-gas-deploy" },
   "homepage": "https://github.com/whichguy/mcp-gas-deploy",
-  "keywords": ["google-apps-script", "gas", "deployment", "mcp", "commonjs", "clasp"]
+  "keywords": ["google-apps-script", "gas", "deployment", "mcp", "commonjs", "clasp"],
+  "install": "hooks/install.sh"
 }

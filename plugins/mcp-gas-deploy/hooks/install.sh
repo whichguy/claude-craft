@@ -1,0 +1,1 @@
+../../../../mcp-gas-deploy/scripts/plugin-install.sh
