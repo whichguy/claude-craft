@@ -1,0 +1,8 @@
+{
+  "name": "mcp-gas-deploy",
+  "description": "Google Apps Script MCP tools — create, push, pull, exec, deploy, rollback, fork, trigger, lint, and CommonJS validation for GAS projects.",
+  "version": "0.2.0",
+  "author": { "name": "Jim Wiese", "url": "https://github.com/whichguy/mcp-gas-deploy" },
+  "homepage": "https://github.com/whichguy/mcp-gas-deploy",
+  "keywords": ["google-apps-script", "gas", "deployment", "mcp", "commonjs", "clasp"]
+}

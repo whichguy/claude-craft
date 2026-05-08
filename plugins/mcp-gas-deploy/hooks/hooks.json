@@ -1,0 +1,11 @@
+{
+  "description": "mcp-gas-deploy SessionStart hook. Registers the MCP server on first run. Silent on happy path.",
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "*",
+      "hooks": [
+        { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/mcp-gas-deploy-session-start.sh", "timeout": 30 }
+      ]
+    }]
+  }
+}
