@@ -391,8 +391,11 @@ do_sync() {
             "$_pjson" 2>/dev/null || true)
         [ -z "$_install_rel" ] && continue
         local _install_script="$_plink/$_install_rel"
-        if [ ! -f "$_install_script" ] || [ ! -x "$_install_script" ]; then
-            echo -e "  ${YELLOW}⚠️  $(basename "$_plink"): install script missing/not executable: $_install_rel${NC}"
+        if [ ! -f "$_install_script" ]; then
+            echo -e "  ${YELLOW}⚠️  $(basename "$_plink"): install script not found: $_install_rel${NC}"
+            continue
+        elif [ ! -x "$_install_script" ]; then
+            echo -e "  ${YELLOW}⚠️  $(basename "$_plink"): install script not executable (chmod +x): $_install_rel${NC}"
             continue
         fi
         echo -e "  🔧 Running install script for $(basename "$_plink")..."
