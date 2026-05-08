@@ -364,8 +364,9 @@ do_sync() {
                 ln -sfn "${item%/}" "$claude_path/$dn"
                 if [ "$name" = "plugins" ]; then
                     local _was_existing=false
-                    for _ppn in "${_pre_existing_plugins[@]+"${_pre_existing_plugins[@]}"}"; do
-                        [ "$_ppn" = "$dn" ] && _was_existing=true && break
+                    local _ep
+                    for _ep in "${_pre_existing_plugins[@]+"${_pre_existing_plugins[@]}"}"; do
+                        [ "$_ep" = "$dn" ] && _was_existing=true && break
                     done
                     $_was_existing || _new_plugin_links+=("$claude_path/$dn")
                 fi
