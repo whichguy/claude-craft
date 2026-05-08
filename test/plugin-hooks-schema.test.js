@@ -21,7 +21,7 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // Claude Code's documented hook event names.
 const VALID_EVENTS = new Set([
     'SessionStart', 'SessionEnd', 'UserPromptSubmit',
-    'PreToolUse', 'PostToolUse', 'PreCompact', 'Stop',
+    'PreToolUse', 'PostToolUse', 'PreCompact', 'PostCompact', 'Stop',
     'Notification', 'PermissionRequest', 'SubagentStop',
 ]);
 
