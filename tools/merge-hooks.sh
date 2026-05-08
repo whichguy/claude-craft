@@ -12,7 +12,7 @@
 #   merge-hooks.sh --dry-run        # Show what would change
 #   merge-hooks.sh --status         # Show current merge state
 
-set -eo pipefail
+set -euo pipefail
 
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 SETTINGS_FILE="$CLAUDE_DIR/settings.json"
