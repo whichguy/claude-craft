@@ -72,4 +72,6 @@ Fix: [before/after code block (max 15 lines)]
 `LOOP_DIRECTIVE: COMPLETE` (if clean)
 
 ### Review Manifest
-Write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.json`. Include `status`, `critical_count`, and `advisory_count`.
+**Only when running inside a `review-fix` worktree** (invoked by the review-fix orchestrator, not standalone): write to `<worktree>/docs/planning/review-manifests/<basename>-review-manifest.json`. Include `status`, `critical_count`, and `advisory_count`.
+
+When invoked standalone via `Agent(subagent_type: "review-suite:code-reviewer")`, skip this step — the manifest is only consumed by review-fix and writing it standalone creates empty directories in the live repo root with no consumer.
