@@ -72,7 +72,7 @@ echo "Recent sessions (newest first):"
 echo ""
 for dir in $(ls -td "$TASKS_DIR"/*/ 2>/dev/null | head -20); do
   dir="${dir%/}"
-  proj_file="$dir/.project"
+  proj_file="$dir/pending-tasks.json"
   [ ! -f "$proj_file" ] && continue
   [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
   sid=$(basename "$dir")
@@ -97,7 +97,7 @@ if [ -z "$TARGET_SID" ]; then
   # Default: most recent session with *.json files for this repo
   for dir in $(ls -td "$TASKS_DIR"/*/ 2>/dev/null); do
     dir="${dir%/}"
-    proj_file="$dir/.project"
+    proj_file="$dir/pending-tasks.json"
     [ ! -f "$proj_file" ] && continue
     [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
     json_files=("$dir"/*.json)

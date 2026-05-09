@@ -47,7 +47,7 @@ describe('task-persist-restore.sh', function () {
         const dir = path.join(fakeTasksDir, PRIOR_SID);
         fs.mkdirSync(dir, { recursive: true });
         // Write the project tag so the restore script can match it against the current session's git root
-        fs.writeFileSync(path.join(dir, '.project'), gitRoot);
+        fs.writeFileSync(path.join(dir, 'pending-tasks.json'), gitRoot);
         return dir;
     }
 
