@@ -12,7 +12,11 @@ fi
 
 slug=$(basename "$plan_file" .md)
 
-if [ -f "$HOME/.claude/plans/.review-ready-$slug" ]; then
+# Allow if review-plan wrote the gate, OR if a previous ExitPlanMode for this
+# slug already succeeded (cleanup leaves an `.exited-<slug>` sentinel) — makes
+# repeat ExitPlanMode calls on the same plan idempotent silent no-ops.
+if [ -f "$HOME/.claude/plans/.review-ready-$slug" ] \
+   || [ -f "$HOME/.claude/plans/.exited-$slug" ]; then
   exit 0
 fi
 
