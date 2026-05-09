@@ -26,6 +26,13 @@ SNAPSHOTS_DIR="$HOME/.claude/tasks-snapshots"
 
 mkdir -p "$SNAPSHOTS_DIR"
 
+# Compute git root for project-scoped restore
+_GIT_ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
+
+# Tag current session with its git root (created even if session has no tasks yet)
+mkdir -p "$TASKS_DIR/$SID"
+printf '%s' "$_GIT_ROOT" > "$TASKS_DIR/$SID/.project"
+
 # Prune sentinels older than 30 days to prevent unbounded accumulation
 find "$SNAPSHOTS_DIR" -name '.restored-*' -mtime +30 -delete 2>/dev/null || true
 
@@ -42,6 +49,10 @@ if [ ${#task_dirs[@]} -gt 0 ]; then
   for dir in $(ls -dt "${task_dirs[@]}" 2>/dev/null); do
     dir="${dir%/}"
     [ "$(basename "$dir")" = "$SID" ] && continue
+    # Skip sessions with no project tag (pre-fix) or a different project
+    proj_file="$dir/.project"
+    [ ! -f "$proj_file" ] && continue
+    [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
     json_files=("$dir"/*.json)
     if [ ${#json_files[@]} -gt 0 ] && [ -f "${json_files[0]}" ]; then
       PRIOR_DIR="$dir"
