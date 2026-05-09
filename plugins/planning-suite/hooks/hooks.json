@@ -1,5 +1,5 @@
 {
-  "description": "Plan-mode review gate: PreToolUse blocks ExitPlanMode unless review-plan has produced a slug-scoped gate file at ~/.claude/plans/.review-ready-<slug>, or a prior successful exit left an `.exited-<slug>` sentinel (idempotent re-exit allowed silently). PostToolUse renames the gate to the sentinel and emits an advisory nudge to invoke /schedule-plan-tasks.",
+  "description": "Plan-mode review gate: PreToolUse blocks ExitPlanMode unless review-plan has produced a slug-scoped gate file at ~/.claude/plans/.review-ready-<slug>, or a prior successful exit left an `.exited-<slug>` sentinel (idempotent re-exit allowed silently). Active slug is identified from the session transcript (transcript_path on hook stdin), with mtime fallback only when the transcript is unavailable — avoids misidentifying the active plan when ~/.claude/plans/ holds stale files from other sessions. PostToolUse renames the gate to the sentinel and emits an advisory nudge to invoke /schedule-plan-tasks.",
   "hooks": {
     "PreToolUse": [
       {
