@@ -8,7 +8,7 @@
 set -eo pipefail
 
 HOOK_INPUT=$(cat)
-. "$(dirname "$0")/_active-plan-slug.sh"
+. "${BASH_SOURCE[0]%/*}/_active-plan-slug.sh"
 resolve_active_slug "$HOOK_INPUT"
 
 # No active plan signal — nothing to gate; allow silently.

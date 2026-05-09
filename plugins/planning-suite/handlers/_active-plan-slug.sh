@@ -17,10 +17,17 @@
 resolve_active_slug() {
   local input="$1"
   local transcript slug=""
-  transcript=$(printf '%s' "$input" | jq -r '.transcript_path // ""' 2>/dev/null)
+  # `|| true` on both pipelines: under `set -eo pipefail` (inherited from the
+  # caller when sourced), jq's exit-5 on bad input and grep's exit-1 on no-match
+  # would otherwise propagate out of $(...) and abort the script before the
+  # mtime fallback runs — defeating the whole point of having a fallback.
+  transcript=$(printf '%s' "$input" | jq -r '.transcript_path // ""' 2>/dev/null || true)
   if [ -n "$transcript" ] && [ -r "$transcript" ]; then
+    # Slug regex assumes lowercase-alphanumeric-with-dashes (current generator output).
+    # If that ever changes, transcript matches will silently miss and the mtime
+    # fallback will (incorrectly) take over — re-introducing the original bug.
     slug=$(grep -oE '\.claude/plans/[a-z0-9-]+\.md' "$transcript" 2>/dev/null \
-            | tail -1 | sed -E 's|.*/([^/]+)\.md|\1|')
+            | tail -1 | sed -E 's|.*/([^/]+)\.md|\1|' || true)
   fi
   if [ -z "$slug" ]; then
     local f
