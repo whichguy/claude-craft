@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "question-candidates.json",
+  "description": "10 candidate clarifying questions, each with 2-3 plausible answers and explicit answer-prior probabilities summing to 1.0 +/- 1e-6.",
+  "type": "array",
+  "minItems": 1,
+  "maxItems": 10,
+  "items": {
+    "type": "object",
+    "required": ["q_idx", "q", "answers"],
+    "additionalProperties": false,
+    "properties": {
+      "q_idx": { "type": "integer", "minimum": 0 },
+      "q": { "type": "string", "minLength": 1 },
+      "answers": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 3,
+        "items": {
+          "type": "object",
+          "required": ["a_idx", "a", "p"],
+          "additionalProperties": false,
+          "properties": {
+            "a_idx": { "type": "integer", "minimum": 0 },
+            "a": { "type": "string", "minLength": 1 },
+            "p": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

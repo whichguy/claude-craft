@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "distribution.json",
+  "description": "Empirical probability distribution over original slots A-E after rater fan-out + permutation reversal + renormalization.",
+  "type": "object",
+  "required": ["A", "B", "C", "D", "E"],
+  "additionalProperties": false,
+  "properties": {
+    "A": { "type": "number", "minimum": 0, "maximum": 1 },
+    "B": { "type": "number", "minimum": 0, "maximum": 1 },
+    "C": { "type": "number", "minimum": 0, "maximum": 1 },
+    "D": { "type": "number", "minimum": 0, "maximum": 1 },
+    "E": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}
