@@ -10,7 +10,7 @@ Substitutions:
 - `{task_summary_table}` — markdown table of every delivery-agent task: ID, subject, RESULT
 - `{commit_log}` — output of `git -C "$REPO_ROOT" log --reverse --pretty=format:'%n### %s%n%n%b' "$UPSTREAM_BRANCH..$INTEGRATION_BRANCH"`
 - `{verify_summary}` — aggregated `VERIFY_CMD` lines extracted from each task's commit body
-- `{review_notes}` — aggregated `Critical applied` / `Advisory deferred` lines from each task's commit body
+- `{review_notes}` — aggregated `Critical applied` / `Advisory deferred` lines from each task's commit body. Append a final line referencing the learnings file: `Run learnings aggregated to: $REPO_ROOT/.skill-learnings-<short-sha>.md` (replaced with `(local-only path: see $REPO_ROOT/.schedule-summary-<short-sha>.md)` when the orchestrator took the local-only branch)
 
 ---
 
