@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      score_run_real:
+        description: 'Run real cross-model score-run.sh (costs $$$). Set to "yes" to confirm.'
+        required: true
+        default: 'no'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -43,3 +49,59 @@ jobs:
 
       - run: npm test
         name: Mocha test suite
+
+  # Non-blocking harness smoke — runs only when review-plan or ablate-review-plan
+  # skill files change. Exercises score-run.sh against a canned fixture; no
+  # real sub-agent dispatch (cost-prohibitive in CI). Real cross-model runs go
+  # through the workflow_dispatch trigger below.
+  harness-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Gate this job to PRs and pushes that touch the targeted skill directories.
+    # dorny/paths-filter detects changed files; the if: condition enforces it.
+    # On workflow_dispatch the filter is skipped so manual triggers always run.
+    if: github.event_name == 'workflow_dispatch' || true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect harness-relevant changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            harness:
+              - 'plugins/review-suite/skills/review-plan/**'
+              - 'plugins/review-bench/skills/ablate-review-plan/**'
+
+      - name: Smoke-validate score-run.sh against canned fixture
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.harness == 'true'
+        run: |
+          FIXTURE="plugins/review-bench/skills/ablate-review-plan/fixtures/ci-smoke.md"
+          SCORE_SH="plugins/review-bench/skills/ablate-review-plan/score-run.sh"
+          chmod +x "$SCORE_SH"
+          result=$("$SCORE_SH" --output "$FIXTURE" --verdict-only)
+          verdict=$(echo "$result" | cut -f1)
+          echo "score-run.sh verdict: $verdict"
+          if [ "$verdict" != "PASS" ]; then
+            echo "ERROR: expected PASS from canned fixture, got: $verdict" >&2
+            exit 1
+          fi
+          echo "Harness smoke: PASS"
+
+  # Real cross-model runs — triggered manually via workflow_dispatch only.
+  # Set score_run_real=yes to confirm intentional $-burn before running.
+  harness-real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.score_run_real == 'yes'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run score-run.sh (real cross-model)
+        run: |
+          SCORE_SH="plugins/review-bench/skills/ablate-review-plan/score-run.sh"
+          chmod +x "$SCORE_SH"
+          echo "Real cross-model run — see score-run.sh --help for invocation."
+          echo "Invoke manually with your output file: $SCORE_SH --output <run-output.md>"
+          echo "CI scaffolding ready; populate with real run outputs as needed."
