@@ -354,7 +354,9 @@ when the work warrants parallel decomposition).
 
 **Spawn:** for each chunk run `git worktree add .worktrees/<sub-id> -b <sub-branch> <your-working-branch>`,
 then dispatch an Agent using this same template with: Working directory = sub-worktree path,
-MERGE_TARGET = your working branch (not Target branch). Dispatch all sub-tasks in parallel
+MERGE_TARGET = your working branch (not Target branch), MAIN_REPO_ROOT = your `WORKTREE_PATH`
+(your own worktree, where the parent's working branch is checked out — this is where the
+sub-task's self-merge lands). Dispatch all sub-tasks in parallel
 (one message, multiple Agent calls). Wait for all to return `RESULT: complete` before
 continuing — your own merge does not proceed until every sub-task has merged into your
 working branch.
@@ -374,18 +376,48 @@ Include the failing sub-task's branch, worktree, and FAILURE in your INCOMPLETE 
 
 ## Before return: commit
 
-Make exactly one `git commit` covering only the files this task produced directly:
+Make exactly one `git commit` covering only the files this task produced directly. The
+commit body is the lessons-learned record — pack the rich context you accumulated
+through Phases 1–6 into the structured template below so `git log` becomes reviewable
+later. Each section heading is mandatory; the body of any section may be `n/a` or
+`none`, but the heading must appear so `git log --grep` works reliably.
 
 ```
 git status                                # verify what changed
 git add <files you modified>              # stage by name; never `-A`
-git commit -m "task-N: [subject] - [why]"
+git commit -F - <<'EOF'
+task-N: <subject>
+
+Why:
+  <1–3 lines: why this task exists, what observable outcome it produces.
+   Pull from inferred Purpose/DoD.>
+
+What was considered:
+  <Alternatives weighed. Include L0a agent-selection reasoning when a fallback
+   to general-purpose was used, and any assumptions noted under WORK.
+   Use "n/a" only when the path was genuinely obvious.>
+
+What was tested:
+  VERIFY_CMD: <exact Phase 5 command string>
+  Result: <pass | pass after N fix iterations | etc.>
+  <Optional: list of test labels that exercise the change.>
+
+Review findings:
+  Critical applied: <count + one-line summary, or "none">
+  Advisory deferred: <count + one-line summary + reason for deferral, or "none">
+
+Key learnings:
+  <Hidden invariants, workarounds, gotchas a future task in this area should
+   know. "none" is acceptable but should be rare for non-trivial tasks.>
+EOF
 ```
 
 Rules:
 - One commit per task — consolidate any inline `git commit` calls from your inferred what-to-do here.
 - Skip the commit if this task made no file changes (e.g. read-only analysis); note in WORK.
 - Sub-task merge commits already on your branch are NOT yours to re-commit.
+- For trivial tasks (`Isolation: none (trivial)`), the body may collapse `What was considered`,
+  `Review findings`, and `Key learnings` to one line each, but the structure stays.
 
 **After committing — branch by Isolation and Self-merge:**
 
@@ -413,8 +445,20 @@ verify DoD (e.g. `VERIFY_CMD="npm test"` or `VERIFY_CMD="npm run lint && npm tes
 The self-merge block below re-evals it after rebase if HEAD moved.
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
+# MAIN_REPO_ROOT is read from the envelope header set by the orchestrator.
+# Do NOT use `git rev-parse --show-toplevel` here — when invoked inside a linked
+# worktree, --show-toplevel returns the worktree's own root, not the main repo.
+# Fallback for sub-tasks where the parent agent forgot to pass it: derive from
+# --git-common-dir (which points at <main>/.git from any linked worktree).
+REPO_ROOT="[MAIN_REPO_ROOT]"
+if [ -z "$REPO_ROOT" ] || [ "$REPO_ROOT" = "[MAIN_REPO_ROOT]" ]; then
+  COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir)
+  REPO_ROOT=$(dirname "$COMMON_DIR")
+fi
 MERGE_TARGET="[MERGE_TARGET]"
+CHAIN_ID="[CHAIN_ID]"
+[ "$CHAIN_ID" = "[CHAIN_ID]" ] && CHAIN_ID=""   # placeholder leaked → standalone
+[ "$CHAIN_ID" = "none" ] && CHAIN_ID=""
 WORKTREE_PATH=$(pwd)
 WORKTREE_BRANCH=$(git branch --show-current)
 MAX_RETRIES=5
@@ -452,7 +496,24 @@ while [ $attempt -lt $MAX_RETRIES ]; do
   fi
 
   cd "$REPO_ROOT"
-  git merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET"
+  # Build a rich merge-commit body so `git log --first-parent $MERGE_TARGET` reads as
+  # a story. For chains (tail self-merging the chain into MERGE_TARGET), include the
+  # full chain log; for standalones, copy the single task commit's body.
+  if [ -n "$CHAIN_ID" ]; then
+    CHAIN_LOG=$(git log --reverse --pretty='format:--- %s%n%b%n' "$MERGE_TARGET..$WORKTREE_BRANCH")
+    git merge --no-ff "$WORKTREE_BRANCH" -F - <<EOF
+merge: $WORKTREE_BRANCH → $MERGE_TARGET (chain: $CHAIN_ID)
+
+$CHAIN_LOG
+EOF
+  else
+    LAST_COMMIT_BODY=$(git log -1 --pretty=%B "$WORKTREE_BRANCH")
+    git merge --no-ff "$WORKTREE_BRANCH" -F - <<EOF
+merge: $WORKTREE_BRANCH → $MERGE_TARGET
+
+$LAST_COMMIT_BODY
+EOF
+  fi
   if [ $? -eq 0 ]; then
     git worktree remove "$WORKTREE_PATH" --force
     git branch -d "$WORKTREE_BRANCH"

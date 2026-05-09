@@ -529,3 +529,134 @@ describe('cross-reference integrity', function () {
         expect(missing, 'missing reference files').to.deep.equal([]);
     });
 });
+
+describe('REPO_ROOT support (target repo ≠ CWD + bootstrap)', function () {
+    const SKILL = fs.readFileSync(
+        path.join(REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'SKILL.md'),
+        'utf8',
+    );
+    const CREATE_WT = fs.readFileSync(path.join(REFS, 'create-wt-prompt.md'), 'utf8');
+    const ENVELOPE = fs.readFileSync(path.join(REFS, 'delivery-agent-description.md'), 'utf8');
+    const AGENT = fs.readFileSync(
+        path.join(REPO_ROOT, 'plugins', 'planning-suite', 'agents', 'delivery-agent.md'),
+        'utf8',
+    );
+    const FIX_DIR = path.join(
+        REPO_ROOT, 'plugins', 'planning-suite', 'skills', 'schedule-plan-tasks', 'fixtures',
+    );
+
+    it('SKILL.md documents --repo CLI flag', function () {
+        expect(SKILL.includes('--repo'), '--repo flag').to.be.true;
+    });
+
+    it('SKILL.md documents Repo: front-matter resolution (precedence + scan window)', function () {
+        expect(SKILL.includes('^Repo:'), 'Repo: regex').to.be.true;
+        expect(SKILL.includes('first 30 lines'), '30-line scan window').to.be.true;
+        expect(SKILL.includes('Multiple Repo: declarations'), 'duplicate-Repo halt message').to.be.true;
+    });
+
+    it('SKILL.md mentions REPO_ROOT in resolution + banner + dry-run report', function () {
+        const count = (SKILL.match(/REPO_ROOT/g) || []).length;
+        expect(count, 'REPO_ROOT mentions').to.be.at.least(10);
+        expect(SKILL.includes('Repo: <REPO_ROOT>'), 'Repo banner line').to.be.true;
+    });
+
+    it('SKILL.md documents Bootstrap: yes front-matter and bootstrap task body', function () {
+        expect(SKILL.includes('Bootstrap: yes'), 'Bootstrap: yes front-matter').to.be.true;
+        expect(SKILL.includes('BootstrapNeeded'), 'BootstrapNeeded variable').to.be.true;
+        expect(SKILL.includes('mkdir -p "$REPO_ROOT"'), 'mkdir bootstrap line').to.be.true;
+        expect(SKILL.includes('git -C "$REPO_ROOT" init'), 'git init in bootstrap').to.be.true;
+        expect(SKILL.includes('--bootstrap'), '--bootstrap CLI flag').to.be.true;
+    });
+
+    it('SKILL.md replaces CWD git calls with git -C "$REPO_ROOT"', function () {
+        expect(
+            SKILL.includes('git -C "$REPO_ROOT" branch --show-current'),
+            'Target branch capture uses git -C',
+        ).to.be.true;
+        expect(
+            SKILL.includes('git -C "$REPO_ROOT" log -1 --oneline'),
+            'context prime uses git -C',
+        ).to.be.true;
+        // The legacy bare "git branch --show-current" line must no longer be presented as an
+        // imperative on its own; only the historical bullet that explains "ALSO never read
+        // from plan file" is allowed to mention it.
+        expect(
+            SKILL.match(/^- `git branch --show-current`/m),
+            'no bare bullet "git branch --show-current"',
+        ).to.equal(null);
+    });
+
+    it('SKILL.md adds repo_root to all task metadata schemas', function () {
+        // Each metadata schema (git-prep, create-wt, delivery-agent, regression) must have repo_root
+        const repoRootHits = (SKILL.match(/repo_root:/g) || []).length;
+        expect(repoRootHits, 'repo_root in metadata schemas').to.be.at.least(4);
+    });
+
+    it('SKILL.md adds Assert 9 (repo_root non-empty, absolute, identical across run)', function () {
+        expect(SKILL.includes('Assert 9'), 'Assert 9 row').to.be.true;
+        expect(SKILL.includes('metadata.repo_root'), 'metadata.repo_root reference').to.be.true;
+    });
+
+    it('SKILL.md substitution list mentions [REPO_ROOT] for create-wt', function () {
+        expect(
+            SKILL.includes('`[REPO_ROOT]`'),
+            '[REPO_ROOT] placeholder in create-wt substitution list',
+        ).to.be.true;
+    });
+
+    it('SKILL.md sets Working directory to absolute $REPO_ROOT/.worktrees/...', function () {
+        expect(
+            SKILL.includes('$REPO_ROOT/.worktrees/<id>'),
+            'absolute Working directory substitution',
+        ).to.be.true;
+    });
+
+    it('SKILL.md sets MAIN_REPO_ROOT envelope header from $REPO_ROOT', function () {
+        expect(SKILL.includes('MAIN_REPO_ROOT'), 'MAIN_REPO_ROOT mention').to.be.true;
+    });
+
+    it('create-wt-prompt.md uses [REPO_ROOT] placeholder + git -C', function () {
+        expect(CREATE_WT.includes('[REPO_ROOT]'), '[REPO_ROOT] placeholder').to.be.true;
+        expect(CREATE_WT.includes('git -C "[REPO_ROOT]" worktree add'), 'git -C worktree add').to.be.true;
+        expect(
+            CREATE_WT.includes('"[REPO_ROOT]/.worktrees/task-N"'),
+            'absolute worktree path under [REPO_ROOT]',
+        ).to.be.true;
+        // Bare `git worktree add .worktrees/...` (relative, CWD-coupled) must be gone
+        expect(
+            /git worktree add \.worktrees\//.test(CREATE_WT),
+            'no relative .worktrees path in create-wt template',
+        ).to.be.false;
+    });
+
+    it('delivery-agent-description.md envelope includes MAIN_REPO_ROOT header', function () {
+        expect(ENVELOPE.includes('MAIN_REPO_ROOT:'), 'MAIN_REPO_ROOT envelope field').to.be.true;
+        expect(ENVELOPE.includes('[MAIN_REPO_ROOT value]'), 'placeholder description').to.be.true;
+    });
+
+    it('delivery-agent.md self-merge no longer relies on `git rev-parse --show-toplevel`', function () {
+        // The buggy literal must be gone from the self-merge derivation.
+        expect(
+            AGENT.includes('REPO_ROOT=$(git rev-parse --show-toplevel)'),
+            'buggy --show-toplevel derivation removed',
+        ).to.be.false;
+        // And the new derivation must reference [MAIN_REPO_ROOT] (envelope read) with a
+        // --git-common-dir fallback.
+        expect(AGENT.includes('REPO_ROOT="[MAIN_REPO_ROOT]"'), 'envelope-driven REPO_ROOT').to.be.true;
+        expect(AGENT.includes('--git-common-dir'), 'common-dir fallback').to.be.true;
+    });
+
+    it('plan9-external-repo.md fixture has a Repo: front-matter line', function () {
+        const content = fs.readFileSync(path.join(FIX_DIR, 'plan9-external-repo.md'), 'utf8');
+        const head = content.split('\n').slice(0, 30).join('\n');
+        expect(/^Repo:\s*\S+/m.test(head), 'Repo: front-matter line in first 30 lines').to.be.true;
+    });
+
+    it('plan10-bootstrap.md fixture has both Repo: and Bootstrap: yes', function () {
+        const content = fs.readFileSync(path.join(FIX_DIR, 'plan10-bootstrap.md'), 'utf8');
+        const head = content.split('\n').slice(0, 30).join('\n');
+        expect(/^Repo:\s*\S+/m.test(head), 'Repo: front-matter').to.be.true;
+        expect(/^Bootstrap:\s*yes\s*$/m.test(head), 'Bootstrap: yes front-matter').to.be.true;
+    });
+});

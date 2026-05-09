@@ -77,9 +77,38 @@ ledger TaskCreate verb, using the same schemas defined in the Phase 1 creation p
 
 **Plan path detection:** if args contain `--plan <path>`, capture `PlanPath = <path>` (absolute or relative to cwd). Otherwise `PlanPath = nil` (auto-discovery runs in Step 1).
 
-Print the active mode banner once:
+**`REPO_ROOT` resolution (runs after mode + plan-path detection, before any git/Agent action):**
+
+Resolution order:
+1. CLI flag `--repo <path>` → `REPO_ROOT_RAW = <path>` (highest precedence)
+2. Plan front-matter (Branch A only, when `PlanPath` is set and readable): scan the first 30 lines of the plan file for a single line matching `^Repo:\s*(.+)$`. If found → `REPO_ROOT_RAW = <captured value>`. If multiple matching lines exist, halt with `Multiple Repo: declarations in plan front-matter — keep one`.
+3. Otherwise → `REPO_ROOT_RAW = $(pwd)`
+
+If `--repo` AND a `Repo:` header are both present, `--repo` wins; print `[REPO_ROOT] CLI flag overrides plan front-matter (was: <header value>)`.
+
+Validation + normalization (applied to `REPO_ROOT_RAW`):
+- Reject empty strings.
+- Expand a leading `~` to `$HOME`.
+- Resolve to absolute via `realpath -m "$REPO_ROOT_RAW"` (the `-m` flag accepts nonexistent paths for the bootstrap case). If `realpath -m` is unavailable on the host, fall back to `python3 -c "import os,sys; print(os.path.abspath(sys.argv[1]))" "$REPO_ROOT_RAW"`.
+- After resolution, the path must be absolute. Reject any result that is not absolute.
+
+The validated absolute path becomes `REPO_ROOT` for the rest of the run.
+
+**Bootstrap detection (runs immediately after `REPO_ROOT` is resolved):**
+
+Inspect the state of `REPO_ROOT`:
+
+| State                                       | Action                                                                                                                                                                                                              |
+|---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Exists and contains `.git`                  | `BootstrapNeeded = no`. Continue normally.                                                                                                                                                                          |
+| Doesn't exist OR exists without `.git`      | If args contain `--bootstrap`, OR the plan front-matter (first 30 lines) contains `^Bootstrap:\s*yes\s*$` → `BootstrapNeeded = yes`. Otherwise halt with `REPO_ROOT <REPO_ROOT> is not a git repo. Add 'Bootstrap: yes' to the plan front-matter or pass --bootstrap, or pre-init the repo manually.` |
+
+When `BootstrapNeeded = yes`, the creation pass in Step 3 emits an extra git-prep task `bootstrap` and wires `preflight` to be blocked by `bootstrap`. See Step 0.5 / Step 3 for the bootstrap task body.
+
+Print the active mode + repo banner once:
 ```
 ## schedule-plan-tasks — Mode: <live|dry-run|plan-only|dry-run-analyze>
+## schedule-plan-tasks — Repo: <REPO_ROOT>[ (bootstrap pending)]
 ```
 
 Per-mode banner notes:
@@ -104,10 +133,10 @@ If TaskList succeeds, continue. Narrate progress in plain prose — do not creat
 
 **Mode-aware ExitPlanMode guard:** when `Mode != live`, do NOT call `ExitPlanMode` — print `[DRY] would ExitPlanMode` and stay in plan mode (truly side-effect-free).
 
-**Git context prime** (skip all git commands if no `.git`, note "no git repo"):
-- `git log -1 --oneline` — last commit SHA + message
-- `git diff HEAD --name-only` — files currently modified
-- If commit message is ambiguous: `git show --stat HEAD`
+**Git context prime** (operates on `$REPO_ROOT`; skip all git commands if `[ ! -d "$REPO_ROOT/.git" ]`, note "no git repo"):
+- `git -C "$REPO_ROOT" log -1 --oneline` — last commit SHA + message
+- `git -C "$REPO_ROOT" diff HEAD --name-only` — files currently modified
+- If commit message is ambiguous: `git -C "$REPO_ROOT" show --stat HEAD`
 
 **Call `TaskList`** — note all tasks in the backlog (completed, in_progress, pending). These are off-limits for new proposals.
 
@@ -143,9 +172,9 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 
 **Mode-aware Branch B guard:** when `Mode != live`, skip git commands entirely. Use conversation context alone — what the user was working on, what was just built or fixed, what was deferred or left to the user. Reason directly from that to produce proposals. `{context}` = concise narrative of what was learned from the conversation.
 
-In live mode, scan recent work and draft proposals:
-1. `git log -10 --oneline` — what just shipped
-2. `git diff HEAD --name-only` — uncommitted work
+In live mode, scan recent work and draft proposals (all git commands operate on `$REPO_ROOT`):
+1. `git -C "$REPO_ROOT" log -10 --oneline` — what just shipped
+2. `git -C "$REPO_ROOT" diff HEAD --name-only` — uncommitted work
 3. Conversation context — what the user was just working on, what was deferred or "left to user"
 
 From those signals, draft 1–5 proposals. Bias toward drafting; the senior reviewer (Step 2) prunes the weak ones. If the scan finds nothing actionable (no recent commits, clean tree, no conversation signal), say so plainly and stop — no proposals, no Step 2 dispatch.
@@ -210,7 +239,24 @@ Reviewer's output is the sole source of truth. Auto-continue to Step 3 — no co
 
 ### Step 3 — Build the Task Graph
 
-**Git repo guard** (before Pass 1): if no `.git`, halt with `No git repo — initialize one (git init + initial commit) and re-run /schedule-plan-tasks.` Plan execution does not bootstrap repos.
+**Git repo guard** (before Pass 1): inspect `BootstrapNeeded` from Step 0.
+
+- `BootstrapNeeded == no` (existing repo at `$REPO_ROOT`) → continue.
+- `BootstrapNeeded == yes` → emit an extra git-prep task `bootstrap` ahead of `preflight` (see "Git-prep tasks" below). The bootstrap task creates `$REPO_ROOT`, runs `git init`, writes `README.md`, and lands an initial commit. The existing `preflight` task is wired to be blocked by `bootstrap`.
+
+Bootstrap task body (live mode runs the bash; ledger-only modes record the description):
+
+```bash
+mkdir -p "$REPO_ROOT"
+git -C "$REPO_ROOT" init
+touch "$REPO_ROOT/README.md"
+git -C "$REPO_ROOT" add README.md
+git -C "$REPO_ROOT" commit -m "init"
+```
+
+Precondition: relies on the user's global git identity (`user.name`/`user.email`). If absent, `git commit` fails with git's standard error — surface verbatim and halt; do not auto-configure identity. After the initial commit `git -C "$REPO_ROOT" branch --show-current` returns the user's `init.defaultBranch` (commonly `main` or `master`); the existing `Target branch` capture (Step 3) picks it up unchanged.
+
+In `dry-run`, `plan-only`, and `dry-run-analyze` modes the bootstrap task is created/recorded but its bash body is NOT executed (consistent with the git-prep verb-guard table).
 
 **Chain detection (runs after proposals are finalized, before the creation pass):**
 
@@ -255,12 +301,15 @@ Print chain assignments after detection:
 
 **Reference files are loaded in all modes** — `delivery-agent-description.md` and `create-wt-prompt.md`
 must be Read before the creation pass using the same JIT protocol regardless of mode. All
-placeholder substitutions are performed: Target branch from `git branch --show-current`, Self-merge
-from chain role (yes for tail/none, no for head/link), working directory from worktree path,
-definition of done from proposal. In `live` and `dry-run` modes `[TASK_ID]` is substituted with the
-real task ID returned by TaskCreate (Phase 1.5); in `plan-only` and `dry-run-analyze` it's
-substituted with `DRY-N`. Chain/Chain ID remain in task `metadata` for wiring integrity checks but
-are no longer substituted into task description text.
+placeholder substitutions are performed: `UPSTREAM_BRANCH` from `git branch --show-current`,
+`INTEGRATION_BRANCH` synthesized as `schedule/<slug>-<short-sha>` (used as the create-wt fork point
+and every delivery-agent's `MERGE_TARGET`), Self-merge from chain role (yes for tail/none, no for
+head/link), working directory from worktree path, definition of done from proposal. In `live` and
+`dry-run` modes `[TASK_ID]` is substituted with the real task ID returned by TaskCreate (Phase 1.5);
+in `plan-only` and `dry-run-analyze` it's substituted with `DRY-N`. The envelope's `Chain:` line is
+substituted from `metadata.chain_id` (or `none` when `metadata.chain_role == "none"`) so the
+agent's self-merge block can branch on it; the rest of the chain metadata stays in task
+`metadata` for wiring integrity checks.
 
 **Ledger-only behavior (plan-only, dry-run-analyze):**
 - For each would-be TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`,
@@ -286,16 +335,29 @@ Phase 1 — Metadata: Every TaskCreate includes a `metadata` argument. Schemas b
 
 ```
 git-prep:    { task_type: "git-prep",   chain_id: null, chain_role: null, isolation: "none",
-               step: "preflight | checkpoint | setup-worktrees" }
+               step: "bootstrap | preflight | checkpoint | integration-branch | setup-worktrees",
+               repo_root: "<absolute REPO_ROOT>" }
 create-wt:   { task_type: "create-wt",  chain_id: "chain-K"|null, chain_role: null,
-               isolation: "native worktree", worktree_path: ".worktrees/chain-K",
-               target_branch: "<captured branch>" }
+               isolation: "native worktree",
+               worktree_path: "<REPO_ROOT>/.worktrees/chain-K",
+               target_branch: "<INTEGRATION_BRANCH>",
+               upstream_branch: "<UPSTREAM_BRANCH>",
+               integration_branch: "<INTEGRATION_BRANCH>",
+               repo_root: "<absolute REPO_ROOT>" }
 delivery-agent:   { task_type: "delivery-agent",  chain_id: "chain-K"|null,
                chain_role: "head|link|tail|none",   // "none" = standalone (chain_id=null)
                isolation: "native worktree|none (trivial)",
-               worktree_path: ".worktrees/chain-K", proposal_index: N,
-               scope: "trivial|small|medium|large", target_branch: "<captured branch>" }
-regression:  { task_type: "regression", chain_id: null, chain_role: null, isolation: "none" }
+               worktree_path: "<REPO_ROOT>/.worktrees/chain-K", proposal_index: N,
+               scope: "trivial|small|medium|large", target_branch: "<INTEGRATION_BRANCH>",
+               upstream_branch: "<UPSTREAM_BRANCH>",
+               integration_branch: "<INTEGRATION_BRANCH>",
+               repo_root: "<absolute REPO_ROOT>" }
+regression:  { task_type: "regression", chain_id: null, chain_role: null, isolation: "none",
+               repo_root: "<absolute REPO_ROOT>" }
+open-pr:     { task_type: "open-pr",    chain_id: null, chain_role: null, isolation: "none",
+               repo_root: "<absolute REPO_ROOT>",
+               upstream_branch: "<UPSTREAM_BRANCH>",
+               integration_branch: "<INTEGRATION_BRANCH>" }
 ```
 
 Phase 2 — Wiring: Wire dependencies via a single response using both `addBlockedBy` (on the downstream task) AND `addBlocks` (on the upstream task) for every dependency edge, so the graph is traversable in both directions without extra lookups. Print wiring ticker.
@@ -308,13 +370,35 @@ TaskUpdate({ taskId: upstream_id,   addBlocks:    [downstream_id] })
 
 Sequential TaskCreate is only required when the dependent task's description must literally reference the prerequisite's task_id — which should be avoided. Carry the relationship in TaskUpdate instead.
 
-**Git-prep (always exactly 3 tasks — never merge or collapse):**
+**Git-prep (4 tasks normally, 5 when `BootstrapNeeded == yes` — never merge or collapse):**
 ```
-[git-prep 1/3] Task: Pre-flight staging check               → capture ID_preflight
-[git-prep 2/3] Task: Checkpoint commit                      → capture ID_checkpoint
-[git-prep 3/3] Task: Setup .worktrees directory             → capture ID_setup
+[git-prep 0/5] Task: Bootstrap repo at $REPO_ROOT            → capture ID_bootstrap     (emitted only when BootstrapNeeded == yes)
+[git-prep 1/N] Task: Pre-flight staging check               → capture ID_preflight
+[git-prep 2/N] Task: Checkpoint commit                      → capture ID_checkpoint
+[git-prep 3/N] Task: Create integration branch              → capture ID_integration
+[git-prep 4/N] Task: Setup .worktrees directory             → capture ID_setup
 ```
-*Wire:* `ID_checkpoint` is blocked by `ID_preflight`; `ID_setup` is blocked by `ID_checkpoint`.
+*Wire:* when `BootstrapNeeded == yes`, `ID_preflight` is blocked by `ID_bootstrap`.
+Always: `ID_checkpoint` is blocked by `ID_preflight`; `ID_integration` is blocked by
+`ID_checkpoint`; `ID_setup` is blocked by `ID_integration`.
+
+**Ordering rationale for `Create integration branch`:** `ID_checkpoint` commits any
+staged-but-uncommitted work onto `UPSTREAM_BRANCH`. The integration branch must fork
+*after* that so it inherits the checkpoint; every worktree subsequently forks from
+`INTEGRATION_BRANCH` and inherits it transitively. Worktrees never directly fork from
+`UPSTREAM_BRANCH` in the new flow.
+
+`Create integration branch` task body (live mode runs the bash; ledger-only modes
+record the description):
+```bash
+git -C "$REPO_ROOT" checkout -b "$INTEGRATION_BRANCH" "$UPSTREAM_BRANCH"
+git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"   # leave user on their branch
+```
+
+In `dry-run`, `plan-only`, and `dry-run-analyze` modes the integration-branch task is
+created/recorded but its bash body is NOT executed (consistent with the git-prep
+verb-guard table). delivery-agents self-merge to `$INTEGRATION_BRANCH`; the final
+`open-pr` task PRs `INTEGRATION_BRANCH → UPSTREAM_BRANCH`.
 
 **For each chain or standalone (topological order — predecessors before dependents):**
 
@@ -345,24 +429,74 @@ Sequential TaskCreate is only required when the dependent task's description mus
 - **KEEP** the direct edge if `R` has tests that `S` does NOT cover — e.g., `R` has unit-level tests for isolated logic that `S`'s integration test bypasses.
 - When in doubt: **KEEP**. Redundant blockers are cheap; missed coverage is not.
 
+**Open-PR (always present — graph terminus):**
+```
+[open-pr]           Task: Open PR: $INTEGRATION_BRANCH → $UPSTREAM_BRANCH  → capture ID_open_pr
+```
+*Wire:* `ID_open_pr` is blocked by `ID_regression` if a regression task exists,
+otherwise by ALL chain-tail and standalone delivery-agents (same blocker shape as
+regression). `ID_open_pr` is the new graph terminus — nothing else depends on it.
+
 **Trivial delivery-agents:** create only the delivery-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Self-merge: yes`. Chain tasks are never trivial. (Sub-task spawning is always available — no field controls it; the agent decides at runtime.)
 
 ---
 
-**`Target branch` capture:**
- At the start of the creation pass, capture once:
-- `Target branch` = output of `git branch --show-current` (the branch being worked on — the merge destination)
-- **NEVER read Target branch from the plan file's Git Strategy section.** That section states the author's intended branch name; it has nothing to do with the current repo state. Even if the plan says `feat/xyz` or `chore/abc`, run `git branch --show-current` and use whatever branch is actually checked out.
+**`UPSTREAM_BRANCH` and `INTEGRATION_BRANCH` capture:**
 
-This command runs in both live and dry-run modes — it is read-only and not subject to the dry-run verb guard. Substitute into every worktree delivery-agent task description and every create-wt description. This value is NEVER `[placeholder]`. Assert 6 catches any remaining placeholders before execution.
+At the start of the creation pass, capture two distinct branches — these replace the
+single `Target branch` of older revisions of this skill:
+
+- `UPSTREAM_BRANCH` = output of `git -C "$REPO_ROOT" branch --show-current` — the branch
+  the user was on when they invoked the skill (typically `main` or a feature branch).
+  This is the **PR target** at the end of the run.
+- `INTEGRATION_BRANCH` = `schedule/<slug>-<short-sha>` where:
+  - `<slug>` = basename of the plan file (Branch A) with `.md` stripped, or
+    `branch-b-<unix-epoch>` for Branch B (epoch suffix prevents collision when two
+    Branch-B runs land at the same `HEAD` SHA in quick succession).
+  - `<short-sha>` = `git -C "$REPO_ROOT" rev-parse --short HEAD` of `UPSTREAM_BRANCH`.
+
+  Pre-flight: if `git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$INTEGRATION_BRANCH"`
+  succeeds (branch already exists from a prior aborted run), halt with a clear message
+  asking the user to delete the stale branch (`git branch -D <name>`) or re-run after
+  cleanup. Do not silently reuse — a stale integration branch may carry unmerged work.
+
+  This is the **`MERGE_TARGET`** for every delivery-agent. The integration branch is
+  cut off `UPSTREAM_BRANCH` *after* the checkpoint commit (see `[git-prep N] Create
+  integration branch` below) so it inherits any staged-but-uncommitted state captured
+  by the checkpoint, and every worktree forks from `INTEGRATION_BRANCH` (not from
+  `UPSTREAM_BRANCH`) — inheriting the checkpoint transitively.
+
+- **NEVER read either branch from the plan file's Git Strategy section.** That section
+  states the author's intended branch name; it has nothing to do with the current repo
+  state. Even if the plan says `feat/xyz` or `chore/abc`, capture from `git -C
+  "$REPO_ROOT" branch --show-current` for `UPSTREAM_BRANCH` and synthesize
+  `INTEGRATION_BRANCH` from the rule above.
+
+The `git -C "$REPO_ROOT" branch --show-current` and `rev-parse --short HEAD` commands
+run in both live and dry-run modes — they are read-only and not subject to the dry-run
+verb guard. The actual `git checkout -b "$INTEGRATION_BRANCH"` is gated by the
+verb guard via the `[git-prep N] Create integration branch` task body — skipped in
+dry-run/plan-only/dry-run-analyze modes.
+
+`UPSTREAM_BRANCH` and `INTEGRATION_BRANCH` are substituted into every worktree
+delivery-agent task description and every create-wt description (the create-wt template's
+`[TARGET_BRANCH]` placeholder is now replaced with `INTEGRATION_BRANCH` since that's
+what each worktree forks from). These values are NEVER `[placeholder]`. Assert 6
+catches any remaining placeholders before execution.
+
+**Backwards naming:** older sections of this skill still refer to the single capture
+as `Target branch`; treat any such reference as `INTEGRATION_BRANCH` for substitution
+purposes (the merge destination). `UPSTREAM_BRANCH` is the PR target only.
 
 **Delivery-agent description (dispatch protocol):**
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/delivery-agent-description.md`** — load the verbatim envelope template. The agent's behavior contract (lifecycle, merge protocol, status protocol, specialist catalog, sub-task spawning) lives in `agents/delivery-agent.md` and is loaded by the harness — do NOT paste any of that into the description.
 2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`, and dispatch with `subagent_type: "delivery-agent"`. Do not paraphrase.
-   - Set `Working directory:` to the absolute worktree path (e.g. `/repo/.worktrees/chain-1`) or `main workspace` for trivial tasks.
-   - Set `MERGE_TARGET:` to the Target branch value for all orchestrator-dispatched tasks.
+   - Set `Working directory:` to the absolute worktree path `$REPO_ROOT/.worktrees/<id>` (e.g. `/Users/x/projectB/.worktrees/chain-1`) or `main workspace` for trivial tasks. Always absolute — never relative — because the agent's host CWD may differ from `$REPO_ROOT`.
+   - Set `MAIN_REPO_ROOT:` to `$REPO_ROOT` (absolute) for every orchestrator-dispatched delivery-agent task. The agent's self-merge block reads this header to locate the main repo (a worktree's `git rev-parse --show-toplevel` returns the worktree itself, not the main repo).
+   - Set `MERGE_TARGET:` to the `INTEGRATION_BRANCH` value for all orchestrator-dispatched tasks.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
    - Set `Self-merge:` to `yes` for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks.
+   - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones. The agent's self-merge block keys off this field to choose between the standalone and chain merge-commit-body branches.
    - Replace `[one-paragraph guidance]` with **a single paragraph (≤ ~120 words) of plan-level guidance** distilled from the proposal — see "Task definition rules" below.
    - Leave `Task ID:` as the literal placeholder `[TASK_ID]` — the orchestrator fills it in Phase 1.5 after TaskCreate returns real IDs.
 
@@ -430,7 +564,8 @@ For each (task_id, description) from Phase 1 output:
 ```
 
 **Create worktree task:** **FIRST: Read `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md`** — load the verbatim bash template. Before pasting, perform these substitutions in the bash code lines only (skip `#`-prefixed comment lines — those are instructional and use `task-N` as a label, not a substitution target):
-- `[TARGET_BRANCH]` → the captured target branch value (appears twice: once as the fork point for `git worktree add`, once in the failure message)
+- `[REPO_ROOT]` → the absolute `$REPO_ROOT` (the target repo — may differ from the orchestrator's CWD)
+- `[TARGET_BRANCH]` → the captured `INTEGRATION_BRANCH` value (every worktree forks from `INTEGRATION_BRANCH`, not from `UPSTREAM_BRANCH`; appears twice: once as the fork point for `git worktree add`, once in the failure message)
 - `task-N` → `chain-K` (e.g. `chain-1`) for chain create-wt tasks, or `task-N` (e.g. `task-3`) for standalone tasks
 - `task-N-branch` → `chain-K-branch` (e.g. `chain-1-branch`) for chain tasks, or `task-N-branch` for standalones
 Then paste verbatim as the TaskCreate description. Do not paraphrase any other content.
@@ -498,6 +633,7 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) |
+| open-pr             | type=open-pr                | n/a            | n/a        | 10      | re-run gh pr create (idempotent on existing PR) | inline (orchestrator) |
 
 **Wiring integrity check** (inline, runs once before resume check):
 
@@ -507,7 +643,9 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone delivery-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
 | Assert 6 | every native-worktree delivery-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Delivery-agent #N metadata.target_branch is missing or placeholder"                 |
 | Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
-| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`) | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
+| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Self-merge:`, `Chain:`, `External resources:` | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
+| Assert 9 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
+| Assert 10 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
 
 Assert 3 exception: if the proposal has no DEPENDS ON, only `Setup .worktrees` is required — skip the upstream-blocker check.
 
@@ -519,12 +657,13 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 
 | Task type | Recovery |
 |---|---|
-| git-prep | Re-run the git command (all idempotent). Mark completed. |
-| create-wt | `git worktree list`. If present → mark completed. If missing → re-run `git worktree add` → mark completed. |
-| delivery-agent (trivial) | `git log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade (TaskList scan → dispatch unblocked tasks). None → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: yes) | `git log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: no) | `git -C .worktrees/<chain-K> log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
+| git-prep | Re-run the git command (all idempotent — including `bootstrap` when present). Mark completed. |
+| create-wt | `git -C "$REPO_ROOT" worktree list`. If present → mark completed. If missing → re-run `git -C "$REPO_ROOT" worktree add` → mark completed. |
+| delivery-agent (trivial) | `git -C "$REPO_ROOT" log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade (TaskList scan → dispatch unblocked tasks). None → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: yes) | `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: no) | `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
 | regression | Re-dispatch agent with existing description. |
+| open-pr | `gh pr list --head "$INTEGRATION_BRANCH" --base "$UPSTREAM_BRANCH" --json url,state`. PR exists → mark completed (idempotent — no double-create). PR missing → re-run the open-pr body from Step 5 from step 1. |
 
 ---
 
@@ -581,16 +720,95 @@ Phase C — wave-1 delivery-agents (parallel dispatch, self-orchestrating cascad
 
 ---
 
-**Git prep task execution** (inline):
-- `Pre-flight staging check`: `git status`, stage relevant files (`git add <files>`, never `-A`)
-- `Checkpoint commit`: if staged changes → `git commit -m "checkpoint: pre-execution state"` and capture SHA into orchestrator context; if clean → capture HEAD SHA. This SHA is held by the orchestrator for trivial task resume checks — it is never written into task descriptions.
-- `Setup .worktrees`: use existing `.worktrees/` or create it, add to `.gitignore`, commit
+**Git prep task execution** (inline; all git commands route through `$REPO_ROOT`):
+- `Bootstrap` (only when `BootstrapNeeded == yes`): run the bootstrap bash body from Step 3 (`mkdir -p` + `git -C "$REPO_ROOT" init` + `README.md` + initial commit). Surface git's error verbatim and halt if `git commit` fails (missing user.name/user.email). Capture the resulting default branch via `git -C "$REPO_ROOT" branch --show-current` for downstream use.
+- `Pre-flight staging check`: `git -C "$REPO_ROOT" status`, stage relevant files (`git -C "$REPO_ROOT" add <files>`, never `-A`).
+
+  **Uncommitted-work coverage (explicit contract):** the user's working tree may contain
+  files the user has been editing but not staged or committed. Without extra capture,
+  staged-and-committed work travels into worktrees via the branch fork, but
+  modified-not-staged and untracked files do NOT — every worktree starts from
+  `INTEGRATION_BRANCH`'s tip and never sees those edits.
+
+  | State of file in user's working tree    | Reaches worktrees? | How                                |
+  |-----------------------------------------|--------------------|------------------------------------|
+  | Tracked + staged before invocation      | yes                | `git add` above + checkpoint       |
+  | Tracked + modified, NOT staged          | yes (NEW)          | `.preflight-tracked.patch` capture |
+  | Untracked (new file)                    | yes (NEW)          | `.preflight-untracked.tgz` capture |
+  | Already committed on `UPSTREAM_BRANCH`  | yes                | branch fork                        |
+
+  After the selective `git add`, also capture anything still dirty into a single
+  uncommitted-on-entry patch and a tarball of untracked files. These are applied later
+  inside each worktree by the create-wt task body so the user's in-progress edits travel
+  with the run:
+
+  ```bash
+  git -C "$REPO_ROOT" diff > "$REPO_ROOT/.worktrees/.preflight-tracked.patch"
+  git -C "$REPO_ROOT" ls-files --others --exclude-standard \
+    | tar -czf "$REPO_ROOT/.worktrees/.preflight-untracked.tgz" -T -
+  ```
+
+  These two staging files are removed inside the `open-pr` task body once the PR is
+  open or skipped (`rm -f "$REPO_ROOT/.worktrees/.preflight-*"`). Patch-apply inside
+  each worktree is best-effort — if the user's uncommitted state conflicts with work a
+  delivery-agent introduces, `git apply` fails inside that worktree and the create-wt
+  task reports `STATUS: failure — preflight patch did not apply`, halting just that
+  worktree; siblings continue.
+- `Checkpoint commit`: if staged changes → `git -C "$REPO_ROOT" commit -m "checkpoint: pre-execution state"` and capture SHA into orchestrator context; if clean → capture HEAD SHA via `git -C "$REPO_ROOT" rev-parse HEAD`. This SHA is held by the orchestrator for trivial task resume checks — it is never written into task descriptions.
+- `Create integration branch`: run the bash from Step 3 — `git -C "$REPO_ROOT" checkout -b "$INTEGRATION_BRANCH" "$UPSTREAM_BRANCH"` then `git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"` to leave the user on their starting branch. Halt on `show-ref --verify` collision per the pre-flight rule above.
+- `Setup .worktrees`: use existing `$REPO_ROOT/.worktrees/` or create it (`mkdir -p "$REPO_ROOT/.worktrees"`), add `.worktrees/` to `$REPO_ROOT/.gitignore`, `git -C "$REPO_ROOT" add .gitignore && git -C "$REPO_ROOT" commit -m "chore: ignore .worktrees"`. **Note:** this commit lands on `UPSTREAM_BRANCH` (the user is checked out there), not on `INTEGRATION_BRANCH`. That's fine — the `.gitignore` change is meta-bookkeeping and the integration branch will inherit it on the next merge from upstream if needed.
 
 **Create worktree task execution** (async background Task):
 
 Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash from `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md` (loaded JIT). No prose form. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
 
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its delivery-agent). `failure` → mark failed, halt dependent delivery-agent, report.
+
+---
+
+---
+
+### Step 5 — Final PR (open-pr task body)
+
+The graph terminates with a single `open-pr` task that PRs `INTEGRATION_BRANCH →
+UPSTREAM_BRANCH`. It runs inline in the orchestrator session in `live` mode; in
+`dry-run`/`plan-only`/`dry-run-analyze` modes it is recorded in the ledger but its
+side-effecting body is replaced by `[DRY] would gh pr create` (consistent with the
+git/Agent verb-guard table). The task is dispatched only after every chain-tail and
+standalone delivery-agent (and the regression task, if present) has completed.
+
+Body (live mode):
+
+1. **Push.** `git -C "$REPO_ROOT" push -u origin "$INTEGRATION_BRANCH"`. If push fails
+   because no `origin` remote exists (or push is otherwise impossible), print a notice
+   that no remote was reachable and skip steps 3–5 — fall through to the local-only
+   path below.
+2. **Assemble the PR body.** `Read ${CLAUDE_SKILL_DIR}/references/pr-body-template.md`
+   and substitute:
+   - `{plan_path}` — source plan file path (Branch A) or `Branch B (session learnings)`
+   - `{integration_branch}` — `$INTEGRATION_BRANCH`
+   - `{upstream_branch}` — `$UPSTREAM_BRANCH`
+   - `{task_summary_table}` — markdown table of every delivery-agent task: ID, subject, RESULT
+   - `{commit_log}` — `git -C "$REPO_ROOT" log --reverse --pretty=format:'%n### %s%n%n%b' "$UPSTREAM_BRANCH..$INTEGRATION_BRANCH"`
+   - `{verify_summary}` — aggregated `VERIFY_CMD` lines extracted from each task's commit body
+   - `{review_notes}` — aggregated `Critical applied` / `Advisory deferred` lines from each task's commit body
+   Write the result to a tempfile.
+3. **Create the PR.** `gh -R <owner/repo> pr create --base "$UPSTREAM_BRANCH" --head "$INTEGRATION_BRANCH" --title "<plan-slug>: <N tasks merged>" --body-file <tempfile>`.
+4. **Capture the PR URL.**
+5. **Prompt the user via `AskUserQuestion`:**
+   - "Approve and auto-merge now (`gh pr merge --auto --squash --delete-branch`)" — runs the merge command, deletes the branch, and reports the result.
+   - "Leave open for human review (default)" — leaves PR open, prints URL, exits.
+   - "Close PR and discard the integration branch" — `gh pr close <url>` then `git -C "$REPO_ROOT" branch -D "$INTEGRATION_BRANCH"` (and `git push origin --delete "$INTEGRATION_BRANCH"` if pushed).
+
+**Local-only path** (gh missing or no remote): skip steps 3–5; print a notice with
+the local integration branch name and dump the assembled PR body to stdout so the user
+can open it manually. The integration branch stays on disk for the user to push when
+ready.
+
+**Cleanup.** Whether the PR was opened, skipped, or closed, remove the pre-flight
+staging files at the end of this task: `rm -f "$REPO_ROOT/.worktrees/.preflight-tracked.patch" "$REPO_ROOT/.worktrees/.preflight-untracked.tgz"`.
+
+`open-pr` is the graph terminus — emit a final completion banner and exit.
 
 ---
 
@@ -601,6 +819,7 @@ Orchestrator reads only the `STATUS:` line. `success` → mark create-wt complet
 ```
 ## Dry-Run Report
 Mode: <plan-only|dry-run-analyze>
+Repo: <REPO_ROOT>[ (bootstrap pending)]
 Branch: <A|B>
 Plan file: <path|none>
 Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
@@ -609,12 +828,14 @@ Senior reviewer: <dispatched (Branch B)|skipped (Branch A)>
 <proposals table from Step 1 / reviewer output>
 
 ### Chains
-Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated delivery-agent DRY IDs from `chain_role: head` → links → tail); worktree = `.worktrees/<chain_id>` for chains, `.worktrees/task-<C>` for standalones where `<C>` is the **create-wt task's DRY-N** (always one before its delivery-agent in the creation pass); merge point = the `chain_role: tail` member's delivery-agent DRY-N (or the standalone's delivery-agent DRY-N).
+Build from ledger: for each unique `chain_id`, emit one row — list members in creation order (arrow-separated delivery-agent DRY IDs from `chain_role: head` → links → tail); worktree = `<REPO_ROOT>/.worktrees/<chain_id>` for chains, `<REPO_ROOT>/.worktrees/task-<C>` for standalones where `<C>` is the **create-wt task's DRY-N** (always one before its delivery-agent in the creation pass); merge point = the `chain_role: tail` member's delivery-agent DRY-N (or the standalone's delivery-agent DRY-N).
 
-| Chain ID | Members (in order)            | Worktree              | Merge point |
-|----------|-------------------------------|-----------------------|-------------|
-| chain-1  | DRY-6 → DRY-9 → DRY-12      | .worktrees/chain-1    | DRY-12      |
-| none     | DRY-15 (standalone)           | .worktrees/task-14    | DRY-15      |
+Also emit a one-line repo banner above the table: `Repo: <REPO_ROOT>` (and `Bootstrap: yes` when `BootstrapNeeded == yes`).
+
+| Chain ID | Members (in order)            | Worktree                              | Merge point |
+|----------|-------------------------------|---------------------------------------|-------------|
+| chain-1  | DRY-6 → DRY-9 → DRY-12      | $REPO_ROOT/.worktrees/chain-1         | DRY-12      |
+| none     | DRY-15 (standalone)           | $REPO_ROOT/.worktrees/task-14         | DRY-15      |
 
 ### Task List — N tasks
 
@@ -717,3 +938,13 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
 - **Senior reviewer retries on error.** A failed review is not approval.
 - **No TaskCreate on Branch B before senior review completes.** Branch A may TaskCreate after Step 1.
 - **When in doubt about isolation, create a worktree.**
+- **`MERGE_TARGET` for delivery-agents is the integration branch, never the user's
+  starting branch.** Worktrees fork from `INTEGRATION_BRANCH`, delivery-agents
+  self-merge into `INTEGRATION_BRANCH`, and the final `open-pr` task PRs
+  `INTEGRATION_BRANCH → UPSTREAM_BRANCH`. The starting branch is left untouched as
+  the PR target — the user ends the run on the same branch they started on.
+- **Commit messages follow the structured Why / What was considered / What was tested
+  / Review findings / Key learnings template** (see `agents/delivery-agent.md` §"Before
+  return: commit"). The merge-commit body on `INTEGRATION_BRANCH` is the per-task
+  commit body (or full chain log for chain tails) so `git log --first-parent` reads as
+  a story and the `open-pr` PR body can be assembled by aggregating those bodies.

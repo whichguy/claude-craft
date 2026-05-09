@@ -16,10 +16,12 @@ The orchestrator must `Read` this file in full and paste the envelope verbatim i
 
 Substitute placeholders per task:
 - `[TASK_ID]` — the TaskCreate-returned task ID, embedded by the orchestrator in Phase 1.5
-- `[absolute worktree path]` — e.g. `/repo/.worktrees/chain-1`; use `main workspace` for trivial tasks
+- `[absolute worktree path]` — e.g. `/repo/.worktrees/chain-1`; use `main workspace` for trivial tasks. Always absolute — never relative — because the agent's host CWD may differ from the target repo root.
+- `[MAIN_REPO_ROOT value]` — absolute path to the working tree where this task's `MERGE_TARGET` branch is checked out (the merge target's host). For orchestrator-dispatched tasks, this equals `$REPO_ROOT` (the target repo). For a sub-task spawned by a parent delivery-agent, this equals the parent agent's `WORKTREE_PATH` (the merge happens into the parent's working branch, which is checked out in the parent's worktree). The agent's self-merge block reads this header to locate the merge host when running from inside a worktree (where `git rev-parse --show-toplevel` returns the current worktree, not the merge host).
 - `[MERGE_TARGET value]` — equals Target branch for orchestrator-dispatched tasks; equals the parent agent's working branch for sub-tasks spawned within a delivery-agent
 - `Isolation: native worktree` — for worktree tasks; for trivial tasks, use `Isolation: none (trivial)`
 - `Self-merge: yes` — for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks
+- `Chain: <chain-K | none>` — substituted from `metadata.chain_id` and `metadata.chain_role`; `none` for standalones, `chain-K` for chain members (head/link/tail). The agent's self-merge block reads this header to choose between standalone and chain merge-commit bodies.
 - `[symlinked paths outside worktree, or "none"]` — only paths to files outside the git repo that were explicitly symlinked in
 - `[one-paragraph guidance]` — a single paragraph (≤ ~120 words) describing what to accomplish: the goal, the file(s) involved, key behavioral expectations, and how success is observable. No code blocks, no numbered steps, no separate Definition-of-done section — the agent derives all of that from this paragraph plus its system prompt.
 
@@ -32,9 +34,11 @@ Sub-task spawning is always available — no field controls it. The agent decide
 ```
 Task ID: [TASK_ID]
 Working directory: [absolute worktree path]
+MAIN_REPO_ROOT: [MAIN_REPO_ROOT value]
 MERGE_TARGET: [MERGE_TARGET value]
 Isolation: native worktree | none (trivial)
 Self-merge: yes | no
+Chain: <chain-K | none>
 External resources: [symlinked paths outside worktree, or "none"]
 
 [one-paragraph guidance — what to accomplish, files involved, observable success criteria,
