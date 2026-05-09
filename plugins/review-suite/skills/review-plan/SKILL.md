@@ -54,3 +54,5 @@ echo '<plan_path>' > ~/.claude/plans/.review-ready-"$slug"
 ```
 
 Substitute `<plan_path>` with the absolute path of the plan file you reviewed. On any other verdict, do not write the gate file — the user must edit and re-invoke, or use the documented escape hatch (`touch ~/.claude/plans/.review-ready-<slug>`).
+<!-- ci-smoke-trigger 2026-05-09: inert edit to exercise CI paths-filter; reverted on PR close -->
+
