@@ -11,6 +11,13 @@ if [ -z "$plan_file" ] || [ ! -f "$plan_file" ]; then
   exit 0
 fi
 
+mkdir -p "$HOME/.claude/logs" 2>/dev/null || true
+( tail -n 199 "$HOME/.claude/logs/planning-suite-hooks.log" 2>/dev/null;
+  echo "[schedule-nudge] $(date -Iseconds) plan=$plan_file" ) \
+  > "$HOME/.claude/logs/planning-suite-hooks.log.tmp" 2>/dev/null \
+  && mv "$HOME/.claude/logs/planning-suite-hooks.log.tmp" \
+        "$HOME/.claude/logs/planning-suite-hooks.log" 2>/dev/null || true
+
 ctx="The plan at \`$plan_file\` was just approved via ExitPlanMode. If the user wants to execute it, invoke the \`/schedule-plan-tasks\` skill (Branch A). Do not invoke automatically if the user signals they're not ready to execute."
 
 jq -n \
