@@ -371,14 +371,14 @@ Dispatch four agents in parallel with the probe-9 fixture as input. Write output
 expected = {
   (opus,   control): NOT_READY,     # prior-research baseline
   (opus,   ablated): NOT_READY,     # treatment was strictly ≥ control on probe-9
-  (sonnet, control): NEEDS_UPDATE,  # documented model-dependence finding
+  (sonnet, control): NOT_READY,     # verified live 2026-05-09: control unified with ablated post-micro-noclose-strict; prior NEEDS_UPDATE deprecated
   (sonnet, ablated): NOT_READY,     # treatment's count-based rule scales
 }
 ```
 
 **Verdict computation:** the cell PASSes iff observed[(model, side)] == expected[(model, side)] for all four cells. Otherwise FAIL loudly, naming each off-cell with observed/expected.
 
-**Allowed cross-model gap.** The Opus → `NOT_READY` / Sonnet → `NEEDS_UPDATE` divergence on probe-9 control is a *documented and allowed* gap rooted in the close-question single-tier-downgrade rule's model-dependent severity (see `RUN-FINDINGS.md`, 2026-05-09). Any other tier divergence fails the regression cell. Specifically:
+**Allowed cross-model gap.** As of 2026-05-09, all four cells are expected `NOT_READY` — the prior Opus → `NOT_READY` / Sonnet → `NEEDS_UPDATE` control divergence was deprecated when the control SKILL.md was unified with the ablated arm post-micro-noclose-strict promotion. Any tier divergence from the expected baseline table above fails the regression cell. Specifically:
 - Either model dropping to `PASS` on probe-9 control is a hard fail (the directive prose stopped firing).
 - Sonnet ablated dropping below `NOT_READY` is a hard fail (the count-based severity rule regressed).
 - Opus control dropping below `NOT_READY` is a hard fail (prior-research baseline regressed).

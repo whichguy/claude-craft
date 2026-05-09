@@ -1,0 +1,1 @@
+verified live 2026-05-09: cross-model cell all-NOT_READY on probe-9 (k=1, no judges); control unified with ablated post-micro-noclose-strict, prior (sonnet,control)=NEEDS_UPDATE expectation deprecated.
