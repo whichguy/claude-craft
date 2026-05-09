@@ -56,7 +56,7 @@ Before anything else, determine if this is a **plan review** or a **code review*
 ```
 Skill(skill="review-suite:review-plan", args="Review the plan: [plan file path or content]")
 ```
-review-plan handles GAS detection and gas-plan invocation internally.
+review-plan applies the universal directive; for GAS-specific layered review, invoke `planning-suite:gas-plan` separately.
 Then return the review-plan output to the user. Do not continue to Step 1.
 
 **If code review**: Proceed to the Architecture Decision below.
