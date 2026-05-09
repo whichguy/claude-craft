@@ -6,7 +6,8 @@ description: |
   against expected chain/standalone topology and wiring rules (Asserts 3, 5, 6, 7, 8).
   Also runs a sequential --dry-run track (one fixture at a time to avoid TaskList pollution)
   that validates the Simulated Execution Trace against expected wave structure, cascade
-  ordering, and validation predicates.
+  ordering, and validation predicates. Currently covers 8 fixtures (plan1–plan7 + plan8
+  cascade fan-in).
 
   **AUTOMATICALLY INVOKE** when:
   - User says "test schedule-plan-tasks", "validate the skill", "run fixture tests"
@@ -21,36 +22,42 @@ Each plan fixture is run through the schedule-plan-tasks skill in two tracks:
 - **plan-only track**: `--plan-only` mode, validates the Dry-Run Report topology.
 - **dry-run track**: `--dry-run` mode, validates the Simulated Execution Trace wave structure.
 
-The plan-only track runs all 7 fixtures in parallel. The dry-run track runs them one at a
+The plan-only track runs all 8 fixtures in parallel. The dry-run track runs them one at a
 time (TaskList isolation). The orchestrator collects RESULT lines and prints a combined
 pass/fail summary.
 
 ---
 
-## Step 0 — Resolve paths
+## Step 0 — Resolve paths and parse arguments
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-SKILL_DIR="${REPO_ROOT}/skills/schedule-plan-tasks"
-TEST_DIR="${REPO_ROOT}/skills/test-schedule-plan-tasks"
+SKILL_DIR="${REPO_ROOT}/plugins/planning-suite/skills/schedule-plan-tasks"
+TEST_DIR="${REPO_ROOT}/plugins/planning-suite/skills/test-schedule-plan-tasks"
 FIXTURE_DIR="${SKILL_DIR}/fixtures"
 ```
+
+**Argument parsing.** `$ARGUMENTS` may contain a fixture filter token: bare `plan1`..`plan8`,
+or `--only planN`. If a filter is present, restrict BOTH tracks to that single fixture
+(useful as a fast smoke test). Default is all 8 fixtures.
 
 Print:
 ```
 ## test-schedule-plan-tasks
-Running 7 fixture tests × 2 tracks via Agent.
-  plan-only track: 7 agents in parallel.
-  dry-run track:   7 agents in sequence (TaskList isolation — one fixture at a time).
+Running <N> fixture test(s) × 2 tracks via Agent.
+  plan-only track: <N> agent(s) in parallel.
+  dry-run track:   <N> agent(s) in sequence (TaskList isolation — one fixture at a time).
 ```
+(N = 8 by default, or 1 if filtered.)
 
 ---
 
-## Step 1a — Dispatch 7 plan-only Agents (parallel)
+## Step 1a — Dispatch 8 plan-only Agents (parallel)
 
 **FIRST: `Read ${TEST_DIR}/references/agent-template.md`** — load the verbatim agent prompt.
 
-Dispatch all 7 Agents in a single response with 7 parallel `Agent` calls. Each agent receives
+Dispatch all 8 Agents in a single response with 8 parallel `Agent` calls. (If filtered to a
+single fixture, dispatch only that one.) Each agent receives
 the agent-template content with these substitutions:
 
 | Placeholder          | Substitution                                      |
@@ -71,16 +78,17 @@ Fixtures and expectation files:
 | 5 | `plan5-multi-chain.md`             | `expect-plan5.md`  |
 | 6 | `plan6-deep-cascading.md`          | `expect-plan6.md`  |
 | 7 | `plan7-assert6-violation.md`       | `expect-plan7.md`  |
+| 8 | `plan8-cascade-fan-in.md`          | `expect-plan8.md`  |
 
 Each agent invokes `Skill({ skill: "schedule-plan-tasks", args: "--plan-only --plan <fixture>" })`,
 captures the Dry-Run Report, validates it against the expectations file, and reports
 `RESULT: PASS | FAIL`.
 
-**Do NOT use `run_in_background`** — wait for all 7 to return before proceeding.
+**Do NOT use `run_in_background`** — wait for all 8 to return before proceeding.
 
 ---
 
-## Step 1b — Dispatch 7 dry-run Agents (sequential — one at a time)
+## Step 1b — Dispatch 8 dry-run Agents (sequential — one at a time)
 
 **Runs AFTER Step 1a completes.** The dry-run track is serialized because each run issues
 real TaskCreate/TaskUpdate calls that land in the shared TaskList. Running fixtures in
@@ -88,9 +96,10 @@ parallel would intermingle task IDs from different runs, causing cascade scans t
 simulate tasks that belong to other fixtures. One fixture at a time keeps the TaskList clean.
 
 **FIRST: `Read ${TEST_DIR}/references/agent-template-dryrun.md`** — load the verbatim dry-run
-agent prompt (read once; re-use for all 7 dry-run agents).
+agent prompt (read once; re-use for all 8 dry-run agents).
 
-Dispatch fixture 1, wait for RESULT, then dispatch fixture 2, and so on. Each agent receives
+Dispatch fixture 1, wait for RESULT, then dispatch fixture 2, and so on. (If filtered to a
+single fixture, dispatch only that one.) Each agent receives
 the agent-template-dryrun content with these substitutions:
 
 | Placeholder          | Substitution                                            |
@@ -110,6 +119,7 @@ Fixtures and dry-run expectation files (run in this order):
 | 5 | `plan5-multi-chain.md`             | `expect-plan5-dryrun.md`        |
 | 6 | `plan6-deep-cascading.md`          | `expect-plan6-dryrun.md`        |
 | 7 | `plan7-assert6-violation.md`       | `expect-plan7-dryrun.md`        |
+| 8 | `plan8-cascade-fan-in.md`          | `expect-plan8-dryrun.md`        |
 
 Each agent invokes `Skill({ skill: "schedule-plan-tasks", args: "--dry-run --plan <fixture>" })`,
 captures the Simulated Execution Trace, validates it against the dry-run expectations file,
@@ -139,6 +149,7 @@ Print the combined summary table:
 | 5 | plan5-multi-chain         | 2      | 2           | PASS   | ✓ PASS |
 | 6 | plan6-deep-cascading      | 2      | 4           | PASS   | ✓ PASS |
 | 7 | plan7-assert6-violation   | 0      | 1           | PASS   | ✓ PASS |
+| 8 | plan8-cascade-fan-in      | 2      | 2           | PASS   | ✓ PASS |
 
 ### dry-run track
 
@@ -151,8 +162,9 @@ Print the combined summary table:
 | 5 | plan5-multi-chain         | N     | M      | all ✓      | ✓ PASS |
 | 6 | plan6-deep-cascading      | N     | M      | all ✓      | ✓ PASS |
 | 7 | plan7-assert6-violation   | N     | M      | all ✓      | ✓ PASS |
+| 8 | plan8-cascade-fan-in      | N     | M      | all ✓      | ✓ PASS |
 
-VERDICT: PASS (14/14) | FAIL (N/14)
+VERDICT: PASS (16/16) | FAIL (N/16)
 ```
 
 For any FAIL, print the full agent response beneath the table so the user can see what failed.
