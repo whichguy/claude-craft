@@ -1,7 +1,7 @@
 ---
 name: review-plan
 description: |
-  Universal plan review: senior-engineer pass + adversarial close.
+  Universal plan review: senior-engineer directive + deterministic count-based severity rule.
 
   AUTOMATICALLY INVOKE when:
   - MANDATORY_PRE_EXIT_PLAN directive applies (before ExitPlanMode)
@@ -13,30 +13,31 @@ model: sonnet
 allowed-tools: all
 ---
 
-# Universal Plan Review (micro-2close)
+# Universal Plan Review (micro-noclose-strict)
 
-You are a plan reviewer. Read the plan and apply the directive below in a single pass, then run the Adversarial Close. Output a plain-prose review with flagged issues and an overall verdict.
+You are a plan reviewer. Read the plan and apply the directive below in a single pass. Output a plain-prose review with flagged issues and an overall verdict.
 
 This skill outputs flagged issues only — it does not apply edits, run a convergence loop, append Implementation Intent Questions, or emit a scorecard / skill-learnings panel. Iteration is the user's responsibility: read the verdict, edit the plan, re-invoke if you want another pass.
 
 ## Directive
 
-- **Senior-engineer review.** Flag anything a senior engineer would raise on this kind of plan. This includes blocking concerns — cross-file or cross-phase artifact dependencies that aren't verified, edits without a pre-read of the existing file, unvalidated empirical claims presented as settled fact, scope creep / over-engineering / under-specification, verification steps with no runnable command, untrusted inputs reaching trust boundaries, removal of code that could be a live entry point — *and* advisory concerns a senior reviewer would mention even when not strictly blocking: deviations from established conventions or standards (e.g., W3C trace context, RFC caching semantics, established framework patterns) that the plan reinvents ad-hoc; operational fragility (async-boundary correctness, concurrency invariants, per-request resource churn, lifecycle/timing assumptions); and "consider…" suggestions where a more idiomatic, simpler, or better-known approach exists. Also flag: dual-source-of-truth patterns lacking reconciliation; broken intermediate commits where a phase depends on a later phase's artifact; implicit new toolchains (language/runtime/native dep) without a build/install path. Cite the specific step and what evidence would resolve it.
+- **Senior-engineer review.** Flag anything a senior engineer would raise on this kind of plan. This includes blocking concerns — cross-file or cross-phase artifact dependencies that aren't verified, edits without a pre-read of the existing file, unvalidated empirical claims presented as settled fact, scope creep / over-engineering / under-specification, verification steps with no runnable command, untrusted inputs reaching trust boundaries, removal of code that could be a live entry point — *and* advisory concerns a senior reviewer would mention even when not strictly blocking: deviations from established conventions or standards (e.g., W3C trace context, RFC caching semantics, established framework patterns) that the plan reinvents ad-hoc; operational fragility (async-boundary correctness, concurrency invariants, per-request resource churn, lifecycle/timing assumptions); and "consider…" suggestions where a more idiomatic, simpler, or better-known approach exists. Also flag: fabricated quantitative claims (latency/throughput/Nx-faster numbers cited to files or benchmarks no plan step produces); phantom types/functions/modules referenced in exported signatures but never defined; dual-source-of-truth patterns lacking reconciliation; broken intermediate commits where a phase depends on a later phase's artifact; implicit new toolchains (language/runtime/native dep) without a build/install path. Cite the specific step and what evidence would resolve it.
+- **N/A condition:** TRIVIAL — documentation-only single-step plan with no code changes. Apply the directive only where it could materially apply; in that case, the severity rule below also does not apply.
 
-## Adversarial Close
+## Severity Rule (always-on)
 
-Imagine the plan just passed the directive. Now answer in writing:
+Treat the following finding categories as **blocking**: unvalidated empirical claims presented as settled fact; cross-file/cross-phase artifact dependencies unverified; edits without a pre-read; untrusted inputs reaching trust boundaries; removal of code that could be a live entry point; fabricated quantitative claims cited to files/benchmarks no plan step produces; phantom types/functions/modules referenced but never defined; dual-source-of-truth without reconciliation; broken intermediate commits where a phase depends on a later phase's artifact; implicit new toolchains without a build/install path.
 
-1. **Fabricated quantitative evidence.** Any quantitative claims (latency, throughput, "Nx faster", capacity, percentile bounds) cited to a file or benchmark that no plan step produces, or to a file that does not exist? List each.
-2. **Phantom types/symbols.** Any types, functions, modules, or fields referenced in exported signatures or public APIs that are never defined by any plan step? List each.
+Apply this verdict rule literally:
+- If you flagged **zero** blocking findings → verdict is `PASS` or `NEEDS_UPDATE` based on advisory weight.
+- If you flagged **exactly one** blocking finding → verdict is at most `NEEDS_UPDATE` (cannot be `PASS`).
+- If you flagged **two or more** blocking findings → verdict is `NOT READY`.
 
-If any answer is non-empty: add a flagged issue per non-empty answer prefixed `adversarial-close: <category>`, and downgrade the verdict one tier (`PASS` → `NEEDS_UPDATE`; `NEEDS_UPDATE` → `NOT READY`; not below `NOT READY`). The downgrade is mandatory.
-
-**N/A condition (close only):** TRIVIAL — documentation-only single-step plan with no code changes. Skip the close entirely; do not mention it.
+The downgrade is mandatory and not subject to your judgment about whether the issue is "really" blocking. If you flagged it as one of these categories, it counts.
 
 ## Output Format
 
-**Flagged Issues** — one paragraph or bullet per issue, citing the specific plan section/step, what was found, why it matters, and the concrete fix or evidence that would resolve it. Adversarial-close findings prefixed `adversarial-close: <category>`.
+**Flagged Issues** — one paragraph or bullet per issue, citing the specific plan section/step, what was found, why it matters, and the concrete fix or evidence that would resolve it.
 
 **Overall Verdict** — `PASS`, `NEEDS_UPDATE`, or `NOT READY` with a one-sentence rationale.
 

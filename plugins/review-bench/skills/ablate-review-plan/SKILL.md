@@ -87,16 +87,17 @@ Read the invocation arguments. Supported forms:
 /ablate-review-plan --single ~/.claude/plans/foo.md        # arbitrary plan-path × k=3 (canary mode)
 /ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
 /ablate-review-plan --variant null                         # use SKILL-v-null.md as ablated variant
-/ablate-review-plan --variant micro-2close                 # default — SKILL-v-micro-2close.md (v5.2 Arm C)
+/ablate-review-plan --variant micro-noclose-strict         # default — SKILL-v-micro-noclose-strict.md (v5.3, 2026-05-09)
 ```
 
 **`--variant <name>` flag.** Selects which file in `plugins/review-suite/skills/review-plan/variants/` is used
 as the ablated variant in Step 2b. The file resolved is `plugins/review-suite/skills/review-plan/variants/SKILL-v-<name>.md`.
-Default: `micro-2close`. Available variants:
+Default: `micro-noclose-strict`. Available variants:
 
 | `--variant` value | File | Description |
 |---|---|---|
-| `micro-2close` (default) | `SKILL-v-micro-2close.md` | v5.2 Arm C (default) — v5-micro-prose with 3 close categories folded into prose; keeps fabricated-quant + phantom-types close questions (≤34 hard gate) |
+| `micro-noclose-strict` (default) | `SKILL-v-micro-noclose-strict.md` | v5.3 (default, 2026-05-09) — v5-micro-noclose + always-on count-based severity rule (zero/one/two+ blocking → PASS/NEEDS_UPDATE/NOT_READY). 5-fixture k=5 Sonnet ablation: strictly better-or-equal to micro-2close on every cell; wins on probe-9 and input11 via finding-count-aware downgrade. (≤35 hard gate) |
+| `micro-2close` | `SKILL-v-micro-2close.md` | v5.2 Arm C (legacy default through 2026-05-09) — v5-micro-prose with 3 close categories folded into prose; keeps fabricated-quant + phantom-types close questions (≤34 hard gate) |
 | `micro-1close` | `SKILL-v-micro-1close.md` | v5.2 Arm B — v5-micro-prose with 4 close categories folded into prose; keeps only fabricated-quant close question (≤32 hard gate) |
 | `micro-noclose` | `SKILL-v-micro-noclose.md` | v5.2 Arm A — v5-micro-prose with all 5 close categories folded into directive prose; no Adversarial Close (≤28 hard gate) |
 | `micro-prose` | `SKILL-v-micro-prose.md` | v5.1 Arm A — v5-micro + directive prose expanded to include advisory categories (≤40 hard gate) |
@@ -187,8 +188,8 @@ For each fixture in the active set, create temp file paths for k=3 runs:
 - `$RESULTS_DIR/<fixture>-ablated-{1,2,3}.md` — ablated review outputs (3 runs)
 - `$RESULTS_DIR/<fixture>-judge-{1,2,3}.json` — judge verdicts (one per paired run)
 
-**Variant under test:** the ablated variant defaults to `plugins/review-suite/skills/review-plan/variants/SKILL-v-micro-2close.md`
-(v5.2 Arm C — production canary 2026-05-02). Use `--variant <name>` to point at any other file in
+**Variant under test:** the ablated variant defaults to `plugins/review-suite/skills/review-plan/variants/SKILL-v-micro-noclose-strict.md`
+(v5.3 — promoted 2026-05-09 after 5-fixture k=5 Sonnet ablation; replaced micro-2close as production default). Use `--variant <name>` to point at any other file in
 `plugins/review-suite/skills/review-plan/variants/` (resolved as `SKILL-v-<name>.md`). The file selected here
 is what gets passed as the system prompt to all 3 ablated-side agents in Step 2b. The
 control side always uses `plugins/review-suite/skills/review-plan/SKILL.md`.
