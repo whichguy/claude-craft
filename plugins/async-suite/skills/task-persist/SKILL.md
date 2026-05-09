@@ -109,6 +109,8 @@ if [ -z "$TARGET_SID" ]; then
   done
 fi
 
+[ -z "$TARGET_SID" ] && echo "No task sessions found for this repo." && exit 0
+
 TARGET_DIR="$TASKS_DIR/$TARGET_SID"
 if [ ! -d "$TARGET_DIR" ]; then
   echo "Session not found: $TARGET_SID"
