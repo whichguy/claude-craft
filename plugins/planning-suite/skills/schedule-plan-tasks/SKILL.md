@@ -3,10 +3,12 @@ name: schedule-plan-tasks
 description: |
   Analyzes an approved plan and decomposes it into a dependency-ordered task graph via a two-phase TaskCreate and TaskUpdate pass. Detects linear DEPENDS ON chains (shared worktree), identifies independent work streams (parallelized), and executes the full worktree-isolated run. Also handles Branch B (learnings from session context).
 
-  **AUTOMATICALLY INVOKE** when:
-  - ExitPlanMode hook triggers (PostToolUse)
-  - User says "schedule tasks", "create task graph", "decompose plan into tasks", "execute plan"
-  - /schedule-plan-tasks is invoked
+  **AUTOMATICALLY INVOKE** only when:
+  - The PostToolUse(ExitPlanMode) hook has injected its schedule-tasks nudge in this turn (i.e., the user just approved a plan), AND the user has not signaled they want to defer execution.
+  - /schedule-plan-tasks is invoked explicitly.
+  - The user explicitly says "schedule tasks", "execute the plan", "decompose plan into tasks" — only when a plan exists at ~/.claude/plans/*.md and is no longer being iterated on.
+
+  **DO NOT auto-invoke** while plan mode is active, while review-plan is iterating, or before the user has approved ExitPlanMode.
 
   **References:** JIT-loaded from `${CLAUDE_SKILL_DIR}/references/`
 allowed-tools: Bash, TaskCreate, TaskUpdate, TaskList, Agent, Read, Write, Edit, Glob, Grep
