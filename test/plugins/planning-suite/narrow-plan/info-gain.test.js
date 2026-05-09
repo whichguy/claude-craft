@@ -86,6 +86,29 @@ describe('lib/info-gain.js', function () {
         expect(result[0].expected_reduction).to.be.closeTo(expectedReduction, 1e-6);
     });
 
+    it('throws when a posterior does not sum to 1.0', function () {
+        const dir = tmpdir();
+        const priorPath = path.join(dir, 'prior.json');
+        const postPath = path.join(dir, 'post.jsonl');
+        const candPath = path.join(dir, 'cand.json');
+
+        writeJson(priorPath, { A: 0.2, B: 0.2, C: 0.2, D: 0.2, E: 0.2 });
+        // Empty posterior object — sums to 0, would otherwise look like a perfect-info question
+        writeJsonl(postPath, [
+            { q_idx: 0, a_idx: 0, posterior: {} },
+            { q_idx: 0, a_idx: 1, posterior: { A: 1, B: 0, C: 0, D: 0, E: 0 } }
+        ]);
+        writeJson(candPath, [
+            { q_idx: 0, q: 'Q', answers: [
+                { a_idx: 0, a: 'a', p: 0.5 },
+                { a_idx: 1, a: 'b', p: 0.5 }
+            ]}
+        ]);
+
+        expect(() => score({ priorDistPath: priorPath, posteriorsPath: postPath, candidatesPath: candPath }))
+            .to.throw(/posterior.*sums to/);
+    });
+
     it('throws when answer priors do not sum to 1.0', function () {
         const dir = tmpdir();
         const priorPath = path.join(dir, 'prior.json');

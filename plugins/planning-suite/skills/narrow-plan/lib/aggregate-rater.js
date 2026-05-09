@@ -34,6 +34,9 @@ function reversePermutation(permutation) {
     if (!SLOTS.includes(permuted)) {
       throw new Error(`invalid permutation entry: ${original} -> ${permuted}`);
     }
+    if (permuted in reversed) {
+      throw new Error(`permutation is not a bijection: ${permuted} is the target of both ${reversed[permuted]} and ${original}`);
+    }
     reversed[permuted] = original;
   }
   return reversed;

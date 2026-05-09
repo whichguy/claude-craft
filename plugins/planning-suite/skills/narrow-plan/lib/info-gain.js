@@ -3,6 +3,7 @@
 const fs = require('fs');
 const { entropy } = require('./stagnation-check');
 
+const SLOTS = ['A', 'B', 'C', 'D', 'E'];
 const TOL = 1e-6;
 
 function readJson(path) {
@@ -35,8 +36,12 @@ function score({ priorDistPath, posteriorsPath, candidatesPath }) {
     let expected = 0;
     for (const answer of candidate.answers) {
       const posterior = postIndex.get(`${candidate.q_idx}:${answer.a_idx}`);
-      if (!posterior) {
+      if (!posterior || typeof posterior !== 'object') {
         throw new Error(`missing posterior for q_idx=${candidate.q_idx} a_idx=${answer.a_idx}`);
+      }
+      const postSum = SLOTS.reduce((s, sl) => s + (posterior[sl] || 0), 0);
+      if (Math.abs(postSum - 1) > TOL) {
+        throw new Error(`posterior for q_idx=${candidate.q_idx} a_idx=${answer.a_idx} sums to ${postSum}, expected 1.0 +/- ${TOL}`);
       }
       expected += answer.p * entropy(posterior);
     }

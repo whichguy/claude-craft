@@ -167,10 +167,14 @@ Write `question-candidates.json`.
 For each (q_idx, a_idx) pair (up to 30), prepare a `COUNTERFACTUAL_RATER` prompt with the
 hypothetical question and answer inlined.
 
-Dispatch in batches of 10 per message (max 3 batches), awaiting each batch before the next:
+Dispatch in batches of 10 per message (max 3 batches), awaiting each batch before the next.
+Each Task() uses `subagent_type: "general-purpose"`, `model: "sonnet"`, `temperature: 0.5`
+(per the Roles table — between rater 0.7 and answerer 0.3):
 ```
 # Batch 1: dispatches 0..9 in one message
-Agent({...}) Agent({...}) ... Agent({...})
+Agent({ subagent_type: "general-purpose", model: "sonnet", temperature: 0.5, prompt: <cf 0> })
+Agent({ subagent_type: "general-purpose", model: "sonnet", temperature: 0.5, prompt: <cf 1> })
+... (8 more in the same message)
 # After batch returns, append to counterfactual-posteriors.jsonl
 # Batch 2: dispatches 10..19
 # Batch 3: dispatches 20..29

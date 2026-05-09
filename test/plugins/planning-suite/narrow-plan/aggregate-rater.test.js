@@ -55,6 +55,12 @@ describe('lib/aggregate-rater.js', function () {
             expect(() => reversePermutation({ A: 'X', B: 'B', C: 'C', D: 'D', E: 'E' }))
                 .to.throw(/invalid permutation/);
         });
+
+        it('throws when permutation is not a bijection (duplicate target)', function () {
+            // Both A and B map to C — bijection violation; if accepted silently, would skew distribution.
+            expect(() => reversePermutation({ A: 'C', B: 'C', C: 'A', D: 'D', E: 'E' }))
+                .to.throw(/not a bijection/);
+        });
     });
 
     describe('countLetters', function () {
