@@ -1,5 +1,5 @@
 const { expect } = require('chai');
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -19,6 +19,8 @@ describe('task-persist-restore.sh', function () {
 
     const CURRENT_SID = 'current-session-1234-5678-abcd-efgh';
     const PRIOR_SID   = 'prior-session-0000-1111-2222-3333';
+    // Compute the git root from the test runner's CWD — matches what the script computes
+    const REPO_ROOT = execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
 
     beforeEach(function () {
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'task-persist-test-'));
@@ -41,9 +43,11 @@ describe('task-persist-restore.sh', function () {
         );
     }
 
-    function makePriorDir() {
+    function makePriorDir(gitRoot = REPO_ROOT) {
         const dir = path.join(fakeTasksDir, PRIOR_SID);
         fs.mkdirSync(dir, { recursive: true });
+        // Write the project tag so the restore script can match it against the current session's git root
+        fs.writeFileSync(path.join(dir, '.project'), gitRoot);
         return dir;
     }
 
