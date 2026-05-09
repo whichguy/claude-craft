@@ -95,4 +95,3 @@ Users on the prior symlink-based install must first run `tools/migrate-from-syml
 - `tools/sync-bundled-tools.sh [--check]` — keep bundled tool copies in sync
 - `tools/migrate-from-symlinks.sh` — user upgrade script
 - `tools/e2e-marketplace-smoke.sh` — 7-check static validation, no Claude Code session needed
-- `tools/regen-phase-index.sh` — regen review-plan phase index marker (pre-commit gated)

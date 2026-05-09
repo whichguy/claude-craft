@@ -34,9 +34,9 @@ allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 
 # ablate-review-plan Skill
 
-Measures whether the structured question-based control (`skills/review-plan/SKILL.md`)
+Measures whether the structured question-based control (`plugins/review-suite/skills/review-plan/SKILL.md`)
 produces materially better issue detection than the directive-based ablated variant
-(`skills/review-plan/variants/SKILL-v-ablation-na.md` — per-directive N/A semantics, v2).
+(`plugins/review-suite/skills/review-plan/variants/SKILL-v-ablation-na.md` — per-directive N/A semantics, v2).
 
 **Architecture (v2 — k=3):** For each fixture, run control × 3 and ablated × 3 in parallel,
 then run the judge × 3 (paired by index) once outputs land. Aggregate into a per-fixture
@@ -90,50 +90,41 @@ Read the invocation arguments. Supported forms:
 /ablate-review-plan --variant micro-2close                 # default — SKILL-v-micro-2close.md (v5.2 Arm C)
 ```
 
-**`--variant <name>` flag.** Selects which file in `skills/review-plan/variants/` is used
-as the ablated variant in Step 2b. The file resolved is `skills/review-plan/variants/SKILL-v-<name>.md`.
+**`--variant <name>` flag.** Selects which file in `plugins/review-suite/skills/review-plan/variants/` is used
+as the ablated variant in Step 2b. The file resolved is `plugins/review-suite/skills/review-plan/variants/SKILL-v-<name>.md`.
 Default: `micro-2close`. Available variants:
 
 | `--variant` value | File | Description |
 |---|---|---|
-| `ablation-na` | `SKILL-v-ablation-na.md` | Per-directive N/A semantics (v2) |
-| `ablation-na-adversarial` | `SKILL-v-ablation-na-adversarial.md` | v2 + 5-question adversarial close (v3 candidate — targets mixed-defect under-flagging) |
-| `ablation-minimal` | `SKILL-v-ablation-minimal.md` | v4 — drastic prune to 5 load-bearing directives + v3 adversarial close (~88 lines vs v3's 166) |
-| `micro` | `SKILL-v-micro.md` | v5-micro (Arm A) — adversarial close + 1 universal senior-engineer directive (~36 lines, ≤40 hard gate) |
-| `micro-prose` | `SKILL-v-micro-prose.md` | v5.1 Arm A — v5-micro + directive prose expanded to include advisory categories (≤40 hard gate) |
-| `micro-conv` | `SKILL-v-micro-conv.md` | v5.1 Arm B — v5-micro + 6th adversarial-close question on conventions/fragility (≤45 hard gate) |
-| `micro-floor` | `SKILL-v-micro-floor.md` | v5.1 Arm C — v5-micro + verbosity floor (≥3 findings if non-trivial) (≤40 hard gate) |
-| `micro-noclose` | `SKILL-v-micro-noclose.md` | v5.2 Arm A — v5-micro-prose with all 5 close categories folded into directive prose; no Adversarial Close (≤28 hard gate) |
-| `micro-1close` | `SKILL-v-micro-1close.md` | v5.2 Arm B — v5-micro-prose with 4 close categories folded into prose; keeps only fabricated-quant close question (≤32 hard gate) |
 | `micro-2close` (default) | `SKILL-v-micro-2close.md` | v5.2 Arm C (default) — v5-micro-prose with 3 close categories folded into prose; keeps fabricated-quant + phantom-types close questions (≤34 hard gate) |
-| `security-stable` | `SKILL-v-security-stable.md` | v4.1 (Arm B) — v4 minimal + 1 explicit Security & untrusted-input directive (~91 lines, ≤105 hard gate) |
+| `micro-1close` | `SKILL-v-micro-1close.md` | v5.2 Arm B — v5-micro-prose with 4 close categories folded into prose; keeps only fabricated-quant close question (≤32 hard gate) |
+| `micro-noclose` | `SKILL-v-micro-noclose.md` | v5.2 Arm A — v5-micro-prose with all 5 close categories folded into directive prose; no Adversarial Close (≤28 hard gate) |
+| `micro-prose` | `SKILL-v-micro-prose.md` | v5.1 Arm A — v5-micro + directive prose expanded to include advisory categories (≤40 hard gate) |
 | `null` | `SKILL-v-null.md` | Senior-engineer one-liner baseline (Phase B) |
-| `ablation` | `SKILL-v-ablation.md` | v1 directive variant (legacy reference) |
-| `ablation-calibrated` | `SKILL-v-ablation-calibrated.md` | v1 + calibration preamble (legacy reference) |
 
-The control side always uses `skills/review-plan/SKILL.md`. Only the ablated side varies.
+The control side always uses `plugins/review-suite/skills/review-plan/SKILL.md`. Only the ablated side varies.
 
 **Fixture short-name → path map:**
 
 | Short name | Path | Expected finding (ground truth) |
 |------------|------|----------------------------------|
-| `probe-1` | `skills/review-plan/probes/probe-1-unvalidated-constraint.md` | Q-G1: asserts PropertiesService rejected without benchmarks |
-| `probe-2` | `skills/review-plan/probes/probe-2-phantom-code-references.md` | Q-G11: no file paths or function names cited |
-| `probe-3` | `skills/review-plan/probes/probe-3-cross-phase-contradiction.md` | Q-G21/G22: cross-phase contradiction + undefined field |
-| `probe-7` | `skills/review-plan/probes/probe-7-untestable-verification.md` | Q-G20: verification section has no runnable commands |
-| `probe-9` | `skills/review-plan/probes/probe-9-g1-pass-calibration.md` | ambiguous-plan calibration — both versions should flag substantive issues; judge for symmetry, not PASS (see RESULTS.md 2026-05-02 spot-check 1) |
-| `probe-16` | `skills/review-plan/probes/probe-16-gas-chatservice-wrapper.md` | Q-G21: internal contradiction in step scoping |
-| `probe-17` | `skills/review-plan/probes/probe-17-untrusted-log-injection.md` | Hidden issue: untrusted X-Request-Id header → log injection (read first-line `<!-- expected-finding: ... -->`) |
-| `probe-18` | `skills/review-plan/probes/probe-18-silent-type-mismatch.md` | Hidden issue: cited fn returns `User \| undefined`, plan destructures unconditionally |
-| `probe-19` | `skills/review-plan/probes/probe-19-live-entry-point-removal.md` | Hidden issue: removed function is a registered scheduled trigger (live external entry point) |
-| `probe-20` | `skills/review-plan/probes/probe-20-silent-async-rejection.md` | Hidden issue: fire-and-forget `void notifySignup(...)` silently swallows rejection |
-| `probe-21` | `skills/review-plan/probes/probe-21-procedurally-clean-false-claim.md` | Hidden issue: 10× speedup citation references a benchmark file no plan step produces |
-| `input3` | `skills/review-plan/inputs/input3-trivial-plan.md` | mixed-defect calibration — both versions should flag malformed `## Git Lifecycle1.` header + placeholder script ID + vacuous verification symmetrically (EQUIVALENT mode); not a clean-plan baseline (see RESULTS.md 2026-05-02 spot-check 1 retry) |
-| `input3b` | `skills/review-plan/inputs/input3b-trivial-pass.md` | PASS calibration — neither version should flag anything substantive (true clean-plan baseline; one-line CLAUDE.md doc edit cited verbatim with runnable verification) |
-| `input4` | `skills/review-plan/inputs/input4-plan-with-issues.md` | Structural problems (diverse) |
-| `input6` | `skills/review-plan/inputs/input6-node-refactor-missing-prereads.md` | Phantom code references (Node.js) |
-| `input8` | `skills/review-plan/inputs/input8-gas-oauth-tbd-markers.md` | Unresolved TBD markers |
-| `input11` | `skills/review-plan/inputs/input11-node-parallel-phases.md` | Complex parallel phases |
+| `probe-1` | `plugins/review-bench/fixtures/probes/probe-1-unvalidated-constraint.md` | Q-G1: asserts PropertiesService rejected without benchmarks |
+| `probe-2` | `plugins/review-bench/fixtures/probes/probe-2-phantom-code-references.md` | Q-G11: no file paths or function names cited |
+| `probe-3` | `plugins/review-bench/fixtures/probes/probe-3-cross-phase-contradiction.md` | Q-G21/G22: cross-phase contradiction + undefined field |
+| `probe-7` | `plugins/review-bench/fixtures/probes/probe-7-untestable-verification.md` | Q-G20: verification section has no runnable commands |
+| `probe-9` | `plugins/review-bench/fixtures/probes/probe-9-g1-pass-calibration.md` | ambiguous-plan calibration — both versions should flag substantive issues; judge for symmetry, not PASS (see RESULTS.md 2026-05-02 spot-check 1) |
+| `probe-16` | `plugins/review-bench/fixtures/probes/probe-16-gas-chatservice-wrapper.md` | Q-G21: internal contradiction in step scoping |
+| `probe-17` | `plugins/review-bench/fixtures/probes/probe-17-untrusted-log-injection.md` | Hidden issue: untrusted X-Request-Id header → log injection (read first-line `<!-- expected-finding: ... -->`) |
+| `probe-18` | `plugins/review-bench/fixtures/probes/probe-18-silent-type-mismatch.md` | Hidden issue: cited fn returns `User \| undefined`, plan destructures unconditionally |
+| `probe-19` | `plugins/review-bench/fixtures/probes/probe-19-live-entry-point-removal.md` | Hidden issue: removed function is a registered scheduled trigger (live external entry point) |
+| `probe-20` | `plugins/review-bench/fixtures/probes/probe-20-silent-async-rejection.md` | Hidden issue: fire-and-forget `void notifySignup(...)` silently swallows rejection |
+| `probe-21` | `plugins/review-bench/fixtures/probes/probe-21-procedurally-clean-false-claim.md` | Hidden issue: 10× speedup citation references a benchmark file no plan step produces |
+| `input3` | `plugins/review-bench/fixtures/inputs/input3-trivial-plan.md` | mixed-defect calibration — both versions should flag malformed `## Git Lifecycle1.` header + placeholder script ID + vacuous verification symmetrically (EQUIVALENT mode); not a clean-plan baseline (see RESULTS.md 2026-05-02 spot-check 1 retry) |
+| `input3b` | `plugins/review-bench/fixtures/inputs/input3b-trivial-pass.md` | PASS calibration — neither version should flag anything substantive (true clean-plan baseline; one-line CLAUDE.md doc edit cited verbatim with runnable verification) |
+| `input4` | `plugins/review-bench/fixtures/inputs/input4-plan-with-issues.md` | Structural problems (diverse) |
+| `input6` | `plugins/review-bench/fixtures/inputs/input6-node-refactor-missing-prereads.md` | Phantom code references (Node.js) |
+| `input8` | `plugins/review-bench/fixtures/inputs/input8-gas-oauth-tbd-markers.md` | Unresolved TBD markers |
+| `input11` | `plugins/review-bench/fixtures/inputs/input11-node-parallel-phases.md` | Complex parallel phases |
 
 For probes that ship with a top-of-file `<!-- expected-finding: ... -->` HTML comment (probes 17–21), read the comment text and use it verbatim as the EXPECTED_FINDING for the judge. The comment is the ground-truth target finding.
 
@@ -147,7 +138,7 @@ non-alphanumerics with `-`) for use in `<fixture>-control-<i>.md` / `<fixture>-a
 output paths. EXPECTED_FINDING is empty (no ground-truth target). The Step 0b inspector
 runs as normal, but its `suitable_as` is informational only — there is no fixture-map
 expectation to compare against in path mode. Reject the path if it lives under
-`skills/review-plan/{probes,inputs}/` (those are calibration fixtures, not real plans).
+`plugins/review-bench/fixtures/{probes,inputs}/` (those are calibration fixtures, not real plans).
 
 Recommended verification order:
 1. Start with `--single input3b` (true PASS calibration — confirms harness wiring + over-flagging dimension before full run)
@@ -196,11 +187,11 @@ For each fixture in the active set, create temp file paths for k=3 runs:
 - `$RESULTS_DIR/<fixture>-ablated-{1,2,3}.md` — ablated review outputs (3 runs)
 - `$RESULTS_DIR/<fixture>-judge-{1,2,3}.json` — judge verdicts (one per paired run)
 
-**Variant under test:** the ablated variant defaults to `skills/review-plan/variants/SKILL-v-micro-2close.md`
+**Variant under test:** the ablated variant defaults to `plugins/review-suite/skills/review-plan/variants/SKILL-v-micro-2close.md`
 (v5.2 Arm C — production canary 2026-05-02). Use `--variant <name>` to point at any other file in
-`skills/review-plan/variants/` (resolved as `SKILL-v-<name>.md`). The file selected here
+`plugins/review-suite/skills/review-plan/variants/` (resolved as `SKILL-v-<name>.md`). The file selected here
 is what gets passed as the system prompt to all 3 ablated-side agents in Step 2b. The
-control side always uses `skills/review-plan/SKILL.md`.
+control side always uses `plugins/review-suite/skills/review-plan/SKILL.md`.
 
 ---
 
@@ -213,7 +204,7 @@ indices once both that pair's outputs exist).
 
 ### Step 2a: Control runs (i=1,2,3)
 
-For each `i ∈ {1,2,3}`, spawn an Agent with the full text of `skills/review-plan/SKILL.md`
+For each `i ∈ {1,2,3}`, spawn an Agent with the full text of `plugins/review-suite/skills/review-plan/SKILL.md`
 as the system prompt and the fixture file content as the input. Write the agent's complete
 review output to `$RESULTS_DIR/<fixture>-control-<i>.md`.
 
@@ -222,7 +213,7 @@ Agent prompt template:
 You are running the review-plan skill in control mode.
 
 <SKILL>
-[full contents of skills/review-plan/SKILL.md]
+[full contents of plugins/review-suite/skills/review-plan/SKILL.md]
 </SKILL>
 
 Review this plan:
@@ -237,7 +228,7 @@ Output your complete review. Do not truncate.
 ### Step 2b: Ablated runs (i=1,2,3)
 
 For each `i ∈ {1,2,3}`, spawn an Agent with the resolved variant file
-(`skills/review-plan/variants/SKILL-v-<variant>.md`, where `<variant>` is the value of the
+(`plugins/review-suite/skills/review-plan/variants/SKILL-v-<variant>.md`, where `<variant>` is the value of the
 `--variant` flag, defaulting to `micro-2close`) as the system prompt and the same fixture
 content. Write output to `$RESULTS_DIR/<fixture>-ablated-<i>.md`.
 
@@ -246,7 +237,7 @@ Agent prompt template:
 You are running the review-plan skill in ablated directive mode (per-directive N/A variant).
 
 <SKILL>
-[full contents of skills/review-plan/variants/SKILL-v-ablation-na.md]
+[full contents of plugins/review-suite/skills/review-plan/variants/SKILL-v-ablation-na.md]
 </SKILL>
 
 Review this plan:
