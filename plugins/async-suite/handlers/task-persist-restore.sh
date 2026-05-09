@@ -31,7 +31,7 @@ _GIT_ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "
 
 # Tag current session with its git root (created even if session has no tasks yet)
 mkdir -p "$TASKS_DIR/$SID"
-printf '%s' "$_GIT_ROOT" > "$TASKS_DIR/$SID/pending-tasks.json"
+printf '%s' "$_GIT_ROOT" > "$TASKS_DIR/$SID/.git-root"
 
 # Prune sentinels older than 30 days to prevent unbounded accumulation
 find "$SNAPSHOTS_DIR" -name '.restored-*' -mtime +30 -delete 2>/dev/null || true
@@ -50,7 +50,7 @@ if [ ${#task_dirs[@]} -gt 0 ]; then
     dir="${dir%/}"
     [ "$(basename "$dir")" = "$SID" ] && continue
     # Skip sessions with no project tag (pre-fix) or a different project
-    proj_file="$dir/pending-tasks.json"
+    proj_file="$dir/.git-root"
     [ ! -f "$proj_file" ] && continue
     [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
     json_files=("$dir"/*.json)
