@@ -6,7 +6,7 @@ description: |
   **AUTOMATICALLY INVOKE** only when:
   - The PostToolUse(ExitPlanMode) hook has injected its schedule-tasks nudge in this turn (i.e., the user just approved a plan), AND the user has not signaled they want to defer execution.
   - /schedule-plan-tasks is invoked explicitly.
-  - The user explicitly says "schedule tasks", "execute the plan", "decompose plan into tasks" — only when a plan exists at ~/.claude/plans/*.md and is no longer being iterated on.
+  - The user explicitly says "schedule tasks", "execute the plan", "decompose plan into tasks" — only when a plan exists at ~/.claude/plans/*.md AND ExitPlanMode has already been approved in this session.
 
   **DO NOT auto-invoke** while plan mode is active, while review-plan is iterating, or before the user has approved ExitPlanMode.
 
