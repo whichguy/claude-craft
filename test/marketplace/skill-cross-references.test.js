@@ -376,6 +376,6 @@ describe('subagent_type dispatch: every Task() / frontmatter subagent_type resol
         }
 
         const formatted = unresolved.map(u => `  ${u.file}:${u.line}  subagent_type="${u.name}"`).join('\n');
-        expect(unresolved, `Broken subagent_type dispatches — agent does not exist; fix the name, add to BUILTIN_SUBAGENT_TYPES if it's a Claude Code built-in, or to SUBAGENT_TYPE_EXAMPLES if it's a placeholder in pseudo-code:\n${formatted}`).to.deep.equal([]);
+        expect(unresolved, `Broken subagent_type dispatches — agent does not exist; fix the name, add to BUILTIN_SUBAGENT_TYPES if it's a Claude Code built-in, or to SUBAGENT_TYPE_EXAMPLES if it's a placeholder in pseudo-code. Note: subagent_type takes bare agent names (unlike skill refs which use \`plugin:skill\` form).\n${formatted}`).to.deep.equal([]);
     });
 });
