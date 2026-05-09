@@ -22,6 +22,7 @@ const LINT_EXEMPT = new Set([
     'plugins/wiki-suite/handlers/wiki-common.sh',          // sourced library — `wiki_parse_input`, etc.
     'plugins/async-suite/handlers/task-persist-common.sh',  // sourced library — `tp_parse_input`, etc.
     'plugins/wiki-suite/handlers/wiki-raw-guard.sh',        // 5-line defensively-coded guard with explicit exit codes
+    'plugins/planning-suite/handlers/_active-plan-slug.sh', // sourced library — `resolve_active_slug`; intentionally tolerates grep/jq no-match (returns 1) per fix b4cb481
 ]);
 
 function listHandlers() {
