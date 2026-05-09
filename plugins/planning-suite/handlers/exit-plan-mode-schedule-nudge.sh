@@ -2,7 +2,7 @@
 # PostToolUse hook for ExitPlanMode: emit an advisory nudge prompting the
 # assistant to invoke /schedule-plan-tasks once the plan has been approved.
 # Stays silent (exit 0) when no plan file is found so we don't block.
-set -o pipefail
+set -eo pipefail
 trap 'exit 0' ERR
 
 plan_file=$(ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1 || true)
