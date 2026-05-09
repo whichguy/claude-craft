@@ -101,9 +101,15 @@ Inspect the state of `REPO_ROOT`:
 | State                                       | Action                                                                                                                                                                                                              |
 |---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Exists and contains `.git`                  | `BootstrapNeeded = no`. Continue normally.                                                                                                                                                                          |
-| Doesn't exist OR exists without `.git`      | If args contain `--bootstrap`, OR the plan front-matter (first 30 lines) contains `^Bootstrap:\s*yes\s*$` → `BootstrapNeeded = yes`. Otherwise halt with `REPO_ROOT <REPO_ROOT> is not a git repo. Add 'Bootstrap: yes' to the plan front-matter or pass --bootstrap, or pre-init the repo manually.` |
+| Doesn't exist OR exists without `.git`      | If args contain `--bootstrap`, OR the plan front-matter (first 30 lines) contains `^Bootstrap:\s*yes\s*$`, OR the plan's Context section literally contains `greenfield` or `new project` (auto-detect with banner notice `[bootstrap] auto-detected from plan Context (\"greenfield\"/\"new project\")`) → `BootstrapNeeded = yes`. Otherwise prompt the user via `AskUserQuestion`: "Bootstrap (recommended) / Skip / Cancel". Bootstrap → `BootstrapNeeded = yes`. Skip → halt with `REPO_ROOT <REPO_ROOT> is not a git repo. Pre-init manually and re-run.` Cancel → halt with `User canceled before bootstrap.` |
 
-When `BootstrapNeeded = yes`, the creation pass in Step 3 emits an extra git-prep task `bootstrap` and wires `preflight` to be blocked by `bootstrap`. See Step 0.5 / Step 3 for the bootstrap task body.
+When `BootstrapNeeded = yes`, the orchestrator runs the bootstrap bash body **inline-before-creation** (a documented "Phase −1") so that by the time Step 3's branch-capture executes (`git -C "$REPO_ROOT" branch --show-current` and `rev-parse --short HEAD`), the repo exists with a HEAD commit on `init.defaultBranch`. The bootstrap git-prep task is therefore NOT emitted in cold-start runs (its work is already done); the existing per-step skip condition for `bootstrap` keys off `BootstrapNeeded` having been resolved inline. After bootstrap, surface to the user:
+```
+[bootstrap] init.defaultBranch=<branch> sha=<short-sha>
+```
+This closes the spec circular dependency where Step 3's branch capture was specified to run before any task body.
+
+In `dry-run`, `plan-only`, and `dry-run-analyze` modes the inline bootstrap bash is NOT executed (consistent with the verb-guard table); a `[DRY] would bootstrap at $REPO_ROOT` notice is printed and `BootstrapNeeded` is treated as already-resolved for downstream branch-capture (which itself is read-only and continues to run).
 
 Print the active mode + repo banner once:
 ```
@@ -199,9 +205,19 @@ The execution mode (worktree vs serial main-workspace) is decided per-proposal, 
 
 ---
 
-### Step 2 — Review Agent (Branch B only)
+### Step 2 — Review Agent
 
-**Skip this step entirely on Branch A** (plan was already reviewed before `ExitPlanMode`). Branch A proceeds directly to Step 3 with proposals, plan-derived sequencing hints, and the plan's Verification section as the regression seed.
+**Branch B:** runs the senior-engineer de-duplication review (the existing `reviewer-full.md` prompt) — see protocol below.
+
+**Branch A:** runs an internal-consistency review using `reviewer-branch-a.md` (different goals from Branch B's de-duplication pass — targets contradictions, missing prerequisites, scope mismatches, verification gaps). **Default: ON.** The review is skipped on Branch A iff:
+- the plan front-matter (first 30 lines) contains `^Skip-review:\s*yes\s*$`, OR
+- the user passed `--no-review`.
+
+When skipped, print `[review] Branch-A consistency review skipped (front-matter/flag)` and proceed to Step 3.
+
+When the Branch-A review runs and emits FLAG findings (verdict `FLAG`), the orchestrator presents each finding via a single `AskUserQuestion`: "Accept and proceed / Halt for plan revision / Skip this finding". Accept → continue. Halt → stop and ask the user to re-run after editing the plan. Skip → record the dismissal in the run log and continue. The reviewer is advisory — it does not block on `PASS` and does not auto-halt on `FLAG`.
+
+For the Branch-B path the rest of this step (the de-duplication review) is identical to the prior contract:
 
 Print:
 ```
@@ -219,9 +235,13 @@ Substitutions:
 - `{proposals}` → markdown table from Step 1
 - `{existing_backlog_filtered}` → ALL in_progress + 20 most recent pending (NOT full backlog)
 
-**Dispatch protocol:**
+**Dispatch protocol (Branch B):**
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/reviewer-full.md`** — load the verbatim prompt into context.
 2. **THEN:** Dispatch the Agent with that prompt verbatim, substituting placeholders. Do not paraphrase, summarize, or rewrite.
+
+**Dispatch protocol (Branch A — internal-consistency review):**
+1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/reviewer-branch-a.md`** — load the verbatim prompt into context.
+2. **THEN:** Dispatch the Agent with `{plan_text}` substituted = full plan file content. Do not paraphrase. The reviewer returns `PASS` (proceed) or `FLAG` with a list of `category | task-id | quote | why-it-matters | resolution` findings. Surface each finding via a single AskUserQuestion (Accept / Halt / Skip) per the gating rule above.
 
 **On agent return**, print changelog:
 ```
@@ -287,6 +307,25 @@ Print chain assignments after detection:
 [chain] chain-1: Proposal-A (head) → Proposal-B (link) → Proposal-C (tail)
 [chain] standalone: Proposal-D
 ```
+
+**Linear-chain serial shortcut (auto-take when topology is single-chain-no-standalones):**
+
+When chain detection produces **exactly 1 chain with ≥1 nodes and 0 standalones**, take the
+serial-on-feature-branch path automatically (no AskUserQuestion). Print:
+```
+[topology] single-chain-no-standalones — taking linear shortcut (no .worktrees/, no integration branch)
+```
+
+Behavior:
+1. Skip create-wt entirely. No `.worktrees/` directory is created.
+2. Skip the `integration-branch` git-prep task. Instead, capture `ORIGIN_BRANCH = git -C "$REPO_ROOT" branch --show-current` (the user's working branch), then create `feat/<plan-slug>-<short-sha>` directly on the user's repo and check it out.
+3. For each chain member, dispatch the delivery-agent with envelope `Working directory: $REPO_ROOT` (main repo, not a worktree), `Self-merge: no` for `head` and `link` roles, `Self-merge: yes` only on the `tail`. The tail's `Self-merge: yes` fast-forwards `feat/<plan-slug>-<short-sha>` into `ORIGIN_BRANCH` — if the user was on `main`, this ff's main; if on a topic branch, that topic branch advances. The merge target is therefore `ORIGIN_BRANCH`, not `INTEGRATION_BRANCH`.
+4. The envelope's `MERGE_TARGET:` field is set to `ORIGIN_BRANCH` for tail members, and to `feat/<plan-slug>-<short-sha>` for head and links (so each link commits onto the feature branch). The agent's chain-merge body logic at `agents/delivery-agent.md` `## Self-merge` is reused unchanged — only the merge-target ref differs.
+5. `open-pr` proceeds against `feat/<plan-slug>-<short-sha> → ORIGIN_BRANCH` (or no-op + summary file when no remote — see Step 5).
+6. **Dirty working tree at start:** if `git -C "$REPO_ROOT" status --porcelain` is non-empty when the shortcut path is selected, AskUserQuestion: "Cancel". (Cancel only — no auto-stash; the user resolves manually.)
+
+Parallel-chain topology (≥2 chains OR ≥1 standalone) keeps the existing worktree machinery
+unchanged — `.worktrees/`, `integration-branch`, `INTEGRATION_BRANCH` as `MERGE_TARGET`.
 
 **Mode-aware verb guards (4-tier):**
 
@@ -355,12 +394,23 @@ delivery-agent:   { task_type: "delivery-agent",  chain_id: "chain-K"|null,
                integration_branch: "<INTEGRATION_BRANCH>",
                repo_root: "<absolute REPO_ROOT>" }
 regression:  { task_type: "regression", chain_id: null, chain_role: null, isolation: "none",
+               execution_lane: "agent | inline",   // default "agent"; see lane-selection rule below
                repo_root: "<absolute REPO_ROOT>" }
 open-pr:     { task_type: "open-pr",    chain_id: null, chain_role: null, isolation: "none",
+               execution_lane: "agent | inline",   // default "agent"; see lane-selection rule below
                repo_root: "<absolute REPO_ROOT>",
                upstream_branch: "<UPSTREAM_BRANCH>",
                integration_branch: "<INTEGRATION_BRANCH>" }
 ```
+
+**`execution_lane` selection rule (set at TaskCreate time, never mid-run):**
+
+Default `execution_lane = "agent"` for both regression and open-pr (preserves existing contract). Set `execution_lane = "inline"` only when ALL conditions hold:
+
+- **regression:** the verification command set is fully scriptable (curl + test runner + grep — no manual UI step, no human-in-the-loop checks).
+- **open-pr:** there is no remote (`git -C "$REPO_ROOT" remote` is empty) OR every sub-action of the open-pr body is deterministic bookkeeping (assemble PR body, write file, close out — no interactive `gh pr create`).
+
+When `execution_lane: "inline"`, the orchestrator runs the task body directly in-loop and MUST still emit a synthetic status block into the task metadata: `{result, work, incomplete, failure, artifact}`. If the synthetic regression status is `failed`, the orchestrator MUST follow `${CLAUDE_SKILL_DIR}/references/investigation-task-template.md` itself (TaskCreate the sibling investigation task) — no improvising to ISSUES.md. Failed inline-lane tasks cascade exactly the same way agent-lane failures do.
 
 Phase 2 — Wiring: Wire dependencies via a single response using both `addBlockedBy` (on the downstream task) AND `addBlocks` (on the upstream task) for every dependency edge, so the graph is traversable in both directions without extra lookups. Print wiring ticker.
 
@@ -499,6 +549,8 @@ purposes (the merge destination). `UPSTREAM_BRANCH` is the PR target only.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
    - Set `Self-merge:` to `yes` for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks.
    - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones. The agent's self-merge block keys off this field to choose between the standalone and chain merge-commit-body branches.
+   - Set `Cascade:` to the literal `required (TaskList → gate-check → record unblocked IDs in DISPATCHED: BEFORE emitting RESULT: complete)` for every delivery-agent task — this is the cascade-identification precondition reinforced in the envelope; the agent treats it as load-bearing per `agents/delivery-agent.md` `## Cascade-identification precondition`.
+   - Set `Prior chain commits:` ONLY for chain `link` and `tail` tasks (`metadata.chain_role in {"link","tail"}`); omit the line entirely for `head` and standalones. Substitute the per-task value: `read \`git -C $WORKTREE_PATH log --format='%n--- %s ---%n%b' $MERGE_TARGET..HEAD\` and ingest each commit's "## Key learnings" section before starting work — these are gotchas already discovered by earlier members of this chain.` (Substitute `$WORKTREE_PATH` and `$MERGE_TARGET` with the literal absolute path / branch name for this task; the agent runs the bash directly.)
    - Replace `[one-paragraph guidance]` with **a single paragraph (≤ ~120 words) of plan-level guidance** distilled from the proposal — see "Task definition rules" below.
    - Leave `Task ID:` as the literal placeholder `[TASK_ID]` — the orchestrator fills it in Phase 1.5 after TaskCreate returns real IDs.
 
@@ -645,7 +697,7 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone delivery-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
 | Assert 6 | every native-worktree delivery-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Delivery-agent #N metadata.target_branch is missing or placeholder"                 |
 | Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
-| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Self-merge:`, `Chain:`, `External resources:` | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
+| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Self-merge:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:` | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
 | Assert 9 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
 | Assert 10 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
 
@@ -685,6 +737,21 @@ Phase B — create-wt (background Tasks, parallel batch):
   Any create-wt failure → halt; report; do not dispatch its delivery-agent.
 
 Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascade):
+
+  **Cost-confirmation gate (runs ONCE, before any wave-1 dispatch):**
+
+  Compute from the freshly-built TaskList:
+    - mediumLargeCount = count(t in TaskList where t.metadata.task_type == "delivery-agent" and t.metadata.scope in {"medium","large"})
+    - daCount          = count(t in TaskList where t.metadata.task_type == "delivery-agent")
+
+  If `mediumLargeCount >= 4` OR `daCount >= 6`, AND args do NOT contain `--no-confirm`,
+  insert ONE AskUserQuestion: "Dispatch full cascade now / Dispatch only the head and pause / Cancel."
+    - Dispatch full cascade now → continue.
+    - Dispatch only the head and pause → dispatch only the FIRST member of wave-1 (chain-1 head, in TaskList ID order); after that single agent's notification, halt cleanly with `[gate] head-only paused — re-run with --no-confirm to continue cascade`. Downstream tasks remain pending.
+    - Cancel → halt; downstream tasks remain pending.
+
+  Below the threshold (mediumLargeCount < 4 AND daCount < 6), or with `--no-confirm`, dispatch immediately without prompting.
+
   wave1 = [t for t in TaskList({}) where t.status == "pending" and t.blockedBy all completed]
   This is every chain-head and standalone delivery-agent (their only blocker was a create-wt, now done).
 
@@ -825,10 +892,57 @@ Body (live mode — backgrounded Bash; result file at `$REPO_ROOT/.worktrees/.op
    - "Leave open for human review (default)" — leaves PR open, prints URL, exits.
    - "Close PR and discard the integration branch" — `gh pr close <url>` then `git -C "$REPO_ROOT" branch -D "$INTEGRATION_BRANCH"` (and `git push origin --delete "$INTEGRATION_BRANCH"` if pushed).
 
-**Local-only path** (gh missing or no remote): skip steps 3–5; print a notice with
-the local integration branch name and dump the assembled PR body to stdout so the user
-can open it manually. The integration branch stays on disk for the user to push when
-ready.
+**Local-only path** (gh missing or no remote): skip steps 3–5. In addition to printing a
+notice with the local integration branch name, **write the assembled PR body to a
+persistent file** at:
+
+```
+$REPO_ROOT/.schedule-summary-<short-sha-of-INTEGRATION_BRANCH>.md
+```
+
+(short-sha computed via `git -C "$REPO_ROOT" rev-parse --short "$INTEGRATION_BRANCH"`). The
+leading dot keeps the file out of `git status` noise without mutating `.gitignore`. Print
+the path in the completion banner so the user can later run `gh pr create
+--body-file=<path>` if they push the branch. If the user wants the file ignored in their
+repo, the banner mentions adding `.schedule-summary-*.md` to their own ignore file.
+
+The integration branch stays on disk for the user to push when ready.
+
+**Key-learnings aggregation (runs at end of every open-pr task body — agent or inline lane,
+remote or local-only):**
+
+After the PR body assembly (or instead of it on the local-only path), aggregate the
+`## Key learnings` section of every delivery-agent commit between
+`$UPSTREAM_BRANCH..$INTEGRATION_BRANCH` (or `$ORIGIN_BRANCH..feat/<plan-slug>-<short-sha>`
+for the linear-chain shortcut). Write to:
+
+```
+$REPO_ROOT/.skill-learnings-<short-sha-of-INTEGRATION_BRANCH>.md
+```
+
+The file format:
+```
+# Schedule run learnings — <integration-branch-or-feature-branch> @ <date>
+
+## task-N — <subject>
+<contents of that commit's "Key learnings" section>
+
+...
+```
+
+Implementation sketch (live mode, the orchestrator runs this bash):
+```bash
+git -C "$REPO_ROOT" log --reverse --pretty='format:%n=== %s ===%n%b' "$UPSTREAM_BRANCH..$INTEGRATION_BRANCH" \
+  | awk '/^=== / {subj=$0; in_kl=0; next}
+         /^Key learnings:/ {in_kl=1; print "\n## " subj; next}
+         in_kl && /^[A-Z][a-z]+:/ {in_kl=0}
+         in_kl {print}' > "$REPO_ROOT/.skill-learnings-<sha>.md"
+```
+
+Reference the learnings file in the PR body's `## Review notes` section so reviewers see
+all gotchas together. The file is gitignored by default (leading dot) but the user can
+`git add` it to track. In `dry-run`, `plan-only`, and `dry-run-analyze` modes, write a
+`[DRY] would aggregate learnings to <path>` notice instead of executing the bash.
 
 **Cleanup.** Whether the PR was opened, skipped, or closed, remove the pre-flight
 staging files at the end of this task: `rm -f "$REPO_ROOT/.worktrees/.preflight-tracked.patch" "$REPO_ROOT/.worktrees/.preflight-untracked.tgz"`.

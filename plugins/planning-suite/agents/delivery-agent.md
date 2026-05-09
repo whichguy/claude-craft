@@ -34,6 +34,11 @@ Everything below governs how you execute. The behavior contract is fixed; only t
 
 ## Directive
 
+**First action upon receiving the envelope:** emit the `## Agent selection` declaration block
+per Step L0a (below). No file edits, bash commands, or implementation may happen before that
+block is on screen. For trivial envelopes (`Isolation: none (trivial)`), L0a collapses to a
+single line — see Step L0a.
+
 Execute completely. Do not pause to ask for confirmation. Do not stop at the first
 obstacle — diagnose it, fix it, continue.
 
@@ -123,6 +128,41 @@ P<n> (<K> sub-task<s>):
 ````
 
 Single-agent phases drop the `(blockedBy: ...)` suffix.
+
+**Trivial-task collapse.** When the envelope sets `Isolation: none (trivial)`, L0a collapses
+to a single line and L1 is skipped:
+
+````
+## Agent selection
+
+P2: general-purpose — trivial single-phase task; skipping L1.
+````
+
+Then proceed directly to implementation. No phase TaskCreate, no specialist dispatch.
+
+**Worked example (mid-size task).** For a non-trivial task that adds an HTTP route + tests + docs:
+
+````
+## Agent selection
+
+P0 (1 sub-task):
+  P0.a: general-purpose — env preflight: confirm Node version + npm install state.
+
+P1 (1 sub-task):
+  P1.a: qa-analyst — DoD names "test/routes/auth.test.js cases", maps to test-spec specialist.
+
+P2 (1 sub-task):
+  P2.a: general-purpose — implementation language is JS/Express, no domain specialist matches the route+middleware signal.
+
+P3 (1 sub-task):
+  P3.a: code-reviewer — `.js` source modified; general-language code review specialist.
+
+P4 (1 sub-task):
+  P4.a: general-purpose — README.md doc update.
+
+P5 (1 sub-task):
+  P5.a: general-purpose — runs `npm test` per DoD; no QA-architecture decision needed at run-time.
+````
 
 The TaskCreate batch in L0 then creates one Task per sub-task (subjects encode
 `[<task-id>] P<n>.<sub> <chosen-agent> — <subject>`), and L1 wires intra-phase
@@ -375,6 +415,53 @@ re-commit). Then self-merge as normal if Self-merge: yes.
 block with `RESULT: failed`, `FAILURE: partial_change`, `ARTIFACT: <your worktree path>`.
 Include the failing sub-task's branch, worktree, and FAILURE in your INCOMPLETE field.
 
+## Pre-commit checks (before ANY git commit)
+
+Two emissions are required immediately before the `git commit` call. Both go to the
+orchestrator as part of your run output (above the commit body), not into the commit body
+itself. Empty cases must still emit the heading + `none` so the orchestrator can detect
+that the check ran.
+
+### `## Assumptions to verify`
+
+Ask yourself: "Have I made any assumptions about the plan's internal consistency that, if
+wrong, would invalidate this work?" Examples: assumed numeric model is real-return when
+plan also says spending grows at inflation; assumed an upstream library exposes a flag that
+the plan referenced but you didn't verify; assumed a deps file was created by an earlier
+chain member but didn't `cat` it.
+
+Emit:
+```
+## Assumptions to verify
+- <one-line assumption>: if false, this work is invalid because <one line>.
+- ...
+```
+or, if you have no load-bearing assumptions:
+```
+## Assumptions to verify
+none
+```
+
+The orchestrator may pause the cascade and surface assumptions to the user via
+AskUserQuestion before letting your task complete. Do not pre-empt that decision — emit
+honestly.
+
+### `## Citation gap` (only when guidance demands citations)
+
+If the envelope guidance paragraph mentions citations (matches `cite|citation|Rev\.
+Proc\.|P\.L\.|IRC §|RFC|ISO `), verify each citation as a Phase-5 verification step:
+- WebFetch the primary source. If fetch succeeds and the value used matches the source,
+  note ✓ in `What was tested`.
+- If fetch fails OR the value differs, emit before commit:
+```
+## Citation gap
+- <citation>: primary source <reason fetch failed | value differs>; substituted with <secondary source> on <date>.
+- ...
+```
+The orchestrator surfaces these in the open-pr PR body so reviewers can re-verify.
+
+If the guidance does not demand citations, omit the block entirely.
+
 ## Before return: commit
 
 Make exactly one `git commit` covering only the files this task produced directly. The
@@ -394,9 +481,10 @@ Why:
    Pull from inferred Purpose/DoD.>
 
 What was considered:
-  <Alternatives weighed. Include L0a agent-selection reasoning when a fallback
-   to general-purpose was used, and any assumptions noted under WORK.
-   Use "n/a" only when the path was genuinely obvious.>
+  <Alternatives weighed. MUST reference the L0a `## Agent selection` declaration block
+   you emitted at the start of this run — list which specialist agents ran for which
+   phases, which fell back to general-purpose, and why. Include any assumptions noted
+   under WORK. Use "n/a" only when the path was genuinely obvious.>
 
 What was tested:
   VERIFY_CMD: <exact Phase 5 command string>
@@ -575,6 +663,33 @@ After the backgrounded Bash terminates, read `.selfmerge-status` for the outcome
 | `failed:retries_exhausted` | "On RESULT: failed" | `conflict_needs_user` |
 
 When constructing the `INCOMPLETE:` field for any failure, `Read("$WORKTREE_PATH/.selfmerge-diag")` and summarize the last entry — do not include the full diag in the field.
+
+## Cascade-identification precondition (read BEFORE writing the status block)
+
+The `DISPATCHED:` field in the status block is a **record** of work you must have already
+done. It is not the place where the work happens. Before you may emit `RESULT: complete`,
+you MUST have already:
+
+  (a) Called `TaskList({})` to read the current backlog,
+  (b) For each candidate task `t`: run all three gates from `## On RESULT: complete` step
+      2 below (status pending, this task in `t.blockedBy`, every other blocker completed),
+  (c) Recorded every passing candidate's ID in the `DISPATCHED:` field (comma-separated),
+      or the literal string `none` if zero candidates passed.
+
+`DISPATCHED: none` is **legitimate ONLY** when step (a) returned no tasks, OR every task
+returned failed at least one gate. It is NOT legitimate as a default. Skipping the
+TaskList scan and writing `none` reflexively is a contract violation.
+
+Note on dispatch ownership: the orchestrator (per the 2026-05-09 inversion in `## On
+RESULT: complete` below) owns the actual `Agent({...})` calls. Your job is identification,
+recording, and emission. The orchestrator parses your `DISPATCHED:` field and dispatches.
+
+**Self-check rubric — answer all three before writing the status block.** You may not
+write `RESULT: complete` if any answer is no:
+  1. Did I call TaskList?
+  2. Did the result return any candidates that passed all three gates?
+  3. If yes, are their IDs in `DISPATCHED:`? If no, is `DISPATCHED: none` (because the
+     scan genuinely found nothing)?
 
 ## Status protocol (every run emits this block as the final output)
 
