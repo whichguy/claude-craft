@@ -31,7 +31,7 @@ Removes the `.disabled` flag to resume auto-restore.
 ```
 /task-persist list
 ```
-Lists recent session directories from `~/.claude/tasks/` with pending-task counts and timestamps.
+Lists recent session directories for the current repo from `~/.claude/tasks/` with pending-task counts and timestamps.
 
 ### show [session-id]
 ```
@@ -62,6 +62,7 @@ echo "Task-persist enabled."
 
 For **list**:
 ```bash
+_GIT_ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
 TASKS_DIR="$HOME/.claude/tasks"
 if [ ! -d "$TASKS_DIR" ]; then
   echo "No task sessions found."
@@ -71,6 +72,9 @@ echo "Recent sessions (newest first):"
 echo ""
 for dir in $(ls -td "$TASKS_DIR"/*/ 2>/dev/null | head -20); do
   dir="${dir%/}"
+  proj_file="$dir/.project"
+  [ ! -f "$proj_file" ] && continue
+  [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
   sid=$(basename "$dir")
   json_count=$(ls "$dir"/*.json 2>/dev/null | wc -l | tr -d ' ')
   pending=0
@@ -85,13 +89,17 @@ done
 
 For **show [session-id]**:
 ```bash
+_GIT_ROOT=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$PWD")
 TASKS_DIR="$HOME/.claude/tasks"
 TARGET_SID="${ARG}"
 
 if [ -z "$TARGET_SID" ]; then
-  # Default: most recent session with *.json files
+  # Default: most recent session with *.json files for this repo
   for dir in $(ls -td "$TASKS_DIR"/*/ 2>/dev/null); do
     dir="${dir%/}"
+    proj_file="$dir/.project"
+    [ ! -f "$proj_file" ] && continue
+    [ "$(cat "$proj_file")" != "$_GIT_ROOT" ] && continue
     json_files=("$dir"/*.json)
     if [ ${#json_files[@]} -gt 0 ] && [ -f "${json_files[0]}" ]; then
       TARGET_SID=$(basename "$dir")
