@@ -1,0 +1,25 @@
+**Flagged Issues**
+
+- **Phase 1, Step 6 — implicit new dependency on `cls-hooked`:** The plan introduces `cls-hooked` (a continuation-local storage library) without any install step or verification that it exists in `package.json`. This is an implicit new runtime dependency requiring a native async-hook mechanism. Without `npm install cls-hooked --workspace=apps/api` and a corresponding type declaration install (`@types/cls-hooked`), step 6 will fail at build time. Fix: add an explicit step to install and verify the dependency before editing `logger.ts`, or substitute a simpler approach (e.g., passing `traceId` explicitly as a log-call argument or using AsyncLocalStorage from Node's built-in `async_hooks`, which needs no install).
+
+- **Phase 1, Step 4 — ordering assumption about `authMiddleware` position is not enforced:** Step 3 reads `app.ts` to "confirm `authMiddleware` is currently first," but step 4 then unconditionally registers `traceMiddleware` before it. If the read in step 3 reveals `authMiddleware` is not first (e.g., a body-parser or CORS middleware precedes it), the plan provides no contingency — the step proceeds regardless. Fix: add a branch in step 4: "if `authMiddleware` is not first, register `traceMiddleware` first among all route-affecting middleware; document actual position found."
+
+- **Phase 2, Step 10 — `crypto.randomUUID()` browser availability not verified:** `crypto.randomUUID()` requires a secure context (HTTPS or localhost) and is not available in all browser environments the frontend may target. The plan makes no mention of a polyfill or a fallback for non-secure or older-browser contexts. If the frontend runs in an iframe or on HTTP in staging, every `tracedFetch` call will throw. Fix: add a step to check `browserslist` / `tsconfig.lib` targets and confirm `crypto.randomUUID()` is available, or use `uuid` library / `crypto.getRandomValues()` fallback.
+
+- **Phase 3, Step 14 — test server setup mechanics are unspecified:** "Start test server with `traceMiddleware` registered" is not a runnable command; there is no reference to how the test harness spins up the Express app (supertest, a dedicated test-app factory, `app.listen`). If the existing test suite uses `supertest` with an exported `app` instance, this step is fine, but the plan never verifies that. Fix: reference the pattern used in existing middleware tests (visible after step 1's read of `authMiddleware.ts` test counterpart), or specify `supertest(app)` explicitly.
+
+- **Phase 3, Step 14 — log capture mechanism unspecified:** The step asserts "`traceId` in log entry matches `X-Trace-Id` value sent by the client" but does not specify how structured log output is captured in the test (spy on the logger, capture stdout, use a test transport). Without this, the assertion is unrunnable. Fix: specify the log-capture approach (e.g., `jest.spyOn(logger, 'info')` or injecting a test transport before the test server starts).
+
+- **Phase 1, Step 6 — `cls-hooked` and `AsyncLocalStorage` interaction risk:** If the project already uses `async_hooks` internally (common in newer Node projects), mixing `cls-hooked` with native `AsyncLocalStorage` can cause context leaks across requests. The plan does not check for existing async-context usage. Fix: add a grep for existing `async_hooks` / `AsyncLocalStorage` usage in `apps/api` before adopting `cls-hooked`.
+
+- **Header name `X-Trace-Id` deviates from W3C Trace Context standard:** The plan invents a bespoke `X-Trace-Id` header rather than using the W3C `traceparent` / `tracestate` headers (RFC 7230-style, IETF standard). While not strictly blocking for an internal system, this forecloses compatibility with OpenTelemetry collectors, APM agents, and load balancers that propagate `traceparent` automatically. If the team ever adds OTel, they will have two competing trace headers. Fix: at minimum, document the decision to use a custom header and confirm no OTel/APM agent is planned; or adopt `traceparent` from the start.
+
+**Adversarial Close**
+
+1. **Fabricated quantitative evidence.** No quantitative claims (latency, throughput, percentile bounds) appear in this plan. None.
+
+2. **Phantom types/symbols.** `tracedFetch` is exported by step 10 and consumed by step 11 — defined by a plan step, not phantom. `req.traceId` is set in step 2 and consumed in Phase 3 — defined. `cls-hooked` context API is referenced in step 6 but no plan step defines or installs it (covered above as a blocking issue). No exported public API symbols are referenced without a defining step beyond what is already flagged.
+
+No adversarial-close findings are non-empty beyond the `cls-hooked` install gap already flagged above; no additional verdict downgrade is triggered by the close.
+
+**Overall Verdict** — NEEDS_UPDATE: the plan has two blocking gaps (undeclared `cls-hooked` dependency with no install step, and unspecified log-capture and test-server setup mechanics in the integration test phase) that must be addressed before execution can succeed end-to-end.

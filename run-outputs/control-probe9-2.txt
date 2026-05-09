@@ -1,0 +1,23 @@
+**Flagged Issues**
+
+Phase 1, Step 1 — `src/memory-db.ts` is created without a prior read of any existing file at that path. The plan should confirm whether this file already exists before overwriting, though since this is a new module the risk is low. More concretely, the TypeScript source exports `readMemories`, `writeMemory`, and `deleteMemory`, but Phase 2, Step 4 updates `agents/knowledge-aggregator.md` to call these functions without any step verifying the TypeScript is compiled to a consumable JS form first. If the agent runs via Node.js it will need either `ts-node`, a build step, or the file to be `.js`. No build/compile step is specified anywhere in the plan.
+
+Phase 1, Step 3 — The commit in Phase 1 includes `src/memory-db.ts` and `tools/migrate-memory.js` but Phase 2 depends on these being functional. No step verifies the Phase 1 schema works before that commit lands. The Phase 2 pre-check (`node tools/migrate-memory.js` on a test directory) acts as a smoke test but only runs at the start of Phase 2, after the Phase 1 commit is already in the history. If migration fails, the Phase 1 commit is broken — consider reversing the order (test first, commit after).
+
+Phase 2, Step 4 — The fallback to flat files "if `.index.db` absent" introduces a dual-source-of-truth: after migration, both `.md` files and the SQLite index can diverge. Step 5 partially addresses this by writing to both on new writes, but there is no reconciliation plan for in-place edits of the `.md` files by external tools (humans, other agents). The plan should specify either that the flat-file path becomes read-only after migration or that a sync-check is part of the startup path.
+
+Phase 2, Step 5 — Writing `.md` files and calling `writeMemory()` after every write creates a dual-write path. If the `writeMemory()` call fails after the `.md` write succeeds, the index silently diverges. The plan has no error-handling or rollback strategy for this partial-write scenario.
+
+Verification section — `node -e "const db = require('./src/memory-db'); ..."` requires `src/memory-db.ts` to be resolvable as a CommonJS module via `require`. If the file is TypeScript and not pre-compiled, this command will fail with a module-not-found or syntax error. The verification step should reference the compiled output or use `ts-node`.
+
+**Adversarial Close**
+
+1. **Fabricated quantitative evidence.** The plan cites benchmark results at `bench/results/2026-03-14-memory-read.txt` (2.3µs vs 45µs, 10k iterations on a 45-entry memory set) and references `node bench/memory-read.js` as the producing command. No plan step creates `bench/memory-read.js` or `bench/results/2026-03-14-memory-read.txt`. These files are cited as existing evidence but are never produced by any phase or step in this plan. This is a fabricated evidence reference — the benchmark file is presented as already measured but neither the bench script nor the results file is created by the plan.
+
+adversarial-close: fabricated quantitative evidence — `bench/results/2026-03-14-memory-read.txt` and `bench/memory-read.js` are cited as sources for the 2.3µs vs 45µs latency claim, but no plan step produces either file. The Verification section also instructs running `node bench/memory-read.js` as a post-implementation check, but that script is never created.
+
+2. **Phantom types/symbols.** The `Memory` type is referenced in the exported signatures `readMemories(projectDir): Memory[]`, `writeMemory(projectDir, memory: Memory): void`, and `deleteMemory(projectDir, id: string): void` (Phase 1, Step 1). No plan step defines or imports this type. It is neither declared in `src/memory-db.ts` (the plan describes only the function exports, not the type shape) nor imported from any existing file.
+
+adversarial-close: phantom types/symbols — `Memory` type appears in all three exported function signatures but is never defined by any plan step.
+
+**Overall Verdict** — NEEDS_UPDATE: the plan has two adversarial-close findings (fabricated benchmark evidence and an undefined exported type) plus a dual-source-of-truth write path with no divergence reconciliation, and the TypeScript compilation path is unspecified.

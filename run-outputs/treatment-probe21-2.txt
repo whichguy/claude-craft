@@ -1,0 +1,5 @@
+**Flagged Issues**
+
+- **Approach section — fabricated quantitative claim cited to a nonexistent file (BLOCKING):** The plan asserts the trie is "10× faster on the hot path" and cites `bench/results/2026-04-30-router-bench.txt` reporting 18.4 µs/op (linear) and 1.7 µs/op (trie) as the evidence. No plan step produces this file — Phase 2 (steps 6–8) runs a benchmark that will produce a future results file, but it does not produce `bench/results/2026-04-30-router-bench.txt`. The cited file either predates the plan or was fabricated; it is not verifiable from any step in the plan. Presenting pre-existing spike numbers as settled fact in the Approach section, then running a fresh bench in Phase 2 to "confirm," is a dual-source pattern where the plan's stated rationale rests on evidence no step can reproduce. Resolution: remove the specific µs/op numbers and the citation from the Approach section; let Phase 2 be the sole source of benchmark evidence, and state the 10× figure as a hypothesis to be validated, not a settled fact.
+
+**Overall Verdict** — NOT READY: one blocking finding (fabricated quantitative claim cited to a file no plan step produces).

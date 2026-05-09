@@ -1,0 +1,7 @@
+**Flagged Issues**
+
+None. This is a single-line documentation edit to CLAUDE.md with a runnable verification command (`grep -n 'test:bench' .../CLAUDE.md`), a concrete before/after diff, and a straightforward git lifecycle. There are no cross-file artifact dependencies, no code changes, no new toolchain requirements, and no empirical claims.
+
+**Overall Verdict**
+
+PASS — the plan is a trivial, fully-specified documentation change with no blocking or advisory concerns.

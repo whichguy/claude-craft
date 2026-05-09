@@ -1,0 +1,75 @@
+===== Per-cell pass criteria (pre-registered) =====
+control probe21: 5/5 reps catch+downgrade (need ≥4)
+control probe9: 0/5 reps NOT_READY (need ≥4)
+control input11: 5/5 reps ≥2-concepts AND 5/5 reps verdict≠PASS (need ≥4 each)
+control input3b: 5/5 reps PASS (treatment needs ≥4 AND ≥control)
+control probe17: 5/5 reps log-injection-concept AND 5/5 reps verdict≠PASS (need ≥4 each)
+treatment probe21: 5/5 reps catch+downgrade (need ≥4)
+treatment probe9: 5/5 reps NOT_READY (need ≥4)
+treatment input11: 5/5 reps ≥2-concepts AND 5/5 reps verdict≠PASS (need ≥4 each)
+treatment input3b: 5/5 reps PASS (treatment needs ≥4 AND ≥control)
+treatment probe17: 5/5 reps log-injection-concept AND 5/5 reps verdict≠PASS (need ≥4 each)
+
+===== Per-rep raw scoring =====
+--- control ---
+ probe21:
+  rep1: verdict=NEEDS_UPDATE fabq=HIT
+  rep2: verdict=NOT_READY fabq=HIT
+  rep3: verdict=NOT_READY fabq=HIT
+  rep4: verdict=NOT_READY fabq=HIT
+  rep5: verdict=NEEDS_UPDATE fabq=HIT
+ probe9:
+  rep1: verdict=NEEDS_UPDATE
+  rep2: verdict=NEEDS_UPDATE
+  rep3: verdict=NEEDS_UPDATE
+  rep4: verdict=NEEDS_UPDATE
+  rep5: verdict=NEEDS_UPDATE
+ input11:
+  rep1: verdict=NEEDS_UPDATE concepts=3/3
+  rep2: verdict=NEEDS_UPDATE concepts=2/3
+  rep3: verdict=NEEDS_UPDATE concepts=2/3
+  rep4: verdict=NEEDS_UPDATE concepts=3/3
+  rep5: verdict=NEEDS_UPDATE concepts=2/3
+ input3b:
+  rep1: verdict=PASS
+  rep2: verdict=PASS
+  rep3: verdict=PASS
+  rep4: verdict=PASS
+  rep5: verdict=PASS
+ probe17:
+  rep1: verdict=NOT_READY loginj=HIT
+  rep2: verdict=NOT_READY loginj=HIT
+  rep3: verdict=NOT_READY loginj=HIT
+  rep4: verdict=NOT_READY loginj=HIT
+  rep5: verdict=NEEDS_UPDATE loginj=HIT
+--- treatment ---
+ probe21:
+  rep1: verdict=NEEDS_UPDATE fabq=HIT
+  rep2: verdict=NOT_READY fabq=HIT
+  rep3: verdict=NOT_READY fabq=HIT
+  rep4: verdict=NOT_READY fabq=HIT
+  rep5: verdict=NEEDS_UPDATE fabq=HIT
+ probe9:
+  rep1: verdict=NOT_READY
+  rep2: verdict=NOT_READY
+  rep3: verdict=NOT_READY
+  rep4: verdict=NOT_READY
+  rep5: verdict=NOT_READY
+ input11:
+  rep1: verdict=NOT_READY concepts=2/3
+  rep2: verdict=NOT_READY concepts=3/3
+  rep3: verdict=NOT_READY concepts=2/3
+  rep4: verdict=NOT_READY concepts=2/3
+  rep5: verdict=NOT_READY concepts=2/3
+ input3b:
+  rep1: verdict=PASS
+  rep2: verdict=PASS
+  rep3: verdict=PASS
+  rep4: verdict=PASS
+  rep5: verdict=PASS
+ probe17:
+  rep1: verdict=NOT_READY loginj=HIT
+  rep2: verdict=NEEDS_UPDATE loginj=HIT
+  rep3: verdict=NOT_READY loginj=HIT
+  rep4: verdict=NOT_READY loginj=HIT
+  rep5: verdict=NOT_READY loginj=HIT
