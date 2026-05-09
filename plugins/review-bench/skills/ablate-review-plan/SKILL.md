@@ -28,7 +28,7 @@ description: |
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
 
-argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>] [--model opus|sonnet|haiku] [--skip-cross-model]"
+argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>] [--model opus|sonnet|haiku] [--skip-cross-model] [--pre-reg <file>]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
@@ -91,6 +91,7 @@ Read the invocation arguments. Supported forms:
 /ablate-review-plan --model sonnet                         # default model for review agents
 /ablate-review-plan --model opus --single probe-9          # cross-model regression spot check
 /ablate-review-plan --skip-cross-model                     # skip Step 2.5 (CI cost saver)
+/ablate-review-plan --pre-reg <file>                       # single-command harness; see Step 0c
 ```
 
 **`--model <name>` flag.** Selects the model for **both** control and ablated review agents in Step 2a/2b. Valid: `opus`, `sonnet`, `haiku`. Default: `sonnet`. The judge model is independent and pinned to `sonnet` regardless — judge variance is not what we are measuring. Reject any other value with a hard error in this step. Persist as `$RESULTS_DIR/run-config.json` so post-hoc readers can tell which model produced which outputs.
@@ -152,6 +153,53 @@ Recommended verification order:
 1. Start with `--single input3b` (true PASS calibration — confirms harness wiring + over-flagging dimension before full run)
 2. Then `--single probe-17` (hidden-issue detection sanity) and `--single probe-1` (k=3 stability sanity)
 3. Then full suite
+
+---
+
+## Step 0c: Pre-Registration Mode (`--pre-reg <file>`)
+
+When `--pre-reg <path>` is supplied, this section runs **before** Step 0b and **overrides** `--fixtures`, `--single`, `--variant`, and `--model` with values from the pre-registration file. Hard-fail if any of those flags are also supplied — pre-registrations are immutable contracts; CLI override would defeat the point. `--skip-cross-model` is honored as an opt-out.
+
+**Pre-registration file schema (YAML frontmatter on top of narrative):**
+
+```yaml
+---
+schema_version: 1
+run_id: <unique-id>
+arms:
+  control:   { skill: <path-to-skill.md> }
+  treatment: { skill: <path-to-variant.md> }
+fixtures:
+  - { id: <short-name>, path: <absolute-or-repo-relative-path> }
+k: <int>
+model: <opus|sonnet|haiku>
+scoring:
+  method: concept_grep_plus_verdict_tier   # only supported in v1
+criteria:
+  - id: <int>
+    fixture: <short-name>
+    concept_regex: <optional pcre>
+    rule: "<predicate referencing rates>"   # human-readable; mechanical evaluation in Step 3-prereg
+---
+```
+
+The narrative below `---` is preserved verbatim and surfaced in the run summary.
+
+**Parsing.** Use `awk '/^---$/{c++; next} c==1' <file>` to extract the frontmatter block. Prefer `yq` if available; otherwise parse the minimal subset above with `awk`/`grep` (the schema is intentionally flat so a shell parser suffices). Populate the same internal vars (`FIXTURES`, `MODEL`, `VARIANT_PATH`, `K`, `CONTROL_SKILL_PATH`) the existing pipeline uses; subsequent steps then run unchanged.
+
+**Parallelism cap.** Cap dispatched agents at **10 concurrent**. For a `k × |fixtures| × 2` plan that exceeds 10, dispatch in batches of 10 via parallel `Agent` tool uses, await all in batch, then dispatch the next batch.
+
+**Per-agent error handling.** Retry once on timeout / empty output / `UNKNOWN` verdict from `score-run.sh`. After one retry, mark the cell `ERROR` and continue. **Halt** only on: pre-reg parse error, fixture path not found, variant file not found, or `>20%` of dispatched agents in `ERROR`.
+
+**Step 3-prereg: scoring & report.** Replace Steps 3/4 of the standard pipeline with:
+
+1. For each run output `$RESULTS_DIR/<fixture>-<arm>-<i>.md`, invoke `score-run.sh --output <file> --concept-regex <regex-from-criterion>` (or `--verdict-only` if the criterion has no `concept_regex`). Accumulate per-cell rates: `<numerator>/<k>` for verdict-tier hits and concept hits.
+2. Mechanically evaluate each `rule` predicate against the accumulated rates. Express `treatment.NOT_READY_rate >= 4/5` as a literal numerator/denominator comparison.
+3. Emit a markdown table mirroring `RUN-FINDINGS.md` "Per-cell against pre-registered criteria" format: one row per fixture, columns = criteria, cell content = `<n>/<k> ✓` or `<n>/<k> ✗` or `E/<k>` for error cells.
+4. Write the table + the preserved narrative to `$RESULTS_DIR/RUN-RESULTS.txt` (filename matches RUN-FINDINGS.md convention).
+5. Exit 0 if all criteria pass, exit 1 otherwise (so CI can gate on it).
+
+**Smoke test.** A minimal pre-registration ships at `plugins/review-bench/skills/ablate-review-plan/smoke-prereg.md` reproducing the probe-9 row of `RUN-FINDINGS.md`. Acceptance: `treatment.NOT_READY_rate >= 4/5` AND `control.NEEDS_UPDATE_rate >= 4/5` (±1 cell stochastic tolerance for Sonnet variance). Cost ≈ 10 agents × ~1 min.
 
 ---
 
