@@ -28,7 +28,7 @@ description: |
   - "ablation test", "ablate review-plan", "test directive variant"
   - "does the question structure matter", "directive vs questions"
 
-argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>]"
+argument-hint: "[--fixtures <probe-N,...|input-N,...>] [--single <fixture-short-name|plan-path>] [--variant <name>] [--model opus|sonnet|haiku] [--skip-cross-model]"
 allowed-tools: Agent, Bash, Read, Glob, Write, Edit
 ---
 
@@ -88,7 +88,14 @@ Read the invocation arguments. Supported forms:
 /ablate-review-plan --fixtures probe-1,probe-9,input3      # comma-separated subset × k=3
 /ablate-review-plan --variant null                         # use SKILL-v-null.md as ablated variant
 /ablate-review-plan --variant micro-noclose-strict         # default — SKILL-v-micro-noclose-strict.md (v5.3, 2026-05-09)
+/ablate-review-plan --model sonnet                         # default model for review agents
+/ablate-review-plan --model opus --single probe-9          # cross-model regression spot check
+/ablate-review-plan --skip-cross-model                     # skip Step 2.5 (CI cost saver)
 ```
+
+**`--model <name>` flag.** Selects the model for **both** control and ablated review agents in Step 2a/2b. Valid: `opus`, `sonnet`, `haiku`. Default: `sonnet`. The judge model is independent and pinned to `sonnet` regardless — judge variance is not what we are measuring. Reject any other value with a hard error in this step. Persist as `$RESULTS_DIR/run-config.json` so post-hoc readers can tell which model produced which outputs.
+
+**`--skip-cross-model` flag.** Boolean (default false). Skips Step 2.5 (the probe-9 cross-model regression cell) entirely. Auto-implied when `--single` resolves to a non-probe-9 fixture, when `--fixtures` does not include probe-9, or when `--variant null` (the senior-engineer baseline is not subject to the count-based-rule expectation).
 
 **`--variant <name>` flag.** Selects which file in `plugins/review-suite/skills/review-plan/variants/` is used
 as the ablated variant in Step 2b. The file resolved is `plugins/review-suite/skills/review-plan/variants/SKILL-v-<name>.md`.
@@ -178,7 +185,12 @@ active set is correctly classified, in which case it costs ~30s × N up front.
 
 ```bash
 RESULTS_DIR=$(mktemp -d /tmp/ablate-review-plan.XXXXXX)
+MODEL="${model_arg:-sonnet}"        # one of: opus, sonnet, haiku
 echo "Results dir: $RESULTS_DIR"
+echo "Model under test: $MODEL"
+cat > "$RESULTS_DIR/run-config.json" <<EOF
+{"model": "$MODEL", "variant": "$VARIANT", "fixtures": "$FIXTURES", "k": 3}
+EOF
 ```
 
 **k=3 repetition:** for each fixture, run control × 3 + ablated × 3 (six agents per fixture, all parallel-eligible). The judge compares pair-by-index — `(control-1, ablated-1)`, `(control-2, ablated-2)`, `(control-3, ablated-3)` — producing 3 judge JSONs per fixture. Stability across the 3 runs is reported alongside the majority winner in Step 3.
@@ -205,9 +217,9 @@ indices once both that pair's outputs exist).
 
 ### Step 2a: Control runs (i=1,2,3)
 
-For each `i ∈ {1,2,3}`, spawn an Agent with the full text of `plugins/review-suite/skills/review-plan/SKILL.md`
+For each `i ∈ {1,2,3}`, spawn an Agent on `model: ${MODEL}` with the full text of `plugins/review-suite/skills/review-plan/SKILL.md`
 as the system prompt and the fixture file content as the input. Write the agent's complete
-review output to `$RESULTS_DIR/<fixture>-control-<i>.md`.
+review output to `$RESULTS_DIR/<fixture>-control-<i>.md`. All 3 control agents run on `${MODEL}`.
 
 Agent prompt template:
 ```
@@ -228,7 +240,7 @@ Output your complete review. Do not truncate.
 
 ### Step 2b: Ablated runs (i=1,2,3)
 
-For each `i ∈ {1,2,3}`, spawn an Agent with the resolved variant file
+For each `i ∈ {1,2,3}`, spawn an Agent on `model: ${MODEL}` with the resolved variant file
 (`plugins/review-suite/skills/review-plan/variants/SKILL-v-<variant>.md`, where `<variant>` is the value of the
 `--variant` flag, defaulting to `micro-2close`) as the system prompt and the same fixture
 content. Write output to `$RESULTS_DIR/<fixture>-ablated-<i>.md`.
@@ -253,7 +265,7 @@ Output your complete review. Do not truncate.
 ### Step 2c: Judge (k=3, paired by index)
 
 For each `i ∈ {1,2,3}`, read `<fixture>-control-<i>.md` and `<fixture>-ablated-<i>.md`.
-Spawn `review-plan-ablation-judge` agent with:
+Spawn `review-plan-ablation-judge` agent (model pinned to `sonnet` regardless of `--model` — judge model is held constant so cross-model runs remain comparable) with:
 
 ```
 <CONTROL_REVIEW>
@@ -281,6 +293,50 @@ are independent and parallel-eligible. Across fixtures, the runs are also indepe
 upper bound on parallelism is your Agent capacity, not data dependencies. Within capacity,
 prefer to dispatch all runs in a single message of parallel `Agent` tool uses, then dispatch
 all judges in a second parallel batch once outputs land.
+
+---
+
+## Step 2.5: Cross-Model Regression Cell (probe-9)
+
+Runs unconditionally on every full-suite invocation. Skipped when:
+- `--skip-cross-model` is supplied,
+- `--single` resolves to a fixture other than `probe-9`,
+- `--fixtures` does not include `probe-9`,
+- `--variant null` is selected (the senior-engineer baseline is not subject to the count-based-rule expectation).
+
+**Cell shape (4 runs, k=1, no judges — a tripwire, not a comparison):**
+
+| Cell | Model | Side | Reps |
+|---|---|---|---|
+| A | opus    | control (`SKILL.md`)              | 1 |
+| B | opus    | ablated (resolved `--variant`)    | 1 |
+| C | sonnet  | control                           | 1 |
+| D | sonnet  | ablated                           | 1 |
+
+Dispatch four agents in parallel with the probe-9 fixture as input. Write outputs to `$RESULTS_DIR/cross-model-{opus,sonnet}-{control,ablated}.md`.
+
+**Verdict extraction.** For each cell, grep the agent output for `PASS`, `NEEDS_UPDATE`, or `NOT[ _]READY` in the verdict line.
+
+**Expected baseline (RUN-FINDINGS.md, 2026-05-09):**
+
+```
+expected = {
+  (opus,   control): NOT_READY,     # prior-research baseline
+  (opus,   ablated): NOT_READY,     # treatment was strictly ≥ control on probe-9
+  (sonnet, control): NEEDS_UPDATE,  # documented model-dependence finding
+  (sonnet, ablated): NOT_READY,     # treatment's count-based rule scales
+}
+```
+
+**Verdict computation:** the cell PASSes iff observed[(model, side)] == expected[(model, side)] for all four cells. Otherwise FAIL loudly, naming each off-cell with observed/expected.
+
+**Allowed cross-model gap.** The Opus → `NOT_READY` / Sonnet → `NEEDS_UPDATE` divergence on probe-9 control is a *documented and allowed* gap rooted in the close-question single-tier-downgrade rule's model-dependent severity (see `RUN-FINDINGS.md`, 2026-05-09). Any other tier divergence fails the regression cell. Specifically:
+- Either model dropping to `PASS` on probe-9 control is a hard fail (the directive prose stopped firing).
+- Sonnet ablated dropping below `NOT_READY` is a hard fail (the count-based severity rule regressed).
+- Opus control dropping below `NOT_READY` is a hard fail (prior-research baseline regressed).
+- Haiku is informational only and not part of this baseline; running with `--model haiku` is allowed but emits `INFORMATIONAL` only.
+
+Update this expected table only with a paired `RUN-FINDINGS.md` entry justifying the new baseline; do not silently relax.
 
 ---
 
