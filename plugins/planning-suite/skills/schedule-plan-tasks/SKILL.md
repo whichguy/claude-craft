@@ -41,7 +41,7 @@ The skill runs in one of four modes, decided at the top of Step 0 by inspecting 
 
 - **`dry-run`** — Real TaskCreate/TaskUpdate/TaskList ceremony AND real Agent dispatch, but each
   agent receives the contents of `references/simulate-prefix.md` PREPENDED to its task description.
-  The prefix instructs the agent to: simulate work (no git, no file changes), run the cascade-dispatch
+  The prefix instructs the agent to: simulate work (no git, no file changes), run the cascade-identification
   directive read-only (TaskList/TaskGet only, no Agent or claim TaskUpdate), emit the standard
   RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED status block listing would-be-dispatched IDs.
   The orchestrator collects status blocks, dispatches the next wave (also with simulate prefix),
@@ -290,14 +290,16 @@ Print chain assignments after detection:
 
 **Mode-aware verb guards (4-tier):**
 
-| Verb / op                      | live | dry-run                      | plan-only          | dry-run-analyze    |
-|--------------------------------|------|------------------------------|--------------------|--------------------|
-| `TaskCreate`                   | real | real                         | ledger only        | ledger only        |
-| `TaskUpdate`                   | real | real                         | ledger only        | ledger only        |
-| `TaskList` / `TaskGet`         | real | real                         | n/a (ledger)       | n/a (ledger)       |
-| Git operations (worktree etc.) | real | skipped                      | skipped            | skipped            |
-| Agent (delivery-agent, regression)  | real | real, simulate-prefix prepended | skipped         | skipped            |
-| Agent (analyzer)               | n/a  | n/a                          | n/a                | real (audits report) |
+| Verb / op                      | live | dry-run                      | plan-only          | dry-run-analyze    | Backgrounded? |
+|--------------------------------|------|------------------------------|--------------------|--------------------|---------------|
+| `TaskCreate`                   | real | real                         | ledger only        | ledger only        | no            |
+| `TaskUpdate`                   | real | real                         | ledger only        | ledger only        | no            |
+| `TaskList` / `TaskGet`         | real | real                         | n/a (ledger)       | n/a (ledger)       | no            |
+| Git operations (worktree etc.) | real | skipped                      | skipped            | skipped            | live: heavy bash backgrounded (preflight-patch capture, integration-branch, setup-worktrees); cheap (`rev-parse`) inline |
+| Agent (delivery-agent)         | real | real, simulate-prefix prepended | skipped         | skipped            | live: yes (`run_in_background: true`); dry-run: no (synchronous so simulate-prefix path works) |
+| Agent (regression)             | real | real, simulate-prefix prepended | skipped         | skipped            | live: yes; dry-run: no |
+| Bash (open-pr body)            | real | replaced by [DRY] notice     | skipped            | skipped            | live: yes |
+| Agent (analyzer)               | n/a  | n/a                          | n/a                | real (audits report) | no |
 
 **Reference files are loaded in all modes** — `delivery-agent-description.md` and `create-wt-prompt.md`
 must be Read before the creation pass using the same JIT protocol regardless of mode. All
@@ -659,15 +661,15 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 |---|---|
 | git-prep | Re-run the git command (all idempotent — including `bootstrap` when present). Mark completed. |
 | create-wt | `git -C "$REPO_ROOT" worktree list`. If present → mark completed. If missing → re-run `git -C "$REPO_ROOT" worktree add` → mark completed. |
-| delivery-agent (trivial) | `git -C "$REPO_ROOT" log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; run cascade (TaskList scan → dispatch unblocked tasks). None → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: yes) | `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → mark completed; run cascade. Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: no) | `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; run cascade. None → mark failed; do not cascade. |
+| delivery-agent (trivial) | `git -C "$REPO_ROOT" log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; orchestrator runs cascade (TaskList scan → for each pending unblocked task: TaskGet re-check, TaskUpdate(in-progress), then dispatch `Agent(..., run_in_background: true)`). None → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: yes) | `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → mark completed; orchestrator runs cascade (as above). Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
+| delivery-agent (worktree, Self-merge: no) | `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; orchestrator runs cascade (as above). None → mark failed; do not cascade. |
 | regression | Re-dispatch agent with existing description. |
 | open-pr | `gh pr list --head "$INTEGRATION_BRANCH" --base "$UPSTREAM_BRANCH" --json url,state`. PR exists → mark completed (idempotent — no double-create). PR missing → re-run the open-pr body from Step 5 from step 1. |
 
 ---
 
-**Execution — wave-1 dispatch + self-orchestrating cascade:**
+**Execution — wave-1 dispatch + orchestrator-owned cascade:**
 
 **Execution Guard:** Do not begin dispatch until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. Tasks are inert metadata until claimed; wiring must be complete before any agent starts so dependency constraints are fully established.
 
@@ -682,31 +684,48 @@ Phase B — create-wt (background Tasks, parallel batch):
   Poll TaskList until every create-wt reaches completed or failed.
   Any create-wt failure → halt; report; do not dispatch its delivery-agent.
 
-Phase C — wave-1 delivery-agents (parallel dispatch, self-orchestrating cascade):
+Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascade):
   wave1 = [t for t in TaskList({}) where t.status == "pending" and t.blockedBy all completed]
   This is every chain-head and standalone delivery-agent (their only blocker was a create-wt, now done).
 
+  **Mode == live (dispatch shape — backgrounded, orchestrator-owned cascade):**
   Dispatch ALL wave-1 delivery-agents in a SINGLE response as parallel Agent() calls,
-  each with `subagent_type: "delivery-agent"`. Each agent receives its task envelope
-  (TaskGet(id).description = runtime header + one-paragraph guidance). The behavior contract
-  (lifecycle, self-merge, cascade) lives in `agents/delivery-agent.md` and is loaded by the
-  harness — no additional wrapping needed in the prompt.
+  each with `subagent_type: "delivery-agent"` AND `run_in_background: true`. Each agent
+  receives its task envelope (TaskGet(id).description = runtime header + one-paragraph
+  guidance). The behavior contract (lifecycle, self-merge, cascade-identification) lives
+  in `agents/delivery-agent.md` and is loaded by the harness — no additional wrapping
+  needed in the prompt.
 
-  **Mode == dry-run:** before each Agent() call, JIT-load `references/simulate-prefix.md`
-  and PREPEND its content to the task envelope. The agent simulates the work, runs the
-  cascade-dispatch directive read-only (TaskList/TaskGet only), and emits the standard status
-  block listing would-be-dispatched IDs. The orchestrator iterates: parse each returned status
-  block, dispatch the next wave (also with simulate prefix), repeat until DISPATCHED is "none"
-  for all agents.
+  Each backgrounded agent emits a final status block; the harness delivers it to this
+  orchestrator session via `<task-notification>` (with `<status>`, `<result>`, `<usage>`
+  fields). Treat the agent's full transcript as opaque — only the `<result>` (its STATUS
+  block) is parseable in this session.
 
-  Cascade self-manages from here:
-    Each agent → does work → commits → self-merges if Self-merge: yes →
-    calls TaskUpdate(completed) → scans TaskList for newly unblocked pending tasks →
-    claims them via TaskUpdate(in-progress) → dispatches Agent() for each in parallel
-    (downstream tasks are also dispatched with `subagent_type: "delivery-agent"`).
-    The graph drains itself. The orchestrator does not loop. (In dry-run, the agent's
-    cascade-dispatch is read-only per the simulate prefix; the orchestrator iterates the
-    waves explicitly using the DISPATCHED field of each agent's status block.)
+  **Mode == dry-run:** dispatch synchronously (foreground — NO `run_in_background`). Before
+  each Agent() call, JIT-load `references/simulate-prefix.md` and PREPEND its content to
+  the task envelope. The agent simulates the work, runs the cascade-identification directive
+  read-only (TaskList/TaskGet only), and emits the standard status block listing
+  would-be-dispatched IDs. The orchestrator iterates: parse each returned status block,
+  dispatch the next wave (also with simulate prefix, also synchronous), repeat until
+  DISPATCHED is "none" for all agents. Backgrounding is exempted in dry-run because the
+  simulate-prefix path depends on the orchestrator parsing each agent's returned text
+  inline; dry-run also produces no real work to drain context.
+
+  Orchestrator-owned cascade loop (live mode):
+    On each `<task-notification>` (one per backgrounded agent that completes):
+      1. Read the `<status>` field. Harness exit status only — `completed` means the agent process exited cleanly; `failed` means the harness itself errored. The agent's *semantic* outcome is in `<result>`. Both branches proceed to step 2; do not gate cascade on `<status>` alone.
+      2. Read the `<result>` field — the agent's STATUS block. Parse `RESULT:` and `DISPATCHED:` lines.
+      3. **`RESULT: complete`** — for each comma-separated task ID in `DISPATCHED:`:
+         a. Call `TaskGet(id)` first. **If `status != "pending"`, skip** — a sibling notification handler already claimed it (concurrent agents A and B may both observe pending task C in their TaskList scans before either notification arrives; without this re-check the orchestrator would dispatch C twice).
+         b. For tasks still `pending`: call `TaskUpdate(id, status=in-progress)` to claim, then dispatch `Agent({subagent_type: "delivery-agent", prompt: TaskGet(id).description, run_in_background: true})`.
+         c. Batch all claims and dispatches in a SINGLE parallel response — the orchestrator processes notifications serially, so within one notification's batch there is no intra-batch race.
+      4. **`RESULT: partial`** — do NOT cascade. The agent has called `TaskUpdate(failed)` itself (per `## On RESULT: partial` in delivery-agent.md — partial is a terminal disposition under the new contract). No orchestrator action; downstream dependents stay `pending` (same as `RESULT: failed`). If the agent left its task `in-progress` instead of `failed`, that's a contract violation — surface as STALLED via hang-detection.
+      5. **`RESULT: failed`** — do NOT cascade. The agent has called `TaskUpdate(failed)` and TaskCreate'd a sibling investigation task (per `## On RESULT: failed` in delivery-agent.md). Failed tasks do not unblock dependents — downstream tasks stay `pending` and visible via `TaskList({})`.
+      6. **Termination check:** repeat until `TaskList({})` shows no `pending` or `in-progress` tasks of type delivery-agent / regression / open-pr. Tasks left `in-progress` past `MAX_AGENT_WALL_TIME` trigger hang detection (below).
+
+    The orchestrator therefore DOES loop — driven by notification events, not poll intervals. (Earlier "orchestrator does not loop" wording was based on a synchronous-cascade model; under backgrounding, the orchestrator is the only entity that can see notifications, so it must own dispatch.)
+
+  **Hang detection.** When dispatching, record `agentId → dispatch_epoch` in orchestrator memory. After each notification, also check: any agentId whose elapsed wall-time > `MAX_AGENT_WALL_TIME` (default 1800s; configurable per plan via `MAX_AGENT_WALL_TIME=<sec>` env var) — surface STALLED via AskUserQuestion (kill / wait N minutes / abandon). No TaskList heartbeat is available; this timer is the only signal.
 
   Failure: agents follow `## On RESULT: failed` in `agents/delivery-agent.md`, which JIT-loads
   `references/investigation-task-template.md` to TaskCreate a sibling investigation task.
@@ -714,8 +733,10 @@ Phase C — wave-1 delivery-agents (parallel dispatch, self-orchestrating cascad
   {no_change, partial_change, test_failures, conflict_needs_user, needs_split}. Failed tasks
   do not cascade — downstream dependents stay pending, visible via `TaskList({})`.
 
-  Trivial delivery-agents and regression tasks are claimed and dispatched by whichever upstream
-  agent's TaskList scan finds them newly unblocked.
+  Trivial delivery-agents, regression, and open-pr tasks are claimed and dispatched by the
+  ORCHESTRATOR (per the inversion above) — they appear in the upstream agent's `DISPATCHED:`
+  list and the orchestrator dispatches them. Regression and open-pr both run as
+  backgrounded Agents (regression) / backgrounded Bash (open-pr body); see Step 5.
 ```
 
 ---
@@ -771,13 +792,17 @@ Orchestrator reads only the `STATUS:` line. `success` → mark create-wt complet
 ### Step 5 — Final PR (open-pr task body)
 
 The graph terminates with a single `open-pr` task that PRs `INTEGRATION_BRANCH →
-UPSTREAM_BRANCH`. It runs inline in the orchestrator session in `live` mode; in
-`dry-run`/`plan-only`/`dry-run-analyze` modes it is recorded in the ledger but its
-side-effecting body is replaced by `[DRY] would gh pr create` (consistent with the
-git/Agent verb-guard table). The task is dispatched only after every chain-tail and
-standalone delivery-agent (and the regression task, if present) has completed.
+UPSTREAM_BRANCH`. In `live` mode the body executes as a single `Bash(run_in_background: true)`
+script (push + body assembly + `gh pr create` + cleanup); the orchestrator waits for the
+backgrounded-Bash completion notification (same `<task-notification>` pattern as Agents),
+then reads `$REPO_ROOT/.worktrees/.openpr-result` for the outcome. The interactive `AskUserQuestion` (approve / leave open / close)
+stays inline in the orchestrator session — it is interactive and small. In
+`dry-run`/`plan-only`/`dry-run-analyze` modes the side-effecting body is replaced by
+`[DRY] would gh pr create` (consistent with the git/Agent verb-guard table). The task is
+dispatched only after every chain-tail and standalone delivery-agent (and the regression
+task, if present) has completed.
 
-Body (live mode):
+Body (live mode — backgrounded Bash; result file at `$REPO_ROOT/.worktrees/.openpr-result`):
 
 1. **Push.** `git -C "$REPO_ROOT" push -u origin "$INTEGRATION_BRANCH"`. If push fails
    because no `origin` remote exists (or push is otherwise impossible), print a notice
@@ -929,7 +954,7 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
   - If you find yourself (the orchestrator) writing code into a task description, stop. Convert it to a contract first.
 - **Sub-task agents are internal to a parent delivery-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
 - **Sub-task `MERGE_TARGET` = the parent delivery-agent's working branch.** Never TARGET_BRANCH.
-- **`run_in_background=True` only on create-wt.** Never on delivery-agent.
+- **`run_in_background: true` (live mode) on:** create-wt, delivery-agent, regression Agent, open-pr Bash, and heavy git-prep Bash. **Foreground (synchronous) in dry-run mode** — the simulate-prefix iteration parses each agent's returned text inline.
 - **`conflict_needs_user` does not halt the loop** — only the affected merge chain stalls. Independent delivery-agents continue.
 - **`git add -A` is forbidden in checkpoints.** Stage by name to avoid pulling unrelated state.
 - **Parallel same-file edits are not automatic conflicts.** Restructure only when edits overlap semantically (same region, function, or config key). See Step 1 Output Mapping Pass.

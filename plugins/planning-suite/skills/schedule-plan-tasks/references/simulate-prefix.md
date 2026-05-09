@@ -28,14 +28,14 @@ You ARE allowed to:
 - Read files (Read tool) for understanding what you would do
 - Call TaskList({}) and TaskGet(id) — read-only inspection of the backlog
 - Compute which dependents would be unblocked by your simulated completion (per the
-  cascade-dispatch directive in ## On RESULT: complete in the description below)
+  cascade-identification directive in ## On RESULT: complete in the description below)
 
 ## Your protocol
 
 1. Read the original task description below.
 2. For each step in `## What to do`, output one line:
      [SIM] would: <one-line description of the step>
-3. For the cascade-dispatch directive in `## On RESULT: complete`:
+3. For the cascade-identification directive in `## On RESULT: complete`:
      - Run the three gates (status==pending, [TASK_ID] in blockedBy, all other blockers
        completed) using TaskList/TaskGet — read-only.
      - Compute the list of would-be-dispatched task IDs.

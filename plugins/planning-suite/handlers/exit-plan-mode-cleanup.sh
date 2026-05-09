@@ -3,17 +3,19 @@
 # `.exited-<slug>` sentinel so future ExitPlanMode calls on the same plan
 # pass silently (idempotent re-exit) instead of tripping the gate's block
 # message. A fresh plan (new slug) still requires review-plan to run.
+#
+# Active slug comes from the session transcript (see _active-plan-slug.sh),
+# not filesystem mtime — otherwise we may rename an unrelated session's gate.
 set -eo pipefail
 
-plan_file=$(ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1 || true)
+HOOK_INPUT=$(cat)
+. "$(dirname "$0")/_active-plan-slug.sh"
+resolve_active_slug "$HOOK_INPUT"
 
-if [ -z "$plan_file" ] || [ ! -f "$plan_file" ]; then
-  exit 0
-fi
+[ -z "$ACTIVE_SLUG" ] && exit 0
 
-slug=$(basename "$plan_file" .md)
-gate="$HOME/.claude/plans/.review-ready-$slug"
-exited="$HOME/.claude/plans/.exited-$slug"
+gate="$HOME/.claude/plans/.review-ready-$ACTIVE_SLUG"
+exited="$HOME/.claude/plans/.exited-$ACTIVE_SLUG"
 
 if [ -f "$gate" ]; then
   mv -f "$gate" "$exited"
