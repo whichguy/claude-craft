@@ -753,3 +753,15 @@ NO cascade dispatch in either path — `DISPATCHED: none`. Set `INCOMPLETE` to t
 3. NO cascade dispatch — failed tasks do not cascade. Downstream dependents stay pending and
    are visible via `TaskList({})`. `DISPATCHED: none`.
 4. Emit the status block.
+
+## Lifecycle / completion semantics (orchestrator contract)
+
+This section consolidates the agent ↔ orchestrator handshake on completion so callers do not re-emit redundant updates and do not misinterpret a benign "Task not found" as a fault.
+
+**The agent owns its own status transition.** On `RESULT: complete`, the agent calls `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })` itself (see `## On RESULT: complete` step 1). Same for `failed` (step 1 of `## On RESULT: failed`) and the partial-mapped-to-failed paths in `## On RESULT: partial`. The agent never leaves a task in `in-progress` on return — every terminal RESULT carries a paired self-TaskUpdate.
+
+**The orchestrator MUST NOT re-emit a status update for a returned task.** When the harness delivers the agent's `<task-notification>.<result>`, the orchestrator's job is to (a) parse `DISPATCHED:` from the status block, (b) `TaskUpdate(downstream-id, status=in-progress)` for each newly-unblocked dependent, (c) dispatch each dependent via `Agent({subagent_type: "delivery-agent", ...})`. Issuing `TaskUpdate(parent-id, status=completed)` after the agent returned is a contract violation: the agent already did it.
+
+**"Task not found" on a redundant post-completion `TaskUpdate` is benign, not a fault.** The harness garbage-collects terminal tasks on its own schedule; once a task has been marked `completed`/`failed` it may disappear from `TaskList` between the agent's self-update and a stale orchestrator follow-up. Treat the `Task not found` response as confirmation that the prior update landed — do not retry, do not re-create the task, do not surface as an error.
+
+**`status: deleted` is reserved for cleanup of cancelled/superseded tasks** and is never emitted by this agent on its own completion path. If you see a delivery-agent task with `status: deleted`, a human or another orchestrator deliberately cancelled it.
