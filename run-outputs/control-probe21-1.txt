@@ -1,0 +1,7 @@
+**Flagged Issues**
+
+The Approach section asserts a "10× faster" result on the hot path and cites `bench/results/2026-04-30-router-bench.txt` (reporting 18.4 µs/op linear vs 1.7 µs/op trie at 340 routes) as settled fact. No plan step produces this file — Phase 2 (steps 6–8) runs a fresh benchmark and explicitly treats the cited numbers as "Expected (per spike)," meaning the cited file is from a prior spike that does not appear in the plan's artifact outputs and is not verified to exist in the repo. Presenting the spike output as established benchmark evidence in the Approach section before Phase 2 runs is an unvalidated empirical claim presented as settled fact. Fix: either reframe the Approach numbers as "preliminary spike results, to be verified in Phase 2" rather than asserting them as confirmed, or add a pre-check step that confirms `bench/results/2026-04-30-router-bench.txt` exists and was produced under controlled conditions.
+
+adversarial-close: fabricated quantitative evidence — The 10× speedup claim ("18.4 µs/op … 1.7 µs/op") in the Approach section is cited to `bench/results/2026-04-30-router-bench.txt`. No plan step produces this file; Phase 2 only produces a future results file from step 7. The cited file either does not exist or is an unverified spike artifact not created by this plan. This is a quantitative claim cited to a file the plan does not produce.
+
+**Overall Verdict** — NEEDS_UPDATE: the 10× speedup claim is cited to a benchmark file that no plan step produces, making the core performance justification unverifiable as stated.

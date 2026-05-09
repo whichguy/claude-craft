@@ -1,0 +1,13 @@
+**Flagged Issues**
+
+The benchmark figures cited in the Context and Verification sections reference `bench/results/2026-03-14-memory-read.txt` and `node bench/memory-read.js`. Neither a `bench/` directory nor a benchmark script is created by any plan step. The claim that `better-sqlite3` yields ~2.3µs vs ~45µs flat-file read latency is presented as settled fact, but the benchmark that produced it is not part of this codebase and no step creates it. The Verification section also instructs running `node bench/memory-read.js` to confirm the ~2-3µs target post-implementation — but this script will not exist unless a plan step creates it. Fix: add a step in Phase 3 to create `bench/memory-read.js` (or remove the benchmark reference and the Verification step that depends on it).
+
+Phase 1, step 1 creates `src/memory-db.ts` without a pre-read of any existing file at that path. This is fine for a new file, but the plan does not confirm whether `src/` already exists or whether there is an existing `memory-db.ts` that could be overwritten. If there is no existing file this is a non-issue, but the plan should note the check. This is advisory.
+
+Phase 2, step 4 updates `agents/knowledge-aggregator.md` without a pre-read. The plan must read the existing agent file before editing it to ensure the fallback logic is inserted correctly. Fix: add "Read `agents/knowledge-aggregator.md`" as an explicit sub-step before the edit.
+
+The `Memory` type is referenced in the exported signatures `readMemories(projectDir): Memory[]` and `writeMemory(projectDir, memory: Memory)` in Phase 1, step 1. The plan does not define this type in any step — it is left to the implementer to infer from the schema. If `Memory` is expected to be a named export from `src/memory-db.ts` (which downstream consumers will import), the plan should explicitly define its shape or reference where it is defined. This is advisory but relevant for exported API clarity.
+
+**adversarial-close: fabricated quantitative evidence** — The claims "2.3µs read latency vs 45µs per-file read, measured with 10k iterations on a 45-entry memory set" cite `bench/results/2026-03-14-memory-read.txt` and `node bench/memory-read.js`. No plan step creates the `bench/` directory, the benchmark script, or the results file. These files do not exist as outputs of this plan. The verification step that re-runs the benchmark against a ~2-3µs target also depends on this non-existent script.
+
+**Overall Verdict** — NEEDS_UPDATE: the benchmark file and script cited as evidence for the core performance claim are never produced by any plan step, and the post-implementation verification command will fail because `bench/memory-read.js` does not exist.

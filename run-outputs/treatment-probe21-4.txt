@@ -1,0 +1,5 @@
+**Flagged Issues**
+
+- **Approach section — fabricated benchmark citation (blocking):** The plan states the trie is "10× faster" and cites `bench/results/2026-04-30-router-bench.txt` reporting 18.4 µs/op (linear) and 1.7 µs/op (trie). No plan step produces this file prior to Phase 2, and the file is not verified to exist in the repo before the claim is asserted. This is a fabricated quantitative claim cited to a file no plan step produces. The numbers are then echoed as the "Expected (per spike)" target in Phase 2 step 7, meaning the benchmark is being asked to confirm numbers that were already presented as settled fact. Resolution: remove the cited figures from the Approach section entirely, or replace them with "per prior spike; to be verified in Phase 2" without treating them as established. The benchmark file must be produced by Phase 2, not referenced as existing evidence before it.
+
+**Overall Verdict** — NOT READY: one blocking finding (fabricated quantitative claim cited to a file no plan step produces).

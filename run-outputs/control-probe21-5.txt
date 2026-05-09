@@ -1,0 +1,9 @@
+**Flagged Issues**
+
+The Approach section (paragraph 2) asserts the trie is "10× faster on the hot path" and cites `bench/results/2026-04-30-router-bench.txt` as evidence, quoting specific numbers: 18.4 µs/op (linear) and 1.7 µs/op (trie) at 340 routes. This file does not exist in the repository and no plan step produces it before this claim is made. Phase 2 (steps 6–8) is where the actual benchmark will be written and run — the results file is a future output, not an already-existing artifact. Presenting pre-run numbers as settled fact drawn from a non-existent file is fabricated quantitative evidence. The fix is to rephrase the Approach claim as a target or hypothesis ("spike results suggest ~10×; Phase 2 will verify") and remove the citation to a file that does not yet exist.
+
+Steps 7–8 partially redeem the plan by framing Phase 2 output as confirmatory with an abort condition at <5×, but the Approach section's wording ("Benchmark shows…") reads as already-verified, which is misleading and could cause reviewers or stakeholders to accept the improvement claim without waiting for actual Phase 2 results.
+
+adversarial-close: fabricated quantitative evidence — The 10× speedup claim in the Approach section cites `bench/results/2026-04-30-router-bench.txt` (18.4 µs/op linear, 1.7 µs/op trie). No plan step produces this file; it does not exist. The numbers are cited as observed benchmark results before the benchmark has been run. This is a fabricated citation.
+
+**Overall Verdict** — NEEDS_UPDATE: the Approach section presents a quantitative speedup claim as established fact with a citation to a benchmark file that does not exist and is not produced until Phase 2.

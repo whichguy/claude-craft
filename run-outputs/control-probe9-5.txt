@@ -1,0 +1,24 @@
+**Flagged Issues**
+
+No blocking or advisory issues found. The plan is well-structured with the following strengths that specifically address common senior-engineer concerns:
+
+- Phase 1 pre-check runs `npm install --dry-run better-sqlite3` before any code is written, satisfying the implicit new toolchain requirement.
+- Phase 2 pre-check explicitly validates Phase 1 output before proceeding, preventing broken intermediate commits.
+- Phase 3 tests cover roundtrip, migration idempotency, and fallback — the three correctness invariants that matter most for this change.
+- The fallback behavior in Step 4 (read from SQLite, fall back to flat files if `.index.db` absent) preserves backwards compatibility and prevents a hard failure during incremental rollout.
+- The dual-write in Step 5 (write `.md` for human readability, also call `writeMemory()` to keep the index current) is acknowledged as intentional and the plan explicitly notes the two-source pattern rather than silently introducing it.
+- Quantitative claims are traced to a specific benchmark file and command (`node bench/memory-read.js`, results in `bench/results/2026-03-14-memory-read.txt`) — evidence is cited rather than asserted.
+- The `Memory` type used in exported signatures (`readMemories`, `writeMemory`, `deleteMemory`) is implicitly defined by the schema in Step 1; the plan does not reference phantom types beyond what the schema establishes.
+- Verification section provides runnable commands for both correctness and performance validation.
+
+**Adversarial Close**
+
+1. **Fabricated quantitative evidence.** The plan cites `2.3µs read latency vs 45µs per-file read` with `bench/results/2026-03-14-memory-read.txt` as the evidence file. No plan step produces this benchmark file or runs the benchmark to generate it — the results file is referenced as pre-existing. This is not fabricated in the sense of being invented without a file path, but the file's existence is assumed rather than verified by any plan step. However, the Verification section includes `node bench/memory-read.js` as a post-implementation check, meaning the benchmark infrastructure is treated as already present. This is an assumption about a pre-existing file, not a claim whose evidence the plan itself generates — it sits at the boundary but does not constitute a fabricated citation given the Verification step's intent to reproduce the result.
+
+No fabricated quantitative claims found that are both cited to a specific file and unproduceable by any plan step.
+
+2. **Phantom types/symbols.** The `Memory` type appears in the exported API (`readMemories(): Memory[]`, `writeMemory(projectDir, memory: Memory)`). Step 1 defines the schema fields (id, type, name, description, body, file_path, updated_at) but does not explicitly define a `Memory` TypeScript interface or type alias. In a TypeScript file, exporting a function with a `Memory` return type without defining that type would be a compile error. The plan does not include a step to define the `Memory` interface separately from the schema DDL.
+
+adversarial-close: phantom types/symbols — The `Memory` type used in all three exported function signatures in `src/memory-db.ts` is never explicitly defined by any plan step. Step 1 defines the SQLite schema columns but does not include a step to declare `interface Memory` or `type Memory`. This would cause a TypeScript compile error. Fix: add an explicit `interface Memory { id: string; type: string; name: string; description: string; body: string; file_path: string; updated_at: number }` definition to Step 1's output specification for `src/memory-db.ts`.
+
+**Overall Verdict** — NEEDS_UPDATE: the `Memory` type is referenced in exported signatures throughout `src/memory-db.ts` but never defined by any plan step, which would produce a TypeScript compile error; Step 1 must explicitly include the interface definition.

@@ -1,0 +1,27 @@
+**Flagged Issues**
+
+The plan is well-structured and the implementation logic is sound. The issues below are advisory or warrant verification before execution.
+
+Phase 1, Step 1 — `better-sqlite3` is a native Node addon. The pre-check (`npm install --dry-run better-sqlite3`) only verifies npm resolution; it does not verify that the native build toolchain (Python, node-gyp, C++ compiler) is available. The plan claims "zero native build deps on macOS," but `better-sqlite3` does require node-gyp and a working Xcode Command Line Tools installation to compile its C++ binding. A dry-run install will silently succeed even on a machine where the actual build would fail. The pre-check should be `npm install better-sqlite3` on the target machine, or the plan should acknowledge that native build tooling is a prerequisite.
+
+Phase 1, Step 2 — `tools/migrate-memory.js` reads the YAML frontmatter to extract `name`, `description`, `type`, but the plan does not specify which YAML parser to use, whether it's already a dependency, or how malformed/missing frontmatter is handled. If a memory file lacks valid frontmatter, the migration could silently insert a null row. The plan should specify the parser and add a malformed-frontmatter guard with a warning or skip.
+
+Phase 2, Step 4 — The fallback to flat files when `.index.db` is absent is stated as a feature, but the plan does not explain how the agent detects the absence of the DB (file-existence check vs. open-error catch) or what happens if the DB exists but is corrupted. A corrupted `.index.db` would cause `better-sqlite3` to throw at open time, bypassing the fallback entirely. The step should document the exact fallback trigger condition.
+
+Phase 2, Steps 4–5 — The plan introduces a dual-source-of-truth: the `.md` flat files are preserved "for human readability," and the SQLite index is kept current via `writeMemory()`. There is no reconciliation mechanism described for the case where the two diverge (e.g., a user manually edits or deletes a `.md` file outside of the agent). Over time the index and flat files will drift. The plan should either document a re-sync command or explain why divergence is acceptable (e.g., the agent always treats the DB as authoritative and the `.md` files as read-only exports).
+
+Phase 3, Step 7 — The test plan mentions "migration idempotency (run twice → no duplicates)," which is good, but does not include a test for the dual-write path divergence scenario described above, nor for the fallback path (DB absent → flat-file read). The fallback test is called out as a test target but is listed without a concrete assertion ("fallback behavior when `.index.db` absent" — absent how? missing file? open failure?). The step should specify observable assertions.
+
+Verification section — The cold-start latency verification (`node bench/memory-read.js`) references `bench/results/2026-03-14-memory-read.txt` and the benchmark file `bench/memory-read.js`. Neither is produced by any plan step — no step creates the `bench/` directory or the benchmark script. This means the verification command will fail unless these files already exist in the repo (not stated).
+
+**Adversarial Close**
+
+1. **Fabricated quantitative evidence.** The Context section states cold-start timing of "~180ms on cold start (measured: `time node -e "require('fs').readdirSync(...)"` on a 45-entry directory)." This is a shell command presented inline, not a file produced by the plan — it is plausible as a live measurement the author ran. However, the Approach section cites "2.3µs read latency vs 45µs per-file read, measured with 10k iterations on a 45-entry memory set (`node bench/memory-read.js` — results in `bench/results/2026-03-14-memory-read.txt`)." The file `bench/results/2026-03-14-memory-read.txt` is cited as evidence but is never produced by any plan step. No step creates `bench/memory-read.js` or runs it to generate result files. The quantitative claims are cited to a file that does not exist and that the plan never creates.
+
+adversarial-close: fabricated quantitative evidence — `bench/results/2026-03-14-memory-read.txt` and `bench/memory-read.js` are cited as the source of the 2.3µs vs 45µs benchmark figures, but no plan step creates or runs these files. The evidence is phantom.
+
+2. **Phantom types/symbols.** The `Memory` type is used in the exported signatures `readMemories(projectDir): Memory[]`, `writeMemory(projectDir, memory: Memory): void`, and `deleteMemory(projectDir, id: string): void` in Phase 1, Step 1. No plan step defines or imports the `Memory` type. It is referenced in the public API surface of `src/memory-db.ts` but is never declared.
+
+adversarial-close: phantom types/symbols — `Memory` type appears in all three exported function signatures in `src/memory-db.ts` but is never defined by any plan step.
+
+**Overall Verdict** — NEEDS_UPDATE: the benchmark evidence cited in the Approach section references files the plan never produces, the `Memory` type used throughout the exported API is never defined, and the dual-source-of-truth pattern lacks a reconciliation mechanism.
