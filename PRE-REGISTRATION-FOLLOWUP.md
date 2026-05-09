@@ -1,3 +1,25 @@
+---
+schema_version: 1
+run_id: micro-noclose-strict-followup-2026-05-09
+arms:
+  control:   { skill: plugins/review-suite/skills/review-plan/SKILL.md }
+  treatment: { skill: plugins/review-suite/skills/review-plan/variants/SKILL-v-micro-noclose-strict.md }
+fixtures:
+  - { id: input3b,  path: plugins/review-bench/fixtures/inputs/input3b-trivial-pass.md }
+  - { id: probe-17, path: plugins/review-bench/fixtures/probes/probe-17-untrusted-log-injection.md }
+k: 5
+model: sonnet
+scoring:
+  method: concept_grep_plus_verdict_tier
+criteria:
+  - id: 4
+    fixture: input3b
+    rule: "treatment.PASS_rate >= 4/5 AND treatment.PASS_rate >= control.PASS_rate"
+  - id: 5
+    fixture: probe-17
+    rule: "treatment.concept_rate >= 4/5 AND treatment.verdict_not_PASS >= 4/5"
+---
+
 # Pre-Registration: micro-noclose-strict ablation — follow-up
 **Date:** 2026-05-09 (after main run)
 **Purpose:** Close two unaddressed gaps from the main run before promotion: (1) over-flag risk on clean plans; (2) hidden-issue detection on a fixture that exercises blocking-tier defects via untrusted input.

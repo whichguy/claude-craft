@@ -1,3 +1,29 @@
+---
+schema_version: 1
+run_id: micro-noclose-strict-ablation-2026-05-09
+arms:
+  control:   { skill: plugins/review-suite/skills/review-plan/SKILL.md }
+  treatment: { skill: plugins/review-suite/skills/review-plan/variants/SKILL-v-micro-noclose-strict.md }
+fixtures:
+  - { id: probe-21, path: plugins/review-bench/fixtures/probes/probe-21-procedurally-clean-false-claim.md }
+  - { id: probe-9,  path: plugins/review-bench/fixtures/probes/probe-9-g1-pass-calibration.md }
+  - { id: input11,  path: plugins/review-bench/fixtures/inputs/input11-node-parallel-phases.md }
+k: 5
+model: sonnet
+scoring:
+  method: concept_grep_plus_verdict_tier
+criteria:
+  - id: 1
+    fixture: probe-21
+    rule: "treatment.concept_rate >= 4/5 AND treatment.verdict_in_NEEDS_UPDATE_or_NOT_READY >= 4/5"
+  - id: 2
+    fixture: probe-9
+    rule: "treatment.NOT_READY_rate >= 4/5"
+  - id: 3
+    fixture: input11
+    rule: "treatment.concept_rate >= 4/5 AND treatment.verdict_in_NEEDS_UPDATE_or_NOT_READY >= 4/5"
+---
+
 # Pre-Registration: micro-noclose-strict ablation
 
 **Date:** 2026-05-09
