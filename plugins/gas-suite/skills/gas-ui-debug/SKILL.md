@@ -734,28 +734,17 @@ Chaining: `evaluate_script` calls can be chained without snapshots. Only snapsho
 | `chrome-devtools` | Console, DOM, screenshots | `list_pages()` |
 | `gas` | exec(), file ops, server logs | `ls({scriptId})` |
 
-## Chrome DevTools Config (Recommended for GAS)
+## Chrome DevTools Setup (Recommended for GAS)
 
-**Manual mode with auth** - keeps Google login:
+The `chrome-devtools` MCP server is **not bundled** with gas-suite — install the external plugin once:
 
-```json
-{
-  "mcpServers": {
-    "chrome-devtools": {
-      "command": "npx",
-      "args": [
-        "@anthropic-ai/mcp-server-chrome-devtools@latest",
-        "--browserUrl", "http://127.0.0.1:9222"
-      ]
-    }
-  }
-}
+```
+/plugin install chrome-devtools-mcp@claude-plugins-official
 ```
 
-**Why manual mode?**
-- Connects to YOUR Chrome instance
-- Google login persists (no re-auth per session)
-- Can see what Claude sees in real browser
+**Manual mode with auth** (recommended for GAS — keeps Google login):
+
+Configure the installed plugin to point at your own Chrome instance via `--browserUrl http://127.0.0.1:9222`. Refer to the plugin's docs for the exact override mechanism.
 
 **One-time setup:**
 ```bash
@@ -771,17 +760,7 @@ chrome-debug
 # Close browser when done
 ```
 
-**Alternative: Auto-launch (not for GAS)**
-```json
-{
-  "chrome-devtools": {
-    "args": []
-  }
-}
-```
-- Auto-launches fresh Chrome
-- No saved logins (must re-auth every time)
-- Good for non-GAS testing only
+Without `--browserUrl`, the plugin auto-launches a fresh Chrome with no saved logins — fine for non-GAS testing, but you'll re-auth every session.
 
 ## Connection Troubleshooting
 

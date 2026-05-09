@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["chrome-devtools-mcp@latest"]
-    },
     "mcp-gas-deploy": {
       "command": "npx",
       "args": ["-y", "github:whichguy/mcp-gas-deploy"]
