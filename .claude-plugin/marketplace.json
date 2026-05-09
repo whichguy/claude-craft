@@ -10,7 +10,7 @@
     { "name": "wiki-suite",       "source": "./plugins/wiki-suite",       "version": "0.2.0", "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook." },
     { "name": "review-suite",     "source": "./plugins/review-suite",     "version": "0.2.0", "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits." },
     { "name": "review-bench",     "source": "./plugins/review-bench",     "version": "0.2.0", "description": "Prompt/question A/B benchmarking and ablation tooling. Depends on review-suite." },
-    { "name": "planning-suite",   "source": "./plugins/planning-suite",   "version": "0.2.2", "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge, iterative red-team plan review." },
+    { "name": "planning-suite",   "source": "./plugins/planning-suite",   "version": "0.2.3", "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge, iterative red-team plan review." },
     { "name": "async-suite",      "source": "./plugins/async-suite",      "version": "0.2.0", "description": "Background task workflow: bg / todo / todo-cleanup + task-persist + feedback ingestion." },
     { "name": "slides-suite",     "source": "./plugins/slides-suite",     "version": "0.1.0", "description": "Generate reveal.js or Google Slides decks from material." },
     { "name": "comms",            "source": "./plugins/comms",            "version": "0.1.0", "description": "Communication helpers (Slack tagging)." },

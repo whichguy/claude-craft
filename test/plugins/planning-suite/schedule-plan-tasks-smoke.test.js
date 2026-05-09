@@ -312,8 +312,9 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
         expect(missing, 'missing fixture references').to.deep.equal([]);
     });
 
-    it('references agent-template.md', function () {
-        expect(skill.includes('agent-template.md'), 'agent-template.md reference').to.be.true;
+    it('SKILL.md runs inline (no sub-agent dispatch)', function () {
+        expect(skill.includes('inline'), 'inline marker').to.be.true;
+        expect(/Agent\(/.test(skill), 'no Agent() dispatch').to.be.false;
     });
 
     it('references all 7 expect-planN.md files', function () {
@@ -324,21 +325,23 @@ describe('skills/test-schedule-plan-tasks — structure', function () {
         expect(missing, 'missing expectation file references').to.deep.equal([]);
     });
 
-    it('agent-template.md names all 6 validation check labels (A–F)', function () {
-        const template = fs.readFileSync(
-            path.join(TEST_SKILL_DIR, 'references', 'agent-template.md'), 'utf8');
+    it('SKILL.md names all 6 plan-only validation check labels (A–F)', function () {
         const missing = [];
         for (const label of ['expected_chains', 'expected_standalones', 'chain_specs',
                              'standalone_specs', 'Wiring Integrity', 'special_assertions']) {
-            if (!template.includes(label)) missing.push(label);
+            if (!skill.includes(label)) missing.push(label);
         }
-        expect(missing, 'missing agent-template.md check labels').to.deep.equal([]);
+        expect(missing, 'missing inline check labels').to.deep.equal([]);
     });
 
-    it('agent-template.md contains RESULT: PASS and RESULT: FAIL return format', function () {
-        const content = fs.readFileSync(path.join(REFS, 'agent-template.md'), 'utf8');
-        expect(content.includes('RESULT: PASS'), 'RESULT: PASS').to.be.true;
-        expect(content.includes('RESULT: FAIL'), 'RESULT: FAIL').to.be.true;
+    it('SKILL.md contains RESULT: PASS and RESULT: FAIL return format', function () {
+        expect(skill.includes('RESULT: PASS'), 'RESULT: PASS').to.be.true;
+        expect(skill.includes('RESULT: FAIL'), 'RESULT: FAIL').to.be.true;
+    });
+
+    it('SKILL.md includes banner-check (re-implementation guard)', function () {
+        expect(skill.includes('## Dry-Run Report'), 'plan-only banner').to.be.true;
+        expect(/[Bb]anner check/.test(skill), 'banner check rule').to.be.true;
     });
 
     it('every expect-planN.md exists on disk', function () {
@@ -411,8 +414,9 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
     const DR_REFS = path.join(TEST_SKILL_DIR, 'references');
     const skill = fs.readFileSync(path.join(TEST_SKILL_DIR, 'SKILL.md'), 'utf8');
 
-    it('SKILL.md references agent-template-dryrun.md', function () {
-        expect(skill.includes('agent-template-dryrun.md'), 'agent-template-dryrun.md reference').to.be.true;
+    it('SKILL.md dry-run track runs inline (no Agent dispatch)', function () {
+        expect(skill.includes('Simulated Execution Trace'), 'dry-run trace banner').to.be.true;
+        expect(/Agent\(/.test(skill), 'no Agent() dispatch').to.be.false;
     });
 
     it('SKILL.md references all 7 expect-planN-dryrun.md files', function () {
@@ -423,25 +427,28 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
         expect(missing, 'missing dry-run expectation file references').to.deep.equal([]);
     });
 
-    it('agent-template-dryrun.md exists and contains RESULT: PASS and RESULT: FAIL', function () {
-        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
-        expect(content.includes('RESULT: PASS'), 'RESULT: PASS').to.be.true;
-        expect(content.includes('RESULT: FAIL'), 'RESULT: FAIL').to.be.true;
+    it('SKILL.md dry-run track invokes --dry-run via Skill tool', function () {
+        expect(skill.includes('--dry-run'), '--dry-run flag').to.be.true;
+        expect(skill.includes('schedule-plan-tasks'), 'Skill target').to.be.true;
     });
 
-    it('agent-template-dryrun.md invokes --dry-run mode', function () {
-        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
-        expect(content.includes('--dry-run'), '--dry-run flag in template').to.be.true;
-    });
-
-    it('agent-template-dryrun.md contains the 6 validation check labels (A–F)', function () {
-        const content = fs.readFileSync(path.join(DR_REFS, 'agent-template-dryrun.md'), 'utf8');
+    it('SKILL.md dry-run track contains the 6 validation check labels (A–F)', function () {
         const missing = [];
         for (const label of ['Trace header', 'Validation section', 'Wave 1 delivery-agents',
                              'Regression ordering', 'No unexpected failures', 'Special assertions']) {
-            if (!content.includes(label)) missing.push(label);
+            if (!skill.includes(label)) missing.push(label);
         }
         expect(missing, 'missing validation check labels').to.deep.equal([]);
+    });
+
+    it('SKILL.md dry-run track has TaskList isolation/cleanup', function () {
+        expect(/TaskList/.test(skill), 'TaskList reference').to.be.true;
+        expect(/[Cc]leanup/.test(skill), 'cleanup pass').to.be.true;
+    });
+
+    it('SKILL.md dry-run track has banner-check guard', function () {
+        expect(skill.includes('## Simulated Execution Trace'), 'simulated trace banner').to.be.true;
+        expect(/[Bb]anner check/.test(skill), 'banner check rule').to.be.true;
     });
 
     it('every expect-planN-dryrun.md exists on disk', function () {
@@ -501,8 +508,8 @@ describe('skills/test-schedule-plan-tasks — dry-run track', function () {
     });
 
     it('SKILL.md Step 1b declares sequential execution to prevent TaskList pollution', function () {
-        expect(skill.includes('sequential'), 'sequential keyword in Step 1b').to.be.true;
-        expect(skill.includes('one at a time'), 'one at a time phrase').to.be.true;
+        expect(/[Ss]equential/.test(skill), 'sequential keyword in Step 1b').to.be.true;
+        expect(/serialize|TaskList isolation|one at a time/.test(skill), 'serialization rationale').to.be.true;
     });
 });
 
