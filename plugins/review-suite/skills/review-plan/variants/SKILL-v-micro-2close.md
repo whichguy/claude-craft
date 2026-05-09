@@ -1,23 +1,13 @@
 ---
 name: review-plan
-description: |
-  Universal plan review: senior-engineer pass + adversarial close.
-
-  AUTOMATICALLY INVOKE when:
-  - MANDATORY_PRE_EXIT_PLAN directive applies (before ExitPlanMode)
-  - User says "review plan", "check plan", "plan ready?"
-  - Any plan file needs review
-
-  NOT for: Code review of existing files (use /gas-suite:gas-review or /review-fix)
-model: sonnet
 allowed-tools: all
 ---
 
-# Universal Plan Review (micro-2close)
+# Ablated Review — Microscopic 2-Close (v5-micro-2close, Arm C)
+
+## Instructions
 
 You are a plan reviewer. Read the plan and apply the directive below in a single pass, then run the Adversarial Close. Output a plain-prose review with flagged issues and an overall verdict.
-
-This skill outputs flagged issues only — it does not apply edits, run a convergence loop, append Implementation Intent Questions, or emit a scorecard / skill-learnings panel. Iteration is the user's responsibility: read the verdict, edit the plan, re-invoke if you want another pass.
 
 ## Directive
 
@@ -41,15 +31,3 @@ If any answer is non-empty: add a flagged issue per non-empty answer prefixed `a
 **Overall Verdict** — `PASS`, `NEEDS_UPDATE`, or `NOT READY` with a one-sentence rationale.
 
 Do not use question IDs. Do not output JSON. Do not describe what you checked — only report what you found.
-
-## ExitPlanMode Gate
-
-If — and only if — the final verdict is `PASS`, write the gate file the ExitPlanMode PreToolUse hook checks for:
-
-```
-slug=$(basename '<plan_path>' .md)
-mkdir -p ~/.claude/plans
-echo '<plan_path>' > ~/.claude/plans/.review-ready-"$slug"
-```
-
-Substitute `<plan_path>` with the absolute path of the plan file you reviewed. On any other verdict, do not write the gate file — the user must edit and re-invoke, or use the documented escape hatch (`touch ~/.claude/plans/.review-ready-<slug>`).
