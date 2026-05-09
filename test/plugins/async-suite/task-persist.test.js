@@ -177,6 +177,15 @@ describe('task-persist-restore.sh', function () {
         expect(tasks[0].blockedBy).to.deep.equal([]);
     });
 
+    // (j) cross-repo filtering: prior session from a different git root is skipped
+    it('(j) exits silently when prior session .git-root is a different repo', async function () {
+        const priorDir = makePriorDir('/some/other/repo');
+        writeTask(priorDir, { id: '1', subject: 'Task', description: 'D', activeForm: 'A', status: 'pending', blocks: [], blockedBy: [] });
+
+        const { stdout } = await runRestore(CURRENT_SID);
+        expect(stdout.trim()).to.equal('');
+    });
+
     // (h) prior session *.json files deleted; .lock preserved
     it('(h) deletes prior session json files after emit but preserves .lock', async function () {
         const priorDir = makePriorDir();

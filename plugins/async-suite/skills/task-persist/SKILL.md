@@ -79,8 +79,9 @@ for dir in $(ls -td "$TASKS_DIR"/*/ 2>/dev/null | head -20); do
   json_count=$(ls "$dir"/*.json 2>/dev/null | wc -l | tr -d ' ')
   pending=0
   for f in "$dir"/*.json; do
+    [ -f "$f" ] || continue
     status=$(jq -r '.status // ""' "$f" 2>/dev/null)
-    [ "$status" != "completed" ] && pending=$((pending + 1))
+    case "$status" in pending|in_progress|blocked) pending=$((pending + 1)) ;; esac
   done
   mtime=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$dir" 2>/dev/null || stat -c "%y" "$dir" 2>/dev/null | cut -d. -f1)
   echo "  $sid  |  $json_count tasks ($pending pending)  |  $mtime"

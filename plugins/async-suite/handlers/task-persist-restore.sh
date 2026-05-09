@@ -2,7 +2,7 @@
 # SessionStart hook: restore pending tasks from prior session via additionalContext
 # Fires on "clear" and "startup" matchers.
 
-set -eo pipefail
+set -o pipefail
 shopt -s nullglob
 trap 'exit 0' ERR
 
