@@ -186,6 +186,17 @@ describe('task-persist-restore.sh', function () {
         expect(stdout.trim()).to.equal('');
     });
 
+    // (k) pre-upgrade path: prior session has json tasks but no .git-root — skipped
+    it('(k) exits silently when prior session has tasks but no .git-root file', async function () {
+        const dir = path.join(fakeTasksDir, PRIOR_SID);
+        fs.mkdirSync(dir, { recursive: true });
+        // Deliberately omit .git-root to simulate a pre-upgrade session
+        writeTask(dir, { id: '1', subject: 'Task', description: 'D', activeForm: 'A', status: 'pending', blocks: [], blockedBy: [] });
+
+        const { stdout } = await runRestore(CURRENT_SID);
+        expect(stdout.trim()).to.equal('');
+    });
+
     // (h) prior session *.json files deleted; .lock preserved
     it('(h) deletes prior session json files after emit but preserves .lock', async function () {
         const priorDir = makePriorDir();
