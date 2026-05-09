@@ -164,24 +164,34 @@ Write `question-candidates.json`.
 
 ### 1e. Score info-gain via counterfactual ratings
 
-For each (q_idx, a_idx) pair (up to 30), prepare a `COUNTERFACTUAL_RATER` prompt with the
-hypothetical question and answer inlined.
+**Use a fan-out coordinator subagent** so 30 counterfactual prompts (~30 KB / round) never
+touch main context. Main context only writes the dispatch task and reads the result path.
 
-Dispatch in batches of 10 per message (max 3 batches), awaiting each batch before the next.
-Each Task() uses `subagent_type: "general-purpose"`, `model: "sonnet"`, `temperature: 0.5`
-(per the Roles table — between rater 0.7 and answerer 0.3):
-```
-# Batch 1: dispatches 0..9 in one message
-Agent({ subagent_type: "general-purpose", model: "sonnet", temperature: 0.5, prompt: <cf 0> })
-Agent({ subagent_type: "general-purpose", model: "sonnet", temperature: 0.5, prompt: <cf 1> })
-... (8 more in the same message)
-# After batch returns, append to counterfactual-posteriors.jsonl
-# Batch 2: dispatches 10..19
-# Batch 3: dispatches 20..29
+Write `$RUN_DIR/round-N/cf-dispatch-task.json`:
+```json
+{
+  "round_dir": "<absolute $RUN_DIR/round-N>",
+  "prompt_md": "<absolute $RUN_DIR/prompt.md>",
+  "refinements_json": "<absolute $RUN_DIR/round-N/refinements.json>",
+  "candidates_json": "<absolute $RUN_DIR/round-N/question-candidates.json>",
+  "rater_template": "<the COUNTERFACTUAL_RATER template body from references/role-prompts.md, with {{prompt_md}} and {{refinements_json}} pre-substituted but {{hypothetical_question}} and {{hypothetical_answer}} left as placeholders>"
+}
 ```
 
-Each response is a JSON distribution. Append to `$RUN_DIR/round-N/counterfactual-posteriors.jsonl`
-as `{"q_idx": Q, "a_idx": A, "posterior": {...}}`.
+Dispatch the fan-out coordinator (one Task call):
+```
+Agent({
+  subagent_type: "general-purpose",
+  model: "sonnet",
+  description: "narrow-plan counterfactual fan-out coordinator round N",
+  prompt: <COUNTERFACTUAL_DISPATCHER template from references/role-prompts.md, with {{cf_dispatch_task}} → "$RUN_DIR/round-N/cf-dispatch-task.json">
+})
+```
+
+The coordinator reads the task file, dispatches all 30 counterfactual raters in batches of
+≤10 per message at `temperature: 0.5`, parses each posterior, and writes the aggregated
+results to `$RUN_DIR/round-N/counterfactual-posteriors.jsonl`. It returns only the path to
+that file. Main context never sees the 30 prompts or the 30 raw posteriors.
 
 Score:
 ```bash
@@ -236,6 +246,46 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/narrow-plan/lib/bin/tombstone.js" \
 
 After the second tombstone, also `git -C "$RUN_DIR" tag round-N` so `git show round-N` works
 later.
+
+### 1h. Print the round progress card
+
+After the round commits, print this card to the user (NOT to the agent transcript — this is
+the user-facing progress display). Compose from `stop-check.json`, `distribution.json`,
+prior round's `distribution.json` (if N >= 2), `answers.json`, and `refinements.json`.
+
+```
+┌─ Round N/6 ─────────────────────────────────────────────────────────────┐
+│ Distribution (sparkline shows shift from prior round):                  │
+│   A  ████████████░░░░░░  0.55  ↑0.13   "<refinement A first 60 chars>"  │
+│   B  █████░░░░░░░░░░░░░  0.22  ↓0.05   "<refinement B first 60 chars>"  │
+│   C  ███░░░░░░░░░░░░░░░  0.13  ↑0.04   "<refinement C first 60 chars>"  │
+│   D  ██░░░░░░░░░░░░░░░░  0.07  ↓0.08   "<refinement D first 60 chars>"  │
+│   E  █░░░░░░░░░░░░░░░░░  0.03  ↓0.04   "<refinement E first 60 chars>"  │
+│                                                                         │
+│ Stop check: ✗ margin 0.33 ≥ 0.30 ✓, p_top 0.55 < 0.70 ✗, persistent ✓   │
+│ Entropy: 1.85 bits  (round N-2 was 2.13 — dropping)                     │
+│                                                                         │
+│ Asked this round (top-2 by info-gain):                                  │
+│   Q1 [llm-agreed]: <question text truncated to 70 chars>                │
+│        → <answer truncated to 60 chars>                                 │
+│   Q2 [user]:       <question text truncated to 70 chars>                │
+│        → <user's chosen answer>                                         │
+│                                                                         │
+│ Next: round N+1, generator will preserve A & B, refresh C/D/E.          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+Rules for the card:
+- Sparkline = 18-char bar, filled `█` proportional to probability, padded with `░`.
+- `↑` / `↓` deltas only for round ≥ 2 (compare to prior round's distribution by ORIGINAL slot,
+  not the carried-forward order). Round 1: omit deltas, write `(round 1 baseline)` instead.
+- Stop-check line shows each of the 3 conditions individually with ✓/✗ — makes it obvious
+  WHY a round didn't terminate.
+- Entropy line only from round 3 onward; otherwise omit.
+- Question source markers: `[llm-agreed]` (both framings agreed), `[user]` (escalated due to
+  framings disagreeing).
+- "Next" line: on the FINAL round (passes=true OR cap=6 OR stagnation), replace with:
+  `Done: verdict=<converged|did_not_converge>, synthesizing plan...`
 
 Increment `round`. Loop back to **1a**.
 
