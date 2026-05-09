@@ -71,12 +71,40 @@ The caveats:
 - This run did not test TRIVIAL/PASS calibration (input3b). The treatment may over-flag clean plans more than the control. **The strict severity rule could be a false-positive risk on plans without blocking-tier defects.** Untested in this run.
 - The directive prose in `micro-noclose-strict` already includes the fabricated-quant and phantom-types categories explicitly. Anyone interpreting the result as "questions never matter" is overreading: the categories matter; the *adversarial close question + single-tier downgrade* form was just one (less-effective on Sonnet) way to operationalize them.
 
-## Decision (without auto-promote)
+## Follow-up run — closes the over-flag and hidden-issue gaps
 
-Do not auto-promote. Surface to user with three options:
-1. Promote `micro-noclose-strict` as the new production default. Risk: untested over-flag rate on clean plans.
-2. Run a follow-up: same protocol but adding `input3b` (PASS calibration) and `probe-17` (hidden untrusted-input — sanity for blocking detection). Confirms no over-flagging before promotion.
-3. Do nothing — bank the variant; treat the model-dependence finding as the take-home for now.
+Pre-registered at commit `f731309` before any dispatches. 20 additional Sonnet sub-agent calls (input3b + probe-17 × 2 arms × k=5).
+
+| Cell | Criterion | Control | Treatment |
+|---|---|---|---|
+| input3b | PASS ≥4/5; treatment ≥ control | **5/5 ✓** | **5/5 ✓** |
+| probe-17 | log-injection-concept ∧ verdict ≠ PASS, both ≥4/5 | **5/5 / 5/5 ✓** | **5/5 / 5/5 ✓** |
+
+Treatment passes Criteria 4 and 5 cleanly. Both variants:
+- Correctly classify input3b as TRIVIAL/PASS 5/5 — the strict severity rule's TRIVIAL N/A clause works as intended; no over-flagging.
+- Detect probe-17's log-injection defect via the directive prose's "untrusted inputs reaching trust boundaries" category. No close-question scaffold needed.
+
+## Cumulative cell-by-cell comparison (all 5 fixtures)
+
+| Cell | Control | Treatment | Winner |
+|---|---|---|---|
+| probe-21 (fab-quant)              | 5/5 catch, 3/5 NOT_READY + 2/5 NEEDS_UPDATE | 5/5 catch, 3/5 NOT_READY + 2/5 NEEDS_UPDATE | tie |
+| probe-9 (mixed-defect)            | 5/5 NEEDS_UPDATE                              | **5/5 NOT_READY**                              | **treatment** |
+| input11 (multi-advisory)          | 5/5 NEEDS_UPDATE, 5/5 ≥2-concepts            | **5/5 NOT_READY**, 5/5 ≥2-concepts            | **treatment** |
+| input3b (PASS calibration)        | 5/5 PASS                                       | 5/5 PASS                                       | tie |
+| probe-17 (hidden untrusted-input) | 4/5 NOT_READY + 1/5 NEEDS_UPDATE, 5/5 catch  | 4/5 NOT_READY + 1/5 NEEDS_UPDATE, 5/5 catch  | tie |
+
+**Treatment is strictly better-or-equal to control on every cell.** Specifically: better on the two multi-finding plans where the deterministic count-based severity rule scales beyond the close-question single-tier-downgrade; tied everywhere else.
+
+## Decision
+
+Per pre-registration: all 5 criteria pass for treatment, and treatment is at-least-as-good on every cell — promotion is justified. Surface to user as the final decision, not auto-promoted.
+
+The control's probe-9 comparability failure (0/5 NOT_READY vs prior research's 3/3) remains a substantive finding about model dependence: the close-question scaffold's effective severity tier is model-dependent in a way the deterministic count-based rule is not. That's an additional argument for the strict-rule design — its behavior is portable across sub-agent models, which matches how the production skill is actually invoked.
+
+## Cost (cumulative)
+
+50 sub-agent dispatches × Sonnet, ~20K tokens each = ~1M tokens, ~$10-15 of compute total across main run + follow-up.
 
 ## Files
 

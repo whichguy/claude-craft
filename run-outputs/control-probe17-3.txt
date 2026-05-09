@@ -1,0 +1,23 @@
+**Flagged Issues**
+
+**Phase 1, Step 3 — Untrusted input crosses trust boundary without sanitization (blocking).** The middleware reads `req.headers['x-request-id']` directly from the client and assigns it verbatim to `req.requestId`, which is then passed to `logger.child({ requestId: req.requestId })`. An attacker can supply a value containing CRLF sequences (`\r\n`) or other control characters. While `pino` serializes structured fields as JSON (mitigating classic newline-injection into JSON-format log sinks), many log pipeline stages — log shippers, syslog forwarders, SIEM ingestors, and plaintext transports — split on newlines before JSON parsing, meaning a crafted value like `real-id\nERROR injected-log-line` produces forged log entries. The plan contains no input validation, no length cap, no character-allowlist (e.g., UUID/hex pattern), and no stripping of control characters before the value reaches the logger. Fix: before assigning to `req.requestId`, validate the header against an expected format (e.g., `/^[a-zA-Z0-9\-]{1,128}$/`), fall back to a server-generated `crypto.randomUUID()` if the header is absent or invalid, and document the fallback behavior.
+
+**Phase 1, Step 3 — Missing fallback when header is absent (blocking).** The plan reads `req.headers['x-request-id']` and assigns it directly with no guard against `undefined`. If a client omits the header, `req.requestId` is `undefined`, and `logger.child({ requestId: undefined })` will either emit `null` or omit the field depending on `pino` version and serializer config — silently breaking correlation for requests that arrive without the header (e.g., direct calls bypassing the gateway, internal health-check probes, misconfigured clients). Fix: always fall back to `crypto.randomUUID()` when the header is absent.
+
+**Phase 2, Steps 7–8 — Implicit API change in service signatures without verifying all call sites (advisory).** Updating `inventory.reserve` and `payments.charge` to accept a `log` first argument is a breaking change to those function signatures. The plan only identifies the call site in `routes/orders.ts:placeOrder`. If either service is called from other routes, cron jobs, or background workers not covered by the plan, those callers will break at runtime (wrong arity, `log` silently treated as the first domain argument). Fix: run `grep -rn "inventory.reserve\|payments.charge" src/` before Phase 2 and enumerate all call sites; update each, or add overload signatures.
+
+**Phase 3, Step 9 — Unit test does not cover the missing-header fallback or invalid-header rejection paths (advisory).** The test only asserts the happy path (`X-Request-Id: abc123`). Given the trust-boundary concern above, the test suite should also assert: (a) absent header → `req.requestId` is a valid UUID string, (b) malformed/CRLF-containing header → fallback UUID is used and the raw header value is not logged. Without these cases, the tests will pass even if the validation logic is never added.
+
+**Phase 2, Step 6 — Line numbers cited as authoritative without a live pre-read (advisory).** The plan asserts `req.log.info` calls exist at `routes/orders.ts` lines 24, 47, and 89, but Phase 2's pre-check only requires Phase 1 outputs to exist and a manual curl test — it does not re-read `routes/orders.ts` to confirm those line numbers. If the file has been edited since the plan author inspected it, the step will target wrong lines. Fix: add an explicit read of `routes/orders.ts` as the first action in Step 6 and confirm the target lines before editing.
+
+---
+
+**Adversarial Close**
+
+1. **Fabricated quantitative evidence.** No quantitative claims (latency, throughput, capacity) are made in this plan. None to flag.
+
+2. **Phantom types/symbols.** The plan references `req.log` as a property attached in the middleware, and all downstream steps consume it. This is self-consistent and defined in Step 3. No phantom symbols detected.
+
+---
+
+**Overall Verdict** — NOT READY. The untrusted `X-Request-Id` header value flows directly into the structured logger with no validation, no length cap, and no fallback for absent values, constituting an untrusted-input-to-trust-boundary violation; this must be addressed before implementation proceeds.
