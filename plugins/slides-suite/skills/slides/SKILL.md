@@ -8,6 +8,8 @@ description: |
   "slides about", "deck on", "presentation from [material]"
 
   NOT for: editing existing PPTX, converting files, exporting Sheets charts
+
+  Step 3B includes optional visual verification via Chrome DevTools.
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
@@ -1292,6 +1294,34 @@ On success, print:
 ✅ Google Slides created: [URL]
    Open the link above to view your presentation in Google Drive.
 ```
+
+---
+
+## Step 4 — Visual Verification (Google Slides path only)
+
+*Only execute when `$FORMAT == google` and Step 3B succeeded.*
+
+Verify the rendered deck. If Chrome is unavailable, skip and report URL only.
+
+```
+mcp__chrome-devtools__list_pages → if error: skip verification, report URL only
+```
+
+1. `mcp__chrome-devtools__navigate_page` → url from Step 3B result
+2. `mcp__chrome-devtools__evaluate_script` → `document.location.hostname`
+   If result contains `accounts.google.com`: report "Chrome requires Google login" and skip.
+3. `mcp__chrome-devtools__wait_for` → selector `[data-slide-id]`, timeout 10s
+4. `mcp__chrome-devtools__take_screenshot`
+5. `mcp__chrome-devtools__evaluate_script` → `document.querySelectorAll('[data-slide-id]').length`
+   Compare to expected slide count. Report if they differ.
+
+Report:
+```
+Presentation: <url>
+Visual verification: PASS / FAIL / SKIPPED (Chrome not available)
+```
+
+If FAIL: describe discrepancy and offer to regenerate.
 
 ---
 

@@ -52,13 +52,13 @@ include a git rollback path.
 **Q4: Are files in the right folders and in correct dependency order?** (2, GAS)
 Folders: addon code in `inbox-crew/addon/`, common modules in `common-js/`, HTML in `html/`, tests in `test/`. Order: `require.gs` at position 0, then base modules before consumers, tests last. Flag wrong folder placement or out-of-order dependencies. N/A: no new files.
 
-**Q5: Are the right mcp_gas tools used for each file type?** (2, GAS)
+**Q5: Are the right mcp-gas-deploy tools used for each file type?** (2, GAS)
 HTML files must use `write({..., raw: true})` (not plain `write` which adds CommonJS wrappers). `.gs` files use `write` without `raw: true`. `cat` paths must omit `.gs` extension. N/A: no file push/read operations.
 
 **Q6: Is there exec verification after each push?** (2, GAS)
 Each write (or `write({..., raw:true})`) must be followed by an exec to verify code loads. Push does not mean it works. N/A: no remote pushes.
 
-**Q7: If editing common-js modules, are mcp_gas templates also updated?** (2, GAS)
+**Q7: If editing common-js modules, are mcp-gas-deploy templates also updated?** (2, GAS)
 CLAUDE.md: `COMMON-JS_SYNC`. Changes to shared modules must include dual updates. N/A: no common-js edits.
 
 **Q8: Does the plan account for GAS isolated execution state?** (1, GAS)

@@ -114,6 +114,25 @@ function* walkDocs(roots) {
     }
 }
 
+function isInventoryPath(full) {
+    const abs = path.resolve(full);
+    if (INVENTORY_EXCLUDED_FILES.has(abs)) return true;
+    return INVENTORY_EXCLUDED_DIRS.some(d => abs === d || abs.startsWith(d + path.sep));
+}
+
+function findSkillDir(name) {
+    const topLevel = path.join(REPO_ROOT, 'skills', name);
+    if (fs.existsSync(topLevel)) return topLevel;
+    const pluginsDir = path.join(REPO_ROOT, 'plugins');
+    if (fs.existsSync(pluginsDir)) {
+        for (const plugin of fs.readdirSync(pluginsDir)) {
+            const candidate = path.join(pluginsDir, plugin, 'skills', name);
+            if (fs.existsSync(path.join(candidate, 'SKILL.md'))) return candidate;
+        }
+    }
+    return topLevel; // fallback: non-existent path, no exclusion applied
+}
+
 // ─── ALLOWLISTS ───────────────────────────────────────────────────────────
 
 // Claude Code builtin slash commands (not exhaustive — add as encountered).
@@ -145,6 +164,7 @@ const HISTORICAL_BREADCRUMBS = new Set([
     'consolidate',             // wiki-process subsumes the old `/consolidate` flow (marketplace migration)
     'agent-sync',              // symlink-install era; replaced by `/plugin install @claude-craft` (marketplace migration)
     'prompt',                  // symlink-install era; superseded by /prompter and per-plugin commands (marketplace migration)
+    'make-slides',             // merged into /slides Step 4 — chrome verification folded in
 ]);
 
 // Internal-only agents/skills that are exempt from the dead-code detector
@@ -169,7 +189,6 @@ const USER_FACING_NO_REFS_OK = new Set([
     'enable-abilities',
     'execute-plan',
     'form990',
-    'make-slides',
     'slack-tag',
     'test-delivery-agent',  // harness invoked via /test-delivery-agent, not dispatched
     'test-slides',
@@ -179,6 +198,10 @@ const USER_FACING_NO_REFS_OK = new Set([
     'prompt-reviewer',
     'synthesis-coordinator',
     'verify-transformation',
+    // KEEP per docs/planning-suite-vs-superpowers.md — distinct from superpowers:
+    'deployment-orchestrator',  // line 56: infrastructure-aware deployment pipeline
+    'requirements-generator',   // line 60: 16-phase requirements discovery framework
+    'tech-research-analyst',    // line 62: weighted-scoring technical due diligence
 ]);
 
 // Special subagent_type values that aren't agent names — Claude Code's built-in
@@ -197,6 +220,16 @@ const SUBAGENT_TYPE_EXAMPLES = new Set([
     'prompter',      // form990 task-runner placeholder
     'reviewer',      // loop variable in review-fix.md / review-fix-thin.md
 ]);
+
+// Inventory / audit-doc paths that mention agent names for cataloging
+// purposes but are NOT real dispatch sites. Excluded so the orphan
+// detector doesn't pass on textual presence alone.
+const INVENTORY_EXCLUDED_FILES = new Set([
+    path.resolve(REPO_ROOT, 'docs/planning-suite-vs-superpowers.md'),
+]);
+const INVENTORY_EXCLUDED_DIRS = [
+    path.resolve(REPO_ROOT, 'migration-inventory'),
+];
 
 // ─── TESTS ────────────────────────────────────────────────────────────────
 
@@ -250,10 +283,12 @@ describe('dead-code detector: every skill and agent has at least one external re
     const skills = listSkills();
     const agents = listAgents();
 
-    function externalReferenceCount(name, ownerDir) {
+    function externalReferenceCount(name, ownerPath) {
         // Search all .md, .sh, .json, .js files for the name; ignore matches
-        // inside ownerDir.
-        const ownerAbs = path.resolve(ownerDir);
+        // inside ownerPath (a directory for skills, a single file for agents).
+        const ownerAbs = path.resolve(ownerPath);
+        const stat = fs.statSync(ownerPath, { throwIfNoEntry: false });
+        const ownerIsDir = stat?.isDirectory() ?? false;
         let refs = 0;
         function scan(dir) {
             const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -262,10 +297,13 @@ describe('dead-code detector: every skill and agent has at least one external re
                 if (entry.isDirectory()) {
                     if (entry.name.startsWith('.')) continue; // .claude, .git, .nyc_output, etc.
                     if (entry.name === 'node_modules') continue;
-                    if (path.resolve(full).startsWith(ownerAbs)) continue;
+                    if (ownerIsDir && path.resolve(full).startsWith(ownerAbs + path.sep)) continue;
+                    if (isInventoryPath(full)) continue;
                     scan(full);
                     continue;
                 }
+                if (!ownerIsDir && path.resolve(full) === ownerAbs) continue;
+                if (isInventoryPath(full)) continue;
                 if (!/\.(md|sh|json|js)$/.test(entry.name)) continue;
                 const content = fs.readFileSync(full, 'utf8');
                 // Match the name as a whole word — avoid prefix matches
@@ -286,7 +324,7 @@ describe('dead-code detector: every skill and agent has at least one external re
         for (const name of skills) {
             if (INTERNAL_ONLY_EXEMPTIONS.has(name)) continue;
             if (USER_FACING_NO_REFS_OK.has(name)) continue;
-            const ownerDir = path.join(REPO_ROOT, 'skills', name);
+            const ownerDir = findSkillDir(name);
             if (externalReferenceCount(name, ownerDir) === 0) orphans.push(name);
         }
         expect(orphans, `Orphan skills (no external references — candidates for deletion or addition to INTERNAL_ONLY_EXEMPTIONS): ${orphans.join(', ')}`).to.deep.equal([]);
@@ -298,30 +336,7 @@ describe('dead-code detector: every skill and agent has at least one external re
             if (INTERNAL_ONLY_EXEMPTIONS.has(name)) continue;
             if (USER_FACING_NO_REFS_OK.has(name)) continue;
             const ownerFile = path.join(REPO_ROOT, 'agents', `${name}.md`);
-            // Owner "directory" for agents is just the single file.
-            // Use an exclusion that matches the file path.
-            let refs = 0;
-            (function scan(dir) {
-                const entries = fs.readdirSync(dir, { withFileTypes: true });
-                for (const entry of entries) {
-                    const full = path.join(dir, entry.name);
-                    if (entry.isDirectory()) {
-                        if (entry.name.startsWith('.')) continue;
-                        if (entry.name === 'node_modules') continue;
-                        scan(full);
-                        continue;
-                    }
-                    if (full === ownerFile) continue;
-                    if (!/\.(md|sh|json|js)$/.test(entry.name)) continue;
-                    const content = fs.readFileSync(full, 'utf8');
-                    // Negative lookbehind/lookahead exclude [a-z0-9-] on each side so
-                    // hyphenated names are matched as whole tokens (e.g. `gas-debug`
-                    // does NOT match inside `gas-debug-team-lead`).
-                    const re = new RegExp(`(?<![a-z0-9-])${name.replace(/-/g, '\\-')}(?![a-z0-9-])`);
-                    if (re.test(content)) refs++;
-                }
-            })(REPO_ROOT);
-            if (refs === 0) orphans.push(name);
+            if (externalReferenceCount(name, ownerFile) === 0) orphans.push(name);
         }
         expect(orphans, `Orphan agents (no external references — candidates for deletion or addition to INTERNAL_ONLY_EXEMPTIONS): ${orphans.join(', ')}`).to.deep.equal([]);
     });

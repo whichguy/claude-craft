@@ -2,23 +2,25 @@
 name: gas-plan
 description: |
   Dual-perspective GAS plan review (frontend + backend) with iterative convergence loop.
+  54 GAS-specific questions covering MCP workflow, CardService, V8 parsing, OAuth, concurrency.
 
-  **AUTOMATICALLY INVOKE** when:
-  - Any plan exists for GAS changes, GAS project changes, or uses mcp_gas
-  - Plan mode produces a plan file for a GAS project (scriptId present)
-  - User says "review plan", "check plan", "validate plan", "plan review"
-  - User says "is this plan ready", "plan quality", "gas-plan"
-  - After ExitPlanMode on any GAS project plan
+  **AUTOMATICALLY INVOKE** when plan content signals GAS domain:
   - Plan references .gs files, .html files in GAS context, or mcp__gas__ tools
   - Plan modifies CommonJS modules, __events__, doGet/doPost, or addon code
+  - Plan uses mcp-gas-deploy or references a scriptId
 
-  **NOT for:** Code review (use /gas-review),
-  prompt analysis (use /review-bench:improve-prompt --mode critique), non-GAS plans
+  **NOT for:** General plan review (use /review-suite:review-plan — it fires automatically before ExitPlanMode),
+  code review (use /gas-review), non-GAS plans.
+
+  **Explicit invocation:** `/gas-suite:gas-plan` — runs the full standalone 54-question GAS
+  review without review-plan's general quality layer. Use when you want GAS-domain-only
+  feedback, or before review-plan fires.
 
   **mode parameter:**
   - `standalone` (default): TeamCreate + parallel evaluators + convergence loop + ExitPlanMode
-  - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to calling
-    team-lead. No edits, no team creation, no ExitPlanMode. Used internally by review-plan.
+  - `evaluate`: Single-pass read-only evaluation — returns findings via SendMessage to a calling
+    team-lead. No edits, no team creation, no ExitPlanMode. Available for future integration
+    with review-plan (currently not wired).
 model: claude-sonnet-4-6
 allowed-tools: all
 ---
@@ -501,13 +503,13 @@ include a git rollback path.
 **Q4: Are files in the right folders and in correct dependency order?** (2, GAS)
 Folders: addon code in `inbox-crew/addon/`, common modules in `common-js/`, HTML in `html/`, tests in `test/`. Order: `require.gs` at position 0, then base modules before consumers, tests last. Flag wrong folder placement or out-of-order dependencies. N/A: no new files.
 
-**Q5: Are the right mcp_gas tools used for each file type?** (2, GAS)
+**Q5: Are the right mcp-gas-deploy tools used for each file type?** (2, GAS)
 HTML files must use `write({..., raw: true})` (not plain `write` which adds CommonJS wrappers). `.gs` files use `write` without `raw: true`. `cat` paths must omit `.gs` extension. N/A: no file push/read operations.
 
 **Q6: Is there exec verification after each push?** (2, GAS)
 Each write (or `write({..., raw:true})`) must be followed by an exec to verify code loads. Push does not mean it works. N/A: no remote pushes.
 
-**Q7: If editing common-js modules, are mcp_gas templates also updated?** (2, GAS)
+**Q7: If editing common-js modules, are mcp-gas-deploy templates also updated?** (2, GAS)
 CLAUDE.md: `COMMON-JS_SYNC`. Changes to shared modules must include dual updates. N/A: no common-js edits.
 
 **Q8: Does the plan account for GAS isolated execution state?** (1, GAS)

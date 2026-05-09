@@ -1,6 +1,6 @@
 {
   "name": "async-suite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Background task workflow: bg / todo / todo-cleanup + task-persist + feedback ingestion.",
   "author": {
     "name": "whichguy",

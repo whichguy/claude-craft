@@ -13,8 +13,9 @@ wiki_check_deps || exit 0
 # own claude -p children would re-fire UserPromptSubmit and fork-bomb us.
 [ -n "${WIKI_DRIVER:-}" ] && exit 0
 
-# Global disable
-[ "${PROACTIVE_RESEARCH_DISABLED:-0}" = "1" ] && exit 0
+# Opt-in gate: proactive research is expensive (3-6K tokens per trigger).
+# Enable per-project by setting PROACTIVE_RESEARCH_ENABLED=1 in .claude/settings.json env block.
+[ "${PROACTIVE_RESEARCH_ENABLED:-0}" != "1" ] && exit 0
 
 wiki_parse_input
 [ -n "$AGENT_ID" ] && exit 0            # subagent guard

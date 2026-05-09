@@ -132,7 +132,7 @@ function renderReport(label, edges, regressionBlockers, independentNodes) {
     out.push(`    ${k.padEnd(20)} ← ${fmtSet(v)}`);
   });
   out.push('  delivery-agent:');
-  Object.entries(blockers.runAgentBlockers).forEach(([k, v]) => {
+  Object.entries(blockers.deliveryAgentBlockers).forEach(([k, v]) => {
     out.push(`    ${k.padEnd(20)} ← ${fmtSet(v)}`);
   });
   out.push('  regression:');

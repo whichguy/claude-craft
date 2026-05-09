@@ -188,26 +188,6 @@ wiki_check_deps() {
   return 0
 }
 
-# wiki_resolve_claude_cmd: find the model router (c-thru, formerly claude-router —
-# wraps the bare claude CLI to route via Bedrock/OpenRouter/Ollama/Vertex/etc per
-# ~/.config/c-thru/model-map.json). Falls back to bare claude if no router is
-# installed. Sets CLAUDE_CMD for the caller. Callers feature-detect --route
-# support after the resolve to decide whether to pass --route or --model.
-wiki_resolve_claude_cmd() {
-  local router
-  for router in \
-    "$HOME/.claude/tools/claude-router" \
-    "$(cd "$(dirname "$0")/../../.." 2>/dev/null && pwd)/tools/claude-router" \
-    "$(command -v claude-router 2>/dev/null)"; do
-    if [ -n "$router" ] && [ -x "$router" ]; then
-      CLAUDE_CMD="$router"
-      return 0
-    fi
-  done
-  CLAUDE_CMD="claude"
-  return 0
-}
-
 # --- Atomic debounce ---
 # wiki_debounce DEBOUNCE_FILE SECONDS
 # Returns 0 if caller wins the debounce (proceed), 1 if debounced (exit).

@@ -72,7 +72,15 @@ for dep in deps:
 done
 [ "$fail" = 0 ] && ok "dependencies resolve"
 
-# 4) every hooks/hooks.json command path that uses \${CLAUDE_PLUGIN_ROOT}
+# 4) CLAUDE.md plugin count matches marketplace.json
+plugin_count=$(python3 -c "import json; d=json.load(open('.claude-plugin/marketplace.json')); print(len(d['plugins']))")
+if grep -qF "lists ${plugin_count} plugins" CLAUDE.md && grep -qF "## Plugins (${plugin_count})" CLAUDE.md; then
+  ok "CLAUDE.md plugin count matches marketplace (${plugin_count})"
+else
+  err "CLAUDE.md plugin count mismatch: marketplace has ${plugin_count} plugins but CLAUDE.md says otherwise"
+fi
+
+# 5) every hooks/hooks.json command path that uses \${CLAUDE_PLUGIN_ROOT}
 #    points to an existing handler file
 for hooks in plugins/*/hooks/hooks.json; do
   [ -f "$hooks" ] || continue
@@ -102,7 +110,7 @@ PY
 done
 [ "$fail" = 0 ] && ok "hook handlers exist"
 
-# 5) no agent declares hooks/mcpServers/permissionMode (Constraint 5)
+# 6) no agent declares hooks/mcpServers/permissionMode (Constraint 5)
 viol=$(LC_ALL=C grep -rlnE "^(hooks|mcpServers|permissionMode):" \
        --include='*.md' plugins/*/agents/ 2>/dev/null | head)
 if [ -n "$viol" ]; then
@@ -111,7 +119,7 @@ if [ -n "$viol" ]; then
 fi
 [ -z "$viol" ] && ok "no forbidden agent frontmatter"
 
-# 6) extension frontmatter schema (skills + agents + commands)
+# 7) extension frontmatter schema (skills + agents + commands)
 viol=0
 check_frontmatter() {
   local f="$1" kind="$2"   # kind: skill | agent | command
@@ -150,7 +158,7 @@ else
   fail=1
 fi
 
-# 7) bundled-tool drift check
+# 8) bundled-tool drift check
 if [ -x tools/sync-bundled-tools.sh ]; then
   if tools/sync-bundled-tools.sh --check >/dev/null 2>&1; then
     ok "bundled tools in sync"
@@ -159,7 +167,7 @@ if [ -x tools/sync-bundled-tools.sh ]; then
   fi
 fi
 
-# 8) placeholder-token guard for fenced bash blocks
+# 9) placeholder-token guard for fenced bash blocks
 # Prevents fail-unsafe template tokens like `[PHASE_5_VERIFY_CMD]` from
 # silently executing as `command not found` if the agent forgets to
 # substitute (root cause of delivery-agent.md PR #221, fixed in PR #224).
@@ -212,7 +220,7 @@ else
   fail=1
 fi
 
-# 9) Transitive / circular dependency check
+# 10) Transitive / circular dependency check
 python3 - <<'PY' || fail=1
 import json, sys
 
@@ -265,7 +273,7 @@ if errors:
 PY
 [ "$fail" = 0 ] && ok "no circular dependencies"
 
-# 10) Cross-plugin Skill_call resolution — /<plugin>:<skill> refs must exist
+# 11) Cross-plugin Skill_call resolution — /<plugin>:<skill> refs must exist
 python3 - <<'PY' || fail=1
 import os, re, sys
 

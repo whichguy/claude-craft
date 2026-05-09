@@ -31,16 +31,17 @@ Verify with `/plugin list`.
 | `wiki-suite`       | Project LLM wiki: ingest, query, process queue, lint, proactive research |
 | `review-suite`     | Plan review, code review (Adversarial Auditor), iterative review-fix loop |
 | `review-bench`     | Prompt/question A/B benchmarking and ablation tooling (depends on review-suite) |
-| `planning-suite`   | Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge |
+| `planning-suite`   | Architect, refactor, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge, iterative red-team plan review |
 | `async-suite`      | Background task workflow: `/bg`, `/todo`, task-persist, feedback-collector |
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
-| `plan-red-team`    | Iterative red-team plan review with Opus orchestration |
+| `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. **Requires `./install.sh` from the c-thru repo first** — plugin adds Claude Code surfaces (commands, skills, hooks); proxy binary and model-map come from the installer. |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):
 `gas-suite → review-suite`, `review-suite → wiki-suite`,
 `review-bench → review-suite`, `form990 → review-bench`.
+(plan-red-team merged into planning-suite as of v0.2.0)
 
 ## Upgrading from < 1.0 (symlink-based install)
 
@@ -86,9 +87,9 @@ A consolidated set of skills for iterating on prompts, system prompts, and evalu
 | `/optimize-questions` | Token-efficiency optimization for plan-review questions. Uses `/compare-questions` as its internal A/B engine. |
 | `/compare-questions` | Pairwise A/B testing of two evaluator questions against plan fixtures. |
 
-### Wiki Plugin (wiki-hooks)
+### Wiki Plugin (wiki-suite)
 
-The wiki-hooks plugin provides 13 lifecycle handlers + a shared library that run automatically:
+The wiki-suite plugin provides 15 lifecycle handlers + a shared library that run automatically:
 
 | Handler | Hook Type | Purpose |
 |---------|-----------|---------|
@@ -105,6 +106,8 @@ The wiki-hooks plugin provides 13 lifecycle handlers + a shared library that run
 | `wiki-session-end.sh` | SessionEnd | Safety net — queue extraction if Stop didn't fire |
 | `wiki-periodic-extract.sh` | (periodic, async) | Drain extraction queue on a schedule |
 | `wiki-periodic-lint.sh` | (periodic, async) | Run lint health checks on a schedule |
+| `proactive-research-extract.sh` | UserPromptSubmit (async) | Gate check + launch driver when conditions met |
+| `proactive-research-driver.sh` | (spawned by extract.sh) | Background worker: spawn research agent (opt-in: `PROACTIVE_RESEARCH_ENABLED=1`) |
 | `wiki-common.sh` | (shared library) | Shared functions: input parsing, wiki discovery, logging |
 
 ### Provider Routing (Bedrock, OpenRouter, Ollama)
@@ -308,13 +311,15 @@ claude-craft/
 ├── prompts/               # Prompt templates (.md) → ~/.claude/prompts/
 ├── references/            # Reference docs (.md) → ~/.claude/references/
 ├── plugins/               # Plugin directories → ~/.claude/plugins/
-│   ├── async-workflow/    # Background agents for use-case expansion, research, planning, review
-│   ├── craft-hooks/       # Probabilistic auto-sync on user prompts + utility hooks
-│   ├── feedback-collector/ # SessionEnd hook → harvests SKILL_IMPROVEMENT markers to backlog
-│   ├── local-classifier/  # Local model classification helpers
-│   ├── plan-red-team/     # Adversarial expert-persona critique of implementation plans
-│   ├── task-persist/      # Cross-session task state persistence
-│   └── wiki-hooks/        # Wiki lifecycle hooks (14 handlers + shared library)
+│   ├── gas-suite/         # Apps Script review, debug, plan, sidebar, Gmail Cards
+│   ├── wiki-suite/        # Project LLM wiki + proactive research
+│   ├── review-suite/      # Plan review, code-reviewer, review-fix, security/red-team
+│   ├── review-bench/      # Prompt/question A/B benchmarking, ablation
+│   ├── planning-suite/    # Architect, test, schedule, red-team plan review
+│   ├── async-suite/       # bg/todo + task-persist + feedback-collector
+│   ├── slides-suite/      # reveal.js + Google Slides decks
+│   ├── comms/             # Slack tagging
+│   └── form990/           # IRS Form 990
 │   # Note: model-router moved to https://github.com/whichguy/c-thru
 ├── hooks/                 # Hook system
 │   └── scripts/           # Hook scripts (.sh) → ~/.claude/hooks/

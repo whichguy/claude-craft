@@ -309,7 +309,7 @@ describe('artifact: schedule-plan-tasks behavior dump', function () {
       lines.push('```');
       lines.push('**Delivery-agent blockers:**');
       lines.push('```');
-      for (const [k, v] of Object.entries(blockers.runAgentBlockers)) lines.push(`${k}: ${fmt(v)}`);
+      for (const [k, v] of Object.entries(blockers.deliveryAgentBlockers)) lines.push(`${k}: ${fmt(v)}`);
       lines.push('```');
       lines.push('**Regression blockers (per fixture data — reflects Reduction choice):**');
       lines.push(`\`${fmt([...fx.regression.blockers].sort())}\``);

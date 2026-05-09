@@ -4,9 +4,9 @@
 
 ```
 LAYOUT:      everything ships under plugins/<bundle>/ — top-level skills/agents/commands/references are GONE
-MARKETPLACE: .claude-plugin/marketplace.json lists 11 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
+MARKETPLACE: .claude-plugin/marketplace.json lists 10 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
              (c-thru is sourced via git-subdir from whichguy/c-thru — no plugins/c-thru/ in this repo)
-HOOKS:       plugins/<bundle>/hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT}/hooks/handlers/<x>.sh paths
+HOOKS:       plugins/<bundle>/hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT}/handlers/<x>.sh paths
 PATHS:       use ${CLAUDE_PLUGIN_ROOT} (plugin root), ${CLAUDE_SKILL_DIR} (per-skill), ${CLAUDE_PLUGIN_DATA} (persistent state)
 NO-XPLUGIN:  plugins cannot reference files in sibling plugins (spec restriction)
              — duplicate via tools/sync-bundled-tools.sh; namespace cross-plugin refs as /<plugin>:<skill>
@@ -23,7 +23,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 
 ---
 
-## Plugins (11)
+## Plugins (10)
 
 | Bundle | Scope |
 |---|---|
@@ -31,13 +31,12 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | wiki-suite       | Project LLM wiki + proactive research (absorbs old wiki-hooks/craft-hooks) |
 | review-suite     | Plan review, code-reviewer, review-fix, security/red-team, memory-* (deps: wiki-suite) |
 | review-bench     | Prompt/question A/B benchmarking, ablation (deps: review-suite) |
-| planning-suite   | Architect, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge |
+| planning-suite   | Architect, test, schedule-plan-tasks, node-plan, alias/unalias, performance, knowledge, iterative red-team plan review (absorbs plan-red-team) |
 | async-suite      | bg/todo/todo-cleanup + task-persist + feedback-collector (merged hooks) |
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
-| plan-red-team    | Iterative red-team plan review |
-| c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru) |
+| c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru; requires install.sh first) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.
 
@@ -56,7 +55,7 @@ Write file under `plugins/<bundle>/{skills/<name>/SKILL.md, agents/<name>.md, co
 Source-of-truth lives in `tools/<x>.sh`. Add to `bundled_map` in `tools/sync-bundled-tools.sh`. Plugin consumers reference via `${CLAUDE_PLUGIN_ROOT}/tools/<x>.sh`. Pre-commit's `--check` mode catches drift.
 
 ### Hooks
-Ship in `plugins/<bundle>/hooks/hooks.json`. Handlers live under `plugins/<bundle>/hooks/handlers/<x>.sh` (or `plugins/<bundle>/handlers/` for absorbed-from-old-plugin handlers). All commands use `${CLAUDE_PLUGIN_ROOT}/...`. State files go in `${CLAUDE_PLUGIN_DATA}` if local, `~/.claude/...` if cross-plugin.
+Ship in `plugins/<bundle>/hooks/hooks.json`. Handlers live under `plugins/<bundle>/handlers/<x>.sh`. All commands use `${CLAUDE_PLUGIN_ROOT}/...`. State files go in `${CLAUDE_PLUGIN_DATA}` if local, `~/.claude/...` if cross-plugin.
 
 ### Tests
 `npm test` runs mocha against `test/**/*.test.js`. Tests live in a structured tree:
@@ -65,6 +64,13 @@ Ship in `plugins/<bundle>/hooks/hooks.json`. Handlers live under `plugins/<bundl
 - `test/plugins/_repo/` — repo-only tools (claude-router, slated for replacement)
 
 Tests are NOT shipped in plugins. Path style: `path.join(REPO_ROOT, 'plugins', '<bundle>', 'skills', '<name>', 'SKILL.md')`.
+
+### Audit discipline
+
+When an audit recommends deleting code that "looks superseded" or "looks dead":
+1. Map ALL call sites with `grep -rn "<symbol>" plugins/ test/ tools/` BEFORE classifying. Cite the count in the audit.
+2. If the audit names a "replacement" or "successor", verify the successor actually has feature parity — run its `--help` or read its source. Don't infer parity from training data or surface descriptions.
+3. The audit MUST include a "premise verified live: yes/no" line. "no" means the recommendation is provisional and execution must re-verify before deleting.
 
 ### Dev-only top-level dirs
 `lib/` is referenced by `tools/dry-run-plan.js` and is dev-only (not shipped in plugins).

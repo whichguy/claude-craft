@@ -17,7 +17,7 @@ dispatching `/wiki-ingest` against canonical URLs.
 ```
 user prompt
   ↓ proactive-research-extract.sh   (UserPromptSubmit hook, ≤50ms)
-  │   filters: WIKI_DRIVER guard, AGENT_ID guard, disabled flag,
+  │   filters: WIKI_DRIVER guard, opt-in gate, AGENT_ID guard,
   │            slash-command, MIN_TOKENS, rate-limit
   │   spawns: detached driver subprocess
   ↓
@@ -64,7 +64,7 @@ any `<repo-local>` placeholder is still present after sanitization.
 
 | Variable                                | Default | Effect |
 | --------------------------------------- | ------- | ------ |
-| `PROACTIVE_RESEARCH_DISABLED`           | `0`     | Set to `1` to fully disable the producer hook. |
+| `PROACTIVE_RESEARCH_ENABLED`            | `0`     | Opt-in gate — set to `1` per project to enable the producer hook. |
 | `PROACTIVE_RESEARCH_MIN_TOKENS`         | `7`     | Producer skips prompts under this token count (tiktoken if importable, else char/4). |
 | `PROACTIVE_RESEARCH_RATE_LIMIT_PER_HR`  | `20`    | Producer drops prompts beyond this count per UTC hour. |
 | `PROACTIVE_RESEARCH_MAX_SOURCES`        | `4`     | Driver caps the number of `/wiki-ingest` dispatches. |
@@ -88,14 +88,15 @@ line per stage:
 The producer hook also emits a single `PROACTIVE driver spawned (tokens=N)`
 line per dispatch into the wiki's `log.md`.
 
-## Disabling
+## Enabling
 
-Three layers, most surgical first:
+Proactive research is opt-in (off by default). To enable for a project,
+add `PROACTIVE_RESEARCH_ENABLED=1` to the project's `.claude/settings.json`
+env block (or to the shell env). The hook short-circuits silently when
+unset, so leaving it off has zero cost.
 
-- One-shot: prefix a slash command (`/help`, etc.) — slash filter skips it.
-- Per-shell: `export PROACTIVE_RESEARCH_DISABLED=1`.
-- Per-repo: add `PROACTIVE_RESEARCH_DISABLED=1` to your project's
-  `CLAUDE.md` env block (via the `enable-abilities` skill).
+To temporarily disable on an opted-in project: `unset PROACTIVE_RESEARCH_ENABLED`
+or override via `PROACTIVE_RESEARCH_ENABLED=0`.
 
 ## Files
 

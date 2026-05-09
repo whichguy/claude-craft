@@ -69,7 +69,7 @@ LC_ALL=C grep -rnE 'Skill\(\s*[^)]*"[a-z][a-z0-9-]+:[a-z][a-z0-9-]+"' --include=
 pass "ok"
 
 step "7) plan-mode hook handlers executable + syntax-clean"
-for h in plugins/planning-suite/hooks/handlers/*.sh; do
+for h in plugins/planning-suite/handlers/*.sh; do
   [ -x "$h" ] || fail "$h not executable"
   bash -n "$h" || fail "$h syntax error"
 done

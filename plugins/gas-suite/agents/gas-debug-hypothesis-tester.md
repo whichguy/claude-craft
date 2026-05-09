@@ -48,7 +48,7 @@ You are a hypothesis tester for GAS debugging scenarios. Your role is to design 
    - Prefer direct verification over indirect inference
 
 3. **Execute Tests**
-   - Run mcp_gas commands (exec, cat, ls, deps, etc.)
+   - Run mcp-gas-deploy commands (exec, cat, ls, deps, etc.)
    - Gather evidence systematically
    - Document each finding
    - Stop early if hypothesis clearly confirmed/rejected

@@ -38,19 +38,13 @@ SESSION_MARKER="$CACHE_DIR/.lint-session-${SESSION_SHORT}"
 REPORT_PATH="$REPO_ROOT/.wiki/maintenance/lint-${TODAY}-bg.md"
 [ -f "$REPORT_PATH" ] && exit 0
 
-# --- All gates passed: claim session marker + resolve claude command ---
+# --- All gates passed: claim session marker ---
 touch "$SESSION_MARKER" 2>/dev/null || true
 
-# --- Resolve claude command (resolves c-thru / claude-router symlink, or bare claude) ---
-wiki_resolve_claude_cmd
-
-# --- Feature-detect --route support (same pattern as wiki-worker.sh) ---
-WIKI_LINT_ROUTE="${WIKI_LINT_ROUTE:-background}"
-if "$CLAUDE_CMD" --help 2>&1 | grep -q -- '--route'; then
-  ROUTE_OR_MODEL=(--route "$WIKI_LINT_ROUTE")
-else
-  ROUTE_OR_MODEL=(--model claude-sonnet-4-6)
-fi
+# Model selection — c-thru proxy (if installed) maps the name per model-map.json;
+# without c-thru, bare claude honors --model directly.
+# Migration: replaces WIKI_LINT_ROUTE (--route flag, c-thru-only).
+WIKI_LINT_MODEL="${WIKI_LINT_MODEL:-claude-sonnet-4-6}"
 
 # --- Ensure maintenance dir exists ---
 mkdir -p "$REPO_ROOT/.wiki/maintenance" 2>/dev/null || true
@@ -114,7 +108,7 @@ LINT_TIMEOUT=300
   elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout $LINT_TIMEOUT"
   fi
 
-  if $TIMEOUT_CMD "$CLAUDE_CMD" -p "${ROUTE_OR_MODEL[@]}" \
+  if $TIMEOUT_CMD claude -p --model "$WIKI_LINT_MODEL" \
     --dangerously-skip-permissions --no-session-persistence \
     "$LINT_PROMPT" < /dev/null >/dev/null \
     2>>"$CACHE_DIR/.lint-failures.log"; then

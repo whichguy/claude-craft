@@ -214,3 +214,19 @@ Print a rich summary using the output-format.md character vocabulary:
   ◉ SessionStart hook active — wiki auto-injected on every future session
   ◉ CLAUDE.md updated — wiki directive ensures Claude checks wiki before answering
 ```
+
+## After Initialization
+
+**Proactive research is opt-in.** The wiki-suite proactive-research hook fires on every user
+prompt but exits silently unless `PROACTIVE_RESEARCH_ENABLED=1` is set. To enable per-project,
+add to the project's `.claude/settings.json`:
+```json
+{ "env": { "PROACTIVE_RESEARCH_ENABLED": "1" } }
+```
+
+**Escape valves** — set in `.claude/settings.json` `"env"` block to tune always-on hooks:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `WIKI_SKIP` | unset | Set to `1` to suppress the UserPromptSubmit context hint (wiki-notify) and periodic lint. Does NOT suppress the SessionStart wiki injection (wiki-detect). |
+| `WIKI_READ_GATE` | `1` | Set to `0` to disable the PreToolUse read-hint injection |

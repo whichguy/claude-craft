@@ -61,6 +61,7 @@ function runProducer(opts) {
         env: {
             ...process.env,
             HOME: home,
+            PROACTIVE_RESEARCH_ENABLED: '1',
             // Force claude to a no-op so a backgrounded driver invocation
             // doesn't actually try to talk to an API. The driver will fail
             // fast on missing API key / no claude in PATH, which is fine
@@ -93,13 +94,13 @@ describe('proactive-research producer hook (v2)', function () {
         expect(readWikiLog(fix)).to.not.match(/PROACTIVE/);
     });
 
-    it('PROACTIVE_RESEARCH_DISABLED=1 short-circuits', function () {
+    it('opt-out by default: PROACTIVE_RESEARCH_ENABLED unset short-circuits', function () {
         const fix = mkFixture();
         setupHomeQueue(fix);
         const r = runProducer({
             cwd: fix.cwd, home: fix.tmp,
             prompt: 'How does Postgres MVCC handle high write contention?',
-            env: { PROACTIVE_RESEARCH_DISABLED: '1' },
+            env: { PROACTIVE_RESEARCH_ENABLED: '' },
         });
         expect(r.status).to.equal(0);
         expect(readWikiLog(fix)).to.not.match(/PROACTIVE/);

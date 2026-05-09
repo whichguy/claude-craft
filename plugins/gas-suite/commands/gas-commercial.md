@@ -234,7 +234,7 @@ The critical workflow:
 
 ```
 1. Modify code locally
-2. Push to GAS project (clasp push / mcp_gas write)
+2. Push to GAS project (clasp push / mcp-gas-deploy write)
 3. Test via head deployment
 4. Deploy > Manage Deployments > Edit existing deployment
 5. Select "New version" in Version section
@@ -625,10 +625,10 @@ function rollback(targetLibraryId, versionNumber) {
 └─────────────┘     └──────────────┘     └──────────────┘
        ↑                    ↑                    ↑
    Local dev          CD: promote           CD: promote
-   + mcp_gas          to staging            to production
+   + mcp-gas-deploy   to staging            to production
 ```
 
-1. **Dev:** Edit locally, push to dev library via `mcp_gas`, test with a dev spreadsheet
+1. **Dev:** Edit locally, push to dev library via `mcp-gas-deploy`, test with a dev spreadsheet
 2. **Staging:** CD project copies dev library content to staging library; test with staging spreadsheet
 3. **Production:** CD project copies staging content to production library; all customer spreadsheets update
 

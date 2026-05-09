@@ -8,20 +8,13 @@ set -o pipefail
 shopt -s nullglob
 . "$(dirname "$0")/wiki-common.sh"
 wiki_check_deps true || exit 0
-wiki_resolve_claude_cmd
 
-# Named route for extraction (rollback: export WIKI_WORKER_ROUTE=default to use Sonnet)
-WIKI_WORKER_ROUTE="${WIKI_WORKER_ROUTE:-background}"
-
-# Feature-detect: does CLAUDE_CMD support --route? c-thru (the active router)
-# does; bare claude doesn't. When falling back to bare claude we must use
-# --model instead. Also catches stale router installs that pre-date --route.
-if "$CLAUDE_CMD" --help 2>&1 | grep -q -- '--route'; then
-  WIKI_WORKER_USE_ROUTE=1
-else
-  wiki_log "WARN" "router at $CLAUDE_CMD lacks --route support; falling back to --model claude-sonnet-4-6"
-  WIKI_WORKER_USE_ROUTE=0
-fi
+# Model selection for extraction. The c-thru proxy (when installed via
+# `/plugin install c-thru@claude-craft`) intercepts ANTHROPIC_BASE_URL and
+# maps the requested model name per ~/.claude/model-map.json. Without c-thru,
+# bare claude honors --model directly.
+# Migration: replaces WIKI_WORKER_ROUTE (--route flag, c-thru-only).
+WIKI_WORKER_MODEL="${WIKI_WORKER_MODEL:-claude-haiku-4-5}"
 
 HOOK_INPUT=$(cat)
 AGENT_ID=$(echo "$HOOK_INPUT" | jq -r '.agent_id // empty' 2>/dev/null || true)
@@ -202,13 +195,7 @@ Every entity should link to related entities. When you add or create an entity:
       elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout $EXTRACTION_TIMEOUT"
       fi
 
-      if [[ "$WIKI_WORKER_USE_ROUTE" == 1 ]]; then
-        ROUTE_OR_MODEL=(--route "$WIKI_WORKER_ROUTE")
-      else
-        ROUTE_OR_MODEL=(--model claude-sonnet-4-6)
-      fi
-
-      if $TIMEOUT_CMD "$CLAUDE_CMD" -p "${ROUTE_OR_MODEL[@]}" \
+      if $TIMEOUT_CMD claude -p --model "$WIKI_WORKER_MODEL" \
         --dangerously-skip-permissions --no-session-persistence \
         "$EXTRACT_PROMPT" < /dev/null >/dev/null 2>>"$QUEUE_DIR/.extract-failures.log"; then
         rm -f "$entry"

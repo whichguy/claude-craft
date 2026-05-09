@@ -21,7 +21,6 @@ export REPO_ROOT
 [ -z "$WIKI_PATH" ] && exit 0
 
 . "$(dirname "$0")/wiki-common.sh"
-wiki_resolve_claude_cmd
 
 LOG_PREFIX() {
   printf '[%s] driver session:%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${SID:0:8}" "$*"
@@ -44,7 +43,7 @@ if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_CMD="gtimeout 300"
 elif command -v timeout >/dev/null 2>&1; then TIMEOUT_CMD="timeout 300"
 fi
 
-CTX=$(WIKI_DRIVER=1 $TIMEOUT_CMD "$CLAUDE_CMD" -p \
+CTX=$(WIKI_DRIVER=1 $TIMEOUT_CMD claude -p \
   --dangerously-skip-permissions --no-session-persistence \
   "/wiki-query $SANITIZED" </dev/null 2>/dev/null || true)
 
@@ -129,7 +128,7 @@ while IFS= read -r url; do
   [ "$count" -gt "$MAX_SOURCES" ] && { LOG_PREFIX "max sources cap reached ($MAX_SOURCES)"; break; }
   LOG_PREFIX "dispatch /wiki-ingest $url"
   (
-    WIKI_DRIVER=1 "$CLAUDE_CMD" -p \
+    WIKI_DRIVER=1 claude -p \
       --dangerously-skip-permissions --no-session-persistence \
       "/wiki-ingest $url" </dev/null >/dev/null 2>&1
   ) & disown
