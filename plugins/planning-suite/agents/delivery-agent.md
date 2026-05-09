@@ -7,7 +7,8 @@ description: |
   to completion (no mid-task pauses), spawns specialist sub-agents
   when needed, commits a single squashed commit on the worktree branch,
   and self-merges to MERGE_TARGET via rebase-retry on chain-tail and
-  standalone tasks.
+  standalone tasks. Reports newly-unblocked downstream task IDs in the
+  `DISPATCHED:` field — the orchestrator owns cascade dispatch.
 
   AUTOMATICALLY INVOKE via subagent_type: "delivery-agent" — only
   dispatched by the schedule-plan-tasks skill, never directly by the
@@ -444,6 +445,14 @@ During Phase 5, assign `VERIFY_CMD="..."` to the exact command(s) you ran to
 verify DoD (e.g. `VERIFY_CMD="npm test"` or `VERIFY_CMD="npm run lint && npm test"`).
 The self-merge block below re-evals it after rebase if HEAD moved.
 
+**Execution model.** Invoke the script below via `Bash({command: "<script>", run_in_background: true})`. The script is ~100 lines of rebase/retry/merge trace; running it backgrounded keeps that trace out of your context. The script's contract:
+
+- Writes its single-line outcome to `$WORKTREE_PATH/.selfmerge-status` via `tmpfile + mv` (POSIX rename atomicity — last byte written is the result; partial reads impossible).
+- On failure, writes diagnostic detail (git stderr, attempt count, last command) to `$WORKTREE_PATH/.selfmerge-diag` so you can construct an informative `INCOMPLETE:` field without inhaling the full trace.
+- Possible `SELFMERGE_STATUS=` values: `success` | `failed:conflict_needs_user` | `failed:verify_regression` | `failed:retries_exhausted` | `failed:no_verify_cmd`.
+
+After dispatching the script via `Bash(run_in_background: true)`, the harness will deliver a completion notification (same `<task-notification>` pattern as backgrounded Agents — `<status>: completed` once the script exits). Wait for that notification, then `Read("$WORKTREE_PATH/.selfmerge-status")` for the result line. Do NOT read the script's stdout/stderr — the diagnostic detail lives in `.selfmerge-diag` and is only read when `SELFMERGE_STATUS != success`.
+
 ```bash
 # MAIN_REPO_ROOT is read from the envelope header set by the orchestrator.
 # Do NOT use `git rev-parse --show-toplevel` here — when invoked inside a linked
@@ -463,15 +472,29 @@ WORKTREE_PATH=$(pwd)
 WORKTREE_BRANCH=$(git branch --show-current)
 MAX_RETRIES=5
 
+STATUS_FILE="$WORKTREE_PATH/.selfmerge-status"
+DIAG_FILE="$WORKTREE_PATH/.selfmerge-diag"
+: > "$DIAG_FILE"
+trap 'rm -f "${STATUS_FILE}.tmp.$$"' EXIT INT TERM
+write_status() {
+  # Atomic write: tmpfile + rename. Last byte is the newline of the status line.
+  local tmp="${STATUS_FILE}.tmp.$$"
+  printf 'SELFMERGE_STATUS=%s\n' "$1" > "$tmp"
+  mv "$tmp" "$STATUS_FILE"
+}
+diag() { printf '[attempt %s] %s\n' "${attempt:-0}" "$*" >> "$DIAG_FILE"; }
+
 attempt=0
 while [ $attempt -lt $MAX_RETRIES ]; do
   attempt=$((attempt + 1))
 
   PRE_REBASE_HEAD=$(git rev-parse HEAD)
-  git rebase "$MERGE_TARGET"
+  REBASE_ERR=$(git rebase "$MERGE_TARGET" 2>&1)
   if [ $? -ne 0 ]; then
-    git rebase --abort
+    diag "git rebase failed: $REBASE_ERR"
+    git rebase --abort 2>>"$DIAG_FILE"
     # true conflict — not retryable; fall through to "On RESULT: failed"
+    FAIL_REASON="conflict_needs_user"
     MERGE_FAILED=true
     break
   fi
@@ -483,13 +506,16 @@ while [ $attempt -lt $MAX_RETRIES ]; do
     # can compile cleanly but break behavior, and the rebased branch contains
     # code combinations Phase 5 never tested.
     if [ -z "$VERIFY_CMD" ]; then
-      echo "ERROR: VERIFY_CMD not set — assign it in Phase 5 to the same command you used to verify DoD."
+      diag "VERIFY_CMD not set — required when rebase advances HEAD"
+      FAIL_REASON="no_verify_cmd"
       MERGE_FAILED=true
       break
     fi
-    eval "$VERIFY_CMD"
+    VERIFY_OUT=$(eval "$VERIFY_CMD" 2>&1)
     if [ $? -ne 0 ]; then
-      git reset --hard ORIG_HEAD
+      diag "post-rebase VERIFY_CMD ($VERIFY_CMD) regression: $VERIFY_OUT"
+      git reset --hard ORIG_HEAD 2>>"$DIAG_FILE"
+      FAIL_REASON="verify_regression"
       MERGE_FAILED=true
       break
     fi
@@ -515,24 +541,40 @@ $LAST_COMMIT_BODY
 EOF
   fi
   if [ $? -eq 0 ]; then
-    git worktree remove "$WORKTREE_PATH" --force
-    git branch -d "$WORKTREE_BRANCH"
-    break  # success — fall through to "On RESULT: complete"
+    git worktree remove "$WORKTREE_PATH" --force 2>>"$DIAG_FILE"
+    git branch -d "$WORKTREE_BRANCH" 2>>"$DIAG_FILE"
+    write_status success
+    exit 0
   fi
 
-  git merge --abort
+  diag "git merge --no-ff failed on attempt $attempt"
+  git merge --abort 2>>"$DIAG_FILE"
   cd "$WORKTREE_PATH"
   sleep $((attempt * 3))
 done
 
-if [ $attempt -eq $MAX_RETRIES ] && [ "$MERGE_FAILED" != "true" ]; then
-  # retries exhausted without conflict — fall through to "On RESULT: failed"
-  MERGE_FAILED=true
+if [ "$MERGE_FAILED" = "true" ]; then
+  write_status "failed:${FAIL_REASON}"
+  exit 1
 fi
+
+# retries exhausted without conflict
+diag "MAX_RETRIES ($MAX_RETRIES) exhausted with merge --no-ff failures"
+write_status failed:retries_exhausted
+exit 1
 ```
 
-If `MERGE_FAILED` is set, skip "On RESULT: complete" and go directly to "On RESULT: failed" with
-`FAILURE: conflict_needs_user`.
+After the backgrounded Bash terminates, read `.selfmerge-status` for the outcome:
+
+| `SELFMERGE_STATUS=` | Branch into | `FAILURE:` field |
+|---|---|---|
+| `success` | "On RESULT: complete" | `none` |
+| `failed:conflict_needs_user` | "On RESULT: failed" | `conflict_needs_user` |
+| `failed:verify_regression` | "On RESULT: failed" | `test_failures` |
+| `failed:no_verify_cmd` | "On RESULT: failed" | `partial_change` |
+| `failed:retries_exhausted` | "On RESULT: failed" | `conflict_needs_user` |
+
+When constructing the `INCOMPLETE:` field for any failure, `Read("$WORKTREE_PATH/.selfmerge-diag")` and summarize the last entry — do not include the full diag in the field.
 
 ## Status protocol (every run emits this block as the final output)
 
@@ -552,15 +594,15 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 - `INCOMPLETE` always answers "what was not achieved" for `partial` or `failed`.
 - `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split`.
 - `ARTIFACT`: see `${CLAUDE_PLUGIN_ROOT}/skills/schedule-plan-tasks/references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
-- `DISPATCHED` is non-empty only when `RESULT: complete` and dependent tasks were unblocked.
+- `DISPATCHED` is non-empty only when `RESULT: complete` and dependent tasks were newly **unblocked** (not necessarily started — see below).
 
 ## On RESULT: complete
 
-1. Mark this task completed: `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })`
+**Ownership note (2026-05-09 inversion).** Cascade dispatch is owned by the SKILL orchestrator, not by this agent. When a delivery-agent runs backgrounded, its `Agent()` calls would notify *itself* (already returned), not the orchestrator — children would be orphaned. So this agent only **identifies** newly-unblocked tasks and **reports** them in `DISPATCHED:`. The orchestrator parses that field from the agent's `<task-notification>.<result>` and dispatches the children itself from the top-level session.
 
-2. **Cascade-dispatch directive.** This task does not know its dependents in advance. At
-   runtime, discover them and start any that are now unblocked:
+1. Mark this task completed: `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })`.
 
+2. **Identify newly-unblocked dependents** (read-only — do NOT dispatch):
    - Call `TaskList({})` to read the current backlog.
    - For each task `t` in the result, walk through these gates in order — skip on the first
      gate that fails:
@@ -570,25 +612,22 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
           have `status == "completed"` (skip if any blocker is still pending/in-progress —
           more upstream work remains).
    - Any task `t` that passes all three gates is newly unblocked by this task's completion.
-     Before dispatching, claim it to prevent concurrent double-dispatch when sibling tasks
-     finish at the same time:
-     `TaskUpdate({ taskId: t.id, status: "in-progress" })`
-   - Dispatch ALL claimed tasks in a SINGLE response — multiple parallel `Agent` calls,
-     each with `subagent_type: "delivery-agent"` and `prompt = TaskGet(t.id).description`
-     (the dependent task carries its own envelope; this task does not need to know what
-     they do — the framework is shared).
 
-3. Record the dispatched IDs in the `DISPATCHED:` field, or `none` if no task passed all gates.
+3. Record the unblocked IDs (comma-separated) in the `DISPATCHED:` field, or `none` if no task passed all gates. Do NOT call `TaskUpdate(in-progress)` — the orchestrator claims and dispatches.
 
-4. Emit the status block.
+4. Emit the status block. The orchestrator's `<task-notification>` handler will:
+   (a) parse `DISPATCHED:` from the result,
+   (b) `TaskUpdate(id, status=in-progress)` for each ID,
+   (c) `Agent({subagent_type: "delivery-agent", prompt: TaskGet(id).description, run_in_background: true})` for each, in a single parallel response.
 
 ## On RESULT: partial
 
-1. `TaskUpdate({ taskId: "[TASK_ID]", status: "completed" })` is NOT called — the work is incomplete.
-   Either re-claim with `status: "in-progress"` (default behavior; orchestrator may re-dispatch),
-   or `TaskUpdate({ status: "failed" })` if the partial state is unrecoverable in this attempt.
-2. NO cascade dispatch — `DISPATCHED: none`.
-3. Emit the status block. Set `INCOMPLETE` to the unfinished portion of your inferred what-to-do.
+Under orchestrator-owned cascade (2026-05-09 inversion), the orchestrator does **not** auto-re-dispatch on partial — partial is a halt-and-surface signal, not a "try again" signal. Choose one terminal disposition:
+
+1. **Recoverable-with-investigation** (preferred when the partial state has a known cause): treat partial like failed — `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })` and JIT-load the investigation-task-template (per `## On RESULT: failed` step 2) to register a sibling investigation task. Emit `RESULT: failed`, `FAILURE: partial_change` instead of `RESULT: partial`. This is the path that engages the orchestrator correctly.
+2. **Genuinely partial** (you accomplished part of the DoD and want a future retry without an investigation TaskCreate): `TaskUpdate({ status: "failed" })` with a clear `INCOMPLETE:` field describing the unfinished portion. The user (not the orchestrator) decides whether to TaskCreate a new sibling task to retry. Emit `RESULT: partial`, `DISPATCHED: none`.
+
+NO cascade dispatch in either path — `DISPATCHED: none`. Set `INCOMPLETE` to the unfinished portion of your inferred what-to-do. Do NOT leave the task `in-progress` — that strands the graph and only resolves via hang-detection timeout.
 
 ## On RESULT: failed
 
