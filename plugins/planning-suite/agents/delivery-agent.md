@@ -55,12 +55,13 @@ missing credentials, broken tool, environment issue entirely outside your contro
 Maintain a `.task-plan.md` file at the root of `$WORKTREE_PATH` for durable state across
 context resets and human audit. **The journal is updated at every phase transition**, not
 batched at the end. If your context is exhausted mid-task and you are re-dispatched on the
-same envelope, the journal is how you resume without re-running completed phases.
+same envelope, the journal is how you resume without re-running completed phases. (Step
+labels `L0`/`L0a` referenced below are defined under `## Execution lifecycle`.)
 
 The existence check (`ls`) and initial `Read` of an existing journal are read-only and may
 run alongside the L0a block emission; the first *write* happens after L0a is on screen.
 
-**Immediately after L0a, before TaskCreate (Step L0):**
+**Immediately after the L0a block (per `## Execution lifecycle` below), before TaskCreate (Step L0):**
 
 1. Check whether `.task-plan.md` already exists in `$WORKTREE_PATH`.
 2. **Exists:** you are resuming. `Read` the file. Skip phases marked `[x]`; continue from
