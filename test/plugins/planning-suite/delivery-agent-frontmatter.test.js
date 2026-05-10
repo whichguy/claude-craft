@@ -86,10 +86,11 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         }
     });
 
-    it('contains ## On RESULT: complete with TaskList cascade', function () {
+    it('contains ## On RESULT: complete with DISPATCHED: none (orchestrator owns cascade)', function () {
         expect(content.includes('## On RESULT: complete')).to.be.true;
-        expect(content.includes('TaskList')).to.be.true;
-        expect(content.includes('blockedBy')).to.be.true;
+        expect(content.includes('DISPATCHED: none')).to.be.true;
+        // TaskUpdate self-transition must still be present
+        expect(content.includes('TaskUpdate')).to.be.true;
     });
 
     it('## On RESULT: failed references investigation-task-template.md', function () {
@@ -117,14 +118,18 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         expect(content.includes('exactly one `git commit`')).to.be.true;
     });
 
-    it('Phase table has all 7 rows (0-6)', function () {
-        expect(content.includes('| 0 | Environment prep')).to.be.true;
-        expect(content.includes('| 1 | Test spec / coverage plan')).to.be.true;
-        expect(content.includes('| 2 | Implement')).to.be.true;
-        expect(content.includes('| 3 | Code quality + security review')).to.be.true;
-        expect(content.includes('| 4 | Documentation')).to.be.true;
-        expect(content.includes('| 5 | Tests + fix')).to.be.true;
-        expect(content.includes('| 6 | Migration')).to.be.true;
+    it('Phase table has all 11 rows (P0-P10)', function () {
+        expect(content.includes('| P0 | Goal expansion')).to.be.true;
+        expect(content.includes('| P1 | Research')).to.be.true;
+        expect(content.includes('| P2 | Environment prep')).to.be.true;
+        expect(content.includes('| P3 | Test spec / coverage plan')).to.be.true;
+        expect(content.includes('| P4 | Implement')).to.be.true;
+        expect(content.includes('| P5 | Code quality + security review')).to.be.true;
+        expect(content.includes('| P6 | Tests + fix')).to.be.true;
+        expect(content.includes('| P7 | Documentation')).to.be.true;
+        expect(content.includes('| P8 | Config-state migration')).to.be.true;
+        expect(content.includes('| P9 | Deployment-state migration')).to.be.true;
+        expect(content.includes('| P10 | CI/CD')).to.be.true;
     });
 
     it('contains needs_split FAILURE enum', function () {
@@ -137,10 +142,11 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         expect(content.includes('### Cascade rule')).to.be.false;
     });
 
-    it('Specialist agents catalog has 6 entries (Research, Test spec, Code review, Docs, Tests+fix, Migration)', function () {
+    it('Specialist agents catalog has 9 entries (Research, Test spec, Implement, Code review, Tests+fix, Docs, Config migration, Deploy migration, CI/CD)', function () {
         const specStart = content.indexOf('## Specialist agents');
         const spec = content.slice(specStart);
-        const entryHeaderCount = (spec.match(/^\*\*[A-Z][^*]+ \(Phase /gm) || []).length;
-        expect(entryHeaderCount).to.equal(6);
+        // Headers match: **Name (P<N>) — ...** or **Name (P<N>, variant) — ...**
+        const entryHeaderCount = (spec.match(/^\*\*[A-Z][^*]+ \(P\d/gm) || []).length;
+        expect(entryHeaderCount).to.equal(9);
     });
 });

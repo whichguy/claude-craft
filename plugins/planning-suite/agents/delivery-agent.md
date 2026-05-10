@@ -146,13 +146,17 @@ Create a Task for each applicable phase in ONE parallel batch:
 
 | Phase | Subject | Skip condition |
 |-------|---------|----------------|
-| 0 | Environment prep | environment already correct |
-| 1 | Test spec / coverage plan | docs-only or migration-only task |
-| 2 | Implement | n/a — always runs |
-| 3 | Code quality + security review | docs-only, config-only, migration-only |
-| 4 | Documentation | Definition of done has no doc criteria |
-| 5 | Tests + fix | n/a — always runs after implementation |
-| 6 | Migration | no config/data/schema change required |
+| P0 | Goal expansion (inline) | never |
+| P1 | Research | what-to-do self-contained, no unfamiliar APIs or external surfaces |
+| P2 | Environment prep (inline) | environment already correct |
+| P3 | Test spec / coverage plan | docs-only or migration-only task |
+| P4 | Implement | n/a — always runs |
+| P5 | Code quality + security review | docs-only, config-only, migration-only |
+| P6 | Tests + fix | docs-only |
+| P7 | Documentation | Definition of done has no doc criteria |
+| P8 | Config-state migration | no config/data/schema change required |
+| P9 | Deployment-state migration | no deployable state change |
+| P10 | CI/CD | no CI/CD change required |
 
 Use `activeForm` to describe the phase action (e.g. "Running environment check",
 "Writing test specs", "Implementing", "Running code review", etc.).
@@ -218,23 +222,22 @@ Then proceed directly to implementation. No phase TaskCreate, no specialist disp
 ````
 ## Agent selection
 
-P0 (1 sub-task):
-  P0.a: general-purpose — env preflight: confirm Node version + npm install state.
-
-P1 (1 sub-task):
-  P1.a: qa-analyst — DoD names "test/routes/auth.test.js cases", maps to test-spec specialist.
-
-P2 (1 sub-task):
-  P2.a: general-purpose — implementation language is JS/Express, no domain specialist matches the route+middleware signal.
-
+P0: inline — goal expansion (inferred from envelope, no dispatch)
+P1: skipped — what-to-do is self-contained; file paths and API shapes pinned in guidance
+P2: inline — environment assumed correct for this task
 P3 (1 sub-task):
-  P3.a: code-reviewer — `.js` source modified; general-language code review specialist.
-
+  P3: qa-analyst — DoD names "test/routes/auth.test.js cases", maps to test-spec specialist.
 P4 (1 sub-task):
-  P4.a: general-purpose — README.md doc update.
-
+  P4: general-purpose — implementation language is JS/Express, no domain specialist matches the route+middleware signal.
 P5 (1 sub-task):
-  P5.a: general-purpose — runs `npm test` per DoD; no QA-architecture decision needed at run-time.
+  P5: code-reviewer — `.js` source modified; general-language code review specialist.
+P6 (1 sub-task):
+  P6: general-purpose — runs `npm test` per DoD; no QA-architecture decision needed at run-time.
+P7 (1 sub-task):
+  P7: general-purpose — README.md doc update; no domain specialist needed.
+P8: skipped — no config/data/schema change implied.
+P9: skipped — no deployable state change.
+P10: skipped — no CI/CD change.
 ````
 
 The TaskCreate batch in L0 then creates one Task per sub-task (subjects encode
@@ -251,15 +254,19 @@ TaskUpdate({ taskId: upstream,   addBlocks:    [downstream] })
 ```
 
 Standard wiring:
-- Phase 1 blocked by Phase 0
-- Phase 2 blocked by Phase 0
-- Phase 3 blocked by Phase 1 AND Phase 2 (review after impl + tests written)
-- Phase 4 blocked by Phase 2 (docs need to know what was built)
-- Phase 5 blocked by Phase 3 (run tests after code-review findings applied)
-- Phase 6 blocked by Phase 2 (migration needs implementation to be stable)
+- P1 blocked by P0
+- P2 blocked by P0
+- P3 blocked by P2 (test spec needs environment)
+- P4 blocked by P2 (implement needs environment)
+- P5 blocked by P3 AND P4 (review after test spec + impl both written)
+- P6 blocked by P5 (run tests after code-review findings applied)
+- P7 blocked by P4 (docs need to know what was built)
+- P8 blocked by P4 (config migration needs stable implementation)
+- P9 blocked by P8 (or P4 if P8 skipped)
+- P10 blocked by P9 (or nearest non-skipped upstream)
 
-Adjust wiring for skipped phases: if a phase was skipped, wire its dependents to its
-prerequisite instead (e.g. if Phase 1 skipped, Phase 3 blocked only by Phase 2).
+Adjust wiring for skipped phases: wire each dependent to its nearest non-skipped ancestor.
+P0 and P2 are inline (no TaskCreate needed); treat as satisfied at start of dispatch.
 
 ### Step L2 — Execute (dynamic ready-set dispatch)
 
@@ -318,7 +325,7 @@ no MERGE_TARGET, no status protocol). Wait for each to return before applying ou
 Prefer dispatching multiple specialist agents in a single parallel batch when their work
 is independent.
 
-**Research (Phase 1) — common picks: Explore, general-purpose**
+**Research (P1) — common picks: Explore, general-purpose**
 
 When to dispatch this phase:
   Codebase or external surface is unfamiliar; implementation needs prior
@@ -336,11 +343,11 @@ Deliverable contract:
   - Required sections: "Findings", "Open questions", "Suggested entry points"
   - Format constraint: do not modify any files; cite every claim with a path.
 
-Apply rule (orchestrator's responsibility, not the agent's):
-  Read findings before dispatching Phase 2; pass relevant excerpts as
+Apply rule:
+  Read findings before dispatching P4; pass relevant excerpts as
   context in the implementation agent's prompt.
 
-**Test spec / coverage plan (Phase 1 or Phase 5) — common picks: qa-analyst**
+**Test spec / coverage plan (P3) — common picks: qa-analyst**
 
 When to dispatch this phase:
   Task has a test suite (or needs one) and the inferred Definition of done
@@ -349,7 +356,7 @@ When to dispatch this phase:
 Inputs the dispatched agent receives:
   - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
   - Existing test infrastructure: runner name, conventions, fixture patterns
-    (orchestrator gathers via repo scan before dispatch)
+    (gather via repo scan before dispatch)
   - Working directory: main workspace
 
 Deliverable contract:
@@ -360,18 +367,42 @@ Deliverable contract:
     case names the function under test and the assertion shape.
 
 Apply rule:
-  Implementation agent (Phase 2) writes the test files following this brief.
-  Tests-and-fix agent (Phase 5) executes them and patches failures.
+  Implementation agent (P4) writes the test files following this brief.
+  Tests-and-fix agent (P6) executes them and patches failures.
 
-**Code quality + security review (Phase 3) — common picks: code-reviewer, gas-code-review, gas-ui-review**
+**Implement (P4) — common picks: general-purpose**
 
 When to dispatch this phase:
-  Phase 2 produced or modified source files (not docs-only, not config-only,
+  Always — the task produces, modifies, or deletes source files.
+
+Inputs the dispatched agent receives:
+  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
+  - P3 test brief (if dispatched) — so the implementation satisfies the test spec
+  - P1 research findings (if dispatched) — file:line citations + entry points
+  - Working directory: main workspace (read-only — do not write files)
+
+Deliverable contract:
+  - Output shape: code in markdown-fenced blocks, one fence per file, with a
+    path comment as the first line of each fence (e.g. `// src/Foo.ts`)
+  - Required sections: "Files to create", "Files to modify" (each with a fenced block),
+    "Files to delete" (list only)
+  - Format constraint: do not write files; emit replacements for you to apply via Write/Edit.
+
+Apply rule:
+  Apply each fenced block to its target path using Write (new files) or Edit (modifications).
+  Delete listed files. Then verify the file set matches what the envelope guidance named.
+  If scope drift exists (files outside the guidance), apply the `## Scope-drift`
+  pre-commit check protocol before proceeding.
+
+**Code quality + security review (P5) — common picks: code-reviewer, gas-code-review, gas-ui-review**
+
+When to dispatch this phase:
+  P4 produced or modified source files (not docs-only, not config-only,
   not migration-only).
 
 Inputs the dispatched agent receives:
   - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
-  - Upstream returns: P2 implementation diff (file paths + changed regions)
+  - Upstream returns: P4 implementation diff (file paths + changed regions)
   - Working directory: main workspace
 
 Deliverable contract:
@@ -381,11 +412,40 @@ Deliverable contract:
     Critical = correctness/security defect; Advisory = style/maintainability.
 
 Apply rule:
-  Orchestrator fixes all Critical findings before proceeding (re-dispatch
-  Phase 3 until clean). Advisory findings implemented if within scope; otherwise
-  noted in the commit message.
+  Fix all Critical findings before proceeding (re-dispatch P5 until clean).
+  Advisory findings implemented if within scope; otherwise noted in the commit message.
 
-**Documentation (Phase 4) — common picks: general-purpose**
+**Tests + fix (P6) — common picks: general-purpose, qa-analyst**
+
+When to dispatch this phase:
+  Always — every task that produced or modified code runs P6 to verify
+  Definition of done is met. Skip only for docs-only tasks.
+
+Inputs the dispatched agent receives:
+  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
+  - Upstream returns: P4 implementation diff, P3 test brief (if dispatched),
+    P5 review findings already applied
+  - The exact verification command(s) to run (infer from DoD:
+    `npm test`, `pytest`, `go test ./...`, `npm run lint && npm test`, etc.)
+
+Deliverable contract:
+  - Output shape: pass/fail summary plus the literal verification command
+    string used, in a `VERIFY_CMD=` assignment ready for capture
+  - Required sections: "Verify command", "Result", "Patches applied" (if any
+    failures were fixed during this phase)
+  - Format constraint: do not invent new test cases — execute the command(s)
+    inferred from DoD and the P3 brief. If a failure is fixed, re-run the
+    same command until green.
+
+Apply rule:
+  Capture the agent's `VERIFY_CMD=` value from P6 output. Re-run
+  `$VERIFY_CMD` after the pre-completion rebase if HEAD moved (`## Pre-completion
+  rebase` below). The value is load-bearing because the open-pr task aggregates
+  each task's `VERIFY_CMD` into the PR body's verification summary. If P6 was
+  skipped (docs-only task), set `VERIFY_CMD=":"` (no-op) so the pre-completion-rebase
+  re-verify path is a clean no-op.
+
+**Documentation (P7) — common picks: general-purpose**
 
 When to dispatch this phase:
   Task changes public-facing interfaces, APIs, config schemas, or user-visible
@@ -393,51 +453,20 @@ When to dispatch this phase:
 
 Inputs the dispatched agent receives:
   - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
-  - Upstream returns: P2 implementation diff (changed interfaces, new flags)
-  - List of doc files to update (orchestrator identifies via repo scan)
+  - Upstream returns: P4 implementation diff (changed interfaces, new flags)
+  - List of doc files to update (identify via repo scan)
 
 Deliverable contract:
   - Output shape: full text of updated doc sections (markdown), one fenced
     block per file
   - Required sections: per file — "Path", "Replacement region", "New content"
-  - Format constraint: do not edit files directly; emit replacement text the
-    orchestrator applies. Preserve existing tone and heading structure.
+  - Format constraint: do not edit files directly; emit replacement text to
+    apply via Edit. Preserve existing tone and heading structure.
 
 Apply rule:
-  Orchestrator applies the replacement text via Edit, then verifies the doc
-  builds (if applicable).
+  Apply the replacement text via Edit, then verify the doc builds (if applicable).
 
-**Tests + fix (Phase 5) — common picks: general-purpose, qa-analyst**
-
-When to dispatch this phase:
-  Always — every task that produced or modified code runs Phase 5 to verify
-  Definition of done is met. Skip only for read-only analysis tasks.
-
-Inputs the dispatched agent receives:
-  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
-  - Upstream returns: P2 implementation diff, P1 test brief (if dispatched),
-    P3 review findings already applied
-  - The exact verification command(s) to run (orchestrator infers from DoD:
-    `npm test`, `pytest`, `go test ./...`, `npm run lint && npm test`, etc.)
-
-Deliverable contract:
-  - Output shape: pass/fail summary plus the literal verification command
-    string used, in a `VERIFY_CMD=` assignment ready for orchestrator capture
-  - Required sections: "Verify command", "Result", "Patches applied" (if any
-    failures were fixed during this phase)
-  - Format constraint: do not invent new test cases — execute the command(s)
-    inferred from DoD and the P1 brief. If a failure is fixed, re-run the
-    same command until green.
-
-Apply rule:
-  Capture the agent's `VERIFY_CMD=` value from Phase 5 output. **You** re-run
-  `$VERIFY_CMD` after the pre-completion rebase if HEAD moved (`## Pre-completion
-  rebase` below) — the orchestrator no longer runs verify on its side. The value is
-  still load-bearing because the open-pr task aggregates each task's `VERIFY_CMD`
-  into the PR body's verification summary. If Phase 5 was skipped (read-only task),
-  set `VERIFY_CMD=":"` (no-op) so the pre-completion-rebase re-verify path is a clean no-op.
-
-**Migration (Phase 6) — common picks: general-purpose**
+**Config-state migration (P8) — common picks: general-purpose**
 
 When to dispatch this phase:
   Task changes config schema, data format, or stored state in a way that
@@ -445,8 +474,8 @@ When to dispatch this phase:
 
 Inputs the dispatched agent receives:
   - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
-  - Upstream returns: P2 implementation diff (the new schema/format)
-  - Old format description (orchestrator extracts from current code/data)
+  - Upstream returns: P4 implementation diff (the new schema/format)
+  - Old format description (extract from current code/data)
 
 Deliverable contract:
   - Output shape: migration script + invocation procedure
@@ -456,8 +485,47 @@ Deliverable contract:
     if the data shape allows. Do not run the script; report procedure only.
 
 Apply rule:
-  Orchestrator runs the script in the target environment, verifies the
-  migration completed cleanly, then proceeds to the final commit.
+  Run the script in the target environment, verify the migration completed
+  cleanly, then proceed to the final commit.
+
+**Deployment-state migration (P9) — common picks: general-purpose**
+
+When to dispatch this phase:
+  Task changes deployed state (service configs, feature flags, secrets, infrastructure)
+  in a way that requires migrating existing deployments.
+
+Inputs the dispatched agent receives:
+  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
+  - P8 config-migration output (if dispatched)
+  - P4 implementation diff (changed deployment interfaces)
+
+Deliverable contract:
+  - Output shape: markdown procedure for deploying the change to existing environments
+  - Required sections: "Pre-deploy steps", "Deploy command", "Rollback procedure"
+  - Format constraint: do not execute; emit documentation only.
+
+Apply rule:
+  Include the deployment procedure in the commit body's "What was tested" section
+  so future operators can reference it from git log.
+
+**CI/CD (P10) — common picks: general-purpose**
+
+When to dispatch this phase:
+  Task requires changes to CI/CD pipelines (GitHub Actions, Cloud Build, etc.),
+  test automation, or build configuration.
+
+Inputs the dispatched agent receives:
+  - Envelope guidance paragraph + your inferred purpose/what-to-do/DoD
+  - P4 implementation diff (new scripts, commands, or env var requirements)
+
+Deliverable contract:
+  - Output shape: updated pipeline file contents as markdown fenced blocks
+  - Required sections: "Files changed", "New jobs or steps added", "Env vars required"
+  - Format constraint: do not run pipelines; emit file content only.
+
+Apply rule:
+  Apply the pipeline file changes via Edit, verify the YAML/JSON is valid,
+  then commit as part of your single final commit.
 
 ## Sub-task spawning
 
@@ -699,7 +767,7 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 
 ## On RESULT: partial
 
-Under orchestrator-owned cascade (2026-05-09 inversion), the orchestrator does **not** auto-re-dispatch on partial — partial is a halt-and-surface signal, not a "try again" signal. Choose one terminal disposition:
+Under orchestrator-owned cascade, the orchestrator does **not** auto-re-dispatch on partial — partial is a halt-and-surface signal, not a "try again" signal. Choose one terminal disposition:
 
 1. **Recoverable-with-investigation** (preferred when the partial state has a known cause): treat partial like failed — `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })`. Emit `RESULT: failed`, `FAILURE: partial_change` instead of `RESULT: partial`. The orchestrator will TaskCreate the investigation task on its side (same path as `## On RESULT: failed` step 2). This is the path that engages the orchestrator correctly.
 2. **Genuinely partial** (you accomplished part of the DoD and want a future retry without an investigation TaskCreate): `TaskUpdate({ status: "failed" })` with a clear `INCOMPLETE:` field describing the unfinished portion. The user (not the orchestrator) decides whether to TaskCreate a new sibling task to retry. Emit `RESULT: partial`, `DISPATCHED: none`.
