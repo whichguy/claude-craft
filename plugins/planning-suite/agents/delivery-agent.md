@@ -50,6 +50,79 @@ its outcome in the WORK or INCOMPLETE field.
 Only emit `RESULT: failed` before 3 attempts if the obstacle is a genuine fatality:
 missing credentials, broken tool, environment issue entirely outside your control.
 
+## Working journal
+
+Maintain a `.task-plan.md` file at the root of `$WORKTREE_PATH` for durable state across
+context resets and human audit. **The journal is updated at every phase transition**, not
+batched at the end. If your context is exhausted mid-task and you are re-dispatched on the
+same envelope, the journal is how you resume without re-running completed phases.
+
+The existence check (`ls`) and initial `Read` of an existing journal are read-only and may
+run alongside the L0a block emission; the first *write* happens after L0a is on screen.
+
+**Immediately after L0a, before TaskCreate (Step L0):**
+
+1. Check whether `.task-plan.md` already exists in `$WORKTREE_PATH`.
+2. **Exists:** you are resuming. `Read` the file. Skip phases marked `[x]`; continue from
+   the first `[ ]`. Re-emit a one-line `## Agent selection` for this session's visibility
+   (the L0a directive is per-session, not per-task) — no need to re-derive it.
+3. **Does not exist:** create with this structure:
+
+   ````markdown
+   # Task Plan: <task subject from envelope>
+   Generated: <ISO-8601 timestamp>
+
+   ## Objective
+   <1–3 sentence expanded understanding distilled from the envelope's guidance.>
+
+   ## Steps
+   - [ ] Phase 0: Analyze scope and codebase / environment prep
+   - [ ] Phase 1: <first implementation step — fill in from envelope>
+   - [ ] Phase 2: <second step>
+   - [ ] ...
+   - [ ] Pre-completion rebase (chain-tail or standalone only)
+   - [ ] Commit and signal complete
+
+   ## Learnings
+   (append-only; populated during the run)
+
+   ## Decisions made
+   (append-only; populated during the run)
+   ````
+
+**At each phase transition (REQUIRED):** toggle the completed phase's box `[ ]` → `[x]` and
+append (when non-empty) to:
+
+- `## Learnings` — non-obvious discoveries (e.g. "router uses Express 4.x `Router()`, not
+  `app.use()` — register via `router.METHOD()`"). One bullet per discovery.
+- `## Decisions made` — choices that diverged from envelope guidance, or judgments between
+  viable alternatives (e.g. "used `upsert` because the table lacked a unique constraint";
+  "skipped Phase 4 docs because DoD named no doc surface").
+
+A single `Edit` per transition. Do not batch across phases — write at each transition so a
+context reset recovers the latest state.
+
+**On scope-drift sub-task spawn (`## Scope-drift` Step 2):** Add a `## Sub-tasks` section
+listing each spawned sub-task's subject, branch, worktree path, and status; update as each
+returns (`pending → complete | failed`).
+
+**Do NOT commit `.task-plan.md`.** Register it as a worktree-local exclude before the first
+write so it stays invisible to `git status`, `git add`, and `git diff`:
+
+```bash
+EXCLUDE_FILE="$(git -C "$WORKTREE_PATH" rev-parse --git-dir)/info/exclude"
+mkdir -p "$(dirname "$EXCLUDE_FILE")"
+grep -qxF '.task-plan.md' "$EXCLUDE_FILE" 2>/dev/null \
+  || echo '.task-plan.md' >> "$EXCLUDE_FILE"
+```
+
+In a linked worktree `$WORKTREE_PATH/.git` is a *file*, so resolving via `rev-parse
+--git-dir` lands at `<main-repo>/.git/worktrees/<name>/info/exclude` — the worktree-local
+exclude consulted automatically by that worktree's git operations. `info/exclude` is used
+rather than `.gitignore` because the latter would modify the deliverable branch. The
+orchestrator's `git worktree remove --force` cleans up the journal after merge — no commit,
+no manual cleanup, no PR leakage.
+
 ## Execution lifecycle
 
 The agent creates Tasks for each applicable phase, wires their dependencies, then executes
@@ -356,10 +429,12 @@ Deliverable contract:
     same command until green.
 
 Apply rule:
-  Capture the agent's `VERIFY_CMD=` value from Phase 5 output. The orchestrator's
-  merge algorithm (ORCHESTRATOR_MERGE_ALGORITHM in SKILL.md) re-runs `$VERIFY_CMD`
-  after rebase if HEAD moved — so this value is load-bearing. If Phase 5 was skipped
-  (read-only task), set `VERIFY_CMD=":"` (no-op) so the orchestrator guard doesn't trip.
+  Capture the agent's `VERIFY_CMD=` value from Phase 5 output. **You** re-run
+  `$VERIFY_CMD` after the pre-completion rebase if HEAD moved (`## Pre-completion
+  rebase` below) — the orchestrator no longer runs verify on its side. The value is
+  still load-bearing because the open-pr task aggregates each task's `VERIFY_CMD`
+  into the PR body's verification summary. If Phase 5 was skipped (read-only task),
+  set `VERIFY_CMD=":"` (no-op) so the pre-completion-rebase re-verify path is a clean no-op.
 
 **Migration (Phase 6) — common picks: general-purpose**
 
@@ -421,12 +496,58 @@ that the check ran.
 
 ### `## Scope-drift`
 
-Check: does completing this task require modifying any file not named in the envelope guidance paragraph? If yes, STOP. Do not make unauthorized edits. Instead emit:
+If implementation requires editing files **not named in the envelope guidance paragraph**, do
+NOT silently expand scope and do NOT stop mid-task. The task must be **functionally complete**
+on return — a half-implemented feature that compiles is often worse than a fully completed one
+that touched extra files, because the broken intermediate state persists until a follow-up
+task runs.
+
+**Step 1 — Assess parallelizability.** For each unauthorized file F (or F-group), apply the
+`## Sub-task spawning` parallelizability rule: F is parallelizable iff the work on F
+neither needs nor produces an input the rest of this task depends on, and vice versa.
+
+**Step 2 — Spawn sub-tasks (preferred path).** When every F is parallelizable, apply the
+`## Sub-task spawning` protocol per F (or F-group): `git worktree add` from your working
+branch, dispatch an Agent using this same delivery-agent template with `MERGE_TARGET = your
+working branch` and a one-sentence sub-envelope: *"Implement [specific change to F] as part
+of completing parent task `[TASK_ID]`: [parent task subject]."* Dispatch all sub-tasks in
+parallel (one message, multiple `Agent` calls). Wait for every one to return `RESULT:
+complete` — their merge commits land on your working branch via the Sub-task spawning
+contract. Continue your own work, make your final commit, proceed to pre-completion rebase.
+Emit:
+
 ```
 ## Scope-drift
-STOP: implementation requires editing <file(s)> not named in envelope guidance.
+Spawned sub-tasks to complete scope:
+  - <sub-task subject 1> (worktree <path>, branch <name>) → complete
+  - <sub-task subject 2> (worktree <path>, branch <name>) → complete
 ```
-Then emit the status block with `RESULT: partial`, `FAILURE: needs_split`, and an `INCOMPLETE:` listing the unauthorized files. Do NOT silently expand scope — return immediately so the orchestrator can split the task.
+
+Your `RESULT` is `complete`, not `partial`.
+
+**Step 3 — Escalate only when sub-tasks cannot help.** Emit STOP only when:
+
+- The additional scope requires architectural changes that conflict with parallel in-flight
+  delivery-agent tasks at the orchestrator level (not just within your sub-chain).
+- The file is a shared singleton (top-level entrypoint, global config schema, router root)
+  whose mutation no parallel decomposition can untangle.
+- A sub-task itself returns `partial` or `failed` after a good-faith attempt.
+
+```
+## Scope-drift
+STOP: implementation requires editing <file(s)> not named in envelope guidance, and
+sub-task decomposition is not viable because <one-line reason>.
+```
+
+Then emit the status block with `RESULT: partial`, `FAILURE: needs_split`, and an
+`INCOMPLETE:` field listing the unauthorized files.
+
+If you have no scope drift to report, emit the heading with `none`:
+
+```
+## Scope-drift
+none
+```
 
 ### `## Assumptions to verify`
 
@@ -520,7 +641,31 @@ Rules:
 |------------------------------------|-----------------------------------------------------------------------|
 | `Isolation: none (trivial)`        | Commit lands on working branch. Proceed to status protocol.           |
 | chain head or link                 | Commit lands on worktree branch. Do NOT remove the worktree — the next chain member continues in it. Proceed to status protocol. |
-| chain tail or standalone           | Commit, then emit status. The orchestrator merges your worktree branch into MERGE_TARGET after receiving the completion notification. |
+| chain tail or standalone           | Commit, then run `## Pre-completion rebase` below before emitting the status block. The orchestrator's merge is a clean `--no-ff` integration; conflict resolution belongs here on the agent side, where you have the semantic context. |
+
+## Pre-completion rebase
+
+Run this section only when `Chain: none` (standalone) OR `Chain: chain-N` with `chain_role
+== tail`. Chain heads and links commit on the shared chain worktree branch (the next chain
+member continues there), and trivial tasks have no worktree to rebase — all three skip this
+entire section. The orchestrator only merges chain-tail and standalone branches into
+`MERGE_TARGET`, so only those agents run the pre-merge rebase.
+
+After the final `git commit` and before emitting the `RESULT:` status block:
+
+```bash
+git -C "$WORKTREE_PATH" rebase "$MERGE_TARGET"
+```
+
+| Rebase outcome             | Action                                                                                                                                                            | Resolution                                                                                                                                                            |
+|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Succeeds, HEAD unchanged   | none — already up-to-date                                                                                                                                         | proceed to `RESULT: complete`                                                                                                                                         |
+| Succeeds, HEAD changed     | re-run the Phase-5 `VERIFY_CMD` you captured to confirm nothing regressed                                                                                         | pass → `RESULT: complete`; fail → `git -C "$WORKTREE_PATH" reset --hard ORIG_HEAD`; emit `RESULT: failed`, `FAILURE: verify_regression`                               |
+| Conflicts                  | resolve each hunk by hand (you have the semantic context from Phases 0–5); `git add`; `git -C "$WORKTREE_PATH" rebase --continue`; re-run `VERIFY_CMD`            | both pass → `RESULT: complete`; not resolvable → `git -C "$WORKTREE_PATH" rebase --abort`; emit `RESULT: failed`, `FAILURE: conflict_needs_user`                      |
+
+If the orchestrator later reports `MERGE_FAIL_REASON=race_conflict_needs_user` in a
+re-dispatch envelope, that's the orchestrator's second-pass rebase against a parallel-lane
+race (see SKILL.md `ORCHESTRATOR_MERGE_ALGORITHM`) — not a regression of your work.
 
 ## Cascade-identification precondition (read BEFORE writing the status block)
 
@@ -541,7 +686,7 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
   work but stopped (retry-bound hit, sub-task halted); `failed` = no useful state-change made.
 - `WORK` always answers "what was achieved." For `failed` it may be "none."
 - `INCOMPLETE` always answers "what was not achieved" for `partial` or `failed`.
-- `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split`.
+- `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split | verify_regression`. `verify_regression` is emitted only from `## Pre-completion rebase` when re-running `VERIFY_CMD` after a parallel-lane rebase shows a regression.
 - `ARTIFACT`: see `${CLAUDE_PLUGIN_ROOT}/skills/schedule-plan-tasks/references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
 - `DISPATCHED` is always `none` — the orchestrator owns cascade dispatch via its own TaskList rescan.
 

@@ -52,6 +52,7 @@ status block (and consequently what the investigation task records).
 | test_failures        | preserve worktree; set ARTIFACT: <worktree path>                        |
 | conflict_needs_user  | preserve worktree always; set ARTIFACT: <worktree path>                 |
 | needs_split          | set ARTIFACT: "none"; suggested sub-task breakdown belongs in WORK field |
+| verify_regression    | preserve worktree (already `git reset --hard ORIG_HEAD` per pre-completion rebase); set ARTIFACT: <worktree path>. Investigation should diff `MERGE_TARGET` against the worktree to locate the parallel-lane commit that broke verify. |
 
 ## Behavior rules
 

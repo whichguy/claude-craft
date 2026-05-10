@@ -434,6 +434,10 @@ open-pr:     { task_type: "open-pr",    chain_id: null, chain_role: null, isolat
                repo_root: "<absolute REPO_ROOT>",
                upstream_branch: "<UPSTREAM_BRANCH>",
                integration_branch: "<INTEGRATION_BRANCH>" }
+recap:       { task_type: "recap",      chain_id: null, chain_role: null, isolation: "none",
+               repo_root: "<absolute REPO_ROOT>",
+               upstream_branch: "<UPSTREAM_BRANCH>",
+               integration_branch: "<INTEGRATION_BRANCH>" }
 ```
 
 **`execution_lane` selection rule (set at TaskCreate time, never mid-run):**
@@ -514,13 +518,62 @@ verb-guard table). The orchestrator merges delivery-agent branches into `$INTEGR
 - **KEEP** the direct edge if `R` has tests that `S` does NOT cover — e.g., `R` has unit-level tests for isolated logic that `S`'s integration test bypasses.
 - When in doubt: **KEEP**. Redundant blockers are cheap; missed coverage is not.
 
-**Open-PR (always present — graph terminus):**
+**Open-PR (always present — graph terminus for PR-open):**
 ```
 [open-pr]           Task: Open PR: $INTEGRATION_BRANCH → $UPSTREAM_BRANCH  → capture ID_open_pr
 ```
 *Wire:* `ID_open_pr` is blocked by `ID_regression` if a regression task exists,
 otherwise by ALL chain-tail and standalone delivery-agents (same blocker shape as
-regression). `ID_open_pr` is the new graph terminus — nothing else depends on it.
+regression). `ID_open_pr` is one of two parallel terminus tasks (the other is
+Recap & Review below).
+
+**Recap & Review (always present — parallel graph terminus for human reporting):**
+```
+[recap]             Task: Recap & Review: $PLAN_TITLE          → capture ID_recap
+```
+*Wire:* `ID_recap` is blocked by `ID_regression` if a regression task exists, AND by
+ALL chain-tail and standalone delivery-agents. This is the same blocker shape as
+`ID_open_pr` plus the explicit regression edge — recap should run after regression so
+the regression outcome (pass/fail) appears in the recap. Recap does NOT block `ID_open_pr`
+and `ID_open_pr` does NOT block recap; they are sibling terminuses. Recap runs in
+foreground when dispatched; open-pr runs backgrounded.
+
+*TaskCreate shape:*
+```
+TaskCreate({
+  subject: "Recap & Review: <PLAN_TITLE>",
+  description: <rendered template — see below>,
+  activeForm: "Generating run recap",
+  metadata: {
+    task_type: "recap",
+    repo_root: "<absolute REPO_ROOT>",
+    upstream_branch: "<UPSTREAM_BRANCH>",
+    integration_branch: "<INTEGRATION_BRANCH>"
+  }
+})
+```
+
+### Recap description rendering
+
+**FIRST: `Read ${CLAUDE_SKILL_DIR}/references/recap-task-template.md`** — load the verbatim
+template. Then substitute the five placeholders below in two passes (use replace-all for
+each, since `[REPO_ROOT]` appears more than once in the template):
+
+| Placeholder            | Value                                                                                                                       | Substituted at                              |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| `[REPO_ROOT]`          | absolute `$REPO_ROOT`                                                                                                       | Pass 1 — Step 3 TaskCreate                  |
+| `[INTEGRATION_BRANCH]` | captured `$INTEGRATION_BRANCH`                                                                                              | Pass 1 — Step 3 TaskCreate                  |
+| `[TASK_IDS]`           | comma-separated delivery-agent task IDs (heads, links, tails, standalones — NOT regression/open-pr/git-prep/create-wt/recap) | Pass 1 — Step 3, after Phase 1 returns IDs  |
+| `[PLAN_TITLE]`         | first `# Heading` of the plan file (Branch A) or `Branch B (session learnings)` (Branch B)                                  | Pass 1 — Step 3 TaskCreate                  |
+| `[RUN_START_SHA]`      | `git rev-parse "$INTEGRATION_BRANCH"` after integration-branch creation                                                     | Pass 2 — Step 4 Phase A TaskUpdate          |
+
+`[RUN_START_SHA]` stays literal at TaskCreate time (the integration branch doesn't exist
+yet). In `dry-run`/`plan-only`/`dry-run-analyze` modes Pass 2 substitutes the literal
+string `dry-run-no-sha` so the ledger description stays internally consistent; cascade
+dispatch in Step 4 skips the actual recap agent in those modes (consistent with the
+verb-guard table).
+
+Paste the Pass-1 partially-substituted template verbatim as the TaskCreate description.
 
 **Trivial delivery-agents:** create only the delivery-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)`. Chain tasks are never trivial. (Sub-task spawning is always available — no field controls it; the agent decides at runtime.)
 
@@ -719,7 +772,8 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   |
 | git-prep            | type=git-prep               | n/a            | n/a        | —       | re-run command (idempotent)     | inline (orchestrator) |
-| open-pr             | type=open-pr                | n/a            | n/a        | 10      | re-run gh pr create (idempotent on existing PR) | inline (orchestrator) |
+| open-pr             | type=open-pr                | n/a            | n/a        | 9       | re-run gh pr create (idempotent on existing PR) | inline (orchestrator) |
+| recap               | type=recap                  | n/a            | n/a        | —       | re-dispatch general-purpose Agent | inline foreground (orchestrator); dispatched as `subagent_type: "general-purpose"`; agent output is the user-facing run summary |
 
 **Wiring integrity check** (inline, runs once before resume check):
 
@@ -729,9 +783,10 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone delivery-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
 | Assert 6 | every native-worktree delivery-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Delivery-agent #N metadata.target_branch is missing or placeholder"                 |
 | Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
-| Assert 8 | every delivery-agent description         | is ≤ ~3 KB (3072 bytes) and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:` [calibrated: provisional 3072-byte anchor — recalibrate against fixture corpus if observed max + 25% headroom exceeds this] | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
-| Assert 9 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
-| Assert 10 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
+| Assert 8 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
+| Assert 9 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
+
+**Envelope-size guidance (no hard limit).** Earlier revisions enforced a 3 KB envelope cap as Assert 8; that cap has been removed. The envelope shape rule still stands as a soft guideline: keep the runtime header followed by ONE paragraph of plan-level guidance, and do not paste `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` content into the description — those live in `agents/delivery-agent.md`. Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:`. Bloated envelopes slow agents without improving outcomes, but there is no hard byte limit — agents operate unbounded on legitimately large tasks.
 
 Assert 3 exception: if the proposal has no DEPENDS ON, only `Setup .worktrees` is required — skip the upstream-blocker check.
 
@@ -749,6 +804,7 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 | delivery-agent (worktree) | Detect by commit-on-branch: for chain-tail or standalone, `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → merge already completed → mark completed; orchestrator runs cascade (as above). For chain-head or link, `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; orchestrator runs cascade. No commits in either case → mark failed; do not cascade. |
 | regression | Re-dispatch agent with existing description. |
 | open-pr | `gh pr list --head "$INTEGRATION_BRANCH" --base "$UPSTREAM_BRANCH" --json url,state`. PR exists → mark completed (idempotent — no double-create). PR missing → re-run the open-pr body from Step 5 from step 1. |
+| recap | Always safe to re-dispatch — the recap agent makes no file changes / git mutations / TaskCreate calls. Re-dispatch the general-purpose Agent with the existing description (which already has `[RUN_START_SHA]` substituted from Phase A Pass 2). The new output supersedes any prior partial output. |
 
 ---
 
@@ -756,17 +812,25 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 
 **Execution Guard:** Do not begin dispatch until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. Tasks are inert metadata until claimed; wiring must be complete before any agent starts so dependency constraints are fully established.
 
-**Assert 8 runtime envelope check (runs before Phase A):** For each delivery-agent task, verify `len(TaskGet(id).description) ≤ 3072 bytes`. If any envelope exceeds this threshold, halt immediately with:
-```
-Assert 8 FAIL: task #N envelope NNNN bytes exceeds 3072-byte threshold
-```
-Do not proceed to Phase A dispatch. The orchestrator must trim the envelope or split the task before retrying.
-
 ```
 Phase A — git-prep (orchestrator-inline, sequential):
   Run each git-prep task directly:
     Pre-flight staging check → Checkpoint commit → Setup .worktrees
   Mark each completed after running. Capture checkpoint SHA into orchestrator context.
+
+  **Capture `RUN_START_SHA`** immediately after `Create integration branch` git-prep runs (and
+  before dispatching any delivery-agent): `RUN_START_SHA=$(git -C "$REPO_ROOT" rev-parse
+  "$INTEGRATION_BRANCH")`. This is the tip of `INTEGRATION_BRANCH` at the moment the run
+  started — used later by the Recap & Review task to enumerate merges produced by this run
+  via `git log $RUN_START_SHA..$INTEGRATION_BRANCH`. Hold `RUN_START_SHA` in orchestrator
+  context alongside the checkpoint SHA. In `dry-run`, `plan-only`, and `dry-run-analyze`
+  modes (where the integration branch is not actually created), set `RUN_START_SHA` to the
+  string literal `dry-run-no-sha` — the recap dispatch is skipped in those modes anyway.
+
+  **Substitute `[RUN_START_SHA]` in the recap task description (Pass 2):** immediately
+  after capturing `RUN_START_SHA`, do `TaskUpdate({ taskId: ID_recap, description:
+  <Step-3 description with [RUN_START_SHA] replaced by $RUN_START_SHA> })` — see Step 3
+  `### Recap description rendering` for the full placeholder/timing table.
 
 Phase B — create-wt (lazy dispatch, notification-driven):
   Do NOT dispatch all create-wt tasks in one up-front parallel batch.
@@ -811,6 +875,50 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
   fields). Treat the agent's full transcript as opaque — only the `<result>` (its STATUS
   block) is parseable in this session.
 
+  **Status timer (live mode only — after the wave-1 dispatch above):**
+
+  Long runs (15–45 min wall-clock) have no ambient progress signal. After the wave-1 batch
+  (live mode only — skipped in `dry-run`/`plan-only`/`dry-run-analyze`/`status-check`),
+  emit one `ScheduleWakeup` whose self-contained prompt re-emits another `ScheduleWakeup`
+  while work remains in flight. (Pre-flight: verify `ScheduleWakeup` fires from a
+  non-`/loop` session before relying on this — call once with `delaySeconds: 60` and a
+  trivial prompt, confirm it fires; see *Fallback* below if not.)
+
+  Construct the prompt by interpolating `[REPO_ROOT]` and `[INTEGRATION_BRANCH]` into:
+
+  ```
+  Call TaskList({}). Count tasks by status (completed / in_progress / pending / failed).
+  Run: git -C "[REPO_ROOT]" log --oneline --merges -10 "[INTEGRATION_BRANCH]"
+  Print a ≤ 20-line summary:
+    ⏱ [HH:MM] Status: N complete, M in-progress, P pending, F failed
+    Recent merges: [last 3 --oneline entries, or 'none yet']
+  If any tasks are still in_progress or pending, call ScheduleWakeup again with the same
+  delaySeconds=180 and this exact prompt verbatim, reason='periodic schedule-plan-tasks status'.
+  If all tasks are terminal (completed or failed): print '✅ Run complete. No further status ticks.'
+  and stop (do not reschedule).
+  ```
+
+  Then dispatch:
+
+  ```
+  ScheduleWakeup({
+    delaySeconds: 180,
+    reason: "periodic progress check during live schedule-plan-tasks run",
+    prompt: <interpolated prompt body>
+  })
+  ```
+
+  (Self-terminates: the embedded instructions reschedule only while pending/in-progress
+  tasks remain.)
+
+  *Fallback if `ScheduleWakeup` is `/loop`-only.* If pre-flight shows it does not fire from
+  non-`/loop` sessions, drop the call and substitute: (1) the orchestrator prints a one-line
+  `[orchestrator] T+MM:SS — N complete, M in-progress, P pending` after each cascade-wave
+  dispatch and notification; (2) the user runs `/planning-suite:schedule-plan-tasks
+  --status` (the `status-check` mode) on demand from a separate session.
+
+  This degrades gracefully without shipping a non-functional `ScheduleWakeup` call.
+
   **Mode == dry-run:** dispatch synchronously (foreground — NO `run_in_background`). Before
   each Agent() call, JIT-load `references/simulate-prefix.md` and PREPEND its content to
   the task envelope. The agent simulates the work, runs the cascade-identification directive
@@ -831,79 +939,80 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
 
          When the completing delivery-agent has `chain_role == "tail"` or `chain_role == "none"` (standalone), the orchestrator runs the merge algorithm below. Chain heads and links do NOT trigger a merge — their commit lands on the worktree branch and the next chain member continues there.
 
-         Orchestrator merge script (runs per chain-tail or standalone completion):
+         Orchestrator merge script (runs per chain-tail or standalone completion). The agent
+         already rebased and verified in its own worktree (`## Pre-completion rebase` in
+         `agents/delivery-agent.md`) before signaling complete, so the orchestrator merge is
+         a single `--no-ff` integration. Only race recovery — a parallel lane landing between
+         the agent's rebase and this merge — requires a second pass:
          ```bash
-         # MAIN_REPO_ROOT, WORKTREE_BRANCH, MERGE_TARGET, CHAIN_ID from agent task metadata (TaskGet).
-         # VERIFY_CMD extracted from the agent's commit body on WORKTREE_BRANCH:
-         #   VERIFY_CMD=$(git -C "$REPO_ROOT" log -1 --pretty=%B "$WORKTREE_BRANCH" \
-         #                  | grep -E '^\s+VERIFY_CMD:' | head -1 | sed 's/.*VERIFY_CMD: *//')
-         # If the line is absent, VERIFY_CMD is empty and the no_verify_cmd path fires.
+         # Inputs (read via TaskGet on the completing agent's task):
+         #   MAIN_REPO_ROOT, WORKTREE_PATH, WORKTREE_BRANCH, MERGE_TARGET, CHAIN_ID, UPSTREAM_BRANCH
+         # No VERIFY_CMD here — the agent runs verify itself after rebase.
          REPO_ROOT="$MAIN_REPO_ROOT"
-         MAX_RETRIES=5
-         FAIL_REASON=""
-         MERGE_FAILED=false
 
-         for attempt in $(seq 1 $MAX_RETRIES); do
-           PRE_REBASE_HEAD=$(git -C "$REPO_ROOT" rev-parse "$WORKTREE_BRANCH")
-           REBASE_ERR=$(git -C "$REPO_ROOT" -C "$WORKTREE_PATH" rebase "$MERGE_TARGET" 2>&1)
-           if [ $? -ne 0 ]; then
-             git -C "$WORKTREE_PATH" rebase --abort
-             FAIL_REASON="conflict_needs_user"
-             MERGE_FAILED=true
-             break
-           fi
-           POST_REBASE_HEAD=$(git -C "$REPO_ROOT" rev-parse "$WORKTREE_BRANCH")
-
-           if [ "$PRE_REBASE_HEAD" != "$POST_REBASE_HEAD" ]; then
-             if [ -z "$VERIFY_CMD" ]; then
-               FAIL_REASON="no_verify_cmd"
-               MERGE_FAILED=true
-               break
-             fi
-             VERIFY_OUT=$(cd "$WORKTREE_PATH" && eval "$VERIFY_CMD" 2>&1)
-             if [ $? -ne 0 ]; then
-               git -C "$WORKTREE_PATH" reset --hard ORIG_HEAD
-               FAIL_REASON="verify_regression"
-               MERGE_FAILED=true
-               break
-             fi
-           fi
-
-           git -C "$REPO_ROOT" checkout "$MERGE_TARGET"
-
+         do_merge() {
            if [ -n "$CHAIN_ID" ] && [ "$CHAIN_ID" != "none" ]; then
-             CHAIN_LOG=$(git -C "$REPO_ROOT" log --reverse --pretty='format:--- %s%n%b%n' "$MERGE_TARGET..$WORKTREE_BRANCH")
-             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET (chain: $CHAIN_ID)
+             CHAIN_LOG=$(git -C "$REPO_ROOT" log --reverse --pretty='format:--- %s%n%b%n' \
+                         "$MERGE_TARGET..$WORKTREE_BRANCH")
+             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" \
+                 -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET (chain: $CHAIN_ID)
 
 $CHAIN_LOG"
            else
              LAST_COMMIT_BODY=$(git -C "$REPO_ROOT" log -1 --pretty=%B "$WORKTREE_BRANCH")
-             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET
+             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" \
+                 -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET
 
 $LAST_COMMIT_BODY"
            fi
+         }
 
-           if [ $? -eq 0 ]; then
-             git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH" --force
-             git -C "$REPO_ROOT" branch -d "$WORKTREE_BRANCH"
-             git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
-             exit 0   # proceed to TaskList rescan and cascade dispatch
-           fi
-
-           git -C "$REPO_ROOT" merge --abort
+         cleanup_and_exit_success() {
+           git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH" --force
+           git -C "$REPO_ROOT" branch -d "$WORKTREE_BRANCH"
            git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
-           sleep $((attempt * 3))
-         done
+           exit 0
+         }
 
-         if [ "$MERGE_FAILED" = "true" ]; then
-           echo "MERGE_FAIL_REASON=$FAIL_REASON"
+         # Attempt 1: agent already rebased; merge should be clean.
+         git -C "$REPO_ROOT" checkout "$MERGE_TARGET"
+         if do_merge; then
+           cleanup_and_exit_success
+         fi
+
+         # Attempt 2: a parallel agent merged between this agent's rebase and our merge.
+         # One orchestrator-side rebase to refresh, then merge again. The agent already
+         # resolved any conflict that was visible at its rebase time, so this rebase is
+         # expected to be a fast-forward of new parallel work onto the resolved branch.
+         git -C "$REPO_ROOT" merge --abort
+         git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
+         if ! git -C "$WORKTREE_PATH" rebase "$MERGE_TARGET"; then
+           git -C "$WORKTREE_PATH" rebase --abort
+           echo "MERGE_FAIL_REASON=race_conflict_needs_user"
            exit 1
          fi
+
+         git -C "$REPO_ROOT" checkout "$MERGE_TARGET"
+         if do_merge; then
+           cleanup_and_exit_success
+         fi
+
+         git -C "$REPO_ROOT" merge --abort
+         git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
          echo "MERGE_FAIL_REASON=retries_exhausted"
          exit 1
          ```
 
-         On merge failure: TaskCreate an investigation sibling task using `references/investigation-task-template.md` (subject: `INVESTIGATE: <agent task subject> — merge failure`, body includes `failure_reason`, diagnostic details, affected dependents). Mark affected downstream dependents as staying blocked. Emit merge-failure notice to orchestrator log. Do NOT cascade from a merge failure.
+         **Why this is simple now.** The agent rebases and verifies in its own worktree before
+         signaling complete (`## Pre-completion rebase` in `agents/delivery-agent.md`). By the
+         time the orchestrator runs `do_merge`, the agent's branch is already up to date with
+         `MERGE_TARGET` and known to pass its verify command. A conflict in attempt 1 is
+         therefore unexpected — it only happens when a parallel lane landed between the
+         agent's rebase and the orchestrator's `checkout $MERGE_TARGET`. Attempt 2 handles
+         exactly that narrow race; further retries are unnecessary because by attempt 2 the
+         agent's branch has been rebased onto the latest tip.
+
+         On merge failure (`MERGE_FAIL_REASON` printed): TaskCreate an investigation sibling task using `references/investigation-task-template.md` (subject: `INVESTIGATE: <agent task subject> — merge failure`, body includes `failure_reason`, diagnostic details, affected dependents). Mark affected downstream dependents as staying blocked. Emit merge-failure notice to orchestrator log. Do NOT cascade from a merge failure.
 
          On merge success: proceed to the TaskList rescan and cascade dispatch (step 3b).
 
@@ -912,12 +1021,15 @@ $LAST_COMMIT_BODY"
          The orchestrator runs its own TaskList rescan (not relying on `DISPATCHED:` from the agent — `DISPATCHED: none` is always emitted by the agent):
          a. Call `TaskList({})`. For each pending task `t`: check if all of `t.blockedBy` are `completed`. If yes, `t` is newly unblocked.
          b. For newly-unblocked tasks: call `TaskGet(id)` first. **If `status != "pending"`, skip** — a sibling notification handler already claimed it.
-         c. For tasks still `pending`: call `TaskUpdate(id, status=in-progress)` to claim, then dispatch `Agent({subagent_type: "delivery-agent", prompt: TaskGet(id).description, run_in_background: true})`.
-         d. Batch all claims and dispatches in a SINGLE parallel response.
+         c. For tasks still `pending`: call `TaskUpdate(id, status=in-progress)` to claim, then dispatch by `metadata.task_type`:
+            - `delivery-agent`, `create-wt`, `regression` (when `execution_lane: agent`): `Agent({subagent_type: "delivery-agent" | <as appropriate>, prompt: TaskGet(id).description, run_in_background: true})`. Backgrounded; notifications come back via `<task-notification>`.
+            - `recap`: `Agent({subagent_type: "general-purpose", description: TaskGet(id).subject, prompt: TaskGet(id).description})` — **foreground**, no `run_in_background`. The returned agent text IS the user-facing run recap; print it under a `## Run Recap` heading in the orchestrator transcript and then call `TaskUpdate({taskId: id, status: "completed"})` to mark the recap task complete. In `dry-run`, `plan-only`, and `dry-run-analyze` modes, do NOT dispatch the recap agent — print `[DRY] would dispatch recap agent for task #N` and immediately mark the recap task `completed` (ledger or real).
+            - `open-pr`: backgrounded Bash (per Step 5), not a delivery-agent Agent.
+         d. Batch backgrounded claims and dispatches in a SINGLE parallel response. The recap dispatch is foreground — if recap and another task both become unblocked in the same tick, dispatch the backgrounded ones first (parallel batch), then run the recap dispatch in a follow-up message; this avoids blocking the orchestrator on recap while parallel work is still in flight.
 
       4. **`RESULT: partial`** — do NOT cascade. The agent has called `TaskUpdate(failed)` itself (per `## On RESULT: partial` in delivery-agent.md — partial is a terminal disposition under the new contract). No orchestrator action; downstream dependents stay `pending` (same as `RESULT: failed`). If the agent left its task `in-progress` instead of `failed`, that's a contract violation — surface as STALLED via hang-detection.
       5. **`RESULT: failed`** — do NOT cascade. The agent has called `TaskUpdate(failed)`. The orchestrator (not the agent) TaskCreates the investigation sibling task using `references/investigation-task-template.md`. Failed tasks do not unblock dependents — downstream tasks stay `pending` and visible via `TaskList({})`.
-      6. **Termination check:** repeat until `TaskList({})` shows no `pending` or `in-progress` tasks of type delivery-agent / regression / open-pr. Tasks left `in-progress` past `MAX_AGENT_WALL_TIME` trigger hang detection (below).
+      6. **Termination check:** repeat until `TaskList({})` shows no `pending` or `in-progress` tasks of type delivery-agent / regression / open-pr / recap. Tasks left `in-progress` past `MAX_AGENT_WALL_TIME` trigger hang detection (below).
 
     The orchestrator therefore DOES loop — driven by notification events, not poll intervals. (Earlier "orchestrator does not loop" wording was based on a synchronous-cascade model; under backgrounding, the orchestrator is the only entity that can see notifications, so it must own dispatch.)
 
@@ -927,13 +1039,13 @@ $LAST_COMMIT_BODY"
   `references/investigation-task-template.md` and calls TaskCreate to register a sibling
   investigation task. The agent only emits the status block — no TaskCreate on the agent side.
   Status protocol uses RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED fields; FAILURE ∈
-  {no_change, partial_change, test_failures, conflict_needs_user, needs_split}. Failed tasks
+  {no_change, partial_change, test_failures, conflict_needs_user, needs_split, verify_regression}. Failed tasks
   do not cascade — downstream dependents stay pending, visible via `TaskList({})`.
 
   Trivial delivery-agents, regression, and open-pr tasks are claimed and dispatched by the
-  ORCHESTRATOR (per the inversion above) — they appear in the upstream agent's `DISPATCHED:`
-  list and the orchestrator dispatches them. Regression and open-pr both run as
-  backgrounded Agents (regression) / backgrounded Bash (open-pr body); see Step 5.
+  ORCHESTRATOR (per the inversion above) — the orchestrator's TaskList rescan finds them
+  newly-unblocked after each notification and dispatches them. Regression and open-pr both
+  run as backgrounded Agents (regression) / backgrounded Bash (open-pr body); see Step 5.
 ```
 
 ---

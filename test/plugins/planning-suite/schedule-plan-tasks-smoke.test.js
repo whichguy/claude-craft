@@ -593,8 +593,9 @@ describe('REPO_ROOT support (target repo ≠ CWD + bootstrap)', function () {
         expect(repoRootHits, 'repo_root in metadata schemas').to.be.at.least(4);
     });
 
-    it('SKILL.md adds Assert 9 (repo_root non-empty, absolute, identical across run)', function () {
-        expect(SKILL.includes('Assert 9'), 'Assert 9 row').to.be.true;
+    it('SKILL.md adds Assert 8 (repo_root non-empty, absolute, identical across run)', function () {
+        // Was Assert 9 before the envelope-size cap (former Assert 8) was removed; now renumbered to Assert 8.
+        expect(SKILL.includes('Assert 8'), 'Assert 8 row').to.be.true;
         expect(SKILL.includes('metadata.repo_root'), 'metadata.repo_root reference').to.be.true;
     });
 

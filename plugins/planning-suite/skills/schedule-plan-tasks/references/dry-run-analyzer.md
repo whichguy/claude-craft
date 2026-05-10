@@ -41,8 +41,8 @@ Evaluate the report on these logical dimensions to judge if the results are prop
 - **Topological Pass:** Ensure there are no cycles. Every task must reach `completed` in the simulated trace. Orphans (never dispatched) → BLOCKING.
 
 ### 5. Graph Correctness & Wiring Integrity
-- The Wiring Integrity section must say PASS. If it lists violations (Assert 3, Assert 5, Assert 6, Assert 7, Assert 8), mirror them as BLOCKING findings.
-  Note: Assert 1 and Assert 2 were removed in a prior version and no longer exist in the wiring checks.
+- The Wiring Integrity section must say PASS. If it lists violations (Assert 3, Assert 5, Assert 6, Assert 7, Assert 8 [repo_root], Assert 9 [upstream/integration branches + open-pr terminus]), mirror them as BLOCKING findings.
+  Note: Assert 1 and Assert 2 were removed in a prior version and no longer exist in the wiring checks. The former Assert 8 (3 KB envelope-size cap) was also removed — envelopes operate unbounded; size is a soft guideline only.
 - **Assert 5 (Regression):** Regression must be blocked by ALL chain-tail delivery-agents and ALL standalone delivery-agents. Chain-head and chain-link delivery-agents are NOT valid direct regression blockers.
 - **Assert 7 (Chain integrity):** Exactly one create-wt exists per chain. Chain tail members must not have their own separate create-wt task.
 
