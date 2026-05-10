@@ -1,7 +1,7 @@
 {
   "name": "planning-suite",
-  "version": "0.2.7",
-  "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, narrow-plan, alias/unalias, performance, knowledge, iterative red-team plan review.",
+  "version": "0.2.8",
+  "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, c-plan, alias/unalias, performance, knowledge, iterative red-team plan review.",
   "author": {
     "name": "whichguy",
     "url": "https://github.com/whichguy"
