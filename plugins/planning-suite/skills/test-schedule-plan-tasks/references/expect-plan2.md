@@ -41,5 +41,4 @@ D. Chain role fields: verify in ### Task Details that:
    - Route delivery-agent: Chain: link, Chain ID: chain-1
    - Integration delivery-agent: Chain: tail, Chain ID: chain-1
 
-E. Self-merge: only the tail (Integration) delivery-agent description includes the self-merge block
-   (Self-merge: yes). Head and links must have Self-merge: no. Verify in ### Task Details.
+E. Orchestrator merge: the orchestrator merges every chain-tail and standalone agent branch into INTEGRATION_BRANCH after receiving the agent's completion notification. Verify by checking that `git log --merges --first-parent INTEGRATION_BRANCH` contains a merge commit for the Integration Test (chain-1 tail) branch. No `.selfmerge-status` files should exist in any worktree.

@@ -71,10 +71,13 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         expect(content.includes('Sub-tasks allowed: yes only')).to.be.false;
     });
 
-    it('contains self-merge bash with MAX_RETRIES=5', function () {
-        expect(content.includes('MAX_RETRIES=5')).to.be.true;
-        expect(content.includes('git rebase')).to.be.true;
-        expect(content.includes('git merge --no-ff')).to.be.true;
+    it('orchestrator owns merging — no self-merge bash in delivery-agent.md', function () {
+        // Self-merge was removed from the agent; the orchestrator merge algorithm
+        // (ORCHESTRATOR_MERGE_ALGORITHM) now lives in SKILL.md. Agent just commits
+        // and emits DISPATCHED: none.
+        expect(content.includes('## Self-merge')).to.be.false;
+        expect(content.includes('.selfmerge-status')).to.be.false;
+        expect(content.includes('.selfmerge-diag')).to.be.false;
     });
 
     it('contains ## Status protocol with all 6 fields', function () {
@@ -94,9 +97,10 @@ describe('plugins/planning-suite/agents/delivery-agent.md (promoted from referen
         expect(content.includes('investigation-task-template.md')).to.be.true;
     });
 
-    it('keeps [TASK_ID] and [MERGE_TARGET] placeholders for runtime substitution by the envelope', function () {
+    it('keeps [TASK_ID] placeholder for runtime substitution by the envelope', function () {
+        // [TASK_ID] is still used in TaskUpdate calls within the agent.
+        // [MERGE_TARGET] moved to the orchestrator merge bash in SKILL.md.
         expect(content.includes('[TASK_ID]')).to.be.true;
-        expect(content.includes('[MERGE_TARGET]')).to.be.true;
     });
 
     it('contains no Python-style booleans (=True / =False)', function () {

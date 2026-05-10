@@ -24,7 +24,7 @@ Two entry points, one execution engine. **Branch A** reads an approved plan file
 
 ## Modes
 
-The skill runs in one of four modes, decided at the top of Step 0 by inspecting arguments:
+The skill runs in one of five modes, decided at the top of Step 0 by inspecting arguments:
 
 | Mode               | Trigger flag           | TaskCreate/Update | Agent dispatch              | Use case                              |
 |--------------------|------------------------|-------------------|-----------------------------|---------------------------------------|
@@ -32,6 +32,7 @@ The skill runs in one of four modes, decided at the top of Step 0 by inspecting 
 | `dry-run`          | `--dry-run`            | real              | real (simulate-prefix mode) | end-to-end protocol validation        |
 | `plan-only`        | `--plan-only`          | skipped (ledger)  | skipped                     | static topology report (no side effects) |
 | `dry-run-analyze`  | `--dry-run-analyze`    | skipped (ledger)  | skipped + analyzer Agent    | static report + LLM critique          |
+| `status-check`     | `--status`             | none              | none                        | short-circuit status snapshot         |
 
 **`Mode` is set in Step 0 before any side-effecting action** and threaded through every TaskCreate / TaskUpdate / git / Agent verb downstream.
 
@@ -55,6 +56,8 @@ The skill runs in one of four modes, decided at the top of Step 0 by inspecting 
   the Dry-Run Report to flag wiring errors, missing dependencies, mis-classified isolation,
   and anti-patterns.
 
+- **`status-check`** — Short-circuit mode. Run `TaskList` + `git -C "$REPO_ROOT" log -1 --oneline "$INTEGRATION_BRANCH"` (if branch exists) + `git -C "$REPO_ROOT" worktree list`. Print the results in ≤ 50 lines. Exit before any side-effecting verb. No TaskCreate, no Agent dispatch, no git mutations.
+
 **Trivial-task override:** in `plan-only` and `dry-run-analyze` modes, trivial proposals get the
 full `create-wt → delivery-agent → merge` chain so the complete worktree isolation structure is
 visible in the static report. (Live + dry-run skip the create-wt for trivial tasks.)
@@ -73,6 +76,7 @@ ledger TaskCreate verb, using the same schemas defined in the Phase 1 creation p
 - Args contain `--dry-run-analyze` → `Mode = dry-run-analyze`
 - Args contain `--plan-only` → `Mode = plan-only`
 - Args contain `--dry-run` → `Mode = dry-run`
+- Args contain `--status` → `Mode = status-check`
 - Otherwise → `Mode = live`
 
 **Plan path detection:** if args contain `--plan <path>`, capture `PlanPath = <path>` (absolute or relative to cwd). Otherwise `PlanPath = nil` (auto-discovery runs in Step 1).
@@ -155,6 +159,15 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 
 ---
 
+**Stale-state warning (runs in Branch A after git context prime, before plan parsing):** Run `git -C "$REPO_ROOT" log -10 --oneline "$UPSTREAM_BRANCH"` and for each proposal title T (extracted from the plan step headers), check whether T appears as a contiguous case-insensitive substring of any commit subject in that log. If any match is found, print:
+```
+[WARNING] Possible re-run on already-executed plan.
+  The following proposal titles match recent commits on $UPSTREAM_BRANCH:
+    - "<title>" matches commit <sha> "<commit subject>"
+  You may be re-running a previously-executed plan. Verify intent before proceeding.
+```
+Print the warning but do not halt — the user must confirm via the existing plan-review gate. Use case-insensitive substring match only (no Levenshtein or word-overlap). This check runs only in `live` mode; skip in `dry-run`, `plan-only`, `dry-run-analyze`, and `status-check` modes.
+
 **Branch A — Plan file:**
 
 1. Resolve the plan file path:
@@ -171,6 +184,28 @@ Local resources → note absolute path (will be symlinked into each worktree). R
    **Case C — Overlapping functionality:** Two or more parallel tasks modify the same region with semantically overlapping logic (same function body, same config key, same variable). These cannot be merged cleanly and represent a logical conflict. **Restructure.** Add DEPENDS ON to serialize them, or extract the shared region into a dedicated task.
 
    Emit an advisory note for Case A, a structural suggestion for Case B, and a required restructuring notice for Case C. Do not abort for Cases A or B.
+
+   **Concurrency Audit Pass** (runs after chain detection in Step 3, applied deterministically):
+
+   After chain detection, apply three rules to potentially refine the task graph:
+
+   **Split rule.** For each delivery-agent task whose envelope lists ≥ 2 source files: if every listed file (a) has exactly one author task in the plan AND (b) each file's only cross-task interaction is appending to a shared mountpoint/registration file (Case A semantics from the Output Mapping Pass) AND (c) no listed file imports another listed file in the same task — then split into N parallel sibling tasks (one per file). Each sibling is blocked on the original task's blockers. The shared mountpoint file is appended to in each sibling and rebases cleanly via Case-A semantics. If any condition is uncertain, do NOT split — fail closed.
+
+   **Worked split example:** A task writing `src/routes/{scenarios,project,simulate,tax}.ts` + `src/server.ts` mountpoints: each route file has one author, shared file is `src/server.ts` (append-only register lines), no route imports another → split into 4 parallel siblings, each blocked on the same upstream tasks.
+
+   **Refusal example (when NOT to split):** A task writing `src/db/schema.ts` + `src/db/migrations/001_init.ts` + `src/db/client.ts`: schema is imported by both migration and client → fails rule (c) → keep bundled.
+
+   **De-chain rule (regex-bounded).** A tail task T is reclassified from `Chain: tail` to `Chain: none` (standalone) ONLY IF:
+   - T's envelope guidance matches `/(import|reads?|consumes?|uses?)\s+\S+\s+from\s+\S*\.(types|schema|contract|interface)\b/i`
+   - AND T's envelope guidance does NOT match `/(import|requires?)\s+\S+\s+from\s+\S*\.(impl|service|handler)\b/i`
+   - AND manual override is absent: plan author can pin `Chain: tail` with a `<!-- pin-chain -->` HTML comment in the proposal to suppress this rule.
+   If either condition is uncertain, keep the chain edge — fail closed. When reclassified, T's blocker becomes the original upstream chain's tail.
+
+   **Regression Blocker Reduction enhancement (regex-bounded).** The existing Regression Blocker Reduction (Step 3) is augmented: when tail/standalone R has a downstream tail/standalone S, drop the direct R → regression edge only if BOTH:
+   - S's verification text matches `/(npm|pnpm|yarn|bun)\s+(run\s+)?test\b/`
+   - AND S's envelope guidance matches `/from\s+['"][^'"]*<R-module-name>[^'"]*['"]/` where `<R-module-name>` is derived from R's primary file (e.g. `src/engine/tax.ts` → `tax`).
+   Otherwise keep the edge — fail closed.
+
 5. Note plan's Verification section → seed for validation tasks
 6. `{context}` = full plan file content
 
@@ -201,7 +236,7 @@ Draft only — no TaskCreate yet.
 - **Branch A (plan file present):** the plan was already reviewed and explicitly approved via `ExitPlanMode`. **Skip Step 2.** Proposals are the source of truth; sequencing comes from "step N requires step M" hints noted in Step 1; regression scope comes from the plan's Verification section. Trivial flag: any plan step the user/plan annotated as trivial (rename, comment, single-line config) — otherwise treat as full main task.
 - **Branch B (no plan file):** proposals were freshly drafted from session state — proceed through Step 2 for vetting.
 
-The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees and self-merge on completion. The mechanism is the `Isolation:` line on each delivery-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
+The execution mode (worktree vs serial main-workspace) is decided per-proposal, not as a global path: trivial proposals run inline in the main workspace; non-trivial proposals run in worktrees — the orchestrator merges the agent's branch into INTEGRATION_BRANCH after receiving the agent's completion notification. The mechanism is the `Isolation:` line on each delivery-agent task (`native worktree` vs `none (trivial)`) — see the task-type contract in Step 4.
 
 ---
 
@@ -319,8 +354,8 @@ serial-on-feature-branch path automatically (no AskUserQuestion). Print:
 Behavior:
 1. Skip create-wt entirely. No `.worktrees/` directory is created.
 2. Skip the `integration-branch` git-prep task. Instead, capture `ORIGIN_BRANCH = git -C "$REPO_ROOT" branch --show-current` (the user's working branch), then create `feat/<plan-slug>-<short-sha>` directly on the user's repo and check it out.
-3. For each chain member, dispatch the delivery-agent with envelope `Working directory: $REPO_ROOT` (main repo, not a worktree), `Self-merge: no` for `head` and `link` roles, `Self-merge: yes` only on the `tail`. The tail's `Self-merge: yes` fast-forwards `feat/<plan-slug>-<short-sha>` into `ORIGIN_BRANCH` — if the user was on `main`, this ff's main; if on a topic branch, that topic branch advances. The merge target is therefore `ORIGIN_BRANCH`, not `INTEGRATION_BRANCH`.
-4. The envelope's `MERGE_TARGET:` field is set to `ORIGIN_BRANCH` for tail members, and to `feat/<plan-slug>-<short-sha>` for head and links (so each link commits onto the feature branch). The agent's chain-merge body logic at `agents/delivery-agent.md` `## Self-merge` is reused unchanged — only the merge-target ref differs.
+3. For each chain member, dispatch the delivery-agent with envelope `Working directory: $REPO_ROOT` (main repo, not a worktree). The orchestrator merges the tail's branch into `ORIGIN_BRANCH` after receiving the tail's completion notification — if the user was on `main`, this ff's main; if on a topic branch, that topic branch advances. The merge target is therefore `ORIGIN_BRANCH`, not `INTEGRATION_BRANCH`.
+4. The envelope's `MERGE_TARGET:` field is set to `ORIGIN_BRANCH` for tail members, and to `feat/<plan-slug>-<short-sha>` for head and links (so each link commits onto the feature branch). The orchestrator merge algorithm at Step 4 `ORCHESTRATOR_MERGE_ALGORITHM` is applied — only the merge-target ref differs.
 5. `open-pr` proceeds against `feat/<plan-slug>-<short-sha> → ORIGIN_BRANCH` (or no-op + summary file when no remote — see Step 5).
 6. **Dirty working tree at start:** if `git -C "$REPO_ROOT" status --porcelain` is non-empty when the shortcut path is selected, AskUserQuestion: "Cancel". (Cancel only — no auto-stash; the user resolves manually.)
 
@@ -344,13 +379,11 @@ unchanged — `.worktrees/`, `integration-branch`, `INTEGRATION_BRANCH` as `MERG
 must be Read before the creation pass using the same JIT protocol regardless of mode. All
 placeholder substitutions are performed: `UPSTREAM_BRANCH` from `git branch --show-current`,
 `INTEGRATION_BRANCH` synthesized as `schedule/<slug>-<short-sha>` (used as the create-wt fork point
-and every delivery-agent's `MERGE_TARGET`), Self-merge from chain role (yes for tail/none, no for
-head/link), working directory from worktree path, definition of done from proposal. In `live` and
+and every delivery-agent's `MERGE_TARGET`), working directory from worktree path, definition of done from proposal. In `live` and
 `dry-run` modes `[TASK_ID]` is substituted with the real task ID returned by TaskCreate (Phase 1.5);
 in `plan-only` and `dry-run-analyze` it's substituted with `DRY-N`. The envelope's `Chain:` line is
-substituted from `metadata.chain_id` (or `none` when `metadata.chain_role == "none"`) so the
-agent's self-merge block can branch on it; the rest of the chain metadata stays in task
-`metadata` for wiring integrity checks.
+substituted from `metadata.chain_id` (or `none` when `metadata.chain_role == "none"`); the chain
+metadata stays in task `metadata` for wiring integrity checks.
 
 **Ledger-only behavior (plan-only, dry-run-analyze):**
 - For each would-be TaskCreate (Phase 1): print `[DRY] would TaskCreate #DRY-N: <subject>`,
@@ -449,7 +482,7 @@ git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"   # leave user on their branch
 
 In `dry-run`, `plan-only`, and `dry-run-analyze` modes the integration-branch task is
 created/recorded but its bash body is NOT executed (consistent with the git-prep
-verb-guard table). delivery-agents self-merge to `$INTEGRATION_BRANCH`; the final
+verb-guard table). The orchestrator merges delivery-agent branches into `$INTEGRATION_BRANCH` after receiving each agent's completion notification; the final
 `open-pr` task PRs `INTEGRATION_BRANCH → UPSTREAM_BRANCH`.
 
 **For each chain or standalone (topological order — predecessors before dependents):**
@@ -489,7 +522,7 @@ verb-guard table). delivery-agents self-merge to `$INTEGRATION_BRANCH`; the fina
 otherwise by ALL chain-tail and standalone delivery-agents (same blocker shape as
 regression). `ID_open_pr` is the new graph terminus — nothing else depends on it.
 
-**Trivial delivery-agents:** create only the delivery-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)` and `Self-merge: yes`. Chain tasks are never trivial. (Sub-task spawning is always available — no field controls it; the agent decides at runtime.)
+**Trivial delivery-agents:** create only the delivery-agent task (no create-wt). In its Execution context set `Isolation: none (trivial)`. Chain tasks are never trivial. (Sub-task spawning is always available — no field controls it; the agent decides at runtime.)
 
 ---
 
@@ -547,8 +580,7 @@ purposes (the merge destination). `UPSTREAM_BRANCH` is the PR target only.
    - Set `MAIN_REPO_ROOT:` to `$REPO_ROOT` (absolute) for every orchestrator-dispatched delivery-agent task. The agent's self-merge block reads this header to locate the main repo (a worktree's `git rev-parse --show-toplevel` returns the worktree itself, not the main repo).
    - Set `MERGE_TARGET:` to the `INTEGRATION_BRANCH` value for all orchestrator-dispatched tasks.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
-   - Set `Self-merge:` to `yes` for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks.
-   - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones. The agent's self-merge block keys off this field to choose between the standalone and chain merge-commit-body branches.
+   - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones.
    - Set `Cascade:` to the literal `required (TaskList → gate-check → record unblocked IDs in DISPATCHED: BEFORE emitting RESULT: complete)` for every delivery-agent task — this is the cascade-identification precondition reinforced in the envelope; the agent treats it as load-bearing per `agents/delivery-agent.md` `## Cascade-identification precondition`.
    - Set `Prior chain commits:` ONLY for chain `link` and `tail` tasks (`metadata.chain_role in {"link","tail"}`); omit the line entirely for `head` and standalones. Substitute the per-task value: `read \`git -C $WORKTREE_PATH log --format='%n--- %s ---%n%b' $MERGE_TARGET..HEAD\` and ingest each commit's "## Key learnings" section before starting work — these are gotchas already discovered by earlier members of this chain.` (Substitute `$WORKTREE_PATH` and `$MERGE_TARGET` with the literal absolute path / branch name for this task; the agent runs the bash directly.)
    - Replace `[one-paragraph guidance]` with **a single paragraph (≤ ~120 words) of plan-level guidance** distilled from the proposal — see "Task definition rules" below.
@@ -682,7 +714,7 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 
 | Task type           | Identity                    | Has create-wt? | Has Merge? | Asserts | Resume method                   | Dispatch lane         |
 |---------------------|-----------------------------|----------------|------------|---------|---------------------------------|-----------------------|
-| delivery-agent worktree  | `Isolation: native worktree`| yes            | self (built-in) | 6    | branch in git log --merges → completed | parallel worktree; may spawn sub-task agents internally |
+| delivery-agent worktree  | `Isolation: native worktree`| yes            | orchestrator (post-notification) | 6    | branch in git log --merges → completed | parallel worktree; may spawn sub-task agents internally |
 | delivery-agent trivial   | `Isolation: none (trivial)` | no             | no         | —       | git log title vs checkpoint     | serial main-workspace |
 | regression          | type=regression             | no             | no         | 5       | re-run agent                    | serial main-workspace |
 | create-wt           | type=create-wt              | self           | n/a        | 3       | `git worktree list`             | parallel background   |
@@ -697,7 +729,7 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | Assert 5 | every regression (0 or 1)           | blocked by ALL chain-tail and standalone delivery-agents; chain-head/link NOT direct blockers   | "Regression task #N missing blockers [...]" OR "directly blocked by head/link"  |
 | Assert 6 | every native-worktree delivery-agent     | `metadata.target_branch` is non-empty and not a placeholder (dry-run: ledger; live: TaskGet) | "Delivery-agent #N metadata.target_branch is missing or placeholder"                 |
 | Assert 7 | every chain (≥2 members)            | exactly one create-wt exists and belongs to the chain-head                                 | "chain-link/tail task #N has its own create-wt — should share chain-K's"        |
-| Assert 8 | every delivery-agent description         | is ≤ ~1 KB and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Self-merge:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:` | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
+| Assert 8 | every delivery-agent description         | is ≤ ~3 KB (3072 bytes) and is a runtime header followed by ONE paragraph of guidance — no `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` headings (those live in `agents/delivery-agent.md`). Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:` [calibrated: provisional 3072-byte anchor — recalibrate against fixture corpus if observed max + 25% headroom exceeds this] | "Delivery-agent #N description leaks invariant content — should be slim envelope only" |
 | Assert 9 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
 | Assert 10 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
 
@@ -714,8 +746,7 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 | git-prep | Re-run the git command (all idempotent — including `bootstrap` when present). Mark completed. |
 | create-wt | `git -C "$REPO_ROOT" worktree list`. If present → mark completed. If missing → re-run `git -C "$REPO_ROOT" worktree add` → mark completed. |
 | delivery-agent (trivial) | `git -C "$REPO_ROOT" log <checkpoint-sha>..HEAD --oneline`. Commit matching task title present → mark completed; orchestrator runs cascade (TaskList scan → for each pending unblocked task: TaskGet re-check, TaskUpdate(in-progress), then dispatch `Agent(..., run_in_background: true)`). None → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: yes) | `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → mark completed; orchestrator runs cascade (as above). Not found but commits present → re-dispatch agent from self-merge step. No commits → mark failed; do not cascade. |
-| delivery-agent (worktree, Self-merge: no) | `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; orchestrator runs cascade (as above). None → mark failed; do not cascade. |
+| delivery-agent (worktree) | Detect by commit-on-branch: for chain-tail or standalone, `git -C "$REPO_ROOT" log --merges --oneline \| grep <branch>`. Found → merge already completed → mark completed; orchestrator runs cascade (as above). For chain-head or link, `git -C "$REPO_ROOT/.worktrees/<chain-K>" log HEAD --oneline \| grep <task subject>`. Commit present → mark completed; orchestrator runs cascade. No commits in either case → mark failed; do not cascade. |
 | regression | Re-dispatch agent with existing description. |
 | open-pr | `gh pr list --head "$INTEGRATION_BRANCH" --base "$UPSTREAM_BRANCH" --json url,state`. PR exists → mark completed (idempotent — no double-create). PR missing → re-run the open-pr body from Step 5 from step 1. |
 
@@ -725,16 +756,28 @@ Query TaskList for `in_progress` tasks. None → proceed to Phase A. Else execut
 
 **Execution Guard:** Do not begin dispatch until ALL Phase 2 `TaskUpdate` wiring calls have returned successfully. Tasks are inert metadata until claimed; wiring must be complete before any agent starts so dependency constraints are fully established.
 
+**Assert 8 runtime envelope check (runs before Phase A):** For each delivery-agent task, verify `len(TaskGet(id).description) ≤ 3072 bytes`. If any envelope exceeds this threshold, halt immediately with:
+```
+Assert 8 FAIL: task #N envelope NNNN bytes exceeds 3072-byte threshold
+```
+Do not proceed to Phase A dispatch. The orchestrator must trim the envelope or split the task before retrying.
+
 ```
 Phase A — git-prep (orchestrator-inline, sequential):
   Run each git-prep task directly:
     Pre-flight staging check → Checkpoint commit → Setup .worktrees
   Mark each completed after running. Capture checkpoint SHA into orchestrator context.
 
-Phase B — create-wt (background Tasks, parallel batch):
-  Dispatch all create-wt tasks in ONE parallel batch (run_in_background=True).
-  Poll TaskList until every create-wt reaches completed or failed.
-  Any create-wt failure → halt; report; do not dispatch its delivery-agent.
+Phase B — create-wt (lazy dispatch, notification-driven):
+  Do NOT dispatch all create-wt tasks in one up-front parallel batch.
+  Instead, create-wt tasks are dispatched lazily via the same notification-driven
+  cascade as delivery-agents — a create-wt task becomes eligible only when all its
+  blockers (Setup .worktrees + any upstream delivery-agent tails/standalones) have
+  completed. The wiring graph encodes the order; dispatch each create-wt when its
+  blocked-by set transitions to all-completed (same cascade logic as wave-1 delivery-agents).
+  Worktrees forked from a stale integration-branch tip will miss every subsequent merge
+  from parallel lanes — lazy dispatch ensures each worktree forks from the current tip.
+  On create-wt failure → halt; report; do not dispatch its delivery-agent.
 
 Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascade):
 
@@ -759,7 +802,7 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
   Dispatch ALL wave-1 delivery-agents in a SINGLE response as parallel Agent() calls,
   each with `subagent_type: "delivery-agent"` AND `run_in_background: true`. Each agent
   receives its task envelope (TaskGet(id).description = runtime header + one-paragraph
-  guidance). The behavior contract (lifecycle, self-merge, cascade-identification) lives
+  guidance). The behavior contract (lifecycle, cascade-identification) lives
   in `agents/delivery-agent.md` and is loaded by the harness — no additional wrapping
   needed in the prompt.
 
@@ -782,20 +825,104 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
     On each `<task-notification>` (one per backgrounded agent that completes):
       1. Read the `<status>` field. Harness exit status only — `completed` means the agent process exited cleanly; `failed` means the harness itself errored. The agent's *semantic* outcome is in `<result>`. Both branches proceed to step 2; do not gate cascade on `<status>` alone.
       2. Read the `<result>` field — the agent's STATUS block. Parse `RESULT:` and `DISPATCHED:` lines.
-      3. **`RESULT: complete`** — for each comma-separated task ID in `DISPATCHED:`:
-         a. Call `TaskGet(id)` first. **If `status != "pending"`, skip** — a sibling notification handler already claimed it (concurrent agents A and B may both observe pending task C in their TaskList scans before either notification arrives; without this re-check the orchestrator would dispatch C twice).
-         b. For tasks still `pending`: call `TaskUpdate(id, status=in-progress)` to claim, then dispatch `Agent({subagent_type: "delivery-agent", prompt: TaskGet(id).description, run_in_background: true})`.
-         c. Batch all claims and dispatches in a SINGLE parallel response — the orchestrator processes notifications serially, so within one notification's batch there is no intra-batch race.
+      3. **`RESULT: complete`** — run the orchestrator merge (step 3a) for chain-tail and standalone completions, then cascade:
+
+         **Step 3a — Orchestrator merge (runs for every chain-tail and standalone completion):**
+
+         When the completing delivery-agent has `chain_role == "tail"` or `chain_role == "none"` (standalone), the orchestrator runs the merge algorithm below. Chain heads and links do NOT trigger a merge — their commit lands on the worktree branch and the next chain member continues there.
+
+         Orchestrator merge script (runs per chain-tail or standalone completion):
+         ```bash
+         # MAIN_REPO_ROOT, WORKTREE_BRANCH, MERGE_TARGET, CHAIN_ID, VERIFY_CMD sourced from
+         # agent task metadata and the commit body's VERIFY_CMD= line.
+         REPO_ROOT="$MAIN_REPO_ROOT"
+         MAX_RETRIES=5
+         FAIL_REASON=""
+         MERGE_FAILED=false
+
+         for attempt in $(seq 1 $MAX_RETRIES); do
+           PRE_REBASE_HEAD=$(git -C "$REPO_ROOT" rev-parse "$WORKTREE_BRANCH")
+           REBASE_ERR=$(git -C "$REPO_ROOT" -C "$WORKTREE_PATH" rebase "$MERGE_TARGET" 2>&1)
+           if [ $? -ne 0 ]; then
+             git -C "$WORKTREE_PATH" rebase --abort
+             FAIL_REASON="conflict_needs_user"
+             MERGE_FAILED=true
+             break
+           fi
+           POST_REBASE_HEAD=$(git -C "$REPO_ROOT" rev-parse "$WORKTREE_BRANCH")
+
+           if [ "$PRE_REBASE_HEAD" != "$POST_REBASE_HEAD" ]; then
+             if [ -z "$VERIFY_CMD" ]; then
+               FAIL_REASON="no_verify_cmd"
+               MERGE_FAILED=true
+               break
+             fi
+             VERIFY_OUT=$(cd "$WORKTREE_PATH" && eval "$VERIFY_CMD" 2>&1)
+             if [ $? -ne 0 ]; then
+               git -C "$WORKTREE_PATH" reset --hard ORIG_HEAD
+               FAIL_REASON="verify_regression"
+               MERGE_FAILED=true
+               break
+             fi
+           fi
+
+           git -C "$REPO_ROOT" checkout "$MERGE_TARGET"
+
+           if [ -n "$CHAIN_ID" ] && [ "$CHAIN_ID" != "none" ]; then
+             CHAIN_LOG=$(git -C "$REPO_ROOT" log --reverse --pretty='format:--- %s%n%b%n' "$MERGE_TARGET..$WORKTREE_BRANCH")
+             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET (chain: $CHAIN_ID)
+
+$CHAIN_LOG"
+           else
+             LAST_COMMIT_BODY=$(git -C "$REPO_ROOT" log -1 --pretty=%B "$WORKTREE_BRANCH")
+             git -C "$REPO_ROOT" merge --no-ff "$WORKTREE_BRANCH" -m "merge: $WORKTREE_BRANCH → $MERGE_TARGET
+
+$LAST_COMMIT_BODY"
+           fi
+
+           if [ $? -eq 0 ]; then
+             git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH" --force
+             git -C "$REPO_ROOT" branch -d "$WORKTREE_BRANCH"
+             git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
+             exit 0   # proceed to TaskList rescan and cascade dispatch
+           fi
+
+           git -C "$REPO_ROOT" merge --abort
+           git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
+           sleep $((attempt * 3))
+         done
+
+         if [ "$MERGE_FAILED" = "true" ]; then
+           echo "MERGE_FAIL_REASON=$FAIL_REASON"
+           exit 1
+         fi
+         echo "MERGE_FAIL_REASON=retries_exhausted"
+         exit 1
+         ```
+
+         On merge failure: TaskCreate an investigation sibling task using `references/investigation-task-template.md` (subject: `INVESTIGATE: <agent task subject> — merge failure`, body includes `failure_reason`, diagnostic details, affected dependents). Mark affected downstream dependents as staying blocked. Emit merge-failure notice to orchestrator log. Do NOT cascade from a merge failure.
+
+         On merge success: proceed to the TaskList rescan and cascade dispatch (step 3b).
+
+         **Step 3b — Cascade dispatch (runs after successful merge, or immediately for chain-head/link completions):**
+
+         The orchestrator runs its own TaskList rescan (not relying on `DISPATCHED:` from the agent — `DISPATCHED: none` is always emitted by the agent):
+         a. Call `TaskList({})`. For each pending task `t`: check if all of `t.blockedBy` are `completed`. If yes, `t` is newly unblocked.
+         b. For newly-unblocked tasks: call `TaskGet(id)` first. **If `status != "pending"`, skip** — a sibling notification handler already claimed it.
+         c. For tasks still `pending`: call `TaskUpdate(id, status=in-progress)` to claim, then dispatch `Agent({subagent_type: "delivery-agent", prompt: TaskGet(id).description, run_in_background: true})`.
+         d. Batch all claims and dispatches in a SINGLE parallel response.
+
       4. **`RESULT: partial`** — do NOT cascade. The agent has called `TaskUpdate(failed)` itself (per `## On RESULT: partial` in delivery-agent.md — partial is a terminal disposition under the new contract). No orchestrator action; downstream dependents stay `pending` (same as `RESULT: failed`). If the agent left its task `in-progress` instead of `failed`, that's a contract violation — surface as STALLED via hang-detection.
-      5. **`RESULT: failed`** — do NOT cascade. The agent has called `TaskUpdate(failed)` and TaskCreate'd a sibling investigation task (per `## On RESULT: failed` in delivery-agent.md). Failed tasks do not unblock dependents — downstream tasks stay `pending` and visible via `TaskList({})`.
+      5. **`RESULT: failed`** — do NOT cascade. The agent has called `TaskUpdate(failed)`. The orchestrator (not the agent) TaskCreates the investigation sibling task using `references/investigation-task-template.md`. Failed tasks do not unblock dependents — downstream tasks stay `pending` and visible via `TaskList({})`.
       6. **Termination check:** repeat until `TaskList({})` shows no `pending` or `in-progress` tasks of type delivery-agent / regression / open-pr. Tasks left `in-progress` past `MAX_AGENT_WALL_TIME` trigger hang detection (below).
 
     The orchestrator therefore DOES loop — driven by notification events, not poll intervals. (Earlier "orchestrator does not loop" wording was based on a synchronous-cascade model; under backgrounding, the orchestrator is the only entity that can see notifications, so it must own dispatch.)
 
   **Hang detection.** When dispatching, record `agentId → dispatch_epoch` in orchestrator memory. After each notification, also check: any agentId whose elapsed wall-time > `MAX_AGENT_WALL_TIME` (default 1800s; configurable per plan via `MAX_AGENT_WALL_TIME=<sec>` env var) — surface STALLED via AskUserQuestion (kill / wait N minutes / abandon). No TaskList heartbeat is available; this timer is the only signal.
 
-  Failure: agents follow `## On RESULT: failed` in `agents/delivery-agent.md`, which JIT-loads
-  `references/investigation-task-template.md` to TaskCreate a sibling investigation task.
+  Failure: on `RESULT: failed`, the orchestrator (not the agent) JIT-loads
+  `references/investigation-task-template.md` and calls TaskCreate to register a sibling
+  investigation task. The agent only emits the status block — no TaskCreate on the agent side.
   Status protocol uses RESULT/WORK/INCOMPLETE/FAILURE/ARTIFACT/DISPATCHED fields; FAILURE ∈
   {no_change, partial_change, test_failures, conflict_needs_user, needs_split}. Failed tasks
   do not cascade — downstream dependents stay pending, visible via `TaskList({})`.
@@ -846,9 +973,9 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
 - `Create integration branch`: run the bash from Step 3 — `git -C "$REPO_ROOT" checkout -b "$INTEGRATION_BRANCH" "$UPSTREAM_BRANCH"` then `git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"` to leave the user on their starting branch. Halt on `show-ref --verify` collision per the pre-flight rule above.
 - `Setup .worktrees`: use existing `$REPO_ROOT/.worktrees/` or create it (`mkdir -p "$REPO_ROOT/.worktrees"`), add `.worktrees/` to `$REPO_ROOT/.gitignore`, `git -C "$REPO_ROOT" add .gitignore && git -C "$REPO_ROOT" commit -m "chore: ignore .worktrees"`. **Note:** this commit lands on `UPSTREAM_BRANCH` (the user is checked out there), not on `INTEGRATION_BRANCH`. That's fine — the `.gitignore` change is meta-bookkeeping and the integration branch will inherit it on the next merge from upstream if needed.
 
-**Create worktree task execution** (async background Task):
+**Create worktree task execution** (async background Task, lazy dispatch):
 
-Each create-wt is dispatched as a background Task (`run_in_background=True`). Description = exact bash from `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md` (loaded JIT). No prose form. Agent runs and reports a STATUS line. All ready create-wt dispatch in one parallel batch.
+Each create-wt is dispatched as a background Task (`run_in_background=True`) when all its blockers become completed (per Phase B lazy cascade). Description = exact bash from `${CLAUDE_SKILL_DIR}/references/create-wt-prompt.md` (loaded JIT). No prose form. Agent runs and reports a STATUS line. Create-wt tasks are NOT batched up-front — each is dispatched individually as its blocked-by set clears.
 
 Orchestrator reads only the `STATUS:` line. `success` → mark create-wt completed (unblocks its delivery-agent). `failure` → mark failed, halt dependent delivery-agent, report.
 
@@ -1064,11 +1191,11 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
 
 - **Division of labor — orchestrator vs. task agent:**
   - The **orchestrator** (this skill) reads plans, extracts proposals, builds the task graph, dispatches Agents, and reports. **It NEVER writes implementation code.** Even when the input plan contains code blocks, the orchestrator extracts the contract (file paths, exports, behaviors) and passes that as the task description — see "Task definition rules" in Step 3.
-  - The **task agent** (the dispatched delivery-agent) reads its task description, writes the actual implementation, runs the tests, commits, and self-merges. The agent owns 100% of the typing in source files. The orchestrator owns 100% of the topology and dispatch.
+  - The **task agent** (the dispatched delivery-agent) reads its task description, writes the actual implementation, runs the tests, and commits. The agent owns 100% of the typing in source files. The orchestrator owns 100% of the topology, dispatch, and post-notification merging into INTEGRATION_BRANCH.
   - If you find yourself (the orchestrator) writing code into a task description, stop. Convert it to a contract first.
 - **Sub-task agents are internal to a parent delivery-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
 - **Sub-task `MERGE_TARGET` = the parent delivery-agent's working branch.** Never TARGET_BRANCH.
-- **`run_in_background: true` (live mode) on:** create-wt, delivery-agent, regression Agent, open-pr Bash, and heavy git-prep Bash. **Foreground (synchronous) in dry-run mode** — the simulate-prefix iteration parses each agent's returned text inline.
+- **`run_in_background: true` (live mode) on:** create-wt, delivery-agent, regression Agent, open-pr Bash, heavy git-prep Bash, and orchestrator merge Bash (per ORCHESTRATOR_MERGE_ALGORITHM). **Foreground (synchronous) in dry-run mode** — the simulate-prefix iteration parses each agent's returned text inline.
 - **`conflict_needs_user` does not halt the loop** — only the affected merge chain stalls. Independent delivery-agents continue.
 - **`git add -A` is forbidden in checkpoints.** Stage by name to avoid pulling unrelated state.
 - **Parallel same-file edits are not automatic conflicts.** Restructure only when edits overlap semantically (same region, function, or config key). See Step 1 Output Mapping Pass.
@@ -1078,8 +1205,9 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
 - **No TaskCreate on Branch B before senior review completes.** Branch A may TaskCreate after Step 1.
 - **When in doubt about isolation, create a worktree.**
 - **`MERGE_TARGET` for delivery-agents is the integration branch, never the user's
-  starting branch.** Worktrees fork from `INTEGRATION_BRANCH`, delivery-agents
-  self-merge into `INTEGRATION_BRANCH`, and the final `open-pr` task PRs
+  starting branch.** Worktrees fork from `INTEGRATION_BRANCH`, the orchestrator
+  merges each chain-tail and standalone agent branch into `INTEGRATION_BRANCH` after
+  receiving the agent's completion notification, and the final `open-pr` task PRs
   `INTEGRATION_BRANCH → UPSTREAM_BRANCH`. The starting branch is left untouched as
   the PR target — the user ends the run on the same branch they started on.
 - **Commit messages follow the structured Why / What was considered / What was tested

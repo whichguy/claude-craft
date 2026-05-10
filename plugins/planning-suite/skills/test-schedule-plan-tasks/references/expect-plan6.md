@@ -77,17 +77,11 @@ G. Assert 7 (one create-wt per chain):
    Exactly ONE create-wt exists for chain-2. Phase F must not have its own create-wt.
    Fail if chain-1 tail (B) or chain-2 tail (F) have their own create-wt.
 
-H. Self-merge fields in ### Task Details:
-   - Phase A (chain-1 head): Self-merge: no
-   - Phase B (chain-1 tail): Self-merge: yes
-   - Phase C (standalone): Self-merge: yes
-   - Phase D (standalone): Self-merge: yes
-   - Phase E (chain-2 head): Self-merge: no
-   - Phase F (chain-2 tail): Self-merge: yes
-   - Phase G (standalone): Self-merge: yes
-   - Phase H (standalone): Self-merge: yes
-
-I. Self-merge flag: only Phase B (chain-1 tail), Phase F (chain-2 tail), Phase C, Phase D,
-   Phase G, and Phase H (all Chain: none or tail) must have Self-merge: yes in their
-   Execution context. Phase A (chain-1 head) and Phase E (chain-2 head) must have Self-merge: no.
-   Fail if any head has Self-merge: yes or any tail/standalone has Self-merge: no.
+H. Orchestrator merge: the orchestrator merges every chain-tail and standalone agent branch into INTEGRATION_BRANCH after receiving the agent's completion notification. Verify by checking that `git log --merges --first-parent INTEGRATION_BRANCH` contains merge commits for:
+   - Phase B (chain-1 tail) branch
+   - Phase C (standalone) branch
+   - Phase D (standalone) branch
+   - Phase F (chain-2 tail) branch
+   - Phase G (standalone) branch
+   - Phase H (standalone) branch
+   Chain heads (Phase A, Phase E) must NOT have merge commits on INTEGRATION_BRANCH. No `.selfmerge-status` files should exist in any worktree.

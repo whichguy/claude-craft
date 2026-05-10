@@ -35,6 +35,4 @@ C. Metadata presence check: in the ### Task Details section, find the delivery-a
 
 D. Regression: verify a regression task exists blocked by the standalone delivery-agent.
 
-E. Self-merge flag: the Health Route delivery-agent (standalone, Chain: none) must have
-   Self-merge: yes in its Execution context.
-   Fail if Self-merge: no or Self-merge is absent.
+E. Orchestrator merge: the orchestrator merges every chain-tail and standalone agent branch into INTEGRATION_BRANCH after receiving the agent's completion notification. Verify by checking that `git log --merges --first-parent INTEGRATION_BRANCH` contains a merge commit for the Health Route standalone branch. No `.selfmerge-status` files should exist in any worktree.

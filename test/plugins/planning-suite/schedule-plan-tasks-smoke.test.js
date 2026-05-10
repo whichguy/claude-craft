@@ -635,16 +635,17 @@ describe('REPO_ROOT support (target repo ≠ CWD + bootstrap)', function () {
         expect(ENVELOPE.includes('[MAIN_REPO_ROOT value]'), 'placeholder description').to.be.true;
     });
 
-    it('delivery-agent.md self-merge no longer relies on `git rev-parse --show-toplevel`', function () {
-        // The buggy literal must be gone from the self-merge derivation.
+    it('orchestrator merge algorithm in SKILL.md references MAIN_REPO_ROOT', function () {
+        // The self-merge bash moved from delivery-agent.md to the orchestrator in SKILL.md.
+        // SKILL.md's ORCHESTRATOR_MERGE_ALGORITHM must reference MAIN_REPO_ROOT.
         expect(
             AGENT.includes('REPO_ROOT=$(git rev-parse --show-toplevel)'),
-            'buggy --show-toplevel derivation removed',
+            'buggy --show-toplevel derivation removed from delivery-agent.md',
         ).to.be.false;
-        // And the new derivation must reference [MAIN_REPO_ROOT] (envelope read) with a
-        // --git-common-dir fallback.
-        expect(AGENT.includes('REPO_ROOT="[MAIN_REPO_ROOT]"'), 'envelope-driven REPO_ROOT').to.be.true;
-        expect(AGENT.includes('--git-common-dir'), 'common-dir fallback').to.be.true;
+        // The merge algorithm now lives in SKILL.md — verify it contains MAIN_REPO_ROOT.
+        expect(SKILL.includes('MAIN_REPO_ROOT'), 'MAIN_REPO_ROOT referenced in SKILL.md orchestrator merge').to.be.true;
+        // delivery-agent.md must NOT contain the self-merge bash (no selfmerge-status file writes).
+        expect(AGENT.includes('.selfmerge-status'), 'selfmerge-status removed from agent').to.be.false;
     });
 
     it('plan9-external-repo.md fixture has a Repo: front-matter line', function () {

@@ -83,14 +83,12 @@ G. Assert 7 (one create-wt per chain):
    (chain-2 tail).
    Fail if chain-1 tail (B) or chain-2 tail (F) have their own create-wt.
 
-H. Self-merge fields in ### Task Details:
-   - Step A (chain-1 head):   Self-merge: no
-   - Step B (chain-1 tail):   Self-merge: yes
-   - Step C (standalone):     Self-merge: yes
-   - Step D (standalone):     Self-merge: yes
-   - Step E (chain-2 head):   Self-merge: no
-   - Step F (chain-2 tail):   Self-merge: yes
-   Fail if any head shows Self-merge: yes or any tail/standalone shows Self-merge: no.
+H. Orchestrator merge: the orchestrator merges every chain-tail and standalone agent branch into INTEGRATION_BRANCH after receiving the agent's completion notification. Verify by checking that `git log --merges --first-parent INTEGRATION_BRANCH` contains merge commits for:
+   - Step B (chain-1 tail) branch
+   - Step C (standalone) branch
+   - Step D (standalone) branch
+   - Step F (chain-2 tail) branch
+   Chain heads (Step A, Step E) must NOT have merge commits on INTEGRATION_BRANCH. No `.selfmerge-status` files should exist in any worktree.
 
 I. Worktree count:
    Exactly 4 worktree paths appear across all delivery-agent metadata:

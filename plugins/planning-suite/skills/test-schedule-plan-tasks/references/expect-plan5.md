@@ -55,11 +55,9 @@ D. Parallel chains: chain-1 and chain-2 delivery-agents must have NO blocker rel
    other. Their create-wt tasks are each only blocked by Setup .worktrees (no cross-chain deps).
    Fail if chain-1 and chain-2 create-wts are blocked by each other.
 
-E. Chain role fields in ### Task Details:
-   - Chain A Phase 1: Self-merge: no (head)
-   - Chain A Phase 2: Self-merge: yes (tail)
-   - Chain B Phase 1: Self-merge: no (head)
-   - Chain B Phase 2: Self-merge: yes (tail)
-   - Admin: Self-merge: yes (standalone, Chain: none)
-   - Smoke Test: Self-merge: yes (standalone, Chain: none)
-   Fail if any chain head shows Self-merge: yes or any tail/standalone shows Self-merge: no.
+E. Orchestrator merge: the orchestrator merges every chain-tail and standalone agent branch into INTEGRATION_BRANCH after receiving the agent's completion notification. Verify by checking that `git log --merges --first-parent INTEGRATION_BRANCH` contains merge commits for:
+   - chain-1 tail (Chain A Phase 2 / Pagination) branch
+   - chain-2 tail (Chain B Phase 2 / Rate Limit) branch
+   - Admin standalone branch
+   - Smoke Test standalone branch
+   Chain heads (API Router, CORS) must NOT have merge commits on INTEGRATION_BRANCH — they commit only to their chain worktree branch. No `.selfmerge-status` files should exist in any worktree.
