@@ -33,14 +33,14 @@ Invoke `/prompt-migrate <path-to-prompt-file> --remediation <audit-output>` usin
 Invoke `/prompt-align <path-to-prompt-file>`. If any `✗ conflict` rows remain after migration, fix them inline (they were missed by the migrate step) and commit:
 
 ```bash
-git -C /Users/dadleet/claude-craft add <files>
-git -C /Users/dadleet/claude-craft commit -m "fix(<scope>): align harness after prompt migration"
+git -C "${CLAUDE_PLUGIN_ROOT}/../.." add <files>
+git -C "${CLAUDE_PLUGIN_ROOT}/../.." commit -m "fix(<scope>): align harness after prompt migration"
 ```
 
 ## Step 5 — Final verification
 
 ```bash
-cd /Users/dadleet/claude-craft && npm test && ./tools/lint-marketplace.sh
+cd "${CLAUDE_PLUGIN_ROOT}/../.." && npm test && ./tools/lint-marketplace.sh
 ```
 
 Expected: All green.

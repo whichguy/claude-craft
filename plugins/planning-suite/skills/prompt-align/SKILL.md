@@ -16,7 +16,7 @@ Compare an agent/skill prompt against its test harness. Emit a mismatch report.
 If `--harness` is omitted, search for the harness automatically:
 
 ```bash
-find /Users/dadleet/claude-craft/plugins -name "SKILL.md" | xargs grep -l "test.*<agent-basename>\|<agent-basename>.*test" 2>/dev/null
+find "${CLAUDE_PLUGIN_ROOT}/.." -name "SKILL.md" | xargs grep -l "test.*<agent-basename>\|<agent-basename>.*test" 2>/dev/null
 ```
 
 ## Step 1 — Read both files

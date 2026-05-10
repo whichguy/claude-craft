@@ -24,7 +24,7 @@ Read the remediation list. For each CRITICAL or HIGH item, classify it:
 ## Step 2 — Read existing tests
 
 ```bash
-find /Users/dadleet/claude-craft/test -name "*.test.js" | xargs grep -l "<prompt-file-basename>"
+find "${CLAUDE_PLUGIN_ROOT}/../../test" -name "*.test.js" | xargs grep -l "<prompt-file-basename>"
 ```
 
 Read each test file in full.
@@ -34,7 +34,7 @@ Read each test file in full.
 For each test-verifiable CRITICAL/HIGH item, add a new `it(...)` assertion to the appropriate test file. Verify tests fail before proceeding:
 
 ```bash
-cd /Users/dadleet/claude-craft && npm test -- --grep "<suite name>"
+cd "${CLAUDE_PLUGIN_ROOT}/../.." && npm test -- --grep "<suite name>"
 ```
 
 Expected: ≥1 failure per test-verifiable item. **Do not commit.**
@@ -46,7 +46,7 @@ For each CRITICAL and HIGH remediation item (both test-verifiable and prose-only
 ## Step 5 — Run tests — confirm green
 
 ```bash
-cd /Users/dadleet/claude-craft && npm test -- --grep "<suite name>"
+cd "${CLAUDE_PLUGIN_ROOT}/../.." && npm test -- --grep "<suite name>"
 ```
 
 Expected: All green (including the assertions added in Step 3).
@@ -56,8 +56,8 @@ If any test still fails, diagnose and fix before proceeding.
 ## Step 6 — Commit test changes and prompt changes together
 
 ```bash
-git -C /Users/dadleet/claude-craft add <test-file(s)> <prompt-file>
-git -C /Users/dadleet/claude-craft commit -m "<type>(<scope>): <summary of migration>"
+git -C "${CLAUDE_PLUGIN_ROOT}/../.." add <test-file(s)> <prompt-file>
+git -C "${CLAUDE_PLUGIN_ROOT}/../.." commit -m "<type>(<scope>): <summary of migration>"
 ```
 
 Never split test changes and prompt changes into separate commits.
