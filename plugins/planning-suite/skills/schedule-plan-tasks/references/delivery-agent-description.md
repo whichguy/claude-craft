@@ -21,7 +21,6 @@ Substitute placeholders per task:
 - `Isolation: native worktree` — for worktree tasks; for trivial tasks, use `Isolation: none (trivial)`
 - `Self-merge: yes` — for Chain: none and Chain: tail tasks; `no` for Chain: head and Chain: link tasks
 - `Chain: <chain-K | none>` — substituted from `metadata.chain_id` and `metadata.chain_role`; `none` for standalones, `chain-K` for chain members (head/link/tail). The agent's self-merge block reads this header to choose between standalone and chain merge-commit bodies.
-- `Cascade: required` — fixed literal. Precondition reminder: before `RESULT: complete`, the agent must have run TaskList, gated candidates, and recorded unblocked IDs in `DISPATCHED:`. Full contract in `agents/delivery-agent.md`.
 - `Prior chain commits:` — chain `link`/`tail` only (omit for `head` and standalones). Tells the agent to read predecessor commits' "Key learnings" sections before starting.
 - `[symlinked paths outside worktree, or "none"]` — only paths to files outside the git repo that were explicitly symlinked in
 - `[one-paragraph guidance]` — a single paragraph (≤ ~120 words) describing what to accomplish: the goal, the file(s) involved, key behavioral expectations, and how success is observable. No code blocks, no numbered steps, no separate Definition-of-done section — the agent derives all of that from this paragraph plus its system prompt.
@@ -40,7 +39,6 @@ MERGE_TARGET: [MERGE_TARGET value]
 Isolation: native worktree | none (trivial)
 Self-merge: yes | no
 Chain: <chain-K | none>
-Cascade: required (TaskList → gate-check → record unblocked IDs in DISPATCHED: BEFORE emitting RESULT: complete)
 Prior chain commits: <chain-link/tail only — omit line for head and standalones>
 External resources: [symlinked paths outside worktree, or "none"]
 
