@@ -394,7 +394,7 @@ when the work warrants parallel decomposition).
 then dispatch an Agent using this same template with: Working directory = sub-worktree path,
 MERGE_TARGET = your working branch (not Target branch), MAIN_REPO_ROOT = your `WORKTREE_PATH`
 (your own worktree, where the parent's working branch is checked out — this is where the
-sub-task's self-merge lands). Dispatch all sub-tasks in parallel
+sub-task's branch merges into). Dispatch all sub-tasks in parallel
 (one message, multiple Agent calls). Wait for all to return `RESULT: complete` before
 continuing — your own merge does not proceed until every sub-task has merged into your
 working branch.
@@ -555,7 +555,7 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 
 Under orchestrator-owned cascade (2026-05-09 inversion), the orchestrator does **not** auto-re-dispatch on partial — partial is a halt-and-surface signal, not a "try again" signal. Choose one terminal disposition:
 
-1. **Recoverable-with-investigation** (preferred when the partial state has a known cause): treat partial like failed — `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })` and JIT-load the investigation-task-template (per `## On RESULT: failed` step 2) to register a sibling investigation task. Emit `RESULT: failed`, `FAILURE: partial_change` instead of `RESULT: partial`. This is the path that engages the orchestrator correctly.
+1. **Recoverable-with-investigation** (preferred when the partial state has a known cause): treat partial like failed — `TaskUpdate({ taskId: "[TASK_ID]", status: "failed" })`. Emit `RESULT: failed`, `FAILURE: partial_change` instead of `RESULT: partial`. The orchestrator will TaskCreate the investigation task on its side (same path as `## On RESULT: failed` step 2). This is the path that engages the orchestrator correctly.
 2. **Genuinely partial** (you accomplished part of the DoD and want a future retry without an investigation TaskCreate): `TaskUpdate({ status: "failed" })` with a clear `INCOMPLETE:` field describing the unfinished portion. The user (not the orchestrator) decides whether to TaskCreate a new sibling task to retry. Emit `RESULT: partial`, `DISPATCHED: none`.
 
 NO cascade dispatch in either path — `DISPATCHED: none`. Set `INCOMPLETE` to the unfinished portion of your inferred what-to-do. Do NOT leave the task `in-progress` — that strands the graph and only resolves via hang-detection timeout.

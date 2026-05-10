@@ -577,7 +577,7 @@ purposes (the merge destination). `UPSTREAM_BRANCH` is the PR target only.
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/delivery-agent-description.md`** — load the verbatim envelope template. The agent's behavior contract (lifecycle, merge protocol, status protocol, specialist catalog, sub-task spawning) lives in `agents/delivery-agent.md` and is loaded by the harness — do NOT paste any of that into the description.
 2. **THEN:** Substitute placeholders per task, paste verbatim into `TaskCreate.description`, and dispatch with `subagent_type: "delivery-agent"`. Do not paraphrase.
    - Set `Working directory:` to the absolute worktree path `$REPO_ROOT/.worktrees/<id>` (e.g. `/Users/x/projectB/.worktrees/chain-1`) or `main workspace` for trivial tasks. Always absolute — never relative — because the agent's host CWD may differ from `$REPO_ROOT`.
-   - Set `MAIN_REPO_ROOT:` to `$REPO_ROOT` (absolute) for every orchestrator-dispatched delivery-agent task. The agent's self-merge block reads this header to locate the main repo (a worktree's `git rev-parse --show-toplevel` returns the worktree itself, not the main repo).
+   - Set `MAIN_REPO_ROOT:` to `$REPO_ROOT` (absolute) for every orchestrator-dispatched delivery-agent task. The orchestrator's merge algorithm reads this header to locate the main repo (a worktree's `git rev-parse --show-toplevel` returns the worktree itself, not the main repo).
    - Set `MERGE_TARGET:` to the `INTEGRATION_BRANCH` value for all orchestrator-dispatched tasks.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
    - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones.
