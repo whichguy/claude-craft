@@ -77,9 +77,9 @@ run alongside the L0a block emission; the first *write* happens after L0a is on 
    <1–3 sentence expanded understanding distilled from the envelope's guidance.>
 
    ## Steps
-   - [ ] Phase 0: Analyze scope and codebase / environment prep
-   - [ ] Phase 1: <first implementation step — fill in from envelope>
-   - [ ] Phase 2: <second step>
+   - [ ] P0: Analyze scope and codebase / environment prep (inline — goal expansion + env check)
+   - [ ] P1: <Research step if needed — fill in from envelope>
+   - [ ] P2: <first implementation step — fill in from envelope>
    - [ ] ...
    - [ ] Pre-completion rebase (chain-tail or standalone only)
    - [ ] Commit and signal complete
@@ -182,7 +182,7 @@ Selection rules:
 3. **Fall back to `general-purpose`** only when no specialist applies. Record
    the fallback explicitly: `general-purpose — no domain specialist matches
    <signal>`.
-4. **`Explore` is reserved for Phase 1 Research** (when present in the skip
+4. **`Explore` is reserved for P1 Research** (when present in the skip
    variant).
 5. **Split a phase** when the deliverable contains 2+ chunks that map to
    *different* specialists. Sub-task ordering is sequential by default;
@@ -274,7 +274,7 @@ Dispatch is reactive, not precomputed. There is no "wave schedule" — at any
 tick, **a phase is ready iff all of its `blockedBy` entries are `completed`**.
 The loop is:
 
-1. Run inline phases first (Phase 0 environment-prep), mark `completed`.
+1. Run inline phases first (P0 goal expansion + P2 environment-prep), mark `completed`.
 2. Compute the ready-set: walk every pending phase task, gather those whose
    blockers are all `completed`. Dispatch the entire ready-set in a SINGLE
    parallel Agent batch (one message, multiple `Agent({...})` calls). When
