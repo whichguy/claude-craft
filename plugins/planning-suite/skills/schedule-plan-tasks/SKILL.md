@@ -159,21 +159,21 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 
 ---
 
-**Stale-state warning (runs in Branch A after git context prime, before plan parsing):** Run `git -C "$REPO_ROOT" log -10 --oneline "$UPSTREAM_BRANCH"` and for each proposal title T (extracted from the plan step headers), check whether T appears as a contiguous case-insensitive substring of any commit subject in that log. If any match is found, print:
-```
-[WARNING] Possible re-run on already-executed plan.
-  The following proposal titles match recent commits on $UPSTREAM_BRANCH:
-    - "<title>" matches commit <sha> "<commit subject>"
-  You may be re-running a previously-executed plan. Verify intent before proceeding.
-```
-Print the warning but do not halt — the user must confirm via the existing plan-review gate. Use case-insensitive substring match only (no Levenshtein or word-overlap). This check runs only in `live` mode; skip in `dry-run`, `plan-only`, `dry-run-analyze`, and `status-check` modes.
-
 **Branch A — Plan file:**
 
 1. Resolve the plan file path:
    - If `PlanPath` is set (from `--plan <path>`): use it directly. Verify the file is readable; halt with `Plan file not found: <path>` if not.
    - Otherwise: auto-discover — planning mode context, current session, or `ls -t ~/.claude/plans/*.md | head -1`.
 2. For each step, extract proposal: `What`=step title; `Why`=rationale/Context; `Scope`=small|medium|large
+
+   **Stale-state warning (runs immediately after proposals are extracted — step 2 output):** Run `git -C "$REPO_ROOT" log -10 --oneline "$UPSTREAM_BRANCH"` and for each proposal title T just extracted, check whether T appears as a contiguous case-insensitive substring of any commit subject in that log. If any match is found, print:
+   ```
+   [WARNING] Possible re-run on already-executed plan.
+     The following proposal titles match recent commits on $UPSTREAM_BRANCH:
+       - "<title>" matches commit <sha> "<commit subject>"
+     You may be re-running a previously-executed plan. Verify intent before proceeding.
+   ```
+   Print the warning but do not halt. Use case-insensitive substring match only (no Levenshtein or word-overlap). This check runs only in `live` mode; skip in `dry-run`, `plan-only`, `dry-run-analyze`, and `status-check` modes.
 3. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; these drive chain detection and the two-phase creation/wiring pass
 4. **Output Mapping Pass (structural analysis):** For each proposal, note the files it expects to modify. Using the DEPENDS ON graph from step 3, identify parallel proposals (no dependency path between them) that touch the same file. For each overlap, reason through three cases — touching the same file is NOT automatically a conflict:
 
@@ -184,27 +184,6 @@ Print the warning but do not halt — the user must confirm via the existing pla
    **Case C — Overlapping functionality:** Two or more parallel tasks modify the same region with semantically overlapping logic (same function body, same config key, same variable). These cannot be merged cleanly and represent a logical conflict. **Restructure.** Add DEPENDS ON to serialize them, or extract the shared region into a dedicated task.
 
    Emit an advisory note for Case A, a structural suggestion for Case B, and a required restructuring notice for Case C. Do not abort for Cases A or B.
-
-   **Concurrency Audit Pass** (runs after chain detection in Step 3, applied deterministically):
-
-   After chain detection, apply three rules to potentially refine the task graph:
-
-   **Split rule.** For each delivery-agent task whose envelope lists ≥ 2 source files: if every listed file (a) has exactly one author task in the plan AND (b) each file's only cross-task interaction is appending to a shared mountpoint/registration file (Case A semantics from the Output Mapping Pass) AND (c) no listed file imports another listed file in the same task — then split into N parallel sibling tasks (one per file). Each sibling is blocked on the original task's blockers. The shared mountpoint file is appended to in each sibling and rebases cleanly via Case-A semantics. If any condition is uncertain, do NOT split — fail closed.
-
-   **Worked split example:** A task writing `src/routes/{scenarios,project,simulate,tax}.ts` + `src/server.ts` mountpoints: each route file has one author, shared file is `src/server.ts` (append-only register lines), no route imports another → split into 4 parallel siblings, each blocked on the same upstream tasks.
-
-   **Refusal example (when NOT to split):** A task writing `src/db/schema.ts` + `src/db/migrations/001_init.ts` + `src/db/client.ts`: schema is imported by both migration and client → fails rule (c) → keep bundled.
-
-   **De-chain rule (regex-bounded).** A tail task T is reclassified from `Chain: tail` to `Chain: none` (standalone) ONLY IF:
-   - T's envelope guidance matches `/(import|reads?|consumes?|uses?)\s+\S+\s+from\s+\S*\.(types|schema|contract|interface)\b/i`
-   - AND T's envelope guidance does NOT match `/(import|requires?)\s+\S+\s+from\s+\S*\.(impl|service|handler)\b/i`
-   - AND manual override is absent: plan author can pin `Chain: tail` with a `<!-- pin-chain -->` HTML comment in the proposal to suppress this rule.
-   If either condition is uncertain, keep the chain edge — fail closed. When reclassified, T's blocker becomes the original upstream chain's tail.
-
-   **Regression Blocker Reduction enhancement (regex-bounded).** The existing Regression Blocker Reduction (Step 3) is augmented: when tail/standalone R has a downstream tail/standalone S, drop the direct R → regression edge only if BOTH:
-   - S's verification text matches `/(npm|pnpm|yarn|bun)\s+(run\s+)?test\b/`
-   - AND S's envelope guidance matches `/from\s+['"][^'"]*<R-module-name>[^'"]*['"]/` where `<R-module-name>` is derived from R's primary file (e.g. `src/engine/tax.ts` → `tax`).
-   Otherwise keep the edge — fail closed.
 
 5. Note plan's Verification section → seed for validation tasks
 6. `{context}` = full plan file content
@@ -342,6 +321,27 @@ Print chain assignments after detection:
 [chain] chain-1: Proposal-A (head) → Proposal-B (link) → Proposal-C (tail)
 [chain] standalone: Proposal-D
 ```
+
+**Concurrency Audit Pass** (runs immediately after chain detection, before the creation pass):
+
+Apply three rules to potentially refine the task graph. All rules fail closed — when uncertain, keep the existing topology.
+
+**Split rule.** For each delivery-agent task whose envelope lists ≥ 2 source files: if every listed file (a) has exactly one author task in the plan AND (b) each file's only cross-task interaction is appending to a shared mountpoint/registration file (Case A semantics from the Output Mapping Pass in Step 1) AND (c) no listed file imports another listed file in the same task — then split into N parallel sibling tasks (one per file). Each sibling is blocked on the original task's blockers. The shared mountpoint file is appended to in each sibling and rebases cleanly via Case-A semantics. If any condition is uncertain, do NOT split.
+
+**Worked split example:** A task writing `src/routes/{scenarios,project,simulate,tax}.ts` + `src/server.ts` mountpoints: each route file has one author, shared file is `src/server.ts` (append-only register lines), no route imports another → split into 4 parallel siblings, each blocked on the same upstream tasks.
+
+**Refusal example (when NOT to split):** A task writing `src/db/schema.ts` + `src/db/migrations/001_init.ts` + `src/db/client.ts`: schema is imported by both migration and client → fails rule (c) → keep bundled.
+
+**De-chain rule (regex-bounded).** A tail task T is reclassified from `Chain: tail` to `Chain: none` (standalone) ONLY IF:
+- T's envelope guidance matches `/(import|reads?|consumes?|uses?)\s+\S+\s+from\s+\S*\.(types|schema|contract|interface)\b/i`
+- AND T's envelope guidance does NOT match `/(import|requires?)\s+\S+\s+from\s+\S*\.(impl|service|handler)\b/i`
+- AND manual override is absent: plan author can pin `Chain: tail` with a `<!-- pin-chain -->` HTML comment in the proposal to suppress this rule.
+If either condition is uncertain, keep the chain edge. When reclassified, T's blocker becomes the original upstream chain's tail.
+
+**Regression Blocker Reduction enhancement (regex-bounded).** Augments the existing Regression Blocker Reduction (see Step 3 creation pass): when tail/standalone R has a downstream tail/standalone S, drop the direct R → regression edge only if BOTH:
+- S's verification text matches `/(npm|pnpm|yarn|bun)\s+(run\s+)?test\b/`
+- AND S's envelope guidance matches `/from\s+['"][^'"]*<R-module-name>[^'"]*['"]/` where `<R-module-name>` is derived from R's primary file (e.g. `src/engine/tax.ts` → `tax`).
+Otherwise keep the edge.
 
 **Linear-chain serial shortcut (auto-take when topology is single-chain-no-standalones):**
 
@@ -581,7 +581,7 @@ purposes (the merge destination). `UPSTREAM_BRANCH` is the PR target only.
    - Set `MERGE_TARGET:` to the `INTEGRATION_BRANCH` value for all orchestrator-dispatched tasks.
    - Set `Isolation:` to `native worktree` or `none (trivial)`.
    - Set `Chain:` to the task's `metadata.chain_id` (e.g. `chain-1`) when `metadata.chain_role != "none"`, or the literal string `none` for standalones.
-   - Set `Cascade:` to the literal `required (TaskList → gate-check → record unblocked IDs in DISPATCHED: BEFORE emitting RESULT: complete)` for every delivery-agent task — this is the cascade-identification precondition reinforced in the envelope; the agent treats it as load-bearing per `agents/delivery-agent.md` `## Cascade-identification precondition`.
+   - Set `Cascade:` to the literal `orchestrator-owned (set DISPATCHED: none — orchestrator rescans TaskList after your notification)` for every delivery-agent task — this reinforces the contract from `agents/delivery-agent.md` `## Cascade-identification precondition`: the agent does NOT scan TaskList; always sets `DISPATCHED: none`.
    - Set `Prior chain commits:` ONLY for chain `link` and `tail` tasks (`metadata.chain_role in {"link","tail"}`); omit the line entirely for `head` and standalones. Substitute the per-task value: `read \`git -C $WORKTREE_PATH log --format='%n--- %s ---%n%b' $MERGE_TARGET..HEAD\` and ingest each commit's "## Key learnings" section before starting work — these are gotchas already discovered by earlier members of this chain.` (Substitute `$WORKTREE_PATH` and `$MERGE_TARGET` with the literal absolute path / branch name for this task; the agent runs the bash directly.)
    - Replace `[one-paragraph guidance]` with **a single paragraph (≤ ~120 words) of plan-level guidance** distilled from the proposal — see "Task definition rules" below.
    - Leave `Task ID:` as the literal placeholder `[TASK_ID]` — the orchestrator fills it in Phase 1.5 after TaskCreate returns real IDs.
@@ -824,7 +824,7 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
   Orchestrator-owned cascade loop (live mode):
     On each `<task-notification>` (one per backgrounded agent that completes):
       1. Read the `<status>` field. Harness exit status only — `completed` means the agent process exited cleanly; `failed` means the harness itself errored. The agent's *semantic* outcome is in `<result>`. Both branches proceed to step 2; do not gate cascade on `<status>` alone.
-      2. Read the `<result>` field — the agent's STATUS block. Parse `RESULT:` and `DISPATCHED:` lines.
+      2. Read the `<result>` field — the agent's STATUS block. Parse the `RESULT:` line. (`DISPATCHED:` is always `none` — the orchestrator does not rely on it for cascade decisions; it runs its own TaskList rescan in step 3b.)
       3. **`RESULT: complete`** — run the orchestrator merge (step 3a) for chain-tail and standalone completions, then cascade:
 
          **Step 3a — Orchestrator merge (runs for every chain-tail and standalone completion):**
@@ -833,8 +833,11 @@ Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascad
 
          Orchestrator merge script (runs per chain-tail or standalone completion):
          ```bash
-         # MAIN_REPO_ROOT, WORKTREE_BRANCH, MERGE_TARGET, CHAIN_ID, VERIFY_CMD sourced from
-         # agent task metadata and the commit body's VERIFY_CMD= line.
+         # MAIN_REPO_ROOT, WORKTREE_BRANCH, MERGE_TARGET, CHAIN_ID from agent task metadata (TaskGet).
+         # VERIFY_CMD extracted from the agent's commit body on WORKTREE_BRANCH:
+         #   VERIFY_CMD=$(git -C "$REPO_ROOT" log -1 --pretty=%B "$WORKTREE_BRANCH" \
+         #                  | grep -E '^\s+VERIFY_CMD:' | head -1 | sed 's/.*VERIFY_CMD: *//')
+         # If the line is absent, VERIFY_CMD is empty and the no_verify_cmd path fires.
          REPO_ROOT="$MAIN_REPO_ROOT"
          MAX_RETRIES=5
          FAIL_REASON=""
