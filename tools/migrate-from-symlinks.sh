@@ -122,7 +122,28 @@ unlink_claude_craft_symlinks() {
 }
 
 # ----------------------------------------------------------------------------
-# 2b) Relocate async-suite state from legacy ~/.claude/async-prep/ to the new
+# 2b) Remove stale plugin symlinks for absorbed bundles
+# ----------------------------------------------------------------------------
+remove_absorbed_plugin_symlinks() {
+  local absorbed=(wiki-hooks craft-hooks task-persist feedback-collector async-workflow)
+  local count=0
+  for name in "${absorbed[@]}"; do
+    local link="$CLAUDE_DIR/plugins/$name"
+    if [ -L "$link" ]; then
+      rm -f "$link"
+      count=$((count+1))
+      echo "  removed: $link"
+    fi
+  done
+  if [ "$count" -gt 0 ]; then
+    green "✅ removed $count absorbed-plugin symlink(s) from $CLAUDE_DIR/plugins/"
+  else
+    green "✅ no stale plugin symlinks"
+  fi
+}
+
+# ----------------------------------------------------------------------------
+# 2c) Relocate async-suite state from legacy ~/.claude/async-prep/ to the new
 #     per-plugin data dir ~/.claude/plugins/data/async-suite/. Symlink-era
 #     async-suite hooks wrote to the old path; commit 8250b67 switched to
 #     CLAUDE_PLUGIN_DATA. Real users with task state would otherwise orphan it.
@@ -208,6 +229,7 @@ main() {
   strip_settings_hook
   strip_absorbed_plugin_hooks
   unlink_claude_craft_symlinks
+  remove_absorbed_plugin_symlinks
   migrate_async_prep_data
   print_next_steps
 }
