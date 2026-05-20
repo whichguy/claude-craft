@@ -1,6 +1,6 @@
 {
   "name": "review-suite",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Plan review, code review (Adversarial Auditor), review-fix, security/red-team, memory audits.",
   "author": {
     "name": "whichguy",
