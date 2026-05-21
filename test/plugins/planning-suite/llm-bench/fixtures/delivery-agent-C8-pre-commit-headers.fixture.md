@@ -17,8 +17,8 @@ pass_conditions:
   views:
     result:
       must_include:
-        - { pattern: "(?m)^## Scope-drift\\s*$", case_sensitive: true }
-        - { pattern: "(?m)^## Assumptions to verify\\s*$", case_sensitive: true }
+        - { pattern: "(?:^|\\n)## Scope-drift[ \\t]*(?:\\n|$)", case_sensitive: true }
+        - { pattern: "(?:^|\\n)## Assumptions to verify[ \\t]*(?:\\n|$)", case_sensitive: true }
   tool_calls:
     required: ["Agent"]
   semantic:

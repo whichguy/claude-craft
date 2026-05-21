@@ -17,7 +17,7 @@ pass_conditions:
   views:
     assistant_text:
       must_include:
-        - { pattern: "(?m)^## Agent selection\\s*$", case_sensitive: true }
+        - { pattern: "(?:^|\\n)## Agent selection[ \\t]*(?:\\n|$)", case_sensitive: true }
   semantic:
     - id: c2-agent-selection-block-shape-and-order
       view: everything

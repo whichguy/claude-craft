@@ -17,12 +17,12 @@ pass_conditions:
   views:
     result:
       must_include:
-        - { pattern: "(?m)^RESULT:\\s*(complete|partial|failed)\\b",            case_sensitive: true }
-        - { pattern: "(?m)^WORK:",                                              case_sensitive: true }
-        - { pattern: "(?m)^INCOMPLETE:",                                        case_sensitive: true }
-        - { pattern: "(?m)^FAILURE:",                                           case_sensitive: true }
-        - { pattern: "(?m)^ARTIFACT:",                                          case_sensitive: true }
-        - { pattern: "(?m)^DISPATCHED:\\s*none\\b",                             case_sensitive: true }
+        - { pattern: "(?:^|\\n)RESULT:[ \\t]*(complete|partial|failed)\\b", case_sensitive: true }
+        - { pattern: "(?:^|\\n)WORK:",                                      case_sensitive: true }
+        - { pattern: "(?:^|\\n)INCOMPLETE:",                                case_sensitive: true }
+        - { pattern: "(?:^|\\n)FAILURE:",                                   case_sensitive: true }
+        - { pattern: "(?:^|\\n)ARTIFACT:",                                  case_sensitive: true }
+        - { pattern: "(?:^|\\n)DISPATCHED:[ \\t]*none\\b",                  case_sensitive: true }
   tool_calls:
     required: ["Agent"]
   semantic:
