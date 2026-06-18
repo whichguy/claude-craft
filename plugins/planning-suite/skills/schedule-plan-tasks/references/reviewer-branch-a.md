@@ -2,7 +2,7 @@
 
 The orchestrator `Read`s this file and dispatches the prompt verbatim, substituting
 `{plan_text}` with the full plan file content. The reviewer returns structured findings
-to the orchestrator; the orchestrator gates each via AskUserQuestion.
+to the orchestrator; the orchestrator records each finding in the run log; no gate.
 
 This reviewer is distinct from `reviewer-full.md` (Branch B's de-duplication pass). It
 assumes the plan has already been approved via `ExitPlanMode` and looks for

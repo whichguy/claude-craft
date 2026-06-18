@@ -31,6 +31,84 @@ State your inferred purpose / what-to-do / DoD in one short paragraph at the sta
 
 Everything below governs how you execute. The behavior contract is fixed; only the envelope varies per task.
 
+## External-system sandboxes
+
+If the envelope contains a `Sandbox-Refs:` line, the orchestrator has provisioned
+sandbox copies of one or more external target systems for this run. Read the JSON
+file at that path (schema: `sandbox-refs.schema.json`) before doing any external
+deploy/write operation.
+
+Rules:
+
+1. **Never permanently modify tracked config files.** Tracked files (`.clasp.json`,
+   `sfdx-project.json`, `firebase.json`, `.firebaserc`, `vercel.json`, etc.) reference
+   the production/source target and MUST stay that way on the deliverable branch — if
+   they didn't, the merge to main would point production at the sandbox. Instead, run
+   the `deploy_recipe` from the refs JSON; it prepares `.sandbox-overlay/` (a
+   per-worktree directory the orchestrator has already added to `.git/info/exclude`)
+   containing sandbox-specific shadows of those files.
+
+   Two deploy-CLI patterns govern how the overlay is applied at deploy time. The
+   recipe will show one or the other — follow it as written:
+
+   - **Flag-pattern systems** (`gcloud --project`, `sf --target-org`, etc.): the
+     overlay stores only the sandbox identifier; the deploy command takes it as a flag
+     (`gcloud --project=$(cat .sandbox-overlay/.gcp-project) ...`) or via a preset
+     alias (`sf config set target-org=...`). No file swap is required; tracked config
+     stays untouched on disk.
+   - **CWD-pattern systems** (`clasp push`, `firebase deploy`, `vercel deploy` with no
+     env override): the deploy command reads its config from CWD or a fixed path and
+     does not accept a flag override. The recipe MUST use a **trap-based
+     swap-and-restore**: back up the tracked config, install a `trap ... EXIT` that
+     restores it, copy the overlay file over the tracked path, run the deploy, and let
+     the trap restore on exit. After the deploy completes (trap-fired or not),
+     `git status --porcelain <config-path>` MUST be empty.
+
+     **`swap_and_restore` helper.** Every CWD-pattern recipe collapses to one call of
+     the helper below. Define it once at the top of the deploy script (or source it
+     from a per-worktree `.deploy-helpers.sh` you write before the first deploy):
+     ```bash
+     swap_and_restore() {  # usage: swap_and_restore <tracked-path> <overlay-path>
+       local tracked="$1" overlay="$2"
+       local bak="${tracked}.preflight-bak"
+       [ -e "$tracked" ] && mv "$tracked" "$bak"
+       trap '[ -e "'"$bak"'" ] && { rm -rf "'"$tracked"'"; mv "'"$bak"'" "'"$tracked"'"; } || rm -rf "'"$tracked"'"' EXIT
+       cp -R "$overlay" "$tracked"
+     }
+     ```
+     The trap fires on `EXIT` regardless of success/failure, so the tracked file is
+     restored to its prior state (or removed if it didn't exist before). Each recipe
+     then becomes a one-liner: `swap_and_restore .clasp.json .sandbox-overlay/.clasp.json
+     && clasp push`. Recipes in `references/sandbox-provisioner-prompt.md` (Step 4a) use
+     this helper by name — the bespoke per-CLI trap snippets are gone.
+
+   After every deploy, run `git status --porcelain` against the tracked config paths
+   the recipe touched and **fail the task** with `STATUS: failure — sandbox overlay
+   leaked into tracked config` if any modification remains. Verify this before any
+   commit you make.
+2. **Use sandbox IDs only at deploy time.** Every external command (`clasp push`,
+   `sf project deploy`, `firebase deploy`, `vercel deploy`, etc.) operates against the
+   `sandbox_ref` because it runs against the overlay config. Never pass `source_ref`
+   to a deploy command directly.
+3. **Empty sandboxes need population.** If the refs entry has `notes` mentioning
+   "Empty sandbox," the sandbox has no resources yet. Re-create what your task needs
+   (datasets, functions, IAM bindings) idempotently — `create-or-skip-if-exists` —
+   from the plan's own infra-as-code or deploy steps. Do not assume e.g. a BigQuery
+   dataset from production exists in the sandbox.
+4. **Do not re-provision.** If you think you need a new sandbox, you don't — fail the
+   task instead with `STATUS: failure — sandbox refs missing for type=<t>`. The
+   orchestrator owns provisioning.
+5. **Surface in your task journal.** Add `Sandbox: <type>=<sandbox_ref>` to the
+   `## Assumptions to verify` section of your `.task-plan.md` so the user can confirm
+   the right sandbox was used.
+6. **Cleanup is the orchestrator's job, not yours.** Do not run any `delete`/`destroy`
+   command against the sandbox. The PR body will tell the user how to tear it down.
+
+If the envelope has no `Sandbox-Refs:` line and your task includes external-system
+operations, that is a planning bug — fail with `STATUS: failure — task targets external
+system but no Sandbox-Refs in envelope` so it surfaces immediately rather than at deploy
+time.
+
 ## Directive
 
 **First action upon receiving the envelope:** emit the `## Agent selection` declaration block
@@ -638,9 +716,8 @@ or, if you have no load-bearing assumptions:
 none
 ```
 
-The orchestrator may pause the cascade and surface assumptions to the user via
-AskUserQuestion before letting your task complete. Do not pre-empt that decision — emit
-honestly.
+The orchestrator does not pause; surface honestly so it can record assumptions in the
+run log.
 
 ### `## Citation gap` (only when guidance demands citations)
 
@@ -758,6 +835,8 @@ DISPATCHED:  <comma-separated task IDs newly dispatched as cascade children, or 
 - `FAILURE` ∈ `no_change | partial_change | test_failures | conflict_needs_user | needs_split | verify_regression`. `verify_regression` is emitted only from `## Pre-completion rebase` when re-running `VERIFY_CMD` after a parallel-lane rebase shows a regression.
 - `ARTIFACT`: see `${CLAUDE_PLUGIN_ROOT}/skills/schedule-plan-tasks/references/investigation-task-template.md` FAILURE → ARTIFACT mapping.
 - `DISPATCHED` is always `none` — the orchestrator owns cascade dispatch via its own TaskList rescan.
+
+The failure record lives in the orchestrator's investigation TaskCreate (`references/investigation-task-template.md`), not the commit body. The recap surfaces failed tasks as "no recap data — see investigation TaskCreate" rather than parsing commit trailers.
 
 ## On RESULT: complete
 

@@ -21,3 +21,6 @@ results/*.json
 # Test artifacts — regenerated on every `npm test` run
 test/artifacts/
 .worktrees/
+
+# LLM-bench live-run output — captured for post-hoc inspection, not source
+test/plugins/planning-suite/llm-bench/runs/

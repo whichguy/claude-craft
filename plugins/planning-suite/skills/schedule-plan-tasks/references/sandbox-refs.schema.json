@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["sandboxes"],
+  "properties": {
+    "sandboxes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "source_ref", "sandbox_ref", "provisioner", "provisioned_at", "deploy_recipe"],
+        "oneOf": [
+          { "required": ["cleanup_hint"] },
+          { "required": ["cleanup_note"] }
+        ],
+        "properties": {
+          "type":           { "type": "string", "minLength": 1 },
+          "source_ref":     { "type": "string" },
+          "sandbox_ref":    { "type": "string" },
+          "sandbox_url":    { "type": "string" },
+          "provisioner":    { "type": "string" },
+          "provisioned_at": { "type": "string", "format": "date-time" },
+          "cleanup_hint":   { "type": "string", "description": "Exact non-interactive delete command. Use when a programmatic deletion exists." },
+          "cleanup_note":   { "type": "string", "description": "Free-form prose for manual-only systems or systems where deletion is the wrong action (e.g. long-lived named sandboxes that should be re-refreshed)." },
+          "deploy_recipe":  { "type": "string", "description": "Bash snippet that prepares .sandbox-overlay/ with sandbox-specific config WITHOUT modifying tracked files. Run before any deploy command in the worktree." },
+          "notes":          { "type": "string" }
+        }
+      }
+    }
+  }
+}

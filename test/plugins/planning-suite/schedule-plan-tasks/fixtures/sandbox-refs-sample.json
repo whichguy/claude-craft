@@ -1,0 +1,22 @@
+{
+  "sandboxes": [
+    {
+      "type": "gas",
+      "sandbox_ref": "AKfycXYZ_sample_script_id",
+      "sandbox_url": "https://script.google.com/d/AKfycXYZ_sample_script_id/edit",
+      "cleanup_hint": "clasp open AKfycXYZ_sample_script_id  # then File > Move to Trash",
+      "notes": "Forked from production script ABCDEF123"
+    },
+    {
+      "type": "firebase",
+      "sandbox_ref": "my-app-sandbox-001",
+      "cleanup_hint": "firebase projects:delete my-app-sandbox-001",
+      "notes": "Auto-provisioned for plan run"
+    },
+    {
+      "type": "salesforce-scratch",
+      "sandbox_ref": "scratch-org-xyz",
+      "cleanup_note": "Scratch org will auto-expire in 7 days; no action needed"
+    }
+  ]
+}

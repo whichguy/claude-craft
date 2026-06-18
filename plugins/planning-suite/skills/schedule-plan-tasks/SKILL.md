@@ -105,7 +105,7 @@ Inspect the state of `REPO_ROOT`:
 | State                                       | Action                                                                                                                                                                                                              |
 |---------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Exists and contains `.git`                  | `BootstrapNeeded = no`. Continue normally.                                                                                                                                                                          |
-| Doesn't exist OR exists without `.git`      | If args contain `--bootstrap`, OR the plan front-matter (first 30 lines) contains `^Bootstrap:\s*yes\s*$`, OR the plan's Context section literally contains `greenfield` or `new project` (auto-detect with banner notice `[bootstrap] auto-detected from plan Context (\"greenfield\"/\"new project\")`) → `BootstrapNeeded = yes`. Otherwise prompt the user via `AskUserQuestion`: "Bootstrap (recommended) / Skip / Cancel". Bootstrap → `BootstrapNeeded = yes`. Skip → halt with `REPO_ROOT <REPO_ROOT> is not a git repo. Pre-init manually and re-run.` Cancel → halt with `User canceled before bootstrap.` |
+| Doesn't exist OR exists without `.git`      | `BootstrapNeeded = yes` (autonomous default — no gate). Print a banner indicating which signal selected the path: when args contain `--bootstrap` → `[bootstrap] flag selected`; OR the plan front-matter (first 30 lines) contains `^Bootstrap:\s*yes\s*$` → `[bootstrap] front-matter Bootstrap: yes`; OR the plan's Context section literally contains `greenfield` or `new project` → `[bootstrap] auto-detected from plan Context ("greenfield"/"new project")`; otherwise → `[bootstrap] auto-bootstrap (no Context signal, no flag — autonomous default)`. The `--bootstrap` flag, the `Bootstrap: yes` front-matter, and the Context auto-detect all remain parseable (they just become decorative banner-text drivers — the answer is always yes). |
 
 When `BootstrapNeeded = yes`, the orchestrator runs the bootstrap bash body **inline-before-creation** (a documented "Phase −1") so that by the time Step 3's branch-capture executes (`git -C "$REPO_ROOT" branch --show-current` and `rev-parse --short HEAD`), the repo exists with a HEAD commit on `init.defaultBranch`. The bootstrap git-prep task is therefore NOT emitted in cold-start runs (its work is already done); the existing per-step skip condition for `bootstrap` keys off `BootstrapNeeded` having been resolved inline. After bootstrap, surface to the user:
 ```
@@ -114,6 +114,87 @@ When `BootstrapNeeded = yes`, the orchestrator runs the bootstrap bash body **in
 This closes the spec circular dependency where Step 3's branch capture was specified to run before any task body.
 
 In `dry-run`, `plan-only`, and `dry-run-analyze` modes the inline bootstrap bash is NOT executed (consistent with the verb-guard table); a `[DRY] would bootstrap at $REPO_ROOT` notice is printed and `BootstrapNeeded` is treated as already-resolved for downstream branch-capture (which itself is read-only and continues to run).
+
+**Phase 0 — Target-system sandbox detection + provisioning** (runs between front-matter parse and Bootstrap; before any agent dispatch):
+
+Phase 0 ensures that plans whose work touches an external target system (Apps Script project, Salesforce org, GCP project, Firebase project, Vercel project, Wix site, etc.) get a sandbox provisioned ONCE up-front so subsequent delivery-agents never deploy to production. The per-system matrix is **examples, not a closed list** — runtime discovery in the provisioner subagent recognizes new systems without skill changes.
+
+**Phase 0 step 0 — workspace pre-flight.** First action of Phase 0 (before any other step, before any subagent dispatch). Two bullets:
+
+- (a) Ensure worktree/preflight directories exist:
+  ```bash
+  mkdir -p "$REPO_ROOT/.worktrees" "$REPO_ROOT/.shortcut-preflight"
+  ```
+- (b) Pre-register `.sandbox-refs.json` in `.git/info/exclude` so the refs file (written by the provisioner during its run) is never momentarily visible to a parallel `git add -A`. Gated on `.git` already existing — bootstrap mode (`.git` created later in Phase A) skips cleanly:
+  ```bash
+  if [ -d "$REPO_ROOT/.git" ]; then
+    mkdir -p "$REPO_ROOT/.git/info"
+    grep -qxF '.sandbox-refs.json' "$REPO_ROOT/.git/info/exclude" 2>/dev/null \
+      || echo '.sandbox-refs.json' >> "$REPO_ROOT/.git/info/exclude"
+  fi
+  ```
+
+The existing pre-flight uncommitted-state capture writes `.preflight-tracked.patch` / `.preflight-untracked.tgz` / `.preflight-staged.patch` into `.worktrees/` and `.shortcut-preflight/`. The capture step runs after Phase 0 (in Phase A git-prep), so Phase 0 guarantees those dirs exist. The `.sandbox-refs.json` itself lives at `$REPO_ROOT/` (not in either subdir) so no mkdir is needed for it. Both bullets are idempotent — re-runs and skipped Phase 0 (Target-System: none) cost nothing.
+
+**Phase 0 step 1 — parse three new optional front-matter fields** from the plan (using the same bare `^Key:\s*(.+)$` scanner over the first 30 lines that already powers `Repo:` capture):
+
+```
+Target-System:   <free-form system identifier>  |  none  |  auto
+Source-Ref:      <production identifier the provisioner will derive a sandbox from>
+Sandbox-Ref:     <pre-existing sandbox ID, set by user when they already have one>
+```
+
+`Target-System` is **free-form** (not a closed enum) so the user can name any system the dynamic-discovery provisioner can recognize. The literal values `none` (skip) and `auto` (fall through to Layer 2) are reserved.
+
+The orchestrator does NOT parse `Source-Ref` semantically — it passes the literal string to the provisioner subagent, which interprets it per-system.
+
+**Phase 0 step 2 — resolution table.** Action depends on `Target-System` and `Sandbox-Ref` populated state:
+
+| `Target-System` | `Sandbox-Ref` | Action |
+|---|---|---|
+| `none` | (any) | Skip pre-flight entirely. Banner: `[sandbox] target-system=none — skipped`. |
+| set, not `none`/`auto` | unset | Dispatch provisioner subagent with `[TARGET_SYSTEM]` and `[SOURCE_REF]`. |
+| set, not `none`/`auto` | set | Skip provisioner; treat user-supplied `Sandbox-Ref` as authoritative. Dispatch a *minimal* synthesis Task (same prompt body, but instruct the agent to skip Steps 1–3 and jump to Step 4 using the user-supplied `sandbox_ref`). Banner: `[sandbox] target-system=<t> sandbox=<ref> — using user-supplied (synthesizing recipe)`. |
+| `auto` or absent | unset | Run Layer 2 (Context scan). |
+| `auto` or absent | set | Run Layer 2 ONLY to identify the system family; pass the user's `Sandbox-Ref` to the synthesis Task once family is known. |
+| `auto` or absent | set + Layer 2 returns no match | **Fail-fast.** Banner: `[sandbox] FAILED — Sandbox-Ref supplied but Target-System cannot be inferred; add 'Target-System: <name>' to plan front-matter and re-invoke`. No agents dispatched. |
+
+**Phase 0 step 3 — Layer 2 Context-section keyword scan (example-driven, not exhaustive).** Substring match (case-insensitive) over the plan's Context section, first 3000 chars. Initial example patterns (extensible by PR review):
+
+| Pattern (example, not closed) | → Candidate Target-System |
+|---|---|
+| `apps script`, `scriptid`, `AKfyc`, `clasp` | `gas` |
+| `salesforce`, `sfdc`, `sf org`, `apex` | **fail-fast** — banner asks user to disambiguate `salesforce-scratch` vs `salesforce-sandbox-refresh` |
+| `gcp project`, `google cloud project`, `gcloud` | `gcp` |
+| `firebase project`, `firestore` | `firebase` |
+| `vercel project`, `vercel deployment` | `vercel` |
+| `wix site` | `wix` |
+
+If Layer 2 hits and `Source-Ref` is unset, the orchestrator dispatches the provisioner with `Source-Ref: unknown` and instructs it to either find an obvious identifier in the full plan text or fail with a remediation message. The orchestrator does NOT auto-extract identifiers via regex (too fragile across systems).
+
+Banner formats:
+- `[sandbox] target-system=<t> source=<ref> (front-matter) — provisioning…`
+- `[sandbox] target-system=<t> source=<ref> (detected via context-scan: "<matched-snippet>") — provisioning…`
+- `[sandbox] target-system=auto (no signal detected) — skipped` (Layer 2 returned no match and `Sandbox-Ref` unset)
+- `[sandbox] target-system=none — skipped` (explicit-skip case)
+- `[sandbox] FAILED — Sandbox-Ref supplied but Target-System cannot be inferred; add 'Target-System: <name>' to plan front-matter and re-invoke` (auto/absent `Target-System` + set `Sandbox-Ref` + Layer-2 returns no match — see resolution-table row above; orchestrator halts before any agent dispatch)
+
+**Phase 0 step 4 — dispatch provisioner.** When the resolution table says "dispatch":
+1. JIT-load `${CLAUDE_SKILL_DIR}/references/sandbox-provisioner-prompt.md` verbatim.
+2. Substitute `[TARGET_SYSTEM]`, `[SOURCE_REF]`, `[SANDBOX_NAMING_HINT]` (e.g. `sandbox-<plan-slug>-<short-sha>`), `[REFS_OUT_PATH]` (= `$REPO_ROOT/.sandbox-refs.json`).
+3. Two dispatch shapes — pick by `Sandbox-Ref` populated state:
+   - **Full-provision path** (`Sandbox-Ref` unset): dispatch the substituted prompt verbatim.
+   - **Synthesis path** (`Sandbox-Ref` set — either from front-matter directly or via Layer-2 family identification with a user-supplied ref): JIT-load the preamble from `${CLAUDE_SKILL_DIR}/references/sandbox-provisioner-synthesis-preamble.md`, substitute `[SANDBOX_REF]` / `[SOURCE_REF]` / `[TARGET_SYSTEM]`, and PREPEND the substituted preamble to the body before dispatch. The preamble explicitly overrides the body's Steps 1–3 — the body's "discover how to create or claim a sandbox" framing describes the full-provision workflow and does not apply when the synthesis preamble is prepended. The preamble lives next to the body so edits to either stay co-located.
+4. Dispatch one `Agent({ subagent_type: "general-purpose", prompt: <prompt body>, run_in_background: false })` and wait for its return.
+5. Read only the `STATUS:` line from the agent's response.
+
+**Phase 0 step 5 — orchestrator action on provisioner outcome:**
+- `STATUS: success` → continue to Bootstrap; the refs path will be broadcast to every delivery-agent via the envelope (see Step 4 envelope-fields table).
+- `STATUS: failure` → **halt the entire run** (the one place a hard halt is correct: silently running against production is worse than stopping). Print the provisioner's `REMEDIATION:` block verbatim, print `[sandbox] PROVISIONING FAILED — see remediation above; aborting before any delivery-agent dispatched.`, and exit. No agents dispatched.
+
+**Phase 0 step 6 — exclude refs file from git.** Already handled in step 0 above (pre-registered before subagent dispatch). The same per-repo `.git/info/exclude` mechanism is used per-worktree in `create-wt-prompt.md` for `.sandbox-overlay/`.
+
+**Phase 0 in non-live modes:** in `dry-run`, `plan-only`, and `dry-run-analyze`, Phase 0 prints `[DRY] would dispatch sandbox provisioner for <t> (source=<ref>)` instead of actually dispatching. `.sandbox-refs.json` is not written. The envelope `Sandbox-Refs:` line is omitted in those modes (consistent with the construction rule below).
 
 Print the active mode + repo banner once:
 ```
@@ -177,7 +258,15 @@ Local resources → note absolute path (will be symlinked into each worktree). R
 3. Note sequencing (step N requires step M) → record as logical DEPENDS ON hints; these drive chain detection and the two-phase creation/wiring pass
 4. **Output Mapping Pass (structural analysis):** For each proposal, note the files it expects to modify. Using the DEPENDS ON graph from step 3, identify parallel proposals (no dependency path between them) that touch the same file. For each overlap, reason through three cases — touching the same file is NOT automatically a conflict:
 
-   **Case A — Independent contributions:** Each parallel task adds distinct, non-overlapping content to a shared file (e.g., each adds its own unique route mount line, a distinct config key, a separate function). **No structural problem.** Git rebase handles concurrent appends to different regions. Continue as-is.
+   **Case A — Independent contributions:** Each parallel task adds distinct, non-overlapping content to a shared file (e.g., each adds its own unique route mount line, a distinct config key, a separate function). Git rebase handles concurrent appends to **non-adjacent** regions. Continue as-is — but see Case A.1 below for the line-adjacent variant.
+
+   **Case A.1 — Line-adjacent appends:** Two or more parallel tasks each append a new line to the same contiguous region (e.g., each adds an entry to the same array literal at lines 84–87, or each adds a new import at the top of the same import block). Git's `ort` merge strategy produces a CONFLICT on every merge after the first because the surrounding context overlaps, even though the additions are semantically independent. **Conflicts are expected and mechanically resolvable for Case A.1** (resolution = keep both sides' added lines in stable order, HEAD's first, then incoming's). The full auto-resolve protocol is intentionally deferred (needs prototype against ≥ 4 real conflicts + synthetic edge cases — trailing-comma vs. no-trailing-comma at the final array element, comment lines interspersed with array entries, multi-line array-literal additions, sides that *modify* existing lines and not just add). For now, surface the case in the dry-run report rather than auto-resolving.
+
+   **`Shared-registration:` plan front-matter field (optional).** Plan authors may flag files where line-adjacent append conflicts are routine:
+   ```
+   Shared-registration: <file1>, <file2>
+   ```
+   When present, the orchestrator surfaces matching merge conflicts as "expected and mechanically resolvable" rather than structural — included in the dry-run report's Case A.1 advisory section and cross-referenced from the `retries_exhausted` log line (see `ORCHESTRATOR_MERGE_ALGORITHM` § manual-resolution escape hatch).
 
    **Case B — Shared structural prerequisite:** Multiple parallel tasks all require a structural element in a shared file to already exist — e.g., a router object, a base schema, a config section, an import block. The element doesn't exist yet and each task would try to create it. **Extract it.** Add a parent prepare task (DEPENDS ON in step 3) that creates the prerequisite; the parallel tasks extend it. Key signal: "Does this shared-file overlap reveal a missing setup task that all children depend on?"
 
@@ -229,7 +318,11 @@ The execution mode (worktree vs serial main-workspace) is decided per-proposal, 
 
 When skipped, print `[review] Branch-A consistency review skipped (front-matter/flag)` and proceed to Step 3.
 
-When the Branch-A review runs and emits FLAG findings (verdict `FLAG`), the orchestrator presents each finding via a single `AskUserQuestion`: "Accept and proceed / Halt for plan revision / Skip this finding". Accept → continue. Halt → stop and ask the user to re-run after editing the plan. Skip → record the dismissal in the run log and continue. The reviewer is advisory — it does not block on `PASS` and does not auto-halt on `FLAG`.
+When the Branch-A review runs and emits FLAG findings (verdict `FLAG`), the orchestrator **auto-accepts every finding** — no gate, no prompt — and records each one in the run log under:
+```
+[review] FLAG auto-accepted: <category> <task-id> — <why-it-matters>
+```
+The reviewer is advisory — it does not block on `PASS` and does not block on `FLAG`. Findings are surfaced to the user via the run log so they can be reviewed after the fact.
 
 For the Branch-B path the rest of this step (the de-duplication review) is identical to the prior contract:
 
@@ -255,7 +348,7 @@ Substitutions:
 
 **Dispatch protocol (Branch A — internal-consistency review):**
 1. **FIRST: `Read ${CLAUDE_SKILL_DIR}/references/reviewer-branch-a.md`** — load the verbatim prompt into context.
-2. **THEN:** Dispatch the Agent with `{plan_text}` substituted = full plan file content. Do not paraphrase. The reviewer returns `PASS` (proceed) or `FLAG` with a list of `category | task-id | quote | why-it-matters | resolution` findings. Surface each finding via a single AskUserQuestion (Accept / Halt / Skip) per the gating rule above.
+2. **THEN:** Dispatch the Agent with `{plan_text}` substituted = full plan file content. Do not paraphrase. The reviewer returns `PASS` (proceed) or `FLAG` with a list of `category | task-id | quote | why-it-matters | resolution` findings. Each finding is auto-accepted and logged to the run log (see the auto-accept rule above) — no prompt, no halt.
 
 **On agent return**, print changelog:
 ```
@@ -357,7 +450,19 @@ Behavior:
 3. For each chain member, dispatch the delivery-agent with envelope `Working directory: $REPO_ROOT` (main repo, not a worktree). The orchestrator merges the tail's branch into `ORIGIN_BRANCH` after receiving the tail's completion notification — if the user was on `main`, this ff's main; if on a topic branch, that topic branch advances. The merge target is therefore `ORIGIN_BRANCH`, not `INTEGRATION_BRANCH`.
 4. The envelope's `MERGE_TARGET:` field is set to `ORIGIN_BRANCH` for tail members, and to `feat/<plan-slug>-<short-sha>` for head and links (so each link commits onto the feature branch). The orchestrator merge algorithm at Step 4 `ORCHESTRATOR_MERGE_ALGORITHM` is applied — only the merge-target ref differs.
 5. `open-pr` proceeds against `feat/<plan-slug>-<short-sha> → ORIGIN_BRANCH` (or no-op + summary file when no remote — see Step 5).
-6. **Dirty working tree at start:** if `git -C "$REPO_ROOT" status --porcelain` is non-empty when the shortcut path is selected, AskUserQuestion: "Cancel". (Cancel only — no auto-stash; the user resolves manually.)
+6. **Dirty working tree at start:** if `git -C "$REPO_ROOT" status --porcelain` is non-empty when the shortcut path is selected, **stay on the shortcut and capture-and-restore** the dirty state — no prompt, no halt, no parallel-chain fallback. Run the same three pre-flight captures the parallel-chain path uses, but write them under `$REPO_ROOT/.shortcut-preflight/` since `.worktrees/` isn't created on the shortcut path:
+   ```bash
+   mkdir -p "$REPO_ROOT/.shortcut-preflight"
+   git -C "$REPO_ROOT" diff > "$REPO_ROOT/.shortcut-preflight/.preflight-tracked.patch"
+   git -C "$REPO_ROOT" diff --cached > "$REPO_ROOT/.shortcut-preflight/.preflight-staged.patch"
+   git -C "$REPO_ROOT" ls-files --others --exclude-standard \
+     | tar -czf "$REPO_ROOT/.shortcut-preflight/.preflight-untracked.tgz" -T -
+   ```
+   Then `git -C "$REPO_ROOT" stash push -u -m "schedule-plan-tasks shortcut pre-flight"` to clear the working tree before `git checkout -b feat/<plan-slug>-<short-sha>`. After the run completes (in the same `open-pr` body that handles cleanup, post all merges back to `ORIGIN_BRANCH`), `git -C "$REPO_ROOT" stash pop` to restore the user's in-progress edits to the now-current branch — both the patches (already applied to the shortcut feature branch via the standard create-wt-style apply path during agent execution) and the stash reach the agent's working tree (the main repo) clean. Print:
+   ```
+   [topology] dirty working tree — captured to .shortcut-preflight/ and stashed; restoring after run
+   ```
+   `.shortcut-preflight/` is cleaned up in the same `open-pr` body that today removes `$REPO_ROOT/.worktrees/.preflight-*`.
 
 Parallel-chain topology (≥2 chains OR ≥1 standalone) keeps the existing worktree machinery
 unchanged — `.worktrees/`, `integration-branch`, `INTEGRATION_BRANCH` as `MERGE_TARGET`.
@@ -471,11 +576,13 @@ Sequential TaskCreate is only required when the dependent task's description mus
 Always: `ID_checkpoint` is blocked by `ID_preflight`; `ID_integration` is blocked by
 `ID_checkpoint`; `ID_setup` is blocked by `ID_integration`.
 
-**Ordering rationale for `Create integration branch`:** `ID_checkpoint` commits any
-staged-but-uncommitted work onto `UPSTREAM_BRANCH`. The integration branch must fork
-*after* that so it inherits the checkpoint; every worktree subsequently forks from
-`INTEGRATION_BRANCH` and inherits it transitively. Worktrees never directly fork from
-`UPSTREAM_BRANCH` in the new flow.
+**Ordering rationale for `Create integration branch`:** `ID_checkpoint` captures HEAD
+SHA at pre-flight time (no synthetic commit on `UPSTREAM_BRANCH` — staged content
+travels via `.preflight-staged.patch`, modified-not-staged via `.preflight-tracked.patch`,
+and untracked via `.preflight-untracked.tgz`, all applied per-worktree by the create-wt
+task body). The integration branch is forked from `UPSTREAM_BRANCH` here; every
+worktree subsequently forks from `INTEGRATION_BRANCH` and applies the three pre-flight
+patches. Worktrees never directly fork from `UPSTREAM_BRANCH` in the new flow.
 
 `Create integration branch` task body (live mode runs the bash; ledger-only modes
 record the description):
@@ -599,10 +706,11 @@ single `Target branch` of older revisions of this skill:
   cleanup. Do not silently reuse — a stale integration branch may carry unmerged work.
 
   This is the **`MERGE_TARGET`** for every delivery-agent. The integration branch is
-  cut off `UPSTREAM_BRANCH` *after* the checkpoint commit (see `[git-prep N] Create
-  integration branch` below) so it inherits any staged-but-uncommitted state captured
-  by the checkpoint, and every worktree forks from `INTEGRATION_BRANCH` (not from
-  `UPSTREAM_BRANCH`) — inheriting the checkpoint transitively.
+  cut off `UPSTREAM_BRANCH` after the checkpoint task (which captures HEAD SHA only —
+  no synthetic commit), and every worktree forks from `INTEGRATION_BRANCH` (not from
+  `UPSTREAM_BRANCH`). Pre-execution dirty state (staged, modified-not-staged,
+  untracked) reaches each worktree via the three `.preflight-*` artifacts applied in
+  the create-wt task body — see `[git-prep N] Pre-flight staging check` below.
 
 - **NEVER read either branch from the plan file's Git Strategy section.** That section
   states the author's intended branch name; it has nothing to do with the current repo
@@ -721,16 +829,50 @@ main workspace
 Isolation: none (serial)
 
 ## What to do
+
+Step 0 — Trigger-table probe (runs BEFORE any test invocation). For each row in the
+trigger table below, run its detection contract (exit-code check, tool-presence check,
+or MCP-tool status call as listed). If any row fires, return `STATUS: degraded`
+immediately with NOTES naming the row that fired, the static checks that did pass, and
+the exact manual command needed for real test execution. Do NOT proceed to test
+invocation in that case — a generic `npm test` failure on a misconfigured environment
+must not be reported as `STATUS: failure` when the environment was the actual blocker.
+
+If no trigger row fires, proceed:
+
 Run: [runner from plan Verification or reviewer output]
 Confirm: [regression areas from plan Verification or reviewer output]
-All tests must pass. If any fail: investigate, attempt fix, rerun.
-Do NOT return until suite passes or failure is confirmed unresolvable.
+
+Rule 1: if the task can run BOTH (a) registry/lint/static checks AND (b) at least one
+runnable test command, it MUST do so and report the real pass/fail.
+
+If all tests must pass: investigate, attempt fix, rerun. Do NOT return until suite passes,
+failure is confirmed unresolvable, or a trigger row fires (then return degraded).
+
+## Trigger table (closed — new triggers added by PR to SKILL.md, not inferred at runtime)
+
+Triggers are expressed as **exit-code + tool-name + presence-check** contracts, NOT
+literal-substring matches against tool stdout/stderr (which drift across versions).
+
+| Environment family | Detection contract (exit-code / presence based) | Unreachable when |
+|---|---|---|
+| GAS / mcp-gas-deploy | Invoke `mcp-gas-deploy status` (the MCP tool, structured response). Tool unavailable in session, OR response indicates the scriptId does not exist / has no deployment / a required Google API is not enabled (use the structured fields the tool returns; do NOT match against display strings) | any of those conditions |
+| GAS / clasp | `clasp status` exits non-zero, OR `.clasp.json` absent under worktree root | any condition |
+| Node / npm / pnpm / yarn / bun | `package.json` absent under worktree root, OR `package.json` parses but `.scripts.test` is unset/empty AND no `test/` directory exists | any condition |
+| Any other env | not covered — agent MUST attempt real exec or return `STATUS: failure` | — |
 
 ## Return when done
 End with:
-  STATUS: success | failure
-  NOTES: [list any failing tests and attempted fixes, or "all tests passed"]
+  STATUS: success | degraded | failure
+  NOTES: [list any failing tests and attempted fixes, "all tests passed", or — for degraded —
+         the trigger row that fired + which static checks passed + the manual command needed]
 ```
+
+**Orchestrator handling of `STATUS: degraded`:** the orchestrator treats `degraded` as
+**non-blocking for the cascade** (treated like `STATUS: success` for graph progression) but
+surfaces it prominently in the recap and PR body. The recap agent must list every degraded
+task with its trigger row and the manual command. The open-pr body must include a "Degraded
+regression" section above the normal review notes.
 
 On Branch B, match reviewer-output titles to creation-pass IDs when wiring blockers.
 
@@ -786,7 +928,11 @@ On Branch B, match reviewer-output titles to creation-pass IDs when wiring block
 | Assert 8 | every create-wt and delivery-agent task | `metadata.repo_root` is non-empty, absolute (starts with `/`), and identical across all create-wt and delivery-agent tasks in this run | "Task #N metadata.repo_root missing/non-absolute" OR "metadata.repo_root drift across run: tasks #X=<a> vs #Y=<b>" |
 | Assert 9 | every create-wt and delivery-agent task | `metadata.upstream_branch` and `metadata.integration_branch` are both non-empty, distinct from each other (`upstream_branch != integration_branch`), and identical across the run; `metadata.integration_branch` matches the captured `INTEGRATION_BRANCH` (`schedule/<slug>-<short-sha>` shape). Additionally, the single `open-pr` task is the graph terminus (no other task lists it as a blocker) and is blocked by the regression task if present, else by ALL chain-tail and standalone delivery-agents. | "Task #N missing upstream_branch / integration_branch metadata" OR "open-pr blockers do not match regression / tail+standalone shape" |
 
-**Envelope-size guidance (no hard limit).** Earlier revisions enforced a 3 KB envelope cap as Assert 8; that cap has been removed. The envelope shape rule still stands as a soft guideline: keep the runtime header followed by ONE paragraph of plan-level guidance, and do not paste `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` content into the description — those live in `agents/delivery-agent.md`. Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:`. Bloated envelopes slow agents without improving outcomes, but there is no hard byte limit — agents operate unbounded on legitimately large tasks.
+**Envelope-size guidance (no hard limit).** Earlier revisions enforced a 3 KB envelope cap as Assert 8; that cap has been removed. The envelope shape rule still stands as a soft guideline: keep the runtime header followed by ONE paragraph of plan-level guidance, and do not paste `## What to do`, `## Definition of done`, `## Execution lifecycle`, `MAX_RETRIES`, or `## Status protocol` content into the description — those live in `agents/delivery-agent.md`. Allowed runtime-header fields: `Task ID:`, `Working directory:`, `MAIN_REPO_ROOT:`, `MERGE_TARGET:`, `Isolation:`, `Chain:`, `Cascade:`, `Prior chain commits:`, `External resources:`, `Sandbox-Refs:` (optional — see construction rule below). Bloated envelopes slow agents without improving outcomes, but there is no hard byte limit — agents operate unbounded on legitimately large tasks.
+
+**`Sandbox-Refs:` envelope field (optional).** When Phase 0 successfully provisioned (or claimed via user-supplied `Sandbox-Ref`) a sandbox, every delivery-agent dispatched in this run receives one extra runtime-header line: `Sandbox-Refs: <absolute path to $REPO_ROOT/.sandbox-refs.json>`. Path (not JSON inline) so the agent reads the same authoritative file the orchestrator wrote — no copy, no drift.
+
+**Construction rule (must be encoded in envelope assembly):** the orchestrator OMITS the `Sandbox-Refs:` line entirely when `Target-System: none` was set, when Layer 2 returned no signal (auto-skipped), or when Phase 0 was otherwise skipped (e.g. dry-run modes). The orchestrator does NOT emit `Sandbox-Refs: ` with empty value. Delivery-agent rule 4 (`agents/delivery-agent.md` § External-system sandboxes) detects "no `Sandbox-Refs:` line" by line absence — empty-value would falsely satisfy presence checks and skip the planning-bug surface.
 
 Assert 3 exception: if the proposal has no DEPENDS ON, only `Setup .worktrees` is required — skip the upstream-blocker check.
 
@@ -843,31 +989,67 @@ Phase B — create-wt (lazy dispatch, notification-driven):
   from parallel lanes — lazy dispatch ensures each worktree forks from the current tip.
   On create-wt failure → halt; report; do not dispatch its delivery-agent.
 
+  **Chain isolation invariant (documented, not enforced):** Chain worktrees are atomic
+  from head dispatch to tail merge. Once a chain's worktree is created, intervening
+  standalones that merge into `INTEGRATION_BRANCH` are NOT visible inside the chain
+  worktree — the chain members continue committing to their shared chain-K branch from
+  the tip the worktree was forked at. By the time the chain's tail rebases against
+  `MERGE_TARGET` (per `## Pre-completion rebase` in delivery-agent.md), `INTEGRATION_BRANCH`
+  has advanced. Conflicts at chain-tail merge are therefore **expected** when:
+    (a) the chain has ≥ 2 members AND
+    (b) standalones (or earlier chains) touch any file the chain also touches.
+  Cross-reference: such conflicts are usually Case A.1 (line-adjacent appends) — see
+  Step 1 Output Mapping Pass for resolution protocol. A `--rebase-chain-on-tail-merge`
+  mode that auto-rebases intermediate chain members against the latest integration tip
+  is plausible future work (out of scope here).
+
+  When Phase B dispatches a chain's create-wt, the orchestrator should print:
+  ```
+  [chain] chain-K isolated until tail merge — N standalones may merge in parallel; tail-merge conflicts in shared files are expected (see Case A.1)
+  ```
+
 Phase C — wave-1 delivery-agents (parallel dispatch, orchestrator-owned cascade):
 
-  **Cost-confirmation gate (runs ONCE, before any wave-1 dispatch):**
+  **Foreground exception (applies throughout Phase C).** Any single orchestrator dispatch
+  invocation that launches **exactly one** delivery-agent runs foreground (no
+  `run_in_background`). Two-or-more delivery-agents in the same invocation run
+  backgrounded for parallelism. The rule applies uniformly to:
+    - wave-1 initial dispatch (this Phase)
+    - cascade ticks (step 3c)
+    - chain-head/link gate paths
+
+  The wave boundary is per dispatch invocation — two dispatches firing in the same
+  orchestrator tick are two waves and each qualifies independently. Single-agent
+  dispatches in `dry-run`/`plan-only`/`dry-run-analyze`/`status-check` modes are
+  always foreground regardless of count.
+
+  **Cost banner (runs ONCE, before any wave-1 dispatch — autonomous, no gate):**
 
   Compute from the freshly-built TaskList:
     - mediumLargeCount = count(t in TaskList where t.metadata.task_type == "delivery-agent" and t.metadata.scope in {"medium","large"})
     - daCount          = count(t in TaskList where t.metadata.task_type == "delivery-agent")
 
-  If `mediumLargeCount >= 4` OR `daCount >= 6`, AND args do NOT contain `--no-confirm`,
-  insert ONE AskUserQuestion: "Dispatch full cascade now / Dispatch only the head and pause / Cancel."
-    - Dispatch full cascade now → continue.
-    - Dispatch only the head and pause → dispatch only the FIRST member of wave-1 (chain-1 head, in TaskList ID order); after that single agent's notification, halt cleanly with `[gate] head-only paused — re-run with --no-confirm to continue cascade`. Downstream tasks remain pending.
-    - Cancel → halt; downstream tasks remain pending.
+  Always dispatch the full cascade. Print one banner line so the user can audit the
+  decision after the fact:
+  ```
+  [cost] daCount=N mediumLargeCount=M — dispatching full cascade (autonomous)
+  ```
 
-  Below the threshold (mediumLargeCount < 4 AND daCount < 6), or with `--no-confirm`, dispatch immediately without prompting.
+  The legacy `--no-confirm` flag is parseable for backwards compatibility (so old
+  invocations and plan front-matter that include it don't break) but is treated as a
+  **no-op accepted-for-compat** under the autonomous-by-default policy. Document this in
+  any args grammar or front-matter reference as `--no-confirm  [deprecated, no-op]`.
 
   wave1 = [t for t in TaskList({}) where t.status == "pending" and t.blockedBy all completed]
   This is every chain-head and standalone delivery-agent (their only blocker was a create-wt, now done).
 
   **Mode == live (dispatch shape — backgrounded, orchestrator-owned cascade):**
   Dispatch ALL wave-1 delivery-agents in a SINGLE response as parallel Agent() calls,
-  each with `subagent_type: "delivery-agent"` AND `run_in_background: true`. Each agent
-  receives its task envelope (TaskGet(id).description = runtime header + one-paragraph
-  guidance). The behavior contract (lifecycle, cascade-identification) lives
-  in `agents/delivery-agent.md` and is loaded by the harness — no additional wrapping
+  each with `subagent_type: "delivery-agent"` AND `run_in_background: true`. (See
+  "Foreground exception" above for the single-agent case.) Each agent receives its
+  task envelope (TaskGet(id).description = runtime header + one-paragraph guidance).
+  The behavior contract (lifecycle, cascade-identification) lives in
+  `agents/delivery-agent.md` and is loaded by the harness — no additional wrapping
   needed in the prompt.
 
   Each backgrounded agent emits a final status block; the harness delivers it to this
@@ -997,9 +1179,12 @@ $LAST_COMMIT_BODY"
            cleanup_and_exit_success
          fi
 
-         git -C "$REPO_ROOT" merge --abort
-         git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
          echo "MERGE_FAIL_REASON=retries_exhausted"
+         # DO NOT abort the merge here. The orchestrator's merge-failure handler
+         # inspects the in-progress conflict state to decide K-Option-2 manual-resolve
+         # eligibility (requires `git diff --name-only --diff-filter=U` to list the
+         # conflict files). The handler aborts the merge itself on the investigation
+         # fall-through (step 4 below).
          exit 1
          ```
 
@@ -1012,9 +1197,31 @@ $LAST_COMMIT_BODY"
          exactly that narrow race; further retries are unnecessary because by attempt 2 the
          agent's branch has been rebased onto the latest tip.
 
-         On merge failure (`MERGE_FAIL_REASON` printed): TaskCreate an investigation sibling task using `references/investigation-task-template.md` (subject: `INVESTIGATE: <agent task subject> — merge failure`, body includes `failure_reason`, diagnostic details, affected dependents). Mark affected downstream dependents as staying blocked. Emit merge-failure notice to orchestrator log. Do NOT cascade from a merge failure.
+         **Merge-failure handler (runs in the orchestrator notification path, NOT inside the merge bash).** When the merge bash above prints `MERGE_FAIL_REASON=<reason>`, the orchestrator executes the steps below before any cascade decision. The merge bash itself does not branch on the failure reason — it only reports.
 
-         On merge success: proceed to the TaskList rescan and cascade dispatch (step 3b).
+         1. Parse `MERGE_FAIL_REASON` from the bash output. Capture the line.
+         2. **Manual-resolve eligibility probe (K-Option-2).** Run only when `MERGE_FAIL_REASON=retries_exhausted` (NOT `race_conflict_needs_user`). Compute:
+            - `CONFLICT_FILES=$(git -C "$REPO_ROOT" diff --name-only --diff-filter=U)` — files currently in conflict on the in-progress merge.
+            - `SHARED_REG=` — list parsed from the plan's `Shared-registration:` front-matter field (Step 1 Output Mapping Pass).
+            - For each `F` in `CONFLICT_FILES`: scan its conflict hunks. The merge is **purely additive** when every hunk has the pattern `<<<<<<< HEAD\n<lines>\n=======\n<lines>\n>>>>>>>` AND every line in each side is a new line not present on the other (no modifications of existing lines on either side — check by inspecting the merge base via `git -C "$REPO_ROOT" show :1:F` and confirming both sides' lines are net-new additions relative to the base).
+            All three conditions must hold to proceed: (a) `MERGE_FAIL_REASON=retries_exhausted`, (b) every `F` in `CONFLICT_FILES` is listed in `SHARED_REG`, (c) every hunk on every `F` is purely additive on both sides.
+         3. **If all three hold → manual-resolve protocol.** For each `F` in `CONFLICT_FILES`, run the concrete resolver (deterministic: HEAD lines first, then incoming, both verbatim):
+            ```bash
+            python3 "${CLAUDE_SKILL_DIR}/references/resolve-additive-conflict.py" "$REPO_ROOT/$F"
+            git -C "$REPO_ROOT" add "$F"
+            ```
+            After all conflict files resolved, complete the merge: `git -C "$REPO_ROOT" commit --no-edit` (the original merge-commit message body from `do_merge()` is retained; append a trailing `Manual-resolution: <files>` line via `git commit --amend` so the PR reviewer can re-verify). Print one banner so the action is auditable:
+            ```
+            [merge] manual-resolved <files> (Case A.1 — line-adjacent appends; Shared-registration matched)
+            ```
+            Then proceed to cascade dispatch (step 3b) — the merge succeeded.
+         4. **If any condition fails → investigation path.** Abort the in-progress merge and return to a clean tip before creating the investigation task:
+            ```bash
+            git -C "$REPO_ROOT" merge --abort
+            git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"
+            ```
+            TaskCreate an investigation sibling task using `references/investigation-task-template.md` (subject: `INVESTIGATE: <agent task subject> — merge failure`, body includes `failure_reason`, the conflict-file list, why manual-resolve was not eligible — missing `Shared-registration:` entry, non-additive hunks, or wrong fail reason — and affected dependents). Mark affected downstream dependents as staying blocked. Emit merge-failure notice to orchestrator log. Do NOT cascade from a merge failure.
+         5. On merge success (whether attempt 1, attempt 2, or step 3 manual-resolve): proceed to the TaskList rescan and cascade dispatch (step 3b).
 
          **Step 3b — Cascade dispatch (runs after successful merge, or immediately for chain-head/link completions):**
 
@@ -1025,7 +1232,7 @@ $LAST_COMMIT_BODY"
             - `delivery-agent`, `create-wt`, `regression` (when `execution_lane: agent`): `Agent({subagent_type: "delivery-agent" | <as appropriate>, prompt: TaskGet(id).description, run_in_background: true})`. Backgrounded; notifications come back via `<task-notification>`.
             - `recap`: `Agent({subagent_type: "general-purpose", description: TaskGet(id).subject, prompt: TaskGet(id).description})` — **foreground**, no `run_in_background`. The returned agent text IS the user-facing run recap; print it under a `## Run Recap` heading in the orchestrator transcript and then call `TaskUpdate({taskId: id, status: "completed"})` to mark the recap task complete. In `dry-run`, `plan-only`, and `dry-run-analyze` modes, do NOT dispatch the recap agent — print `[DRY] would dispatch recap agent for task #N` and immediately mark the recap task `completed` (ledger or real).
             - `open-pr`: backgrounded Bash (per Step 5), not a delivery-agent Agent.
-         d. Batch backgrounded claims and dispatches in a SINGLE parallel response. The recap dispatch is foreground — if recap and another task both become unblocked in the same tick, dispatch the backgrounded ones first (parallel batch), then run the recap dispatch in a follow-up message; this avoids blocking the orchestrator on recap while parallel work is still in flight.
+         d. Batch backgrounded claims and dispatches in a SINGLE parallel response. The recap dispatch is foreground — if recap and another task both become unblocked in the same tick, dispatch the backgrounded ones first (parallel batch), then run the recap dispatch in a follow-up message; this avoids blocking the orchestrator on recap while parallel work is still in flight. Cascade ticks that dispatch a single delivery-agent run foreground per the "Foreground exception" at the top of Phase C.
 
       4. **`RESULT: partial`** — do NOT cascade. The agent has called `TaskUpdate(failed)` itself (per `## On RESULT: partial` in delivery-agent.md — partial is a terminal disposition under the new contract). No orchestrator action; downstream dependents stay `pending` (same as `RESULT: failed`). If the agent left its task `in-progress` instead of `failed`, that's a contract violation — surface as STALLED via hang-detection.
       5. **`RESULT: failed`** — do NOT cascade. The agent has called `TaskUpdate(failed)`. The orchestrator (not the agent) TaskCreates the investigation sibling task using `references/investigation-task-template.md`. Failed tasks do not unblock dependents — downstream tasks stay `pending` and visible via `TaskList({})`.
@@ -1033,7 +1240,20 @@ $LAST_COMMIT_BODY"
 
     The orchestrator therefore DOES loop — driven by notification events, not poll intervals. (Earlier "orchestrator does not loop" wording was based on a synchronous-cascade model; under backgrounding, the orchestrator is the only entity that can see notifications, so it must own dispatch.)
 
-  **Hang detection.** When dispatching, record `agentId → dispatch_epoch` in orchestrator memory. After each notification, also check: any agentId whose elapsed wall-time > `MAX_AGENT_WALL_TIME` (default 1800s; configurable per plan via `MAX_AGENT_WALL_TIME=<sec>` env var) — surface STALLED via AskUserQuestion (kill / wait N minutes / abandon). No TaskList heartbeat is available; this timer is the only signal.
+  **Hang detection (two-phase auto-kill — no prompt).** When dispatching, record `agentId → dispatch_epoch` in orchestrator memory. After each notification, also check elapsed wall-time per outstanding agent.
+
+  - **First hit** (`elapsed > MAX_AGENT_WALL_TIME`, default 1800s; configurable per plan via `MAX_AGENT_WALL_TIME=<sec>` env var): log
+    ```
+    [hang] agent <id> exceeded MAX_AGENT_WALL_TIME=Ns — extending by +50% (one-shot grace)
+    ```
+    and extend the deadline for that agent only to `1.5 × MAX_AGENT_WALL_TIME` (so a default 1800s becomes 2700s). Continue the cascade.
+  - **Second hit** (`elapsed > 1.5 × MAX_AGENT_WALL_TIME`): `TaskUpdate(status: failed)` for that task, log
+    ```
+    [hang] agent <id> exceeded grace window — auto-failed; investigation task created
+    ```
+    and run the existing `${CLAUDE_SKILL_DIR}/references/investigation-task-template.md` path (TaskCreate the sibling investigation task — same as any other `RESULT: failed`). The cascade continues with whatever dependents are still reachable; dependents of the failed task stay `pending` (existing failure semantics).
+
+  No TaskList heartbeat is available; this timer is the only signal.
 
   Failure: on `RESULT: failed`, the orchestrator (not the agent) JIT-loads
   `references/investigation-task-template.md` and calls TaskCreate to register a sibling
@@ -1062,9 +1282,9 @@ $LAST_COMMIT_BODY"
 
   | State of file in user's working tree    | Reaches worktrees? | How                                |
   |-----------------------------------------|--------------------|------------------------------------|
-  | Tracked + staged before invocation      | yes                | `git add` above + checkpoint       |
-  | Tracked + modified, NOT staged          | yes (NEW)          | `.preflight-tracked.patch` capture |
-  | Untracked (new file)                    | yes (NEW)          | `.preflight-untracked.tgz` capture |
+  | Tracked + staged before invocation      | yes                | `.preflight-staged.patch` capture  |
+  | Tracked + modified, NOT staged          | yes                | `.preflight-tracked.patch` capture |
+  | Untracked (new file)                    | yes                | `.preflight-untracked.tgz` capture |
   | Already committed on `UPSTREAM_BRANCH`  | yes                | branch fork                        |
 
   After the selective `git add`, also capture anything still dirty into a single
@@ -1074,17 +1294,27 @@ $LAST_COMMIT_BODY"
 
   ```bash
   git -C "$REPO_ROOT" diff > "$REPO_ROOT/.worktrees/.preflight-tracked.patch"
+  git -C "$REPO_ROOT" diff --cached > "$REPO_ROOT/.worktrees/.preflight-staged.patch"
   git -C "$REPO_ROOT" ls-files --others --exclude-standard \
     | tar -czf "$REPO_ROOT/.worktrees/.preflight-untracked.tgz" -T -
   ```
 
-  These two staging files are removed inside the `open-pr` task body once the PR is
-  open or skipped (`rm -f "$REPO_ROOT/.worktrees/.preflight-*"`). Patch-apply inside
-  each worktree is best-effort — if the user's uncommitted state conflicts with work a
-  delivery-agent introduces, `git apply` fails inside that worktree and the create-wt
-  task reports `STATUS: failure — preflight patch did not apply`, halting just that
-  worktree; siblings continue.
-- `Checkpoint commit`: if staged changes → `git -C "$REPO_ROOT" commit -m "checkpoint: pre-execution state"` and capture SHA into orchestrator context; if clean → capture HEAD SHA via `git -C "$REPO_ROOT" rev-parse HEAD`. This SHA is held by the orchestrator for trivial task resume checks — it is never written into task descriptions.
+  These three staging files are removed inside the `open-pr` task body once the PR is
+  open or skipped (`rm -f "$REPO_ROOT/.worktrees/.preflight-*"` — the wildcard already
+  covers the staged patch). Patch-apply inside each worktree is best-effort — if the
+  user's uncommitted state conflicts with work a delivery-agent introduces, `git apply`
+  fails inside that worktree and the create-wt task reports `STATUS: failure —
+  preflight patch did not apply` (or `STATUS: failure — preflight staged patch did not
+  apply` for the staged variant), halting just that worktree; siblings continue.
+
+  **HEAD-divergence caveat (applies equally to `.preflight-tracked.patch` and
+  `.preflight-staged.patch`):** both patches are captured against `$REPO_ROOT` HEAD at
+  pre-flight time; worktrees fork from `INTEGRATION_BRANCH` (created from
+  `UPSTREAM_BRANCH`). When the user invoked from a branch other than
+  `UPSTREAM_BRANCH`, `git apply` (and `git apply --index` for the staged variant) may
+  refuse cleanly if hunks reference files whose blob differs between the two HEADs.
+  Same precondition for both: "patch base ≈ worktree base."
+- `Checkpoint commit`: capture HEAD SHA via `git -C "$REPO_ROOT" rev-parse HEAD` (no synthetic commit — staged content lives in `.preflight-staged.patch`, not on the user's branch). This SHA is held by the orchestrator for trivial task resume checks — it is never written into task descriptions. **Contract:** checkpoint SHA = `git rev-parse HEAD` at pre-flight time; pre-execution staged state lives in `.preflight-staged.patch`. Any future resume-check logic that needs the full pre-execution snapshot must consider both. (Kept the task name `Checkpoint commit` for backwards compatibility with the git-prep schema and resume table; the task no longer creates a synthetic commit.)
 - `Create integration branch`: run the bash from Step 3 — `git -C "$REPO_ROOT" checkout -b "$INTEGRATION_BRANCH" "$UPSTREAM_BRANCH"` then `git -C "$REPO_ROOT" checkout "$UPSTREAM_BRANCH"` to leave the user on their starting branch. Halt on `show-ref --verify` collision per the pre-flight rule above.
 - `Setup .worktrees`: use existing `$REPO_ROOT/.worktrees/` or create it (`mkdir -p "$REPO_ROOT/.worktrees"`), add `.worktrees/` to `$REPO_ROOT/.gitignore`, `git -C "$REPO_ROOT" add .gitignore && git -C "$REPO_ROOT" commit -m "chore: ignore .worktrees"`. **Note:** this commit lands on `UPSTREAM_BRANCH` (the user is checked out there), not on `INTEGRATION_BRANCH`. That's fine — the `.gitignore` change is meta-bookkeeping and the integration branch will inherit it on the next merge from upstream if needed.
 
@@ -1104,12 +1334,12 @@ The graph terminates with a single `open-pr` task that PRs `INTEGRATION_BRANCH �
 UPSTREAM_BRANCH`. In `live` mode the body executes as a single `Bash(run_in_background: true)`
 script (push + body assembly + `gh pr create` + cleanup); the orchestrator waits for the
 backgrounded-Bash completion notification (same `<task-notification>` pattern as Agents),
-then reads `$REPO_ROOT/.worktrees/.openpr-result` for the outcome. The interactive `AskUserQuestion` (approve / leave open / close)
-stays inline in the orchestrator session — it is interactive and small. In
-`dry-run`/`plan-only`/`dry-run-analyze` modes the side-effecting body is replaced by
-`[DRY] would gh pr create` (consistent with the git/Agent verb-guard table). The task is
-dispatched only after every chain-tail and standalone delivery-agent (and the regression
-task, if present) has completed.
+then reads `$REPO_ROOT/.worktrees/.openpr-result` for the outcome. The PR is **always
+left open for human review** under the autonomous-by-default policy — no prompt, no
+auto-merge, no auto-close. In `dry-run`/`plan-only`/`dry-run-analyze` modes the
+side-effecting body is replaced by `[DRY] would gh pr create` (consistent with the
+git/Agent verb-guard table). The task is dispatched only after every chain-tail and
+standalone delivery-agent (and the regression task, if present) has completed.
 
 Body (live mode — backgrounded Bash; result file at `$REPO_ROOT/.worktrees/.openpr-result`):
 
@@ -1126,13 +1356,25 @@ Body (live mode — backgrounded Bash; result file at `$REPO_ROOT/.worktrees/.op
    - `{commit_log}` — `git -C "$REPO_ROOT" log --reverse --pretty=format:'%n### %s%n%n%b' "$UPSTREAM_BRANCH..$INTEGRATION_BRANCH"`
    - `{verify_summary}` — aggregated `VERIFY_CMD` lines extracted from each task's commit body
    - `{review_notes}` — aggregated `Critical applied` / `Advisory deferred` lines from each task's commit body
-   Write the result to a tempfile.
-3. **Create the PR.** `gh -R <owner/repo> pr create --base "$UPSTREAM_BRANCH" --head "$INTEGRATION_BRANCH" --title "<plan-slug>: <N tasks merged>" --body-file <tempfile>`.
+   Write the result to `PR_BODY_TEMPFILE=$(mktemp)`. Use `"$PR_BODY_TEMPFILE"` for downstream steps.
+2.5. **Append "Sandboxes provisioned" section** (only if Phase 0 wrote a refs file at `$REPO_ROOT/.sandbox-refs.json`). The renderer ships as a stable file at `${CLAUDE_SKILL_DIR}/references/render-pr-body.py` (portable across macOS/Linux — no inline heredoc and no GNU-specific `mktemp` flags):
+
+   ```bash
+SANDBOX_REFS_PATH="$REPO_ROOT/.sandbox-refs.json"
+if [ -s "$SANDBOX_REFS_PATH" ]; then
+  SANDBOX_BLOCK=$(python3 "${CLAUDE_SKILL_DIR}/references/render-pr-body.py" "$SANDBOX_REFS_PATH")
+  printf '\n\n## Sandboxes provisioned\n%s\n' "$SANDBOX_BLOCK" >> "$PR_BODY_TEMPFILE"
+fi
+   ```
+
+   The renderer distinguishes `cleanup_hint` (rendered inside backticks — copyable command) from `cleanup_note` (rendered as plain prose — for manual/no-delete systems). The refs file lives at `$REPO_ROOT/.sandbox-refs.json` (excluded via `.git/info/exclude`, not removed by `.worktrees/` cleanup); the PR body is the durable summary.
+3. **Create the PR.** `gh -R <owner/repo> pr create --base "$UPSTREAM_BRANCH" --head "$INTEGRATION_BRANCH" --title "<plan-slug>: <N tasks merged>" --body-file "$PR_BODY_TEMPFILE"`.
 4. **Capture the PR URL.**
-5. **Prompt the user via `AskUserQuestion`:**
-   - "Approve and auto-merge now (`gh pr merge --auto --squash --delete-branch`)" — runs the merge command, deletes the branch, and reports the result.
-   - "Leave open for human review (default)" — leaves PR open, prints URL, exits.
-   - "Close PR and discard the integration branch" — `gh pr close <url>` then `git -C "$REPO_ROOT" branch -D "$INTEGRATION_BRANCH"` (and `git push origin --delete "$INTEGRATION_BRANCH"` if pushed).
+5. **Leave the PR open for human review (autonomous default — no prompt).** Print one banner line so the user can see what was created and how to merge it themselves:
+   ```
+   [pr] created <url> — left open for human review (autonomous default; merge manually with `gh pr merge --auto --squash --delete-branch`)
+   ```
+   Auto-merge and auto-close paths have been removed from this skill — the user runs `gh pr merge --auto --squash --delete-branch` themselves after the run completes if they want to merge.
 
 **Local-only path** (gh missing or no remote): skip steps 3–5. In addition to printing a
 notice with the local integration branch name, **write the assembled PR body to a
@@ -1187,7 +1429,18 @@ all gotchas together. The file is gitignored by default (leading dot) but the us
 `[DRY] would aggregate learnings to <path>` notice instead of executing the bash.
 
 **Cleanup.** Whether the PR was opened, skipped, or closed, remove the pre-flight
-staging files at the end of this task: `rm -f "$REPO_ROOT/.worktrees/.preflight-tracked.patch" "$REPO_ROOT/.worktrees/.preflight-untracked.tgz"`.
+staging files at the end of this task:
+```bash
+rm -f "$REPO_ROOT/.worktrees/.preflight-"*       # parallel-chain path: .preflight-tracked.patch, .preflight-staged.patch, .preflight-untracked.tgz
+rm -rf "$REPO_ROOT/.shortcut-preflight"           # linear-chain shortcut path (only present when shortcut was selected with dirty tree)
+```
+On the linear-chain shortcut path **with a dirty starting tree**, also restore the
+user's stashed in-progress edits to the now-current branch (Step 3 step 6 captured
+them into `.shortcut-preflight/` and ran `git stash push -u`):
+```bash
+git -C "$REPO_ROOT" stash list | grep -q "schedule-plan-tasks shortcut pre-flight" && \
+  git -C "$REPO_ROOT" stash pop || true
+```
 
 `open-pr` is the graph terminus — emit a final completion banner and exit.
 
@@ -1310,7 +1563,7 @@ Rules not stated inline elsewhere. For mode/reference/wiring discipline, see Mod
   - If you find yourself (the orchestrator) writing code into a task description, stop. Convert it to a contract first.
 - **Sub-task agents are internal to a parent delivery-agent.** No TaskCreate. They are invisible to the orchestrator's task graph.
 - **Sub-task `MERGE_TARGET` = the parent delivery-agent's working branch.** Never TARGET_BRANCH.
-- **`run_in_background: true` (live mode) on:** create-wt, delivery-agent, regression Agent, open-pr Bash, heavy git-prep Bash, and orchestrator merge Bash (per ORCHESTRATOR_MERGE_ALGORITHM). **Foreground (synchronous) in dry-run mode** — the simulate-prefix iteration parses each agent's returned text inline.
+- **`run_in_background: true` (live mode) on:** create-wt, delivery-agent, regression Agent, open-pr Bash, heavy git-prep Bash, and orchestrator merge Bash (per ORCHESTRATOR_MERGE_ALGORITHM). **Foreground (synchronous) in dry-run mode** — the simulate-prefix iteration parses each agent's returned text inline. Single-agent dispatches are foreground in every mode per the Phase C "Foreground exception".
 - **`conflict_needs_user` does not halt the loop** — only the affected merge chain stalls. Independent delivery-agents continue.
 - **`git add -A` is forbidden in checkpoints.** Stage by name to avoid pulling unrelated state.
 - **Parallel same-file edits are not automatic conflicts.** Restructure only when edits overlap semantically (same region, function, or config key). See Step 1 Output Mapping Pass.

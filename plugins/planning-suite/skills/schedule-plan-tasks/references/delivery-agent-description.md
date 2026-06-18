@@ -13,6 +13,11 @@ contract and acceptance criteria from the paragraph; orchestrator does not pre-d
 distilled prose per Step 3 of `SKILL.md` (no code blocks, no numbered steps, ≤ ~120 words).
 "No paraphrase" applies to the template structure, not to the paragraph content.
 
+**Envelope-constraint wording convention:** *"no … expected"* is advisory (agent may
+deviate when its analysis warrants); *"no … permitted"* / *"do not …"* is enforceable —
+if the agent believes the edit is required, it MUST return `RESULT: partial` with
+`FAILURE: envelope_constraint` and the proposed change in NOTES rather than committing.
+
 Substitute placeholders per task:
 - `[TASK_ID]` — the TaskCreate-returned task ID, embedded by the orchestrator in Phase 1.5
 - `[absolute worktree path]` — e.g. `/repo/.worktrees/chain-1`; use `main workspace` for trivial tasks. Always absolute — never relative — because the agent's host CWD may differ from the target repo root.

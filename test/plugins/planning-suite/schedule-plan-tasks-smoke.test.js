@@ -519,7 +519,7 @@ describe('cross-reference integrity', function () {
 
     it('every reference file mentioned in SKILL.md exists on disk', function () {
         const missing = [];
-        const refs = [...skill.matchAll(/\$\{CLAUDE_SKILL_DIR\}\/references\/([^\s\)`]+)/g)];
+        const refs = [...skill.matchAll(/\$\{CLAUDE_SKILL_DIR\}\/references\/([^\s\)`"]+)/g)];
         for (const m of refs) {
             const name = m[1];
             if (name.includes('*') || name.includes('?')) continue;

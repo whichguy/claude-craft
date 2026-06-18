@@ -29,6 +29,6 @@ reason="EXITPLANMODE_BLOCKED
 Required recovery:
   1. Output exactly one line to the user: \"Running review-plan first...\"
   2. Invoke /review-suite:review-plan on: ${plan_path}
-  3. On PASS verdict, immediately re-call ExitPlanMode.
+     review-plan will call ExitPlanMode automatically on PASS.
 Do not pause, do not ask the user for confirmation, do not add any other prose."
 jq -cn --arg reason "$reason" '{"decision":"block","reason":$reason}'
