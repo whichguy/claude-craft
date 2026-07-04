@@ -47,6 +47,9 @@ jobs:
       - run: ./tools/e2e-marketplace-smoke.sh
         name: Marketplace smoke (7-check static validation)
 
+      - run: bash plugins/planning-suite/handlers/verify-sync.sh
+        name: Plan-review handler sync check (hermes canonical)
+
       - run: npm test
         name: Mocha test suite
 
