@@ -50,6 +50,24 @@ jobs:
       - run: bash plugins/planning-suite/handlers/verify-sync.sh
         name: Plan-review handler sync check (hermes canonical)
 
+      - name: Plan-review handler staleness check (vs hermes canonical)
+        run: |
+          # verify-sync.sh (above) proves our handlers match OUR manifest; this proves OUR
+          # manifest still matches hermes's canonical one — i.e. we haven't gone stale.
+          # TODO(after hermes PR #2 merges): switch REF from the feature branch to 'main'
+          #   — the branch is deleted on merge and main lacks the file until then (404).
+          REF="feat/plan-review-plugin"
+          URL="https://raw.githubusercontent.com/whichguy/hermes-skills-marketplace/${REF}/plugins/plan-review/handlers/CANONICAL.sha256"
+          if ! curl -fsS "$URL" -o /tmp/hermes-canonical.sha256; then
+            echo "::warning::Could not fetch hermes canonical manifest ($URL) — skipping staleness check (infra/ref issue, not drift)."
+            exit 0
+          fi
+          if ! diff -u /tmp/hermes-canonical.sha256 plugins/planning-suite/handlers/CANONICAL.sha256; then
+            echo "::error::planning-suite handlers are STALE vs hermes canonical. Re-sync per plugins/planning-suite/handlers/SYNC.md."
+            exit 1
+          fi
+          echo "OK — planning-suite manifest matches hermes canonical."
+
       - run: npm test
         name: Mocha test suite
 
