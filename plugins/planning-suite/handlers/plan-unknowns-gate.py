@@ -45,6 +45,7 @@ INVESTIGATE_TAG = "[investigate]"
 
 # Markdown heading line: up to 3 spaces indent, 1-6 hashes, then a space.
 HEADING_RE = re.compile(r"^[ \t]{0,3}(#{1,6})[ \t]+(.*)$")
+BULLET_RE = re.compile(r"^[ \t]*([-*+]|[0-9]+[.)])[ \t]+")
 # Codex output heading may omit the space after the hashes; be lenient here
 # and normalize to the canonical form before it reaches the plan.
 SECTION_HEAD_RE = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]*open\s+unknowns\b", re.IGNORECASE | re.MULTILINE)
@@ -121,6 +122,16 @@ investigator and folds the resolved facts back into the plan.
 
 Then call ExitPlanMode again."""
 
+INVESTIGATION_MENU_REASON = """Do NOT resolve this plan's unknowns silently and do NOT \
+approve the plan yet. This plan has unknowns that need active go-find-out investigation. \
+FIRST call the AskUserQuestion tool with one question — "This plan has unknowns that need \
+active investigation. How do you want to proceed?" — and exactly these three options: \
+(1) "Investigate now" — run the /investigate-plan skill (the Hermes investigator resolves \
+the agentic unknowns and folds the findings into the plan); (2) "Waive investigation" — \
+run /waive-investigation to record a conscious decision to proceed without investigating; \
+(3) "I'll revise the plan" — go back and edit the plan yourself. Then act on the user's \
+selection. Do not call ExitPlanMode again until the user has chosen."""
+
 REVIEW_REQUIRED_REASON = """CLAUDE_PLAN_REQUIRE_REVIEW is set, but review-plan has not \
 recorded a completed quality review for this plan (no `.review-ready-<slug>` sentinel). \
 Run the review-plan quality review, then call ExitPlanMode again."""
@@ -161,8 +172,8 @@ def allow(message=None):
     sys.exit(0)
 
 
-def deny(reason):
-    if investigate_enabled():
+def deny(reason, advisory=True):
+    if advisory and investigate_enabled():
         reason = reason + INVESTIGATE_ADVISORY
     print(json.dumps({
         "hookSpecificOutput": {
@@ -189,6 +200,20 @@ def has_unknowns_heading(text):
     return False
 
 
+def has_investigate_tag(text):
+    """True if a non-fenced markdown bullet ends with '[investigate]'."""
+    in_fence = False
+    for line in text.splitlines():
+        if FENCE_RE.match(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if BULLET_RE.match(line) and line.rstrip().endswith(INVESTIGATE_TAG):
+            return True
+    return False
+
+
 def plan_slug(tool_input):
     """Plan basename without .md, matching the investigator's --slug. None if absent."""
     path = tool_input.get("planFilePath")
@@ -196,7 +221,8 @@ def plan_slug(tool_input):
         base = os.path.basename(path)
         if base.endswith(".md"):
             base = base[:-3]
-        return base or None
+        sanitized = re.sub(r"[^A-Za-z0-9._-]", "-", base)[:64]
+        return sanitized or "plan"
     return None
 
 
@@ -335,7 +361,7 @@ def main():
     if not has_unknowns_heading(plan):
         section = run_codex(plan, cwd)
         if section:
-            if INVESTIGATE_TAG in section:
+            if has_investigate_tag(section):
                 write_sentinel("needs-investigation", slug, section)
             deny(CODEX_REASON_TEMPLATE.format(section=section))
         deny(FALLBACK_REASON)
@@ -345,10 +371,12 @@ def main():
     # wrote directly. Needs a slug to track investigated/waived state; without
     # one we can't manage the loop, so fail open.
     if slug is not None:
-        needs = sentinel_exists("needs-investigation", slug) or (INVESTIGATE_TAG in plan)
+        needs = sentinel_exists("needs-investigation", slug) or has_investigate_tag(plan)
         if needs and not sentinel_exists("investigated", slug) \
                 and not sentinel_exists("investigation-waived", slug):
             if container_running():
+                if investigate_enabled():
+                    deny(INVESTIGATION_MENU_REASON, advisory=False)
                 deny(INVESTIGATION_REQUIRED_REASON)
             # container down → investigation impossible → fall through (allow)
 

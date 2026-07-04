@@ -16,6 +16,12 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/handlers/plan-unknowns-gate.py",
             "statusMessage": "Codex auditing plan for unresolved unknowns...",
             "timeout": 180
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/handlers/plan-worktree-gate.py",
+            "statusMessage": "Codex assessing git-isolation strategy...",
+            "timeout": 180
           }
         ]
       }
