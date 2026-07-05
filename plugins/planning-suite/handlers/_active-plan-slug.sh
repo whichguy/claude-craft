@@ -22,5 +22,11 @@ resolve_active_slug() {
             | jq -r 'select(.slug // "" != "") | .slug' 2>/dev/null \
             | head -1 || true)
   fi
+  # Match Python plan_slug() for the shared .review-ready-<slug>,
+  # .needs-investigation-<slug>, etc. sentinel families: close the
+  # special-char and length divergence classes, but do not unify the slug
+  # source. Transcript `.slug` and plan-file basename can still differ if the
+  # plan is renamed or a second plan starts mid-session; that is accepted here.
+  slug=$(printf '%s' "$slug" | sed 's/[^A-Za-z0-9._-]/-/g' | cut -c1-64)
   ACTIVE_SLUG="$slug"
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Plan-mode review gate: PreToolUse blocks ExitPlanMode unless review-plan has produced a slug-scoped gate file at ~/.claude/plans/.review-ready-<slug>, or a prior successful exit left an `.exited-<slug>` sentinel (idempotent re-exit allowed silently). Active slug is identified from the session transcript (transcript_path on hook stdin), with mtime fallback only when the transcript is unavailable — avoids misidentifying the active plan when ~/.claude/plans/ holds stale files from other sessions. PostToolUse renames the gate to the sentinel and emits an advisory nudge to invoke /schedule-plan-tasks. A second PreToolUse gate (plan-unknowns-gate.py) blocks plans that lack an '## Open Unknowns' section: it has Codex (OpenAI CLI, read-only sandbox) audit the plan for unknowns that were never investigated, and instructs the planner to resolve each one (or plan a concrete resolution step) before recording the remainder — unknowns get planned, not disclaimed. Degrades to a self-audit instruction when the codex CLI is unavailable; opt out with CLAUDE_PLAN_UNKNOWNS_GATE=0.",
+  "description": "Plan-mode review gate: PreToolUse blocks ExitPlanMode unless review-plan has produced a slug-scoped gate file at ~/.claude/plans/.review-ready-<slug>, or a prior successful exit left an `.exited-<slug>` sentinel (idempotent re-exit allowed silently). Active slug is identified from the session transcript (transcript_path on hook stdin), with mtime fallback only when the transcript is unavailable — avoids misidentifying the active plan when ~/.claude/plans/ holds stale files from other sessions. PostToolUse renames the gate to the sentinel and emits an advisory nudge to invoke /schedule-plan-tasks. A second PreToolUse gate (plan-unknowns-gate.py) runs a 3-stage plan-review state machine, each stage failing open: (1) a soft review-plan nudge (hard under CLAUDE_PLAN_REQUIRE_REVIEW=1); (2) a Codex (OpenAI CLI, read-only sandbox) unknowns audit that blocks until an '## Open Unknowns' section exists and tags bullets needing active go-find-out research with [investigate]; (3) a closed-loop investigation gate — when agentic unknowns are tagged, it blocks until /investigate-plan has run (proven by a host `.investigated-<slug>` sentinel) or the user waives via /waive-investigation, and fails open when the hermes container is down. plan-review-cleanup.py (PostToolUse) clears the investigation sentinels after a successful exit. Degrades to a self-audit instruction when the codex CLI is unavailable; opt out with CLAUDE_PLAN_UNKNOWNS_GATE=0.",
   "hooks": {
     "PreToolUse": [
       {
@@ -16,6 +16,12 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/handlers/plan-unknowns-gate.py",
             "statusMessage": "Codex auditing plan for unresolved unknowns...",
             "timeout": 180
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/handlers/plan-worktree-gate.py",
+            "statusMessage": "Codex assessing git-isolation strategy...",
+            "timeout": 180
           }
         ]
       }
@@ -27,6 +33,11 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/handlers/exit-plan-mode-cleanup.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/handlers/plan-review-cleanup.py",
             "timeout": 5
           },
           {
