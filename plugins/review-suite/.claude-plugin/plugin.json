@@ -1,7 +1,7 @@
 {
   "name": "review-suite",
-  "version": "0.2.1",
-  "description": "Plan review, code review (Adversarial Auditor), review-fix, security/red-team, memory audits.",
+  "version": "0.2.2",
+  "description": "Plan review, code review (Adversarial Auditor), review-fix, security/red-team, memory audits. Recommended cross-model companions: codex and grok-cc; gracefully degrades to self-review when absent.",
   "author": {
     "name": "whichguy",
     "url": "https://github.com/whichguy"
