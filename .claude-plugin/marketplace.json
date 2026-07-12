@@ -8,7 +8,7 @@
   "plugins": [
     { "name": "gas-suite",        "source": "./plugins/gas-suite",        "version": "0.2.0", "description": "Google Apps Script review, debugging, planning, sidebar testing, Gmail Cards." },
     { "name": "wiki-suite",       "source": "./plugins/wiki-suite",       "version": "0.2.0", "description": "Project LLM wiki: ingest, query, process queue, lint, plus proactive research hook." },
-    { "name": "review-suite",     "source": "./plugins/review-suite",     "version": "0.2.2", "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits." },
+    { "name": "review-suite",     "source": "./plugins/review-suite",     "version": "0.2.3", "description": "Plan review, code review (Adversarial Auditor), iterative review-fix loop, security/red-team review, memory audits." },
     { "name": "review-bench",     "source": "./plugins/review-bench",     "version": "0.2.0", "description": "Prompt/question A/B benchmarking and ablation tooling. Depends on review-suite." },
     { "name": "planning-suite",   "source": "./plugins/planning-suite",   "version": "0.2.8", "description": "Architect, refactor, test, schedule-plan-tasks, node-plan, c-plan (bayesian clarifier for ambiguous prompts), alias/unalias, performance, knowledge, iterative red-team plan review, prompt-audit/migrate/align/refine." },
     { "name": "async-suite",      "source": "./plugins/async-suite",      "version": "0.2.0", "description": "Background task workflow: bg / todo / todo-cleanup + task-persist + feedback ingestion." },
