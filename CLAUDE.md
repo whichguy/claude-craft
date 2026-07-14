@@ -4,7 +4,7 @@
 
 ```
 LAYOUT:      everything ships under plugins/<bundle>/ — top-level skills/agents/commands/references are GONE
-MARKETPLACE: .claude-plugin/marketplace.json lists 10 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
+MARKETPLACE: .claude-plugin/marketplace.json lists 11 plugins; each has plugins/<bundle>/.claude-plugin/plugin.json
              (c-thru is sourced via git-subdir from whichguy/c-thru — no plugins/c-thru/ in this repo)
 HOOKS:       plugins/<bundle>/hooks/hooks.json with ${CLAUDE_PLUGIN_ROOT}/handlers/<x>.sh paths
 PATHS:       use ${CLAUDE_PLUGIN_ROOT} (plugin root), ${CLAUDE_SKILL_DIR} (per-skill), ${CLAUDE_PLUGIN_DATA} (persistent state)
@@ -23,7 +23,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 
 ---
 
-## Plugins (10)
+## Plugins (11)
 
 | Bundle | Scope |
 |---|---|
@@ -36,6 +36,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
+| claudecraft      | Evidence-led tested-improvement cycle (improve-loop skill): bounded backlog item → test → 7-field learnings commit → multi-model replan with 15-iteration learnings digest + disproven-thesis guard |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru; requires install.sh first) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.
