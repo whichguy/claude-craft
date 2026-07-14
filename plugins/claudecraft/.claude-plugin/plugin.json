@@ -1,0 +1,11 @@
+{
+  "name": "claudecraft",
+  "version": "0.1.0",
+  "description": "Evidence-led improvement cycle: execute a bounded backlog item, test it, record deterministic learnings (including both proven AND disproven theses) in a 7-field commit body, replan through a multi-model advisory panel using a 15-iteration learnings digest with a disproven-thesis guard.",
+  "author": { "name": "whichguy", "url": "https://github.com/whichguy" },
+  "homepage": "https://github.com/whichguy/claude-craft",
+  "repository": "https://github.com/whichguy/claude-craft",
+  "license": "MIT",
+  "keywords": ["claude-code", "improve-loop", "iteration", "tested-improvement"],
+  "dependencies": []
+}

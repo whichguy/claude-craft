@@ -167,6 +167,13 @@ const HISTORICAL_BREADCRUMBS = new Set([
     'make-slides',             // merged into /slides Step 4 — chrome verification folded in
 ]);
 
+// Slash commands that live in OTHER marketplaces — real commands, just not
+// defined in this repo. Allowlisted so cross-marketplace references resolve.
+const EXTERNAL_MARKETPLACE_COMMANDS = new Set([
+    'ralph-loop',            // ralph-loop plugin (claude-plugins-official) — outer quota wrapper
+    'cancel-ralph',          // ralph-loop plugin — cancels an active ralph loop
+]);
+
 // Internal-only agents/skills that are exempt from the dead-code detector
 // because they are dispatched only by other agents in their team.
 // Frontmatter description should make this explicit.
@@ -189,6 +196,7 @@ const USER_FACING_NO_REFS_OK = new Set([
     'enable-abilities',
     'execute-plan',
     'form990',
+    'improve-loop',
     'slack-tag',
     'test-delivery-agent',  // harness invoked via /test-delivery-agent, not dispatched
     'test-slides',
@@ -265,6 +273,7 @@ describe('cross-reference lint: every /skill-name in primary docs resolves', fun
                     if (CLAUDE_CODE_BUILTINS.has(name)) continue;
                     if (NON_SLASH_COMMAND_REFS.has(name)) continue;
                     if (HISTORICAL_BREADCRUMBS.has(name)) continue;
+                    if (EXTERNAL_MARKETPLACE_COMMANDS.has(name)) continue;
                     unresolved.push({
                         ref: `/${name}`,
                         file: path.relative(REPO_ROOT, file),
