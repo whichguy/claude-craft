@@ -107,6 +107,8 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
 Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
 `--no-worktree`. Never rebase the source branch onto the worktree.
 
+Quality-review bank (invariants + dual-path matrix): [`worktree-lifecycle-learnings.md`](worktree-lifecycle-learnings.md).
+
 ## Invariants
 
 1. Caps stop **S8 only** — still run S11 if a worktree exists.  
