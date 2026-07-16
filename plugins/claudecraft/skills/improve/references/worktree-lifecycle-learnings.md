@@ -76,6 +76,13 @@ F) after E setup but launch advanced + same-file edit → re-running S11a
 recover merge override, destroy pre-reintegrate, status tip_on_launch,
 clean carry exclude.
 
+## Honest re-audit (post-skeptic)
+
+| Iter | Verdict | Commit | Evidence |
+|---|---|---|---|
+| 12 | **clean** | (this) | dual-path-iter12.txt path A–F OK_*; iter12-mocha 25 pass |
+| 13 | pending | — | sequential second cycle after 12 commit |
+
 ## Stop (2026-07 quality review)
 
 Two consecutive clean cycles: **12** + **13** at HEAD `2e3f12a` (docs commits follow).
