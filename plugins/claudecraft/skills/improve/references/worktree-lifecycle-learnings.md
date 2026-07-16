@@ -91,3 +91,10 @@ Two consecutive clean cycles after material `2e3f12a`:
 
 Mandatory dual-path matrix A–F exercised with live OK_/FAIL_ asserts both times.
 
+## Goal re-audit (KISS/YAGNI, scratch d7f2f8d991e6)
+
+| Iter | Verdict | Commit | Notes |
+|---|---|---|---|
+| 14 | **clean** | (this) | survey+matrix A–F; YAGNI on truthy helper; dual-path-iter14.txt |
+| 15 | pending | — | second sequential clean |
+
