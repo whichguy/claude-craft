@@ -572,7 +572,7 @@ cmd_reintegrate() {
       return 0
     fi
     # Need S11b only
-    printf 'reintegrate: prior S11a ok; tip not on launch — running S11b only (merge override or delayed merge)\n'
+    printf 'reintegrate: prior S11a ok; tip still unmerged — running S11b only (merge override or delayed merge)\n'
     skip_s11a=true
   fi
 
@@ -768,7 +768,7 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
     tip0="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
     if ! tip_on_launch_p "$LAUNCH_PATH" "$tip0" "$LAUNCH_BRANCH"; then
       need_reint=true
-      printf 'recover: reintegrate_status=ok but tip not on launch and --merge-to-launch set — re-running S11b\n'
+      printf 'recover: reintegrate_status=ok but tip still unmerged; --merge-to-launch set — running S11b\n'
     fi
   fi
   if [[ "$need_reint" == "true" ]]; then
