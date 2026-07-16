@@ -600,7 +600,11 @@ cmd_reintegrate() {
   launch_tip="$(git_c "$launch" rev-parse "$LAUNCH_BRANCH")"
 
   # Idempotent when tip already on launch (S11b done). If status=ok but tip not on launch
-  # and do_merge (e.g. prior no-merge S11a-only, now --merge-to-launch), skip S11a and do S11b.
+  # and do_merge (e.g. prior no-merge S11a-only, now --merge-to-launch):
+  #   - S11b only when tip already includes current launch tip (S11a would be no-op)
+  #   - else re-run S11a (launch advanced and/or tip needs rebase) then S11b
+  # Never skip S11a solely because reintegrate_status=ok — that left concurrent
+  # launch edits as S11b conflicts on the launch checkout instead of in the worktree.
   if [[ "${REINTEGRATE_STATUS:-}" == "ok" ]]; then
     if tip_on_launch_p "$launch" "$merge_ref" "$LAUNCH_BRANCH"; then
       printf 'reintegrate: already complete (tip on launch; reintegrate_status=ok state=%s)\n' "$STATE"
@@ -614,9 +618,14 @@ cmd_reintegrate() {
       ok_status reintegrate S11a blocked:open-pr "already-complete; tip not on launch"
       return 0
     fi
-    # Need S11b only
-    printf 'reintegrate: prior S11a ok; tip still unmerged — running S11b only (merge override or delayed merge)\n'
-    skip_s11a=true
+    if git_c "$launch" merge-base --is-ancestor "$launch_tip" "$merge_ref" 2>/dev/null; then
+      printf 'reintegrate: prior S11a ok; tip already includes launch tip %s — S11b only (merge override or delayed merge)\n' \
+        "${launch_tip:0:12}"
+      skip_s11a=true
+    else
+      printf 'reintegrate: prior S11a ok but tip does not include current launch tip — re-running S11a then S11b\n'
+      skip_s11a=false
+    fi
   fi
 
   json_merge "$RUN_JSON" '{"state":"reintegrating"}'

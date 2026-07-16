@@ -100,7 +100,9 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
    - **S11b** — merge **post-rebase worktree tip** into the **launch/source branch**
      (`merge_to_launch: true` by default; often a fast-forward). Durable history ends on source.  
      If prior S11a left `reintegrate_status=ok` with tip still unmerged, a later
-     `--merge-to-launch` runs **S11b only** (skips re-rebase).  
+     `--merge-to-launch` runs **S11b only** when the tip already includes the
+     current launch tip; otherwise **re-runs S11a** (launch may have advanced)
+     then S11b so conflicts stay in the worktree.  
 4. **S12 destroy** removes the worktree only; refuses without `--force` whenever the worktree
      tip is not on launch (including **before** reintegrate — detached commits are the only copy).  
 

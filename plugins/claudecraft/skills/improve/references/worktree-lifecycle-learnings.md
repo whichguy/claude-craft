@@ -23,6 +23,10 @@ for destroy/recover/status decisions.
 6. **Clean carry ignores improve worktrees.** Create seeds
    `.claude/worktrees/` into local exclude; carry filters that path from
    untracked tar.
+7. **S11b-only only when tip includes current launch tip.** After
+   `reintegrate_status=ok` with tip still unmerged, skip S11a only if
+   `merge-base --is-ancestor <launch_tip> <wt_tip>`. If launch advanced,
+   re-run S11a so conflicts stay in the worktree (not S11b on launch).
 
 ## Iteration log
 
@@ -33,8 +37,8 @@ for destroy/recover/status decisions.
 | 5–6 | clean (later refuted) | `d0f89c0`, `1ddd7ff` | recover `--merge-to-launch` after no-merge false not-on-launch | S11b-only path; persist merge; tip_on_launch_p; wording “still unmerged” |
 | 7 | material | `4c59fd1`, `28d7494` | status suggested_next ignored tip; destroy pre-reint dropped tip | status tip_on_launch; destroy always tip-guarded |
 | 8 | material | `531a65f` | carry “dirty” after every create; false WIP carried | absolute exclude; filter worktrees; honest nothing-to-carry |
-| 9 | **clean** | (this docs commit) | Re-audit dual-path matrix after 531a65f | No new P0/P1; both skeptic paths green |
-| 10 | **clean** | (this docs commit) | Second consecutive clean; static tip_on_launch gates | Stop condition met |
+| 9–10 | clean (pre-11) | `7c6ffe7` | Dual-path green; banked learnings | Clean still needs durable commit |
+| 11 | material | (next) | S11b-only skipped S11a after launch advanced → S11b conflict on launch | Ancestor gate for skip_s11a |
 
 ## Mandatory dual-path matrix (re-run every clean claim)
 

@@ -444,6 +444,75 @@ describe('improve-worktree.sh', function () {
     expect(d.stderr + d.stdout).to.match(/blocked:open-pr|not on launch|only copy/i);
   });
 
+  it('S11b-only after no-merge when tip already includes launch tip', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 's11bo', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-s11bo');
+    fs.writeFileSync(path.join(wt, 'only.txt'), 'x\n');
+    git(wt, 'add', 'only.txt');
+    git(wt, 'commit', '-m', 'tip');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 's11bo']).status).to.equal(0);
+    const r2 = runScript([
+      'reintegrate',
+      '--repo',
+      repo,
+      '--slug',
+      's11bo',
+      '--merge-to-launch',
+    ]);
+    expect(r2.status, r2.stderr + r2.stdout).to.equal(0);
+    expect(r2.stdout + r2.stderr).to.match(/S11b only|already includes launch tip/i);
+    expect(r2.stdout + r2.stderr).to.match(/S11b=merged/);
+    expect(fs.existsSync(path.join(repo, 'only.txt'))).to.equal(true);
+  });
+
+  it('re-runs S11a when launch advanced after prior no-merge reintegrate (not S11b-only)', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 's11ba', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-s11ba');
+    fs.writeFileSync(path.join(wt, 'README.md'), 'wt-side\n');
+    git(wt, 'add', 'README.md');
+    git(wt, 'commit', '-m', 'wt readme');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 's11ba']).status).to.equal(0);
+
+    // Concurrent launch edit of same file + extra wt commit
+    fs.writeFileSync(path.join(repo, 'README.md'), 'launch-side\n');
+    git(repo, 'add', 'README.md');
+    git(repo, 'commit', '-m', 'launch readme');
+    fs.writeFileSync(path.join(wt, 'extra.txt'), 'e\n');
+    git(wt, 'add', 'extra.txt');
+    git(wt, 'commit', '-m', 'extra after S11a');
+
+    const r2 = runScript([
+      'reintegrate',
+      '--repo',
+      repo,
+      '--slug',
+      's11ba',
+      '--merge-to-launch',
+    ]);
+    // Must re-run S11a (conflict stays in worktree), not skip to S11b on launch
+    expect(r2.status).to.equal(5);
+    expect(r2.stderr + r2.stdout).to.match(/re-running S11a|blocked:rebase-continue|S11a/i);
+    expect(r2.stderr + r2.stdout).to.not.match(/S11b only/i);
+    expect(r2.stderr + r2.stdout).to.not.match(/fix-merge-on-launch/);
+    // Launch must not be left mid-merge
+    expect(fs.existsSync(path.join(repo, '.git/MERGE_HEAD'))).to.equal(false);
+    // Worktree mid-rebase for operator continue
+    const mid =
+      fs.existsSync(path.join(wt, '.git')) &&
+      (runScript(['status', '--repo', repo, '--slug', 's11ba']).stdout || '').match(
+        /mid_rebase=yes/
+      );
+    // status mid_rebase should be yes
+    const st = runScript(['status', '--repo', repo, '--slug', 's11ba']);
+    expect(st.stdout).to.match(/mid_rebase=yes/);
+  });
+
   it('recover --merge-to-launch after no-merge create merges tip then destroys', function () {
     const repo = makeRepo();
     expect(
