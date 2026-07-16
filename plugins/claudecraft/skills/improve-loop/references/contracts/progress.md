@@ -12,7 +12,7 @@ or reintegrate.
 ```text
 progress.emit(markdown [, structured?])
 # Prefer host goal progress when available:
-#   goal.report(progress)  — see contracts/goal.md
+#   goal.report(progress)  — see goal.md (sibling)
 # Always fall back to a user-visible assistant/stdout block so the operator never gets silence.
 ```
 

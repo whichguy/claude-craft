@@ -8,7 +8,7 @@ Improve’s **continuous** outer loop is harness-neutral. Hosts **may** provide 
 
 ```text
 goal.start(objective, stop_predicate, caps?)
-goal.report(progress)           # progress pulse — see contracts/progress.md
+goal.report(progress)           # progress pulse — see progress.md (this directory)
 goal.complete(summary)          # success-shaped terminal
 goal.blocked(reason)            # stall / budget / error terminal
 ```
@@ -16,7 +16,7 @@ goal.blocked(reason)            # stall / budget / error terminal
 ### Progress reporting (required cadence when continuous)
 
 When a host provides goal (or the `improve` driver runs continuous S8), emit **progress pulses**
-per `contracts/progress.md`:
+per `progress.md` (sibling contract):
 
 - After **each** improve-loop cycle (learnings, changes, backlog/caps progress)
 - After reintegrate / final done

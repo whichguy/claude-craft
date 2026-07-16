@@ -111,6 +111,14 @@ describe('claudecraft improve skill structure', function () {
     const resolved = path.resolve(path.dirname(life), m[1]);
     expect(fs.existsSync(resolved), resolved).to.equal(true);
   });
+
+  it('contracts cross-links resolve as siblings (not contracts/contracts/)', function () {
+    const goal = path.join(CC, 'skills/improve-loop/references/contracts/goal.md');
+    const text = fs.readFileSync(goal, 'utf8');
+    // Must not use nested contracts/ prefix from inside contracts/
+    expect(text).to.not.match(/`contracts\/progress\.md`/);
+    expect(fs.existsSync(path.join(path.dirname(goal), 'progress.md'))).to.equal(true);
+  });
 });
 
 function walk(dir) {
