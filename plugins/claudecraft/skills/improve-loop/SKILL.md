@@ -26,7 +26,7 @@ before applying its rules.
 | Commits | **Yes** — orchestrator may commit once per cycle; prefer a branch/worktree |
 | Tests | Stated or already recorded; **never invented** |
 | Continuous | `improve` driver or host goal — not unlimited outer quotas |
-| Progress | Control-channel pulse each cycle → `references/contracts/progress.md` |
+| Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
 | Lifecycle | `../../tools/improve-worktree.sh` (create/carry/reintegrate/destroy) |
 | Kernel | Host-agnostic; Claude slash names are plugin packaging only |
 

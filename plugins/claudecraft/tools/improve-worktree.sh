@@ -132,7 +132,7 @@ resolve_run_json() {
   # sets RUN_JSON (prefer worktree copy) and optionally INDEX_JSON
   if [[ -n "${RUN_JSON_ARG:-}" ]]; then
     RUN_JSON="$(abs_path "$RUN_JSON_ARG")"
-    [[ -f "$RUN_JSON" ]] || die 8 "IMPROVE_RUN.json not found: $RUN_JSON"
+    [[ -f "$RUN_JSON" ]] || die 8 "run state JSON not found: $RUN_JSON"
     return
   fi
   [[ -n "${REPO_ARG:-}" ]] || die 1 "need --run-json or --repo"

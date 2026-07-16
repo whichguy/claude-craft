@@ -10,9 +10,13 @@ Before promise/terminal handling, **emit** the cycle’s progress pulse per
 1. Complete fields from Phases 2–4 (outcome, test, committed, changes, learnings).  
 2. After replan: **Next** = first unchecked Backlog item; blockers from Notes/Status.  
 3. Progress metrics: backlog done/total, stall counters, Status.  
-4. Emit via host goal progress if available, else **user-visible markdown** starting with
-   `## Improve progress`.  
-5. Never skip solely because Outcome was `blocked` or commit vetoed — those are exactly
+4. **Prefer the pure formatter** when Node is available so the pulse matches the schema:
+   build a JSON object of the fields above, then
+   `node <plugin>/tools/improve-progress-format.js --file <pulse.json>`
+   (or stdin). If Node is unavailable, hand-author the same markdown shape from
+   `contracts/progress.md` (heading must be `## Improve progress`).  
+5. Emit via host goal progress if available, else **user-visible markdown** from step 4.  
+6. Never skip solely because Outcome was `blocked` or commit vetoed — those are exactly
    when operators need visibility.
 
 Mid-cycle optional pulse: only if Phase 1 is still running past a soft wall-clock budget

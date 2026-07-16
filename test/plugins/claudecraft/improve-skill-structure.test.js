@@ -90,10 +90,18 @@ describe('claudecraft improve skill structure', function () {
     expect(text).to.match(/key learnings/i);
     expect(text).to.match(/key changes/i);
     expect(text).to.match(/goal\.report/);
+    expect(text).to.match(/improve-progress-format\.js/);
     const loop = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
     expect(loop).to.match(/progress\.md/);
+    expect(loop).to.match(/improve-progress-format\.js/);
     const driver = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
     expect(driver).to.match(/progress pulse/i);
+    expect(driver).to.match(/improve-progress-format\.js/);
+    const p5 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
+      'utf8'
+    );
+    expect(p5).to.match(/improve-progress-format\.js/);
   });
 
   it('worktree script documents canonical .git/improve-runs state', function () {

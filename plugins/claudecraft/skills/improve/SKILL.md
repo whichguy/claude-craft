@@ -62,7 +62,9 @@ While Status active and under caps:
 1. Cap check (cycles / elapsed / budget) → if over, break to S9.  
 2. **Run one improve-loop cycle** in the active tree (load improve-loop skill; follow its phase index and Read phase references).  
 3. Re-read `IMPROVE_LOOP.md` Status / counters.  
-4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize from the latest Log entry + `git status` / last commit and emit now (`goal.report` if available, else visible markdown).  
+4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize JSON from the latest Log entry + `git status` / last commit and prefer  
+   `node <plugin>/tools/improve-progress-format.js`  
+   (see `../improve-loop/references/contracts/progress.md`), then emit via `goal.report` if available, else visible markdown.  
 5. If terminal or until+complete, break.
 
 **Goal host:** if the harness has a goal facility, bind it per `../improve-loop/references/contracts/goal.md` with the same stop predicate; use `goal.report` for pulses; still perform S11–S12 yourself. If no goal facility, this native S8 loop **is** the outer loop and pulses are user-visible markdown.
@@ -117,5 +119,6 @@ State: `<repo>/.git/improve-runs/<slug>.json`.
 | Throttle | `references/throttle.md` |
 | Goal contract | `../improve-loop/references/contracts/goal.md` |
 | Progress pulses | `../improve-loop/references/contracts/progress.md` |
+| Progress formatter | `../../tools/improve-progress-format.js` |
 | Outer loop | `../improve-loop/references/contracts/outer-loop.md` |
 | One cycle | `../improve-loop/SKILL.md` |
