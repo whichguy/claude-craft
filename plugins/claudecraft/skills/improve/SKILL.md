@@ -79,7 +79,8 @@ While Status active and under caps:
 4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize JSON from the latest Log entry + `git status` / last commit and prefer  
    `node <plugin>/tools/improve-progress-format.js`  
    (see `../improve-loop/references/contracts/progress.md`), then emit via `goal.report` if available, else visible markdown.  
-5. **Update `## Driver`:** recompute `next_auto` / `resume_hint` / `updated` from disk rules (Phase 0).  
+5. **Update `## Driver`:** recompute `next_auto` / `resume_hint` / `updated` from disk rules (Phase 0);
+   prefer `node <plugin>/tools/improve-next-auto.js` with a fact snapshot when Node is available.  
 6. If terminal or until+complete, break (then S9–S12 — do not skip reintegrate while a worktree exists).
 
 **Goal host:** if the harness has a goal facility, bind it per `../improve-loop/references/contracts/goal.md` with the same stop predicate; use `goal.report` for pulses; still perform S11–S12 yourself. If no goal facility, this native S8 loop **is** the outer loop and pulses are user-visible markdown.

@@ -217,6 +217,43 @@ describe('improve-worktree.sh', function () {
     expect(r.stderr + r.stdout).to.match(/uncommitted|dirty/i);
   });
 
+  it('continue after rebase conflict then reintegrate succeeds', function () {
+    this.timeout(60000);
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'cont']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-cont');
+
+    fs.writeFileSync(path.join(wt, 'README.md'), '# worktree side\n');
+    git(wt, 'add', 'README.md');
+    git(wt, 'commit', '-m', 'wt change');
+
+    fs.writeFileSync(path.join(repo, 'README.md'), '# launch side\n');
+    git(repo, 'add', 'README.md');
+    git(repo, 'commit', '-m', 'launch change');
+
+    const r1 = runScript(['reintegrate', '--repo', repo, '--slug', 'cont']);
+    expect(r1.status).to.equal(5);
+    const rebaseMerge = git(wt, 'rev-parse', '--git-path', 'rebase-merge');
+    const rebaseApply = git(wt, 'rev-parse', '--git-path', 'rebase-apply');
+    expect(fs.existsSync(rebaseMerge) || fs.existsSync(rebaseApply)).to.equal(true);
+
+    // Resolve non-interactively and continue rebase
+    fs.writeFileSync(path.join(wt, 'README.md'), '# resolved both sides\n');
+    git(wt, 'add', 'README.md');
+    const cont = sh(wt, ['git', '-c', 'core.editor=true', 'rebase', '--continue'], {
+      env: {
+        GIT_EDITOR: 'true',
+        EDITOR: 'true',
+        VISUAL: 'true',
+      },
+    });
+    expect(cont.status, cont.stderr + cont.stdout).to.equal(0);
+
+    const r2 = runScript(['reintegrate', '--repo', repo, '--slug', 'cont']);
+    expect(r2.status, r2.stderr + r2.stdout).to.equal(0);
+    expect(fs.readFileSync(path.join(repo, 'README.md'), 'utf8')).to.match(/resolved both/);
+  });
+
   it('S11a rebases onto concurrent source commits then S11b lands both on source', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'rb']).status).to.equal(0);

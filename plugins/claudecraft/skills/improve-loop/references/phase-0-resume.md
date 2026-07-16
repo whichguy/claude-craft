@@ -34,16 +34,23 @@ worktree exists for the run, **do Phase 1 work there**, not on launch. If Driver
 paths don’t match `git rev-parse` on this machine → rewrite from run_json/slug or
 `blocked:path-relocated`.
 
-**`next_auto` derivation (summary):** mid-rebase → `blocked:rebase-continue`; else worktree
-dirty (non-ledger) → `blocked:worktree-dirty`; else only-ledger dirty before
-reintegrate/destroy → auto-commit driver ledger; else no test command unattended →
-`blocked:no-tests`; else cold target ≠ ledger title without “resume existing” →
-`blocked:ledger-target-mismatch`; else Status active under caps → `cycle`; else worktree
-present and reintegrate not ok → `reintegrate` (**even if Status is complete**); if
-`merge_to_launch=false` after successful S11a-only path → `blocked:open-pr` or `done` with
-PR hint (do not claim merged to launch); else reintegrate ok and not keep_worktree →
-`destroy` (destroy fail → `blocked:destroy-failed`); else `done`. Recompute every turn;
-do not trust a stale `resume_hint` for control flow.
+**`next_auto` derivation (summary):** Prefer the pure helper when Node is available:
+
+```bash
+node <plugin>/tools/improve-next-auto.js --file snapshot.json
+# → { next_auto, blocked_detail, resume_hint, auto_commit_ledger }
+```
+
+Build `snapshot.json` from git/Driver/run_json facts (see tool header). Otherwise apply the
+same order by hand: mid-rebase → `blocked:rebase-continue`; else worktree dirty (non-ledger)
+→ `blocked:worktree-dirty`; else only-ledger dirty before reintegrate/destroy → auto-commit
+driver ledger; else no test command unattended → `blocked:no-tests`; else cold target ≠
+ledger title without “resume existing” → `blocked:ledger-target-mismatch`; else Status
+active under caps → `cycle`; else worktree present and reintegrate not ok → `reintegrate`
+(**even if Status is complete**); if `merge_to_launch=false` after reintegrate ok →
+`blocked:open-pr` (do not claim merged to launch); else reintegrate ok and not
+keep_worktree → `destroy` (destroy fail → `blocked:destroy-failed`); else `done`. Recompute
+every turn; do not trust a stale `resume_hint` for control flow.
 
 **Ambiguous runs:** multiple non-destroyed `.git/improve-runs/*.json` without a clear slug →
 `blocked:ambiguous-run` (do not guess).

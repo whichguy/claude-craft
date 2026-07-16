@@ -29,6 +29,7 @@ const REQUIRED = [
   'skills/improve/references/throttle.md',
   'tools/improve-worktree.sh',
   'tools/improve-progress-format.js',
+  'tools/improve-next-auto.js',
 ];
 
 const LAW_PHRASES = [
@@ -224,6 +225,10 @@ describe('claudecraft improve skill structure', function () {
     const improve = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
     expect(improve).to.match(/## Driver|Driver write/);
     expect(improve).to.match(/resume template|Resume|recover/i);
+
+    expect(fs.existsSync(path.join(CC, 'tools/improve-next-auto.js'))).to.equal(true);
+    expect(p0).to.match(/improve-next-auto\.js/);
+    expect(improve).to.match(/improve-next-auto\.js/);
   });
 });
 
