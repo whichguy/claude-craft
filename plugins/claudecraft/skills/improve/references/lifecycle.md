@@ -101,7 +101,8 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
      (`merge_to_launch: true` by default; often a fast-forward). Durable history ends on source.  
      If prior S11a left `reintegrate_status=ok` with tip still unmerged, a later
      `--merge-to-launch` runs **S11b only** (skips re-rebase).  
-4. **S12 destroy** removes the worktree only; refuses without `--force` when tip is not on launch.  
+4. **S12 destroy** removes the worktree only; refuses without `--force` whenever the worktree
+     tip is not on launch (including **before** reintegrate — detached commits are the only copy).  
 
 Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
 `--no-worktree`. Never rebase the source branch onto the worktree.

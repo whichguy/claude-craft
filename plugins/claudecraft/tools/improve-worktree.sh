@@ -19,7 +19,7 @@
 #   carry        Carry launch WIP into worktree as bootstrap commit
 #   status       Print run JSON + --- summary --- (mid_rebase, suggested_next, …)
 #   reintegrate  S11a rebase; S11b merge tip→launch (default)
-#   destroy      Remove worktree (refuses failed reintegrate unless --force)
+#   destroy      Remove worktree (refuses unmerged tip or failed reintegrate unless --force)
 #   recover      Reintegrate then destroy unless keep_worktree
 #
 # Exit codes:
@@ -720,17 +720,18 @@ cmd_destroy() {
 fix conflicts / dirty trees, or pass --force to remove worktree anyway
 slug=$SLUG worktree=$WORKTREE_PATH"
     fi
-    # Refuse destroy only when tip is NOT reachable from launch (true unmerged tip).
-    # If S11b merged (including via recover --merge-to-launch after create --no-merge), tip is on launch.
-    if [[ -d "$WORKTREE_PATH" && ( "$status" == "ok" || "$state" == "reintegrated" ) ]]; then
+    # Always refuse when tip is not on launch — including state=created (never reintegrated).
+    # Detached improve commits live only on the worktree tip until S11b; destroy would drop the only copy.
+    # After S11b (or recover --merge-to-launch), tip is reachable from launch → allow default destroy.
+    if [[ -d "$WORKTREE_PATH" ]]; then
       local tip_sha
       tip_sha="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
       if ! tip_on_launch_p "$LAUNCH_PATH" "$tip_sha" "$LAUNCH_BRANCH"; then
         record_last_error 7 destroy "refuse destroy: tip not on launch branch"
         die_status 7 destroy none blocked:open-pr \
           "destroy refused: worktree tip is not on launch branch $LAUNCH_BRANCH (only copy may be worktree)
-open a PR/branch from tip, reintegrate with --merge-to-launch, or pass --force to discard
-slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha"
+reintegrate (optionally --merge-to-launch), open a PR from tip, or pass --force to discard
+slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha state=$state reintegrate_status=${status:-none}"
       fi
     fi
   fi

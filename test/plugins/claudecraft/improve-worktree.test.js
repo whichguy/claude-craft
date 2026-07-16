@@ -386,6 +386,22 @@ describe('improve-worktree.sh', function () {
     expect(runScript(['destroy', '--repo', repo, '--slug', 'wd', '--force']).status).to.equal(0);
   });
 
+  it('destroy before reintegrate refuses when tip has unmerged commits', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'pre']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-pre');
+    fs.writeFileSync(path.join(wt, 'pre-only.txt'), 'keep-me\n');
+    git(wt, 'add', 'pre-only.txt');
+    git(wt, 'commit', '-m', 'improve-loop: tip never reintegrated');
+    const d = runScript(['destroy', '--repo', repo, '--slug', 'pre']);
+    expect(d.status).to.equal(7);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(fs.readFileSync(path.join(wt, 'pre-only.txt'), 'utf8')).to.match(/keep-me/);
+    expect(d.stderr + d.stdout).to.match(/not on launch|blocked:open-pr|--force/i);
+    // Empty tip (no new commits) may still destroy: tip == launch head is on launch
+    expect(runScript(['destroy', '--repo', repo, '--slug', 'pre', '--force']).status).to.equal(0);
+  });
+
   it('recover after no-merge reintegrate keeps worktree (does not destroy tip)', function () {
     const repo = makeRepo();
     expect(
