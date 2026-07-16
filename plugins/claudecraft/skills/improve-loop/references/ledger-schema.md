@@ -17,6 +17,19 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
 **Iteration counter:** N     <!-- derived; next cycle uses N+1; must match Log -->
 
+## Driver
+- **mode:** continuous | once
+- **slug:** <slug|none>
+- **repo:** <absolute launch git root|none>
+- **launch_branch:** <branch|none>
+- **worktree_path:** <absolute path|none>
+- **run_json:** <absolute path to .git/improve-runs/<slug>.json|none>
+- **test_command:** <same as header|none>
+- **next_auto:** cycle | reintegrate | destroy | blocked:<token> | done
+- **blocked_detail:** <one line|none>
+- **resume_hint:** <one imperative line for cold resume|none>
+- **updated:** <ISO-8601Z|none>
+
 ## Backlog
 - [x] <item> — done <date> (commit: `git log --grep="improve-loop: iteration 1 —"`)
 - [ ] <item> — <why it matters>
@@ -44,6 +57,29 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Committed:** pending | yes | no — <reason>
 **Notes for next cycle:** …
 ```
+
+### `## Driver` (rewritable; automation + rehydration)
+
+**Purpose:** cold-resume after context compaction or a user re-prompt without trusting chat.
+This is **not** a second ledger — one file only. Lifecycle machine fields also live in
+`.git/improve-runs/<slug>.json` (canonical for paths/flags when the file exists).
+
+| Rule | Detail |
+|---|---|
+| Placement | After header (`Status` / `Iteration counter`), **before** `## Backlog` |
+| Keys | Bold `**key:**` + space + value; ignore unknown keys |
+| Absent values | Literal `none` (not empty, not em-dash) |
+| Paths | Absolute |
+| `next_auto` | Enum only: `cycle` \| `reintegrate` \| `destroy` \| `blocked:<token>` \| `done` |
+| `resume_hint` | One imperative line for a cold agent/human — UX only; **recompute next_auto** from disk before trusting hint |
+| Rewrites | Entire `## Driver` section may be replaced each boundary (S2/S8/S11–S13 / Phase 5) |
+| Legacy | Missing `## Driver` is OK; derive next step from Status + run JSON + git |
+| Secrets | No tokens, full test logs, or multi-paragraph dumps |
+
+**Only-ledger auto-commit (narrow):** when the next automatic step is `reintegrate` or
+`destroy` and `git status` shows **only** `IMPROVE_LOOP.md` dirty, commit bookkeeping with
+subject `improve-loop: driver — next_auto <value>` so the dirty-worktree reintegrate guard
+does not false-block. Do **not** auto-commit other paths.
 
 Do not put an iteration's own commit SHA in its Backlog line or Log entry. That commit
 includes `IMPROVE_LOOP.md`, so its SHA does not exist when the file is written. Instead,

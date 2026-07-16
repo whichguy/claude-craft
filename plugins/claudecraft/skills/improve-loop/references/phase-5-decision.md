@@ -1,6 +1,9 @@
 <!-- Extracted from improve-loop SKILL.md — normative cycle law; do not rewrite casually -->
 
-### Phase 5 — Loop decision (native, no further file writes)
+### Phase 5 — Loop decision (native; Driver update + optional lifecycle writes)
+
+After the pulse rules below: update `## Driver` (`next_auto`, `resume_hint`, `updated`,
+paths). Prefer no extra file writes beyond Driver/ledger; lifecycle steps may commit.
 
 #### Control-channel progress pulse (required)
 
@@ -74,20 +77,46 @@ A single improve-loop invocation performs **exactly one** cycle and reports. Use
 a manual first look, and preferably to seed `IMPROVE_LOOP.md` before unattended continuous
 runs.
 
-### Worktree end (when this cycle ran inside an improve worktree)
+### Worktree end (auto — once mode or when continuous driver is not taking S11)
 
-If the active tree is an improve worktree (`…/.claude/worktrees/improve-<slug>` or run state
-under `<repo>/.git/improve-runs/<slug>.json`) and the **outer** mode is **once** (no continuous
-driver S11 pending), the orchestrator **must still finish lifecycle** after Phase 5 pulse:
+If an improve worktree is in play (`…/.claude/worktrees/improve-<slug>` or live
+`.git/improve-runs/<slug>.json`) and the **outer** continuous driver is **not** about to run
+S11 itself (typical **once** improve-loop), the orchestrator **must automatically** finish
+lifecycle after the pulse — do not wait for the user:
 
-1. `reintegrate` — **S11a** rebase worktree onto latest source tip (organize conflicts in the
-   worktree); **S11b** merge tip into the launch/source branch (checked out at create). No
-   permanent `improve/*` branch is required.  
-2. `destroy` unless `keep_worktree` or reintegrate failed.
+0. Update `## Driver` with `next_auto: reintegrate` (or `blocked:…`).  
+1. If porcelain is **only** `IMPROVE_LOOP.md`, auto-commit
+   `improve-loop: driver — next_auto reintegrate` (ledger-schema only-ledger rule).  
+2. `reintegrate` — **S11a** rebase onto source tip; **S11b** merge tip → source (default).  
+3. On success: `next_auto: destroy` (or `done` if `keep_worktree`); then `destroy` unless keep.  
+4. On failure: set `blocked:rebase-continue` / `blocked:launch-dirty` / etc.; **print the resume
+   template** (below); stop. Do not promise success.
 
-Opt out of merge only when the operator asked for PR-only (`--no-merge-to-launch` / “no merge”).
-If launch has tracked dirty files, reintegrate exits 6 (`launch_dirty`) — report; do not force-merge.
-Continuous `improve` driver owns the same S11–S12 steps after the inner loop stops.
+**Status `complete` does not skip teardown** while a worktree still needs reintegrate.
+
+Opt out of S11b merge only when the operator asked for PR-only (`--no-merge-to-launch`).
+Continuous `improve` driver runs the same S11–S12 after the inner loop stops.
+
+### Resume template (print on blocked or when a human must re-prompt)
+
+```text
+Resume improve from disk (ignore chat history).
+
+repo: <repo>
+slug: <slug>
+worktree_path: <path|none>
+run_json: <path|none>
+next_auto: <value>
+blocked_detail: <or none>
+
+Steps:
+1. cd worktree_path if set, else repo
+2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
+3. Prefer run_json for paths if file exists
+4. Execute next_auto only (cycle | reintegrate | destroy | fix blocked:*)
+5. Use test_command from ledger; never invent tests
+6. Update ## Driver after the step
+```
 
 
 ### Optional: finite re-invoke wrappers (adapter example)

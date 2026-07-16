@@ -26,6 +26,36 @@ S13 DONE           → final progress pulse
 
 Progress schema: `../../improve-loop/references/contracts/progress.md`.
 
+## Driver + resume (no second state file)
+
+Durable product state is **one** `IMPROVE_LOOP.md` in the **active** tree (includes `## Driver`).
+Machine lifecycle: `.git/improve-runs/<slug>.json`. Chat is untrusted after compaction.
+
+**Cold resume prompt** (fill and paste when blocked or session lost):
+
+```text
+Resume improve from disk (ignore chat history).
+
+repo: <repo>
+slug: <slug>
+worktree_path: <path|none>
+run_json: <path|none>
+next_auto: <value>
+blocked_detail: <or none>
+
+Steps:
+1. cd worktree_path if set, else repo
+2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
+3. Prefer run_json for paths if file exists
+4. Execute next_auto only (cycle | reintegrate | destroy | fix blocked:*)
+5. Use test_command from ledger; never invent tests
+6. Update ## Driver after the step
+```
+
+**Edges (short):** Status complete ≠ teardown done while worktree needs reintegrate; mid-rebase
+beats Driver; only-ledger dirty may auto-commit `improve-loop: driver — next_auto …` before
+reintegrate; ambiguous multi-run JSON → stop `blocked:ambiguous-run`.
+
 ## Worktree CLI
 
 Resolve script relative to this plugin:

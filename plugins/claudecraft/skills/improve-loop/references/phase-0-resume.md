@@ -4,6 +4,41 @@
 
 ### Phase 0 — Resume (native, cheap)
 
+#### Rehydration (every turn — including after context compaction)
+
+**Chat and compacted summaries are not authoritative.** Re-derive control flow from disk
+before Phase 1. Prefer a small in-context working set: header + `## Driver` + last **2–3**
+Log entries + Stop-condition lines + unchecked Backlog (or first few items) — never the full
+historical Log.
+
+**Priority when sources disagree** (first match wins):
+
+1. **Hard git/runtime stops** — mid-rebase in worktree → `blocked:rebase-continue`; worktree
+   dirty (more than ledger) → `blocked:worktree-dirty`; launch tracked dirty when S11b needed
+   → `blocked:launch-dirty`; worktree path missing but run JSON active →
+   `blocked:worktree-missing`.  
+2. **`run_json`** (if file exists) — slug, worktree_path, launch_branch, merge_to_launch,
+   reintegrate_status.  
+3. **Ledger header** — Status, test command, iteration counter / Log consistency.  
+4. **`## Driver`** — hints only (`next_auto`, `resume_hint`); never override (1)–(3).  
+5. **Chat / user prose** — intent only; never invent a test command or mark complete.
+
+**Resolve active tree (R1):** worktree_path from prompt/Driver/JSON if that directory exists;
+else cwd if under `…/.claude/worktrees/improve-*`; else launch root. If a live improve
+worktree exists for the run, **do Phase 1 work there**, not on launch.
+
+**`next_auto` derivation (summary):** mid-rebase → blocked; else worktree dirty (non-ledger)
+→ blocked; else only-ledger dirty before reintegrate/destroy → auto-commit driver ledger
+(`improve-loop: driver — next_auto <value>`); else Status active under caps → `cycle`; else
+worktree present and reintegrate not ok → `reintegrate` (**even if Status is complete** —
+inner complete ≠ teardown done); else reintegrate ok and not keep_worktree → `destroy`; else
+`done`. Recompute this every turn; do not trust a stale `resume_hint` for control flow.
+
+**Ambiguous runs:** multiple non-destroyed `.git/improve-runs/*.json` without a clear slug →
+`blocked:ambiguous-run` (do not guess).
+
+Then continue with the numbered steps below.
+
 1. Resolve the repository root and enforce all Preconditions: a git repository and a
    non-ignored state file. Initialize the **turn-level** set `TEST_ARTIFACT_PATHS` to empty
    now — it accumulates test-command side effects across this turn's suite runs (see Phase 1's
@@ -33,13 +68,15 @@
    *mismatched* state file cannot mis-stop a session it isn't actually driving.
 
 2. If `IMPROVE_LOOP.md` is absent, create it with the target description, test command
-   (ask once if missing), Status `active`, an empty Log, and zeroed counters. Seed the
+   (ask once if missing), Status `active`, an empty Log, zeroed counters, and a `## Driver`
+   stub (`next_auto: cycle` or seed intent; paths `none` until worktree create). Seed the
    Backlog immediately. This is a short native step, or a tiny one-shot native Agent call
    only when the target is too vague to turn into one to three concrete, testable unchecked
    items without judgment. Never leave the Backlog empty on a fresh file and then enter
    Phase 1. On this fresh create, skip 3a–4 and go to step 5 with `N = 1`.
 
-3. Otherwise read the Backlog, Stop-condition block, and last two or three Log entries.
+3. Otherwise read the header, **`## Driver`** (if present), Backlog, Stop-condition block,
+   and last two or three Log entries only.
    If the Log has zero entries, the file was created by an earlier invocation that crashed
    before Phase 1 produced a Log entry. This is not the same-turn fresh-create case, but
    needs identical treatment: skip 3a–4 and go to step 5 with `N = 1`. There is no latest

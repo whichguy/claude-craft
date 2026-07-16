@@ -40,6 +40,9 @@ const LAW_PHRASES = [
   'native-replanner fallback',
   'secret-shaped',
   'improve-loop: iteration',
+  '## Driver',
+  'next_auto',
+  'resume_hint',
 ];
 
 describe('claudecraft improve skill structure', function () {
@@ -143,6 +146,50 @@ describe('claudecraft improve skill structure', function () {
     // Must not use nested contracts/ prefix from inside contracts/
     expect(text).to.not.match(/`contracts\/progress\.md`/);
     expect(fs.existsSync(path.join(path.dirname(goal), 'progress.md'))).to.equal(true);
+  });
+
+  it('Driver section + disk rehydration + resume template are normative', function () {
+    const ledger = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
+      'utf8'
+    );
+    expect(ledger).to.match(/## Driver/);
+    expect(ledger).to.match(/\*\*next_auto:\*\*/);
+    expect(ledger).to.match(/\*\*resume_hint:\*\*/);
+    expect(ledger).to.match(/improve-loop: driver — next_auto/);
+    expect(ledger).to.match(/\bnone\b/);
+
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    expect(p0).to.match(/Rehydration|rehydrat/i);
+    expect(p0).to.match(/not authoritative|untrusted/i);
+    expect(p0).to.match(/blocked:rebase-continue|mid-rebase/i);
+    expect(p0).to.match(/last two or three|last 2–3|2–3/i);
+
+    const p5 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
+      'utf8'
+    );
+    expect(p5).to.match(/Resume improve from disk/);
+    expect(p5).to.match(/must automatically|automatically.*finish lifecycle/i);
+    expect(p5).to.match(/Status `complete` does not skip teardown|does not skip teardown/i);
+
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(life).to.match(/Resume improve from disk/);
+    expect(life).to.match(/## Driver|Driver \+/);
+
+    const loop = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
+    expect(loop).to.match(/Automation|automation/);
+    expect(loop).to.match(/## Driver|Driver/);
+
+    const improve = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
+    expect(improve).to.match(/## Driver|Driver write/);
+    expect(improve).to.match(/resume template|Resume/);
   });
 });
 

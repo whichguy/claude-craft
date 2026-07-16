@@ -22,12 +22,14 @@ before applying its rules.
 
 | Item | Rule |
 |---|---|
-| Scope | One git repo root; `IMPROVE_LOOP.md` + optional code |
-| Commits | **Yes** — orchestrator may commit once per cycle; prefer a branch/worktree |
+| Scope | One git repo root; `IMPROVE_LOOP.md` (+ `## Driver`) + optional code |
+| Commits | **Yes** — orchestrator may commit once per cycle; prefer worktree |
 | Tests | Stated or already recorded; **never invented** |
 | Continuous | `improve` driver or host goal — not unlimited outer quotas |
+| Automation | Most appropriate safe path by default; **stop only when blocked**; resume from **disk** |
+| Resume | Phase 0 rehydration: chat untrusted; read header + `## Driver` + last Log entries |
 | Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
-| Lifecycle | `../../tools/improve-worktree.sh` — **worktree by default** (detached tip); reintegrate **rebases onto source then merges tip → source** |
+| Lifecycle | Worktree default (detached); auto reintegrate→destroy when once+worktree; S11a rebase then S11b merge tip→source |
 | Kernel | Host-agnostic; Claude slash names are plugin packaging only |
 
 ## Invocation
@@ -57,9 +59,12 @@ Fail fast in Phase 0. Do not half-run a cycle.
 
 ## Durable state
 
-Schema, Log rules, iteration counter `N`, and stop-condition matrix:
+Schema, **`## Driver`**, Log rules, iteration counter `N`, and stop-condition matrix:
 
 → **Read** `references/ledger-schema.md`
+
+After context compaction or a user re-prompt: **rehydrate from disk only** (Phase 0), then
+follow `next_auto`. Print the Phase 5 resume template whenever blocked.
 
 Commit subject (load-bearing): `improve-loop: iteration N — <summary>`  
 (em-dash after `N` required so greps do not treat `1` as a prefix of `10`).

@@ -12,6 +12,10 @@ description: >-
 Multi-cycle driver. **Atomic unit:** improve-loop (one cycle).  
 **This skill owns** parse, worktree, caps, reintegrate, destroy (S0–S13).
 
+**Automation:** take the most appropriate **safe** path by default; stop only when unable to
+progress. **Resume:** every turn rehydrate from `IMPROVE_LOOP.md` (`## Driver`) +
+`.git/improve-runs/*.json` + git — never from chat alone (see Phase 0 rehydration).
+
 Normative cycle law: `../improve-loop/SKILL.md` + its `references/`.  
 Portable continuous objective: `../improve-loop/references/contracts/goal.md`.
 
@@ -53,9 +57,13 @@ Pass `--no-merge-to-launch` only for PR-only tips.
 Active cwd for cycles = worktree path from status/state JSON.  
 With `--no-worktree`: work in launch tree (must satisfy improve-loop dirty guards).
 
+**Driver write (S2):** set `## Driver` in active-tree `IMPROVE_LOOP.md` — mode, slug, repo,
+launch_branch, worktree_path, run_json, test_command, `next_auto: cycle`, resume_hint, updated.
+
 ### S4–S7 — Seed plan (first turn / new target)
 
-- Ensure `IMPROVE_LOOP.md` exists in the **active** tree (worktree or launch) with target + tests.  
+- Ensure `IMPROVE_LOOP.md` exists in the **active** tree (worktree or launch) with target + tests
+  and a `## Driver` section (create stub if missing).  
 - Prefer improve-loop Phase 0 seed if absent.  
 - Optional research/critique: seed only (`references/throttle.md`).  
 - Do not expand scope outside `target`.
@@ -71,7 +79,8 @@ While Status active and under caps:
 4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize JSON from the latest Log entry + `git status` / last commit and prefer  
    `node <plugin>/tools/improve-progress-format.js`  
    (see `../improve-loop/references/contracts/progress.md`), then emit via `goal.report` if available, else visible markdown.  
-5. If terminal or until+complete, break.
+5. **Update `## Driver`:** recompute `next_auto` / `resume_hint` / `updated` from disk rules (Phase 0).  
+6. If terminal or until+complete, break (then S9–S12 — do not skip reintegrate while a worktree exists).
 
 **Goal host:** if the harness has a goal facility, bind it per `../improve-loop/references/contracts/goal.md` with the same stop predicate; use `goal.report` for pulses; still perform S11–S12 yourself. If no goal facility, this native S8 loop **is** the outer loop and pulses are user-visible markdown.
 
@@ -82,6 +91,9 @@ If ledger needs a final Status commit and improve-loop did not land one, prefer 
 
 ### S11 — Reintegrate (always if worktree was created)
 
+If only `IMPROVE_LOOP.md` is dirty, auto-commit `improve-loop: driver — next_auto reintegrate`
+first. Then:
+
 ```bash
 bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug>
 # S11a: rebase worktree onto source tip (absorb concurrent source changes)
@@ -90,6 +102,7 @@ bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug>
 
 Launch must have **no tracked dirty files** for S11b (untracked `.claude/worktrees` parent is OK).
 S11a rebase conflict or S11b conflict → keep worktree, exit 5; launch_dirty → exit 6.  
+On block: set Driver `blocked:*`, print **resume template** (phase-5).  
 **Pulse:** short `## Improve progress` (Phase: S11) with reintegrate ok|conflict|launch_dirty.
 
 ### S12 — Destroy
@@ -99,12 +112,14 @@ bash <plugin>/tools/improve-worktree.sh destroy --repo <repo> --slug <slug>
 # or skip if keep_worktree / reintegrate failed (unless --force)
 ```
 
+Update Driver `next_auto: done` (or leave `destroy` if destroy failed).  
 **Pulse (optional one-liner):** worktree removed vs kept for debug.
 
 ### S13 — Done
 
 **Final progress pulse** (Phase: S13): final Status, backlog done/total, stop reason, branch,
-PR/merge result, worktree path if kept, top learnings this run (≤5 bullets).
+PR/merge result, worktree path if kept, top learnings this run (≤5 bullets).  
+Driver: `next_auto: done`. If anything still blocked, print resume template instead of claiming done.
 
 ## Recovery
 
