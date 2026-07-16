@@ -81,9 +81,13 @@ clean carry exclude.
 | Iter | Verdict | Commit | Evidence |
 |---|---|---|---|
 | 12 | **clean** | (this) | dual-path-iter12.txt path A–F OK_*; iter12-mocha 25 pass |
-| 13 | pending | — | sequential second cycle after 12 commit |
+| 13 | **clean** | (this) | dual-path-iter13.txt path A–F OK_*; iter13-mocha 25 EXIT=0 |
 
-## Stop (2026-07 quality review)
+## Stop (2026-07 quality review — honest)
 
-Two consecutive clean cycles: **12** + **13** at HEAD `2e3f12a` (docs commits follow).
-Mandatory dual-path matrix A–F exercised both times; mocha 45 green.
+Two consecutive clean cycles after material `2e3f12a`:
+- **12** → learnings `f4da660` — dual-path-iter12.txt + iter12-mocha.log
+- **13** → this commit — dual-path-iter13.txt + iter13-mocha.log (MOCHA13_EXIT=0)
+
+Mandatory dual-path matrix A–F exercised with live OK_/FAIL_ asserts both times.
+
