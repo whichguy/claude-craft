@@ -152,6 +152,21 @@ describe('improve-worktree.sh', function () {
     expect(git(wt, 'status', '--porcelain')).to.equal('');
   });
 
+  it('create excludes .claude/worktrees so clean carry reports launch was clean', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'cln']).status).to.equal(0);
+    // Worktree path must not pollute launch porcelain
+    expect(git(repo, 'status', '--porcelain')).to.equal('');
+    const r = runScript(['carry', '--repo', repo, '--slug', 'cln']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout + r.stderr).to.match(/launch was clean|nothing to carry/i);
+    expect(r.stdout + r.stderr).to.not.match(/WIP carried into worktree/);
+    const state = JSON.parse(
+      fs.readFileSync(path.join(repo, '.git/improve-runs/cln.json'), 'utf8')
+    );
+    expect(state.state).to.equal('created');
+  });
+
   it('reintegrate + destroy lands on source branch and removes worktree only', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'm1']).status).to.equal(0);

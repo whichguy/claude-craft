@@ -392,6 +392,18 @@ status=error command=create next=destroy-or-recover exit_class=9
     die 3 "git worktree add --detach failed for $wt_path"
   fi
 
+  # Keep improve worktrees out of launch porcelain / carry untracked (local exclude only).
+  # --git-path is relative to repo; resolve under absolute git-dir so cwd cannot mis-write.
+  local excl git_dir
+  git_dir="$(git_c "$repo" rev-parse --absolute-git-dir 2>/dev/null || true)"
+  if [[ -n "$git_dir" ]]; then
+    excl="$git_dir/info/exclude"
+    mkdir -p "$(dirname "$excl")"
+    if ! grep -qxF '.claude/worktrees/' "$excl" 2>/dev/null; then
+      printf '%s\n' '.claude/worktrees/' >>"$excl"
+    fi
+  fi
+
   local keep_py merge_py
   keep_py="False"; [[ "${KEEP_WORKTREE:-0}" == "1" ]] && keep_py="True"
   merge_py="False"; [[ "${MERGE_TO_LAUNCH:-0}" == "1" ]] && merge_py="True"
@@ -456,7 +468,16 @@ cmd_carry() {
 import os,sys,tarfile,subprocess
 launch, out, git = sys.argv[1], sys.argv[2], sys.argv[3]
 raw=subprocess.check_output([git,'-C',launch,'ls-files','--others','--exclude-standard','-z'])
-paths=[p.decode() for p in raw.split(b'\\0') if p]
+paths=[]
+for p in raw.split(b'\\0'):
+    if not p:
+        continue
+    s=p.decode()
+    # Never carry the improve worktree tree back into itself
+    norm=s.replace('\\\\','/').lstrip('./')
+    if norm=='.claude/worktrees' or norm.startswith('.claude/worktrees/'):
+        continue
+    paths.append(s)
 if not paths:
     sys.exit(0)
 with tarfile.open(out,'w') as tar:
@@ -479,18 +500,23 @@ with tarfile.open(out,'w') as tar:
 
   git_c "$wt" add -A
   if [[ -z "$(git_c "$wt" status --porcelain)" ]]; then
-    printf 'carry: nothing staged after apply\n'
-  else
-    if ! git_c "$wt" \
-        -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
-        -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
-        commit --no-verify -m "improve-loop: bootstrap — carry WIP from launch"; then
-      record_last_error 4 carry "bootstrap commit failed"
-      die_status 4 carry none fix-commit "carry failed: bootstrap commit failed"
-    fi
-    printf 'carry: bootstrap commit on detached tip (will land on %s at reintegrate)\n' \
-      "$LAUNCH_BRANCH"
+    printf 'carry: nothing to carry (no transferable WIP after filtering improve worktrees)\n'
+    json_merge "$RUN_JSON" '{"state":"created"}'
+    STATE=created
+    sync_index
+    ok_status carry carry cycle "nothing to carry"
+    return 0
   fi
+
+  if ! git_c "$wt" \
+      -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
+      -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
+      commit --no-verify -m "improve-loop: bootstrap — carry WIP from launch"; then
+    record_last_error 4 carry "bootstrap commit failed"
+    die_status 4 carry none fix-commit "carry failed: bootstrap commit failed"
+  fi
+  printf 'carry: bootstrap commit on detached tip (will land on %s at reintegrate)\n' \
+    "$LAUNCH_BRANCH"
 
   json_merge "$RUN_JSON" '{"state":"bootstrapped"}'
   STATE=bootstrapped
