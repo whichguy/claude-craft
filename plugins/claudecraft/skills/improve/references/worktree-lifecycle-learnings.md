@@ -27,6 +27,11 @@ for destroy/recover/status decisions.
    `reintegrate_status=ok` with tip still unmerged, skip S11a only if
    `merge-base --is-ancestor <launch_tip> <wt_tip>`. If launch advanced,
    re-run S11a so conflicts stay in the worktree (not S11b on launch).
+8. **Operator UX (P2):** create exit 9 uses structured `status=` lines +
+   `resume_hint`; status summary always emits `resume_hint` for
+   `suggested_next`; destroy refuses uncommitted dirt without `--force`;
+   recover `--keep-worktree` with unmerged tip reports `next=blocked:open-pr`
+   (not `done`).
 
 ## Iteration log
 

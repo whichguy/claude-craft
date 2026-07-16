@@ -125,6 +125,12 @@ describe('improve-worktree.sh', function () {
     expect(runScript(['create', '--repo', repo, '--slug', 'a']).status).to.equal(0);
     const r = runScript(['create', '--repo', repo, '--slug', 'b']);
     expect(r.status).to.equal(9);
+    // Structured operator lines (same contract as die_status)
+    expect(r.stderr + r.stdout).to.match(/status=error/);
+    expect(r.stderr + r.stdout).to.match(/command=create/);
+    expect(r.stderr + r.stdout).to.match(/next=destroy-or-recover/);
+    expect(r.stderr + r.stdout).to.match(/exit_class=9/);
+    expect(r.stderr + r.stdout).to.match(/resume_hint=/);
   });
 
   it('carry imports tracked + untracked (not .env if ignored) and bootstraps commit', function () {
@@ -304,6 +310,7 @@ describe('improve-worktree.sh', function () {
     expect(r.status, r.stderr + r.stdout).to.equal(0);
     expect(r.stdout).to.match(/--- summary ---/);
     expect(r.stdout).to.match(/suggested_next=/);
+    expect(r.stdout).to.match(/resume_hint=/);
     expect(r.stdout).to.match(/mid_rebase=/);
     expect(r.stdout).to.match(/worktree_exists=yes/);
     expect(r.stdout).to.match(/tip_on_launch=/);
@@ -324,7 +331,21 @@ describe('improve-worktree.sh', function () {
     expect(r.status, r.stderr + r.stdout).to.equal(0);
     expect(r.stdout).to.match(/tip_on_launch=no/);
     expect(r.stdout).to.match(/suggested_next=blocked:open-pr/);
+    expect(r.stdout).to.match(/resume_hint=.*merge-to-launch|resume_hint=.*PR/i);
     expect(r.stdout).to.match(/merge_to_launch=false/);
+  });
+
+  it('destroy refuses uncommitted dirt even when tip is on launch', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'ud']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-ud');
+    // tip == launch (no new commits) but uncommitted file present
+    fs.writeFileSync(path.join(wt, 'scratch.txt'), 'uncommitted\n');
+    const d = runScript(['destroy', '--repo', repo, '--slug', 'ud']);
+    expect(d.status).to.equal(7);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(d.stderr + d.stdout).to.match(/blocked:worktree-dirty|uncommitted/i);
+    expect(runScript(['destroy', '--repo', repo, '--slug', 'ud', '--force']).status).to.equal(0);
   });
 
   it('status after merge reintegrate: tip_on_launch=yes suggested_next=destroy', function () {
@@ -565,9 +586,35 @@ describe('improve-worktree.sh', function () {
     expect(keep.status, keep.stderr + keep.stdout).to.equal(0);
     expect(fs.existsSync(path.join(repo, 'x.txt'))).to.equal(true);
     expect(fs.existsSync(wt)).to.equal(true);
+    // tip on launch after merge → next=done when keeping
+    expect(keep.stdout + keep.stderr).to.match(/next=done/);
 
     const gone = runScript(['recover', '--repo', repo, '--slug', 'k1']);
     expect(gone.status, gone.stderr + gone.stdout).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
+  });
+
+  it('recover --keep-worktree after no-merge surfaces next=blocked:open-pr', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'k2', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-k2');
+    fs.writeFileSync(path.join(wt, 'only.txt'), 'o\n');
+    git(wt, 'add', 'only.txt');
+    git(wt, 'commit', '-m', 'tip');
+    const rec = runScript([
+      'recover',
+      '--repo',
+      repo,
+      '--slug',
+      'k2',
+      '--keep-worktree',
+    ]);
+    expect(rec.status, rec.stderr + rec.stdout).to.equal(0);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(fs.existsSync(path.join(repo, 'only.txt'))).to.equal(false);
+    expect(rec.stdout + rec.stderr).to.match(/next=blocked:open-pr/);
+    expect(rec.stdout + rec.stderr).to.match(/tip not on launch/i);
   });
 });

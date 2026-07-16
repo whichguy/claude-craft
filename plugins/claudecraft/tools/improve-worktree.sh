@@ -70,6 +70,28 @@ die() { local code="$1"; shift; printf '%s\n' "$*" >&2; exit "$code"; }
 
 emit_kv() { printf '%s=%s\n' "$1" "$2"; }
 
+# JSON/python may print True/False; CLI and tests use true/false. Treat both as truthy.
+is_true() {
+  case "${1:-}" in True|true|TRUE|1|yes|YES) return 0 ;; *) return 1 ;; esac
+}
+
+# Operator one-liner for status/resume (mirrors improve-next-auto HINTS; no extra deps).
+resume_hint_for() {
+  case "${1:-}" in
+    cycle) printf '%s\n' "Run improve-loop cycle in active tree; re-run status after" ;;
+    reintegrate) printf '%s\n' "improve-worktree.sh reintegrate --repo <repo> --slug <slug>" ;;
+    destroy) printf '%s\n' "improve-worktree.sh destroy --repo <repo> --slug <slug>" ;;
+    done) printf '%s\n' "No automatic steps left; tip on launch or worktree kept on purpose" ;;
+    blocked:open-pr) printf '%s\n' "Open PR from worktree tip, or reintegrate --merge-to-launch, or destroy --force" ;;
+    blocked:rebase-continue) printf '%s\n' "In worktree: resolve, git add, git rebase --continue; then reintegrate/recover" ;;
+    blocked:worktree-dirty) printf '%s\n' "Commit or stash worktree changes before reintegrate/destroy" ;;
+    blocked:worktree-missing) printf '%s\n' "Worktree path gone; create a new run or recover from tip if known" ;;
+    blocked:launch-dirty) printf '%s\n' "Commit/stash tracked launch changes, then reintegrate" ;;
+    destroy-or-recover) printf '%s\n' "destroy or recover the active improve worktree, then create again" ;;
+    *) printf '%s\n' "Re-run status; see suggested_next=$1" ;;
+  esac
+}
+
 # die_status <code> <command> <phase|none> <next> <human message...>
 # Prints structured error lines to stderr. Uses RUN_JSON/SLUG/STATE when set.
 die_status() {
@@ -323,7 +345,7 @@ suggested_next_from_run() {
     fi
   fi
   if [[ -d "$wt" && "$rs" != "ok" ]]; then
-    if [[ "$merge" == "True" || "$merge" == "true" ]] && launch_tracked_dirty_p "$launch" 2>/dev/null; then
+    if is_true "$merge" && launch_tracked_dirty_p "$launch" 2>/dev/null; then
       printf '%s\n' "blocked:launch-dirty"
       return
     fi
@@ -333,7 +355,7 @@ suggested_next_from_run() {
   if [[ -d "$wt" && "$rs" == "ok" ]]; then
     tip="$(git_c "$wt" rev-parse HEAD 2>/dev/null || echo none)"
     if tip_on_launch_p "$launch" "$tip" "${LAUNCH_BRANCH:-}"; then
-      if [[ "$keep" == "True" || "$keep" == "true" ]]; then
+      if is_true "$keep"; then
         printf '%s\n' "done"
         return
       fi
@@ -341,11 +363,12 @@ suggested_next_from_run() {
       return
     fi
     # Tip still unmerged: open-pr when merge off; reintegrate when merge on (S11b still needed)
-    if [[ "$keep" == "True" || "$keep" == "true" ]]; then
-      printf '%s\n' "done"
+    # keep_worktree still surfaces open-pr so operators know tip is not on launch
+    if is_true "$keep"; then
+      printf '%s\n' "blocked:open-pr"
       return
     fi
-    if [[ "$merge" == "True" || "$merge" == "true" ]]; then
+    if is_true "$merge"; then
       printf '%s\n' "reintegrate"
       return
     fi
@@ -376,10 +399,20 @@ cmd_create() {
   local active
   active="$(active_improve_worktrees "$repo" || true)"
   if [[ -n "$active" ]]; then
-    die 9 "another improve worktree already active for repo:
-$active
-status=error command=create next=destroy-or-recover exit_class=9
-(destroy/recover existing slug first)"
+    {
+      printf 'create refused: another improve worktree already active for repo:\n%s\n' "$active"
+      printf 'destroy or recover the existing slug first, then create again\n'
+      emit_kv status error
+      emit_kv command create
+      emit_kv slug "${slug:-none}"
+      emit_kv state none
+      emit_kv reintegrate_status none
+      emit_kv phase create
+      emit_kv next destroy-or-recover
+      emit_kv exit_class 9
+      emit_kv resume_hint "$(resume_hint_for destroy-or-recover)"
+    } >&2
+    exit 9
   fi
 
   if [[ -e "$wt_path" ]]; then
@@ -539,10 +572,11 @@ cmd_status() {
     if tip_on_launch_p "$LAUNCH_PATH" "$tip_sha" "$LAUNCH_BRANCH"; then tip_on=yes; fi
   fi
   local merge=false keep=false
-  [[ "$MERGE_TO_LAUNCH" == "True" || "$MERGE_TO_LAUNCH" == "true" ]] && merge=true
-  [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]] && keep=true
-  local sugg
+  is_true "$MERGE_TO_LAUNCH" && merge=true
+  is_true "$KEEP_WORKTREE" && keep=true
+  local sugg hint_line
   sugg="$(suggested_next_from_run)"
+  hint_line="$(resume_hint_for "$sugg")"
 
   emit_kv slug "$SLUG"
   emit_kv state "${STATE:-unknown}"
@@ -557,6 +591,7 @@ cmd_status() {
   emit_kv merge_to_launch "$merge"
   emit_kv keep_worktree "$keep"
   emit_kv suggested_next "$sugg"
+  emit_kv resume_hint "$hint_line"
   emit_kv hint "For full Driver facts use improve-next-auto.js; re-run status after each lifecycle step"
   if [[ "$wt_ex" == "yes" ]]; then
     printf 'worktree_git_status:\n'
@@ -577,9 +612,9 @@ cmd_reintegrate() {
 
   local do_merge="$MERGE_TO_LAUNCH"
   if [[ "${MERGE_OVERRIDE:-}" == "on" ]]; then
-    do_merge="True"
+    do_merge="true"
   elif [[ "${MERGE_OVERRIDE:-}" == "off" ]]; then
-    do_merge="False"
+    do_merge="false"
   fi
 
   if [[ ! -d "$wt" ]]; then
@@ -609,11 +644,11 @@ cmd_reintegrate() {
     if tip_on_launch_p "$launch" "$merge_ref" "$LAUNCH_BRANCH"; then
       printf 'reintegrate: already complete (tip on launch; reintegrate_status=ok state=%s)\n' "$STATE"
       local next_done=destroy
-      [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]] && next_done=done
+      is_true "$KEEP_WORKTREE" && next_done=done
       ok_status reintegrate none "$next_done" "already-complete"
       return 0
     fi
-    if [[ "$do_merge" != "True" && "$do_merge" != "true" ]]; then
+    if ! is_true "$do_merge"; then
       printf 'reintegrate: already complete (S11a done, merge_to_launch=false; tip %s not on launch)\n' "$merge_ref"
       ok_status reintegrate S11a blocked:open-pr "already-complete; tip not on launch"
       return 0
@@ -676,7 +711,7 @@ then re-run reintegrate (or git rebase --abort to cancel; or recover after conti
 
   local s11b=skipped
 
-  if [[ "$do_merge" == "True" || "$do_merge" == "true" ]]; then
+  if is_true "$do_merge"; then
     if launch_tracked_dirty_p "$launch"; then
       json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"launch_dirty"}'
       STATE=reintegrate_failed
@@ -703,13 +738,13 @@ resolve on launch checkout, or inspect tip $merge_ref; worktree kept: $wt"
     s11b=merged
     # Persist effective merge: CLI --merge-to-launch override must stick for destroy/recover
     json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"merged\",\"merge_to_launch\":true}"
-    MERGE_TO_LAUNCH="True"
+    MERGE_TO_LAUNCH="true"
     printf 'reintegrate: S11b merged worktree tip into source branch %s (ref %s)\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   else
     s11b=skipped
     json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"skipped\",\"merge_to_launch\":false}"
-    MERGE_TO_LAUNCH="False"
+    MERGE_TO_LAUNCH="false"
     printf 'reintegrate: S11a rebased onto %s; S11b=skipped (merge_to_launch=false) tip=%s\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   fi
@@ -725,7 +760,7 @@ resolve on launch checkout, or inspect tip $merge_ref; worktree kept: $wt"
   if [[ "$s11b" == "skipped" ]]; then
     next="blocked:open-pr"
     phase_ok="S11a"
-  elif [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]]; then
+  elif is_true "$KEEP_WORKTREE"; then
     next=done
   fi
   ok_status reintegrate "$phase_ok" "$next" "reintegrate_status=ok"
@@ -753,6 +788,14 @@ cmd_destroy() {
       die_status 7 destroy none fix-or-force \
         "destroy refused: reintegrate not clean (reintegrate_status=${status:-none} state=$state mid_rebase=$mid)
 fix conflicts / dirty trees, or pass --force to remove worktree anyway
+slug=$SLUG worktree=$WORKTREE_PATH"
+    fi
+    # Uncommitted dirt (even when tip is on launch) would be lost by worktree remove.
+    if [[ -d "$WORKTREE_PATH" && -n "$(git_c "$WORKTREE_PATH" status --porcelain 2>/dev/null || true)" ]]; then
+      record_last_error 7 destroy "refuse destroy: worktree dirty"
+      die_status 7 destroy none blocked:worktree-dirty \
+        "destroy refused: worktree has uncommitted changes (would be discarded)
+commit/stash first, or pass --force to discard
 slug=$SLUG worktree=$WORKTREE_PATH"
     fi
     # Always refuse when tip is not on launch — including state=created (never reintegrated).
@@ -839,13 +882,14 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
   fi
 
   load_run
-  if [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" || "${KEEP_WORKTREE_FLAG:-0}" == "1" ]]; then
+  if is_true "$KEEP_WORKTREE" || [[ "${KEEP_WORKTREE_FLAG:-0}" == "1" ]]; then
     local tip_k="none"
     [[ -d "$WORKTREE_PATH" ]] && tip_k="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
     if [[ -d "$WORKTREE_PATH" ]] && ! tip_on_launch_p "$LAUNCH_PATH" "$tip_k" "$LAUNCH_BRANCH"; then
       printf 'recover: keeping worktree (--keep-worktree); tip %s still unmerged on %s\n' \
         "$tip_k" "$LAUNCH_BRANCH"
-      ok_status recover none done "kept worktree; tip not on launch"
+      printf 'recover: next=blocked:open-pr — open a PR, --merge-to-launch, or destroy --force\n'
+      ok_status recover none blocked:open-pr "kept worktree; tip not on launch"
       return 0
     fi
     printf 'recover: reintegrated; keeping worktree (--keep-worktree)\n'

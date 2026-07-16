@@ -80,11 +80,14 @@ State: `<repo>/.git/improve-runs/<slug>.json`
 **`state`:** `created` → `bootstrapped` → `reintegrating` → `reintegrated` \| `reintegrate_failed` → `destroyed`  
 **`reintegrate_status`:** `null` \| `conflict` \| `worktree_dirty` \| `launch_dirty` \| `ok`  
 
-`status` prints JSON then `--- summary ---` (`suggested_next`, `mid_rebase`, `tip_on_launch`,
-`launch_tracked_dirty`, …). `suggested_next` and destroy/recover decisions use **tip ancestry**
-(whether worktree HEAD is reachable from the launch branch), not create-time `merge_to_launch`
-alone. After a successful `--merge-to-launch` override, JSON persists `merge_to_launch=true`.  
-Errors print `status=error command=… next=… exit_class=…`.  
+`status` prints JSON then `--- summary ---` (`suggested_next`, `resume_hint`, `mid_rebase`,
+`tip_on_launch`, `launch_tracked_dirty`, …). `suggested_next` and destroy/recover decisions use
+**tip ancestry** (whether worktree HEAD is reachable from the launch branch), not create-time
+`merge_to_launch` alone. After a successful `--merge-to-launch` override, JSON persists
+`merge_to_launch=true`.  
+Errors print multi-line `status=error` / `command=` / `next=` / `exit_class=` (including create
+single-flight exit 9). Destroy refuses uncommitted worktree dirt without `--force` (not only
+failed reintegrate).  
 
 Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
 
