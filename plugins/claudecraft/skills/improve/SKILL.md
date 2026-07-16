@@ -33,9 +33,10 @@ Echo parse card. Abort unattended if tests/target missing with no ledger to resu
 
 `git -C <repo> rev-parse --show-toplevel`. Note launch branch and whether the tree is dirty.
 
-### S2–S3 — Worktree (if mode continuous and worktree on)
+### S2–S3 — Worktree (default ON)
 
-Read `references/lifecycle.md`. Run:
+Read `references/lifecycle.md`. **Default:** use a worktree for both once and continuous runs.
+Skip only with `--no-worktree` / “no worktree”.
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh create --repo <repo> --slug <slug> \
@@ -44,11 +45,12 @@ bash <plugin>/tools/improve-worktree.sh create --repo <repo> --slug <slug> \
 bash <plugin>/tools/improve-worktree.sh carry --repo <repo> --slug <slug>
 ```
 
-**Default:** `merge_to_launch=true` — S11 merges `improve/<slug>` into the **launch/source branch**
-recorded at create. Pass `--no-merge-to-launch` only when you want a PR-only branch.
+**Isolation:** detached HEAD at launch tip — **no permanent second branch**.  
+**S11:** merges the worktree tip into the **launch/source branch** recorded at create
+(`merge_to_launch=true` default). Pass `--no-merge-to-launch` only for PR-only tips.
 
 Active cwd for cycles = worktree path from status/state JSON.  
-If once / `--no-worktree`: skip; work in launch tree (must satisfy improve-loop dirty guards).
+With `--no-worktree`: work in launch tree (must satisfy improve-loop dirty guards).
 
 ### S4–S7 — Seed plan (first turn / new target)
 
@@ -81,12 +83,12 @@ If ledger needs a final Status commit and improve-loop did not land one, prefer 
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug>
-# honors merge_to_launch from create (default true → merge into launch/source branch)
+# default: merge detached worktree tip → launch/source branch
 # override: --no-merge-to-launch | --merge-to-launch
 ```
 
-Launch must have **no tracked dirty files** for merge-to-launch (untracked `.claude/worktrees`
-parent is OK). Conflicts or launch_dirty → keep worktree; report; do not pretend success.  
+Launch must have **no tracked dirty files** for merge (untracked `.claude/worktrees` parent is OK).
+Conflicts or launch_dirty → keep worktree; report; do not pretend success.  
 **Pulse:** short `## Improve progress` (Phase: S11) with reintegrate ok|conflict|launch_dirty.
 
 ### S12 — Destroy

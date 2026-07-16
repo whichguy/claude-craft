@@ -2,12 +2,17 @@
 # improve-worktree.sh — portable git lifecycle for continuous improve runs
 # (Claude / Grok / Codex / any harness that can shell out).
 #
+# Model: isolate dirty work in a **detached-HEAD worktree** (git cannot check out the
+# same branch in two worktrees). Commits during the run live only on that detached tip.
+# reintegrate merges that tip into the **launch/source branch** recorded at create — the
+# durable history ends on that branch, not on a permanent improve/* branch.
+#
 # Subcommands:
-#   create       Create improve/<slug> branch + worktree; write run state under .git/
+#   create       Detached worktree at launch tip; write run state under .git/
 #   carry        Carry launch WIP (tracked + untracked, exclude-standard) into worktree
 #                as bootstrap commit "improve-loop: bootstrap — carry WIP from launch"
 #   status       Print run state JSON (from --repo/--slug or --run-json)
-#   reintegrate  S11: merge launch tip → worktree; optionally merge improve → launch
+#   reintegrate  S11: merge launch tip → worktree; then merge worktree tip → launch (default)
 #   destroy      S12: remove worktree (refuses after failed reintegrate unless --force)
 #   recover      Idempotent reintegrate + optional destroy from run state
 #
@@ -29,7 +34,7 @@
 set -euo pipefail
 
 GIT_CMD="${GIT_CMD:-git}"
-VERSION=1
+VERSION=2
 
 usage() {
   cat <<'EOF' >&2
@@ -40,15 +45,18 @@ Usage:
   improve-worktree.sh status --run-json <path> | --repo <path> [--slug <s>]
   improve-worktree.sh reintegrate --run-json <path> | --repo <path> [--slug <s>]
                                   [--merge-to-launch | --no-merge-to-launch]
-  improve-worktree.sh destroy --run-json <path> | --repo <path> [--slug <s>] [--force] [--delete-branch]
+  improve-worktree.sh destroy --run-json <path> | --repo <path> [--slug <s>] [--force]
   improve-worktree.sh recover --run-json <path> | --repo <path> [--slug <s>] [--keep-worktree]
                               [--merge-to-launch | --no-merge-to-launch]
 
 Canonical state: <repo>/.git/improve-runs/<slug>.json
 (Does not dirty the working tree. --run-json may point at that file.)
 
-Defaults: merge_to_launch=true on create (reintegrate merges improve/* into the launch
-branch recorded at create). Opt out with --no-merge-to-launch (leave improve/* for PR).
+Defaults:
+  - Worktree uses **detached HEAD** (no permanent improve/* branch).
+  - merge_to_launch=true: reintegrate merges the worktree tip into the launch/source
+    branch recorded at create. Opt out with --no-merge-to-launch (tip stays only in
+    the worktree until you branch/PR yourself).
 EOF
 }
 
@@ -161,17 +169,20 @@ load_run() {
   REPO="$(json_get "$RUN_JSON" "d['repo']")"
   LAUNCH_PATH="$(json_get "$RUN_JSON" "d['launch_path']")"
   LAUNCH_BRANCH="$(json_get "$RUN_JSON" "d['launch_branch']")"
-  IMPROVE_BRANCH="$(json_get "$RUN_JSON" "d['improve_branch']")"
+  # Empty when isolation=detached (default). Legacy runs may still have improve/<slug>.
+  IMPROVE_BRANCH="$(json_get "$RUN_JSON" "d.get('improve_branch') or ''")"
   WORKTREE_PATH="$(json_get "$RUN_JSON" "d['worktree_path']")"
   SLUG="$(json_get "$RUN_JSON" "d['slug']")"
   KEEP_WORKTREE="$(json_get "$RUN_JSON" "d.get('keep_worktree', False)")"
-  MERGE_TO_LAUNCH="$(json_get "$RUN_JSON" "d.get('merge_to_launch', False)")"
+  # Default true for new semantics (empty/missing treated as merge-on)
+  MERGE_TO_LAUNCH="$(json_get "$RUN_JSON" "d.get('merge_to_launch', True)")"
   STATE="$(json_get "$RUN_JSON" "d.get('state','')")"
+  ISOLATION="$(json_get "$RUN_JSON" "d.get('isolation', 'detached')")"
 }
 
 active_improve_worktrees() {
   # Only match our managed worktrees: .../.claude/worktrees/improve-<slug>
-  # (do NOT match arbitrary paths whose basename starts with improve-, e.g. temp dirs)
+  # Includes detached HEADs (no "branch" line in porcelain).
   local repo="$1"
   git_c "$repo" worktree list --porcelain | python3 -c '
 import sys
@@ -180,17 +191,15 @@ cur=None
 for line in sys.stdin:
     line=line.rstrip("\n")
     if line.startswith("worktree "):
+        if cur and "/.claude/worktrees/improve-" in cur.replace("\\", "/"):
+            paths.append(cur)
         cur=line[len("worktree "):]
-    elif line.startswith("branch ") and cur:
-        br=line[len("branch "):].replace("refs/heads/", "")
-        managed = "/.claude/worktrees/improve-" in cur.replace("\\", "/")
-        if managed or br.startswith("improve/"):
-            # still require managed path when branch matches, to avoid false positives
-            if managed:
-                paths.append(cur)
-        cur=None
     elif line=="":
+        if cur and "/.claude/worktrees/improve-" in cur.replace("\\", "/"):
+            paths.append(cur)
         cur=None
+if cur and "/.claude/worktrees/improve-" in cur.replace("\\", "/"):
+    paths.append(cur)
 print("\n".join(paths))
 '
 }
@@ -198,7 +207,7 @@ print("\n".join(paths))
 cmd_create() {
   need_cmd python3
   [[ -n "${REPO_ARG:-}" ]] || die 1 "create requires --repo"
-  local repo launch_path launch_branch launch_head base slug wt_path index_dir run_json improve_branch
+  local repo launch_path launch_branch launch_head base slug wt_path index_dir run_json
   repo="$(require_git_repo "$(abs_path "$REPO_ARG")")"
   launch_path="$repo"
   launch_branch="$(git_c "$repo" rev-parse --abbrev-ref HEAD)"
@@ -206,7 +215,6 @@ cmd_create() {
   launch_head="$(git_c "$repo" rev-parse HEAD)"
   base="${BASE_ARG:-$launch_head}"
   slug="${SLUG_ARG:-$(default_slug)}"
-  improve_branch="improve/${slug}"
   wt_path="$repo/.claude/worktrees/improve-${slug}"
   index_dir="$(index_dir_for "$repo")"
 
@@ -225,12 +233,10 @@ $active
 
   mkdir -p "$(dirname "$wt_path")" "$index_dir"
 
-  if git_c "$repo" show-ref --verify --quiet "refs/heads/${improve_branch}"; then
-    die 3 "branch already exists: $improve_branch"
-  fi
-
-  if ! git_c "$repo" worktree add -b "$improve_branch" "$wt_path" "$base"; then
-    die 3 "git worktree add failed"
+  # Detached worktree: same commits as launch tip, no second named branch.
+  # (Git forbids checking out launch_branch in two worktrees at once.)
+  if ! git_c "$repo" worktree add --detach "$wt_path" "$base"; then
+    die 3 "git worktree add --detach failed"
   fi
 
   local keep_py merge_py
@@ -241,27 +247,29 @@ $active
   payload="$(python3 -c "
 import json,sys
 print(json.dumps({
-  'version': int(sys.argv[8]),
+  'version': int(sys.argv[7]),
   'repo': sys.argv[1],
   'launch_path': sys.argv[2],
   'launch_branch': sys.argv[3],
   'launch_head': sys.argv[4],
-  'improve_branch': sys.argv[5],
-  'worktree_path': sys.argv[6],
-  'slug': sys.argv[7],
+  'isolation': 'detached',
+  'improve_branch': '',
+  'worktree_path': sys.argv[5],
+  'slug': sys.argv[6],
   'keep_worktree': $keep_py,
   'merge_to_launch': $merge_py,
   'state': 'created',
   'started_at': __import__('datetime').datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
   'reintegrate_status': None,
 }, sort_keys=True))
-" "$repo" "$launch_path" "$launch_branch" "$launch_head" "$improve_branch" "$wt_path" "$slug" "$VERSION")"
+" "$repo" "$launch_path" "$launch_branch" "$launch_head" "$wt_path" "$slug" "$VERSION")"
 
   # Canonical state lives only under .git/improve-runs (never dirties launch or worktree)
   run_json="$index_dir/${slug}.json"
   json_write "$run_json" "$payload"
 
-  printf 'created worktree=%s branch=%s run_json=%s\n' "$wt_path" "$improve_branch" "$run_json"
+  printf 'created worktree=%s isolation=detached launch_branch=%s run_json=%s\n' \
+    "$wt_path" "$launch_branch" "$run_json"
 }
 
 cmd_carry() {
@@ -325,7 +333,8 @@ with tarfile.open(out,'w') as tar:
         commit --no-verify -m "improve-loop: bootstrap — carry WIP from launch"; then
       die 4 "bootstrap commit failed"
     fi
-    printf 'carry: bootstrap commit created on %s\n' "$IMPROVE_BRANCH"
+    printf 'carry: bootstrap commit created on detached worktree tip (will merge into %s)\n' \
+      "$LAUNCH_BRANCH"
   fi
 
   json_merge "$RUN_JSON" '{"state":"bootstrapped"}'
@@ -380,6 +389,14 @@ cmd_reintegrate() {
     do_merge="False"
   fi
 
+  # Merge target: detached worktree tip (default), or legacy named improve_branch if set.
+  local merge_ref
+  if [[ -n "${IMPROVE_BRANCH// }" ]]; then
+    merge_ref="$IMPROVE_BRANCH"
+  else
+    merge_ref="$(git_c "$wt" rev-parse HEAD)"
+  fi
+
   if [[ "$do_merge" == "True" || "$do_merge" == "true" ]]; then
     # Block only on tracked changes. Untracked paths (e.g. .claude/worktrees parent)
     # are expected while an improve worktree is linked.
@@ -390,19 +407,23 @@ cmd_reintegrate() {
     if ! git_c "$launch" \
         -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
         -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
-        merge --no-edit "$IMPROVE_BRANCH"; then
+        merge --no-edit "$merge_ref"; then
       json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
   sync_index
-      die 5 "conflict merging $IMPROVE_BRANCH into $LAUNCH_BRANCH; resolve manually; worktree kept: $wt"
+      die 5 "conflict merging worktree tip into $LAUNCH_BRANCH; resolve manually; worktree kept: $wt"
     fi
-    printf 'reintegrate: merged %s into %s\n' "$IMPROVE_BRANCH" "$LAUNCH_BRANCH"
+    # Record tip for audit after worktree is gone
+    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$(git_c "$wt" rev-parse HEAD)\"}"
+    printf 'reintegrate: merged worktree tip into source branch %s (ref %s)\n' \
+      "$LAUNCH_BRANCH" "$merge_ref"
   else
-    printf 'reintegrate: launch tip merged into worktree; improve branch %s ready (merge_to_launch=false — open PR or re-run with --merge-to-launch)\n' "$IMPROVE_BRANCH"
+    printf 'reintegrate: launch tip merged into worktree; tip %s NOT merged into %s (merge_to_launch=false)\n' \
+      "$merge_ref" "$LAUNCH_BRANCH"
   fi
 
   json_merge "$RUN_JSON" '{"state":"reintegrated","reintegrate_status":"ok"}'
   sync_index
-  printf 'reintegrate: ok worktree=%s\n' "$wt"
+  printf 'reintegrate: ok worktree=%s launch_branch=%s\n' "$wt" "$LAUNCH_BRANCH"
 }
 
 cmd_destroy() {
@@ -427,14 +448,15 @@ cmd_destroy() {
     fi
   fi
 
-  if [[ "${DELETE_BRANCH:-0}" == "1" ]]; then
+  # Legacy named improve/* only (detached mode has no permanent branch).
+  if [[ "${DELETE_BRANCH:-0}" == "1" && -n "${IMPROVE_BRANCH// }" ]]; then
     git_c "$REPO" branch -D "$IMPROVE_BRANCH" 2>/dev/null || true
   fi
 
   json_merge "$RUN_JSON" '{"state":"destroyed"}' 2>/dev/null || true
   # run json may live inside removed worktree — update index only
   sync_index
-  printf 'destroy: removed worktree (branch %s kept unless --delete-branch)\n' "$IMPROVE_BRANCH"
+  printf 'destroy: removed worktree (source branch %s unchanged by destroy)\n' "$LAUNCH_BRANCH"
 }
 
 cmd_recover() {
@@ -474,11 +496,11 @@ SLUG_ARG=""
 BASE_ARG=""
 KEEP_WORKTREE=0
 KEEP_WORKTREE_FLAG=0
-# Default ON: reintegrate merges improve/* into the launch branch from create.
+# Default ON: reintegrate merges worktree tip into the launch/source branch from create.
 MERGE_TO_LAUNCH=1
 MERGE_OVERRIDE="" # empty | on | off — CLI override for create/reintegrate/recover
 FORCE=0
-DELETE_BRANCH=0
+DELETE_BRANCH=0 # legacy only (named improve/*); detached mode has nothing to delete
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -490,7 +512,7 @@ while [[ $# -gt 0 ]]; do
     --merge-to-launch) MERGE_TO_LAUNCH=1; MERGE_OVERRIDE=on; shift ;;
     --no-merge-to-launch) MERGE_TO_LAUNCH=0; MERGE_OVERRIDE=off; shift ;;
     --force) FORCE=1; shift ;;
-    --delete-branch) DELETE_BRANCH=1; shift ;;
+    --delete-branch) DELETE_BRANCH=1; shift ;; # no-op for detached isolation
     -h|--help) usage; exit 0 ;;
     *) die 1 "unknown arg: $1" ;;
   esac

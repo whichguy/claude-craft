@@ -4,7 +4,7 @@ const { expect } = require('chai');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 const SCRIPT = path.join(
@@ -55,32 +55,34 @@ describe('improve-worktree.sh', function () {
 
   it('script exists and -h prints usage', function () {
     expect(fs.existsSync(SCRIPT)).to.equal(true);
-    // argv: SUB is required first — global -h is only parsed after SUB shift.
-    // Documented help path: any unknown path still shows usage on empty SUB.
     const empty = spawnSync('bash', [SCRIPT], { encoding: 'utf8' });
     expect(empty.status).to.equal(1);
     expect(empty.stderr + empty.stdout).to.match(/create/);
   });
 
-  it('create → worktree + IMPROVE_RUN.json + index; merge_to_launch defaults true', function () {
+  it('create → detached worktree; no improve/* branch; merge_to_launch defaults true', function () {
     const repo = makeRepo();
-    // No --merge-to-launch flag: default must still be true (auto-merge at reintegrate).
     const r = runScript(['create', '--repo', repo, '--slug', 't1']);
     expect(r.status, r.stderr).to.equal(0);
+    expect(r.stdout + r.stderr).to.match(/isolation=detached/);
     const wt = path.join(repo, '.claude/worktrees/improve-t1');
     expect(fs.existsSync(wt)).to.equal(true);
     const index = path.join(repo, '.git/improve-runs/t1.json');
     expect(fs.existsSync(index)).to.equal(true);
     const state = JSON.parse(fs.readFileSync(index, 'utf8'));
     expect(state.slug).to.equal('t1');
-    expect(state.improve_branch).to.equal('improve/t1');
+    expect(state.isolation).to.equal('detached');
+    expect(state.improve_branch).to.equal('');
+    expect(state.launch_branch).to.equal('main');
     expect(state.merge_to_launch).to.equal(true);
     expect(fs.realpathSync(state.worktree_path)).to.equal(fs.realpathSync(wt));
-    const branch = git(repo, 'branch', '--list', 'improve/t1');
-    expect(branch).to.match(/improve\/t1/);
+    // No permanent improve/* branch
+    expect(git(repo, 'branch', '--list', 'improve/t1')).to.equal('');
+    // Worktree is detached
+    expect(git(wt, 'rev-parse', '--abbrev-ref', 'HEAD')).to.equal('HEAD');
   });
 
-  it('create --no-merge-to-launch records merge_to_launch false; reintegrate skips launch merge', function () {
+  it('create --no-merge-to-launch; reintegrate does not land tip on launch', function () {
     const repo = makeRepo();
     expect(
       runScript(['create', '--repo', repo, '--slug', 'nom', '--no-merge-to-launch']).status
@@ -97,12 +99,11 @@ describe('improve-worktree.sh', function () {
 
     const r = runScript(['reintegrate', '--repo', repo, '--slug', 'nom']);
     expect(r.status, r.stderr + r.stdout).to.equal(0);
-    expect(r.stdout + r.stderr).to.match(/merge_to_launch=false/);
-    // Launch must NOT have the improve commit file
+    expect(r.stdout + r.stderr).to.match(/merge_to_launch=false|NOT merged/);
     expect(fs.existsSync(path.join(repo, 'only-wt.txt'))).to.equal(false);
   });
 
-  it('reintegrate without CLI flag merges when create defaulted merge_to_launch true', function () {
+  it('reintegrate merges detached tip into source branch without named improve branch', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'def']).status).to.equal(0);
     const wt = path.join(repo, '.claude/worktrees/improve-def');
@@ -110,10 +111,13 @@ describe('improve-worktree.sh', function () {
     git(wt, 'add', 'auto.txt');
     git(wt, 'commit', '-m', 'improve-loop: iteration 1 — auto merge');
 
-    // No --merge-to-launch on reintegrate — state default must merge into launch
     const r = runScript(['reintegrate', '--repo', repo, '--slug', 'def']);
     expect(r.status, r.stderr + r.stdout).to.equal(0);
     expect(fs.existsSync(path.join(repo, 'auto.txt'))).to.equal(true);
+    // Still on main; history includes the improve commit subject
+    expect(git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')).to.equal('main');
+    expect(git(repo, 'log', '--oneline')).to.match(/auto merge/);
+    expect(git(repo, 'branch', '--list', 'improve/def')).to.equal('');
   });
 
   it('refuses second create while improve worktree active (exit 9)', function () {
@@ -145,37 +149,33 @@ describe('improve-worktree.sh', function () {
 
     const log = git(wt, 'log', '-1', '--pretty=%s');
     expect(log).to.equal('improve-loop: bootstrap — carry WIP from launch');
-    // worktree clean after bootstrap
     expect(git(wt, 'status', '--porcelain')).to.equal('');
   });
 
-  it('reintegrate --merge-to-launch brings improve commits onto launch; destroy removes worktree', function () {
+  it('reintegrate + destroy lands on source branch and removes worktree only', function () {
     const repo = makeRepo();
-    expect(
-      runScript(['create', '--repo', repo, '--slug', 'm1', '--merge-to-launch']).status
-    ).to.equal(0);
+    expect(runScript(['create', '--repo', repo, '--slug', 'm1']).status).to.equal(0);
     const wt = path.join(repo, '.claude/worktrees/improve-m1');
     fs.writeFileSync(path.join(wt, 'feature.txt'), 'x\n');
     git(wt, 'add', 'feature.txt');
     git(wt, 'commit', '-m', 'improve-loop: iteration 1 — feature');
 
-    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'm1', '--merge-to-launch']);
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'm1']);
     expect(r.status, r.stderr + r.stdout).to.equal(0);
     expect(fs.existsSync(path.join(repo, 'feature.txt'))).to.equal(true);
 
     const d = runScript(['destroy', '--repo', repo, '--slug', 'm1']);
     expect(d.status, d.stderr + d.stdout).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
-    // branch kept by default
-    expect(git(repo, 'branch', '--list', 'improve/m1')).to.match(/improve\/m1/);
+    expect(git(repo, 'branch', '--list', 'improve/m1')).to.equal('');
+    expect(git(repo, 'rev-parse', '--abbrev-ref', 'HEAD')).to.equal('main');
   });
 
   it('destroy refuses after reintegrate conflict without --force; keeps worktree', function () {
     const repo = makeRepo();
-    expect(runScript(['create', '--repo', repo, '--slug', 'cf', '--merge-to-launch']).status).to.equal(0);
+    expect(runScript(['create', '--repo', repo, '--slug', 'cf']).status).to.equal(0);
     const wt = path.join(repo, '.claude/worktrees/improve-cf');
 
-    // diverge both sides on same file
     fs.writeFileSync(path.join(wt, 'README.md'), '# worktree side\n');
     git(wt, 'add', 'README.md');
     git(wt, 'commit', '-m', 'wt change');
@@ -184,7 +184,7 @@ describe('improve-worktree.sh', function () {
     git(repo, 'add', 'README.md');
     git(repo, 'commit', '-m', 'launch change');
 
-    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'cf', '--merge-to-launch']);
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'cf']);
     expect(r.status).to.equal(5);
     expect(fs.existsSync(wt)).to.equal(true);
 
@@ -192,17 +192,14 @@ describe('improve-worktree.sh', function () {
     expect(d.status).to.equal(7);
     expect(fs.existsSync(wt)).to.equal(true);
 
-    // force destroy allowed
     const d2 = runScript(['destroy', '--repo', repo, '--slug', 'cf', '--force']);
     expect(d2.status, d2.stderr).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
   });
 
-  it('recover reintegrates and destroys unless --keep-worktree', function () {
+  it('recover reintegrates into source branch and destroys unless --keep-worktree', function () {
     const repo = makeRepo();
-    expect(
-      runScript(['create', '--repo', repo, '--slug', 'k1', '--merge-to-launch']).status
-    ).to.equal(0);
+    expect(runScript(['create', '--repo', repo, '--slug', 'k1']).status).to.equal(0);
     const wt = path.join(repo, '.claude/worktrees/improve-k1');
     fs.writeFileSync(path.join(wt, 'x.txt'), '1\n');
     git(wt, 'add', 'x.txt');
@@ -214,15 +211,13 @@ describe('improve-worktree.sh', function () {
       repo,
       '--slug',
       'k1',
-      '--merge-to-launch',
       '--keep-worktree',
     ]);
     expect(keep.status, keep.stderr + keep.stdout).to.equal(0);
     expect(fs.existsSync(path.join(repo, 'x.txt'))).to.equal(true);
     expect(fs.existsSync(wt)).to.equal(true);
 
-    // second recover without keep should destroy
-    const gone = runScript(['recover', '--repo', repo, '--slug', 'k1', '--merge-to-launch']);
+    const gone = runScript(['recover', '--repo', repo, '--slug', 'k1']);
     expect(gone.status, gone.stderr + gone.stdout).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
   });

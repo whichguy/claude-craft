@@ -13,12 +13,12 @@ Arguments after the skill invoke are **free-form**. Prefer natural language; fla
 | `until` | no | — | `until …`, `stop when …`, `done when …`, `keep going until …` |
 | `tests` | yes* | resume ledger / ask once | `tests via …`, `using pytest…`, backticks |
 | `mode` | no | continuous if until/keep going else once | `once`, `one cycle` / `keep going`, `iterate` |
-| `worktree` | no | on if continuous | `no worktree`, `in a worktree` |
+| `worktree` | no | **on** (once and continuous) | opt out: `no worktree`, `--no-worktree` |
 | `keep_worktree` | no | false | `keep worktree`, `debug worktree` |
 | `carry_wip` | no | carry if launch dirty | `clean start`, `include my WIP` |
 | `max_cycles` | no | 10 continuous / 1 once | `max N cycles`, `at most N` |
 | `max_elapsed` | no | unset | `for 45m`, `timebox 1h` |
-| `merge_to_launch` | no | **true** | default auto-merge; opt out: `no merge`, `open a PR`, `--no-merge-to-launch` |
+| `merge_to_launch` | no | **true** | merge detached tip → source branch; opt out: `no merge`, `open a PR`, `--no-merge-to-launch` |
 | `critique` | no | on at seed | `skip plan review` |
 
 \*Unattended: abort if target or tests missing and no ledger to resume.  

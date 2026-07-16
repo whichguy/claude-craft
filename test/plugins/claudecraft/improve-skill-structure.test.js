@@ -104,22 +104,25 @@ describe('claudecraft improve skill structure', function () {
     expect(p5).to.match(/improve-progress-format\.js/);
   });
 
-  it('worktree script documents canonical .git/improve-runs state and default auto-merge', function () {
+  it('worktree script: detached isolation, source-branch merge, .git/improve-runs', function () {
     const text = fs.readFileSync(path.join(CC, 'tools/improve-worktree.sh'), 'utf8');
     expect(text).to.match(/\.git\/improve-runs/);
     expect(text).to.match(/single-flight/);
-    expect(text).to.match(/recover.*--merge-to-launch/s);
+    expect(text).to.match(/worktree add --detach/);
+    expect(text).to.match(/isolation.*detached|detached HEAD/i);
     expect(text).to.match(/--no-merge-to-launch/);
-    expect(text).to.match(/merge_to_launch=true|Default ON|MERGE_TO_LAUNCH=1/);
+    expect(text).to.match(/MERGE_TO_LAUNCH=1/);
     const life = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),
       'utf8'
     );
-    expect(life).to.match(/Auto-merge|merge into the launch/i);
+    expect(life).to.match(/detached-HEAD|detached HEAD/i);
+    expect(life).to.match(/No permanent|no permanent/i);
     const parse = fs.readFileSync(
       path.join(CC, 'skills/improve/references/parse.md'),
       'utf8'
     );
+    expect(parse).to.match(/worktree.*\*\*on\*\*|worktree.*on/i);
     expect(parse).to.match(/merge_to_launch.*\*\*true\*\*|merge_to_launch.*true/i);
   });
 

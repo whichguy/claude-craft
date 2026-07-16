@@ -5,7 +5,7 @@
 ```text
 S0  PARSE          → references/parse.md
 S1  RESOLVE_REPO   git root; note dirty launch
-S2  WT_CREATE      improve-worktree.sh create   (skip if once / --no-worktree)
+S2  WT_CREATE      improve-worktree.sh create   (default ON; skip only with --no-worktree)
 S3  WIP_BOOTSTRAP  improve-worktree.sh carry    (if dirty and carry)
 S4  HISTORY        plan digest (MVP: improve-loop Phase 0 digests)
 S5  RESEARCH       optional seed gate (throttle: seed only)
@@ -34,8 +34,8 @@ WT="<claudecraft-plugin-root>/tools/improve-worktree.sh"
 
 bash "$WT" create --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" carry --repo <path> --slug <slug>
-bash "$WT" reintegrate --repo <path> --slug <slug>   # merges into launch by default
-bash "$WT" destroy --repo <path> --slug <slug> [--force] [--delete-branch]
+bash "$WT" reintegrate --repo <path> --slug <slug>   # merges worktree tip → source branch
+bash "$WT" destroy --repo <path> --slug <slug> [--force]
 bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" status --repo <path> --slug <slug>
 ```
@@ -43,13 +43,21 @@ bash "$WT" status --repo <path> --slug <slug>
 State: `<repo>/.git/improve-runs/<slug>.json`  
 Exit codes: 0 ok · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
 
-**Auto-merge (default):** `create` records `merge_to_launch: true`. **S11 reintegrate** merges
-`improve/<slug>` into the **launch branch** that was checked out at create (source branch).
-Opt out only with `--no-merge-to-launch` / parse cue `no merge` / `open a PR` (leave branch for PR).
+**Isolation model (default):**
+
+1. `create` adds a **detached-HEAD worktree** at the launch tip (git cannot check out the same
+   branch in two places). **No permanent `improve/*` branch** is created.  
+2. Cycles commit on the detached tip only.  
+3. **S11 reintegrate** merges that tip into the **launch/source branch** recorded at create
+   (`merge_to_launch: true` by default). Durable history ends on the source branch.  
+4. **S12 destroy** removes the worktree only.  
+
+Opt out of merge with `--no-merge-to-launch` / “no merge” / “open a PR” (tip stays only in the
+worktree until you branch/PR yourself). Opt out of worktree with `--no-worktree`.
 
 ## Invariants
 
 1. Caps stop **S8 only** — still run S11 if a worktree exists.  
 2. Never auto-destroy after failed reintegrate (unless `--force`).  
-3. Default: **merge into the launch/source branch** at S11; opt out with `--no-merge-to-launch`.  
-4. Branch `improve/<slug>` kept after destroy for audit unless `--delete-branch`.
+3. Default: **worktree on** + **merge tip into launch/source branch** at S11.  
+4. No lasting second branch; source branch is the only branch that keeps improve commits.
