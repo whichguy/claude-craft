@@ -75,7 +75,14 @@ bash "$WT" status --repo <path> --slug <slug>
 ```
 
 State: `<repo>/.git/improve-runs/<slug>.json`  
-Exit codes: 0 ok · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
+
+**`state`:** `created` → `bootstrapped` → `reintegrating` → `reintegrated` \| `reintegrate_failed` → `destroyed`  
+**`reintegrate_status`:** `null` \| `conflict` \| `worktree_dirty` \| `launch_dirty` \| `ok`  
+
+`status` prints JSON then `--- summary ---` (`suggested_next`, `mid_rebase`, `launch_tracked_dirty`, …).  
+Errors print `status=error command=… next=… exit_class=…`.  
+
+Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
 
 **Isolation model (default):**
 

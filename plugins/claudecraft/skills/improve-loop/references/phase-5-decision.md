@@ -120,7 +120,7 @@ blocked_detail: <or none>
 Steps:
 1. cd worktree_path if set, else repo
 2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
-3. Prefer run_json for paths if file exists
+3. Prefer run_json for paths if file exists; run improve-worktree.sh status --repo … --slug … for summary
 4. Execute next_auto only:
    - cycle | reintegrate | destroy | done
    - blocked:rebase-continue → fix conflicts in worktree, git rebase --continue, reintegrate

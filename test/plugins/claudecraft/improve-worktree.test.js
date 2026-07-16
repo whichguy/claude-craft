@@ -282,6 +282,76 @@ describe('improve-worktree.sh', function () {
     expect(git(repo, 'branch', '--list', 'improve/rb')).to.equal('');
   });
 
+  it('status prints --- summary --- with suggested_next', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'st']).status).to.equal(0);
+    const r = runScript(['status', '--repo', repo, '--slug', 'st']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout).to.match(/--- summary ---/);
+    expect(r.stdout).to.match(/suggested_next=/);
+    expect(r.stdout).to.match(/mid_rebase=/);
+    expect(r.stdout).to.match(/worktree_exists=yes/);
+  });
+
+  it('reintegrate is idempotent when already ok', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'id']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-id');
+    fs.writeFileSync(path.join(wt, 'x.txt'), '1\n');
+    git(wt, 'add', 'x.txt');
+    git(wt, 'commit', '-m', 'work');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 'id']).status).to.equal(0);
+    const r2 = runScript(['reintegrate', '--repo', repo, '--slug', 'id']);
+    expect(r2.status, r2.stderr + r2.stdout).to.equal(0);
+    expect(r2.stdout + r2.stderr).to.match(/already-complete|already complete/);
+    expect(r2.stdout).to.match(/status=ok/);
+  });
+
+  it('no-merge reintegrate reports S11b=skipped not false merge claim', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'nm2', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-nm2');
+    fs.writeFileSync(path.join(wt, 'y.txt'), 'y\n');
+    git(wt, 'add', 'y.txt');
+    git(wt, 'commit', '-m', 'work');
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'nm2']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout).to.match(/S11b=skipped|merge_to_launch=false/);
+    expect(r.stdout).to.not.match(/S11b=merged/);
+    expect(fs.existsSync(path.join(repo, 'y.txt'))).to.equal(false);
+  });
+
+  it('destroy is idempotent when already destroyed', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'dd']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-dd');
+    fs.writeFileSync(path.join(wt, 'z.txt'), 'z\n');
+    git(wt, 'add', 'z.txt');
+    git(wt, 'commit', '-m', 'z');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 'dd']).status).to.equal(0);
+    expect(runScript(['destroy', '--repo', repo, '--slug', 'dd']).status).to.equal(0);
+    const d2 = runScript(['destroy', '--repo', repo, '--slug', 'dd']);
+    expect(d2.status, d2.stderr + d2.stdout).to.equal(0);
+    expect(d2.stdout + d2.stderr).to.match(/already-destroyed|already destroyed/);
+  });
+
+  it('destroy refuses worktree_dirty without --force', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'wd']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-wd');
+    fs.writeFileSync(path.join(wt, 'dirty.txt'), 'd\n');
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'wd']);
+    expect(r.status).to.equal(6);
+    expect(r.stderr).to.match(/worktree_dirty|worktree has uncommitted|blocked:worktree-dirty/);
+    const d = runScript(['destroy', '--repo', repo, '--slug', 'wd']);
+    expect(d.status).to.equal(7);
+    expect(d.stderr).to.match(/refused|worktree_dirty|fix-or-force/);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(runScript(['destroy', '--repo', repo, '--slug', 'wd', '--force']).status).to.equal(0);
+  });
+
   it('recover reintegrates into source branch and destroys unless --keep-worktree', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'k1']).status).to.equal(0);

@@ -15,29 +15,29 @@
 const HINTS = {
   cycle: 'Run one improve-loop cycle in the active tree (worktree if set); update ## Driver after',
   reintegrate:
-    'Only-ledger commit if needed, then improve-worktree.sh reintegrate --repo <repo> --slug <slug>',
-  destroy: 'improve-worktree.sh destroy --repo <repo> --slug <slug>',
+    'Only-ledger commit if needed; improve-worktree.sh reintegrate --repo <repo> --slug <slug>; inspect with status',
+  destroy: 'improve-worktree.sh destroy --repo <repo> --slug <slug> (or status for summary)',
   done: 'No further automatic steps; run complete or PR-only tip left on purpose',
   'blocked:ambiguous-run':
     'Disambiguate improve-runs slug (pass --slug or destroy extra runs); do not guess',
   'blocked:path-relocated':
     'Rewrite paths from local .git/improve-runs/<slug>.json or recreate run on this machine',
   'blocked:rebase-continue':
-    'In worktree: resolve conflicts, git add, git rebase --continue, then reintegrate (or recover)',
+    'In worktree: resolve, git add, git rebase --continue; then reintegrate or recover; status for mid_rebase=',
   'blocked:worktree-missing':
-    'Worktree path gone but run active; recover/create worktree or force-destroy run state',
+    'Worktree path gone but run active; create new run or force-destroy; status for state=',
   'blocked:worktree-dirty':
-    'Commit or stash non-ledger worktree changes before reintegrate',
+    'Commit or stash non-ledger worktree changes before reintegrate (status shows worktree_git_status)',
   'blocked:no-tests':
     'Record a test command in IMPROVE_LOOP.md header; never invent one unattended',
   'blocked:ledger-target-mismatch':
     'Confirm resume existing ledger or start a new target explicitly',
   'blocked:launch-dirty':
-    'Commit/stash tracked changes on launch branch, then reintegrate',
+    'Commit/stash tracked changes on launch branch, then reintegrate; status: launch_tracked_dirty=',
   'blocked:open-pr':
-    'merge_to_launch=false: open PR from worktree tip or re-run with --merge-to-launch',
+    'merge_to_launch=false: open PR from worktree tip or re-run reintegrate with --merge-to-launch',
   'blocked:destroy-failed':
-    'Retry improve-worktree.sh destroy --repo … --slug … [--force]',
+    'Retry destroy --force; status for worktree_exists=',
   'blocked:rebase-aborted':
     'Rebase was aborted; tip not on source — retry reintegrate or abandon worktree',
 };
