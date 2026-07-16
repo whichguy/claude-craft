@@ -38,7 +38,9 @@ for destroy/recover/status decisions.
 | 7 | material | `4c59fd1`, `28d7494` | status suggested_next ignored tip; destroy pre-reint dropped tip | status tip_on_launch; destroy always tip-guarded |
 | 8 | material | `531a65f` | carry “dirty” after every create; false WIP carried | absolute exclude; filter worktrees; honest nothing-to-carry |
 | 9–10 | clean (pre-11) | `7c6ffe7` | Dual-path green; banked learnings | Clean still needs durable commit |
-| 11 | material | (next) | S11b-only skipped S11a after launch advanced → S11b conflict on launch | Ancestor gate for skip_s11a |
+| 11 | material | `2e3f12a` | S11b-only skipped S11a after launch advanced → S11b conflict on launch | Ancestor gate for skip_s11a |
+| 12 | **clean** | (docs) | Dual-path + concurrent re-S11a after 2e3f12a | No new P0/P1 |
+| 13 | **clean** | (docs) | Second consecutive clean | Stop |
 
 ## Mandatory dual-path matrix (re-run every clean claim)
 
@@ -53,6 +55,12 @@ B) create --no-merge → commit tip → recover --merge-to-launch
 C) create → commit tip → destroy (no force) → exit 7, wt kept
 
 D) create → carry (clean launch) → "launch was clean", porcelain empty
+
+E) no-merge reintegrate → reintegrate --merge-to-launch (no concurrent launch)
+   → S11b only / tip includes launch tip; file lands
+
+F) after E setup but launch advanced + same-file edit → re-running S11a
+   (not S11b only); mid_rebase / no launch MERGE_HEAD
 ```
 
 ## Deferred P2
