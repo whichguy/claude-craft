@@ -36,6 +36,7 @@ Verify with `/plugin list`.
 | `slides-suite`     | reveal.js or Google Slides decks |
 | `comms`            | Slack tagging |
 | `form990`          | IRS Form 990 preparation orchestrator |
+| `claudecraft`      | Evidence-led improvement: `/claudecraft:improve-loop` (one tested cycle) and `/claudecraft:improve` (continuous driver + worktree lifecycle). Portable kernel + host goal contract; not tied to a single agent harness. |
 | `c-thru`           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM. **Requires `./install.sh` from the c-thru repo first** — plugin adds Claude Code surfaces (commands, skills, hooks); proxy binary and model-map come from the installer. |
 
 Cross-bundle dependency edges (declared in each `plugin.json`):

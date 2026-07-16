@@ -36,7 +36,7 @@ RESPONSE:    direct answer first, no preamble, no restating the question, no pos
 | slides-suite     | reveal.js + Google Slides decks |
 | comms            | Slack tagging |
 | form990          | IRS Form 990 (deps: review-bench) |
-| claudecraft      | Evidence-led tested-improvement cycle (improve-loop skill): bounded backlog item → test → 7-field learnings commit → multi-model replan with 15-iteration learnings digest + disproven-thesis guard |
+| claudecraft      | Host-agnostic tested improvement: `improve-loop` (one cycle) + `improve` (continuous driver, worktree reintegrate). Kernel in skills/*/references; tools/improve-worktree.sh |
 | c-thru           | Router/proxy for Ollama/OpenRouter/Bedrock/Vertex/Gemini/LiteLLM (source: git-subdir from whichguy/c-thru; requires install.sh first) |
 
 Cross-plugin dep DAG: `gas-suite → review-suite`, `review-suite → wiki-suite`, `review-bench → review-suite`, `form990 → review-bench`. Declared in each plugin's `plugin.json#dependencies`.

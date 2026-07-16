@@ -196,6 +196,7 @@ const USER_FACING_NO_REFS_OK = new Set([
     'enable-abilities',
     'execute-plan',
     'form990',
+    'improve',
     'improve-loop',
     'slack-tag',
     'test-delivery-agent',  // harness invoked via /test-delivery-agent, not dispatched
