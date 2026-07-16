@@ -123,14 +123,17 @@ Driver: `next_auto: done`. If anything still blocked, print resume template inst
 
 ## Recovery
 
-If the process dies mid-run:
+If the process dies mid-run, or Driver says `blocked:rebase-continue` /
+reintegrate_status failed/conflict with worktree still present:
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh recover --repo <repo> --slug <slug> \
   [--keep-worktree] [--no-merge-to-launch]
 ```
 
-State: `<repo>/.git/improve-runs/<slug>.json`.
+(`recover` = reintegrate then destroy unless keep.) Mid-rebase: finish
+`git rebase --continue` in the worktree first, then recover/reintegrate.  
+State: `<repo>/.git/improve-runs/<slug>.json`. Print the phase-5 resume template when blocked.
 
 ## References
 

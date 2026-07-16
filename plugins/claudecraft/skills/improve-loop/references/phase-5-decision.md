@@ -79,23 +79,31 @@ runs.
 
 ### Worktree end (auto — once mode or when continuous driver is not taking S11)
 
-If an improve worktree is in play (`…/.claude/worktrees/improve-<slug>` or live
-`.git/improve-runs/<slug>.json`) and the **outer** continuous driver is **not** about to run
-S11 itself (typical **once** improve-loop), the orchestrator **must automatically** finish
-lifecycle after the pulse — do not wait for the user:
+**Anti-double-teardown:** If the continuous **`improve` driver** owns this run and will run
+S11–S12 itself, improve-loop Phase 5 **must not** also reintegrate/destroy — only update
+Driver `next_auto: reintegrate` (or leave for S11). If `reintegrate_status` is already `ok`
+and worktree is gone, skip teardown (no-op).
+
+If an improve worktree is in play and the outer continuous driver is **not** taking S11
+(typical **once** improve-loop), the orchestrator **must automatically** finish lifecycle
+after the pulse — do not wait for the user:
 
 0. Update `## Driver` with `next_auto: reintegrate` (or `blocked:…`).  
 1. If porcelain is **only** `IMPROVE_LOOP.md`, auto-commit
    `improve-loop: driver — next_auto reintegrate` (ledger-schema only-ledger rule).  
-2. `reintegrate` — **S11a** rebase onto source tip; **S11b** merge tip → source (default).  
+2. `reintegrate` — **S11a** rebase onto source tip; **S11b** merge tip → source when
+   `merge_to_launch` (default true). Conflicts may include `IMPROVE_LOOP.md` itself — resolve
+   in the worktree.  
 3. On success: `next_auto: destroy` (or `done` if `keep_worktree`); then `destroy` unless keep.  
-4. On failure: set `blocked:rebase-continue` / `blocked:launch-dirty` / etc.; **print the resume
-   template** (below); stop. Do not promise success.
+   If `merge_to_launch=false`, after S11a set `blocked:open-pr` or `done` with PR hint — do
+   **not** claim launch was updated.  
+4. On failure: set catalog token (`blocked:rebase-continue`, `blocked:launch-dirty`, …);
+   **print the resume template** (below); stop. Do not promise success. Prefer **`recover`**
+   when run_json shows reintegrate failed/conflict and the worktree still exists
+   (`improve-worktree.sh recover --repo … --slug …`), else manual `rebase --continue` +
+   reintegrate.
 
 **Status `complete` does not skip teardown** while a worktree still needs reintegrate.
-
-Opt out of S11b merge only when the operator asked for PR-only (`--no-merge-to-launch`).
-Continuous `improve` driver runs the same S11–S12 after the inner loop stops.
 
 ### Resume template (print on blocked or when a human must re-prompt)
 
@@ -113,7 +121,12 @@ Steps:
 1. cd worktree_path if set, else repo
 2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
 3. Prefer run_json for paths if file exists
-4. Execute next_auto only (cycle | reintegrate | destroy | fix blocked:*)
+4. Execute next_auto only:
+   - cycle | reintegrate | destroy | done
+   - blocked:rebase-continue → fix conflicts in worktree, git rebase --continue, reintegrate
+   - reintegrate_status failed/conflict → prefer: improve-worktree.sh recover --repo … --slug …
+   - blocked:destroy-failed → destroy [--force]
+   - other blocked:* → fix reason in blocked_detail
 5. Use test_command from ledger; never invent tests
 6. Update ## Driver after the step
 ```

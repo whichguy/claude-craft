@@ -50,4 +50,7 @@ The run’s inner improve-loop cycles stop when **any** of:
 1. Skills **must not** require nested slash-invocation of a product-specific goal command as the only continuous path.  
 2. Prefer host goal **UI** when present; **semantics** always match this contract.  
 3. Host process caps (max-turns, max-budget) must be **looser** than driver caps so reintegrate can run.  
-4. No Claude-, Grok-, or Codex-only names are required to implement this contract.
+4. No Claude-, Grok-, or Codex-only names are required to implement this contract.  
+5. After context compaction or a new turn: **rehydrate from disk** (`IMPROVE_LOOP.md` `## Driver` +
+   `.git/improve-runs` + git) per improve-loop Phase 0 — not from goal chat history alone.
+   If `next_auto` is `reintegrate`/`destroy`, prefer a teardown-only turn before more cycles.

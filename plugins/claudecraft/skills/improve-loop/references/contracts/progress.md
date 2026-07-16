@@ -142,3 +142,6 @@ markdown. Exit 2 if `cycle` is missing.
 | `improve-loop: iteration N —` commits | Goal UI / chat |
 
 If pulse and Log disagree, **Log + git win**.
+
+Pulses do **not** replace `## Driver` or run-state JSON for resume after compaction — those
+are durable; pulses are side-channel only.

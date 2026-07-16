@@ -73,8 +73,24 @@ This is **not** a second ledger — one file only. Lifecycle machine fields also
 | `next_auto` | Enum only: `cycle` \| `reintegrate` \| `destroy` \| `blocked:<token>` \| `done` |
 | `resume_hint` | One imperative line for a cold agent/human — UX only; **recompute next_auto** from disk before trusting hint |
 | Rewrites | Entire `## Driver` section may be replaced each boundary (S2/S8/S11–S13 / Phase 5) |
-| Legacy | Missing `## Driver` is OK; derive next step from Status + run JSON + git |
+| Legacy / malformed | Missing **or unparseable** `## Driver` → treat as absent; derive from Status + run JSON + git |
 | Secrets | No tokens, full test logs, or multi-paragraph dumps |
+
+**`blocked:<token>` catalog** (use only these tokens; do not invent synonyms):
+
+| Token | Meaning |
+|---|---|
+| `rebase-continue` | Mid-rebase in worktree; resolve, `git rebase --continue`, re-run reintegrate |
+| `rebase-aborted` | Operator/agent aborted rebase; tip not on source — decide retry or abandon |
+| `worktree-dirty` | Uncommitted non-ledger files in worktree |
+| `launch-dirty` | Launch has tracked changes; clean before S11b merge |
+| `worktree-missing` | run_json active but worktree path gone |
+| `ambiguous-run` | Multiple non-destroyed improve-runs without a clear slug |
+| `path-relocated` | Driver absolute paths don’t match this machine; rewrite from run_json or stop |
+| `ledger-target-mismatch` | Existing ledger title/target ≠ this invoke’s target (need explicit resume-existing) |
+| `no-tests` | Unattended and no test command in ledger/header |
+| `open-pr` | `merge_to_launch=false`; S11a done or skipped merge — open PR / branch tip yourself |
+| `destroy-failed` | reintegrate ok but destroy failed; retry destroy / `--force` |
 
 **Only-ledger auto-commit (narrow):** when the next automatic step is `reintegrate` or
 `destroy` and `git status` shows **only** `IMPROVE_LOOP.md` dirty, commit bookkeeping with

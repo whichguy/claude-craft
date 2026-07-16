@@ -158,6 +158,22 @@ describe('claudecraft improve skill structure', function () {
     expect(ledger).to.match(/\*\*resume_hint:\*\*/);
     expect(ledger).to.match(/improve-loop: driver — next_auto/);
     expect(ledger).to.match(/\bnone\b/);
+    // blocked token catalog (P1 completeness)
+    for (const tok of [
+      'rebase-continue',
+      'worktree-dirty',
+      'launch-dirty',
+      'worktree-missing',
+      'ambiguous-run',
+      'path-relocated',
+      'ledger-target-mismatch',
+      'no-tests',
+      'open-pr',
+      'rebase-aborted',
+      'destroy-failed',
+    ]) {
+      expect(ledger, `missing blocked token ${tok}`).to.match(new RegExp(tok));
+    }
 
     const p0 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
@@ -167,6 +183,8 @@ describe('claudecraft improve skill structure', function () {
     expect(p0).to.match(/not authoritative|untrusted/i);
     expect(p0).to.match(/blocked:rebase-continue|mid-rebase/i);
     expect(p0).to.match(/last two or three|last 2–3|2–3/i);
+    expect(p0).to.match(/malformed|unparseable/i);
+    expect(p0).to.match(/path-relocated|ledger-target-mismatch|open-pr|no-tests/);
 
     const p5 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-5-decision.md'),
@@ -175,6 +193,9 @@ describe('claudecraft improve skill structure', function () {
     expect(p5).to.match(/Resume improve from disk/);
     expect(p5).to.match(/must automatically|automatically.*finish lifecycle/i);
     expect(p5).to.match(/Status `complete` does not skip teardown|does not skip teardown/i);
+    expect(p5).to.match(/Anti-double-teardown|must not.*also reintegrate/i);
+    expect(p5).to.match(/recover/i);
+    expect(p5).to.match(/merge_to_launch=false|open-pr/);
 
     const life = fs.readFileSync(
       path.join(CC, 'skills/improve/references/lifecycle.md'),
@@ -182,6 +203,19 @@ describe('claudecraft improve skill structure', function () {
     );
     expect(life).to.match(/Resume improve from disk/);
     expect(life).to.match(/## Driver|Driver \+/);
+    expect(life).to.match(/double teardown|Anti-double|no double/i);
+
+    const idx = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/INDEX.md'),
+      'utf8'
+    );
+    expect(idx).to.match(/Driver|Rehydration|resume template/i);
+
+    const goal = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/goal.md'),
+      'utf8'
+    );
+    expect(goal).to.match(/rehydrat|disk/i);
 
     const loop = fs.readFileSync(path.join(CC, 'skills/improve-loop/SKILL.md'), 'utf8');
     expect(loop).to.match(/Automation|automation/);
@@ -189,7 +223,7 @@ describe('claudecraft improve skill structure', function () {
 
     const improve = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
     expect(improve).to.match(/## Driver|Driver write/);
-    expect(improve).to.match(/resume template|Resume/);
+    expect(improve).to.match(/resume template|Resume|recover/i);
   });
 });
 

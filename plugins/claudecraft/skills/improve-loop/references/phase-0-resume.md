@@ -13,26 +13,37 @@ historical Log.
 
 **Priority when sources disagree** (first match wins):
 
-1. **Hard git/runtime stops** — mid-rebase in worktree → `blocked:rebase-continue`; worktree
-   dirty (more than ledger) → `blocked:worktree-dirty`; launch tracked dirty when S11b needed
-   → `blocked:launch-dirty`; worktree path missing but run JSON active →
-   `blocked:worktree-missing`.  
+1. **Hard git/runtime stops** — mid-rebase → `blocked:rebase-continue`; worktree dirty
+   (more than ledger) → `blocked:worktree-dirty`; launch tracked dirty when S11b needed →
+   `blocked:launch-dirty`; worktree path missing but run JSON active →
+   `blocked:worktree-missing`. (Full token list: `ledger-schema.md` `blocked:<token>` catalog.)  
 2. **`run_json`** (if file exists) — slug, worktree_path, launch_branch, merge_to_launch,
    reintegrate_status.  
 3. **Ledger header** — Status, test command, iteration counter / Log consistency.  
-4. **`## Driver`** — hints only (`next_auto`, `resume_hint`); never override (1)–(3).  
+4. **`## Driver`** — hints only (`next_auto`, `resume_hint`); never override (1)–(3). If the
+   section is **malformed** (unparseable keys/values), treat as **missing**.  
 5. **Chat / user prose** — intent only; never invent a test command or mark complete.
+   User “finish” / “stop the run” while Status active → set Status `stopped (user)` and
+   derive teardown (`reintegrate` if worktree remains). Incomplete cold-resume paste
+   missing repo/slug (and cwd not inside a worktree) → **ask once** interactively, or
+   `blocked:ambiguous-run` unattended.
 
 **Resolve active tree (R1):** worktree_path from prompt/Driver/JSON if that directory exists;
 else cwd if under `…/.claude/worktrees/improve-*`; else launch root. If a live improve
-worktree exists for the run, **do Phase 1 work there**, not on launch.
+worktree exists for the run, **do Phase 1 work there**, not on launch. If Driver `repo`
+paths don’t match `git rev-parse` on this machine → rewrite from run_json/slug or
+`blocked:path-relocated`.
 
-**`next_auto` derivation (summary):** mid-rebase → blocked; else worktree dirty (non-ledger)
-→ blocked; else only-ledger dirty before reintegrate/destroy → auto-commit driver ledger
-(`improve-loop: driver — next_auto <value>`); else Status active under caps → `cycle`; else
-worktree present and reintegrate not ok → `reintegrate` (**even if Status is complete** —
-inner complete ≠ teardown done); else reintegrate ok and not keep_worktree → `destroy`; else
-`done`. Recompute this every turn; do not trust a stale `resume_hint` for control flow.
+**`next_auto` derivation (summary):** mid-rebase → `blocked:rebase-continue`; else worktree
+dirty (non-ledger) → `blocked:worktree-dirty`; else only-ledger dirty before
+reintegrate/destroy → auto-commit driver ledger; else no test command unattended →
+`blocked:no-tests`; else cold target ≠ ledger title without “resume existing” →
+`blocked:ledger-target-mismatch`; else Status active under caps → `cycle`; else worktree
+present and reintegrate not ok → `reintegrate` (**even if Status is complete**); if
+`merge_to_launch=false` after successful S11a-only path → `blocked:open-pr` or `done` with
+PR hint (do not claim merged to launch); else reintegrate ok and not keep_worktree →
+`destroy` (destroy fail → `blocked:destroy-failed`); else `done`. Recompute every turn;
+do not trust a stale `resume_hint` for control flow.
 
 **Ambiguous runs:** multiple non-destroyed `.git/improve-runs/*.json` without a clear slug →
 `blocked:ambiguous-run` (do not guess).
