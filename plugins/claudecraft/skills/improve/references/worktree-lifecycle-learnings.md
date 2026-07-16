@@ -116,6 +116,13 @@ No material P0/P1; key features S11a/S11b, open-pr, tip-on-launch destroy, merge
 | Iter | Verdict | Commit | Notes |
 |---|---|---|---|
 | 16 | material | `2e8a9bb` | resume_hint, create-9 structured, dirty destroy, keep open-pr |
-| 17 | **clean** | (this) | dual-path-iter17.txt; 27 mocha |
-| 18 | pending | — | second sequential clean |
+| 17 | **clean** | `456983a` | dual-path-iter17.txt; 27 mocha |
+| 18 | **clean** | (this) | dual-path-iter18.txt; 27 mocha |
 
+## Stop (P2 UX goal df4268dbd8d9)
+
+Material `2e8a9bb` then two independent cleans:
+- **17** → `456983a` — dual-path-iter17 + iter17-mocha
+- **18** → this commit — dual-path-iter18 + iter18-mocha
+
+Features retained: S11a/S11b, open-pr, tip-on-launch destroy, merge override, mid-rebase.
