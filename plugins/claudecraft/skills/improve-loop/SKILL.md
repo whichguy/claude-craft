@@ -27,7 +27,7 @@ before applying its rules.
 | Tests | Stated or already recorded; **never invented** |
 | Continuous | `improve` driver or host goal — not unlimited outer quotas |
 | Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
-| Lifecycle | `../../tools/improve-worktree.sh` (create/carry/reintegrate/destroy) |
+| Lifecycle | `../../tools/improve-worktree.sh` (create/carry/reintegrate/destroy); **default auto-merge** into launch/source branch at reintegrate |
 | Kernel | Host-agnostic; Claude slash names are plugin packaging only |
 
 ## Invocation

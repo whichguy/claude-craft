@@ -32,20 +32,24 @@ Resolve script relative to this plugin:
 WT="<claudecraft-plugin-root>/tools/improve-worktree.sh"
 # or: plugins/claudecraft/tools/improve-worktree.sh from repo root
 
-bash "$WT" create --repo <path> --slug <slug> [--keep-worktree] [--merge-to-launch]
+bash "$WT" create --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" carry --repo <path> --slug <slug>
-bash "$WT" reintegrate --repo <path> --slug <slug> [--merge-to-launch]
+bash "$WT" reintegrate --repo <path> --slug <slug>   # merges into launch by default
 bash "$WT" destroy --repo <path> --slug <slug> [--force] [--delete-branch]
-bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--merge-to-launch]
+bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" status --repo <path> --slug <slug>
 ```
 
 State: `<repo>/.git/improve-runs/<slug>.json`  
 Exit codes: 0 ok · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
 
+**Auto-merge (default):** `create` records `merge_to_launch: true`. **S11 reintegrate** merges
+`improve/<slug>` into the **launch branch** that was checked out at create (source branch).
+Opt out only with `--no-merge-to-launch` / parse cue `no merge` / `open a PR` (leave branch for PR).
+
 ## Invariants
 
 1. Caps stop **S8 only** — still run S11 if a worktree exists.  
 2. Never auto-destroy after failed reintegrate (unless `--force`).  
-3. Default: do not merge into `main`/`master` without explicit merge_to_launch.  
+3. Default: **merge into the launch/source branch** at S11; opt out with `--no-merge-to-launch`.  
 4. Branch `improve/<slug>` kept after destroy for audit unless `--delete-branch`.

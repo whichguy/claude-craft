@@ -104,11 +104,23 @@ describe('claudecraft improve skill structure', function () {
     expect(p5).to.match(/improve-progress-format\.js/);
   });
 
-  it('worktree script documents canonical .git/improve-runs state', function () {
+  it('worktree script documents canonical .git/improve-runs state and default auto-merge', function () {
     const text = fs.readFileSync(path.join(CC, 'tools/improve-worktree.sh'), 'utf8');
     expect(text).to.match(/\.git\/improve-runs/);
     expect(text).to.match(/single-flight/);
     expect(text).to.match(/recover.*--merge-to-launch/s);
+    expect(text).to.match(/--no-merge-to-launch/);
+    expect(text).to.match(/merge_to_launch=true|Default ON|MERGE_TO_LAUNCH=1/);
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(life).to.match(/Auto-merge|merge into the launch/i);
+    const parse = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/parse.md'),
+      'utf8'
+    );
+    expect(parse).to.match(/merge_to_launch.*\*\*true\*\*|merge_to_launch.*true/i);
   });
 
   it('relative doc links from improve/references resolve on disk', function () {

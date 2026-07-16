@@ -39,10 +39,13 @@ Read `references/lifecycle.md`. Run:
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh create --repo <repo> --slug <slug> \
-  [--keep-worktree] [--merge-to-launch]
+  [--keep-worktree] [--no-merge-to-launch]
 # if launch dirty and carry:
 bash <plugin>/tools/improve-worktree.sh carry --repo <repo> --slug <slug>
 ```
+
+**Default:** `merge_to_launch=true` — S11 merges `improve/<slug>` into the **launch/source branch**
+recorded at create. Pass `--no-merge-to-launch` only when you want a PR-only branch.
 
 Active cwd for cycles = worktree path from status/state JSON.  
 If once / `--no-worktree`: skip; work in launch tree (must satisfy improve-loop dirty guards).
@@ -77,11 +80,13 @@ If ledger needs a final Status commit and improve-loop did not land one, prefer 
 ### S11 — Reintegrate (always if worktree was created)
 
 ```bash
-bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug> \
-  [--merge-to-launch]
+bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug>
+# honors merge_to_launch from create (default true → merge into launch/source branch)
+# override: --no-merge-to-launch | --merge-to-launch
 ```
 
-Conflicts → keep worktree; report; do not pretend success.  
+Launch must have **no tracked dirty files** for merge-to-launch (untracked `.claude/worktrees`
+parent is OK). Conflicts or launch_dirty → keep worktree; report; do not pretend success.  
 **Pulse:** short `## Improve progress` (Phase: S11) with reintegrate ok|conflict|launch_dirty.
 
 ### S12 — Destroy
@@ -104,7 +109,7 @@ If the process dies mid-run:
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh recover --repo <repo> --slug <slug> \
-  [--keep-worktree] [--merge-to-launch]
+  [--keep-worktree] [--no-merge-to-launch]
 ```
 
 State: `<repo>/.git/improve-runs/<slug>.json`.

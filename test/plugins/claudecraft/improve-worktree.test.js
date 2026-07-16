@@ -62,9 +62,10 @@ describe('improve-worktree.sh', function () {
     expect(empty.stderr + empty.stdout).to.match(/create/);
   });
 
-  it('create → worktree + IMPROVE_RUN.json + index', function () {
+  it('create → worktree + IMPROVE_RUN.json + index; merge_to_launch defaults true', function () {
     const repo = makeRepo();
-    const r = runScript(['create', '--repo', repo, '--slug', 't1', '--merge-to-launch']);
+    // No --merge-to-launch flag: default must still be true (auto-merge at reintegrate).
+    const r = runScript(['create', '--repo', repo, '--slug', 't1']);
     expect(r.status, r.stderr).to.equal(0);
     const wt = path.join(repo, '.claude/worktrees/improve-t1');
     expect(fs.existsSync(wt)).to.equal(true);
@@ -77,6 +78,42 @@ describe('improve-worktree.sh', function () {
     expect(fs.realpathSync(state.worktree_path)).to.equal(fs.realpathSync(wt));
     const branch = git(repo, 'branch', '--list', 'improve/t1');
     expect(branch).to.match(/improve\/t1/);
+  });
+
+  it('create --no-merge-to-launch records merge_to_launch false; reintegrate skips launch merge', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'nom', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const state = JSON.parse(
+      fs.readFileSync(path.join(repo, '.git/improve-runs/nom.json'), 'utf8')
+    );
+    expect(state.merge_to_launch).to.equal(false);
+
+    const wt = path.join(repo, '.claude/worktrees/improve-nom');
+    fs.writeFileSync(path.join(wt, 'only-wt.txt'), 'w\n');
+    git(wt, 'add', 'only-wt.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — wt only');
+
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'nom']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout + r.stderr).to.match(/merge_to_launch=false/);
+    // Launch must NOT have the improve commit file
+    expect(fs.existsSync(path.join(repo, 'only-wt.txt'))).to.equal(false);
+  });
+
+  it('reintegrate without CLI flag merges when create defaulted merge_to_launch true', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'def']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-def');
+    fs.writeFileSync(path.join(wt, 'auto.txt'), 'a\n');
+    git(wt, 'add', 'auto.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — auto merge');
+
+    // No --merge-to-launch on reintegrate — state default must merge into launch
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'def']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(fs.existsSync(path.join(repo, 'auto.txt'))).to.equal(true);
   });
 
   it('refuses second create while improve worktree active (exit 9)', function () {

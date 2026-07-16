@@ -34,15 +34,21 @@ VERSION=1
 usage() {
   cat <<'EOF' >&2
 Usage:
-  improve-worktree.sh create --repo <path> [--slug <s>] [--base <ref>] [--keep-worktree] [--merge-to-launch]
+  improve-worktree.sh create --repo <path> [--slug <s>] [--base <ref>] [--keep-worktree]
+                             [--merge-to-launch | --no-merge-to-launch]
   improve-worktree.sh carry  --run-json <path> | --repo <path>
   improve-worktree.sh status --run-json <path> | --repo <path> [--slug <s>]
-  improve-worktree.sh reintegrate --run-json <path> | --repo <path> [--slug <s>] [--merge-to-launch]
+  improve-worktree.sh reintegrate --run-json <path> | --repo <path> [--slug <s>]
+                                  [--merge-to-launch | --no-merge-to-launch]
   improve-worktree.sh destroy --run-json <path> | --repo <path> [--slug <s>] [--force] [--delete-branch]
-  improve-worktree.sh recover --run-json <path> | --repo <path> [--slug <s>] [--keep-worktree] [--merge-to-launch]
+  improve-worktree.sh recover --run-json <path> | --repo <path> [--slug <s>] [--keep-worktree]
+                              [--merge-to-launch | --no-merge-to-launch]
 
 Canonical state: <repo>/.git/improve-runs/<slug>.json
 (Does not dirty the working tree. --run-json may point at that file.)
+
+Defaults: merge_to_launch=true on create (reintegrate merges improve/* into the launch
+branch recorded at create). Opt out with --no-merge-to-launch (leave improve/* for PR).
 EOF
 }
 
@@ -365,9 +371,14 @@ cmd_reintegrate() {
     die 5 "conflict merging launch tip into worktree; worktree kept for debug: $wt"
   fi
 
-  # S11b: merge improve branch into launch (default when merge_to_launch true, or --merge-to-launch)
+  # S11b: merge improve branch into launch branch recorded at create.
+  # Default true (state merge_to_launch). CLI may override: --merge-to-launch / --no-merge-to-launch.
   local do_merge="$MERGE_TO_LAUNCH"
-  [[ "${MERGE_TO_LAUNCH_FLAG:-0}" == "1" ]] && do_merge="True"
+  if [[ "${MERGE_OVERRIDE:-}" == "on" ]]; then
+    do_merge="True"
+  elif [[ "${MERGE_OVERRIDE:-}" == "off" ]]; then
+    do_merge="False"
+  fi
 
   if [[ "$do_merge" == "True" || "$do_merge" == "true" ]]; then
     # Block only on tracked changes. Untracked paths (e.g. .claude/worktrees parent)
@@ -463,8 +474,9 @@ SLUG_ARG=""
 BASE_ARG=""
 KEEP_WORKTREE=0
 KEEP_WORKTREE_FLAG=0
-MERGE_TO_LAUNCH=0
-MERGE_TO_LAUNCH_FLAG=0
+# Default ON: reintegrate merges improve/* into the launch branch from create.
+MERGE_TO_LAUNCH=1
+MERGE_OVERRIDE="" # empty | on | off — CLI override for create/reintegrate/recover
 FORCE=0
 DELETE_BRANCH=0
 
@@ -475,7 +487,8 @@ while [[ $# -gt 0 ]]; do
     --slug) SLUG_ARG="${2:-}"; shift 2 ;;
     --base) BASE_ARG="${2:-}"; shift 2 ;;
     --keep-worktree) KEEP_WORKTREE=1; KEEP_WORKTREE_FLAG=1; shift ;;
-    --merge-to-launch) MERGE_TO_LAUNCH=1; MERGE_TO_LAUNCH_FLAG=1; shift ;;
+    --merge-to-launch) MERGE_TO_LAUNCH=1; MERGE_OVERRIDE=on; shift ;;
+    --no-merge-to-launch) MERGE_TO_LAUNCH=0; MERGE_OVERRIDE=off; shift ;;
     --force) FORCE=1; shift ;;
     --delete-branch) DELETE_BRANCH=1; shift ;;
     -h|--help) usage; exit 0 ;;
