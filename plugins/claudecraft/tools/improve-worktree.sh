@@ -673,6 +673,11 @@ cmd_destroy() {
   local mid=no
   [[ -d "$WORKTREE_PATH" ]] && mid_rebase_p "$WORKTREE_PATH" && mid=yes
 
+  local merge_on=true
+  if [[ "$MERGE_TO_LAUNCH" != "True" && "$MERGE_TO_LAUNCH" != "true" ]]; then
+    merge_on=false
+  fi
+
   if [[ "$force" != "1" ]]; then
     if [[ "$status" == "conflict" || "$status" == "launch_dirty" || "$status" == "worktree_dirty" \
        || "$state" == "reintegrate_failed" || "$mid" == "yes" ]]; then
@@ -680,6 +685,16 @@ cmd_destroy() {
         "destroy refused: reintegrate not clean (reintegrate_status=${status:-none} state=$state mid_rebase=$mid)
 fix conflicts / dirty trees, or pass --force to remove worktree anyway
 slug=$SLUG worktree=$WORKTREE_PATH"
+    fi
+    # merge_to_launch=false: worktree tip is often the only copy of improve commits
+    if [[ "$merge_on" == "false" && -d "$WORKTREE_PATH" && ( "$status" == "ok" || "$state" == "reintegrated" ) ]]; then
+      local tip_sha
+      tip_sha="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
+      record_last_error 7 destroy "refuse destroy: merge_to_launch=false tip only in worktree"
+      die_status 7 destroy none blocked:open-pr \
+        "destroy refused: merge_to_launch=false — worktree tip may be the only copy of improve commits
+open a PR/branch from tip, or pass --force to discard worktree (data loss risk)
+slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha"
     fi
   fi
 
@@ -736,6 +751,22 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
     ok_status recover none done "kept worktree"
     return 0
   fi
+
+  # merge_to_launch=false: tip was never merged to launch — do NOT force-destroy
+  # (aligns with improve-next-auto blocked:open-pr; only copy of commits is the worktree).
+  local merge_on=true
+  if [[ "$MERGE_TO_LAUNCH" != "True" && "$MERGE_TO_LAUNCH" != "true" ]]; then
+    merge_on=false
+  fi
+  if [[ "$merge_on" == "false" ]]; then
+    local tip="none"
+    [[ -d "$WORKTREE_PATH" ]] && tip="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
+    printf 'recover: reintegrate ok but merge_to_launch=false — keeping worktree (tip %s not on launch)\n' "$tip"
+    printf 'recover: open a PR/branch from the tip, or re-run destroy --force to discard (data loss)\n'
+    ok_status recover none blocked:open-pr "kept worktree; tip not merged to launch"
+    return 0
+  fi
+
   FORCE=1 cmd_destroy
 }
 

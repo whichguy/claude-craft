@@ -352,6 +352,33 @@ describe('improve-worktree.sh', function () {
     expect(runScript(['destroy', '--repo', repo, '--slug', 'wd', '--force']).status).to.equal(0);
   });
 
+  it('recover after no-merge reintegrate keeps worktree (does not destroy tip)', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'nmr', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-nmr');
+    fs.writeFileSync(path.join(wt, 'only-in-wt.txt'), 'secret-tip\n');
+    git(wt, 'add', 'only-in-wt.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — tip only in worktree');
+
+    const rec = runScript(['recover', '--repo', repo, '--slug', 'nmr']);
+    expect(rec.status, rec.stderr + rec.stdout).to.equal(0);
+    // Must NOT land on launch (merge_to_launch=false)
+    expect(fs.existsSync(path.join(repo, 'only-in-wt.txt'))).to.equal(false);
+    // Must NOT destroy worktree — only copy of commits
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(fs.readFileSync(path.join(wt, 'only-in-wt.txt'), 'utf8')).to.match(/secret-tip/);
+    expect(rec.stdout + rec.stderr).to.match(/blocked:open-pr|open-pr|merge_to_launch=false/);
+    expect(rec.stdout + rec.stderr).to.not.match(/worktree removed|already-destroyed/);
+
+    // Default destroy without --force must also refuse
+    const d = runScript(['destroy', '--repo', repo, '--slug', 'nmr']);
+    expect(d.status).to.equal(7);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(d.stderr + d.stdout).to.match(/blocked:open-pr|merge_to_launch=false|only copy/i);
+  });
+
   it('recover reintegrates into source branch and destroys unless --keep-worktree', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'k1']).status).to.equal(0);

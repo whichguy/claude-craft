@@ -55,8 +55,9 @@ Steps:
 **Edges (short):** Status complete ≠ teardown done while worktree needs reintegrate; mid-rebase
 beats Driver; only-ledger dirty may auto-commit `improve-loop: driver — next_auto …` before
 reintegrate; ambiguous multi-run JSON → `blocked:ambiguous-run`; `merge_to_launch=false` →
-`blocked:open-pr` (not “merged to main”); reintegrate conflict → prefer `recover` or
-rebase-continue; continuous driver owns S11–S12 (no double teardown from improve-loop).
+`blocked:open-pr` (not “merged to main”); **recover/destroy must not drop the worktree tip**
+when merge_to_launch=false unless `--force` (tip may be the only copy); reintegrate conflict →
+prefer `recover` or rebase-continue; continuous driver owns S11–S12 (no double teardown).
 
 ## Worktree CLI
 
