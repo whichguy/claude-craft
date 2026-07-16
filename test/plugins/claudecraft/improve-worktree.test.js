@@ -186,11 +186,17 @@ describe('improve-worktree.sh', function () {
 
     const r = runScript(['reintegrate', '--repo', repo, '--slug', 'cf']);
     expect(r.status).to.equal(5);
-    expect(r.stderr + r.stdout).to.match(/rebasing|conflict/i);
+    expect(r.stderr + r.stdout).to.match(/conflict|rebase/i);
     expect(fs.existsSync(wt)).to.equal(true);
-    // Rebase aborted — worktree should not be stuck mid-rebase
-    expect(fs.existsSync(path.join(wt, '.git/rebase-merge'))).to.equal(false);
-    expect(fs.existsSync(path.join(wt, '.git/rebase-apply'))).to.equal(false);
+    // Mid-rebase kept so operator can resolve in worktree
+    const rebaseMerge = git(wt, 'rev-parse', '--git-path', 'rebase-merge');
+    const rebaseApply = git(wt, 'rev-parse', '--git-path', 'rebase-apply');
+    const mid = fs.existsSync(rebaseMerge) || fs.existsSync(rebaseApply);
+    expect(mid, 'expected mid-rebase state after conflict').to.equal(true);
+
+    // Second reintegrate while mid-rebase → still exit 5, not silent success
+    const r2 = runScript(['reintegrate', '--repo', repo, '--slug', 'cf']);
+    expect(r2.status).to.equal(5);
 
     const d = runScript(['destroy', '--repo', repo, '--slug', 'cf']);
     expect(d.status).to.equal(7);
@@ -199,6 +205,16 @@ describe('improve-worktree.sh', function () {
     const d2 = runScript(['destroy', '--repo', repo, '--slug', 'cf', '--force']);
     expect(d2.status, d2.stderr).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
+  });
+
+  it('reintegrate refuses dirty worktree (exit 6) before rebase', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'dirty']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-dirty');
+    fs.writeFileSync(path.join(wt, 'uncommitted.txt'), 'x\n');
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'dirty']);
+    expect(r.status).to.equal(6);
+    expect(r.stderr + r.stdout).to.match(/uncommitted|dirty/i);
   });
 
   it('S11a rebases onto concurrent source commits then S11b lands both on source', function () {

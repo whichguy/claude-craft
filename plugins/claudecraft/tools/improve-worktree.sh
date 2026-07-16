@@ -22,7 +22,7 @@
 #   2  not a git repository
 #   3  worktree create failed
 #   4  carry failed
-#   5  reintegrate merge conflict
+#   5  reintegrate rebase/merge conflict
 #   6  reintegrate other failure
 #   7  destroy failed / refused
 #   8  missing/invalid run state
@@ -366,19 +366,35 @@ cmd_reintegrate() {
     || die 6 "launch branch missing: $LAUNCH_BRANCH"
 
   # S11a: rebase worktree commits onto latest source tip (absorb concurrent movement).
-  # Conflicts are resolved in the worktree, not on the source branch.
-  local launch_tip
+  # Conflicts stay in the worktree (do NOT abort) so the operator can fix, then
+  # `git rebase --continue` and re-run reintegrate.
+  local launch_tip rebase_merge_dir rebase_apply_dir
   launch_tip="$(git_c "$launch" rev-parse "$LAUNCH_BRANCH")"
+  rebase_merge_dir="$(git_c "$wt" rev-parse --git-path rebase-merge 2>/dev/null || true)"
+  rebase_apply_dir="$(git_c "$wt" rev-parse --git-path rebase-apply 2>/dev/null || true)"
+
+  if [[ -n "$rebase_merge_dir" && -d "$rebase_merge_dir" ]] || \
+     [[ -n "$rebase_apply_dir" && -d "$rebase_apply_dir" ]]; then
+    json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+    sync_index
+    die 5 "rebase already in progress in worktree; finish with: git -C $wt rebase --continue (or --abort), then re-run reintegrate"
+  fi
+
+  # Refuse dirty worktree — rebase would fail with a misleading error
+  if [[ -n "$(git_c "$wt" status --porcelain)" ]]; then
+    json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"worktree_dirty"}'
+    sync_index
+    die 6 "worktree has uncommitted changes; commit or stash before reintegrate: $wt"
+  fi
 
   if ! git_c "$wt" \
       -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
       -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
       rebase "$launch_tip"; then
-    # Leave worktree usable for manual conflict resolution
-    git_c "$wt" rebase --abort >/dev/null 2>&1 || true
+    # Keep mid-rebase state so conflicts can be resolved in the worktree
     json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
     sync_index
-    die 5 "conflict rebasing worktree onto $LAUNCH_BRANCH tip; resolve in worktree then re-run reintegrate: $wt"
+    die 5 "conflict rebasing worktree onto $LAUNCH_BRANCH tip; in $wt resolve conflicts, git rebase --continue, then re-run reintegrate (or git rebase --abort to cancel)"
   fi
 
   # S11b: merge worktree tip into launch/source branch recorded at create.
@@ -390,13 +406,9 @@ cmd_reintegrate() {
     do_merge="False"
   fi
 
-  # Merge target: detached worktree tip (default), or legacy named improve_branch if set.
+  # Always use the post-S11a worktree tip (never a pre-rebase legacy improve_branch ref).
   local merge_ref
-  if [[ -n "${IMPROVE_BRANCH// }" ]]; then
-    merge_ref="$IMPROVE_BRANCH"
-  else
-    merge_ref="$(git_c "$wt" rev-parse HEAD)"
-  fi
+  merge_ref="$(git_c "$wt" rev-parse HEAD)"
 
   if [[ "$do_merge" == "True" || "$do_merge" == "true" ]]; then
     # Block only on tracked changes. Untracked paths (e.g. .claude/worktrees parent)

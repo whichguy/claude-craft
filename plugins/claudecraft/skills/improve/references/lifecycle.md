@@ -52,9 +52,10 @@ Exit codes: 0 ok · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 s
 2. Cycles commit on the detached tip only.  
 3. **S11 reintegrate:**  
    - **S11a** — `git rebase <source-tip>` in the worktree so concurrent source changes are
-     absorbed and conflicts are organized **in the worktree** (abort + exit 5 on conflict).  
-   - **S11b** — merge worktree tip into the **launch/source branch** (`merge_to_launch: true`
-     by default; often a fast-forward after a clean rebase). Durable history ends on source.  
+     absorbed and conflicts are organized **in the worktree** (leave mid-rebase + exit 5;
+     operator `rebase --continue` then re-run reintegrate). Dirty worktree → exit 6.  
+   - **S11b** — merge **post-rebase worktree tip** into the **launch/source branch**
+     (`merge_to_launch: true` by default; often a fast-forward). Durable history ends on source.  
 4. **S12 destroy** removes the worktree only.  
 
 Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
