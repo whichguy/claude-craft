@@ -649,12 +649,14 @@ resolve on launch checkout, or inspect tip $merge_ref; worktree kept: $wt"
   printf 'reintegrate: ok worktree=%s launch_branch=%s S11a=rebase S11b=%s\n' \
     "$wt" "$LAUNCH_BRANCH" "$s11b"
   local next=destroy
+  local phase_ok="S11a+S11b"
   if [[ "$s11b" == "skipped" ]]; then
     next="blocked:open-pr"
+    phase_ok="S11a"
   elif [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]]; then
     next=done
   fi
-  ok_status reintegrate "S11a+S11b" "$next" "reintegrate_status=ok"
+  ok_status reintegrate "$phase_ok" "$next" "reintegrate_status=ok"
 }
 
 cmd_destroy() {
