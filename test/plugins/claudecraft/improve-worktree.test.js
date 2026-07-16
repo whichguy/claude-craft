@@ -186,7 +186,11 @@ describe('improve-worktree.sh', function () {
 
     const r = runScript(['reintegrate', '--repo', repo, '--slug', 'cf']);
     expect(r.status).to.equal(5);
+    expect(r.stderr + r.stdout).to.match(/rebasing|conflict/i);
     expect(fs.existsSync(wt)).to.equal(true);
+    // Rebase aborted — worktree should not be stuck mid-rebase
+    expect(fs.existsSync(path.join(wt, '.git/rebase-merge'))).to.equal(false);
+    expect(fs.existsSync(path.join(wt, '.git/rebase-apply'))).to.equal(false);
 
     const d = runScript(['destroy', '--repo', repo, '--slug', 'cf']);
     expect(d.status).to.equal(7);
@@ -195,6 +199,34 @@ describe('improve-worktree.sh', function () {
     const d2 = runScript(['destroy', '--repo', repo, '--slug', 'cf', '--force']);
     expect(d2.status, d2.stderr).to.equal(0);
     expect(fs.existsSync(wt)).to.equal(false);
+  });
+
+  it('S11a rebases onto concurrent source commits then S11b lands both on source', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'rb']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-rb');
+
+    // Worktree-only change
+    fs.writeFileSync(path.join(wt, 'from-wt.txt'), 'wt\n');
+    git(wt, 'add', 'from-wt.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — wt file');
+
+    // Concurrent source change (disjoint path — rebase should be clean)
+    fs.writeFileSync(path.join(repo, 'from-src.txt'), 'src\n');
+    git(repo, 'add', 'from-src.txt');
+    git(repo, 'commit', '-m', 'concurrent source change');
+
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'rb']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(fs.existsSync(path.join(repo, 'from-wt.txt'))).to.equal(true);
+    expect(fs.existsSync(path.join(repo, 'from-src.txt'))).to.equal(true);
+    // Linear-ish: source HEAD should be descendant of the concurrent commit
+    const srcCommit = git(repo, 'log', '--oneline', '--grep', 'concurrent source');
+    expect(srcCommit).to.match(/concurrent source/);
+    const log = git(repo, 'log', '--oneline');
+    expect(log).to.match(/wt file/);
+    // After clean rebase+merge, main should not need an "improve/" branch
+    expect(git(repo, 'branch', '--list', 'improve/rb')).to.equal('');
   });
 
   it('recover reintegrates into source branch and destroys unless --keep-worktree', function () {

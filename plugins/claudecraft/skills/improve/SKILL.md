@@ -46,8 +46,9 @@ bash <plugin>/tools/improve-worktree.sh carry --repo <repo> --slug <slug>
 ```
 
 **Isolation:** detached HEAD at launch tip — **no permanent second branch**.  
-**S11:** merges the worktree tip into the **launch/source branch** recorded at create
-(`merge_to_launch=true` default). Pass `--no-merge-to-launch` only for PR-only tips.
+**S11:** (a) **rebase** worktree onto latest source tip (conflicts stay in worktree);  
+(b) **merge** worktree tip into the **launch/source branch** (`merge_to_launch=true` default).  
+Pass `--no-merge-to-launch` only for PR-only tips.
 
 Active cwd for cycles = worktree path from status/state JSON.  
 With `--no-worktree`: work in launch tree (must satisfy improve-loop dirty guards).
@@ -83,12 +84,12 @@ If ledger needs a final Status commit and improve-loop did not land one, prefer 
 
 ```bash
 bash <plugin>/tools/improve-worktree.sh reintegrate --repo <repo> --slug <slug>
-# default: merge detached worktree tip → launch/source branch
-# override: --no-merge-to-launch | --merge-to-launch
+# S11a: rebase worktree onto source tip (absorb concurrent source changes)
+# S11b: merge tip → launch/source (default); override: --no-merge-to-launch
 ```
 
-Launch must have **no tracked dirty files** for merge (untracked `.claude/worktrees` parent is OK).
-Conflicts or launch_dirty → keep worktree; report; do not pretend success.  
+Launch must have **no tracked dirty files** for S11b (untracked `.claude/worktrees` parent is OK).
+S11a rebase conflict or S11b conflict → keep worktree, exit 5; launch_dirty → exit 6.  
 **Pulse:** short `## Improve progress` (Phase: S11) with reintegrate ok|conflict|launch_dirty.
 
 ### S12 — Destroy

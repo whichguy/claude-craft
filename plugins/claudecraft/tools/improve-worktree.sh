@@ -12,7 +12,7 @@
 #   carry        Carry launch WIP (tracked + untracked, exclude-standard) into worktree
 #                as bootstrap commit "improve-loop: bootstrap — carry WIP from launch"
 #   status       Print run state JSON (from --repo/--slug or --run-json)
-#   reintegrate  S11: merge launch tip → worktree; then merge worktree tip → launch (default)
+#   reintegrate  S11: rebase worktree onto launch tip; then merge worktree tip → launch (default)
 #   destroy      S12: remove worktree (refuses after failed reintegrate unless --force)
 #   recover      Idempotent reintegrate + optional destroy from run state
 #
@@ -365,22 +365,23 @@ cmd_reintegrate() {
   git_c "$launch" rev-parse --verify "$LAUNCH_BRANCH" >/dev/null 2>&1 \
     || die 6 "launch branch missing: $LAUNCH_BRANCH"
 
-  # S11a: merge launch tip into worktree (absorb base movement)
-  # fetch local: merge from launch path's branch tip
+  # S11a: rebase worktree commits onto latest source tip (absorb concurrent movement).
+  # Conflicts are resolved in the worktree, not on the source branch.
   local launch_tip
   launch_tip="$(git_c "$launch" rev-parse "$LAUNCH_BRANCH")"
 
-  # In worktree, merge that commit
   if ! git_c "$wt" \
       -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
       -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
-      merge --no-edit "$launch_tip"; then
+      rebase "$launch_tip"; then
+    # Leave worktree usable for manual conflict resolution
+    git_c "$wt" rebase --abort >/dev/null 2>&1 || true
     json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
-  sync_index
-    die 5 "conflict merging launch tip into worktree; worktree kept for debug: $wt"
+    sync_index
+    die 5 "conflict rebasing worktree onto $LAUNCH_BRANCH tip; resolve in worktree then re-run reintegrate: $wt"
   fi
 
-  # S11b: merge improve branch into launch branch recorded at create.
+  # S11b: merge worktree tip into launch/source branch recorded at create.
   # Default true (state merge_to_launch). CLI may override: --merge-to-launch / --no-merge-to-launch.
   local do_merge="$MERGE_TO_LAUNCH"
   if [[ "${MERGE_OVERRIDE:-}" == "on" ]]; then
@@ -417,13 +418,14 @@ cmd_reintegrate() {
     printf 'reintegrate: merged worktree tip into source branch %s (ref %s)\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   else
-    printf 'reintegrate: launch tip merged into worktree; tip %s NOT merged into %s (merge_to_launch=false)\n' \
-      "$merge_ref" "$LAUNCH_BRANCH"
+    printf 'reintegrate: worktree rebased onto %s; tip %s NOT merged into source (merge_to_launch=false)\n' \
+      "$LAUNCH_BRANCH" "$merge_ref"
   fi
 
   json_merge "$RUN_JSON" '{"state":"reintegrated","reintegrate_status":"ok"}'
   sync_index
-  printf 'reintegrate: ok worktree=%s launch_branch=%s\n' "$wt" "$LAUNCH_BRANCH"
+  printf 'reintegrate: ok worktree=%s launch_branch=%s (S11a=rebase onto source, S11b=merge tip→source)\n' \
+    "$wt" "$LAUNCH_BRANCH"
 }
 
 cmd_destroy() {

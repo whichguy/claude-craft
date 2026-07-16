@@ -17,6 +17,8 @@ S8  INNER_LOOP     while active && under caps:
 S9  STOP_REASON    complete | stall | max_cycles | max_elapsed | budget | blocked
 S10 FINAL_LEDGER   Status note if needed
 S11 REINTEGRATE    improve-worktree.sh reintegrate  (ALWAYS if worktree created)
+                     S11a: rebase worktree onto source tip (conflicts in worktree)
+                     S11b: merge tip → source branch (default)
                      → short progress pulse
 S12 WT_DESTROY     destroy unless keep_worktree or S11 failed
 S13 DONE           → final progress pulse
@@ -34,7 +36,7 @@ WT="<claudecraft-plugin-root>/tools/improve-worktree.sh"
 
 bash "$WT" create --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" carry --repo <path> --slug <slug>
-bash "$WT" reintegrate --repo <path> --slug <slug>   # merges worktree tip → source branch
+bash "$WT" reintegrate --repo <path> --slug <slug>   # rebase onto source, then merge tip → source
 bash "$WT" destroy --repo <path> --slug <slug> [--force]
 bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
 bash "$WT" status --repo <path> --slug <slug>
@@ -48,16 +50,19 @@ Exit codes: 0 ok · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 s
 1. `create` adds a **detached-HEAD worktree** at the launch tip (git cannot check out the same
    branch in two places). **No permanent `improve/*` branch** is created.  
 2. Cycles commit on the detached tip only.  
-3. **S11 reintegrate** merges that tip into the **launch/source branch** recorded at create
-   (`merge_to_launch: true` by default). Durable history ends on the source branch.  
+3. **S11 reintegrate:**  
+   - **S11a** — `git rebase <source-tip>` in the worktree so concurrent source changes are
+     absorbed and conflicts are organized **in the worktree** (abort + exit 5 on conflict).  
+   - **S11b** — merge worktree tip into the **launch/source branch** (`merge_to_launch: true`
+     by default; often a fast-forward after a clean rebase). Durable history ends on source.  
 4. **S12 destroy** removes the worktree only.  
 
-Opt out of merge with `--no-merge-to-launch` / “no merge” / “open a PR” (tip stays only in the
-worktree until you branch/PR yourself). Opt out of worktree with `--no-worktree`.
+Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
+`--no-worktree`. Never rebase the source branch onto the worktree.
 
 ## Invariants
 
 1. Caps stop **S8 only** — still run S11 if a worktree exists.  
 2. Never auto-destroy after failed reintegrate (unless `--force`).  
-3. Default: **worktree on** + **merge tip into launch/source branch** at S11.  
+3. Default: **worktree on** + **S11a rebase onto source** + **S11b merge tip → source**.  
 4. No lasting second branch; source branch is the only branch that keeps improve commits.

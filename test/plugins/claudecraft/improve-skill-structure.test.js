@@ -110,6 +110,7 @@ describe('claudecraft improve skill structure', function () {
     expect(text).to.match(/single-flight/);
     expect(text).to.match(/worktree add --detach/);
     expect(text).to.match(/isolation.*detached|detached HEAD/i);
+    expect(text).to.match(/rebase/);
     expect(text).to.match(/--no-merge-to-launch/);
     expect(text).to.match(/MERGE_TO_LAUNCH=1/);
     const life = fs.readFileSync(
@@ -118,6 +119,7 @@ describe('claudecraft improve skill structure', function () {
     );
     expect(life).to.match(/detached-HEAD|detached HEAD/i);
     expect(life).to.match(/No permanent|no permanent/i);
+    expect(life).to.match(/S11a.*rebase|rebase worktree/i);
     const parse = fs.readFileSync(
       path.join(CC, 'skills/improve/references/parse.md'),
       'utf8'

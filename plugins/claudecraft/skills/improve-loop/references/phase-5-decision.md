@@ -80,8 +80,9 @@ If the active tree is an improve worktree (`…/.claude/worktrees/improve-<slug>
 under `<repo>/.git/improve-runs/<slug>.json`) and the **outer** mode is **once** (no continuous
 driver S11 pending), the orchestrator **must still finish lifecycle** after Phase 5 pulse:
 
-1. `reintegrate` — default **merges the detached worktree tip into the launch/source branch**
-   (the branch that was checked out at create). No permanent `improve/*` branch is required.  
+1. `reintegrate` — **S11a** rebase worktree onto latest source tip (organize conflicts in the
+   worktree); **S11b** merge tip into the launch/source branch (checked out at create). No
+   permanent `improve/*` branch is required.  
 2. `destroy` unless `keep_worktree` or reintegrate failed.
 
 Opt out of merge only when the operator asked for PR-only (`--no-merge-to-launch` / “no merge”).
