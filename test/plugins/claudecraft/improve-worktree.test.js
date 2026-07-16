@@ -369,14 +369,47 @@ describe('improve-worktree.sh', function () {
     // Must NOT destroy worktree — only copy of commits
     expect(fs.existsSync(wt)).to.equal(true);
     expect(fs.readFileSync(path.join(wt, 'only-in-wt.txt'), 'utf8')).to.match(/secret-tip/);
-    expect(rec.stdout + rec.stderr).to.match(/blocked:open-pr|open-pr|merge_to_launch=false/);
+    expect(rec.stdout + rec.stderr).to.match(/blocked:open-pr|open-pr|not on launch/i);
     expect(rec.stdout + rec.stderr).to.not.match(/worktree removed|already-destroyed/);
 
-    // Default destroy without --force must also refuse
+    // Default destroy without --force must also refuse while tip unmerged
     const d = runScript(['destroy', '--repo', repo, '--slug', 'nmr']);
     expect(d.status).to.equal(7);
     expect(fs.existsSync(wt)).to.equal(true);
-    expect(d.stderr + d.stdout).to.match(/blocked:open-pr|merge_to_launch=false|only copy/i);
+    expect(d.stderr + d.stdout).to.match(/blocked:open-pr|not on launch|only copy/i);
+  });
+
+  it('recover --merge-to-launch after no-merge create merges tip then destroys', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'nmm', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-nmm');
+    fs.writeFileSync(path.join(wt, 'override-land.txt'), 'land-me\n');
+    git(wt, 'add', 'override-land.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — override merge');
+
+    // Override create-time no-merge: S11b must merge, then recover destroys worktree
+    const rec = runScript([
+      'recover',
+      '--repo',
+      repo,
+      '--slug',
+      'nmm',
+      '--merge-to-launch',
+    ]);
+    expect(rec.status, rec.stderr + rec.stdout).to.equal(0);
+    expect(fs.existsSync(path.join(repo, 'override-land.txt'))).to.equal(true);
+    expect(fs.existsSync(wt)).to.equal(false);
+    // Must not claim tip not on launch after successful override merge
+    expect(rec.stdout + rec.stderr).to.not.match(/tip .* not on launch/);
+    expect(rec.stdout + rec.stderr).to.match(/S11b=merged|status=ok/);
+    // JSON should persist effective merge_to_launch=true after override merge
+    const state = JSON.parse(
+      fs.readFileSync(path.join(repo, '.git/improve-runs/nmm.json'), 'utf8')
+    );
+    expect(state.merge_to_launch).to.equal(true);
+    expect(state.reintegrate_status).to.equal('ok');
   });
 
   it('recover reintegrates into source branch and destroys unless --keep-worktree', function () {

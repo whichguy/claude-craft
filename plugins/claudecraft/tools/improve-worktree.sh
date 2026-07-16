@@ -154,6 +154,13 @@ launch_tracked_dirty_p() {
   git_c "$launch" status --porcelain --untracked-files=no | grep -q .
 }
 
+# True if tip commit is already reachable from launch branch (S11b merged or equivalent).
+tip_on_launch_p() {
+  local launch="$1" tip="$2" branch="$3"
+  [[ -n "$tip" && "$tip" != "none" ]] || return 1
+  git_c "$launch" merge-base --is-ancestor "$tip" "$branch" 2>/dev/null
+}
+
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || die 1 "missing required command: $1"
 }
@@ -525,16 +532,11 @@ cmd_reintegrate() {
       "reintegrate refused: run state=destroyed (slug=$SLUG); create a new improve worktree"
   fi
 
-  # Idempotent success — do not re-run S11a/S11b
-  if [[ "${REINTEGRATE_STATUS:-}" == "ok" ]]; then
-    printf 'reintegrate: already complete (reintegrate_status=ok state=%s); skipping S11a/S11b\n' "$STATE"
-    local next_done=destroy
-    [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]] && next_done=done
-    if [[ "$MERGE_TO_LAUNCH" != "True" && "$MERGE_TO_LAUNCH" != "true" ]]; then
-      next_done="blocked:open-pr"
-    fi
-    ok_status reintegrate none "$next_done" "already-complete"
-    return 0
+  local do_merge="$MERGE_TO_LAUNCH"
+  if [[ "${MERGE_OVERRIDE:-}" == "on" ]]; then
+    do_merge="True"
+  elif [[ "${MERGE_OVERRIDE:-}" == "off" ]]; then
+    do_merge="False"
   fi
 
   if [[ ! -d "$wt" ]]; then
@@ -543,9 +545,6 @@ cmd_reintegrate() {
       "reintegrate failed: worktree missing: $wt (run state=$STATE)"
   fi
 
-  json_merge "$RUN_JSON" '{"state":"reintegrating"}'
-  STATE=reintegrating
-
   git_c "$launch" rev-parse --verify "$LAUNCH_BRANCH" >/dev/null 2>&1 \
     || {
       record_last_error 6 reintegrate "launch branch missing: $LAUNCH_BRANCH"
@@ -553,58 +552,76 @@ cmd_reintegrate() {
         "reintegrate failed: launch branch missing: $LAUNCH_BRANCH"
     }
 
-  local launch_tip
+  local merge_ref launch_tip skip_s11a=false
+  merge_ref="$(git_c "$wt" rev-parse HEAD)"
   launch_tip="$(git_c "$launch" rev-parse "$LAUNCH_BRANCH")"
 
-  if mid_rebase_p "$wt"; then
-    json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
-    STATE=reintegrate_failed
-    REINTEGRATE_STATUS=conflict
-    record_last_error 5 S11a "rebase already in progress"
-    sync_index
-    die_status 5 reintegrate S11a blocked:rebase-continue \
-      "reintegrate blocked: rebase already in progress in worktree
+  # Idempotent when tip already on launch (S11b done). If status=ok but tip not on launch
+  # and do_merge (e.g. prior no-merge S11a-only, now --merge-to-launch), skip S11a and do S11b.
+  if [[ "${REINTEGRATE_STATUS:-}" == "ok" ]]; then
+    if tip_on_launch_p "$launch" "$merge_ref" "$LAUNCH_BRANCH"; then
+      printf 'reintegrate: already complete (tip on launch; reintegrate_status=ok state=%s)\n' "$STATE"
+      local next_done=destroy
+      [[ "$KEEP_WORKTREE" == "True" || "$KEEP_WORKTREE" == "true" ]] && next_done=done
+      ok_status reintegrate none "$next_done" "already-complete"
+      return 0
+    fi
+    if [[ "$do_merge" != "True" && "$do_merge" != "true" ]]; then
+      printf 'reintegrate: already complete (S11a done, merge_to_launch=false; tip %s not on launch)\n' "$merge_ref"
+      ok_status reintegrate S11a blocked:open-pr "already-complete; tip not on launch"
+      return 0
+    fi
+    # Need S11b only
+    printf 'reintegrate: prior S11a ok; tip not on launch — running S11b only (merge override or delayed merge)\n'
+    skip_s11a=true
+  fi
+
+  json_merge "$RUN_JSON" '{"state":"reintegrating"}'
+  STATE=reintegrating
+
+  if [[ "$skip_s11a" != "true" ]]; then
+    if mid_rebase_p "$wt"; then
+      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+      STATE=reintegrate_failed
+      REINTEGRATE_STATUS=conflict
+      record_last_error 5 S11a "rebase already in progress"
+      sync_index
+      die_status 5 reintegrate S11a blocked:rebase-continue \
+        "reintegrate blocked: rebase already in progress in worktree
 finish with: git -C $wt rebase --continue   # or: git -C $wt rebase --abort
 then: improve-worktree.sh reintegrate --repo $REPO --slug $SLUG
 (or: improve-worktree.sh recover --repo $REPO --slug $SLUG)"
-  fi
+    fi
 
-  if [[ -n "$(git_c "$wt" status --porcelain)" ]]; then
-    json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"worktree_dirty"}'
-    STATE=reintegrate_failed
-    REINTEGRATE_STATUS=worktree_dirty
-    record_last_error 6 S11a "worktree dirty"
-    sync_index
-    die_status 6 reintegrate S11a blocked:worktree-dirty \
-      "reintegrate refused: worktree has uncommitted changes; commit or stash first: $wt
+    if [[ -n "$(git_c "$wt" status --porcelain)" ]]; then
+      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"worktree_dirty"}'
+      STATE=reintegrate_failed
+      REINTEGRATE_STATUS=worktree_dirty
+      record_last_error 6 S11a "worktree dirty"
+      sync_index
+      die_status 6 reintegrate S11a blocked:worktree-dirty \
+        "reintegrate refused: worktree has uncommitted changes; commit or stash first: $wt
 (only IMPROVE_LOOP.md dirty → commit: improve-loop: driver — next_auto reintegrate)"
-  fi
+    fi
 
-  # S11a
-  if ! git_c "$wt" \
-      -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
-      -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
-      rebase "$launch_tip"; then
-    json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
-    STATE=reintegrate_failed
-    REINTEGRATE_STATUS=conflict
-    record_last_error 5 S11a "conflict rebasing onto $LAUNCH_BRANCH"
-    sync_index
-    die_status 5 reintegrate S11a blocked:rebase-continue \
-      "reintegrate S11a conflict: rebasing worktree onto $LAUNCH_BRANCH tip failed
+    # S11a
+    if ! git_c "$wt" \
+        -c user.email="${GIT_AUTHOR_EMAIL:-improve@local}" \
+        -c user.name="${GIT_AUTHOR_NAME:-improve-worktree}" \
+        rebase "$launch_tip"; then
+      json_merge "$RUN_JSON" '{"state":"reintegrate_failed","reintegrate_status":"conflict"}'
+      STATE=reintegrate_failed
+      REINTEGRATE_STATUS=conflict
+      record_last_error 5 S11a "conflict rebasing onto $LAUNCH_BRANCH"
+      sync_index
+      die_status 5 reintegrate S11a blocked:rebase-continue \
+        "reintegrate S11a conflict: rebasing worktree onto $LAUNCH_BRANCH tip failed
 in $wt: resolve conflicts, git add, git rebase --continue
 then re-run reintegrate (or git rebase --abort to cancel; or recover after continue)"
+    fi
+    merge_ref="$(git_c "$wt" rev-parse HEAD)"
   fi
 
-  local do_merge="$MERGE_TO_LAUNCH"
-  if [[ "${MERGE_OVERRIDE:-}" == "on" ]]; then
-    do_merge="True"
-  elif [[ "${MERGE_OVERRIDE:-}" == "off" ]]; then
-    do_merge="False"
-  fi
-
-  local merge_ref
-  merge_ref="$(git_c "$wt" rev-parse HEAD)"
   local s11b=skipped
 
   if [[ "$do_merge" == "True" || "$do_merge" == "true" ]]; then
@@ -632,12 +649,15 @@ commit or stash on launch, then re-run reintegrate (worktree kept; S11a already 
 resolve on launch checkout, or inspect tip $merge_ref; worktree kept: $wt"
     fi
     s11b=merged
-    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\"}"
+    # Persist effective merge: CLI --merge-to-launch override must stick for destroy/recover
+    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"merged\",\"merge_to_launch\":true}"
+    MERGE_TO_LAUNCH="True"
     printf 'reintegrate: S11b merged worktree tip into source branch %s (ref %s)\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   else
     s11b=skipped
-    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\"}"
+    json_merge "$RUN_JSON" "{\"worktree_tip\":\"$merge_ref\",\"last_s11b\":\"skipped\",\"merge_to_launch\":false}"
+    MERGE_TO_LAUNCH="False"
     printf 'reintegrate: S11a rebased onto %s; S11b=skipped (merge_to_launch=false) tip=%s\n' \
       "$LAUNCH_BRANCH" "$merge_ref"
   fi
@@ -675,11 +695,6 @@ cmd_destroy() {
   local mid=no
   [[ -d "$WORKTREE_PATH" ]] && mid_rebase_p "$WORKTREE_PATH" && mid=yes
 
-  local merge_on=true
-  if [[ "$MERGE_TO_LAUNCH" != "True" && "$MERGE_TO_LAUNCH" != "true" ]]; then
-    merge_on=false
-  fi
-
   if [[ "$force" != "1" ]]; then
     if [[ "$status" == "conflict" || "$status" == "launch_dirty" || "$status" == "worktree_dirty" \
        || "$state" == "reintegrate_failed" || "$mid" == "yes" ]]; then
@@ -688,15 +703,18 @@ cmd_destroy() {
 fix conflicts / dirty trees, or pass --force to remove worktree anyway
 slug=$SLUG worktree=$WORKTREE_PATH"
     fi
-    # merge_to_launch=false: worktree tip is often the only copy of improve commits
-    if [[ "$merge_on" == "false" && -d "$WORKTREE_PATH" && ( "$status" == "ok" || "$state" == "reintegrated" ) ]]; then
+    # Refuse destroy only when tip is NOT reachable from launch (true unmerged tip).
+    # If S11b merged (including via recover --merge-to-launch after create --no-merge), tip is on launch.
+    if [[ -d "$WORKTREE_PATH" && ( "$status" == "ok" || "$state" == "reintegrated" ) ]]; then
       local tip_sha
       tip_sha="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
-      record_last_error 7 destroy "refuse destroy: merge_to_launch=false tip only in worktree"
-      die_status 7 destroy none blocked:open-pr \
-        "destroy refused: merge_to_launch=false — worktree tip may be the only copy of improve commits
-open a PR/branch from tip, or pass --force to discard worktree (data loss risk)
+      if ! tip_on_launch_p "$LAUNCH_PATH" "$tip_sha" "$LAUNCH_BRANCH"; then
+        record_last_error 7 destroy "refuse destroy: tip not on launch branch"
+        die_status 7 destroy none blocked:open-pr \
+          "destroy refused: worktree tip is not on launch branch $LAUNCH_BRANCH (only copy may be worktree)
+open a PR/branch from tip, reintegrate with --merge-to-launch, or pass --force to discard
 slug=$SLUG worktree=$WORKTREE_PATH tip=$tip_sha"
+      fi
     fi
   fi
 
@@ -740,11 +758,24 @@ finish: git -C $WORKTREE_PATH rebase --continue  (or --abort)
 then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
   fi
 
+  # Re-run reintegrate when not ok, or when --merge-to-launch and tip still not on launch
+  # (prior create --no-merge may have left reintegrate_status=ok after S11a-only).
+  local need_reint=false
   if [[ "$status" != "ok" ]]; then
+    need_reint=true
+  elif [[ "${MERGE_OVERRIDE:-}" == "on" && -d "$WORKTREE_PATH" ]]; then
+    local tip0
+    tip0="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
+    if ! tip_on_launch_p "$LAUNCH_PATH" "$tip0" "$LAUNCH_BRANCH"; then
+      need_reint=true
+      printf 'recover: reintegrate_status=ok but tip not on launch and --merge-to-launch set — re-running S11b\n'
+    fi
+  fi
+  if [[ "$need_reint" == "true" ]]; then
     printf 'recover: running reintegrate (reintegrate_status=%s)\n' "${status:-none}"
     cmd_reintegrate || return $?
   else
-    printf 'recover: reintegrate_status already ok; skipping reintegrate\n'
+    printf 'recover: reintegrate already complete (tip on launch or no merge requested); skipping\n'
   fi
 
   load_run
@@ -754,18 +785,15 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
     return 0
   fi
 
-  # merge_to_launch=false: tip was never merged to launch — do NOT force-destroy
-  # (aligns with improve-next-auto blocked:open-pr; only copy of commits is the worktree).
-  local merge_on=true
-  if [[ "$MERGE_TO_LAUNCH" != "True" && "$MERGE_TO_LAUNCH" != "true" ]]; then
-    merge_on=false
-  fi
-  if [[ "$merge_on" == "false" ]]; then
-    local tip="none"
-    [[ -d "$WORKTREE_PATH" ]] && tip="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
-    printf 'recover: reintegrate ok but merge_to_launch=false — keeping worktree (tip %s not on launch)\n' "$tip"
-    printf 'recover: open a PR/branch from the tip, or re-run destroy --force to discard (data loss)\n'
-    ok_status recover none blocked:open-pr "kept worktree; tip not merged to launch"
+  # Decide keep vs destroy from **effective** tip location, not create-time JSON alone.
+  # After recover --merge-to-launch, reintegrate persists merge_to_launch=true and tip is on launch.
+  local tip="none"
+  [[ -d "$WORKTREE_PATH" ]] && tip="$(git_c "$WORKTREE_PATH" rev-parse HEAD 2>/dev/null || echo none)"
+  if [[ -d "$WORKTREE_PATH" ]] && ! tip_on_launch_p "$LAUNCH_PATH" "$tip" "$LAUNCH_BRANCH"; then
+    printf 'recover: reintegrate ok but tip %s is not on launch %s — keeping worktree\n' \
+      "$tip" "$LAUNCH_BRANCH"
+    printf 'recover: open a PR/branch from the tip, re-run with --merge-to-launch, or destroy --force\n'
+    ok_status recover none blocked:open-pr "kept worktree; tip not on launch"
     return 0
   fi
 
