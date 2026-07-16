@@ -75,3 +75,8 @@ F) after E setup but launch advanced + same-file edit → re-running S11a
 `test/plugins/claudecraft/improve-worktree.test.js` — recover no-merge keep,
 recover merge override, destroy pre-reintegrate, status tip_on_launch,
 clean carry exclude.
+
+## Stop (2026-07 quality review)
+
+Two consecutive clean cycles: **12** + **13** at HEAD `2e3f12a` (docs commits follow).
+Mandatory dual-path matrix A–F exercised both times; mocha 45 green.
