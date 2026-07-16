@@ -71,7 +71,7 @@ bash "$WT" create --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-l
 bash "$WT" carry --repo <path> --slug <slug>
 bash "$WT" reintegrate --repo <path> --slug <slug>   # rebase onto source, then merge tip → source
 bash "$WT" destroy --repo <path> --slug <slug> [--force]
-bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--no-merge-to-launch]
+bash "$WT" recover --repo <path> --slug <slug> [--keep-worktree] [--merge-to-launch|--no-merge-to-launch]
 bash "$WT" status --repo <path> --slug <slug>
 ```
 
@@ -80,7 +80,10 @@ State: `<repo>/.git/improve-runs/<slug>.json`
 **`state`:** `created` → `bootstrapped` → `reintegrating` → `reintegrated` \| `reintegrate_failed` → `destroyed`  
 **`reintegrate_status`:** `null` \| `conflict` \| `worktree_dirty` \| `launch_dirty` \| `ok`  
 
-`status` prints JSON then `--- summary ---` (`suggested_next`, `mid_rebase`, `launch_tracked_dirty`, …).  
+`status` prints JSON then `--- summary ---` (`suggested_next`, `mid_rebase`, `tip_on_launch`,
+`launch_tracked_dirty`, …). `suggested_next` and destroy/recover decisions use **tip ancestry**
+(whether worktree HEAD is reachable from the launch branch), not create-time `merge_to_launch`
+alone. After a successful `--merge-to-launch` override, JSON persists `merge_to_launch=true`.  
 Errors print `status=error command=… next=… exit_class=…`.  
 
 Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegrate fail · 7 destroy refused · 9 single-flight  
@@ -96,7 +99,9 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
      operator `rebase --continue` then re-run reintegrate). Dirty worktree → exit 6.  
    - **S11b** — merge **post-rebase worktree tip** into the **launch/source branch**
      (`merge_to_launch: true` by default; often a fast-forward). Durable history ends on source.  
-4. **S12 destroy** removes the worktree only.  
+     If prior S11a left `reintegrate_status=ok` with tip still unmerged, a later
+     `--merge-to-launch` runs **S11b only** (skips re-rebase).  
+4. **S12 destroy** removes the worktree only; refuses without `--force` when tip is not on launch.  
 
 Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
 `--no-worktree`. Never rebase the source branch onto the worktree.
@@ -105,5 +110,6 @@ Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. 
 
 1. Caps stop **S8 only** — still run S11 if a worktree exists.  
 2. Never auto-destroy after failed reintegrate (unless `--force`).  
-3. Default: **worktree on** + **S11a rebase onto source** + **S11b merge tip → source**.  
-4. No lasting second branch; source branch is the only branch that keeps improve commits.
+3. Never auto-destroy an unmerged tip (`merge_to_launch=false` / tip not on launch) unless `--force`.  
+4. Default: **worktree on** + **S11a rebase onto source** + **S11b merge tip → source**.  
+5. No lasting second branch; source branch is the only branch that keeps improve commits.

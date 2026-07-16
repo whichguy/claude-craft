@@ -291,6 +291,40 @@ describe('improve-worktree.sh', function () {
     expect(r.stdout).to.match(/suggested_next=/);
     expect(r.stdout).to.match(/mid_rebase=/);
     expect(r.stdout).to.match(/worktree_exists=yes/);
+    expect(r.stdout).to.match(/tip_on_launch=/);
+    expect(r.stdout).to.match(/worktree_tip=/);
+  });
+
+  it('status after no-merge reintegrate: tip_on_launch=no suggested_next=blocked:open-pr', function () {
+    const repo = makeRepo();
+    expect(
+      runScript(['create', '--repo', repo, '--slug', 'sts', '--no-merge-to-launch']).status
+    ).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-sts');
+    fs.writeFileSync(path.join(wt, 'z.txt'), 'z\n');
+    git(wt, 'add', 'z.txt');
+    git(wt, 'commit', '-m', 'work');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 'sts']).status).to.equal(0);
+    const r = runScript(['status', '--repo', repo, '--slug', 'sts']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout).to.match(/tip_on_launch=no/);
+    expect(r.stdout).to.match(/suggested_next=blocked:open-pr/);
+    expect(r.stdout).to.match(/merge_to_launch=false/);
+  });
+
+  it('status after merge reintegrate: tip_on_launch=yes suggested_next=destroy', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'stm']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-stm');
+    fs.writeFileSync(path.join(wt, 'm.txt'), 'm\n');
+    git(wt, 'add', 'm.txt');
+    git(wt, 'commit', '-m', 'work');
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 'stm']).status).to.equal(0);
+    const r = runScript(['status', '--repo', repo, '--slug', 'stm']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(r.stdout).to.match(/tip_on_launch=yes/);
+    expect(r.stdout).to.match(/suggested_next=destroy/);
+    expect(r.stdout).to.match(/merge_to_launch=true/);
   });
 
   it('reintegrate is idempotent when already ok', function () {
