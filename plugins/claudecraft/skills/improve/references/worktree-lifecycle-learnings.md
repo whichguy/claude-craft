@@ -111,3 +111,11 @@ Two consecutive independent clean cycles after survey at code baseline `2e3f12a`
 
 No material P0/P1; key features S11a/S11b, open-pr, tip-on-launch destroy, merge override, mid-rebase retained.
 
+## Goal re-audit P2 UX (scratch df4268dbd8d9)
+
+| Iter | Verdict | Commit | Notes |
+|---|---|---|---|
+| 16 | material | `2e8a9bb` | resume_hint, create-9 structured, dirty destroy, keep open-pr |
+| 17 | **clean** | (this) | dual-path-iter17.txt; 27 mocha |
+| 18 | pending | — | second sequential clean |
+
