@@ -95,6 +95,14 @@ Mandatory dual-path matrix A–F exercised with live OK_/FAIL_ asserts both time
 
 | Iter | Verdict | Commit | Notes |
 |---|---|---|---|
-| 14 | **clean** | (this) | survey+matrix A–F; YAGNI on truthy helper; dual-path-iter14.txt |
-| 15 | pending | — | second sequential clean |
+| 14 | **clean** | `d70f402` | survey+matrix A–F; YAGNI on truthy helper; dual-path-iter14.txt |
+| 15 | **clean** | (this) | dual-path-iter15.txt; iter15-mocha 25 EXIT=0 |
+
+## Stop (goal re-audit KISS/YAGNI)
+
+Two consecutive independent clean cycles after survey at code baseline `2e3f12a`:
+- **14** → `d70f402` — dual-path-iter14.txt + iter14-mocha.log; YAGNI on Truth/true helper
+- **15** → this commit — dual-path-iter15.txt + iter15-mocha.log
+
+No material P0/P1; key features S11a/S11b, open-pr, tip-on-launch destroy, merge override, mid-rebase retained.
 
