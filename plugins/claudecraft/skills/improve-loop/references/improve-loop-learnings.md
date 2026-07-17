@@ -57,3 +57,12 @@ Material `14fd07c` then two cleans:
 - **6** → this commit
 
 Continuous improve driver S12/S13 + lifecycle flowchart match tip-on-launch open-pr.
+
+## Status→snapshot field mapping (post-compaction audit)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 7 | material | (this) | status emits `worktree_exists` + yes/no; next-auto used `worktree_present` + `!!` so `"no"`/`"false"` were truthy and wrong-key snapshots false-`done` |
+
+**Fix:** `flag()` / `explicitFalse()` + `worktree_exists` alias; mocha pins status-style
+snapshots; phase-0 documents the map. Invariants 4–6 unchanged.

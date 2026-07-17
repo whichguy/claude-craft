@@ -163,6 +163,55 @@ describe('improve-next-auto.js', function () {
       next: 'blocked:open-pr',
     },
     {
+      name: 'status-style worktree_exists + tip_on_launch=no → open-pr',
+      in: {
+        worktree_exists: 'yes',
+        reintegrate_status: 'ok',
+        merge_to_launch: 'true',
+        tip_on_launch: 'no',
+        keep_worktree: 'false',
+        mid_rebase: 'no',
+        launch_tracked_dirty: 'no',
+        status: 'complete',
+      },
+      next: 'blocked:open-pr',
+    },
+    {
+      name: 'status-style mid_rebase=no is not blocked:rebase-continue',
+      in: {
+        worktree_exists: 'yes',
+        mid_rebase: 'no',
+        reintegrate_status: null,
+        merge_to_launch: 'true',
+        status: 'complete',
+      },
+      next: 'reintegrate',
+    },
+    {
+      name: 'status-style keep_worktree=false string still destroys',
+      in: {
+        worktree_exists: 'yes',
+        reintegrate_status: 'ok',
+        merge_to_launch: 'true',
+        tip_on_launch: 'yes',
+        keep_worktree: 'false',
+        status: 'complete',
+      },
+      next: 'destroy',
+    },
+    {
+      name: 'status-style keep_worktree=true + tip yes → done',
+      in: {
+        worktree_exists: 'yes',
+        reintegrate_status: 'ok',
+        merge_to_launch: 'true',
+        tip_on_launch: 'yes',
+        keep_worktree: 'true',
+        status: 'complete',
+      },
+      next: 'done',
+    },
+    {
       name: 'destroy-failed',
       in: {
         worktree_present: true,

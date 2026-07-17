@@ -6,6 +6,19 @@
  * Mirrors phase-0 rehydration + ledger-schema blocked token catalog.
  * No network. No git. Deterministic from a JSON snapshot.
  *
+ * Snapshot fields (booleans accept true/false, yes/no, 1/0 strings):
+ *   worktree_present | worktree_exists  (status emits worktree_exists=yes|no)
+ *   mid_rebase, worktree_dirty, worktree_dirty_only_ledger,
+ *   worktree_missing_but_run_active, launch_tracked_dirty,
+ *   merge_to_launch (default true), keep_worktree, tip_on_launch (yes|no),
+ *   reintegrate_status, status, under_caps (default true), once_finished,
+ *   has_test_command (default true), unattended, ledger_target_mismatch,
+ *   ambiguous_run, path_relocated, destroy_failed, caps_exhausted
+ *
+ * Map improve-worktree.sh status k=v summary into these keys; prefer
+ * worktree_exists from status (alias of worktree_present). Never use raw !!
+ * on status strings — 'no'/'false' are truthy in JS.
+ *
  * Exit codes:
  *   0 success
  *   1 usage / invalid JSON
@@ -43,6 +56,31 @@ const HINTS = {
 };
 
 /**
+ * Status-safe flag parse. improve-worktree status emits yes/no (and true/false for some
+ * keys). Do NOT use !! on strings — !!'no' and !!'false' are both true in JS.
+ * @param {*} v
+ * @param {boolean} [defaultValue=false]
+ * @returns {boolean}
+ */
+function flag(v, defaultValue = false) {
+  if (v === undefined || v === null || v === '') return defaultValue;
+  if (v === true || v === 1) return true;
+  if (v === false || v === 0) return false;
+  const s = String(v).trim().toLowerCase();
+  if (s === 'true' || s === 'yes' || s === '1' || s === 'on') return true;
+  if (s === 'false' || s === 'no' || s === '0' || s === 'off') return false;
+  return defaultValue;
+}
+
+/** True only when the value is an explicit false/no (not missing). */
+function explicitFalse(v) {
+  if (v === undefined || v === null || v === '') return false;
+  if (v === false || v === 0) return true;
+  const s = String(v).trim().toLowerCase();
+  return s === 'false' || s === 'no' || s === '0' || s === 'off';
+}
+
+/**
  * @param {object} s snapshot
  * @returns {{ next_auto: string, blocked_detail: string, resume_hint: string, auto_commit_ledger: boolean }}
  */
@@ -53,34 +91,30 @@ function deriveNextAuto(s) {
     throw err;
   }
 
-  const mid = !!s.mid_rebase;
-  const wtPresent = !!s.worktree_present;
-  const wtDirty = !!s.worktree_dirty;
-  const onlyLedger = !!s.worktree_dirty_only_ledger;
-  const wtMissingRun = !!s.worktree_missing_but_run_active;
-  const launchDirty = !!s.launch_tracked_dirty;
-  const mergeToLaunch = s.merge_to_launch !== false && s.merge_to_launch !== 'false';
+  const mid = flag(s.mid_rebase);
+  // status emits worktree_exists=yes|no; helper canonical name is worktree_present
+  const wtPresent = flag(s.worktree_present) || flag(s.worktree_exists);
+  const wtDirty = flag(s.worktree_dirty);
+  const onlyLedger = flag(s.worktree_dirty_only_ledger);
+  const wtMissingRun = flag(s.worktree_missing_but_run_active);
+  const launchDirty = flag(s.launch_tracked_dirty);
+  // Default merge-to-launch true when unset (create default); explicit false/no wins
+  const mergeToLaunch = flag(s.merge_to_launch, true);
   const reint = s.reintegrate_status == null ? null : String(s.reintegrate_status);
-  const keep = !!s.keep_worktree;
+  const keep = flag(s.keep_worktree);
   // Optional tip ancestry (from improve-worktree status tip_on_launch=). When unknown,
   // fall back to merge_to_launch only — never invent tip-on-launch=true.
-  const tipOnLaunch =
-    s.tip_on_launch === true ||
-    s.tip_on_launch === 'true' ||
-    s.tip_on_launch === 'yes';
-  const tipKnownOff =
-    s.tip_on_launch === false ||
-    s.tip_on_launch === 'false' ||
-    s.tip_on_launch === 'no';
+  const tipOnLaunch = flag(s.tip_on_launch);
+  const tipKnownOff = explicitFalse(s.tip_on_launch);
   const status = String(s.status || 'active');
-  const underCaps = s.under_caps !== false && s.under_caps !== 'false';
-  const onceFinished = !!s.once_finished;
-  const hasTests = s.has_test_command !== false && s.has_test_command !== 'false';
-  const unattended = !!s.unattended;
-  const targetMismatch = !!s.ledger_target_mismatch;
-  const ambiguous = !!s.ambiguous_run;
-  const pathRelocated = !!s.path_relocated;
-  const destroyFailed = !!s.destroy_failed;
+  const underCaps = flag(s.under_caps, true);
+  const onceFinished = flag(s.once_finished);
+  const hasTests = flag(s.has_test_command, true);
+  const unattended = flag(s.unattended);
+  const targetMismatch = flag(s.ledger_target_mismatch);
+  const ambiguous = flag(s.ambiguous_run);
+  const pathRelocated = flag(s.path_relocated);
+  const destroyFailed = flag(s.destroy_failed);
   const reintOk = reint === 'ok';
   // Tip not on launch: merge_to_launch=false after S11a, or explicit tip_on_launch=no
   const tipUnmerged = tipKnownOff || (reintOk && !mergeToLaunch && !tipOnLaunch);
@@ -88,7 +122,7 @@ function deriveNextAuto(s) {
     onceFinished ||
     status === 'complete' ||
     /^stopped\b/i.test(status) ||
-    s.caps_exhausted === true;
+    flag(s.caps_exhausted);
 
   function out(next, detail, autoCommit) {
     const blocked = String(next).startsWith('blocked:');
@@ -213,4 +247,4 @@ if (require.main === module) {
   main(process.argv.slice(2));
 }
 
-module.exports = { deriveNextAuto, HINTS };
+module.exports = { deriveNextAuto, HINTS, flag, explicitFalse };

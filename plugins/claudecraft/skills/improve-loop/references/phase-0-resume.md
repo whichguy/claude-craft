@@ -41,7 +41,10 @@ node <plugin>/tools/improve-next-auto.js --file snapshot.json
 # → { next_auto, blocked_detail, resume_hint, auto_commit_ledger }
 ```
 
-Build `snapshot.json` from git/Driver/run_json facts (see tool header). Include
+Build `snapshot.json` from git/Driver/run_json facts (see tool header). Status summary
+keys map in: `worktree_exists` (alias of `worktree_present`), `mid_rebase`,
+`launch_tracked_dirty`, `tip_on_launch`, `merge_to_launch`, `keep_worktree` — all accept
+`yes`/`no` and `true`/`false` strings (do not use raw `!!` on status values). Include
 `tip_on_launch` from `improve-worktree.sh status` when a worktree exists. Otherwise apply the
 same order by hand: mid-rebase → `blocked:rebase-continue`; else worktree dirty (non-ledger)
 → `blocked:worktree-dirty`; else only-ledger dirty before reintegrate/destroy → auto-commit
