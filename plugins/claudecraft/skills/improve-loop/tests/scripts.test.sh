@@ -324,6 +324,115 @@ if [[ -f "$PTR7" ]]; then
   assert "default discards reintegrate" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
 fi
 
+# --- resolve-target-repo.js ---
+RESOLVE="$SCRIPTS/resolve-target-repo.js"
+assert "resolve-target-repo exists" test -f "$RESOLVE"
+
+# Fake product git repo + claude-home install symlink
+PROD="$TMP/prod-repo"
+mkdir -p "$PROD/skills/widget"
+git -C "$PROD" init -q -b main
+git -C "$PROD" config user.email "test@example.com"
+git -C "$PROD" config user.name "Test"
+echo 'skill' >"$PROD/skills/widget/SKILL.md"
+git -C "$PROD" add skills/widget/SKILL.md && git -C "$PROD" commit -q -m init
+
+FAKE_HOME="$TMP/fake-claude"
+mkdir -p "$FAKE_HOME/skills"
+ln -s "$PROD/skills/widget" "$FAKE_HOME/skills/widget"
+
+OUT_R="$TMP/resolve-symlink.json"
+set +e
+node "$RESOLVE" --target-path "$FAKE_HOME/skills/widget" --claude-home "$FAKE_HOME" >"$OUT_R" 2>"$TMP/resolve.err"
+EC_R=$?
+set -e
+assert "symlink under claude-home exit 0" test "$EC_R" -eq 0
+assert "symlink_followed true" grep -q '"symlink_followed": true' "$OUT_R"
+assert "notes symlink-followed" grep -q 'symlink-followed' "$OUT_R"
+PROD_REAL="$(cd "$PROD" && pwd -P)"
+assert "target_repo is product" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_R" "$PROD_REAL"
+
+# File symlink under claude-home
+ln -sf "$PROD/skills/widget/SKILL.md" "$FAKE_HOME/skills/widget-skill.md"
+OUT_RF="$TMP/resolve-file-symlink.json"
+node "$RESOLVE" --target-path "$FAKE_HOME/skills/widget-skill.md" --claude-home "$FAKE_HOME" >"$OUT_RF"
+assert "file symlink followed" grep -q '"symlink_followed": true' "$OUT_RF"
+assert "file symlink target_repo product" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_RF" "$PROD_REAL"
+
+# Real directory under claude-home (not a symlink) → that tree's git root, not invent another
+REAL_DIR="$FAKE_HOME/skills/real-skill"
+mkdir -p "$REAL_DIR"
+# make fake-claude itself a git repo so non-symlink under home has a root
+git -C "$FAKE_HOME" init -q -b main 2>/dev/null || true
+git -C "$FAKE_HOME" config user.email "test@example.com"
+git -C "$FAKE_HOME" config user.name "Test"
+echo x >"$FAKE_HOME/README"
+git -C "$FAKE_HOME" add README 2>/dev/null || true
+git -C "$FAKE_HOME" commit -q -m init-home 2>/dev/null || true
+echo 'real' >"$REAL_DIR/SKILL.md"
+OUT_REAL="$TMP/resolve-real.json"
+node "$RESOLVE" --target-path "$REAL_DIR" --claude-home "$FAKE_HOME" >"$OUT_REAL"
+assert "real dir not symlink_followed" grep -q '"symlink_followed": false' "$OUT_REAL"
+assert "real dir under-claude note" grep -q 'under-claude-home-not-symlink' "$OUT_REAL"
+HOME_REAL="$(cd "$FAKE_HOME" && pwd -P)"
+assert "real dir target is fake home git" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_REAL" "$HOME_REAL"
+
+# Broken symlink → exit 3
+ln -sf "$TMP/does-not-exist-xyz" "$FAKE_HOME/skills/broken"
+set +e
+node "$RESOLVE" --target-path "$FAKE_HOME/skills/broken" --claude-home "$FAKE_HOME" >"$TMP/resolve-broken.out" 2>"$TMP/resolve-broken.err"
+EC_B=$?
+set -e
+assert "broken symlink exit 3" test "$EC_B" -eq 3
+assert "broken symlink message" grep -qi 'broken' "$TMP/resolve-broken.err"
+
+# Missing path → exit 2
+set +e
+node "$RESOLVE" --target-path "$TMP/no-such-path" --claude-home "$FAKE_HOME" >/dev/null 2>"$TMP/resolve-miss.err"
+EC_M=$?
+set -e
+assert "missing path exit 2" test "$EC_M" -eq 2
+
+# Outside claude-home normal repo (no forced symlink rule)
+OUT_OUT="$TMP/resolve-outside.json"
+node "$RESOLVE" --target-path "$PROD" --claude-home "$FAKE_HOME" >"$OUT_OUT"
+assert "outside path exit ok" node -e "
+const fs=require('fs'); const path=require('path');
+const j=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+process.exit(path.resolve(j.target_repo)===path.resolve(process.argv[2])?0:1)
+" "$OUT_OUT" "$PROD_REAL"
+assert "outside not symlink_followed" grep -q '"symlink_followed": false' "$OUT_OUT"
+
+# Usage missing --target-path → exit 1
+set +e
+node "$RESOLVE" >/dev/null 2>&1
+EC_U=$?
+set -e
+assert "usage exit 1" test "$EC_U" -eq 1
+
+# Path with no git root → exit 4
+NOGIT="$TMP/nogit-dir"
+mkdir -p "$NOGIT"
+OUT_NG="$TMP/resolve-nogit.json"
+set +e
+node "$RESOLVE" --target-path "$NOGIT" --claude-home "$FAKE_HOME" >"$OUT_NG" 2>/dev/null
+EC_NG=$?
+set -e
+assert "no git root exit 4" test "$EC_NG" -eq 4
+assert "no git target_repo null" grep -q '"target_repo": null' "$OUT_NG"
+
 echo "---"
 echo "passed=$pass failed=$fail"
 [[ "$fail" -eq 0 ]]

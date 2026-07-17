@@ -61,6 +61,7 @@ during a run for advisors — never the recovery surface.
 SKILL_DIR/references/goal-objective.template.md   # optional host /goal body
 SKILL_DIR/scripts/shell-probe.sh
 SKILL_DIR/scripts/worktree-enter.js
+SKILL_DIR/scripts/resolve-target-repo.js   # ~/.claude install symlink → real git root
 SKILL_DIR/scripts/campaign-teardown.js
 SKILL_DIR/scripts/pointer.js
 SKILL_DIR/scripts/ledger-status.js
@@ -316,7 +317,7 @@ On any hard stop / veto, print immediately:
 Reason codes (use these strings when they apply): `shell unavailable`,
 `ambiguous target repo`, `no test command`, `legacy tracked ledger`,
 `launch code-dirty`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
-`commit failed`, `reintegrate_blocked`, `scope violation`.
+`commit failed`, `reintegrate_blocked`, `scope violation`, `symlink broken`.
 
 ### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
 
@@ -340,6 +341,7 @@ operator knows what success looks like before any cycle runs.
 | | |
 |---|---|
 | **Repo** | `<TARGET_REPO>` |
+| **Install path** | `<CAND under ~/.claude if any>` · symlink followed yes\|no · resolved `<REAL>` (omit row if n/a) |
 | **Mode** | cold-start \| discard-stale → cold-start \| resume \| migrate \| merge-back-only \| short-circuit \| stop |
 | **Launch** | `<LAUNCH>` · branch `<launch_branch\|detached>` |
 | **Workspace** | `<WORKSPACE>` |
@@ -516,17 +518,38 @@ entry (Thesis `no test command supplied…`, Outcome `blocked`, `Committed: pend
 land (ledger-only), Phase 5. Prefer seeding the command in the goal objective or invocation.
 
 **Target repository (do not assume session cwd is the campaign repo).** Resolve the **target
-repo root** before Phase 0 step 1a when any of these apply:
-1. The invocation names an absolute path under a git checkout.
-2. The target names a skill or project with a known path (e.g. `backchain skill` →
-   `$HOME/src/backchain` or the path from install docs / user context) — often **outside**
-   the Grok Build session cwd.
-3. The goal objective names a repo path.
-Otherwise default to `git rev-parse --show-toplevel` from the current tool cwd.
+repo root** before Phase 0 step 1a, in this order:
+
+1. **Map the target to a filesystem path** when possible: absolute path from the invoke; skill /
+   agent / command / hook under `$HOME/.claude/skills|agents|commands|hooks/<name>` (or
+   `…/SKILL.md`); known project path (e.g. `backchain skill` → `$HOME/src/backchain`); goal
+   objective path.
+2. **Claude-home install symlink follow (mandatory when applicable).** If the candidate path
+   `CAND` is under `$HOME/.claude` **and** is a **symlink** (package dir or file), follow it
+   to the real path and use **that path’s git toplevel** as `TARGET_REPO` — not `~/.claude`.
+   Many installers (e.g. backchain `install.sh`) do
+   `~/.claude/skills/<name> → $repo/skills/<name>`. Prefer L3:
+
+   ```bash
+   node "$SKILL_DIR/scripts/resolve-target-repo.js" --target-path "$CAND"
+   # exit 0 → json.target_repo, json.symlink_followed, json.resolved_path
+   # exit 3 → STOP broken symlink
+   # exit 4 → no git root on resolved path; fall through
+   ```
+
+   When `symlink_followed` is true, campaign sticky / worktree-enter / merge-back use
+   `json.target_repo`. Kickoff may show install path vs resolved repo.  
+   **Do not** invent a different repo when `CAND` under `~/.claude` is a **real directory**
+   (not a symlink). Broken symlink → stop with reason `symlink broken`.
+3. Absolute path already under a non-`~/.claude` checkout → that checkout’s git toplevel.
+4. Goal objective names a repo path → that path’s git toplevel.
+5. Else default to `git rev-parse --show-toplevel` from the current tool cwd.
+
 All of COMMON_GIT / LAUNCH / INVOKE_ROOT / POINTER / worktree creation use that **target
-repo root**, not an unrelated session workspace. If resolution is ambiguous, **interactive:**
-ask once; **unattended:** `Status: stopped (ambiguous target repo)`, ledger-only if a WORKSPACE
-already exists, else report only.
+repo root**, not an unrelated session workspace or the bare `~/.claude` install surface when
+a symlink pointed at a product repo. If resolution is ambiguous, **interactive:** ask once;
+**unattended:** `Status: stopped (ambiguous target repo)`, ledger-only if a WORKSPACE already
+exists, else report only.
 
 **Session vs destination conflict:** when `ORIGINAL_CWD` and `TARGET_REPO` differ, the
 campaign sticky CWD and product-relative commands must use **TARGET_REPO**, not the Grok

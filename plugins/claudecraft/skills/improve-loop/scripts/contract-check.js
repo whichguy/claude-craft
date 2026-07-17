@@ -136,6 +136,8 @@ const improveRequired = [
   ['goal objective template', /goal-objective\.template\.md/],
   ['random 6 hex worktree', /6 hex|random\s+suffix|worktree-enter/i],
   ['target repository resolution', /Target repository|TARGET_REPO/i],
+  ['claude-home symlink follow', /Claude-home install symlink|symlink-followed|resolve-target-repo/i],
+  ['resolve-target-repo script', /resolve-target-repo\.js/],
   ['no primary ralph', /Do not\*\* wrap improve-loop in ralph|Do not wrap improve-loop in ralph/i],
   ['round 2 skip no resume', /Round 2 skipped \(no resume tool\)|Skip Round 2/i],
   ['sibling grok-review-converge', /grok-review-converge/i],
