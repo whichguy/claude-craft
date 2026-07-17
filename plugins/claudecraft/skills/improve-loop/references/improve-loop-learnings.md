@@ -143,8 +143,9 @@ SKILL S9 include `until: <short>`; caps.md outer-host wording; structure pins.
 
 | Iter | Verdict | Finding |
 |---|---|---|
-| material | host-goal custom until / S9 catalog | this section |
-| (pending) | two cleans | after material lands |
+| material | host-goal custom until / S9 catalog | `0d50180` |
+| clean | first after host-goal fix | contract-iter4 FAIL=0; mocha 75 |
+| (pending) | second clean | next iter |
 
 ## Clean after custom-until S8 (goal 2124cb734ba1)
 
