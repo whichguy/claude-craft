@@ -31,8 +31,8 @@ progress.emit(markdown [, structured?])
 
 ### Progress
 - Backlog: <done>/<total> items checked
-- Caps: cycle <k>/<max_cycles or ?>; elapsed <m>m[/max <M>m]; stall no-progress=<a> same-error=<b>
-- Until: <text or —> → met? yes|no|n/a
+- Caps: cycle <k>/<max_cycles or ?>; elapsed <m>m[/max <M>m]; stall no-progress=<a> same-error=<b>; non-material=<c>
+- Until: <text or —> → met? yes|no|n/a  (default continuous: P0/P1×2 green)
 - Landed improve commits (grep): <count this run if known>; latest: <subject or —>
 
 ### This unit — key changes

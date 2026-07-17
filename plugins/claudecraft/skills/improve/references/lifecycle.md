@@ -14,7 +14,7 @@ S7  CRITIQUE       optional seed only (throttle)
 S8  INNER_LOOP     while active && under caps:
                      run improve-loop one cycle (cwd = worktree if used)
                      → control-channel progress pulse (required)
-S9  STOP_REASON    complete | stall | max_cycles | max_elapsed | budget | blocked
+S9  STOP_REASON    complete | until: no-P0/P1×2 | stall | max_cycles | max_elapsed | budget | blocked
 S10 FINAL_LEDGER   Status note if needed
 S11 REINTEGRATE    improve-worktree.sh reintegrate  (ALWAYS if worktree created)
                      S11a: rebase worktree onto source tip (conflicts in worktree)

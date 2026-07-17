@@ -365,11 +365,17 @@ describe('claudecraft improve skill structure', function () {
       'utf8'
     );
     expect(p3).to.match(/consecutive-non-material-cycles >= 2|Until P0\/P1/);
+    expect(p3).to.match(/non-empty and not `none`|until` is \*\*non-empty/i);
     const outer = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
       'utf8'
     );
     expect(outer).to.match(/State handoff|write mode\/until\/max_cycles/i);
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(life).to.match(/until: no-P0\/P1|no-P0\/P1×2/);
   });
 
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {

@@ -173,12 +173,15 @@ counters Phase 2 already wrote to update Status *in this exact order*:
 
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`
-3. **Until P0/P1×2 (disk):** if header/Driver `until` is the default
-   `no material P0/P1 for 2 consecutive cycles (green tests)` (or equivalent) **and**
+3. **Until P0/P1×2 (disk):** if header/Driver `until` is **non-empty and not `none`** and
+   matches the default form
+   `no material P0/P1 for 2 consecutive cycles (green tests)` (case-insensitive substring
+   `P0/P1` + `2` consecutive, or the full default string) **and**
    `consecutive-non-material-cycles >= 2` **and** this cycle's suite is green (or the last
    non-material cycle was PASS) → set Status `complete` (until satisfied). Do **not** invent
-   until in chat; only honor disk. User-specified different until strings are evaluated by
-   the improve driver / host; improve-loop only auto-completes on this default until form.
+   until in chat; only honor disk. If `until` is `none`/absent (typical **once** mode), skip
+   this rule. User-specified different until strings are evaluated by the improve driver /
+   host S8; improve-loop only auto-completes on this default until form.
 4. Backlog has zero unchecked **P0/P1** items after replan (P2-only optional bullets may remain
    unchecked without blocking) → `complete`, **but gate it on a green
    suite** — a "tested improvement" loop must never sign off, or record a green result,

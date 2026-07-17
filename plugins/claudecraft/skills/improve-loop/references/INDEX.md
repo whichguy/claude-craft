@@ -4,11 +4,11 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 
 | File | Contents |
 |---|---|
-| `ledger-schema.md` | `IMPROVE_LOOP.md` format, **`## Driver`**, `N`, commit subjects, blocked-token catalog |
-| `phase-0-resume.md` | **Rehydration** (chat untrusted), dirty/landed guards, digests, host-caps note |
+| `ledger-schema.md` | `IMPROVE_LOOP.md` format, **Until/Max cycles**, **Driver**, non-material streak, blocked tokens |
+| `phase-0-resume.md` | **Rehydration** (until/mode from disk), dirty/landed guards, digests |
 | `phase-1-execute.md` | Executor + orchestrator test/revert |
-| `phase-2-learn.md` | Log entry, counter matrix |
-| `phase-3-replan.md` | Advisors/native replan, Status stops |
+| `phase-2-learn.md` | Log entry, counter matrix + **non-material streak** |
+| `phase-3-replan.md` | Advisors/native replan, Status stops (until P0/P1×2, stalls) |
 | `phase-4-commit.md` | Staging, vetoes, commit body |
 | `phase-5-decision.md` | Pulse, host `goal.complete`/`blocked`, **auto worktree teardown**, resume template |
 | `contracts/goal.md` | Continuous host: goal iterates improve-loop; disk resume after compact |
