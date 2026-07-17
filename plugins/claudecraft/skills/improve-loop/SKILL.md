@@ -107,8 +107,13 @@ Fail fast in Phase 0. Do not half-run a cycle.
     `COMMON_GIT=$(git rev-parse --path-format=absolute --git-common-dir)`. Ensures resume
     re-enters the **same** WORKSPACE (never a second worktree).
   While pointer `state: active`, launch must not receive campaign ledger, code, or commits.
-- Recommend the target repo **gitignore** `.worktrees/` (launch checkout must not list campaign
-  paths as litter). Do not auto-edit `.gitignore` unless a backlog item asks.
+- **`.worktrees/` must be gitignored** on the target/launch repo. Cold-start (and migrate
+  when creating a worktree) **ensures** a tracked or untracked root `.gitignore` contains an
+  exact line `.worktrees/` (create `.gitignore` if missing; append the line if absent; never
+  rewrite unrelated entries). If that edit is the only launch-side change besides the
+  campaign worktree, stage/commit it on the **campaign branch** in the first Phase 4 that
+  lands (or a ledger-only cycle if no code yet) so the ignore rule is durable — do **not**
+  leave campaign paths as unignored litter on launch.
 - `IMPROVE_LOOP.md` at **WORKSPACE** must not be gitignored. Check with
   `git -C "$WORKSPACE" check-ignore -q IMPROVE_LOOP.md` once WORKSPACE exists.
   If it is ignored, refuse clearly so the user can un-ignore it.
@@ -249,6 +254,14 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
      restarts cannot collide on a predictable path/branch. On residual
      branch/path collision (astronomically rare), append another `-` + 4 hex
      once; if still colliding, stop.
+   - **Ensure gitignore before `worktree add`:** if `$LAUNCH/.gitignore` has no line that is
+     exactly `.worktrees/` (or equivalent pattern that ignores that directory), create or
+     append that line. Prefer editing via the soon-to-be campaign tree after add if the
+     launch tree must stay clean mid-campaign — but the ignore must exist **before** any
+     unignored `.worktrees/<slug>` can show up as launch dirt. Practical order: write/append
+     `$LAUNCH/.gitignore` line `.worktrees/` first (untracked or modified on launch is OK
+     briefly), then `mkdir -p` + `worktree add`; on the first campaign commit include
+     `.gitignore` if still dirty and in scope as isolation plumbing (not a scope violation).
    - `mkdir -p "$LAUNCH/.worktrees"` then
      `git -C "$LAUNCH" worktree add -b "improve/<slug>" "$path" HEAD`.
    - Record `launch_branch` only if LAUNCH is not detached HEAD; else `launch_branch: null`
