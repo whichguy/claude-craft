@@ -438,10 +438,27 @@ deterministic local gate.
 `clear ledger`, `clear IMPROVE_LOOP` force **discard** of a launch-root leftover ledger
 instead of migrate (see Phase 0 step 1a.3). Default for Status `active` is **migrate**.
 
-**Sibling skill.** `grok-review-converge` is related (one round per invoke by default;
-multi-round may still prefer `/goal`). Improve-loop’s **primary multi-cycle is L1
-autonomous campaign driver**, not host re-drive. Ralph remains optional legacy only on
-converge when promise-tag Stop-hooks are required — never improve-loop’s primary path.
+### Improvement loop family (shared contracts)
+
+| Skill | Unit | Material unit | Complete when |
+|---|---|---|---|
+| **improve-loop** (`/improve`) | L2 cycle | Open **P0/P1** backlog items | **2 consecutive** cycles with zero open P0/P1 + green suite |
+| **grok-review-converge** | Review round | Grok **material** findings (vs minor) | **2 consecutive clean rounds** (zero material findings) |
+
+Shared family rules (both skills):
+
+1. **Git history–aware planning** — digest prior loop commits / Log before inventing work.
+2. **Material vs non-material** — only material work blocks complete; minor/prompt-depth goes to Notes.
+3. **Two consecutive non-material passes** before `complete` (not one empty residual).
+4. **Pathspec commits** — never `git add -A`; explicit paths only.
+5. **Outer multi-unit drive** — improve-loop: L1 autonomous by default; converge: one round per
+   invoke, multi-round under `/goal` (or optional ralph). Ralph never primary for improve-loop.
+6. **Destination CWD** — when the target repo ≠ Grok session cwd, sticky to the **target repo**
+   for product commands; never sticky into disposable worktrees.
+
+**Sibling skill.** `grok-review-converge` implements the review/fix specialization of this
+family (Grok material/minor + clean-streak ×2). Improve-loop’s multi-cycle is L1 autonomous
+campaign driver, not host re-drive.
 
 ## Preconditions
 

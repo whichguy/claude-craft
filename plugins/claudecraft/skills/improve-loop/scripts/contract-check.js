@@ -123,6 +123,7 @@ const improveRequired = [
   ['no primary ralph', /Do not\*\* wrap improve-loop in ralph|Do not wrap improve-loop in ralph/i],
   ['round 2 skip no resume', /Round 2 skipped \(no resume tool\)|Skip Round 2/i],
   ['sibling grok-review-converge', /grok-review-converge/i],
+  ['improvement loop family', /Improvement loop family/i],
   ['worktrees path', /\.worktrees\//],
   ['status reporting section', /Status reporting \(user-facing/i],
   ['kickoff card', /Improve · kickoff/],
@@ -174,7 +175,7 @@ ok(
   'goal template must state host /goal is optional / L1 primary multi-cycle'
 );
 
-// --- grok-review-converge dual-driver ---
+// --- grok-review-converge dual-driver + family residual parity ---
 if (converge) {
   ok(
     /Preferred multi-round outer driver:\s*`?\/goal`?/i.test(converge) ||
@@ -190,6 +191,26 @@ if (converge) {
     /## Running it multi-round|### Preferred: `?\/goal`?/i.test(converge),
     'grok-review-converge missing multi-round /goal section'
   );
+  ok(
+    /Consecutive clean rounds\s*>=\s*2|two consecutive clean|2 consecutive/i.test(converge),
+    'grok-review-converge missing 2 consecutive clean complete rule'
+  );
+  ok(
+    /material.*minor|minor.*material/i.test(converge),
+    'grok-review-converge missing material vs minor classification'
+  );
+  ok(
+    /git-history|git history|git log --grep/i.test(converge),
+    'grok-review-converge missing git-history-aware planning'
+  );
+  ok(
+    /Improvement loop family|same family as improve-loop|improve-loop/i.test(converge),
+    'grok-review-converge missing improve-loop family cross-reference'
+  );
+  ok(
+    /P0|P1/i.test(converge),
+    'grok-review-converge should map material plan bullets to P0/P1 family tags'
+  );
   const head = converge.slice(0, 1200);
   ok(
     !/combine with ralph-loop when an unattended, hard-capped\s+outer quota is needed\.?$/im.test(
@@ -198,6 +219,12 @@ if (converge) {
     'grok-review-converge description still ralph-only for unattended'
   );
 }
+
+// improve-loop must declare family table / sibling converge
+ok(
+  /Improvement loop family|grok-review-converge/i.test(user),
+  'user improve-loop missing family / grok-review-converge sibling cross-reference'
+);
 
 if (fails.length) {
   for (const f of fails) console.error('FAIL:', f);
