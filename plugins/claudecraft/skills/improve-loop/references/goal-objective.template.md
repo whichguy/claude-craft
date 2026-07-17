@@ -24,8 +24,12 @@ each invoke cold-starts unless --resume.
 
 User-facing status (required): kickoff states this goal + cycle budget; each cycle
 emits a discovery card (what was tried, outcome, key discoveries, backlog delta,
-cycle K/MAX); L1 exit emits Campaign report (goal restated, cycles-at-a-glance table,
-plain-language summary + learnings).
+deferred P2 delta, cycle K/MAX); L1 exit emits Campaign report (goal restated,
+cycles-at-a-glance table, plain-language summary + learnings + Deferred (P2) for later).
+
+Planning each cycle uses git improve-commit history **and** the live ledger (when present).
+Non-material "consider later" items go to Deferred (P2) / Next deferred in commit bodies —
+they do not block residual×2 complete and need no product file changes.
 
 Done when Phase 5 / L1 reports terminal+landed (Campaign report). On active mid-campaign:
 progress + discovery cards only — do not complete the host goal.
