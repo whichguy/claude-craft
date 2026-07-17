@@ -135,5 +135,13 @@ Features retained: S11a/S11b, open-pr, tip-on-launch destroy, merge override, mi
 | Iter | Verdict | Commit | Notes |
 |---|---|---|---|
 | 19 | material | `cdc3f30` | recover no FORCE; die_status resume_hint |
-| 20 | **clean** | (this) | dual-path A–G; SECRET kept |
-| 21 | pending | — | second clean |
+| 20 | **clean** | `b21f109` | dual-path A–G; SECRET kept |
+| 21 | **clean** | (this) | dual-path-iter21 A–G |
+
+## Stop after SECRET_LOST skeptic fix
+
+Material `cdc3f30` then two independent cleans:
+- **20** → `b21f109` — dual-path-iter20 + SECRET kept
+- **21** → this commit — dual-path-iter21
+
+recover no longer FORCE-destroys; die_status emits resume_hint=.
