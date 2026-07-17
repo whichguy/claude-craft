@@ -41,3 +41,11 @@ Key fix: tip unmerged → `blocked:open-pr` in next-auto + phase docs (not done)
 
 
 Note: cycle 3 uses terminal status=complete fixtures for teardown next_auto checks.
+
+## Continuous driver S12 (skeptic follow-up)
+
+| Iter | Verdict | Commit | Finding |
+|---|---|---|---|
+| 4 | material | (next) | improve SKILL S12 / lifecycle flowchart omitted tip-unmerged open-pr; open-pr hint merge-only |
+| 5–6 | clean | pending | re-audit after driver S12 fix |
+

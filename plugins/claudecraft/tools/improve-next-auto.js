@@ -35,7 +35,7 @@ const HINTS = {
   'blocked:launch-dirty':
     'Commit/stash tracked changes on launch branch, then reintegrate; status: launch_tracked_dirty=',
   'blocked:open-pr':
-    'merge_to_launch=false: open PR from worktree tip or re-run reintegrate with --merge-to-launch',
+    'Tip not on launch: open PR from worktree tip, or reintegrate --merge-to-launch (check tip_on_launch / merge_to_launch)',
   'blocked:destroy-failed':
     'Retry destroy --force; status for worktree_exists=',
   'blocked:rebase-aborted':

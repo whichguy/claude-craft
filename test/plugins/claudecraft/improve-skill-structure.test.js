@@ -171,6 +171,29 @@ describe('claudecraft improve skill structure', function () {
     const nextAuto = fs.readFileSync(path.join(CC, 'tools/improve-next-auto.js'), 'utf8');
     expect(nextAuto).to.match(/tip_on_launch/);
     expect(nextAuto).to.match(/tipUnmerged|tip not on launch/i);
+    // open-pr hint must not be merge_to_launch=false-only (tip_on_launch=no path)
+    expect(nextAuto).to.match(
+      /blocked:open-pr['"]:\s*[\s\S]{0,120}Tip not on launch|tip_on_launch/i
+    );
+  });
+
+  it('continuous improve driver S12 gates destroy on tip_on_launch / open-pr', function () {
+    const skill = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(skill).to.match(/S12/);
+    expect(skill).to.match(/blocked:open-pr/);
+    expect(skill).to.match(/tip_on_launch/);
+    // Must not claim done solely because keep_worktree when tip unmerged
+    expect(skill).to.match(/even if `keep_worktree`|even if keep_worktree/i);
+    expect(life).to.match(/blocked:open-pr/);
+    expect(life).to.match(/tip_on_launch/);
+    // Flowchart must not be bare "destroy unless keep_worktree" only
+    expect(life).to.not.match(
+      /S12 WT_DESTROY\s+destroy unless keep_worktree or S11 failed\s*\nS13 DONE/
+    );
   });
 
   it('Driver section + disk rehydration + resume template are normative', function () {

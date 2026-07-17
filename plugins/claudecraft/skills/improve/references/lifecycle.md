@@ -18,10 +18,12 @@ S9  STOP_REASON    complete | stall | max_cycles | max_elapsed | budget | blocke
 S10 FINAL_LEDGER   Status note if needed
 S11 REINTEGRATE    improve-worktree.sh reintegrate  (ALWAYS if worktree created)
                      S11a: rebase worktree onto source tip (conflicts in worktree)
-                     S11b: merge tip → source branch (default)
-                     → short progress pulse
-S12 WT_DESTROY     destroy unless keep_worktree or S11 failed
-S13 DONE           → final progress pulse
+                     S11b: merge tip → source branch (default; skip with --no-merge-to-launch)
+                     → short progress pulse; read status tip_on_launch=
+S12 WT_DESTROY     if tip_on_launch=yes: destroy unless keep_worktree
+                     if tip unmerged (no-merge / tip_on_launch=no): blocked:open-pr — no destroy
+                     if S11 failed / mid-rebase: keep worktree + blocked:*
+S13 DONE           final pulse; next_auto=done only when not still blocked:open-pr / blocked:*
 ```
 
 Progress schema: `../../improve-loop/references/contracts/progress.md`.
@@ -46,8 +48,8 @@ blocked_detail: <or none>
 Steps:
 1. cd worktree_path if set, else repo
 2. Read IMPROVE_LOOP.md header + ## Driver + last Log entries
-3. Prefer run_json for paths if file exists
-4. Execute next_auto only (cycle | reintegrate | destroy | fix blocked:*)
+3. Prefer run_json for paths if file exists; run improve-worktree.sh status for tip_on_launch/resume_hint
+4. Execute next_auto only (cycle | reintegrate | destroy | blocked:open-pr | fix blocked:*)
 5. Use test_command from ledger; never invent tests
 6. Update ## Driver after the step
 ```
