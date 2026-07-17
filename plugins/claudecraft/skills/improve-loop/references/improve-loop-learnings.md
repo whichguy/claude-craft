@@ -135,3 +135,9 @@ Custom until must be judged by improve S8 against disk; Phase 3 only auto-comple
 |---|---|---|
 | material | custom until ignored by S8 | caps S8 must evaluate custom until against disk |
 | clean | first after fix | contract-iter2 FAIL=0; mocha 15 |
+| clean | second consecutive | contract-iter3 FAIL=0; mocha 15 |
+
+
+## Stop after custom-until S8 quality-review
+
+Material `c7553c3` then two cleans (pair after). No more material P0/P1 on continuous-defaults surface.
