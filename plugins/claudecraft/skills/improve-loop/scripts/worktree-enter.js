@@ -377,6 +377,8 @@ if (!mode) {
   pointerPath = cs.pointer;
 }
 
+// suggested_cwd: durable sticky target for host (LAUNCH), not WORKSPACE — agents should
+// use subshells/(cd WORKSPACE && …) for work, not stick the session in the disposable tree.
 const out = {
   mode,
   workspace,
@@ -388,6 +390,7 @@ const out = {
   target,
   test_command: testCommand || null,
   notes,
+  suggested_cwd: launch,
 };
 
 process.stdout.write(JSON.stringify(out, null, 2) + '\n');

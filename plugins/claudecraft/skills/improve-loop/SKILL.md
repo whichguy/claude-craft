@@ -80,6 +80,30 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
 
 Never invent an in-turn multi-cycle self-loop. Never emit ralph promise tags.
 
+## Shell CWD discipline (mandatory)
+
+Grok local sessions (≥0.2.102) **keep the current directory across** `run_terminal_command`
+calls. A sticky CWD under a later-deleted `.worktrees/<slug>` makes **every** later spawn
+fail with bare ENOENT while file tools still work. All Phase 0–5 shell strings follow this
+priority:
+
+1. **No `cd`:** absolute paths + `git -C` / `make -C` / script flags (`--repo`, `--workspace`).
+2. **Temporary dir only:** subshell — `(cd "$WORKSPACE" && <cmd>)` — never bare
+   `cd "$WORKSPACE" && <cmd>` as the outer command (that sticks the session in the worktree).
+3. **Multi-step in one disposable dir:** `(cd "$WORKSPACE" && step1 && step2)`.
+4. **After merge-back / worktree remove:** outer `cd` only to a **durable** path (`LAUNCH` /
+   `TARGET_REPO` / `merge-back` JSON `suggested_cwd`). That is the one intentional sticky update.
+5. **Spawn ENOENT before any output:** hard-stop `shell unavailable` (see Preconditions); do
+   not thrash. Operator: quit Grok, `cd` to an existing repo, restart, `/bin/pwd` probe.
+
+**Disallowed as the last successful outer-shell action:** landing sticky CWD under
+`.worktrees/*` (or any path that merge-back may delete).
+
+**pushd/popd:** non-preferred (easy to skip `popd` under `set -e`). If used, always
+`status=$?; popd; exit $status`. Prefer subshells.
+
+**Subshells cannot heal an already-dead sticky CWD** — only session restart from a real path.
+
 ## Status reporting (user-facing — mandatory)
 
 Operators must always know **where** the campaign lives, **which phase** is running, and
@@ -173,7 +197,7 @@ section):
 | **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
 | **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
 | **Pointer** | `active` \| `reintegrate_blocked` \| deleted |
-| **Next** | GOAL_MODE+active: goal continues next turn · no GOAL_MODE: paste `/goal` template · terminal: done · blocked: <operator action> |
+| **Next** | GOAL_MODE+active: goal continues next turn · no GOAL_MODE: paste `/goal` template · terminal: done · blocked (shell unavailable): quit Grok, `cd` to a real repo path, restart, `/bin/pwd` probe, re-invoke · other blocked: <operator action> |
 ```
 
 Tone: confident, scannable, no filler. Prefer tables over walls of prose. When Result is
@@ -241,6 +265,13 @@ Fail fast in Phase 0. Do not half-run a cycle.
   `blocked (shell unavailable)`, include the host/probe error, and state that
   worktree/test/commit cannot proceed. Do **not** thrash: no scheduler loops, no
   multi-subagent delete cascades. File-only tools cannot complete this skill.
+  **Host sticky-CWD hazard (Grok ≥0.2.102):** local sessions **keep the current directory
+  across shell commands**. If a prior turn `cd`'d into a campaign worktree (or subagent
+  worktree) that was later **removed** (merge-back teardown, `git worktree remove`), the
+  host may fail **every** later spawn with bare ENOENT — even `/bin/echo` — while file tools
+  still work. **Operator recovery:** fully quit Grok (not only `/clear`), restart from a
+  directory that exists (`cd /path/to/repo && grok`), probe with `/bin/pwd && /bin/echo ok`,
+  then re-invoke. Closing **Next** on this stop must say so explicitly.
 - The working tree must be inside a **non-bare** git repository: `git rev-parse --show-toplevel`
   succeeds and `git rev-parse --is-bare-repository` is not `true`. Commits are the durable
   ledger; without git there is no Phase 4. `git worktree` must work (refuse if
@@ -248,7 +279,8 @@ Fail fast in Phase 0. Do not half-run a cycle.
 - **Paths** (resolved in Phase 0 step 1a):
   - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
     where the entire `/improve` campaign runs** (ledger, code, tests, commits). After resolve,
-    `cd "$WORKSPACE"` (or set tool cwd) for all cycle work.
+    use absolute `WORKSPACE` + `git -C` / tool `cwd` / **subshells** (see Shell CWD discipline)
+    — do not bare-`cd` the outer session into WORKSPACE for the rest of the turn.
   - `LAUNCH` — primary worktree (`dirname` of absolute `--git-common-dir`). Used **only** for
     cold-start `worktree add` and **end-of-campaign** FF merge-back — not for mid-campaign
     edits.
@@ -419,10 +451,13 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    node "$SKILL_DIR/scripts/ledger-status.js" --workspace "$WORKSPACE"
    ```
 
-   **After WORKSPACE is set:** `cd "$WORKSPACE"` (or set every tool/subagent working
-   directory to WORKSPACE) for the rest of this turn's cycle work. Prefer real cwd so tests
-   and agents stay in the one workspace; use `git -C "$LAUNCH"` only for pointer writes and
-   end-of-campaign merge-back.
+   **After WORKSPACE is set:** keep the **host sticky CWD on a durable path** (LAUNCH /
+   TARGET_REPO). Do **not** bare-`cd` the outer session into WORKSPACE for the rest of the turn.
+   - Git and scripts: always `git -C "$WORKSPACE"` / `git -C "$LAUNCH"` / absolute script paths.
+   - Commands that require process CWD (test suite): **subshell**
+     `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` or `make -C "$WORKSPACE" …` when applicable.
+   - Subagents: pass absolute WORKSPACE as tool `cwd` / paths; same no-sticky-in-worktree rule.
+   - See **Shell CWD discipline**.
 
 
 2. If `$WORKSPACE/IMPROVE_LOOP.md` is absent, **do not assume a brand-new campaign**. First
@@ -624,8 +659,10 @@ know at return time: `WHAT_CHANGED` (paths), `THESIS` (one line), and a *suggest
   output and is never staged. Phase 4 stages code paths only from this git-grounded, parsed,
   pre-test set — never from the executor's `WHAT_CHANGED` alone.
 
-- Then the orchestrator (native) runs the recorded test command **exactly once** from
-  **WORKSPACE** — even if the executor believes nothing changed. Capture full output to a temp file; keep a tail
+- Then the orchestrator (native) runs the recorded test command **exactly once** with
+  process CWD = **WORKSPACE**, without sticking the host session there — e.g.
+  `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` or `make -C "$WORKSPACE" …` — even if the
+  executor believes nothing changed. Capture full output to a temp file; keep a tail
   (e.g. last 80 lines) for the Log. From that authoritative run derive `STATUS`
   (`PASS`/`FAIL`) and the `ERROR_SIGNATURE` (`none` on PASS; see Phase 2), and finalize
   `OUTCOME` by reconciling the executor's suggestion against STATUS — e.g. an executor's
@@ -1156,12 +1193,16 @@ goal with the reason so multi-cycle does not re-open forever.
 
   ```bash
   node "$SKILL_DIR/scripts/merge-back.js" --repo "$TARGET_REPO"
+  # Intentional outer cd (durable sticky CWD) — use suggested_cwd from JSON when present
+  cd "${SUGGESTED_CWD:-$LAUNCH}" 2>/dev/null || cd "$TARGET_REPO" 2>/dev/null || true
   ```
 
-  Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`.
-  On blocked/skipped, leave WORKSPACE; print the FF command from notes/error. Still complete
-  goal if GOAL_MODE (land is durable). Prefer the script over freehand FF so teardown order
-  (FF → remove worktree → delete branch → delete pointer) stays correct.
+  Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`;
+  `suggested_cwd` is the durable path (LAUNCH) to set as host sticky CWD. On blocked/skipped,
+  leave WORKSPACE; print the FF command from notes/error. Still complete goal if GOAL_MODE
+  (land is durable). Prefer the script over freehand FF so teardown order (FF → remove
+  worktree → delete branch → delete pointer) stays correct. **Always** set outer sticky CWD
+  to `suggested_cwd` / LAUNCH after teardown (see **Shell CWD discipline**).
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
   Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer (post-goal

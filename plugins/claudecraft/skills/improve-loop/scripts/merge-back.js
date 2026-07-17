@@ -162,12 +162,16 @@ try {
   if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
   out.ok = true;
   out.merge_back = 'ok';
+  // Hint for orchestrator / host sticky-CWD: leave the removed worktree directory
+  out.suggested_cwd = launch;
 } catch (e) {
   out.error = e.message || String(e);
   out.merge_back = 'teardown_partial';
+  out.suggested_cwd = launch;
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   process.exit(5);
 }
 
+out.suggested_cwd = out.suggested_cwd || launch;
 process.stdout.write(JSON.stringify(out, null, 2) + '\n');
 process.exit(0);

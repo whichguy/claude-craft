@@ -48,6 +48,14 @@ assert "workspace exists" test -d "$WS"
 # gitignore is on WORKSPACE (not LAUNCH) so launch is not merge-blocked by untracked .gitignore
 assert "workspace gitignore has .worktrees/ (cold-start)" grep -qx '.worktrees/' "$WS/.gitignore"
 assert "pointer exists" test -f "$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).pointer)" "$OUT")"
+# suggested_cwd must be durable LAUNCH (not disposable worktree).
+# Compare to JSON launch (same canonicalization as scripts) — not bare `pwd`,
+# which on macOS can be /var/... while realpath is /private/var/...
+assert "enter has suggested_cwd" grep -q '"suggested_cwd"' "$OUT"
+SCWD="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).suggested_cwd)" "$OUT")"
+LAUNCH_ABS="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).launch)" "$OUT")"
+assert "enter suggested_cwd is launch" test "$SCWD" = "$LAUNCH_ABS"
+assert "enter suggested_cwd is not workspace" test "$SCWD" != "$WS"
 
 # resume same worktree
 OUT2="$TMP/enter2.json"
@@ -195,6 +203,15 @@ set -e
 assert "merge-back exit 0" test "$MB_EC" -eq 0
 assert "merge-back ok" grep -q '"merge_back": "ok"' "$OUTMB"
 assert "merge-back ok flag" grep -q '"ok": true' "$OUTMB"
+assert "merge-back has suggested_cwd" grep -q '"suggested_cwd"' "$OUTMB"
+SCWD4="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).suggested_cwd)" "$OUTMB")"
+LAUNCH4="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).launch||'')" "$OUTMB")"
+# merge-back always sets suggested_cwd; launch key may be present — prefer launch, else not under .worktrees
+if [[ -n "$LAUNCH4" ]]; then
+  assert "merge-back suggested_cwd is launch" test "$SCWD4" = "$LAUNCH4"
+else
+  assert "merge-back suggested_cwd not worktree" bash -c "! [[ \"$SCWD4\" == *'/.worktrees/'* ]]"
+fi
 # pointer cleared
 GCD4="$(git -C "$REPO4" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [[ -z "$GCD4" || "$GCD4" != /* ]]; then
