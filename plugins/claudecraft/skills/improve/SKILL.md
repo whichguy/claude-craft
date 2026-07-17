@@ -26,6 +26,23 @@ Portable continuous objective: `../improve-loop/references/contracts/goal.md`.
 | One tested cycle | `improve-loop` |
 | Continuous until done / timebox / budget | **this skill (`improve`)** |
 
+## Campaign shape (worktree default)
+
+```text
+S2 create (once)  →  detached-HEAD worktree at launch tip
+                     (no permanent improve/* branch)
+S3 carry          →  if launch dirty: WIP → WT, drain launch
+S8 iterate        →  while until/caps allow:
+                       improve-loop one cycle in worktree cwd
+                       (commits accumulate on detached tip)
+S11 reintegrate   →  once: rebase tip onto source, then merge tip → launch
+S12 destroy       →  remove worktree when tip_on_launch
+```
+
+- **Not** merge after every cycle. **Not** a long-lived named feature branch.
+- **`improve-loop`** = one cycle only; **`improve`** owns create → multi-cycle → reintegrate.
+- Skip worktree only with `--no-worktree` / “no worktree” (then cycles run on launch).
+
 ## Procedure (run in order)
 
 ### S0 — Parse
@@ -174,5 +191,6 @@ State: `<repo>/.git/improve-runs/<slug>.json`. Print the phase-5 resume template
 | Goal contract | `../improve-loop/references/contracts/goal.md` |
 | Progress pulses | `../improve-loop/references/contracts/progress.md` |
 | Progress formatter | `../../tools/improve-progress-format.js` |
+| Lint discover/run | `../../tools/improve-lint.sh` (+ `improve-lint-discover.js`) |
 | Outer loop | `../improve-loop/references/contracts/outer-loop.md` |
 | One cycle | `../improve-loop/SKILL.md` |

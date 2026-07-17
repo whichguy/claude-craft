@@ -63,8 +63,37 @@ without committing, staging for commit, or editing `IMPROVE_LOOP.md`.
   paths only from this git-grounded, parsed, pre-test set — never from the executor's
   `WHAT_CHANGED` alone.
 
+- **Lint (orchestrator-owned, before the suite).** Do **not** invent a second test command.
+  After `CHANGED_PATHS` is known, run path-scoped linters via the plugin tool (discover +
+  cache under `<repo>/.git/improve-runs/lint-map.json`):
+
+  ```bash
+  bash <plugin>/tools/improve-lint.sh run --repo <repo> --paths <CHANGED_PATHS…>
+  # or: --paths-file <tmp list>
+  ```
+
+  | Case | `LINT_STATUS` | Next |
+  |---|---|---|
+  | `CHANGED_PATHS` empty | `skipped` (no paths) | proceed to suite |
+  | No matching / available tools | `skipped` (no tools) | proceed to suite |
+  | Tool(s) exit 0 | `PASS` | proceed to suite |
+  | Any tool exit non-zero | `FAIL` | **fail-fast:** set `STATUS=FAIL`; do **not** run the suite this cycle; capture lint tail for signature |
+
+  Discovery is dynamic (package.json `lint`, eslint config, ruff, biome, Makefile `lint`
+  residual for source-ish paths only, shellcheck, clippy, go vet — only tools already on
+  PATH / local `node_modules/.bin`). Bins are re-resolved every run (cache is fingerprint
+  only; `--force-refresh` is for debug/corrupt cache, not required after `npm install`).
+  Extensionless files match only via shebang. If eslint/biome is declared but the bin is
+  missing, do **not** fall back to `make lint` (often soft-passes) — skip instead.
+  Never `npm install` / brew install.
+  Snapshot porcelain before/after the lint run and extend `TEST_ARTIFACT_PATHS` the same
+  way as the suite (eslint caches, etc.).
+
+  Record for Phase 2 Log: `**Lint:** PASS \| FAIL \| skipped` and `**Lint tools:** … \| none`.
+
 - Then the orchestrator (native) runs the recorded test command **exactly once** — even if
-  the executor believes nothing changed. Capture full output to a temp file; keep a tail
+  the executor believes nothing changed — **unless** lint already set `STATUS=FAIL`
+  (fail-fast: skip suite). Capture full output to a temp file; keep a tail
   (e.g. last 80 lines) for the Log. From that authoritative run derive `STATUS`
   (`PASS`/`FAIL`) and the `ERROR_SIGNATURE` (`none` on PASS; see Phase 2), and finalize
   `OUTCOME` by reconciling the executor's suggestion against STATUS — e.g. an executor's

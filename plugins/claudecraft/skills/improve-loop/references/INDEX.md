@@ -6,7 +6,7 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 |---|---|
 | `ledger-schema.md` | `IMPROVE_LOOP.md` format, **Until/Max cycles**, **Driver**, non-material streak, blocked tokens |
 | `phase-0-resume.md` | **Rehydration** (until/mode from disk), dirty/landed guards, digests |
-| `phase-1-execute.md` | Executor + orchestrator test/revert |
+| `phase-1-execute.md` | Executor + orchestrator **lint** (improve-lint.sh) + test/revert |
 | `phase-2-learn.md` | Log entry, counter matrix + **non-material streak** |
 | `phase-3-replan.md` | Advisors/native replan, Status stops (until P0/P1×2, stalls) |
 | `phase-4-commit.md` | Staging, vetoes, commit body |
@@ -18,4 +18,5 @@ Normative one-cycle law. **SKILL.md** is the operator card; open these when exec
 | `contracts/outer-loop.md` | Ranking: host goal → `improve` driver (finite caps) |
 
 Continuous multi-cycle: host **goal** or `../../improve/SKILL.md`.  
-Worktree: `../../../tools/improve-worktree.sh`.
+Worktree: `../../../tools/improve-worktree.sh`.  
+Lint (discover/cache/run): `../../../tools/improve-lint.sh` + `improve-lint-discover.js`.

@@ -57,12 +57,18 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 
 ### Iteration 1 — <date>
 **Thesis:** what we tried and why we thought it would help
+**Lint:** PASS | FAIL | skipped (no paths | no tools)
+**Lint tools:** <comma ids | none>
 **Test result:** PASS | FAIL
 **Outcome:** confirmed | disproven | partial | blocked
 **Error signature:** <none | exact short string — see Phase 2>
 **Committed:** pending | yes | no — <reason>
 **Notes for next cycle:** …
 ```
+
+`**Lint:**` / `**Lint tools:**` are optional on older ledger entries; new cycles should
+write them. Lint is orchestrator-owned via `tools/improve-lint.sh` (see phase-1-execute);
+it is **not** folded into `test_command`.
 
 ### `## Driver` (rewritable; automation + rehydration)
 

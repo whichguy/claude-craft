@@ -62,10 +62,16 @@ Use this explicit matrix:
 
 Derive an error signature deterministically. Prefer the first failing test node id or
 file+line greppable from `TEST_OUTPUT_TAIL`, using language-agnostic lines matching
-`FAIL`, `ERROR`, `Error:`, `failed`, or `AssertionError`. Otherwise use the first 12 hex
+`FAIL`, `ERROR`, `Error:`, `failed`, or `AssertionError`. On **lint fail** (suite not run
+or also fail), prefer the first lint line matching `error`, `Error:`, `✖`, or
+`improve-lint: FAIL <id>`, else `lint:<tool-id>`. Otherwise use the first 12 hex
 characters of the SHA-256 of the last 20 non-empty tail lines. Store the exact string in
 the Log's `**Error signature:**` field; the next cycle compares by string equality, not
 fuzzy “same-ish” judgment.
+
+Also write `**Lint:**` / `**Lint tools:**` from Phase 1 (`PASS`/`FAIL`/`skipped`, tool ids
+or `none`). Lint skip + empty `CHANGED_PATHS` remains the empty-paths non-material row;
+lint fail is STATUS FAIL and uses the FAIL matrix rows.
 
 #### Progress pulse (draft)
 
