@@ -46,6 +46,7 @@ Note: cycle 3 uses terminal status=complete fixtures for teardown next_auto chec
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 4 | material | (next) | improve SKILL S12 / lifecycle flowchart omitted tip-unmerged open-pr; open-pr hint merge-only |
-| 5–6 | clean | pending | re-audit after driver S12 fix |
+| 4 | material | `14fd07c` | improve SKILL S12 / lifecycle flowchart open-pr; open-pr hint tip-aware |
+| 5 | **clean** | (this) | contract-iter5 + mocha 34 |
+| 6 | pending | — | second clean |
 
