@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * pointer.mjs — L3: flock-guarded RMW for improve-loop active.json
+ * pointer.js — L3: flock-guarded RMW for improve-loop active.json
  *
  * Usage:
- *   node pointer.mjs read  --git-common-dir <abs>
- *   node pointer.mjs write --git-common-dir <abs> --json '<object|@file|->'
- *   node pointer.mjs clear --git-common-dir <abs>
- *   node pointer.mjs set-reintegrate-blocked --git-common-dir <abs> --error <msg>
+ *   node pointer.js read  --git-common-dir <abs>
+ *   node pointer.js write --git-common-dir <abs> --json '<object|@file|->'
+ *   node pointer.js clear --git-common-dir <abs>
+ *   node pointer.js set-reintegrate-blocked --git-common-dir <abs> --error <msg>
  *
  * Exit codes:
  *   0 ok
@@ -21,15 +21,14 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
 
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(`usage:
-  node pointer.mjs read  --git-common-dir <abs>
-  node pointer.mjs write --git-common-dir <abs> --json '<obj|@file|->'
-  node pointer.mjs clear --git-common-dir <abs>
-  node pointer.mjs set-reintegrate-blocked --git-common-dir <abs> --error <msg>`);
+  node pointer.js read  --git-common-dir <abs>
+  node pointer.js write --git-common-dir <abs> --json '<obj|@file|->'
+  node pointer.js clear --git-common-dir <abs>
+  node pointer.js set-reintegrate-blocked --git-common-dir <abs> --error <msg>`);
   process.exit(1);
 }
 
@@ -37,10 +36,6 @@ function arg(name) {
   const i = process.argv.indexOf(name);
   if (i < 0) return null;
   return process.argv[i + 1] ?? null;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(name);
 }
 
 function dirs(gcd) {

@@ -10,11 +10,29 @@ const { execFileSync } = require('child_process');
 const GIT = process.env.GIT_CMD || 'git';
 
 function git(repo, args, opts = {}) {
-  return execFileSync(GIT, ['-C', repo, ...args], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', opts.inheritStderr ? 'inherit' : 'pipe'],
-    ...opts,
-  }).trim();
+  try {
+    return execFileSync(GIT, ['-C', repo, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', opts.inheritStderr ? 'inherit' : 'pipe'],
+      ...opts,
+    }).trim();
+  } catch (e) {
+    // Normalize stderr so callers can always String(e.stderr)
+    if (e && e.stderr != null && !Buffer.isBuffer(e.stderr)) {
+      /* already string when encoding utf8 */
+    } else if (e && Buffer.isBuffer(e.stderr)) {
+      e.stderr = e.stderr.toString('utf8');
+    }
+    throw e;
+  }
+}
+
+/** Human-readable git/child error for logs. */
+function errMsg(e) {
+  if (!e) return 'unknown error';
+  const se = e.stderr != null ? String(e.stderr).trim() : '';
+  if (se) return se;
+  return e.message ? String(e.message) : String(e);
 }
 
 function resolveRepo(repoArg) {
@@ -130,6 +148,7 @@ function isTracked(repo, filePath) {
 module.exports = {
   GIT,
   git,
+  errMsg,
   resolveRepo,
   commonGit,
   launchRoot,

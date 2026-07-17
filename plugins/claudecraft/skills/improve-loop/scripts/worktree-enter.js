@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * worktree-enter.mjs — L3: cold-start | resume | migrate | discard for improve-loop
+ * worktree-enter.js — L3: cold-start | resume | migrate | discard for improve-loop
  *
  * Usage:
- *   node worktree-enter.mjs --repo <path> --target <text> \
+ *   node worktree-enter.js --repo <path> --target <text> \
  *        [--test-command <cmd>] [--discard-legacy] [--json]
  *
  * Prints JSON:
@@ -41,12 +41,14 @@ const {
   isUnder,
   porcelain,
   isTracked,
+  errMsg,
+  randomHex,
 } = require('./lib-paths.js');
 
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'usage: node worktree-enter.mjs --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--json]'
+    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--json]'
   );
   process.exit(1);
 }
@@ -119,14 +121,15 @@ function codeDirtyLaunch(launch) {
 }
 
 function coldStart(launch, commonGitDir, target, testCommand, notes) {
-  ensureWorktreesGitignore(launch);
+  // Do NOT write .gitignore on LAUNCH — that leaves launch dirty and blocks merge-back.
+  // Ensure ignore line on WORKSPACE after worktree add so the campaign branch can commit it.
   const slug = stampSlug(target);
   let campaignBranch = 'improve/' + slug;
   let worktreePath = path.join(launch, '.worktrees', slug);
 
   // collision rare: append 4 hex once
   if (fs.existsSync(worktreePath)) {
-    const extra = require('./lib-paths.js').randomHex(4);
+    const extra = randomHex(4);
     campaignBranch = campaignBranch + '-' + extra;
     worktreePath = worktreePath + '-' + extra;
     notes.push('collision-retry-suffix=' + extra);
@@ -136,9 +139,12 @@ function coldStart(launch, commonGitDir, target, testCommand, notes) {
   try {
     git(launch, ['worktree', 'add', '-b', campaignBranch, worktreePath, 'HEAD']);
   } catch (e) {
-    console.error('worktree-enter: worktree add failed: ' + (e.stderr || e.message));
+    console.error('worktree-enter: worktree add failed: ' + errMsg(e));
     process.exit(7);
   }
+
+  const gi = ensureWorktreesGitignore(worktreePath);
+  if (gi.changed) notes.push('gitignore-ensured-on-workspace');
 
   const lb = launchBranch(launch);
   const head = git(launch, ['rev-parse', 'HEAD']);

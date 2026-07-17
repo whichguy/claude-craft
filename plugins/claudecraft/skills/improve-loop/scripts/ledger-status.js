@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * ledger-status.mjs — L3: parse IMPROVE_LOOP.md + landed check for goal progress
+ * ledger-status.js — L3: parse IMPROVE_LOOP.md + landed check for goal progress
  *
  * Usage:
- *   node ledger-status.mjs --workspace <path> [--json]
+ *   node ledger-status.js --workspace <path> [--json]
  *
  * Exit codes:
  *   0 ok (including missing ledger → status null)
@@ -20,7 +20,7 @@ const { git } = require('./lib-paths.js');
 
 function usage(msg) {
   if (msg) console.error(msg);
-  console.error('usage: node ledger-status.mjs --workspace <path>');
+  console.error('usage: node ledger-status.js --workspace <path>');
   process.exit(1);
 }
 
@@ -146,8 +146,8 @@ if (result.latest_n != null) {
 if (result.status) {
   result.terminal =
     result.status === 'complete' ||
-    result.status.startsWith('stopped') ||
-    result.status.startsWith('complete');
+    result.status.startsWith('complete') ||
+    result.status.startsWith('stopped');
 }
 
 process.stdout.write(JSON.stringify(result, null, 2) + '\n');

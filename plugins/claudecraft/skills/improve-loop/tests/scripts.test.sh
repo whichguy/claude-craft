@@ -45,7 +45,8 @@ node "$SCRIPTS/worktree-enter.js" --repo "$REPO" --target "unit test target" \
 assert "enter has mode cold-start" grep -q '"mode": "cold-start"' "$OUT"
 WS="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT")"
 assert "workspace exists" test -d "$WS"
-assert "gitignore has .worktrees/" grep -qx '.worktrees/' "$REPO/.gitignore"
+# gitignore is on WORKSPACE (not LAUNCH) so launch is not merge-blocked by untracked .gitignore
+assert "workspace gitignore has .worktrees/ (cold-start)" grep -qx '.worktrees/' "$WS/.gitignore"
 assert "pointer exists" test -f "$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).pointer)" "$OUT")"
 
 # resume same worktree
@@ -161,6 +162,64 @@ OUTD="$TMP/discard.json"
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO3" --target "disc" --discard-legacy >"$OUTD"
 assert "discard-cold-start" grep -q '"mode": "discard-cold-start"' "$OUTD"
 assert "discard removed launch ledger" test ! -f "$REPO3/IMPROVE_LOOP.md"
+
+# --- M1: launch must stay clean after cold-start (no merge-blocking .gitignore dirt) ---
+REPO4="$TMP/repo4"
+mkdir -p "$REPO4"
+git -C "$REPO4" init -q -b main
+git -C "$REPO4" config user.email "test@example.com"
+git -C "$REPO4" config user.name "Test"
+echo x >"$REPO4/README"
+git -C "$REPO4" add README
+git -C "$REPO4" commit -q -m "init"
+OUT4="$TMP/enter4.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO4" --target "merge path" --test-command "true" >"$OUT4"
+WS4="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT4")"
+# Launch may show ?? .worktrees/ (isolation); must NOT show untracked .gitignore (would block FF)
+LAUNCH_PORC="$(git -C "$REPO4" status --porcelain || true)"
+assert "launch has no untracked .gitignore after cold-start" bash -c "! echo \"$LAUNCH_PORC\" | grep -q 'gitignore'"
+assert "workspace gitignore ensured" test -f "$WS4/.gitignore"
+assert "workspace gitignore has .worktrees/" grep -qx '.worktrees/' "$WS4/.gitignore"
+
+# land a campaign commit including .gitignore, then merge-back
+git -C "$WS4" add -- .gitignore
+# optional tiny change so commit has substance if gitignore already tracked later
+echo "line" >>"$WS4/README"
+git -C "$WS4" add -- README .gitignore
+git -C "$WS4" commit -q -m "improve-loop: iteration 1 — isolation gitignore + touch"
+OUTMB="$TMP/mergeback.json"
+set +e
+node "$SCRIPTS/merge-back.js" --repo "$REPO4" >"$OUTMB" 2>"$TMP/mergeback.err"
+MB_EC=$?
+set -e
+assert "merge-back exit 0" test "$MB_EC" -eq 0
+assert "merge-back ok" grep -q '"merge_back": "ok"' "$OUTMB"
+assert "merge-back ok flag" grep -q '"ok": true' "$OUTMB"
+# pointer cleared
+GCD4="$(git -C "$REPO4" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ -z "$GCD4" || "$GCD4" != /* ]]; then
+  GCD4="$(cd "$REPO4" && cd "$(git -C "$REPO4" rev-parse --git-common-dir)" && pwd)"
+fi
+assert "pointer cleared after merge-back" test ! -f "$GCD4/improve-loop/active.json"
+# campaign branch gone
+set +e
+git -C "$REPO4" rev-parse --verify "improve/" >/dev/null 2>&1
+# check no improve/* branches
+IMPROVE_LEFT="$(git -C "$REPO4" branch --list 'improve/*' | wc -l | tr -d ' ')"
+set -e
+assert "campaign branch deleted" test "$IMPROVE_LEFT" = "0"
+# launch has the README change from FF
+assert "launch has merged README" grep -q line "$REPO4/README"
+
+# pointer write/clear roundtrip
+node "$SCRIPTS/pointer.js" write --git-common-dir "$GCD4" --json '{"version":1,"state":"active","worktree_path":"/tmp/x"}' >/dev/null
+assert "pointer write creates file" test -f "$GCD4/improve-loop/active.json"
+node "$SCRIPTS/pointer.js" clear --git-common-dir "$GCD4" >/dev/null
+assert "pointer clear removes file" test ! -f "$GCD4/improve-loop/active.json"
+
+# usage strings must not advertise .mjs
+assert "worktree-enter usage is .js" bash -c "node \"$SCRIPTS/worktree-enter.js\" 2>&1 | grep -q worktree-enter.js"
+assert "no .mjs in worktree-enter usage" bash -c "! node \"$SCRIPTS/worktree-enter.js\" 2>&1 | grep -q worktree-enter.mjs"
 
 echo "---"
 echo "passed=$pass failed=$fail"

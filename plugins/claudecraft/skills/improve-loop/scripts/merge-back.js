@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * merge-back.mjs — L3: end-of-campaign FF merge into launch + teardown
+ * merge-back.js — L3: end-of-campaign FF merge into launch + teardown
  *
  * Usage:
- *   node merge-back.mjs --repo <path> [--json]
+ *   node merge-back.js --repo <path> [--json]
  *
  * Reads pointer; requires state active or reintegrate_blocked and terminal land
  * is the caller's responsibility (skill Phase 5). This script only does FF + teardown.
@@ -29,11 +29,18 @@ const {
   launchRoot,
   pointerPaths,
   porcelain,
+  errMsg,
 } = require('./lib-paths.js');
+
+/** Paths that are isolation plumbing only — do not block merge-back. */
+function isIsolationOnlyDirt(paths) {
+  if (!paths.length) return true;
+  return paths.every((p) => p === '.gitignore' || p === '.worktrees' || p.startsWith('.worktrees/'));
+}
 
 function usage(msg) {
   if (msg) console.error(msg);
-  console.error('usage: node merge-back.mjs --repo <path>');
+  console.error('usage: node merge-back.js --repo <path>');
   process.exit(1);
 }
 
@@ -97,7 +104,7 @@ if (!launchBranch) {
 }
 
 const dirt = porcelain(launch);
-if (dirt.length) {
+if (dirt.length && !isIsolationOnlyDirt(dirt)) {
   out.error = 'launch dirty: ' + dirt.slice(0, 8).join(', ');
   ptr.state = 'reintegrate_blocked';
   ptr.reintegrate_error = out.error;
@@ -105,6 +112,9 @@ if (dirt.length) {
   out.merge_back = 'blocked';
   process.stdout.write(JSON.stringify(out, null, 2) + '\n');
   process.exit(3);
+}
+if (dirt.length) {
+  out.notes = (out.notes || []).concat(['ignored-isolation-dirt:' + dirt.join(',')]);
 }
 
 try {
@@ -115,7 +125,7 @@ try {
   }
   git(launch, ['merge', '--ff-only', campaign]);
 } catch (e) {
-  const msg = (e.stderr || e.message || String(e)).toString().slice(0, 500);
+  const msg = errMsg(e).slice(0, 500);
   ptr.state = 'reintegrate_blocked';
   ptr.reintegrate_error = msg;
   fs.writeFileSync(pointer, JSON.stringify(ptr, null, 2) + '\n', 'utf8');

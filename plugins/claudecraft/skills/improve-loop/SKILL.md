@@ -256,13 +256,11 @@ Fail fast in Phase 0. Do not half-run a cycle.
     `COMMON_GIT=$(git rev-parse --path-format=absolute --git-common-dir)`. Ensures resume
     re-enters the **same** WORKSPACE (never a second worktree).
   While pointer `state: active`, launch must not receive campaign ledger, code, or commits.
-- **`.worktrees/` must be gitignored** on the target/launch repo. Cold-start (and migrate
-  when creating a worktree) **ensures** a tracked or untracked root `.gitignore` contains an
-  exact line `.worktrees/` (create `.gitignore` if missing; append the line if absent; never
-  rewrite unrelated entries). If that edit is the only launch-side change besides the
-  campaign worktree, stage/commit it on the **campaign branch** in the first Phase 4 that
-  lands (or a ledger-only cycle if no code yet) so the ignore rule is durable — do **not**
-  leave campaign paths as unignored litter on launch.
+- **`.worktrees/` must be gitignored.** L3 `worktree-enter.js` ensures an exact `.worktrees/`
+  line on the **campaign WORKSPACE** `.gitignore` after `worktree add` (not on LAUNCH — writing
+  launch would leave merge-blocking dirt). Stage/commit that `.gitignore` on the **campaign
+  branch** in the first Phase 4 that lands (or a ledger-only cycle if no code yet) so the
+  ignore rule is durable. Do **not** leave campaign paths as unignored litter.
 - `IMPROVE_LOOP.md` at **WORKSPACE** must not be gitignored. Check with
   `git -C "$WORKSPACE" check-ignore -q IMPROVE_LOOP.md` once WORKSPACE exists.
   If it is ignored, refuse clearly so the user can un-ignore it.
@@ -392,16 +390,16 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
      "${DISCARD[@]}"
    ```
 
-   Parse the JSON stdout. Set:
+   Parse the JSON stdout (exact keys from `worktree-enter.js`):
 
    ```
-   WORKSPACE        = .workspace
-   LAUNCH           = .launch
-   COMMON_GIT       = .common_git
-   POINTER          = .pointer
-   campaign_branch  = .campaign_branch
-   launch_branch    = .launch_branch
-   mode             = .mode   # resume | cold-start | migrate | discard-cold-start | merge-back-only
+   WORKSPACE        = json.workspace
+   LAUNCH           = json.launch
+   COMMON_GIT       = json.common_git
+   POINTER          = json.pointer
+   campaign_branch  = json.campaign_branch
+   launch_branch    = json.launch_branch
+   mode             = json.mode   # resume | cold-start | migrate | discard-cold-start | merge-back-only
    ```
 
    Exit-code map (worktree-enter): `3` lock busy → stop; `4` launch code-dirty → stop
