@@ -38,6 +38,116 @@ never call `update_goal`, never claim the objective is met, and never emit promi
 Complete the goal **only** when Status is terminal **and** the iteration commit has landed
 (merge-back best-effort, reported, not required). On any stop/veto before that: report only.
 
+## Status reporting (user-facing — mandatory)
+
+Operators must always know **where** the campaign lives, **which phase** is running, and
+**what to do next** — including after short-circuits. Do **not** bury status in tool noise
+or end with only a commit hash. Emit the blocks below as plain markdown the user can scan
+in chat (emoji optional; keep labels stable so grepping logs works).
+
+### Live phase banner (every phase entry)
+
+When entering a phase (or a Phase 0 short-circuit branch), print **one** short line first:
+
+```text
+▸ improve · Phase <0–5 | short-circuit name> · <one-line action>
+```
+
+Examples:
+
+```text
+▸ improve · Phase 0 · cold-start worktree improve/backchain-skill-…-a1b2c3
+▸ improve · Phase 0 · resume WORKSPACE (pointer active)
+▸ improve · Phase 0 · migrate-or-discard (legacy launch ledger)
+▸ improve · Phase 0 · short-circuit: ledger-flush (not landed, clean tree)
+▸ improve · Phase 1 · execute: <first 80 chars of backlog item>
+▸ improve · Phase 1 · test: `make test-fast`
+▸ improve · Phase 3 · advisors: Round 1 (codex + grok) | native-only
+▸ improve · Phase 4 · commit improve-loop: iteration 3 — …
+▸ improve · Phase 5 · merge-back ff-only → main
+```
+
+On any hard stop / veto, print immediately:
+
+```text
+▸ improve · STOP · <reason code> — <one human sentence>
+```
+
+Reason codes (use these strings when they apply): `shell unavailable`,
+`ambiguous target repo`, `no test command`, `legacy tracked ledger`,
+`launch code-dirty`, `worktree code-dirty`, `code-dirty veto`, `secret veto`,
+`commit failed`, `reintegrate_blocked`, `scope violation`.
+
+### Kickoff card (once Phase 0 has resolved WORKSPACE — or on early STOP)
+
+```markdown
+### 🔄 Improve · kickoff
+| | |
+|---|---|
+| **Target** | <plain-language target> |
+| **Repo** | `<TARGET_REPO>` |
+| **Mode** | cold-start \| resume \| migrate \| discard → cold-start \| merge-back-only \| short-circuit |
+| **Launch** | `<LAUNCH>` · branch `<launch_branch\|detached>` |
+| **Workspace** | `<WORKSPACE>` |
+| **Campaign branch** | `improve/<slug>` |
+| **Pointer** | `<POINTER>` · state `active\|reintegrate_blocked` |
+| **Test command** | `<cmd>` |
+| **Iteration N** | <n or — if not yet allocated> |
+| **Backlog open** | <count> · next: <short item or _(empty)_> |
+| **Outer goal** | yes \| no |
+```
+
+If Phase 0 stops before WORKSPACE exists, still emit this card with Mode = stop and fill
+only the fields you know; put the STOP reason in a final **Blocker** row.
+
+### Mid-cycle beats (concise)
+
+- **Phase 1 select:** one line: item + why (or `empty-backlog · no Phase 1 execute`).
+- **After test:** `Test · PASS|FAIL` + ≤2-line summary (or first error signature).
+- **Phase 3:** `Advisors · usable K/M` + `Round 2 · yes|skipped (<why>)` + one-line
+  replan direction (or `Backlog unchanged`).
+- **Phase 4:** `Commit · yes <short-sha> · subject` **or** `Commit · no — <reason>`.
+
+Do not paste full suite logs into chat; keep tails for the ledger only.
+
+### Closing card (Phase 5 — always, including stops/vetoes)
+
+End **every** invocation with this card (adapt rows that do not apply; never omit the
+section):
+
+```markdown
+### ✅ Improve · cycle result
+| | |
+|---|---|
+| **Result** | active · continue \| complete · done \| stopped (<reason>) \| blocked (<reason>) |
+| **Iteration** | N=<n> · Outcome `confirmed\|disproven\|partial\|blocked` · Test `PASS\|FAIL\|n/a` |
+| **Thesis** | <one line> |
+| **What landed** | <paths or _no code_> |
+| **Commit** | `yes` `<short-sha>` · `improve-loop: iteration N — …` **or** `no — <reason>` |
+| **Status (ledger)** | `active\|complete\|stopped (…)` |
+| **Stop counters** | no-progress=<i> · same-error=<j> · sig=`<none\|…>` |
+| **Backlog** | open <k> · checked this cycle <list or —> |
+| **Advisors** | <who responded / native-only / skipped> |
+| **Merge-back** | n/a (still active) \| ok → main \| blocked · run: `git -C <LAUNCH> merge --ff-only <branch>` |
+| **Workspace** | `<WORKSPACE>` (kept) \| removed after merge-back |
+| **Pointer** | `active` \| `reintegrate_blocked` \| deleted |
+| **Next** | re-invoke `/improve <target>` · or `/goal …` · or operator action: <one line> |
+```
+
+Tone: confident, scannable, no filler. Prefer tables over walls of prose. When Result is
+`blocked` or `stopped`, **Next** must be a concrete operator action (not “try again” alone).
+
+### Multi-cycle (`/goal`) progress line
+
+When GOAL_MODE and Status remains `active` after a successful cycle, also emit one line
+suitable for `update_goal(message: …)`:
+
+```text
+improve iter N active · open backlog <k> · commit <short-sha|none> · workspace <slug>
+```
+
+Only Phase 5 may call `update_goal(completed: true, …)` (terminal + landed).
+
 ## Invocation
 
 ```
@@ -1037,19 +1147,21 @@ below). No second clear commit.
 ### Phase 5 — Outer signal + **merge-back (end of campaign only)**
 
 Apply the **Outer goal protocol**. Land first; merge-back second and best-effort; never merge
-mid-campaign.
+mid-campaign. **Always** end the user-visible turn with the **Closing card** from
+[Status reporting](#status-reporting-user-facing--mandatory) (even on veto/STOP). Phase
+banners + kickoff card earlier in the turn are required when Phase 0 ran at all.
 
 **GOAL_MODE:** an outer `/goal` is active. If the `update_goal` tool exists, use it for
 complete/progress. Else (Claude goal without that tool): state objective met in prose and
-stop further improve cycles. Standalone `/improve` → report only. Ambiguous → treat as
-standalone (never false-complete).
+stop further improve cycles. Standalone `/improve` → report only (still use the Closing
+card). Ambiguous → treat as standalone (never false-complete).
 
 | Condition | Action |
 |---|---|
-| Terminal + landed | Report + merge-back; if GOAL_MODE → **complete** (include Status + `merge-back: ok\|blocked`) |
-| Terminal + not landed | Report failure/veto; **do not** complete |
-| Active after cycle | Report; optional short progress if GOAL_MODE; **do not** complete |
-| Dirty/veto before Phase 5 | Report only (never invent terminal Status over dirty code) |
+| Terminal + landed | Closing card + merge-back; if GOAL_MODE → **complete** (include Status + `merge-back: ok\|blocked`) |
+| Terminal + not landed | Closing card (Result blocked/stopped, Commit no); **do not** complete |
+| Active after cycle | Closing card + multi-cycle progress line if GOAL_MODE; **do not** complete |
+| Dirty/veto before Phase 5 | Closing card only (never invent terminal Status over dirty code) |
 
 `stopped (...)` and `complete` are both **finished campaigns** once landed — complete the
 goal with the reason so multi-cycle does not re-open forever.
