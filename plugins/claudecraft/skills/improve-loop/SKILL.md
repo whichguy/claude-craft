@@ -39,15 +39,16 @@ loop iteration**. Cap: `MAX_CYCLES` default **8** (env `IMPROVE_LOOP_MAX_CYCLES`
 **Do not** wrap improve-loop in ralph-loop as the primary multi-cycle driver. **Do not** stop
 after the first `active` cycle waiting for the user when mode is autonomous.
 
-**Workspace rule (non-negotiable):** From cold-start until terminal **merge-back**, **all**
-improve work (ledger, code, tests, commits) happens in **exactly one** campaign worktree on
-branch `improve/<slug>` under the launch checkout's `.worktrees/`. The launch checkout is
-**read-only for campaign purposes** mid-run — no campaign commits, no `IMPROVE_LOOP.md`, no
-campaign code edits on launch. Merge into the launch branch happens **only once**, after a
-terminal iteration lands on the campaign branch — never per-cycle, never mid-campaign.
-Resume always re-enters **that same** worktree (pointer), never a second one. Two absolute
-paths exist only as plumbing (`WORKSPACE` = the campaign worktree; `LAUNCH` = primary
-checkout for cold-start and end-of-campaign FF) — the campaign does **not** “run on launch.”
+**Workspace rule (non-negotiable):** For the duration of **one `/improve` invoke**, all
+campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
+`LAUNCH/.worktrees/`. Launch is read-only mid-run. Merge-back once at end (terminal land).
+
+**Self-contained cycles (product default):** Each L2 cycle is self-contained. **Git commit
+bodies are the durable ledger** (Thesis/Outcome/Notes/Next backlog). There is **no
+cross-invoke resume** by default: entry **discards stale** pointer/worktree, then cold-starts.
+In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash recovery:
+`--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md` during a
+run for advisors — never the recovery surface.
 
 **Package paths** (resolve relative to this skill directory):
 
@@ -55,6 +56,7 @@ checkout for cold-start and end-of-campaign FF) — the campaign does **not** �
 SKILL_DIR/references/goal-objective.template.md   # optional host /goal body
 SKILL_DIR/scripts/shell-probe.sh
 SKILL_DIR/scripts/worktree-enter.js
+SKILL_DIR/scripts/campaign-teardown.js
 SKILL_DIR/scripts/pointer.js
 SKILL_DIR/scripts/ledger-status.js
 SKILL_DIR/scripts/merge-back.js
@@ -103,10 +105,13 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
        cycle** — **DO NOT stop for the user**, do not ask “continue?”, do not end the turn.
 7. **When the loop exits:** emit the **Campaign report** once (see Status reporting). Optional
    `update_goal(completed: true)` only if terminal+landed and a goal is Active (ignore tool
-   errors if goal was never Active). **Then restore home:** outer
-   `cd "$ORIGINAL_CWD"` when that path still exists; else leave sticky on
-   `TARGET_REPO`/`LAUNCH` and note the failed restore in the report. Never leave sticky CWD
-   under a deleted `.worktrees/*`.
+   errors if goal was never Active).
+8. **Always teardown isolation for this invoke:**
+   - Terminal+landed → `merge-back.js` (FF + worktree/branch/pointer remove).
+   - Blocked / capped / fail → `campaign-teardown.js --repo "$TARGET_REPO"` best-effort
+     (no FF; clear pointer + remove worktree/branch so next `/improve` is clean).
+9. **Homecoming:** `cd "$ORIGINAL_CWD"` when it still exists; else leave sticky on
+   `TARGET_REPO`/`LAUNCH`. Never leave sticky under deleted `.worktrees/*`.
 
 Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
@@ -406,28 +411,31 @@ Fail fast in Phase 0. Do not half-run a cycle.
   generic agent) by default. Optional implementers are never required for the cycle to
   proceed.
 
-## Durable state: `IMPROVE_LOOP.md`
+## Durable state: git commits (self-contained cycles)
 
-Write one state file at **`$WORKSPACE/IMPROVE_LOOP.md`** (never on LAUNCH during an active
-campaign). It is the **active-campaign resume surface** only: header, Backlog, and Log for
-the campaign currently in progress. Resume from any cwd uses the **pointer** at
-`$COMMON_GIT/improve-loop/active.json` (not a tracked file) to re-enter the **same**
-WORKSPACE. The long-term, reviewable ledger is **git commit messages**:
+**Git is the only durable ledger.** Each cycle’s Phase 4 commit body carries Thesis, Outcome,
+test evidence, advisor consolidation, Notes, stop-condition state, and **`Next backlog:`**
+checklist lines (or `Next backlog: (empty) → complete`). The next cycle rebuilds continuity
+from:
 
-- Every cycle's Phase 4 iteration commit body carries Thesis, Outcome, test evidence, advisor
-  consolidation, Notes, and stop-condition state (always).
-- On a **terminal** cycle (`complete` or `stopped (...)`), that same Phase 4 commit also
-  embeds a **verbatim full-file archive** of `IMPROVE_LOOP.md` in the message body and
-  **removes the file from the tree** in that commit — no second clear commit. The next
-  `/improve` cold-starts. Prior learnings remain via
-  `git log --grep="improve-loop: iteration"` (Phase 0 step 7 digest).
+```bash
+git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%n%b%n---"
+```
 
-While active, the file has a rewritable header and Backlog plus a strictly
-append-only Log, with two narrow exceptions on the *latest, not-yet-committed* entry only:
-(1) its `Committed` and `Notes` fields as Phase 4 specifies, and (2) its `Test result` /
-`Outcome` / `Error signature` and the Stop-condition tracking lines, as Phase 3's completion
-gate specifies (when a completion-confirmation suite fails). Phase 0 steps 3a and 3b may also
-repair a false `yes` or stuck `pending` after an interrupted prior cycle.
+**Not durable / not for recovery:**
+
+- Pointer `active.json` — **run lock for this invoke only**; discarded on entry of the next
+  `/improve` (default) and cleared on exit.
+- `IMPROVE_LOOP.md` — **optional ephemeral** file during a run (advisors / local notes). May
+  be committed mid-campaign or terminal-archived, but **must not** be required to resume a
+  later invoke. Prefer deriving backlog from the latest commit’s `Next backlog:` block.
+
+**Default entry:** `worktree-enter` **discards stale** isolation then **cold-starts**.  
+**Opt-in:** `--resume` only when the operator explicitly wants crash recovery of a live pointer.
+
+**Terminal cycles:** Status `complete` / `stopped (...)` → merge-back teardown. An old
+complete commit on `main` tip must **not** prevent a new campaign from seeding (no
+“tip has archive → refuse reseed” gate on cold-start).
 
 ```markdown
 # Improve Loop: <target description>
@@ -501,8 +509,7 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    **1a. Enter the one campaign worktree (before any ledger or dirty check) — via L3 scripts.**
 
    First resolve **target repo root** (Invocation: Target repository). If L1 has not yet
-   sticky-cd'd there, do so now (`cd "$TARGET_REPO"`) so later relative product commands
-   are not relative to the Grok Build session repo. Then run L3 with absolute paths:
+   sticky-cd'd there, do so now (`cd "$TARGET_REPO"`). Then run L3 with absolute paths:
 
    ```bash
    SKILL_DIR="$(dirname path/to/this/SKILL.md)"   # skill package root (absolute)
@@ -512,11 +519,14 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    DISCARD=()
    # if invocation/same-turn text has discard legacy / clear ledger / clear IMPROVE_LOOP:
    #   DISCARD=(--discard-legacy)
+   RESUME=()
+   # only if operator explicitly asked to resume a crashed run:
+   #   RESUME=(--resume)
 
    node "$SKILL_DIR/scripts/worktree-enter.js" \
      --repo "$TARGET_REPO" --target "$TARGET" \
      ${TEST_COMMAND:+--test-command "$TEST_COMMAND"} \
-     "${DISCARD[@]}"
+     "${DISCARD[@]}" "${RESUME[@]}"
    ```
 
    Parse the JSON stdout (exact keys from `worktree-enter.js`):
@@ -528,8 +538,11 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    POINTER          = json.pointer
    campaign_branch  = json.campaign_branch
    launch_branch    = json.launch_branch
-   mode             = json.mode   # resume | cold-start | migrate | discard-cold-start | merge-back-only
+   mode             = json.mode
+     # cold-start | discard-stale-cold-start | resume (--resume only) |
+     # migrate | discard-cold-start | merge-back-only (--resume + reintegrate_blocked)
    suggested_cwd    = json.suggested_cwd   # durable LAUNCH — not WORKSPACE
+   notes            = json.notes           # may include discarded-stale-campaign:…
    ```
 
    Exit-code map (worktree-enter): `3` lock busy → stop; `4` launch code-dirty → stop
@@ -538,10 +551,8 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 
    If `mode == merge-back-only`: run Phase 5 merge-back only (L3 `merge-back.js`); stop.
 
-   Never freehand a second `git worktree add` while a pointer is `active` or
-   `reintegrate_blocked` — the script enforces single-flight + random 6-hex slugs +
-   `.worktrees/` gitignore + migrate-or-discard. If scripts are missing, stop and report
-   (do not re-implement ad hoc).
+   **Default is discard-stale + cold-start** — never freehand resume. Use `--resume` only when
+   the operator asked. Random 6-hex slugs + `.worktrees/` gitignore stay required.
 
    Optional status snapshot for kickoff card:
 
@@ -559,27 +570,17 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    - See **Shell CWD discipline** (pin destination, homecoming on L1 exit).
 
 
-2. If `$WORKSPACE/IMPROVE_LOOP.md` is absent, **do not assume a brand-new campaign**. First
-   distinguish **terminal land already committed** (resume file removed by design) from a
-   true fresh workspace:
+2. If this is a **new cold-start / discard-stale-cold-start** (default): seed an ephemeral
+   backlog from the **git digest** (step 7) + target, even when main tip is an old
+   `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
+   terminal archives — those are prior campaigns' learnings, not this run's resume file.
+   Optionally write ephemeral `$WORKSPACE/IMPROVE_LOOP.md` for advisors; or keep backlog
+   in-memory and encode `Next backlog:` in the cycle commit body. Never enter Phase 1 with
+   an empty backlog (seed 1–3 items). Set `N = 1` for the first cycle of this invoke.
+   Skip 3a–4; go to step 5.
 
-   - Inspect the most recent improve-loop commit on the campaign branch:
-     `git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 1 --format="%s%n%b"`
-     and/or leftover archive subjects
-     `git -C "$WORKSPACE" log --grep="improve-loop: archive leftover ledger" -n 1 --format="%s"`.
-   - If that tip commit's body contains
-     `--- full IMPROVE_LOOP.md (terminal archive) ---`, **or** its subject is
-     `improve-loop: archive leftover ledger after …`, the campaign is already **terminal +
-     landed** and the resume file was intentionally deleted. Do **not** reseed. Run **Phase 5
-     merge-back only** (same as `reintegrate_blocked`) and stop.
-   - Otherwise create `$WORKSPACE/IMPROVE_LOOP.md` (target, test command per Invocation,
-     Status `active`, Isolation header, empty Log, zeroed counters). Seed the Backlog
-     immediately (native, or a tiny Agent call if the target is too vague for 1–3 items).
-     Never enter Phase 1 with an empty Backlog. Skip 3a–4; go to step 5 with `N = 1`. Update
-     pointer `test_command` / `target` when filled.
-
-   **Resume rule:** absence of `IMPROVE_LOOP.md` on LAUNCH must **not** cold-start when a
-   valid active pointer exists — step 1a already re-entered the **same** WORKSPACE.
+   If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
+   merge-back-only / stop (true same-campaign recovery).
 
 3. Otherwise read the Backlog, Stop-condition block, and last two or three Log entries.
    If the Log has zero entries, the file was created by an earlier invocation that crashed
@@ -1212,6 +1213,16 @@ below). No second clear commit.
     advisor consolidation.
   - **Notes for next cycle** — the Log `Notes for next cycle` field, verbatim or closely
     paraphrased.
+  - **Next backlog** — required for self-contained cycles. Emit a block the next cycle (or
+    next `/improve` digest) can parse:
+
+    ```
+    Next backlog:
+    - [ ] <item> — <rationale>
+    - [x] <done item> — done
+    ```
+
+    Or `Next backlog: (empty) → complete` when Status is terminal / no open work.
   - **Stop-condition state** — `consecutive-no-progress` / `consecutive-same-error` values
     after this cycle, and any terminal `Status` set this cycle.
   - **Full ledger archive (terminal commits only)** — when Status is `complete` or

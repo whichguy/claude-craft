@@ -57,12 +57,28 @@ LAUNCH_ABS="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process
 assert "enter suggested_cwd is launch" test "$SCWD" = "$LAUNCH_ABS"
 assert "enter suggested_cwd is not workspace" test "$SCWD" != "$WS"
 
-# resume same worktree
+# default second enter: discard-stale + cold-start (new worktree), not resume
 OUT2="$TMP/enter2.json"
 node "$SCRIPTS/worktree-enter.js" --repo "$REPO" --target "unit test target" >"$OUT2"
-assert "second enter is resume" grep -q '"mode": "resume"' "$OUT2"
+assert "second enter discards stale" grep -qE '"mode": "discard-stale-cold-start"|"mode": "cold-start"' "$OUT2"
+assert "second enter notes discarded" grep -q 'discarded-stale-campaign' "$OUT2"
 WS2="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUT2")"
-assert "same workspace on resume" test "$WS" = "$WS2"
+assert "second enter new workspace" test "$WS" != "$WS2"
+assert "old workspace gone" test ! -d "$WS"
+
+# --resume re-enters same worktree (opt-in)
+# create fresh for resume test
+OUTR="$TMP/enter-resume.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO" --target "resume target" --test-command "true" >"$OUTR"
+WSR="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUTR")"
+OUTR2="$TMP/enter-resume2.json"
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO" --target "resume target" --resume >"$OUTR2"
+assert "resume mode" grep -q '"mode": "resume"' "$OUTR2"
+WSR2="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).workspace)" "$OUTR2")"
+assert "resume same workspace" test "$WSR" = "$WSR2"
+
+# use WSR as active workspace for rest of suite (WS was discarded)
+WS="$WSR"
 
 # ledger-status empty
 LS="$TMP/ls.json"
@@ -287,8 +303,19 @@ if [[ -z "$GCD7" || "$GCD7" != /* ]]; then
 fi
 node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test" >/dev/null
 OUT7="$TMP/enter7.json"
-node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7"
+# merge-back-only only with --resume (default discards stale)
+node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p --resume >"$OUT7"
 assert "reintegrate → merge-back-only" grep -q '"mode": "merge-back-only"' "$OUT7"
+# default enter discards reintegrate_blocked instead of resume
+node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null 2>/dev/null || true
+# re-create pointer blocked state after resume path may still hold it
+PTR7="$GCD7/improve-loop/active.json"
+if [[ -f "$PTR7" ]]; then
+  node "$SCRIPTS/pointer.js" set-reintegrate-blocked --git-common-dir "$GCD7" --error "test2" >/dev/null
+  OUT7b="$TMP/enter7b.json"
+  node "$SCRIPTS/worktree-enter.js" --repo "$REPO7" --target p >"$OUT7b"
+  assert "default discards reintegrate" grep -qE 'discard-stale-cold-start|cold-start' "$OUT7b"
+fi
 
 echo "---"
 echo "passed=$pass failed=$fail"

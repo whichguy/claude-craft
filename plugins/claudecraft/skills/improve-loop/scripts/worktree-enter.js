@@ -1,16 +1,21 @@
 #!/usr/bin/env node
 /**
- * worktree-enter.js — L3: cold-start | resume | migrate | discard for improve-loop
+ * worktree-enter.js — L3: cold-start (default) | optional --resume | migrate | discard
+ *
+ * Default product model: self-contained campaigns. A stale pointer/worktree is
+ * discarded and a fresh worktree is created. Pass --resume only to re-enter an
+ * existing pointer (crash recovery opt-in).
  *
  * Usage:
  *   node worktree-enter.js --repo <path> --target <text> \
- *        [--test-command <cmd>] [--discard-legacy] [--json]
+ *        [--test-command <cmd>] [--discard-legacy] [--resume] [--json]
  *
  * Prints JSON:
  *   {
- *     mode: "resume"|"cold-start"|"migrate"|"discard-cold-start"|"merge-back-only",
+ *     mode: "cold-start"|"discard-stale-cold-start"|"resume"|"migrate"|
+ *           "discard-cold-start"|"merge-back-only",
  *     workspace, launch, common_git, pointer, campaign_branch, launch_branch,
- *     notes: []
+ *     notes: [], suggested_cwd
  *   }
  *
  * Exit codes:
@@ -48,7 +53,7 @@ const {
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--json]'
+    'usage: node worktree-enter.js --repo <path> --target <text> [--test-command <cmd>] [--discard-legacy] [--resume] [--json]'
   );
   process.exit(1);
 }
@@ -103,6 +108,39 @@ function readPointer(commonGitDir) {
 function deletePointer(commonGitDir) {
   const { pointer } = pointerPaths(commonGitDir);
   if (fs.existsSync(pointer)) fs.unlinkSync(pointer);
+}
+
+/**
+ * Best-effort remove a prior campaign's isolation (worktree + branch + pointer).
+ * Used by default enter path so each /improve starts clean.
+ */
+function discardStaleCampaign(launch, commonGitDir, ptr, notes) {
+  const slug = ptr.campaign_branch || ptr.worktree_path || 'unknown';
+  notes.push('discarded-stale-campaign:' + slug);
+  if (ptr.worktree_path && fs.existsSync(ptr.worktree_path)) {
+    try {
+      git(launch, ['worktree', 'remove', '--force', ptr.worktree_path]);
+    } catch {
+      try {
+        git(launch, ['worktree', 'remove', ptr.worktree_path]);
+      } catch {
+        try {
+          fs.rmSync(ptr.worktree_path, { recursive: true, force: true });
+          notes.push('discard-worktree-rm-fallback');
+        } catch {
+          notes.push('discard-worktree-failed');
+        }
+      }
+    }
+  }
+  if (ptr.campaign_branch) {
+    try {
+      git(launch, ['branch', '-D', ptr.campaign_branch]);
+    } catch {
+      notes.push('discard-branch-failed-or-missing');
+    }
+  }
+  deletePointer(commonGitDir);
 }
 
 function launchBranch(launch) {
@@ -184,6 +222,7 @@ const target = arg('--target');
 if (!repoArg || !target) usage('require --repo and --target');
 const testCommand = arg('--test-command');
 const discardLegacy = has('--discard-legacy');
+const wantResume = has('--resume');
 const notes = [];
 
 let repo;
@@ -217,19 +256,21 @@ let launch_branch = null;
 let pointerPath = pointerPaths(commonGitDir).pointer;
 
 // --- detection ---
+// Default: discard any stale pointer/worktree then cold-start (self-contained cycles).
+// Opt-in --resume: re-enter existing pointer (crash recovery).
 const ptr = readPointer(commonGitDir);
 if (ptr) {
   if (!ptr.worktree_path || !isUnder(ptr.worktree_path, path.join(launch, '.worktrees'))) {
-    console.error('worktree-enter: pointer path-traversal or missing worktree_path');
-    process.exit(6);
-  }
-  if (ptr.state === 'reintegrate_blocked') {
+    // invalid pointer — clear and continue to cold-start
+    deletePointer(commonGitDir);
+    notes.push('invalid-pointer-cleared');
+  } else if (wantResume && ptr.state === 'reintegrate_blocked') {
     mode = 'merge-back-only';
     workspace = ptr.worktree_path;
     campaign_branch = ptr.campaign_branch;
     launch_branch = ptr.launch_branch;
     notes.push('state=reintegrate_blocked');
-  } else if (fs.existsSync(ptr.worktree_path)) {
+  } else if (wantResume && fs.existsSync(ptr.worktree_path)) {
     try {
       git(ptr.worktree_path, ['rev-parse', '--is-inside-work-tree']);
       mode = 'resume';
@@ -237,7 +278,6 @@ if (ptr) {
       campaign_branch = ptr.campaign_branch;
       launch_branch = ptr.launch_branch;
     } catch {
-      // fall through to repair
       try {
         git(launch, ['worktree', 'add', ptr.worktree_path, ptr.campaign_branch]);
         mode = 'resume';
@@ -250,9 +290,8 @@ if (ptr) {
         process.exit(7);
       }
     }
-  } else if (ptr.campaign_branch) {
+  } else if (wantResume && ptr.campaign_branch) {
     try {
-      // does ref exist?
       git(launch, ['rev-parse', '--verify', ptr.campaign_branch]);
       git(launch, ['worktree', 'add', ptr.worktree_path, ptr.campaign_branch]);
       mode = 'resume';
@@ -264,14 +303,17 @@ if (ptr) {
       deletePointer(commonGitDir);
       notes.push('stale-pointer-cleared');
     }
-  } else {
+  } else if (wantResume) {
     deletePointer(commonGitDir);
     notes.push('invalid-pointer-cleared');
+  } else {
+    // Default product path: discard stale isolation, then cold-start below
+    discardStaleCampaign(launch, commonGitDir, ptr, notes);
   }
 }
 
-if (!mode) {
-  // invoke inside worktree with ledger
+// --resume only: if already inside a campaign worktree with ledger, re-bind pointer
+if (!mode && wantResume) {
   const underWt = isUnder(invokeRoot, path.join(launch, '.worktrees'));
   const ledgerHere = path.join(invokeRoot, 'IMPROVE_LOOP.md');
   if (underWt && fs.existsSync(ledgerHere)) {
@@ -369,8 +411,9 @@ if (!mode) {
 }
 
 if (!mode) {
+  const discarded = notes.some((n) => String(n).startsWith('discarded-stale-campaign:'));
   const cs = coldStart(launch, commonGitDir, target, testCommand, notes);
-  mode = 'cold-start';
+  mode = discarded ? 'discard-stale-cold-start' : 'cold-start';
   workspace = cs.workspace;
   campaign_branch = cs.campaign_branch;
   launch_branch = cs.launch_branch;
