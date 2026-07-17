@@ -21,8 +21,9 @@ Banked while auditing **improve-loop** + dependent tools (`improve-next-auto.js`
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 1 | material | (next) | next-auto keep→done + phase-5 “or done with PR” contradicted worktree open-pr |
-| 2–3 | clean | pending | dual-path/contract re-audit after alignment |
+| 1 | material | `ac278b8` | next-auto keep→done + phase-5 “or done with PR” contradicted worktree open-pr |
+| 2 | **clean** | (this) | contract CLI + mocha 33; no new P0/P1 |
+| 3 | pending | — | second clean |
 
 ## Related tools
 
