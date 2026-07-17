@@ -16,9 +16,14 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 **Test command:** `<cmd>`
 **Started:** <date>          **Status:** active | complete | stopped (<reason>)
 **Iteration counter:** N     <!-- derived; next cycle uses N+1; must match Log -->
+**Until:** <string|none>     <!-- continuous default: no material P0/P1 for 2 consecutive cycles (green tests) -->
+**Max cycles:** <n|none>     <!-- continuous default 10 -->
 
 ## Driver
 - **mode:** continuous | once
+- **until:** <same as header Until|none>
+- **max_cycles:** <n|none>
+- **cycle_index:** <n|none>
 - **slug:** <slug|none>
 - **repo:** <absolute launch git root|none>
 - **launch_branch:** <branch|none>
@@ -37,6 +42,7 @@ repair a false `yes` or stuck `pending` after an interrupted prior cycle.
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0 (signature: none)
+- consecutive-non-material-cycles: 0
 
 ## Log
 (append-only — newest entry at the bottom; earlier entries are never edited.
@@ -70,9 +76,10 @@ This is **not** a second ledger — one file only. Lifecycle machine fields also
 | Keys | Bold `**key:**` + space + value; ignore unknown keys |
 | Absent values | Literal `none` (not empty, not em-dash) |
 | Paths | Absolute |
+| `until` / `max_cycles` / `cycle_index` | Campaign stop fields; **improve** writes at S2/S4; improve-loop **must not invent** until; rehydrate from header/Driver only |
 | `next_auto` | Enum only: `cycle` \| `reintegrate` \| `destroy` \| `blocked:<token>` \| `done` |
 | `resume_hint` | One imperative line for a cold agent/human — UX only; **recompute next_auto** from disk before trusting hint |
-| Rewrites | Entire `## Driver` section may be replaced each boundary (S2/S8/S11–S13 / Phase 5) |
+| Rewrites | Entire `## Driver` section may be replaced each boundary (S2/S8/S11–S13 / Phase 5); preserve until/max_cycles/mode unless improve is rewriting intentionally |
 | Legacy / malformed | Missing **or unparseable** `## Driver` → treat as absent; derive from Status + run JSON + git |
 | Secrets | No tokens, full test logs, or multi-paragraph dumps |
 

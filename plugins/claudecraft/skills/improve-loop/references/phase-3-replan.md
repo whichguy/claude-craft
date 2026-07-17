@@ -173,7 +173,14 @@ counters Phase 2 already wrote to update Status *in this exact order*:
 
 1. `consecutive-same-error >= 3` → `stopped (same-error ×3)`
 2. `consecutive-no-progress >= 3` → `stopped (no-progress ×3)`
-3. Backlog has zero unchecked items after replan → `complete`, **but gate it on a green
+3. **Until P0/P1×2 (disk):** if header/Driver `until` is the default
+   `no material P0/P1 for 2 consecutive cycles (green tests)` (or equivalent) **and**
+   `consecutive-non-material-cycles >= 2` **and** this cycle's suite is green (or the last
+   non-material cycle was PASS) → set Status `complete` (until satisfied). Do **not** invent
+   until in chat; only honor disk. User-specified different until strings are evaluated by
+   the improve driver / host; improve-loop only auto-completes on this default until form.
+4. Backlog has zero unchecked **P0/P1** items after replan (P2-only optional bullets may remain
+   unchecked without blocking) → `complete`, **but gate it on a green
    suite** — a "tested improvement" loop must never sign off, or record a green result,
    without a green suite. Three sub-cases, by what happened *this* cycle:
    - **(a) A normal PASS cycle that just checked off its last item** (the suite already ran
@@ -209,13 +216,12 @@ counters Phase 2 already wrote to update Status *in this exact order*:
      would double-count. **Precondition:** if the revert failed, Outcome is `blocked`, or the
      tree is code-dirty, do **not** complete here — leave it to Phase 4's code-dirty veto and
      Phase 0's next-invocation guard.
-4. **Improve driver / host caps exhausted** (when continuous): if the continuous **host**
+5. **Improve driver / host caps exhausted** (when continuous): if the continuous **host**
    ends the run (improve caps or goal budget), do **not** invent a new Status token here.
    Prefer leaving Status `active` for a mid-cap cycle, or `stopped (user)` only if the
-   operator explicitly stopped — outer caps are enforced by the host (`goal.blocked` /
-   improve S9 stop reason), not by improve-loop Phase 3. improve-loop does not own outer
-   iteration counters.
-5. Otherwise leave Status `active`.
+   operator explicitly stopped — outer caps (`max_cycles`, budget) are enforced by the host
+   (`goal.blocked` / improve S9); improve-loop does not own `cycle_index` increments (improve S8 does).
+6. Otherwise leave Status `active`.
 
 Advisors never edit counters, so a panel that wants to continue cannot override a counter
 stop. The order matters: every FAIL increments no-progress, so three identical FAILs reach

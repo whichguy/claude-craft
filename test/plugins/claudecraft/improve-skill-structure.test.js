@@ -329,6 +329,49 @@ describe('claudecraft improve skill structure', function () {
     expect(improve).to.match(/improve-next-auto\.js/);
   });
 
+  it('continuous defaults: clear target → continuous + until P0/P1×2 on disk', function () {
+    const parse = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/parse.md'),
+      'utf8'
+    );
+    const caps = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/caps.md'),
+      'utf8'
+    );
+    const improve = fs.readFileSync(path.join(CC, 'skills/improve/SKILL.md'), 'utf8');
+    expect(parse).to.match(/continuous.*target is clear|target is clear.*continuous/i);
+    expect(parse).to.match(/no material P0\/P1 for 2 consecutive cycles/);
+    expect(parse).to.match(/proceed|Do \*\*not\*\* wait for.*confirm/i);
+    expect(caps).to.match(/consecutive-non-material-cycles/);
+    expect(caps).to.match(/Until satisfied|until satisfied|streak >= 2|streak ≥ 2/i);
+    expect(improve).to.match(/no material P0\/P1 for 2 consecutive cycles/);
+    expect(improve).to.match(/\*\*until\*\*/i);
+    const ledger = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/ledger-schema.md'),
+      'utf8'
+    );
+    expect(ledger).to.match(/\*\*Until:\*\*/);
+    expect(ledger).to.match(/\*\*Max cycles:\*\*/);
+    expect(ledger).to.match(/consecutive-non-material-cycles/);
+    expect(ledger).to.match(/\*\*until:\*\*/);
+    expect(ledger).to.match(/cycle_index/);
+    const p2 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-2-learn.md'),
+      'utf8'
+    );
+    expect(p2).to.match(/consecutive-non-material-cycles|non-material/);
+    const p3 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-3-replan.md'),
+      'utf8'
+    );
+    expect(p3).to.match(/consecutive-non-material-cycles >= 2|Until P0\/P1/);
+    const outer = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/contracts/outer-loop.md'),
+      'utf8'
+    );
+    expect(outer).to.match(/State handoff|write mode\/until\/max_cycles/i);
+  });
+
   it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {
     const p0 = fs.readFileSync(
       path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),

@@ -31,7 +31,10 @@ Portable continuous objective: `../improve-loop/references/contracts/goal.md`.
 ### S0 — Parse
 
 Read `references/parse.md`. Extract repo, target, tests, until, mode, worktree, caps.  
-Echo parse card. Abort unattended if tests/target missing with no ledger to resume.
+**Defaults:** clear target → **continuous**; continuous until unset →  
+`no material P0/P1 for 2 consecutive cycles (green tests)`; max_cycles 10.  
+Echo parse card and **proceed** (do not wait for confirm). Abort unattended if tests/target
+missing with no ledger to resume; ask once for tests if interactive and missing.
 
 ### S1 — Resolve repo
 
@@ -57,8 +60,10 @@ Pass `--no-merge-to-launch` only for PR-only tips.
 Active cwd for cycles = worktree path from status/state JSON.  
 With `--no-worktree`: work in launch tree (must satisfy improve-loop dirty guards).
 
-**Driver write (S2):** set `## Driver` in active-tree `IMPROVE_LOOP.md` — mode, slug, repo,
-launch_branch, worktree_path, run_json, test_command, `next_auto: cycle`, resume_hint, updated.
+**Driver write (S2):** set `## Driver` in active-tree `IMPROVE_LOOP.md` — mode, **until**,
+**max_cycles**, cycle_index (0), slug, repo, launch_branch, worktree_path, run_json,
+test_command, `next_auto: cycle`, resume_hint, updated. Mirror **Until** / **Max cycles**
+in the ledger header (ledger-schema).
 
 ### S4–S7 — Seed plan (first turn / new target)
 
@@ -71,17 +76,17 @@ launch_branch, worktree_path, run_json, test_command, `next_auto: cycle`, resume
 ### S8 — Inner loop
 
 Read `references/caps.md` and `../improve-loop/references/contracts/progress.md`.  
-While Status active and under caps:
+While Status active and under caps (break order in caps.md):
 
-1. Cap check (cycles / elapsed / budget) → if over, break to S9.  
-2. **Run one improve-loop cycle** in the active tree (load improve-loop skill; follow its phase index and Read phase references).  
-3. Re-read `IMPROVE_LOOP.md` Status / counters.  
+1. Cap/until check from **disk** (Status, consecutive-non-material-cycles, cycle_index, max_cycles, until) → if stop, break to S9.  
+2. Increment Driver `cycle_index`; **run one improve-loop cycle** in the active tree (load improve-loop skill; follow its phase index and Read phase references). improve-loop reads **only disk** — it must not need the parse card from chat.  
+3. Re-read `IMPROVE_LOOP.md` Status / Stop-condition / Driver.  
 4. **Ensure a control-channel progress pulse** for this cycle (learnings, changes, backlog/caps progress). If the cycle did not emit one, synthesize JSON from the latest Log entry + `git status` / last commit and prefer  
    `node <plugin>/tools/improve-progress-format.js`  
    (see `../improve-loop/references/contracts/progress.md`), then emit via `goal.report` if available, else visible markdown.  
 5. **Update `## Driver`:** recompute `next_auto` / `resume_hint` / `updated` from disk rules (Phase 0);
-   prefer `node <plugin>/tools/improve-next-auto.js` with a fact snapshot when Node is available.  
-6. If terminal or until+complete, break (then S9–S12 — do not skip reintegrate while a worktree exists).
+   prefer `node <plugin>/tools/improve-next-auto.js` with a fact snapshot when Node is available; keep until/max_cycles/mode.  
+6. If terminal or until satisfied (streak ≥ 2 under default until, or Status complete), break (then S9–S12 — do not skip reintegrate while a worktree exists).
 
 **Goal host (preferred multi-cycle host):** if the harness has a goal facility, bind it per
 `../improve-loop/references/contracts/goal.md` — the goal **iterates** (each turn runs one
@@ -91,8 +96,9 @@ pulses are user-visible markdown. Do not require a Stop-hook re-invoke plugin.
 
 ### S9–S10 — Stop + ledger
 
-Record stop reason (complete / stall / max_cycles / max_elapsed / budget / blocked).  
-If ledger needs a final Status commit and improve-loop did not land one, prefer a ledger-only improve-loop flush path when tree allows.
+Record stop reason: `complete` | `until: no-P0/P1×2` | stall | max_cycles | max_elapsed |
+budget | blocked. If until satisfied but Status still active, set Status `complete` and
+ledger-flush if needed. Prefer a ledger-only improve-loop flush when tree allows.
 
 ### S11 — Reintegrate (always if worktree was created)
 

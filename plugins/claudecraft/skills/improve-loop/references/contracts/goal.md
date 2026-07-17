@@ -41,9 +41,14 @@ ledger and never blocks reintegrate.
 The continuous run stops when **any** of:
 
 1. `IMPROVE_LOOP.md` **Status** is `complete` or `stopped (...)` **and** the latest Log entry is **landed** (Committed yes + greppable commit), or a clean short-circuit with no work  
-2. User **until** condition (if any) is satisfied (only required for success-shaped complete when declared)  
+2. **Until on disk** satisfied — default continuous until is  
+   `no material P0/P1 for 2 consecutive cycles (green tests)` when  
+   `consecutive-non-material-cycles >= 2` (and suite green); user-specified **Until** overrides  
 3. Caps: `max_cycles`, `max_elapsed`, token/usd budget, and/or host max-turns / max-budget  
 4. Unrecoverable block (no test command, code-dirty veto without resolution, etc.)
+
+Until/mode/max_cycles live on the ledger header + `## Driver` (same values). Hosts must not
+invent a different stop string in chat after seed.
 
 **After** any stop that used a worktree: always **reintegrate** (and destroy unless keep-worktree / reintegrate failed). Teardown is not optional when the host “completes goal.”
 

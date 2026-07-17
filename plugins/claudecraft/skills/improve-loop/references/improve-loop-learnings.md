@@ -119,3 +119,7 @@ signals `goal.complete`/`goal.blocked` when terminal+landed.
 1. One cycle ≠ continuous campaign — goal iterates.
 2. Finite host/improve caps replace re-invoke max_iterations.
 3. Do not complete host goal over uncommitted ledger (same as old promise ban).
+
+## Continuous defaults + disk until (state handoff)
+
+Default continuous when target clear; until = no P0/P1 ×2 green on disk (header+Driver+streak). improve S0 writes until/mode/max_cycles; improve-loop never invents until.

@@ -22,14 +22,23 @@ or for a later cycle to finish; checking a `partial` item off as done risks a pr
 
 Use this explicit matrix:
 
-| Test STATUS | Outcome | `consecutive-no-progress` | `consecutive-same-error` |
-|---|---|---|---|
-| PASS | confirmed / partial, **`CHANGED_PATHS` non-empty** | reset → 0 | reset → 0, signature → none |
-| PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`) | **+1** (a no-op is not progress) | reset → 0, signature → none |
-| PASS | disproven (tests still green but thesis wrong) | +1 | reset → 0 |
-| FAIL | any, signature **equals** prior entry's signature | +1 | +1 (keep signature) |
-| FAIL | any, signature **differs** from prior (or prior was none) | +1 | reset → 1 with new signature |
-| — | blocked (could not run meaningfully) | +1 | hold counter and signature exactly as they were — neither increment nor reset |
+| Test STATUS | Outcome | `consecutive-no-progress` | `consecutive-same-error` | `consecutive-non-material-cycles` |
+|---|---|---|---|---|
+| PASS | confirmed / partial, **material P0/P1 land** (non-ledger paths for a P0/P1 item) | reset → 0 | reset → 0, signature → none | **reset → 0** |
+| PASS | confirmed / partial, **non-ledger land but Notes say P2/YAGNI-only** | reset → 0 | reset → 0 | **+1** (non-material) |
+| PASS | **`CHANGED_PATHS` empty** (no code landed; reconciled to `partial`) | **+1** | reset → 0 | **+1** (non-material) |
+| PASS | disproven (tests still green but thesis wrong) | +1 | reset → 0 | **+1** |
+| FAIL | any, signature **equals** prior entry's signature | +1 | +1 (keep signature) | hold |
+| FAIL | any, signature **differs** from prior (or prior was none) | +1 | reset → 1 with new signature | hold |
+| — | blocked (could not run meaningfully) | +1 | hold counter and signature | hold |
+
+**Material vs non-material (for until P0/P1×2):**
+
+- **Material:** non-ledger path(s) landed that fix a P0/P1 backlog item (or Log Notes explicitly
+  say material P0/P1). Resets `consecutive-non-material-cycles` to 0.  
+- **Non-material:** suite PASS and no material P0/P1 land (ledger-only, empty CHANGED_PATHS,
+  or P2-only with Notes). Increments `consecutive-non-material-cycles`.  
+- FAIL/blocked: **hold** the non-material streak (do not count as a clean non-material cycle).
 
 **Precedence (evaluate top to bottom; first match wins):**
 1. Outcome `blocked` — key it on the **Outcome, not on whether tests ran**: use the blocked
@@ -39,15 +48,15 @@ Use this explicit matrix:
    ran green but the cycle is blocked anyway (a Phase-1 scope violation: STATUS PASS, Outcome
    `blocked`). Do not mint a signature from setup noise or from a green run; hold the prior
    signature string and `consecutive-same-error` exactly as they were, while increasing only
-   `consecutive-no-progress`.
+   `consecutive-no-progress`. Hold non-material streak.
 2. **STATUS PASS with empty `CHANGED_PATHS`** (reconciled to `partial` in Phase 1) — use the
    empty-`CHANGED_PATHS` row: `consecutive-no-progress` **+1** (a green no-op is not progress
    and must **not** reset the stall counter), `consecutive-same-error` reset → 0 / signature
-   none. This row is why forcing Outcome to `partial` alone is not enough — without it, the
-   generic PASS/partial row would wrongly reset the stall counter and hide a no-op streak.
-3. Then the normal PASS/FAIL rows above.
-4. Separately, the empty-backlog lightweight path (Phase 0 step 5) holds *both* counters and
-   the signature and must not fall through into any PASS/partial reset.
+   none; non-material streak **+1**.
+3. Then the normal PASS/FAIL rows above (including material vs P2-only land).
+4. Separately, the empty-backlog lightweight path (Phase 0 step 5) holds *both* stall counters
+   and the signature; for non-material streak treat like non-material **+1** only if STATUS
+   PASS after any completion-suite (else hold).
 
 Derive an error signature deterministically. Prefer the first failing test node id or
 file+line greppable from `TEST_OUTPUT_TAIL`, using language-agnostic lines matching

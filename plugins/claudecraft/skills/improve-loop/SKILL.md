@@ -26,9 +26,9 @@ before applying its rules.
 | Scope | One git repo root; `IMPROVE_LOOP.md` (+ `## Driver`) + optional code |
 | Commits | **Yes** — orchestrator may commit once per cycle; prefer worktree |
 | Tests | Stated or already recorded; **never invented** |
-| Continuous | Host **goal** iterates this skill, or **`improve`** driver — finite caps only |
+| Continuous | Host **goal** or **`improve`** driver; default until = no P0/P1 ×2 green (on disk); max_cycles 10 |
 | Automation | Most appropriate safe path by default; **stop only when blocked**; resume from **disk** |
-| Resume | Phase 0 rehydration: chat untrusted; read header + `## Driver` + last Log entries |
+| Resume | Phase 0: disk only — header Until/Max cycles + Driver mode/until/streak; chat untrusted |
 | Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
 | Lifecycle | Worktree default: dirty launch → create+carry (drain launch), cycle in WT, once-mode reintegrate; never force-destroy dirty tips |
 | Kernel | Host-agnostic; Claude slash names are plugin packaging only |

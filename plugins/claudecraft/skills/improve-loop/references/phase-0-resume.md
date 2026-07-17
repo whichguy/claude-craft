@@ -19,10 +19,12 @@ historical Log.
    `blocked:worktree-missing`. (Full token list: `ledger-schema.md` `blocked:<token>` catalog.)  
 2. **`run_json`** (if file exists) — slug, worktree_path, launch_branch, merge_to_launch,
    reintegrate_status.  
-3. **Ledger header** — Status, test command, iteration counter / Log consistency.  
-4. **`## Driver`** — hints only (`next_auto`, `resume_hint`); never override (1)–(3). If the
-   section is **malformed** (unparseable keys/values), treat as **missing**.  
-5. **Chat / user prose** — intent only; never invent a test command or mark complete.
+3. **Ledger header** — Status, test command, iteration counter, **Until**, **Max cycles**,
+   Log consistency.  
+4. **`## Driver`** — paths + `next_auto` / `resume_hint` + **mode / until / max_cycles /
+   cycle_index** (campaign stop fields). Prefer header Until/Max cycles if Driver omits them;
+   never invent until from chat. If the section is **malformed**, treat as **missing**.  
+5. **Chat / user prose** — intent only; never invent a test command, until string, or mark complete.
    User “finish” / “stop the run” while Status active → set Status `stopped (user)` and
    derive teardown (`reintegrate` if worktree remains). Incomplete cold-resume paste
    missing repo/slug (and cwd not inside a worktree) → **ask once** interactively, or
