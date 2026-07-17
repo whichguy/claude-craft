@@ -115,6 +115,7 @@ die_status() {
     emit_kv phase "${phase:-none}"
     emit_kv next "$next"
     emit_kv exit_class "$code"
+    emit_kv resume_hint "$(resume_hint_for "$next")"
   } >&2
   exit "$code"
 }
@@ -136,6 +137,7 @@ ok_status() {
   emit_kv reintegrate_status "$rs"
   emit_kv phase "${phase:-none}"
   emit_kv next "$next"
+  emit_kv resume_hint "$(resume_hint_for "$next")"
   [[ -n "$note" ]] && emit_kv note "$note"
 }
 
@@ -909,8 +911,10 @@ then: improve-worktree.sh recover --repo $REPO --slug $SLUG"
     return 0
   fi
 
+  # Do NOT FORCE=1: must honor destroy's uncommitted-dirt guard (P2 safety).
+  # Tip is on launch, so default destroy is allowed when porcelain is clean.
   printf 'recover: tip on launch — destroying worktree\n'
-  FORCE=1 cmd_destroy
+  cmd_destroy
 }
 
 # ── argv ────────────────────────────────────────────────────────────

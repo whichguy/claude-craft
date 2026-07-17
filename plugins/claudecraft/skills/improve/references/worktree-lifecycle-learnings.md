@@ -32,6 +32,9 @@ for destroy/recover/status decisions.
    `suggested_next`; destroy refuses uncommitted dirt without `--force`;
    recover `--keep-worktree` with unmerged tip reports `next=blocked:open-pr`
    (not `done`).
+9. **recover must not FORCE-destroy.** After tip-on-launch, `cmd_destroy`
+   runs without `FORCE=1` so porcelain-dirty worktrees refuse (no silent
+   SECRET_LOST). `die_status`/`ok_status` always emit `resume_hint=`.
 
 ## Iteration log
 

@@ -594,6 +594,39 @@ describe('improve-worktree.sh', function () {
     expect(fs.existsSync(wt)).to.equal(false);
   });
 
+  it('recover with tip on launch and dirty worktree refuses destroy (no SECRET_LOST)', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'rd']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-rd');
+    fs.writeFileSync(path.join(wt, 'land.txt'), 'landed\n');
+    git(wt, 'add', 'land.txt');
+    git(wt, 'commit', '-m', 'landed tip');
+    // S11b merge so tip is on launch
+    expect(runScript(['reintegrate', '--repo', repo, '--slug', 'rd']).status).to.equal(0);
+    expect(fs.existsSync(path.join(repo, 'land.txt'))).to.equal(true);
+    // Uncommitted secret only in worktree — recover must not FORCE-destroy it
+    fs.writeFileSync(path.join(wt, 'SECRET.txt'), 'SECRET_LOST\n');
+    const rec = runScript(['recover', '--repo', repo, '--slug', 'rd']);
+    expect(rec.status).to.equal(7);
+    expect(fs.existsSync(wt)).to.equal(true);
+    expect(fs.readFileSync(path.join(wt, 'SECRET.txt'), 'utf8')).to.match(/SECRET_LOST/);
+    expect(rec.stderr + rec.stdout).to.match(/blocked:worktree-dirty|uncommitted/i);
+    expect(rec.stderr + rec.stdout).to.match(/resume_hint=/);
+    // Explicit force still allowed
+    expect(runScript(['destroy', '--repo', repo, '--slug', 'rd', '--force']).status).to.equal(0);
+  });
+
+  it('die_status paths emit resume_hint= (destroy dirty)', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'rh']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-rh');
+    fs.writeFileSync(path.join(wt, 'u.txt'), 'u\n');
+    const d = runScript(['destroy', '--repo', repo, '--slug', 'rh']);
+    expect(d.status).to.equal(7);
+    expect(d.stderr + d.stdout).to.match(/resume_hint=/);
+    expect(d.stderr + d.stdout).to.match(/next=blocked:worktree-dirty/);
+  });
+
   it('recover --keep-worktree after no-merge surfaces next=blocked:open-pr', function () {
     const repo = makeRepo();
     expect(
