@@ -72,4 +72,13 @@ snapshots; phase-0 documents the map. Invariants 4–6 unchanged.
 
 | Iter | Verdict | Commit | Finding |
 |---|---|---|---|
-| 8 | **clean** | (this) | contract-iter8 FAIL=0; mocha 41; status-style + S12 laws hold |
+| 8 | **clean** | `06266d4` | contract-iter8 FAIL=0; mocha 41; status-style + S12 laws hold |
+| 9 | **clean** | pair after `06266d4` | contract-iter9 FAIL=0; mocha 41; second consecutive (subject: iter 9 clean) |
+
+## Stop after status-mapping (goal da393bbeb079)
+
+Material `567bf37` then two independent cleans:
+- **8** → `06266d4`
+- **9** → pair after `06266d4` (docs subject: quality-review iter 9 clean)
+
+Agents may feed improve-worktree status keys into next-auto; flags must parse yes/no.
