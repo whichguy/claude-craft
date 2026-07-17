@@ -159,3 +159,6 @@ After successful bootstrap commit, carry restores launch to clean HEAD and clean
 non-ignored untracked (except `.claude/worktrees`) so S11b is not blocked by
 `launch_dirty`. improve-loop Phase 0 once-mode: dirty launch → create+carry, cycle in
 WT, Phase 5 reintegrate — not a hard dirty stop.
+
+**Safety:** drain runs only after WT bootstrap commit; apply/commit failure must leave
+launch WIP untouched (pinned by mocha).

@@ -555,8 +555,8 @@ with tarfile.open(out,'w') as tar:
     "$LAUNCH_BRANCH"
 
   # Drain launch WIP only after WT bootstrap exists so S11b can merge without launch_dirty.
-  # Never wipe launch if commit failed (path above already exited). Leave gitignored files
-  # (e.g. .env) on launch — they were not carried.
+  # Never wipe launch if apply/commit failed (those paths die_status above). Leave gitignored
+  # files (e.g. .env) on launch — they were not carried.
   printf 'carry: draining launch WIP to match HEAD (tracked restore + untracked clean)\n'
   if git_c "$launch" rev-parse --verify HEAD >/dev/null 2>&1; then
     # Restores tracked/staged modifications; does not touch untracked or ignored.
@@ -565,22 +565,17 @@ with tarfile.open(out,'w') as tar:
       git_c "$launch" checkout -- . >/dev/null 2>&1 || true
     fi
   fi
-  # Remove non-ignored untracked files/dirs except improve worktree parent.
-  # -e patterns are pathspecs relative to launch; keep .claude/worktrees intact.
+  # Remove non-ignored untracked files/dirs; keep improve worktree parent intact.
   git_c "$launch" clean -fd \
     -e '.claude/worktrees' \
     -e '.claude/worktrees/**' \
-    -e '.git/improve-runs' \
-    -e '.git/improve-runs/**' \
     >/dev/null 2>&1 || true
 
-  if [[ -n "$(git_c "$launch" status --porcelain --untracked-files=normal 2>/dev/null | grep -v '^[?][?] \.claude/worktrees' || true)" ]]; then
-    # Ignore residual ?? .claude/worktrees if any listing quirks
-    local residual
-    residual="$(git_c "$launch" status --porcelain --untracked-files=normal 2>/dev/null | grep -v '\.claude/worktrees' || true)"
-    if [[ -n "$residual" ]]; then
-      printf 'carry: warning: launch still shows residual porcelain after drain:\n%s\n' "$residual"
-    fi
+  local residual
+  residual="$(git_c "$launch" status --porcelain --untracked-files=normal 2>/dev/null \
+    | grep -v '\.claude/worktrees' || true)"
+  if [[ -n "$residual" ]]; then
+    printf 'carry: warning: launch still shows residual porcelain after drain:\n%s\n' "$residual"
   fi
 
   json_merge "$RUN_JSON" '{"state":"bootstrapped"}'

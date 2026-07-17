@@ -168,6 +168,25 @@ describe('improve-worktree.sh', function () {
     expect(fs.existsSync(path.join(repo, '.env'))).to.equal(true);
   });
 
+  it('carry apply failure does not drain launch WIP', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'cfail']).status).to.equal(0);
+    const wt = path.join(repo, '.claude/worktrees/improve-cfail');
+    // Divergent edits so git apply of launch patch fails in worktree
+    fs.writeFileSync(path.join(wt, 'README.md'), '# demo\nwt-side\n');
+    git(wt, 'add', 'README.md');
+    git(wt, 'commit', '-m', 'wt diverged');
+    fs.writeFileSync(path.join(repo, 'README.md'), '# demo\nlaunch-side\n');
+    fs.writeFileSync(path.join(repo, 'keep-me.txt'), 'stay on launch if carry fails\n');
+    const r = runScript(['carry', '--repo', repo, '--slug', 'cfail']);
+    expect(r.status, r.stderr + r.stdout).to.not.equal(0);
+    expect(r.stderr + r.stdout).to.match(/carry failed|apply/i);
+    expect(r.stdout + r.stderr).to.not.match(/draining launch WIP/);
+    // Launch WIP intact
+    expect(fs.readFileSync(path.join(repo, 'README.md'), 'utf8')).to.match(/launch-side/);
+    expect(fs.existsSync(path.join(repo, 'keep-me.txt'))).to.equal(true);
+  });
+
   it('carry then reintegrate lands bootstrap on launch without launch_dirty', function () {
     const repo = makeRepo();
     expect(runScript(['create', '--repo', repo, '--slug', 'c2']).status).to.equal(0);
