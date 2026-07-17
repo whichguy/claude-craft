@@ -168,12 +168,28 @@ Then continue with the numbered steps below.
    Set the header counter to `N`, then run Phase 3 normally.
 
 6. For turns that will run Phases 1–3, apply the dirty-tree guard using the **shared
-   code-dirty definition** (step 4): if anything code-dirty is present, stop and report rather
-   than folding unrelated pre-existing work into this cycle's commit. (This is a fresh turn, so
-   `TEST_ARTIFACT_PATHS` is empty and only gitignored artifacts are excluded — un-ignored test
-   litter from a prior cycle trips here on purpose; report it and ask the operator to
-   gitignore/clean.) This also includes intentional dirty state left by an earlier mid-commit
-   failure. Do not auto-stash. Ledger-flush turns already branched at step 4 and never reach
+   code-dirty definition** (step 4) on the **active tree** (worktree if set, else launch).
+
+   **Default when launch is code-dirty and no active improve worktree (once-mode bootstrap):**
+   do **not** stop solely because launch is dirty. Instead:
+
+   1. Resolve `improve-worktree.sh` (plugin `tools/` or `~/.claude/tools/`).  
+   2. Choose a short slug (e.g. target slug or `loop-<date>`).  
+   3. `create --repo <root> --slug <slug>` then `carry --repo <root> --slug <slug>`.  
+      Carry applies launch WIP as a bootstrap commit in the worktree and **drains launch**
+      to clean HEAD so S11b can merge later.  
+   4. Write/update `## Driver` with worktree_path, run_json, slug, `next_auto: cycle`.  
+   5. Run Phases 1–5 with **cwd / active tree = worktree** (ledger in worktree).  
+   6. Phase 5 once-mode **must** reintegrate (then destroy unless keep / open-pr) — the
+      continuous `improve` driver owns S11 only when it is driving S8.
+
+   If create/carry fails, stop and report (do not wipe launch WIP). Opt out of bootstrap
+   only with explicit `--no-worktree` / “no worktree” (then the hard dirty guard applies
+   on launch as before).
+
+   If already inside an improve worktree (or launch is clean), apply the normal dirty-tree
+   guard on that active tree only: code-dirty active tree → stop (do not fold mid-cycle
+   dirt into a new cycle). Ledger-flush turns already branched at step 4 and never reach
    this guard for a new cycle.
 
 7. Build a **prior-learnings digest** for this target from git history (git commits are the

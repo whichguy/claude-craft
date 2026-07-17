@@ -152,3 +152,10 @@ recover no longer FORCE-destroys; die_status emits resume_hint=.
 | Iter | Verdict | Finding |
 |---|---|---|
 | material | open-pr resume_hint must not peer-promote destroy --force; tip may be only copy |
+
+## Carry drains launch (B+C)
+
+After successful bootstrap commit, carry restores launch to clean HEAD and cleans
+non-ignored untracked (except `.claude/worktrees`) so S11b is not blocked by
+`launch_dirty`. improve-loop Phase 0 once-mode: dirty launch → create+carry, cycle in
+WT, Phase 5 reintegrate — not a hard dirty stop.

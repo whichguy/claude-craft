@@ -328,6 +328,24 @@ describe('claudecraft improve skill structure', function () {
     expect(p0).to.match(/improve-next-auto\.js/);
     expect(improve).to.match(/improve-next-auto\.js/);
   });
+
+  it('dirty launch bootstraps worktree carry+drain instead of hard-stop only', function () {
+    const p0 = fs.readFileSync(
+      path.join(CC, 'skills/improve-loop/references/phase-0-resume.md'),
+      'utf8'
+    );
+    expect(p0).to.match(/create \+ carry|create\+carry|create --repo/i);
+    expect(p0).to.match(/carry/i);
+    expect(p0).to.match(/drains? launch|launch.*drain|drain.*launch/i);
+    expect(p0).to.match(/active tree/i);
+    const life = fs.readFileSync(
+      path.join(CC, 'skills/improve/references/lifecycle.md'),
+      'utf8'
+    );
+    expect(life).to.match(/drain/i);
+    const script = fs.readFileSync(path.join(CC, 'tools/improve-worktree.sh'), 'utf8');
+    expect(script).to.match(/draining launch WIP|launch drained/i);
+  });
 });
 
 function walk(dir) {

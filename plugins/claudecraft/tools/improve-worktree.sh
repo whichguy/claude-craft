@@ -554,10 +554,39 @@ with tarfile.open(out,'w') as tar:
   printf 'carry: bootstrap commit on detached tip (will land on %s at reintegrate)\n' \
     "$LAUNCH_BRANCH"
 
+  # Drain launch WIP only after WT bootstrap exists so S11b can merge without launch_dirty.
+  # Never wipe launch if commit failed (path above already exited). Leave gitignored files
+  # (e.g. .env) on launch — they were not carried.
+  printf 'carry: draining launch WIP to match HEAD (tracked restore + untracked clean)\n'
+  if git_c "$launch" rev-parse --verify HEAD >/dev/null 2>&1; then
+    # Restores tracked/staged modifications; does not touch untracked or ignored.
+    if ! git_c "$launch" restore --source=HEAD --staged --worktree -- . 2>/dev/null; then
+      git_c "$launch" reset --hard HEAD >/dev/null 2>&1 || true
+      git_c "$launch" checkout -- . >/dev/null 2>&1 || true
+    fi
+  fi
+  # Remove non-ignored untracked files/dirs except improve worktree parent.
+  # -e patterns are pathspecs relative to launch; keep .claude/worktrees intact.
+  git_c "$launch" clean -fd \
+    -e '.claude/worktrees' \
+    -e '.claude/worktrees/**' \
+    -e '.git/improve-runs' \
+    -e '.git/improve-runs/**' \
+    >/dev/null 2>&1 || true
+
+  if [[ -n "$(git_c "$launch" status --porcelain --untracked-files=normal 2>/dev/null | grep -v '^[?][?] \.claude/worktrees' || true)" ]]; then
+    # Ignore residual ?? .claude/worktrees if any listing quirks
+    local residual
+    residual="$(git_c "$launch" status --porcelain --untracked-files=normal 2>/dev/null | grep -v '\.claude/worktrees' || true)"
+    if [[ -n "$residual" ]]; then
+      printf 'carry: warning: launch still shows residual porcelain after drain:\n%s\n' "$residual"
+    fi
+  fi
+
   json_merge "$RUN_JSON" '{"state":"bootstrapped"}'
   STATE=bootstrapped
   sync_index
-  ok_status carry carry cycle "WIP carried into worktree"
+  ok_status carry carry cycle "WIP carried into worktree; launch drained"
 }
 
 cmd_status() {

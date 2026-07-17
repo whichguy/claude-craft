@@ -97,8 +97,11 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
 
 1. `create` adds a **detached-HEAD worktree** at the launch tip (git cannot check out the same
    branch in two places). **No permanent `improve/*` branch** is created.  
-2. Cycles commit on the detached tip only.  
-3. **S11 reintegrate:**  
+2. **`carry`** (when launch dirty): apply tracked patch + non-ignored untracked into the
+   worktree, bootstrap-commit, then **drain launch** to clean HEAD so S11b is not blocked by
+   `launch_dirty`. Never drain launch if the bootstrap commit failed.  
+3. Cycles commit on the detached tip only.  
+4. **S11 reintegrate:**  
    - **S11a** — `git rebase <source-tip>` in the worktree so concurrent source changes are
      absorbed and conflicts are organized **in the worktree** (leave mid-rebase + exit 5;
      operator `rebase --continue` then re-run reintegrate). Dirty worktree → exit 6.  
@@ -108,11 +111,14 @@ Exit codes: 0 ok (incl. already-complete/destroyed) · 5 conflict · 6 reintegra
      `--merge-to-launch` runs **S11b only** when the tip already includes the
      current launch tip; otherwise **re-runs S11a** (launch may have advanced)
      then S11b so conflicts stay in the worktree.  
-4. **S12 destroy** removes the worktree only; refuses without `--force` whenever the worktree
+5. **S12 destroy** removes the worktree only; refuses without `--force` whenever the worktree
      tip is not on launch (including **before** reintegrate — detached commits are the only copy).  
 
 Opt out of S11b with `--no-merge-to-launch` / “no merge” / “open a PR”. Opt out of worktree with
 `--no-worktree`. Never rebase the source branch onto the worktree.
+
+**Invariant:** successful `carry` empties transferable launch WIP into the worktree; launch is
+clean afterward (gitignored files may remain).
 
 Quality-review bank (invariants + dual-path matrix): [`worktree-lifecycle-learnings.md`](worktree-lifecycle-learnings.md).
 

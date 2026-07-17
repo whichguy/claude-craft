@@ -30,7 +30,7 @@ before applying its rules.
 | Automation | Most appropriate safe path by default; **stop only when blocked**; resume from **disk** |
 | Resume | Phase 0 rehydration: chat untrusted; read header + `## Driver` + last Log entries |
 | Progress | Pulse each cycle → `references/contracts/progress.md`; prefer `../../tools/improve-progress-format.js` |
-| Lifecycle | Worktree default (detached); once-mode auto S11a/S11b then destroy (or `blocked:open-pr` if no-merge / tip unmerged); never force-destroy dirty tips |
+| Lifecycle | Worktree default: dirty launch → create+carry (drain launch), cycle in WT, once-mode reintegrate; never force-destroy dirty tips |
 | Kernel | Host-agnostic; Claude slash names are plugin packaging only |
 
 ## Invocation

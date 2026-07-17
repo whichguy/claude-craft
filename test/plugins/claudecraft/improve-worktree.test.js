@@ -156,6 +156,38 @@ describe('improve-worktree.sh', function () {
     const log = git(wt, 'log', '-1', '--pretty=%s');
     expect(log).to.equal('improve-loop: bootstrap — carry WIP from launch');
     expect(git(wt, 'status', '--porcelain')).to.equal('');
+    // Launch drained: tracked+untracked WIP gone; gitignored .env may remain
+    const launchPorc = git(repo, 'status', '--porcelain');
+    expect(launchPorc).to.not.match(/README\.md|new-file\.txt/);
+    expect(launchPorc.replace(/\?\? \.claude\/worktrees[^\n]*\n?/g, '').trim()).to.equal(
+      ''
+    );
+    // Carried content still only on WT until reintegrate
+    expect(fs.readFileSync(path.join(repo, 'README.md'), 'utf8')).to.not.match(/changed/);
+    expect(fs.existsSync(path.join(repo, 'new-file.txt'))).to.equal(false);
+    expect(fs.existsSync(path.join(repo, '.env'))).to.equal(true);
+  });
+
+  it('carry then reintegrate lands bootstrap on launch without launch_dirty', function () {
+    const repo = makeRepo();
+    expect(runScript(['create', '--repo', repo, '--slug', 'c2']).status).to.equal(0);
+    fs.writeFileSync(path.join(repo, 'README.md'), '# demo\ncarried\n');
+    fs.writeFileSync(path.join(repo, 'extra.txt'), 'x\n');
+    expect(runScript(['carry', '--repo', repo, '--slug', 'c2']).status).to.equal(0);
+    expect(git(repo, 'status', '--porcelain').replace(/\?\? \.claude\/worktrees[^\n]*\n?/g, '').trim()).to.equal(
+      ''
+    );
+    const wt = path.join(repo, '.claude/worktrees/improve-c2');
+    fs.writeFileSync(path.join(wt, 'cycle.txt'), 'from cycle\n');
+    git(wt, 'add', 'cycle.txt');
+    git(wt, 'commit', '-m', 'improve-loop: iteration 1 — cycle work');
+    const r = runScript(['reintegrate', '--repo', repo, '--slug', 'c2']);
+    expect(r.status, r.stderr + r.stdout).to.equal(0);
+    expect(fs.readFileSync(path.join(repo, 'README.md'), 'utf8')).to.match(/carried/);
+    expect(fs.existsSync(path.join(repo, 'extra.txt'))).to.equal(true);
+    expect(fs.existsSync(path.join(repo, 'cycle.txt'))).to.equal(true);
+    const subjects = git(repo, 'log', '--oneline', '-5');
+    expect(subjects).to.match(/bootstrap — carry WIP|iteration 1/);
   });
 
   it('create excludes .claude/worktrees so clean carry reports launch was clean', function () {
