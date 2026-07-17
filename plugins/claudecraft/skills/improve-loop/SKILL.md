@@ -70,14 +70,24 @@ does **not** depend on host re-drive. On stop/veto: report; do not false-complet
 
 After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
 
-1. **Mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single cycle”
+1. **Capture home cwd:** `ORIGINAL_CWD` = absolute path of the host shell CWD at entry
+   (`/bin/pwd -P` or equivalent). This is often a **different** repo than the target (e.g.
+   Grok Build opened in `c-thru` while improving `backchain`). Never assume session cwd is
+   `TARGET_REPO`.
+2. **Enter destination repo (durable sticky):** once `TARGET_REPO` is known and exists,
+   outer sticky CWD **must** become the target checkout root for the whole campaign:
+   `cd "$TARGET_REPO"` (or `LAUNCH` once known — same durable tree). Prefer running shell
+   work **from that repo** so relative paths (`make test`, `git status`, fixture paths) are
+   not ambiguous with the Grok session repo. Still use absolute `SKILL_DIR` / `--repo` /
+   `git -C` when the path is not under the current sticky root.
+3. **Mode:** `autonomous` (default) unless the invocation has `--once` / `once` / “single cycle”
    / “one cycle only” → then `once`.
-2. **Caps:** `MAX_CYCLES` = env `IMPROVE_LOOP_MAX_CYCLES` if a positive integer, else **8**.
+4. **Caps:** `MAX_CYCLES` = env `IMPROVE_LOOP_MAX_CYCLES` if a positive integer, else **8**.
    Also honor ledger stop counters (no-progress ×3, same-error ×3 → Status stopped inside L2).
-3. **Optional host goal:** if a compatible improve `/goal` is already Active, or `update_goal`
+5. **Optional host goal:** if a compatible improve `/goal` is already Active, or `update_goal`
    works, best-effort progress/complete signaling. **Do not wait** for host re-drive. Do not
    require opening `/goal` to multi-cycle.
-4. **Driver loop:**
+6. **Driver loop:**
    - `cycle_count = 0`
    - **loop:**
      - If `cycle_count >= MAX_CYCLES` → exit with Result `capped (max-cycles)`; do not start
@@ -91,35 +101,61 @@ After resolving `TARGET` / `TARGET_REPO` / test command (see Invocation):
      - If `once` mode → **exit loop** after this cycle (even if Status still `active`).
      - If Status still `active` and mode is **autonomous** → **immediately run another L2
        cycle** — **DO NOT stop for the user**, do not ask “continue?”, do not end the turn.
-5. **When the loop exits:** emit the **Campaign report** once (see Status reporting). Optional
+7. **When the loop exits:** emit the **Campaign report** once (see Status reporting). Optional
    `update_goal(completed: true)` only if terminal+landed and a goal is Active (ignore tool
-   errors if goal was never Active).
+   errors if goal was never Active). **Then restore home:** outer
+   `cd "$ORIGINAL_CWD"` when that path still exists; else leave sticky on
+   `TARGET_REPO`/`LAUNCH` and note the failed restore in the report. Never leave sticky CWD
+   under a deleted `.worktrees/*`.
 
 Never emit ralph promise tags. Never bare-`cd` the host into `.worktrees/*`.
 
 ## Shell CWD discipline (mandatory)
 
 Grok local sessions (≥0.2.102) **keep the current directory across** `run_terminal_command`
-calls. A sticky CWD under a later-deleted `.worktrees/<slug>` makes **every** later spawn
-fail with bare ENOENT while file tools still work. All Phase 0–5 shell strings follow this
-priority:
+calls. Two hazards:
 
-1. **No `cd`:** absolute paths + `git -C` / `make -C` / script flags (`--repo`, `--workspace`).
-2. **Temporary dir only:** subshell — `(cd "$WORKSPACE" && <cmd>)` — never bare
-   `cd "$WORKSPACE" && <cmd>` as the outer command (that sticks the session in the worktree).
-3. **Multi-step in one disposable dir:** `(cd "$WORKSPACE" && step1 && step2)`.
-4. **After merge-back / worktree remove:** outer `cd` only to a **durable** path (`LAUNCH` /
-   `TARGET_REPO` / `merge-back` JSON `suggested_cwd`). That is the one intentional sticky update.
-5. **Spawn ENOENT before any output:** hard-stop `shell unavailable` (see Preconditions); do
-   not thrash. Operator: quit Grok, `cd` to an existing repo, restart, `/bin/pwd` probe.
+1. **Wrong-repo stickiness:** session opens in repo A (Grok Build cwd) while `/improve`
+   targets skill/repo B elsewhere — relative `make`/`git`/`test` silently hit A.
+2. **Dead worktree stickiness:** sticky CWD under a later-deleted `.worktrees/<slug>` → bare
+   ENOENT on every spawn while file tools still work.
 
-**Disallowed as the last successful outer-shell action:** landing sticky CWD under
-`.worktrees/*` (or any path that merge-back may delete).
+### Pin destination, not session cwd
 
-**pushd/popd:** non-preferred (easy to skip `popd` under `set -e`). If used, always
-`status=$?; popd; exit $status`. Prefer subshells.
+| Path | Role | Outer sticky CWD? |
+|---|---|---|
+| `ORIGINAL_CWD` | Where Grok was when `/improve` started (save at L1 entry) | Only **after** campaign exit (homecoming) |
+| `TARGET_REPO` / `LAUNCH` | Destination git root for the improve target | **Yes — for the whole campaign** after resolve |
+| `WORKSPACE` | Disposable campaign worktree under `LAUNCH/.worktrees/` | **Never** as outer sticky |
+| `SKILL_DIR` | improve-loop package (may be under `~/.claude/skills/…`) | Never required as sticky; always absolute |
 
-**Subshells cannot heal an already-dead sticky CWD** — only session restart from a real path.
+**Mandatory order:**
+
+1. Save `ORIGINAL_CWD` (absolute, preferably physical/`pwd -P`).
+2. Resolve `TARGET_REPO` (Invocation). If it differs from session cwd, treat that as expected —
+   **do not** run campaign ops from the Grok Build repo by accident.
+3. Outer sticky: `cd "$TARGET_REPO"` (or `LAUNCH` once known). Mid-campaign host sticky stays
+   on that durable root.
+4. Worktree ops: **subshell only** — `(cd "$WORKSPACE" && …)` or `git -C "$WORKSPACE"` /
+   `make -C "$WORKSPACE"`. Never bare outer `cd "$WORKSPACE"`.
+5. After merge-back / teardown: sticky on `suggested_cwd`/`LAUNCH`/`TARGET_REPO` briefly if
+   needed, then **homecoming** `cd "$ORIGINAL_CWD"` when L1 exits (path must still exist).
+6. Spawn ENOENT before any output → hard-stop `shell unavailable`; operator restarts Grok from
+   a real path.
+
+### Command priority (during campaign, sticky already on TARGET_REPO/LAUNCH)
+
+1. Prefer commands that are correct **from the destination root** (relative product paths).
+2. Still use absolute paths for anything outside that root (`SKILL_DIR`, other repos).
+3. Always `git -C "$WORKSPACE"` / `git -C "$LAUNCH"` when both trees matter.
+4. Temporary WORKSPACE only via subshell `(cd "$WORKSPACE" && …)`.
+
+**Disallowed:** outer sticky under `.worktrees/*`; leaving sticky on TARGET after exit without
+attempting restore to `ORIGINAL_CWD`; assuming relative paths refer to the Grok session repo
+when `TARGET_REPO` is different.
+
+**pushd/popd:** non-preferred. Prefer explicit `ORIGINAL_CWD` + outer `cd` for durable moves,
+subshells for WORKSPACE. **Subshells cannot heal an already-dead sticky CWD.**
 
 ## Status reporting (user-facing — mandatory)
 
@@ -179,6 +215,8 @@ Reason codes (use these strings when they apply): `shell unavailable`,
 | **Backlog open** | <count> · next: <short item or _(empty)_> |
 | **Driver** | autonomous \| once |
 | **Max cycles** | <MAX_CYCLES> |
+| **Session cwd (home)** | `<ORIGINAL_CWD>` |
+| **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE, not Grok session if different) |
 | **Outer goal** | yes \| no (optional) |
 ```
 
@@ -242,6 +280,7 @@ block/cap). Do not omit.
 | **Stop counters (last)** | no-progress=<i> · same-error=<j> |
 | **Backlog at end** | open <k> · … |
 | **Test command** | `<cmd>` · last `PASS\|FAIL\|n/a` |
+| **CWD homecoming** | restored `<ORIGINAL_CWD>` \| left on `<TARGET_REPO>` (home missing) \| n/a |
 | **Next** | done \| <operator action> |
 ```
 
@@ -284,13 +323,18 @@ land (ledger-only), Phase 5. Prefer seeding the command in the goal objective or
 repo root** before Phase 0 step 1a when any of these apply:
 1. The invocation names an absolute path under a git checkout.
 2. The target names a skill or project with a known path (e.g. `backchain skill` →
-   `$HOME/src/backchain` or the path from install docs / user context).
+   `$HOME/src/backchain` or the path from install docs / user context) — often **outside**
+   the Grok Build session cwd.
 3. The goal objective names a repo path.
 Otherwise default to `git rev-parse --show-toplevel` from the current tool cwd.
 All of COMMON_GIT / LAUNCH / INVOKE_ROOT / POINTER / worktree creation use that **target
 repo root**, not an unrelated session workspace. If resolution is ambiguous, **interactive:**
 ask once; **unattended:** `Status: stopped (ambiguous target repo)`, ledger-only if a WORKSPACE
 already exists, else report only.
+
+**Session vs destination conflict:** when `ORIGINAL_CWD` and `TARGET_REPO` differ, the
+campaign sticky CWD and product-relative commands must use **TARGET_REPO**, not the Grok
+Build tree. L1 still returns to `ORIGINAL_CWD` at exit.
 
 **Test command for skill/doc-only targets.** When the change set is a skill or markdown
 contract (no product suite), the recorded command may be a **structural smoke** the repo
@@ -329,13 +373,12 @@ Fail fast in Phase 0. Do not half-run a cycle.
   ledger; without git there is no Phase 4. `git worktree` must work (refuse if
   `git worktree list` fails).
 - **Paths** (resolved in Phase 0 step 1a):
+  - `ORIGINAL_CWD` — host sticky path at `/improve` entry (L1); restored on L1 exit.
+  - `TARGET_REPO` / `LAUNCH` — destination checkout; **outer sticky CWD for the campaign**
+    (may differ from Grok Build session). Prefer product-relative commands from here.
   - `WORKSPACE` — the **single** campaign worktree (`$LAUNCH/.worktrees/<slug>`). **This is
-    where the entire `/improve` campaign runs** (ledger, code, tests, commits). After resolve,
-    use absolute `WORKSPACE` + `git -C` / tool `cwd` / **subshells** (see Shell CWD discipline)
-    — do not bare-`cd` the outer session into WORKSPACE for the rest of the turn.
-  - `LAUNCH` — primary worktree (`dirname` of absolute `--git-common-dir`). Used **only** for
-    cold-start `worktree add` and **end-of-campaign** FF merge-back — not for mid-campaign
-    edits.
+    where the entire `/improve` campaign tree lives** (ledger, code, tests, commits). Access
+    via absolute paths + `git -C` / **subshells** only — never outer sticky into WORKSPACE.
   - `POINTER` — `$COMMON_GIT/improve-loop/active.json` where
     `COMMON_GIT=$(git rev-parse --path-format=absolute --git-common-dir)`. Ensures resume
     re-enters the **same** WORKSPACE (never a second worktree).
@@ -457,10 +500,12 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 
    **1a. Enter the one campaign worktree (before any ledger or dirty check) — via L3 scripts.**
 
-   First resolve **target repo root** (Invocation: Target repository). Then run (from any cwd):
+   First resolve **target repo root** (Invocation: Target repository). If L1 has not yet
+   sticky-cd'd there, do so now (`cd "$TARGET_REPO"`) so later relative product commands
+   are not relative to the Grok Build session repo. Then run L3 with absolute paths:
 
    ```bash
-   SKILL_DIR="$(dirname path/to/this/SKILL.md)"   # skill package root
+   SKILL_DIR="$(dirname path/to/this/SKILL.md)"   # skill package root (absolute)
    bash "$SKILL_DIR/scripts/shell-probe.sh" --repo "$TARGET_REPO"
    # on non-zero or spawn failure → STOP blocked (shell unavailable)
 
@@ -484,6 +529,7 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    campaign_branch  = json.campaign_branch
    launch_branch    = json.launch_branch
    mode             = json.mode   # resume | cold-start | migrate | discard-cold-start | merge-back-only
+   suggested_cwd    = json.suggested_cwd   # durable LAUNCH — not WORKSPACE
    ```
 
    Exit-code map (worktree-enter): `3` lock busy → stop; `4` launch code-dirty → stop
@@ -503,13 +549,14 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
    node "$SKILL_DIR/scripts/ledger-status.js" --workspace "$WORKSPACE"
    ```
 
-   **After WORKSPACE is set:** keep the **host sticky CWD on a durable path** (LAUNCH /
-   TARGET_REPO). Do **not** bare-`cd` the outer session into WORKSPACE for the rest of the turn.
-   - Git and scripts: always `git -C "$WORKSPACE"` / `git -C "$LAUNCH"` / absolute script paths.
-   - Commands that require process CWD (test suite): **subshell**
-     `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` or `make -C "$WORKSPACE" …` when applicable.
-   - Subagents: pass absolute WORKSPACE as tool `cwd` / paths; same no-sticky-in-worktree rule.
-   - See **Shell CWD discipline**.
+   **After WORKSPACE is set:** outer sticky CWD stays on **LAUNCH / TARGET_REPO** (destination
+   repo). Do **not** bare-`cd` into WORKSPACE; do **not** leave sticky on the original Grok
+   session repo if it differs.
+   - Prefer product commands **from TARGET_REPO/LAUNCH** sticky root (reduces relative-path risk).
+   - Campaign tree: `git -C "$WORKSPACE"` / `(cd "$WORKSPACE" && eval "$TEST_COMMAND")` /
+     `make -C "$WORKSPACE" …`.
+   - Subagents: absolute WORKSPACE as tool `cwd` / paths; same no-sticky-in-worktree rule.
+   - See **Shell CWD discipline** (pin destination, homecoming on L1 exit).
 
 
 2. If `$WORKSPACE/IMPROVE_LOOP.md` is absent, **do not assume a brand-new campaign**. First
@@ -1244,24 +1291,25 @@ Phase 0 ran. **Reporting:**
 
   ```bash
   node "$SKILL_DIR/scripts/merge-back.js" --repo "$TARGET_REPO"
-  # Intentional outer cd (durable sticky CWD) — use suggested_cwd from JSON when present
+  # After teardown: durable sticky (not deleted worktree), then L1 will homecoming
   cd "${SUGGESTED_CWD:-$LAUNCH}" 2>/dev/null || cd "$TARGET_REPO" 2>/dev/null || true
   ```
 
   Parse JSON: `merge_back` is `ok` | `blocked` | `skipped_detached` | `teardown_partial`;
-  `suggested_cwd` is the durable path (LAUNCH) to set as host sticky CWD. On blocked/skipped,
-  leave WORKSPACE; print the FF command from notes/error. Land is durable even if merge-back
-  fails. Prefer the script over freehand FF so teardown order (FF → remove worktree → delete
-  branch → delete pointer) stays correct. **Always** set outer sticky CWD to `suggested_cwd` /
-  LAUNCH after teardown (see **Shell CWD discipline**).
+  `suggested_cwd` is the durable path (LAUNCH). On blocked/skipped, leave WORKSPACE; print
+  the FF command from notes/error. Land is durable even if merge-back fails. Prefer the
+  script over freehand FF so teardown order (FF → remove worktree → delete branch → delete
+  pointer) stays correct. **Never** leave sticky under a removed `.worktrees/*`.
 
 - **Merge-back-only** (`reintegrate_blocked` or re-invoke after land with no ledger): no
   Phases 1–4; run `merge-back.js` on the same pointer. Success clears pointer.
 
 - **Active + autonomous:** do **not** end the user turn waiting for re-invoke; L1 driver
-  starts the next L2 cycle immediately (under `MAX_CYCLES`).
-- **Active + `--once`:** end after Closing card; operator may re-invoke without `--once` to
-  continue the same campaign (pointer resume).
+  starts the next L2 cycle immediately (under `MAX_CYCLES`); sticky stays on TARGET_REPO/LAUNCH.
+- **Active + `--once`:** end after Closing card; L1 homecoming to `ORIGINAL_CWD`; operator
+  may re-invoke without `--once` to continue (pointer resume).
+- **L1 exit (all modes):** after Campaign report (or once Closing card), restore
+  `cd "$ORIGINAL_CWD"` when it still exists (see Shell CWD homecoming).
 
 ## Multi-cycle: L1 campaign driver (not host re-drive)
 
