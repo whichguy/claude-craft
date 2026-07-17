@@ -49,11 +49,11 @@ campaign edits live in **one ephemeral worktree** on `improve/<slug>` under
 `LAUNCH/.worktrees/`. Launch is read-only mid-run. Merge-back once at end (terminal land).
 
 **Self-contained cycles (product default):** Each L2 cycle is self-contained. **Git commit
-bodies are the durable ledger** (Thesis/Outcome/Notes/Next backlog). There is **no
-cross-invoke resume** by default: entry **discards stale** pointer/worktree, then cold-starts.
-In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash recovery:
-`--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md` during a
-run for advisors — never the recovery surface.
+bodies are the durable ledger** (Thesis/Outcome/Notes/`Next backlog`/`Next deferred`). There
+is **no cross-invoke resume** by default: entry **discards stale** pointer/worktree, then
+cold-starts. In-session multi-cycle reuses the **same invoke’s** worktree only. Opt-in crash
+recovery: `--resume` on `worktree-enter` / invocation. Optional ephemeral `IMPROVE_LOOP.md`
+during a run for advisors — never the recovery surface.
 
 **Package paths** (resolve relative to this skill directory):
 
@@ -347,6 +347,7 @@ operator knows what success looks like before any cycle runs.
 | **Pointer** | `<POINTER>` · state `active\|reintegrate_blocked` |
 | **Test command** | `<cmd>` |
 | **Seed backlog** | open P0/P1 count · next: <short item or _(empty)_> |
+| **Deferred carried** | open P2 count from digest/seed · _(none)_ if empty |
 | **Session cwd (home)** | `<ORIGINAL_CWD>` |
 | **Sticky during campaign** | `<TARGET_REPO>` / `<LAUNCH>` (not WORKSPACE; not Grok session if different) |
 | **Outer host goal** | yes \| no (optional observability only) |
@@ -414,7 +415,7 @@ Also emit a **one-line progress line** (and best-effort `update_goal(message: �
 goal is Active) so logs stay greppable:
 
 ```text
-improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m> · commit <short-sha|none> · <continuing|done>
+improve cycle K/MAX · iter N · <active|complete|stopped|blocked> · open P0/P1 <k> · non-material=<m> · deferred=<n> · commit <short-sha|none> · <continuing|done>
 ```
 
 Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed, goal Active).
@@ -423,9 +424,9 @@ Only L1/Phase 5 may call `update_goal(completed: true, …)` (terminal + landed,
 
 In **`--once`** mode the cycle discovery card **is** the end-of-invoke cycle artifact
 (title may use `### ✅ Improve · cycle result` as an alias, but must still include
-**Campaign goal (reminder)**, **Discovered this cycle**, **Backlog delta**, and cycle
-`K/MAX` when known). In **autonomous** mode, do **not** skip discovery cards — emit one
-per cycle; the full end artifact is still the **Campaign report**.
+**Campaign goal (reminder)**, **Discovered this cycle**, **Backlog delta**,
+**Deferred (P2)**, and cycle `K/MAX` when known). In **autonomous** mode, do **not** skip
+discovery cards — emit one per cycle; the full end artifact is still the **Campaign report**.
 
 ### Campaign report (mandatory when L1 driver exits)
 
@@ -640,7 +641,8 @@ git -C "$WORKSPACE" log --grep="improve-loop: iteration" -n 15 --format="%H%n%s%
   `/improve` (default) and cleared on exit.
 - `IMPROVE_LOOP.md` — **optional ephemeral** file during a run (advisors / local notes). May
   be committed mid-campaign or terminal-archived, but **must not** be required to resume a
-  later invoke. Prefer deriving backlog from the latest commit’s `Next backlog:` block.
+  later invoke. Prefer deriving backlog from the latest commit’s `Next backlog:` block and
+  deferred from `Next deferred:` (or archived `## Deferred (P2)`).
 
 **Default entry:** `worktree-enter` **discards stale** isolation then **cold-starts**.  
 **Opt-in:** `--resume` only when the operator explicitly wants crash recovery of a live pointer.
@@ -789,19 +791,22 @@ and Log cannot drift. `N` comes only from Log headings — never from host turn 
 
 
 2. If this is a **new cold-start / discard-stale-cold-start** (default): seed an ephemeral
-   backlog from the **git digest** (step 7) + target, even when main tip is an old
-   `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
+   backlog **and Deferred** from the **git digest** (step 7) + target, even when main tip is
+   an old `improve-loop: … complete` archive. **Do not** refuse reseed because of historical
    terminal archives — those are prior campaigns' learnings, not this run's resume file.
-   Optionally write ephemeral `$WORKSPACE/IMPROVE_LOOP.md` for advisors; or keep backlog
-   in-memory and encode `Next backlog:` in the cycle commit body. Seed **1–3 P0/P1-tagged**
-   items (see [P0/P1 residual discipline](#p0p1-residual-discipline-default)); never enter
-   Phase 1 with zero open P0/P1 on cold-start. Init `consecutive-non-material-cycles: 0`
-   (or recover from latest commit body if present). Set `N = 1`. Skip 3a–4; go to step 5.
+   Optionally write ephemeral `$WORKSPACE/IMPROVE_LOOP.md` for advisors; or keep state
+   in-memory and encode `Next backlog:` + `Next deferred:` in the cycle commit body. Seed
+   **1–3 P0/P1-tagged** items (see residual discipline); **also seed `## Deferred (P2)`** from
+   the digest’s union of prior `Next deferred:` / archived Deferred (dedupe, cap 8–12;
+   empty OK — see Seed). Never enter Phase 1 with zero open P0/P1 on cold-start (Deferred
+   alone does not satisfy that). Init `consecutive-non-material-cycles: 0` (or recover from
+   latest commit body if present). Set `N = 1`. Skip 3a–4; go to step 5.
 
    If mode is **`--resume`** and ledger is absent after terminal land on **this** worktree:
    merge-back-only / stop (true same-campaign recovery).
 
-3. Otherwise read the Backlog, Stop-condition block, and last two or three Log entries.
+3. Otherwise read the Backlog, **Deferred (P2)** (create empty section if missing),
+   Stop-condition block, and last two or three Log entries.
    If the Log has zero entries, the file was created by an earlier invocation that crashed
    before Phase 1 produced a Log entry. This is not the same-turn fresh-create case, but
    needs identical treatment: skip 3a–4 and go to step 5 with `N = 1`. There is no latest
@@ -1103,8 +1108,8 @@ fuzzy “same-ish” judgment.
 Run this phase on every full cycle that reaches Phase 3, including empty-backlog
 lightweight cycles. Ledger-flush turns skip Phases 1–3. The panel is deliberately
 multi-model and more expensive every cycle: independent review, native consolidation,
-cross-exposure/rebuttal when needed, final consolidation, then a surgical Backlog update.
-It prevents an unattended loop from drifting silently.
+cross-exposure/rebuttal when needed, final consolidation, then a surgical **Backlog +
+Deferred (P2)** update. It prevents an unattended loop from drifting silently.
 
 #### Advisor configuration and non-edit authority
 
@@ -1120,8 +1125,9 @@ with the listed `subagent_type`, and let the Agent tool provide concurrency and 
 not hand-roll background jobs. Thin forwarders return review text as the agent result. They
 have full access to WORKSPACE and should see uncommitted diffs and the full `IMPROVE_LOOP.md`
 Log (this cycle's Phase 2 entry included). Scope: (a) advisors never edit, (b) consolidation
-keeps new Backlog items scoped to the stated target (out-of-scope observations go in Log
-Notes). The list may grow or shrink; the mechanism is unchanged.
+keeps new Backlog items scoped to the stated target; (c) “consider later” / non-material
+follow-ups go in **Deferred (P2)** (preferred); out-of-scope one-offs may stay in Log Notes.
+The list may grow or shrink; the mechanism is unchanged.
 
 **Read-only dispatch.** In every advisor prompt, ask for read-only behavior in plain
 language: `This is a read-only advisory review. Do not make any edits or run any write
@@ -1247,6 +1253,17 @@ Apply surgically and natively: replace only the `## Backlog` body through the ne
 heading, and only the `## Deferred (P2)` body through the next `## ` heading (create the
 Deferred heading if missing). Never ask an advisor or fallback replanner to rewrite the
 whole file; that can clobber deterministic counters and the append-only Log.
+
+**P2-in-Backlog strip (native, before surgical apply).** If any *unchecked* candidate Backlog
+line contains `P2:`, move it into the Deferred body (or drop with rationale) and append Notes
+`P2 line removed from Backlog → Deferred`. Residual and Phase 1 only see P0/P1 in Backlog.
+
+**Deferred replan failure (native, parallel to Backlog).** If the Deferred body is missing,
+unparseable, or would wipe a formerly non-empty open-P2 list without explicit drop/complete
+rationale: **keep prior Deferred**, append
+`deferred replan unusable; Deferred unchanged` to Notes, and still apply a valid Backlog
+(or keep prior Backlog under its own rule). Deferred failure **must not** reset residual
+streak, invent P0/P1, or block Status complete.
 
 **Disproven-thesis guard (native, before the surgical apply).** Before applying the
 candidate Backlog, the orchestrator — the LLM context running this phase, not a subagent —
@@ -1476,9 +1493,10 @@ below). No second clear commit.
   still records the Advisor consolidation field like any normal cycle; its summary line may
   prefix `empty-backlog replan → complete|reopened` but must still carry the panel
   consolidation and a one-line rationale. Even a ledger-flush short-form body must carry a
-  one-line rationale so the learning is still reviewable. A terminal empty-backlog or
-  ledger-flush that sets Status terminal still must include the full-ledger archive block
-  and remove the file.
+  one-line rationale **and** must still emit **`Next deferred:`** copied from on-disk
+  `## Deferred (P2)` (or `Next deferred: (none)` if absent/empty) — never drop deferred on
+  flush. A terminal empty-backlog or ledger-flush that sets Status terminal still must
+  include the full-ledger archive block and remove the file.
 
 - If `git commit` fails or is interrupted—hook rejection, lock contention, an empty commit,
   or otherwise—do not treat the cycle as successful. **Restore first if a terminal `git rm`
@@ -1512,7 +1530,8 @@ best-effort; never merge mid-campaign. Phase banners + kickoff card earlier are 
 Phase 0 ran. **Reporting (illustrative — see Status reporting):**
 
 - **Every L2 cycle (both modes):** emit a **Cycle discovery card** (goal reminder, thesis,
-  outcome, **Discovered this cycle**, backlog delta) plus the greppable progress line.
+  outcome, **Discovered this cycle**, backlog delta, **Deferred (P2)**) plus the greppable
+  progress line (include `deferred=<n>`).
 - **Autonomous mode:** after active cycles, L1 continues; full **Campaign report** (goal +
   cycles-at-a-glance + summary) when L1 exits.
 - **`--once` mode:** discovery/closing card at end of the single cycle; still emit

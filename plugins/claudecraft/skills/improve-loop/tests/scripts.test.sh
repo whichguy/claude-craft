@@ -99,12 +99,17 @@ cat >"$WS/IMPROVE_LOOP.md" <<'EOF'
 - **worktree_path:** y
 
 ## Backlog
-- [ ] do a thing — why
-- [x] done thing — done 2026-07-17
+- [ ] P1: do a thing — why
+- [x] P1: done thing — done 2026-07-17
+
+## Deferred (P2)
+- [ ] P2: later polish — not material this campaign
+- [x] P2: dropped idea — done 2026-07-17 — obsolete
 
 ## Stop-condition tracking
 - consecutive-no-progress: 0
 - consecutive-same-error: 0 (signature: none)
+- consecutive-non-material-cycles: 0
 
 ## Log
 ### Iteration 1 — 2026-07-17
@@ -119,6 +124,8 @@ EOF
 node "$SCRIPTS/ledger-status.js" --workspace "$WS" >"$LS"
 assert "status active" grep -q '"status": "active"' "$LS"
 assert "open backlog 1" grep -q '"open_backlog": 1' "$LS"
+assert "open deferred 1" grep -q '"open_deferred": 1' "$LS"
+assert "checked deferred 1" grep -q '"checked_deferred": 1' "$LS"
 assert "log iterations 1" grep -q '"log_iterations": 1' "$LS"
 assert "not landed pending" grep -q '"landed": false' "$LS"
 

@@ -51,6 +51,8 @@ const result = {
   log_iterations: 0,
   open_backlog: 0,
   checked_backlog: 0,
+  open_deferred: 0,
+  checked_deferred: 0,
   latest_n: null,
   latest_committed: null,
   latest_outcome: null,
@@ -99,12 +101,20 @@ if (se) result.consecutive_same_error = Number(se[1]);
 const sig = text.match(/consecutive-same-error:\s*\d+\s*\(signature:\s*([^)]+)\)/);
 if (sig) result.error_signature = sig[1].trim();
 
-// backlog
+// backlog (section body only — Deferred is a separate ## heading)
 const backlogSection = text.split(/^## Backlog\s*$/m)[1] || '';
 const backlogBody = backlogSection.split(/^## /m)[0] || backlogSection;
 for (const line of backlogBody.split('\n')) {
   if (/^- \[[ ]\] /.test(line)) result.open_backlog += 1;
   if (/^- \[[xX]\] /.test(line)) result.checked_backlog += 1;
+}
+
+// deferred (P2) — not material; do not fold into open_backlog
+const deferredSection = text.split(/^## Deferred(?: \(P2\))?\s*$/m)[1] || '';
+const deferredBody = deferredSection.split(/^## /m)[0] || deferredSection;
+for (const line of deferredBody.split('\n')) {
+  if (/^- \[[ ]\] /.test(line)) result.open_deferred += 1;
+  if (/^- \[[xX]\] /.test(line)) result.checked_deferred += 1;
 }
 
 // log iterations
